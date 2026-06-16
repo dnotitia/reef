@@ -10,6 +10,9 @@ const tracer = trace.getTracer("@reef/core");
 export interface GitHubAdapter {
   rest: Octokit;
   graphql: typeof graphql;
+  listAuthenticatedRepositories: (
+    params?: ListAuthenticatedRepositoriesParams,
+  ) => Promise<ListAuthenticatedRepositoriesResult>;
 }
 
 export interface CreateGitHubAdapterParams {
@@ -53,7 +56,101 @@ export function createGitHubAdapter({
       authorization: `token ${token}`,
     },
   });
-  return { rest, graphql: boundGraphql };
+  return {
+    rest,
+    graphql: boundGraphql,
+    listAuthenticatedRepositories: (params) =>
+      listAuthenticatedRepositories({ rest, ...params }),
+  };
+}
+
+// ─── listAuthenticatedRepositories ───────────────────────────────────────────
+
+export interface GitHubAuthenticatedRepository {
+  full_name: string;
+  id: number;
+}
+
+export interface ListAuthenticatedRepositoriesParams {
+  ifNoneMatch?: string | null;
+}
+
+export type ListAuthenticatedRepositoriesResult =
+  | {
+      kind: "ok";
+      repos: GitHubAuthenticatedRepository[];
+      etag: string | null;
+    }
+  | {
+      kind: "not_modified";
+      etag: string | null;
+    };
+
+interface ListAuthenticatedRepositoriesInternalParams
+  extends ListAuthenticatedRepositoriesParams {
+  rest: Octokit;
+}
+
+async function listAuthenticatedRepositories({
+  rest,
+  ifNoneMatch,
+}: ListAuthenticatedRepositoriesInternalParams): Promise<ListAuthenticatedRepositoriesResult> {
+  return tracer.startActiveSpan(
+    "github.list_authenticated_repositories",
+    async (span) => {
+      try {
+        const response = await rest.repos.listForAuthenticatedUser({
+          per_page: 100,
+          sort: "updated",
+          headers: ifNoneMatch ? { "if-none-match": ifNoneMatch } : undefined,
+        });
+        span.setAttribute("repos.count", response.data.length);
+        span.setStatus({ code: SpanStatusCode.OK });
+        return {
+          kind: "ok" as const,
+          repos: response.data.map((repo) => ({
+            full_name: repo.full_name,
+            id: repo.id,
+          })),
+          etag: readHeader(response.headers, "etag"),
+        };
+      } catch (err) {
+        if (getErrorStatus(err) === 304) {
+          span.setAttribute("not_modified", true);
+          span.setStatus({ code: SpanStatusCode.OK });
+          return {
+            kind: "not_modified" as const,
+            etag: getResponseHeader(err, "etag"),
+          };
+        }
+
+        const error = err instanceof Error ? err : new Error(String(err));
+        span.recordException(error);
+        span.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: error.message,
+        });
+
+        throw normalizeAuthenticatedReposError(err);
+      } finally {
+        span.end();
+      }
+    },
+  );
+}
+
+function normalizeAuthenticatedReposError(err: unknown): Error {
+  const status = getErrorStatus(err);
+  if (status === 401) {
+    return new AuthError({});
+  }
+  if (status === 404) {
+    return new NotFoundError({ resource: "repository" });
+  }
+  return new GitHubApiError({
+    status: status ?? 500,
+    message: err instanceof Error ? err.message : "Unknown error",
+  });
 }
 
 // ─── listLabelsForRepo ────────────────────────────────────────────────────────
@@ -124,4 +221,31 @@ export async function listLabelsForRepo(
       span.end();
     }
   });
+}
+
+function getErrorStatus(err: unknown): number | undefined {
+  if (typeof err !== "object" || err === null || !("status" in err)) {
+    return undefined;
+  }
+  const status = (err as { status?: unknown }).status;
+  return typeof status === "number" ? status : undefined;
+}
+
+function getResponseHeader(err: unknown, name: string): string | null {
+  if (typeof err !== "object" || err === null || !("response" in err)) {
+    return null;
+  }
+  const response = (err as { response?: unknown }).response;
+  if (typeof response !== "object" || response === null) return null;
+  if (!("headers" in response)) return null;
+  return readHeader((response as { headers?: unknown }).headers, name);
+}
+
+function readHeader(headers: unknown, name: string): string | null {
+  if (typeof headers !== "object" || headers === null) return null;
+  const values = headers as Record<string, unknown>;
+  const direct = values[name];
+  if (typeof direct === "string") return direct;
+  const lower = values[name.toLowerCase()];
+  return typeof lower === "string" ? lower : null;
 }

@@ -6,6 +6,158 @@ import { createGitHubAdapter, listLabelsForRepo } from "./github";
 
 mockOpenTelemetry();
 
+function octokitHttpError(
+  status: number,
+  message = `HTTP ${status}`,
+  responseHeaders: Record<string, string> = {},
+): Error {
+  return Object.assign(new Error(message), {
+    name: "HttpError",
+    status,
+    request: {
+      method: "GET",
+      url: "/user/repos",
+      headers: { authorization: "token ghp_secret" },
+    },
+    response: {
+      status,
+      url: "/user/repos",
+      headers: responseHeaders,
+      data: {},
+    },
+  });
+}
+
+// ─── listAuthenticatedRepositories ───────────────────────────────────────────
+
+describe("listAuthenticatedRepositories", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns authenticated repos as the route-safe wire shape", async () => {
+    const adapter = createGitHubAdapter({ token: "ghp_test" });
+
+    vi.spyOn(
+      adapter.rest.repos,
+      "listForAuthenticatedUser",
+    ).mockResolvedValueOnce({
+      data: [
+        { full_name: "owner/repo-a", id: 111 },
+        { full_name: "owner/repo-b", id: 222 },
+      ],
+      headers: { etag: 'W/"v2-abc"' },
+    } as never);
+
+    const result = await adapter.listAuthenticatedRepositories();
+
+    expect(result).toEqual({
+      kind: "ok",
+      repos: [
+        { full_name: "owner/repo-a", id: 111 },
+        { full_name: "owner/repo-b", id: 222 },
+      ],
+      etag: 'W/"v2-abc"',
+    });
+  });
+
+  it("forwards If-None-Match to GitHub", async () => {
+    const adapter = createGitHubAdapter({ token: "ghp_test" });
+    const listForAuthenticatedUser = vi
+      .spyOn(adapter.rest.repos, "listForAuthenticatedUser")
+      .mockResolvedValueOnce({
+        data: [],
+        headers: {},
+      } as never);
+
+    await adapter.listAuthenticatedRepositories({ ifNoneMatch: 'W/"v1-old"' });
+
+    expect(listForAuthenticatedUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        per_page: 100,
+        sort: "updated",
+        headers: { "if-none-match": 'W/"v1-old"' },
+      }),
+    );
+  });
+
+  it("returns not_modified when Octokit throws a 304 RequestError", async () => {
+    const adapter = createGitHubAdapter({ token: "ghp_test" });
+
+    vi.spyOn(
+      adapter.rest.repos,
+      "listForAuthenticatedUser",
+    ).mockRejectedValueOnce(
+      octokitHttpError(304, "Not modified", { etag: 'W/"v1-old"' }),
+    );
+
+    await expect(adapter.listAuthenticatedRepositories()).resolves.toEqual({
+      kind: "not_modified",
+      etag: 'W/"v1-old"',
+    });
+  });
+
+  it("maps 401 to AuthError", async () => {
+    const adapter = createGitHubAdapter({ token: "ghp_test" });
+
+    vi.spyOn(
+      adapter.rest.repos,
+      "listForAuthenticatedUser",
+    ).mockRejectedValueOnce(octokitHttpError(401, "Bad credentials"));
+
+    await expect(
+      adapter.listAuthenticatedRepositories(),
+    ).rejects.toBeInstanceOf(AuthError);
+  });
+
+  it("maps 403 to GitHubApiError while preserving the upstream status", async () => {
+    const adapter = createGitHubAdapter({ token: "ghp_test" });
+
+    vi.spyOn(
+      adapter.rest.repos,
+      "listForAuthenticatedUser",
+    ).mockRejectedValueOnce(octokitHttpError(403, "rate limit exceeded"));
+
+    await expect(adapter.listAuthenticatedRepositories()).rejects.toMatchObject(
+      {
+        status: 403,
+      },
+    );
+  });
+
+  it("maps 404 to repository NotFoundError", async () => {
+    const adapter = createGitHubAdapter({ token: "ghp_test" });
+
+    vi.spyOn(
+      adapter.rest.repos,
+      "listForAuthenticatedUser",
+    ).mockRejectedValueOnce(octokitHttpError(404, "Not Found"));
+
+    await expect(
+      adapter.listAuthenticatedRepositories(),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("maps other statuses to GitHubApiError without surfacing secret text", async () => {
+    const adapter = createGitHubAdapter({ token: "ghp_test" });
+
+    vi.spyOn(
+      adapter.rest.repos,
+      "listForAuthenticatedUser",
+    ).mockRejectedValueOnce(
+      octokitHttpError(500, "secret upstream: token ghp_secret leaked"),
+    );
+
+    await expect(adapter.listAuthenticatedRepositories()).rejects.toMatchObject(
+      {
+        status: 500,
+        message:
+          "An error occurred while communicating with GitHub. Please try again.",
+      },
+    );
+  });
+});
+
 // ─── listLabelsForRepo ────────────────────────────────────────────────────────
 
 describe("listLabelsForRepo", () => {
