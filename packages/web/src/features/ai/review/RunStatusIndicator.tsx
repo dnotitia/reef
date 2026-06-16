@@ -1,0 +1,81 @@
+"use client";
+
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import type { AgentRunState } from "../runtime/types";
+import { type ReviewAction, ReviewActions } from "./ReviewActions";
+
+export interface RunStatusIndicatorProps {
+  state: AgentRunState;
+  onRetry?: () => void;
+  onCancel?: () => void;
+  className?: string;
+}
+
+const phaseLabel = {
+  idle: "Ready",
+  running: "Running",
+  completed: "Completed",
+  empty: "No result",
+  error: "Needs attention",
+  cancelled: "Cancelled",
+} satisfies Record<AgentRunState["phase"], string>;
+
+const phaseClass = {
+  idle: "border-border bg-elevated text-muted-foreground",
+  running: "border-ai-border bg-ai-subtle text-ai-subtle-foreground",
+  completed:
+    "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300",
+  empty: "border-border bg-elevated text-muted-foreground",
+  error: "border-destructive/30 bg-destructive/10 text-destructive",
+  cancelled: "border-border bg-elevated text-muted-foreground",
+} satisfies Record<AgentRunState["phase"], string>;
+
+export function RunStatusIndicator({
+  state,
+  onRetry,
+  onCancel,
+  className,
+}: RunStatusIndicatorProps) {
+  const actions: ReviewAction[] = [];
+  if (state.phase === "running" && onCancel) {
+    actions.push({ id: "cancel", label: "Cancel", onClick: onCancel });
+  }
+  if (
+    state.phase === "error" &&
+    onRetry &&
+    state.error?.recoverable !== false
+  ) {
+    actions.push({ id: "retry", label: "Retry", onClick: onRetry });
+  }
+
+  return (
+    <div
+      data-testid="run-status-indicator"
+      className={cn(
+        "flex min-w-0 flex-wrap items-center justify-between gap-2",
+        className,
+      )}
+    >
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <Badge
+          className={cn("px-2 py-0.5 text-[11px]", phaseClass[state.phase])}
+        >
+          {phaseLabel[state.phase]}
+        </Badge>
+        {state.artifact_ids.length > 0 && (
+          <span className="text-[11px] text-muted-foreground">
+            {state.artifact_ids.length} artifact
+            {state.artifact_ids.length === 1 ? "" : "s"}
+          </span>
+        )}
+        {state.error && (
+          <span className="min-w-0 break-words text-xs text-destructive">
+            {state.error.message}
+          </span>
+        )}
+      </div>
+      <ReviewActions actions={actions} compact />
+    </div>
+  );
+}

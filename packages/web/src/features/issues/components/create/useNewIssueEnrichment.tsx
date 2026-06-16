@@ -1,0 +1,184 @@
+"use client";
+
+import { FieldSuggestion } from "@/features/ai/components/FieldSuggestion";
+import {
+  CollapsibleLineDiff,
+  InlineWordDiff,
+} from "@/features/ai/components/TextDiff";
+import {
+  type EnrichIssueError,
+  useEnrichIssue,
+} from "@/features/ai/hooks/useEnrichIssue";
+import { useInlineEnrichment } from "@/features/ai/hooks/useInlineEnrichment";
+import {
+  type EnrichmentFormApi,
+  formatCurrentValue,
+  formatSuggestedValue,
+} from "@/features/ai/lib/enrichmentFieldDescriptors";
+import type {
+  EnrichmentField,
+  EnrichmentRequest,
+  EnrichmentSuggestion,
+  IssueCreateFields,
+  ReferenceSuggestion,
+} from "@reef/core";
+import type { ReactNode } from "react";
+
+const FIELD_LABEL_CLASS = "text-xs font-medium text-muted-foreground";
+
+export function useNewIssueEnrichment({
+  vault,
+  prefix,
+  scanRepo,
+  title,
+  body,
+  estimatePoints,
+  formApi,
+  buildCreateFields,
+  setSubmitError,
+  setReferenceCandidates,
+}: {
+  vault: string | null | undefined;
+  prefix: string;
+  scanRepo: string;
+  title: string;
+  body: string;
+  estimatePoints: string;
+  formApi: EnrichmentFormApi;
+  buildCreateFields: (input?: { fallbackTitle?: string }) => IssueCreateFields;
+  setSubmitError: (message: string | null) => void;
+  setReferenceCandidates: (references: ReferenceSuggestion[]) => void;
+}) {
+  const enrichment = useInlineEnrichment(formApi);
+  const ingestEnrichment = enrichment.ingest;
+  const enrichMutation = useEnrichIssue({
+    onSuccess: (result) => {
+      ingestEnrichment(result.suggestions);
+      setReferenceCandidates(result.references);
+    },
+  });
+
+  function buildEnrichmentRequest(): EnrichmentRequest | null {
+    if (!vault) return null;
+    const parts = scanRepo.split("/");
+    const repoContext =
+      parts.length === 2 && parts[0] && parts[1]
+        ? { owner: parts[0], repo: parts[1] }
+        : undefined;
+    return {
+      issueId: `${prefix}-PENDING`,
+      vault,
+      draft: {
+        fields: buildCreateFields({ fallbackTitle: "(untitled)" }),
+        content: body,
+      },
+      ...(repoContext ? { repoContext } : {}),
+    };
+  }
+
+  function handleEnrichClick() {
+    if (!title.trim()) {
+      setSubmitError(
+        "Add a title before requesting AI suggestions — the prompt needs context.",
+      );
+      return;
+    }
+    if (estimatePoints.trim() && Number.isNaN(Number(estimatePoints.trim()))) {
+      setSubmitError(
+        "Estimate must be a number before requesting AI suggestions.",
+      );
+      return;
+    }
+    const enrichmentRequest = buildEnrichmentRequest();
+    if (!enrichmentRequest) {
+      setSubmitError(
+        "Configure a workspace in Settings before requesting AI suggestions.",
+      );
+      return;
+    }
+    setSubmitError(null);
+    enrichment.reset();
+    enrichMutation.mutate(enrichmentRequest);
+  }
+
+  function handleAcceptAll() {
+    // No success toast: accepted suggestions are immediately reflected in the
+    // form fields and the EnrichmentReviewBar's accepted count.
+    enrichment.acceptAll();
+  }
+
+  function renderEnrichable(
+    field: EnrichmentField,
+    control: ReactNode,
+  ): ReactNode {
+    const entry = enrichment.getEntry(field);
+    if (!entry || entry.status !== "pending") return control;
+    return (
+      <FieldSuggestion
+        field={field}
+        entry={entry}
+        currentDisplay={formatCurrentValue(formApi, field)}
+        suggestedDisplay={formatSuggestedValue(entry.suggestion)}
+        diff={diffForSuggestion(entry.suggestion)}
+        onAccept={() => enrichment.accept(field)}
+        onDismiss={() => enrichment.dismiss(field)}
+      />
+    );
+  }
+
+  function renderFieldLabel(
+    field: EnrichmentField,
+    htmlFor: string,
+    text: string,
+  ): ReactNode {
+    const pending = enrichment.getEntry(field)?.status === "pending";
+    return pending ? (
+      <span className={FIELD_LABEL_CLASS}>{text}</span>
+    ) : (
+      <label className={FIELD_LABEL_CLASS} htmlFor={htmlFor}>
+        {text}
+      </label>
+    );
+  }
+
+  function diffForSuggestion(suggestion: EnrichmentSuggestion): ReactNode {
+    if (suggestion.field === "title") {
+      return <InlineWordDiff before={title} after={suggestion.value} />;
+    }
+    if (suggestion.field === "content") {
+      return (
+        <CollapsibleLineDiff
+          before={body}
+          after={suggestion.value}
+          fieldTestId="body"
+        />
+      );
+    }
+    return undefined;
+  }
+
+  const enrichError = enrichMutation.error as EnrichIssueError | undefined;
+  const enrichIsEmpty =
+    enrichMutation.isSuccess &&
+    (enrichMutation.data?.suggestions.length ?? 0) === 0 &&
+    (enrichMutation.data?.references.length ?? 0) === 0;
+  const showEnrichmentBar =
+    enrichMutation.isPending ||
+    Boolean(enrichError) ||
+    enrichIsEmpty ||
+    enrichment.counts.pending > 0 ||
+    enrichment.counts.accepted > 0;
+
+  return {
+    enrichment,
+    enrichMutation,
+    enrichError,
+    enrichIsEmpty,
+    showEnrichmentBar,
+    buildEnrichmentRequest,
+    handleAcceptAll,
+    handleEnrichClick,
+    renderEnrichable,
+    renderFieldLabel,
+  };
+}

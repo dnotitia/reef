@@ -1,0 +1,23 @@
+# Overrides the base reef-web Ingress with this deployment's public host.
+# tls and rules are listed in full so the host is replaced cleanly (kustomize
+# replaces list-valued fields rather than merging them element-by-element).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: reef-web
+spec:
+  tls:
+    - hosts:
+        - reef.example.com
+      secretName: reef-web-tls
+  rules:
+    - host: reef.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: reef-web
+                port:
+                  number: 3000

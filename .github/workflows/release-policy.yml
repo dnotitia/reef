@@ -1,0 +1,40 @@
+name: Release Policy
+
+# Release-policy / changelog discipline. This is a lint, not a release: it never
+# tags or publishes. It runs where a release is actually decided — on PRs into
+# main (so a change updates CHANGELOG before it merges) and on release tags — not
+# on every push to main.
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  release-policy:
+    name: Release Policy Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      # No `cache: pnpm` here: this job runs a dependency-free node script and
+      # never `pnpm install`s, so there is no store to cache (and the cache-save
+      # post-step would otherwise fail with a path-validation error).
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Run release policy check
+        run: pnpm run check:release

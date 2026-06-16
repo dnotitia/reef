@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+# Least-privilege default: jobs only need to read the checked-out repo.
+permissions:
+  contents: read
+
+# Cancel superseded runs for the same workflow + ref (e.g. new pushes to a PR).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Biome Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Biome check
+        run: pnpm biome check .
+
+  typecheck:
+    name: TypeScript Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run TypeScript typecheck
+        run: pnpm -r run typecheck
+
+  test:
+    name: Vitest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm -r run test
+
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, test]
+    # Run E2E unconditionally on prior-job *success* — individual specs
+    # self-skip when their secrets are absent, so the job always reports a
+    # result rather than being skipped wholesale by a `secrets != ''` gate.
+    # We intentionally do NOT use `always()`: that would burn CI minutes on
+    # E2E even when lint/typecheck/test have already failed.
+    if: success()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm --filter web exec playwright install --with-deps chromium
+
+      - name: Run Playwright E2E tests
+        run: pnpm --filter web run test:e2e
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v5
+        if: ${{ !cancelled() && failure() }}
+        with:
+          name: playwright-report
+          path: packages/web/playwright-report/
+          retention-days: 7

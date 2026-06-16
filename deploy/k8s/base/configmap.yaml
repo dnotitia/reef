@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: reef-web-config
+data:
+  # akb backend — reef-web reaches the akb backend over cluster-internal
+  # DNS. This is a neutral placeholder; the operator overrides it in their
+  # overlay with the real Service DNS (namespace + Service name differ per
+  # cluster), e.g. http://backend.<akb-namespace>.svc.cluster.local:8000.
+  AKB_BACKEND_URL: "http://akb-backend.example.svc.cluster.local:8000"
+  # reef-web's own canonical public origin (REEF-137). Sent to akb as the
+  # absolute SSO callback base so it survives akb's redirect allowlist when reef
+  # runs alongside akb's own frontend. Bare origin only (no path/query/fragment),
+  # https for non-loopback; must match the ingress host (ingress.yaml).
+  REEF_PUBLIC_ORIGIN: "https://reef.example.com"
+  # Production mode enables the Secure cookie flag and the strict
+  # (no unsafe-eval) CSP. Must be `production` in-cluster.
+  NODE_ENV: "production"
+  # Deployment-managed OpenRouter LLM config. The API key lives in
+  # `reef-web-secret` as OPENROUTER_API_KEY.
+  OPENROUTER_BASE_URL: "https://openrouter.ai/api/v1"
+  REEF_LLM_MODEL: "deepseek/deepseek-v4-flash"
+  # OpenTelemetry trace export — optional, no-op when unset. Wire this only
+  # after an OTLP collector / Langfuse is deployed and reachable in-cluster.
+  # OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.example.svc.cluster.local:4318"

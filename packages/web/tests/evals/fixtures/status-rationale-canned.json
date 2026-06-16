@@ -1,0 +1,24 @@
+{
+  "scenario": "status-rationale-system-prompt",
+  "input": {
+    "issueId": "REEF-042",
+    "issueTitle": "Payment module refactoring",
+    "fromStatus": "in_review",
+    "toStatus": "done",
+    "actor": "minsu",
+    "pr": {
+      "number": 77,
+      "title": "Refactor payment gateway integration",
+      "headBranch": "feature/payment-refactor",
+      "mergedAt": "2026-05-12T10:00:00.000Z",
+      "commitMessages": [
+        "refactor: extract payment service",
+        "refactor: improve error handling"
+      ]
+    }
+  },
+  "cannedResponse": {
+    "rationale": "The pull request refactoring the payment gateway integration was merged, completing this issue's work."
+  },
+  "expectedFields": ["rationale"]
+}

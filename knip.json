@@ -1,0 +1,67 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "package.json",
+    "eslint.maintenance.config.mjs",
+    "scripts/*.mjs",
+    "scripts/**/*.mjs"
+  ],
+  "project": ["*.mjs", "scripts/**/*.mjs"],
+  "ignore": [
+    ".maintenance/**",
+    ".pnpm-store/**",
+    "**/*.stories.tsx",
+    "packages/web/src/__stories__/**",
+    "packages/web/src/components/ui/**",
+    "packages/web/test-results/**",
+    "packages/web/playwright-report/**"
+  ],
+  "ignoreDependencies": [
+    "@tailwindcss/typography",
+    "eslint",
+    "jscpd",
+    "knip",
+    "pino-pretty",
+    "tailwindcss"
+  ],
+  "ignoreExportsUsedInFile": {
+    "interface": true,
+    "type": true
+  },
+  "workspaces": {
+    ".": {
+      "entry": [
+        "package.json",
+        "eslint.maintenance.config.mjs",
+        "scripts/*.mjs",
+        "scripts/**/*.mjs"
+      ],
+      "project": ["*.mjs", "scripts/**/*.mjs"]
+    },
+    "packages/core": {
+      "entry": [
+        "src/index.ts",
+        "src/models/status.ts",
+        "src/schemas/issues/fieldRegistry.ts",
+        "src/schemas/planning/fieldRegistry.ts"
+      ],
+      "includeEntryExports": true,
+      "project": ["src/**/*.ts"]
+    },
+    "packages/web": {
+      "entry": [
+        "next.config.ts",
+        "postcss.config.mjs",
+        "playwright.config.ts",
+        "vitest.config.ts",
+        "vitest.eval.ts",
+        "vitest.setup.ts",
+        "src/app/**/*.{ts,tsx}",
+        "src/proxy.ts",
+        "tests/e2e/**/*.{ts,tsx}",
+        "tests/evals/**/*.{ts,tsx}"
+      ],
+      "project": ["*.{ts,mjs}", "src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"]
+    }
+  }
+}

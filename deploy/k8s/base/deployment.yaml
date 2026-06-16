@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reef-web
+spec:
+  # Single replica — reef-web is stateless (FR48) but traffic is flat
+  # (TanStack Query polling, no spiky load), so one pod suffices.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reef-web
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: reef-web
+    spec:
+      # SSE drain: /api/chat streams can run long. preStop holds the pod
+      # open so in-flight streams finish before SIGTERM; the grace period
+      # is the hard ceiling.
+      terminationGracePeriodSeconds: 90
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: reef-web
+          image: reef-web:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: reef-web-config
+            - secretRef:
+                name: reef-web-secret
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /api/healthz
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /api/healthz
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "10"]
+          securityContext:
+            allowPrivilegeEscalation: false

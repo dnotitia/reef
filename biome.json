@@ -1,0 +1,49 @@
+{
+  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "organizeImports": {
+    "enabled": true
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "nursery": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "@/components/fields": "Import field leaves directly by file (e.g. \"@/components/fields/TypePill\"). Do not add or import a barrel index for components/fields (REEF-018)."
+            }
+          }
+        }
+      }
+    }
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "trailingCommas": "all"
+    }
+  },
+  "files": {
+    "ignore": [
+      "node_modules",
+      ".pnpm-store",
+      ".next",
+      "dist",
+      "build",
+      ".turbo",
+      ".maintenance",
+      ".agents",
+      ".claude",
+      "storybook-static",
+      "packages/web/test-results",
+      "packages/web/src/components/ui"
+    ]
+  }
+}

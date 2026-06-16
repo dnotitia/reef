@@ -1,0 +1,85 @@
+name: Bug report
+description: Report a problem with your self-hosted reef instance
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for the report. Please fill in the fields below so we can triage quickly.
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: What's wrong, and what did you expect instead?
+      placeholder: I did ... I expected ... but what happened was ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: reef version / commit
+      description: The image tag and/or git SHA of your deployed build.
+      placeholder: v0.4.0 (48d1b62)
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface(s) are affected?
+      multiple: true
+      options:
+        - UI (browser)
+        - Route Handler / BFF
+        - core package
+        - AKB integration
+        - LLM / OpenRouter
+        - SSE streaming (chat)
+        - Auth / session cookie
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: akb
+    attributes:
+      label: AKB backend reachability
+      description: Can reef reach AKB_BACKEND_URL? Include the AKB version and whether its health endpoint responds. Do NOT paste credentials.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Deployment environment
+      description: How reef is deployed (Docker / k8s / node), Node version, reverse proxy (nginx?), browser + version, and the configured REEF_LLM_MODEL (model name only).
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console & network errors
+      description: |
+        Browser devtools console output and the failing request's status/response.
+        Redact secrets first: the __reef_session cookie, any `Authorization: Bearer`
+        tokens (AKB PAT, GitHub PAT), and OPENROUTER_API_KEY.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Validations
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: I redacted all tokens, cookies, and API keys from the output above.
+          required: true
+        - label: I'm willing to submit a pull request for this issue.
+          required: false

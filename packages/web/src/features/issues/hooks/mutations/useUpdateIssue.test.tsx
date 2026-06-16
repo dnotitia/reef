@@ -1,0 +1,316 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/apiClient", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/lib/apiClient")>("@/lib/apiClient");
+  return {
+    ...actual,
+    apiFetch: vi.fn(),
+  };
+});
+
+import { apiFetch } from "@/lib/apiClient";
+import type { IssueMetadata } from "@reef/core";
+import { useUpdateIssue } from "./useUpdateIssue";
+
+const mockApiFetch = vi.mocked(apiFetch);
+
+const ORIGINAL: IssueMetadata = {
+  id: "REEF-001",
+  title: "Sample",
+  status: "todo",
+  created_at: "2026-05-01T00:00:00.000Z",
+  created_by: "alice",
+  updated_at: "2026-05-01T00:00:00.000Z",
+  updated_by: "alice",
+};
+
+const UPDATED: IssueMetadata = {
+  id: "REEF-001",
+  title: "Sample",
+  status: "in_progress",
+  created_at: "2026-05-01T00:00:00.000Z",
+  created_by: "alice",
+  updated_at: "2026-05-02T00:00:00.000Z",
+  updated_by: "alice",
+};
+
+function makeWrapper(queryClient: QueryClient) {
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+  };
+}
+
+describe("useUpdateIssue", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("PATCHes /api/issues/{id} with { vault, update }", async () => {
+    mockApiFetch.mockResolvedValue(
+      new Response(JSON.stringify({ issue: UPDATED, content: "## body" }), {
+        status: 200,
+      }),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    const { result } = renderHook(() => useUpdateIssue(), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    let returned: { issue: IssueMetadata; content: string } | undefined;
+    await act(async () => {
+      returned = await result.current.mutateAsync({
+        id: "REEF-001",
+        vault: "reef-acme",
+        patch: { status: "in_progress" },
+      });
+    });
+
+    const [url, init] = mockApiFetch.mock.calls[0] ?? [];
+    expect(url).toBe("/api/issues/REEF-001");
+    expect(init?.method).toBe("PATCH");
+    expect(JSON.parse(init?.body as string)).toEqual({
+      vault: "reef-acme",
+      update: {
+        issue_id: "REEF-001",
+        patch: { status: "in_progress" },
+      },
+    });
+    expect(returned).toEqual({
+      issue: UPDATED,
+      content: "## body",
+    });
+  });
+
+  it("includes content in body when provided", async () => {
+    mockApiFetch.mockResolvedValue(
+      new Response(JSON.stringify({ issue: UPDATED, content: "new" }), {
+        status: 200,
+      }),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    const { result } = renderHook(() => useUpdateIssue(), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        id: "REEF-001",
+        vault: "reef-acme",
+        patch: {},
+        content: "new",
+      });
+    });
+
+    expect(JSON.parse(mockApiFetch.mock.calls[0]?.[1]?.body as string)).toEqual(
+      {
+        vault: "reef-acme",
+        update: {
+          issue_id: "REEF-001",
+          patch: {},
+          content: "new",
+        },
+      },
+    );
+  });
+
+  it("omits content key from body when undefined", async () => {
+    mockApiFetch.mockResolvedValue(
+      new Response(JSON.stringify({ issue: UPDATED, content: "" }), {
+        status: 200,
+      }),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    const { result } = renderHook(() => useUpdateIssue(), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        id: "REEF-001",
+        vault: "reef-acme",
+        patch: { status: "in_progress" },
+      });
+    });
+
+    const body = JSON.parse(mockApiFetch.mock.calls[0]?.[1]?.body as string);
+    expect(body).not.toHaveProperty("content");
+  });
+
+  it("invalidates list + detail on success", async () => {
+    mockApiFetch.mockResolvedValue(
+      new Response(JSON.stringify({ issue: UPDATED, content: "" }), {
+        status: 200,
+      }),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHook(() => useUpdateIssue(), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        id: "REEF-001",
+        vault: "reef-acme",
+        patch: { status: "in_progress" },
+      });
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["issues", "list", "reef-acme"],
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["issues", "detail", "reef-acme", "REEF-001"],
+    });
+  });
+
+  it("optimistically updates cached list and detail while the request is pending", async () => {
+    let resolveResponse: (response: Response) => void = () => {};
+    mockApiFetch.mockReturnValue(
+      new Promise<Response>((resolve) => {
+        resolveResponse = resolve;
+      }),
+    );
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    queryClient.setQueryData(["issues", "list", "reef-acme"], [ORIGINAL]);
+    queryClient.setQueryData(["issues", "detail", "reef-acme", "REEF-001"], {
+      issue: ORIGINAL,
+      content: "old body",
+    });
+
+    const { result } = renderHook(() => useUpdateIssue(), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    act(() => {
+      result.current.mutate({
+        id: "REEF-001",
+        vault: "reef-acme",
+        patch: { status: "in_progress" },
+        content: "new body",
+      });
+    });
+
+    await waitFor(() => {
+      const list = queryClient.getQueryData<IssueMetadata[]>([
+        "issues",
+        "list",
+        "reef-acme",
+      ]);
+      expect(list?.[0]?.status).toBe("in_progress");
+    });
+
+    const detail = queryClient.getQueryData<{
+      issue: IssueMetadata;
+      content: string;
+    }>(["issues", "detail", "reef-acme", "REEF-001"]);
+    expect(detail?.issue.status).toBe("in_progress");
+    expect(detail?.content).toBe("new body");
+
+    await act(async () => {
+      resolveResponse(
+        new Response(JSON.stringify({ issue: UPDATED, content: "new body" }), {
+          status: 200,
+        }),
+      );
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  });
+
+  it("rolls back optimistic cache updates on failure", async () => {
+    mockApiFetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: "Save conflict." }), {
+        status: 409,
+      }),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    queryClient.setQueryData(["issues", "list", "reef-acme"], [ORIGINAL]);
+    queryClient.setQueryData(["issues", "detail", "reef-acme", "REEF-001"], {
+      issue: ORIGINAL,
+      content: "old body",
+    });
+
+    const { result } = renderHook(() => useUpdateIssue(), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current
+        .mutateAsync({
+          id: "REEF-001",
+          vault: "reef-acme",
+          patch: { status: "in_progress" },
+          content: "new body",
+        })
+        .catch(() => {});
+    });
+
+    const list = queryClient.getQueryData<IssueMetadata[]>([
+      "issues",
+      "list",
+      "reef-acme",
+    ]);
+    const detail = queryClient.getQueryData<{
+      issue: IssueMetadata;
+      content: string;
+    }>(["issues", "detail", "reef-acme", "REEF-001"]);
+
+    expect(list?.[0]).toEqual(ORIGINAL);
+    expect(detail).toEqual({ issue: ORIGINAL, content: "old body" });
+  });
+
+  it("propagates 409 conflict (akb LWW race) as error", async () => {
+    mockApiFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: "Another change reached the workspace first.",
+        }),
+        { status: 409 },
+      ),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    const { result } = renderHook(() => useUpdateIssue(), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current
+        .mutateAsync({
+          id: "REEF-001",
+          vault: "reef-acme",
+          patch: { status: "in_progress" },
+        })
+        .catch(() => {});
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    const err = result.current.error as Error & { status?: number };
+    expect(err.status).toBe(409);
+  });
+});

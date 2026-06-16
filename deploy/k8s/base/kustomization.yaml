@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Base manifests for reef-web. These carry neutral placeholder values
+# (example.com host, example akb backend DNS) and no namespace — an overlay
+# under ../overlays sets the namespace, image registry, host, and backend URL.
+# Do not deploy this base directly; copy overlays/example to your own overlay.
+
+resources:
+  - configmap.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml

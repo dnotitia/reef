@@ -1,0 +1,96 @@
+name: Docker Build & Push
+
+# Releases are git tags (vX.Y.Z), not pushes to main — so the image is built and
+# published per release tag, not on every commit.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build-push:
+    name: Build and push multi-platform image to Docker Hub
+    runs-on: ubuntu-latest
+
+    steps:
+      # The image is published to the dnseahorse Docker Hub organization. CI
+      # cannot use a local docker login, so it needs two repository secrets:
+      #   DOCKERHUB_USERNAME — a Docker Hub account with push access to dnseahorse
+      #   DOCKERHUB_TOKEN    — a Docker Hub access token for that account
+      # If they are not configured, the job self-skips (no failure).
+      - name: Check Docker Hub credentials
+        id: creds
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          if [ -z "${DOCKERHUB_USERNAME}" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::DOCKERHUB_USERNAME/DOCKERHUB_TOKEN not set — skipping image build & push."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout repository
+        if: steps.creds.outputs.configured == 'true'
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        if: steps.creds.outputs.configured == 'true'
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Docker Hub
+        if: steps.creds.outputs.configured == 'true'
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # `:latest` tracks the newest STABLE release only. A pre-release tag (a
+      # SemVer with a hyphen, e.g. v0.5.0-beta.1) still publishes its immutable
+      # version tag, but must not move `:latest`.
+      - name: Compute image tags
+        if: steps.creds.outputs.configured == 'true'
+        id: tags
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          {
+            echo "tags<<EOF"
+            echo "dnseahorse/reef-web:${REF_NAME}"
+            case "${REF_NAME}" in
+              *-*) : ;;  # pre-release: leave :latest untouched
+              *) echo "dnseahorse/reef-web:latest" ;;
+            esac
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          case "${REF_NAME}" in
+            *-*) echo "::notice::pre-release ${REF_NAME} — :latest left unchanged" ;;
+          esac
+
+      - name: Build and push Docker image
+        if: steps.creds.outputs.configured == 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify image size
+        if: steps.creds.outputs.configured == 'true'
+        run: |
+          docker pull --platform linux/amd64 dnseahorse/reef-web:${{ github.ref_name }}
+          IMAGE_SIZE=$(docker image inspect dnseahorse/reef-web:${{ github.ref_name }} --format '{{.Size}}')
+          MAX_SIZE=209715200
+          echo "Image size: ${IMAGE_SIZE} bytes ($(( IMAGE_SIZE / 1024 / 1024 ))MB)"
+          if [ "${IMAGE_SIZE}" -gt "${MAX_SIZE}" ]; then
+            echo "ERROR: Image size $(( IMAGE_SIZE / 1024 / 1024 ))MB exceeds 200MB limit"
+            exit 1
+          fi
+          echo "Image size check passed: $(( IMAGE_SIZE / 1024 / 1024 ))MB < 200MB"

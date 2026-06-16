@@ -1,0 +1,31 @@
+{
+  "scenario": "draft-issue-from-description",
+  "input": {
+    "title": "Password reset link expires too quickly",
+    "description": "Users can't reset their password because the reset link expires too quickly. The link should remain valid for at least 24 hours but currently expires after 15 minutes."
+  },
+  "cannedResponse": {
+    "suggestions": [
+      {
+        "field": "title",
+        "value": "Extend password reset link expiry to 24 hours",
+        "reasoning": "The current title should state the desired outcome.",
+        "confidence": 0.9
+      },
+      {
+        "field": "content",
+        "value": "## Problem\n\nUsers are unable to complete the password reset flow because the reset link expires after only 15 minutes. This is especially problematic for users who check their email infrequently or are in different time zones.\n\n## Proposed Solution\n\nExtend the password reset token expiry from 15 minutes to 24 hours. This aligns with common industry standards and reduces user friction during the account recovery process.\n\n## Acceptance Criteria\n\n- [ ] Password reset links remain valid for 24 hours after generation\n- [ ] Expired links display a clear error message prompting the user to request a new one\n- [ ] Security audit confirms 24-hour window is acceptable given token entropy",
+        "reasoning": "The issue needs a clearer PM-ready problem and acceptance criteria.",
+        "confidence": 0.86
+      },
+      {
+        "field": "priority",
+        "value": "high",
+        "reasoning": "Password reset failure affects account recovery.",
+        "confidence": 0.82
+      }
+    ]
+  },
+  "expectedFields": ["suggestions"],
+  "expectedKeywords": ["password", "reset"]
+}

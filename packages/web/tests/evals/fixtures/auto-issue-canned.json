@@ -1,0 +1,27 @@
+{
+  "scenario": "auto-issue-system-prompt",
+  "input": {
+    "projectPrefix": "REEF",
+    "activity": {
+      "eventType": "pull_request",
+      "actor": "minsu",
+      "sourceRepo": "myorg/myapp",
+      "pr": {
+        "number": 99,
+        "title": "Add rate limiting middleware",
+        "headBranch": "feature/rate-limit",
+        "commitMessages": ["feat: add rate limiting"]
+      }
+    },
+    "existingIssues": []
+  },
+  "cannedResponse": {
+    "title": "Add rate limiting to API endpoints",
+    "content": "Implemented request rate limiting across all public API endpoints.",
+    "priority": "high",
+    "labels": ["api", "security"],
+    "reasoning": "PR adds security middleware affecting all API consumers.",
+    "confidence": 0.88
+  },
+  "expectedFields": ["title", "content", "priority", "labels"]
+}

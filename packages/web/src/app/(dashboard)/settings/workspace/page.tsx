@@ -1,0 +1,90 @@
+"use client";
+
+import { AuthoringLanguageSection } from "@/features/settings/components/AuthoringLanguageSection";
+import { ProjectSection } from "@/features/settings/components/ProjectSection";
+import { RepoPickerSection } from "@/features/settings/components/RepoPickerSection";
+import { SettingsGroup } from "@/features/settings/components/SettingsGroup";
+import { TemplatesSection } from "@/features/settings/components/TemplatesSection";
+import { WorkspaceSkillSection } from "@/features/settings/components/WorkspaceSkillSection";
+import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import { useWorkspaceAccess } from "@/features/settings/hooks/useWorkspaceAccess";
+
+/**
+ * Workspace › General (REEF-183) — the team-shared settings that the Active
+ * Workspace selector (mounted in the workspace layout above) scopes. This is the
+ * former "Workspace settings" group, moved verbatim into its own tab route.
+ */
+export default function WorkspaceGeneralPage() {
+  // Workspace-common settings are admin-managed (REEF-020); non-admin viewers
+  // see them read. The active vault drives which workspace's role applies.
+  const { vault, isLoading: vaultLoading } = useActiveVault();
+  const { canEditWorkspace, isResolving } = useWorkspaceAccess(vault);
+  // Omit the badge until BOTH the active vault and the vault-role query have
+  // resolved. useActiveVault returns vault="" on the first client render (to
+  // match SSR) while it hydrates from Dexie; with a persisted vault-role cache
+  // the role query can already have data at that point, so computing access
+  // from the still-empty vault would render a "View just" badge the server did
+  // not — a hydration mismatch and a wrong-access flash for members who can
+  // actually edit (REEF-174).
+  const workspaceAccess =
+    vaultLoading || isResolving
+      ? undefined
+      : canEditWorkspace
+        ? "editable"
+        : "view-only";
+
+  // The workspace these shared settings belong to, echoed in the group header
+  // so the values read as scoped to the active selection — omitted while the
+  // vault is still hydrating or unset (REEF-174).
+  const scopeName = vaultLoading || !vault ? undefined : vault;
+
+  return (
+    <SettingsGroup
+      title="General"
+      description="Shared with everyone in the selected workspace. Members with write access can change these; readers see them read-only."
+      access={workspaceAccess}
+      scopeName={scopeName}
+      testId="settings-group-workspace"
+    >
+      {/* Monitored Repositories — team-shared grounding repos */}
+      <section className="flex flex-col gap-3">
+        <h3 className="font-display text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Monitored Repositories
+        </h3>
+        <RepoPickerSection canEdit={canEditWorkspace} />
+      </section>
+
+      {/* Project — project_prefix for issue IDs */}
+      <section className="flex flex-col gap-3">
+        <h3 className="font-display text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Project
+        </h3>
+        <ProjectSection canEdit={canEditWorkspace} />
+      </section>
+
+      {/* Authoring Language — default language for AI-generated content */}
+      <section className="flex flex-col gap-3">
+        <h3 className="font-display text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Authoring Language
+        </h3>
+        <AuthoringLanguageSection canEdit={canEditWorkspace} />
+      </section>
+
+      {/* Templates — issue templates shared across the workspace */}
+      <section className="flex flex-col gap-3">
+        <h3 className="font-display text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Templates
+        </h3>
+        <TemplatesSection canEdit={canEditWorkspace} />
+      </section>
+
+      {/* Workspace AI Instructions — vault-skill version + explicit update */}
+      <section className="flex flex-col gap-3">
+        <h3 className="font-display text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Workspace AI Instructions
+        </h3>
+        <WorkspaceSkillSection />
+      </section>
+    </SettingsGroup>
+  );
+}

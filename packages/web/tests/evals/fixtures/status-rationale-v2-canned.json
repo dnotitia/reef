@@ -1,0 +1,26 @@
+{
+  "scenario": "status-rationale-from-pr",
+  "input": {
+    "issueId": "REEF-058",
+    "issueTitle": "Authentication hardening",
+    "fromStatus": "in_review",
+    "toStatus": "done",
+    "actor": "jieun",
+    "pr": {
+      "number": 92,
+      "title": "Enforce MFA on admin accounts and add brute-force protection",
+      "headBranch": "feature/auth-hardening",
+      "mergedAt": "2026-05-12T11:30:00.000Z",
+      "commitMessages": [
+        "feat: require MFA for all admin role accounts",
+        "feat: add exponential backoff on failed login attempts",
+        "test: add integration tests for MFA enforcement"
+      ]
+    }
+  },
+  "cannedResponse": {
+    "rationale": "The pull request enforcing multi-factor authentication for admin accounts and adding brute-force protection was merged, so the authentication hardening work is complete."
+  },
+  "expectedFields": ["rationale"],
+  "minRationaleLength": 20
+}

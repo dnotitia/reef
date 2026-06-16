@@ -1,0 +1,174 @@
+// @vitest-environment node
+
+// fake-indexeddb/auto should be imported first — before any Dexie/db imports
+import "fake-indexeddb/auto";
+
+import {
+  type Mock,
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import { apiClient, apiFetch } from "./apiClient";
+import { setConfigValue } from "./storage/config";
+import { clearGitHubToken, setGitHubToken } from "./storage/credentials";
+import { db } from "./storage/db";
+
+// Mock global fetch to avoid real network calls
+const mockFetch = vi.fn<typeof fetch>();
+
+function mockResponse(status = 200, body = "{}"): Response {
+  return new Response(body, { status });
+}
+
+describe("apiClient.fetch — Authorization header injection", () => {
+  beforeEach(async () => {
+    vi.stubGlobal("fetch", mockFetch);
+    await db.credentials.clear();
+    mockFetch.mockReset();
+    mockFetch.mockResolvedValue(mockResponse());
+  });
+
+  afterEach(async () => {
+    await db.credentials.clear();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("attaches Authorization header when a token is stored in IndexedDB", async () => {
+    await setGitHubToken("ghp_unit_test_token");
+
+    await apiClient.fetch("/api/issues?repo=owner/repo");
+
+    expect(mockFetch).toHaveBeenCalledOnce();
+    const [, init] = (mockFetch as Mock).mock.calls[0] as [
+      RequestInfo | URL,
+      RequestInit,
+    ];
+    const headers = new Headers(init.headers);
+    expect(headers.get("Authorization")).toBe("Bearer ghp_unit_test_token");
+  });
+
+  it("does NOT attach Authorization header when no token is stored", async () => {
+    await clearGitHubToken();
+
+    await apiClient.fetch("/api/issues?repo=owner/repo");
+
+    expect(mockFetch).toHaveBeenCalledOnce();
+    const [, init] = (mockFetch as Mock).mock.calls[0] as [
+      RequestInfo | URL,
+      RequestInit,
+    ];
+    const headers = new Headers(init.headers);
+    expect(headers.get("Authorization")).toBeNull();
+  });
+
+  it("preserves existing headers alongside the Authorization header", async () => {
+    await setGitHubToken("ghp_header_merge_test");
+
+    await apiClient.fetch("/api/issues?repo=owner/repo", {
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const [, init] = (mockFetch as Mock).mock.calls[0] as [
+      RequestInfo | URL,
+      RequestInit,
+    ];
+    const headers = new Headers(init.headers);
+    expect(headers.get("Authorization")).toBe("Bearer ghp_header_merge_test");
+    expect(headers.get("Content-Type")).toBe("application/json");
+  });
+
+  it("exposes `apiFetch` as a bound alias of `apiClient.fetch`", async () => {
+    await setGitHubToken("ghp_alias_parity_test");
+
+    // Destructure to assert `this`-binding is preserved even when detached.
+    const detached = apiFetch;
+    await detached("/api/issues");
+
+    expect(mockFetch).toHaveBeenCalledOnce();
+    const [, init] = (mockFetch as Mock).mock.calls[0] as [
+      RequestInfo | URL,
+      RequestInit,
+    ];
+    expect(new Headers(init.headers).get("Authorization")).toBe(
+      "Bearer ghp_alias_parity_test",
+    );
+  });
+
+  it("reads the token fresh from IndexedDB on each call (no module-level caching)", async () => {
+    await setGitHubToken("ghp_first_call");
+    await apiClient.fetch("/api/issues");
+    const [, init1] = (mockFetch as Mock).mock.calls[0] as [
+      RequestInfo | URL,
+      RequestInit,
+    ];
+    expect(new Headers(init1.headers).get("Authorization")).toBe(
+      "Bearer ghp_first_call",
+    );
+
+    // Change the token in IndexedDB
+    await setGitHubToken("ghp_second_call");
+    await apiClient.fetch("/api/issues");
+    const [, init2] = (mockFetch as Mock).mock.calls[1] as [
+      RequestInfo | URL,
+      RequestInit,
+    ];
+    expect(new Headers(init2.headers).get("Authorization")).toBe(
+      "Bearer ghp_second_call",
+    );
+  });
+});
+
+describe("apiClient.fetch — deployment-managed LLM", () => {
+  beforeEach(async () => {
+    vi.stubGlobal("fetch", mockFetch);
+    await db.credentials.clear();
+    await db.config.clear();
+    mockFetch.mockReset();
+    mockFetch.mockResolvedValue(mockResponse());
+  });
+
+  afterEach(async () => {
+    await db.credentials.clear();
+    await db.config.clear();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("does not attach X-Reef-LLM even when older LLM values are stored", async () => {
+    await db.credentials.add({ key: "llm_api_key", value: "sk-test-key" });
+    await setConfigValue("llm_base_url", "https://api.openai.com/v1");
+    await setConfigValue("llm_model", "gpt-4o");
+
+    await apiClient.fetch("/api/chat");
+
+    const [, init] = (mockFetch as Mock).mock.calls[0] as [
+      RequestInfo | URL,
+      RequestInit,
+    ];
+    const headers = new Headers(init.headers);
+    expect(headers.get("X-Reef-LLM")).toBeNull();
+  });
+
+  it("still attaches Authorization while omitting X-Reef-LLM", async () => {
+    await setGitHubToken("ghp_combined_test");
+    await db.credentials.add({ key: "llm_api_key", value: "sk-combined" });
+    await setConfigValue("llm_base_url", "https://api.openai.com/v1");
+    await setConfigValue("llm_model", "gpt-4o");
+
+    await apiClient.fetch("/api/chat");
+
+    const [, init] = (mockFetch as Mock).mock.calls[0] as [
+      RequestInfo | URL,
+      RequestInit,
+    ];
+    const headers = new Headers(init.headers);
+    expect(headers.get("Authorization")).toBe("Bearer ghp_combined_test");
+    expect(headers.get("X-Reef-LLM")).toBeNull();
+  });
+});

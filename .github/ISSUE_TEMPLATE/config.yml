@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/dnotitia/reef/security/advisories/new
+    about: Report security issues privately via a GitHub Security Advisory — never a public issue.
+  - name: Questions & discussions
+    url: https://github.com/dnotitia/reef/discussions
+    about: Ask setup/usage questions and discuss ideas here instead of opening an issue.
+  - name: AKB backend issues
+    url: https://github.com/dnotitia/akb/issues/new/choose
+    about: If the problem is in the AKB backend itself (not reef's integration), report it on the AKB repo.

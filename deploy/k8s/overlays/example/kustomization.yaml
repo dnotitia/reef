@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Example overlay — the template every deployment starts from. Copy this
+# directory to overlays/<your-env>/ and edit the four override points:
+#   1. namespace          — where reef-web runs
+#   2. images[].newName   — your image registry / repository
+#   3. patch-config.yaml  — AKB_BACKEND_URL + REEF_PUBLIC_ORIGIN
+#   4. patch-ingress.yaml — public host (tls + rules)
+# The base itself is never deployed directly.
+
+# Namespace reef-web runs in. The namespace is assumed to already exist
+# (reef-web does not create it).
+namespace: reef
+
+resources:
+  - ../../base
+
+# Point the base `reef-web:latest` image at your registry. This is the
+# kustomize-native way to set the registry; deploy.sh can alternatively
+# inject it from the REGISTRY env at apply time.
+images:
+  - name: reef-web
+    newName: ghcr.io/myorg/reef-web
+    newTag: latest
+
+patches:
+  - path: patch-config.yaml
+  - path: patch-ingress.yaml

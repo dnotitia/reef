@@ -1,0 +1,31 @@
+{
+  "scenario": "project-state-code-question",
+  "input": {
+    "question": "Where is the search_code tool defined?",
+    "issueContexts": [
+      {
+        "id": "REEF-031",
+        "title": "Implement search_code AI tool",
+        "status": "done",
+        "assigned_to": "minsu",
+        "depends_on": [],
+        "blocks": []
+      },
+      {
+        "id": "REEF-045",
+        "title": "Wire search_code into chat route handler",
+        "status": "done",
+        "assigned_to": "minsu",
+        "depends_on": ["REEF-031"],
+        "blocks": []
+      }
+    ],
+    "hasTools": true
+  },
+  "cannedResponse": {
+    "answer": "The search_code tool is defined in packages/core/src/agents/tools/repo/searchCode.ts. It is implemented as an AI SDK tool with Zod-typed input and output schemas, and is exported from the core package index for use in the chat route handler.",
+    "referenced_issue_ids": ["REEF-031", "REEF-045"]
+  },
+  "expectedFields": ["answer", "referenced_issue_ids"],
+  "expectedKeywords": ["packages/core", "searchCode"]
+}

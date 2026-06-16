@@ -1,0 +1,57 @@
+{
+  "scenario": "enrichment-system-prompt",
+  "input": {
+    "issueId": "REEF-042",
+    "draft": {
+      "fields": {
+        "title": "Login issue",
+        "issue_type": "bug",
+        "priority": null,
+        "assigned_to": null,
+        "requester": null,
+        "reporter": null,
+        "start_date": null,
+        "due_date": null,
+        "milestone_id": null,
+        "sprint_id": null,
+        "release_id": null,
+        "estimate_points": null,
+        "severity": null,
+        "parent_id": null,
+        "labels": [],
+        "depends_on": [],
+        "blocks": [],
+        "related_to": [],
+        "external_refs": []
+      },
+      "content": "Users sometimes can't log in."
+    },
+    "context": {
+      "labels": [],
+      "members": [],
+      "templates": [],
+      "knownIssueIds": []
+    },
+    "repoContext": {
+      "owner": "octo",
+      "repo": "cat"
+    }
+  },
+  "cannedResponse": {
+    "suggestions": [
+      {
+        "field": "title",
+        "value": "OAuth token expiry causes intermittent login failure",
+        "reasoning": "Original title is too vague for issue tracking.",
+        "confidence": 0.88
+      },
+      {
+        "field": "priority",
+        "value": "high",
+        "reasoning": "Affects authentication flow used by all users.",
+        "confidence": 0.85
+      }
+    ]
+  },
+  "expectedFields": ["suggestions"]
+}

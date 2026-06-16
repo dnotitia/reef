@@ -1,0 +1,288 @@
+/**
+ * Cross-route helpers used by Next.js Route Handlers. Centralizes parsing,
+ * adapter construction, and PM-vocabulary error responses so all akb-backed
+ * endpoints share one wording and one error-translation ladder.
+ */
+
+import { getAkbBackendUrl } from "@/lib/akb/akbBackendUrl";
+import { extractAkbSession } from "@/lib/akb/extractAkbSession";
+import {
+  type AkbAdapter,
+  type AkbResourceLabel,
+  AuthError,
+  NotFoundError,
+  SchemaValidationError,
+  VAULT_NAME_PATTERN,
+  VaultNameSchema,
+  akbGetCurrentActor,
+  createAkbAdapter,
+  translateError,
+} from "@reef/core";
+import type { z } from "zod";
+
+export const VAULT_NAME_RE = VAULT_NAME_PATTERN;
+
+/** Strict `owner/name` regex — rejects empty parts, embedded slashes, or whitespace. */
+const REPO_QUERY_RE = /^[^/]+\/[^/]+$/;
+
+export { VaultNameSchema };
+
+/**
+ * `{PREFIX}-{NUMBER}` in either case. The route handlers concatenate the
+ * matched value into URL paths so any deviation (slashes, dots, null bytes)
+ * should be rejected before it reaches the adapter.
+ */
+const ISSUE_ID_PATH_REGEX = /^[A-Za-z]+-\d+$/;
+
+export function isValidIssueIdPathParam(id: string): boolean {
+  return ISSUE_ID_PATH_REGEX.test(id);
+}
+
+export interface RepoParts {
+  owner: string;
+  repo: string;
+}
+
+/**
+ * Parses the `repo` query parameter from a Request URL.
+ * Returns `null` when missing or malformed — callers translate `null` into a
+ * 400 response with their preferred wording.
+ *
+ * Kept for monitored-repo routes (activity/detect, repos, etc.) that still
+ * talk to GitHub directly.
+ */
+function parseRepoParam(request: Request): RepoParts | null {
+  const { searchParams } = new URL(request.url);
+  const raw = searchParams.get("repo");
+  if (!raw || !REPO_QUERY_RE.test(raw)) return null;
+  const [owner, repo] = raw.split("/") as [string, string];
+  return { owner, repo };
+}
+
+/**
+ * Parses the `vault` query parameter from a Request URL.
+ * Returns `null` when missing or malformed (caller translates to 400).
+ */
+export function parseVaultParam(request: Request): string | null {
+  const { searchParams } = new URL(request.url);
+  const raw = searchParams.get("vault");
+  if (!raw || !VAULT_NAME_RE.test(raw)) return null;
+  return raw;
+}
+
+/** Issue-list facets that may repeat in the query string (→ SQL `IN`). */
+const ISSUE_LIST_MULTI_KEYS = [
+  "status",
+  "priority",
+  "severity",
+  "issue_type",
+] as const;
+
+/** Single-valued issue-list facets / sort / pagination params. */
+const ISSUE_LIST_SINGLE_KEYS = [
+  "assigned_to",
+  "requester",
+  "sprint_id",
+  "milestone_id",
+  "release_id",
+  "due_before",
+  "due_after",
+  "q",
+  "sort_field",
+  "sort_order",
+  "cursor",
+] as const;
+
+/**
+ * Extract issue-list query facets from a request URL into the shape
+ * `IssueListQuerySchema` expects (arrays for multi-value facets, coerced
+ * `archived` / `limit`). Returns `null` when no issue-list params are present,
+ * so the handler falls back to the unfiltered full-vault listing. A
+ * non-numeric `limit` is passed through verbatim so Zod rejects it (→ 400)
+ * rather than being silently dropped.
+ */
+export function parseIssueListQueryParams(
+  searchParams: URLSearchParams,
+): Record<string, unknown> | null {
+  const out: Record<string, unknown> = {};
+  for (const key of ISSUE_LIST_MULTI_KEYS) {
+    const values = searchParams.getAll(key);
+    if (values.length > 0) out[key] = values;
+  }
+  for (const key of ISSUE_LIST_SINGLE_KEYS) {
+    const value = searchParams.get(key);
+    if (value != null) out[key] = value;
+  }
+  const archived = searchParams.get("archived");
+  if (archived != null) out.archived = archived === "true";
+  const defaultView = searchParams.get("default_view");
+  if (defaultView != null) out.default_view = defaultView === "true";
+  const limit = searchParams.get("limit");
+  if (limit != null) {
+    const parsed = Number(limit);
+    out.limit = Number.isFinite(parsed) ? parsed : limit;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+// ─── 4xx helpers ─────────────────────────────────────────────────────────────
+
+function authErrorResponse(): Response {
+  return Response.json(
+    { error: "Your session has expired. Please sign in again." },
+    { status: 401 },
+  );
+}
+
+function githubAuthErrorResponse(): Response {
+  return Response.json(
+    { error: "Reconnect GitHub in Settings to continue." },
+    { status: 401 },
+  );
+}
+
+export function invalidJsonBodyResponse(): Response {
+  return Response.json({ error: "Invalid JSON body." }, { status: 400 });
+}
+
+export function invalidBodyResponse(zodError: z.ZodError): Response {
+  return Response.json(
+    { error: "Invalid request body.", details: zodError.flatten() },
+    { status: 400 },
+  );
+}
+
+export function missingVaultParamResponse(): Response {
+  return Response.json(
+    { error: "Missing or invalid `vault` parameter." },
+    { status: 400 },
+  );
+}
+
+export function invalidIssueIdResponse(): Response {
+  return Response.json(
+    { error: "Invalid issue id. Expected format: PREFIX-NUMBER." },
+    { status: 400 },
+  );
+}
+
+// ─── akb error translation ───────────────────────────────────────────────────
+
+/** 502 for an unreachable/misconfigured workspace backend (non-ReefError path). */
+function backendErrorResponse(): Response {
+  return Response.json({ error: "Workspace backend error." }, { status: 502 });
+}
+
+/**
+ * Forcibly tag a NotFound/Schema error with a curated `resourceKind` so core
+ * `translateError` produces resource-specific copy (e.g. "Issue not found.").
+ * Overwrites any free-form `resource` the adapter set — the akb adapters throw
+ * `NotFoundError({ resource: "issue REEF-001" })`, so re-tagging is mandatory to
+ * keep curated copy. Non-NotFound/Schema errors pass through unchanged.
+ */
+function withResource(err: unknown, resourceKind: AkbResourceLabel): unknown {
+  if (err instanceof NotFoundError) {
+    return new NotFoundError({ ...err.context, resourceKind });
+  }
+  if (err instanceof SchemaValidationError) {
+    return new SchemaValidationError({ ...err.context, resourceKind });
+  }
+  return err;
+}
+
+/**
+ * Single entry point for Route Handler error translation. Delegates to the
+ * canonical core `translateError` (total: consistently a Response, does not null/throws),
+ * optionally overlaying resource-specific copy via `withResource`.
+ *
+ * should not log — callers own observability and should call `logger.error(...)`
+ * from the redacting logger immediately before calling this.
+ */
+export function respondWithError(
+  err: unknown,
+  ctx?: { resourceKind?: AkbResourceLabel },
+): Response {
+  return translateError(
+    ctx?.resourceKind ? withResource(err, ctx.resourceKind) : err,
+  );
+}
+
+// ─── Adapter construction ────────────────────────────────────────────────────
+
+/**
+ * Build a per-request akb adapter from the session cookie. Returns the
+ * adapter on success, or a 401 Response when the cookie is missing/expired.
+ *
+ * The adapter is scoped to one request — does not cached at module scope.
+ */
+export function getAkbAdapter(
+  request: Request,
+): { adapter: AkbAdapter } | { response: Response } {
+  let jwt: string;
+  try {
+    jwt = extractAkbSession(request);
+  } catch {
+    return { response: authErrorResponse() };
+  }
+  return { adapter: createAkbAdapter({ baseUrl: getAkbBackendUrl(), jwt }) };
+}
+
+/**
+ * Resolve the currently authenticated akb user for reef semantic actor fields.
+ *
+ * The actor is not persisted server-side. We validate the httpOnly session on
+ * each mutating request via akb `/auth/me` (through core `akbGetCurrentActor`),
+ * then use the public username for `Issue.created_by` / `Issue.updated_by`. A
+ * JWT claim is just a fallback for older akb deployments that do not return the
+ * expected public profile shape.
+ *
+ * REEF-052: the akb wire call, schema, and claim-decode now live in `core`.
+ * This helper keeps cookie decode (web-owned) and the PM-facing error mapping.
+ * The web signature is unchanged — core returns `{ actor: string | null }`, and
+ * a `null` actor is collapsed here into a 502 so callers can keep consuming
+ * `actor` as a non-null string.
+ */
+export async function getAkbCurrentActor(
+  request: Request,
+): Promise<{ actor: string } | { response: Response }> {
+  let jwt: string;
+  try {
+    jwt = extractAkbSession(request);
+  } catch {
+    return { response: authErrorResponse() };
+  }
+
+  let backendUrl: string;
+  try {
+    backendUrl = getAkbBackendUrl();
+  } catch {
+    return { response: backendErrorResponse() };
+  }
+
+  let actor: string | null;
+  try {
+    ({ actor } = await akbGetCurrentActor({
+      adapter: createAkbAdapter({ baseUrl: backendUrl, jwt }),
+      jwt,
+    }));
+  } catch (err) {
+    if (err instanceof AuthError) return { response: authErrorResponse() };
+    return { response: backendErrorResponse() };
+  }
+
+  if (!actor) return { response: backendErrorResponse() };
+  return { actor };
+}
+
+/**
+ * Best-effort current actor for read paths (e.g. the issue-list default view).
+ * Returns the akb username, or `null` when the session is expired/unreachable —
+ * callers degrade gracefully rather than failing the request. does not persists or
+ * logs the identity.
+ */
+export async function resolveOptionalActor(
+  request: Request,
+): Promise<string | null> {
+  const result = await getAkbCurrentActor(request);
+  return "response" in result ? null : result.actor;
+}

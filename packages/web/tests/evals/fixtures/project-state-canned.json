@@ -1,0 +1,30 @@
+{
+  "scenario": "project-state-system-prompt",
+  "input": {
+    "question": "What's blocking the payment module?",
+    "issueContexts": [
+      {
+        "id": "REEF-042",
+        "title": "Payment module refactoring",
+        "status": "todo",
+        "assigned_to": "minsu",
+        "depends_on": ["REEF-037"],
+        "blocks": []
+      },
+      {
+        "id": "REEF-037",
+        "title": "Authentication module",
+        "status": "in_progress",
+        "assigned_to": "jieun",
+        "depends_on": [],
+        "blocks": ["REEF-042"]
+      }
+    ],
+    "hasTools": false
+  },
+  "cannedResponse": {
+    "answer": "REEF-042 (Payment module refactoring) is currently blocked by REEF-037 (Authentication module), which is still in progress and assigned to jieun.",
+    "referenced_issue_ids": ["REEF-042", "REEF-037"]
+  },
+  "expectedFields": ["answer", "referenced_issue_ids"]
+}

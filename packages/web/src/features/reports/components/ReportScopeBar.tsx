@@ -1,0 +1,175 @@
+"use client";
+
+import { AssigneeCombobox } from "@/components/AssigneeCombobox";
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
+import { LabelChipInput } from "@/components/ui/label-chip-input";
+import {
+  formatLabelFilter,
+  parseLabelFilter,
+} from "@/features/issues/lib/issueListUtils";
+import { PlanningItemCombobox } from "@/features/planning/components/PlanningItemCombobox";
+import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import { useMemo } from "react";
+import { DEFAULT_REPORT_FILTERS, type ReportFilters } from "../lib/aggregate";
+
+// Reports controls. Hoisted so the option arrays keep a stable identity
+// across renders (Period/Scope does not change).
+const PERIOD_OPTIONS: ReadonlyArray<{
+  value: ReportFilters["period"];
+  label: string;
+}> = [
+  { value: "4w", label: "Last 4 weeks" },
+  { value: "12w", label: "Last 12 weeks" },
+  { value: "quarter", label: "Quarter" },
+  { value: "all", label: "All time" },
+];
+
+const SCOPE_OPTIONS: ReadonlyArray<{
+  value: ReportFilters["scope"];
+  label: string;
+}> = [
+  { value: "active", label: "Active work" },
+  { value: "all", label: "All issues" },
+  { value: "completed", label: "Completed" },
+];
+
+/**
+ * Reports scope bar. Period and scope are reports; the remaining facets
+ * (sprint/milestone/release/assignee/label) reuse the exact issue-filter leaves
+ * from `/issues` so the two surfaces share one UI and one matching contract
+ * (REEF-074). Filter state stays local to reports — it does not touches the issues
+ * Zustand store, URL sync, or IndexedDB persistence.
+ */
+export function ReportScopeBar({
+  filters,
+  onChange,
+}: {
+  filters: ReportFilters;
+  onChange: (filters: ReportFilters) => void;
+}) {
+  const { vault } = useActiveVault();
+  const patch = (next: Partial<ReportFilters>) =>
+    onChange({ ...filters, ...next });
+
+  const labelValues = useMemo(
+    () => parseLabelFilter(filters.label),
+    [filters.label],
+  );
+
+  return (
+    <div
+      data-testid="report-scope-bar"
+      className="grid w-full grid-cols-2 gap-2 rounded-lg border border-border-subtle bg-surface-subtle p-2 md:grid-cols-4 xl:grid-cols-[repeat(7,minmax(0,1fr))]"
+    >
+      <ScopeSelect
+        label="Period"
+        value={filters.period}
+        options={PERIOD_OPTIONS}
+        active={filters.period !== DEFAULT_REPORT_FILTERS.period}
+        onChange={(period) =>
+          patch({ period: period as ReportFilters["period"] })
+        }
+      />
+      <ScopeSelect
+        label="Scope"
+        value={filters.scope}
+        options={SCOPE_OPTIONS}
+        active={filters.scope !== DEFAULT_REPORT_FILTERS.scope}
+        onChange={(scope) => patch({ scope: scope as ReportFilters["scope"] })}
+      />
+      <div className="min-w-0">
+        <PlanningItemCombobox
+          kind="sprints"
+          vault={vault}
+          value={filters.sprint_id ?? ""}
+          onChange={(id) => patch({ sprint_id: id || undefined })}
+          label="Sprint"
+          placeholder="Sprint"
+          emptyLabel="Any sprint"
+          testId="report-sprint-input"
+          active={Boolean(filters.sprint_id)}
+        />
+      </div>
+      <div className="min-w-0">
+        <PlanningItemCombobox
+          kind="milestones"
+          vault={vault}
+          value={filters.milestone_id ?? ""}
+          onChange={(id) => patch({ milestone_id: id || undefined })}
+          label="Milestone"
+          placeholder="Milestone"
+          emptyLabel="Any milestone"
+          testId="report-milestone-input"
+          active={Boolean(filters.milestone_id)}
+        />
+      </div>
+      <div className="min-w-0">
+        <PlanningItemCombobox
+          kind="releases"
+          vault={vault}
+          value={filters.release_id ?? ""}
+          onChange={(id) => patch({ release_id: id || undefined })}
+          label="Release"
+          placeholder="Release"
+          emptyLabel="Any release"
+          testId="report-release-input"
+          active={Boolean(filters.release_id)}
+        />
+      </div>
+      <div className="min-w-0" data-testid="report-assignee-filter">
+        <AssigneeCombobox
+          value={filters.assignee ?? ""}
+          onChange={(login) => patch({ assignee: login || undefined })}
+          vault={vault}
+          label="Assignee"
+          placeholder="Assignee"
+          emptyLabel="Any assignee"
+          active={Boolean(filters.assignee)}
+        />
+      </div>
+      <div className="min-w-0">
+        <LabelChipInput
+          value={labelValues}
+          onChange={(labels) => patch({ label: formatLabelFilter(labels) })}
+          placeholder="Labels"
+          data-testid="report-label-input"
+        />
+      </div>
+    </div>
+  );
+}
+
+function ScopeSelect({
+  label,
+  value,
+  options,
+  active,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: ReadonlyArray<{ value: string; label: string }>;
+  active?: boolean;
+  onChange: (value: string) => void;
+}) {
+  // Period/Scope are static enums on the shared combobox primitive, so they
+  // render on the same field trigger as the reused sprint/assignee combos.
+  // Their defaults are the report baseline; just non-default values should read
+  // as an active filter affordance (REEF-153).
+  const comboOptions: ComboboxOption<string>[] = options.map((option) => ({
+    value: option.value,
+    label: option.label,
+    content: option.label,
+  }));
+  return (
+    <div className="min-w-0">
+      <Combobox<string>
+        ariaLabel={label}
+        value={value || null}
+        onChange={(next) => onChange(next ?? "")}
+        options={comboOptions}
+        active={active}
+      />
+    </div>
+  );
+}

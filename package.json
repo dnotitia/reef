@@ -1,0 +1,44 @@
+{
+  "name": "reef-workspace",
+  "version": "0.4.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "author": "Dnotitia Inc.",
+  "homepage": "https://github.com/dnotitia/reef#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dnotitia/reef.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dnotitia/reef/issues"
+  },
+  "packageManager": "pnpm@10.27.0",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm --filter web build",
+    "lint": "biome check .",
+    "check:release": "node scripts/check-release-policy.mjs",
+    "maintenance:scan": "node scripts/maintenance/scan.mjs",
+    "maintenance:assert-clean": "node scripts/maintenance/scan.mjs --assert-clean",
+    "maintenance:duplicates": "node scripts/maintenance/scan.mjs duplicates",
+    "maintenance:dead-code": "node scripts/maintenance/scan.mjs dead-code",
+    "maintenance:lint": "node scripts/maintenance/scan.mjs maintenance-lint",
+    "maintenance:large-files": "node scripts/maintenance/scan.mjs large-files",
+    "maintenance:test-profile": "node scripts/maintenance/scan.mjs slow-tests",
+    "maintenance:comments": "node scripts/maintenance/scan.mjs comment-claims",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r run test",
+    "format": "biome format --write ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "eslint": "^10.4.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "jscpd": "^5.0.6",
+    "knip": "^6.16.1",
+    "typescript-eslint": "^8.61.0"
+  }
+}

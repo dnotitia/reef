@@ -1,0 +1,489 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* =====================================================================
+ * reef — dense, keyboard-first design tokens
+ *
+ * Three-tier system:
+ *   1. Raw HSL values per mode  (`--background`, `--surface-sidebar`, ...)
+ *   2. Semantic tokens for status / priority / brand
+ *   3. `@theme inline` mapping into Tailwind v4 utility tokens
+ *      (consumed via `bg-foo`, `text-foo`, `border-foo`)
+ *
+ * Brand color is teal — distinct from the purple reserved for AI features.
+ * ===================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* base surfaces */
+  --background: hsl(0 0% 100%);
+  --foreground: hsl(220 13% 13%);
+  --surface-sidebar: hsl(220 13% 97%);
+  --surface-elevated: hsl(0 0% 100%);
+  --surface-hover: hsl(220 13% 95%);
+  --surface-subtle: hsl(220 13% 98%);
+
+  /* shadcn-compat aliases */
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(220 13% 13%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(220 13% 13%);
+  --primary: hsl(220 13% 13%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(220 13% 96%);
+  --secondary-foreground: hsl(220 13% 13%);
+  --muted: hsl(220 13% 96%);
+  --muted-foreground: hsl(220 9% 46%);
+  --accent: hsl(220 13% 95%);
+  --accent-foreground: hsl(220 13% 13%);
+  --destructive: hsl(0 75% 55%);
+  --destructive-foreground: hsl(0 0% 100%);
+
+  /* hairlines */
+  --border: hsl(220 13% 91%);
+  --border-subtle: hsl(220 13% 93%);
+  --input: hsl(220 13% 91%);
+  --ring: hsl(173 80% 40%);
+
+  /* brand — teal, reef-coded, distinct from AI purple */
+  --brand: hsl(173 80% 40%);
+  --brand-foreground: hsl(0 0% 100%);
+
+  /* AI track — purple, reserved for AI drafts / enrichment */
+  --ai: hsl(260 70% 60%);
+  --ai-foreground: hsl(0 0% 100%);
+  --ai-subtle: hsl(260 80% 97%);
+  --ai-subtle-foreground: hsl(260 70% 35%);
+  --ai-border: hsl(260 60% 88%);
+
+  /* status — semantic icon colors, is not used as fill backgrounds */
+  /* backlog reads one tone fainter and cooler than `open` (Todo): an
+   * uncommitted queue recedes behind committed work (REEF-109). On light it
+   * goes lighter to recede on white; the dark pair below goes darker to recede
+   * on black. */
+  --status-backlog: hsl(222 11% 64%);
+  --status-open: hsl(220 9% 60%);
+  --status-in-progress: hsl(40 90% 50%);
+  --status-in-review: hsl(260 70% 60%);
+  --status-done: hsl(150 65% 42%);
+  --status-closed: hsl(220 9% 50%);
+
+  /* priority — dots just, is not used as fill backgrounds */
+  --priority-critical: hsl(0 75% 55%);
+  --priority-high: hsl(20 85% 55%);
+  --priority-medium: hsl(40 85% 50%);
+  --priority-low: hsl(220 9% 60%);
+
+  /* issue type — icon glyph colors, is not used as fill backgrounds */
+  --type-epic: hsl(265 70% 58%);
+  --type-story: hsl(145 55% 40%);
+  --type-task: hsl(215 75% 52%);
+  --type-bug: hsl(0 72% 55%);
+  --type-spike: hsl(192 70% 40%);
+  --type-chore: hsl(220 9% 50%);
+
+  /* severity — impact-magnitude glyph colors, is not used as fill backgrounds */
+  --severity-blocker: hsl(0 80% 42%);
+  --severity-critical: hsl(0 72% 52%);
+  --severity-major: hsl(28 85% 46%);
+  --severity-minor: hsl(42 78% 42%);
+  --severity-trivial: hsl(220 9% 55%);
+
+  /* due — deadline-state glyph colors, is not used as fill backgrounds */
+  --due-overdue: hsl(0 74% 52%);
+  --due-soon: hsl(38 88% 46%);
+
+  /* dependency — blocker-graph-direction glyph colors, does not fill backgrounds */
+  --dependency-blocked: hsl(0 74% 52%);
+  --dependency-blocking: hsl(38 88% 46%);
+
+  /* person/avatar — identity-tint fill ramp (REEF-093). Unlike every token
+   * above, these ARE fills: a person is an identity, not a semantic state, so
+   * the does not-fill rule does not apply. Indexed by hash(login). teal(brand) and
+   * purple(AI) hues are left out to avoid colliding with their meaning. */
+  --av-0: hsl(350 58% 48%);
+  --av-1: hsl(18 62% 45%);
+  --av-2: hsl(38 58% 37%);
+  --av-3: hsl(110 42% 36%);
+  --av-4: hsl(150 46% 35%);
+  --av-5: hsl(200 58% 40%);
+  --av-6: hsl(225 60% 56%);
+  --av-7: hsl(245 55% 58%);
+  --av-8: hsl(290 48% 50%);
+  --av-9: hsl(320 52% 48%);
+  --av-fg: hsl(0 0% 100%);
+
+  /* font stacks — display and body share the single Inter variable face
+     (REEF-097 AC3); weight is set per-element (font-semibold, …). */
+  --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono-stack: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo,
+    monospace;
+
+  /* motion — one signature easing curve + a small duration scale.
+   * Quick entry, soft settle. Consumed via Tailwind arbitrary
+   * values, e.g. `ease-[var(--ease-signature)]` / `duration-[var(--duration-base)]`,
+   * so motion reads as designed rather than defaulted. */
+  --ease-signature: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 120ms;
+  --duration-base: 150ms;
+  --duration-slow: 500ms;
+}
+
+/* Dark token overrides. Applied when `<html>` carries the `.dark` class;
+ * the no-flash boot script in `layout.tsx` sets this synchronously based on
+ * the user's stored preference (light/dark/system) — with the "system"
+ * choice consulting matchMedia('(prefers-color-scheme: dark)') at boot and
+ * on OS-level changes. CSS therefore needs one selector here. */
+:root.dark {
+  color-scheme: dark;
+
+  --background: hsl(220 14% 8%);
+  --foreground: hsl(220 13% 95%);
+  --surface-sidebar: hsl(220 14% 6%);
+  --surface-elevated: hsl(220 14% 11%);
+  --surface-hover: hsl(220 13% 14%);
+  --surface-subtle: hsl(220 14% 10%);
+
+  --card: hsl(220 14% 10%);
+  --card-foreground: hsl(220 13% 95%);
+  --popover: hsl(220 14% 11%);
+  --popover-foreground: hsl(220 13% 95%);
+  --primary: hsl(220 13% 95%);
+  --primary-foreground: hsl(220 14% 8%);
+  --secondary: hsl(220 13% 14%);
+  --secondary-foreground: hsl(220 13% 95%);
+  --muted: hsl(220 13% 14%);
+  --muted-foreground: hsl(220 9% 65%);
+  --accent: hsl(220 13% 16%);
+  --accent-foreground: hsl(220 13% 95%);
+  --destructive: hsl(0 60% 55%);
+  --destructive-foreground: hsl(0 0% 100%);
+
+  --border: hsl(220 13% 18%);
+  --border-subtle: hsl(220 13% 15%);
+  --input: hsl(220 13% 20%);
+  --ring: hsl(173 70% 45%);
+
+  --brand: hsl(173 70% 45%);
+  --brand-foreground: hsl(0 0% 100%);
+
+  --ai: hsl(260 70% 70%);
+  --ai-foreground: hsl(0 0% 100%);
+  --ai-subtle: hsl(260 30% 18%);
+  --ai-subtle-foreground: hsl(260 70% 85%);
+  --ai-border: hsl(260 30% 30%);
+
+  --status-backlog: hsl(222 10% 50%);
+  --status-open: hsl(220 9% 65%);
+  --status-in-progress: hsl(40 90% 60%);
+  --status-in-review: hsl(260 70% 70%);
+  --status-done: hsl(150 60% 50%);
+  --status-closed: hsl(220 9% 55%);
+
+  --priority-critical: hsl(0 70% 60%);
+  --priority-high: hsl(20 85% 60%);
+  --priority-medium: hsl(40 85% 55%);
+  --priority-low: hsl(220 9% 65%);
+
+  --type-epic: hsl(265 70% 72%);
+  --type-story: hsl(145 50% 52%);
+  --type-task: hsl(215 75% 66%);
+  --type-bug: hsl(0 70% 66%);
+  --type-spike: hsl(192 65% 55%);
+  --type-chore: hsl(220 9% 62%);
+
+  --severity-blocker: hsl(0 75% 64%);
+  --severity-critical: hsl(0 70% 64%);
+  --severity-major: hsl(30 85% 58%);
+  --severity-minor: hsl(45 80% 56%);
+  --severity-trivial: hsl(220 9% 60%);
+
+  --due-overdue: hsl(0 72% 64%);
+  --due-soon: hsl(40 88% 58%);
+
+  --dependency-blocked: hsl(0 72% 64%);
+  --dependency-blocking: hsl(40 88% 58%);
+
+  /* person/avatar — lighter tones for dark surfaces, dark foreground glyph */
+  --av-0: hsl(350 55% 61%);
+  --av-1: hsl(18 58% 54%);
+  --av-2: hsl(38 52% 50%);
+  --av-3: hsl(110 38% 46%);
+  --av-4: hsl(150 42% 45%);
+  --av-5: hsl(200 55% 52%);
+  --av-6: hsl(225 58% 64%);
+  --av-7: hsl(245 52% 66%);
+  --av-8: hsl(290 46% 59%);
+  --av-9: hsl(320 50% 59%);
+  --av-fg: hsl(220 20% 12%);
+}
+
+@theme inline {
+  /* surfaces */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-sidebar: var(--surface-sidebar);
+  --color-elevated: var(--surface-elevated);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-subtle: var(--surface-subtle);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* brand */
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+
+  /* AI */
+  --color-ai: var(--ai);
+  --color-ai-foreground: var(--ai-foreground);
+  --color-ai-subtle: var(--ai-subtle);
+  --color-ai-subtle-foreground: var(--ai-subtle-foreground);
+  --color-ai-border: var(--ai-border);
+
+  /* status */
+  --color-status-backlog: var(--status-backlog);
+  --color-status-open: var(--status-open);
+  --color-status-in-progress: var(--status-in-progress);
+  --color-status-in-review: var(--status-in-review);
+  --color-status-done: var(--status-done);
+  --color-status-closed: var(--status-closed);
+
+  /* priority */
+  --color-priority-critical: var(--priority-critical);
+  --color-priority-high: var(--priority-high);
+  --color-priority-medium: var(--priority-medium);
+  --color-priority-low: var(--priority-low);
+
+  /* issue type */
+  --color-type-epic: var(--type-epic);
+  --color-type-story: var(--type-story);
+  --color-type-task: var(--type-task);
+  --color-type-bug: var(--type-bug);
+  --color-type-spike: var(--type-spike);
+  --color-type-chore: var(--type-chore);
+
+  /* severity */
+  --color-severity-blocker: var(--severity-blocker);
+  --color-severity-critical: var(--severity-critical);
+  --color-severity-major: var(--severity-major);
+  --color-severity-minor: var(--severity-minor);
+  --color-severity-trivial: var(--severity-trivial);
+
+  /* due */
+  --color-due-overdue: var(--due-overdue);
+  --color-due-soon: var(--due-soon);
+
+  /* dependency */
+  --color-dependency-blocked: var(--dependency-blocked);
+  --color-dependency-blocking: var(--dependency-blocking);
+
+  /* person/avatar identity ramp */
+  --color-av-0: var(--av-0);
+  --color-av-1: var(--av-1);
+  --color-av-2: var(--av-2);
+  --color-av-3: var(--av-3);
+  --color-av-4: var(--av-4);
+  --color-av-5: var(--av-5);
+  --color-av-6: var(--av-6);
+  --color-av-7: var(--av-7);
+  --color-av-8: var(--av-8);
+  --color-av-9: var(--av-9);
+  --color-av-fg: var(--av-fg);
+
+  /* fonts */
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono-stack);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/*
+ * Tailwind v4 default border-color is `currentColor` (i.e. the text color),
+ * which renders as near-black/white on any bare `border`/`border-t` utility.
+ * Force the global default to our token so callers that forget the explicit
+ * color modifier still get a hairline instead of a heavy text-colored line.
+ */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--border);
+  }
+
+  /* Fallback just: component focus utilities can opt into ring chrome. */
+  *:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 1px;
+    border-radius: 2px;
+  }
+}
+
+/* Subtle hairlines on hr / dividers */
+hr {
+  border-color: var(--border-subtle);
+}
+
+/*
+ * Tiptap task items. The LIVE editor nodeView renders each item as:
+ *   ul[data-type="taskList"] > li[data-checked] > label(input,span) + div(p, nested ul)
+ * Crucially the <li> carries data-checked but NOT data-type="taskItem" — that
+ * attribute appears in Tiptap's static renderHTML / clipboard output, does not
+ * on the node-view DOM the user actually sees. So anchor every rule on the
+ * taskList parent (which IS data-typed) and the immediate <li>, not the <li>'s
+ * own data-type. Tailwind Typography's prose list/paragraph rules would
+ * otherwise push the checkbox and its text onto separate lines.
+ * Keep this scoped to the shared MarkdownEditor WYSIWYG surface. (REEF-161)
+ */
+.reef-markdown-editor ul[data-type="taskList"] {
+  list-style: none;
+  padding-inline-start: 0;
+}
+
+.reef-markdown-editor ul[data-type="taskList"] > li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  list-style: none;
+  padding-inline-start: 0;
+}
+
+.reef-markdown-editor ul[data-type="taskList"] > li > label {
+  flex: 0 0 auto;
+  margin-top: 0.125em;
+  user-select: none;
+}
+
+.reef-markdown-editor
+  ul[data-type="taskList"]
+  > li
+  > label
+  input[type="checkbox"] {
+  margin: 0;
+}
+
+.reef-markdown-editor ul[data-type="taskList"] > li > div {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.reef-markdown-editor ul[data-type="taskList"] > li > div > p {
+  margin: 0;
+}
+
+.reef-markdown-editor
+  ul[data-type="taskList"]
+  > li
+  > div
+  > ul[data-type="taskList"] {
+  margin-top: 0.375rem;
+  padding-inline-start: 1.25rem;
+}
+
+/* Skeleton shimmer — slow horizontal sweep on a soft base */
+@keyframes reef-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.reef-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklab, var(--foreground) 6%, transparent) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: reef-shimmer 1.6s ease-in-out infinite;
+}
+
+/* Save-confirm flash — a single brand pulse on the card/row that just
+ * persisted, so an optimistic edit reads as "landed" without leaning on a
+ * toast (REEF-121). The card paints an ::after overlay so its own background
+ * stays intact; the table row tints its background directly because a <tr>
+ * does not reliably host an absolutely-positioned overlay. Paint — no
+ * layout. Runs on the signature curve over --duration-slow. */
+@keyframes reef-flash-overlay {
+  0% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes reef-flash-row {
+  0% {
+    background-color: color-mix(in oklab, var(--brand) 20%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.reef-flash-card {
+  position: relative;
+}
+
+.reef-flash-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  /* Hidden by default so it shows nothing once the one-shot keyframe ends and,
+   * critically, when reduced-motion disables the animation entirely — the tint
+   * and ring are  revealed by the keyframe, does not left painted. */
+  opacity: 0;
+  background: color-mix(in oklab, var(--brand) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--brand) 45%, transparent);
+  animation: reef-flash-overlay var(--duration-slow) var(--ease-signature)
+    forwards;
+}
+
+.reef-flash-row {
+  animation: reef-flash-row var(--duration-slow) var(--ease-signature);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reef-shimmer,
+  .reef-flash-card::after,
+  .reef-flash-row {
+    animation: none;
+  }
+}

@@ -1,0 +1,28 @@
+.DS_Store
+node_modules/
+.pnpm-store/
+.maintenance/
+dist/
+.env
+.env.local
+.env.*.local
+*.log
+*.tsbuildinfo
+storybook-static/
+packages/web/playwright-report/
+packages/web/test-results/
+packages/web/tests/e2e/.auth/
+
+# Editors / IDEs
+.vscode/
+.idea/
+
+# Agent tooling
+.agents/skills/
+.claude/skills
+.claude/settings.local.json
+.claude/worktrees/
+
+# Deploy overlays (keep only the example overlay)
+/deploy/k8s/overlays/*
+!/deploy/k8s/overlays/example/

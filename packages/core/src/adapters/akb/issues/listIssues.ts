@@ -1,0 +1,120 @@
+import type { IssueMetadata } from "../../../schemas/issues/metadata";
+import { hasAnyFilter } from "../../../schemas/issues/requests";
+import {
+  buildDefaultViewWhere,
+  buildIssueOrderBy,
+  buildIssueWhere,
+  buildKeysetWhere,
+  decodeCursor,
+  encodeCursor,
+  isMissingTableError,
+  rowToIssue,
+  selectIssueRows,
+  withSpan,
+} from "../core/shared";
+import type { ListIssuesParams, ListIssuesResult } from "../core/types";
+import { getActiveSprint } from "../planning/planning";
+
+export async function listIssues(
+  params: ListIssuesParams,
+): Promise<ListIssuesResult> {
+  const { adapter, vault, query, actor } = params;
+  return withSpan("akb.list_issues", { vault }, async (span) => {
+    // Single query against the projection table — no per-document body fetch. A
+    // `query` is translated to a server-side WHERE / ORDER BY; `default_view`
+    // resolves the narrow landing view; `limit`/`cursor` add keyset pagination.
+    // Sort when the client explicitly selected one, or — when paginating —
+    // a stable default so the keyset is deterministic. Otherwise emit no
+    // ORDER BY, preserving akb's natural order (matching the unsorted client).
+    const limit = query?.limit;
+    const paginating = limit != null || query?.cursor != null;
+    const sortField =
+      query?.sort_field ?? (paginating ? "created_at" : undefined);
+    const sortOrder = query?.sort_order ?? "desc";
+    const orderBy = sortField
+      ? buildIssueOrderBy(sortField, sortOrder)
+      : undefined;
+
+    let baseWhere: string | undefined;
+    // Explicit facets take precedence over the default landing view — just fall
+    // into the default view when the request carries no narrowing filter.
+    if (query?.default_view && !hasAnyFilter(query)) {
+      const activeSprint = await getActiveSprint(adapter, vault);
+      const sprintId = activeSprint?.id ?? null;
+      if (actor) {
+        // Resolve the scope up front so it stays consistent across paginated
+        // pages: My Issues when the actor has any active issue, otherwise the
+        // sprint / status-window floor so a new user does not lands on a blank
+        // board. (A post-hoc empty-page fallback would break cursor pages.)
+        const myIssuesWhere = buildDefaultViewWhere({ actor, sprintId });
+        let hasMine = false;
+        try {
+          hasMine =
+            (await selectIssueRows(adapter, vault, myIssuesWhere, undefined, 1))
+              .length > 0;
+        } catch (err) {
+          if (!isMissingTableError(err)) throw err;
+        }
+        baseWhere = hasMine
+          ? myIssuesWhere
+          : buildDefaultViewWhere({ actor: null, sprintId });
+      } else {
+        baseWhere = buildDefaultViewWhere({ actor: null, sprintId });
+      }
+      span.setAttribute("default_view", true);
+    } else if (query) {
+      baseWhere = buildIssueWhere(query);
+    }
+    span.setAttribute("filtered", query != null);
+
+    const keysetWhere =
+      query?.cursor && sortField
+        ? buildKeysetWhere(sortField, sortOrder, decodeCursor(query.cursor))
+        : undefined;
+    const combine = (base: string | undefined): string | undefined =>
+      base && keysetWhere
+        ? `${base} AND ${keysetWhere}`
+        : (keysetWhere ?? base);
+    const fetchLimit = limit != null ? limit + 1 : undefined;
+
+    let rawRows: Record<string, unknown>[];
+    try {
+      rawRows = await selectIssueRows(
+        adapter,
+        vault,
+        combine(baseWhere),
+        orderBy,
+        fetchLimit,
+      );
+    } catch (err) {
+      if (isMissingTableError(err)) {
+        span.setAttribute("table_exists", false);
+        return { issues: [], next_cursor: null };
+      }
+      throw err;
+    }
+
+    // Fetched `limit + 1` as a sentinel: a full extra row means there is a next
+    // page. Derive the cursor from the RAW row (before parsing / skipping).
+    let nextCursor: string | null = null;
+    if (sortField && limit != null && rawRows.length > limit) {
+      nextCursor = encodeCursor(rawRows[limit - 1], sortField);
+      rawRows = rawRows.slice(0, limit);
+    }
+    span.setAttribute("row_count", rawRows.length);
+
+    const issues: IssueMetadata[] = [];
+    for (const row of rawRows) {
+      try {
+        issues.push(rowToIssue(row));
+      } catch (err) {
+        // Skip a malformed row rather than failing the whole board.
+        span.addEvent("issue_row_skipped", {
+          reason: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    span.setAttribute("issue_count", issues.length);
+    return { issues, next_cursor: nextCursor };
+  });
+}

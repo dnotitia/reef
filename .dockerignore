@@ -1,0 +1,14 @@
+**/node_modules
+**/.next
+.git
+storybook-static
+tests
+.agents
+.claude
+.worktrees
+.github
+docs
+*.log
+.env
+.env.local
+.env.*.local

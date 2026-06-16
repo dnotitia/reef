@@ -1,0 +1,33 @@
+# reef-web Ingress. The cert-manager annotation assumes a ClusterIssuer
+# named `letsencrypt-prod` exists in the cluster; cert-manager then issues
+# the `reef-web-tls` certificate automatically. Adjust the issuer name (or
+# drop the annotation and manage TLS yourself) to match your cluster.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: reef-web
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # SSE: /api/chat streams token-by-token. Response buffering MUST be
+    # off or frames are silently held until the stream closes. The long
+    # read/send timeouts keep idle-but-open streams alive.
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - reef.example.com
+      secretName: reef-web-tls
+  rules:
+    - host: reef.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: reef-web
+                port:
+                  number: 3000
