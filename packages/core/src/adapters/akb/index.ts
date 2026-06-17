@@ -2,13 +2,19 @@ export {
   createAkbAdapter,
   ISSUES_COLLECTION,
   REEF_SETTINGS_TABLE,
+  REEF_SETTINGS_SCHEMA_VERSION_KEY,
   MONITORED_REPOS_TABLE,
   REEF_ISSUES_TABLE,
   REEF_TEMPLATES_TABLE,
   REEF_ACTIVITY_SUGGESTIONS_TABLE,
+  REEF_COMMENTS_TABLE,
+  REEF_ACTIVITY_TABLE,
   REEF_SPRINTS_TABLE,
   REEF_MILESTONES_TABLE,
   REEF_RELEASES_TABLE,
+  REEF_SCHEMA_VERSION,
+  REEF_DESIRED_TABLES,
+  ensureReefTables,
   searchDocuments,
   issueDocumentUri,
   type AkbAdapter,
@@ -117,5 +123,4 @@ export {
   type GetCurrentActorParams,
   type GetCurrentActorResult,
 } from "./workspace/auth";
-export { ensureReefTables } from "./core/shared";
 export type * from "./core/types";

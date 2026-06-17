@@ -31,16 +31,25 @@ export const ACTIVITY_INBOX_COLLECTION = "_reef/activity-inbox";
  *                 statements. Mirrors the config/settings table model rather
  *                 than the issue's two-store split — a template's body is
  *                 boilerplate "material", not a searchable akb document.
+ *   reef_comments — flat issue comment rows keyed by `reef_id`; comment author
+ *                 and edit semantics live in `meta` so the create-time schema
+ *                 stays small while akb lacks HTTP ALTER support.
+ *   reef_activity — immutable issue event rows keyed by `(reef_id, event_key)`;
+ *                 event-specific details live in `payload`, and actor/source
+ *                 audit semantics live in `meta`.
  */
 export const REEF_SETTINGS_TABLE = "reef_settings";
 export const MONITORED_REPOS_TABLE = "monitored_repos";
 export const REEF_ISSUES_TABLE = "reef_issues";
 export const REEF_TEMPLATES_TABLE = "reef_templates";
 export const REEF_ACTIVITY_SUGGESTIONS_TABLE = "reef_activity_suggestions";
+export const REEF_COMMENTS_TABLE = "reef_comments";
+export const REEF_ACTIVITY_TABLE = "reef_activity";
 export const REEF_SPRINTS_TABLE = "reef_sprints";
 export const REEF_MILESTONES_TABLE = "reef_milestones";
 export const REEF_RELEASES_TABLE = "reef_releases";
 export const REEF_SETTINGS_PROJECT_PREFIX_KEY = "project_prefix";
+export const REEF_SETTINGS_SCHEMA_VERSION_KEY = "schema_version";
 /**
  * `reef_settings` key holding the installed vault-skill version stamp. Value is
  * a JSON object `{ version, synced_at }` written by `installReefVaultSkill`
@@ -70,6 +79,8 @@ export const REEF_TABLE_NAMES = [
   REEF_ISSUES_TABLE,
   REEF_TEMPLATES_TABLE,
   REEF_ACTIVITY_SUGGESTIONS_TABLE,
+  REEF_COMMENTS_TABLE,
+  REEF_ACTIVITY_TABLE,
   REEF_SPRINTS_TABLE,
   REEF_MILESTONES_TABLE,
   REEF_RELEASES_TABLE,

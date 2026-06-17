@@ -23,6 +23,13 @@ explicitly in the entries below.
   between the three dimensions with the header toggle, and click any row to
   scope the detail charts below to that planning item. Shipped milestones,
   sprints, and releases stay hidden until you toggle them on (REEF-191).
+- **Reef-owned AKB tables now have a guarded schema manifest.** Lazy table
+  provisioning creates the new `reef_comments` and `reef_activity` tables
+  alongside the existing Reef tables, verifies column shapes when AKB returns
+  metadata, and records a `reef_settings.schema_version` stamp only after the
+  desired manifest matches. Creation races now absorb a 409 only when the
+  refreshed table metadata matches the manifest; mismatched existing tables fail
+  hard instead of pretending an unsupported ALTER can repair them (REEF-125).
 - **Manage who's in a workspace, right from Settings.** The Workspace → Members
   tab now lists everyone with access to the active workspace alongside their
   role. Admins and owners can add an existing akb user by searching the user
