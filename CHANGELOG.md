@@ -25,6 +25,13 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Faster first load — the rich-text editor now loads on demand.** The markdown
+  editor and its formatting engine (TipTap/ProseMirror) are no longer part of the
+  initial app bundle; they load the first time you open a surface that edits text
+  (creating an issue, editing an issue's description, the planning editor, or a
+  settings template). A height-matched placeholder holds the editor's space while
+  that happens, so the form doesn't jump. Behavior is unchanged once the editor is
+  open (REEF-220).
 - **Clearer GitHub token setup — which scopes, and where to create one.**
   Onboarding and Settings → Preferences now show the same guidance wherever you
   paste a monitored-repo Personal Access Token: it is read-only access, use

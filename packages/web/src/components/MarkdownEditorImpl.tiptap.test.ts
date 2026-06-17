@@ -1,6 +1,6 @@
 import { Editor } from "@tiptap/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { createMarkdownEditorExtensions } from "./MarkdownEditor";
+import { createMarkdownEditorExtensions } from "./MarkdownEditorImpl";
 
 const editors: Editor[] = [];
 
