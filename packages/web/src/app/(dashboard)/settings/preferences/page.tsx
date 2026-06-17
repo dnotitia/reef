@@ -1,5 +1,6 @@
 "use client";
 
+import { GithubScopeHint } from "@/components/GithubScopeHint";
 import { signOutOfWorkspace } from "@/features/auth/signOut.actions";
 import { navigateToSignOutTarget } from "@/features/auth/signOutNavigation";
 import { PreferencesSection } from "@/features/preferences/components/PreferencesSection";
@@ -103,10 +104,7 @@ export default function PreferencesPage() {
         <h3 className="font-display text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
           GitHub Access Token
         </h3>
-        <p className="text-xs text-muted-foreground">
-          Used to read activity from your monitored repositories. The token
-          stays in this browser only and is never sent to reef&apos;s server.
-        </p>
+        <GithubScopeHint className="text-xs" />
 
         {status === "unknown" && (
           <p className="text-sm text-muted-foreground">

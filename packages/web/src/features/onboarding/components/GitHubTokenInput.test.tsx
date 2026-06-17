@@ -23,3 +23,14 @@ describe("GitHubTokenInput focus ring (REEF-226)", () => {
     expect(input.className).not.toContain("ring-brand/40");
   });
 });
+
+/**
+ * REEF-236: the scope guidance is the shared GithubScopeHint, not bespoke copy,
+ * so onboarding and Preferences stay in sync.
+ */
+describe("GitHubTokenInput scope guidance (REEF-236)", () => {
+  it("renders the shared GitHub scope hint above the token input", async () => {
+    render(<GitHubTokenInput />);
+    expect(await screen.findByTestId("github-scope-hint")).toBeInTheDocument();
+  });
+});

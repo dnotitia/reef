@@ -107,6 +107,16 @@ describe("PreferencesPage layout", () => {
       screen.queryByTestId("active-workspace-section"),
     ).not.toBeInTheDocument();
   });
+
+  it("renders the shared GitHub scope hint while a token is configured (REEF-236)", async () => {
+    // getGitHubToken resolves a token here, so only the always-visible section
+    // copy shows (no input form). The scope guidance must still be present —
+    // this is the re-issue moment: a person changing GitHub accounts needs to
+    // know the scopes before they Disconnect.
+    render(<PreferencesPage />);
+    await screen.findByRole("heading", { name: "Your preferences", level: 2 });
+    expect(screen.getByTestId("github-scope-hint")).toBeInTheDocument();
+  });
 });
 
 describe("PreferencesPage GitHub token form (REEF-151)", () => {

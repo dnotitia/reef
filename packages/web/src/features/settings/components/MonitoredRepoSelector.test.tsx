@@ -54,3 +54,25 @@ describe("MonitoredRepoSelector accessibility (REEF-151)", () => {
     expect(removeIcon).toHaveAttribute("aria-hidden", "true");
   });
 });
+
+/**
+ * REEF-236: errorMessage is a ReactNode so the caller can route the user
+ * somewhere actionable (e.g. a link to the Preferences tab) instead of a dead
+ * string.
+ */
+describe("MonitoredRepoSelector error message (REEF-236)", () => {
+  it("renders a ReactNode errorMessage verbatim", () => {
+    render(
+      <MonitoredRepoSelector
+        availableRepos={repos}
+        selectedRepos={new Set()}
+        onToggle={vi.fn()}
+        isLoading={false}
+        isError
+        errorMessage={<a href="/settings/preferences">Preferences tab</a>}
+      />,
+    );
+    const link = screen.getByRole("link", { name: "Preferences tab" });
+    expect(link).toHaveAttribute("href", "/settings/preferences");
+  });
+});
