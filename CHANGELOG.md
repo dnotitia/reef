@@ -14,6 +14,15 @@ explicitly in the entries below.
 
 ### Added
 
+- **At-a-glance portfolio health on Reports.** The Reports page now shows a
+  "Portfolio health" rollup beneath the headline numbers: a worst-first list of
+  your milestones, sprints, and releases, each with a computed On track / At
+  risk / Off track verdict derived from the same signals as the rest of the page
+  — overdue and blocked work, pace against the target date, and a growing
+  backlog (sprints also weigh work done against declared capacity). Switch
+  between the three dimensions with the header toggle, and click any row to
+  scope the detail charts below to that planning item. Shipped milestones,
+  sprints, and releases stay hidden until you toggle them on (REEF-191).
 - **Manage who's in a workspace, right from Settings.** The Workspace → Members
   tab now lists everyone with access to the active workspace alongside their
   role. Admins and owners can add an existing akb user by searching the user

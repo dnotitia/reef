@@ -21,6 +21,7 @@ import {
   readFile,
   searchCode,
 } from "./github/repoReads";
+import { stripTrailingSlashes } from "./url";
 
 export type {
   GitHubAuthenticatedRepository,
@@ -69,7 +70,7 @@ export function createGitHubAdapter({
   token,
   baseUrl = process.env.REEF_GITHUB_API_BASE_URL,
 }: CreateGitHubAdapterParams): GitHubAdapter {
-  const normalizedBaseUrl = baseUrl?.replace(/\/+$/, "");
+  const normalizedBaseUrl = baseUrl ? stripTrailingSlashes(baseUrl) : undefined;
   const rest = new Octokit({
     auth: token,
     ...(normalizedBaseUrl ? { baseUrl: normalizedBaseUrl } : {}),
