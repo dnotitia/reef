@@ -17,8 +17,8 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "pnpm --filter web dev",
-    "build": "pnpm --filter web build",
+    "dev": "pnpm --filter @reef/web dev",
+    "build": "pnpm --filter @reef/web build",
     "lint": "biome check .",
     "check:release": "node scripts/check-release-policy.mjs",
     "maintenance:scan": "node scripts/maintenance/scan.mjs",

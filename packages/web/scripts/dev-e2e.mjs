@@ -136,7 +136,7 @@ try {
     `${[
       `[dev:e2e] open ${WEB_URL} in a real web browser`,
       "[dev:e2e] fixture login: alice / password",
-      `[dev:e2e] reset fixture: pnpm --filter web run reset:e2e -- ${SCENARIO}`,
+      `[dev:e2e] reset fixture: pnpm --filter @reef/web run reset:e2e -- ${SCENARIO}`,
     ].join("\n")}\n`,
   );
 } catch (err) {

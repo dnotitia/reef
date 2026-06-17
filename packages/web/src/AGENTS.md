@@ -15,13 +15,13 @@
 - For UX or layout changes, run a browser runtime verification pass against the
   hermetic runtime when the change is visible in routed pages, dialogs,
   popovers, lists, boards, or other composed surfaces. Use
-  `pnpm --filter web run dev:e2e` and reset fixture scenarios with
-  `pnpm --filter web run reset:e2e -- <scenario>`.
+  `pnpm --filter @reef/web run dev:e2e` and reset fixture scenarios with
+  `pnpm --filter @reef/web run reset:e2e -- <scenario>`.
 - Open `http://localhost:7353` in a real web browser using the agent's available
   browser automation, such as Codex Browser/in-app Browser, browser-use,
   Playwright, or a manual browser. This is a runtime check, not a jsdom or
   static-code inspection.
-- When an agent starts `pnpm --filter web run dev:e2e` for browser runtime
+- When an agent starts `pnpm --filter @reef/web run dev:e2e` for browser runtime
   verification, keep that terminal/session attached and inspect its stdout/stderr
   while exercising the UI. Treat `[dev:e2e]` fixture messages, Next.js compile or
   runtime errors, fixture-server failures, and pino `request`/`response` lines

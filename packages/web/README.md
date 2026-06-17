@@ -1,8 +1,8 @@
-# reef web
+# @reef/web
 
-Next.js App Router application for reef. This package renders the product UI and
-acts as a stateless Backend-for-Frontend over AKB-managed workspaces. It consumes
-domain behavior from `@reef/core`; Route Handlers should stay thin.
+Next.js App Router application package for reef. `@reef/web` renders the product
+UI and acts as a stateless Backend-for-Frontend over AKB-managed workspaces. It
+consumes domain behavior from `@reef/core`; Route Handlers should stay thin.
 
 reef-web persists no user-specific server state. The AKB session stays in the
 `__reef_session` httpOnly cookie, GitHub credentials stay in browser IndexedDB,
@@ -124,12 +124,12 @@ persisted query shape changes may need a TanStack Query buster bump.
 Run from the repository root:
 
 ```bash
-pnpm --filter web run typecheck
-pnpm --filter web run test
-pnpm --filter web run test:e2e
-pnpm --filter web run dev:e2e
-pnpm --filter web run test:eval
-pnpm --filter web run build
+pnpm --filter @reef/web run typecheck
+pnpm --filter @reef/web run test
+pnpm --filter @reef/web run test:e2e
+pnpm --filter @reef/web run dev:e2e
+pnpm --filter @reef/web run test:eval
+pnpm --filter @reef/web run build
 ```
 
 Root shortcuts:
@@ -144,7 +144,7 @@ pnpm test
 
 ## E2E Harness
 
-`pnpm --filter web run test:e2e` runs the hermetic Playwright suite by default.
+`pnpm --filter @reef/web run test:e2e` runs the hermetic Playwright suite by default.
 The suite starts reef-web on `localhost:7353` and its Route Handlers for real,
 plus a local fixture server on `127.0.0.1:7354` for external dependencies:
 
@@ -160,7 +160,7 @@ useful flows were moved onto the hermetic fixture server.
 For browser runtime checks after UX or layout work, run:
 
 ```bash
-pnpm --filter web run dev:e2e
+pnpm --filter @reef/web run dev:e2e
 ```
 
 This starts the fixture server and reef-web with the same mock AKB, OpenRouter,
@@ -169,7 +169,7 @@ browser. Sign in with the fixture account `alice` / `password` and select
 `reef-e2e`. Reset the fixture while the server is running with:
 
 ```bash
-pnpm --filter web run reset:e2e -- configured
+pnpm --filter @reef/web run reset:e2e -- configured
 ```
 
 ## Deployment

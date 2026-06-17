@@ -1,133 +1,131 @@
 # reef
 
-> An agentic, AKB-backed issue tracker that keeps a team's issues, plans, and
-> reports in sync with what developers and coding agents are actually doing in
-> code.
+> Agentic, AKB-backed issue tracking that keeps issues, plans, and reports in
+> sync with what developers and coding agents actually do in your GitHub repos.
 
-reef sits between issue tracking and developer-shaped reality. Teams work in
-issues, priorities, statuses, plans, and reports; developers and coding agents
-leave evidence in commits, pull requests, branches, and code changes. reef reads
-monitored GitHub repositories read-only and turns that activity into reviewable
-signal: draft issues for untracked work, proposed status transitions for work
-that moved forward, and grounded AI answers about the workspace.
+reef is an AKB subproject and reference product. It shows how AKB can be the
+durable workspace behind an agentic application: documents for human-readable
+knowledge, tables for queryable product state, HTTP APIs for the web app, and an
+agent-friendly data model that coding agents can operate on.
 
-Writes stay human-reviewed. AI enrichment, activity-scan drafts, and status
-change proposals are suggestions until a user approves them.
+In reef, that AKB-backed workspace becomes issue tracking for teams using GitHub
+and coding agents. reef reads monitored repositories, compares that evidence
+with the team's AKB issue workspace, and proposes draft issues, status
+transitions, and grounded AI answers. People stay in control: AI enrichment,
+activity-scan drafts, and status changes are suggestions until a user approves
+them.
 
-## About AKB
+## What reef shows about AKB
 
-reef requires the AKB backend to run. AKB is a separate Dnotitia product
-([github.com/dnotitia/akb](https://github.com/dnotitia/akb)) that stores reef's
-workspaces, issue documents, and `reef_issues` rows. reef does not bundle AKB;
-it reaches a running AKB instance over HTTP through the `AKB_BACKEND_URL`
-environment variable.
+- **AKB can back a full product surface.** reef stores workspaces, issue bodies,
+  planning data, templates, settings, and membership in AKB while keeping the web
+  tier stateless.
+- **Documents and tables work together.** Issue bodies live as AKB task
+  documents, while board/list/report fields live in typed `reef_issues` rows.
+- **Agentic workflows can stay reviewable.** Enrichment and activity detection
+  show their rationale before changing issue fields, so the human remains the
+  author and decision maker.
+- **Project state can follow real work.** reef reads commits, pull requests,
+  branches, and code search results from monitored GitHub repositories to
+  identify work that moved forward or was never tracked.
+- **Credentials stay at the edges.** The AKB session is an httpOnly cookie, the
+  GitHub PAT stays in browser IndexedDB, and GitHub access is read-only.
 
-> Issue ids like `REEF-XXX` refer to Dnotitia's internal reef instance and do not
-> resolve as public GitHub issues.
+## Try reef locally
 
-## What reef does
+### UI preview
 
-- Tracks issues in an AKB-backed workspace.
-- Renders issue board, list, timeline, planning, activity, reports, settings,
-  onboarding, and login views in a stateless Next.js web app.
-- Stores issue bodies in AKB task documents and queryable issue fields in
-  `reef_issues` rows.
-- Reads monitored GitHub repositories for grounding only; it does not write to
-  GitHub, clone repos, or create pull requests.
-- Uses deployment-managed LLM configuration to power chat, issue enrichment, and
-  activity-scan agents.
-- Keeps per-user secrets out of server storage: the AKB session is an httpOnly
-  cookie, and the GitHub PAT lives only in browser IndexedDB.
+For a quick UI preview, you can run reef against the hermetic fixture harness.
+It exercises reef-web and its Route Handlers for real while replacing AKB,
+OpenRouter, and GitHub with local fixtures:
+
+```bash
+pnpm install
+pnpm --filter @reef/web run dev:e2e
+```
+
+Open [http://localhost:7353](http://localhost:7353), sign in with
+`alice` / `password`, and select `reef-e2e`.
+
+To reset the fixture while `dev:e2e` is running:
+
+```bash
+pnpm --filter @reef/web run reset:e2e -- configured
+```
+
+### Source development
+
+For development against a real AKB backend, create the web environment file and
+point reef at the backend:
+
+```bash
+cp packages/web/.env.example packages/web/.env.local
+pnpm dev
+```
+
+By default, `packages/web/.env.local` points `AKB_BACKEND_URL` at
+`http://localhost:8000`. See [Development with AKB](#development-with-akb) when
+you want a real AKB-backed workspace.
+
+### Docker
+
+To try the production-style reef-web container against a reachable AKB backend,
+build the image and run it on port `3000`:
+
+```bash
+docker build -t reef-web:local .
+docker run --rm -p 3000:3000 \
+  -e AKB_BACKEND_URL=http://host.docker.internal:8000 \
+  -e OPENROUTER_API_KEY="${OPENROUTER_API_KEY:-}" \
+  -e OPENROUTER_BASE_URL=https://openrouter.ai/api/v1 \
+  -e REEF_LLM_MODEL=deepseek/deepseek-v4-flash \
+  reef-web:local
+```
+
+Open [http://localhost:3000](http://localhost:3000). If AKB runs in the same
+Docker Compose network as reef-web, use the AKB service name in
+`AKB_BACKEND_URL` instead, for example `http://akb-backend:8000`. Add
+`REEF_PUBLIC_ORIGIN=http://localhost:3000` when testing AKB-delegated SSO
+locally.
+
+## What reef includes
+
+| Surface | What it provides |
+| --- | --- |
+| Issues | Board, list, timeline, backlog, detail editing, relations, labels, and filters. |
+| Activity Hub | Reviewable draft issues and status-change proposals inferred from monitored repo activity. |
+| Ask AI | Read-only, code-grounded answers about the workspace and monitored repositories. |
+| Planning and reports | Planning catalog, release/milestone/sprint context, health summaries, and risk views. |
+| Workspace settings | Workspace membership, monitored repositories, preferences, and deployment status. |
 
 ## Repository layout
 
 This is a public pnpm monorepo. The root `package.json` is the single product
-version source of truth; the workspace packages are not published to a registry
-and are consumed in-workspace only.
+version source of truth; the workspace packages are private and consumed only
+inside this repository.
 
 | Path | Purpose |
 | --- | --- |
 | `packages/core` | Framework-agnostic TypeScript library (`@reef/core`) for schemas, models, adapters, agents, tools, and errors. GitHub, AKB, and LLM calls originate here. |
-| `packages/web` | Next.js App Router application and stateless BFF. Route Handlers under `src/app/api/*` validate requests, extract credentials, call `core`, and translate errors. |
-| `docs/` | Product, UX, release, migration, and mockup documentation. |
+| `packages/web` | Next.js App Router application package (`@reef/web`) and stateless Backend-for-Frontend. Route Handlers validate requests, extract credentials, call `core`, and translate errors. |
+| `docs/` | Architecture, UX, deployment, migration, release, and maintenance documentation. |
 | `deploy/` | Kubernetes deployment assets. |
-| `scripts/` | Repository automation, including release-policy checks. |
-| `AGENTS.md` | Cross-cutting engineering contract for AI agents working in this repo. |
+| `scripts/` | Repository automation, including release-policy and maintenance checks. |
 
-Package-local rules live in `packages/core/AGENTS.md` and
+Package-local engineering rules live in `packages/core/AGENTS.md` and
 `packages/web/AGENTS.md`.
 
-## Requirements
+## Development with AKB
 
-- Node.js 22+
-- pnpm 10.27.0, via the root `packageManager` field
-- A reachable AKB backend
+reef stores workspaces, issue documents, and `reef_issues` rows in
+[AKB](https://github.com/dnotitia/akb). reef does not bundle AKB; it reaches a
+running AKB backend over HTTP through `AKB_BACKEND_URL`.
 
-## Quick start
-
-Install workspace dependencies:
-
-```bash
-pnpm install
-```
-
-reef talks to AKB through `AKB_BACKEND_URL`; AKB does not need to run in this
-repository or on the same host. For local development, one convenient option is
-the AKB Docker Compose setup. That option requires Docker Desktop and a checkout
-of the [AKB repository](https://github.com/dnotitia/akb). From the root of your
-AKB checkout:
-
-```bash
-cp config/app.yaml.example config/app.yaml
-cp config/secret.yaml.example config/secret.yaml
-docker compose up -d
-curl http://localhost:8000/livez
-```
-
-Point reef at wherever AKB is reachable by setting `AKB_BACKEND_URL` (see below);
-it defaults to `http://localhost:8000` for the local Compose setup.
-
-Create the reef web environment file:
-
-```bash
-cp packages/web/.env.example packages/web/.env.local
-```
-
-For local development, `packages/web/.env.local` should include:
-
-```bash
-AKB_BACKEND_URL=http://localhost:8000
-OPENROUTER_API_KEY=
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-REEF_LLM_MODEL=deepseek/deepseek-v4-flash
-```
-
-Start reef:
-
-```bash
-pnpm dev
-```
-
-Open [http://localhost:7333](http://localhost:7333).
-
-## Environment
-
-reef-web is intentionally stateless. Environment variables are server-side and
-deployment-managed; do not add `NEXT_PUBLIC_*` variables for secrets.
-
-| Variable | Required | Description |
-| --- | --- | --- |
-| `AKB_BACKEND_URL` | Yes | Base URL for the AKB backend, for example `http://localhost:8000` locally. |
-| `OPENROUTER_API_KEY` | For AI features | Server-side OpenRouter API key. Never store per-user LLM keys. |
-| `OPENROUTER_BASE_URL` | Yes for AI features | OpenRouter-compatible base URL. Defaults locally to `https://openrouter.ai/api/v1`. |
-| `REEF_LLM_MODEL` | Yes for AI features | Deployment-selected model used by the LLM adapter. |
-
-User-specific credentials live elsewhere:
-
-- AKB session: `__reef_session` httpOnly cookie, decoded read-only per request
-  and forwarded to AKB as `Authorization: Bearer <pat>`.
-- GitHub PAT: browser IndexedDB only, attached per request for monitored-repo
-  grounding as `Authorization: Bearer <github_token>`.
+For local development with real data, run or port-forward an AKB backend, copy
+`packages/web/.env.example` to `packages/web/.env.local`, and set
+`AKB_BACKEND_URL` to that backend. The `@reef/web` README covers the detailed
+local setup; the deployment guide covers production environment variables,
+Kubernetes, Docker, and SSO.
 
 ## Common commands
 
@@ -143,17 +141,6 @@ Run these from the repository root.
 | `pnpm test` | Run every package's Vitest suite. |
 | `pnpm check:release` | Enforce release-policy and changelog rules. |
 
-Package-specific commands:
-
-```bash
-pnpm --filter @reef/core run typecheck
-pnpm --filter @reef/core run test
-pnpm --filter web run typecheck
-pnpm --filter web run test
-pnpm --filter web run test:e2e
-pnpm --filter web run test:eval
-```
-
 The standard gates are:
 
 ```bash
@@ -162,44 +149,22 @@ pnpm -r run typecheck
 pnpm -r run test
 ```
 
-## Data model
+## Architecture at a glance
 
-A reef issue is stored as two linked AKB records:
+reef has three runtime tiers:
 
-- an AKB task document with the plain-markdown body and AKB-native fields
-- a `reef_issues` table row with the queryable projection used by board, list,
-  timeline, reports, filters, and planning surfaces
+- **AKB** stores workspaces, issue documents, issue rows, templates, planning
+  data, and settings.
+- **reef core** is the framework-agnostic domain package, published inside the
+  workspace as `@reef/core`. It owns schemas, domain models, adapters, AI
+  agents, tools, and typed errors, and it is the only place GitHub, AKB, and LLM
+  I/O originates.
+- **reef web** is the Next.js application package, named `@reef/web` in the
+  workspace. It renders the product UI and acts as a stateless
+  Backend-for-Frontend over reef core.
 
-The AKB document title is the uppercase reef id, such as `REEF-001`. Issue
-bodies do not use YAML frontmatter, and there are no per-issue markdown files in
-this repository.
-
-New cross-boundary fields start in `packages/core/src/schemas`. Fields that need
-filtering or sorting belong in typed AKB rows; ad-hoc fields belong in row
-`meta`; body content belongs in the AKB document.
-
-## Architecture guardrails
-
-- `core` is framework-agnostic: no Next.js imports, no DOM APIs, and no business
-  logic in `web`.
-- Route Handlers are thin wrappers around `core`.
-- Zod schemas in `packages/core/src/schemas` are the source of truth for data
-  crossing package or API boundaries.
-- GitHub access is read-only monitored-repo grounding.
-- Chat tools are currently read-only; mutating tools must add approval flow.
-- Streaming changes must preserve `/api/chat` SSE delivery.
-- Release-impacting changes update `CHANGELOG.md` under `Unreleased`.
-
-## More documentation
-
-- [Architecture](docs/architecture.md)
-- [UX design](docs/ux-design.md)
-- [Deployment](docs/deployment.md)
-- [Keycloak SSO deployment contract](docs/keycloak-sso.md)
-- [Release policy](docs/release-policy.md)
-- [Migration policy](docs/migration-policy.md)
-- [Core package README](packages/core/README.md)
-- [Web package README](packages/web/README.md)
+For the full boundary, storage, credential, and streaming contracts, read
+[docs/architecture.md](docs/architecture.md).
 
 ## Deployment
 
@@ -207,15 +172,33 @@ The root `Dockerfile` builds the `packages/web` Next.js standalone output on
 Node 22 and runs it as a non-root user. Kubernetes manifests live under
 `deploy/k8s`.
 
-Production deployments must provide `AKB_BACKEND_URL` and the deployment-managed
-LLM environment variables server-side. Use `docs/release-policy.md` and
-`docs/migration-policy.md` before tagging or deploying release-impacting
-changes.
+Production deployments provide `AKB_BACKEND_URL` and deployment-managed LLM
+environment variables server-side. SSO is delegated through AKB; reef itself
+still only needs the AKB backend origin and, for cross-origin SSO, the public
+reef origin. See [docs/deployment.md](docs/deployment.md) and
+[docs/keycloak-sso.md](docs/keycloak-sso.md).
 
-For AKB-backed Keycloak SSO, configure the AKB callback and post-login path as
-described in [docs/keycloak-sso.md](docs/keycloak-sso.md). reef itself still
-only needs `AKB_BACKEND_URL`; Keycloak client secrets remain AKB-owned.
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [UX design](docs/ux-design.md)
+- [Deployment](docs/deployment.md)
+- [Keycloak SSO deployment contract](docs/keycloak-sso.md)
+- [Release policy](docs/release-policy.md)
+- [Migration policy](docs/migration-policy.md)
+- [Maintenance](docs/maintenance.md)
+- [Core package README](packages/core/README.md)
+- [`@reef/web` package README](packages/web/README.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+- [Changelog](CHANGELOG.md)
+
+## About `REEF-XXX` ids
+
+`REEF-XXX` ids in commit messages, changelog entries, or docs reference
+Dnotitia's internal reef instance and do not resolve as public GitHub issues.
+They are not required for external contributions.
 
 ## License
 
-See [LICENSE](LICENSE).
+Apache-2.0. See [LICENSE](LICENSE).

@@ -114,7 +114,7 @@ Before creating a release tag:
    - `pnpm run check:release`
    - `pnpm -r run typecheck`
    - `pnpm -r run test`
-   - `pnpm --filter web run test:e2e` when the required environment is available.
+   - `pnpm --filter @reef/web run test:e2e` when the required environment is available.
 5. Confirm Docker image build and size checks pass.
 6. Confirm streaming routes still pass the SSE smoke test for the target
    environment when staging is available.
