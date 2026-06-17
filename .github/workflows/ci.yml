@@ -84,16 +84,25 @@ jobs:
       - name: Run tests
         run: pnpm -r run test
 
-  e2e:
-    name: Playwright E2E
+  e2e-shard:
+    # NOTE: the `/3` denominator here, in the matrix below, and in the
+    # `--shard` flag are one logical value. `env:` is not available in a job
+    # `name:`, so it is spelled out literally — keep all three in sync.
+    name: E2E (shard ${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, test]
-    # Run E2E unconditionally on prior-job *success* — individual specs
-    # self-skip when their secrets are absent, so the job always reports a
-    # result rather than being skipped wholesale by a `secrets != ''` gate.
-    # We intentionally do NOT use `always()`: that would burn CI minutes on
-    # E2E even when lint/typecheck/test have already failed.
+    # Gate only on the *fast* checks (lint + typecheck). Vitest used to be a
+    # `needs` here too, which serialized the whole ~2.5min unit suite ahead of
+    # E2E even though the two are independent — now they run in parallel. We
+    # still gate on lint/typecheck (seconds, not minutes) so E2E does not burn
+    # runner time on a build that cannot even compile.
+    needs: [lint, typecheck]
     if: success()
+    strategy:
+      # One shard failing should not cancel the others — we want every shard's
+      # result so a flake in one is not masked by an early abort in another.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -110,16 +119,61 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Resolve Playwright version
+        id: pw
+        run: |
+          version=$(pnpm --filter @reef/web exec playwright --version | awk '{print $2}')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Playwright version: $version"
+
+      # Cache the browser binaries (~/.cache/ms-playwright) keyed on the exact
+      # Playwright version so a hit skips the download on every run. The cache
+      # is invalidated only when Playwright itself is upgraded.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.pw.outputs.version }}
+
       - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm --filter @reef/web exec playwright install --with-deps chromium
 
+      # On a cache hit the binary is restored but the OS-level shared libs are
+      # not (they live in apt, not the cached dir), so install just those.
+      - name: Install Playwright OS dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @reef/web exec playwright install-deps chromium
+
       - name: Run Playwright E2E tests
-        run: pnpm --filter @reef/web run test:e2e
+        run: pnpm --filter @reef/web exec playwright test --shard=${{ matrix.shard }}/3
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v5
         if: ${{ !cancelled() && failure() }}
         with:
-          name: playwright-report
+          name: playwright-report-shard-${{ matrix.shard }}
           path: packages/web/playwright-report/
           retention-days: 7
+
+  # Stable aggregate gate. Branch protection requires the context "Playwright
+  # E2E"; the sharded matrix jobs report under per-shard names, so this job
+  # keeps that exact name and passes only when every shard passed. A `skipped`
+  # matrix (because lint/typecheck gated E2E out) is treated as non-blocking,
+  # mirroring the old `if: success()` behavior — those failed gates already
+  # block the PR on their own required checks.
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    needs: [e2e-shard]
+    if: ${{ !cancelled() }}
+    steps:
+      - name: Aggregate E2E shard results
+        run: |
+          result='${{ needs.e2e-shard.result }}'
+          echo "E2E shard matrix result: $result"
+          case "$result" in
+            success|skipped) exit 0 ;;
+            *) echo "::error::One or more Playwright E2E shards failed"; exit 1 ;;
+          esac
