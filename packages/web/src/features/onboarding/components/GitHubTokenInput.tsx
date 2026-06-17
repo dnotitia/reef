@@ -1,5 +1,6 @@
 "use client";
 
+import { GithubScopeHint } from "@/components/GithubScopeHint";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getGitHubToken, setGitHubToken } from "@/lib/storage/credentials";
 import { type SubmitEvent, useEffect, useState } from "react";
@@ -84,7 +85,7 @@ export function GitHubTokenInput({ onSaved }: GitHubTokenInputProps) {
       if (!res.ok) {
         setError(
           res.status === 401 || res.status === 403
-            ? "GitHub rejected that token. Check it has `repo` scope and hasn't expired."
+            ? "GitHub rejected that token. Check its scope (public_repo / repo) and that it hasn't expired."
             : "Couldn't verify the token. Check your connection and try again.",
         );
         return;
@@ -109,11 +110,7 @@ export function GitHubTokenInput({ onSaved }: GitHubTokenInputProps) {
 
   return (
     <div className="flex flex-col gap-3" data-testid="github-token-input">
-      <p className="text-sm text-muted-foreground">
-        reef reads activity from your monitored repositories on your behalf.
-        Paste a Personal Access Token with at least <code>repo</code> scope. The
-        token stays in this browser only.
-      </p>
+      <GithubScopeHint />
 
       <form onSubmit={handleSave} className="flex flex-col gap-3">
         <input

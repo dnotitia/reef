@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { RepoListItem } from "@/features/settings/hooks/useRepos";
 import type { MonitoredRepo } from "@reef/core";
 import { ChevronDown, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 
 interface MonitoredRepoSelectorProps {
   availableRepos: readonly RepoListItem[];
@@ -18,7 +18,8 @@ interface MonitoredRepoSelectorProps {
   isLoading: boolean;
   isError: boolean;
   disabled?: boolean;
-  errorMessage?: string;
+  /** Shown when `isError` and not loading; a node so callers can link out. */
+  errorMessage?: ReactNode;
   testIdPrefix?: string;
 }
 

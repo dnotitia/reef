@@ -13,6 +13,7 @@ import {
   useRepos,
 } from "@/features/settings/hooks/useRepos";
 import type { MonitoredRepo } from "@reef/core";
+import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import {
   MonitoredRepoSelector,
@@ -208,7 +209,18 @@ function RepoPickerSectionContent({
             isLoading={reposFetchLoading || !!(activeVault && configPending)}
             isError={reposFetchError && !reposFetchLoading}
             disabled={monitoredDisabled}
-            errorMessage="Connect GitHub in the Preferences tab first."
+            errorMessage={
+              <>
+                Connect GitHub in the{" "}
+                <Link
+                  href="/settings/preferences"
+                  className="text-brand underline"
+                >
+                  Preferences tab
+                </Link>{" "}
+                first.
+              </>
+            }
           />
         ) : activeVaultLoading || (activeVault && configPending) ? (
           // Read path: don't conflate a still-loading workspace/config with
