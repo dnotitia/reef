@@ -40,5 +40,14 @@
     "jscpd": "^5.0.6",
     "knip": "^6.16.1",
     "typescript-eslint": "^8.61.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@grpc/grpc-js": "1.14.4",
+      "@grpc/proto-loader": "0.8.1",
+      "@opentelemetry/core": "2.8.0",
+      "@protobufjs/utf8": "1.1.1",
+      "protobufjs": "7.6.4"
+    }
   }
 }
