@@ -36,7 +36,7 @@ type MockedLlmAdapter = LlmAdapter & {
 };
 
 type MockedGitHubAdapter = GitHubAdapter & {
-  graphql: ReturnType<typeof vi.fn>;
+  listRecentActivity: ReturnType<typeof vi.fn>;
 };
 
 export function makeLlmAdapter(
@@ -58,15 +58,45 @@ export function makeGitHubAdapter(
   commitsResponse: unknown,
   prsResponse: unknown,
 ): MockedGitHubAdapter {
-  const graphql = vi
-    .fn()
-    .mockResolvedValueOnce(commitsResponse)
-    .mockResolvedValueOnce(prsResponse);
+  const commitNodes = extractCommitNodes(commitsResponse);
+  const prNodes = extractPrNodes(prsResponse);
+  const listRecentActivity = vi.fn(({ since }: { since?: string | null }) => ({
+    commits: commitNodes,
+    pullRequests: since
+      ? prNodes.filter((pr) => {
+          const updatedAt = (pr as { updatedAt?: unknown }).updatedAt;
+          return (
+            typeof updatedAt === "string" &&
+            new Date(updatedAt) >= new Date(since)
+          );
+        })
+      : prNodes,
+  }));
   const adapter = {
-    graphql: graphql as unknown as GitHubAdapter["graphql"],
-    rest: {} as GitHubAdapter["rest"],
+    listRecentActivity:
+      listRecentActivity as unknown as GitHubAdapter["listRecentActivity"],
   };
   return adapter as unknown as MockedGitHubAdapter;
+}
+
+function extractCommitNodes(response: unknown): unknown[] {
+  const repository = (response as { repository?: unknown }).repository;
+  const defaultBranchRef = (
+    repository as { defaultBranchRef?: unknown } | undefined
+  )?.defaultBranchRef;
+  const target = (defaultBranchRef as { target?: unknown } | null | undefined)
+    ?.target;
+  const history = (target as { history?: unknown } | undefined)?.history;
+  const nodes = (history as { nodes?: unknown } | undefined)?.nodes;
+  return Array.isArray(nodes) ? nodes : [];
+}
+
+function extractPrNodes(response: unknown): unknown[] {
+  const repository = (response as { repository?: unknown }).repository;
+  const pullRequests = (repository as { pullRequests?: unknown } | undefined)
+    ?.pullRequests;
+  const nodes = (pullRequests as { nodes?: unknown } | undefined)?.nodes;
+  return Array.isArray(nodes) ? nodes : [];
 }
 
 export const mockAkbAdapter = { request: vi.fn() } as unknown as AkbAdapter;

@@ -6,38 +6,29 @@ const {
   mockCreateLlmAdapter,
   mockCreateWorkspaceChatAgentResponse,
   mockEnrichIssue,
-  mockEnsureReefTables,
   mockGetAkbAdapter,
-  mockListActivitySuggestions,
   mockReadAuthoringLanguage,
-  mockScanActivity,
-  mockWriteActivitySuggestion,
+  mockScanAndPersistActivitySuggestions,
 } = vi.hoisted(() => ({
   mockCreateGitHubAdapter: vi.fn(),
   mockCreateLlmAdapter: vi.fn(),
   mockCreateWorkspaceChatAgentResponse: vi.fn(),
   mockEnrichIssue: vi.fn(),
-  mockEnsureReefTables: vi.fn(),
   mockGetAkbAdapter: vi.fn(),
-  mockListActivitySuggestions: vi.fn(),
   mockReadAuthoringLanguage: vi.fn(),
-  mockScanActivity: vi.fn(),
-  mockWriteActivitySuggestion: vi.fn(),
+  mockScanAndPersistActivitySuggestions: vi.fn(),
 }));
 
 vi.mock("@reef/core", async (importOriginal) => {
   const original = await importOriginal<typeof import("@reef/core")>();
   return {
     ...original,
-    akbEnsureReefTables: mockEnsureReefTables,
-    akbListActivitySuggestions: mockListActivitySuggestions,
     akbReadAuthoringLanguage: mockReadAuthoringLanguage,
-    akbWriteActivitySuggestion: mockWriteActivitySuggestion,
     createGitHubAdapter: mockCreateGitHubAdapter,
     createLlmAdapter: mockCreateLlmAdapter,
     createWorkspaceChatAgentResponse: mockCreateWorkspaceChatAgentResponse,
     enrichIssue: mockEnrichIssue,
-    scanActivity: mockScanActivity,
+    scanAndPersistActivitySuggestions: mockScanAndPersistActivitySuggestions,
   };
 });
 
@@ -240,12 +231,9 @@ export {
   mockCreateLlmAdapter,
   mockCreateWorkspaceChatAgentResponse,
   mockEnrichIssue,
-  mockEnsureReefTables,
   mockGetAkbAdapter,
-  mockListActivitySuggestions,
   mockReadAuthoringLanguage,
-  mockScanActivity,
-  mockWriteActivitySuggestion,
+  mockScanAndPersistActivitySuggestions,
 };
 
 export async function POST(request: Request) {
@@ -261,12 +249,15 @@ export function resetAgentRunsRouteMocks() {
   mockGetAkbAdapter.mockReturnValue({ adapter: { request: vi.fn() } });
   mockCreateGitHubAdapter.mockReturnValue({});
   mockCreateLlmAdapter.mockReturnValue({ model: vi.fn() });
-  mockEnsureReefTables.mockResolvedValue(undefined);
-  mockListActivitySuggestions.mockResolvedValue({ suggestions: [] });
   mockReadAuthoringLanguage.mockResolvedValue(null);
-  mockWriteActivitySuggestion.mockResolvedValue({
-    path: "_reef/activity-inbox/reef-draft-test.md",
-    commit_hash: "abc123",
+  mockScanAndPersistActivitySuggestions.mockResolvedValue({
+    status: "completed",
+    drafts: [],
+    statusChanges: [],
+    persistedSuggestions: [],
+    addedDrafts: 0,
+    addedStatusChanges: 0,
+    scannedAt: "2026-06-04T00:00:00.000Z",
   });
   mockCreateWorkspaceChatAgentResponse.mockImplementation(
     async (params: {
@@ -290,7 +281,6 @@ export function resetAgentRunsRouteMocks() {
       await params.onEvent?.(runCompleted("issue.enrichment"));
     },
   );
-  mockScanActivity.mockResolvedValue({ drafts: [], statusChanges: [] });
 }
 
 export function cleanupAgentRunsRouteMocks() {

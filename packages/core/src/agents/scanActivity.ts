@@ -20,10 +20,6 @@ import { normalizeActivities } from "./activityScan/normalize";
 import { generateStatusChangeForIssue } from "./activityScan/statusChange";
 import {
   type NormalisedActivity,
-  RECENT_COMMITS_QUERY,
-  RECENT_PRS_QUERY,
-  type RecentCommitsResult,
-  type RecentPrsResult,
   SEMANTIC_LINK_CONFIDENCE_THRESHOLD,
 } from "./activityScan/types";
 import type { AgentRunEvent } from "./framework/events";
@@ -110,26 +106,19 @@ export async function scanActivity(
       parentSpan.setAttribute("since", since ?? "(first-scan)");
 
       try {
-        const [commitsResult, prsResult, issueTemplates, planningCatalog] =
+        const [recentActivity, issueTemplates, planningCatalog] =
           await Promise.all([
-            adapter.graphql<RecentCommitsResult>(RECENT_COMMITS_QUERY, {
+            adapter.listRecentActivity({
               owner,
               repo,
-              since: since ?? null,
+              since,
             }),
-            adapter.graphql<RecentPrsResult>(RECENT_PRS_QUERY, { owner, repo }),
             fetchIssueTemplateContext(akbAdapter, vault, parentSpan),
             fetchPlanningCatalogContext(akbAdapter, vault, parentSpan),
           ]);
 
-        const commitNodes =
-          commitsResult.repository.defaultBranchRef?.target?.history?.nodes ??
-          [];
-        const prNodes = since
-          ? prsResult.repository.pullRequests.nodes.filter(
-              (pr) => new Date(pr.updatedAt) >= new Date(since),
-            )
-          : prsResult.repository.pullRequests.nodes;
+        const commitNodes = recentActivity.commits;
+        const prNodes = recentActivity.pullRequests;
 
         parentSpan.setAttribute("commits_scanned", commitNodes.length);
         parentSpan.setAttribute("prs_scanned", prNodes.length);

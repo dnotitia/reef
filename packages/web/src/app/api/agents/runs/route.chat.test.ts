@@ -3,9 +3,7 @@ import type { AgentRunEvent } from "@reef/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   POST,
-  activityRunBody,
   chatRunBody,
-  childArtifactFinal,
   cleanupAgentRunsRouteMocks,
   enrichmentRunBody,
   makeRequest,
@@ -13,12 +11,8 @@ import {
   mockCreateGitHubAdapter,
   mockCreateWorkspaceChatAgentResponse,
   mockEnrichIssue,
-  mockListActivitySuggestions,
-  mockScanActivity,
-  mockWriteActivitySuggestion,
   parseSseEvents,
   resetAgentRunsRouteMocks,
-  runCompleted,
   runError,
   runStarted,
 } from "./route.testSupport";

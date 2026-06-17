@@ -6,17 +6,10 @@ import {
 } from "@/lib/llm/serverConfig";
 import { logger } from "@/lib/logging/logger";
 import {
-  type ActivitySuggestion,
   AuthError,
-  akbEnsureReefTables,
-  akbListActivitySuggestions,
-  akbReadAuthoringLanguage,
-  akbWriteActivitySuggestion,
   createGitHubAdapter,
   createLlmAdapter,
-  draftToActivitySuggestion,
-  scanActivity,
-  statusChangeToActivitySuggestion,
+  scanAndPersistActivitySuggestions,
   translateError,
 } from "@reef/core";
 import { z } from "zod";
@@ -32,8 +25,8 @@ import { z } from "zod";
  * Thin wrapper:
  *  1. Parse body
  *  2. Extract GitHub token from headers, akb session from cookie, LLM config from env
- *  3. Call core `scanActivity`
- *  4. Persist new AKB suggestions
+ *  3. Call core scan-and-persist workflow
+ *  4. Return added suggestion counts
  *  5. Return `{ addedDrafts, addedStatusChanges, scannedAt }`
  *
  * Stateless: adapters per-request; nothing cached server-side.
@@ -115,62 +108,23 @@ export async function POST(request: Request): Promise<Response> {
   });
 
   try {
-    await akbEnsureReefTables({ adapter: akb.adapter, vault });
-    const existing = await akbListActivitySuggestions({
-      adapter: akb.adapter,
-      vault,
-    });
-    const suppressedRefs = new Set<string>();
-    for (const suggestion of existing.suggestions) {
-      for (const key of suggestionDismissKeys(suggestion)) {
-        suppressedRefs.add(key);
-      }
-    }
-
-    const authoringLanguage = await akbReadAuthoringLanguage({
-      adapter: akb.adapter,
-      vault,
-    });
-
-    const { drafts, statusChanges } = await scanActivity({
+    const result = await scanAndPersistActivitySuggestions({
       adapter,
       akbAdapter: akb.adapter,
       vault,
       llmAdapter,
       owner,
       repo,
-      since,
+      ...(since ? { since } : {}),
       projectPrefix,
-      authoringLanguage,
-      dismissedRefs: [...suppressedRefs],
     });
 
-    const draftSuggestions = await Promise.all(
-      drafts.map((draft) => draftToActivitySuggestion(draft)),
-    );
-    const statusChangeSuggestions = await Promise.all(
-      statusChanges.map((statusChange) =>
-        statusChangeToActivitySuggestion(statusChange),
-      ),
-    );
-
-    let addedDrafts = 0;
-    let addedStatusChanges = 0;
-    for (const suggestion of [
-      ...draftSuggestions,
-      ...statusChangeSuggestions,
-    ]) {
-      await akbWriteActivitySuggestion({
-        adapter: akb.adapter,
-        vault,
-        suggestion,
-      });
-      if (suggestion.kind === "draft") addedDrafts++;
-      else addedStatusChanges++;
-    }
-
     return Response.json(
-      { addedDrafts, addedStatusChanges, scannedAt: new Date().toISOString() },
+      {
+        addedDrafts: result.addedDrafts,
+        addedStatusChanges: result.addedStatusChanges,
+        scannedAt: result.scannedAt,
+      },
       { status: 200 },
     );
   } catch (err) {
@@ -180,13 +134,4 @@ export async function POST(request: Request): Promise<Response> {
     // everything to 500 and leaking raw err.message. (REEF-051)
     return translateError(err);
   }
-}
-
-function suggestionDismissKeys(suggestion: ActivitySuggestion): string[] {
-  if (suggestion.kind === "draft") {
-    return [
-      `${suggestion.provenance.repo}:${suggestion.provenance.type}:${suggestion.provenance.ref}`,
-    ];
-  }
-  return suggestion.evidence.map((e) => `${e.repo}:${e.type}:${e.ref}`);
 }

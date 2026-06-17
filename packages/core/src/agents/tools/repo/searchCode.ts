@@ -20,7 +20,7 @@ const GITHUB_SCOPE_QUALIFIER_PATTERN =
 /**
  * Factory function — creates a per-request `search_code` AI SDK tool.
  *
- * Uses GitHub Code Search API (adapter.rest.search.code).
+ * Uses the GitHub adapter's monitored-repo code search surface.
  * Rate limit: 30 requests/minute.
  */
 export function createSearchCodeTool(adapter: GitHubAdapter) {
@@ -78,17 +78,13 @@ async function executeSearchCode({
           ],
         });
       }
-      const response = await adapter.rest.search.code({
-        q: `${sanitizedQuery} repo:${owner}/${repo}`,
-        per_page: maxResults,
-        headers: { accept: "application/vnd.github.text-match+json" },
+      const results = await adapter.searchCode({
+        query: sanitizedQuery,
+        owner,
+        repo,
+        maxResults,
       });
 
-      const results = response.data.items.map((item) => ({
-        path: item.path,
-        line: item.text_matches?.[0]?.fragment ? 1 : 0,
-        snippet: item.text_matches?.[0]?.fragment ?? "",
-      }));
       const parsed = SearchCodeOutputSchema.safeParse({ results });
       if (!parsed.success) {
         throw new SchemaValidationError({
@@ -106,6 +102,14 @@ async function executeSearchCode({
         code: SpanStatusCode.ERROR,
         message: error.message,
       });
+      if (
+        err instanceof SchemaValidationError ||
+        err instanceof NotFoundError ||
+        err instanceof AuthError ||
+        err instanceof GitHubApiError
+      ) {
+        throw err;
+      }
       const e = err as { status?: number; message?: string };
       const status = e.status ?? 500;
       if (status === 404) {
@@ -113,9 +117,6 @@ async function executeSearchCode({
       }
       if (status === 401 || status === 403) {
         throw new AuthError({});
-      }
-      if (err instanceof SchemaValidationError) {
-        throw err;
       }
       throw new GitHubApiError({
         status,

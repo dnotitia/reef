@@ -48,10 +48,12 @@ export {
   type EnrichIssueParams,
 } from "./enrichIssue";
 export {
-  scanActivity,
-  type ScanActivityParams,
-  type ScanActivityResult,
-} from "./scanActivity";
+  scanAndPersistActivitySuggestions,
+  type AbortedActivitySuggestionScan,
+  type CompletedActivitySuggestionScan,
+  type ScanAndPersistActivitySuggestionsParams,
+  type ScanAndPersistActivitySuggestionsResult,
+} from "./scanAndPersistActivitySuggestions";
 export {
   approveActivitySuggestion,
   type ApproveActivitySuggestionParams,
