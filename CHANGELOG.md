@@ -34,6 +34,13 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Snappier editing — changing one issue no longer reloads the whole list.**
+  Editing an issue's title, dates, labels, or other non-membership fields now
+  updates just that card in place instead of re-fetching and re-rendering the
+  entire board/list. Edits that actually move an issue between filters/columns,
+  change its sort position, or alter its dependencies still refresh the affected
+  views; an active text search refreshes only itself. Switching workspaces or
+  signing out clears the in-memory issue cache (REEF-098).
 - **Faster first load — the rich-text editor now loads on demand.** The markdown
   editor and its formatting engine (TipTap/ProseMirror) are no longer part of the
   initial app bundle; they load the first time you open a surface that edits text

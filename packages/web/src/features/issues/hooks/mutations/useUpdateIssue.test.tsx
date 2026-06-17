@@ -151,7 +151,7 @@ describe("useUpdateIssue", () => {
     expect(body).not.toHaveProperty("content");
   });
 
-  it("invalidates list + detail on success", async () => {
+  it("refetches list + relations on a membership/status edit, never detail", async () => {
     mockApiFetch.mockResolvedValue(
       new Response(JSON.stringify({ issue: UPDATED, content: "" }), {
         status: 200,
@@ -174,11 +174,56 @@ describe("useUpdateIssue", () => {
       });
     });
 
+    // `status` is both a server facet and a relation-graph field, so both
+    // projections refetch to reconcile membership/order and blocker state.
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["issues", "list", "reef-acme"],
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["issues", "relations", "reef-acme"],
+    });
+    // The detail cache is overwritten with the server response (above), so it
+    // is never blanket-invalidated (REEF-098).
+    expect(invalidateSpy).not.toHaveBeenCalledWith({
       queryKey: ["issues", "detail", "reef-acme", "REEF-001"],
+    });
+  });
+
+  it("does not refetch the plain list on a non-membership edit (REEF-098)", async () => {
+    mockApiFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          issue: { ...UPDATED, title: "Renamed" },
+          content: "",
+        }),
+        { status: 200 },
+      ),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHook(() => useUpdateIssue(), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        id: "REEF-001",
+        vault: "reef-acme",
+        patch: { title: "Renamed" },
+      });
+    });
+
+    // A title edit is patched in place. The plain list is never blanket
+    // refetched, and the relation graph is untouched. (Only active q-filtered
+    // variants are reconciled, via a predicate — none exist here.)
+    expect(invalidateSpy).not.toHaveBeenCalledWith({
+      queryKey: ["issues", "list", "reef-acme"],
+    });
+    expect(invalidateSpy).not.toHaveBeenCalledWith({
+      queryKey: ["issues", "relations", "reef-acme"],
     });
   });
 

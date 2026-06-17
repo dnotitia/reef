@@ -1,5 +1,7 @@
 "use client";
 
+import { startIssueEntityNormalizer } from "@/features/issues/lib/issueCacheNormalizer";
+import { purgeAll } from "@/features/issues/stores/issueEntityStore";
 import {
   AUTH_CHANGED_EVENT,
   PERSISTED_QUERY_CACHE_KEY,
@@ -16,7 +18,10 @@ import { useEffect, useState } from "react";
  */
 // v4: issue-list queries are now filter-keyed (`['issues','list',vault,<query>]`)
 // and a new relation projection key (`['issues','relations',vault]`) was added.
-const PERSIST_BUSTER = "reef-cache-v4";
+// v5 (REEF-098): issue list/detail caches now feed a normalized entity store
+// that is the render source for board/list rows; bump once so a stale snapshot
+// can't render against the old read path (one blank reload is accepted).
+const PERSIST_BUSTER = "reef-cache-v5";
 
 /**
  * Default staleTime / gcTime applied to every query.
@@ -77,16 +82,25 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
     });
   });
 
+  // Mirror every issue list/detail query result into the normalized entity
+  // store (the render source for board/list rows). Attached here, once per
+  // QueryClient, so it also catches the persisted snapshot rehydrated on load.
+  useEffect(() => startIssueEntityNormalizer(queryClient), [queryClient]);
+
   // When credentials change (set with a different token, or cleared),
   // clearAuthScopedClientCache wipes the persisted snapshot AND broadcasts
   // AUTH_CHANGED_EVENT. We have to also drop the in-memory cache here so
   // the next render does not flash the previous account's data before the
   // refetch with the new token completes. queryClient.clear() invalidates
   // every query — broad on purpose, since cache entries below this layer
-  // are not account-scoped.
+  // are not account-scoped. Purge the entity store on the same signal so it
+  // can't outlive the credential it was populated under.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const handler = () => queryClient.clear();
+    const handler = () => {
+      queryClient.clear();
+      purgeAll();
+    };
     window.addEventListener(AUTH_CHANGED_EVENT, handler);
     return () => window.removeEventListener(AUTH_CHANGED_EVENT, handler);
   }, [queryClient]);

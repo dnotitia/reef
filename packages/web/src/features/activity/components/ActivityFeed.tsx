@@ -238,14 +238,20 @@ function ActivityFeedContent({
       void queryClient.invalidateQueries({ queryKey: UNREAD_INBOX_QUERY_KEY });
       // The issue's status just changed on akb. The detail cache otherwise
       // stays fresh for ~30s and the user would see a stale status if they
-      // open the issue right after approving. Invalidate the list too so the
-      // board/list reflects the new status.
+      // open the issue right after approving. Invalidate this vault's list and
+      // relation projections too so the board/list reflects the new status and
+      // its blocker state — scoped to `vault`, not every workspace (REEF-098).
       const issueId = statusChange.proposal.update.issue_id;
       const toStatus = statusChange.proposal.update.patch.status;
       void queryClient.invalidateQueries({
         queryKey: ["issues", "detail", vault, issueId],
       });
-      void queryClient.invalidateQueries({ queryKey: ["issues", "list"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["issues", "list", vault],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["issues", "relations", vault],
+      });
 
       toast.success(`${issueId} moved to ${toStatus ?? "the new status"}`);
     } catch (err) {
