@@ -2,6 +2,7 @@ import { type Page, expect, test } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
   clearPersistedQueryCache,
+  clearPersistedQueryCacheOnLoad,
   openExistingWorkspace,
   readFixtureState,
   readIndexedDbConfig,
@@ -95,6 +96,14 @@ test.describe("Hermetic issue list flow", () => {
     await clearPersistedQueryCache(page);
 
     const restored = await context.newPage();
+    // The bare entry must hit the server with the restored filter. The async
+    // query-cache persister on the original page can re-write the localStorage
+    // snapshot after the clear above (its throttled flush races the page swap);
+    // if the restored page rehydrates that snapshot it serves the todo list from
+    // cache and sends no /api/issues?status=todo — the filter still restores, but
+    // the request assertion below flakes (deterministically on slower CI). Clear
+    // at document-start, before QueryProvider rehydrates, to remove the race.
+    await clearPersistedQueryCacheOnLoad(restored);
     const issueRequests = collectIssueListRequests(restored);
     await restored.goto("/issues?view=list");
 
