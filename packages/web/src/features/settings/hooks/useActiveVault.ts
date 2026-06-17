@@ -1,5 +1,6 @@
 "use client";
 
+import { purgeAllExcept } from "@/features/issues/stores/issueEntityStore";
 import {
   getActiveVault,
   setActiveVault as setActiveVaultDexie,
@@ -68,6 +69,11 @@ export function useSetActiveVault() {
       void queryClient.invalidateQueries({ queryKey: ["issues"] });
       void queryClient.invalidateQueries({ queryKey: ["issue-templates"] });
       void queryClient.invalidateQueries({ queryKey: ["planning"] });
+      // Drop other workspaces' entities from the normalized store; the new
+      // vault's entries are refetched and re-normalized by the invalidation
+      // above. Structural `byVault` isolation already prevents cross-vault
+      // reads — this just bounds memory to the active workspace.
+      purgeAllExcept(vault);
     },
   });
 }
