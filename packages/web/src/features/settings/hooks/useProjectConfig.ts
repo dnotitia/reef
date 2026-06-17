@@ -103,7 +103,9 @@ export function useUpdateProjectConfig(vault: string): ConfigMutation {
       return { config };
     },
     onSuccess: (result) => {
-      queryClient.setQueryData(projectConfigKey(vault), result);
+      const queryKey = projectConfigKey(vault);
+      queryClient.setQueryData(queryKey, result);
+      void queryClient.invalidateQueries({ queryKey });
     },
   });
 }

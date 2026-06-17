@@ -248,4 +248,7 @@ export function resetScanActivityMocks() {
 }
 
 export type { ScanActivityParams };
-export { scanActivity } from "./scanActivity";
+
+const { scanActivity } = await import("./scanActivity");
+
+export { scanActivity };

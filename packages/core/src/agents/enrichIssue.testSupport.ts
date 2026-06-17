@@ -142,4 +142,6 @@ export function resetEnrichIssueMocks() {
   });
 }
 
-export { enrichIssue } from "./enrichIssue";
+const { enrichIssue } = await import("./enrichIssue");
+
+export { enrichIssue };
