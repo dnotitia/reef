@@ -6,6 +6,7 @@ export const E2E_MOCK_URL =
 export type FixtureScenario =
   | "empty"
   | "configured"
+  | "demo_board"
   | "raw_only"
   | "activity_suggestions"
   | "skill_outdated";
@@ -168,6 +169,58 @@ export async function readIndexedDbConfig(
       open.onblocked = () => reject(new Error("IndexedDB open blocked"));
     });
   }, key);
+}
+
+export async function writeIndexedDbConfig(
+  page: Page,
+  key: string,
+  value: string,
+): Promise<void> {
+  await page.evaluate(
+    async ({ configKey, configValue }) => {
+      const open = indexedDB.open("reef");
+      return new Promise<void>((resolve, reject) => {
+        open.onsuccess = () => {
+          const db = open.result;
+          try {
+            const tx = db.transaction("config", "readwrite");
+            const store = tx.objectStore("config");
+            const idx = store.index("key");
+            const lookup = idx.get(configKey);
+            lookup.onsuccess = () => {
+              const existing = lookup.result as
+                | { id?: number; key: string; value: string }
+                | undefined;
+              if (existing?.id !== undefined) {
+                store.put({
+                  id: existing.id,
+                  key: configKey,
+                  value: configValue,
+                });
+              } else {
+                store.add({ key: configKey, value: configValue });
+              }
+            };
+            lookup.onerror = () => reject(lookup.error);
+            tx.oncomplete = () => {
+              db.close();
+              resolve();
+            };
+            tx.onerror = () => {
+              db.close();
+              reject(tx.error);
+            };
+          } catch (err) {
+            db.close();
+            reject(err);
+          }
+        };
+        open.onerror = () => reject(open.error);
+        open.onblocked = () => reject(new Error("IndexedDB open blocked"));
+      });
+    },
+    { configKey: key, configValue: value },
+  );
 }
 
 export async function readIndexedDbCredential(
