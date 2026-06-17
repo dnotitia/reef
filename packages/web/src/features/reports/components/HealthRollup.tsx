@@ -13,7 +13,6 @@ import {
   type RollupDimension,
   computeHealthRollup,
 } from "../lib/healthRollup";
-import { formatSigned } from "./ReportSummarySections";
 
 /**
  * Portfolio health rollup (REEF-191). A worst-first ranked list of milestones /
@@ -90,9 +89,18 @@ export function HealthRollup({
 
   const hasShipped = rows.some((r) => r.shipped);
   const visibleRows = showShipped ? rows : rows.filter((r) => !r.shipped);
-  const atRisk = visibleRows.filter(
-    (r) => r.verdict && r.verdict.level !== "on_track",
+  // Summarize the two unhealthy levels separately, worst first — folding them
+  // into one "at risk" count would mislabel off-track items (REEF-191).
+  const offTrack = visibleRows.filter(
+    (r) => r.verdict?.level === "off_track",
   ).length;
+  const atRisk = visibleRows.filter(
+    (r) => r.verdict?.level === "at_risk",
+  ).length;
+  const flags = [
+    offTrack > 0 ? `${offTrack} off track` : null,
+    atRisk > 0 ? `${atRisk} at risk` : null,
+  ].filter(Boolean);
   const label = DIMENSION_LABEL[activeDim];
   const activeId = filters[AXIS_KEY[activeDim]];
 
@@ -107,8 +115,9 @@ export function HealthRollup({
             Portfolio health
           </h2>
           <span className="text-[11px] text-muted-foreground">
-            {visibleRows.length} {label.many.toLowerCase()}
-            {atRisk > 0 ? ` · ${atRisk} need attention` : ""}
+            {visibleRows.length}{" "}
+            {(visibleRows.length === 1 ? label.one : label.many).toLowerCase()}
+            {flags.length > 0 ? ` · ${flags.join(" · ")}` : ""}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -119,7 +128,7 @@ export function HealthRollup({
               onClick={() => setShowShipped((s) => !s)}
               data-testid="health-rollup-show-shipped"
               className={cn(
-                "rounded-md border border-border-subtle px-2 py-1 text-[11px] font-medium transition-colors duration-150",
+                "rounded-md border border-border-subtle px-2 py-1 text-[11px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
                 showShipped
                   ? "bg-surface-hover text-foreground"
                   : "text-muted-foreground hover:text-foreground",
@@ -154,11 +163,6 @@ export function HealthRollup({
           ))}
         </ul>
       )}
-
-      <p className="text-[11px] leading-relaxed text-muted-foreground">
-        Off track: a missed target or far behind pace. At risk: overdue,
-        blocked, behind pace, or a growing backlog. Otherwise on track.
-      </p>
     </section>
   );
 }
@@ -190,7 +194,7 @@ function DimensionToggle({
             onClick={() => onSelect(dim)}
             data-testid={`health-rollup-dimension-${dim}`}
             className={cn(
-              "rounded-[5px] px-2 py-1 text-[12px] font-medium transition-colors duration-150",
+              "rounded-[5px] px-2 py-1 text-[12px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
               isActive
                 ? "bg-surface-hover text-foreground"
                 : "text-muted-foreground hover:text-foreground",
@@ -224,12 +228,13 @@ const HealthRow = memo(function HealthRow({
         onClick={() => onDrill(row.kind, row.id)}
         data-testid={`health-rollup-row-${row.id}`}
         className={cn(
-          "relative grid w-full grid-cols-1 items-center gap-2 rounded-md border border-border-subtle bg-background py-2.5 pr-3 pl-4 text-left transition-colors duration-150 hover:bg-surface-hover sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-4",
+          "relative grid w-full grid-cols-1 items-center gap-2 rounded-md border border-border-subtle bg-background py-2.5 pr-3 pl-4 text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-4",
           active && "ring-1 ring-brand/40",
         )}
       >
-        {/* Verdict rail — the at-a-glance vertical scan signal. On track stays
-            thin/neutral so red and amber carry the visual weight. */}
+        {/* Verdict rail — the single at-a-glance scan signal, paired only with
+            the colored verdict label (the HealthSummary danger-tile idiom: rail +
+            colored text, no badge). On track stays thin so red/amber lead. */}
         <span
           aria-hidden="true"
           className="absolute inset-y-0 left-0 w-1 rounded-l-md"
@@ -244,7 +249,12 @@ const HealthRow = memo(function HealthRow({
               {row.name}
             </span>
             {meta ? (
-              <RagPill color={meta.color} label={meta.label} />
+              <span
+                className="shrink-0 text-[11px] font-medium"
+                style={{ color: meta.color }}
+              >
+                {meta.label}
+              </span>
             ) : (
               <span className="shrink-0 text-[11px] text-muted-foreground">
                 Empty
@@ -257,21 +267,8 @@ const HealthRow = memo(function HealthRow({
         </div>
 
         {row.verdict && (
-          <div className="flex items-center justify-end gap-3 sm:gap-4">
+          <div className="justify-self-end">
             <CompletionBar value={row.completion} />
-            <div className="flex items-center gap-3">
-              {row.overdue > 0 && (
-                <Signal label="overdue" value={row.overdue} tone="danger" />
-              )}
-              {row.blocked > 0 && (
-                <Signal label="blocked" value={row.blocked} tone="warn" />
-              )}
-              <Signal
-                label="net"
-                value={formatSigned(row.net)}
-                tone={row.net > 0 ? "warn" : "quiet"}
-              />
-            </div>
           </div>
         )}
       </button>
@@ -305,26 +302,6 @@ function deadlineNote(targetDate: string): string {
   return `${-days}d overdue`;
 }
 
-function RagPill({ color, label }: { color: string; label: string }) {
-  return (
-    <span
-      className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium"
-      style={{
-        color,
-        borderColor: `color-mix(in oklab, ${color} 30%, transparent)`,
-        backgroundColor: `color-mix(in oklab, ${color} 12%, transparent)`,
-      }}
-    >
-      <span
-        aria-hidden="true"
-        className="h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: color }}
-      />
-      {label}
-    </span>
-  );
-}
-
 function CompletionBar({ value }: { value: number }) {
   return (
     <div className="flex shrink-0 items-center gap-2">
@@ -346,29 +323,5 @@ function CompletionBar({ value }: { value: number }) {
         {Math.round(value * 100)}%
       </span>
     </div>
-  );
-}
-
-function Signal({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string | number;
-  tone: "danger" | "warn" | "quiet";
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-baseline gap-1 text-[11px]",
-        tone === "danger" && "text-destructive",
-        tone === "warn" && "text-priority-high",
-        tone === "quiet" && "text-muted-foreground",
-      )}
-    >
-      <span className="uppercase tracking-wide">{label}</span>
-      <span className="font-mono font-medium tabular-nums">{value}</span>
-    </span>
   );
 }
