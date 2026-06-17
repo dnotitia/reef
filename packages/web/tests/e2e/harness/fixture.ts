@@ -209,3 +209,26 @@ export async function clearPersistedQueryCache(page: Page): Promise<void> {
     window.localStorage.removeItem("REACT_QUERY_OFFLINE_CACHE");
   });
 }
+
+/**
+ * Drop the persisted React Query snapshot at document-start on every navigation
+ * of `page`, before `QueryProvider` rehydrates it. Unlike `clearPersistedQueryCache`
+ * (which clears once on an already-loaded page), this guarantees a fresh entry
+ * starts with no cached queries even if another open page's async/throttled
+ * persister re-writes the snapshot between the clear and the new page booting.
+ * Use it for "bare entry must hit the server" assertions so they cannot flake on
+ * a cache hit. The saved view filter lives in IndexedDB, not this localStorage
+ * key, so it still restores. (REEF-220)
+ */
+export async function clearPersistedQueryCacheOnLoad(
+  page: Page,
+): Promise<void> {
+  await page.addInitScript(() => {
+    try {
+      window.localStorage.removeItem("REACT_QUERY_OFFLINE_CACHE");
+    } catch {
+      // localStorage can be unavailable before navigation; the app re-clears
+      // are not needed — a missing key is the desired state anyway.
+    }
+  });
+}
