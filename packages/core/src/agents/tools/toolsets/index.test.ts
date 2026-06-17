@@ -53,24 +53,27 @@ describe("agent toolsets", () => {
   });
 
   it("executes repoRead tools against the server-selected repo context", async () => {
-    const calls: Array<{ q: string; per_page: number }> = [];
+    const calls: Array<{
+      query: string;
+      owner: string;
+      repo: string;
+      maxResults: number;
+    }> = [];
     const githubAdapter = {
-      rest: {
-        search: {
-          code: async (input: { q: string; per_page: number }) => {
-            calls.push(input);
-            return {
-              data: {
-                items: [
-                  {
-                    path: "src/server.ts",
-                    text_matches: [{ fragment: "const server = true;" }],
-                  },
-                ],
-              },
-            };
+      searchCode: async (input: {
+        query: string;
+        owner: string;
+        repo: string;
+        maxResults: number;
+      }) => {
+        calls.push(input);
+        return [
+          {
+            path: "src/server.ts",
+            line: 1,
+            snippet: "const server = true;",
           },
-        },
+        ];
       },
     } as unknown as GitHubAdapter;
 
@@ -109,9 +112,12 @@ describe("agent toolsets", () => {
         },
       ],
     });
-    expect(calls[0]?.q).toContain("repo:safe-owner/safe-repo");
-    expect(calls[0]?.q).not.toContain("evil-owner/secret-repo");
-    expect(calls[0]?.per_page).toBe(3);
+    expect(calls[0]).toMatchObject({
+      query: "const server",
+      owner: "safe-owner",
+      repo: "safe-repo",
+      maxResults: 3,
+    });
   });
 
   it("builds issueAuthoring and suggestion toolsets by purpose", () => {

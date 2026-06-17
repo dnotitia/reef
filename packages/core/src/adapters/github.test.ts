@@ -1,53 +1,70 @@
-import { Octokit } from "@octokit/rest";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { mockOpenTelemetry } from "../agents/tools/__test-helpers__/otelMock";
 import { AuthError, GitHubApiError, NotFoundError } from "../errors";
 import { createGitHubAdapter, listLabelsForRepo } from "./github";
 
 mockOpenTelemetry();
 
-function octokitHttpError(
-  status: number,
-  message = `HTTP ${status}`,
-  responseHeaders: Record<string, string> = {},
-): Error {
-  return Object.assign(new Error(message), {
-    name: "HttpError",
-    status,
-    request: {
-      method: "GET",
-      url: "/user/repos",
-      headers: { authorization: "token ghp_secret" },
-    },
-    response: {
-      status,
-      url: "/user/repos",
-      headers: responseHeaders,
-      data: {},
-    },
+const GITHUB_API = "https://api.github.com";
+
+const server = setupServer(
+  http.get(`${GITHUB_API}/user/repos`, () =>
+    HttpResponse.json(
+      [
+        { full_name: "owner/repo-a", id: 111 },
+        { full_name: "owner/repo-b", id: 222 },
+      ],
+      { headers: { etag: 'W/"v2-abc"' } },
+    ),
+  ),
+  http.get(`${GITHUB_API}/repos/owner/repo/labels`, () =>
+    HttpResponse.json([
+      { name: "bug", description: "Something isn't working", color: "d73a4a" },
+      { name: "enhancement", description: null, color: "a2eeef" },
+    ]),
+  ),
+);
+
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+afterEach(() => {
+  server.resetHandlers();
+  vi.restoreAllMocks();
+});
+afterAll(() => server.close());
+
+describe("GitHubAdapter surface", () => {
+  it("exposes reef's monitored-repo read operations, not raw Octokit clients", () => {
+    const adapter = createGitHubAdapter({ token: "ghp_test" });
+
+    expect(adapter).toEqual(
+      expect.objectContaining({
+        listAuthenticatedRepositories: expect.any(Function),
+        listRecentActivity: expect.any(Function),
+        searchCode: expect.any(Function),
+        readFile: expect.any(Function),
+        listRepoLabels: expect.any(Function),
+      }),
+    );
+    expect("rest" in adapter).toBe(false);
+    expect("graphql" in adapter).toBe(false);
   });
-}
+});
 
 // ─── listAuthenticatedRepositories ───────────────────────────────────────────
 
 describe("listAuthenticatedRepositories", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-
   it("returns authenticated repos as the route-safe wire shape", async () => {
     const adapter = createGitHubAdapter({ token: "ghp_test" });
-
-    vi.spyOn(
-      adapter.rest.repos,
-      "listForAuthenticatedUser",
-    ).mockResolvedValueOnce({
-      data: [
-        { full_name: "owner/repo-a", id: 111 },
-        { full_name: "owner/repo-b", id: 222 },
-      ],
-      headers: { etag: 'W/"v2-abc"' },
-    } as never);
 
     const result = await adapter.listAuthenticatedRepositories();
 
@@ -62,34 +79,32 @@ describe("listAuthenticatedRepositories", () => {
   });
 
   it("forwards If-None-Match to GitHub", async () => {
+    let observedIfNoneMatch: string | null = null;
+    server.use(
+      http.get(`${GITHUB_API}/user/repos`, ({ request }) => {
+        observedIfNoneMatch = request.headers.get("if-none-match");
+        return HttpResponse.json([], { headers: { etag: 'W/"v2-new"' } });
+      }),
+    );
     const adapter = createGitHubAdapter({ token: "ghp_test" });
-    const listForAuthenticatedUser = vi
-      .spyOn(adapter.rest.repos, "listForAuthenticatedUser")
-      .mockResolvedValueOnce({
-        data: [],
-        headers: {},
-      } as never);
 
     await adapter.listAuthenticatedRepositories({ ifNoneMatch: 'W/"v1-old"' });
 
-    expect(listForAuthenticatedUser).toHaveBeenCalledWith(
-      expect.objectContaining({
-        per_page: 100,
-        sort: "updated",
-        headers: { "if-none-match": 'W/"v1-old"' },
-      }),
-    );
+    expect(observedIfNoneMatch).toBe('W/"v1-old"');
   });
 
-  it("returns not_modified when Octokit throws a 304 RequestError", async () => {
-    const adapter = createGitHubAdapter({ token: "ghp_test" });
-
-    vi.spyOn(
-      adapter.rest.repos,
-      "listForAuthenticatedUser",
-    ).mockRejectedValueOnce(
-      octokitHttpError(304, "Not modified", { etag: 'W/"v1-old"' }),
+  it("returns not_modified when GitHub responds 304", async () => {
+    server.use(
+      http.get(
+        `${GITHUB_API}/user/repos`,
+        () =>
+          new HttpResponse(null, {
+            status: 304,
+            headers: { etag: 'W/"v1-old"' },
+          }),
+      ),
     );
+    const adapter = createGitHubAdapter({ token: "ghp_test" });
 
     await expect(adapter.listAuthenticatedRepositories()).resolves.toEqual({
       kind: "not_modified",
@@ -98,12 +113,12 @@ describe("listAuthenticatedRepositories", () => {
   });
 
   it("maps 401 to AuthError", async () => {
+    server.use(
+      http.get(`${GITHUB_API}/user/repos`, () =>
+        HttpResponse.json({ message: "Bad credentials" }, { status: 401 }),
+      ),
+    );
     const adapter = createGitHubAdapter({ token: "ghp_test" });
-
-    vi.spyOn(
-      adapter.rest.repos,
-      "listForAuthenticatedUser",
-    ).mockRejectedValueOnce(octokitHttpError(401, "Bad credentials"));
 
     await expect(
       adapter.listAuthenticatedRepositories(),
@@ -111,12 +126,12 @@ describe("listAuthenticatedRepositories", () => {
   });
 
   it("maps 403 to GitHubApiError while preserving the upstream status", async () => {
+    server.use(
+      http.get(`${GITHUB_API}/user/repos`, () =>
+        HttpResponse.json({ message: "rate limit exceeded" }, { status: 403 }),
+      ),
+    );
     const adapter = createGitHubAdapter({ token: "ghp_test" });
-
-    vi.spyOn(
-      adapter.rest.repos,
-      "listForAuthenticatedUser",
-    ).mockRejectedValueOnce(octokitHttpError(403, "rate limit exceeded"));
 
     await expect(adapter.listAuthenticatedRepositories()).rejects.toMatchObject(
       {
@@ -126,12 +141,12 @@ describe("listAuthenticatedRepositories", () => {
   });
 
   it("maps 404 to repository NotFoundError", async () => {
+    server.use(
+      http.get(`${GITHUB_API}/user/repos`, () =>
+        HttpResponse.json({ message: "Not Found" }, { status: 404 }),
+      ),
+    );
     const adapter = createGitHubAdapter({ token: "ghp_test" });
-
-    vi.spyOn(
-      adapter.rest.repos,
-      "listForAuthenticatedUser",
-    ).mockRejectedValueOnce(octokitHttpError(404, "Not Found"));
 
     await expect(
       adapter.listAuthenticatedRepositories(),
@@ -139,14 +154,15 @@ describe("listAuthenticatedRepositories", () => {
   });
 
   it("maps other statuses to GitHubApiError without surfacing secret text", async () => {
-    const adapter = createGitHubAdapter({ token: "ghp_test" });
-
-    vi.spyOn(
-      adapter.rest.repos,
-      "listForAuthenticatedUser",
-    ).mockRejectedValueOnce(
-      octokitHttpError(500, "secret upstream: token ghp_secret leaked"),
+    server.use(
+      http.get(`${GITHUB_API}/user/repos`, () =>
+        HttpResponse.json(
+          { message: "secret upstream: token ghp_secret leaked" },
+          { status: 500 },
+        ),
+      ),
     );
+    const adapter = createGitHubAdapter({ token: "ghp_test" });
 
     await expect(adapter.listAuthenticatedRepositories()).rejects.toMatchObject(
       {
@@ -158,20 +174,81 @@ describe("listAuthenticatedRepositories", () => {
   });
 });
 
+// ─── listRecentActivity ──────────────────────────────────────────────────────
+
+describe("listRecentActivity", () => {
+  it("returns commit nodes and since-filtered PR nodes through one activity surface", async () => {
+    server.use(
+      http.post(`${GITHUB_API}/graphql`, async ({ request }) => {
+        const body = (await request.json()) as {
+          query: string;
+          variables: { since?: string | null };
+        };
+        if (body.query.includes("RecentCommits")) {
+          expect(body.variables.since).toBe("2026-04-07T10:00:00Z");
+          return HttpResponse.json({
+            data: {
+              repository: {
+                defaultBranchRef: {
+                  target: {
+                    history: {
+                      nodes: [
+                        {
+                          oid: "abc123",
+                          message: "feat: scanned commit",
+                          authoredDate: "2026-04-07T09:00:00Z",
+                          committedDate: "2026-04-07T10:30:00Z",
+                          author: {
+                            name: "Alice",
+                            user: { login: "alice" },
+                          },
+                          changedFilesIfAvailable: 2,
+                          associatedPullRequests: { nodes: [] },
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          });
+        }
+        if (body.query.includes("RecentPullRequests")) {
+          return HttpResponse.json({
+            data: {
+              repository: {
+                pullRequests: {
+                  nodes: [
+                    buildPrNode(7, "Old PR", "2026-04-07T09:30:00Z"),
+                    buildPrNode(8, "Fresh PR", "2026-04-07T10:30:00Z"),
+                  ],
+                },
+              },
+            },
+          });
+        }
+        return HttpResponse.json({ message: "unknown query" }, { status: 500 });
+      }),
+    );
+    const adapter = createGitHubAdapter({ token: "ghp_test" });
+
+    const result = await adapter.listRecentActivity({
+      owner: "owner",
+      repo: "repo",
+      since: "2026-04-07T10:00:00Z",
+    });
+
+    expect(result.commits).toHaveLength(1);
+    expect(result.commits[0]?.oid).toBe("abc123");
+    expect(result.pullRequests.map((pr) => pr.number)).toEqual([8]);
+  });
+});
+
 // ─── listLabelsForRepo ────────────────────────────────────────────────────────
 
 describe("listLabelsForRepo", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-
   it("returns RepoLabel[] on happy path", async () => {
     const adapter = createGitHubAdapter({ token: "ghp_test" });
-
-    vi.spyOn(adapter.rest, "paginate").mockResolvedValueOnce([
-      { name: "bug", description: "Something isn't working", color: "d73a4a" },
-      { name: "enhancement", description: null, color: "a2eeef" },
-    ] as never);
 
     const result = await listLabelsForRepo({
       adapter,
@@ -186,14 +263,17 @@ describe("listLabelsForRepo", () => {
   });
 
   it("caps the result at MAX_REPO_LABELS (200)", async () => {
-    const adapter = createGitHubAdapter({ token: "ghp_test" });
-
     const allItems = Array.from({ length: 250 }, (_, i) => ({
       name: `label-${i}`,
       description: null,
       color: "ededed",
     }));
-    vi.spyOn(adapter.rest, "paginate").mockResolvedValueOnce(allItems as never);
+    server.use(
+      http.get(`${GITHUB_API}/repos/owner/repo/labels`, () =>
+        HttpResponse.json(allItems),
+      ),
+    );
+    const adapter = createGitHubAdapter({ token: "ghp_test" });
 
     const result = await listLabelsForRepo({
       adapter,
@@ -207,11 +287,12 @@ describe("listLabelsForRepo", () => {
   });
 
   it("normalizes undefined description to null", async () => {
+    server.use(
+      http.get(`${GITHUB_API}/repos/owner/repo/labels`, () =>
+        HttpResponse.json([{ name: "bug", color: "d73a4a" }]),
+      ),
+    );
     const adapter = createGitHubAdapter({ token: "ghp_test" });
-
-    vi.spyOn(adapter.rest, "paginate").mockResolvedValueOnce([
-      { name: "bug", color: "d73a4a" },
-    ] as never);
 
     const result = await listLabelsForRepo({
       adapter,
@@ -223,12 +304,12 @@ describe("listLabelsForRepo", () => {
   });
 
   it("maps 404 → NotFoundError", async () => {
+    server.use(
+      http.get(`${GITHUB_API}/repos/missing/repo/labels`, () =>
+        HttpResponse.json({ message: "Not Found" }, { status: 404 }),
+      ),
+    );
     const adapter = createGitHubAdapter({ token: "ghp_test" });
-
-    vi.spyOn(adapter.rest, "paginate").mockRejectedValueOnce({
-      status: 404,
-      message: "Not Found",
-    });
 
     await expect(
       listLabelsForRepo({ adapter, owner: "missing", repo: "repo" }),
@@ -236,12 +317,12 @@ describe("listLabelsForRepo", () => {
   });
 
   it("maps 401 → AuthError", async () => {
+    server.use(
+      http.get(`${GITHUB_API}/repos/owner/repo/labels`, () =>
+        HttpResponse.json({ message: "Bad credentials" }, { status: 401 }),
+      ),
+    );
     const adapter = createGitHubAdapter({ token: "ghp_test" });
-
-    vi.spyOn(adapter.rest, "paginate").mockRejectedValueOnce({
-      status: 401,
-      message: "Bad credentials",
-    });
 
     await expect(
       listLabelsForRepo({ adapter, owner: "owner", repo: "repo" }),
@@ -249,15 +330,31 @@ describe("listLabelsForRepo", () => {
   });
 
   it("maps unknown statuses → GitHubApiError", async () => {
+    server.use(
+      http.get(`${GITHUB_API}/repos/owner/repo/labels`, () =>
+        HttpResponse.json({ message: "Server error" }, { status: 500 }),
+      ),
+    );
     const adapter = createGitHubAdapter({ token: "ghp_test" });
-
-    vi.spyOn(adapter.rest, "paginate").mockRejectedValueOnce({
-      status: 500,
-      message: "Server error",
-    });
 
     await expect(
       listLabelsForRepo({ adapter, owner: "owner", repo: "repo" }),
     ).rejects.toBeInstanceOf(GitHubApiError);
   });
 });
+
+function buildPrNode(number: number, title: string, updatedAt: string) {
+  return {
+    number,
+    title,
+    body: "",
+    headRefName: `feat/${number}`,
+    author: { login: "alice" },
+    updatedAt,
+    createdAt: "2026-04-07T08:00:00Z",
+    mergedAt: null,
+    commits: {
+      nodes: [{ commit: { message: "feat: step" } }],
+    },
+  };
+}

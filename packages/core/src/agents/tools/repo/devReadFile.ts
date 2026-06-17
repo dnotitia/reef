@@ -19,7 +19,7 @@ const tracer = trace.getTracer("@reef/core");
 /**
  * Factory function — creates a per-request `dev_read_file` AI SDK tool.
  *
- * Uses GitHub Contents API (adapter.rest.repos.getContent).
+ * Uses the GitHub adapter's monitored-repo file read surface.
  * Supports optional line range slicing.
  */
 export function createDevReadFileTool(adapter: GitHubAdapter) {
@@ -96,31 +96,18 @@ async function executeDevReadFile({
   return tracer.startActiveSpan("reef.tool.dev_read_file", async (span) => {
     span.setAttribute("tool.name", "dev_read_file");
     try {
-      const response = await adapter.rest.repos.getContent({
+      const file = await adapter.readFile({
         owner,
         repo,
         path,
-        ...(ref != null ? { ref } : {}),
+        ref,
       });
 
-      const rawData = response.data;
-
-      // Narrow to file type
-      if (!("content" in rawData) || rawData.type !== "file") {
-        throw new NotFoundError({ resource: "file" });
-      }
-
-      // Decode base64 content (strip embedded newlines first — same as readIssue)
-      const decoded = Buffer.from(
-        rawData.content.replace(/\n/g, ""),
-        "base64",
-      ).toString("utf8");
-
       // Line slicing
-      let content = decoded;
+      let content = file.content;
       let truncated = false;
       if (startLine != null || endLine != null) {
-        const lines = decoded.split("\n");
+        const lines = file.content.split("\n");
         const start = (startLine ?? 1) - 1; // convert to 0-indexed
         const end = endLine ?? lines.length; // inclusive endLine → exclusive slice
         content = lines.slice(start, end).join("\n");
@@ -130,7 +117,7 @@ async function executeDevReadFile({
       span.setStatus({ code: SpanStatusCode.OK });
       const parsed = DevReadFileOutputSchema.safeParse({
         content,
-        path: rawData.path,
+        path: file.path,
         truncated,
       });
       if (!parsed.success) {
