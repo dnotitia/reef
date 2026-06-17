@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
+  clearPersistedQueryCacheOnLoad,
   openExistingWorkspace,
   readFixtureState,
   readIndexedDbCredential,
@@ -27,6 +28,15 @@ test.describe("Hermetic settings workflows", () => {
     page,
     request,
   }) => {
+    // Drop the persisted React Query snapshot on every navigation so the
+    // `/activity` mount below always fetches `['config', vault]` fresh. Without
+    // this, navigating away from Settings can rehydrate a stale-but-still-fresh
+    // (within the 60s staleTime) config snapshot whose `monitored_repos` is
+    // empty — written before the repo we just added had flushed to localStorage.
+    // That makes `/activity` render the empty-state branch (no
+    // `activity-scan-target-single`) instead of the single-repo target, which
+    // shows up as a flaky 15s timeout on the assertion below. (REEF-220 race)
+    await clearPersistedQueryCacheOnLoad(page);
     await openExistingWorkspace(page);
 
     await page.goto("/settings/preferences");
