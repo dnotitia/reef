@@ -25,6 +25,14 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Clearer GitHub token setup — which scopes, and where to create one.**
+  Onboarding and Settings → Preferences now show the same guidance wherever you
+  paste a monitored-repo Personal Access Token: it is read-only access, use
+  `public_repo` for public repos or `repo` for private ones, and a "Create a
+  token" link opens GitHub's token page with the scope preset. The guidance
+  stays visible even when a token is already saved — so re-issuing one after
+  changing GitHub accounts is no longer guesswork — and the Monitored Repos
+  "Preferences tab" pointer is now an actual link (REEF-236).
 - **Backend logs are now structured via pino, and pretty in development.**
   Server-side request and error logs are emitted as one JSON line per event in
   production and as human-readable colorized output when running locally.
