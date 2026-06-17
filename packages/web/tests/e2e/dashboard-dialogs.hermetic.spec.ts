@@ -54,7 +54,16 @@ test.describe("Hermetic dashboard surfaces and global dialogs", () => {
         '[data-testid="global-search-item"][data-issue-id="REEF-001"]',
       ),
     ).toBeVisible();
-    await page.waitForTimeout(200);
+    // The palette silently ignores a click until its results are "current" for
+    // the live query (debounce caught up, the response settled, and any exact-id
+    // probe resolved). That readiness is mirrored on the results list as
+    // `aria-busy="false"`; waiting on it — instead of a fixed 200ms sleep — makes
+    // the click deterministic. Otherwise a slow render after the response lands
+    // turns the click into a no-op and the navigation never happens (flaky).
+    await expect(page.locator("[cmdk-list]")).toHaveAttribute(
+      "aria-busy",
+      "false",
+    );
     await page
       .locator('[data-testid="global-search-item"][data-issue-id="REEF-001"]')
       .click();
