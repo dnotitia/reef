@@ -2,13 +2,16 @@
 
 import { Button } from "@/components/ui/button";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
+import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   DEFAULT_REPORT_FILTERS,
   type ReportFilters,
   computeAggregates,
 } from "../lib/aggregate";
+import type { RollupDimension } from "../lib/healthRollup";
+import { HealthRollup } from "./HealthRollup";
 import { NetThroughputChart, RankedBarList, RiskMatrix } from "./ReportCharts";
 import { Card, EmptyState, PageShell, ReportsSkeleton } from "./ReportLayout";
 import { ReportScopeBar } from "./ReportScopeBar";
@@ -25,6 +28,7 @@ import {
 export function ReportsPage() {
   const { vault, isLoading: vaultLoading } = useActiveVault();
   const issuesQuery = useIssueList(vault);
+  const planningQuery = usePlanningCatalog(vault);
   const [filters, setFilters] = useState<ReportFilters>(DEFAULT_REPORT_FILTERS);
 
   // Aggregation is a single pass over every issue; memoize so unrelated
@@ -34,6 +38,30 @@ export function ReportsPage() {
     () => computeAggregates(issues, { filters }),
     [issues, filters],
   );
+
+  // Drilling a rollup row scopes the whole page to that planning item by
+  // setting its shared report filter; clicking the active row clears it. The
+  // functional update keeps the callback identity stable across renders.
+  const handleDrill = useCallback((dimension: RollupDimension, id: string) => {
+    const key =
+      dimension === "milestone"
+        ? "milestone_id"
+        : dimension === "sprint"
+          ? "sprint_id"
+          : "release_id";
+    setFilters((current) => ({
+      ...current,
+      [key]: current[key] === id ? undefined : id,
+    }));
+  }, []);
+
+  const catalog = planningQuery.data;
+  const hasPlanning =
+    catalog != null &&
+    catalog.milestones.length +
+      catalog.sprints.length +
+      catalog.releases.length >
+      0;
 
   if (!vaultLoading && !vault) {
     return (
@@ -113,6 +141,17 @@ export function ReportsPage() {
         ) : (
           <>
             <HealthSummary agg={agg} />
+
+            {/* Per-item RAG rollup sits between the global pulse and the detail
+                charts — a scannable portfolio index that drills into them. */}
+            {hasPlanning && catalog && (
+              <HealthRollup
+                issues={issues}
+                catalog={catalog}
+                filters={filters}
+                onDrill={handleDrill}
+              />
+            )}
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <Card
