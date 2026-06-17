@@ -10,10 +10,7 @@ import {
   makeRequest,
   mockCreateWorkspaceChatAgentResponse,
   mockEnrichIssue,
-  mockEnsureReefTables,
-  mockListActivitySuggestions,
-  mockScanActivity,
-  mockWriteActivitySuggestion,
+  mockScanAndPersistActivitySuggestions,
   parseSseEvents,
   resetAgentRunsRouteMocks,
   runCompleted,
@@ -50,9 +47,7 @@ describe("POST /api/agents/runs validation", () => {
     );
 
     expect(res.status).toBe(400);
-    expect(mockEnsureReefTables).not.toHaveBeenCalled();
-    expect(mockListActivitySuggestions).not.toHaveBeenCalled();
-    expect(mockScanActivity).not.toHaveBeenCalled();
+    expect(mockScanAndPersistActivitySuggestions).not.toHaveBeenCalled();
   });
 
   it("rejects malformed issue enrichment vault ids before enrichment calls", async () => {

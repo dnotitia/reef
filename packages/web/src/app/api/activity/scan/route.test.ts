@@ -1,29 +1,15 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const {
-  mockEnsureReefTables,
-  mockListActivitySuggestions,
-  mockReadAuthoringLanguage,
-  mockScanActivity,
-  mockWriteActivitySuggestion,
-} = vi.hoisted(() => ({
-  mockEnsureReefTables: vi.fn(),
-  mockListActivitySuggestions: vi.fn(),
-  mockReadAuthoringLanguage: vi.fn(),
-  mockScanActivity: vi.fn(),
-  mockWriteActivitySuggestion: vi.fn(),
+const { mockScanAndPersistActivitySuggestions } = vi.hoisted(() => ({
+  mockScanAndPersistActivitySuggestions: vi.fn(),
 }));
 
 vi.mock("@reef/core", async (importOriginal) => {
   const original = await importOriginal<typeof import("@reef/core")>();
   return {
     ...original,
-    akbEnsureReefTables: mockEnsureReefTables,
-    akbListActivitySuggestions: mockListActivitySuggestions,
-    akbReadAuthoringLanguage: mockReadAuthoringLanguage,
-    scanActivity: mockScanActivity,
-    akbWriteActivitySuggestion: mockWriteActivitySuggestion,
+    scanAndPersistActivitySuggestions: mockScanAndPersistActivitySuggestions,
   };
 });
 
@@ -64,12 +50,14 @@ describe("POST /api/activity/scan", () => {
     vi.stubEnv("OPENROUTER_API_KEY", "sk-test");
     vi.stubEnv("OPENROUTER_BASE_URL", "https://api.openai.com/v1");
     vi.stubEnv("REEF_LLM_MODEL", "gpt-4o");
-    mockEnsureReefTables.mockResolvedValue(undefined);
-    mockListActivitySuggestions.mockResolvedValue({ suggestions: [] });
-    mockReadAuthoringLanguage.mockResolvedValue(null);
-    mockWriteActivitySuggestion.mockResolvedValue({
-      path: "_reef/activity-inbox/suggestion.md",
-      commit_hash: "abc123",
+    mockScanAndPersistActivitySuggestions.mockResolvedValue({
+      status: "completed",
+      drafts: [],
+      statusChanges: [],
+      persistedSuggestions: [],
+      addedDrafts: 0,
+      addedStatusChanges: 0,
+      scannedAt: "2026-05-08T10:00:00.000Z",
     });
   });
 
@@ -78,59 +66,14 @@ describe("POST /api/activity/scan", () => {
   });
 
   it("returns 200 with added suggestion counts on happy path", async () => {
-    const draftFixture = [
-      {
-        id: "00000000-0000-0000-0000-000000000001",
-        proposal: {
-          operation: "create",
-          create: {
-            fields: { title: "Add login flow" },
-            content: "auto",
-          },
-        },
-        provenance: {
-          type: "commit",
-          ref: "abc",
-          repo: "octo/cat",
-          actor: "alice",
-          detectedAt: "2026-05-08T10:00:00.000Z",
-        },
-        confidence: 0.8,
-        reasoning: "test",
-        status: "pending",
-        createdAt: "2026-05-08T10:00:00.000Z",
-      },
-    ];
-    const statusChangeFixture = [
-      {
-        id: "00000000-0000-0000-0000-000000000002",
-        proposal: {
-          operation: "update",
-          update: {
-            issue_id: "REEF-042",
-            patch: { status: "done" },
-          },
-        },
-        issueTitle: "Login bug",
-        fromStatus: "in_review",
-        rationale: "The PR fixing the login bug was merged.",
-        evidence: [
-          {
-            type: "commit",
-            ref: "def456",
-            repo: "octo/cat",
-            actor: "bob",
-          },
-        ],
-        confidence: 0.9,
-        detectedAt: "2026-05-08T10:00:00.000Z",
-        status: "pending",
-        createdAt: "2026-05-08T10:00:00.000Z",
-      },
-    ];
-    mockScanActivity.mockResolvedValueOnce({
-      drafts: draftFixture,
-      statusChanges: statusChangeFixture,
+    mockScanAndPersistActivitySuggestions.mockResolvedValueOnce({
+      status: "completed",
+      drafts: [],
+      statusChanges: [],
+      persistedSuggestions: [],
+      addedDrafts: 1,
+      addedStatusChanges: 1,
+      scannedAt: "2026-05-08T10:00:00.000Z",
     });
 
     const res = await POST(makeRequest({}));
@@ -138,9 +81,9 @@ describe("POST /api/activity/scan", () => {
     expect(await res.json()).toEqual({
       addedDrafts: 1,
       addedStatusChanges: 1,
-      scannedAt: expect.any(String),
+      scannedAt: "2026-05-08T10:00:00.000Z",
     });
-    expect(mockScanActivity).toHaveBeenCalledWith(
+    expect(mockScanAndPersistActivitySuggestions).toHaveBeenCalledWith(
       expect.objectContaining({
         owner: "octo",
         repo: "cat",
@@ -148,48 +91,6 @@ describe("POST /api/activity/scan", () => {
         since: "2026-05-08T08:00:00.000Z",
         projectPrefix: "REEF",
         akbAdapter: expect.anything(),
-      }),
-    );
-    expect(mockWriteActivitySuggestion).toHaveBeenCalledTimes(2);
-  });
-
-  it("suppresses existing AKB suggestion refs before calling the LLM", async () => {
-    mockListActivitySuggestions.mockResolvedValueOnce({
-      suggestions: [
-        {
-          id: "reef-draft-0123456789abcdef",
-          kind: "draft",
-          status: "dismissed",
-          fingerprint: "octo/cat:commit:abc",
-          repo: "octo/cat",
-          created_at: "2026-05-08T10:00:00.000Z",
-          detected_at: "2026-05-08T10:00:00.000Z",
-          proposal: {
-            operation: "create",
-            create: {
-              fields: { title: "Existing" },
-              content: "Existing",
-            },
-          },
-          provenance: {
-            type: "commit",
-            ref: "abc",
-            repo: "octo/cat",
-            actor: "alice",
-            detectedAt: "2026-05-08T10:00:00.000Z",
-          },
-          confidence: 0.8,
-          reasoning: "test",
-        },
-      ],
-    });
-    mockScanActivity.mockResolvedValueOnce({ drafts: [], statusChanges: [] });
-
-    const res = await POST(makeRequest({}));
-    expect(res.status).toBe(200);
-    expect(mockScanActivity).toHaveBeenCalledWith(
-      expect.objectContaining({
-        dismissedRefs: expect.arrayContaining(["octo/cat:commit:abc"]),
       }),
     );
   });
@@ -248,7 +149,9 @@ describe("POST /api/activity/scan", () => {
   });
 
   it("returns 500 with a generic message for an unexpected error (no raw leak)", async () => {
-    mockScanActivity.mockRejectedValueOnce(new Error("LLM 429"));
+    mockScanAndPersistActivitySuggestions.mockRejectedValueOnce(
+      new Error("LLM 429"),
+    );
     const res = await POST(makeRequest({}));
     expect(res.status).toBe(500);
     // translateError hides the raw technical message behind PM vocabulary.
@@ -258,7 +161,7 @@ describe("POST /api/activity/scan", () => {
   });
 
   it("maps a typed AkbApiError to its HTTP status instead of a flat 500", async () => {
-    mockScanActivity.mockRejectedValueOnce(
+    mockScanAndPersistActivitySuggestions.mockRejectedValueOnce(
       new AkbApiError({ status: 404, message: "vault gone" }),
     );
     const res = await POST(makeRequest({}));
@@ -266,7 +169,9 @@ describe("POST /api/activity/scan", () => {
   });
 
   it("maps a typed AuthError to 401", async () => {
-    mockScanActivity.mockRejectedValueOnce(new AuthError({ message: "bad" }));
+    mockScanAndPersistActivitySuggestions.mockRejectedValueOnce(
+      new AuthError({ message: "bad" }),
+    );
     const res = await POST(makeRequest({}));
     expect(res.status).toBe(401);
   });

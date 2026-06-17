@@ -7,20 +7,14 @@ import {
 } from "@/lib/llm/serverConfig";
 import { logger } from "@/lib/logging/logger";
 import {
-  type ActivitySuggestion,
   AgentRunRequestSchema,
   AuthError,
-  akbEnsureReefTables,
-  akbListActivitySuggestions,
   akbReadAuthoringLanguage,
-  akbWriteActivitySuggestion,
   createGitHubAdapter,
   createLlmAdapter,
   createWorkspaceChatAgentResponse,
-  draftToActivitySuggestion,
   enrichIssue,
-  scanActivity,
-  statusChangeToActivitySuggestion,
+  scanAndPersistActivitySuggestions,
 } from "@reef/core";
 import type { UIMessage } from "ai";
 import {
@@ -222,28 +216,7 @@ export async function POST(request: Request): Promise<Response> {
           activityRun.cancelled("aborted");
           return;
         }
-        await akbEnsureReefTables({ adapter: akb.adapter, vault });
-        if (signal.aborted) {
-          activityRun.cancelled("aborted");
-          return;
-        }
-        const existing = await akbListActivitySuggestions({
-          adapter: akb.adapter,
-          vault,
-        });
-        if (signal.aborted) {
-          activityRun.cancelled("aborted");
-          return;
-        }
-        const authoringLanguage = await akbReadAuthoringLanguage({
-          adapter: akb.adapter,
-          vault,
-        });
-        if (signal.aborted) {
-          activityRun.cancelled("aborted");
-          return;
-        }
-        const result = await scanActivity({
+        const result = await scanAndPersistActivitySuggestions({
           adapter: githubAdapter,
           akbAdapter: akb.adapter,
           vault,
@@ -252,32 +225,14 @@ export async function POST(request: Request): Promise<Response> {
           repo,
           ...(since ? { since } : {}),
           projectPrefix,
-          authoringLanguage,
-          dismissedRefs: existing.suggestions.flatMap(suggestionDismissKeys),
           onEvent: (event) => {
             if (!signal.aborted) activityRun.childEvent(event);
           },
+          isAborted: () => signal.aborted,
         });
-        if (signal.aborted) {
+        if (result.status === "aborted") {
           activityRun.cancelled("aborted");
           return;
-        }
-        const persistedSuggestions = [
-          ...(await Promise.all(result.drafts.map(draftToActivitySuggestion))),
-          ...(await Promise.all(
-            result.statusChanges.map(statusChangeToActivitySuggestion),
-          )),
-        ];
-        for (const suggestion of persistedSuggestions) {
-          if (signal.aborted) {
-            activityRun.cancelled("aborted");
-            return;
-          }
-          await akbWriteActivitySuggestion({
-            adapter: akb.adapter,
-            vault,
-            suggestion,
-          });
         }
         const artifactCount =
           result.drafts.length + result.statusChanges.length;
@@ -285,7 +240,7 @@ export async function POST(request: Request): Promise<Response> {
           activityRun.completed({
             draft_count: result.drafts.length,
             status_change_count: result.statusChanges.length,
-            persisted_suggestion_count: persistedSuggestions.length,
+            persisted_suggestion_count: result.persistedSuggestions.length,
           });
         } else {
           activityRun.empty("No activity suggestions were produced.");
@@ -303,15 +258,6 @@ export async function POST(request: Request): Promise<Response> {
       }
     },
   );
-}
-
-function suggestionDismissKeys(suggestion: ActivitySuggestion): string[] {
-  if (suggestion.kind === "draft") {
-    return [
-      `${suggestion.provenance.repo}:${suggestion.provenance.type}:${suggestion.provenance.ref}`,
-    ];
-  }
-  return suggestion.evidence.map((e) => `${e.repo}:${e.type}:${e.ref}`);
 }
 
 function extractOptionalGithubToken(request: Request): string | undefined {

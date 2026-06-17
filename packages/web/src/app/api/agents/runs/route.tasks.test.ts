@@ -12,9 +12,7 @@ import {
   makeRequest,
   mockCreateWorkspaceChatAgentResponse,
   mockEnrichIssue,
-  mockListActivitySuggestions,
-  mockScanActivity,
-  mockWriteActivitySuggestion,
+  mockScanAndPersistActivitySuggestions,
   parseSseEvents,
   resetAgentRunsRouteMocks,
   runCompleted,
@@ -53,20 +51,19 @@ describe("POST /api/agents/runs task execution", () => {
     expect(parseSseEvents(await res.text()).map((event) => event.type)).toEqual(
       ["run.started", "run.empty"],
     );
-    expect(mockScanActivity).toHaveBeenCalledWith(
+    expect(mockScanAndPersistActivitySuggestions).toHaveBeenCalledWith(
       expect.objectContaining({
         owner: "acme",
         repo: "reef",
         vault: "reef-test",
-        dismissedRefs: [],
         onEvent: expect.any(Function),
+        isAborted: expect.any(Function),
       }),
     );
-    expect(mockWriteActivitySuggestion).not.toHaveBeenCalled();
   });
 
-  it("persists activity artifacts as AKB suggestions before run completion", async () => {
-    mockScanActivity.mockImplementationOnce(
+  it("streams activity artifacts before run completion", async () => {
+    mockScanAndPersistActivitySuggestions.mockImplementationOnce(
       async (params: {
         onEvent?: (event: AgentRunEvent) => Promise<void> | void;
       }) => {
@@ -74,6 +71,7 @@ describe("POST /api/agents/runs task execution", () => {
         await params.onEvent?.(childArtifactFinal());
         await params.onEvent?.(runCompleted("activity.draft"));
         return {
+          status: "completed",
           drafts: [
             {
               id: "0312a7f3-0a28-4f35-9be0-c3c7cb9b3b4d",
@@ -98,6 +96,36 @@ describe("POST /api/agents/runs task execution", () => {
             },
           ],
           statusChanges: [],
+          persistedSuggestions: [
+            {
+              id: "reef-draft-0123456789abcdef",
+              kind: "draft",
+              status: "pending",
+              fingerprint: "acme/reef:commit:abc123",
+              repo: "acme/reef",
+              created_at: "2026-06-04T00:00:00.000Z",
+              detected_at: "2026-06-04T00:00:00.000Z",
+              proposal: {
+                operation: "create",
+                create: {
+                  fields: issueDraftFields,
+                  content: "Implement the unified route.",
+                },
+              },
+              provenance: {
+                type: "commit",
+                ref: "abc123",
+                repo: "acme/reef",
+                actor: "alice",
+                detectedAt: "2026-06-04T00:00:00.000Z",
+              },
+              confidence: 0.8,
+              reasoning: "Commit introduced new work.",
+            },
+          ],
+          addedDrafts: 1,
+          addedStatusChanges: 0,
+          scannedAt: "2026-06-04T00:00:01.000Z",
         };
       },
     );
@@ -135,23 +163,12 @@ describe("POST /api/agents/runs task execution", () => {
       status_change_count: 0,
       persisted_suggestion_count: 1,
     });
-    expect(mockWriteActivitySuggestion).toHaveBeenCalledWith(
-      expect.objectContaining({
-        vault: "reef-test",
-        suggestion: expect.objectContaining({
-          kind: "draft",
-          status: "pending",
-          proposal: expect.objectContaining({ operation: "create" }),
-        }),
-      }),
-    );
   });
 
-  it("does not persist activity artifacts after the run is aborted", async () => {
-    const controller = new AbortController();
-    mockScanActivity.mockImplementationOnce(async () => {
-      controller.abort();
+  it("emits a cancelled terminal event after the run is aborted", async () => {
+    mockScanAndPersistActivitySuggestions.mockImplementationOnce(async () => {
       return {
+        status: "aborted",
         drafts: [
           {
             id: "0312a7f3-0a28-4f35-9be0-c3c7cb9b3b4d",
@@ -176,15 +193,20 @@ describe("POST /api/agents/runs task execution", () => {
           },
         ],
         statusChanges: [],
+        persistedSuggestions: [],
+        addedDrafts: 0,
+        addedStatusChanges: 0,
+        scannedAt: "2026-06-04T00:00:01.000Z",
       };
     });
 
-    const res = await POST(
-      makeRequest(activityRunBody, {}, { signal: controller.signal }),
-    );
-    await res.text();
+    const res = await POST(makeRequest(activityRunBody));
+    const events = parseSseEvents(await res.text());
 
-    expect(mockScanActivity).toHaveBeenCalled();
-    expect(mockWriteActivitySuggestion).not.toHaveBeenCalled();
+    expect(mockScanAndPersistActivitySuggestions).toHaveBeenCalled();
+    expect(events.map((event) => event.type)).toEqual([
+      "run.started",
+      "run.cancelled",
+    ]);
   });
 });
