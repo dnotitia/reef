@@ -6,6 +6,7 @@ import {
   NotFoundError,
   SchemaValidationError,
 } from "../../../errors";
+import { stripTrailingSlashes } from "../../url";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -101,7 +102,7 @@ function buildUrl(
   path: string,
   query?: Record<string, string | number | undefined>,
 ): string {
-  const trimmedBase = baseUrl.replace(/\/+$/, "");
+  const trimmedBase = stripTrailingSlashes(baseUrl);
   const trimmedPath = path.startsWith("/") ? path : `/${path}`;
   const url = `${trimmedBase}${trimmedPath}`;
   if (!query) {

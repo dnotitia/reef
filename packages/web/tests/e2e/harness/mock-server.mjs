@@ -42,8 +42,12 @@ const server = createServer(async (req, res) => {
     }
     return json(res, 404, { error: "not_found" });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return json(res, 500, { error: message });
+    const detail =
+      err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+    process.stderr.write(
+      `[reef-e2e-mock] unhandled request error: ${detail}\n`,
+    );
+    return json(res, 500, { error: "mock_server_error" });
   }
 });
 

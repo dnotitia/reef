@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AkbApiError, AuthError } from "../../../errors";
+import { stripTrailingSlashes } from "../../url";
 import type { AkbAdapter } from "../core/http";
 import { withSpan } from "../core/shared";
 
@@ -96,7 +97,7 @@ export interface AkbLoginResult {
 export function login(params: AkbLoginParams): Promise<AkbLoginResult> {
   const { baseUrl, username, password } = params;
   return withSpan("akb.auth.login", {}, async (span) => {
-    const url = `${baseUrl.replace(/\/+$/, "")}/api/v1/auth/login`;
+    const url = `${stripTrailingSlashes(baseUrl)}/api/v1/auth/login`;
     let response: Response;
     try {
       response = await fetch(url, {
@@ -212,7 +213,7 @@ export function startKeycloakLogin(
   return withSpan("akb.auth.keycloak_login_start", {}, async () => {
     const url = new URL(
       normalizeKeycloakLoginPath(loginUrl),
-      `${baseUrl.replace(/\/+$/, "")}/`,
+      `${stripTrailingSlashes(baseUrl)}/`,
     );
     url.searchParams.set("redirect", redirectPath);
 
@@ -299,7 +300,7 @@ export function startKeycloakLogout(
 ): Promise<StartKeycloakLogoutResult> {
   const { baseUrl, idTokenHint } = params;
   return withSpan("akb.auth.keycloak_logout_start", {}, async () => {
-    const url = `${baseUrl.replace(/\/+$/, "")}/api/v1/auth/keycloak/logout`;
+    const url = `${stripTrailingSlashes(baseUrl)}/api/v1/auth/keycloak/logout`;
 
     let response: Response;
     try {
@@ -402,7 +403,7 @@ async function fetchTokenlessJson(params: {
     nonJsonMessage,
     authStatuses,
   } = params;
-  const url = `${baseUrl.replace(/\/+$/, "")}${path}`;
+  const url = `${stripTrailingSlashes(baseUrl)}${path}`;
   const headers: Record<string, string> = { Accept: "application/json" };
   let serializedBody: string | undefined;
   if (body !== undefined) {
