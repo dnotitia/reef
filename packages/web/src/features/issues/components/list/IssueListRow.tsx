@@ -13,28 +13,43 @@ import { useIssueFlash } from "@/features/issues/stores/useFlashStore";
 import { findPlanningName } from "@/features/planning/lib/planningItems";
 import { cn } from "@/lib/utils";
 import type { IssueListItem, PlanningCatalog } from "@reef/core";
+import { memo } from "react";
 import {
   type IssueRelationLike,
   getUnresolvedBlockerCount,
   isBlocked,
 } from "../../lib/dependencyUtils";
 import { formatRelativeTime } from "../../lib/formatRelativeTime";
+import { useIssueEntity } from "../../stores/issueEntityStore";
 
 interface IssueListRowProps {
+  /**
+   * Seed list item — covers the first paint before the list result is
+   * normalized into the entity store. The store is the live render source
+   * (see `issue` below), so the seed only carries the row's id forward.
+   */
   issue: IssueListItem;
+  vault: string;
   allIssues: readonly IssueRelationLike[];
   highlightQuery?: string;
   planningCatalog?: PlanningCatalog;
   onClick?: (id: string) => void;
 }
 
-export function IssueListRow({
-  issue,
+/**
+ * `memo` + a single-entity store subscription make this row granular: a
+ * non-membership edit to one issue re-renders only that row (its store entity
+ * changes), while sibling rows keep stable props and skip. (REEF-098)
+ */
+export const IssueListRow = memo(function IssueListRow({
+  issue: seed,
+  vault,
   allIssues,
   highlightQuery: _highlightQuery,
   planningCatalog,
   onClick,
 }: IssueListRowProps) {
+  const issue = useIssueEntity(vault, seed.id) ?? seed;
   const blocked = isBlocked(issue, allIssues);
   const blockerCount = blocked
     ? getUnresolvedBlockerCount(issue, allIssues)
@@ -129,4 +144,4 @@ export function IssueListRow({
       </TableCell>
     </TableRow>
   );
-}
+});

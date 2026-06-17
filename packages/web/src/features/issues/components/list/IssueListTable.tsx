@@ -185,6 +185,7 @@ export function IssueListTable({ vault }: IssueListTableProps) {
               <IssueListRow
                 key={issue.id}
                 issue={issue}
+                vault={vault}
                 allIssues={graph}
                 planningCatalog={planningCatalog}
                 highlightQuery={searchQuery}

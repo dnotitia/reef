@@ -4,7 +4,6 @@ import { apiFetch, throwHttpError } from "@/lib/apiClient";
 import type {
   IssueDocument,
   IssueListItem,
-  IssueMetadata,
   IssueUpdatePatch,
 } from "@reef/core";
 import {
@@ -12,6 +11,12 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
+import {
+  listQueryHasFreeText,
+  patchAffectsListMembership,
+  patchAffectsRelationGraph,
+} from "../../lib/issueListMembership";
+import { toListItem } from "../../lib/toListItem";
 
 interface UpdateIssueInput {
   id: string;
@@ -29,9 +34,12 @@ interface UpdateIssueMutationContext {
 
 /**
  * Update an issue in the active akb vault. The affected list/detail caches are
- * updated optimistically so board moves feel immediate, then invalidated after
- * the server confirms. akb is LWW so concurrent edits merge server-side per
- * field; there is no CAS-conflict dialog.
+ * patched optimistically so board moves feel immediate, then overwritten with
+ * the server response on success — never blanket-invalidated (REEF-098). The
+ * caches stay the fresh server truth in place, and only membership/order or
+ * relation-graph changes trigger a narrow refetch (see `issueListMembership`).
+ * akb is LWW so concurrent edits merge server-side per field; there is no
+ * CAS-conflict dialog.
  */
 export function useUpdateIssue() {
   const queryClient = useQueryClient();
@@ -116,38 +124,43 @@ export function useUpdateIssue() {
         );
       }
     },
-    onSuccess: (data, { id, vault }) => {
+    onSuccess: (data, { id, vault, patch }) => {
+      const item = toListItem(data.issue);
+      // The server response is authoritative — write it straight into the
+      // detail and every list-variant cache (ref-preserving for unchanged
+      // rows). This keeps the whole-set consumers (board, backlog, reports,
+      // timeline, search) fresh with no re-request, and the entity-store
+      // normalizer mirrors the patched item into the store so the migrated
+      // list rows update granularly.
       queryClient.setQueryData(["issues", "detail", vault, id], data);
       queryClient.setQueriesData<IssueListItem[]>(
         { queryKey: ["issues", "list", vault] },
-        (current) =>
-          current?.map((issue) =>
-            issue.id === id ? toListItem(data.issue) : issue,
-          ),
+        (current) => current?.map((issue) => (issue.id === id ? item : issue)),
       );
-      void queryClient.invalidateQueries({
-        queryKey: ["issues", "list", vault],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["issues", "relations", vault],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["issues", "detail", vault, id],
-      });
+
+      // No blanket invalidation (REEF-098). A non-membership edit (title,
+      // dates, labels, …) needs no re-request: the in-place patch above is the
+      // server truth. Refetch only what an edit can actually invalidate.
+      if (patchAffectsListMembership(patch)) {
+        // A server facet or the sort field changed → the issue may move, leave,
+        // or enter a filtered/sorted list; refetch every variant to reconcile.
+        void queryClient.invalidateQueries({
+          queryKey: ["issues", "list", vault],
+        });
+      } else {
+        // A free-text (`q`) search matches title/assignee/etc., so a content
+        // edit can change its membership unpredictably — refetch only the
+        // active q-filtered variants; plain/facet-only lists stay patched.
+        void queryClient.invalidateQueries({
+          queryKey: ["issues", "list", vault],
+          predicate: listQueryHasFreeText,
+        });
+      }
+      if (patchAffectsRelationGraph(patch)) {
+        void queryClient.invalidateQueries({
+          queryKey: ["issues", "relations", vault],
+        });
+      }
     },
   });
-}
-
-function toListItem(issue: IssueMetadata): IssueListItem {
-  const {
-    source: _source,
-    external_refs: _externalRefs,
-    implementation_refs: _implementationRefs,
-    watchers: _watchers,
-    reviewers: _reviewers,
-    qa_owner: _qaOwner,
-    custom_fields: _customFields,
-    ...item
-  } = issue;
-  return item;
 }

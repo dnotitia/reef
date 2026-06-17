@@ -4,9 +4,16 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { purgeAll } from "../../stores/issueEntityStore";
 import { IssueListRow } from "./IssueListRow";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  // The entity store is a module singleton; clear it so a populated vault from
+  // one test can't leak its entity into the next (these tests render from the
+  // seed prop, with no vault normalized into the store).
+  purgeAll();
+});
 
 const base = {
   created_by: "alice",
@@ -57,7 +64,12 @@ function renderRow(
   return render(
     <table>
       <tbody>
-        <IssueListRow issue={issue} allIssues={allIssues} onClick={onClick} />
+        <IssueListRow
+          issue={issue}
+          vault="reef-test"
+          allIssues={allIssues}
+          onClick={onClick}
+        />
       </tbody>
     </table>,
     { wrapper: createWrapper() },
