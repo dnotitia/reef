@@ -8,7 +8,7 @@ import type { MarkdownEditorProps } from "./MarkdownEditorImpl";
  * Code-split boundary for the markdown editor. (REEF-220)
  *
  * The TipTap/ProseMirror editor sits behind interactions (create dialog, issue
- * detail edit, planning edit, settings templates) — never the first paint — yet
+ * detail edit, planning edit, settings templates), away from first paint, yet
  * a static import chain (`DashboardShell → NewIssueDialog → IssueDraftFields →
  * MarkdownEditor`) used to pull `@tiptap/*` + `@tiptap/pm` into the dashboard's
  * initial bundle. Wrapping the single shared editor in `next/dynamic` here moves
@@ -24,9 +24,9 @@ import type { MarkdownEditorProps } from "./MarkdownEditorImpl";
 /**
  * Placeholder shown while the editor chunk loads. Mirrors the editor's outer
  * shell and reserves the 200px body floor (EDITOR_BODY_SIZING) plus a toolbar
- * strip, matching the editable surfaces that dominate the call sites. The one
- * read-only surface (the Planning table's inline expand) has no toolbar, so it
- * over-reserves by the toolbar height for a frame — an acceptable trade to keep
+ * strip, matching the editable surfaces that dominate the call sites. The
+ * read-mode Planning table inline expand has no toolbar, so it over-reserves by
+ * the toolbar height for a frame — an acceptable trade to keep
  * the primary authoring surfaces from shifting on load.
  */
 function MarkdownEditorSkeleton() {

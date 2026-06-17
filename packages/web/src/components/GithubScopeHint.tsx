@@ -1,22 +1,21 @@
 import { cn } from "@/lib/utils";
 
 /**
- * Single source of truth for the GitHub PAT scope guidance shown wherever a
- * person pastes a monitored-repo token (onboarding "Connect GitHub" step and
- * Settings › Preferences). REEF-236.
+ * Shared GitHub PAT scope guidance shown where a person pastes a monitored-repo
+ * token (onboarding "Connect GitHub" step and Settings Preferences). REEF-236.
  *
- * The monitored-repo adapter is read-only (activity scan, code search, file
+ * The monitored-repo adapter reads GitHub data (activity scan, code search, file
  * reads, repo labels), so least-privilege is `public_repo` for public repos and
  * `repo` for private ones — the root AGENTS.md scope rule. Keeping the copy in
  * one component stops the two surfaces from drifting: before this they
- * disagreed (onboarding said `repo` only, Preferences gave no scope guidance at
+ * disagreed (onboarding said `repo`, Preferences gave no scope guidance at
  * all and neither linked to GitHub's token page).
  *
  * The deep link presets the broader `repo` scope so private-repo users can save
- * in one click; the copy tells public-only users they can narrow it to
- * `public_repo`. We deliberately say "stays in this browser only" rather than
- * "never sent to reef's server": the token is never persisted server-side, but
- * it does transit reef's BFF as a per-request bearer header on the way to
+ * in one click; the copy tells public-repo users they can narrow it to
+ * `public_repo`. We deliberately say "stays in this browser" rather than
+ * "not sent to reef's server": the token is not persisted server-side, but it
+ * does transit reef's BFF as a per-request bearer header on the way to
  * GitHub (the onboarding verify call and every repo read), so the stronger
  * claim would be inaccurate.
  */

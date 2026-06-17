@@ -6,10 +6,10 @@ import { toListItem } from "./toListItem";
 /**
  * Mirror one issue query's data into the normalized entity store.
  *
- * The store is fed from a single place — the QueryClient cache — so every issue
+ * The store is fed from the QueryClient cache, so each issue
  * read path (a list fetch, a detail fetch, an optimistic cache write, and the
  * persisted-snapshot rehydration on reload) lands the same entities in the
- * store without each hook having to remember to normalize. Only `['issues',…]`
+ * store without each hook having to remember to normalize. `['issues',...]`
  * queries are relevant:
  *   - `['issues','list',vault]` / `['issues','list',vault,<query>]` → list items
  *   - `['issues','detail',vault,id]` → the document's `issue`, projected to a

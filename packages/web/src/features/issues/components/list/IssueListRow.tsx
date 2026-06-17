@@ -26,7 +26,7 @@ interface IssueListRowProps {
   /**
    * Seed list item — covers the first paint before the list result is
    * normalized into the entity store. The store is the live render source
-   * (see `issue` below), so the seed only carries the row's id forward.
+   * (see `issue` below), so the seed carries the row's id forward.
    */
   issue: IssueListItem;
   vault: string;
@@ -38,7 +38,7 @@ interface IssueListRowProps {
 
 /**
  * `memo` + a single-entity store subscription make this row granular: a
- * non-membership edit to one issue re-renders only that row (its store entity
+ * non-membership edit to one issue re-renders that row (its store entity
  * changes), while sibling rows keep stable props and skip. (REEF-098)
  */
 export const IssueListRow = memo(function IssueListRow({

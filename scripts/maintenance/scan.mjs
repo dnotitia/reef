@@ -79,6 +79,7 @@ const SLOW_TEST_SUPPRESSIONS = new Set([
   "useIssueFilterPersistence persists only sort when the user clears filters (clearFiltersOnly)",
   "GlobalSearchDialog previews recent issues from the server when open with no query",
   "GlobalSearchDialog fetches a complete id directly when the bounded page omits it",
+  "POST /api/agents/runs chat streaming streams chat.workspace AgentRunEvent frames",
   "POST /api/agents/runs task execution streams issue.enrichment through the unified route",
   "POST /api/agents/runs validation returns typed runtime errors for invalid run requests",
   "IssueDetail retries every still-unsaved field (not the latest) before reporting Saved",
@@ -121,6 +122,10 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
   [
     "packages/web/src/components/MarkdownEditor.tsx",
     "Single Tiptap editor wrapper; split when toolbar or extension config is reused elsewhere.",
+  ],
+  [
+    "packages/web/src/components/MarkdownEditorImpl.tsx",
+    "Cohesive Tiptap editor implementation; split when toolbar, link editing, or source mode gains a second owner.",
   ],
   [
     "packages/web/src/components/ui/combobox.tsx",
