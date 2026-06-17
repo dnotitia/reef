@@ -41,10 +41,10 @@ reef-web (stateless Next.js BFF)
 ```
 
 The repository is a pnpm workspace with two private, unpublished packages under
-`packages/`: `core` (`@reef/core`) and `web`. The root `package.json` is the
-single product version source of truth. New product behavior that touches
-schemas, adapters, agents, or shared contracts starts in `core` and then
-surfaces through `web`.
+`packages/`: `core` (`@reef/core`) and `web` (`@reef/web`). The root
+`package.json` is the single product version source of truth. New product
+behavior that touches schemas, adapters, agents, or shared contracts starts in
+`core` and then surfaces through `web`.
 
 ## The core/web boundary and thin Route Handlers
 
@@ -300,4 +300,4 @@ preserves Server-Sent Events.
 - [UX design](ux-design.md)
 - [Release policy](release-policy.md) and [migration policy](migration-policy.md)
 - [Core package README](../packages/core/README.md) and
-  [web package README](../packages/web/README.md)
+  [`@reef/web` package README](../packages/web/README.md)

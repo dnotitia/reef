@@ -6,7 +6,7 @@ import { mockIssues } from "@/__stories__/fixtures";
  * Fixtures are typed from IssueMetadataSchema-derived types (via @reef/core) —
  * no inline `any` types.
  *
- * Run with: pnpm --filter web storybook (port 6006)
+ * Run with: pnpm --filter @reef/web storybook (port 6006)
  */
 import type { Meta, StoryObj } from "@storybook/react";
 import { http, HttpResponse } from "msw";

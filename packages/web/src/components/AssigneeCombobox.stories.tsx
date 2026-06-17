@@ -2,7 +2,7 @@
  * Storybook stories for AssigneeCombobox.
  *
  * MSW handlers mock GET /api/vault-members responses.
- * Run: pnpm --filter web storybook
+ * Run: pnpm --filter @reef/web storybook
  */
 import { mockCollaborators } from "@/__stories__/fixtures";
 import type { Meta, StoryObj } from "@storybook/react";

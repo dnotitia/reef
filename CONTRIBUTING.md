@@ -31,9 +31,10 @@ reef is a monorepo with two private, non-published packages:
   No Next.js imports, no DOM APIs. All GitHub, AKB, and LLM I/O originates here.
   New product behavior that touches schemas, adapters, agents, or shared
   contracts starts in `core`.
-- **`packages/web`** — the Next.js App Router application and its stateless
-  BFF. Route Handlers under `src/app/api/*` are thin wrappers that validate
-  requests, manage the session cookie, call `core`, and translate errors.
+- **`packages/web` (`@reef/web`)** — the Next.js App Router application and its
+  stateless BFF. Route Handlers under `src/app/api/*` are thin wrappers that
+  validate requests, manage the session cookie, call `core`, and translate
+  errors.
 
 Cross-cutting engineering rules live in [`AGENTS.md`](AGENTS.md), with
 package-local rules in `packages/core/AGENTS.md` and `packages/web/AGENTS.md`.
