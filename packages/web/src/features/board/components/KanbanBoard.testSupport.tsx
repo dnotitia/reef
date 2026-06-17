@@ -169,4 +169,6 @@ export function resetKanbanBoardMocks() {
   });
 }
 
-export { KanbanBoard } from "./KanbanBoard";
+const { KanbanBoard } = await import("./KanbanBoard");
+
+export { KanbanBoard };

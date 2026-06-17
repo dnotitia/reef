@@ -30,7 +30,7 @@ COPY --from=deps /app/packages/core/node_modules ./packages/core/node_modules
 COPY . .
 
 # Build only the web app (output: 'standalone' is set in next.config.ts)
-RUN pnpm --filter web run build
+RUN pnpm --filter @reef/web run build
 
 
 # Stage 3: runner — minimal runtime image

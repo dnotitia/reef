@@ -50,7 +50,7 @@ export default defineConfig({
       env: { REEF_E2E_MOCK_PORT: E2E_MOCK_PORT },
     },
     {
-      command: `pnpm --filter web exec next dev --turbopack -p ${REEF_WEB_PORT}`,
+      command: `pnpm --filter @reef/web exec next dev --turbopack -p ${REEF_WEB_PORT}`,
       url: REEF_WEB_URL,
       reuseExistingServer: false,
       timeout: 120_000, // Next.js cold start can be slow
