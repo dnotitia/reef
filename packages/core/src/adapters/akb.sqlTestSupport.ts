@@ -2,9 +2,12 @@ import type { Template } from "../schemas/issues/template";
 import {
   MONITORED_REPOS_TABLE,
   REEF_ACTIVITY_SUGGESTIONS_TABLE,
+  REEF_ACTIVITY_TABLE,
+  REEF_COMMENTS_TABLE,
   REEF_ISSUES_TABLE,
   REEF_MILESTONES_TABLE,
   REEF_RELEASES_TABLE,
+  REEF_SCHEMA_VERSION,
   REEF_SETTINGS_TABLE,
   REEF_SPRINTS_TABLE,
   REEF_TEMPLATES_TABLE,
@@ -49,6 +52,19 @@ export function makeListTablesResponse(names: string[]): unknown {
   };
 }
 
+export function makeSchemaVersionResponse(
+  version: number = REEF_SCHEMA_VERSION,
+): unknown {
+  return makeSqlQueryResponse(
+    [
+      {
+        value: JSON.stringify({ version, applied_at: "2026-06-17T00:00:00Z" }),
+      },
+    ],
+    ["value"],
+  );
+}
+
 export const ALL_REEF_TABLES = [
   REEF_SETTINGS_TABLE,
   MONITORED_REPOS_TABLE,
@@ -58,6 +74,8 @@ export const ALL_REEF_TABLES = [
   REEF_RELEASES_TABLE,
   REEF_TEMPLATES_TABLE,
   REEF_ACTIVITY_SUGGESTIONS_TABLE,
+  REEF_COMMENTS_TABLE,
+  REEF_ACTIVITY_TABLE,
 ];
 
 export const SPRINT_ROW_COLUMNS = [

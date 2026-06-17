@@ -4,17 +4,53 @@ import {
   AuthError,
   MONITORED_REPOS_TABLE,
   REEF_ACTIVITY_SUGGESTIONS_TABLE,
+  REEF_ACTIVITY_TABLE,
+  REEF_COMMENTS_TABLE,
+  REEF_DESIRED_TABLES,
   REEF_ISSUES_TABLE,
   REEF_MILESTONES_TABLE,
   REEF_RELEASES_TABLE,
+  REEF_SCHEMA_VERSION,
+  REEF_SETTINGS_SCHEMA_VERSION_KEY,
   REEF_SETTINGS_TABLE,
   REEF_SPRINTS_TABLE,
   REEF_TEMPLATES_TABLE,
   ensureReefTables,
   makeAdapter,
   makeListTablesResponse,
+  makeSchemaVersionResponse,
+  makeSqlMutationResponse,
+  makeSqlQueryResponse,
   setupFetch,
 } from "./akb.testSupport";
+
+function makeDesiredTablesResponse(
+  overrides: Record<string, unknown> = {},
+): unknown {
+  return {
+    kind: "table",
+    vault: "reef-sample",
+    items: REEF_DESIRED_TABLES.map((manifest) => ({
+      name: manifest.name,
+      columns: manifest.columns,
+      ...((overrides[manifest.name] as Record<string, unknown> | undefined) ??
+        {}),
+    })),
+  };
+}
+
+function makeDesiredTablesResponseExcept(name: string): unknown {
+  return {
+    kind: "table",
+    vault: "reef-sample",
+    items: REEF_DESIRED_TABLES.filter((manifest) => manifest.name !== name).map(
+      (manifest) => ({
+        name: manifest.name,
+        columns: manifest.columns,
+      }),
+    ),
+  };
+}
 
 describe("ensureReefTables", () => {
   it("creates all reef tables when none exist (akb { kind: 'table', items: [] } shape)", async () => {
@@ -28,10 +64,13 @@ describe("ensureReefTables", () => {
       { status: 201, body: { name: REEF_RELEASES_TABLE } },
       { status: 201, body: { name: REEF_TEMPLATES_TABLE } },
       { status: 201, body: { name: REEF_ACTIVITY_SUGGESTIONS_TABLE } },
+      { status: 201, body: { name: REEF_COMMENTS_TABLE } },
+      { status: 201, body: { name: REEF_ACTIVITY_TABLE } },
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
     ]);
     const adapter = makeAdapter();
     await ensureReefTables({ adapter, vault: "reef-sample" });
-    expect(calls).toHaveLength(9);
+    expect(calls).toHaveLength(12);
     expect(calls[0]?.url).toBe("https://akb.test/api/v1/tables/reef-sample");
     expect(calls[0]?.init?.method ?? "GET").toBe("GET");
     const firstCreate = JSON.parse(calls[1]?.init?.body as string);
@@ -165,6 +204,37 @@ describe("ensureReefTables", () => {
         expect.objectContaining({ name: "meta", type: "json" }),
       ]),
     );
+    const ninthCreate = JSON.parse(calls[9]?.init?.body as string);
+    expect(ninthCreate.name).toBe(REEF_COMMENTS_TABLE);
+    expect(ninthCreate.columns).toEqual([
+      { name: "reef_id", type: "text", required: true },
+      { name: "body", type: "text", required: true },
+      { name: "meta", type: "json" },
+    ]);
+    const commentsColumnNames = (
+      ninthCreate.columns as Array<{ name: string }>
+    ).map((c) => c.name);
+    expect(commentsColumnNames).not.toContain("id");
+    expect(commentsColumnNames).not.toContain("created_at");
+    expect(commentsColumnNames).not.toContain("updated_at");
+    expect(commentsColumnNames).not.toContain("created_by");
+
+    const tenthCreate = JSON.parse(calls[10]?.init?.body as string);
+    expect(tenthCreate.name).toBe(REEF_ACTIVITY_TABLE);
+    expect(tenthCreate.columns).toEqual([
+      { name: "reef_id", type: "text", required: true },
+      { name: "event_type", type: "text", required: true },
+      { name: "event_key", type: "text", required: true },
+      { name: "payload", type: "json" },
+      { name: "meta", type: "json" },
+    ]);
+    const activityColumnNames = (
+      tenthCreate.columns as Array<{ name: string }>
+    ).map((c) => c.name);
+    expect(activityColumnNames).not.toContain("id");
+    expect(activityColumnNames).not.toContain("created_at");
+    expect(activityColumnNames).not.toContain("updated_at");
+    expect(activityColumnNames).not.toContain("created_by");
   });
 
   it("creates only the missing tables when some already exist", async () => {
@@ -177,12 +247,15 @@ describe("ensureReefTables", () => {
       { status: 201, body: { name: REEF_RELEASES_TABLE } },
       { status: 201, body: { name: REEF_TEMPLATES_TABLE } },
       { status: 201, body: { name: REEF_ACTIVITY_SUGGESTIONS_TABLE } },
+      { status: 201, body: { name: REEF_COMMENTS_TABLE } },
+      { status: 201, body: { name: REEF_ACTIVITY_TABLE } },
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
     ]);
     const adapter = makeAdapter();
     await ensureReefTables({ adapter, vault: "reef-sample" });
-    expect(calls).toHaveLength(8);
+    expect(calls).toHaveLength(11);
     const createdNames = calls
-      .slice(1)
+      .slice(1, 10)
       .map((c) => JSON.parse(c.init?.body as string).name);
     expect(createdNames).toEqual([
       MONITORED_REPOS_TABLE,
@@ -192,6 +265,8 @@ describe("ensureReefTables", () => {
       REEF_RELEASES_TABLE,
       REEF_TEMPLATES_TABLE,
       REEF_ACTIVITY_SUGGESTIONS_TABLE,
+      REEF_COMMENTS_TABLE,
+      REEF_ACTIVITY_TABLE,
     ]);
   });
 
@@ -204,6 +279,113 @@ describe("ensureReefTables", () => {
     const adapter = makeAdapter();
     await ensureReefTables({ adapter, vault: "reef-sample" });
     expect(calls).toHaveLength(1);
+  });
+
+  it("is a no-op when the schema stamp is current", async () => {
+    const { calls } = setupFetch([
+      { body: makeDesiredTablesResponse() },
+      { body: makeSchemaVersionResponse() },
+    ]);
+    const adapter = makeAdapter();
+    await ensureReefTables({ adapter, vault: "reef-sample" });
+    expect(calls).toHaveLength(2);
+    const stampSql = JSON.parse(calls[1]?.init?.body as string).sql as string;
+    expect(stampSql).toContain(
+      `WHERE key = '${REEF_SETTINGS_SCHEMA_VERSION_KEY}'`,
+    );
+  });
+
+  it("backfills the schema stamp after verifying an unstamped matching manifest", async () => {
+    const { calls } = setupFetch([
+      { body: makeDesiredTablesResponse() },
+      { body: makeSqlQueryResponse([], ["value"]) },
+      { body: makeDesiredTablesResponse() },
+      { body: makeSqlMutationResponse("DELETE 0") },
+      { body: makeSqlMutationResponse("INSERT 0 1") },
+    ]);
+    const adapter = makeAdapter();
+    await ensureReefTables({ adapter, vault: "reef-sample" });
+    expect(calls).toHaveLength(5);
+    const deleteSql = JSON.parse(calls[3]?.init?.body as string).sql as string;
+    const insertSql = JSON.parse(calls[4]?.init?.body as string).sql as string;
+    expect(deleteSql).toContain(`DELETE FROM ${REEF_SETTINGS_TABLE}`);
+    expect(deleteSql).toContain(`'${REEF_SETTINGS_SCHEMA_VERSION_KEY}'`);
+    expect(insertSql).toContain(`INSERT INTO ${REEF_SETTINGS_TABLE}`);
+    expect(insertSql).toContain(`"version":${REEF_SCHEMA_VERSION}`);
+  });
+
+  it("fails hard instead of stamping when an existing table schema mismatches", async () => {
+    const mismatchedActivity = {
+      columns: [
+        { name: "reef_id", type: "text", required: true },
+        { name: "event_type", type: "text", required: true },
+        { name: "payload", type: "json" },
+        { name: "meta", type: "json" },
+      ],
+    };
+    const { calls } = setupFetch([
+      {
+        body: makeDesiredTablesResponse({
+          [REEF_ACTIVITY_TABLE]: mismatchedActivity,
+        }),
+      },
+    ]);
+    const adapter = makeAdapter();
+    await expect(
+      ensureReefTables({ adapter, vault: "reef-sample" }),
+    ).rejects.toMatchObject({ name: "SchemaValidationError" });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("absorbs create 409 only after a refreshed manifest matches", async () => {
+    const { calls } = setupFetch([
+      { body: makeDesiredTablesResponseExcept(REEF_ACTIVITY_TABLE) },
+      { status: 409, body: { detail: "already exists" } },
+      { body: makeDesiredTablesResponse() },
+      { body: makeDesiredTablesResponse() },
+      { body: makeSqlMutationResponse("DELETE 0") },
+      { body: makeSqlMutationResponse("INSERT 0 1") },
+    ]);
+    const adapter = makeAdapter();
+    await ensureReefTables({ adapter, vault: "reef-sample" });
+    expect(calls).toHaveLength(6);
+    const createBody = JSON.parse(calls[1]?.init?.body as string);
+    expect(createBody.name).toBe(REEF_ACTIVITY_TABLE);
+    const insertSql = JSON.parse(calls[5]?.init?.body as string).sql as string;
+    expect(insertSql).toContain(`"version":${REEF_SCHEMA_VERSION}`);
+  });
+
+  it("propagates create 409 when the refreshed manifest does not match", async () => {
+    const mismatchedActivity = {
+      name: REEF_ACTIVITY_TABLE,
+      columns: [
+        { name: "reef_id", type: "text", required: true },
+        { name: "event_type", type: "text", required: true },
+      ],
+    };
+    const { calls } = setupFetch([
+      { body: makeDesiredTablesResponseExcept(REEF_ACTIVITY_TABLE) },
+      { status: 409, body: { detail: "already exists" } },
+      {
+        body: {
+          kind: "table",
+          vault: "reef-sample",
+          items: [
+            ...(
+              makeDesiredTablesResponseExcept(REEF_ACTIVITY_TABLE) as {
+                items: unknown[];
+              }
+            ).items,
+            mismatchedActivity,
+          ],
+        },
+      },
+    ]);
+    const adapter = makeAdapter();
+    await expect(
+      ensureReefTables({ adapter, vault: "reef-sample" }),
+    ).rejects.toMatchObject({ name: "ConflictError" });
+    expect(calls).toHaveLength(3);
   });
 
   it("accepts the older { tables: [...] } shape as a parser fallback", async () => {

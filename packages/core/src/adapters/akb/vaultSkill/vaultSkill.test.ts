@@ -62,11 +62,13 @@ const ALL_REEF_TABLES = [
   "reef_settings",
   "monitored_repos",
   "reef_issues",
-  "reef_templates",
-  "reef_activity_suggestions",
   "reef_sprints",
   "reef_milestones",
   "reef_releases",
+  "reef_templates",
+  "reef_activity_suggestions",
+  "reef_comments",
+  "reef_activity",
 ];
 
 /**
