@@ -4,6 +4,7 @@ import {
   openExistingWorkspace,
   readFixtureState,
   resetFixture,
+  writeIndexedDbConfig,
 } from "./harness/fixture";
 
 function reefVault(
@@ -47,6 +48,35 @@ test.describe("Hermetic issue route surfaces", () => {
     await page.waitForURL(/view=backlog/, { timeout: 10_000 });
     await expect(page.locator('[data-testid="backlog-header"]')).toBeVisible();
     await expect(page.getByText("Backlog issue Gamma")).toBeVisible();
+  });
+
+  test("renders the README demo board fixture across workflow columns", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "demo_board");
+    await openExistingWorkspace(page);
+    await writeIndexedDbConfig(
+      page,
+      "last_visit_at",
+      "2026-06-01T00:00:00.000Z",
+    );
+
+    await page.goto("/issues?view=board");
+    await expect(page.locator('[data-testid="kanban-board"]')).toBeVisible();
+    await expect(page.locator('[data-testid="kanban-card"]')).toHaveCount(11);
+    await expect(
+      page.locator('[data-testid="activity-unread-badge"]'),
+    ).toHaveText("3");
+    await expect(
+      page.getByText("Triage GitHub activity into draft issues"),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Review activity-scan status proposals"),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Ship stateless BFF route handlers"),
+    ).toBeVisible();
   });
 
   test("opens an intercepted issue detail, autosaves a title edit, and returns to the list backdrop", async ({

@@ -15,6 +15,8 @@ transitions, and grounded AI answers. People stay in control: AI enrichment,
 activity-scan drafts, and status changes are suggestions until a user approves
 them.
 
+![reef issues board with demo data](docs/assets/reef-issues-board.jpg)
+
 ## What reef shows about AKB
 
 - **AKB can back a full product surface.** reef stores workspaces, issue bodies,
@@ -41,7 +43,7 @@ OpenRouter, and GitHub with local fixtures:
 
 ```bash
 pnpm install
-pnpm --filter @reef/web run dev:e2e
+pnpm --filter @reef/web run dev:e2e -- demo_board
 ```
 
 Open [http://localhost:7353](http://localhost:7353), sign in with
@@ -50,7 +52,7 @@ Open [http://localhost:7353](http://localhost:7353), sign in with
 To reset the fixture while `dev:e2e` is running:
 
 ```bash
-pnpm --filter @reef/web run reset:e2e -- configured
+pnpm --filter @reef/web run reset:e2e -- demo_board
 ```
 
 ### Source development

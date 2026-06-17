@@ -8,6 +8,7 @@ const SCENARIO =
 const SCENARIOS = new Set([
   "empty",
   "configured",
+  "demo_board",
   "raw_only",
   "activity_suggestions",
   "skill_outdated",

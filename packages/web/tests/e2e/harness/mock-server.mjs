@@ -63,6 +63,7 @@ process.on("SIGINT", () => server.close(() => process.exit(0)));
 function normalizeScenario(value) {
   if (
     value === "empty" ||
+    value === "demo_board" ||
     value === "raw_only" ||
     value === "activity_suggestions" ||
     value === "skill_outdated"
@@ -120,6 +121,9 @@ function makeState(scenario) {
     if (scenario === "activity_suggestions") seedActivitySuggestions(vault);
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);
     next.vaults.set(REEF_VAULT, vault);
+    next.vaults.set("raw-vault", rawVault("raw-vault"));
+  } else if (scenario === "demo_board") {
+    next.vaults.set(REEF_VAULT, demoBoardVault(REEF_VAULT));
     next.vaults.set("raw-vault", rawVault("raw-vault"));
   } else if (scenario === "raw_only") {
     next.vaults.set("raw-vault", rawVault("raw-vault"));
@@ -237,6 +241,236 @@ function configuredVault(name) {
   seedIssueDocument(vault, "REEF-001", "Alpha description from fixture.");
   seedIssueDocument(vault, "REEF-002", "Beta description from fixture.");
   seedIssueDocument(vault, "REEF-003", "Gamma backlog description.");
+  return vault;
+}
+
+function demoBoardVault(name) {
+  const sprintId = uuidFor(101);
+  const milestoneId = uuidFor(102);
+  const releaseId = uuidFor(103);
+  const vault = configuredVault(name);
+  const issues = [
+    issueRow({
+      id: "REEF-101",
+      title: "Triage GitHub activity into draft issues",
+      status: "todo",
+      issue_type: "story",
+      priority: "critical",
+      assigned_to: "alice",
+      start_date: "2026-06-16",
+      due_date: "2026-06-21",
+      sprint_id: sprintId,
+      milestone_id: milestoneId,
+      release_id: releaseId,
+      estimate_points: 5,
+      labels: ["activity", "ai", "github"],
+    }),
+    issueRow({
+      id: "REEF-102",
+      title: "Polish onboarding for existing AKB workspaces",
+      status: "todo",
+      issue_type: "task",
+      priority: "high",
+      assigned_to: "alice",
+      start_date: "2026-06-17",
+      due_date: "2026-06-24",
+      sprint_id: sprintId,
+      milestone_id: milestoneId,
+      release_id: releaseId,
+      estimate_points: 3,
+      labels: ["onboarding", "workspace"],
+    }),
+    issueRow({
+      id: "REEF-103",
+      title: "Add saved filters for stakeholder reports",
+      status: "todo",
+      issue_type: "task",
+      priority: "medium",
+      assigned_to: null,
+      due_date: "2026-06-27",
+      milestone_id: milestoneId,
+      release_id: releaseId,
+      estimate_points: 2,
+      labels: ["reports"],
+    }),
+    issueRow({
+      id: "REEF-104",
+      title: "Wire board filters into shareable URL state",
+      status: "in_progress",
+      issue_type: "task",
+      priority: "high",
+      assigned_to: "alice",
+      start_date: "2026-06-14",
+      due_date: "2026-06-20",
+      sprint_id: sprintId,
+      milestone_id: milestoneId,
+      release_id: releaseId,
+      estimate_points: 3,
+      labels: ["board", "filters"],
+    }),
+    issueRow({
+      id: "REEF-105",
+      title: "Stream grounded Ask AI answers from core",
+      status: "in_progress",
+      issue_type: "story",
+      priority: "critical",
+      assigned_to: "alice",
+      start_date: "2026-06-13",
+      due_date: "2026-06-23",
+      sprint_id: sprintId,
+      milestone_id: milestoneId,
+      release_id: releaseId,
+      estimate_points: 5,
+      labels: ["ask-ai", "streaming"],
+      depends_on: ["REEF-104"],
+    }),
+    issueRow({
+      id: "REEF-106",
+      title: "Review activity-scan status proposals",
+      status: "in_review",
+      issue_type: "task",
+      priority: "high",
+      assigned_to: "alice",
+      start_date: "2026-06-12",
+      due_date: "2026-06-18",
+      sprint_id: sprintId,
+      milestone_id: milestoneId,
+      release_id: releaseId,
+      estimate_points: 2,
+      labels: ["activity", "review"],
+    }),
+    issueRow({
+      id: "REEF-107",
+      title: "Validate planning context on issue cards",
+      status: "in_review",
+      issue_type: "task",
+      priority: "medium",
+      assigned_to: null,
+      start_date: "2026-06-11",
+      due_date: "2026-06-19",
+      sprint_id: sprintId,
+      milestone_id: milestoneId,
+      release_id: releaseId,
+      estimate_points: 2,
+      labels: ["planning", "kanban"],
+    }),
+    issueRow({
+      id: "REEF-108",
+      title: "Ship stateless BFF route handlers",
+      status: "done",
+      issue_type: "story",
+      priority: "high",
+      assigned_to: "alice",
+      start_date: "2026-06-04",
+      due_date: "2026-06-12",
+      sprint_id: sprintId,
+      milestone_id: milestoneId,
+      release_id: releaseId,
+      estimate_points: 5,
+      labels: ["bff", "api"],
+    }),
+    issueRow({
+      id: "REEF-109",
+      title: "Document the AKB issue storage contract",
+      status: "done",
+      issue_type: "task",
+      priority: "medium",
+      assigned_to: null,
+      start_date: "2026-06-05",
+      due_date: "2026-06-13",
+      milestone_id: milestoneId,
+      release_id: releaseId,
+      estimate_points: 2,
+      labels: ["docs", "akb"],
+    }),
+    issueRow({
+      id: "REEF-110",
+      title: "Retire legacy local issue mocks",
+      status: "closed",
+      issue_type: "chore",
+      priority: "low",
+      assigned_to: "alice",
+      start_date: "2026-06-01",
+      due_date: "2026-06-08",
+      release_id: releaseId,
+      estimate_points: 1,
+      closed_at: "2026-06-10T10:30:00.000Z",
+      closed_reason: "completed",
+      labels: ["cleanup"],
+    }),
+    issueRow({
+      id: "REEF-111",
+      title: "Archive the old OpenRouter settings spike",
+      status: "closed",
+      issue_type: "spike",
+      priority: "medium",
+      assigned_to: null,
+      start_date: "2026-06-02",
+      due_date: "2026-06-09",
+      milestone_id: milestoneId,
+      release_id: releaseId,
+      estimate_points: 1,
+      closed_at: "2026-06-11T15:45:00.000Z",
+      closed_reason: "completed",
+      labels: ["settings", "llm"],
+    }),
+    issueRow({
+      id: "REEF-112",
+      title: "Prioritize mobile board density",
+      status: "backlog",
+      issue_type: "task",
+      priority: "low",
+      assigned_to: null,
+      rank: 1000,
+      labels: ["mobile", "board"],
+    }),
+  ];
+
+  vault.description = "Demo reef workspace";
+  vault.issues = issues;
+  vault.documents = new Map();
+  vault.sprints = [
+    {
+      id: sprintId,
+      name: "Launch Readiness Sprint",
+      status: "active",
+      start_date: "2026-06-15",
+      end_date: "2026-06-28",
+      goal: "Prepare the AKB-backed issue workflow for a public demo.",
+      capacity_points: 28,
+      meta: {},
+    },
+  ];
+  vault.milestones = [
+    {
+      id: milestoneId,
+      name: "Agentic PM Preview",
+      status: "open",
+      target_date: "2026-06-30",
+      description: "Show reviewable AI workflows across issues and reports.",
+      meta: {},
+    },
+  ];
+  vault.releases = [
+    {
+      id: releaseId,
+      name: "reef 0.5 Demo",
+      status: "in_progress",
+      target_date: "2026-06-30",
+      released_at: null,
+      notes: "Public demo build for the README preview.",
+      meta: {},
+    },
+  ];
+
+  for (const issue of issues) {
+    seedIssueDocument(
+      vault,
+      issue.reef_id,
+      `## Demo note\n\n${issue.title} is part of the English README demo board.`,
+    );
+  }
+  seedDemoBoardActivitySuggestions(vault);
   return vault;
 }
 
@@ -1014,6 +1248,35 @@ function seedActivitySuggestions(vault) {
       fromStatus: "in_progress",
       toStatus: "done",
       ref: "44",
+    }),
+  ].entries()) {
+    seedActivitySuggestion(vault, suggestion, index + 1);
+  }
+}
+
+function seedDemoBoardActivitySuggestions(vault) {
+  for (const [index, suggestion] of [
+    draftSuggestion({
+      id: "reef-draft-aa11bb22cc33dd44",
+      title: "Draft README screenshot follow-up",
+      content:
+        "The README preview should show the Activity inbox badge alongside the board.",
+      ref: "demo111",
+    }),
+    statusSuggestion({
+      id: "reef-status-bb22cc33dd44ee55",
+      issueId: "REEF-106",
+      issueTitle: "Review activity-scan status proposals",
+      fromStatus: "in_review",
+      toStatus: "done",
+      ref: "106",
+    }),
+    draftSuggestion({
+      id: "reef-draft-cc33dd44ee55ff66",
+      title: "Draft board density polish task",
+      content:
+        "The demo board needs enough screen width to show workflow columns clearly.",
+      ref: "demo222",
     }),
   ].entries()) {
     seedActivitySuggestion(vault, suggestion, index + 1);
