@@ -121,4 +121,33 @@ describe("HealthRollup", () => {
       screen.getByTestId("health-rollup-row-M2").getAttribute("aria-pressed"),
     ).toBe("false");
   });
+
+  it("counts off-track items separately from at-risk in the header", () => {
+    // A milestone past its target with open work is off track — the header must
+    // not fold it into an "at risk" count (REEF-191 follow-up).
+    render(
+      <HealthRollup
+        issues={[
+          makeIssue({ id: "L", milestone_id: "M_LATE", status: "todo" }),
+        ]}
+        catalog={{
+          sprints: [],
+          milestones: [
+            {
+              id: "M_LATE",
+              name: "M_LATE",
+              status: "open",
+              target_date: "2020-01-01T00:00:00.000Z",
+              description: "",
+            },
+          ],
+          releases: [],
+        }}
+        filters={DEFAULT_REPORT_FILTERS}
+        onDrill={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/1 off track/)).toBeTruthy();
+    expect(screen.queryByText(/at risk/)).toBeNull();
+  });
 });
