@@ -147,6 +147,7 @@ describe("createComment", () => {
   it("inserts only reef_id/body/meta and returns the row via RETURNING", async () => {
     const { calls } = setupFetch([
       { body: makeListTablesResponse(ALL_REEF_TABLES) }, // ensureReefTables
+      { body: makeSqlQueryResponse([{ reef_id: "REEF-062" }], ["reef_id"]) }, // parent issue exists
       {
         body: makeSqlQueryResponse(
           [
@@ -181,7 +182,7 @@ describe("createComment", () => {
       edited_at: null,
     });
 
-    const sql = lastSql(calls[1]?.init?.body);
+    const sql = lastSql(calls[2]?.init?.body);
     expect(sql).toContain(`INSERT INTO ${REEF_COMMENTS_TABLE}`);
     // Only declared columns — never the akb reserved/auto columns.
     expect(sql).toContain(`("reef_id", "body", "meta")`);
@@ -192,6 +193,23 @@ describe("createComment", () => {
     // Semantic author lives in meta.
     expect(sql).toContain('"author":"alice"');
     expect(sql).toContain('"edited_at":null');
+  });
+
+  it("404s a comment on a non-existent issue (no orphan row)", async () => {
+    setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) }, // ensureReefTables
+      { body: makeSqlQueryResponse([], ["reef_id"]) }, // parent issue missing
+    ]);
+
+    await expect(
+      createComment(
+        makeAdapter(),
+        "reef-sample",
+        "REEF-999",
+        "orphan",
+        "alice",
+      ),
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 });
 
@@ -220,6 +238,7 @@ describe("updateComment", () => {
     const comment = await updateComment(
       makeAdapter(),
       "reef-sample",
+      "REEF-062",
       "c1",
       "edited body",
       "alice",
@@ -235,6 +254,8 @@ describe("updateComment", () => {
     expect(sql).toContain(`UPDATE ${REEF_COMMENTS_TABLE}`);
     expect(sql).toContain("jsonb_set(meta::jsonb, '{edited_at}'");
     expect(sql).toContain("WHERE id = 'c1'");
+    // Scoped to the parent issue named in the URL.
+    expect(sql).toContain("reef_id = 'REEF-062'");
     // Ownership guard: only the author's own row matches.
     expect(sql).toContain("meta->>'author' = 'alice'");
     expect(sql).toContain("RETURNING *");
@@ -247,7 +268,14 @@ describe("updateComment", () => {
     ]);
 
     await expect(
-      updateComment(makeAdapter(), "reef-sample", "c1", "x", "mallory"),
+      updateComment(
+        makeAdapter(),
+        "reef-sample",
+        "REEF-062",
+        "c1",
+        "x",
+        "mallory",
+      ),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 });

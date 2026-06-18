@@ -64,7 +64,7 @@ export async function PATCH(
       name: "route.update_comment",
       attributes: { vault, issue_id: id, comment_id: commentId },
       run: () =>
-        updateComment(adapter, vault, commentId, parsed.data.body, actor),
+        updateComment(adapter, vault, id, commentId, parsed.data.body, actor),
     });
     return Response.json({ comment });
   } catch (err) {

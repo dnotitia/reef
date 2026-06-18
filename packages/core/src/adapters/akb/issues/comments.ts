@@ -8,6 +8,7 @@ import {
 import {
   type AkbAdapter,
   REEF_COMMENTS_TABLE,
+  REEF_ISSUES_TABLE,
   decodeSettingsValue,
   ensureReefTables,
   isMissingTableError,
@@ -120,6 +121,21 @@ export async function createComment(
     { vault, reef_id: reefId },
     async () => {
       await ensureReefTables({ adapter, vault });
+      // Refuse to attach a comment to a non-existent issue. Issue ids are
+      // predictable, so an orphan row would otherwise surface on a future issue
+      // that reuses the id (autoreview P2). The reef_issues row is the board's
+      // source of truth for an issue's existence.
+      const parent = await runSql(
+        adapter,
+        vault,
+        `SELECT reef_id FROM ${tableRef(REEF_ISSUES_TABLE)} WHERE reef_id = ${quoteText(
+          reefId,
+          "comment reef_id",
+        )} LIMIT 1`,
+      );
+      if (parent.kind !== "table_query" || parent.items.length === 0) {
+        throw new NotFoundError({ resource: `issue ${reefId}` });
+      }
       const meta = {
         author,
         created_at: new Date().toISOString(),
@@ -162,17 +178,23 @@ export async function createComment(
  * Preserves `meta.author`/`meta.created_at` and sets `meta.edited_at` to now
  * (the "edited" signal, REEF-062 AC2). The mutation rides a data-modifying CTE
  * so the updated row returns via RETURNING.
+ *
+ * Scoped to `reefId` as well as `commentId`: the WHERE binds the comment's
+ * parent issue, so editing a comment through a URL that names a different issue
+ * matches zero rows and 404s instead of mutating another issue's thread
+ * (autoreview P2).
  */
 export async function updateComment(
   adapter: AkbAdapter,
   vault: string,
+  reefId: string,
   commentId: string,
   body: string,
   editor: string,
 ): Promise<Comment> {
   return withSpan(
     "akb.update_comment",
-    { vault, comment_id: commentId },
+    { vault, reef_id: reefId, comment_id: commentId },
     async () => {
       await ensureReefTables({ adapter, vault });
       const editedAt = new Date().toISOString();
@@ -190,6 +212,9 @@ export async function updateComment(
         )}::text))::json WHERE id = ${quoteText(
           commentId,
           "comment id",
+        )} AND reef_id = ${quoteText(
+          reefId,
+          "comment reef_id",
         )} AND meta->>'author' = ${quoteText(
           editor,
           "comment editor",

@@ -100,6 +100,7 @@ describe("PATCH /api/issues/[id]/comments/[commentId]", () => {
     expect(mockUpdateComment).toHaveBeenCalledWith(
       expect.anything(),
       "v",
+      "REEF-001",
       COMMENT_ID,
       "edited",
       "alice",
