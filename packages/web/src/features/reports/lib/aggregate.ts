@@ -45,6 +45,7 @@ import {
 export {
   DEFAULT_REPORT_FILTERS,
   PERIOD_LABELS,
+  WEEK_MS,
   type AggregateOptions,
   type AgingBucketKey,
   type AgingBuckets,
