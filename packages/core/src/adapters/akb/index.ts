@@ -60,6 +60,12 @@ export {
   updateComment,
 } from "./issues/comments";
 export {
+  appendStatusChangeEvent,
+  listIssueActivity,
+  statusChangeEventKey,
+  type StatusChangeEventInput,
+} from "./issues/activity";
+export {
   composeActivitySuggestionDocumentBody,
   writeActivitySuggestion,
   listActivitySuggestions,

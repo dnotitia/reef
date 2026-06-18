@@ -150,6 +150,20 @@ A status change is a row-only update; it does not touch the document. On ANY sta
   - meta.last_editor = the acting user
 When the new status is closed, also set closed_at and closed_reason (see Close). When the new status is anything other than closed (including done and any reopen), set closed_at = NULL and closed_reason = NULL so stale closure fields do not linger.
 
+On ANY status change you MUST ALSO append one immutable event row to the reef_activity table, in addition to the reef_issues row update above. reef_activity is the issue's ordered audit history (the timeline reads it); meta.last_status_change on the row is only the last-event safety net, while reef_activity keeps every transition. Insert:
+
+INSERT INTO reef_activity (reef_id, event_type, event_key, payload, meta)
+VALUES (
+  'REEF-001',
+  'status_change',
+  'status_change:in_progress->in_review@2026-06-15T07:34:38.237Z',
+  '{"from":"in_progress","to":"in_review"}'::json,
+  '{"actor":"ACTOR","at":"2026-06-15T07:34:38.237Z","source":"ai-agent:user_request"}'::json);
+
+- event_key is the idempotency key: build it as status_change:<from>-><to>@<timestamp>, where <timestamp> is the SAME ISO value you wrote to meta.last_status_change. Before inserting, skip the insert if a row with the same reef_id and event_key already exists -- re-applying the same transition must never double the event.
+- payload is the {from,to} transition. In meta, "at" MUST equal the meta.last_status_change you set on the issue row, "actor" is the acting user, and "source" mirrors the change's provenance (for example ai-agent:user_request) or is null.
+- Do NOT set id, created_by, created_at, or updated_at; AKB fills them. reef_activity is append-only -- never UPDATE or DELETE an event row. If this append fails after the row UPDATE already changed the status, leave the status change in place (meta.last_status_change still records the latest move); do not roll the status back over a missing history row.
+
 Timestamp format (load-bearing): write meta.last_status_change, closed_at, and every other ISO date field in full ISO-8601 UTC -- prefer the toISOString form with milliseconds and a Z suffix (2026-06-15T07:34:38.237Z), or at minimum an offset that includes minutes (2026-06-15T07:34:38+00:00). When you build the value in SQL, use to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'). Do NOT write a "+00" offset without minutes (for example now()::text, or to_char(..., '...+00')): that truncated tail fails ISO date parsing, the read path rejects the row, and the issue silently vanishes from the board and list (see "When the row is present but the board hides it").
 
 The AKB backend does NOT enforce this ordering on a direct row update; it accepts any value (last write wins). These runbooks are the only guardrail, so apply the side effects above on every status change and keep moves forward unless the user explicitly wants a reopen.
