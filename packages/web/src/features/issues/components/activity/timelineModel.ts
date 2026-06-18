@@ -263,7 +263,14 @@ export function buildEntries(
   }
 
   return entries.sort((a, b) => {
-    if (a.at !== b.at) return a.at < b.at ? -1 : 1;
+    // Compare instants, not raw strings: the ISO schema accepts offsets like
+    // `+09:00` / `+00:00`, which are not lexicographically ordered by time, so a
+    // string compare would misorder valid timestamps across the three sources.
+    // (`|| 0` keeps an unparseable value deterministic rather than poisoning the
+    // sort with NaN.)
+    const ta = Date.parse(a.at) || 0;
+    const tb = Date.parse(b.at) || 0;
+    if (ta !== tb) return ta - tb;
     const rank = entryRank(a) - entryRank(b);
     if (rank !== 0) return rank;
     return entryId(a) < entryId(b) ? -1 : 1;

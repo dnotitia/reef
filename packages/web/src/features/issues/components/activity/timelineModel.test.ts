@@ -72,6 +72,21 @@ describe("buildEntries — merge-sort (AC1)", () => {
       entries.map((e) => (e.type === "comment" ? e.comment.id : e.event.id)),
     ).toEqual(["created", "c-early", "a1", "c-late"]);
   });
+
+  it("orders by instant across offset formats, not raw ISO string text", () => {
+    const issue = makeIssue({ created_at: "2026-06-01T00:00:00.000Z" });
+    // 09:00+09:00 is the same instant as 00:00Z — earlier than 01:00Z — yet the
+    // raw string sorts lexically *after* it. Instant-aware sorting must win.
+    const comments = [comment("c-offset", "2026-06-18T09:00:00+09:00")];
+    const events = [
+      activity("a-utc", "2026-06-18T01:00:00.000Z", "todo", "in_progress"),
+    ];
+
+    const ids = buildEntries(comments, events, issue).map((e) =>
+      e.type === "comment" ? e.comment.id : e.event.id,
+    );
+    expect(ids).toEqual(["created", "c-offset", "a-utc"]);
+  });
 });
 
 describe("reconstructEvents (AC5)", () => {
