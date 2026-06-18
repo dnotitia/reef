@@ -24,7 +24,7 @@ vi.mock("streamdown", () => ({
 }));
 
 import { apiFetch } from "@/lib/apiClient";
-import type { ActivityEvent, Comment, IssueMetadata } from "@reef/core";
+import type { ActivityEvent, Comment, IssueMetadata, Status } from "@reef/core";
 import { ActivityTimeline } from "./ActivityTimeline";
 
 const mockApiFetch = vi.mocked(apiFetch);
@@ -59,8 +59,8 @@ const ALICE_COMMENT: Comment = {
 function statusEvent(
   id: string,
   at: string,
-  from: ActivityEvent["payload"]["from"],
-  to: ActivityEvent["payload"]["to"],
+  from: Status,
+  to: Status,
 ): ActivityEvent {
   return {
     id,

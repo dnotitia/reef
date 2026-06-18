@@ -1,11 +1,29 @@
-import type {
-  ActivityEvent,
-  ClosedReason,
-  Comment,
-  ImplementationRef,
-  IssueMetadata,
-  Status,
+import {
+  ACTIVITY_EVENT_STATUS_CHANGE,
+  type ActivityEvent,
+  type ClosedReason,
+  type Comment,
+  type ImplementationRef,
+  type IssueMetadata,
+  type Status,
 } from "@reef/core";
+
+/**
+ * The status-change variant of the `reef_activity` discriminated union (REEF-126
+ * widened it to assignee / priority / planning / impl-ref events). REEF-064's MVP
+ * renders only status changes (its `from → to` glyph line); the other event kinds
+ * are filtered out here and surfaced by a follow-up.
+ */
+type StatusChangeActivityEvent = Extract<
+  ActivityEvent,
+  { event_type: typeof ACTIVITY_EVENT_STATUS_CHANGE }
+>;
+
+function isStatusChangeEvent(
+  event: ActivityEvent,
+): event is StatusChangeActivityEvent {
+  return event.event_type === ACTIVITY_EVENT_STATUS_CHANGE;
+}
 
 /**
  * Pure model for the unified activity timeline (REEF-064).
@@ -87,8 +105,10 @@ export type TimelineEntry = CommentEntry | SystemEntry | CollapsedEntry;
  */
 export const COLLAPSE_THRESHOLD = 3;
 
-/** Map a `reef_activity` event to a normalized status-change system event. */
-function fromActivityEvent(event: ActivityEvent): TimelineSystemEvent {
+/** Map a `reef_activity` status-change event to a normalized system event. */
+function fromActivityEvent(
+  event: StatusChangeActivityEvent,
+): TimelineSystemEvent {
   return {
     id: event.id,
     at: event.at,
@@ -144,12 +164,13 @@ export function reconstructEvents(
   // status_change to the current status, a fallback dropped when reef_activity
   // already logged that transition (activity wins). Either way it is skipped when
   // it coincides with creation, since `created` already represents that state.
+  const statusChanges = activity.filter(isStatusChangeEvent);
   const closedAt = closedReconstructionAt(issue);
   if (closedAt != null) {
     // Prefer the logged close's authoritative actor. Otherwise fall back to
     // `updated_by` only when it reliably names the closer (see `reliableActorAt`),
     // never to a later unrelated editor.
-    const loggedClose = activity.find(
+    const loggedClose = statusChanges.find(
       (event) => event.payload.to === "closed" && event.at === closedAt,
     );
     events.push({
@@ -162,7 +183,7 @@ export function reconstructEvents(
   } else if (issue.status !== "closed") {
     const statusAt = issue.last_status_change;
     const loggedAtStatusTime =
-      statusAt != null && activity.some((event) => event.at === statusAt);
+      statusAt != null && statusChanges.some((event) => event.at === statusAt);
     if (
       statusAt != null &&
       statusAt !== issue.created_at &&
@@ -241,8 +262,10 @@ export function buildEntries(
   // append path is idempotent on event_key but akb's HTTP surface has no unique
   // index, so two simultaneous identical inserts can leave duplicate rows; the
   // adapter documents that the timeline is the downstream de-duper (REEF-125).
+  // Only status_change events render today (REEF-064 MVP); other REEF-126 event
+  // kinds are filtered out pending a follow-up that designs their rows.
   const seenKeys = new Set<string>();
-  for (const event of activity) {
+  for (const event of activity.filter(isStatusChangeEvent)) {
     if (seenKeys.has(event.event_key)) continue;
     seenKeys.add(event.event_key);
     if (

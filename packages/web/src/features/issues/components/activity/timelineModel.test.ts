@@ -1,5 +1,11 @@
 // @vitest-environment node
-import type { ActivityEvent, Comment, IssueMetadata } from "@reef/core";
+import {
+  ACTIVITY_EVENT_ASSIGNEE_CHANGE,
+  type ActivityEvent,
+  type Comment,
+  type IssueMetadata,
+  type Status,
+} from "@reef/core";
 import { describe, expect, it } from "vitest";
 import {
   buildEntries,
@@ -35,8 +41,8 @@ function comment(id: string, at: string): Comment {
 function activity(
   id: string,
   at: string,
-  from: ActivityEvent["payload"]["from"],
-  to: ActivityEvent["payload"]["to"],
+  from: Status,
+  to: Status,
 ): ActivityEvent {
   return {
     id,
@@ -86,6 +92,34 @@ describe("buildEntries — merge-sort (AC1)", () => {
       e.type === "comment" ? e.comment.id : e.event.id,
     );
     expect(ids).toEqual(["created", "c-offset", "a-utc"]);
+  });
+
+  it("renders only status_change activity; other REEF-126 event kinds are filtered out", () => {
+    const issue = makeIssue();
+    // REEF-126 widened the activity union; REEF-064's MVP renders status changes
+    // only, so a non-status event must not appear as a timeline row.
+    const assignee: ActivityEvent = {
+      id: "asg-1",
+      reef_id: "REEF-001",
+      event_type: ACTIVITY_EVENT_ASSIGNEE_CHANGE,
+      event_key: "assignee_change:null->alice@2026-06-03T00:00:00.000Z",
+      payload: { from: null, to: "alice" },
+      actor: "alice",
+      at: "2026-06-03T00:00:00.000Z",
+      source: null,
+    };
+    const status = activity(
+      "st-1",
+      "2026-06-04T00:00:00.000Z",
+      "todo",
+      "in_progress",
+    );
+
+    const systemIds = buildEntries([], [assignee, status], issue)
+      .filter((e) => e.type === "system")
+      .map((e) => (e.type === "system" ? e.event.id : ""));
+    expect(systemIds).toContain("st-1");
+    expect(systemIds).not.toContain("asg-1");
   });
 });
 
