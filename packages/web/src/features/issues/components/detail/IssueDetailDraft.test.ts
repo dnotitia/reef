@@ -73,4 +73,17 @@ describe("issueDetailDraftReducer sync (REEF-227 form re-sync)", () => {
     });
     expect(result).toBe(previous); // same reference — nothing to update
   });
+
+  it("reset discards a dirty conflicted field and shows the server value", () => {
+    const server = createIssueDetailDraft(makeDoc({ title: "External edit" }));
+    const dirty = { ...server, title: "My rejected edit" };
+    // On a conflict the form resets wholesale, so the rejected local value is
+    // dropped — it can no longer be re-saved over the change that won.
+    const result = issueDetailDraftReducer(dirty, {
+      type: "reset",
+      next: server,
+    });
+    expect(result).toBe(server);
+    expect(result.title).toBe("External edit");
+  });
 });

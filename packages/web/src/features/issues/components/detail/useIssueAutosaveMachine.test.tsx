@@ -55,6 +55,8 @@ describe("useIssueAutosaveMachine — conflict handling (REEF-227)", () => {
     await waitFor(() => expect(result.current.saveStatus).toBe("idle"));
     expect(mockNotifyConflict).toHaveBeenCalledTimes(1);
     expect(mockNotifyRetryableError).not.toHaveBeenCalled();
+    // The conflict signal bumps so the open form discards its rejected edit.
+    expect(result.current.conflictCount).toBe(1);
   });
 
   it("keeps a non-conflict failure (500) retryable", async () => {
@@ -74,5 +76,6 @@ describe("useIssueAutosaveMachine — conflict handling (REEF-227)", () => {
     await waitFor(() => expect(result.current.saveStatus).toBe("error"));
     expect(mockNotifyRetryableError).toHaveBeenCalledTimes(1);
     expect(mockNotifyConflict).not.toHaveBeenCalled();
+    expect(result.current.conflictCount).toBe(0);
   });
 });

@@ -22,6 +22,14 @@ interface FailedCommit {
 
 interface AutosaveSnapshot {
   status: SaveStatus;
+  /**
+   * Increments on each document OCC conflict (REEF-227). The open form watches
+   * it to discard the rejected local edit and re-derive from the refetched
+   * server state, so a stale dirty field can't be re-saved over the change that
+   * won. Carried alongside `status` because a conflict settles back to idle/error
+   * and would otherwise be invisible to a status-only subscriber.
+   */
+  conflictCount: number;
 }
 
 interface UpdateIssueInput {
@@ -65,7 +73,7 @@ class IssueAutosaveMachine {
   private listeners = new Set<() => void>();
   private pendingCommits = 0;
   private savedTimer: ReturnType<typeof setTimeout> | null = null;
-  private snapshot: AutosaveSnapshot = { status: "idle" };
+  private snapshot: AutosaveSnapshot = { status: "idle", conflictCount: 0 };
   private tail: Promise<unknown> = Promise.resolve();
 
   constructor(
@@ -188,14 +196,28 @@ class IssueAutosaveMachine {
     // re-applies against the fresh state. Settle out of the frozen save state so
     // that sync can run. Other failures stay retryable.
     if (isConflictError(err)) {
+      // Bump conflictCount so the open form discards the rejected local edit and
+      // re-derives from the refetched server truth. A 3-way sync alone would keep
+      // the conflicted field (it is dirty) and let a later blur re-save it over
+      // the change that won. Settle out of the frozen state when nothing else is
+      // pending so that re-derivation can run.
       notifyConflict({
         id: saveToastId(commit.issueId),
         title: "This issue changed elsewhere",
         description:
-          "Your view was refreshed with the latest. Re-apply your change if it is still needed.",
+          "Your unsaved change was discarded and the latest is shown. Re-apply it if it is still needed.",
       });
-      if (this.pendingCommits > 0) return;
-      this.setStatus(this.failedCommits.length > 0 ? "error" : "idle");
+      const status =
+        this.pendingCommits > 0
+          ? this.snapshot.status
+          : this.failedCommits.length > 0
+            ? "error"
+            : "idle";
+      this.snapshot = {
+        status,
+        conflictCount: this.snapshot.conflictCount + 1,
+      };
+      this.emit();
       return;
     }
 
@@ -220,7 +242,11 @@ class IssueAutosaveMachine {
 
   private setStatus(status: SaveStatus): void {
     if (this.snapshot.status === status) return;
-    this.snapshot = { status };
+    this.snapshot = { ...this.snapshot, status };
+    this.emit();
+  }
+
+  private emit(): void {
     for (const listener of this.listeners) listener();
   }
 }
@@ -252,5 +278,6 @@ export function useIssueAutosaveMachine({
     commit: machine.commit,
     retryFailedCommits: machine.retry,
     saveStatus: snapshot.status,
+    conflictCount: snapshot.conflictCount,
   };
 }
