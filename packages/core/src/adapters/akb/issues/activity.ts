@@ -1,13 +1,29 @@
 import { ZodError } from "zod";
 import { SchemaValidationError } from "../../../errors";
 import {
+  ACTIVITY_EVENT_ASSIGNEE_CHANGE,
+  ACTIVITY_EVENT_IMPL_REF_LINKED,
+  ACTIVITY_EVENT_PLANNING_LINK,
+  ACTIVITY_EVENT_PRIORITY_CHANGE,
   ACTIVITY_EVENT_STATUS_CHANGE,
   type ActivityEvent,
   ActivityEventMetaSchema,
+  type ActivityEventPayload,
   ActivityEventSchema,
+  type ActivityEventType,
+  type AssigneeChangePayload,
+  AssigneeChangePayloadSchema,
+  type ImplRefLinkedPayload,
+  ImplRefLinkedPayloadSchema,
+  type PlanningLinkField,
+  type PlanningLinkPayload,
+  PlanningLinkPayloadSchema,
+  type PriorityChangePayload,
+  PriorityChangePayloadSchema,
+  type StatusChangePayload,
   StatusChangePayloadSchema,
 } from "../../../schemas/issues/activity";
-import type { Status } from "../../../schemas/issues/metadata";
+import type { IssueMetadata, Status } from "../../../schemas/issues/metadata";
 import {
   type AkbAdapter,
   REEF_ACTIVITY_TABLE,
@@ -23,19 +39,99 @@ import {
 } from "../core/shared";
 
 /**
- * Deterministic idempotency key for a status-change event. The same logical
- * transition (same from→to at the same recorded time) yields the same key, so a
- * retried best-effort append de-dupes against the existing row instead of
- * stacking a duplicate event (REEF-125 AC8). `at` is the issue's
- * `last_status_change`: distinct transitions get distinct keys, and re-running
- * the identical `updateIssue` call (same merged patch) reproduces the key.
+ * The discriminating `eventType` + its matching `payload`. A distributive
+ * discriminated union (one member per event kind) so a `switch` on `eventType`
+ * narrows `payload` to the right shape with no casts.
+ */
+export type ActivityEventDescriptor =
+  | {
+      eventType: typeof ACTIVITY_EVENT_STATUS_CHANGE;
+      payload: StatusChangePayload;
+    }
+  | {
+      eventType: typeof ACTIVITY_EVENT_ASSIGNEE_CHANGE;
+      payload: AssigneeChangePayload;
+    }
+  | {
+      eventType: typeof ACTIVITY_EVENT_PRIORITY_CHANGE;
+      payload: PriorityChangePayload;
+    }
+  | {
+      eventType: typeof ACTIVITY_EVENT_PLANNING_LINK;
+      payload: PlanningLinkPayload;
+    }
+  | {
+      eventType: typeof ACTIVITY_EVENT_IMPL_REF_LINKED;
+      payload: ImplRefLinkedPayload;
+    };
+
+/**
+ * One activity event ready to append: a descriptor plus the shared
+ * `reefId`/`at`/`actor`/`source` audit fields. Intersecting the union with the
+ * shared fields distributes, so this stays a discriminated union.
+ */
+export type ActivityEventInput = ActivityEventDescriptor & {
+  reefId: string;
+  /** ISO-8601 event time — see `at` in `ActivityEventMetaSchema`. */
+  at: string;
+  /** reef semantic actor who caused the change (the issue's `updated_by`). */
+  actor: string;
+  /** Trigger provenance (the issue's `meta.source`), or null. */
+  source: string | null;
+};
+
+/** Render a nullable key segment so an attach/detach never collides with a value. */
+function eventKeySegment(value: string | null): string {
+  return value ?? "∅";
+}
+
+/**
+ * Deterministic idempotency key for an activity event. The same logical change
+ * (same discriminant + from→to at the same recorded time) yields the same key,
+ * so a retried best-effort append de-dupes against the existing row instead of
+ * stacking a duplicate (REEF-125 AC8). `at` ties the key to the update that
+ * produced it, so a literal re-run of the identical `updateIssue` call (same
+ * merged patch, same timestamp) reproduces the key while two separate edits get
+ * distinct keys.
+ */
+export function activityEventKey(
+  descriptor: ActivityEventDescriptor,
+  at: string,
+): string {
+  switch (descriptor.eventType) {
+    case ACTIVITY_EVENT_PLANNING_LINK: {
+      const { field, from, to } = descriptor.payload;
+      return `${descriptor.eventType}:${field}:${eventKeySegment(from)}->${eventKeySegment(to)}@${at}`;
+    }
+    case ACTIVITY_EVENT_IMPL_REF_LINKED: {
+      const { ref_type, repo, ref } = descriptor.payload;
+      return `${descriptor.eventType}:${ref_type}:${eventKeySegment(repo)}:${ref}@${at}`;
+    }
+    default: {
+      // status_change / assignee_change / priority_change all key on from→to.
+      const { from, to } = descriptor.payload;
+      return `${descriptor.eventType}:${eventKeySegment(from)}->${eventKeySegment(to)}@${at}`;
+    }
+  }
+}
+
+/**
+ * Back-compat status-change key (REEF-063). Delegates to `activityEventKey` so
+ * the key format has a single source; status enum values are never null, so the
+ * segments render verbatim (`status_change:todo->in_progress@<at>`).
  */
 export function statusChangeEventKey(
   from: string,
   to: string,
   at: string,
 ): string {
-  return `${ACTIVITY_EVENT_STATUS_CHANGE}:${from}->${to}@${at}`;
+  return activityEventKey(
+    {
+      eventType: ACTIVITY_EVENT_STATUS_CHANGE,
+      payload: { from, to } as StatusChangePayload,
+    },
+    at,
+  );
 }
 
 export interface StatusChangeEventInput {
@@ -50,27 +146,64 @@ export interface StatusChangeEventInput {
   source?: string | null;
 }
 
+interface ActivityRowInput {
+  reefId: string;
+  eventType: ActivityEventType;
+  eventKey: string;
+  payload: ActivityEventPayload;
+  meta: { actor: string; at: string; source: string | null };
+}
+
 /**
- * Append an immutable `status_change` event to `reef_activity` (REEF-063 AC1).
- * Idempotent on `event_key` (REEF-125 AC8): the insert is guarded by a
- * `WHERE NOT EXISTS` on the same `(reef_id, event_key)` in ONE statement, so the
- * check and the insert share a snapshot — there is no two-round-trip
- * time-of-check/time-of-use window, and a sequential retry of the same logical
- * transition (the realistic best-effort re-run) finds the committed row and adds
- * nothing. Append-only — there is no update path for an event row.
+ * Append one immutable event row to `reef_activity`, idempotent on
+ * `(reef_id, event_key)` (REEF-125 AC8). The `NOT EXISTS` probe and the insert
+ * share ONE statement, so the check and the insert see one snapshot — no
+ * two-round-trip time-of-check/time-of-use window — and a sequential retry of
+ * the same logical change finds the committed row and adds nothing. Append-only:
+ * there is no update path for an event row. Returns whether a row was added.
  *
  * Residual: akb's runtime HTTP surface creates tables by column list only and
- * exposes no ALTER/unique-index (REEF-125 — that is why idempotency is keyed on
- * the logical `event_key`, not a DB constraint). So two *simultaneous* inserts of
- * the identical event_key could still both pass `NOT EXISTS`. That requires an
- * identical `(from,to,at)` — i.e. concurrent retries of the very same update — and
- * is de-duplicated downstream on `event_key` by the timeline (REEF-064). A
- * DB-enforced unique index on `(reef_id, event_key)` is an akb-layer follow-up.
- *
- * Provisions the table lazily via `ensureReefTables` so a vault that predates
- * `reef_activity` self-heals on its first status change instead of dropping the
- * event (REEF-125 AC7). The actor/event-time/source live in `meta`; the row's
- * akb auto columns are not reef's source of truth.
+ * exposes no ALTER/unique-index (REEF-125), so two *simultaneous* inserts of the
+ * identical event_key could both pass `NOT EXISTS`. That needs concurrent
+ * retries of the very same update; it is de-duplicated downstream on `event_key`
+ * by the timeline (REEF-064). A DB-enforced unique index is an akb-layer
+ * follow-up. Callers `ensureReefTables` first so a vault predating the table
+ * self-heals on first write (REEF-125 AC7).
+ */
+async function insertActivityEventRow(
+  adapter: AkbAdapter,
+  vault: string,
+  row: ActivityRowInput,
+): Promise<boolean> {
+  const reefId = quoteText(row.reefId, "activity reef_id");
+  const key = quoteText(row.eventKey, "activity event_key");
+  const columns = ["reef_id", "event_type", "event_key", "payload", "meta"]
+    .map(quoteIdent)
+    .join(", ");
+  const selectValues = [
+    reefId,
+    quoteText(row.eventType, "activity event_type"),
+    key,
+    quoteJson(row.payload),
+    quoteJson(row.meta),
+  ].join(", ");
+  // Single-statement conditional insert: the `NOT EXISTS` probe and the insert
+  // share one snapshot, so an already-recorded change is skipped atomically (no
+  // separate read-then-write race). RETURNING tells us whether a row was added.
+  const res = await runSql(
+    adapter,
+    vault,
+    `INSERT INTO ${tableRef(
+      REEF_ACTIVITY_TABLE,
+    )} (${columns}) SELECT ${selectValues} WHERE NOT EXISTS (SELECT 1 FROM ${tableRef(
+      REEF_ACTIVITY_TABLE,
+    )} WHERE reef_id = ${reefId} AND event_key = ${key}) RETURNING id`,
+  );
+  return res.kind === "table_query" && res.items.length > 0;
+}
+
+/**
+ * Append an immutable `status_change` event to `reef_activity` (REEF-063 AC1).
  *
  * The caller (`updateIssue`) runs this best-effort: the status row update has
  * already committed, so a failed append must not fail the whole update —
@@ -86,63 +219,202 @@ export async function appendStatusChangeEvent(
     { vault, reef_id: event.reefId },
     async (span) => {
       await ensureReefTables({ adapter, vault });
-      const eventKey = statusChangeEventKey(event.from, event.to, event.at);
-      const reefId = quoteText(event.reefId, "activity reef_id");
-      const key = quoteText(eventKey, "activity event_key");
-      const payload = { from: event.from, to: event.to };
-      const meta = {
-        actor: event.actor,
-        at: event.at,
-        source: event.source ?? null,
-      };
-      const columns = ["reef_id", "event_type", "event_key", "payload", "meta"]
-        .map(quoteIdent)
-        .join(", ");
-      const selectValues = [
-        reefId,
-        quoteText(ACTIVITY_EVENT_STATUS_CHANGE, "activity event_type"),
-        key,
-        quoteJson(payload),
-        quoteJson(meta),
-      ].join(", ");
-      // Single-statement conditional insert: the `NOT EXISTS` probe and the
-      // insert share one snapshot, so an already-recorded transition is skipped
-      // atomically (no separate read-then-write race). RETURNING tells us whether
-      // a row was actually added.
-      const res = await runSql(
-        adapter,
-        vault,
-        `INSERT INTO ${tableRef(
-          REEF_ACTIVITY_TABLE,
-        )} (${columns}) SELECT ${selectValues} WHERE NOT EXISTS (SELECT 1 FROM ${tableRef(
-          REEF_ACTIVITY_TABLE,
-        )} WHERE reef_id = ${reefId} AND event_key = ${key}) RETURNING id`,
-      );
-      span.setAttribute(
-        "appended",
-        res.kind === "table_query" && res.items.length > 0,
-      );
+      const appended = await insertActivityEventRow(adapter, vault, {
+        reefId: event.reefId,
+        eventType: ACTIVITY_EVENT_STATUS_CHANGE,
+        eventKey: statusChangeEventKey(event.from, event.to, event.at),
+        payload: { from: event.from, to: event.to },
+        meta: {
+          actor: event.actor,
+          at: event.at,
+          source: event.source ?? null,
+        },
+      });
+      span.setAttribute("appended", appended);
     },
   );
 }
 
 /**
+ * Append a batch of non-status field-change events (REEF-126) in one funnel.
+ * Provisions the table once, then inserts each event idempotently. Like
+ * `appendStatusChangeEvent` the caller runs this best-effort — the row UPDATE
+ * already committed, so a failed append must never fail the issue update.
+ */
+export async function appendActivityEvents(
+  adapter: AkbAdapter,
+  vault: string,
+  events: ActivityEventInput[],
+): Promise<void> {
+  const [first] = events;
+  if (!first) {
+    return;
+  }
+  return withSpan(
+    "akb.append_activity_events",
+    { vault, reef_id: first.reefId, count: events.length },
+    async (span) => {
+      await ensureReefTables({ adapter, vault });
+      let appended = 0;
+      for (const event of events) {
+        const ok = await insertActivityEventRow(adapter, vault, {
+          reefId: event.reefId,
+          eventType: event.eventType,
+          eventKey: activityEventKey(event, event.at),
+          payload: event.payload,
+          meta: {
+            actor: event.actor,
+            at: event.at,
+            source: event.source,
+          },
+        });
+        if (ok) {
+          appended += 1;
+        }
+      }
+      span.setAttribute("appended_count", appended);
+    },
+  );
+}
+
+/** Stable identity of an implementation ref, matching the runbook's `type:repo:ref` de-dupe. */
+function implRefDedupeKey(ref: {
+  type: string;
+  repo?: string;
+  ref: string;
+}): string {
+  return `${ref.type}:${ref.repo ?? ""}:${ref.ref}`;
+}
+
+/**
+ * Derive the non-status field-change events for one `updateIssue` (REEF-126).
+ * Pure: compares the pre-update snapshot against the merged result and emits one
+ * event per changed dimension — assignee, priority, each planning link, and each
+ * newly-linked delivery ref. status_change is NOT emitted here; it keeps its own
+ * funnel keyed on `last_status_change`. Every event shares the one `meta.at`
+ * timestamp so a multi-field save groups under a single instant (AC3).
+ */
+export function diffFieldActivityEvents(
+  reefId: string,
+  before: IssueMetadata,
+  after: IssueMetadata,
+  meta: { at: string; actor: string; source: string | null },
+): ActivityEventInput[] {
+  const events: ActivityEventInput[] = [];
+  const base = {
+    reefId,
+    at: meta.at,
+    actor: meta.actor,
+    source: meta.source,
+  };
+
+  const assigneeFrom = before.assigned_to ?? null;
+  const assigneeTo = after.assigned_to ?? null;
+  if (assigneeFrom !== assigneeTo) {
+    events.push({
+      ...base,
+      eventType: ACTIVITY_EVENT_ASSIGNEE_CHANGE,
+      payload: { from: assigneeFrom, to: assigneeTo },
+    });
+  }
+
+  const priorityFrom = before.priority ?? null;
+  const priorityTo = after.priority ?? null;
+  if (priorityFrom !== priorityTo) {
+    events.push({
+      ...base,
+      eventType: ACTIVITY_EVENT_PRIORITY_CHANGE,
+      payload: { from: priorityFrom, to: priorityTo },
+    });
+  }
+
+  const planningDimensions: ReadonlyArray<{
+    field: PlanningLinkField;
+    from: string | null;
+    to: string | null;
+  }> = [
+    {
+      field: "milestone",
+      from: before.milestone_id ?? null,
+      to: after.milestone_id ?? null,
+    },
+    {
+      field: "sprint",
+      from: before.sprint_id ?? null,
+      to: after.sprint_id ?? null,
+    },
+    {
+      field: "release",
+      from: before.release_id ?? null,
+      to: after.release_id ?? null,
+    },
+  ];
+  for (const dimension of planningDimensions) {
+    if (dimension.from !== dimension.to) {
+      events.push({
+        ...base,
+        eventType: ACTIVITY_EVENT_PLANNING_LINK,
+        payload: {
+          field: dimension.field,
+          from: dimension.from,
+          to: dimension.to,
+        },
+      });
+    }
+  }
+
+  const linkedBefore = new Set(
+    (before.implementation_refs ?? []).map(implRefDedupeKey),
+  );
+  for (const ref of after.implementation_refs ?? []) {
+    if (!linkedBefore.has(implRefDedupeKey(ref))) {
+      events.push({
+        ...base,
+        eventType: ACTIVITY_EVENT_IMPL_REF_LINKED,
+        payload: { ref_type: ref.type, ref: ref.ref, repo: ref.repo ?? null },
+      });
+    }
+  }
+
+  return events;
+}
+
+/** The per-event-type payload validator, keyed by the row's `event_type` discriminant. */
+const PAYLOAD_SCHEMA_BY_EVENT_TYPE = {
+  [ACTIVITY_EVENT_STATUS_CHANGE]: StatusChangePayloadSchema,
+  [ACTIVITY_EVENT_ASSIGNEE_CHANGE]: AssigneeChangePayloadSchema,
+  [ACTIVITY_EVENT_PRIORITY_CHANGE]: PriorityChangePayloadSchema,
+  [ACTIVITY_EVENT_PLANNING_LINK]: PlanningLinkPayloadSchema,
+  [ACTIVITY_EVENT_IMPL_REF_LINKED]: ImplRefLinkedPayloadSchema,
+} as const;
+
+/**
  * Map a `reef_activity` row to an ActivityEvent. The reef-semantic actor, event
- * time, and source are projected from `meta` (REEF-125), the transition from
- * `payload`.
+ * time, and source are projected from `meta` (REEF-125); the `payload` is parsed
+ * by the schema for this row's `event_type` (REEF-126). An unknown/future
+ * event_type this release can't model is treated as malformed so the read path
+ * skips it rather than surfacing an untyped payload.
  */
 function rowToActivityEvent(row: Record<string, unknown>): ActivityEvent {
   try {
     const meta = ActivityEventMetaSchema.parse(
       decodeSettingsValue(row.meta) ?? {},
     );
-    const payload = StatusChangePayloadSchema.parse(
-      decodeSettingsValue(row.payload) ?? {},
-    );
+    const eventType = row.event_type;
+    const payloadSchema =
+      typeof eventType === "string"
+        ? PAYLOAD_SCHEMA_BY_EVENT_TYPE[eventType as ActivityEventType]
+        : undefined;
+    if (!payloadSchema) {
+      throw new SchemaValidationError({
+        issues: [`unknown activity event_type: ${String(eventType)}`],
+      });
+    }
+    const payload = payloadSchema.parse(decodeSettingsValue(row.payload) ?? {});
     return ActivityEventSchema.parse({
       id: row.id,
       reef_id: row.reef_id,
-      event_type: row.event_type,
+      event_type: eventType,
       event_key: row.event_key,
       payload,
       actor: meta.actor,
@@ -150,6 +422,9 @@ function rowToActivityEvent(row: Record<string, unknown>): ActivityEvent {
       source: meta.source,
     });
   } catch (err) {
+    if (err instanceof SchemaValidationError) {
+      throw err;
+    }
     if (err instanceof ZodError) {
       throw new SchemaValidationError({
         issues: err.issues.map((i) => `${i.path.join(".")}: ${i.message}`),

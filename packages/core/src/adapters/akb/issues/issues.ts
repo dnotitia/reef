@@ -36,7 +36,11 @@ import type {
   WriteMultipleIssuesItemResult,
   WriteMultipleIssuesOutput,
 } from "../core/types";
-import { appendStatusChangeEvent } from "./activity";
+import {
+  appendActivityEvents,
+  appendStatusChangeEvent,
+  diffFieldActivityEvents,
+} from "./activity";
 export { buildIssueMetadataFromCreateInput } from "./createMetadata";
 export { allocateNextIssueId, listIssueRelations } from "./issueRelations";
 export { listIssues } from "./listIssues";
@@ -269,6 +273,39 @@ export async function updateIssue(
         span.addEvent("activity_append_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+      }
+    }
+
+    // Record the non-status field changes as immutable activity events
+    // (REEF-126), extending the same best-effort code funnel above to assignee,
+    // priority, planning links, and newly-linked delivery refs. Gated on the
+    // caller-stamped `updated_at` — present on every web/agent funnel via
+    // `buildIssueUpdateMetadataPatch` — so all events from one save share that
+    // single timestamp (events group under one instant, AC3) and a literal retry
+    // of the same patch reproduces their keys. status_change is deliberately not
+    // re-derived here; it keeps its own funnel keyed on `last_status_change`.
+    // Best-effort: the row UPDATE already committed, so a failed append must not
+    // fail the issue update.
+    const fieldChangeAt = partial.updated_at;
+    if (fieldChangeAt != null) {
+      const fieldEvents = diffFieldActivityEvents(
+        id,
+        current.issue,
+        mergedIssue,
+        {
+          at: fieldChangeAt,
+          actor: mergedIssue.updated_by,
+          source: partial.source ?? null,
+        },
+      );
+      if (fieldEvents.length > 0) {
+        try {
+          await appendActivityEvents(adapter, vault, fieldEvents);
+        } catch (err) {
+          span.addEvent("activity_append_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
       }
     }
 
