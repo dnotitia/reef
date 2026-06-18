@@ -5,7 +5,7 @@ import { useCreateComment } from "@/features/issues/hooks/mutations/useCreateCom
 import { useUpdateComment } from "@/features/issues/hooks/mutations/useUpdateComment";
 import { useActivity } from "@/features/issues/hooks/queries/useActivity";
 import { useComments } from "@/features/issues/hooks/queries/useComments";
-import type { IssueMetadata } from "@reef/core";
+import type { ActivityEvent, Comment, IssueMetadata } from "@reef/core";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CommentCard } from "../comments/CommentCard";
@@ -22,6 +22,11 @@ interface ActivityTimelineProps {
   issue: IssueMetadata;
 }
 
+// Stable empty defaults so the `buildTimeline` memo isn't re-run on every render
+// while a query is still loading (referential stability).
+const NO_COMMENTS: Comment[] = [];
+const NO_ACTIVITY: ActivityEvent[] = [];
+
 /**
  * The issue detail's unified "Activity" section (REEF-064). It owns its own data
  * + comment mutations (like the comments section it replaces) and merges three
@@ -37,11 +42,11 @@ export function ActivityTimeline({
   issue,
 }: ActivityTimelineProps) {
   const currentLogin = useCurrentUserLogin();
-  const { data: comments = [], isError: commentsError } = useComments(
+  const { data: comments = NO_COMMENTS, isError: commentsError } = useComments(
     issueId,
     vault,
   );
-  const { data: activity = [], isError: activityError } = useActivity(
+  const { data: activity = NO_ACTIVITY, isError: activityError } = useActivity(
     issueId,
     vault,
   );

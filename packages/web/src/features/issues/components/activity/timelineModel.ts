@@ -16,11 +16,13 @@ import type {
  * and no unified table (AC4): this module only reshapes data already loaded.
  *
  * Reconstructed events backfill issues that predate the activity log (AC5):
- * `created`, each `delivery` ref, and the issue's current status (a `closed`
- * event when closed, otherwise a `status_change` to the current status). The
- * status-derived reconstruction is a *fallback* — when `reef_activity` already
- * records the transition that set the current status, the logged event wins and
- * the reconstruction is dropped, so a single change never shows twice.
+ * `created`, each `delivery` ref, and the issue's current status. For an open
+ * issue the status reconstruction is a *fallback* `status_change` — dropped when
+ * `reef_activity` already logged that transition (activity wins), so a single
+ * change never shows twice. For a closed issue it is a `closed` event carrying
+ * the closure reason; because the logged `{from,to}` payload has no reason, the
+ * `closed` reconstruction instead *supersedes* the logged plain close, so the
+ * close still shows exactly once but with its reason intact.
  */
 
 /** A normalized system event — an activity row or a reconstructed event. */
@@ -106,10 +108,11 @@ function deliveryId(ref: ImplementationRef): string {
 /**
  * Synthesize events from the issue's own fields (AC5). `created` and each
  * `delivery` ref are always emitted — the activity-log MVP records neither, so
- * they never duplicate a logged event. The status-derived event (a `closed`
- * when the issue is closed, otherwise a `status_change` to the current status)
- * is the fallback: it is dropped when an activity event already shares its
- * timestamp (the transition is logged) or when it coincides with creation.
+ * they never duplicate a logged event. The status-derived event is a `closed`
+ * (with reason) when the issue is closed — always emitted, and superseding the
+ * logged plain close in `buildEntries` — or otherwise a `status_change` fallback
+ * dropped when an activity event already shares its timestamp. Either is skipped
+ * when it coincides with creation, since `created` already represents that state.
  */
 export function reconstructEvents(
   issue: IssueMetadata,
@@ -134,29 +137,31 @@ export function reconstructEvents(
     });
   }
 
-  const statusAt =
-    issue.status === "closed"
-      ? (issue.closed_at ?? issue.last_status_change)
-      : issue.last_status_change;
-  // Drop the fallback when reef_activity already logged the transition that set
-  // the current status (activity wins, AC5), or when it coincides with creation
-  // (the `created` event already represents the initial status).
-  const loggedAtStatusTime =
-    statusAt != null && activity.some((event) => event.at === statusAt);
-  if (
-    statusAt != null &&
-    statusAt !== issue.created_at &&
-    !loggedAtStatusTime
-  ) {
-    if (issue.status === "closed") {
-      events.push({
-        id: "current-status",
-        at: statusAt,
-        actor: issue.updated_by || null,
-        kind: "closed",
-        reason: issue.closed_reason ?? null,
-      });
-    } else {
+  // The current-status event (AC5). For a closed issue it is a `closed` event
+  // carrying the reason — information the logged `{from,to}` payload lacks — so it
+  // is ALWAYS emitted and instead *supersedes* the logged close in `buildEntries`
+  // (the close shows once, with its reason). For an open issue it is a plain
+  // status_change to the current status, a fallback dropped when reef_activity
+  // already logged that transition (activity wins). Either way it is skipped when
+  // it coincides with creation, since `created` already represents that state.
+  const closedAt = closedReconstructionAt(issue);
+  if (closedAt != null) {
+    events.push({
+      id: "current-status",
+      at: closedAt,
+      actor: issue.updated_by || null,
+      kind: "closed",
+      reason: issue.closed_reason ?? null,
+    });
+  } else if (issue.status !== "closed") {
+    const statusAt = issue.last_status_change;
+    const loggedAtStatusTime =
+      statusAt != null && activity.some((event) => event.at === statusAt);
+    if (
+      statusAt != null &&
+      statusAt !== issue.created_at &&
+      !loggedAtStatusTime
+    ) {
       events.push({
         id: "current-status",
         at: statusAt,
@@ -170,6 +175,18 @@ export function reconstructEvents(
   }
 
   return events;
+}
+
+/**
+ * The timestamp of the close that the reconstructed `closed` event represents
+ * (and supersedes in the activity log), or null when the issue is not closed or
+ * the close coincides with creation. Both `reconstructEvents` and `buildEntries`
+ * derive the close from this single source so they stay in lockstep.
+ */
+function closedReconstructionAt(issue: IssueMetadata): string | null {
+  if (issue.status !== "closed") return null;
+  const at = issue.closed_at ?? issue.last_status_change ?? null;
+  return at != null && at !== issue.created_at ? at : null;
 }
 
 /** Sort rank at an equal timestamp: creation first, comments last. */
@@ -194,10 +211,22 @@ export function buildEntries(
 ): Array<CommentEntry | SystemEntry> {
   const entries: Array<CommentEntry | SystemEntry> = [];
 
+  // A logged plain close is superseded by the reconstructed `closed` event, which
+  // carries the closure reason the `{from,to}` payload lacks (AC5) — the close
+  // renders once, with its reason, instead of as a generic "→ Closed" row.
+  const supersededCloseAt = closedReconstructionAt(issue);
+
   for (const comment of comments) {
     entries.push({ type: "comment", at: comment.created_at, comment });
   }
   for (const event of activity) {
+    if (
+      supersededCloseAt != null &&
+      event.payload.to === "closed" &&
+      event.at === supersededCloseAt
+    ) {
+      continue;
+    }
     entries.push({
       type: "system",
       at: event.at,

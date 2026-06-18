@@ -217,4 +217,34 @@ describe("buildTimeline — full pipeline (AC1 + AC3 + AC5)", () => {
     const flat = JSON.stringify(timeline);
     expect(flat).not.toContain("current-status");
   });
+
+  it("keeps the closure reason when the close is logged in activity — shows the close once, with reason (AC5)", () => {
+    const closedAt = "2026-06-09T00:00:00.000Z";
+    const issue = makeIssue({
+      status: "closed",
+      closed_at: closedAt,
+      closed_reason: "wont_fix",
+      last_status_change: closedAt,
+    });
+    // updateIssue logged the close as a plain {from,to} status_change (no reason).
+    const logged = [activity("a1", closedAt, "in_progress", "closed")];
+
+    const timeline = buildTimeline([], logged, issue);
+    const closeRows = timeline.filter(
+      (e) =>
+        e.type === "system" &&
+        (e.event.kind === "closed" ||
+          (e.event.kind === "status_change" && e.event.to === "closed")),
+    );
+    // Exactly one close row, and it is the reason-bearing reconstructed `closed`
+    // event — the logged plain close was superseded, not duplicated.
+    expect(closeRows).toHaveLength(1);
+    const only = closeRows[0];
+    expect(only.type === "system" && only.event.kind).toBe("closed");
+    expect(
+      only.type === "system" &&
+        only.event.kind === "closed" &&
+        only.event.reason,
+    ).toBe("wont_fix");
+  });
 });
