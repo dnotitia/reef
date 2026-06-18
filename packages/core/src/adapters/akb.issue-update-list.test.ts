@@ -113,8 +113,7 @@ describe("updateIssue", () => {
         body: makeSqlQueryResponse([{ from_status: "todo" }], ["from_status"]),
       },
       { body: makeListTablesResponse(ALL_REEF_TABLES) }, // append: ensureReefTables
-      { body: makeSqlQueryResponse([], ["id"]) }, // append: idempotency probe
-      { body: makeSqlMutationResponse("INSERT 0 1") }, // append: INSERT event
+      { body: makeSqlQueryResponse([{ id: "ev" }], ["id"]) }, // append: conditional INSERT … RETURNING
     ]);
     const adapter = makeAdapter();
     const result = await updateIssue({
@@ -128,7 +127,7 @@ describe("updateIssue", () => {
       },
     });
     expect(result.issue.status).toBe("in_progress");
-    expect(calls).toHaveLength(6);
+    expect(calls).toHaveLength(5);
 
     // The row UPDATE locks + captures the prior status atomically so the event's
     // `from` stays faithful under concurrent writes (REEF-063 concurrency fix).
@@ -139,7 +138,7 @@ describe("updateIssue", () => {
     expect(updateSql).toContain("FOR UPDATE");
     expect(updateSql).toContain("UPDATE reef_issues SET");
 
-    const insertSql = JSON.parse(calls[5]?.init?.body as string).sql;
+    const insertSql = JSON.parse(calls[4]?.init?.body as string).sql;
     expect(insertSql).toContain(`INSERT INTO ${REEF_ACTIVITY_TABLE}`);
     expect(insertSql).toContain("'status_change'");
     expect(insertSql).toContain(
@@ -168,8 +167,7 @@ describe("updateIssue", () => {
         ),
       },
       { body: makeListTablesResponse(ALL_REEF_TABLES) }, // append: ensureReefTables
-      { body: makeSqlQueryResponse([], ["id"]) }, // append: idempotency probe
-      { body: makeSqlMutationResponse("INSERT 0 1") }, // append: INSERT event
+      { body: makeSqlQueryResponse([{ id: "ev" }], ["id"]) }, // append: conditional INSERT … RETURNING
     ]);
     const adapter = makeAdapter();
     await updateIssue({
@@ -183,7 +181,7 @@ describe("updateIssue", () => {
       },
     });
 
-    const insertSql = JSON.parse(calls[5]?.init?.body as string).sql;
+    const insertSql = JSON.parse(calls[4]?.init?.body as string).sql;
     expect(insertSql).toContain('"from":"in_progress"');
     expect(insertSql).toContain('"to":"done"');
     expect(insertSql).toContain(

@@ -6,7 +6,6 @@ import {
   listIssueActivity,
   makeAdapter,
   makeListTablesResponse,
-  makeSqlMutationResponse,
   makeSqlQueryResponse,
   makeSqlRuntimeErrorResponse,
   setupFetch,
@@ -63,11 +62,10 @@ describe("statusChangeEventKey", () => {
 });
 
 describe("appendStatusChangeEvent", () => {
-  it("provisions, probes idempotency, then inserts only declared columns", async () => {
+  it("provisions, then conditionally inserts only declared columns in one statement", async () => {
     const { calls } = setupFetch([
       { body: makeListTablesResponse(ALL_REEF_TABLES) }, // ensureReefTables
-      { body: makeSqlQueryResponse([], ["id"]) }, // idempotency probe: no row yet
-      { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT event
+      { body: makeSqlQueryResponse([{ id: "new-uuid" }], ["id"]) }, // INSERT … RETURNING id
     ]);
 
     await appendStatusChangeEvent(makeAdapter(), "reef-sample", {
@@ -79,22 +77,24 @@ describe("appendStatusChangeEvent", () => {
       source: "ai-agent:user_request",
     });
 
-    expect(calls).toHaveLength(3);
+    // One provisioning call + one conditional insert — no separate probe.
+    expect(calls).toHaveLength(2);
 
-    const probeSql = lastSql(calls[1]?.init?.body);
-    expect(probeSql).toContain(`SELECT id FROM ${REEF_ACTIVITY_TABLE}`);
-    expect(probeSql).toContain("reef_id = 'REEF-063'");
-    expect(probeSql).toContain(
-      "event_key = 'status_change:todo->in_progress@2026-06-18T01:00:00.000Z'",
-    );
-
-    const insertSql = lastSql(calls[2]?.init?.body);
+    const insertSql = lastSql(calls[1]?.init?.body);
     expect(insertSql).toContain(`INSERT INTO ${REEF_ACTIVITY_TABLE}`);
     // Only declared columns — never the akb reserved/auto columns.
     expect(insertSql).toContain(
       `("reef_id", "event_type", "event_key", "payload", "meta")`,
     );
     expect(insertSql).not.toContain("created_by");
+    // Idempotency is enforced in the same statement: insert only when the
+    // (reef_id, event_key) row does not already exist.
+    expect(insertSql).toContain("WHERE NOT EXISTS");
+    expect(insertSql).toContain(`SELECT 1 FROM ${REEF_ACTIVITY_TABLE}`);
+    expect(insertSql).toContain("reef_id = 'REEF-063'");
+    expect(insertSql).toContain(
+      "event_key = 'status_change:todo->in_progress@2026-06-18T01:00:00.000Z'",
+    );
     expect(insertSql).toContain("'status_change'");
     expect(insertSql).toContain('"from":"todo"');
     expect(insertSql).toContain('"to":"in_progress"');
@@ -104,12 +104,14 @@ describe("appendStatusChangeEvent", () => {
     expect(insertSql).toContain('"source":"ai-agent:user_request"');
   });
 
-  it("is idempotent: an existing event_key skips the insert", async () => {
+  it("is idempotent: the NOT EXISTS guard records nothing when the event already exists", async () => {
     const { calls } = setupFetch([
       { body: makeListTablesResponse(ALL_REEF_TABLES) }, // ensureReefTables
-      { body: makeSqlQueryResponse([{ id: "existing-uuid" }], ["id"]) }, // probe: row already present
+      { body: makeSqlQueryResponse([], ["id"]) }, // INSERT … RETURNING id → 0 rows (guard matched)
     ]);
 
+    // The call still issues the single conditional insert; the DB skips the row
+    // because the event already exists, so no duplicate is written.
     await appendStatusChangeEvent(makeAdapter(), "reef-sample", {
       reefId: "REEF-063",
       from: "todo",
@@ -118,15 +120,15 @@ describe("appendStatusChangeEvent", () => {
       actor: "alice",
     });
 
-    // No third call — the INSERT is skipped because the event already exists.
     expect(calls).toHaveLength(2);
+    const insertSql = lastSql(calls[1]?.init?.body);
+    expect(insertSql).toContain("WHERE NOT EXISTS");
   });
 
   it("defaults meta.source to null when no provenance is given", async () => {
     const { calls } = setupFetch([
       { body: makeListTablesResponse(ALL_REEF_TABLES) },
-      { body: makeSqlQueryResponse([], ["id"]) },
-      { body: makeSqlMutationResponse("INSERT 0 1") },
+      { body: makeSqlQueryResponse([{ id: "new-uuid" }], ["id"]) },
     ]);
 
     await appendStatusChangeEvent(makeAdapter(), "reef-sample", {
@@ -137,7 +139,7 @@ describe("appendStatusChangeEvent", () => {
       actor: "bob",
     });
 
-    const insertSql = lastSql(calls[2]?.init?.body);
+    const insertSql = lastSql(calls[1]?.init?.body);
     expect(insertSql).toContain('"source":null');
   });
 });

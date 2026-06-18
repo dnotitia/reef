@@ -52,9 +52,20 @@ export interface StatusChangeEventInput {
 
 /**
  * Append an immutable `status_change` event to `reef_activity` (REEF-063 AC1).
- * Idempotent: an existing row with the same `event_key` is left untouched and
- * the call succeeds (REEF-125 AC8), so the funnel can re-run safely after a
- * partial failure. Append-only — there is no update path for an event row.
+ * Idempotent on `event_key` (REEF-125 AC8): the insert is guarded by a
+ * `WHERE NOT EXISTS` on the same `(reef_id, event_key)` in ONE statement, so the
+ * check and the insert share a snapshot — there is no two-round-trip
+ * time-of-check/time-of-use window, and a sequential retry of the same logical
+ * transition (the realistic best-effort re-run) finds the committed row and adds
+ * nothing. Append-only — there is no update path for an event row.
+ *
+ * Residual: akb's runtime HTTP surface creates tables by column list only and
+ * exposes no ALTER/unique-index (REEF-125 — that is why idempotency is keyed on
+ * the logical `event_key`, not a DB constraint). So two *simultaneous* inserts of
+ * the identical event_key could still both pass `NOT EXISTS`. That requires an
+ * identical `(from,to,at)` — i.e. concurrent retries of the very same update — and
+ * is de-duplicated downstream on `event_key` by the timeline (REEF-064). A
+ * DB-enforced unique index on `(reef_id, event_key)` is an akb-layer follow-up.
  *
  * Provisions the table lazily via `ensureReefTables` so a vault that predates
  * `reef_activity` self-heals on its first status change instead of dropping the
@@ -76,51 +87,41 @@ export async function appendStatusChangeEvent(
     async (span) => {
       await ensureReefTables({ adapter, vault });
       const eventKey = statusChangeEventKey(event.from, event.to, event.at);
-
-      // Idempotency probe: a prior attempt that already inserted this exact
-      // transition short-circuits, so a retry adds nothing.
-      const existing = await runSql(
-        adapter,
-        vault,
-        `SELECT id FROM ${tableRef(REEF_ACTIVITY_TABLE)} WHERE reef_id = ${quoteText(
-          event.reefId,
-          "activity reef_id",
-        )} AND event_key = ${quoteText(eventKey, "activity event_key")} LIMIT 1`,
-      );
-      if (existing.kind === "table_query" && existing.items.length > 0) {
-        span.setAttribute("appended", false);
-        return;
-      }
-
+      const reefId = quoteText(event.reefId, "activity reef_id");
+      const key = quoteText(eventKey, "activity event_key");
       const payload = { from: event.from, to: event.to };
       const meta = {
         actor: event.actor,
         at: event.at,
         source: event.source ?? null,
       };
-      const fields: Array<[string, string]> = [
-        ["reef_id", quoteText(event.reefId, "activity reef_id")],
-        [
-          "event_type",
-          quoteText(ACTIVITY_EVENT_STATUS_CHANGE, "activity event_type"),
-        ],
-        ["event_key", quoteText(eventKey, "activity event_key")],
-        ["payload", quoteJson(payload)],
-        ["meta", quoteJson(meta)],
-      ];
-      const columns = fields
-        .map(([c]) => c)
+      const columns = ["reef_id", "event_type", "event_key", "payload", "meta"]
         .map(quoteIdent)
         .join(", ");
-      const values = fields.map(([, v]) => v).join(", ");
-      await runSql(
+      const selectValues = [
+        reefId,
+        quoteText(ACTIVITY_EVENT_STATUS_CHANGE, "activity event_type"),
+        key,
+        quoteJson(payload),
+        quoteJson(meta),
+      ].join(", ");
+      // Single-statement conditional insert: the `NOT EXISTS` probe and the
+      // insert share one snapshot, so an already-recorded transition is skipped
+      // atomically (no separate read-then-write race). RETURNING tells us whether
+      // a row was actually added.
+      const res = await runSql(
         adapter,
         vault,
         `INSERT INTO ${tableRef(
           REEF_ACTIVITY_TABLE,
-        )} (${columns}) VALUES (${values})`,
+        )} (${columns}) SELECT ${selectValues} WHERE NOT EXISTS (SELECT 1 FROM ${tableRef(
+          REEF_ACTIVITY_TABLE,
+        )} WHERE reef_id = ${reefId} AND event_key = ${key}) RETURNING id`,
       );
-      span.setAttribute("appended", true);
+      span.setAttribute(
+        "appended",
+        res.kind === "table_query" && res.items.length > 0,
+      );
     },
   );
 }
