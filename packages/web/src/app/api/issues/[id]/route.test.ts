@@ -119,7 +119,7 @@ describe("GET /api/issues/[id]", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 200 with { issue, content } on happy path", async () => {
+  it("returns 200 with { issue, content, commit_hash } on happy path", async () => {
     mockAkbReadIssue.mockResolvedValueOnce({
       issue: SAMPLE_ISSUE,
       content: "## body",
@@ -132,9 +132,11 @@ describe("GET /api/issues/[id]", () => {
     );
     const res = await GET(req, params("REEF-001"));
     expect(res.status).toBe(200);
+    // commit_hash is the OCC base the edit form echoes back (REEF-227).
     expect(await res.json()).toEqual({
       issue: SAMPLE_ISSUE,
       content: "## body",
+      commit_hash: "abc",
     });
     expect(mockAkbReadIssue).toHaveBeenCalledWith(
       expect.objectContaining({ vault: "reef-acme", id: "REEF-001" }),
@@ -240,6 +242,29 @@ describe("PATCH /api/issues/[id]", () => {
     );
   });
 
+  it("forwards update.expected_commit to akbUpdateIssue as the OCC base (REEF-227)", async () => {
+    mockAkbUpdateIssue.mockResolvedValueOnce({
+      commit_hash: "c2",
+      issue: SAMPLE_ISSUE,
+      content: "## body",
+    });
+    const req = new Request("http://localhost/api/issues/REEF-001", {
+      method: "PATCH",
+      headers: authedHeaders(),
+      body: JSON.stringify({
+        vault: "reef-acme",
+        update: {
+          issue_id: "REEF-001",
+          patch: { title: "Renamed" },
+          expected_commit: "c1",
+        },
+      }),
+    });
+    const res = await PATCH(req, params("REEF-001"));
+    expect(res.status).toBe(200);
+    expect(mockAkbUpdateIssue.mock.calls[0]?.[0].expectedCommit).toBe("c1");
+  });
+
   it("calls akbUpdateIssue and returns 200 with merged issue + content", async () => {
     const updated = { ...SAMPLE_ISSUE, status: "in_progress" as const };
     mockAkbUpdateIssue.mockResolvedValueOnce({
@@ -263,7 +288,11 @@ describe("PATCH /api/issues/[id]", () => {
     const res = await PATCH(req, params("REEF-001"));
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ issue: updated, content: "## body" });
+    expect(await res.json()).toEqual({
+      issue: updated,
+      content: "## body",
+      commit_hash: "def5678",
+    });
 
     expect(mockAkbUpdateIssue).toHaveBeenCalledTimes(1);
     const callArgs = mockAkbUpdateIssue.mock.calls[0]?.[0];

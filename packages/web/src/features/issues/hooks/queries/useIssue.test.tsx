@@ -96,4 +96,46 @@ describe("useIssue", () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.error?.message).toContain("Issue not found");
   });
+
+  it("revalidates on mount even when the cached value is still fresh (REEF-227)", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    // Seed a FRESH cache entry (inside the 30s staleTime window). Without
+    // refetchOnMount:"always" this would be served with no network call; the
+    // card would show this (possibly stale-vs-external) copy.
+    queryClient.setQueryData(["issues", "detail", "reef-acme", "REEF-001"], {
+      issue: SAMPLE_ISSUE,
+      content: "cached body",
+      commit_hash: "c1",
+    });
+    mockApiFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          issue: SAMPLE_ISSUE,
+          content: "fresh body",
+          commit_hash: "c2",
+        }),
+        { status: 200 },
+      ),
+    );
+
+    function Wrapper({ children }: { children: ReactNode }) {
+      return (
+        <QueryClientProvider client={queryClient}>
+          {children}
+        </QueryClientProvider>
+      );
+    }
+    const { result } = renderHook(() => useIssue("REEF-001", "reef-acme"), {
+      wrapper: Wrapper,
+    });
+
+    // Opening the card forces a revalidation despite the fresh cache, so the
+    // editor converges on the latest workspace state.
+    await waitFor(() => expect(mockApiFetch).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(result.current.data?.content).toBe("fresh body"),
+    );
+  });
 });

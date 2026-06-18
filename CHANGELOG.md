@@ -156,6 +156,14 @@ explicitly in the entries below.
   active filters/sort) you were on while the detail sheet slides over, and
   closing it returns you to that same tab. Typing or refreshing a
   `/issues/REEF-XXX` deep link still opens over the Board as before (REEF-222).
+- Editing an issue in the web app no longer silently overwrites a change made
+  outside it. Opening an issue card now always re-reads the latest from the
+  workspace, so an edit made elsewhere (the akb tools, another tab) shows up
+  instead of a stale cached copy. If someone changed the body, title, labels, or
+  relations after you opened the card, saving now surfaces a retryable save
+  conflict — your view is refreshed and you can re-apply — rather than quietly
+  replacing their change. Plain table fields (status, priority, assignee, …)
+  keep their per-field server merge (REEF-227).
 - The built-in workspace agent playbook now guards three issue-creation
   pitfalls so an agent following it can no longer leave a malformed or
   invisible issue: it surfaces the parent link so an issue filed under an epic

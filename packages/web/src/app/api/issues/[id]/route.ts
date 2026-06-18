@@ -19,7 +19,7 @@ import { getIssueRouteReadContext } from "./routeContext";
 import { UpdateIssueRequestSchema } from "./schemas";
 
 /**
- * GET /api/issues/[id]?vault={vault_name} → { issue, content }
+ * GET /api/issues/[id]?vault={vault_name} → { issue, content, commit_hash }
  */
 export async function GET(
   request: Request,
@@ -37,7 +37,13 @@ export async function GET(
       run: () => readIssue({ adapter, vault, id }),
     });
 
-    return Response.json({ issue: result.issue, content: result.content });
+    // commit_hash is the OCC base the edit form holds and echoes back as
+    // expected_commit on save (REEF-227).
+    return Response.json({
+      issue: result.issue,
+      content: result.content,
+      commit_hash: result.commit_hash,
+    });
   } catch (err) {
     logger.error({ err, vault, id }, "read_issue failed");
     return respondWithError(err, { resourceKind: "issue" });
@@ -47,10 +53,13 @@ export async function GET(
 /**
  * PATCH /api/issues/[id]
  *
- * Last-write-wins; akb merges per-field on the document body so concurrent
- * metadata edits coexist. A `null` value in the patch is the
- * "clear this field" sentinel (used by the unarchive flow on `archived_at`)
- * — `akbUpdateIssue` drops keys with explicit null.
+ * Row-only scalar edits are last-write-wins; akb merges per-field server-side so
+ * concurrent metadata edits coexist. Document-projected edits (body/title/
+ * labels/relations) may carry `update.expected_commit` (REEF-227): the OCC base
+ * is forwarded to akb, which rejects a stale write with 409 → ConflictError. A
+ * `null` value in the patch is the "clear this field" sentinel (used by the
+ * unarchive flow on `archived_at`) — `akbUpdateIssue` drops keys with explicit
+ * null.
  */
 export async function PATCH(
   request: Request,
@@ -94,12 +103,23 @@ export async function PATCH(
           id,
           partial: partialWithTimestamp,
           ...(update.content !== undefined ? { content: update.content } : {}),
+          // OCC base for document-projected edits (REEF-227). updateIssue only
+          // applies it when the edit is document-dirty; row-only edits ignore it.
+          ...(update.expected_commit !== undefined
+            ? { expectedCommit: update.expected_commit }
+            : {}),
           message: `feat: update issue ${id} via reef web app`,
         });
       },
     });
 
-    return Response.json({ issue: result.issue, content: result.content });
+    // Echo the post-write commit so the client advances its OCC base and the
+    // next edit does not false-conflict against its own prior save (REEF-227).
+    return Response.json({
+      issue: result.issue,
+      content: result.content,
+      commit_hash: result.commit_hash,
+    });
   } catch (err) {
     logger.error({ err, vault, id }, "update_issue failed");
     return respondWithError(err, { resourceKind: "issue" });

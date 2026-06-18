@@ -90,6 +90,34 @@ export function notifyRetryableError({
   });
 }
 
+export interface ConflictNoticeOptions {
+  /** Stable id (the issue's save toast id) so a later successful save morphs it. */
+  id: string;
+  title: string;
+  description?: string;
+}
+
+/**
+ * Non-retry warning toast for a save rejected by a concurrency conflict
+ * (document OCC, REEF-227). Unlike `notifyRetryableError` it offers no Retry:
+ * blindly resubmitting the stale edit would overwrite the change that won once
+ * the conflict refetch advances the base. The caller refetches so the form
+ * reconciles to the latest; the user re-applies the edit consciously. Persists
+ * until dismissed or replaced by the next save under the same id.
+ */
+export function notifyConflict({
+  id,
+  title,
+  description,
+}: ConflictNoticeOptions): void {
+  toast.warning(title, {
+    id,
+    description,
+    icon: <AlertTriangle className="h-4 w-4" aria-hidden="true" />,
+    duration: Number.POSITIVE_INFINITY,
+  });
+}
+
 export interface UndoableSuccessOptions {
   id: string;
   message: string;
