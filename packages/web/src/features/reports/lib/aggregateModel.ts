@@ -18,37 +18,55 @@ import {
  *  metrics ignore both (REEF-109). */
 const ACTIVE_STATUS_SET: ReadonlySet<Status> = new Set(ACTIVE_STATUSES);
 
+/** Every distribution bucket carries both a `count` (issues) and `points`
+ *  (sum of `estimate_points`, treating a missing estimate as 0 so the toggled
+ *  population stays identical — REEF-188 AC3). The active `measure` selects
+ *  which one a card renders and which one ranked lists sort by. */
 export interface StatusCount {
   status: Status;
   count: number;
+  points: number;
 }
 
 export interface PriorityCount {
   priority: Priority | "none";
   count: number;
+  points: number;
 }
 
 export interface NamedCount {
   name: string;
   count: number;
+  points: number;
 }
 
 export interface TypeCount {
   type: IssueType;
   count: number;
+  points: number;
 }
 
 export interface SeverityCount {
   severity: Severity;
   count: number;
+  points: number;
 }
 
 export type ReportPeriod = "4w" | "12w" | "quarter" | "all";
 export type ReportScope = "active" | "all" | "completed";
 
+/** How distribution and throughput cards measure work: by issue `count`
+ *  (default) or by summed story `points` (REEF-188). A measure, not a
+ *  population filter — it never narrows which issues are aggregated. */
+export type ReportMeasure = "count" | "points";
+
 export interface ReportFilters {
   period: ReportPeriod;
   scope: ReportScope;
+  /** Count (default) vs. sum-of-estimates weighting for the load/throughput
+   *  cards. Threaded like period/scope; it changes how buckets are measured and
+   *  how ranked lists sort, never the matched population (REEF-188). */
+  measure: ReportMeasure;
   sprint_id?: string;
   milestone_id?: string;
   release_id?: string;
@@ -62,6 +80,7 @@ export interface ReportFilters {
 export const DEFAULT_REPORT_FILTERS: ReportFilters = {
   period: "12w",
   scope: "active",
+  measure: "count",
 };
 
 /** Top-line health numbers, all scoped to active issues. `inProgress` folds
@@ -84,10 +103,13 @@ export interface ThroughputWeek {
   label: string; // e.g. "Apr 13"
   created: number;
   closed: number;
+  createdPoints: number; // sum of estimate_points for issues created in window
+  closedPoints: number; // sum of estimate_points for issues closed in window
 }
 
 export interface NetThroughputWeek extends ThroughputWeek {
   net: number;
+  netPoints: number;
 }
 
 /** Deadline posture for active open work. `noDueDate` is the share of open
@@ -272,12 +294,39 @@ export function isCriticalRisk(issue: IssueListItem): boolean {
   );
 }
 
+/** A bucket that accrues both an issue count and a point sum in one pass. */
+export interface Tally {
+  count: number;
+  points: number;
+}
+
+/** Add one issue worth `pts` points to a bucket, creating it on first sight.
+ *  Works for both pre-seeded (status/priority/...) and dynamic
+ *  (assignee/label) maps. */
+export function tally<K>(map: Map<K, Tally>, key: K, pts: number): void {
+  const cur = map.get(key);
+  if (cur) {
+    cur.count += 1;
+    cur.points += pts;
+  } else {
+    map.set(key, { count: 1, points: pts });
+  }
+}
+
+/** Rank named buckets by the active measure (desc), breaking ties by name
+ *  (asc), then take the top `limit`. The unranked measure rides along on each
+ *  row so a "show both" view never needs a recompute. */
 export function rankAndTake(
-  counts: Map<string, number>,
+  buckets: Map<string, Tally>,
   limit: number,
+  measure: ReportMeasure,
 ): NamedCount[] {
-  return Array.from(counts.entries())
-    .map(([name, count]) => ({ name, count }))
-    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+  return Array.from(buckets.entries())
+    .map(([name, { count, points }]) => ({ name, count, points }))
+    .sort(
+      (a, b) =>
+        (measure === "points" ? b.points - a.points : b.count - a.count) ||
+        a.name.localeCompare(b.name),
+    )
     .slice(0, limit);
 }

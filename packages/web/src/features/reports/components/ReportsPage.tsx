@@ -69,6 +69,16 @@ export function ReportsPage() {
       filters.parent_id)
     : null;
 
+  // The measure toggle only re-weights the load/throughput cards (Risk map,
+  // Deadlines, and the KPI tiles stay count-based posture). Naming the measure
+  // on each switched card keeps the partial scoping from reading as broken —
+  // the same affordance the Period control uses on the Throughput card
+  // (REEF-185, REEF-188).
+  const pointsMode = filters.measure === "points";
+  const netValue = pointsMode
+    ? agg.netThroughput.reduce((sum, week) => sum + week.netPoints, 0)
+    : agg.riskSummary.netThroughput;
+
   if (!vaultLoading && !vault) {
     return (
       <PageShell>
@@ -193,26 +203,39 @@ export function ReportsPage() {
               <Card
                 title="Throughput"
                 subtitle={`${PERIOD_LABELS[filters.period]} · ${formatSigned(
-                  agg.riskSummary.netThroughput,
-                )} net`}
+                  netValue,
+                )} ${pointsMode ? "pts net" : "net"}`}
               >
-                <NetThroughputChart points={agg.netThroughput} />
+                <NetThroughputChart
+                  points={agg.netThroughput}
+                  measure={filters.measure}
+                />
               </Card>
             </div>
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <Card title="Workflow" subtitle={`${agg.total} in scope`}>
-                <StatusFunnel rows={agg.byStatus} agg={agg} />
+              <Card
+                title="Workflow"
+                subtitle={
+                  pointsMode
+                    ? `Story points · ${agg.total} in scope`
+                    : `${agg.total} in scope`
+                }
+              >
+                <StatusFunnel rows={agg.byStatus} measure={filters.measure} />
               </Card>
 
               <DeadlineCard agg={agg} />
 
-              <Card title="By type" subtitle="In scope">
+              <Card
+                title="By type"
+                subtitle={pointsMode ? "Story points · in scope" : "In scope"}
+              >
                 <RankedBarList
                   rows={agg.byType.map((b) => ({
                     key: b.type,
                     label: TYPE_META[b.type].label,
-                    value: b.count,
+                    value: pointsMode ? b.points : b.count,
                     color: TYPE_META[b.type].color,
                   }))}
                 />
@@ -226,30 +249,46 @@ export function ReportsPage() {
                   (globals.css), and the row label already names the severity —
                   a colored bar would just re-encode that identity. */}
               {agg.bySeverity.length > 0 && (
-                <Card title="By severity" subtitle="In scope">
+                <Card
+                  title="By severity"
+                  subtitle={pointsMode ? "Story points · in scope" : "In scope"}
+                >
                   <RankedBarList
                     rows={agg.bySeverity.map((b) => ({
                       key: b.severity,
                       label: SEVERITY_LABELS[b.severity],
-                      value: b.count,
+                      value: pointsMode ? b.points : b.count,
                     }))}
                   />
                 </Card>
               )}
 
-              <Card title="Top assignees" subtitle="In scope, top 5">
+              <Card
+                title="Top assignees"
+                subtitle={
+                  pointsMode ? "Story points · top 5" : "In scope, top 5"
+                }
+              >
                 {agg.topAssignees.length === 0 ? (
                   <RowEmpty />
                 ) : (
-                  <NamedRows rows={agg.topAssignees} />
+                  <NamedRows
+                    rows={agg.topAssignees}
+                    measure={filters.measure}
+                  />
                 )}
               </Card>
 
-              <Card title="Top labels" subtitle="In scope, top 8">
+              <Card
+                title="Top labels"
+                subtitle={
+                  pointsMode ? "Story points · top 8" : "In scope, top 8"
+                }
+              >
                 {agg.topLabels.length === 0 ? (
                   <RowEmpty />
                 ) : (
-                  <NamedRows rows={agg.topLabels} />
+                  <NamedRows rows={agg.topLabels} measure={filters.measure} />
                 )}
               </Card>
             </div>

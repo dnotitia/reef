@@ -37,6 +37,17 @@ const SCOPE_OPTIONS: ReadonlyArray<{
   { value: "completed", label: "Completed" },
 ];
 
+// Measure weights the load/throughput distributions by issue count (default)
+// or summed story points (REEF-188). It rides alongside Period/Scope as a
+// report control, not a population facet.
+const MEASURE_OPTIONS: ReadonlyArray<{
+  value: ReportFilters["measure"];
+  label: string;
+}> = [
+  { value: "count", label: "Issue count" },
+  { value: "points", label: "Story points" },
+];
+
 /**
  * Reports scope bar. Period and scope are reports; the remaining facets
  * (sprint/milestone/release/assignee/label) reuse the exact issue-filter leaves
@@ -63,7 +74,7 @@ export function ReportScopeBar({
   return (
     <div
       data-testid="report-scope-bar"
-      className="grid w-full grid-cols-2 gap-2 rounded-lg border border-border-subtle bg-surface-subtle p-2 md:grid-cols-4 xl:grid-cols-[repeat(7,minmax(0,1fr))]"
+      className="grid w-full grid-cols-2 gap-2 rounded-lg border border-border-subtle bg-surface-subtle p-2 md:grid-cols-4 xl:grid-cols-[repeat(8,minmax(0,1fr))]"
     >
       <ScopeSelect
         label="Period"
@@ -80,6 +91,15 @@ export function ReportScopeBar({
         options={SCOPE_OPTIONS}
         active={filters.scope !== DEFAULT_REPORT_FILTERS.scope}
         onChange={(scope) => patch({ scope: scope as ReportFilters["scope"] })}
+      />
+      <ScopeSelect
+        label="Measure"
+        value={filters.measure}
+        options={MEASURE_OPTIONS}
+        active={filters.measure !== DEFAULT_REPORT_FILTERS.measure}
+        onChange={(measure) =>
+          patch({ measure: measure as ReportFilters["measure"] })
+        }
       />
       <div className="min-w-0">
         <PlanningItemCombobox

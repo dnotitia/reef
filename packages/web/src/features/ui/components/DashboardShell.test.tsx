@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -39,18 +39,31 @@ vi.mock("@/features/activity/hooks/useUnreadInboxCount", () => ({
   UNREAD_INBOX_QUERY_KEY: ["unread-inbox"],
 }));
 
+// The My Work sidebar badge (REEF-204) reads its overdue/due-soon counts from
+// this hook; mock it so each test drives the badge tone/visibility directly.
+vi.mock("@/features/my-work/hooks/useMyWorkAttention", () => ({
+  useMyWorkAttention: () => myWorkAttentionState,
+}));
+
 vi.mock("@/features/preferences/hooks/useThemeSync", () => ({
   useThemeSync: vi.fn(),
 }));
 
-const { navigationState, unreadInboxState } = vi.hoisted(() => ({
-  navigationState: {
-    pathname: "/issues",
-  },
-  unreadInboxState: {
-    count: 0,
-  },
-}));
+const { navigationState, unreadInboxState, myWorkAttentionState } = vi.hoisted(
+  () => ({
+    navigationState: {
+      pathname: "/issues",
+    },
+    unreadInboxState: {
+      count: 0,
+    },
+    myWorkAttentionState: {
+      attention: 0,
+      overdue: 0,
+      dueSoon: 0,
+    },
+  }),
+);
 
 vi.mock("next/navigation", () => ({
   usePathname: () => navigationState.pathname,
@@ -72,6 +85,9 @@ describe("DashboardShell", () => {
     vi.clearAllMocks();
     navigationState.pathname = "/issues";
     unreadInboxState.count = 0;
+    myWorkAttentionState.attention = 0;
+    myWorkAttentionState.overdue = 0;
+    myWorkAttentionState.dueSoon = 0;
     useViewStore.setState({
       sidebarCollapsed: false,
       newIssueDialogOpen: false,
@@ -125,6 +141,107 @@ describe("DashboardShell", () => {
     expect(screen.getByRole("link", { name: "Activity" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Reports" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
+  });
+
+  it("places My Work right after Issues in the nav (REEF-204)", () => {
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+    const nav = screen.getByRole("navigation", { name: "Main navigation" });
+    const labels = within(nav)
+      .getAllByRole("link")
+      .map((link) => link.textContent);
+    expect(labels[0]).toBe("Issues");
+    expect(labels[1]).toBe("My Work");
+  });
+
+  it("shows the My Work badge in destructive tone when work is overdue (REEF-204)", () => {
+    myWorkAttentionState.attention = 12;
+    myWorkAttentionState.overdue = 4;
+    myWorkAttentionState.dueSoon = 8;
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+    const badge = screen.getByTestId("my-work-attention-badge");
+    // overdue + due-soon, capped past 9.
+    expect(badge).toHaveTextContent("9+");
+    expect(badge).toHaveClass("bg-destructive");
+    expect(badge).toHaveAccessibleName("4 overdue, 8 due soon");
+  });
+
+  it("shows the My Work badge in the orange tone when only due-soon (REEF-204)", () => {
+    myWorkAttentionState.attention = 3;
+    myWorkAttentionState.overdue = 0;
+    myWorkAttentionState.dueSoon = 3;
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+    const badge = screen.getByTestId("my-work-attention-badge");
+    expect(badge).toHaveTextContent("3");
+    expect(badge).toHaveClass("bg-priority-high");
+    expect(badge).toHaveAccessibleName("3 due soon");
+  });
+
+  it("hides the My Work badge when nothing needs attention (REEF-204)", () => {
+    myWorkAttentionState.attention = 0;
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+    expect(
+      screen.queryByTestId("my-work-attention-badge"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the My Work badge while on /my-work (the page owns the count) (REEF-204)", () => {
+    navigationState.pathname = "/my-work";
+    myWorkAttentionState.attention = 2;
+    myWorkAttentionState.overdue = 1;
+    myWorkAttentionState.dueSoon = 1;
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+    expect(
+      screen.queryByTestId("my-work-attention-badge"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("reduces the My Work badge to a tinted dot when collapsed (REEF-204)", () => {
+    useViewStore.setState({ sidebarCollapsed: true });
+    myWorkAttentionState.attention = 2;
+    myWorkAttentionState.overdue = 1;
+    myWorkAttentionState.dueSoon = 1;
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+    const dot = screen.getByTestId("my-work-attention-dot");
+    expect(dot).toBeVisible();
+    expect(dot).toHaveClass("bg-destructive");
+    // The full count is still announced even though only a dot shows.
+    expect(dot).toHaveAccessibleName("1 overdue, 1 due soon");
   });
 
   it("renders visible navigation icons when the sidebar is collapsed", () => {

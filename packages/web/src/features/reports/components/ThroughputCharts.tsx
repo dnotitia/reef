@@ -2,13 +2,15 @@
 
 import { cn } from "@/lib/utils";
 import { useId } from "react";
-import type { NetThroughputWeek } from "../lib/aggregate";
+import type { NetThroughputWeek, ReportMeasure } from "../lib/aggregate";
 
 export function NetThroughputChart({
   points,
+  measure = "count",
   height = 230,
 }: {
   points: ReadonlyArray<NetThroughputWeek>;
+  measure?: ReportMeasure;
   height?: number;
 }) {
   const gradId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
@@ -20,16 +22,27 @@ export function NetThroughputChart({
   const innerW = W - padX * 2;
   const innerH = H - padTop - padBottom;
   const n = points.length;
-  const maxLine = Math.max(1, ...points.flatMap((p) => [p.created, p.closed]));
-  const maxNet = Math.max(1, ...points.map((p) => Math.abs(p.net)));
+  // Each series reads the count or the summed-points field for the active
+  // measure, so the same line/bar geometry renders either throughput (REEF-188).
+  const weighted = measure === "points";
+  const created = (p: NetThroughputWeek) =>
+    weighted ? p.createdPoints : p.created;
+  const closed = (p: NetThroughputWeek) =>
+    weighted ? p.closedPoints : p.closed;
+  const net = (p: NetThroughputWeek) => (weighted ? p.netPoints : p.net);
+  const maxLine = Math.max(
+    1,
+    ...points.flatMap((p) => [created(p), closed(p)]),
+  );
+  const maxNet = Math.max(1, ...points.map((p) => Math.abs(net(p))));
   const x = (i: number) =>
     padX + (n <= 1 ? innerW / 2 : (i / (n - 1)) * innerW);
   const y = (v: number) => padTop + innerH - (v / maxLine) * innerH;
   const baseline = padTop + innerH;
   const barW = Math.max(6, Math.min(22, innerW / Math.max(n, 1) - 4));
-  const line = (key: "created" | "closed") =>
+  const line = (series: (p: NetThroughputWeek) => number) =>
     points
-      .map((p, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(p[key])}`)
+      .map((p, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(series(p))}`)
       .join(" ");
   const tickIdx =
     n > 0 ? [...new Set([0, Math.floor((n - 1) / 2), n - 1])] : [];
@@ -49,8 +62,9 @@ export function NetThroughputChart({
           </linearGradient>
         </defs>
         {points.map((p, i) => {
-          const h = (Math.abs(p.net) / maxNet) * 52;
-          const positive = p.net >= 0;
+          const value = net(p);
+          const h = (Math.abs(value) / maxNet) * 52;
+          const positive = value >= 0;
           return (
             <rect
               key={p.start}
@@ -62,17 +76,17 @@ export function NetThroughputChart({
               fill={positive ? "var(--priority-high)" : "var(--status-done)"}
               opacity={0.32}
             >
-              <title>{`${p.label}: net ${p.net}`}</title>
+              <title>{`${p.label}: net ${value}`}</title>
             </rect>
           );
         })}
         <path
-          d={`${line("created")} L${x(n - 1)},${baseline} L${x(0)},${baseline} Z`}
+          d={`${line(created)} L${x(n - 1)},${baseline} L${x(0)},${baseline} Z`}
           fill={`url(#${gradId}-created)`}
           stroke="none"
         />
         <path
-          d={line("created")}
+          d={line(created)}
           fill="none"
           stroke="var(--brand)"
           strokeWidth={2}
@@ -81,7 +95,7 @@ export function NetThroughputChart({
           vectorEffect="non-scaling-stroke"
         />
         <path
-          d={line("closed")}
+          d={line(closed)}
           fill="none"
           stroke="var(--status-done)"
           strokeWidth={2}
