@@ -13,6 +13,7 @@ import {
 import { MyWorkSummary } from "@/features/my-work/components/MyWorkSummary";
 import {
   buildMyWork,
+  filterAssignedTo,
   selectCurrentSprint,
 } from "@/features/my-work/lib/myWork";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
@@ -104,7 +105,13 @@ export function MyWorkPage() {
   // Captured once so the deadline classification is stable across re-renders
   // (and so memoised rows are not invalidated every render).
   const [now] = useState(() => Date.now());
-  const issues = useMemo(() => issuesQuery.data ?? [], [issuesQuery.data]);
+  // The server `assigned_to` filter is a substring match, so exact-scope the
+  // fetched rows to the full login before anything treats them as "mine"
+  // (REEF-181 autoreview).
+  const issues = useMemo(
+    () => filterAssignedTo(issuesQuery.data ?? [], login ?? ""),
+    [issuesQuery.data, login],
+  );
   const graph = relationsQuery.data ?? issues;
   const currentSprint = useMemo(
     () => selectCurrentSprint(planningQuery.data?.sprints ?? []),

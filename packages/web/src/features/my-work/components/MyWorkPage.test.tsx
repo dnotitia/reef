@@ -191,6 +191,21 @@ describe("MyWorkPage", () => {
       expect(row).toHaveAttribute("href", "/issues/REEF-1?group=status");
     });
 
+    it("excludes substring-only assignee matches from the queue (REEF-181)", () => {
+      mockUseIssueList.mockReturnValue(
+        issueListResult([
+          ...issues,
+          // The server `assigned_to` filter is a substring match, so it can
+          // return another user whose login contains "alice".
+          makeIssue({ id: "REEF-9", status: "todo", assigned_to: "alicexyz" }),
+        ]),
+      );
+      render(<MyWorkPage />);
+      expect(
+        screen.queryByTestId("my-work-row-REEF-9"),
+      ).not.toBeInTheDocument();
+    });
+
     it("groups by status and writes the mode to the URL", () => {
       render(<MyWorkPage />);
       fireEvent.click(screen.getByTestId("my-work-group-status"));
