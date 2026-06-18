@@ -50,7 +50,9 @@ export function ReportsPage() {
         ? "milestone_id"
         : dimension === "sprint"
           ? "sprint_id"
-          : "release_id";
+          : dimension === "release"
+            ? "release_id"
+            : "parent_id";
     setFilters((current) => ({
       ...current,
       [key]: current[key] === id ? undefined : id,
@@ -58,12 +60,6 @@ export function ReportsPage() {
   }, []);
 
   const catalog = planningQuery.data;
-  const hasPlanning =
-    catalog != null &&
-    catalog.milestones.length +
-      catalog.sprints.length +
-      catalog.releases.length >
-      0;
 
   if (!vaultLoading && !vault) {
     return (
@@ -145,8 +141,11 @@ export function ReportsPage() {
             <HealthSummary agg={agg} />
 
             {/* Per-item RAG rollup sits between the global pulse and the detail
-                charts — a scannable portfolio index that drills into them. */}
-            {hasPlanning && catalog && (
+                charts — a scannable portfolio index that drills into them. The
+                component self-hides when no dimension has items (planning axes
+                from the catalog, parent axis from issue links), so the guard is
+                just catalog presence. */}
+            {catalog && (
               <HealthRollup
                 issues={issues}
                 catalog={catalog}

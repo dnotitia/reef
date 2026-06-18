@@ -35,16 +35,18 @@ import {
  * that function judges.
  */
 
-export type RollupDimension = "milestone" | "sprint" | "release";
+export type RollupDimension = "milestone" | "sprint" | "release" | "parent";
 
 /** Worst-first; an empty item (no linked issues) has no verdict and sorts last. */
 export type RagLevel = "off_track" | "at_risk" | "on_track";
 
-/** The three dimensions in display order — theme, then timebox, then shipment. */
+/** The dimensions in display order — theme, timebox, shipment, then the
+ *  parent/epic initiative axis (REEF-187). */
 export const ROLLUP_DIMENSIONS: readonly RollupDimension[] = [
   "milestone",
   "sprint",
   "release",
+  "parent",
 ] as const;
 
 /** Render rank for worst-first sort; `empty` (null verdict) sorts last. */
@@ -152,12 +154,33 @@ const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 /** The `reef_issues` foreign-key column for a rollup dimension. */
 const AXIS_KEY: Record<
   RollupDimension,
-  "milestone_id" | "sprint_id" | "release_id"
+  "milestone_id" | "sprint_id" | "release_id" | "parent_id"
 > = {
   milestone: "milestone_id",
   sprint: "sprint_id",
   release: "release_id",
+  parent: "parent_id",
 };
+
+/**
+ * A dimension-agnostic rollup item — the normalized shape the row builder
+ * consumes, so the main loop never branches on milestone vs sprint vs parent.
+ * Planning dimensions derive it from the catalog; the parent dimension derives
+ * it from the issues themselves, because a parent is another issue, not a
+ * planning entity (REEF-187).
+ */
+interface RollupItem {
+  id: string;
+  name: string;
+  shipped: boolean;
+  /** Deadline anchor: milestone/release `target_date`, sprint `end_date`, or a
+   *  parent issue's `due_date`. */
+  targetDate: string | null;
+  /** Timeline start anchor — only a sprint declares one; null elsewhere. */
+  startDate: string | null;
+  /** Capacity for point-burn pace — only a sprint declares it; null elsewhere. */
+  capacityPoints: number | null;
+}
 
 function catalogItems(
   catalog: PlanningCatalog,
@@ -184,6 +207,66 @@ function targetDateOf(
 ): string | null {
   if (dimension === "sprint") return (item as Sprint).end_date ?? null;
   return (item as Milestone | Release).target_date ?? null;
+}
+
+/**
+ * Distinct parent issue ids referenced by any issue — the parent rollup axis.
+ * Exported so the component can offer the dimension only when parents exist
+ * (REEF-187 AC2: an issue with no children never appears here, since only
+ * referenced parent ids are collected).
+ */
+export function distinctParentIds(
+  issues: ReadonlyArray<IssueListItem>,
+): string[] {
+  const ids = new Set<string>();
+  for (const issue of issues) {
+    if (issue.parent_id) ids.add(issue.parent_id);
+  }
+  return [...ids];
+}
+
+/**
+ * One RollupItem per referenced parent. `parent_id` matches the parent issue's
+ * `id` (the same edge `IssueChildren` walks), so the label is that issue's
+ * title; a parent absent from the list (filtered/archived) falls back to its id.
+ * The parent's own resolved status marks it shipped, and its `due_date` is the
+ * deadline anchor — parents are issues, so they have no catalog target date.
+ */
+function parentRollupItems(issues: ReadonlyArray<IssueListItem>): RollupItem[] {
+  const byId = new Map<string, IssueListItem>();
+  for (const issue of issues) byId.set(issue.id, issue);
+  return distinctParentIds(issues).map((id) => {
+    const parent = byId.get(id);
+    return {
+      id,
+      name: parent?.title ?? id,
+      shipped: parent ? isResolvedStatus(parent.status) : false,
+      targetDate: parent?.due_date ?? null,
+      startDate: null,
+      capacityPoints: null,
+    };
+  });
+}
+
+/** Normalize a dimension's items to the dimension-agnostic `RollupItem` shape. */
+function rollupItems(
+  dimension: RollupDimension,
+  catalog: PlanningCatalog,
+  issues: ReadonlyArray<IssueListItem>,
+): RollupItem[] {
+  if (dimension === "parent") return parentRollupItems(issues);
+  return catalogItems(catalog, dimension).map((item) => ({
+    id: item.id,
+    name: item.name,
+    shipped: isShipped(item, dimension),
+    targetDate: targetDateOf(item, dimension),
+    startDate:
+      dimension === "sprint" ? ((item as Sprint).start_date ?? null) : null,
+    capacityPoints:
+      dimension === "sprint"
+        ? ((item as Sprint).capacity_points ?? null)
+        : null,
+  }));
 }
 
 /** Per-item accumulation over its linked, in-scope issues. */
@@ -275,11 +358,10 @@ export function computeHealthRollup(
     }
   }
 
-  const rows: HealthRollupRow[] = catalogItems(catalog, dimension).map(
+  const rows: HealthRollupRow[] = rollupItems(dimension, catalog, issues).map(
     (item) => {
       const stats = groups.get(item.id) ?? emptyStats();
-      const shipped = isShipped(item, dimension);
-      const targetDate = targetDateOf(item, dimension);
+      const { shipped, targetDate } = item;
       const completion = stats.total > 0 ? stats.resolved / stats.total : 0;
       const net = stats.createdInWindow - stats.closedInWindow;
 
@@ -292,10 +374,9 @@ export function computeHealthRollup(
         verdict = { level: "on_track", reason: "shipped" };
       } else {
         // Timeline anchor: explicit start (sprint) else earliest linked issue.
-        const startMs =
-          dimension === "sprint" && (item as Sprint).start_date
-            ? Date.parse((item as Sprint).start_date as string)
-            : stats.minCreated;
+        const startMs = item.startDate
+          ? Date.parse(item.startDate)
+          : stats.minCreated;
         const endMs = targetDate ? Date.parse(targetDate) : Number.NaN;
         const hasAnchor =
           !Number.isNaN(endMs) && Number.isFinite(startMs) && endMs > startMs;
@@ -307,8 +388,7 @@ export function computeHealthRollup(
 
         // Pace uses capacity burn for a sprint that declared capacity; otherwise
         // issue completion. (capacity_points null → graceful fallback.)
-        const capacity =
-          dimension === "sprint" ? (item as Sprint).capacity_points : null;
+        const capacity = item.capacityPoints;
         const paceCompletion =
           capacity && capacity > 0 ? stats.donePoints / capacity : completion;
 

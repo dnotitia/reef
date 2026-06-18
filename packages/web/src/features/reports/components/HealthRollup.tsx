@@ -12,14 +12,19 @@ import {
   type RagLevel,
   type RollupDimension,
   computeHealthRollup,
+  distinctParentIds,
 } from "../lib/healthRollup";
 
 /**
- * Portfolio health rollup (REEF-191). A worst-first ranked list of milestones /
- * sprints / releases, each with a computed RAG verdict (On track / At risk /
- * Off track) derived from the same signals as the rest of the reports surface.
- * Clicking a row scopes the detail charts below to that planning item via the
- * shared report filters.
+ * Portfolio health rollup (REEF-191, parent axis REEF-187). A worst-first
+ * ranked list of milestones / sprints / releases / parent initiatives, each
+ * with a computed RAG verdict (On track / At risk / Off track) derived from the
+ * same signals as the rest of the reports surface. Clicking a row scopes the
+ * detail charts below to that item via the shared report filters.
+ *
+ * The parent axis is the same drill-down `IssueChildren` shows for one epic,
+ * lifted to a portfolio comparison the issue detail sheet can't give: every
+ * parent ranked side by side, worst-first (REEF-187).
  */
 
 /** RAG → token + label. Mirrors the `STATUS_COLOR` / `TYPE_META` convention
@@ -37,21 +42,26 @@ const DIMENSION_LABEL: Record<RollupDimension, { one: string; many: string }> =
     milestone: { one: "Milestone", many: "Milestones" },
     sprint: { one: "Sprint", many: "Sprints" },
     release: { one: "Release", many: "Releases" },
+    parent: { one: "Parent", many: "Parents" },
   };
 
 const AXIS_KEY: Record<RollupDimension, keyof ReportFilters> = {
   milestone: "milestone_id",
   sprint: "sprint_id",
   release: "release_id",
+  parent: "parent_id",
 };
 
 function dimensionItemCount(
-  catalog: PlanningCatalog,
   dimension: RollupDimension,
+  catalog: PlanningCatalog,
+  issues: ReadonlyArray<IssueListItem>,
 ): number {
   if (dimension === "milestone") return catalog.milestones.length;
   if (dimension === "sprint") return catalog.sprints.length;
-  return catalog.releases.length;
+  if (dimension === "release") return catalog.releases.length;
+  // Parent isn't a catalog entity — count the distinct parents issues point at.
+  return distinctParentIds(issues).length;
 }
 
 export function HealthRollup({
@@ -67,10 +77,14 @@ export function HealthRollup({
   onDrill: (dimension: RollupDimension, id: string) => void;
 }) {
   // Offer dimensions that have items; derive during render so a vault switch
-  // does not strand the toggle on an empty dimension (no effect).
+  // does not strand the toggle on an empty dimension (no effect). The parent
+  // axis depends on issues (referenced parents), the planning axes on catalog.
   const availableDims = useMemo(
-    () => ROLLUP_DIMENSIONS.filter((d) => dimensionItemCount(catalog, d) > 0),
-    [catalog],
+    () =>
+      ROLLUP_DIMENSIONS.filter(
+        (d) => dimensionItemCount(d, catalog, issues) > 0,
+      ),
+    [catalog, issues],
   );
   const [dimension, setDimension] = useState<RollupDimension>("milestone");
   const [showShipped, setShowShipped] = useState(false);

@@ -52,6 +52,9 @@ export interface ReportFilters {
   sprint_id?: string;
   milestone_id?: string;
   release_id?: string;
+  /** Set only by the portfolio rollup's parent drill (REEF-187); no scope-bar
+   *  control. Shares the exact-id `matchesSharedFacets` predicate. */
+  parent_id?: string;
   assignee?: string;
   label?: string;
 }

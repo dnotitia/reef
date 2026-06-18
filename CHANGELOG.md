@@ -14,6 +14,13 @@ explicitly in the entries below.
 
 ### Added
 
+- **Portfolio health now rolls up by parent epic too.** The Reports "Portfolio
+  health" rollup adds a "Parents" dimension alongside milestones, sprints, and
+  releases: every parent issue that has children, ranked worst-first with the
+  same On track / At risk / Off track verdict and a done/total progress bar. The
+  per-epic progress you already see inside an issue's detail sheet now also lifts
+  into a side-by-side portfolio comparison, and clicking a parent scopes the
+  detail charts below to its children (REEF-187).
 - **At-a-glance portfolio health on Reports.** The Reports page now shows a
   "Portfolio health" rollup beneath the headline numbers: a worst-first list of
   your milestones, sprints, and releases, each with a computed On track / At

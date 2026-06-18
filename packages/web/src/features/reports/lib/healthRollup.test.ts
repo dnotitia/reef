@@ -300,3 +300,69 @@ describe("computeHealthRollup — sprint capacity burn", () => {
     expect(rows[0].verdict?.level).toBe("off_track");
   });
 });
+
+describe("computeHealthRollup — parent axis (REEF-187)", () => {
+  it("rolls up children by parent, naming each row from the parent title", () => {
+    const rows = computeHealthRollup(
+      [
+        // Parent epic with a human title and two children (1 done, 1 open).
+        makeIssue({ id: "E1", title: "Reports epic", status: "in_progress" }),
+        makeIssue({ id: "c1", parent_id: "E1", status: "done" }),
+        makeIssue({ id: "c2", parent_id: "E1", status: "todo" }),
+        // AC2: a childless, top-level issue is never a rollup row.
+        makeIssue({ id: "solo", status: "todo" }),
+      ],
+      { dimension: "parent", now: NOW, catalog: catalog({}) },
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe("E1");
+    expect(rows[0].name).toBe("Reports epic"); // AC4: parent title, not its id
+    expect(rows[0].total).toBe(2);
+    expect(rows[0].resolved).toBe(1);
+    expect(rows[0].completion).toBe(0.5); // AC3: count-based completion
+  });
+
+  it("falls back to the parent id when the parent issue is absent", () => {
+    const rows = computeHealthRollup(
+      [makeIssue({ id: "c1", parent_id: "GHOST", status: "todo" })],
+      { dimension: "parent", now: NOW, catalog: catalog({}) },
+    );
+    expect(rows[0].id).toBe("GHOST");
+    expect(rows[0].name).toBe("GHOST");
+  });
+
+  it("treats a resolved parent as shipped", () => {
+    const rows = computeHealthRollup(
+      [
+        makeIssue({ id: "E1", title: "Done epic", status: "done" }),
+        makeIssue({ id: "c1", parent_id: "E1", status: "done" }),
+      ],
+      { dimension: "parent", now: NOW, catalog: catalog({}) },
+    );
+    expect(rows[0].shipped).toBe(true);
+    expect(rows[0].verdict).toEqual({ level: "on_track", reason: "shipped" });
+  });
+
+  it("ranks parents worst-first and anchors the deadline on the parent due_date", () => {
+    const rows = computeHealthRollup(
+      [
+        // Healthy: the only child is done → on track.
+        makeIssue({ id: "E_OK", title: "Healthy", status: "in_progress" }),
+        makeIssue({ id: "ok1", parent_id: "E_OK", status: "done" }),
+        // Off track: parent due date already passed with an open child.
+        makeIssue({
+          id: "E_LATE",
+          title: "Late",
+          status: "in_progress",
+          due_date: "2026-01-01T00:00:00.000Z",
+        }),
+        makeIssue({ id: "l1", parent_id: "E_LATE", status: "todo" }),
+      ],
+      { dimension: "parent", now: NOW, catalog: catalog({}) },
+    );
+    expect(rows.map((r) => r.id)).toEqual(["E_LATE", "E_OK"]);
+    expect(rows[0].targetDate).toBe("2026-01-01T00:00:00.000Z");
+    expect(rows[0].verdict?.level).toBe("off_track");
+    expect(rows[1].verdict?.level).toBe("on_track");
+  });
+});
