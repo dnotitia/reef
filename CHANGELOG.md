@@ -14,6 +14,14 @@ explicitly in the entries below.
 
 ### Added
 
+- **Measure Reports by story points, not just issue count.** The report scope bar
+  gains a Measure control: switch from "Issue count" to "Story points" and the
+  load and throughput cards — Workflow, By type, By severity, Top assignees, Top
+  labels, and Throughput — re-weight by summed estimate points instead of counting
+  issues, so a 13-point item no longer reads the same as a 3-point one. Issues with
+  no estimate count as zero points, so the toggle never changes which issues are
+  included. Count stays the default, and the risk map, deadlines, and headline
+  tiles remain count-based (REEF-188).
 - **Comments on issues.** Each issue now has a Comments section at the bottom of
   the detail view: leave a note, see the thread oldest-first with each author and
   when they wrote it, and edit your own comments (an "edited" marker shows when
