@@ -219,7 +219,7 @@ export function MyWorkPage() {
             Nothing is assigned to you yet
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Issues assigned to you show up here, prioritised for what to do
+            Issues assigned to you show up here, prioritized for what to do
             next.
           </p>
           <a

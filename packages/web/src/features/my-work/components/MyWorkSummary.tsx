@@ -106,7 +106,7 @@ function SprintTile({ sprint }: { sprint: MyWorkSprint }) {
           className="h-1 w-full overflow-hidden rounded-full bg-surface-hover"
         >
           <div
-            className="h-full w-full origin-left rounded-full bg-status-done transition-transform duration-500 ease-out"
+            className="h-full w-full origin-left rounded-full bg-status-done motion-safe:transition-transform motion-safe:duration-500 motion-safe:ease-out"
             style={{ transform: `scaleX(${pct})` }}
           />
         </div>
@@ -136,7 +136,10 @@ function StageBar({
       <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
         Open work by stage
       </span>
-      <div className="flex h-2 w-full overflow-hidden rounded-full bg-surface-hover">
+      <div
+        aria-hidden="true"
+        className="flex h-2 w-full overflow-hidden rounded-full bg-surface-hover"
+      >
         {byStatus
           .filter((segment) => segment.count > 0)
           .map((segment) => (
