@@ -14,6 +14,20 @@ explicitly in the entries below.
 
 ### Added
 
+- **Issue activity log (status changes).** Every status change on an issue now
+  records an immutable, append-only event — who moved it, from which status to
+  which, and when — captured the moment the change is saved, whether it came from
+  the app or an automated agent. This is the foundation the merged comment +
+  activity timeline will read; the timeline view itself ships separately
+  (REEF-064). (REEF-063).
+- **Delivery forecast on Reports.** A new Monte Carlo forecast card projects when
+  the open work in scope will finish, and how many items finish by a near-term
+  date, each at the 50/70/85/95 confidence levels. It bootstraps the weekly
+  completion throughput the dashboard already tracks — no new data, event log, or
+  cycle-time setup — and reuses the Period control to choose the sample window
+  (default 12 weeks). An empty or thin history is labeled ("not enough history",
+  "treat these as rough") rather than guessed, so the numbers stay honest
+  (REEF-190).
 - **Custom pivot (crosstab) report.** Reports gains a Pivot card: pick any two
   categorical fields for the rows and columns — status, type, priority, severity,
   assignee, or label — and see a count-based crosstab without an engineer shipping
@@ -142,11 +156,25 @@ explicitly in the entries below.
   browser-local token and returns to the token-entry form. It no longer ends your
   workspace session or bounces you to the login screen — signing out of the
   workspace stays a separate action in the sidebar account menu (REEF-247).
+- Planning filters for Sprint, Milestone, and Release no longer squeeze long
+  selected names into narrow controls. Empty filters stay compact, selected long
+  names grow to a bounded readable width, dropdown panels open wide enough to
+  distinguish names and badges, and the Reports scope bar now wraps planning
+  controls onto readable tracks instead of collapsing them into narrow columns
+  (REEF-246).
 - Opening an issue from the **List**, **Timeline**, or **Backlog** tab no longer
   flips the background to the Board. Clicking an issue now keeps the tab (and any
   active filters/sort) you were on while the detail sheet slides over, and
   closing it returns you to that same tab. Typing or refreshing a
   `/issues/REEF-XXX` deep link still opens over the Board as before (REEF-222).
+- Editing an issue in the web app no longer silently overwrites a change made
+  outside it. Opening an issue card now always re-reads the latest from the
+  workspace, so an edit made elsewhere (the akb tools, another tab) shows up
+  instead of a stale cached copy. If someone changed the body, title, labels, or
+  relations after you opened the card, saving now surfaces a retryable save
+  conflict — your view is refreshed and you can re-apply — rather than quietly
+  replacing their change. Plain table fields (status, priority, assignee, …)
+  keep their per-field server merge (REEF-227).
 - The built-in workspace agent playbook now guards three issue-creation
   pitfalls so an agent following it can no longer leave a malformed or
   invisible issue: it surfaces the parent link so an issue filed under an epic

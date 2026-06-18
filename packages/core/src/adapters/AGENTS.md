@@ -14,7 +14,20 @@
   be filtered or sorted.
 - Writes are last-write-wins and non-transactional across document + row.
   `writeIssue` compensates a failed row insert by deleting the just-created
-  document; do not add CAS, `sha`, or `expectedHeadOid` plumbing.
+  document, and `updateIssue` compensates a failed row update by re-PATCHing the
+  document back; keep that compensation-saga model. Do not add CAS / version
+  plumbing on the `reef_issues` *row* (no `sha` / `expectedHeadOid` / version
+  column), and do not try to make the document+row pair a CAS-coordinated
+  transaction.
+- The one sanctioned concurrency check is document-level OCC: `updateIssue` may
+  forward the caller's base commit as akb's existing `expected_commit`
+  precondition on the *document* PATCH, so a concurrent external edit to a
+  document-projected field (body, title, labels→tags,
+  depends_on/blocks/related_to→relations) is rejected as a retryable
+  `ConflictError` instead of silently overwritten (REEF-227). This uses a
+  capability akb already provides — it is not new row/cross-store plumbing.
+  Row-only scalar fields (status, priority, assignee, dates, planning ids,
+  estimate, severity, parent) stay last-write-wins with server-side read-merge.
 - `createAkbAdapter({ ... })` is constructed per request from the
   `__reef_session` cookie and forwards `Authorization: Bearer <pat>` to
   `AKB_BACKEND_URL`.

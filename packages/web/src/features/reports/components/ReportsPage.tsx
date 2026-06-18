@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import { ACTIVE_STATUSES, type Status } from "@reef/core";
 import { SEVERITY_LABELS } from "@reef/core/fields";
 import { useCallback, useMemo, useState } from "react";
 import {
@@ -13,6 +14,11 @@ import {
   computeAggregates,
 } from "../lib/aggregate";
 import type { RollupDimension } from "../lib/healthRollup";
+import {
+  DEFAULT_FORECAST_HORIZON_WEEKS,
+  computeForecast,
+} from "../lib/monteCarlo";
+import { ForecastCard } from "./ForecastCard";
 import { HealthRollup } from "./HealthRollup";
 import { PivotCard } from "./PivotCard";
 import { NetThroughputChart, RankedBarList, RiskMatrix } from "./ReportCharts";
@@ -28,6 +34,10 @@ import {
   formatSigned,
 } from "./ReportSummarySections";
 
+/** Open work (committed, not-yet-resolved) is the forecast population — the same
+ *  active statuses the dashboard's open-work cards floor to (REEF-190). */
+const ACTIVE_STATUS_SET = new Set<Status>(ACTIVE_STATUSES);
+
 export function ReportsPage() {
   const { vault, isLoading: vaultLoading } = useActiveVault();
   const issuesQuery = useIssueList(vault);
@@ -41,6 +51,21 @@ export function ReportsPage() {
     () => computeAggregates(issues, { filters }),
     [issues, filters],
   );
+
+  // Monte Carlo forecast off the same single-pass aggregate: remaining open work
+  // from the status buckets, weekly throughput from the period's closed series.
+  // Keyed on `agg` (itself memoized on issues+filters) so the bootstrap re-runs
+  // only when the data does, never on an unrelated re-render (REEF-190).
+  const forecast = useMemo(() => {
+    const remaining = agg.byStatus
+      .filter((bucket) => ACTIVE_STATUS_SET.has(bucket.status))
+      .reduce((sum, bucket) => sum + bucket.count, 0);
+    return computeForecast({
+      remaining,
+      weeklyThroughput: agg.throughput.map((week) => week.closed),
+      horizonWeeks: DEFAULT_FORECAST_HORIZON_WEEKS,
+    });
+  }, [agg]);
 
   // Drilling a rollup row scopes the whole page to that planning item by
   // setting its shared report filter; clicking the active row clears it. The
@@ -213,6 +238,15 @@ export function ReportsPage() {
                 />
               </Card>
             </div>
+
+            {/* Forward-looking forecast sits right after the present-state Risk
+                map / Throughput row: same throughput it samples, now projected
+                (REEF-190). */}
+            <ForecastCard
+              forecast={forecast}
+              now={Date.now()}
+              periodLabel={PERIOD_LABELS[filters.period]}
+            />
 
             {/* Custom crosstab — the one card that answers an ad-hoc cross
                 (assignee x status, type x priority, ...) without shipping a new

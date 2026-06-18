@@ -36,6 +36,7 @@ import type {
   WriteMultipleIssuesItemResult,
   WriteMultipleIssuesOutput,
 } from "../core/types";
+import { appendStatusChangeEvent } from "./activity";
 export { buildIssueMetadataFromCreateInput } from "./createMetadata";
 export { allocateNextIssueId, listIssueRelations } from "./issueRelations";
 export { listIssues } from "./listIssues";
@@ -110,8 +111,9 @@ export async function writeIssue(
 export async function updateIssue(
   params: UpdateIssueParams,
 ): Promise<UpdateIssueResult> {
-  const { adapter, vault, id, partial, content, message } = params;
-  return withSpan("akb.update_issue", { vault, id }, async () => {
+  const { adapter, vault, id, partial, content, message, expectedCommit } =
+    params;
+  return withSpan("akb.update_issue", { vault, id }, async (span) => {
     const current = await readIssue({ adapter, vault, id });
     const mergedIssue = mergeIssue(current.issue, partial);
     const mergedBody = content ?? current.content;
@@ -134,6 +136,19 @@ export async function updateIssue(
       const updateBody = buildIssueDocPatchBody(mergedIssue, mergedBody);
       if (message !== undefined) {
         updateBody.message = message;
+      }
+      if (expectedCommit) {
+        // Document-level OCC (REEF-227): akb rejects this PATCH with 409
+        // (→ ConflictError) when the document's current commit moved past the
+        // base the editor read. One precondition guards every document-projected
+        // field — body, title, labels→tags, depends_on/blocks/related_to→
+        // relations — so a concurrent external edit surfaces as a retryable save
+        // conflict instead of being silently overwritten. Row-only edits never
+        // reach here, staying last-write-wins. A 409 fires before the row UPDATE
+        // below, so nothing diverges and no compensation is needed. The
+        // compensating re-PATCH deliberately omits the precondition: it is a
+        // forced rewind, not a user edit racing a concurrent writer.
+        updateBody.expected_commit = expectedCommit;
       }
       const payload = await adapter.request(docPath, {
         method: "PATCH",
@@ -207,6 +222,53 @@ export async function updateIssue(
       );
       if (row?.rank != null) {
         mergedIssue.rank = Number(row.rank);
+      }
+    }
+
+    // Record the status transition as an immutable activity event (REEF-063).
+    // This is the reef-web code funnel: every code path that changes status
+    // (PATCH route, activity-inbox approve, agent-artifact approve) flows
+    // through here. Best-effort — the row UPDATE above already committed the
+    // change, so a failed append must not fail the issue update; the row's own
+    // `last_status_change` stays the single-event safety net (AC5).
+    //
+    // `from` is the status this write observed in `readIssue` — the same snapshot
+    // the row UPDATE above is itself computed from, so the event is consistent
+    // with what this write actually did. reef is last-write-wins with no CAS or
+    // row-locking plumbing (root AGENTS.md), and the akb runtime SQL surface does
+    // not expose the locking primitives a serializable `from` would need, so two
+    // racing status writes can each log their own observed transition rather than
+    // one globally-ordered chain — the deliberate LWW trade-off the rest of the
+    // system already makes. The event fires only when the status moved AND this
+    // update carried a transition timestamp in `partial` (not the merged value):
+    // "this caller stamped a status change", which is exactly what
+    // `buildIssueUpdateMetadataPatch` does on every web/agent funnel. `at` is that
+    // caller timestamp (the canonical transition time + idempotency-key source).
+    // It is NOT gated on the timestamp differing from the row's prior value — two
+    // transitions sharing one timestamp are distinct events (the key carries
+    // from→to) and must both be logged.
+    const statusFrom = current.issue.status;
+    const statusTo = mergedIssue.status;
+    const transitionAt = partial.last_status_change;
+    if (statusFrom !== statusTo && transitionAt != null) {
+      try {
+        await appendStatusChangeEvent(adapter, vault, {
+          reefId: id,
+          from: statusFrom,
+          to: statusTo,
+          at: transitionAt,
+          actor: mergedIssue.updated_by,
+          // This update's provenance, not the issue's stale stored source: a
+          // manual web move (no source on the patch) records null, an
+          // approve/scan move records its `ai-agent:*` source. Using
+          // `mergedIssue.source` would stamp an AI-created issue's old source
+          // onto a later manual transition.
+          source: partial.source ?? null,
+        });
+      } catch (err) {
+        span.addEvent("activity_append_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }
 

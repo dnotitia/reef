@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  notifyConflict,
   notifyRetryableError,
   saveToastId,
 } from "@/components/ui/toastFeedback";
@@ -21,6 +22,14 @@ interface FailedCommit {
 
 interface AutosaveSnapshot {
   status: SaveStatus;
+  /**
+   * Increments on each document OCC conflict (REEF-227). The open form watches
+   * it to discard the rejected local edit and re-derive from the refetched
+   * server state, so a stale dirty field can't be re-saved over the change that
+   * won. Carried alongside `status` because a conflict settles back to idle/error
+   * and would otherwise be invisible to a status-only subscriber.
+   */
+  conflictCount: number;
 }
 
 interface UpdateIssueInput {
@@ -47,6 +56,16 @@ function commitsOverlap(
   return failedKeys.some((k) => keys.has(k));
 }
 
+// A 409 from the update route is a document OCC conflict (REEF-227): the issue
+// changed under the editor. It must not be treated as a blind-retryable failure.
+function isConflictError(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    (err as { status?: number }).status === 409
+  );
+}
+
 class IssueAutosaveMachine {
   private disposed = false;
   private disposeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -54,7 +73,7 @@ class IssueAutosaveMachine {
   private listeners = new Set<() => void>();
   private pendingCommits = 0;
   private savedTimer: ReturnType<typeof setTimeout> | null = null;
-  private snapshot: AutosaveSnapshot = { status: "idle" };
+  private snapshot: AutosaveSnapshot = { status: "idle", conflictCount: 0 };
   private tail: Promise<unknown> = Promise.resolve();
 
   constructor(
@@ -164,12 +183,45 @@ class IssueAutosaveMachine {
   private rejectCommit(commit: FailedCommit, err: unknown): void {
     if (this.disposed) return;
     this.pendingCommits -= 1;
-    this.failedCommits = [
-      ...this.failedCommits.filter(
-        (f) => !commitsOverlap(f, commit.patch, commit.content),
-      ),
-      commit,
-    ];
+
+    // This write is resolved either way — clear any earlier failure it overlaps.
+    this.failedCommits = this.failedCommits.filter(
+      (f) => !commitsOverlap(f, commit.patch, commit.content),
+    );
+
+    // A document OCC conflict (REEF-227) is NOT blind-retryable: resubmitting
+    // the stale patch/content would overwrite the external change that won, once
+    // `useUpdateIssue`'s conflict refetch advances the base. Surface a non-retry
+    // notice and let the refetched form reconcile to the latest; the user
+    // re-applies against the fresh state. Settle out of the frozen save state so
+    // that sync can run. Other failures stay retryable.
+    if (isConflictError(err)) {
+      // Bump conflictCount so the open form discards the rejected local edit and
+      // re-derives from the refetched server truth. A 3-way sync alone would keep
+      // the conflicted field (it is dirty) and let a later blur re-save it over
+      // the change that won. Settle out of the frozen state when nothing else is
+      // pending so that re-derivation can run.
+      notifyConflict({
+        id: saveToastId(commit.issueId),
+        title: "This issue changed elsewhere",
+        description:
+          "Your unsaved change was discarded and the latest is shown. Re-apply it if it is still needed.",
+      });
+      const status =
+        this.pendingCommits > 0
+          ? this.snapshot.status
+          : this.failedCommits.length > 0
+            ? "error"
+            : "idle";
+      this.snapshot = {
+        status,
+        conflictCount: this.snapshot.conflictCount + 1,
+      };
+      this.emit();
+      return;
+    }
+
+    this.failedCommits = [...this.failedCommits, commit];
     this.setStatus("error");
     notifyRetryableError({
       id: saveToastId(commit.issueId),
@@ -190,7 +242,11 @@ class IssueAutosaveMachine {
 
   private setStatus(status: SaveStatus): void {
     if (this.snapshot.status === status) return;
-    this.snapshot = { status };
+    this.snapshot = { ...this.snapshot, status };
+    this.emit();
+  }
+
+  private emit(): void {
     for (const listener of this.listeners) listener();
   }
 }
@@ -222,5 +278,6 @@ export function useIssueAutosaveMachine({
     commit: machine.commit,
     retryFailedCommits: machine.retry,
     saveStatus: snapshot.status,
+    conflictCount: snapshot.conflictCount,
   };
 }

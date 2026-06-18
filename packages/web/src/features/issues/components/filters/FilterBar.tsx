@@ -48,6 +48,9 @@ import { type IssueFilter, useIssueStore } from "../../stores/useIssueStore";
  * bounds the worst case in the meantime.
  */
 export const USER_FILTER_PANEL_CLASS = "min-w-[17rem] max-w-[90vw]";
+export const PLANNING_FILTER_COMBOBOX_CLASS =
+  "inline-block w-fit min-w-[9rem] max-w-[22rem]";
+export const PLANNING_FILTER_WRAPPER_CLASS = "relative inline-block max-w-full";
 
 /**
  * Static multi-select facet option lists. Hoisted to module scope so the badge
@@ -339,7 +342,10 @@ export function FilterBar({
       {/* Sprint filter — dropped in the backlog view: a sprinted item is
           committed, so it can not be in the backlog (REEF-177). */}
       {backlogScope ? null : (
-        <div className="relative w-36">
+        <div
+          className={PLANNING_FILTER_WRAPPER_CLASS}
+          data-testid="sprint-filter"
+        >
           <PlanningItemCombobox
             kind="sprints"
             vault={vault}
@@ -350,6 +356,7 @@ export function FilterBar({
             emptyLabel="Any sprint"
             testId="sprint-input"
             active={Boolean(filter.sprint_id)}
+            className={PLANNING_FILTER_COMBOBOX_CLASS}
           />
         </div>
       )}
@@ -357,7 +364,10 @@ export function FilterBar({
       {/* Milestone filter — kept in the backlog view: a milestone is a
           long-horizon theme that legitimately groups unscheduled backlog work
           (REEF-177). */}
-      <div className="relative w-40">
+      <div
+        className={PLANNING_FILTER_WRAPPER_CLASS}
+        data-testid="milestone-filter"
+      >
         <PlanningItemCombobox
           kind="milestones"
           vault={vault}
@@ -367,13 +377,17 @@ export function FilterBar({
           placeholder="Milestone"
           emptyLabel="Any milestone"
           active={Boolean(filter.milestone_id)}
+          className={PLANNING_FILTER_COMBOBOX_CLASS}
         />
       </div>
 
       {/* Release filter — dropped in the backlog view: a released item is
           committed, so it can not be in the backlog (REEF-177). */}
       {backlogScope ? null : (
-        <div className="relative w-36">
+        <div
+          className={PLANNING_FILTER_WRAPPER_CLASS}
+          data-testid="release-filter"
+        >
           <PlanningItemCombobox
             kind="releases"
             vault={vault}
@@ -383,6 +397,7 @@ export function FilterBar({
             placeholder="Release"
             emptyLabel="Any release"
             active={Boolean(filter.release_id)}
+            className={PLANNING_FILTER_COMBOBOX_CLASS}
           />
         </div>
       )}

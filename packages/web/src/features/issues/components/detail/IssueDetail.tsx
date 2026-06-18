@@ -140,20 +140,33 @@ function IssueDetailLoaded({
     commit: commitAutosave,
     retryFailedCommits,
     saveStatus,
+    conflictCount,
   } = useIssueAutosaveMachine({
     issueId,
     vault,
     mutateIssue: updateMutation.mutateAsync,
   });
+  const handledConflictRef = useRef(conflictCount);
   const issue = data.issue;
   const isArchived = issue.archived_at != null;
 
   useEffect(() => {
+    // A save conflict (REEF-227): discard the rejected local edits and re-derive
+    // from the server snapshot. The conflict refetch then lands a fresher
+    // snapshot and the normal sync below pulls it in (the draft is now clean).
+    // Done before the 3-way sync because that path keeps dirty fields — exactly
+    // the conflicted field we must not preserve.
+    if (conflictCount !== handledConflictRef.current) {
+      handledConflictRef.current = conflictCount;
+      dispatchDraft({ type: "reset", next: serverDraft });
+      previousServerDraftRef.current = serverDraft;
+      return;
+    }
     if (saveStatus === "saving" || saveStatus === "error") return;
     const previous = previousServerDraftRef.current;
     dispatchDraft({ type: "sync", previous, next: serverDraft });
     previousServerDraftRef.current = serverDraft;
-  }, [saveStatus, serverDraft]);
+  }, [saveStatus, serverDraft, conflictCount]);
 
   function setDraftField<K extends keyof IssueDetailDraft>(
     field: K,

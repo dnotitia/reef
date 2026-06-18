@@ -327,6 +327,107 @@ describe("useUpdateIssue", () => {
     expect(detail).toEqual({ issue: ORIGINAL, content: "old body" });
   });
 
+  it("sends expected_commit from the cached detail commit_hash (REEF-227)", async () => {
+    mockApiFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({ issue: UPDATED, content: "new", commit_hash: "c2" }),
+        { status: 200 },
+      ),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    queryClient.setQueryData(["issues", "detail", "reef-acme", "REEF-001"], {
+      issue: ORIGINAL,
+      content: "old",
+      commit_hash: "c1",
+    });
+
+    const { result } = renderHook(() => useUpdateIssue(), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        id: "REEF-001",
+        vault: "reef-acme",
+        patch: {},
+        content: "new",
+      });
+    });
+
+    const body = JSON.parse(mockApiFetch.mock.calls[0]?.[1]?.body as string);
+    expect(body.update.expected_commit).toBe("c1");
+  });
+
+  it("omits expected_commit when the detail cache has no base commit", async () => {
+    mockApiFetch.mockResolvedValue(
+      new Response(JSON.stringify({ issue: UPDATED, content: "" }), {
+        status: 200,
+      }),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    // No detail cache seeded → no base commit to pin → last-write-wins.
+
+    const { result } = renderHook(() => useUpdateIssue(), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        id: "REEF-001",
+        vault: "reef-acme",
+        patch: { status: "in_progress" },
+      });
+    });
+
+    const body = JSON.parse(mockApiFetch.mock.calls[0]?.[1]?.body as string);
+    expect(body.update).not.toHaveProperty("expected_commit");
+  });
+
+  it("refetches the detail query on a 409 save conflict (REEF-227)", async () => {
+    mockApiFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: "Save conflict occurred — please refresh and try again.",
+        }),
+        { status: 409 },
+      ),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    queryClient.setQueryData(["issues", "detail", "reef-acme", "REEF-001"], {
+      issue: ORIGINAL,
+      content: "old",
+      commit_hash: "c1",
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHook(() => useUpdateIssue(), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current
+        .mutateAsync({
+          id: "REEF-001",
+          vault: "reef-acme",
+          patch: {},
+          content: "edited",
+        })
+        .catch(() => {});
+    });
+
+    // The stale base is re-read so the editor refreshes and a retry writes
+    // against the latest. (Only fires on 409 — not the success path.)
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["issues", "detail", "reef-acme", "REEF-001"],
+    });
+  });
+
   it("propagates 409 conflict (akb LWW race) as error", async () => {
     mockApiFetch.mockResolvedValue(
       new Response(
