@@ -24,14 +24,15 @@ describe("computeAggregates — status", () => {
       makeIssue({ id: "REEF-002", status: "in_progress" }),
       makeIssue({ id: "REEF-003", status: "in_progress" }),
     ]);
-    // The distribution shows every status, including `backlog` (REEF-109).
+    // The distribution shows every status, including `backlog` (REEF-109). No
+    // fixture sets estimate_points, so every points sum is 0 (REEF-188).
     expect(byStatus).toEqual([
-      { status: "backlog", count: 0 },
-      { status: "todo", count: 1 },
-      { status: "in_progress", count: 2 },
-      { status: "in_review", count: 0 },
-      { status: "done", count: 0 },
-      { status: "closed", count: 0 },
+      { status: "backlog", count: 0, points: 0 },
+      { status: "todo", count: 1, points: 0 },
+      { status: "in_progress", count: 2, points: 0 },
+      { status: "in_review", count: 0, points: 0 },
+      { status: "done", count: 0, points: 0 },
+      { status: "closed", count: 0, points: 0 },
     ]);
   });
 
@@ -58,11 +59,11 @@ describe("computeAggregates — priority", () => {
       makeIssue({ id: "REEF-004", priority: "low" }),
     ]);
     expect(byPriority).toEqual([
-      { priority: "critical", count: 0 },
-      { priority: "high", count: 2 },
-      { priority: "medium", count: 0 },
-      { priority: "low", count: 1 },
-      { priority: "none", count: 1 },
+      { priority: "critical", count: 0, points: 0 },
+      { priority: "high", count: 2, points: 0 },
+      { priority: "medium", count: 0, points: 0 },
+      { priority: "low", count: 1, points: 0 },
+      { priority: "none", count: 1, points: 0 },
     ]);
   });
 });
@@ -77,9 +78,9 @@ describe("computeAggregates — assignees", () => {
       makeIssue({ id: "REEF-005", assigned_to: "bob" }),
     ]);
     expect(topAssignees).toEqual([
-      { name: "alice", count: 2 },
-      { name: "bob", count: 2 },
-      { name: "carol", count: 1 },
+      { name: "alice", count: 2, points: 0 },
+      { name: "bob", count: 2, points: 0 },
+      { name: "carol", count: 1, points: 0 },
     ]);
   });
 
@@ -89,8 +90,12 @@ describe("computeAggregates — assignees", () => {
       makeIssue({ id: "REEF-002", assigned_to: "   " }),
       makeIssue({ id: "REEF-003", assigned_to: "alice" }),
     ]);
-    expect(topAssignees).toContainEqual({ name: "Unassigned", count: 2 });
-    expect(topAssignees).toContainEqual({ name: "alice", count: 1 });
+    expect(topAssignees).toContainEqual({
+      name: "Unassigned",
+      count: 2,
+      points: 0,
+    });
+    expect(topAssignees).toContainEqual({ name: "alice", count: 1, points: 0 });
   });
 
   it("respects the assigneeLimit option", () => {
@@ -112,16 +117,16 @@ describe("computeAggregates — labels", () => {
       makeIssue({ id: "REEF-002", labels: ["bug"] }),
       makeIssue({ id: "REEF-003", labels: ["frontend", "design"] }),
     ]);
-    expect(topLabels).toContainEqual({ name: "bug", count: 2 });
-    expect(topLabels).toContainEqual({ name: "frontend", count: 2 });
-    expect(topLabels).toContainEqual({ name: "design", count: 1 });
+    expect(topLabels).toContainEqual({ name: "bug", count: 2, points: 0 });
+    expect(topLabels).toContainEqual({ name: "frontend", count: 2, points: 0 });
+    expect(topLabels).toContainEqual({ name: "design", count: 1, points: 0 });
   });
 
   it("skips empty / whitespace-only labels", () => {
     const { topLabels } = computeAggregates([
       makeIssue({ id: "REEF-001", labels: ["", "   ", "bug"] }),
     ]);
-    expect(topLabels).toEqual([{ name: "bug", count: 1 }]);
+    expect(topLabels).toEqual([{ name: "bug", count: 1, points: 0 }]);
   });
 
   it("excludes labels from archived issues", () => {
@@ -133,7 +138,7 @@ describe("computeAggregates — labels", () => {
         archived_at: "2026-05-01T00:00:00.000Z",
       }),
     ]);
-    expect(topLabels).toEqual([{ name: "bug", count: 1 }]);
+    expect(topLabels).toEqual([{ name: "bug", count: 1, points: 0 }]);
   });
 });
 
@@ -323,10 +328,10 @@ describe("computeAggregates — type & severity", () => {
       makeIssue({ id: "REEF-003", issue_type: "story" }),
     ]);
     expect(byType).toEqual([
-      { type: "story", count: 1 },
-      { type: "bug", count: 2 },
+      { type: "story", count: 1, points: 0 },
+      { type: "bug", count: 2, points: 0 },
     ]);
-    expect(bySeverity).toEqual([{ severity: "blocker", count: 1 }]);
+    expect(bySeverity).toEqual([{ severity: "blocker", count: 1, points: 0 }]);
   });
 
   it("buckets a missing issue_type under 'task' (mirrors filterIssues)", () => {
@@ -335,7 +340,7 @@ describe("computeAggregates — type & severity", () => {
       makeIssue({ id: "REEF-002", issue_type: "task" }),
       makeIssue({ id: "REEF-003", issue_type: "bug" }),
     ]);
-    expect(byType).toContainEqual({ type: "task", count: 2 });
+    expect(byType).toContainEqual({ type: "task", count: 2, points: 0 });
     // Donut total stays consistent with the active-issue count.
     expect(byType.reduce((sum, b) => sum + b.count, 0)).toBe(total);
   });
@@ -411,10 +416,10 @@ describe("computeAggregates — report filters", () => {
     );
 
     expect(filteredTotal).toBe(1);
-    expect(topAssignees).toEqual([{ name: "alice", count: 1 }]);
+    expect(topAssignees).toEqual([{ name: "alice", count: 1, points: 0 }]);
     expect(topLabels).toEqual([
-      { name: "risk", count: 1 },
-      { name: "ui", count: 1 },
+      { name: "risk", count: 1, points: 0 },
+      { name: "ui", count: 1, points: 0 },
     ]);
   });
 });
@@ -544,5 +549,92 @@ describe("computeAggregates — risk", () => {
       stale: 0,
       critical: 0,
     });
+  });
+});
+
+describe("computeAggregates — points measure (REEF-188)", () => {
+  it("sums estimate_points per slice, treating a missing estimate as 0 (AC1, AC3)", () => {
+    const { byType, topAssignees, total } = computeAggregates([
+      makeIssue({
+        id: "REEF-001",
+        issue_type: "story",
+        assigned_to: "alice",
+        estimate_points: 5,
+      }),
+      makeIssue({
+        id: "REEF-002",
+        issue_type: "story",
+        assigned_to: "alice",
+        estimate_points: 8,
+      }),
+      // No estimate — still +1 to count, +0 to points (population unchanged).
+      makeIssue({ id: "REEF-003", issue_type: "bug", assigned_to: "bob" }),
+    ]);
+
+    expect(total).toBe(3);
+    expect(byType).toContainEqual({ type: "story", count: 2, points: 13 });
+    expect(byType).toContainEqual({ type: "bug", count: 1, points: 0 });
+    expect(topAssignees).toContainEqual({
+      name: "alice",
+      count: 2,
+      points: 13,
+    });
+    expect(topAssignees).toContainEqual({ name: "bob", count: 1, points: 0 });
+  });
+
+  it("ranks named buckets by points, not count, when measured by points (AC1)", () => {
+    // bob holds more issues but fewer points; alice the reverse.
+    const issues = [
+      makeIssue({ id: "REEF-001", assigned_to: "bob", estimate_points: 1 }),
+      makeIssue({ id: "REEF-002", assigned_to: "bob", estimate_points: 1 }),
+      makeIssue({ id: "REEF-003", assigned_to: "bob", estimate_points: 1 }),
+      makeIssue({ id: "REEF-004", assigned_to: "alice", estimate_points: 13 }),
+    ];
+
+    const byCount = computeAggregates(issues, {
+      filters: { ...DEFAULT_REPORT_FILTERS, measure: "count" },
+    });
+    expect(byCount.topAssignees.map((a) => a.name)).toEqual(["bob", "alice"]);
+
+    const byPoints = computeAggregates(issues, {
+      filters: { ...DEFAULT_REPORT_FILTERS, measure: "points" },
+    });
+    expect(byPoints.topAssignees.map((a) => a.name)).toEqual(["alice", "bob"]);
+    // Both measures ride along on every row regardless of the sort key.
+    expect(byPoints.topAssignees[0]).toEqual({
+      name: "alice",
+      count: 1,
+      points: 13,
+    });
+  });
+
+  it("weights throughput windows by estimate_points (AC2)", () => {
+    const { netThroughput } = computeAggregates(
+      [
+        makeIssue({
+          id: "REEF-001",
+          created_at: iso(-3 * DAY),
+          estimate_points: 5,
+        }),
+        makeIssue({
+          id: "REEF-002",
+          created_at: iso(-30 * DAY),
+          status: "closed",
+          closed_at: iso(-2 * DAY),
+          estimate_points: 8,
+        }),
+        // Created this week with no estimate: +1 created, +0 created points.
+        makeIssue({ id: "REEF-003", created_at: iso(-3 * DAY) }),
+      ],
+      { now: NOW, throughputWeeks: 12 },
+    );
+
+    const last = netThroughput[netThroughput.length - 1];
+    expect(last.created).toBe(2);
+    expect(last.createdPoints).toBe(5);
+    expect(last.closed).toBe(1);
+    expect(last.closedPoints).toBe(8);
+    expect(last.net).toBe(1); // 2 created − 1 closed
+    expect(last.netPoints).toBe(-3); // 5 created pts − 8 closed pts
   });
 });

@@ -93,6 +93,18 @@ describe("ReportScopeBar", () => {
     expect(screen.getByLabelText("Scope").className).toContain("bg-brand/10");
   });
 
+  it("renders the Measure control defaulting to issue count (REEF-188)", () => {
+    renderBar();
+    expect(screen.getByLabelText("Measure")).toBeInTheDocument();
+    expect(screen.getByText("Issue count")).toBeInTheDocument();
+  });
+
+  it("marks a non-default Story points measure as active (REEF-188)", () => {
+    renderBar({ ...DEFAULT_REPORT_FILTERS, measure: "points" });
+    expect(screen.getByLabelText("Measure").className).toContain("bg-brand/10");
+    expect(screen.getByText("Story points")).toBeInTheDocument();
+  });
+
   it("commits a label chip as a comma-joined filter string", () => {
     const { onChange } = renderBar();
     const input = screen.getByTestId("report-label-input");

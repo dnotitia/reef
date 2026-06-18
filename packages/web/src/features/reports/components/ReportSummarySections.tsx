@@ -2,10 +2,11 @@
 
 import { STATUS_LABELS } from "@/components/ui/status-icon";
 import { cn } from "@/lib/utils";
-import type { IssueType, Status } from "@reef/core";
+import { type IssueType, type Status, isResolvedStatus } from "@reef/core";
 import type {
   NamedCount,
   ReportAggregates,
+  ReportMeasure,
   StatusCount,
 } from "../lib/aggregate";
 import { type Segment, SegmentedBar } from "./ReportCharts";
@@ -148,18 +149,28 @@ export function HealthSummary({ agg }: { agg: ReportAggregates }) {
 
 export function StatusFunnel({
   rows,
-  agg,
+  measure = "count",
 }: {
   rows: ReadonlyArray<StatusCount>;
-  agg: ReportAggregates;
+  measure?: ReportMeasure;
 }) {
-  const total = rows.reduce((sum, r) => sum + r.count, 0);
-  const completion = total > 0 ? Math.round((agg.kpis.done / total) * 100) : 0;
-  const wip = total > 0 ? Math.round((agg.kpis.inProgress / total) * 100) : 0;
+  // Completion / WIP are ratios of the *active measure* so the funnel header
+  // stays internally consistent when points-weighted (rows already hold both,
+  // and done+closed counts equal the old kpis.done — REEF-188).
+  const value = (r: StatusCount) => (measure === "points" ? r.points : r.count);
+  const total = rows.reduce((sum, r) => sum + value(r), 0);
+  const doneTotal = rows
+    .filter((r) => isResolvedStatus(r.status))
+    .reduce((sum, r) => sum + value(r), 0);
+  const wipTotal = rows
+    .filter((r) => r.status === "in_progress" || r.status === "in_review")
+    .reduce((sum, r) => sum + value(r), 0);
+  const completion = total > 0 ? Math.round((doneTotal / total) * 100) : 0;
+  const wip = total > 0 ? Math.round((wipTotal / total) * 100) : 0;
   const segments: Segment[] = rows.map((r) => ({
     key: r.status,
     label: STATUS_LABELS[r.status],
-    value: r.count,
+    value: value(r),
     color: STATUS_COLOR[r.status],
   }));
 
@@ -258,8 +269,15 @@ function MetricLine({
   );
 }
 
-export function NamedRows({ rows }: { rows: ReadonlyArray<NamedCount> }) {
-  const max = Math.max(...rows.map((r) => r.count), 1);
+export function NamedRows({
+  rows,
+  measure = "count",
+}: {
+  rows: ReadonlyArray<NamedCount>;
+  measure?: ReportMeasure;
+}) {
+  const value = (r: NamedCount) => (measure === "points" ? r.points : r.count);
+  const max = Math.max(...rows.map(value), 1);
   return (
     <ul className="flex flex-col gap-1.5">
       {rows.map((row) => (
@@ -267,6 +285,7 @@ export function NamedRows({ rows }: { rows: ReadonlyArray<NamedCount> }) {
           key={row.name}
           data-testid="named-row"
           data-name={row.name}
+          data-value={value(row)}
           className="grid grid-cols-[120px_1fr_40px] items-center gap-3"
         >
           <span
@@ -275,9 +294,9 @@ export function NamedRows({ rows }: { rows: ReadonlyArray<NamedCount> }) {
           >
             {row.name}
           </span>
-          <Bar value={row.count} max={max} />
+          <Bar value={value(row)} max={max} />
           <span className="text-right text-xs font-mono tabular-nums text-muted-foreground">
-            {row.count}
+            {value(row)}
           </span>
         </li>
       ))}
