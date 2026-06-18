@@ -339,4 +339,33 @@ describe("useActivityFeed", () => {
     // Newest first: the 12:00 draft precedes the 11:30 change.
     expect(result.current.items[0]?.type).toBe("ai_draft");
   });
+
+  it("refreshInbox refetches the issue-change stream too", async () => {
+    mockFeed({
+      suggestions: [],
+      events: [makeEvent("evt-1", "2026-04-13T11:30:00.000Z")],
+    });
+
+    const { result } = renderHook(
+      () => useActivityFeed("reef-acme", "2026-04-13T09:00:00.000Z"),
+      { wrapper },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    const eventCallsBefore = mockedApiFetch.mock.calls.filter(([url]) =>
+      String(url).includes("/api/activity/events"),
+    ).length;
+
+    await result.current.refreshInbox();
+
+    await waitFor(() => {
+      const eventCallsAfter = mockedApiFetch.mock.calls.filter(([url]) =>
+        String(url).includes("/api/activity/events"),
+      ).length;
+      expect(eventCallsAfter).toBeGreaterThan(eventCallsBefore);
+    });
+  });
 });

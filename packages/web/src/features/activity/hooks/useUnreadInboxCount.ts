@@ -60,6 +60,10 @@ export function useUnreadInboxCount(vault: string): number {
 
       // Recorded issue changes since the last visit. The server filters on
       // `since`, so every returned event is unseen — no client-side recount.
+      // `events.length` is bounded by the feed page (100): the sidebar glyph
+      // clamps to "9+" anyway, so the bound only caps the exact aria-label count
+      // at >100 changes since a visit — an extreme case not worth a dedicated
+      // count endpoint here.
       const eventParams = new URLSearchParams({ vault, since: lastVisit });
       const eventRes = await apiFetch(`/api/activity/events?${eventParams}`);
       if (!eventRes.ok) {

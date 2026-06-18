@@ -81,8 +81,18 @@ export function useActivityFeed(
   });
 
   const refreshInbox = useCallback(async () => {
-    await query.refetch();
-  }, [query]);
+    // Refetch BOTH sources: approving an AI status-change suggestion records a
+    // `reef_activity` event, so the resulting informational change card must
+    // appear on the same refresh that removes the approved proposal — not only
+    // once the events query goes stale (REEF-077). Skip the events refetch when
+    // the stream is intentionally disabled (no last-visit marker yet), since
+    // refetch() would otherwise force a fetch and surface events on a first
+    // visit, against the "first visit shows none" rule.
+    await Promise.all([
+      query.refetch(),
+      ...(eventsSince !== undefined ? [eventsQuery.refetch()] : []),
+    ]);
+  }, [query, eventsQuery, eventsSince]);
 
   const items = useMemo<ActivityFeedItem[]>(() => {
     const suggestionItems = (query.data?.suggestions ?? []).map(
