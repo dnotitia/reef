@@ -38,8 +38,13 @@ interface UpdateIssueMutationContext {
  * the server response on success, avoiding blanket invalidation (REEF-098). The
  * caches stay the fresh server truth in place, and membership/order or
  * relation-graph changes trigger a narrow refetch (see `issueListMembership`).
- * akb is LWW so concurrent edits merge server-side per field; there is no
- * CAS-conflict dialog.
+ *
+ * Row-only scalar edits (status, priority, dates, ...) stay last-write-wins,
+ * merged server-side per field. Document-projected edits (body/title/labels/
+ * relations) carry the cached `commit_hash` as akb's `expected_commit`
+ * precondition (REEF-227): a concurrent external edit is rejected with a 409
+ * instead of silently overwritten, and on that 409 the detail is refetched so
+ * the editor re-reads the latest and a retry writes against the fresh base.
  */
 export function useUpdateIssue() {
   const queryClient = useQueryClient();
@@ -56,6 +61,19 @@ export function useUpdateIssue() {
       patch,
       content,
     }: UpdateIssueInput): Promise<UpdateIssueResult> => {
+      // OCC base (REEF-227): the document commit the open editor is showing,
+      // read from the detail cache — the form's own render source. In a stale
+      // window (the cache never refetched after an external edit) this is the
+      // stale base, so akb rejects the write rather than overwriting. Sequential
+      // autosaves stay self-consistent: onSuccess advances the cached commit
+      // before the next commit's mutationFn reads it. Omitted when absent so the
+      // edit degrades to last-write-wins.
+      const baseCommit = queryClient.getQueryData<UpdateIssueResult>([
+        "issues",
+        "detail",
+        vault,
+        id,
+      ])?.commit_hash;
       const res = await apiFetch(`/api/issues/${encodeURIComponent(id)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -65,6 +83,7 @@ export function useUpdateIssue() {
             issue_id: id,
             patch,
             ...(content !== undefined ? { content } : {}),
+            ...(baseCommit ? { expected_commit: baseCommit } : {}),
           },
         }),
       });
@@ -100,9 +119,12 @@ export function useUpdateIssue() {
           ),
       );
 
+      // Spread `current` so `commit_hash` (the OCC base) survives the optimistic
+      // patch — mutationFn reads it back as expected_commit (REEF-227).
       queryClient.setQueryData<UpdateIssueResult>(detailKey, (current) =>
         current
           ? {
+              ...current,
               issue: { ...current.issue, ...patch },
               content: content ?? current.content,
             }
@@ -111,7 +133,7 @@ export function useUpdateIssue() {
 
       return { previousDetail, previousLists };
     },
-    onError: (_err, { id, vault }, context) => {
+    onError: (err, { id, vault }, context) => {
       if (context?.previousLists) {
         for (const [key, data] of context.previousLists) {
           queryClient.setQueryData(key, data);
@@ -122,6 +144,17 @@ export function useUpdateIssue() {
           ["issues", "detail", vault, id],
           context.previousDetail,
         );
+      }
+      // Save conflict (REEF-227 document OCC): the cached commit the form held
+      // was stale. Refetch the detail so the editor re-reads the latest body +
+      // commit and the 3-way form sync pulls in the external change; a retry
+      // then writes against the fresh base. Fires only on 409 — a rare
+      // exceptional path — so it does not reintroduce the post-success
+      // invalidation REEF-097/098 removed.
+      if ((err as { status?: number }).status === 409) {
+        void queryClient.invalidateQueries({
+          queryKey: ["issues", "detail", vault, id],
+        });
       }
     },
     onSuccess: (data, { id, vault, patch }) => {

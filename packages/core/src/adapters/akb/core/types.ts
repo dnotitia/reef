@@ -65,6 +65,14 @@ export interface UpdateIssueParams {
   content?: string;
   /** Optional commit message; akb defaults to "Update {path}" otherwise. */
   message?: string;
+  /**
+   * OCC base — the akb document commit the caller read before editing. When the
+   * edit is document-dirty (body/title/labels/relations) it is sent as akb's
+   * `expected_commit` precondition so a concurrent external edit is rejected
+   * with a `ConflictError` instead of silently overwritten (REEF-227). Ignored
+   * for row-only edits, which stay last-write-wins.
+   */
+  expectedCommit?: string;
 }
 
 export interface UpdateIssueResult {

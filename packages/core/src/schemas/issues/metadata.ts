@@ -122,6 +122,15 @@ export const IssueDocumentSchema = z
   .object({
     issue: IssueMetadataSchema,
     content: z.string(),
+    /**
+     * Git commit hash of the akb document at read time. The web edit form holds
+     * it as the OCC base and echoes it back as `expected_commit` on save, so a
+     * concurrent external edit to a document-projected field (body/title/labels/
+     * relations) is rejected as a retryable conflict instead of silently
+     * overwritten (REEF-227). Optional + nullable: akb may not return one, and
+     * row-only consumers never need it.
+     */
+    commit_hash: z.string().nullable().optional(),
   })
   .strict();
 
@@ -269,6 +278,14 @@ export const IssueUpdateInputSchema = z
     issue_id: z.string().min(1),
     patch: IssueUpdatePatchSchema,
     content: z.string().optional(),
+    /**
+     * OCC base — the akb document `commit_hash` the edit was made against. When
+     * the edit touches the document (body/title/labels/relations) `updateIssue`
+     * forwards it as akb's `expected_commit` precondition; a moved commit is
+     * rejected as a retryable `ConflictError` (REEF-227). Omitted for row-only
+     * edits, which stay last-write-wins.
+     */
+    expected_commit: z.string().optional(),
   })
   .strict();
 
