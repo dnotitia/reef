@@ -15,6 +15,12 @@ transitions, and grounded AI answers. People stay in control: AI enrichment,
 activity-scan drafts, and status changes are suggestions until a user approves
 them.
 
+> **Stability:** reef is currently a pre-1.0 reference product. Until a 1.0
+> release, user-facing workflows, storage shape, API responses, and deployment
+> behavior may change in breaking ways between minor releases. Breaking changes
+> are called out in the [Changelog](CHANGELOG.md); see the
+> [Release policy](docs/release-policy.md) for details.
+
 ![reef issues board with demo data](docs/assets/reef-issues-board.jpg)
 
 ## What reef shows about AKB
