@@ -14,6 +14,14 @@ explicitly in the entries below.
 
 ### Added
 
+- **Delivery forecast on Reports.** A new Monte Carlo forecast card projects when
+  the open work in scope will finish, and how many items finish by a near-term
+  date, each at the 50/70/85/95 confidence levels. It bootstraps the weekly
+  completion throughput the dashboard already tracks — no new data, event log, or
+  cycle-time setup — and reuses the Period control to choose the sample window
+  (default 12 weeks). An empty or thin history is labeled ("not enough history",
+  "treat these as rough") rather than guessed, so the numbers stay honest
+  (REEF-190).
 - **Custom pivot (crosstab) report.** Reports gains a Pivot card: pick any two
   categorical fields for the rows and columns — status, type, priority, severity,
   assignee, or label — and see a count-based crosstab without an engineer shipping
