@@ -148,6 +148,10 @@ describe("updateIssue", () => {
     expect(insertSql).toContain('"to":"in_progress"');
     expect(insertSql).toContain('"actor":"carol"');
     expect(insertSql).toContain('"at":"2026-06-18T10:00:00.000Z"');
+    // Provenance is this update's source (none here → null), NOT the issue's
+    // stale stored source ("ai-action" on the read row).
+    expect(insertSql).toContain('"source":null');
+    expect(insertSql).not.toContain("ai-action");
   });
 
   // Concurrency (REEF-063 / autoreview): the event's `from` is the status the
@@ -178,6 +182,7 @@ describe("updateIssue", () => {
         status: "done",
         last_status_change: "2026-06-18T11:00:00.000Z",
         updated_by: "carol",
+        source: "ai-agent:status_change:s-1",
       },
     });
 
@@ -187,6 +192,8 @@ describe("updateIssue", () => {
     expect(insertSql).toContain(
       "'status_change:in_progress->done@2026-06-18T11:00:00.000Z'",
     );
+    // The update's own provenance is recorded (approve/scan path).
+    expect(insertSql).toContain('"source":"ai-agent:status_change:s-1"');
   });
 
   // No phantom event when the committed prior already equals the new status (a

@@ -271,7 +271,12 @@ export async function updateIssue(
           to: statusTo,
           at: transitionAt,
           actor: mergedIssue.updated_by,
-          source: mergedIssue.source ?? null,
+          // This update's provenance, not the issue's stale stored source: a
+          // manual web move (no source on the patch) records null, an
+          // approve/scan move records its `ai-agent:*` source. Using
+          // `mergedIssue.source` would stamp an AI-created issue's old source
+          // onto a later manual transition.
+          source: partial.source ?? null,
         });
       } catch (err) {
         span.addEvent("activity_append_failed", {
