@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  ALL_REEF_TABLES,
   AkbApiError,
   ISSUE_ROW_COLUMNS,
   NotFoundError,
+  REEF_ACTIVITY_TABLE,
   REEF_ISSUES_TABLE,
   SAMPLE_BODY,
   SAMPLE_ISSUE,
@@ -11,6 +13,7 @@ import {
   makeAdapter,
   makeDocumentResponse,
   makeIssueRow,
+  makeListTablesResponse,
   makePutResponse,
   makeSqlMutationResponse,
   makeSqlQueryResponse,
@@ -96,6 +99,170 @@ describe("updateIssue", () => {
         partial: { status: "done" },
       }),
     ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  // REEF-063: a real status transition (one that stamps a fresh
+  // last_status_change, as buildIssueUpdateMetadataPatch does on every web/agent
+  // funnel) appends an immutable status_change event to reef_activity. The row
+  // UPDATE stays a plain committing statement; `from` is the observed (read)
+  // status, consistent with the LWW write itself.
+  it("appends a reef_activity event when the status transition stamps a fresh last_status_change", async () => {
+    const { calls } = setupFetch([
+      { body: makeDocumentResponse() }, // read: GET document
+      { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row (status=todo)
+      { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row
+      { body: makeListTablesResponse(ALL_REEF_TABLES) }, // append: ensureReefTables
+      { body: makeSqlQueryResponse([{ id: "ev" }], ["id"]) }, // append: conditional INSERT … RETURNING
+    ]);
+    const adapter = makeAdapter();
+    const result = await updateIssue({
+      adapter,
+      vault: "reef-sample",
+      id: "REEF-001",
+      partial: {
+        status: "in_progress",
+        last_status_change: "2026-06-18T10:00:00.000Z",
+        updated_by: "carol",
+      },
+    });
+    expect(result.issue.status).toBe("in_progress");
+    expect(calls).toHaveLength(5);
+
+    // The row UPDATE is a plain committing statement (akb routes by leading
+    // keyword), not a SELECT-wrapped CTE.
+    const updateSql = JSON.parse(calls[2]?.init?.body as string).sql;
+    expect(updateSql.startsWith("UPDATE reef_issues SET")).toBe(true);
+
+    const insertSql = JSON.parse(calls[4]?.init?.body as string).sql;
+    expect(insertSql).toContain(`INSERT INTO ${REEF_ACTIVITY_TABLE}`);
+    expect(insertSql).toContain("'status_change'");
+    expect(insertSql).toContain(
+      "'status_change:todo->in_progress@2026-06-18T10:00:00.000Z'",
+    );
+    expect(insertSql).toContain('"from":"todo"');
+    expect(insertSql).toContain('"to":"in_progress"');
+    expect(insertSql).toContain('"actor":"carol"');
+    expect(insertSql).toContain('"at":"2026-06-18T10:00:00.000Z"');
+    // Provenance is this update's source (none here → null), NOT the issue's
+    // stale stored source ("ai-action" on the read row).
+    expect(insertSql).toContain('"source":null');
+    expect(insertSql).not.toContain("ai-action");
+  });
+
+  // The update's own provenance is recorded when supplied (approve/scan path),
+  // rather than the issue's stale stored source.
+  it("records the update's provenance on the event when a source is supplied", async () => {
+    const { calls } = setupFetch([
+      { body: makeDocumentResponse() }, // read: GET document
+      { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row (status=todo)
+      { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row
+      { body: makeListTablesResponse(ALL_REEF_TABLES) }, // append: ensureReefTables
+      { body: makeSqlQueryResponse([{ id: "ev" }], ["id"]) }, // append: conditional INSERT
+    ]);
+    const adapter = makeAdapter();
+    await updateIssue({
+      adapter,
+      vault: "reef-sample",
+      id: "REEF-001",
+      partial: {
+        status: "done",
+        last_status_change: "2026-06-18T11:00:00.000Z",
+        updated_by: "carol",
+        source: "ai-agent:status_change:s-1",
+      },
+    });
+
+    const insertSql = JSON.parse(calls[4]?.init?.body as string).sql;
+    expect(insertSql).toContain('"from":"todo"');
+    expect(insertSql).toContain('"to":"done"');
+    expect(insertSql).toContain('"source":"ai-agent:status_change:s-1"');
+  });
+
+  // A genuine transition is logged even when the patch's last_status_change
+  // equals the row's existing one (two quick transitions can share a timestamp,
+  // or a caller may pass an explicit `now`). The event keys on from→to, so it is
+  // distinct and must not be dropped by a same-timestamp comparison (autoreview).
+  it("appends even when the transition timestamp matches the row's prior last_status_change", async () => {
+    const { calls } = setupFetch([
+      { body: makeDocumentResponse() }, // read: GET document
+      {
+        body: makeSqlQueryResponse(
+          [
+            makeIssueRow({
+              ...SAMPLE_ISSUE,
+              last_status_change: "2026-06-18T09:00:00.000Z",
+            }),
+          ],
+          ISSUE_ROW_COLUMNS,
+        ),
+      }, // read: row already carries last_status_change = 09:00 (status todo)
+      { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row
+      { body: makeListTablesResponse(ALL_REEF_TABLES) }, // append: ensureReefTables
+      { body: makeSqlQueryResponse([{ id: "ev" }], ["id"]) }, // append: conditional INSERT
+    ]);
+    const adapter = makeAdapter();
+    await updateIssue({
+      adapter,
+      vault: "reef-sample",
+      id: "REEF-001",
+      partial: {
+        status: "in_review",
+        last_status_change: "2026-06-18T09:00:00.000Z", // same as the row's prior value
+        updated_by: "carol",
+      },
+    });
+    // The event is recorded despite the repeated timestamp.
+    expect(calls).toHaveLength(5);
+    const insertSql = JSON.parse(calls[4]?.init?.body as string).sql;
+    expect(insertSql).toContain(
+      "'status_change:todo->in_review@2026-06-18T09:00:00.000Z'",
+    );
+  });
+
+  // A status flip that does NOT record a fresh last_status_change (a raw partial
+  // bypassing buildIssueUpdateMetadataPatch — no canonical event time) records
+  // no event: the UPDATE is the only write, exactly as before REEF-063.
+  it("records no event when the status changes without a fresh last_status_change", async () => {
+    const { calls } = setupFetch([
+      { body: makeDocumentResponse() }, // read: GET document
+      { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row
+      { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row only
+    ]);
+    const adapter = makeAdapter();
+    const result = await updateIssue({
+      adapter,
+      vault: "reef-sample",
+      id: "REEF-001",
+      partial: { status: "in_progress" },
+    });
+    expect(result.issue.status).toBe("in_progress");
+    // No ensureReefTables / probe / INSERT — the activity funnel did not fire.
+    expect(calls).toHaveLength(3);
+  });
+
+  // A best-effort append failure must not fail the issue update: the status row
+  // change already committed, and last_status_change stays the safety net (AC5).
+  it("does not fail the update when the activity append errors", async () => {
+    const { calls } = setupFetch([
+      { body: makeDocumentResponse() }, // read: GET document
+      { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row
+      { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row (committed)
+      { status: 500, body: { detail: "list tables blew up" } }, // append: ensureReefTables fails
+    ]);
+    const adapter = makeAdapter();
+    const result = await updateIssue({
+      adapter,
+      vault: "reef-sample",
+      id: "REEF-001",
+      partial: {
+        status: "in_progress",
+        last_status_change: "2026-06-18T10:00:00.000Z",
+        updated_by: "carol",
+      },
+    });
+    // The update succeeds despite the swallowed append error.
+    expect(result.issue.status).toBe("in_progress");
+    expect(calls).toHaveLength(4);
   });
 });
 

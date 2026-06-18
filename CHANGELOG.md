@@ -14,6 +14,12 @@ explicitly in the entries below.
 
 ### Added
 
+- **Issue activity log (status changes).** Every status change on an issue now
+  records an immutable, append-only event — who moved it, from which status to
+  which, and when — captured the moment the change is saved, whether it came from
+  the app or an automated agent. This is the foundation the merged comment +
+  activity timeline will read; the timeline view itself ships separately
+  (REEF-064). (REEF-063).
 - **Delivery forecast on Reports.** A new Monte Carlo forecast card projects when
   the open work in scope will finish, and how many items finish by a near-term
   date, each at the 50/70/85/95 confidence levels. It bootstraps the weekly
