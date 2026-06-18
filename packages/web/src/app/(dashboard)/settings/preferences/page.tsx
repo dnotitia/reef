@@ -1,8 +1,6 @@
 "use client";
 
 import { GithubScopeHint } from "@/components/GithubScopeHint";
-import { signOutOfWorkspace } from "@/features/auth/signOut.actions";
-import { navigateToSignOutTarget } from "@/features/auth/signOutNavigation";
 import { PreferencesSection } from "@/features/preferences/components/PreferencesSection";
 import { SettingsGroup } from "@/features/settings/components/SettingsGroup";
 import {
@@ -11,30 +9,26 @@ import {
   setGitHubToken,
 } from "@/lib/storage/credentials";
 import { Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 type TokenStatus = "unknown" | "configured" | "not-configured";
 
 /**
  * Settings › Preferences (REEF-183) — browser-local, per-person settings: the
- * monitored-repo GitHub PAT, workspace sign-out, and appearance. None of this is
- * workspace-scoped, so this tab deliberately does NOT mount the Active Workspace
- * selector (AC2).
+ * monitored-repo GitHub PAT and appearance. None of this is workspace-scoped,
+ * so this tab deliberately does NOT mount the Active Workspace selector (AC2).
  *
  * Auth model post-akb pivot:
  *  - The akb workspace session lives in an httpOnly cookie (`__reef_session`).
- *    "Sign out" calls `POST /api/auth/akb/logout` to clear it.
+ *    Signing out of the workspace is a SEPARATE action, owned by the sidebar
+ *    account menu (REEF-068); it is intentionally NOT part of this screen.
  *  - The GitHub Personal Access Token is browser-local (IndexedDB) and is
  *    used to call monitored repositories on the user's behalf. There is
  *    no OAuth flow — the user pastes a PAT directly.
- *  - "Disconnect" performs both: clears the GitHub PAT and signs out of the
- *    akb session via `signOutOfWorkspace` — so it runs the SAME akb-scoped
- *    cleanup as the sidebar account menu (REEF-068), not just a bare logout
- *    POST. Then redirects to /login.
+ *  - "Disconnect" removes ONLY the browser-local GitHub PAT and returns to the
+ *    token-entry form; it does not touch the akb session (REEF-247).
  */
 export default function PreferencesPage() {
-  const router = useRouter();
   const [status, setStatus] = useState<TokenStatus>("unknown");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
@@ -53,17 +47,22 @@ export default function PreferencesPage() {
 
   async function handleDisconnect() {
     try {
-      // Clear the GitHub PAT (person-scoped), then run the shared akb sign-out
-      // — POST /logout + the akb-scoped browser-state wipe — so this Settings
-      // path does not bypass the REEF-068 cleanup the sidebar menu performs.
-      await clearGitHubToken();
-      const result = await signOutOfWorkspace();
-      if (result.redirectUrl) {
-        navigateToSignOutTarget(result.redirectUrl);
+      // Disconnect removes only the browser-local GitHub PAT and returns to the
+      // token-entry form. Workspace sign-out is a separate action (the sidebar
+      // account menu, REEF-068); this path must not end the akb session.
+      const ok = await clearGitHubToken();
+      if (!ok) {
+        // IndexedDB is unavailable, so the PAT (and its auth-scoped cache) may
+        // still be present — don't claim removal. Mirror handlePatSave's
+        // storage-unavailable handling and keep the configured view.
+        setMessage(
+          "Local storage unavailable. Check browser settings (storage may be blocked or cleared).",
+        );
         return;
       }
-      router.push("/login");
-      router.refresh();
+      setTokenInput("");
+      setStatus("not-configured");
+      setMessage("GitHub token removed.");
     } catch {
       setMessage("Failed to disconnect. Please try again.");
     }
@@ -127,7 +126,7 @@ export default function PreferencesPage() {
               data-testid="disconnect-btn"
               className="w-fit rounded-md border border-border bg-elevated px-4 py-2 text-sm font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
             >
-              Disconnect & sign out
+              Disconnect
             </button>
           </div>
         )}

@@ -192,7 +192,7 @@ test.describe("Hermetic settings workflows", () => {
     await expect(page.getByText("AI Configuration")).toBeVisible();
   });
 
-  test("disconnects the browser GitHub token and signs out from preferences", async ({
+  test("disconnects the browser GitHub token without signing out (REEF-247)", async ({
     page,
   }) => {
     await openExistingWorkspace(page);
@@ -208,10 +208,17 @@ test.describe("Hermetic settings workflows", () => {
       .toBe("ghp_disconnect_fixture_token");
 
     await page.locator('[data-testid="disconnect-btn"]').click();
-    await page.waitForURL(/\/login$/, { timeout: 10_000 });
-    await expect(page.locator('[data-testid="akb-login-form"]')).toBeVisible();
+
+    // The PAT is removed and the page returns to the token-entry form...
+    await expect(page.getByText("GitHub token removed.")).toBeVisible();
+    await expect(page.getByLabel("GitHub Personal Access Token")).toBeVisible();
     await expect
       .poll(() => readIndexedDbCredential(page, "github_token"))
       .toBeUndefined();
+
+    // ...but the akb workspace session is untouched: still on preferences, no
+    // redirect to /login (REEF-247 — workspace sign-out is the sidebar menu).
+    await expect(page).toHaveURL(/\/settings\/preferences$/);
+    await expect(page.locator('[data-testid="akb-login-form"]')).toHaveCount(0);
   });
 });

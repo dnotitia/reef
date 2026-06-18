@@ -84,10 +84,10 @@ export async function setGitHubToken(token: string): Promise<boolean> {
 export async function clearGitHubToken(): Promise<boolean> {
   try {
     await db.credentials.where("key").equals(GITHUB_TOKEN_KEY).delete();
-    // Disconnect should invalidate every auth-scoped cache. Even though the
-    // /login redirect unmounts most of the tree, the persisted snapshot
-    // would otherwise rehydrate the next account into the prior user's
-    // listings on the first render.
+    // Disconnect invalidates every auth-scoped cache: dropping the PAT must also
+    // drop the GitHub-grounded query snapshots (repos, activity scan) so a later
+    // token — or a different account — does not rehydrate the prior listings
+    // from the persisted cache.
     clearAuthScopedClientCache();
     return true;
   } catch (err) {

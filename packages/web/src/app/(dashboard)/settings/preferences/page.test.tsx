@@ -32,37 +32,46 @@ describe("PreferencesPage disconnect", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     storage.getGitHubToken.mockResolvedValue("ghp_token");
-    storage.clearGitHubToken.mockResolvedValue(undefined);
-    signOutOfWorkspace.mockResolvedValue({});
+    storage.clearGitHubToken.mockResolvedValue(true);
   });
 
-  it("clears the GitHub token, signs out, and falls back to /login", async () => {
+  it("removes only the GitHub token and returns to the token-entry form, without signing out (REEF-247)", async () => {
+    const user = userEvent.setup();
+    render(<PreferencesPage />);
+
+    await user.click(await screen.findByTestId("disconnect-btn"));
+
+    // The PAT is dropped...
+    expect(storage.clearGitHubToken).toHaveBeenCalledOnce();
+    // ...but the akb session is untouched: Disconnect must not sign out or
+    // redirect (REEF-247 — workspace sign-out is the sidebar account menu).
+    expect(signOutOfWorkspace).not.toHaveBeenCalled();
+    expect(navigateToSignOutTarget).not.toHaveBeenCalled();
+    expect(router.push).not.toHaveBeenCalled();
+    expect(router.refresh).not.toHaveBeenCalled();
+
+    // The page stays mounted and shows the token-entry form again.
+    expect(
+      await screen.findByLabelText("GitHub Personal Access Token"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("GitHub token removed.")).toBeInTheDocument();
+  });
+
+  it("keeps the configured view and warns when local storage is unavailable", async () => {
+    // clearGitHubToken returns false when IndexedDB is gone: the PAT may still
+    // be present, so the page must not claim removal or drop to the input form.
+    storage.clearGitHubToken.mockResolvedValue(false);
     const user = userEvent.setup();
     render(<PreferencesPage />);
 
     await user.click(await screen.findByTestId("disconnect-btn"));
 
     expect(storage.clearGitHubToken).toHaveBeenCalledOnce();
-    expect(signOutOfWorkspace).toHaveBeenCalledOnce();
-    await waitFor(() => expect(router.push).toHaveBeenCalledWith("/login"));
-    expect(router.refresh).toHaveBeenCalled();
-  });
-
-  it("navigates to the returned SSO logout URL after cleanup", async () => {
-    signOutOfWorkspace.mockResolvedValue({
-      redirectUrl: "/api/auth/akb/sso/logout?nonce=logout-nonce",
-    });
-    const user = userEvent.setup();
-    render(<PreferencesPage />);
-
-    await user.click(await screen.findByTestId("disconnect-btn"));
-
-    await waitFor(() =>
-      expect(navigateToSignOutTarget).toHaveBeenCalledWith(
-        "/api/auth/akb/sso/logout?nonce=logout-nonce",
-      ),
-    );
-    expect(router.push).not.toHaveBeenCalled();
+    expect(screen.getByText(/Local storage unavailable/)).toBeInTheDocument();
+    expect(screen.queryByText("GitHub token removed.")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("GitHub Personal Access Token"),
+    ).not.toBeInTheDocument();
   });
 
   it("hides the decorative status dot from assistive tech (REEF-174)", async () => {
