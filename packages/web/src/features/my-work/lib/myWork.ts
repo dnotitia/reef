@@ -239,6 +239,13 @@ export function buildMyWork(
   const { now, currentSprint } = options;
   const currentSprintId = currentSprint?.id ?? null;
   const index = indexIssuesById(graph);
+  // Blocked state is only trustworthy against the whole-vault relation graph.
+  // While that projection is still loading (or failed) the graph is empty —
+  // skip blocked rather than mark work blocked from an incomplete graph, since
+  // a false "blocked" tells the user to skip actionable work (REEF-181
+  // autoreview). A non-empty vault always yields a non-empty projection, so an
+  // empty graph reliably means "not yet resolvable".
+  const canResolveBlocked = graph.length > 0;
 
   const statusCounts = new Map<Status, number>(
     MY_WORK_OPEN_STATUSES.map((s) => [s, 0]),
@@ -268,7 +275,9 @@ export function buildMyWork(
     if (issue.status === "in_progress") wip++;
     statusCounts.set(issue.status, (statusCounts.get(issue.status) ?? 0) + 1);
 
-    const blockerCount = unresolvedBlockerCountIn(issue, index);
+    const blockerCount = canResolveBlocked
+      ? unresolvedBlockerCountIn(issue, index)
+      : 0;
     items.push({
       issue,
       dueState,

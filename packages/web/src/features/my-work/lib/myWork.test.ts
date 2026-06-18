@@ -167,6 +167,20 @@ describe("buildMyWork", () => {
     expect(result.items[0]?.blockerCount).toBe(1);
   });
 
+  it("does not mark blocked from an unloaded (empty) relation graph", () => {
+    // Relations not loaded yet → graph is empty. A depends_on must NOT read as a
+    // blocker (the missing dependency could be a resolved issue owned by someone
+    // else, absent from the assignee-scoped set) (REEF-181 autoreview).
+    const blocked = makeIssue({
+      id: "REEF-C",
+      status: "todo",
+      depends_on: ["REEF-B"],
+    });
+    const result = buildMyWork([blocked], [], { now: NOW });
+    expect(result.items[0]?.blocked).toBe(false);
+    expect(result.items[0]?.blockerCount).toBe(0);
+  });
+
   it("has no sprint block when the active sprint holds none of my work", () => {
     const result = buildMyWork(
       [makeIssue({ id: "REEF-X", status: "todo" })],

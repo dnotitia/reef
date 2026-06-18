@@ -112,7 +112,11 @@ export function MyWorkPage() {
     () => filterAssignedTo(issuesQuery.data ?? [], login ?? ""),
     [issuesQuery.data, login],
   );
-  const graph = relationsQuery.data ?? issues;
+  // Blocked state resolves against the whole-vault relation projection, never
+  // the assignee-scoped `issues` list — a cross-assignee dependency missing from
+  // that narrow set would otherwise read as an unresolved blocker. Empty until
+  // the projection loads; buildMyWork skips blocked while it is (REEF-181).
+  const graph = relationsQuery.data ?? [];
   const currentSprint = useMemo(
     () => selectCurrentSprint(planningQuery.data?.sprints ?? []),
     [planningQuery.data],
