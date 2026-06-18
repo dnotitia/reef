@@ -1,5 +1,5 @@
 import { NotFoundError } from "../../../errors";
-import type { IssueMetadata, Status } from "../../../schemas/issues/metadata";
+import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import {
   REEF_ISSUES_TABLE,
   backlogTailRankExpr,
@@ -162,43 +162,17 @@ export async function updateIssue(
       mergedIssue.status === "backlog" &&
       current.issue.status !== "backlog" &&
       mergedIssue.rank == null;
-    // Capture the status this write actually overwrote, atomically with the
-    // write itself. The `prev` CTE locks the row with `FOR UPDATE`, so under a
-    // concurrent last-write-wins race it blocks on the in-flight writer and then
-    // re-reads that writer's freshly committed status (READ COMMITTED EvalPlanQual)
-    // — the same version the `upd` CTE then overwrites. Both CTEs therefore act on
-    // one locked current row, so the recorded `from` is the value the write truly
-    // replaced, never a stale `readIssue` snapshot (A: todo→in_progress, then B
-    // records in_progress→done, not a phantom todo→done). The UPDATE stays
-    // unconditional LWW — no CAS, per the adapter contract; the lock only
-    // serializes the read-old-then-write so the audit `from` is faithful.
-    let committedFromStatus: string | undefined;
     try {
-      const updateRes = await runSql(
+      await runSql(
         adapter,
         vault,
-        `WITH prev AS (SELECT reef_id, status AS from_status FROM ${tableRef(
-          REEF_ISSUES_TABLE,
-        )} WHERE reef_id = ${quoteText(
-          id,
-          "reef_id",
-        )} FOR UPDATE), upd AS (UPDATE ${tableRef(
-          REEF_ISSUES_TABLE,
-        )} SET ${buildRowAssignments(
+        `UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET ${buildRowAssignments(
           issueRowMutableFields(
             mergedIssue,
             enteringBacklog ? { rankExpr: backlogTailRankExpr() } : undefined,
           ),
-        )} FROM prev WHERE ${tableRef(
-          REEF_ISSUES_TABLE,
-        )}.reef_id = prev.reef_id RETURNING ${tableRef(
-          REEF_ISSUES_TABLE,
-        )}.reef_id) SELECT from_status FROM prev`,
+        )} WHERE reef_id = ${quoteText(id, "reef_id")}`,
       );
-      committedFromStatus =
-        updateRes.kind === "table_query"
-          ? (updateRes.items[0]?.from_status as string | undefined)
-          : undefined;
     } catch (err) {
       if (docDirty) {
         const revertBody = buildIssueDocPatchBody(
@@ -244,30 +218,29 @@ export async function updateIssue(
     // change, so a failed append must not fail the issue update; the row's own
     // `last_status_change` stays the single-event safety net (AC5).
     //
-    // `from` is the status the write actually overwrote (captured atomically by
-    // the locked `prev` CTE), so the recorded transition stays correct under
-    // concurrent updates. The event fires only when that committed status actually
-    // moved AND this update carried a transition timestamp — `partial`, not the
-    // merged value, so the signal is "this caller stamped a status change" rather
-    // than "the row happens to have a last_status_change". `at` is that caller
-    // timestamp (the canonical transition time + idempotency-key source). The
-    // web/agent funnels always provide it via `buildIssueUpdateMetadataPatch`; a
-    // raw status flip that omits it (no event time to key on), or an update that
-    // did not commit a status row (`committedFromStatus` absent), records nothing.
+    // `from` is the status this write observed in `readIssue` — the same snapshot
+    // the row UPDATE above is itself computed from, so the event is consistent
+    // with what this write actually did. reef is last-write-wins with no CAS or
+    // row-locking plumbing (root AGENTS.md), and the akb runtime SQL surface does
+    // not expose the locking primitives a serializable `from` would need, so two
+    // racing status writes can each log their own observed transition rather than
+    // one globally-ordered chain — the deliberate LWW trade-off the rest of the
+    // system already makes. The event fires only when the status moved AND this
+    // update carried a transition timestamp in `partial` (not the merged value):
+    // "this caller stamped a status change", which is exactly what
+    // `buildIssueUpdateMetadataPatch` does on every web/agent funnel. `at` is that
+    // caller timestamp (the canonical transition time + idempotency-key source).
     // It is NOT gated on the timestamp differing from the row's prior value — two
     // transitions sharing one timestamp are distinct events (the key carries
     // from→to) and must both be logged.
+    const statusFrom = current.issue.status;
     const statusTo = mergedIssue.status;
     const transitionAt = partial.last_status_change;
-    if (
-      committedFromStatus != null &&
-      committedFromStatus !== statusTo &&
-      transitionAt != null
-    ) {
+    if (statusFrom !== statusTo && transitionAt != null) {
       try {
         await appendStatusChangeEvent(adapter, vault, {
           reefId: id,
-          from: committedFromStatus as Status,
+          from: statusFrom,
           to: statusTo,
           at: transitionAt,
           actor: mergedIssue.updated_by,

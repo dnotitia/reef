@@ -299,9 +299,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
       id: "REEF-001",
       partial: { status: "backlog" },
     });
-    const update = sqlStatements(calls).find((s) =>
-      s.includes("UPDATE reef_issues SET"),
-    );
+    const update = sqlStatements(calls).find((s) => s.startsWith("UPDATE"));
     expect(update).toContain(`"rank" = ${TAIL_EXPR}`);
     // The subquery-assigned rank is read back so the returned issue (and the
     // caches seeded from it) is not stale-null — the born-correct invariant.
@@ -326,9 +324,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
       id: "REEF-001",
       partial: { status: "backlog" },
     });
-    const update = sqlStatements(calls).find((s) =>
-      s.includes("UPDATE reef_issues SET"),
-    );
+    const update = sqlStatements(calls).find((s) => s.startsWith("UPDATE"));
     expect(update).not.toContain("COALESCE(MAX");
     expect(update).toContain('"rank" = 3000');
   });
@@ -349,9 +345,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
       id: "REEF-001",
       partial: { priority: "high" },
     });
-    const update = sqlStatements(calls).find((s) =>
-      s.includes("UPDATE reef_issues SET"),
-    );
+    const update = sqlStatements(calls).find((s) => s.startsWith("UPDATE"));
     expect(update).not.toContain("COALESCE(MAX");
     expect(update).toContain('"rank" = 5000');
   });

@@ -101,17 +101,16 @@ describe("updateIssue", () => {
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 
-  // REEF-063: a real status transition (one that records a fresh
+  // REEF-063: a real status transition (one that stamps a fresh
   // last_status_change, as buildIssueUpdateMetadataPatch does on every web/agent
-  // funnel) appends an immutable status_change event to reef_activity.
-  it("appends a reef_activity event when the status transition records a fresh last_status_change", async () => {
+  // funnel) appends an immutable status_change event to reef_activity. The row
+  // UPDATE stays a plain committing statement; `from` is the observed (read)
+  // status, consistent with the LWW write itself.
+  it("appends a reef_activity event when the status transition stamps a fresh last_status_change", async () => {
     const { calls } = setupFetch([
       { body: makeDocumentResponse() }, // read: GET document
       { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row (status=todo)
-      // UPDATE returns the committed prior status via the prev CTE.
-      {
-        body: makeSqlQueryResponse([{ from_status: "todo" }], ["from_status"]),
-      },
+      { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row
       { body: makeListTablesResponse(ALL_REEF_TABLES) }, // append: ensureReefTables
       { body: makeSqlQueryResponse([{ id: "ev" }], ["id"]) }, // append: conditional INSERT … RETURNING
     ]);
@@ -129,14 +128,10 @@ describe("updateIssue", () => {
     expect(result.issue.status).toBe("in_progress");
     expect(calls).toHaveLength(5);
 
-    // The row UPDATE locks + captures the prior status atomically so the event's
-    // `from` stays faithful under concurrent writes (REEF-063 concurrency fix).
+    // The row UPDATE is a plain committing statement (akb routes by leading
+    // keyword), not a SELECT-wrapped CTE.
     const updateSql = JSON.parse(calls[2]?.init?.body as string).sql;
-    expect(updateSql).toContain(
-      "WITH prev AS (SELECT reef_id, status AS from_status",
-    );
-    expect(updateSql).toContain("FOR UPDATE");
-    expect(updateSql).toContain("UPDATE reef_issues SET");
+    expect(updateSql.startsWith("UPDATE reef_issues SET")).toBe(true);
 
     const insertSql = JSON.parse(calls[4]?.init?.body as string).sql;
     expect(insertSql).toContain(`INSERT INTO ${REEF_ACTIVITY_TABLE}`);
@@ -154,24 +149,15 @@ describe("updateIssue", () => {
     expect(insertSql).not.toContain("ai-action");
   });
 
-  // Concurrency (REEF-063 / autoreview): the event's `from` is the status the
-  // write actually overwrote, not the pre-read snapshot. Here the row was read
-  // as `todo` but a racing write moved it to `in_progress` before this commit;
-  // the prev CTE returns the committed `in_progress`, so the event is
-  // in_progress→done, never a phantom todo→done.
-  it("records the committed prior status as `from`, not the stale read snapshot", async () => {
+  // The update's own provenance is recorded when supplied (approve/scan path),
+  // rather than the issue's stale stored source.
+  it("records the update's provenance on the event when a source is supplied", async () => {
     const { calls } = setupFetch([
       { body: makeDocumentResponse() }, // read: GET document
-      { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row (stale status=todo)
-      // The write commits over the racing in_progress; prev CTE returns it.
-      {
-        body: makeSqlQueryResponse(
-          [{ from_status: "in_progress" }],
-          ["from_status"],
-        ),
-      },
+      { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row (status=todo)
+      { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row
       { body: makeListTablesResponse(ALL_REEF_TABLES) }, // append: ensureReefTables
-      { body: makeSqlQueryResponse([{ id: "ev" }], ["id"]) }, // append: conditional INSERT … RETURNING
+      { body: makeSqlQueryResponse([{ id: "ev" }], ["id"]) }, // append: conditional INSERT
     ]);
     const adapter = makeAdapter();
     await updateIssue({
@@ -187,42 +173,9 @@ describe("updateIssue", () => {
     });
 
     const insertSql = JSON.parse(calls[4]?.init?.body as string).sql;
-    expect(insertSql).toContain('"from":"in_progress"');
+    expect(insertSql).toContain('"from":"todo"');
     expect(insertSql).toContain('"to":"done"');
-    expect(insertSql).toContain(
-      "'status_change:in_progress->done@2026-06-18T11:00:00.000Z'",
-    );
-    // The update's own provenance is recorded (approve/scan path).
     expect(insertSql).toContain('"source":"ai-agent:status_change:s-1"');
-  });
-
-  // No phantom event when the committed prior already equals the new status (a
-  // racing write got there first): from === to, so nothing is recorded.
-  it("records no event when the committed prior status already equals the target", async () => {
-    const { calls } = setupFetch([
-      { body: makeDocumentResponse() }, // read: GET document
-      { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row (stale status=todo)
-      // A racing write already set in_progress; this update is a status no-op.
-      {
-        body: makeSqlQueryResponse(
-          [{ from_status: "in_progress" }],
-          ["from_status"],
-        ),
-      },
-    ]);
-    const adapter = makeAdapter();
-    await updateIssue({
-      adapter,
-      vault: "reef-sample",
-      id: "REEF-001",
-      partial: {
-        status: "in_progress",
-        last_status_change: "2026-06-18T12:00:00.000Z",
-        updated_by: "carol",
-      },
-    });
-    // No ensureReefTables / probe / INSERT — from === to, the funnel did not fire.
-    expect(calls).toHaveLength(3);
   });
 
   // A genuine transition is logged even when the patch's last_status_change
@@ -242,14 +195,8 @@ describe("updateIssue", () => {
           ],
           ISSUE_ROW_COLUMNS,
         ),
-      }, // read: row already carries last_status_change = 09:00
-      // The write commits over a racing in_progress.
-      {
-        body: makeSqlQueryResponse(
-          [{ from_status: "in_progress" }],
-          ["from_status"],
-        ),
-      },
+      }, // read: row already carries last_status_change = 09:00 (status todo)
+      { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row
       { body: makeListTablesResponse(ALL_REEF_TABLES) }, // append: ensureReefTables
       { body: makeSqlQueryResponse([{ id: "ev" }], ["id"]) }, // append: conditional INSERT
     ]);
@@ -268,7 +215,7 @@ describe("updateIssue", () => {
     expect(calls).toHaveLength(5);
     const insertSql = JSON.parse(calls[4]?.init?.body as string).sql;
     expect(insertSql).toContain(
-      "'status_change:in_progress->in_review@2026-06-18T09:00:00.000Z'",
+      "'status_change:todo->in_review@2026-06-18T09:00:00.000Z'",
     );
   });
 
@@ -279,11 +226,7 @@ describe("updateIssue", () => {
     const { calls } = setupFetch([
       { body: makeDocumentResponse() }, // read: GET document
       { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row
-      // The prev CTE returns a real prior status, but without a fresh
-      // last_status_change there is no canonical event time to key on.
-      {
-        body: makeSqlQueryResponse([{ from_status: "todo" }], ["from_status"]),
-      },
+      { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row only
     ]);
     const adapter = makeAdapter();
     const result = await updateIssue({
@@ -303,10 +246,7 @@ describe("updateIssue", () => {
     const { calls } = setupFetch([
       { body: makeDocumentResponse() }, // read: GET document
       { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row
-      // UPDATE commits and returns the prior status, so the append is attempted.
-      {
-        body: makeSqlQueryResponse([{ from_status: "todo" }], ["from_status"]),
-      },
+      { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row (committed)
       { status: 500, body: { detail: "list tables blew up" } }, // append: ensureReefTables fails
     ]);
     const adapter = makeAdapter();
