@@ -168,6 +168,12 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **The issue editor's loading skeleton now matches the panel's shape.** While an
+  issue loads, the placeholder mirrors the real layout component-for-component —
+  the header row, the main title and description canvas, and the property rail
+  with its Details, People, and Planning sections — instead of one full-panel
+  block that rearranged into a different structure the moment the issue appeared
+  (REEF-249).
 - **Disconnecting a GitHub token no longer signs you out.** On Settings →
   Preferences, the GitHub token "Disconnect" action now removes only the
   browser-local token and returns to the token-entry form. It no longer ends your
