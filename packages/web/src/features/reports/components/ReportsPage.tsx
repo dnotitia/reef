@@ -7,6 +7,7 @@ import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useCallback, useMemo, useState } from "react";
 import {
   DEFAULT_REPORT_FILTERS,
+  PERIOD_LABELS,
   type ReportFilters,
   computeAggregates,
 } from "../lib/aggregate";
@@ -163,7 +164,9 @@ export function ReportsPage() {
 
               <Card
                 title="Throughput"
-                subtitle={`${formatSigned(agg.riskSummary.netThroughput)} net`}
+                subtitle={`${PERIOD_LABELS[filters.period]} · ${formatSigned(
+                  agg.riskSummary.netThroughput,
+                )} net`}
               >
                 <NetThroughputChart points={agg.netThroughput} />
               </Card>
@@ -176,7 +179,7 @@ export function ReportsPage() {
 
               <DeadlineCard agg={agg} />
 
-              <Card title="By type">
+              <Card title="By type" subtitle="In scope">
                 <RankedBarList
                   rows={agg.byType.map((b) => ({
                     key: b.type,

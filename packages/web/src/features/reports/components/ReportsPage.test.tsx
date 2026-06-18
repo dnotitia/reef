@@ -130,7 +130,11 @@ describe("ReportsPage", () => {
     render(wrap(<ReportsPage />));
 
     expect(await screen.findByTestId("report-scope-bar")).toBeInTheDocument();
-    expect(screen.getByText("Last 12 weeks")).toBeInTheDocument();
+    // "Last 12 weeks" now also names the window on the Throughput card, so scope
+    // the control assertion to the bar (REEF-185).
+    expect(
+      within(screen.getByTestId("report-scope-bar")).getByText("Last 12 weeks"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Active work")).toBeInTheDocument();
     // The shared issue-filter leaves are reused for the issue facets (REEF-074).
     expect(screen.getByTestId("report-sprint-input")).toBeInTheDocument();
@@ -174,6 +178,49 @@ describe("ReportsPage", () => {
     // ...the net figure lives once, in the Throughput card subtitle.
     expect(
       within(screen.getByTestId("report-card-throughput")).getByText(/ net$/),
+    ).toBeInTheDocument();
+  });
+
+  it("names the period window on the Throughput card and re-scopes it on change (REEF-185)", async () => {
+    mockApi(issues);
+
+    render(wrap(<ReportsPage />));
+
+    await screen.findByTestId("report-scope-bar");
+    // The one card the period re-scopes names its active window, so changing the
+    // period reads as a Throughput action, not a broken global control.
+    expect(
+      within(screen.getByTestId("report-card-throughput")).getByText(
+        /Last 12 weeks/,
+      ),
+    ).toBeInTheDocument();
+
+    // Pick a different window on the (non-searchable) period combobox.
+    fireEvent.click(screen.getByLabelText("Period"));
+    fireEvent.click(screen.getByText("Last 4 weeks"));
+
+    expect(
+      within(screen.getByTestId("report-card-throughput")).getByText(
+        /Last 4 weeks/,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("labels each card's population so adjacent totals are interpretable (REEF-185)", async () => {
+    mockApi(issues);
+
+    render(wrap(<ReportsPage />));
+
+    await screen.findByTestId("report-scope-bar");
+    // In-scope cards say "In scope"; open-work cards say "Open work" — so the
+    // Risk map / Deadlines counts do not read as the in-scope total.
+    expect(
+      within(screen.getByTestId("report-card-by-type")).getByText("In scope"),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("report-card-deadlines")).getByText(
+        /Open work/,
+      ),
     ).toBeInTheDocument();
   });
 

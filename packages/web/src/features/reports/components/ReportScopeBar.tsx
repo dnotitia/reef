@@ -10,19 +10,23 @@ import {
 import { PlanningItemCombobox } from "@/features/planning/components/PlanningItemCombobox";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useMemo } from "react";
-import { DEFAULT_REPORT_FILTERS, type ReportFilters } from "../lib/aggregate";
+import {
+  DEFAULT_REPORT_FILTERS,
+  PERIOD_LABELS,
+  type ReportFilters,
+} from "../lib/aggregate";
 
 // Reports controls. Hoisted so the option arrays keep a stable identity
-// across renders (Period/Scope does not change).
+// across renders (Period/Scope does not change). Labels read from the shared
+// PERIOD_LABELS so the control and the Throughput card name the window
+// identically (REEF-185).
 const PERIOD_OPTIONS: ReadonlyArray<{
   value: ReportFilters["period"];
   label: string;
-}> = [
-  { value: "4w", label: "Last 4 weeks" },
-  { value: "12w", label: "Last 12 weeks" },
-  { value: "quarter", label: "Quarter" },
-  { value: "all", label: "All time" },
-];
+}> = (["4w", "12w", "quarter", "all"] as const).map((value) => ({
+  value,
+  label: PERIOD_LABELS[value],
+}));
 
 const SCOPE_OPTIONS: ReadonlyArray<{
   value: ReportFilters["scope"];
