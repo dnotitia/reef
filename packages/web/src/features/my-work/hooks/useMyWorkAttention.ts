@@ -5,7 +5,7 @@ import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { buildIssueQuery } from "@/features/issues/lib/buildIssueQuery";
 import { buildMyWork, filterAssignedTo } from "@/features/my-work/lib/myWork";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export interface MyWorkAttention {
   /** overdue + due-soon — the single "needs attention" number the sidebar
@@ -41,9 +41,17 @@ export function useMyWorkAttention(): MyWorkAttention {
   );
   const { data } = useIssueList(scopedVault, query);
 
-  // Captured once so the deadline boundary (and this memo) is stable across
-  // re-renders; a per-render `Date.now()` would thrash the badge needlessly.
-  const [now] = useState(() => Date.now());
+  // The dashboard shell hosting this badge never unmounts, so a once-captured
+  // `now` would freeze the deadline clock — an item crossing into the due-soon
+  // window or past its deadline would not flip the badge tone until reload.
+  // Re-read the clock on a coarse minute tick (deadlines are day-granular, and
+  // this mirrors ActivityRefreshButton's relative-time clock) so the badge stays
+  // correct while the app is open without per-render churn.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(interval);
+  }, []);
 
   return useMemo(() => {
     if (!login) return NONE;
