@@ -6,7 +6,7 @@ import {
   setupFetch,
 } from "../../../agents/tools/__test-helpers__/fetchMock";
 import { mockOpenTelemetry } from "../../../agents/tools/__test-helpers__/otelMock";
-import { AkbApiError } from "../../../errors";
+import { AkbApiError, ConflictError } from "../../../errors";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import { reorderBacklogIssues, updateIssue, writeIssue } from "./issues";
 
@@ -186,6 +186,93 @@ describe("updateIssue → row-update compensation", () => {
     expect(res.content).toBe("new body");
     expect(res.issue.title).toBe("Issue");
     // Exactly one PATCH (the forward edit); no compensating re-PATCH.
+    expect(patchCalls(calls)).toHaveLength(1);
+  });
+});
+
+describe("updateIssue → document OCC (REEF-227)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("forwards expectedCommit as expected_commit on the document PATCH", async () => {
+    const { calls } = setupFetch([
+      { body: docGetResponse("old body") },
+      { body: makeIssueQueryResponse([makeIssue()]) },
+      { body: putResponse("commit-new") }, // forward PATCH ok
+      { body: ROW_UPDATE_OK },
+    ]);
+
+    await updateIssue({
+      adapter: makeTestAkbAdapter(),
+      vault: VAULT,
+      id: "REEF-001",
+      partial: {},
+      content: "new body",
+      expectedCommit: "commit-old",
+    });
+
+    const patches = patchCalls(calls);
+    expect(patches).toHaveLength(1);
+    expect(bodyOf(patches[0]).expected_commit).toBe("commit-old");
+  });
+
+  it("omits expected_commit when no base commit is given (stays last-write-wins)", async () => {
+    const { calls } = setupFetch([
+      { body: docGetResponse("old body") },
+      { body: makeIssueQueryResponse([makeIssue()]) },
+      { body: putResponse("commit-new") },
+      { body: ROW_UPDATE_OK },
+    ]);
+
+    await updateIssue({
+      adapter: makeTestAkbAdapter(),
+      vault: VAULT,
+      id: "REEF-001",
+      partial: {},
+      content: "new body",
+    });
+
+    expect(bodyOf(patchCalls(calls)[0])).not.toHaveProperty("expected_commit");
+  });
+
+  it("never sends the precondition on a row-only edit (no document PATCH)", async () => {
+    const { calls } = setupFetch([
+      { body: docGetResponse("body") },
+      { body: makeIssueQueryResponse([makeIssue()]) },
+      { body: ROW_UPDATE_OK },
+    ]);
+
+    await updateIssue({
+      adapter: makeTestAkbAdapter(),
+      vault: VAULT,
+      id: "REEF-001",
+      partial: { priority: "high" }, // docDirty=false
+      expectedCommit: "commit-old",
+    });
+
+    // The precondition only guards document-projected fields; a row-only edit
+    // touches no document, so there is no PATCH to attach it to.
+    expect(patchCalls(calls)).toHaveLength(0);
+  });
+
+  it("surfaces a stale-base 409 as a ConflictError and never touches the row", async () => {
+    const { calls } = setupFetch([
+      { body: docGetResponse("old body") },
+      { body: makeIssueQueryResponse([makeIssue()]) },
+      { status: 409, body: { error: "commit moved" } }, // OCC rejects the PATCH
+    ]);
+
+    const err = await updateIssue({
+      adapter: makeTestAkbAdapter(),
+      vault: VAULT,
+      id: "REEF-001",
+      partial: {},
+      content: "new body",
+      expectedCommit: "commit-stale",
+    }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(ConflictError);
+    // The 409 fires before the row UPDATE, so only the rejected forward PATCH was
+    // attempted — no row write, no compensating re-PATCH, nothing to diverge.
     expect(patchCalls(calls)).toHaveLength(1);
   });
 });
