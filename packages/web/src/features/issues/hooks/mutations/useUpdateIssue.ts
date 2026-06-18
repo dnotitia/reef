@@ -17,6 +17,7 @@ import {
   patchAffectsRelationGraph,
 } from "../../lib/issueListMembership";
 import { toListItem } from "../../lib/toListItem";
+import { activityKey } from "../queries/useActivity";
 
 interface UpdateIssueInput {
   id: string;
@@ -197,6 +198,16 @@ export function useUpdateIssue() {
       if (patchAffectsRelationGraph(patch)) {
         void queryClient.invalidateQueries({
           queryKey: ["issues", "relations", vault],
+        });
+      }
+      // A status change appends a `reef_activity` event server-side
+      // (best-effort, REEF-063). Refetch the issue's activity query so the
+      // unified timeline shows the actual logged from→to transition immediately,
+      // instead of only the reconstructed current-status fallback until the
+      // stale window elapses (REEF-064).
+      if (patch.status !== undefined) {
+        void queryClient.invalidateQueries({
+          queryKey: activityKey(vault, id),
         });
       }
     },
