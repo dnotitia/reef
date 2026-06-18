@@ -183,6 +183,8 @@ function configuredVault(name) {
       "reef_issues",
       "reef_templates",
       "reef_activity_suggestions",
+      "reef_comments",
+      "reef_activity",
       "reef_sprints",
       "reef_milestones",
       "reef_releases",
@@ -236,6 +238,34 @@ function configuredVault(name) {
     ],
     templates: [],
     activitySuggestions: [],
+    comments: [
+      {
+        id: uuidFor(40),
+        reef_id: "REEF-001",
+        body: "Kicking this off — the `reconcile()` gate needs a look before we wire the write path.",
+        meta: {
+          author: "bob",
+          created_at: "2026-06-16T09:00:00.000Z",
+          edited_at: null,
+        },
+        created_at: "2026-06-16T09:00:00.000Z",
+        updated_at: "2026-06-16T09:00:00.000Z",
+        created_by: "bob",
+      },
+      {
+        id: uuidFor(41),
+        reef_id: "REEF-001",
+        body: "Agreed. Pushed the schema_version stamp:\n\n```ts\nawait ensureReefTables({ adapter, vault });\n```",
+        meta: {
+          author: "alice",
+          created_at: "2026-06-16T10:30:00.000Z",
+          edited_at: "2026-06-16T10:45:00.000Z",
+        },
+        created_at: "2026-06-16T10:30:00.000Z",
+        updated_at: "2026-06-16T10:45:00.000Z",
+        created_by: "alice",
+      },
+    ],
   };
 
   seedIssueDocument(vault, "REEF-001", "Alpha description from fixture.");
@@ -691,6 +721,8 @@ function handleSql(vault, sql) {
     }
   }
 
+  if (!vault.comments) vault.comments = [];
+
   if (lower.startsWith("select key, value from reef_settings")) {
     return tableQuery(["key", "value"], settingsRows(vault, normalized));
   }
@@ -904,7 +936,60 @@ function handleSql(vault, sql) {
     return tableSql();
   }
 
+  if (lower.startsWith("select * from reef_comments")) {
+    const reefId = matchSqlString(normalized, /reef_id\s*=\s*'([^']+)'/i);
+    const rows = vault.comments.filter(
+      (comment) => !reefId || comment.reef_id === reefId,
+    );
+    return tableQuery(commentColumns(), rows);
+  }
+  if (lower.includes("insert into reef_comments")) {
+    const insert = parseInsert(normalized);
+    if (!insert) return tableQuery([], []);
+    const row = objectFromColumns(insert.columns, insert.values);
+    row.id = uuidFor(2000 + (vault.comments?.length ?? 0));
+    row.created_at = NOW;
+    row.updated_at = NOW;
+    row.created_by = row.meta?.author ?? "alice";
+    vault.comments.push(row);
+    return tableQuery(commentColumns(), [row]);
+  }
+  if (lower.includes("update reef_comments")) {
+    const id = matchSqlString(normalized, /where\s+id\s*=\s*'([^']+)'/i);
+    const reefId = matchSqlString(normalized, /reef_id\s*=\s*'([^']+)'/i);
+    const author = matchSqlString(
+      normalized,
+      /meta->>'author'\s*=\s*'([^']+)'/i,
+    );
+    const update = parseUpdate(normalized);
+    const row = vault.comments.find(
+      (comment) =>
+        comment.id === id &&
+        (!reefId || comment.reef_id === reefId) &&
+        (!author || comment.meta?.author === author),
+    );
+    if (!row) return tableQuery([], []);
+    if (update && typeof update.values.body === "string") {
+      row.body = update.values.body;
+    }
+    row.meta = { ...(row.meta ?? {}), edited_at: NOW };
+    row.updated_at = NOW;
+    return tableQuery(commentColumns(), [row]);
+  }
+
   return tableQuery([], []);
+}
+
+function commentColumns() {
+  return [
+    "id",
+    "reef_id",
+    "body",
+    "meta",
+    "created_at",
+    "updated_at",
+    "created_by",
+  ];
 }
 
 function settingsRows(vault, sql) {
