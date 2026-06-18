@@ -63,9 +63,12 @@ export function sortIssues(
  * The issue facets shared between the `/issues` list filter and the `/reports`
  * scope bar: assignee, label, and the three planning ids. Both surfaces keep
  * their own extra controls (issues adds status/type/priority/…, reports adds
- * period/scope), but these five should match identically everywhere — so the
+ * period/scope), but these should match identically everywhere — so the
  * predicate lives here once and both call it (REEF-074). `IssueFilter` and the
- * reports `ReportFilters` both structurally satisfy this shape.
+ * reports `ReportFilters` both structurally satisfy this shape. `parent_id` is
+ * the one facet only `/reports` sets today (the portfolio rollup drill,
+ * REEF-187 — there is no issues-list control for it), but it shares the same
+ * exact-id predicate so the semantics stay in one place.
  */
 export interface SharedIssueFacets {
   assignee?: string;
@@ -73,6 +76,7 @@ export interface SharedIssueFacets {
   sprint_id?: string;
   milestone_id?: string;
   release_id?: string;
+  parent_id?: string;
 }
 
 /**
@@ -107,7 +111,7 @@ function matchesLabelFilter(issue: IssueListItem, label: string): boolean {
 /**
  * Match an issue against the facets shared by the issues list and reports.
  * Assignee is a case-insensitive substring of `assigned_to`; sprint/milestone/
- * release are exact id equality; label is comma-separated OR (see
+ * release/parent are exact id equality; label is comma-separated OR (see
  * `matchesLabelFilter`). An unset facet consistently passes.
  */
 export function matchesSharedFacets(
@@ -123,6 +127,7 @@ export function matchesSharedFacets(
   if (facets.milestone_id && issue.milestone_id !== facets.milestone_id)
     return false;
   if (facets.release_id && issue.release_id !== facets.release_id) return false;
+  if (facets.parent_id && issue.parent_id !== facets.parent_id) return false;
   if (facets.label && !matchesLabelFilter(issue, facets.label)) return false;
   return true;
 }
