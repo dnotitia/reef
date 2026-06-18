@@ -20,6 +20,7 @@ import {
 } from "../lib/monteCarlo";
 import { ForecastCard } from "./ForecastCard";
 import { HealthRollup } from "./HealthRollup";
+import { PivotCard } from "./PivotCard";
 import { NetThroughputChart, RankedBarList, RiskMatrix } from "./ReportCharts";
 import { Card, EmptyState, PageShell, ReportsSkeleton } from "./ReportLayout";
 import { ReportScopeBar } from "./ReportScopeBar";
@@ -246,6 +247,11 @@ export function ReportsPage() {
               now={Date.now()}
               periodLabel={PERIOD_LABELS[filters.period]}
             />
+
+            {/* Custom crosstab — the one card that answers an ad-hoc cross
+                (assignee x status, type x priority, ...) without shipping a new
+                fixed card. Full width: it can grow to many columns (REEF-189). */}
+            <PivotCard issues={issues} filters={filters} />
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <Card
