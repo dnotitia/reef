@@ -41,6 +41,16 @@ export {
 } from "./comment";
 
 export {
+  ACTIVITY_EVENT_STATUS_CHANGE,
+  StatusChangePayloadSchema,
+  ActivityEventMetaSchema,
+  ActivityEventSchema,
+  type StatusChangePayload,
+  type ActivityEventMeta,
+  type ActivityEvent,
+} from "./activity";
+
+export {
   TemplateSchema,
   TEMPLATE_NAME_PATTERN,
   type Template,

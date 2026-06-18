@@ -36,6 +36,7 @@ import type {
   WriteMultipleIssuesItemResult,
   WriteMultipleIssuesOutput,
 } from "../core/types";
+import { appendStatusChangeEvent } from "./activity";
 export { buildIssueMetadataFromCreateInput } from "./createMetadata";
 export { allocateNextIssueId, listIssueRelations } from "./issueRelations";
 export { listIssues } from "./listIssues";
@@ -111,7 +112,7 @@ export async function updateIssue(
   params: UpdateIssueParams,
 ): Promise<UpdateIssueResult> {
   const { adapter, vault, id, partial, content, message } = params;
-  return withSpan("akb.update_issue", { vault, id }, async () => {
+  return withSpan("akb.update_issue", { vault, id }, async (span) => {
     const current = await readIssue({ adapter, vault, id });
     const mergedIssue = mergeIssue(current.issue, partial);
     const mergedBody = content ?? current.content;
@@ -207,6 +208,41 @@ export async function updateIssue(
       );
       if (row?.rank != null) {
         mergedIssue.rank = Number(row.rank);
+      }
+    }
+
+    // Record the status transition as an immutable activity event (REEF-063).
+    // This is the reef-web code funnel: every code path that changes status
+    // (PATCH route, activity-inbox approve, agent-artifact approve) flows
+    // through here. Best-effort — the row UPDATE above already committed the
+    // change, so a failed append must not fail the issue update; the row's own
+    // `last_status_change` stays the single-event safety net (AC5). The event
+    // fires only when the status actually moved AND this update recorded a fresh
+    // `last_status_change`: that timestamp is both the canonical transition time
+    // and the idempotency-key source. The web/agent funnels always set it via
+    // `buildIssueUpdateMetadataPatch`, so a raw status flip that skips that
+    // marker (which has no event time to key on) records nothing.
+    const statusFrom = current.issue.status;
+    const statusTo = mergedIssue.status;
+    const transitionAt = mergedIssue.last_status_change;
+    if (
+      statusTo !== statusFrom &&
+      transitionAt != null &&
+      transitionAt !== current.issue.last_status_change
+    ) {
+      try {
+        await appendStatusChangeEvent(adapter, vault, {
+          reefId: id,
+          from: statusFrom,
+          to: statusTo,
+          at: transitionAt,
+          actor: mergedIssue.updated_by,
+          source: mergedIssue.source ?? null,
+        });
+      } catch (err) {
+        span.addEvent("activity_append_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }
 

@@ -14,6 +14,12 @@ explicitly in the entries below.
 
 ### Added
 
+- **Issue activity log (status changes).** Every status change on an issue now
+  records an immutable, append-only event — who moved it, from which status to
+  which, and when — captured the moment the change is saved, whether it came from
+  the app or an automated agent. This is the foundation the merged comment +
+  activity timeline will read; the timeline view itself ships separately
+  (REEF-064). (REEF-063).
 - **Comments on issues.** Each issue now has a Comments section at the bottom of
   the detail view: leave a note, see the thread oldest-first with each author and
   when they wrote it, and edit your own comments (an "edited" marker shows when
