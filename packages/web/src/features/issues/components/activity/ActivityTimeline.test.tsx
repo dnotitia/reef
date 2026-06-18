@@ -149,6 +149,8 @@ describe("ActivityTimeline — unified feed (AC1, AC2)", () => {
     expect(text).toContain("In Progress");
     expect(text).toContain("PR #25");
     expect(text).toContain("Forecast");
+    // AC2: a delivery ref with recorded provenance shows its actor.
+    expect(text).toContain("carol");
     // AC2: every system row carries a <time>.
     for (const row of rows) {
       expect(row.querySelector("time")).not.toBeNull();

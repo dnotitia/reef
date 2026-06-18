@@ -91,21 +91,31 @@ function lineFor(event: TimelineSystemEvent): ReactNode {
     case "delivery": {
       const { ref } = event;
       const label = deliveryLabel(ref);
-      return (
+      const link = ref.url ? (
+        <a
+          href={ref.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-foreground underline-offset-2 hover:underline"
+        >
+          {label}
+        </a>
+      ) : (
+        <span className="font-medium text-foreground">{label}</span>
+      );
+      const title = ref.title ? <span> — {ref.title}</span> : null;
+      // Lead with the actor when the ref carries provenance (activity-scan refs
+      // record the PR/commit author), matching the other system rows (AC2). A
+      // hand-recorded ref may have no actor — fall back to the bare link.
+      return event.actor ? (
         <>
-          {ref.url ? (
-            <a
-              href={ref.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium text-foreground underline-offset-2 hover:underline"
-            >
-              {label}
-            </a>
-          ) : (
-            <span className="font-medium text-foreground">{label}</span>
-          )}
-          {ref.title ? <span> — {ref.title}</span> : null}
+          <Actor name={event.actor} /> added {link}
+          {title}
+        </>
+      ) : (
+        <>
+          {link}
+          {title}
         </>
       );
     }
