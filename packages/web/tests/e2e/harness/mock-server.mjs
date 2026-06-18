@@ -238,6 +238,7 @@ function configuredVault(name) {
     ],
     templates: [],
     activitySuggestions: [],
+    activityEvents: [],
     comments: [
       {
         id: uuidFor(40),
@@ -523,6 +524,7 @@ function rawVault(name) {
     releases: [],
     templates: [],
     activitySuggestions: [],
+    activityEvents: [],
   };
 }
 
@@ -722,6 +724,7 @@ function handleSql(vault, sql) {
   }
 
   if (!vault.comments) vault.comments = [];
+  if (!vault.activityEvents) vault.activityEvents = [];
 
   if (lower.startsWith("select key, value from reef_settings")) {
     return tableQuery(["key", "value"], settingsRows(vault, normalized));
@@ -936,6 +939,71 @@ function handleSql(vault, sql) {
     return tableSql();
   }
 
+  // REEF-063 immutable status-change events (reef_activity) + REEF-077
+  // cross-issue feed read. The event table is distinct from the AI
+  // reef_activity_suggestions inbox above.
+  if (lower.startsWith("insert into reef_activity (")) {
+    // appendStatusChangeEvent emits:
+    //   INSERT INTO reef_activity (cols) SELECT <vals>
+    //   WHERE NOT EXISTS (...) RETURNING id
+    // Idempotent on (reef_id, event_key), mirroring the real guard.
+    const selectAt = lower.indexOf(" select ");
+    const whereAt = lower.indexOf(" where not exists");
+    if (selectAt >= 0 && whereAt > selectAt) {
+      const clause = normalized.slice(selectAt + " select ".length, whereAt);
+      const [reefId, eventType, eventKey, payload, meta] =
+        splitSqlCsv(clause).map(parseSqlValue);
+      const exists = vault.activityEvents.some(
+        (event) => event.reef_id === reefId && event.event_key === eventKey,
+      );
+      if (exists) return tableQuery(["id"], []);
+      const row = {
+        id: uuidFor(3000 + vault.activityEvents.length),
+        reef_id: reefId,
+        event_type: eventType,
+        event_key: eventKey,
+        payload,
+        meta,
+        created_at: NOW,
+        updated_at: NOW,
+        created_by: "alice",
+      };
+      vault.activityEvents.push(row);
+      return tableQuery(["id"], [{ id: row.id }]);
+    }
+    return tableQuery(["id"], []);
+  }
+  if (lower.includes("from reef_activity a join reef_issues")) {
+    const since = matchSqlString(normalized, /a\.meta->>'at'\s*>\s*'([^']+)'/i);
+    const rows = vault.activityEvents
+      .map((event) => {
+        const issue = vault.issues.find((i) => i.reef_id === event.reef_id);
+        return issue ? { ...event, issue_title: issue.title } : null;
+      })
+      .filter(Boolean)
+      .filter((event) => !since || activityEventAt(event) > since)
+      .sort(
+        (a, b) =>
+          stringDesc(activityEventAt(a), activityEventAt(b)) ||
+          stringDesc(a.id, b.id),
+      );
+    return tableQuery(
+      [
+        "id",
+        "reef_id",
+        "event_type",
+        "event_key",
+        "payload",
+        "meta",
+        "created_at",
+        "updated_at",
+        "created_by",
+        "issue_title",
+      ],
+      applyLimit(rows, normalized),
+    );
+  }
+
   if (lower.startsWith("select * from reef_comments")) {
     const reefId = matchSqlString(normalized, /reef_id\s*=\s*'([^']+)'/i);
     const rows = vault.comments.filter(
@@ -978,6 +1046,18 @@ function handleSql(vault, sql) {
   }
 
   return tableQuery([], []);
+}
+
+function activityEventAt(event) {
+  let meta = event.meta;
+  if (typeof meta === "string") {
+    try {
+      meta = JSON.parse(meta);
+    } catch {
+      meta = {};
+    }
+  }
+  return String(meta?.at ?? "");
 }
 
 function commentColumns() {
