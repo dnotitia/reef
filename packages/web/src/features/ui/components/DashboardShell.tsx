@@ -17,6 +17,7 @@ import { useAskAiStore } from "@/features/ai/stores/useAskAiStore";
 import { SidebarAccount } from "@/features/auth/components/SidebarAccount";
 import { SidebarWorkspace } from "@/features/auth/components/SidebarWorkspace";
 import { NewIssueDialog } from "@/features/issues/components/create/NewIssueDialog";
+import { useMyWorkAttention } from "@/features/my-work/hooks/useMyWorkAttention";
 import { OfflineBanner } from "@/features/network/components/OfflineBanner";
 import { CreateWorkspaceDialog } from "@/features/onboarding/components/CreateWorkspaceDialog";
 import { useThemeSync } from "@/features/preferences/hooks/useThemeSync";
@@ -32,6 +33,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   BarChart3,
   ChevronLeft,
+  CircleUser,
   Inbox,
   ListTodo,
   type LucideIcon,
@@ -73,11 +75,44 @@ const navLinks: ReadonlyArray<{
   icon: LucideIcon;
 }> = [
   { href: "/issues", label: "Issues", icon: ListTodo },
+  // My Work sits right after Issues (REEF-204 / REEF-181 AC1) — a personal lens
+  // on the same work, distinct from the board's `ListTodo` via `CircleUser`.
+  { href: "/my-work", label: "My Work", icon: CircleUser },
   { href: "/planning", label: "Planning", icon: Milestone },
   { href: "/activity", label: "Activity", icon: Inbox },
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
+
+/** A sidebar nav count badge (REEF-204): the Activity "unread" pill and the My
+ * Work "needs attention" pill share one render path, differing only in tone.
+ * Filled-pill + white foreground is the sidebar's badge vocabulary (the count is
+ * also carried by an aria-label, so the small chip is not the only signal). */
+type NavBadgeTone = "brand" | "danger" | "warn";
+
+const NAV_BADGE_PILL: Record<NavBadgeTone, string> = {
+  brand: "bg-brand text-brand-foreground",
+  danger: "bg-destructive text-destructive-foreground",
+  warn: "bg-priority-high text-white",
+};
+
+const NAV_BADGE_DOT: Record<NavBadgeTone, string> = {
+  brand: "bg-brand",
+  danger: "bg-destructive",
+  warn: "bg-priority-high",
+};
+
+interface NavBadge {
+  /** Capped display text, e.g. "9+". */
+  display: string;
+  /** Full accessible label carrying the real counts. */
+  label: string;
+  tone: NavBadgeTone;
+  badgeTestId: string;
+  dotTestId: string;
+}
+
+const cap = (n: number) => (n > 9 ? "9+" : String(n));
 
 export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   const sidebarCollapsed = useViewStore((state) => state.sidebarCollapsed);
@@ -144,6 +179,42 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   // already on /activity — they can see the items themselves and ActivityFeed
   // updates `last_visit_at` on mount to clear it.
   const unreadInboxCount = useUnreadInboxCount(vault);
+
+  // My Work "needs attention" count for its sidebar badge (REEF-204): the
+  // signed-in user's overdue + due-soon work, derived from MyWorkPage's same
+  // `useIssueList` cache (no extra fetch). Hidden while on /my-work, like the
+  // Activity badge.
+  const { attention, overdue, dueSoon } = useMyWorkAttention();
+
+  // Resolve the count badge a nav link shows, if any. Returns null while the
+  // link is active so the page itself owns the count then (matches Activity).
+  function navBadgeFor(href: string, isActive: boolean): NavBadge | null {
+    if (isActive) return null;
+    if (href === "/activity" && unreadInboxCount > 0) {
+      return {
+        display: cap(unreadInboxCount),
+        label: `${unreadInboxCount} unread`,
+        tone: "brand",
+        badgeTestId: "activity-unread-badge",
+        dotTestId: "activity-unread-dot",
+      };
+    }
+    if (href === "/my-work" && attention > 0) {
+      const parts: string[] = [];
+      if (overdue > 0) parts.push(`${overdue} overdue`);
+      if (dueSoon > 0) parts.push(`${dueSoon} due soon`);
+      return {
+        display: cap(attention),
+        label: parts.join(", "),
+        // overdue dominates the tone: any overdue work reads as destructive,
+        // otherwise the due-soon-only badge is the softer orange (REEF-204).
+        tone: overdue > 0 ? "danger" : "warn",
+        badgeTestId: "my-work-attention-badge",
+        dotTestId: "my-work-attention-dot",
+      };
+    }
+    return null;
+  }
 
   // Global keyboard shortcuts.
   //   ⌘N         → New Issue dialog (bypasses input-focus guard)
@@ -286,10 +357,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
               // keeps Settings active across the scope tabs (REEF-183).
               const isActive =
                 pathname === href || pathname.startsWith(`${href}/`);
-              const showActivityBadge =
-                href === "/activity" && !isActive && unreadInboxCount > 0;
-              const badgeLabel =
-                unreadInboxCount > 9 ? "9+" : String(unreadInboxCount);
+              const badge = navBadgeFor(href, isActive);
               return (
                 <li key={href} className="relative">
                   {/* Active rail */}
@@ -319,24 +387,30 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                           data-testid={`sidebar-nav-icon-${label.toLowerCase()}`}
                           className="h-[18px] w-[18px] shrink-0 stroke-[1.9]"
                         />
-                        {showActivityBadge && (
+                        {badge && (
                           <span
-                            data-testid="activity-unread-dot"
-                            className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-brand"
-                            aria-label={`${unreadInboxCount} unread`}
+                            data-testid={badge.dotTestId}
+                            className={cn(
+                              "absolute right-1 top-1 h-1.5 w-1.5 rounded-full",
+                              NAV_BADGE_DOT[badge.tone],
+                            )}
+                            aria-label={badge.label}
                           />
                         )}
                       </>
                     ) : (
                       <>
                         <span className="flex-1">{label}</span>
-                        {showActivityBadge && (
+                        {badge && (
                           <span
-                            data-testid="activity-unread-badge"
-                            aria-label={`${unreadInboxCount} unread`}
-                            className="ml-auto inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-brand px-1 text-[10px] font-semibold leading-none text-brand-foreground tabular-nums"
+                            data-testid={badge.badgeTestId}
+                            aria-label={badge.label}
+                            className={cn(
+                              "ml-auto inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-semibold leading-none tabular-nums",
+                              NAV_BADGE_PILL[badge.tone],
+                            )}
                           >
-                            {badgeLabel}
+                            {badge.display}
                           </span>
                         )}
                       </>
