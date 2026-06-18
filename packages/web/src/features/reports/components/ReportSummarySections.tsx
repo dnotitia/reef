@@ -218,8 +218,13 @@ export function DeadlineCard({ agg }: { agg: ReportAggregates }) {
   return (
     <Card
       title="Deadlines"
+      // Name the population ("Open work") like the Risk map card so the two
+      // open-work cards do not read as the in-scope total, and keep the undated
+      // count as the trailing detail (REEF-185).
       subtitle={
-        dueHealth.noDueDate > 0 ? `${dueHealth.noDueDate} undated` : undefined
+        dueHealth.noDueDate > 0
+          ? `Open work · ${dueHealth.noDueDate} undated`
+          : "Open work"
       }
     >
       {/* The SegmentedBar legend already labels Overdue/This week/Upcoming with
