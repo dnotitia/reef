@@ -74,7 +74,7 @@ export function ReportScopeBar({
   return (
     <div
       data-testid="report-scope-bar"
-      className="grid w-full grid-cols-2 gap-2 rounded-lg border border-border-subtle bg-surface-subtle p-2 md:grid-cols-4 xl:grid-cols-[repeat(8,minmax(0,1fr))]"
+      className="grid w-full grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-2 rounded-lg border border-border-subtle bg-surface-subtle p-2"
     >
       <ScopeSelect
         label="Period"

@@ -1,11 +1,17 @@
 import { WORKFLOW_STATUS_OPTIONS } from "@/components/ui/status-icon";
+import { PLANNING_ITEM_PANEL_CLASS } from "@/features/planning/components/PlanningItemCombobox";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useIssueStore } from "../../stores/useIssueStore";
-import { FilterBar, USER_FILTER_PANEL_CLASS } from "./FilterBar";
+import {
+  FilterBar,
+  PLANNING_FILTER_COMBOBOX_CLASS,
+  PLANNING_FILTER_WRAPPER_CLASS,
+  USER_FILTER_PANEL_CLASS,
+} from "./FilterBar";
 
 vi.mock("@/lib/apiClient", async () => {
   const actual =
@@ -64,6 +70,62 @@ describe("FilterBar", () => {
     expect(screen.getByTestId("assignee-filter")).toBeTruthy();
     expect(screen.getByTestId("requester-filter")).toBeTruthy();
     expect(screen.getByTestId("labels-input")).toBeTruthy();
+  });
+
+  it("gives planning filters room to identify long sprint, milestone, and release names", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useActiveVault).mockReturnValue({
+      vault: "reef-acme",
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    vi.mocked(apiFetch).mockImplementation((input) => {
+      const path = String(input);
+      if (path.startsWith("/api/planning")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              sprints: [],
+              milestones: [
+                {
+                  id: "milestone-1",
+                  name: "Autonomous Orchestration & Codex Runner",
+                  status: "open",
+                  target_date: null,
+                },
+              ],
+              releases: [],
+            }),
+            { status: 200 },
+          ),
+        );
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify({ users: [] }), { status: 200 }),
+      );
+    });
+
+    renderFilterBar();
+
+    for (const testId of [
+      "sprint-filter",
+      "milestone-filter",
+      "release-filter",
+    ]) {
+      expect(screen.getByTestId(testId).className).toContain(
+        PLANNING_FILTER_WRAPPER_CLASS,
+      );
+    }
+    expect(
+      screen.getByTestId("sprint-input").parentElement?.className,
+    ).toContain(PLANNING_FILTER_COMBOBOX_CLASS);
+    expect(
+      screen.getByLabelText("Milestone").parentElement?.className,
+    ).toContain(PLANNING_FILTER_COMBOBOX_CLASS);
+
+    await user.click(screen.getByLabelText("Milestone"));
+    const panel = screen.getByRole("listbox").parentElement;
+    expect(panel?.className).toContain(PLANNING_ITEM_PANEL_CLASS);
   });
 
   it("selecting a status updates the store", async () => {
