@@ -1,5 +1,5 @@
 import { NotFoundError } from "../../../errors";
-import type { IssueMetadata } from "../../../schemas/issues/metadata";
+import type { IssueMetadata, Status } from "../../../schemas/issues/metadata";
 import {
   REEF_ISSUES_TABLE,
   backlogTailRankExpr,
@@ -162,17 +162,39 @@ export async function updateIssue(
       mergedIssue.status === "backlog" &&
       current.issue.status !== "backlog" &&
       mergedIssue.rank == null;
+    // Capture the status this write actually overwrote, atomically with the
+    // write itself. The `prev` CTE reads the committed pre-update status in the
+    // same statement snapshot the `upd` CTE mutates, so the value is the row's
+    // true prior status at commit time — not the possibly-stale `readIssue`
+    // snapshot. Under concurrent last-write-wins status changes, this keeps the
+    // activity event's `from` faithful (A: todo→in_progress then B reads the
+    // committed in_progress, recording in_progress→done, not a phantom
+    // todo→done). The UPDATE stays unconditional LWW — no CAS, per the adapter
+    // contract; only the recorded `from` is made accurate.
+    let committedFromStatus: string | undefined;
     try {
-      await runSql(
+      const updateRes = await runSql(
         adapter,
         vault,
-        `UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET ${buildRowAssignments(
+        `WITH prev AS (SELECT status AS from_status FROM ${tableRef(
+          REEF_ISSUES_TABLE,
+        )} WHERE reef_id = ${quoteText(
+          id,
+          "reef_id",
+        )}), upd AS (UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET ${buildRowAssignments(
           issueRowMutableFields(
             mergedIssue,
             enteringBacklog ? { rankExpr: backlogTailRankExpr() } : undefined,
           ),
-        )} WHERE reef_id = ${quoteText(id, "reef_id")}`,
+        )} WHERE reef_id = ${quoteText(
+          id,
+          "reef_id",
+        )} RETURNING reef_id) SELECT from_status FROM prev`,
       );
+      committedFromStatus =
+        updateRes.kind === "table_query"
+          ? (updateRes.items[0]?.from_status as string | undefined)
+          : undefined;
     } catch (err) {
       if (docDirty) {
         const revertBody = buildIssueDocPatchBody(
@@ -216,24 +238,28 @@ export async function updateIssue(
     // (PATCH route, activity-inbox approve, agent-artifact approve) flows
     // through here. Best-effort — the row UPDATE above already committed the
     // change, so a failed append must not fail the issue update; the row's own
-    // `last_status_change` stays the single-event safety net (AC5). The event
-    // fires only when the status actually moved AND this update recorded a fresh
-    // `last_status_change`: that timestamp is both the canonical transition time
-    // and the idempotency-key source. The web/agent funnels always set it via
-    // `buildIssueUpdateMetadataPatch`, so a raw status flip that skips that
-    // marker (which has no event time to key on) records nothing.
-    const statusFrom = current.issue.status;
+    // `last_status_change` stays the single-event safety net (AC5).
+    //
+    // `from` is the status the write actually overwrote (captured atomically by
+    // the `prev` CTE), so the recorded transition stays correct under concurrent
+    // updates. The event fires only when that committed status actually moved AND
+    // this update recorded a fresh `last_status_change` — that timestamp is both
+    // the canonical transition time and the idempotency-key source. The web/agent
+    // funnels always set it via `buildIssueUpdateMetadataPatch`; a raw status flip
+    // that skips it (no event time to key on), or an update that did not commit a
+    // status row (`committedFromStatus` absent), records nothing.
     const statusTo = mergedIssue.status;
     const transitionAt = mergedIssue.last_status_change;
     if (
-      statusTo !== statusFrom &&
+      committedFromStatus != null &&
+      committedFromStatus !== statusTo &&
       transitionAt != null &&
       transitionAt !== current.issue.last_status_change
     ) {
       try {
         await appendStatusChangeEvent(adapter, vault, {
           reefId: id,
-          from: statusFrom,
+          from: committedFromStatus as Status,
           to: statusTo,
           at: transitionAt,
           actor: mergedIssue.updated_by,
