@@ -245,20 +245,24 @@ export async function updateIssue(
     // `last_status_change` stays the single-event safety net (AC5).
     //
     // `from` is the status the write actually overwrote (captured atomically by
-    // the `prev` CTE), so the recorded transition stays correct under concurrent
-    // updates. The event fires only when that committed status actually moved AND
-    // this update recorded a fresh `last_status_change` — that timestamp is both
-    // the canonical transition time and the idempotency-key source. The web/agent
-    // funnels always set it via `buildIssueUpdateMetadataPatch`; a raw status flip
-    // that skips it (no event time to key on), or an update that did not commit a
-    // status row (`committedFromStatus` absent), records nothing.
+    // the locked `prev` CTE), so the recorded transition stays correct under
+    // concurrent updates. The event fires only when that committed status actually
+    // moved AND this update carried a transition timestamp — `partial`, not the
+    // merged value, so the signal is "this caller stamped a status change" rather
+    // than "the row happens to have a last_status_change". `at` is that caller
+    // timestamp (the canonical transition time + idempotency-key source). The
+    // web/agent funnels always provide it via `buildIssueUpdateMetadataPatch`; a
+    // raw status flip that omits it (no event time to key on), or an update that
+    // did not commit a status row (`committedFromStatus` absent), records nothing.
+    // It is NOT gated on the timestamp differing from the row's prior value — two
+    // transitions sharing one timestamp are distinct events (the key carries
+    // from→to) and must both be logged.
     const statusTo = mergedIssue.status;
-    const transitionAt = mergedIssue.last_status_change;
+    const transitionAt = partial.last_status_change;
     if (
       committedFromStatus != null &&
       committedFromStatus !== statusTo &&
-      transitionAt != null &&
-      transitionAt !== current.issue.last_status_change
+      transitionAt != null
     ) {
       try {
         await appendStatusChangeEvent(adapter, vault, {

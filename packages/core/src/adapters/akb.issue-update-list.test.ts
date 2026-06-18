@@ -218,6 +218,53 @@ describe("updateIssue", () => {
     expect(calls).toHaveLength(3);
   });
 
+  // A genuine transition is logged even when the patch's last_status_change
+  // equals the row's existing one (two quick transitions can share a timestamp,
+  // or a caller may pass an explicit `now`). The event keys on from→to, so it is
+  // distinct and must not be dropped by a same-timestamp comparison (autoreview).
+  it("appends even when the transition timestamp matches the row's prior last_status_change", async () => {
+    const { calls } = setupFetch([
+      { body: makeDocumentResponse() }, // read: GET document
+      {
+        body: makeSqlQueryResponse(
+          [
+            makeIssueRow({
+              ...SAMPLE_ISSUE,
+              last_status_change: "2026-06-18T09:00:00.000Z",
+            }),
+          ],
+          ISSUE_ROW_COLUMNS,
+        ),
+      }, // read: row already carries last_status_change = 09:00
+      // The write commits over a racing in_progress.
+      {
+        body: makeSqlQueryResponse(
+          [{ from_status: "in_progress" }],
+          ["from_status"],
+        ),
+      },
+      { body: makeListTablesResponse(ALL_REEF_TABLES) }, // append: ensureReefTables
+      { body: makeSqlQueryResponse([{ id: "ev" }], ["id"]) }, // append: conditional INSERT
+    ]);
+    const adapter = makeAdapter();
+    await updateIssue({
+      adapter,
+      vault: "reef-sample",
+      id: "REEF-001",
+      partial: {
+        status: "in_review",
+        last_status_change: "2026-06-18T09:00:00.000Z", // same as the row's prior value
+        updated_by: "carol",
+      },
+    });
+    // The event is recorded despite the repeated timestamp.
+    expect(calls).toHaveLength(5);
+    const insertSql = JSON.parse(calls[4]?.init?.body as string).sql;
+    expect(insertSql).toContain(
+      "'status_change:in_progress->in_review@2026-06-18T09:00:00.000Z'",
+    );
+  });
+
   // A status flip that does NOT record a fresh last_status_change (a raw partial
   // bypassing buildIssueUpdateMetadataPatch — no canonical event time) records
   // no event: the UPDATE is the only write, exactly as before REEF-063.
