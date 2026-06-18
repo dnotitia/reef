@@ -104,13 +104,20 @@ test.describe("Hermetic issue list flow", () => {
     // the request assertion below flakes (deterministically on slower CI). Clear
     // at document-start, before QueryProvider rehydrates, to remove the race.
     await clearPersistedQueryCacheOnLoad(restored);
-    const issueRequests = collectIssueListRequests(restored);
+    const todoIssueRequest = restored.waitForRequest((request) => {
+      const url = new URL(request.url());
+      return (
+        request.method() === "GET" &&
+        url.pathname === "/api/issues" &&
+        url.searchParams.getAll("status").includes("todo")
+      );
+    });
     await restored.goto("/issues?view=list");
 
     await restored.waitForURL(/status=todo/, { timeout: 10_000 });
     await expect(restored.getByText("Initial issue Alpha")).toBeVisible();
     await expect(restored.getByText("Initial issue Beta")).toBeHidden();
-    await expect.poll(() => hasStatusRequest(issueRequests, "todo")).toBe(true);
+    await todoIssueRequest;
   });
 
   test("honors an explicit URL filter over the saved status filter", async ({

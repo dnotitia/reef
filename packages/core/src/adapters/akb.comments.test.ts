@@ -184,7 +184,7 @@ describe("createComment", () => {
 
     const sql = lastSql(calls[2]?.init?.body);
     expect(sql).toContain(`INSERT INTO ${REEF_COMMENTS_TABLE}`);
-    // Only declared columns — never the akb reserved/auto columns.
+    // Declared columns are used; akb reserved/auto columns are excluded.
     expect(sql).toContain(`("reef_id", "body", "meta")`);
     expect(sql).not.toContain("created_by");
     expect(sql).toContain("RETURNING *");
@@ -256,7 +256,7 @@ describe("updateComment", () => {
     expect(sql).toContain("WHERE id = 'c1'");
     // Scoped to the parent issue named in the URL.
     expect(sql).toContain("reef_id = 'REEF-062'");
-    // Ownership guard: only the author's own row matches.
+    // Ownership guard: the author's own row matches.
     expect(sql).toContain("meta->>'author' = 'alice'");
     expect(sql).toContain("RETURNING *");
   });

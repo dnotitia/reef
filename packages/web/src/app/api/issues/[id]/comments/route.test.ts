@@ -136,7 +136,7 @@ describe("POST /api/issues/[id]/comments", () => {
 
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({ comment: COMMENT });
-    // Author is the session actor, never the request body.
+    // Author is the session actor, not the request body.
     expect(mockCreateComment).toHaveBeenCalledWith(
       expect.anything(),
       "v",

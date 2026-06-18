@@ -24,7 +24,7 @@ function weekDate(now: number, weeks: number): string | null {
  * forward-looking, it sits with the Risk map / Throughput row.
  *
  * The population is open work (the active statuses), named like the Risk map and
- * Deadlines cards so it never reads as the in-scope total. The window is the one
+ * Deadlines cards so it does not read as the in-scope total. The window is the one
  * the Period control already selects, so no new control is introduced — a thin
  * window simply renders the forecast with a low-confidence caption.
  */
@@ -109,7 +109,7 @@ function ForecastColumn({
 }
 
 /** Shared row scaffold: confidence on the left, the forecast value mono-right.
- *  Each value is encoded once — the confidence is the only repeated axis. */
+ *  Each value is encoded once — the confidence is the repeated axis. */
 function ForecastRow({
   confidence,
   value,
@@ -141,7 +141,7 @@ function CompletionRow({
   row: CompletionForecast;
   now: number;
 }) {
-  // A capped trial never reached the target within the hard week ceiling, so
+  // A capped trial did not reach the target within the hard week ceiling, so
   // there is no honest date — show it as a floor instead of a false promise.
   if (row.capped) {
     return (

@@ -24,7 +24,7 @@ import {
  * Map a `reef_comments` row to a Comment. The reef-semantic author and the
  * created/edited timestamps are projected from the row's `meta` json — NOT from
  * akb's auto `created_by`/`created_at` columns (REEF-125): those are the akb
- * auth principal and akb bookkeeping, not reef's source of truth.
+ * auth principal and akb bookkeeping, not reef's canonical source.
  */
 function rowToComment(row: Record<string, unknown>): Comment {
   try {
@@ -54,7 +54,7 @@ function rowToComment(row: Record<string, unknown>): Comment {
  * (ISO-8601 sorts lexically), with the akb uuid `id` as a stable tiebreak.
  *
  * Read-path resilience: an unprovisioned vault (no `reef_comments` table) reads
- * as an empty thread WITHOUT reconciling — a read never provisions (REEF-125
+ * as an empty thread WITHOUT reconciling — a read does not provision (REEF-125
  * AC9). A single malformed row is skipped rather than blanking the whole thread.
  */
 export async function listComments(
@@ -103,7 +103,7 @@ export async function listComments(
  * is wrapped in a data-modifying CTE so the akb-assigned uuid `id` and the
  * row's persisted state come back via RETURNING with no separate read-back
  * (mirrors `insertAndReadPlanningRow`). `author` is the session actor resolved
- * by the route — never client-supplied — and is stored in `meta` (REEF-125).
+ * by the route — not client-supplied — and is stored in `meta` (REEF-125).
  *
  * Provisions `reef_comments` lazily via `ensureReefTables` so the first comment
  * on a vault that predates the table self-heals instead of 500-ing (REEF-125
@@ -124,7 +124,7 @@ export async function createComment(
       // Refuse to attach a comment to a non-existent issue. Issue ids are
       // predictable, so an orphan row would otherwise surface on a future issue
       // that reuses the id (autoreview P2). The reef_issues row is the board's
-      // source of truth for an issue's existence.
+      // canonical source for an issue's existence.
       const parent = await runSql(
         adapter,
         vault,
@@ -171,7 +171,7 @@ export async function createComment(
 
 /**
  * Edit a comment's body. Ownership is enforced in the WHERE clause: the row is
- * updated only when `meta.author` equals the acting `editor`, so a non-author
+ * updated when `meta.author` equals the acting `editor`, so a non-author
  * edit (or a missing comment) matches zero rows and surfaces as NotFound. This
  * is atomic and last-write-wins safe — there is no read-then-write race.
  *

@@ -54,7 +54,7 @@ describe("useMyWorkAttention", () => {
       makeIssue({ id: "A", status: "in_progress", due_date: iso(-DAY) }), // overdue
       makeIssue({ id: "B", status: "todo", due_date: iso(DAY) }), // due soon
       makeIssue({ id: "C", status: "todo", due_date: iso(30 * DAY) }), // far → none
-      // Substring assignee ("joann" contains "ann") must NOT count — the server
+      // Substring assignee ("joann" contains "ann") should not count — the server
       // facet is a substring ILIKE, so the hook re-scopes to the full login.
       makeIssue({ id: "D", assigned_to: "joann", due_date: iso(-DAY) }),
       // Resolved work has no deadline state even when past due.

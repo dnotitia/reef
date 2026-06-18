@@ -373,7 +373,7 @@ describe("matchesSharedFacets", () => {
     const child = makeIssue({ id: "REEF-200", parent_id: "REEF-001" });
     expect(matchesSharedFacets(child, { parent_id: "REEF-001" })).toBe(true);
     expect(matchesSharedFacets(child, { parent_id: "REEF-999" })).toBe(false);
-    // An issue with no parent never matches a parent facet.
+    // An issue with no parent does not match a parent facet.
     expect(matchesSharedFacets(issue, { parent_id: "REEF-001" })).toBe(false);
   });
 

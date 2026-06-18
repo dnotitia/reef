@@ -43,7 +43,7 @@ export function SegmentedBar({
       <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-surface-hover">
         {visible.map((s) => (
           // Segment widths position one another in flow, so this proportion bar
-          // does not be a single composited scaleX; drop the width transition
+          // is not a single composited scaleX; drop the width transition
           // rather than animate a layout property. (REEF-097 AC3)
           <div
             key={s.key}
@@ -177,7 +177,7 @@ const HEAT_CELL =
   "h-9 rounded-md border border-border-subtle bg-surface-hover text-center align-middle font-mono text-xs tabular-nums text-foreground";
 
 /** Neutral density fill for a count cell. A single gray ramp — distinct from the
- *  brand-tinted value bars — so a heat cell never competes with a quantity bar
+ *  brand-tinted value bars — so a heat cell does not compete with a quantity bar
  *  for the same color meaning (REEF-248). Empty cells return `undefined` to keep
  *  the base surface (no number) so a zero reads as "nothing here", not "low".
  *  Mixing toward `surface-subtle` keeps cells readable in both themes (the fill
@@ -193,7 +193,7 @@ function heatFill(count: number, max: number): string | undefined {
 // The Risk map is a fixed 5×4 crosstab of open work by priority (rows) × time
 // since last update (columns). A real <table> (matching the Pivot) so screen
 // readers announce the priority/age a cell belongs to. Cells carry neutral
-// density only — the risk signal is the position (critical row, stalled column),
+// density — the risk signal is the position (critical row, stalled column),
 // not a red tint, so the heat does not re-encode "risk" on top of "attention"
 // (REEF-248).
 export function RiskMatrix({

@@ -22,8 +22,8 @@ interface CommentCardProps {
 /**
  * One comment in the thread (REEF-062): an avatar node in the gutter, a header
  * line (author · relative time · "edited"), and the markdown body rendered
- * read-only via Streamdown (no per-comment TipTap). Hover/focus reveals the
- * edit affordance, and only on the author's own comments.
+ * read-mode via Streamdown (no per-comment TipTap). Hover/focus reveals the
+ * edit affordance, and for the author's own comments.
  */
 export function CommentCard({
   comment,
@@ -35,6 +35,7 @@ export function CommentCard({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(comment.body);
   const [saving, setSaving] = useState(false);
+  const [nowMs] = useState(() => Date.now());
 
   function startEditing() {
     setDraft(comment.body);
@@ -84,7 +85,7 @@ export function CommentCard({
             title={formatAbsoluteTime(comment.created_at)}
             className="shrink-0 text-[11px] text-muted-foreground tabular-nums"
           >
-            {formatRelativeTime(comment.created_at, Date.now())}
+            {formatRelativeTime(comment.created_at, nowMs)}
           </time>
           {comment.edited_at ? (
             <span

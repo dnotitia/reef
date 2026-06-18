@@ -46,6 +46,21 @@ function makeWrapper(queryClient: QueryClient) {
   };
 }
 
+function makeTestQueryClient() {
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+}
+
+function renderUseUpdateIssue(queryClient = makeTestQueryClient()) {
+  return {
+    queryClient,
+    ...renderHook(() => useUpdateIssue(), {
+      wrapper: makeWrapper(queryClient),
+    }),
+  };
+}
+
 describe("useUpdateIssue", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -57,13 +72,7 @@ describe("useUpdateIssue", () => {
         status: 200,
       }),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-
-    const { result } = renderHook(() => useUpdateIssue(), {
-      wrapper: makeWrapper(queryClient),
-    });
+    const { result } = renderUseUpdateIssue();
 
     let returned: { issue: IssueMetadata; content: string } | undefined;
     await act(async () => {
@@ -96,13 +105,7 @@ describe("useUpdateIssue", () => {
         status: 200,
       }),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-
-    const { result } = renderHook(() => useUpdateIssue(), {
-      wrapper: makeWrapper(queryClient),
-    });
+    const { result } = renderUseUpdateIssue();
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -131,13 +134,7 @@ describe("useUpdateIssue", () => {
         status: 200,
       }),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-
-    const { result } = renderHook(() => useUpdateIssue(), {
-      wrapper: makeWrapper(queryClient),
-    });
+    const { result } = renderUseUpdateIssue();
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -157,14 +154,10 @@ describe("useUpdateIssue", () => {
         status: 200,
       }),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = makeTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
-    const { result } = renderHook(() => useUpdateIssue(), {
-      wrapper: makeWrapper(queryClient),
-    });
+    const { result } = renderUseUpdateIssue(queryClient);
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -204,14 +197,10 @@ describe("useUpdateIssue", () => {
         { status: 200 },
       ),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = makeTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
-    const { result } = renderHook(() => useUpdateIssue(), {
-      wrapper: makeWrapper(queryClient),
-    });
+    const { result } = renderUseUpdateIssue(queryClient);
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -245,18 +234,14 @@ describe("useUpdateIssue", () => {
       }),
     );
 
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = makeTestQueryClient();
     queryClient.setQueryData(["issues", "list", "reef-acme"], [ORIGINAL]);
     queryClient.setQueryData(["issues", "detail", "reef-acme", "REEF-001"], {
       issue: ORIGINAL,
       content: "old body",
     });
 
-    const { result } = renderHook(() => useUpdateIssue(), {
-      wrapper: makeWrapper(queryClient),
-    });
+    const { result } = renderUseUpdateIssue(queryClient);
 
     act(() => {
       result.current.mutate({
@@ -299,18 +284,14 @@ describe("useUpdateIssue", () => {
         status: 409,
       }),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = makeTestQueryClient();
     queryClient.setQueryData(["issues", "list", "reef-acme"], [ORIGINAL]);
     queryClient.setQueryData(["issues", "detail", "reef-acme", "REEF-001"], {
       issue: ORIGINAL,
       content: "old body",
     });
 
-    const { result } = renderHook(() => useUpdateIssue(), {
-      wrapper: makeWrapper(queryClient),
-    });
+    const { result } = renderUseUpdateIssue(queryClient);
 
     await act(async () => {
       await result.current
@@ -344,18 +325,14 @@ describe("useUpdateIssue", () => {
         { status: 200 },
       ),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = makeTestQueryClient();
     queryClient.setQueryData(["issues", "detail", "reef-acme", "REEF-001"], {
       issue: ORIGINAL,
       content: "old",
       commit_hash: "c1",
     });
 
-    const { result } = renderHook(() => useUpdateIssue(), {
-      wrapper: makeWrapper(queryClient),
-    });
+    const { result } = renderUseUpdateIssue(queryClient);
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -376,14 +353,10 @@ describe("useUpdateIssue", () => {
         status: 200,
       }),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = makeTestQueryClient();
     // No detail cache seeded → no base commit to pin → last-write-wins.
 
-    const { result } = renderHook(() => useUpdateIssue(), {
-      wrapper: makeWrapper(queryClient),
-    });
+    const { result } = renderUseUpdateIssue(queryClient);
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -406,9 +379,7 @@ describe("useUpdateIssue", () => {
         { status: 409 },
       ),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
+    const queryClient = makeTestQueryClient();
     queryClient.setQueryData(["issues", "detail", "reef-acme", "REEF-001"], {
       issue: ORIGINAL,
       content: "old",
@@ -416,9 +387,7 @@ describe("useUpdateIssue", () => {
     });
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
-    const { result } = renderHook(() => useUpdateIssue(), {
-      wrapper: makeWrapper(queryClient),
-    });
+    const { result } = renderUseUpdateIssue(queryClient);
 
     await act(async () => {
       await result.current
@@ -432,7 +401,7 @@ describe("useUpdateIssue", () => {
     });
 
     // The stale base is re-read so the editor refreshes and a retry writes
-    // against the latest. (Only fires on 409 — not the success path.)
+    // against the latest. (This fires on 409 — not the success path.)
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["issues", "detail", "reef-acme", "REEF-001"],
     });
@@ -447,13 +416,7 @@ describe("useUpdateIssue", () => {
         { status: 409 },
       ),
     );
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-
-    const { result } = renderHook(() => useUpdateIssue(), {
-      wrapper: makeWrapper(queryClient),
-    });
+    const { result } = renderUseUpdateIssue();
 
     await act(async () => {
       await result.current

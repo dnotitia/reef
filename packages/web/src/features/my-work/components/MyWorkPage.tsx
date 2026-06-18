@@ -92,7 +92,7 @@ export function MyWorkPage() {
   const login = me?.username?.trim() || null;
 
   // Scope every fetch to the signed-in user. The vault is blanked until we have
-  // a login so a logged-out visit never fans out a whole-vault query.
+  // a login so a logged-out visit does not fan out a whole-vault query.
   const scopedVault = login ? vault : "";
   const query = useMemo(
     () => (login ? buildIssueQuery({ assignee: login }) : undefined),
@@ -112,19 +112,18 @@ export function MyWorkPage() {
     () => filterAssignedTo(issuesQuery.data ?? [], login ?? ""),
     [issuesQuery.data, login],
   );
-  // Blocked state resolves against the whole-vault relation projection, never
-  // the assignee-scoped `issues` list — a cross-assignee dependency missing from
-  // that narrow set would otherwise read as an unresolved blocker. Empty until
-  // the projection loads; buildMyWork skips blocked while it is (REEF-181).
-  const graph = relationsQuery.data ?? [];
   const currentSprint = useMemo(
     () => selectCurrentSprint(planningQuery.data?.sprints ?? []),
     [planningQuery.data],
   );
-  const myWork = useMemo(
-    () => buildMyWork(issues, graph, { now, currentSprint }),
-    [issues, graph, now, currentSprint],
-  );
+  const myWork = useMemo(() => {
+    // Blocked state resolves against the whole-vault relation projection, does not
+    // the assignee-scoped `issues` list — a cross-assignee dependency missing
+    // from that narrow set would otherwise read as an unresolved blocker. Empty
+    // until the projection loads; buildMyWork skips blocked while it is.
+    const graph = relationsQuery.data ?? [];
+    return buildMyWork(issues, graph, { now, currentSprint });
+  }, [issues, relationsQuery.data, now, currentSprint]);
 
   const searchParams = useSearchParams();
   const router = useRouter();

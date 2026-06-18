@@ -10,7 +10,7 @@ import {
 
 describe("computeForecast — AC1: when will it be done", () => {
   it("returns an exact week count when throughput is constant", () => {
-    // A perfectly steady 2/week with 10 remaining always finishes in 5 weeks,
+    // A perfectly steady 2/week with 10 remaining consistently finishes in 5 weeks,
     // independent of the RNG — a deterministic floor for the simulation.
     const forecast = computeForecast({
       remaining: 10,
@@ -24,7 +24,7 @@ describe("computeForecast — AC1: when will it be done", () => {
   });
 
   it("rounds partial weeks up — a week is the unit of completion", () => {
-    // 3/week, 10 remaining → 4 weeks (ceil of 3.33), never 3.
+    // 3/week, 10 remaining → 4 weeks (ceil of 3.33), not 3.
     const forecast = computeForecast({
       remaining: 10,
       weeklyThroughput: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
@@ -55,7 +55,7 @@ describe("computeForecast — AC1: when will it be done", () => {
       { maxWeeks: 20, trials: 200 },
     );
     expect(forecast.insufficient).toBe(false);
-    // Most trials never reach 100 within 20 weeks → capped floors at 20.
+    // Most trials miss 100 within 20 weeks → capped floors at 20.
     expect(forecast.completion.every((c) => c.weeks <= 20)).toBe(true);
     expect(forecast.completion.at(-1)?.capped).toBe(true);
   });
@@ -74,7 +74,7 @@ describe("computeForecast — AC2: how many by date", () => {
   });
 
   it("never forecasts more completed than remain in scope", () => {
-    // 5/week over 4 weeks = 20 produced, but only 3 items remain.
+    // 5/week over 4 weeks = 20 produced, but 3 items remain.
     const forecast = computeForecast({
       remaining: 3,
       weeklyThroughput: [5, 5, 5, 5, 5, 5, 5, 5],
@@ -146,7 +146,7 @@ describe("computeForecast — guards", () => {
   });
 
   it("flags low confidence when only a couple of weeks were productive", () => {
-    // 12-week window, but only 2 weeks ever saw a completion.
+    // 12-week window, but 2 weeks ever saw a completion.
     const forecast = computeForecast({
       remaining: 10,
       weeklyThroughput: [0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 6],

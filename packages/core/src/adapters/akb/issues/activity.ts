@@ -80,7 +80,7 @@ export type ActivityEventInput = ActivityEventDescriptor & {
   source: string | null;
 };
 
-/** Render a nullable key segment so an attach/detach never collides with a value. */
+/** Render a nullable key segment so an attach/detach does not collide with a value. */
 function eventKeySegment(value: string | null): string {
   return value ?? "∅";
 }
@@ -116,8 +116,8 @@ export function activityEventKey(
 }
 
 /**
- * Back-compat status-change key (REEF-063). Delegates to `activityEventKey` so
- * the key format has a single source; status enum values are never null, so the
+ * Older status-change key (REEF-063). Delegates to `activityEventKey` so
+ * the key format has a single source; status enum values are non-null, so the
  * segments render verbatim (`status_change:todo->in_progress@<at>`).
  */
 export function statusChangeEventKey(
@@ -159,10 +159,10 @@ interface ActivityRowInput {
  * `(reef_id, event_key)` (REEF-125 AC8). The `NOT EXISTS` probe and the insert
  * share ONE statement, so the check and the insert see one snapshot — no
  * two-round-trip time-of-check/time-of-use window — and a sequential retry of
- * the same logical change finds the committed row and adds nothing. Append-only:
+ * the same logical change finds the committed row and adds nothing. Append path:
  * there is no update path for an event row. Returns whether a row was added.
  *
- * Residual: akb's runtime HTTP surface creates tables by column list only and
+ * Residual: akb's runtime HTTP surface creates tables by column list and
  * exposes no ALTER/unique-index (REEF-125), so two *simultaneous* inserts of the
  * identical event_key could both pass `NOT EXISTS`. That needs concurrent
  * retries of the very same update; it is de-duplicated downstream on `event_key`
@@ -206,7 +206,7 @@ async function insertActivityEventRow(
  * Append an immutable `status_change` event to `reef_activity` (REEF-063 AC1).
  *
  * The caller (`updateIssue`) runs this best-effort: the status row update has
- * already committed, so a failed append must not fail the whole update —
+ * already committed, so a failed append should not fail the whole update —
  * `last_status_change` remains the last-resort single-event safety net (AC5).
  */
 export async function appendStatusChangeEvent(
@@ -239,7 +239,7 @@ export async function appendStatusChangeEvent(
  * Append a batch of non-status field-change events (REEF-126) in one funnel.
  * Provisions the table once, then inserts each event idempotently. Like
  * `appendStatusChangeEvent` the caller runs this best-effort — the row UPDATE
- * already committed, so a failed append must never fail the issue update.
+ * already committed, so a failed append should not fail the issue update.
  */
 export async function appendActivityEvents(
   adapter: AkbAdapter,
@@ -392,7 +392,7 @@ const PAYLOAD_SCHEMA_BY_EVENT_TYPE = {
  * Map a `reef_activity` row to an ActivityEvent. The reef-semantic actor, event
  * time, and source are projected from `meta` (REEF-125); the `payload` is parsed
  * by the schema for this row's `event_type` (REEF-126). An unknown/future
- * event_type this release can't model is treated as malformed so the read path
+ * event_type this release doesn't model is treated as malformed so the read path
  * skips it rather than surfacing an untyped payload.
  */
 function rowToActivityEvent(row: Record<string, unknown>): ActivityEvent {
@@ -444,7 +444,7 @@ function rowToActivityEvent(row: Record<string, unknown>): ActivityEvent {
  *
  * Read-path resilience mirrors `listComments`: an unprovisioned vault (no
  * `reef_activity` table) reads as an empty history WITHOUT reconciling — a read
- * never provisions (REEF-125 AC9). A single malformed row is skipped rather than
+ * does not provision (REEF-125 AC9). A single malformed row is skipped rather than
  * blanking the whole history.
  */
 export async function listIssueActivity(

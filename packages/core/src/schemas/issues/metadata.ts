@@ -132,7 +132,7 @@ export const IssueDocumentSchema = z
      * concurrent external edit to a document-projected field (body/title/labels/
      * relations) is rejected as a retryable conflict instead of silently
      * overwritten (REEF-227). Optional + nullable: akb may not return one, and
-     * row-only consumers never need it.
+     * row consumers do not need it.
      */
     commit_hash: z.string().nullable().optional(),
   })
@@ -286,7 +286,7 @@ export const IssueUpdateInputSchema = z
      * OCC base — the akb document `commit_hash` the edit was made against. When
      * the edit touches the document (body/title/labels/relations) `updateIssue`
      * forwards it as akb's `expected_commit` precondition; a moved commit is
-     * rejected as a retryable `ConflictError` (REEF-227). Omitted for row-only
+     * rejected as a retryable `ConflictError` (REEF-227). Omitted for row-scoped
      * edits, which stay last-write-wins.
      */
     expected_commit: z.string().optional(),

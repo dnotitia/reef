@@ -104,7 +104,7 @@ export function computeAggregates(
   const severityBuckets = seed<Severity>(SEVERITY_OPTIONS);
   const assigneeBuckets = new Map<string, Tally>();
   const labelBuckets = new Map<string, Tally>();
-  // riskMatrix stays count-only (risk posture, not load); leave it a number map.
+  // riskMatrix stays count-(risk posture, not load); leave it a number map.
   const riskBuckets = new Map<string, number>(
     RISK_PRIORITIES.flatMap((priority) =>
       AGING_BUCKETS.map((aging) => [`${priority}:${aging}`, 0] as const),

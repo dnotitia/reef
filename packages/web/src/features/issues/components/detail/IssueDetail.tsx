@@ -155,7 +155,7 @@ function IssueDetailLoaded({
     // from the server snapshot. The conflict refetch then lands a fresher
     // snapshot and the normal sync below pulls it in (the draft is now clean).
     // Done before the 3-way sync because that path keeps dirty fields — exactly
-    // the conflicted field we must not preserve.
+    // the conflicted field we should not preserve.
     if (conflictCount !== handledConflictRef.current) {
       handledConflictRef.current = conflictCount;
       dispatchDraft({ type: "reset", next: serverDraft });

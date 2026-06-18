@@ -25,9 +25,9 @@ interface AutosaveSnapshot {
   /**
    * Increments on each document OCC conflict (REEF-227). The open form watches
    * it to discard the rejected local edit and re-derive from the refetched
-   * server state, so a stale dirty field can't be re-saved over the change that
+   * server state, so a stale dirty field doesn't be re-saved over the change that
    * won. Carried alongside `status` because a conflict settles back to idle/error
-   * and would otherwise be invisible to a status-only subscriber.
+   * and would otherwise be invisible to a status-subscriber.
    */
   conflictCount: number;
 }
@@ -57,7 +57,7 @@ function commitsOverlap(
 }
 
 // A 409 from the update route is a document OCC conflict (REEF-227): the issue
-// changed under the editor. It must not be treated as a blind-retryable failure.
+// changed under the editor. It should not be treated as a blind-retryable failure.
 function isConflictError(err: unknown): boolean {
   return (
     typeof err === "object" &&

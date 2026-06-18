@@ -82,7 +82,7 @@ describe("buildEntries — merge-sort (AC1)", () => {
   it("orders by instant across offset formats, not raw ISO string text", () => {
     const issue = makeIssue({ created_at: "2026-06-01T00:00:00.000Z" });
     // 09:00+09:00 is the same instant as 00:00Z — earlier than 01:00Z — yet the
-    // raw string sorts lexically *after* it. Instant-aware sorting must win.
+    // raw string sorts lexically *after* it. Instant-aware sorting needs to win.
     const comments = [comment("c-offset", "2026-06-18T09:00:00+09:00")];
     const events = [
       activity("a-utc", "2026-06-18T01:00:00.000Z", "todo", "in_progress"),
@@ -97,7 +97,7 @@ describe("buildEntries — merge-sort (AC1)", () => {
   it("renders only status_change activity; other REEF-126 event kinds are filtered out", () => {
     const issue = makeIssue();
     // REEF-126 widened the activity union; REEF-064's MVP renders status changes
-    // only, so a non-status event must not appear as a timeline row.
+    // just, so a non-status event should not appear as a timeline row.
     const assignee: ActivityEvent = {
       id: "asg-1",
       reef_id: "REEF-001",

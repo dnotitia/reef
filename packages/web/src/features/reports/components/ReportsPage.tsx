@@ -49,6 +49,7 @@ export function ReportsPage() {
   const issuesQuery = useIssueList(vault);
   const planningQuery = usePlanningCatalog(vault);
   const [filters, setFilters] = useState<ReportFilters>(DEFAULT_REPORT_FILTERS);
+  const [nowMs] = useState(() => Date.now());
 
   // Aggregation is a single pass over every issue; memoize so unrelated
   // re-renders (e.g. a sibling popover opening) don't recompute it.
@@ -61,7 +62,7 @@ export function ReportsPage() {
   // Monte Carlo forecast off the same single-pass aggregate: remaining open work
   // from the status buckets, weekly throughput from the period's closed series.
   // Keyed on `agg` (itself memoized on issues+filters) so the bootstrap re-runs
-  // only when the data does, never on an unrelated re-render (REEF-190).
+  // when the data does, does not on an unrelated re-render (REEF-190).
   const forecast = useMemo(() => {
     const remaining = agg.byStatus
       .filter((bucket) => ACTIVE_STATUS_SET.has(bucket.status))
@@ -101,7 +102,7 @@ export function ReportsPage() {
       filters.parent_id)
     : null;
 
-  // The measure toggle only re-weights the load/throughput cards (Risk map,
+  // The measure toggle re-weights the load/throughput cards (Risk map,
   // Deadlines, and the KPI tiles stay count-based posture). Naming the measure
   // on each switched card keeps the partial scoping from reading as broken —
   // the same affordance the Period control uses on the Throughput card
@@ -188,7 +189,7 @@ export function ReportsPage() {
             {/* A parent drill empties the page without leaving a scope-bar
                 control to undo it (unlike the planning axes), and the rollup row
                 — the normal clear path — is gone in this empty branch. Offer the
-                clear here so the parent scope can't trap the page (REEF-187). */}
+                clear here so the parent scope doesn't trap the page (REEF-187). */}
             {filters.parent_id && (
               <Button
                 variant="outline"
@@ -221,7 +222,7 @@ export function ReportsPage() {
                     detail charts — a scannable portfolio index that drills into
                     them. The component self-hides when no dimension has items
                     (planning axes from the catalog, parent axis from issue
-                    links), so the guard is just catalog presence. */}
+                    links), so the guard is catalog presence. */}
                 {catalog && (
                   <HealthRollup
                     issues={issues}
@@ -261,7 +262,7 @@ export function ReportsPage() {
                     projected (REEF-190). */}
                 <ForecastCard
                   forecast={forecast}
-                  now={Date.now()}
+                  now={nowMs}
                   periodLabel={PERIOD_LABELS[filters.period]}
                 />
 
@@ -301,13 +302,13 @@ export function ReportsPage() {
                   />
                 </Card>
 
-                {/* Severity is sparsely populated (only bugs carry it), so the
+                {/* Severity is sparsely populated (bugs carry it), so the
                     card is omitted entirely when nothing has a severity rather
                     than showing a perpetually-empty panel (REEF-186). bySeverity
                     is pre-filtered to count > 0 by the aggregator. Bars stay
                     neutral — the same value-bar idiom as every other breakdown
                     card (REEF-248): the row label already names the severity, so
-                    a colored bar would just re-encode that identity. */}
+                    a colored bar would re-encode that identity. */}
                 {agg.bySeverity.length > 0 && (
                   <Card
                     title="By severity"

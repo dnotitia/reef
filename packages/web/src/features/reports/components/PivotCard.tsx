@@ -97,7 +97,7 @@ function FieldPicker({
   label: string;
   value: PivotFieldKey;
   /** The field chosen on the other axis — hidden here so rows and columns can
-   *  never be the same field. */
+   *  is not the same field. */
   exclude: PivotFieldKey;
   onChange: (value: PivotFieldKey) => void;
   testId: string;

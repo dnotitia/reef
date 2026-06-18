@@ -66,7 +66,7 @@ export function sortIssues(
  * period/scope), but these should match identically everywhere — so the
  * predicate lives here once and both call it (REEF-074). `IssueFilter` and the
  * reports `ReportFilters` both structurally satisfy this shape. `parent_id` is
- * the one facet only `/reports` sets today (the portfolio rollup drill,
+ * the one facet `/reports` sets today (the portfolio rollup drill,
  * REEF-187 — there is no issues-list control for it), but it shares the same
  * exact-id predicate so the semantics stay in one place.
  */

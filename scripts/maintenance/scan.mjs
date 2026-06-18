@@ -151,6 +151,10 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
     "packages/web/src/features/settings/components/TemplatesSection.tsx",
     "Templates settings workflow; extract rows/forms after another settings page shares them.",
   ],
+  [
+    "packages/web/src/app/globals.css",
+    "Global Tailwind/theme token entrypoint; split when theme tokens or editor/task styles gain separate owners.",
+  ],
 ]);
 
 const GLOBSTAR = "**";

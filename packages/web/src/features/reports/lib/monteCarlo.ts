@@ -9,7 +9,7 @@
  *   - "When will it be done?"  → weeks until all `remaining` open items finish.
  *   - "How many by date?"      → items finished within a fixed week horizon.
  *
- * Both are count-based (issue counts, never story points) and run entirely in
+ * Both are count-based (issue counts, does not story points) and run entirely in
  * the browser. The forecast is **deterministic by default**: the RNG is seeded
  * from the inputs, so identical data yields an identical forecast (a feature for
  * a number a PM may quote) while still drawing a representative random sample.
@@ -22,27 +22,27 @@ export type ForecastConfidence = (typeof FORECAST_CONFIDENCES)[number];
 
 /** Default trial count. 10k keeps the bootstrap tail stable and stays well
  *  under a millisecond for reef-sized inputs. */
-export const DEFAULT_FORECAST_TRIALS = 10_000;
+const DEFAULT_FORECAST_TRIALS = 10_000;
 
 /** Near-term horizon (weeks) for the "how many by date" forecast — a sprint-ish
  *  month out. A fixed default rather than a new date control: "by date" stays
  *  meaningful without widening the scope bar (REEF-190). */
 export const DEFAULT_FORECAST_HORIZON_WEEKS = 4;
 
-/** Per-trial week cap so a sample dominated by zero-throughput weeks cannot
+/** Per-trial week cap so a sample dominated by zero-throughput weeks does not
  *  spin the "when done" loop unboundedly. A trial that hits it records the cap
  *  (≈10 years) rather than diverging. */
 export const MAX_FORECAST_WEEKS = 520;
 
-/** A sample window shorter than this can't support a trustworthy 95th-percentile
+/** A sample window shorter than this doesn't support a trustworthy 95th-percentile
  *  tail, so the forecast is flagged low-confidence (REEF-190 sample-window
  *  decision: reuse the period control, default 12w, guard thin history). */
-export const MIN_RELIABLE_SAMPLE_WEEKS = 8;
+const MIN_RELIABLE_SAMPLE_WEEKS = 8;
 
-/** …and even a long window is thin if only a couple of weeks ever saw a
+/** …and even a long window is thin if a couple of weeks ever saw a
  *  completion — a young project on a 12-week window. Fewer productive weeks
  *  than this also trips the low-confidence flag. */
-export const MIN_PRODUCTIVE_WEEKS = 3;
+const MIN_PRODUCTIVE_WEEKS = 3;
 
 export interface ForecastInput {
   /** Open (committed, not-yet-resolved) items left in scope — the active
@@ -50,7 +50,7 @@ export interface ForecastInput {
   remaining: number;
   /** One completed-count sample per window week, oldest first. Zero weeks are
    *  kept on purpose: a week with no completions is real signal that the
-   *  forecast must not discard. */
+   *  forecast should not discard. */
   weeklyThroughput: ReadonlyArray<number>;
   /** Whole-week horizon for the "how many by date" forecast. */
   horizonWeeks: number;
@@ -98,7 +98,7 @@ export interface MonteCarloForecast {
 }
 
 /** mulberry32 — a small, fast, well-distributed 32-bit PRNG. Used instead of
- *  `Math.random` so a given seed always produces the same stream. */
+ *  `Math.random` so a given seed consistently produces the same stream. */
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
@@ -143,7 +143,7 @@ function quantile(sortedAsc: ReadonlyArray<number>, q: number): number {
  * Each trial draws weekly throughput with replacement: the "when done" leg
  * keeps drawing weeks until cumulative completions reach `remaining` (capped),
  * while the "by date" leg sums `horizonWeeks` draws and caps at `remaining`
- * (you cannot finish more items than exist). Percentiles then map confidence to
+ * (produced counts are capped at the remaining item count). Percentiles then map confidence to
  * a value, accounting for the opposite direction of the two questions.
  */
 export function computeForecast(

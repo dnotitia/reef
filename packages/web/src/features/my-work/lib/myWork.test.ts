@@ -135,7 +135,7 @@ describe("buildMyWork", () => {
 
   it("tallies the current sprint's remaining and done (AC5)", () => {
     // REEF-7 (done) and REEF-1..3 are not all in the sprint; add coverage via
-    // a sprint-scoped set below. Here only REEF-7 carries sprint_id.
+    // a sprint-scoped set below. Here REEF-7 carries sprint_id.
     expect(summary.sprint).toEqual({
       sprintId: "spr-1",
       name: "Sprint 24",
@@ -168,7 +168,7 @@ describe("buildMyWork", () => {
   });
 
   it("does not mark blocked from an unloaded (empty) relation graph", () => {
-    // Relations not loaded yet → graph is empty. A depends_on must NOT read as a
+    // Relations not loaded yet → graph is empty. A depends_on should not read as a
     // blocker (the missing dependency could be a resolved issue owned by someone
     // else, absent from the assignee-scoped set) (REEF-181 autoreview).
     const blocked = makeIssue({

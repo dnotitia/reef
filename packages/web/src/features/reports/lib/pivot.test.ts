@@ -35,7 +35,7 @@ const sumCells = (r: PivotResult): number => {
   return s;
 };
 
-/** Internal consistency every crosstab must hold: the grand total equals the
+/** Internal consistency every crosstab needs to hold: the grand total equals the
  *  sum of the row totals, the column totals, and the visible cells (REEF-189
  *  AC3). */
 function expectConsistentTotals(r: PivotResult): void {
@@ -194,7 +194,7 @@ describe("computePivot — population scope", () => {
         archived_at: "2026-05-01T00:00:00.000Z",
       }),
     ];
-    // Default scope ("active") drops archived issues, just like the other cards.
+    // Default scope ("active") drops archived issues, like the other cards.
     const r = computePivot(issues, "status", "type");
     expect(r.grandTotal).toBe(1);
 

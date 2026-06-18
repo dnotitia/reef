@@ -155,7 +155,7 @@ describe("ReportsPage", () => {
     await screen.findByTestId("report-scope-bar");
     // The long card stack is segmented into three labeled bands so the page has
     // a scan order and entry point, not one flat wall. Section labels are the
-    // only level-2 headings (cards are h3), so the level filter is unambiguous.
+    // level-2 headings (cards are h3), so the level filter is unambiguous.
     for (const label of ["Snapshot", "Flow & forecast", "Breakdown"]) {
       expect(
         screen.getByRole("heading", { name: label, level: 2 }),
@@ -189,7 +189,7 @@ describe("ReportsPage", () => {
     const riskMap = screen.getByTestId("report-card-risk-map");
     expect(riskMap).toBeInTheDocument();
     // ...and its open-work population is now labelled explicitly so the card's
-    // counts does not be mistaken for the in-scope total.
+    // counts is not mistaken for the in-scope total.
     expect(within(riskMap).getByText(/open work/i)).toBeInTheDocument();
     // The 1-D marginals the matrix already encodes are gone.
     expect(
@@ -286,7 +286,7 @@ describe("ReportsPage", () => {
   it("can clear a parent rollup drill from the empty state (REEF-187)", async () => {
     // A parent and its single child. The parent axis has no scope-bar control,
     // so once a further filter empties the page the rollup row is gone — the
-    // empty-state affordance is the only way to undo the parent scope.
+    // empty-state affordance is the way to undo the parent scope.
     mockApi([
       {
         id: "E1",
@@ -313,7 +313,7 @@ describe("ReportsPage", () => {
     render(wrap(<ReportsPage />));
     await screen.findByTestId("report-scope-bar");
 
-    // Drill into the parent (only the parent axis has items here), then scope to
+    // Drill into the parent (the parent axis has items here), then scope to
     // zero with a label that matches nothing.
     fireEvent.click(screen.getByTestId("health-rollup-row-E1"));
     setLabelFilter("missing");

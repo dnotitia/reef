@@ -5,7 +5,7 @@ import { StatusIcon } from "@/components/ui/status-icon";
 import type { ImplementationRef } from "@reef/core";
 import { CLOSED_REASON_LABELS } from "@reef/core/fields";
 import { CircleDot, GitBranch, GitCommit, GitPullRequest } from "lucide-react";
-import { type ReactNode, memo } from "react";
+import { type ReactNode, memo, useState } from "react";
 import {
   formatAbsoluteTime,
   formatRelativeTime,
@@ -34,12 +34,12 @@ function Actor({ name }: { name: string }) {
 function glyphFor(event: TimelineSystemEvent): ReactNode {
   switch (event.kind) {
     case "created":
-      // Origin of the thread — neutral, never a status color.
+      // Origin of the thread — neutral, not a status color.
       return (
         <CircleDot className="size-3.5 text-muted-foreground" aria-hidden />
       );
     case "status_change":
-      // never-fill status glyph in the to-status color (the single encoding of
+      // unfilled status glyph in the to-status color (the single encoding of
       // the new state; the inline labels stay plain).
       return <StatusIcon status={event.to} size={14} decorative />;
     case "closed":
@@ -131,13 +131,15 @@ function lineFor(event: TimelineSystemEvent): ReactNode {
  * One system / reconstructed event in the unified timeline (REEF-064): a gutter
  * glyph node and a single muted line (actor · change · time). Lighter than a
  * comment by design — the two visual weights are the whole point of the merged
- * feed. Never a chip or filled badge; the only color is the status glyph.
+ * feed. Not a chip or filled badge; the color is the status glyph.
  */
 export const ActivityEventRow = memo(function ActivityEventRow({
   event,
 }: {
   event: TimelineSystemEvent;
 }) {
+  const [nowMs] = useState(() => Date.now());
+
   return (
     <div className="flex items-center gap-3" data-testid="activity-event">
       {/* 20px node box matches the comment avatar's footprint, so the glyph
@@ -152,7 +154,7 @@ export const ActivityEventRow = memo(function ActivityEventRow({
           title={formatAbsoluteTime(event.at)}
           className="shrink-0 text-[11px] text-muted-foreground tabular-nums"
         >
-          {formatRelativeTime(event.at, Date.now())}
+          {formatRelativeTime(event.at, nowMs)}
         </time>
       </div>
     </div>

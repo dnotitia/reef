@@ -25,14 +25,14 @@ const NONE: MyWorkAttention = { attention: 0, overdue: 0, dueSoon: 0 };
  * vault + same `assignee` query produces the same `useIssueList` cache entry, so
  * the badge costs zero extra network and consistently agrees with the page KPIs.
  * The deadline counts are derived by the same `buildMyWork` pass the page uses
- * (graph/sprint never affect overdue/due-soon, so an empty graph is correct
- * here), keeping a single source of truth for the classification.
+ * (graph/sprint does not affect overdue/due-soon, so an empty graph is correct
+ * here), keeping a single canonical source for the classification.
  */
 export function useMyWorkAttention(): MyWorkAttention {
   const { vault } = useActiveVault();
   const login = useCurrentUserLogin();
 
-  // Blank the vault until we have a login so a logged-out shell never fans out a
+  // Blank the vault until we have a login so a logged-out shell does not fan out a
   // whole-vault query — mirrors MyWorkPage's scoping so the keys line up.
   const scopedVault = login ? vault : "";
   const query = useMemo(
@@ -41,7 +41,7 @@ export function useMyWorkAttention(): MyWorkAttention {
   );
   const { data } = useIssueList(scopedVault, query);
 
-  // The dashboard shell hosting this badge never unmounts, so a once-captured
+  // The dashboard shell hosting this badge does not unmount, so a once-captured
   // `now` would freeze the deadline clock — an item crossing into the due-soon
   // window or past its deadline would not flip the badge tone until reload.
   // Re-read the clock on a coarse minute tick (deadlines are day-granular, and

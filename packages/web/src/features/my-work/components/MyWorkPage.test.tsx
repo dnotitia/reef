@@ -120,7 +120,7 @@ describe("MyWorkPage", () => {
     mockUseCurrentUser.mockReturnValue({ data: null, isPending: false });
     render(<MyWorkPage />);
     expect(screen.getByTestId("my-work-no-session")).toBeInTheDocument();
-    // A logged-out visit must not fan out a whole-vault fetch.
+    // A logged-out visit should not fan out a whole-vault fetch.
     expect(mockUseIssueList).toHaveBeenCalledWith("", undefined);
   });
 

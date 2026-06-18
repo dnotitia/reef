@@ -11,7 +11,7 @@ import {
 /**
  * The status-change variant of the `reef_activity` discriminated union (REEF-126
  * widened it to assignee / priority / planning / impl-ref events). REEF-064's MVP
- * renders only status changes (its `from → to` glyph line); the other event kinds
+ * renders status changes (its `from → to` glyph line); the other event kinds
  * are filtered out here and surfaced by a follow-up.
  */
 type StatusChangeActivityEvent = Extract<
@@ -31,13 +31,13 @@ function isStatusChangeEvent(
  * The three sources — comments (`reef_comments`), activity events
  * (`reef_activity`), and *reconstructed* events synthesized from the issue's own
  * fields — are merged at read time into one chronological feed. No new storage
- * and no unified table (AC4): this module only reshapes data already loaded.
+ * and no unified table (AC4): this module reshapes data already loaded.
  *
  * Reconstructed events backfill issues that predate the activity log (AC5):
  * `created`, each `delivery` ref, and the issue's current status. For an open
  * issue the status reconstruction is a *fallback* `status_change` — dropped when
  * `reef_activity` already logged that transition (activity wins), so a single
- * change never shows twice. For a closed issue it is a `closed` event carrying
+ * change does not show twice. For a closed issue it is a `closed` event carrying
  * the closure reason; because the logged `{from,to}` payload has no reason, the
  * `closed` reconstruction instead *supersedes* the logged plain close, so the
  * close still shows exactly once but with its reason intact.
@@ -99,11 +99,11 @@ export type TimelineEntry = CommentEntry | SystemEntry | CollapsedEntry;
 
 /**
  * A run of this many consecutive `status_change` events between comments folds
- * into a single expandable row. MVP keeps the rule deliberately simple: only
+ * into a single expandable row. MVP keeps the rule deliberately simple: just
  * same-kind status-change runs collapse (AC3); `created` / `delivery` / `closed`
- * each carry unique information and never fold.
+ * each carry unique information and does not fold.
  */
-export const COLLAPSE_THRESHOLD = 3;
+const COLLAPSE_THRESHOLD = 3;
 
 /** Map a `reef_activity` status-change event to a normalized system event. */
 function fromActivityEvent(
@@ -127,9 +127,9 @@ function deliveryId(ref: ImplementationRef): string {
 
 /**
  * Synthesize events from the issue's own fields (AC5). `created` and each
- * `delivery` ref are always emitted — the activity-log MVP records neither, so
- * they never duplicate a logged event. The status-derived event is a `closed`
- * (with reason) when the issue is closed — always emitted, and superseding the
+ * `delivery` ref are consistently emitted — the activity-log MVP records neither, so
+ * they does not duplicate a logged event. The status-derived event is a `closed`
+ * (with reason) when the issue is closed — consistently emitted, and superseding the
  * logged plain close in `buildEntries` — or otherwise a `status_change` fallback
  * dropped when an activity event already shares its timestamp. Either is skipped
  * when it coincides with creation, since `created` already represents that state.
@@ -159,7 +159,7 @@ export function reconstructEvents(
 
   // The current-status event (AC5). For a closed issue it is a `closed` event
   // carrying the reason — information the logged `{from,to}` payload lacks — so it
-  // is ALWAYS emitted and instead *supersedes* the logged close in `buildEntries`
+  // is Consistently emitted and instead *supersedes* the logged close in `buildEntries`
   // (the close shows once, with its reason). For an open issue it is a plain
   // status_change to the current status, a fallback dropped when reef_activity
   // already logged that transition (activity wins). Either way it is skipped when
@@ -168,8 +168,8 @@ export function reconstructEvents(
   const closedAt = closedReconstructionAt(issue);
   if (closedAt != null) {
     // Prefer the logged close's authoritative actor. Otherwise fall back to
-    // `updated_by` only when it reliably names the closer (see `reliableActorAt`),
-    // never to a later unrelated editor.
+    // `updated_by` when it reliably names the closer (see `reliableActorAt`),
+    // does not to a later unrelated editor.
     const loggedClose = statusChanges.find(
       (event) => event.payload.to === "closed" && event.at === closedAt,
     );
@@ -206,7 +206,7 @@ export function reconstructEvents(
 
 /**
  * `updated_by` identifies who made the *last* edit, not specifically who changed
- * the status. It only names the transitioner/closer when the status change was
+ * the status. It names the transitioner/closer when the status change was
  * the issue's most recent edit — i.e. `updated_at` still equals the transition
  * time. A later non-status edit bumps `updated_by`/`updated_at` without touching
  * the status, so trusting it then would misattribute the reconstructed event to
@@ -262,7 +262,7 @@ export function buildEntries(
   // append path is idempotent on event_key but akb's HTTP surface has no unique
   // index, so two simultaneous identical inserts can leave duplicate rows; the
   // adapter documents that the timeline is the downstream de-duper (REEF-125).
-  // Only status_change events render today (REEF-064 MVP); other REEF-126 event
+  // status_change events render today (REEF-064 MVP); other REEF-126 event
   // kinds are filtered out pending a follow-up that designs their rows.
   const seenKeys = new Set<string>();
   for (const event of activity.filter(isStatusChangeEvent)) {

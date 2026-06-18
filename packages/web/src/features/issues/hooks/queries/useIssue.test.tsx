@@ -102,7 +102,7 @@ describe("useIssue", () => {
       defaultOptions: { queries: { retry: false } },
     });
     // Seed a FRESH cache entry (inside the 30s staleTime window). Without
-    // refetchOnMount:"always" this would be served with no network call; the
+    // refetchOnMount:"consistently" this would be served with no network call; the
     // card would show this (possibly stale-vs-external) copy.
     queryClient.setQueryData(["issues", "detail", "reef-acme", "REEF-001"], {
       issue: SAMPLE_ISSUE,

@@ -57,7 +57,7 @@ export type ReportScope = "active" | "all" | "completed";
 
 /** How distribution and throughput cards measure work: by issue `count`
  *  (default) or by summed story `points` (REEF-188). A measure, not a
- *  population filter — it never narrows which issues are aggregated. */
+ *  population filter — it does not narrow which issues are aggregated. */
 export type ReportMeasure = "count" | "points";
 
 export interface ReportFilters {
@@ -65,12 +65,12 @@ export interface ReportFilters {
   scope: ReportScope;
   /** Count (default) vs. sum-of-estimates weighting for the load/throughput
    *  cards. Threaded like period/scope; it changes how buckets are measured and
-   *  how ranked lists sort, never the matched population (REEF-188). */
+   *  how ranked lists sort, not the matched population (REEF-188). */
   measure: ReportMeasure;
   sprint_id?: string;
   milestone_id?: string;
   release_id?: string;
-  /** Set only by the portfolio rollup's parent drill (REEF-187); no scope-bar
+  /** Set by the portfolio rollup's parent drill (REEF-187); no scope-bar
    *  control. Shares the exact-id `matchesSharedFacets` predicate. */
   parent_id?: string;
   assignee?: string;
@@ -85,7 +85,7 @@ export const DEFAULT_REPORT_FILTERS: ReportFilters = {
 
 /** Top-line health numbers, all scoped to active issues. `inProgress` folds
  *  in_progress + in_review; `done` folds done + closed. `overdue` / `blocked`
- *  / `unassigned` count just *open work* (status not done/closed). */
+ *  / `unassigned` count *open work* (status not done/closed). */
 export interface ReportKpis {
   active: number;
   inProgress: number;
@@ -265,7 +265,7 @@ export function matchesFilters(
   issue: IssueListItem,
   filters: ReportFilters,
 ): boolean {
-  // Reports scope: active hides archived; completed keeps just resolved
+  // Reports scope: active hides archived; completed keeps resolved
   // active work. The remaining facets (assignee/label/sprint/milestone/release)
   // share one predicate with the issues list so semantics does not diverge
   // (REEF-074).
@@ -315,7 +315,7 @@ export function tally<K>(map: Map<K, Tally>, key: K, pts: number): void {
 
 /** Rank named buckets by the active measure (desc), breaking ties by name
  *  (asc), then take the top `limit`. The unranked measure rides along on each
- *  row so a "show both" view never needs a recompute. */
+ *  row so a "show both" view does not need a recompute. */
 export function rankAndTake(
   buckets: Map<string, Tally>,
   limit: number,

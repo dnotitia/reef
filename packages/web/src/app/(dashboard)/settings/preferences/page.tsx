@@ -25,7 +25,7 @@ type TokenStatus = "unknown" | "configured" | "not-configured";
  *  - The GitHub Personal Access Token is browser-local (IndexedDB) and is
  *    used to call monitored repositories on the user's behalf. There is
  *    no OAuth flow — the user pastes a PAT directly.
- *  - "Disconnect" removes ONLY the browser-local GitHub PAT and returns to the
+ *  - "Disconnect" removes The browser-local GitHub PAT and returns to the
  *    token-entry form; it does not touch the akb session (REEF-247).
  */
 export default function PreferencesPage() {
@@ -47,9 +47,9 @@ export default function PreferencesPage() {
 
   async function handleDisconnect() {
     try {
-      // Disconnect removes only the browser-local GitHub PAT and returns to the
+      // Disconnect removes the browser-local GitHub PAT and returns to the
       // token-entry form. Workspace sign-out is a separate action (the sidebar
-      // account menu, REEF-068); this path must not end the akb session.
+      // account menu, REEF-068); this path should not end the akb session.
       const ok = await clearGitHubToken();
       if (!ok) {
         // IndexedDB is unavailable, so the PAT (and its auth-scoped cache) may

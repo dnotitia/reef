@@ -85,9 +85,9 @@ const navLinks: ReadonlyArray<{
 ] as const;
 
 /** A sidebar nav count badge (REEF-204): the Activity "unread" pill and the My
- * Work "needs attention" pill share one render path, differing only in tone.
+ * Work "needs attention" pill share one render path, differing in tone.
  * Filled-pill + white foreground is the sidebar's badge vocabulary (the count is
- * also carried by an aria-label, so the small chip is not the only signal). */
+ * also carried by an aria-label, so the small chip is not the signal). */
 type NavBadgeTone = "brand" | "danger" | "warn";
 
 const NAV_BADGE_PILL: Record<NavBadgeTone, string> = {
@@ -207,7 +207,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
         display: cap(attention),
         label: parts.join(", "),
         // overdue dominates the tone: any overdue work reads as destructive,
-        // otherwise the due-soon-only badge is the softer orange (REEF-204).
+        // otherwise the due-soon-badge is the softer orange (REEF-204).
         tone: overdue > 0 ? "danger" : "warn",
         badgeTestId: "my-work-attention-badge",
         dotTestId: "my-work-attention-dot",
@@ -449,7 +449,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
       <GlobalSearchDialog />
 
       {/* Keyboard shortcuts cheat sheet (⌘?). Same single-mount pattern —
-          opened just by the keybinding for now, but a future "Help" entry
+          opened by the keybinding for now, but a future "Help" entry
           in the sidebar can flip the same store. */}
       <KeyboardShortcutsDialog />
 

@@ -87,12 +87,12 @@ describe("appendStatusChangeEvent", () => {
 
     const insertSql = lastSql(calls[1]?.init?.body);
     expect(insertSql).toContain(`INSERT INTO ${REEF_ACTIVITY_TABLE}`);
-    // Only declared columns — never the akb reserved/auto columns.
+    // Declared columns are used; akb reserved/auto columns are excluded.
     expect(insertSql).toContain(
       `("reef_id", "event_type", "event_key", "payload", "meta")`,
     );
     expect(insertSql).not.toContain("created_by");
-    // Idempotency is enforced in the same statement: insert only when the
+    // Idempotency is enforced in the same statement: insert when the
     // (reef_id, event_key) row does not already exist.
     expect(insertSql).toContain("WHERE NOT EXISTS");
     expect(insertSql).toContain(`SELECT 1 FROM ${REEF_ACTIVITY_TABLE}`);

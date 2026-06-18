@@ -199,7 +199,7 @@ describe("ActivityTimeline — collapse (AC3)", () => {
     });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
 
-    // Collapsed: only the reconstructed `created` row is visible.
+    // Collapsed: the reconstructed `created` row is visible.
     expect(screen.getAllByTestId("activity-event")).toHaveLength(1);
 
     fireEvent.click(toggle);
