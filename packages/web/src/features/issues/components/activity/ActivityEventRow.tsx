@@ -30,7 +30,7 @@ function Actor({ name }: { name: string }) {
   return <span className="font-medium text-foreground">{name}</span>;
 }
 
-/** The glyph that sits on the spine, by event kind. */
+/** The gutter glyph node, by event kind. */
 function glyphFor(event: TimelineSystemEvent): ReactNode {
   switch (event.kind) {
     case "created":
@@ -113,10 +113,10 @@ function lineFor(event: TimelineSystemEvent): ReactNode {
 }
 
 /**
- * One system / reconstructed event in the unified timeline (REEF-064): a glyph
- * node on the spine and a single muted line (actor · change · time). Lighter
- * than a comment by design — the two visual weights are the whole point of the
- * merged feed. Never a chip or filled badge; the only color is the status glyph.
+ * One system / reconstructed event in the unified timeline (REEF-064): a gutter
+ * glyph node and a single muted line (actor · change · time). Lighter than a
+ * comment by design — the two visual weights are the whole point of the merged
+ * feed. Never a chip or filled badge; the only color is the status glyph.
  */
 export const ActivityEventRow = memo(function ActivityEventRow({
   event,
@@ -125,9 +125,9 @@ export const ActivityEventRow = memo(function ActivityEventRow({
 }) {
   return (
     <div className="flex items-center gap-3" data-testid="activity-event">
-      {/* 20px disc matches the comment avatar's footprint so every node sits
-          centered on the same spine; bg-background breaks the line cleanly. */}
-      <span className="relative z-[1] flex size-5 shrink-0 items-center justify-center rounded-full bg-background">
+      {/* 20px node box matches the comment avatar's footprint, so the glyph
+          aligns in the same left gutter as the comment avatars. */}
+      <span className="flex size-5 shrink-0 items-center justify-center">
         {glyphFor(event)}
       </span>
       <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">

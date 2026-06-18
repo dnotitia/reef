@@ -31,10 +31,11 @@ const NO_ACTIVITY: ActivityEvent[] = [];
  * The issue detail's unified "Activity" section (REEF-064). It owns its own data
  * + comment mutations (like the comments section it replaces) and merges three
  * sources at render time — comments, status-change activity, and events
- * reconstructed from the issue's own fields — into one chronological thread on a
- * single spine. Comments render as avatar-gutter cards; system and reconstructed
- * events render as a lighter glyph-node line; the composer is the live node at
- * the foot. No new storage and no unified table — the merge is pure (AC4).
+ * reconstructed from the issue's own fields — into one chronological feed.
+ * Comments render as avatar-gutter cards; system and reconstructed events render
+ * as a lighter glyph-node line. Every node (avatar, glyph, composer) shares one
+ * left gutter so the feed reads as a single column, with no connecting rail. No
+ * new storage and no unified table — the merge is pure (AC4).
  */
 export function ActivityTimeline({
   issueId,
@@ -88,14 +89,7 @@ export function ActivityTimeline({
     <section className="flex min-w-0 flex-col gap-3">
       <h3 className={ISSUE_SECTION_HEADER_CLASS}>Activity</h3>
 
-      <div className="relative flex min-w-0 flex-col gap-4">
-        {/* The thread spine: one line through every node's center (the avatars
-            cover it; the glyph discs break it cleanly). */}
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute top-3 bottom-10 left-[9.5px] w-px bg-border"
-        />
-
+      <div className="flex min-w-0 flex-col gap-4">
         {timeline.map((entry) => {
           if (entry.type === "comment") {
             return (

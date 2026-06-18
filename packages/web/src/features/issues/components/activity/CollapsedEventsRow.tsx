@@ -37,7 +37,7 @@ export function CollapsedEventsRow({ events }: { events: SystemEntry[] }) {
         onClick={() => setExpanded((value) => !value)}
         className="group/collapse flex w-full items-center gap-3 text-left"
       >
-        <span className="relative z-[1] flex size-5 shrink-0 items-center justify-center rounded-full bg-background text-muted-foreground">
+        <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
           <ChevronRight
             className={cn(
               "size-3.5 transition-transform duration-150 ease-[var(--ease-signature)]",
