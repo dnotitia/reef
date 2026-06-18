@@ -2,7 +2,6 @@
 
 import { STATUS_LABELS } from "@/components/fields/fieldKit";
 import { StatusIcon } from "@/components/ui/status-icon";
-import { cn } from "@/lib/utils";
 import type { ImplementationRef } from "@reef/core";
 import { CLOSED_REASON_LABELS } from "@reef/core/fields";
 import { CircleDot, GitBranch, GitCommit, GitPullRequest } from "lucide-react";
@@ -36,7 +35,9 @@ function glyphFor(event: TimelineSystemEvent): ReactNode {
   switch (event.kind) {
     case "created":
       // Origin of the thread — neutral, never a status color.
-      return <CircleDot className="size-3.5 text-muted-foreground" aria-hidden />;
+      return (
+        <CircleDot className="size-3.5 text-muted-foreground" aria-hidden />
+      );
     case "status_change":
       // never-fill status glyph in the to-status color (the single encoding of
       // the new state; the inline labels stay plain).
@@ -124,13 +125,9 @@ export const ActivityEventRow = memo(function ActivityEventRow({
 }) {
   return (
     <div className="flex items-center gap-3" data-testid="activity-event">
-      <span
-        className={cn(
-          // 20px disc matches the comment avatar's footprint so every node sits
-          // centered on the same spine; bg-background breaks the line cleanly.
-          "relative z-[1] flex size-5 shrink-0 items-center justify-center rounded-full bg-background",
-        )}
-      >
+      {/* 20px disc matches the comment avatar's footprint so every node sits
+          centered on the same spine; bg-background breaks the line cleanly. */}
+      <span className="relative z-[1] flex size-5 shrink-0 items-center justify-center rounded-full bg-background">
         {glyphFor(event)}
       </span>
       <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">

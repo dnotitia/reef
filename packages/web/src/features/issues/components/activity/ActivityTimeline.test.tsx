@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -74,7 +80,9 @@ let activity: ActivityEvent[] = [];
 beforeEach(() => {
   vi.clearAllMocks();
   comments = [ALICE_COMMENT];
-  activity = [statusEvent("a1", "2026-06-04T00:00:00.000Z", "todo", "in_progress")];
+  activity = [
+    statusEvent("a1", "2026-06-04T00:00:00.000Z", "todo", "in_progress"),
+  ];
   mockApiFetch.mockImplementation(
     async (input: URL | RequestInfo, init?: RequestInit) => {
       const url = String(input);
@@ -226,7 +234,11 @@ describe("ActivityTimeline — comment mutations", () => {
     fireEvent.click(screen.getByLabelText("Edit comment"));
     const draft = screen.getByLabelText("Comment draft");
     fireEvent.change(draft, { target: { value: "edited" } });
-    fireEvent.click(within(draft.closest("div") as HTMLElement).getByRole("button", { name: "Save" }));
+    fireEvent.click(
+      within(draft.closest("div") as HTMLElement).getByRole("button", {
+        name: "Save",
+      }),
+    );
 
     await waitFor(() =>
       expect(

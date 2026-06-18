@@ -9,7 +9,9 @@ vi.mock("../refs/IssueLinkedDocuments", () => ({
   IssueLinkedDocuments: () => null,
 }));
 vi.mock("../refs/IssueRefsEditor", () => ({ IssueRefsEditor: () => null }));
-vi.mock("../activity/ActivityTimeline", () => ({ ActivityTimeline: () => null }));
+vi.mock("../activity/ActivityTimeline", () => ({
+  ActivityTimeline: () => null,
+}));
 vi.mock("../relations/IssueChildren", () => ({ IssueChildren: () => null }));
 vi.mock("../relations/IssueRelationInput", () => ({
   IssueRelationInput: () => null,

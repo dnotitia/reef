@@ -57,7 +57,9 @@ describe("buildEntries — merge-sort (AC1)", () => {
       comment("c-late", "2026-06-05T00:00:00.000Z"),
       comment("c-early", "2026-06-02T00:00:00.000Z"),
     ];
-    const events = [activity("a1", "2026-06-03T00:00:00.000Z", "todo", "in_progress")];
+    const events = [
+      activity("a1", "2026-06-03T00:00:00.000Z", "todo", "in_progress"),
+    ];
 
     const entries = buildEntries(comments, events, issue);
     const ats = entries.map((e) => e.at);
@@ -66,12 +68,9 @@ describe("buildEntries — merge-sort (AC1)", () => {
     // created (reconstructed) is first; the two comments and the activity event
     // fall in time order between/after it.
     expect(entries[0]).toMatchObject({ type: "system" });
-    expect(entries.map((e) => (e.type === "comment" ? e.comment.id : e.event.id))).toEqual([
-      "created",
-      "c-early",
-      "a1",
-      "c-late",
-    ]);
+    expect(
+      entries.map((e) => (e.type === "comment" ? e.comment.id : e.event.id)),
+    ).toEqual(["created", "c-early", "a1", "c-late"]);
   });
 });
 
@@ -79,13 +78,23 @@ describe("reconstructEvents (AC5)", () => {
   it("always emits a created event and one delivery per implementation_ref", () => {
     const issue = makeIssue({
       implementation_refs: [
-        { type: "pull_request", repo: "o/r", ref: "25", actor: "carol", detected_at: "2026-06-08T00:00:00.000Z" },
+        {
+          type: "pull_request",
+          repo: "o/r",
+          ref: "25",
+          actor: "carol",
+          detected_at: "2026-06-08T00:00:00.000Z",
+        },
       ],
     });
     const events = reconstructEvents(issue, []);
     expect(events.find((e) => e.kind === "created")).toBeTruthy();
     const delivery = events.find((e) => e.kind === "delivery");
-    expect(delivery).toMatchObject({ kind: "delivery", actor: "carol", at: "2026-06-08T00:00:00.000Z" });
+    expect(delivery).toMatchObject({
+      kind: "delivery",
+      actor: "carol",
+      at: "2026-06-08T00:00:00.000Z",
+    });
   });
 
   it("reconstructs a closed event with its reason when the issue is closed", () => {
@@ -95,8 +104,14 @@ describe("reconstructEvents (AC5)", () => {
       closed_reason: "completed",
       last_status_change: "2026-06-09T00:00:00.000Z",
     });
-    const closed = reconstructEvents(issue, []).find((e) => e.kind === "closed");
-    expect(closed).toMatchObject({ kind: "closed", reason: "completed", at: "2026-06-09T00:00:00.000Z" });
+    const closed = reconstructEvents(issue, []).find(
+      (e) => e.kind === "closed",
+    );
+    expect(closed).toMatchObject({
+      kind: "closed",
+      reason: "completed",
+      at: "2026-06-09T00:00:00.000Z",
+    });
   });
 
   it("drops the current-status fallback when activity already logged that transition (activity wins)", () => {
@@ -104,7 +119,9 @@ describe("reconstructEvents (AC5)", () => {
       status: "in_progress",
       last_status_change: "2026-06-04T00:00:00.000Z",
     });
-    const logged = [activity("a1", "2026-06-04T00:00:00.000Z", "todo", "in_progress")];
+    const logged = [
+      activity("a1", "2026-06-04T00:00:00.000Z", "todo", "in_progress"),
+    ];
 
     // With the transition logged, no reconstructed current-status event.
     const withLog = reconstructEvents(issue, logged);
@@ -132,10 +149,21 @@ describe("reconstructEvents (AC5)", () => {
 });
 
 describe("collapseRuns (AC3)", () => {
-  const sys = (id: string, at: string): ReturnType<typeof buildEntries>[number] => ({
+  const sys = (
+    id: string,
+    at: string,
+  ): ReturnType<typeof buildEntries>[number] => ({
     type: "system",
     at,
-    event: { id, at, actor: "bob", kind: "status_change", from: "todo", to: "in_progress", source: null },
+    event: {
+      id,
+      at,
+      actor: "bob",
+      kind: "status_change",
+      from: "todo",
+      to: "in_progress",
+      source: null,
+    },
   });
 
   it("folds a run of ≥3 consecutive status changes into one collapsed entry", () => {
@@ -152,7 +180,11 @@ describe("collapseRuns (AC3)", () => {
   it("leaves runs of 1–2 status changes expanded, and never folds across a comment", () => {
     const entries = collapseRuns([
       sys("s1", "2026-06-02T00:00:00.000Z"),
-      { type: "comment", at: "2026-06-03T00:00:00.000Z", comment: comment("c1", "2026-06-03T00:00:00.000Z") },
+      {
+        type: "comment",
+        at: "2026-06-03T00:00:00.000Z",
+        comment: comment("c1", "2026-06-03T00:00:00.000Z"),
+      },
       sys("s2", "2026-06-04T00:00:00.000Z"),
       sys("s3", "2026-06-05T00:00:00.000Z"),
     ]);

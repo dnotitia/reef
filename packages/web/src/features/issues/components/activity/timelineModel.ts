@@ -143,7 +143,11 @@ export function reconstructEvents(
   // (the `created` event already represents the initial status).
   const loggedAtStatusTime =
     statusAt != null && activity.some((event) => event.at === statusAt);
-  if (statusAt != null && statusAt !== issue.created_at && !loggedAtStatusTime) {
+  if (
+    statusAt != null &&
+    statusAt !== issue.created_at &&
+    !loggedAtStatusTime
+  ) {
     if (issue.status === "closed") {
       events.push({
         id: "current-status",
@@ -194,7 +198,11 @@ export function buildEntries(
     entries.push({ type: "comment", at: comment.created_at, comment });
   }
   for (const event of activity) {
-    entries.push({ type: "system", at: event.at, event: fromActivityEvent(event) });
+    entries.push({
+      type: "system",
+      at: event.at,
+      event: fromActivityEvent(event),
+    });
   }
   for (const event of reconstructEvents(issue, activity)) {
     entries.push({ type: "system", at: event.at, event });
@@ -209,7 +217,9 @@ export function buildEntries(
 }
 
 /** True when this system entry is a foldable status-change event. */
-function isStatusChange(entry: CommentEntry | SystemEntry): entry is SystemEntry {
+function isStatusChange(
+  entry: CommentEntry | SystemEntry,
+): entry is SystemEntry {
   return entry.type === "system" && entry.event.kind === "status_change";
 }
 
