@@ -115,7 +115,10 @@ export function MyWorkQueue({ items, mode, onModeChange }: MyWorkQueueProps) {
 
 function GroupHeader({ status, count }: { status: Status; count: number }) {
   return (
-    <div className="flex items-center gap-2 border-t border-border-subtle bg-surface-subtle px-3 py-1.5 first:border-t-0">
+    <div
+      data-testid={`my-work-group-header-${status}`}
+      className="flex items-center gap-2 border-t border-border-subtle bg-surface-subtle px-3 py-1.5 first:border-t-0"
+    >
       <StatusIcon status={status} size={13} decorative />
       <span className="text-xs font-semibold text-foreground/90">
         {STATUS_LABELS[status]}
