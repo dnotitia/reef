@@ -14,6 +14,12 @@ explicitly in the entries below.
 
 ### Added
 
+- **Comments on issues.** Each issue now has a Comments section at the bottom of
+  the detail view: leave a note, see the thread oldest-first with each author and
+  when they wrote it, and edit your own comments (an "edited" marker shows when
+  you do). Comments render markdown — including inline `code` — and `⌘↵` posts
+  without reaching for the mouse. This is the flat first cut; threads, reactions,
+  and a merged comment + activity timeline come later (REEF-062).
 - **Portfolio health now rolls up by parent epic too.** The Reports "Portfolio
   health" rollup adds a "Parents" dimension alongside milestones, sprints, and
   releases: every parent issue that has children, ranked worst-first with the
