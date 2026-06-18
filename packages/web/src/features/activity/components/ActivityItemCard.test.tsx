@@ -477,7 +477,7 @@ describe("ActivityItemCard", () => {
       },
     };
 
-    it("renders an informational change card with issue link, transition, and actor", () => {
+    it("renders an informational status-change card with issue link, transition, and actor", () => {
       render(wrap(<ActivityItemCard item={issueChangeItem} />));
 
       expect(
@@ -488,8 +488,40 @@ describe("ActivityItemCard", () => {
         "href",
         "/issues/REEF-208",
       );
-      expect(screen.getByTestId("issue-change-transition")).toBeInTheDocument();
+      expect(screen.getByTestId("issue-change-detail")).toBeInTheDocument();
       expect(screen.getByText("by alice")).toBeInTheDocument();
+    });
+
+    it("renders a non-status field change (REEF-126 priority event)", () => {
+      const priorityItem: ActivityFeedItem = {
+        id: "event:22222222-2222-4222-8222-222222222222",
+        type: "issue_change",
+        timestamp: "2026-04-13T12:00:00.000Z",
+        issueId: "REEF-208",
+        issueTitle: "Backlog rank drag ordering",
+        event: {
+          id: "22222222-2222-4222-8222-222222222222",
+          reef_id: "REEF-208",
+          event_type: "priority_change",
+          event_key: "priority_change:low->high@2026-04-13T12:00:00.000Z",
+          payload: { from: "low", to: "high" },
+          actor: "bob",
+          at: "2026-04-13T12:00:00.000Z",
+          source: null,
+          issue_title: "Backlog rank drag ordering",
+        },
+      };
+      render(wrap(<ActivityItemCard item={priorityItem} />));
+
+      expect(screen.getByText("Priority")).toBeInTheDocument();
+      expect(screen.getByTestId("issue-change-detail")).toHaveTextContent(
+        "low → high",
+      );
+      expect(screen.getByText("by bob")).toBeInTheDocument();
+      // Still informational — no review actions for a recorded fact.
+      expect(
+        screen.queryByRole("button", { name: /Approve/i }),
+      ).not.toBeInTheDocument();
     });
 
     it("offers no Approve / Edit / Dismiss actions — it is a fact, not a proposal", () => {

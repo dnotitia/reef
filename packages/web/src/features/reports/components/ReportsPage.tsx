@@ -22,7 +22,13 @@ import { ForecastCard } from "./ForecastCard";
 import { HealthRollup } from "./HealthRollup";
 import { PivotCard } from "./PivotCard";
 import { NetThroughputChart, RankedBarList, RiskMatrix } from "./ReportCharts";
-import { Card, EmptyState, PageShell, ReportsSkeleton } from "./ReportLayout";
+import {
+  Card,
+  EmptyState,
+  PageShell,
+  ReportSection,
+  ReportsSkeleton,
+} from "./ReportLayout";
 import { ReportScopeBar } from "./ReportScopeBar";
 import {
   DeadlineCard,
@@ -201,138 +207,155 @@ export function ReportsPage() {
             )}
           </EmptyState>
         ) : (
-          <>
-            <HealthSummary agg={agg} />
+          // Three scan bands — present state, flow over time, and the static
+          // breakdowns — so the long card stack reads as a few named groups with
+          // an entry point, not one flat wall (REEF-248). Sections sit further
+          // apart (gap-10) than the cards within a section (gap-6) so the
+          // grouping reads from rhythm as well as from the labels.
+          <div className="flex flex-col gap-10">
+            <ReportSection label="Snapshot">
+              <div className="flex flex-col gap-4">
+                <HealthSummary agg={agg} />
 
-            {/* Per-item RAG rollup sits between the global pulse and the detail
-                charts — a scannable portfolio index that drills into them. The
-                component self-hides when no dimension has items (planning axes
-                from the catalog, parent axis from issue links), so the guard is
-                just catalog presence. */}
-            {catalog && (
-              <HealthRollup
-                issues={issues}
-                catalog={catalog}
-                filters={filters}
-                onDrill={handleDrill}
-              />
-            )}
+                {/* Per-item RAG rollup sits between the global pulse and the
+                    detail charts — a scannable portfolio index that drills into
+                    them. The component self-hides when no dimension has items
+                    (planning axes from the catalog, parent axis from issue
+                    links), so the guard is just catalog presence. */}
+                {catalog && (
+                  <HealthRollup
+                    issues={issues}
+                    catalog={catalog}
+                    filters={filters}
+                    onDrill={handleDrill}
+                  />
+                )}
+              </div>
+            </ReportSection>
 
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <Card
-                title="Risk map"
-                subtitle="Open work · priority x last update"
-              >
-                <RiskMatrix buckets={agg.riskMatrix} />
-              </Card>
+            <ReportSection label="Flow & forecast">
+              <div className="flex flex-col gap-6">
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                  <Card
+                    title="Risk map"
+                    subtitle="Open work · priority × last update"
+                  >
+                    <RiskMatrix buckets={agg.riskMatrix} />
+                  </Card>
 
-              <Card
-                title="Throughput"
-                subtitle={`${PERIOD_LABELS[filters.period]} · ${formatSigned(
-                  netValue,
-                )} ${pointsMode ? "pts net" : "net"}`}
-              >
-                <NetThroughputChart
-                  points={agg.netThroughput}
-                  measure={filters.measure}
+                  <Card
+                    title="Throughput"
+                    subtitle={`${PERIOD_LABELS[filters.period]} · ${formatSigned(
+                      netValue,
+                    )} ${pointsMode ? "pts net" : "net"}`}
+                  >
+                    <NetThroughputChart
+                      points={agg.netThroughput}
+                      measure={filters.measure}
+                    />
+                  </Card>
+                </div>
+
+                {/* Forward-looking forecast sits right after the present-state
+                    Risk map / Throughput row: same throughput it samples, now
+                    projected (REEF-190). */}
+                <ForecastCard
+                  forecast={forecast}
+                  now={Date.now()}
+                  periodLabel={PERIOD_LABELS[filters.period]}
                 />
-              </Card>
-            </div>
 
-            {/* Forward-looking forecast sits right after the present-state Risk
-                map / Throughput row: same throughput it samples, now projected
-                (REEF-190). */}
-            <ForecastCard
-              forecast={forecast}
-              now={Date.now()}
-              periodLabel={PERIOD_LABELS[filters.period]}
-            />
+                {/* Custom crosstab — the one card that answers an ad-hoc cross
+                    (assignee × status, type × priority, ...) without shipping a
+                    new fixed card. Full width: it can grow to many columns
+                    (REEF-189). */}
+                <PivotCard issues={issues} filters={filters} />
+              </div>
+            </ReportSection>
 
-            {/* Custom crosstab — the one card that answers an ad-hoc cross
-                (assignee x status, type x priority, ...) without shipping a new
-                fixed card. Full width: it can grow to many columns (REEF-189). */}
-            <PivotCard issues={issues} filters={filters} />
-
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <Card
-                title="Workflow"
-                subtitle={
-                  pointsMode
-                    ? `Story points · ${agg.total} in scope`
-                    : `${agg.total} in scope`
-                }
-              >
-                <StatusFunnel rows={agg.byStatus} measure={filters.measure} />
-              </Card>
-
-              <DeadlineCard agg={agg} />
-
-              <Card
-                title="By type"
-                subtitle={pointsMode ? "Story points · in scope" : "In scope"}
-              >
-                <RankedBarList
-                  rows={agg.byType.map((b) => ({
-                    key: b.type,
-                    label: TYPE_META[b.type].label,
-                    value: pointsMode ? b.points : b.count,
-                    color: TYPE_META[b.type].color,
-                  }))}
-                />
-              </Card>
-
-              {/* Severity is sparsely populated (only bugs carry it), so the
-                  card is omitted entirely when nothing has a severity rather
-                  than showing a perpetually-empty panel (REEF-186). bySeverity
-                  is pre-filtered to count > 0 by the aggregator. Bars stay
-                  neutral: the severity tokens are glyph colors, not fills
-                  (globals.css), and the row label already names the severity —
-                  a colored bar would just re-encode that identity. */}
-              {agg.bySeverity.length > 0 && (
+            <ReportSection label="Breakdown">
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 <Card
-                  title="By severity"
+                  title="Workflow"
+                  subtitle={
+                    pointsMode
+                      ? `Story points · ${agg.total} in scope`
+                      : `${agg.total} in scope`
+                  }
+                >
+                  <StatusFunnel rows={agg.byStatus} measure={filters.measure} />
+                </Card>
+
+                <DeadlineCard agg={agg} />
+
+                <Card
+                  title="By type"
                   subtitle={pointsMode ? "Story points · in scope" : "In scope"}
                 >
                   <RankedBarList
-                    rows={agg.bySeverity.map((b) => ({
-                      key: b.severity,
-                      label: SEVERITY_LABELS[b.severity],
+                    rows={agg.byType.map((b) => ({
+                      key: b.type,
+                      label: TYPE_META[b.type].label,
                       value: pointsMode ? b.points : b.count,
                     }))}
                   />
                 </Card>
-              )}
 
-              <Card
-                title="Top assignees"
-                subtitle={
-                  pointsMode ? "Story points · top 5" : "In scope, top 5"
-                }
-              >
-                {agg.topAssignees.length === 0 ? (
-                  <RowEmpty />
-                ) : (
-                  <NamedRows
-                    rows={agg.topAssignees}
-                    measure={filters.measure}
-                  />
+                {/* Severity is sparsely populated (only bugs carry it), so the
+                    card is omitted entirely when nothing has a severity rather
+                    than showing a perpetually-empty panel (REEF-186). bySeverity
+                    is pre-filtered to count > 0 by the aggregator. Bars stay
+                    neutral — the same value-bar idiom as every other breakdown
+                    card (REEF-248): the row label already names the severity, so
+                    a colored bar would just re-encode that identity. */}
+                {agg.bySeverity.length > 0 && (
+                  <Card
+                    title="By severity"
+                    subtitle={
+                      pointsMode ? "Story points · in scope" : "In scope"
+                    }
+                  >
+                    <RankedBarList
+                      rows={agg.bySeverity.map((b) => ({
+                        key: b.severity,
+                        label: SEVERITY_LABELS[b.severity],
+                        value: pointsMode ? b.points : b.count,
+                      }))}
+                    />
+                  </Card>
                 )}
-              </Card>
 
-              <Card
-                title="Top labels"
-                subtitle={
-                  pointsMode ? "Story points · top 8" : "In scope, top 8"
-                }
-              >
-                {agg.topLabels.length === 0 ? (
-                  <RowEmpty />
-                ) : (
-                  <NamedRows rows={agg.topLabels} measure={filters.measure} />
-                )}
-              </Card>
-            </div>
-          </>
+                <Card
+                  title="Top assignees"
+                  subtitle={
+                    pointsMode ? "Story points · top 5" : "In scope, top 5"
+                  }
+                >
+                  {agg.topAssignees.length === 0 ? (
+                    <RowEmpty />
+                  ) : (
+                    <NamedRows
+                      rows={agg.topAssignees}
+                      measure={filters.measure}
+                    />
+                  )}
+                </Card>
+
+                <Card
+                  title="Top labels"
+                  subtitle={
+                    pointsMode ? "Story points · top 8" : "In scope, top 8"
+                  }
+                >
+                  {agg.topLabels.length === 0 ? (
+                    <RowEmpty />
+                  ) : (
+                    <NamedRows rows={agg.topLabels} measure={filters.measure} />
+                  )}
+                </Card>
+              </div>
+            </ReportSection>
+          </div>
         )}
       </div>
     </PageShell>

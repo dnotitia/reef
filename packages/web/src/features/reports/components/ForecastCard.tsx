@@ -100,7 +100,7 @@ function ForecastColumn({
   return (
     <div className="flex flex-col gap-2">
       <header className="flex items-baseline justify-between gap-2">
-        <h3 className="text-xs font-medium text-foreground/90">{heading}</h3>
+        <h4 className="text-xs font-medium text-foreground/90">{heading}</h4>
         <span className="text-[11px] text-muted-foreground">{caption}</span>
       </header>
       <ul className="flex flex-col gap-1.5">{children}</ul>

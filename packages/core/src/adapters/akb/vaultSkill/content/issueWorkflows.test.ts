@@ -64,3 +64,35 @@ describe("issue workflows runbook — creation guardrails (REEF-224)", () => {
     });
   });
 });
+
+// REEF-126: the activity log records more than status. The runbook invariant
+// must instruct a manual SQL editor to append a reef_activity row for assignee,
+// priority, planning-link, and delivery-ref changes too — the same append-only
+// mechanism as the status_change rule. These pins keep that invariant (AC4) from
+// silently dropping out of the issue-workflows runbook.
+describe("issue workflows — field-change activity invariant (REEF-126)", () => {
+  const content = issueWorkflowsContent();
+
+  it("has a section telling the editor to log non-status field changes", () => {
+    expect(content).toContain("## Record a field-change activity event");
+    expect(content).toContain("reef_activity");
+  });
+
+  it("names every REEF-126 event_type", () => {
+    for (const eventType of [
+      "assignee_change",
+      "priority_change",
+      "planning_link",
+      "impl_ref_linked",
+    ]) {
+      expect(content).toContain(eventType);
+    }
+  });
+
+  it("requires the same append-only, idempotent mechanics as status_change", () => {
+    expect(content).toMatch(/append-only/i);
+    expect(content).toMatch(/event_key/i);
+    // Several field changes in one save share one timestamp (AC3).
+    expect(content).toContain('every event shares that one "at"');
+  });
+});

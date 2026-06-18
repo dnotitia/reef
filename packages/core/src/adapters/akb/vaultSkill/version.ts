@@ -18,4 +18,4 @@
 // or non-substantive edits do not have to bump it (the guard test's snapshot is
 // updated in the same commit); the point is that PMs see "newer instructions"
 // when the team meant to ship newer instructions.
-export const REEF_VAULT_SKILL_VERSION = 11;
+export const REEF_VAULT_SKILL_VERSION = 12;

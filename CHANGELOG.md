@@ -15,11 +15,12 @@ explicitly in the entries below.
 ### Added
 
 - **Activity feed now shows issue changes, not just AI suggestions.** The
-  Activity hub merges recorded issue changes (status moves, from the activity
-  log) with the AI draft and status-change review inbox, newest first, so
-  returning after a break shows what actually happened to your issues — not only
-  what the AI proposed. Recorded changes render as plain informational cards with
-  no Approve/Edit/Dismiss actions, kept visually distinct from AI proposals. The
+  Activity hub merges recorded issue changes (status, assignee, priority,
+  planning links, and delivery refs — from the activity log) with the AI draft
+  and status-change review inbox, newest first, so returning after a break shows
+  what actually happened to your issues — not only what the AI proposed. Recorded
+  changes render as plain informational cards with no Approve/Edit/Dismiss
+  actions, kept visually distinct from AI proposals. The
   "Since you were last here" summary and the sidebar unread badge now count these
   changes too, a new "Issue Changes" filter isolates them, and the feed bounds
   itself to changes since your last visit so it does not grow unbounded
@@ -30,6 +31,13 @@ explicitly in the entries below.
   the app or an automated agent. This is the foundation the merged comment +
   activity timeline will read; the timeline view itself ships separately
   (REEF-064). (REEF-063).
+- **Activity log now tracks more than status.** Beyond status changes, the
+  activity log now records reassignments, priority changes, planning links
+  (milestone, sprint, release attach/detach), and newly-linked delivery refs
+  (pull requests, commits, branches) — each as the same immutable, append-only
+  event with who, the before→after, and when. When one save changes several
+  fields at once, the events share a single timestamp so they read as one moment.
+  The timeline view that surfaces these ships separately (REEF-064) (REEF-126).
 - **Delivery forecast on Reports.** A new Monte Carlo forecast card projects when
   the open work in scope will finish, and how many items finish by a near-term
   date, each at the 50/70/85/95 confidence levels. It bootstraps the weekly

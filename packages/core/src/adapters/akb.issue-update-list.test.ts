@@ -264,6 +264,99 @@ describe("updateIssue", () => {
     expect(result.issue.status).toBe("in_progress");
     expect(calls).toHaveLength(4);
   });
+
+  // REEF-126: a non-status field change (assignee/priority/planning/impl-ref),
+  // when the update stamps `updated_at` as buildIssueUpdateMetadataPatch does on
+  // every web/agent funnel, appends one immutable event per changed field — all
+  // sharing that one timestamp (events group under one moment, AC3). The
+  // status_change funnel above is not re-derived here.
+  it("appends a field-change event per changed field, grouped under the stamped updated_at", async () => {
+    const { calls } = setupFetch([
+      { body: makeDocumentResponse() }, // read: GET document
+      { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row (assignee=alice, priority=high)
+      { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row
+      { body: makeListTablesResponse(ALL_REEF_TABLES) }, // append: ensureReefTables (once)
+      { body: makeSqlQueryResponse([{ id: "e1" }], ["id"]) }, // INSERT assignee_change
+      { body: makeSqlQueryResponse([{ id: "e2" }], ["id"]) }, // INSERT priority_change
+    ]);
+    const result = await updateIssue({
+      adapter: makeAdapter(),
+      vault: "reef-sample",
+      id: "REEF-001",
+      partial: {
+        assigned_to: "bob",
+        priority: "low",
+        updated_at: "2026-06-18T12:00:00.000Z",
+        updated_by: "carol",
+        source: "ai-agent:user_request",
+      },
+    });
+    expect(result.issue.assigned_to).toBe("bob");
+    expect(calls).toHaveLength(6);
+
+    const assigneeSql = JSON.parse(calls[4]?.init?.body as string).sql;
+    expect(assigneeSql).toContain(`INSERT INTO ${REEF_ACTIVITY_TABLE}`);
+    expect(assigneeSql).toContain("'assignee_change'");
+    expect(assigneeSql).toContain(
+      "'assignee_change:alice->bob@2026-06-18T12:00:00.000Z'",
+    );
+    expect(assigneeSql).toContain('"from":"alice"');
+    expect(assigneeSql).toContain('"to":"bob"');
+    expect(assigneeSql).toContain('"actor":"carol"');
+    expect(assigneeSql).toContain('"source":"ai-agent:user_request"');
+
+    const prioritySql = JSON.parse(calls[5]?.init?.body as string).sql;
+    expect(prioritySql).toContain("'priority_change'");
+    expect(prioritySql).toContain(
+      "'priority_change:high->low@2026-06-18T12:00:00.000Z'",
+    );
+    // Both events carry the same `at` — one save, one moment (AC3).
+    expect(assigneeSql).toContain('"at":"2026-06-18T12:00:00.000Z"');
+    expect(prioritySql).toContain('"at":"2026-06-18T12:00:00.000Z"');
+  });
+
+  // The field-change funnel is gated on a stamped `updated_at` (the web/agent
+  // funnel always stamps it). A raw partial that flips a field without one
+  // records nothing — mirroring the status funnel's last_status_change gate.
+  it("records no field event when the update does not stamp updated_at", async () => {
+    const { calls } = setupFetch([
+      { body: makeDocumentResponse() }, // read: GET document
+      { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row
+      { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row
+    ]);
+    const result = await updateIssue({
+      adapter: makeAdapter(),
+      vault: "reef-sample",
+      id: "REEF-001",
+      partial: { assigned_to: "bob" },
+    });
+    expect(result.issue.assigned_to).toBe("bob");
+    // No ensureReefTables / INSERT — the field-change funnel did not fire.
+    expect(calls).toHaveLength(3);
+  });
+
+  // Best-effort: the row UPDATE already committed, so a failed field-event
+  // append must not fail the issue update.
+  it("does not fail the update when a field-change append errors", async () => {
+    const { calls } = setupFetch([
+      { body: makeDocumentResponse() }, // read: GET document
+      { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row
+      { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row (committed)
+      { status: 500, body: { detail: "list tables blew up" } }, // append: ensureReefTables fails
+    ]);
+    const result = await updateIssue({
+      adapter: makeAdapter(),
+      vault: "reef-sample",
+      id: "REEF-001",
+      partial: {
+        assigned_to: "bob",
+        updated_at: "2026-06-18T12:00:00.000Z",
+        updated_by: "carol",
+      },
+    });
+    expect(result.issue.assigned_to).toBe("bob");
+    expect(calls).toHaveLength(4);
+  });
 });
 
 // ── deleteIssue ──────────────────────────────────────────────────────────────

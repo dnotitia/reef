@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
+import type { IssueMetadata } from "../schemas/issues/metadata";
 import {
   ALL_REEF_TABLES,
   REEF_ACTIVITY_TABLE,
   REEF_ISSUES_TABLE,
+  SAMPLE_ISSUE,
+  activityEventKey,
+  appendActivityEvents,
   appendStatusChangeEvent,
+  diffFieldActivityEvents,
   listIssueActivity,
   listRecentActivity,
   makeAdapter,
@@ -390,5 +395,311 @@ describe("listRecentActivity", () => {
 
     expect(events).toHaveLength(1);
     expect(events[0]?.id).toBe("e1");
+  });
+});
+
+// ── REEF-126: non-status field-change events ──────────────────────────────────
+
+describe("activityEventKey (REEF-126)", () => {
+  const at = "2026-06-18T03:00:00.000Z";
+
+  it("keys assignee/priority on from→to, with a token for a null segment", () => {
+    expect(
+      activityEventKey(
+        { eventType: "assignee_change", payload: { from: "alice", to: "bob" } },
+        at,
+      ),
+    ).toBe(`assignee_change:alice->bob@${at}`);
+    expect(
+      activityEventKey(
+        { eventType: "assignee_change", payload: { from: null, to: "bob" } },
+        at,
+      ),
+    ).toBe(`assignee_change:∅->bob@${at}`);
+    expect(
+      activityEventKey(
+        { eventType: "priority_change", payload: { from: "high", to: null } },
+        at,
+      ),
+    ).toBe(`priority_change:high->∅@${at}`);
+  });
+
+  it("keys planning_link by dimension and impl_ref_linked by ref identity", () => {
+    expect(
+      activityEventKey(
+        {
+          eventType: "planning_link",
+          payload: { field: "sprint", from: null, to: "spr-3" },
+        },
+        at,
+      ),
+    ).toBe(`planning_link:sprint:∅->spr-3@${at}`);
+    expect(
+      activityEventKey(
+        {
+          eventType: "impl_ref_linked",
+          payload: {
+            ref_type: "pull_request",
+            ref: "42",
+            repo: "dnotitia/reef",
+          },
+        },
+        at,
+      ),
+    ).toBe(`impl_ref_linked:pull_request:dnotitia/reef:42@${at}`);
+    expect(
+      activityEventKey(
+        {
+          eventType: "impl_ref_linked",
+          payload: { ref_type: "commit", ref: "abc", repo: null },
+        },
+        at,
+      ),
+    ).toBe(`impl_ref_linked:commit:∅:abc@${at}`);
+  });
+});
+
+describe("diffFieldActivityEvents (REEF-126)", () => {
+  const meta = {
+    at: "2026-06-18T04:00:00.000Z",
+    actor: "carol",
+    source: "ai-agent:user_request",
+  };
+  const diff = (after: Partial<IssueMetadata>) =>
+    diffFieldActivityEvents(
+      "REEF-126",
+      SAMPLE_ISSUE,
+      { ...SAMPLE_ISSUE, ...after },
+      meta,
+    );
+
+  it("emits nothing when no tracked field changed", () => {
+    expect(diff({ title: "a new title" })).toEqual([]);
+  });
+
+  it("emits an assignee_change carrying the from→to actors, actor, and at", () => {
+    const events = diff({ assigned_to: "bob" });
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      reefId: "REEF-126",
+      eventType: "assignee_change",
+      payload: { from: "alice", to: "bob" },
+      at: meta.at,
+      actor: "carol",
+      source: "ai-agent:user_request",
+    });
+  });
+
+  it("treats clearing assignee/priority as a transition to null", () => {
+    const events = diff({ assigned_to: null, priority: null });
+    expect(events.map((e) => e.eventType).sort()).toEqual([
+      "assignee_change",
+      "priority_change",
+    ]);
+    expect(
+      events.find((e) => e.eventType === "assignee_change")?.payload,
+    ).toEqual({ from: "alice", to: null });
+    expect(
+      events.find((e) => e.eventType === "priority_change")?.payload,
+    ).toEqual({ from: "high", to: null });
+  });
+
+  it("groups every field changed in one save under the one shared timestamp (AC3)", () => {
+    const events = diff({
+      assigned_to: "bob",
+      priority: "low",
+      sprint_id: "spr-7",
+    });
+    expect(events).toHaveLength(3);
+    expect(new Set(events.map((e) => e.at))).toEqual(new Set([meta.at]));
+    expect(
+      events.find((e) => e.eventType === "planning_link")?.payload,
+    ).toEqual({ field: "sprint", from: null, to: "spr-7" });
+  });
+
+  it("emits one planning_link per changed dimension, labeled by field", () => {
+    const events = diff({ milestone_id: "ms-1", release_id: "rel-2" });
+    expect(
+      events
+        .map((e) =>
+          e.eventType === "planning_link" ? e.payload.field : e.eventType,
+        )
+        .sort(),
+    ).toEqual(["milestone", "release"]);
+  });
+
+  it("emits impl_ref_linked only for newly-linked refs, not pre-existing ones", () => {
+    const before: IssueMetadata = {
+      ...SAMPLE_ISSUE,
+      implementation_refs: [
+        { type: "commit", ref: "old", repo: "dnotitia/reef" },
+      ],
+    };
+    const after: IssueMetadata = {
+      ...SAMPLE_ISSUE,
+      implementation_refs: [
+        { type: "commit", ref: "old", repo: "dnotitia/reef" },
+        { type: "pull_request", ref: "42", repo: "dnotitia/reef" },
+      ],
+    };
+    const events = diffFieldActivityEvents("REEF-126", before, after, meta);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      eventType: "impl_ref_linked",
+      payload: { ref_type: "pull_request", ref: "42", repo: "dnotitia/reef" },
+    });
+  });
+});
+
+describe("appendActivityEvents (REEF-126)", () => {
+  const at = "2026-06-18T05:00:00.000Z";
+  const events = diffFieldActivityEvents(
+    "REEF-126",
+    SAMPLE_ISSUE,
+    { ...SAMPLE_ISSUE, assigned_to: "bob", priority: "low" },
+    { at, actor: "carol", source: null },
+  );
+
+  it("provisions once, then conditionally inserts one row per event", async () => {
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) }, // ensureReefTables (once)
+      { body: makeSqlQueryResponse([{ id: "e1" }], ["id"]) }, // INSERT assignee
+      { body: makeSqlQueryResponse([{ id: "e2" }], ["id"]) }, // INSERT priority
+    ]);
+
+    await appendActivityEvents(makeAdapter(), "reef-sample", events);
+
+    expect(events.map((e) => e.eventType)).toEqual([
+      "assignee_change",
+      "priority_change",
+    ]);
+    expect(calls).toHaveLength(3);
+    const insert1 = lastSql(calls[1]?.init?.body);
+    expect(insert1).toContain("'assignee_change'");
+    expect(insert1).toContain(`'assignee_change:alice->bob@${at}'`);
+    expect(insert1).toContain("WHERE NOT EXISTS");
+    expect(insert1).toContain('"from":"alice"');
+    const insert2 = lastSql(calls[2]?.init?.body);
+    expect(insert2).toContain("'priority_change'");
+    expect(insert2).toContain(`'priority_change:high->low@${at}'`);
+  });
+
+  it("no-ops without a single fetch when there are no events", async () => {
+    const { calls } = setupFetch([]);
+    await appendActivityEvents(makeAdapter(), "reef-sample", []);
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe("listIssueActivity reads the REEF-126 event types", () => {
+  function activityRow(overrides: {
+    id: string;
+    event_type: string;
+    at: string;
+    payload: unknown;
+  }): Record<string, unknown> {
+    return {
+      id: overrides.id,
+      reef_id: "REEF-126",
+      event_type: overrides.event_type,
+      event_key: `${overrides.event_type}@${overrides.at}`,
+      payload: overrides.payload,
+      meta: { actor: "carol", at: overrides.at, source: null },
+      created_at: "2026-06-18T06:00:00.123456+00",
+      updated_at: "2026-06-18T06:00:00.123456+00",
+      created_by: "akb-principal",
+    };
+  }
+
+  it("projects each event_type's payload through the matching schema", async () => {
+    setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [
+            activityRow({
+              id: "a",
+              event_type: "assignee_change",
+              at: "2026-06-18T06:00:01.000Z",
+              payload: { from: "alice", to: "bob" },
+            }),
+            activityRow({
+              id: "p",
+              event_type: "priority_change",
+              at: "2026-06-18T06:00:02.000Z",
+              payload: { from: "high", to: null },
+            }),
+            activityRow({
+              id: "pl",
+              event_type: "planning_link",
+              at: "2026-06-18T06:00:03.000Z",
+              payload: { field: "sprint", from: null, to: "spr-3" },
+            }),
+            activityRow({
+              id: "ir",
+              event_type: "impl_ref_linked",
+              at: "2026-06-18T06:00:04.000Z",
+              payload: {
+                ref_type: "pull_request",
+                ref: "42",
+                repo: "dnotitia/reef",
+              },
+            }),
+          ],
+          ACTIVITY_ROW_COLUMNS,
+        ),
+      },
+    ]);
+
+    const events = await listIssueActivity(
+      makeAdapter(),
+      "reef-sample",
+      "REEF-126",
+    );
+
+    expect(events.map((e) => e.event_type)).toEqual([
+      "assignee_change",
+      "priority_change",
+      "planning_link",
+      "impl_ref_linked",
+    ]);
+    expect(events[0]?.payload).toEqual({ from: "alice", to: "bob" });
+    expect(events[3]?.payload).toEqual({
+      ref_type: "pull_request",
+      ref: "42",
+      repo: "dnotitia/reef",
+    });
+  });
+
+  it("skips a row whose event_type this release cannot model", async () => {
+    setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [
+            activityRow({
+              id: "known",
+              event_type: "assignee_change",
+              at: "2026-06-18T06:00:01.000Z",
+              payload: { from: null, to: "alice" },
+            }),
+            activityRow({
+              id: "future",
+              event_type: "title_change",
+              at: "2026-06-18T06:00:02.000Z",
+              payload: { from: "x", to: "y" },
+            }),
+          ],
+          ACTIVITY_ROW_COLUMNS,
+        ),
+      },
+    ]);
+
+    const events = await listIssueActivity(
+      makeAdapter(),
+      "reef-sample",
+      "REEF-126",
+    );
+
+    expect(events).toHaveLength(1);
+    expect(events[0]?.event_type).toBe("assignee_change");
   });
 });

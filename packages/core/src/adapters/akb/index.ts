@@ -60,10 +60,14 @@ export {
   updateComment,
 } from "./issues/comments";
 export {
+  activityEventKey,
+  appendActivityEvents,
   appendStatusChangeEvent,
+  diffFieldActivityEvents,
   listIssueActivity,
   listRecentActivity,
   statusChangeEventKey,
+  type ActivityEventInput,
   type ListRecentActivityOptions,
   type StatusChangeEventInput,
 } from "./issues/activity";
