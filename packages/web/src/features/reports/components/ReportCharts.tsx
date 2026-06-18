@@ -6,6 +6,7 @@ import type {
   RiskBucket,
   RiskPriority,
 } from "../lib/aggregate";
+import { type PivotAxis, type PivotResult, pivotCell } from "../lib/pivot";
 export { NetThroughputChart } from "./ThroughputCharts";
 
 /**
@@ -239,5 +240,157 @@ function MatrixRow({
         );
       })}
     </>
+  );
+}
+
+// ─── PivotMatrix ─────────────────────────────────────────────────────────────
+// The user-driven generalization of the Risk map: an arbitrary categorical
+// row x column crosstab (REEF-189). A real <table> (the Risk map's flat grid is
+// a fixed 5x4 with no header semantics) so screen readers announce the row/
+// column a cell belongs to. Cells re-use the Risk map's heat idiom — count both
+// as text and as brand intensity — but on a single neutral scale, since an
+// arbitrary pair has no hot/cool meaning. Headers stay plain text (no glyphs or
+// uppercasing: assignee/label values are free text), and the trailing Total
+// row/column are marginals, not heat cells.
+
+const PIVOT_CELL =
+  "h-9 rounded-md border border-border-subtle bg-surface-hover text-center align-middle font-mono text-xs tabular-nums text-foreground";
+
+function pivotHeat(count: number, max: number): string | undefined {
+  // Empty cells keep the neutral base fill (no number, just the box) so a zero
+  // reads as "no work here", not "low" (REEF-189 AC3). Same ramp as the Risk
+  // map, always brand.
+  if (count <= 0) return undefined;
+  const intensity = 0.1 + (count / Math.max(max, 1)) * 0.5;
+  return `color-mix(in oklab, var(--brand) ${Math.round(
+    intensity * 100,
+  )}%, var(--surface-subtle))`;
+}
+
+export function PivotMatrix({ result }: { result: PivotResult }) {
+  const { rows, cols, max } = result;
+  if (rows.length === 0 || cols.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        No data to cross-tabulate.
+      </p>
+    );
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[480px] table-fixed border-separate [border-spacing:6px]">
+        <caption className="sr-only">
+          Issue count by {result.rowField} (rows) and {result.colField}
+          (columns).
+        </caption>
+        <colgroup>
+          <col className="w-[120px]" />
+          {cols.map((c) => (
+            <col key={c.key} />
+          ))}
+          <col className="w-[56px]" />
+        </colgroup>
+        <thead>
+          <tr>
+            <td className="border-0 bg-transparent p-0" />
+            {cols.map((c) => (
+              <th
+                key={c.key}
+                scope="col"
+                title={c.label}
+                className="truncate px-1 pb-0.5 text-center align-bottom text-[11px] font-normal text-muted-foreground"
+              >
+                {c.label}
+              </th>
+            ))}
+            <th
+              scope="col"
+              className="px-1 pb-0.5 text-center align-bottom text-[11px] font-semibold text-foreground"
+            >
+              Total
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <PivotRow
+              key={row.key}
+              row={row}
+              cols={cols}
+              result={result}
+              max={max}
+            />
+          ))}
+          <tr>
+            <th
+              scope="row"
+              className="truncate text-left text-xs font-semibold text-foreground"
+            >
+              Total
+            </th>
+            {cols.map((c) => (
+              <td
+                key={c.key}
+                className={cn(
+                  PIVOT_CELL,
+                  "border-border font-medium text-foreground",
+                )}
+              >
+                {result.colTotals.get(c.key) ?? 0}
+              </td>
+            ))}
+            <td
+              className={cn(PIVOT_CELL, "border-border font-semibold")}
+              style={{
+                backgroundColor:
+                  "color-mix(in oklab, var(--brand) 14%, var(--surface-subtle))",
+              }}
+            >
+              {result.grandTotal}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function PivotRow({
+  row,
+  cols,
+  result,
+  max,
+}: {
+  row: PivotAxis;
+  cols: ReadonlyArray<PivotAxis>;
+  result: PivotResult;
+  max: number;
+}) {
+  return (
+    <tr>
+      <th
+        scope="row"
+        title={row.label}
+        className="truncate text-left text-xs font-normal text-foreground/80"
+      >
+        {row.label}
+      </th>
+      {cols.map((c) => {
+        const n = pivotCell(result, row.key, c.key);
+        return (
+          <td
+            key={c.key}
+            className={PIVOT_CELL}
+            style={{ backgroundColor: pivotHeat(n, max) }}
+            title={`${row.label} × ${c.label}: ${n}`}
+          >
+            {n > 0 ? n : ""}
+          </td>
+        );
+      })}
+      <td className={cn(PIVOT_CELL, "border-border font-medium")}>
+        {result.rowTotals.get(row.key) ?? 0}
+      </td>
+    </tr>
   );
 }
