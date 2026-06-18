@@ -369,6 +369,14 @@ describe("matchesSharedFacets", () => {
     expect(matchesSharedFacets(issue, { release_id: "rel-1" })).toBe(true);
   });
 
+  it("matches the parent issue id exactly (reports rollup drill, REEF-187)", () => {
+    const child = makeIssue({ id: "REEF-200", parent_id: "REEF-001" });
+    expect(matchesSharedFacets(child, { parent_id: "REEF-001" })).toBe(true);
+    expect(matchesSharedFacets(child, { parent_id: "REEF-999" })).toBe(false);
+    // An issue with no parent never matches a parent facet.
+    expect(matchesSharedFacets(issue, { parent_id: "REEF-001" })).toBe(false);
+  });
+
   it("OR-matches comma-separated labels, case-insensitively and exact-token", () => {
     expect(matchesSharedFacets(issue, { label: "risk" })).toBe(true);
     expect(matchesSharedFacets(issue, { label: "ui" })).toBe(true);

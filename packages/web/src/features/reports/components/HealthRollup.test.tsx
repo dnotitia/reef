@@ -122,6 +122,35 @@ describe("HealthRollup", () => {
     ).toBe("false");
   });
 
+  it("offers a parent dimension and rolls up by the parent issue title", () => {
+    const parentIssues = [
+      makeIssue({ id: "E1", title: "Reports epic", status: "in_progress" }),
+      makeIssue({ id: "c1", parent_id: "E1", status: "done" }),
+      makeIssue({ id: "c2", parent_id: "E1", status: "todo" }),
+    ];
+    const onDrill = vi.fn();
+    render(
+      <HealthRollup
+        issues={parentIssues}
+        catalog={{ sprints: [], milestones: [milestone("M1")], releases: [] }}
+        filters={DEFAULT_REPORT_FILTERS}
+        onDrill={onDrill}
+      />,
+    );
+    // Parent is available because issues reference a parent; switch to it.
+    fireEvent.click(screen.getByTestId("health-rollup-dimension-parent"));
+    const row = screen.getByTestId("health-rollup-row-E1");
+    expect(row.textContent).toContain("Reports epic"); // title, not the id
+    fireEvent.click(row);
+    expect(onDrill).toHaveBeenCalledWith("parent", "E1");
+  });
+
+  it("hides the parent dimension when no issue has a parent", () => {
+    // The default fixture issues carry no parent_id.
+    renderRollup();
+    expect(screen.queryByTestId("health-rollup-dimension-parent")).toBeNull();
+  });
+
   it("counts off-track items separately from at-risk in the header", () => {
     // A milestone past its target with open work is off track; the header should
     // not fold it into an "at risk" count (REEF-191 follow-up).

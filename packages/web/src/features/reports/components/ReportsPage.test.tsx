@@ -251,6 +251,53 @@ describe("ReportsPage", () => {
     expect(screen.getByText(/No matching report data/i)).toBeInTheDocument();
   });
 
+  it("can clear a parent rollup drill from the empty state (REEF-187)", async () => {
+    // A parent and its single child. The parent axis has no scope-bar control,
+    // so once a further filter empties the page the rollup row is gone — the
+    // empty-state affordance is the only way to undo the parent scope.
+    mockApi([
+      {
+        id: "E1",
+        title: "Reports epic",
+        status: "in_progress",
+        created_at: "2026-05-01T00:00:00.000Z",
+        created_by: "alice",
+        updated_at: "2026-05-01T00:00:00.000Z",
+        updated_by: "alice",
+      },
+      {
+        id: "c1",
+        parent_id: "E1",
+        title: "Child task",
+        status: "todo",
+        created_at: "2026-05-02T00:00:00.000Z",
+        created_by: "alice",
+        updated_at: "2026-05-02T00:00:00.000Z",
+        updated_by: "alice",
+        labels: ["docs"],
+      },
+    ]);
+
+    render(wrap(<ReportsPage />));
+    await screen.findByTestId("report-scope-bar");
+
+    // Drill into the parent (only the parent axis has items here), then scope to
+    // zero with a label that matches nothing.
+    fireEvent.click(screen.getByTestId("health-rollup-row-E1"));
+    setLabelFilter("missing");
+    expect(screen.getByText(/No matching report data/i)).toBeInTheDocument();
+
+    const clear = screen.getByTestId("reports-clear-parent-scope");
+    expect(clear).toHaveTextContent("Reports epic");
+    fireEvent.click(clear);
+
+    // Parent facet cleared → its affordance disappears (the label filter still
+    // scopes the page, so the empty state itself remains).
+    expect(
+      screen.queryByTestId("reports-clear-parent-scope"),
+    ).not.toBeInTheDocument();
+  });
+
   it("surfaces the previously-dead bySeverity aggregate as a By severity card (REEF-186)", async () => {
     mockApi([
       { ...issues[0], severity: "critical" },

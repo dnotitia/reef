@@ -20,6 +20,13 @@ explicitly in the entries below.
   you do). Comments render markdown — including inline `code` — and `⌘↵` posts
   without reaching for the mouse. This is the flat first cut; threads, reactions,
   and a merged comment + activity timeline come later (REEF-062).
+- **Portfolio health now rolls up by parent epic too.** The Reports "Portfolio
+  health" rollup adds a "Parents" dimension alongside milestones, sprints, and
+  releases: every parent issue that has children, ranked worst-first with the
+  same On track / At risk / Off track verdict and a done/total progress bar. The
+  per-epic progress you already see inside an issue's detail sheet now also lifts
+  into a side-by-side portfolio comparison, and clicking a parent scopes the
+  detail charts below to its children (REEF-187).
 - **A personal "My Work" view.** A dedicated `/my-work` page shows the issues
   assigned to you, automatically scoped to your account — no assignee picker to
   set. A light summary strip counts your in-progress work, what's due soon, what's
