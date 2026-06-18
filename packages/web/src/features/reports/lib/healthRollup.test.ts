@@ -219,6 +219,7 @@ describe("computeHealthRollup — grouping & sort", () => {
         filters: {
           period: "12w",
           scope: "active",
+          measure: "count",
           milestone_id: "M2",
           assignee: "alice",
         },
