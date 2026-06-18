@@ -7,7 +7,7 @@ import type { Comment } from "@reef/core";
 import { Pencil } from "lucide-react";
 import { type KeyboardEvent, useState } from "react";
 import { Streamdown } from "streamdown";
-import { formatRelativeTime } from "./commentTime";
+import { formatAbsoluteTime, formatRelativeTime } from "./commentTime";
 
 interface CommentCardProps {
   comment: Comment;
@@ -17,11 +17,6 @@ interface CommentCardProps {
   flash?: boolean;
   /** Resolve to leave edit mode; reject to stay editing (error toasted above). */
   onSave: (body: string) => Promise<void>;
-}
-
-function absolute(iso: string): string {
-  const ms = Date.parse(iso);
-  return Number.isNaN(ms) ? iso : new Date(ms).toLocaleString();
 }
 
 /**
@@ -86,14 +81,14 @@ export function CommentCard({
           </span>
           <time
             dateTime={comment.created_at}
-            title={absolute(comment.created_at)}
+            title={formatAbsoluteTime(comment.created_at)}
             className="shrink-0 text-[11px] text-muted-foreground tabular-nums"
           >
             {formatRelativeTime(comment.created_at, Date.now())}
           </time>
           {comment.edited_at ? (
             <span
-              title={absolute(comment.edited_at)}
+              title={formatAbsoluteTime(comment.edited_at)}
               className="shrink-0 text-[11px] text-muted-foreground"
             >
               · edited

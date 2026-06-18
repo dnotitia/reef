@@ -1,0 +1,131 @@
+"use client";
+
+import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
+import { useCreateComment } from "@/features/issues/hooks/mutations/useCreateComment";
+import { useUpdateComment } from "@/features/issues/hooks/mutations/useUpdateComment";
+import { useActivity } from "@/features/issues/hooks/queries/useActivity";
+import { useComments } from "@/features/issues/hooks/queries/useComments";
+import type { IssueMetadata } from "@reef/core";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import { CommentCard } from "../comments/CommentCard";
+import { CommentComposer } from "../comments/CommentComposer";
+import { ISSUE_SECTION_HEADER_CLASS } from "../shared/IssueFormSection";
+import { ActivityEventRow } from "./ActivityEventRow";
+import { CollapsedEventsRow } from "./CollapsedEventsRow";
+import { buildTimeline } from "./timelineModel";
+
+interface ActivityTimelineProps {
+  issueId: string;
+  vault: string;
+  /** The loaded issue — source of the reconstructed events (created/delivery/closed). */
+  issue: IssueMetadata;
+}
+
+/**
+ * The issue detail's unified "Activity" section (REEF-064). It owns its own data
+ * + comment mutations (like the comments section it replaces) and merges three
+ * sources at render time — comments, status-change activity, and events
+ * reconstructed from the issue's own fields — into one chronological thread on a
+ * single spine. Comments render as avatar-gutter cards; system and reconstructed
+ * events render as a lighter glyph-node line; the composer is the live node at
+ * the foot. No new storage and no unified table — the merge is pure (AC4).
+ */
+export function ActivityTimeline({
+  issueId,
+  vault,
+  issue,
+}: ActivityTimelineProps) {
+  const currentLogin = useCurrentUserLogin();
+  const { data: comments = [], isError: commentsError } = useComments(
+    issueId,
+    vault,
+  );
+  const { data: activity = [], isError: activityError } = useActivity(
+    issueId,
+    vault,
+  );
+  const createComment = useCreateComment();
+  const updateComment = useUpdateComment();
+  const [flashId, setFlashId] = useState<string | null>(null);
+
+  const timeline = useMemo(
+    () => buildTimeline(comments, activity, issue),
+    [comments, activity, issue],
+  );
+
+  async function handleCreate(body: string) {
+    try {
+      const created = await createComment.mutateAsync({ issueId, vault, body });
+      setFlashId(created.id);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't add comment. Try again.",
+      );
+      throw err; // keep the composer's text for a retry
+    }
+  }
+
+  async function handleEdit(commentId: string, body: string) {
+    try {
+      await updateComment.mutateAsync({ issueId, vault, commentId, body });
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Couldn't save the edit. Try again.",
+      );
+      throw err; // keep the card in edit mode
+    }
+  }
+
+  return (
+    <section className="flex min-w-0 flex-col gap-3">
+      <h3 className={ISSUE_SECTION_HEADER_CLASS}>Activity</h3>
+
+      <div className="relative flex min-w-0 flex-col gap-4">
+        {/* The thread spine: one line through every node's center (the avatars
+            cover it; the glyph discs break it cleanly). */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute top-3 bottom-10 left-[9.5px] w-px bg-border"
+        />
+
+        {timeline.map((entry) => {
+          if (entry.type === "comment") {
+            return (
+              <CommentCard
+                key={entry.comment.id}
+                comment={entry.comment}
+                currentLogin={currentLogin}
+                flash={entry.comment.id === flashId}
+                onSave={(body) => handleEdit(entry.comment.id, body)}
+              />
+            );
+          }
+          if (entry.type === "collapsed") {
+            return (
+              <CollapsedEventsRow
+                key={`collapsed:${entry.events[0].event.id}`}
+                events={entry.events}
+              />
+            );
+          }
+          return <ActivityEventRow key={entry.event.id} event={entry.event} />;
+        })}
+
+        <CommentComposer
+          currentLogin={currentLogin}
+          pending={createComment.isPending}
+          onSubmit={handleCreate}
+        />
+      </div>
+
+      {commentsError || activityError ? (
+        <p className="text-xs text-destructive">
+          Couldn't load the full activity. Try again.
+        </p>
+      ) : null}
+    </section>
+  );
+}

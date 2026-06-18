@@ -10,7 +10,7 @@ import type {
   IssueUpdatePatch,
 } from "@reef/core";
 import type { ComponentProps } from "react";
-import { IssueComments } from "../comments/IssueComments";
+import { ActivityTimeline } from "../activity/ActivityTimeline";
 import { IssueLinkedDocuments } from "../refs/IssueLinkedDocuments";
 import { IssueRefsEditor } from "../refs/IssueRefsEditor";
 import { IssueChildren } from "../relations/IssueChildren";
@@ -208,9 +208,12 @@ export function IssueDetailMain({
         }}
       />
 
-      {/* Comments sit at the bottom: the conversation grows after the
-          structured fields, and is where REEF-064 will fold in activity. */}
-      <IssueComments issueId={issueId} vault={vault} />
+      {/* The unified activity timeline (REEF-064) sits at the bottom: comments,
+          status changes, and reconstructed events merge into one chronological
+          thread after the structured fields. */}
+      {issue ? (
+        <ActivityTimeline issueId={issueId} vault={vault} issue={issue} />
+      ) : null}
     </main>
   );
 }

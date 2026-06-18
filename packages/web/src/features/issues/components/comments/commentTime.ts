@@ -18,3 +18,12 @@ export function formatRelativeTime(iso: string, nowMs: number): string {
   if (sec < 7 * DAY) return `${Math.round(sec / DAY)}d ago`;
   return new Date(then).toISOString().slice(0, 10);
 }
+
+/**
+ * Full localized timestamp for a `title` tooltip — the precise time paired with
+ * the compact relative label. Falls back to the raw ISO when unparseable.
+ */
+export function formatAbsoluteTime(iso: string): string {
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? iso : new Date(ms).toLocaleString();
+}
