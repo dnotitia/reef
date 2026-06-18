@@ -14,6 +14,14 @@ explicitly in the entries below.
 
 ### Added
 
+- **Delivery forecast on Reports.** A new Monte Carlo forecast card projects when
+  the open work in scope will finish, and how many items finish by a near-term
+  date, each at the 50/70/85/95 confidence levels. It bootstraps the weekly
+  completion throughput the dashboard already tracks — no new data, event log, or
+  cycle-time setup — and reuses the Period control to choose the sample window
+  (default 12 weeks). An empty or thin history is labeled ("not enough history",
+  "treat these as rough") rather than guessed, so the numbers stay honest
+  (REEF-190).
 - **Measure Reports by story points, not just issue count.** The report scope bar
   gains a Measure control: switch from "Issue count" to "Story points" and the
   load and throughput cards — Workflow, By type, By severity, Top assignees, Top
