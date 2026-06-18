@@ -4,9 +4,11 @@ import { Button } from "@/components/ui/button";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import { SEVERITY_LABELS } from "@reef/core/fields";
 import { useCallback, useMemo, useState } from "react";
 import {
   DEFAULT_REPORT_FILTERS,
+  PERIOD_LABELS,
   type ReportFilters,
   computeAggregates,
 } from "../lib/aggregate";
@@ -163,7 +165,9 @@ export function ReportsPage() {
 
               <Card
                 title="Throughput"
-                subtitle={`${formatSigned(agg.riskSummary.netThroughput)} net`}
+                subtitle={`${PERIOD_LABELS[filters.period]} · ${formatSigned(
+                  agg.riskSummary.netThroughput,
+                )} net`}
               >
                 <NetThroughputChart points={agg.netThroughput} />
               </Card>
@@ -176,7 +180,7 @@ export function ReportsPage() {
 
               <DeadlineCard agg={agg} />
 
-              <Card title="By type">
+              <Card title="By type" subtitle="In scope">
                 <RankedBarList
                   rows={agg.byType.map((b) => ({
                     key: b.type,
@@ -186,6 +190,25 @@ export function ReportsPage() {
                   }))}
                 />
               </Card>
+
+              {/* Severity is sparsely populated (only bugs carry it), so the
+                  card is omitted entirely when nothing has a severity rather
+                  than showing a perpetually-empty panel (REEF-186). bySeverity
+                  is pre-filtered to count > 0 by the aggregator. Bars stay
+                  neutral: the severity tokens are glyph colors, not fills
+                  (globals.css), and the row label already names the severity —
+                  a colored bar would just re-encode that identity. */}
+              {agg.bySeverity.length > 0 && (
+                <Card title="By severity" subtitle="In scope">
+                  <RankedBarList
+                    rows={agg.bySeverity.map((b) => ({
+                      key: b.severity,
+                      label: SEVERITY_LABELS[b.severity],
+                      value: b.count,
+                    }))}
+                  />
+                </Card>
+              )}
 
               <Card title="Top assignees" subtitle="In scope, top 5">
                 {agg.topAssignees.length === 0 ? (

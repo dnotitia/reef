@@ -172,6 +172,17 @@ export const REPORT_PERIOD_WEEKS: Record<
   quarter: 13,
 };
 
+/** Display labels for the throughput period control — the single source the
+ *  scope-bar option and the Throughput card window subtitle both read, so the
+ *  period the user picks reads the same on the control and on the one card it
+ *  re-scopes (REEF-185). */
+export const PERIOD_LABELS: Record<ReportPeriod, string> = {
+  "4w": "Last 4 weeks",
+  "12w": "Last 12 weeks",
+  quarter: "Quarter",
+  all: "All time",
+};
+
 export const RISK_PRIORITIES: readonly RiskPriority[] = [
   "critical",
   "high",

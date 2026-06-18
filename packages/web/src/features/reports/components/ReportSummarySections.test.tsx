@@ -84,8 +84,9 @@ describe("ReportSummarySections — single-home metrics (REEF-192)", () => {
     expect(screen.getAllByText("Overdue")).toHaveLength(1);
     expect(screen.getAllByText("This week")).toHaveLength(1);
     expect(screen.getAllByText("Upcoming")).toHaveLength(1);
-    // The undated count is carried just by the subtitle now.
+    // The undated count is carried by the subtitle, now prefixed with the
+    // card's population so it does not read as the in-scope total (REEF-185).
     expect(screen.queryByText("No due")).not.toBeInTheDocument();
-    expect(screen.getByText("5 undated")).toBeInTheDocument();
+    expect(screen.getByText("Open work · 5 undated")).toBeInTheDocument();
   });
 });
