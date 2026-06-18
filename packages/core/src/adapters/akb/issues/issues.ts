@@ -163,33 +163,37 @@ export async function updateIssue(
       current.issue.status !== "backlog" &&
       mergedIssue.rank == null;
     // Capture the status this write actually overwrote, atomically with the
-    // write itself. The `prev` CTE reads the committed pre-update status in the
-    // same statement snapshot the `upd` CTE mutates, so the value is the row's
-    // true prior status at commit time — not the possibly-stale `readIssue`
-    // snapshot. Under concurrent last-write-wins status changes, this keeps the
-    // activity event's `from` faithful (A: todo→in_progress then B reads the
-    // committed in_progress, recording in_progress→done, not a phantom
-    // todo→done). The UPDATE stays unconditional LWW — no CAS, per the adapter
-    // contract; only the recorded `from` is made accurate.
+    // write itself. The `prev` CTE locks the row with `FOR UPDATE`, so under a
+    // concurrent last-write-wins race it blocks on the in-flight writer and then
+    // re-reads that writer's freshly committed status (READ COMMITTED EvalPlanQual)
+    // — the same version the `upd` CTE then overwrites. Both CTEs therefore act on
+    // one locked current row, so the recorded `from` is the value the write truly
+    // replaced, never a stale `readIssue` snapshot (A: todo→in_progress, then B
+    // records in_progress→done, not a phantom todo→done). The UPDATE stays
+    // unconditional LWW — no CAS, per the adapter contract; the lock only
+    // serializes the read-old-then-write so the audit `from` is faithful.
     let committedFromStatus: string | undefined;
     try {
       const updateRes = await runSql(
         adapter,
         vault,
-        `WITH prev AS (SELECT status AS from_status FROM ${tableRef(
+        `WITH prev AS (SELECT reef_id, status AS from_status FROM ${tableRef(
           REEF_ISSUES_TABLE,
         )} WHERE reef_id = ${quoteText(
           id,
           "reef_id",
-        )}), upd AS (UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET ${buildRowAssignments(
+        )} FOR UPDATE), upd AS (UPDATE ${tableRef(
+          REEF_ISSUES_TABLE,
+        )} SET ${buildRowAssignments(
           issueRowMutableFields(
             mergedIssue,
             enteringBacklog ? { rankExpr: backlogTailRankExpr() } : undefined,
           ),
-        )} WHERE reef_id = ${quoteText(
-          id,
-          "reef_id",
-        )} RETURNING reef_id) SELECT from_status FROM prev`,
+        )} FROM prev WHERE ${tableRef(
+          REEF_ISSUES_TABLE,
+        )}.reef_id = prev.reef_id RETURNING ${tableRef(
+          REEF_ISSUES_TABLE,
+        )}.reef_id) SELECT from_status FROM prev`,
       );
       committedFromStatus =
         updateRes.kind === "table_query"

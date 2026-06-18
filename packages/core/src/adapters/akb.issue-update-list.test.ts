@@ -130,9 +130,13 @@ describe("updateIssue", () => {
     expect(result.issue.status).toBe("in_progress");
     expect(calls).toHaveLength(6);
 
-    // The row UPDATE captures the prior status atomically (REEF-063 concurrency fix).
+    // The row UPDATE locks + captures the prior status atomically so the event's
+    // `from` stays faithful under concurrent writes (REEF-063 concurrency fix).
     const updateSql = JSON.parse(calls[2]?.init?.body as string).sql;
-    expect(updateSql).toContain("WITH prev AS (SELECT status AS from_status");
+    expect(updateSql).toContain(
+      "WITH prev AS (SELECT reef_id, status AS from_status",
+    );
+    expect(updateSql).toContain("FOR UPDATE");
     expect(updateSql).toContain("UPDATE reef_issues SET");
 
     const insertSql = JSON.parse(calls[5]?.init?.body as string).sql;
