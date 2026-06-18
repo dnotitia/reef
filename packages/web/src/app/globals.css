@@ -1,6 +1,17 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* Streamdown markdown renderer ships utility-class-styled output; Tailwind v4
+   does not scan node_modules by default, so its rarer classes (e.g. the code
+   block's `-mt-10` action-row overlay) were never generated — leaving short code
+   blocks with a tall, empty header. Source Streamdown + its installed plugins so
+   every class it emits is built (per the Streamdown README). */
+@source "../../node_modules/streamdown/dist/*.js";
+@source "../../node_modules/@streamdown/cjk/dist/*.js";
+@source "../../node_modules/@streamdown/code/dist/*.js";
+@source "../../node_modules/@streamdown/math/dist/*.js";
+@source "../../node_modules/@streamdown/mermaid/dist/*.js";
+
 /* =====================================================================
  * reef — dense, keyboard-first design tokens
  *
