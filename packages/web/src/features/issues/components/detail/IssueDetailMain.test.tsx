@@ -9,6 +9,7 @@ vi.mock("../refs/IssueLinkedDocuments", () => ({
   IssueLinkedDocuments: () => null,
 }));
 vi.mock("../refs/IssueRefsEditor", () => ({ IssueRefsEditor: () => null }));
+vi.mock("../comments/IssueComments", () => ({ IssueComments: () => null }));
 vi.mock("../relations/IssueChildren", () => ({ IssueChildren: () => null }));
 vi.mock("../relations/IssueRelationInput", () => ({
   IssueRelationInput: () => null,

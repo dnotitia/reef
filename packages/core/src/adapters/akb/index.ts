@@ -55,6 +55,11 @@ export {
   removeIssueReference,
 } from "./issues/references";
 export {
+  listComments,
+  createComment,
+  updateComment,
+} from "./issues/comments";
+export {
   composeActivitySuggestionDocumentBody,
   writeActivitySuggestion,
   listActivitySuggestions,

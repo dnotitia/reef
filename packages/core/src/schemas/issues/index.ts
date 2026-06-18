@@ -29,6 +29,18 @@ export {
 } from "./references";
 
 export {
+  CommentSchema,
+  CommentMetaSchema,
+  CommentCreateInputSchema,
+  CommentUpdateInputSchema,
+  COMMENT_BODY_MAX,
+  type Comment,
+  type CommentMeta,
+  type CommentCreateInput,
+  type CommentUpdateInput,
+} from "./comment";
+
+export {
   TemplateSchema,
   TEMPLATE_NAME_PATTERN,
   type Template,

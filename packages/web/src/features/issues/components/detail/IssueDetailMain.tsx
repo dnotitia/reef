@@ -10,6 +10,7 @@ import type {
   IssueUpdatePatch,
 } from "@reef/core";
 import type { ComponentProps } from "react";
+import { IssueComments } from "../comments/IssueComments";
 import { IssueLinkedDocuments } from "../refs/IssueLinkedDocuments";
 import { IssueRefsEditor } from "../refs/IssueRefsEditor";
 import { IssueChildren } from "../relations/IssueChildren";
@@ -206,6 +207,10 @@ export function IssueDetailMain({
           }
         }}
       />
+
+      {/* Comments sit at the bottom: the conversation grows after the
+          structured fields, and is where REEF-064 will fold in activity. */}
+      <IssueComments issueId={issueId} vault={vault} />
     </main>
   );
 }
