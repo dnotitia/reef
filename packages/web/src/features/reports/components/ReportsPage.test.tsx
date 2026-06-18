@@ -147,6 +147,38 @@ describe("ReportsPage", () => {
     expect(screen.getByTestId("report-card-throughput")).toBeInTheDocument();
   });
 
+  it("groups the report cards into named scan sections (REEF-248)", async () => {
+    mockApi(issues);
+
+    render(wrap(<ReportsPage />));
+
+    await screen.findByTestId("report-scope-bar");
+    // The long card stack is segmented into three labeled bands so the page has
+    // a scan order and entry point, not one flat wall. Section labels are the
+    // only level-2 headings (cards are h3), so the level filter is unambiguous.
+    for (const label of ["Snapshot", "Flow & forecast", "Breakdown"]) {
+      expect(
+        screen.getByRole("heading", { name: label, level: 2 }),
+      ).toBeInTheDocument();
+    }
+  });
+
+  it("renders By type with the neutral value bar, not per-type identity fills (REEF-248)", async () => {
+    mockApi(issues);
+
+    render(wrap(<ReportsPage />));
+
+    const card = await screen.findByTestId("report-card-by-type");
+    // The breakdown bar uses the single brand value-token, matching By severity /
+    // Top assignees / Top labels...
+    expect(card.querySelector("[style*='var(--brand)']")).not.toBeNull();
+    // ...and no longer leaks a per-type identity color (task → status-open,
+    // bug → priority-critical, epic → ai, ...) into the card.
+    for (const token of ["--type", "--ai", "--priority", "--status"]) {
+      expect(card.querySelector(`[style*='${token}']`)).toBeNull();
+    }
+  });
+
   it("keeps the 2-D Risk map but drops the duplicate 1-D By priority and Aging cards (REEF-184)", async () => {
     mockApi(issues);
 

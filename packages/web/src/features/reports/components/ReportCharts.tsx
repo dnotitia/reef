@@ -115,9 +115,11 @@ export function RankedBarList({
             className="h-1.5 w-full overflow-hidden rounded-full bg-surface-hover"
           >
             {/* Composited grow-in: scaleX off a full-width track instead of
-                animating width (a layout property). (REEF-097 AC3) */}
+                animating width (a layout property). Gated on `motion-safe` so
+                reduced-motion users get the final bar with no animation
+                (REEF-097 AC3, REEF-248). */}
             <div
-              className="h-full w-full origin-left rounded-full transition-transform duration-500 ease-out"
+              className="h-full w-full origin-left rounded-full ease-out motion-safe:transition-transform motion-safe:duration-500"
               style={{
                 transform: `scaleX(${Math.max(0.02, row.value / max)})`,
                 backgroundColor: row.color ?? "var(--brand)",
@@ -164,6 +166,36 @@ const AGING_BUCKETS: readonly AgingBucketKey[] = [
   "stalled",
 ] as const;
 
+// ─── Count matrices (Risk map + Pivot) ───────────────────────────────────────
+// Both the fixed Risk map and the custom Pivot are heat tables: a count rendered
+// as text AND as cell intensity. They deliberately share ONE idiom — the same
+// cell chrome (`HEAT_CELL`) and the same density ramp (`heatFill`) — so the two
+// read as "the same kind of thing" (a crosstab), differentiated by their titles
+// and axes, not by accidental styling drift (REEF-248).
+
+const HEAT_CELL =
+  "h-9 rounded-md border border-border-subtle bg-surface-hover text-center align-middle font-mono text-xs tabular-nums text-foreground";
+
+/** Neutral density fill for a count cell. A single gray ramp — distinct from the
+ *  brand-tinted value bars — so a heat cell never competes with a quantity bar
+ *  for the same color meaning (REEF-248). Empty cells return `undefined` to keep
+ *  the base surface (no number) so a zero reads as "nothing here", not "low".
+ *  Mixing toward `surface-subtle` keeps cells readable in both themes (the fill
+ *  flips with the surface, the cell text stays `foreground`). */
+function heatFill(count: number, max: number): string | undefined {
+  if (count <= 0) return undefined;
+  const intensity = 0.1 + (count / Math.max(max, 1)) * 0.32;
+  return `color-mix(in oklab, var(--muted-foreground) ${Math.round(
+    intensity * 100,
+  )}%, var(--surface-subtle))`;
+}
+
+// The Risk map is a fixed 5×4 crosstab of open work by priority (rows) × time
+// since last update (columns). A real <table> (matching the Pivot) so screen
+// readers announce the priority/age a cell belongs to. Cells carry neutral
+// density only — the risk signal is the position (critical row, stalled column),
+// not a red tint, so the heat does not re-encode "risk" on top of "attention"
+// (REEF-248).
 export function RiskMatrix({
   buckets,
 }: {
@@ -175,97 +207,69 @@ export function RiskMatrix({
   );
 
   return (
-    <div className="grid grid-cols-[76px_repeat(4,minmax(0,1fr))] gap-1.5">
-      <span aria-hidden="true" />
-      {AGING_BUCKETS.map((aging) => (
-        <span
-          key={aging}
-          className="text-center text-[10px] uppercase tracking-wide text-muted-foreground"
-        >
-          {AGING_LABELS[aging]}
-        </span>
-      ))}
-      {RISK_PRIORITIES.map((priority) => (
-        <MatrixRow
-          key={priority}
-          priority={priority}
-          max={max}
-          counts={AGING_BUCKETS.map(
-            (aging) => byKey.get(`${priority}:${aging}`) ?? 0,
-          )}
-        />
-      ))}
+    <div className="overflow-x-auto">
+      <table className="w-full table-fixed border-separate [border-spacing:6px]">
+        <caption className="sr-only">
+          Open-work issue count by priority (rows) and time since last update
+          (columns).
+        </caption>
+        <colgroup>
+          <col className="w-[76px]" />
+          {AGING_BUCKETS.map((aging) => (
+            <col key={aging} />
+          ))}
+        </colgroup>
+        <thead>
+          <tr>
+            <td className="border-0 bg-transparent p-0" />
+            {AGING_BUCKETS.map((aging) => (
+              <th
+                key={aging}
+                scope="col"
+                className="px-1 pb-0.5 text-center align-bottom text-[10px] font-normal uppercase tracking-wide text-muted-foreground"
+              >
+                {AGING_LABELS[aging]}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {RISK_PRIORITIES.map((priority) => (
+            <tr key={priority}>
+              <th
+                scope="row"
+                className="text-left text-xs font-normal text-foreground/80"
+              >
+                {RISK_PRIORITY_LABELS[priority]}
+              </th>
+              {AGING_BUCKETS.map((aging) => {
+                const count = byKey.get(`${priority}:${aging}`) ?? 0;
+                return (
+                  <td
+                    key={aging}
+                    className={HEAT_CELL}
+                    style={{ backgroundColor: heatFill(count, max) }}
+                    title={`${RISK_PRIORITY_LABELS[priority]} ${AGING_LABELS[aging]}: ${count}`}
+                  >
+                    {count > 0 ? count : ""}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
-  );
-}
-
-function MatrixRow({
-  priority,
-  counts,
-  max,
-}: {
-  priority: RiskPriority;
-  counts: ReadonlyArray<number>;
-  max: number;
-}) {
-  return (
-    <>
-      <span className="flex items-center text-xs text-foreground/80">
-        {RISK_PRIORITY_LABELS[priority]}
-      </span>
-      {counts.map((count, index) => {
-        const intensity = count === 0 ? 0 : 0.1 + (count / max) * 0.5;
-        const aging = AGING_BUCKETS[index];
-        const hot =
-          priority === "critical" ||
-          priority === "high" ||
-          aging === "stale" ||
-          aging === "stalled";
-        return (
-          <div
-            key={`${priority}-${aging}`}
-            className="flex h-9 items-center justify-center rounded-md border border-border-subtle bg-surface-hover font-mono text-xs tabular-nums"
-            style={{
-              backgroundColor:
-                count > 0
-                  ? `color-mix(in oklab, ${
-                      hot ? "var(--destructive)" : "var(--brand)"
-                    } ${Math.round(intensity * 100)}%, var(--surface-subtle))`
-                  : undefined,
-            }}
-            title={`${RISK_PRIORITY_LABELS[priority]} ${AGING_LABELS[aging]}: ${count}`}
-          >
-            {count > 0 ? count : ""}
-          </div>
-        );
-      })}
-    </>
   );
 }
 
 // ─── PivotMatrix ─────────────────────────────────────────────────────────────
 // The user-driven generalization of the Risk map: an arbitrary categorical
-// row x column crosstab (REEF-189). A real <table> (the Risk map's flat grid is
-// a fixed 5x4 with no header semantics) so screen readers announce the row/
-// column a cell belongs to. Cells re-use the Risk map's heat idiom — count both
-// as text and as brand intensity — but on a single neutral scale, since an
-// arbitrary pair has no hot/cool meaning. Headers stay plain text (no glyphs or
-// uppercasing: assignee/label values are free text), and the trailing Total
-// row/column are marginals, not heat cells.
-
-const PIVOT_CELL =
-  "h-9 rounded-md border border-border-subtle bg-surface-hover text-center align-middle font-mono text-xs tabular-nums text-foreground";
-
-function pivotHeat(count: number, max: number): string | undefined {
-  // Empty cells keep the neutral base fill (no number, just the box) so a zero
-  // reads as "no work here", not "low" (REEF-189 AC3). Same ramp as the Risk
-  // map, always brand.
-  if (count <= 0) return undefined;
-  const intensity = 0.1 + (count / Math.max(max, 1)) * 0.5;
-  return `color-mix(in oklab, var(--brand) ${Math.round(
-    intensity * 100,
-  )}%, var(--surface-subtle))`;
-}
+// row × column crosstab (REEF-189). Shares the Risk map's heat idiom (HEAT_CELL
+// + heatFill) on a single neutral scale, since an arbitrary pair has no hot/cool
+// meaning. Headers stay plain text (no glyphs or uppercasing: assignee/label
+// values are free text), and the trailing Total row/column are marginals, not
+// heat cells.
 
 export function PivotMatrix({ result }: { result: PivotResult }) {
   const { rows, cols, max } = result;
@@ -332,7 +336,7 @@ export function PivotMatrix({ result }: { result: PivotResult }) {
               <td
                 key={c.key}
                 className={cn(
-                  PIVOT_CELL,
+                  HEAT_CELL,
                   "border-border font-medium text-foreground",
                 )}
               >
@@ -340,10 +344,10 @@ export function PivotMatrix({ result }: { result: PivotResult }) {
               </td>
             ))}
             <td
-              className={cn(PIVOT_CELL, "border-border font-semibold")}
+              className={cn(HEAT_CELL, "border-border font-semibold")}
               style={{
                 backgroundColor:
-                  "color-mix(in oklab, var(--brand) 14%, var(--surface-subtle))",
+                  "color-mix(in oklab, var(--muted-foreground) 12%, var(--surface-subtle))",
               }}
             >
               {result.grandTotal}
@@ -380,15 +384,15 @@ function PivotRow({
         return (
           <td
             key={c.key}
-            className={PIVOT_CELL}
-            style={{ backgroundColor: pivotHeat(n, max) }}
+            className={HEAT_CELL}
+            style={{ backgroundColor: heatFill(n, max) }}
             title={`${row.label} × ${c.label}: ${n}`}
           >
             {n > 0 ? n : ""}
           </td>
         );
       })}
-      <td className={cn(PIVOT_CELL, "border-border font-medium")}>
+      <td className={cn(HEAT_CELL, "border-border font-medium")}>
         {result.rowTotals.get(row.key) ?? 0}
       </td>
     </tr>

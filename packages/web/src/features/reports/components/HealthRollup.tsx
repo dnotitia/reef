@@ -125,9 +125,9 @@ export function HealthRollup({
     >
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-baseline gap-2">
-          <h2 className="text-sm font-semibold text-foreground">
+          <h3 className="text-sm font-semibold text-foreground">
             Portfolio health
-          </h2>
+          </h3>
           <span className="text-[11px] text-muted-foreground">
             {visibleRows.length}{" "}
             {(visibleRows.length === 1 ? label.one : label.many).toLowerCase()}
@@ -323,9 +323,10 @@ function CompletionBar({ value }: { value: number }) {
         aria-hidden="true"
         className="h-1.5 w-16 overflow-hidden rounded-full bg-surface-hover"
       >
-        {/* Composited grow-in: scaleX off a full-width track, not width (REEF-097). */}
+        {/* Composited grow-in: scaleX off a full-width track, not width. Gated on
+            `motion-safe` so reduced-motion gets the final bar (REEF-097, REEF-248). */}
         <div
-          className="h-full w-full origin-left rounded-full transition-transform duration-500 ease-out"
+          className="h-full w-full origin-left rounded-full ease-out motion-safe:transition-transform motion-safe:duration-500"
           style={{
             transform: `scaleX(${Math.max(0.02, value)})`,
             backgroundColor: "var(--brand)",
