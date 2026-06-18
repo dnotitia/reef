@@ -137,6 +137,11 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Disconnecting a GitHub token no longer signs you out.** On Settings →
+  Preferences, the GitHub token "Disconnect" action now removes only the
+  browser-local token and returns to the token-entry form. It no longer ends your
+  workspace session or bounces you to the login screen — signing out of the
+  workspace stays a separate action in the sidebar account menu (REEF-247).
 - Opening an issue from the **List**, **Timeline**, or **Backlog** tab no longer
   flips the background to the Board. Clicking an issue now keeps the tab (and any
   active filters/sort) you were on while the detail sheet slides over, and
