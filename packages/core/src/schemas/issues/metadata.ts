@@ -51,7 +51,11 @@ export const ExternalRefTypeEnum = z.enum([
   "other",
 ]);
 
-const ImplementationRefTypeEnum = z.enum(["pull_request", "commit", "branch"]);
+export const ImplementationRefTypeEnum = z.enum([
+  "pull_request",
+  "commit",
+  "branch",
+]);
 
 export const ExternalRefSchema = z
   .object({

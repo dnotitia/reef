@@ -20,6 +20,13 @@ explicitly in the entries below.
   the app or an automated agent. This is the foundation the merged comment +
   activity timeline will read; the timeline view itself ships separately
   (REEF-064). (REEF-063).
+- **Activity log now tracks more than status.** Beyond status changes, the
+  activity log now records reassignments, priority changes, planning links
+  (milestone, sprint, release attach/detach), and newly-linked delivery refs
+  (pull requests, commits, branches) — each as the same immutable, append-only
+  event with who, the before→after, and when. When one save changes several
+  fields at once, the events share a single timestamp so they read as one moment.
+  The timeline view that surfaces these ships separately (REEF-064) (REEF-126).
 - **Delivery forecast on Reports.** A new Monte Carlo forecast card projects when
   the open work in scope will finish, and how many items finish by a near-term
   date, each at the 50/70/85/95 confidence levels. It bootstraps the weekly

@@ -135,6 +135,24 @@ For meta-only fields such as source, last_status_change, external_refs, and impl
 
 Do not set updated_at yourself; AKB bumps it on any row UPDATE.
 
+## Record a field-change activity event
+
+reef_activity logs more than status. When an update changes the assignee, the priority, a planning link (milestone, sprint, or release), or links a new delivery ref (a pull_request, commit, or branch in implementation_refs), you MUST ALSO append one immutable reef_activity row per change, in the same update -- the same append-only mechanism as the status_change rule below, just a different event_type. This is what populates the issue timeline (REEF-064) with the full history, not status alone. Append:
+
+INSERT INTO reef_activity (reef_id, event_type, event_key, payload, meta)
+VALUES (
+  'REEF-001',
+  'assignee_change',
+  'assignee_change:alice->bob@2026-06-15T07:34:38.237Z',
+  '{"from":"alice","to":"bob"}'::json,
+  '{"actor":"ACTOR","at":"2026-06-15T07:34:38.237Z","source":"ai-agent:user_request"}'::json);
+
+- event_type is one of assignee_change, priority_change, planning_link, or impl_ref_linked.
+- payload carries the change. For assignee_change and priority_change it is {from,to} (either side may be null -- an unassigned issue or an unset priority). For planning_link it is {field,from,to}, where field is milestone, sprint, or release and from/to are the planning ids (null on attach/detach). For impl_ref_linked it is {ref_type,ref,repo} naming the newly-linked ref (ref_type is pull_request, commit, or branch; repo is owner/name or null) -- a link is a set addition, so emit one event per newly-added ref and nothing when the refs array is unchanged.
+- event_key is the idempotency key: assignee/priority use <event_type>:<from>-><to>@<at>; planning_link uses planning_link:<field>:<from>-><to>@<at>; impl_ref_linked uses impl_ref_linked:<ref_type>:<repo>:<ref>@<at>. Use the literal token for a null segment so an attach never collides with a value. Before inserting, skip the insert if a row with the same reef_id and event_key already exists.
+- In meta, "at" is the update's timestamp (the same value you stamp on every field of this update), "actor" is the acting user, and "source" mirrors the change's provenance or is null. When one update changes several of these fields at once, every event shares that one "at" so they group as a single moment.
+- Do NOT set id, created_by, created_at, or updated_at; AKB fills them. reef_activity is append-only -- never UPDATE or DELETE an event row. If an append fails after the row UPDATE already changed the field, leave the field change in place; do not roll it back over a missing history row.
+
 ## Status lifecycle
 
 Statuses are ordered: backlog < todo < in_progress < in_review < done < closed. The normal path for a committed issue walks them in order:
