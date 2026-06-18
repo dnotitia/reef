@@ -31,11 +31,38 @@ export function Card({
       className="flex flex-col gap-3 rounded-lg border border-border-subtle bg-surface-subtle p-4"
     >
       <header className="flex items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
         {subtitle && (
           <span className="text-[11px] text-muted-foreground">{subtitle}</span>
         )}
       </header>
+      {children}
+    </section>
+  );
+}
+
+/**
+ * A labeled band that groups a set of report cards under one quiet section
+ * heading (Snapshot / Flow & forecast / Breakdown). The label is the page's
+ * scan anchor: it segments a long uniform scroll into a few named groups so the
+ * eye has an entry point and the cards stop reading as one flat wall (REEF-248).
+ * Intentionally low-chrome — just an uppercase muted heading, no box — so it adds
+ * hierarchy without competing with the cards it introduces. The page stacks
+ * sections with more space than cards carry within a section, so the grouping
+ * reads from rhythm as well as from the labels.
+ */
+export function ReportSection({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+        {label}
+      </h2>
       {children}
     </section>
   );

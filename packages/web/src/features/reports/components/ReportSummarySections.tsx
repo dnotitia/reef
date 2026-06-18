@@ -22,13 +22,19 @@ const STATUS_COLOR: Record<Status, string> = {
   closed: "var(--status-closed)",
 };
 
-export const TYPE_META: Record<IssueType, { label: string; color: string }> = {
-  epic: { label: "Epic", color: "var(--ai)" },
-  story: { label: "Story", color: "var(--brand)" },
-  task: { label: "Task", color: "var(--status-open)" },
-  bug: { label: "Bug", color: "var(--priority-critical)" },
-  spike: { label: "Spike", color: "var(--status-in-progress)" },
-  chore: { label: "Chore", color: "var(--status-closed)" },
+// By type carries only labels: its bars are the same neutral brand value-bars as
+// By severity / Top assignees / Top labels, so the four breakdown cards read as
+// one idiom. A per-type fill would just re-encode the identity the row label
+// already names (the REEF-186 argument for neutral severity bars), and it leaked
+// brand / priority / status tokens into a card that means none of them
+// (REEF-248).
+export const TYPE_META: Record<IssueType, { label: string }> = {
+  epic: { label: "Epic" },
+  story: { label: "Story" },
+  task: { label: "Task" },
+  bug: { label: "Bug" },
+  spike: { label: "Spike" },
+  chore: { label: "Chore" },
 };
 
 export function HealthSummary({ agg }: { agg: ReportAggregates }) {
@@ -205,24 +211,28 @@ export function DeadlineCard({ agg }: { agg: ReportAggregates }) {
     );
   }
 
+  // Deadline urgency reads as a red → amber → calm ramp off the dedicated
+  // deadline tokens, not the brand value color: overdue is attention
+  // (`--due-overdue`), this week is soon (`--due-soon`), upcoming is the neutral
+  // not-urgent tail. Keeps brand meaning "quantity", not "upcoming" (REEF-248).
   const segments: Segment[] = [
     {
       key: "overdue",
       label: "Overdue",
       value: dueHealth.overdue,
-      color: "var(--destructive)",
+      color: "var(--due-overdue)",
     },
     {
       key: "this-week",
       label: "This week",
       value: dueHealth.dueThisWeek,
-      color: "var(--status-in-progress)",
+      color: "var(--due-soon)",
     },
     {
       key: "upcoming",
       label: "Upcoming",
       value: dueHealth.upcoming,
-      color: "var(--brand)",
+      color: "var(--status-open)",
     },
   ];
 
@@ -320,9 +330,10 @@ function Bar({
       className="h-1.5 w-full overflow-hidden rounded-full bg-surface-hover"
     >
       {/* Composited grow-in: scaleX off a full-width track instead of animating
-          width (a layout property). (REEF-097 AC3) */}
+          width (a layout property). Gated on `motion-safe` so reduced-motion
+          users get the final bar with no animation (REEF-097 AC3, REEF-248). */}
       <div
-        className="h-full w-full origin-left rounded-full transition-transform duration-500 ease-out"
+        className="h-full w-full origin-left rounded-full ease-out motion-safe:transition-transform motion-safe:duration-500"
         style={{
           transform: `scaleX(${scaleX})`,
           backgroundColor: color ?? "var(--brand)",
