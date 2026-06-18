@@ -53,7 +53,7 @@ export async function GET(
 /**
  * PATCH /api/issues/[id]
  *
- * Row-only scalar edits are last-write-wins; akb merges per-field server-side so
+ * Row-scalar edits are last-write-wins; akb merges per-field server-side so
  * concurrent metadata edits coexist. Document-projected edits (body/title/
  * labels/relations) may carry `update.expected_commit` (REEF-227): the OCC base
  * is forwarded to akb, which rejects a stale write with 409 → ConflictError. A
@@ -103,8 +103,8 @@ export async function PATCH(
           id,
           partial: partialWithTimestamp,
           ...(update.content !== undefined ? { content: update.content } : {}),
-          // OCC base for document-projected edits (REEF-227). updateIssue only
-          // applies it when the edit is document-dirty; row-only edits ignore it.
+          // OCC base for document-projected edits (REEF-227). updateIssue just
+          // applies it when the edit is document-dirty; row-edits ignore it.
           ...(update.expected_commit !== undefined
             ? { expectedCommit: update.expected_commit }
             : {}),
@@ -130,7 +130,7 @@ export async function PATCH(
  * DELETE /api/issues/[id]?vault={vault_name}
  *
  * Permanent removal. The reversible alternative is PATCH with
- * `archived_at` — wired just behind a confirm dialog in `IssueDetail`.
+ * `archived_at` — wired behind a confirm dialog in `IssueDetail`.
  */
 export async function DELETE(
   request: Request,

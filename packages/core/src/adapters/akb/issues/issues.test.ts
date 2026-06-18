@@ -124,7 +124,7 @@ describe("updateIssue → row-update compensation", () => {
   });
 
   it("writes a backlog rank as a row-only update, never touching the document (REEF-129)", async () => {
-    // A reorder just changes `rank`, a typed row column absent from the doc's
+    // A reorder changes `rank`, a typed row column absent from the doc's
     // native-projected fields, so docDirty=false: no document PATCH, no git
     // commit — the row UPDATE the manual-order write depends on.
     const { calls } = setupFetch([
@@ -249,7 +249,7 @@ describe("updateIssue → document OCC (REEF-227)", () => {
       expectedCommit: "commit-old",
     });
 
-    // The precondition only guards document-projected fields; a row-only edit
+    // The precondition guards document-projected fields; a row-edit
     // touches no document, so there is no PATCH to attach it to.
     expect(patchCalls(calls)).toHaveLength(0);
   });
@@ -271,7 +271,7 @@ describe("updateIssue → document OCC (REEF-227)", () => {
     }).catch((e) => e);
 
     expect(err).toBeInstanceOf(ConflictError);
-    // The 409 fires before the row UPDATE, so only the rejected forward PATCH was
+    // The 409 fires before the row UPDATE, so the rejected forward PATCH was
     // attempted — no row write, no compensating re-PATCH, nothing to diverge.
     expect(patchCalls(calls)).toHaveLength(1);
   });
@@ -391,7 +391,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
     // The subquery-assigned rank is read back so the returned issue (and the
     // caches seeded from it) is not stale-null — the born-correct invariant.
     expect(res.issue.rank).toBe(33000);
-    // A row status change does not touches the document.
+    // A row status change does not touch the document.
     expect(patchCalls(calls)).toHaveLength(0);
   });
 

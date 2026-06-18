@@ -40,14 +40,14 @@ interface UpdateIssueMutationContext {
  * caches stay the fresh server truth in place, and membership/order or
  * relation-graph changes trigger a narrow refetch (see `issueListMembership`).
  *
- * Row-only scalar edits (status, priority, dates, ...) stay last-write-wins,
+ * Row-scalar edits (status, priority, dates, ...) stay last-write-wins,
  * merged server-side per field. Document-projected edits (body/title/labels/
  * relations) carry the cached `commit_hash` as akb's `expected_commit`
  * precondition (REEF-227): a concurrent external edit is rejected with a 409
  * instead of silently overwritten. On that 409 the detail is refetched so the
  * editor reconciles to the latest, and the autosave machine surfaces the
- * conflict as a non-retry notice (never a blind retry of the stale edit), so the
- * change that won cannot be clobbered; the user re-applies against the refreshed
+ * conflict as a non-retry notice (not a blind retry of the stale edit), so the
+ * change that won is not clobbered; the user re-applies against the refreshed
  * form.
  */
 export function useUpdateIssue() {
@@ -67,7 +67,7 @@ export function useUpdateIssue() {
     }: UpdateIssueInput): Promise<UpdateIssueResult> => {
       // OCC base (REEF-227): the document commit the open editor is showing,
       // read from the detail cache — the form's own render source. In a stale
-      // window (the cache never refetched after an external edit) this is the
+      // window (the cache has not refetched after an external edit) this is the
       // stale base, so akb rejects the write rather than overwriting. Sequential
       // autosaves stay self-consistent: onSuccess advances the cached commit
       // before the next commit's mutationFn reads it. Omitted when absent so the
@@ -154,7 +154,7 @@ export function useUpdateIssue() {
       // commit and the 3-way form sync pulls in the external change. The autosave
       // machine surfaces this 409 as a non-retry notice (not a blind retry of the
       // stale edit), so the change that won is not silently clobbered; the user
-      // re-applies against the refreshed form. Fires only on 409 — a rare
+      // re-applies against the refreshed form. Fires on 409 — a rare
       // exceptional path — so it does not reintroduce the post-success
       // invalidation REEF-097/098 removed.
       if ((err as { status?: number }).status === 409) {
@@ -203,7 +203,7 @@ export function useUpdateIssue() {
       // A status change appends a `reef_activity` event server-side
       // (best-effort, REEF-063). Refetch the issue's activity query so the
       // unified timeline shows the actual logged from→to transition immediately,
-      // instead of only the reconstructed current-status fallback until the
+      // instead of the reconstructed current-status fallback until the
       // stale window elapses (REEF-064).
       if (patch.status !== undefined) {
         void queryClient.invalidateQueries({

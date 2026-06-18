@@ -84,7 +84,7 @@ export async function setGitHubToken(token: string): Promise<boolean> {
 export async function clearGitHubToken(): Promise<boolean> {
   try {
     await db.credentials.where("key").equals(GITHUB_TOKEN_KEY).delete();
-    // Disconnect invalidates every auth-scoped cache: dropping the PAT must also
+    // Disconnect invalidates every auth-scoped cache: dropping the PAT also needs to
     // drop the GitHub-grounded query snapshots (repos, activity scan) so a later
     // token — or a different account — does not rehydrate the prior listings
     // from the persisted cache.

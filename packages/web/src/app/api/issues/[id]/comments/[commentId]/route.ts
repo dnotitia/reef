@@ -26,7 +26,7 @@ function invalidCommentIdResponse(): Response {
 
 /**
  * Edit one comment (REEF-062 AC2). Ownership is enforced in core: the update
- * only matches a row whose `meta.author` equals the session actor, so a
+ * matches a row whose `meta.author` equals the session actor, so a
  * non-author edit surfaces as a 404. `vault` is a query param.
  *
  * PATCH /api/issues/[id]/comments/[commentId]?vault={vault} — body { body }

@@ -70,7 +70,7 @@ export interface UpdateIssueParams {
    * edit is document-dirty (body/title/labels/relations) it is sent as akb's
    * `expected_commit` precondition so a concurrent external edit is rejected
    * with a `ConflictError` instead of silently overwritten (REEF-227). Ignored
-   * for row-only edits, which stay last-write-wins.
+   * for row-edits, which stay last-write-wins.
    */
   expectedCommit?: string;
 }
@@ -94,7 +94,7 @@ export interface ReorderBacklogParams {
   vault: string;
   /**
    * The backlog `rank` writes a single drag produced (REEF-129). Applied as one
-   * atomic SQL `UPDATE … CASE` so a multi-row reorder does not leaves the server
+   * atomic SQL `UPDATE … CASE` so a multi-row reorder does not leave the server
    * partially reordered. Each id is a reef issue id; each rank is the new manual
    * order value.
    */
@@ -118,7 +118,7 @@ export interface ListIssuesParams {
   query?: IssueListQuery;
   /**
    * Current actor (akb username) for the `default_view` "My Issues" predicate.
-   * Server-derived from the session cookie — does not from the wire query. When
+   * Server-derived from the session cookie — not from the wire query. When
    * absent, the default view degrades to the active-sprint / status-window
    * floor.
    */

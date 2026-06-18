@@ -23,7 +23,7 @@ import {
  * detail charts below to that item via the shared report filters.
  *
  * The parent axis is the same drill-down `IssueChildren` shows for one epic,
- * lifted to a portfolio comparison the issue detail sheet can't give: every
+ * lifted to a portfolio comparison the issue detail sheet doesn't give: every
  * parent ranked side by side, worst-first (REEF-187).
  */
 

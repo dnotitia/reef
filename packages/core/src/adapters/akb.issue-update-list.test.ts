@@ -37,7 +37,7 @@ describe("updateIssue", () => {
       id: "REEF-001",
       partial: { status: "in_progress", priority: "critical" },
     });
-    // status/priority live just in the table → no git commit, carry the
+    // status/priority live in the table → no git commit, carry the
     // document's existing commit hash through.
     expect(result.commit_hash).toBe("abc1234");
     expect(result.issue.status).toBe("in_progress");
@@ -181,7 +181,7 @@ describe("updateIssue", () => {
   // A genuine transition is logged even when the patch's last_status_change
   // equals the row's existing one (two quick transitions can share a timestamp,
   // or a caller may pass an explicit `now`). The event keys on from→to, so it is
-  // distinct and must not be dropped by a same-timestamp comparison (autoreview).
+  // distinct and should not be dropped by a same-timestamp comparison (autoreview).
   it("appends even when the transition timestamp matches the row's prior last_status_change", async () => {
     const { calls } = setupFetch([
       { body: makeDocumentResponse() }, // read: GET document
@@ -221,12 +221,12 @@ describe("updateIssue", () => {
 
   // A status flip that does NOT record a fresh last_status_change (a raw partial
   // bypassing buildIssueUpdateMetadataPatch — no canonical event time) records
-  // no event: the UPDATE is the only write, exactly as before REEF-063.
+  // no event: the UPDATE is the write, exactly as before REEF-063.
   it("records no event when the status changes without a fresh last_status_change", async () => {
     const { calls } = setupFetch([
       { body: makeDocumentResponse() }, // read: GET document
       { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row
-      { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row only
+      { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row just
     ]);
     const adapter = makeAdapter();
     const result = await updateIssue({
@@ -240,7 +240,7 @@ describe("updateIssue", () => {
     expect(calls).toHaveLength(3);
   });
 
-  // A best-effort append failure must not fail the issue update: the status row
+  // A best-effort append failure should not fail the issue update: the status row
   // change already committed, and last_status_change stays the safety net (AC5).
   it("does not fail the update when the activity append errors", async () => {
     const { calls } = setupFetch([
@@ -316,7 +316,7 @@ describe("updateIssue", () => {
   });
 
   // The field-change funnel is gated on a stamped `updated_at` (the web/agent
-  // funnel always stamps it). A raw partial that flips a field without one
+  // funnel consistently stamps it). A raw partial that flips a field without one
   // records nothing — mirroring the status funnel's last_status_change gate.
   it("records no field event when the update does not stamp updated_at", async () => {
     const { calls } = setupFetch([
@@ -336,7 +336,7 @@ describe("updateIssue", () => {
   });
 
   // Best-effort: the row UPDATE already committed, so a failed field-event
-  // append must not fail the issue update.
+  // append should not fail the issue update.
   it("does not fail the update when a field-change append errors", async () => {
     const { calls } = setupFetch([
       { body: makeDocumentResponse() }, // read: GET document

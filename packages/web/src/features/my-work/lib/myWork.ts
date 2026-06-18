@@ -16,7 +16,7 @@ import {
  * One pass over the current user's assigned issues produces (a) the summary
  * counts shown above the queue and (b) the focus-sorted open work queue. Kept
  * framework-free so the AC checks run as plain unit tests; the page component
- * just feeds it `Date.now()` and the relation graph.
+ * feeds it `Date.now()` and the relation graph.
  */
 
 /** Deadline state of an open item relative to "now" (AC3). */
@@ -27,9 +27,9 @@ const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 /**
  * The open (unresolved) statuses My Work scopes to, in lifecycle order — used as
  * the status-distribution segment order (AC2). Excludes the resolved
- * `done`/`closed` states; those only feed the sprint completion tally (AC5).
+ * `done`/`closed` states; those feed the sprint completion tally (AC5).
  */
-export const MY_WORK_OPEN_STATUSES: readonly Status[] = [
+const MY_WORK_OPEN_STATUSES: readonly Status[] = [
   "backlog",
   "todo",
   "in_progress",
@@ -226,8 +226,8 @@ export interface BuildMyWorkOptions {
 
 /**
  * Single pass over the user's assigned issues. Open items feed the queue and the
- * status/WIP/due counts; resolved items only contribute to the current-sprint
- * completion tally (AC5). Archived issues never count. Blocked state is resolved
+ * status/WIP/due counts; resolved items contribute to the current-sprint
+ * completion tally (AC5). Archived issues does not count. Blocked state is resolved
  * against the relation `graph` via a prebuilt id index (O(1) per item), so the
  * row gets a primitive `blocked` boolean instead of the whole graph (REEF-097).
  */
@@ -239,11 +239,11 @@ export function buildMyWork(
   const { now, currentSprint } = options;
   const currentSprintId = currentSprint?.id ?? null;
   const index = indexIssuesById(graph);
-  // Blocked state is only trustworthy against the whole-vault relation graph.
+  // Blocked state is trustworthy against the whole-vault relation graph.
   // While that projection is still loading (or failed) the graph is empty —
   // skip blocked rather than mark work blocked from an incomplete graph, since
   // a false "blocked" tells the user to skip actionable work (REEF-181
-  // autoreview). A non-empty vault always yields a non-empty projection, so an
+  // autoreview). A non-empty vault consistently yields a non-empty projection, so an
   // empty graph reliably means "not yet resolvable".
   const canResolveBlocked = graph.length > 0;
 
@@ -261,7 +261,7 @@ export function buildMyWork(
     if (issue.archived_at != null) continue;
     const resolved = isResolvedStatus(issue.status);
 
-    // Sprint tally spans both sides (AC5), so it runs before the open-only gate.
+    // Sprint tally spans both sides (AC5), so it runs before the open-gate.
     if (currentSprintId && issue.sprint_id === currentSprintId) {
       if (resolved) sprintDone++;
       else sprintRemaining++;

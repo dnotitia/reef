@@ -55,13 +55,13 @@ export function IssueDetailSkeleton() {
       data-testid="issue-detail-skeleton"
       className="flex flex-col gap-5 p-6"
     >
-      {/* Header row — only the id / type cluster (mirrors IssueDetailHeader's
+      {/* Header row — the id / type cluster (mirrors IssueDetailHeader's
           left side). The top-right corner is left empty on purpose: every state
           that renders this skeleton (IssueDetail isPending/!data,
           IssueDetailSheet vaultLoading) pins the real IssueDetailCloseButton
           there (`absolute top-4 right-4`), and REEF-111 relies on those states
           having nothing else in that corner to collide with. The actions menu
-          exists only in the loaded header, so the live close owns the corner. */}
+          exists in the loaded header, so the live close owns the corner. */}
       <div className="flex min-w-0 items-center gap-2">
         <Skeleton className="h-3 w-3 rounded-full" />
         <Skeleton className="h-4 w-16" />

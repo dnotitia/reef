@@ -28,7 +28,7 @@ import {
  * PM picks any two categorical fields for the rows and columns. The population
  * is the same `matchesFilters` set the in-scope distribution cards aggregate
  * over, so the pivot reads the active scope/facets identically. Measure is
- * always issue count here — story points are REEF-188's territory and are out of
+ * consistently issue count here — story points are REEF-188's territory and are out of
  * this issue's scope.
  */
 
@@ -62,7 +62,7 @@ export const PIVOT_FIELD_LABELS: Record<PivotFieldKey, string> = {
 };
 
 /** Sentinel keys kept out of the `string` value space so a real assignee or
- *  label literally named "None"/"Other" can't collide with a bucket. */
+ *  label literally named "None"/"Other" doesn't collide with a bucket. */
 const NONE_KEY = "\0none";
 const OTHER_KEY = "\0other";
 
@@ -74,7 +74,7 @@ export interface PivotAxis {
 }
 
 interface PivotField {
-  /** Bucket key(s) an issue falls into on this axis — always at least one. A
+  /** Bucket key(s) an issue falls into on this axis — consistently at least one. A
    *  multi-valued field (label) returns several, so one issue lands in several
    *  buckets and the totals then count occurrences, not issues. */
   valuesFor(issue: IssueListItem): string[];
@@ -171,7 +171,7 @@ export interface PivotResult {
   colsFolded: number;
 }
 
-/** Count in a display cell, or 0 when the pair never co-occurred. */
+/** Count in a display cell, or 0 when the pair has not co-occurred. */
 export function pivotCell(
   result: PivotResult,
   rowKey: string,
@@ -206,7 +206,7 @@ function buildAxis(
 ): { axis: PivotAxis[]; foldedKeys: Set<string>; folded: number } {
   if (field.fixed) {
     // Fixed enums keep their canonical order but drop fully-empty buckets, so a
-    // crosstab never shows an all-zero row/column for a type nobody uses — the
+    // crosstab does not show an all-zero row/column for a type nobody uses — the
     // same noise byType filters out. Empty *cells* inside a populated row still
     // render (REEF-189 AC3).
     return {

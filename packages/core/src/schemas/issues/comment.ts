@@ -13,20 +13,19 @@ import { IsoDateFieldSchema } from "../common/date";
  *
  *   author     — reef semantic actor (akb username) who wrote the comment.
  *   created_at — ISO-8601 write time; the thread's displayed + sort time.
- *   edited_at  — ISO-8601 of the last body edit, or null when never edited.
+ *   edited_at  — ISO-8601 of the last body edit, or null when not edited.
  */
 export const CommentMetaSchema = z.object({
   author: z.string().min(1, "comment author is required"),
   created_at: IsoDateFieldSchema,
   edited_at: IsoDateFieldSchema.nullable().default(null),
 });
-export type CommentMeta = z.infer<typeof CommentMetaSchema>;
 
 /**
  * CommentSchema — a flat issue comment as it crosses the core boundary into
  * web. Wire fields are snake_case (the akb row shape); web imports this type
  * rather than redefining it (REEF-062 AC3). `id` is the akb-assigned uuid;
- * `author`/`created_at`/`edited_at` are projected from `meta`, never from akb's
+ * `author`/`created_at`/`edited_at` are projected from `meta`, not from akb's
  * auto columns (see CommentMetaSchema).
  */
 export const CommentSchema = z.object({
@@ -41,7 +40,7 @@ export type Comment = z.infer<typeof CommentSchema>;
 
 /** Upper bound on a stored comment body — keeps a single SQL statement and the
  * request payload bounded. */
-export const COMMENT_BODY_MAX = 10_000;
+const COMMENT_BODY_MAX = 10_000;
 
 const CommentBodySchema = z
   .string()
@@ -50,17 +49,15 @@ const CommentBodySchema = z
   .max(COMMENT_BODY_MAX, "comment is too long");
 
 /**
- * Create payload (web → core): just the body. The author is the session actor
+ * Create payload (web → core): the body. The author is the session actor
  * and the reef id is the route path segment — neither is ever taken from the
  * client request body.
  */
 export const CommentCreateInputSchema = z.object({
   body: CommentBodySchema,
 });
-export type CommentCreateInput = z.infer<typeof CommentCreateInputSchema>;
 
 /** Edit payload (web → core): the replacement body. */
 export const CommentUpdateInputSchema = z.object({
   body: CommentBodySchema,
 });
-export type CommentUpdateInput = z.infer<typeof CommentUpdateInputSchema>;

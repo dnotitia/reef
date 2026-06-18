@@ -66,8 +66,8 @@ describe("issue workflows runbook — creation guardrails (REEF-224)", () => {
 });
 
 // REEF-126: the activity log records more than status. The runbook invariant
-// must instruct a manual SQL editor to append a reef_activity row for assignee,
-// priority, planning-link, and delivery-ref changes too — the same append-only
+// needs to instruct a manual SQL editor to append a reef_activity row for assignee,
+// priority, planning-link, and delivery-ref changes too — the same append path
 // mechanism as the status_change rule. These pins keep that invariant (AC4) from
 // silently dropping out of the issue-workflows runbook.
 describe("issue workflows — field-change activity invariant (REEF-126)", () => {

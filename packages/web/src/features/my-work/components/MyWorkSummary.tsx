@@ -8,7 +8,7 @@ import type {
 import { cn } from "@/lib/utils";
 import type { Status } from "@reef/core";
 
-/** Segment fill per stage — the status tokens (fill, not text, only here in the
+/** Segment fill per stage — the status tokens (fill, not text, here in the
  * distribution strip; rows still encode status as an icon colour). */
 const STATUS_SEGMENT: Record<Status, string> = {
   backlog: "var(--status-backlog)",

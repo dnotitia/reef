@@ -20,7 +20,7 @@ function makeIssue(overrides: Partial<IssueMetadata>): IssueMetadata {
   };
 }
 
-// alice: todo + done; bob: todo only — so the (bob, Done) intersection is an
+// alice: todo + done; bob: todo — so the (bob, Done) intersection is an
 // empty cell while its Done column still exists (AC3).
 const issues = [
   makeIssue({

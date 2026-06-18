@@ -3,7 +3,7 @@
 
 /* Streamdown markdown renderer ships utility-class-styled output; Tailwind v4
    does not scan node_modules by default, so its rarer classes (e.g. the code
-   block's `-mt-10` action-row overlay) were never generated — leaving short code
+   block's `-mt-10` action-row overlay) were not generated — leaving short code
    blocks with a tall, empty header. Source Streamdown + its installed plugins so
    every class it emits is built (per the Streamdown README). */
 @source "../../node_modules/streamdown/dist/*.js";
@@ -111,7 +111,7 @@
 
   /* person/avatar — identity-tint fill ramp (REEF-093). Unlike every token
    * above, these ARE fills: a person is an identity, not a semantic state, so
-   * the does not-fill rule does not apply. Indexed by hash(login). teal(brand) and
+   * the unfilled rule does not apply. Indexed by hash(login). teal(brand) and
    * purple(AI) hues are left out to avoid colliding with their meaning. */
   --av-0: hsl(350 58% 48%);
   --av-1: hsl(18 62% 45%);

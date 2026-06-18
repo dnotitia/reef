@@ -93,10 +93,10 @@ export async function writeIssue(
     const put = ensureDocumentPutResponse(payload);
 
     // Insert the queryable projection row keyed to the document. On failure,
-    // compensate by deleting the document we just created — a doc without a
-    // row is invisible to the board, so we does not leave that orphan behind.
+    // compensate by deleting the document we created — a doc without a
+    // row is invisible to the board, so we do not leave that orphan behind.
     // `assignBacklogRank` appends a new backlog issue to the manual-order tail
-    // (REEF-176) so the backlog does not gains an unranked row.
+    // (REEF-176) so the backlog does not gain an unranked row.
     try {
       await insertIssueRow(adapter, vault, issue, put.uri, {
         assignBacklogRank: true,
@@ -125,7 +125,7 @@ export async function updateIssue(
     // The akb document is the canonical source for the body + native-projected
     // fields (title→summary, labels→tags, depends_on/blocks→relations). PATCH
     // it when one of those actually changed — status/priority/etc. live
-    // just in the table, so flipping a status shouldn't churn a git commit.
+    // in the table, so flipping a status shouldn't churn a git commit.
     const docDirty =
       content !== undefined ||
       mergedIssue.title !== current.issue.title ||
@@ -147,7 +147,7 @@ export async function updateIssue(
         // base the editor read. One precondition guards every document-projected
         // field — body, title, labels→tags, depends_on/blocks/related_to→
         // relations — so a concurrent external edit surfaces as a retryable save
-        // conflict instead of being silently overwritten. Row-only edits never
+        // conflict instead of being silently overwritten. Row-edits does not
         // reach here, staying last-write-wins. A 409 fires before the row UPDATE
         // below, so nothing diverges and no compensation is needed. The
         // compensating re-PATCH deliberately omits the precondition: it is a
@@ -169,11 +169,11 @@ export async function updateIssue(
     // document back to its prior values so the two stores don't diverge. The
     // compensation is best-effort and the original error wins, mirroring the
     // sagas in `writeIssue` (delete the orphaned doc) and `deleteIssue` (restore
-    // the row). A clean status/priority edit (docDirty=false) does not touched the
+    // the row). A clean status/priority edit (docDirty=false) does not touch the
     // document, so there is nothing to rewind.
     // Born-correct backlog rank (REEF-176): an issue demoted INTO the backlog
     // with no rank yet appends to the manual-order tail, so the backlog does not
-    // gains an unranked row. A status change WITHIN the backlog, or the return
+    // gain an unranked row. A status change WITHIN the backlog, or the return
     // of an already-ranked issue, leaves the existing rank untouched. (`rank` is
     // not an updatable field, so `mergedIssue.rank` is the current row's value.)
     const enteringBacklog =
@@ -214,7 +214,7 @@ export async function updateIssue(
     }
 
     // The tail rank was assigned by an in-statement subquery, so its value is
-    // just known after the write. Read it back when we entered the backlog so the
+    // known after the write. Read it back when we entered the backlog so the
     // returned issue — and the detail/list caches `useUpdateIssue` seeds from it —
     // carry the real rank instead of the pre-assignment null, upholding the
     // born-correct invariant (REEF-176). fires on demote-into-backlog.
@@ -233,7 +233,7 @@ export async function updateIssue(
     // This is the reef-web code funnel: every code path that changes status
     // (PATCH route, activity-inbox approve, agent-artifact approve) flows
     // through here. Best-effort — the row UPDATE above already committed the
-    // change, so a failed append must not fail the issue update; the row's own
+    // change, so a failed append should not fail the issue update; the row's own
     // `last_status_change` stays the single-event safety net (AC5).
     //
     // `from` is the status this write observed in `readIssue` — the same snapshot
@@ -243,14 +243,14 @@ export async function updateIssue(
     // not expose the locking primitives a serializable `from` would need, so two
     // racing status writes can each log their own observed transition rather than
     // one globally-ordered chain — the deliberate LWW trade-off the rest of the
-    // system already makes. The event fires only when the status moved AND this
+    // system already makes. The event fires when the status moved AND this
     // update carried a transition timestamp in `partial` (not the merged value):
     // "this caller stamped a status change", which is exactly what
     // `buildIssueUpdateMetadataPatch` does on every web/agent funnel. `at` is that
     // caller timestamp (the canonical transition time + idempotency-key source).
     // It is NOT gated on the timestamp differing from the row's prior value — two
     // transitions sharing one timestamp are distinct events (the key carries
-    // from→to) and must both be logged.
+    // from→to) and needs both to be logged.
     const statusFrom = current.issue.status;
     const statusTo = mergedIssue.status;
     const transitionAt = partial.last_status_change;
@@ -284,7 +284,7 @@ export async function updateIssue(
     // single timestamp (events group under one instant, AC3) and a literal retry
     // of the same patch reproduces their keys. status_change is deliberately not
     // re-derived here; it keeps its own funnel keyed on `last_status_change`.
-    // Best-effort: the row UPDATE already committed, so a failed append must not
+    // Best-effort: the row UPDATE already committed, so a failed append should not
     // fail the issue update.
     const fieldChangeAt = partial.updated_at;
     if (fieldChangeAt != null) {
@@ -389,7 +389,7 @@ export async function deleteIssue(params: DeleteIssueParams): Promise<void> {
 /**
  * Persist a backlog drag-reorder's `rank` writes (REEF-129) as ONE atomic SQL
  * `UPDATE … SET rank = CASE reef_id … END` so a multi-row reorder (tail
- * materialization, curated re-space) can not leave the server partially
+ * materialization, curated re-space) does not leave the server partially
  * reordered the way independent per-row PATCHes could. `rank` is a typed row
  * column absent from the document, so this is a pure row update — no document
  * PATCH, no commit, no compensation saga. Last-write-wins, like every row edit.

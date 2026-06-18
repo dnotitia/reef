@@ -11,7 +11,7 @@ interface CreateCommentInput {
 
 /**
  * Post a comment. The author is the session actor (server-derived), so the
- * client sends only the body. On success the server-confirmed comment is
+ * client sends the body. On success the server-confirmed comment is
  * appended to the cached thread (no optimistic placeholder — mirrors
  * `useAddIssueReference`'s cache-replace pattern), keeping the rendered author /
  * timestamp identical to what was persisted.

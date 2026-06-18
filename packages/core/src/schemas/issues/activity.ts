@@ -21,7 +21,7 @@ import {
  *   reef_id    — the issue the event belongs to
  *   event_type — which kind of change this row records (the discriminator)
  *   event_key  — idempotency key; the same logical change retried carries the
- *                same key so a best-effort append never doubles a row
+ *                same key so a best-effort append does not double a row
  *   payload    — event-specific data (e.g. `{ from, to }` for a status change)
  *   meta       — reef-semantic audit (actor, event time, trigger source), NOT
  *                akb's auto `created_by`/`created_at` (REEF-125 decision)
@@ -118,15 +118,14 @@ export const ActivityEventMetaSchema = z.object({
   at: IsoDateFieldSchema,
   source: z.string().nullable().default(null),
 });
-export type ActivityEventMeta = z.infer<typeof ActivityEventMetaSchema>;
 
 /**
  * An activity event as it crosses the core boundary. Wire fields are snake_case
  * (the akb row shape); `id` is the akb-assigned uuid; `actor`/`at`/`source` are
- * projected from `meta`, never from akb's auto columns. `payload` is a
+ * projected from `meta`, not from akb's auto columns. `payload` is a
  * discriminated union keyed on `event_type` (REEF-126) — a consumer narrows on
  * `event_type` to read the matching payload. The base fields are shared by every
- * variant; only `event_type` + `payload` differ.
+ * variant; `event_type` + `payload` differ.
  */
 const activityEventBaseShape = {
   id: z.string().min(1, "activity id is required"),

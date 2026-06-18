@@ -19,7 +19,7 @@ import {
 
 /**
  * Flat issue comments (REEF-062). `vault` is a query param; the comment author
- * is the session actor resolved server-side (never client-supplied). The reef
+ * is the session actor resolved server-side (not client-supplied). The reef
  * id is the `[id]` path segment.
  */
 

@@ -43,7 +43,7 @@ describe("PreferencesPage disconnect", () => {
 
     // The PAT is dropped...
     expect(storage.clearGitHubToken).toHaveBeenCalledOnce();
-    // ...but the akb session is untouched: Disconnect must not sign out or
+    // ...but the akb session is untouched: Disconnect should not sign out or
     // redirect (REEF-247 — workspace sign-out is the sidebar account menu).
     expect(signOutOfWorkspace).not.toHaveBeenCalled();
     expect(navigateToSignOutTarget).not.toHaveBeenCalled();
@@ -59,7 +59,7 @@ describe("PreferencesPage disconnect", () => {
 
   it("keeps the configured view and warns when local storage is unavailable", async () => {
     // clearGitHubToken returns false when IndexedDB is gone: the PAT may still
-    // be present, so the page must not claim removal or drop to the input form.
+    // be present, so the page should not claim removal or drop to the input form.
     storage.clearGitHubToken.mockResolvedValue(false);
     const user = userEvent.setup();
     render(<PreferencesPage />);

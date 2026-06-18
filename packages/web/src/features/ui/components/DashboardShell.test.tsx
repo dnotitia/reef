@@ -240,7 +240,7 @@ describe("DashboardShell", () => {
     const dot = screen.getByTestId("my-work-attention-dot");
     expect(dot).toBeVisible();
     expect(dot).toHaveClass("bg-destructive");
-    // The full count is still announced even though only a dot shows.
+    // The full count is still announced even though a dot shows.
     expect(dot).toHaveAccessibleName("1 overdue, 1 due soon");
   });
 

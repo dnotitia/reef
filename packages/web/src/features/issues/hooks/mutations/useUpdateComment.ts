@@ -11,7 +11,7 @@ interface UpdateCommentInput {
 }
 
 /**
- * Edit a comment's body. Ownership is enforced server-side (the update only
+ * Edit a comment's body. Ownership is enforced server-side (the update just
  * matches a row whose `meta.author` is the session actor), so a non-author edit
  * surfaces as a 404. On success the server-confirmed comment — carrying the new
  * `edited_at` — replaces its entry in the cached thread.

@@ -164,7 +164,7 @@ const AXIS_KEY: Record<
 
 /**
  * A dimension-agnostic rollup item — the normalized shape the row builder
- * consumes, so the main loop never branches on milestone vs sprint vs parent.
+ * consumes, so the main loop does not branch on milestone vs sprint vs parent.
  * Planning dimensions derive it from the catalog; the parent dimension derives
  * it from the issues themselves, because a parent is another issue, not a
  * planning entity (REEF-187).
@@ -176,9 +176,9 @@ interface RollupItem {
   /** Deadline anchor: milestone/release `target_date`, sprint `end_date`, or a
    *  parent issue's `due_date`. */
   targetDate: string | null;
-  /** Timeline start anchor — only a sprint declares one; null elsewhere. */
+  /** Timeline start anchor — a sprint declares one; null elsewhere. */
   startDate: string | null;
-  /** Capacity for point-burn pace — only a sprint declares it; null elsewhere. */
+  /** Capacity for point-burn pace — a sprint declares it; null elsewhere. */
   capacityPoints: number | null;
 }
 
@@ -211,8 +211,8 @@ function targetDateOf(
 
 /**
  * Distinct parent issue ids referenced by any issue — the parent rollup axis.
- * Exported so the component can offer the dimension only when parents exist
- * (REEF-187 AC2: an issue with no children never appears here, since only
+ * Exported so the component can offer the dimension when parents exist
+ * (REEF-187 AC2: an issue with no children does not appear here, since
  * referenced parent ids are collected).
  */
 export function distinctParentIds(

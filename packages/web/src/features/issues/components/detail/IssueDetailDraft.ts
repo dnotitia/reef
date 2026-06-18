@@ -78,7 +78,7 @@ export type IssueDetailDraftAction =
   | {
       // Replace the whole draft with a server snapshot, discarding local edits.
       // Used on a save conflict (REEF-227) to drop the rejected edit so a stale
-      // dirty field can't be re-saved over the change that won.
+      // dirty field doesn't be re-saved over the change that won.
       type: "reset";
       next: IssueDetailDraft;
     };

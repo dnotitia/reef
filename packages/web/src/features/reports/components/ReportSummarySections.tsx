@@ -22,9 +22,9 @@ const STATUS_COLOR: Record<Status, string> = {
   closed: "var(--status-closed)",
 };
 
-// By type carries only labels: its bars are the same neutral brand value-bars as
+// By type carries labels: its bars are the same neutral brand value-bars as
 // By severity / Top assignees / Top labels, so the four breakdown cards read as
-// one idiom. A per-type fill would just re-encode the identity the row label
+// one idiom. A per-type fill would re-encode the identity the row label
 // already names (the REEF-186 argument for neutral severity bars), and it leaked
 // brand / priority / status tokens into a card that means none of them
 // (REEF-248).

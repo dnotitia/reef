@@ -78,7 +78,7 @@ describe("RiskMatrix (REEF-248 AC3/AC4)", () => {
     expect(
       container.querySelectorAll("td[style*='--muted-foreground']").length,
     ).toBeGreaterThan(0);
-    // ...and never the destructive/brand fills the old hot/cool ramp used.
+    // ...and not the destructive/brand fills the old hot/cool ramp used.
     expect(container.querySelector("td[style*='--destructive']")).toBeNull();
     expect(container.querySelector("td[style*='var(--brand)']")).toBeNull();
   });

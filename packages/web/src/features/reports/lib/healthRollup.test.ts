@@ -310,7 +310,7 @@ describe("computeHealthRollup — parent axis (REEF-187)", () => {
         makeIssue({ id: "E1", title: "Reports epic", status: "in_progress" }),
         makeIssue({ id: "c1", parent_id: "E1", status: "done" }),
         makeIssue({ id: "c2", parent_id: "E1", status: "todo" }),
-        // AC2: a childless, top-level issue is never a rollup row.
+        // AC2: a childless, top-level issue is not a rollup row.
         makeIssue({ id: "solo", status: "todo" }),
       ],
       { dimension: "parent", now: NOW, catalog: catalog({}) },
@@ -347,7 +347,7 @@ describe("computeHealthRollup — parent axis (REEF-187)", () => {
   it("ranks parents worst-first and anchors the deadline on the parent due_date", () => {
     const rows = computeHealthRollup(
       [
-        // Healthy: the only child is done → on track.
+        // Healthy: the child is done → on track.
         makeIssue({ id: "E_OK", title: "Healthy", status: "in_progress" }),
         makeIssue({ id: "ok1", parent_id: "E_OK", status: "done" }),
         // Off track: parent due date already passed with an open child.

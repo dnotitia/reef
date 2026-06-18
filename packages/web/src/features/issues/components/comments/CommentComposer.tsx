@@ -15,7 +15,7 @@ interface CommentComposerProps {
 
 /**
  * The comment composer (REEF-062): a framed, avatar-gutter input. Plain
- * markdown text in an auto-growing textarea — comments never mount the TipTap
+ * markdown text in an auto-growing textarea — comments does not mount the TipTap
  * editor, keeping the issue-detail surface light (the heavy editor is reserved
  * for the issue body). `⌘↵` / `Ctrl+↵` submits; plain Enter is a newline.
  */

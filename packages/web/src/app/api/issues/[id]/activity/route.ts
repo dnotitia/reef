@@ -12,7 +12,7 @@ import { akbListIssueActivity as listIssueActivity } from "@reef/core";
 
 /**
  * Issue activity log (REEF-063 / REEF-064). `vault` is a query param; the reef
- * id is the `[id]` path segment. Read-only — the events are written server-side
+ * id is the `[id]` path segment. Read-— the events are written server-side
  * by `updateIssue` on a status change. The unified timeline (REEF-064) merges
  * this with comments and reconstructed events at render time.
  */
