@@ -114,6 +114,36 @@ describe("reconstructEvents (AC5)", () => {
     });
   });
 
+  it("attributes a pre-activity close to updated_by only when the close was the last edit", () => {
+    const at = "2026-06-09T00:00:00.000Z";
+    // Close was the most recent edit → updated_by is the reliable closer.
+    const clean = makeIssue({
+      status: "closed",
+      closed_at: at,
+      closed_reason: "completed",
+      last_status_change: at,
+      updated_at: at,
+      updated_by: "alice",
+    });
+    expect(
+      reconstructEvents(clean, []).find((e) => e.kind === "closed"),
+    ).toMatchObject({ actor: "alice" });
+
+    // A later non-status edit bumped updated_by/updated_at while the issue stayed
+    // closed → don't misattribute the close to that editor; actor is null.
+    const edited = makeIssue({
+      status: "closed",
+      closed_at: at,
+      closed_reason: "completed",
+      last_status_change: at,
+      updated_at: "2026-06-12T00:00:00.000Z",
+      updated_by: "bob",
+    });
+    expect(
+      reconstructEvents(edited, []).find((e) => e.kind === "closed")?.actor,
+    ).toBeNull();
+  });
+
   it("drops the current-status fallback when activity already logged that transition (activity wins)", () => {
     const issue = makeIssue({
       status: "in_progress",

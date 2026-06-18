@@ -78,8 +78,13 @@ function lineFor(event: TimelineSystemEvent): ReactNode {
     case "closed":
       return (
         <>
-          {event.actor ? <Actor name={event.actor} /> : "Issue"} closed this
-          issue
+          {event.actor ? (
+            <>
+              <Actor name={event.actor} /> closed this issue
+            </>
+          ) : (
+            "Closed"
+          )}
           {event.reason ? (
             <span className="text-muted-foreground">
               {" "}

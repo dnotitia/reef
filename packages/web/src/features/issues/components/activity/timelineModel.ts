@@ -146,17 +146,16 @@ export function reconstructEvents(
   // it coincides with creation, since `created` already represents that state.
   const closedAt = closedReconstructionAt(issue);
   if (closedAt != null) {
-    // Prefer the logged close's authoritative actor. `updated_by` is only the
-    // right closer for a pre-activity close (no logged event); it goes stale the
-    // moment a different user edits any field while the issue stays closed, so
-    // trusting it would misattribute the close to that later editor.
+    // Prefer the logged close's authoritative actor. Otherwise fall back to
+    // `updated_by` only when it reliably names the closer (see `reliableActorAt`),
+    // never to a later unrelated editor.
     const loggedClose = activity.find(
       (event) => event.payload.to === "closed" && event.at === closedAt,
     );
     events.push({
       id: "current-status",
       at: closedAt,
-      actor: loggedClose?.actor ?? issue.updated_by ?? null,
+      actor: loggedClose?.actor ?? reliableActorAt(issue, closedAt),
       kind: "closed",
       reason: issue.closed_reason ?? null,
     });
@@ -172,7 +171,7 @@ export function reconstructEvents(
       events.push({
         id: "current-status",
         at: statusAt,
-        actor: issue.updated_by || null,
+        actor: reliableActorAt(issue, statusAt),
         kind: "status_change",
         from: null,
         to: issue.status,
@@ -182,6 +181,18 @@ export function reconstructEvents(
   }
 
   return events;
+}
+
+/**
+ * `updated_by` identifies who made the *last* edit, not specifically who changed
+ * the status. It only names the transitioner/closer when the status change was
+ * the issue's most recent edit — i.e. `updated_at` still equals the transition
+ * time. A later non-status edit bumps `updated_by`/`updated_at` without touching
+ * the status, so trusting it then would misattribute the reconstructed event to
+ * that editor; return null instead so the row stays an honest record.
+ */
+function reliableActorAt(issue: IssueMetadata, at: string): string | null {
+  return issue.updated_at === at ? issue.updated_by || null : null;
 }
 
 /**

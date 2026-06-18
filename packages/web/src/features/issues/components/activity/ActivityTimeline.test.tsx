@@ -157,13 +157,17 @@ describe("ActivityTimeline — unified feed (AC1, AC2)", () => {
     }
   });
 
-  it("reconstructs a closed event with its reason (AC5)", async () => {
+  it("reconstructs a closed event with its reason and the closer (AC5)", async () => {
     renderTimeline(
       makeIssue({
         status: "closed",
+        // Close was the last edit (updated_at === close time), so updated_by is
+        // the reliable closer and is shown.
         closed_at: "2026-06-09T00:00:00.000Z",
         closed_reason: "completed",
         last_status_change: "2026-06-09T00:00:00.000Z",
+        updated_at: "2026-06-09T00:00:00.000Z",
+        updated_by: "bob",
       }),
     );
 
@@ -176,6 +180,7 @@ describe("ActivityTimeline — unified feed (AC1, AC2)", () => {
       .join(" | ");
     expect(text).toContain("closed this issue");
     expect(text).toContain("Completed");
+    expect(text).toContain("bob");
   });
 });
 
