@@ -151,6 +151,17 @@ explicitly in the entries below.
 
 ### Fixed
 
+- Planning filters for Sprint, Milestone, and Release no longer squeeze long
+  selected names into narrow controls. Empty filters stay compact, selected long
+  names grow to a bounded readable width, dropdown panels open wide enough to
+  distinguish names and badges, and the Reports scope bar now wraps planning
+  controls onto readable tracks instead of collapsing them into narrow columns
+  (REEF-246).
+- Opening an issue from the **List**, **Timeline**, or **Backlog** tab no longer
+  flips the background to the Board. Clicking an issue now keeps the tab (and any
+  active filters/sort) you were on while the detail sheet slides over, and
+  closing it returns you to that same tab. Typing or refreshing a
+  `/issues/REEF-XXX` deep link still opens over the Board as before (REEF-222).
 - Editing an issue in the web app no longer silently overwrites a change made
   outside it. Opening an issue card now always re-reads the latest from the
   workspace, so an edit made elsewhere (the akb tools, another tab) shows up

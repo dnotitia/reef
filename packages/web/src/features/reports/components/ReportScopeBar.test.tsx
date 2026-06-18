@@ -71,6 +71,13 @@ describe("ReportScopeBar", () => {
     expect(screen.getByTestId("report-label-input")).toBeInTheDocument();
   });
 
+  it("keeps report controls on readable responsive tracks", () => {
+    renderBar();
+    expect(screen.getByTestId("report-scope-bar").className).toContain(
+      "grid-cols-[repeat(auto-fit,minmax(13rem,1fr))]",
+    );
+  });
+
   it("keeps default Period and Scope from reading as active filters", () => {
     renderBar();
 

@@ -1,7 +1,10 @@
 import type { PlanningCatalog } from "@reef/core";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PlanningItemCombobox } from "./PlanningItemCombobox";
+import {
+  PLANNING_ITEM_PANEL_CLASS,
+  PlanningItemCombobox,
+} from "./PlanningItemCombobox";
 
 const SPRINT_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -98,5 +101,22 @@ describe("PlanningItemCombobox", () => {
     const listbox = screen.getByRole("listbox");
     expect(listbox.textContent).toContain("Sprint 4");
     expect(listbox.querySelector(SPRINT_GLYPH)).toBeNull();
+  });
+
+  it("opens planning lists with a readable panel width floor", () => {
+    render(
+      <PlanningItemCombobox
+        kind="sprints"
+        vault="v"
+        value=""
+        onChange={() => {}}
+        testId="sprint-combo"
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("sprint-combo"));
+
+    const panel = screen.getByRole("listbox").parentElement;
+    expect(panel?.className).toContain(PLANNING_ITEM_PANEL_CLASS);
   });
 });
