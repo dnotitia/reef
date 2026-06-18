@@ -14,6 +14,16 @@ explicitly in the entries below.
 
 ### Added
 
+- **Unified activity timeline on issues.** The issue detail's Comments section
+  becomes a single chronological Activity thread that interleaves comments with
+  status changes and events reconstructed from the issue itself — when it was
+  created, each delivery (PR/commit/branch) recorded on it, and how it was
+  closed. Older issues that predate the activity log fill in without any backfill,
+  because the reconstructed events are synthesized at read time rather than
+  stored, and a change already captured in the activity log is never shown twice.
+  Comments keep their avatar cards; system events read as a lighter one-line entry
+  with the actor and time, and a run of three or more consecutive status changes
+  folds into one expandable row to keep the thread legible (REEF-064).
 - **Issue activity log (status changes).** Every status change on an issue now
   records an immutable, append-only event — who moved it, from which status to
   which, and when — captured the moment the change is saved, whether it came from

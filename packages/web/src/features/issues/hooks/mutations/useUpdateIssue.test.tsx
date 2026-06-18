@@ -182,6 +182,11 @@ describe("useUpdateIssue", () => {
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["issues", "relations", "reef-acme"],
     });
+    // A status change logs a reef_activity event, so the timeline's activity
+    // query refetches to show the transition immediately (REEF-064).
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["issues", "activity", "reef-acme", "REEF-001"],
+    });
     // The detail cache is overwritten with the server response (above), so it
     // avoids blanket invalidation (REEF-098).
     expect(invalidateSpy).not.toHaveBeenCalledWith({
@@ -224,6 +229,11 @@ describe("useUpdateIssue", () => {
     });
     expect(invalidateSpy).not.toHaveBeenCalledWith({
       queryKey: ["issues", "relations", "reef-acme"],
+    });
+    // A non-status edit logs no activity event, so the timeline query stays
+    // patched in place — no refetch (REEF-064).
+    expect(invalidateSpy).not.toHaveBeenCalledWith({
+      queryKey: ["issues", "activity", "reef-acme", "REEF-001"],
     });
   });
 

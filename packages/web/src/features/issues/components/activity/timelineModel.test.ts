@@ -1,0 +1,370 @@
+// @vitest-environment node
+import {
+  ACTIVITY_EVENT_ASSIGNEE_CHANGE,
+  type ActivityEvent,
+  type Comment,
+  type IssueMetadata,
+  type Status,
+} from "@reef/core";
+import { describe, expect, it } from "vitest";
+import {
+  buildEntries,
+  buildTimeline,
+  collapseRuns,
+  reconstructEvents,
+} from "./timelineModel";
+
+function makeIssue(overrides: Partial<IssueMetadata> = {}): IssueMetadata {
+  return {
+    id: "REEF-001",
+    title: "Demo",
+    status: "in_progress",
+    created_at: "2026-06-01T00:00:00.000Z",
+    created_by: "alice",
+    updated_at: "2026-06-10T00:00:00.000Z",
+    updated_by: "bob",
+    ...overrides,
+  };
+}
+
+function comment(id: string, at: string): Comment {
+  return {
+    id,
+    reef_id: "REEF-001",
+    body: `body ${id}`,
+    author: "alice",
+    created_at: at,
+    edited_at: null,
+  };
+}
+
+function activity(
+  id: string,
+  at: string,
+  from: Status,
+  to: Status,
+): ActivityEvent {
+  return {
+    id,
+    reef_id: "REEF-001",
+    event_type: "status_change",
+    event_key: `status_change:${from}->${to}@${at}`,
+    payload: { from, to },
+    actor: "bob",
+    at,
+    source: null,
+  };
+}
+
+describe("buildEntries — merge-sort (AC1)", () => {
+  it("interleaves comments and activity ascending by timestamp", () => {
+    const issue = makeIssue({ created_at: "2026-06-01T00:00:00.000Z" });
+    const comments = [
+      comment("c-late", "2026-06-05T00:00:00.000Z"),
+      comment("c-early", "2026-06-02T00:00:00.000Z"),
+    ];
+    const events = [
+      activity("a1", "2026-06-03T00:00:00.000Z", "todo", "in_progress"),
+    ];
+
+    const entries = buildEntries(comments, events, issue);
+    const ats = entries.map((e) => e.at);
+    expect(ats).toEqual([...ats].sort());
+
+    // created (reconstructed) is first; the two comments and the activity event
+    // fall in time order between/after it.
+    expect(entries[0]).toMatchObject({ type: "system" });
+    expect(
+      entries.map((e) => (e.type === "comment" ? e.comment.id : e.event.id)),
+    ).toEqual(["created", "c-early", "a1", "c-late"]);
+  });
+
+  it("orders by instant across offset formats, not raw ISO string text", () => {
+    const issue = makeIssue({ created_at: "2026-06-01T00:00:00.000Z" });
+    // 09:00+09:00 is the same instant as 00:00Z — earlier than 01:00Z — yet the
+    // raw string sorts lexically *after* it. Instant-aware sorting must win.
+    const comments = [comment("c-offset", "2026-06-18T09:00:00+09:00")];
+    const events = [
+      activity("a-utc", "2026-06-18T01:00:00.000Z", "todo", "in_progress"),
+    ];
+
+    const ids = buildEntries(comments, events, issue).map((e) =>
+      e.type === "comment" ? e.comment.id : e.event.id,
+    );
+    expect(ids).toEqual(["created", "c-offset", "a-utc"]);
+  });
+
+  it("renders only status_change activity; other REEF-126 event kinds are filtered out", () => {
+    const issue = makeIssue();
+    // REEF-126 widened the activity union; REEF-064's MVP renders status changes
+    // only, so a non-status event must not appear as a timeline row.
+    const assignee: ActivityEvent = {
+      id: "asg-1",
+      reef_id: "REEF-001",
+      event_type: ACTIVITY_EVENT_ASSIGNEE_CHANGE,
+      event_key: "assignee_change:null->alice@2026-06-03T00:00:00.000Z",
+      payload: { from: null, to: "alice" },
+      actor: "alice",
+      at: "2026-06-03T00:00:00.000Z",
+      source: null,
+    };
+    const status = activity(
+      "st-1",
+      "2026-06-04T00:00:00.000Z",
+      "todo",
+      "in_progress",
+    );
+
+    const systemIds = buildEntries([], [assignee, status], issue)
+      .filter((e) => e.type === "system")
+      .map((e) => (e.type === "system" ? e.event.id : ""));
+    expect(systemIds).toContain("st-1");
+    expect(systemIds).not.toContain("asg-1");
+  });
+});
+
+describe("reconstructEvents (AC5)", () => {
+  it("always emits a created event and one delivery per implementation_ref", () => {
+    const issue = makeIssue({
+      implementation_refs: [
+        {
+          type: "pull_request",
+          repo: "o/r",
+          ref: "25",
+          actor: "carol",
+          detected_at: "2026-06-08T00:00:00.000Z",
+        },
+      ],
+    });
+    const events = reconstructEvents(issue, []);
+    expect(events.find((e) => e.kind === "created")).toBeTruthy();
+    const delivery = events.find((e) => e.kind === "delivery");
+    expect(delivery).toMatchObject({
+      kind: "delivery",
+      actor: "carol",
+      at: "2026-06-08T00:00:00.000Z",
+    });
+  });
+
+  it("reconstructs a closed event with its reason when the issue is closed", () => {
+    const issue = makeIssue({
+      status: "closed",
+      closed_at: "2026-06-09T00:00:00.000Z",
+      closed_reason: "completed",
+      last_status_change: "2026-06-09T00:00:00.000Z",
+    });
+    const closed = reconstructEvents(issue, []).find(
+      (e) => e.kind === "closed",
+    );
+    expect(closed).toMatchObject({
+      kind: "closed",
+      reason: "completed",
+      at: "2026-06-09T00:00:00.000Z",
+    });
+  });
+
+  it("attributes a pre-activity close to updated_by only when the close was the last edit", () => {
+    const at = "2026-06-09T00:00:00.000Z";
+    // Close was the most recent edit → updated_by is the reliable closer.
+    const clean = makeIssue({
+      status: "closed",
+      closed_at: at,
+      closed_reason: "completed",
+      last_status_change: at,
+      updated_at: at,
+      updated_by: "alice",
+    });
+    expect(
+      reconstructEvents(clean, []).find((e) => e.kind === "closed"),
+    ).toMatchObject({ actor: "alice" });
+
+    // A later non-status edit bumped updated_by/updated_at while the issue stayed
+    // closed → don't misattribute the close to that editor; actor is null.
+    const edited = makeIssue({
+      status: "closed",
+      closed_at: at,
+      closed_reason: "completed",
+      last_status_change: at,
+      updated_at: "2026-06-12T00:00:00.000Z",
+      updated_by: "bob",
+    });
+    expect(
+      reconstructEvents(edited, []).find((e) => e.kind === "closed")?.actor,
+    ).toBeNull();
+  });
+
+  it("drops the current-status fallback when activity already logged that transition (activity wins)", () => {
+    const issue = makeIssue({
+      status: "in_progress",
+      last_status_change: "2026-06-04T00:00:00.000Z",
+    });
+    const logged = [
+      activity("a1", "2026-06-04T00:00:00.000Z", "todo", "in_progress"),
+    ];
+
+    // With the transition logged, no reconstructed current-status event.
+    const withLog = reconstructEvents(issue, logged);
+    expect(withLog.some((e) => e.id === "current-status")).toBe(false);
+
+    // Without any activity, the fallback fills in the current status.
+    const withoutLog = reconstructEvents(issue, []);
+    expect(withoutLog.find((e) => e.id === "current-status")).toMatchObject({
+      kind: "status_change",
+      from: null,
+      to: "in_progress",
+    });
+  });
+
+  it("does not duplicate the created event when the current status coincides with creation", () => {
+    const issue = makeIssue({
+      status: "todo",
+      created_at: "2026-06-01T00:00:00.000Z",
+      last_status_change: "2026-06-01T00:00:00.000Z",
+    });
+    const events = reconstructEvents(issue, []);
+    expect(events.some((e) => e.id === "current-status")).toBe(false);
+    expect(events.filter((e) => e.kind === "created")).toHaveLength(1);
+  });
+});
+
+describe("collapseRuns (AC3)", () => {
+  const sys = (
+    id: string,
+    at: string,
+  ): ReturnType<typeof buildEntries>[number] => ({
+    type: "system",
+    at,
+    event: {
+      id,
+      at,
+      actor: "bob",
+      kind: "status_change",
+      from: "todo",
+      to: "in_progress",
+      source: null,
+    },
+  });
+
+  it("folds a run of ≥3 consecutive status changes into one collapsed entry", () => {
+    const entries = collapseRuns([
+      sys("s1", "2026-06-02T00:00:00.000Z"),
+      sys("s2", "2026-06-03T00:00:00.000Z"),
+      sys("s3", "2026-06-04T00:00:00.000Z"),
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ type: "collapsed" });
+    expect((entries[0] as { events: unknown[] }).events).toHaveLength(3);
+  });
+
+  it("leaves runs of 1–2 status changes expanded, and never folds across a comment", () => {
+    const entries = collapseRuns([
+      sys("s1", "2026-06-02T00:00:00.000Z"),
+      {
+        type: "comment",
+        at: "2026-06-03T00:00:00.000Z",
+        comment: comment("c1", "2026-06-03T00:00:00.000Z"),
+      },
+      sys("s2", "2026-06-04T00:00:00.000Z"),
+      sys("s3", "2026-06-05T00:00:00.000Z"),
+    ]);
+    // s1 alone (1) + comment + s2,s3 (2) — none reaches the threshold.
+    expect(entries.every((e) => e.type !== "collapsed")).toBe(true);
+    expect(entries).toHaveLength(4);
+  });
+});
+
+describe("buildTimeline — full pipeline (AC1 + AC3 + AC5)", () => {
+  it("merges, dedupes, and collapses into a single feed", () => {
+    const issue = makeIssue({
+      status: "in_review",
+      created_at: "2026-06-01T00:00:00.000Z",
+      last_status_change: "2026-06-06T00:00:00.000Z",
+    });
+    const comments = [comment("c1", "2026-06-02T00:00:00.000Z")];
+    const events = [
+      activity("a1", "2026-06-03T00:00:00.000Z", "todo", "in_progress"),
+      activity("a2", "2026-06-04T00:00:00.000Z", "in_progress", "in_review"),
+      activity("a3", "2026-06-05T00:00:00.000Z", "in_review", "in_progress"),
+      activity("a4", "2026-06-06T00:00:00.000Z", "in_progress", "in_review"),
+    ];
+
+    const timeline = buildTimeline(comments, events, issue);
+    // created, comment(c1), then the 4 activity events collapse (run ≥3).
+    const kinds = timeline.map((e) => e.type);
+    expect(kinds).toEqual(["system", "comment", "collapsed"]);
+    // a4 logged the transition to the current status → no current-status dup.
+    const flat = JSON.stringify(timeline);
+    expect(flat).not.toContain("current-status");
+  });
+
+  it("keeps the closure reason when the close is logged in activity — shows the close once, with reason (AC5)", () => {
+    const closedAt = "2026-06-09T00:00:00.000Z";
+    const issue = makeIssue({
+      status: "closed",
+      closed_at: closedAt,
+      closed_reason: "wont_fix",
+      last_status_change: closedAt,
+    });
+    // updateIssue logged the close as a plain {from,to} status_change (no reason).
+    const logged = [activity("a1", closedAt, "in_progress", "closed")];
+
+    const timeline = buildTimeline([], logged, issue);
+    const closeRows = timeline.filter(
+      (e) =>
+        e.type === "system" &&
+        (e.event.kind === "closed" ||
+          (e.event.kind === "status_change" && e.event.to === "closed")),
+    );
+    // Exactly one close row, and it is the reason-bearing reconstructed `closed`
+    // event — the logged plain close was superseded, not duplicated.
+    expect(closeRows).toHaveLength(1);
+    const only = closeRows[0];
+    expect(only.type === "system" && only.event.kind).toBe("closed");
+    expect(
+      only.type === "system" &&
+        only.event.kind === "closed" &&
+        only.event.reason,
+    ).toBe("wont_fix");
+  });
+
+  it("attributes the close to the logged close actor, not a later editor (updated_by drift)", () => {
+    const closedAt = "2026-06-09T00:00:00.000Z";
+    // Alice closed it; Bob later edited a field, bumping updated_by to bob.
+    const issue = makeIssue({
+      status: "closed",
+      closed_at: closedAt,
+      closed_reason: "completed",
+      last_status_change: closedAt,
+      updated_by: "bob",
+    });
+    const loggedClose: ActivityEvent = {
+      ...activity("a1", closedAt, "in_progress", "closed"),
+      actor: "alice",
+    };
+
+    const timeline = buildTimeline([], [loggedClose], issue);
+    const closed = timeline.find(
+      (e) => e.type === "system" && e.event.kind === "closed",
+    );
+    expect(
+      closed?.type === "system" &&
+        closed.event.kind === "closed" &&
+        closed.event.actor,
+    ).toBe("alice");
+  });
+
+  it("de-dupes activity rows by event_key, keeping the first (REEF-125 residual race)", () => {
+    const at = "2026-06-03T00:00:00.000Z";
+    const dup1 = activity("dup-1", at, "todo", "in_progress");
+    const dup2 = { ...activity("dup-2", at, "todo", "in_progress") }; // same event_key
+
+    const entries = buildEntries([], [dup1, dup2], makeIssue());
+    const statusRows = entries.filter(
+      (e) => e.type === "system" && e.event.kind === "status_change",
+    );
+    expect(statusRows).toHaveLength(1);
+    expect(statusRows[0].type === "system" && statusRows[0].event.id).toBe(
+      "dup-1",
+    );
+  });
+});
