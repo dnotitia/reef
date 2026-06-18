@@ -250,4 +250,33 @@ describe("ReportsPage", () => {
 
     expect(screen.getByText(/No matching report data/i)).toBeInTheDocument();
   });
+
+  it("surfaces the previously-dead bySeverity aggregate as a By severity card (REEF-186)", async () => {
+    mockApi([
+      { ...issues[0], severity: "critical" },
+      { ...issues[1], severity: "minor" },
+    ]);
+
+    render(wrap(<ReportsPage />));
+
+    // Scope to the card: "Critical" also labels the Risk map priority row, so a
+    // global getByText would be ambiguous.
+    const card = await screen.findByTestId("report-card-by-severity");
+    expect(within(card).getByText("Critical")).toBeInTheDocument();
+    expect(within(card).getByText("Minor")).toBeInTheDocument();
+    expect(within(card).getByText("In scope")).toBeInTheDocument();
+  });
+
+  it("omits the By severity card when no issue carries a severity (REEF-186)", async () => {
+    // The default fixture sets no severity, so the card stays absent rather than
+    // rendering a perpetually-empty panel.
+    mockApi(issues);
+
+    render(wrap(<ReportsPage />));
+
+    await screen.findByTestId("report-scope-bar");
+    expect(
+      screen.queryByTestId("report-card-by-severity"),
+    ).not.toBeInTheDocument();
+  });
 });
