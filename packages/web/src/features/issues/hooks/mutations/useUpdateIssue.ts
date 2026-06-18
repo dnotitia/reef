@@ -43,8 +43,11 @@ interface UpdateIssueMutationContext {
  * merged server-side per field. Document-projected edits (body/title/labels/
  * relations) carry the cached `commit_hash` as akb's `expected_commit`
  * precondition (REEF-227): a concurrent external edit is rejected with a 409
- * instead of silently overwritten, and on that 409 the detail is refetched so
- * the editor re-reads the latest and a retry writes against the fresh base.
+ * instead of silently overwritten. On that 409 the detail is refetched so the
+ * editor reconciles to the latest, and the autosave machine surfaces the
+ * conflict as a non-retry notice (never a blind retry of the stale edit), so the
+ * change that won cannot be clobbered; the user re-applies against the refreshed
+ * form.
  */
 export function useUpdateIssue() {
   const queryClient = useQueryClient();
@@ -147,8 +150,10 @@ export function useUpdateIssue() {
       }
       // Save conflict (REEF-227 document OCC): the cached commit the form held
       // was stale. Refetch the detail so the editor re-reads the latest body +
-      // commit and the 3-way form sync pulls in the external change; a retry
-      // then writes against the fresh base. Fires only on 409 — a rare
+      // commit and the 3-way form sync pulls in the external change. The autosave
+      // machine surfaces this 409 as a non-retry notice (not a blind retry of the
+      // stale edit), so the change that won is not silently clobbered; the user
+      // re-applies against the refreshed form. Fires only on 409 — a rare
       // exceptional path — so it does not reintroduce the post-success
       // invalidation REEF-097/098 removed.
       if ((err as { status?: number }).status === 409) {

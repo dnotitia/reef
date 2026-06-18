@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  notifyConflict,
   notifyRetryableError,
   saveToastId,
 } from "@/components/ui/toastFeedback";
@@ -45,6 +46,16 @@ function commitsOverlap(
   if (failedKeys.length === 0) return false;
   const keys = new Set(Object.keys(patch));
   return failedKeys.some((k) => keys.has(k));
+}
+
+// A 409 from the update route is a document OCC conflict (REEF-227): the issue
+// changed under the editor. It must not be treated as a blind-retryable failure.
+function isConflictError(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    (err as { status?: number }).status === 409
+  );
 }
 
 class IssueAutosaveMachine {
@@ -164,12 +175,31 @@ class IssueAutosaveMachine {
   private rejectCommit(commit: FailedCommit, err: unknown): void {
     if (this.disposed) return;
     this.pendingCommits -= 1;
-    this.failedCommits = [
-      ...this.failedCommits.filter(
-        (f) => !commitsOverlap(f, commit.patch, commit.content),
-      ),
-      commit,
-    ];
+
+    // This write is resolved either way — clear any earlier failure it overlaps.
+    this.failedCommits = this.failedCommits.filter(
+      (f) => !commitsOverlap(f, commit.patch, commit.content),
+    );
+
+    // A document OCC conflict (REEF-227) is NOT blind-retryable: resubmitting
+    // the stale patch/content would overwrite the external change that won, once
+    // `useUpdateIssue`'s conflict refetch advances the base. Surface a non-retry
+    // notice and let the refetched form reconcile to the latest; the user
+    // re-applies against the fresh state. Settle out of the frozen save state so
+    // that sync can run. Other failures stay retryable.
+    if (isConflictError(err)) {
+      notifyConflict({
+        id: saveToastId(commit.issueId),
+        title: "This issue changed elsewhere",
+        description:
+          "Your view was refreshed with the latest. Re-apply your change if it is still needed.",
+      });
+      if (this.pendingCommits > 0) return;
+      this.setStatus(this.failedCommits.length > 0 ? "error" : "idle");
+      return;
+    }
+
+    this.failedCommits = [...this.failedCommits, commit];
     this.setStatus("error");
     notifyRetryableError({
       id: saveToastId(commit.issueId),
