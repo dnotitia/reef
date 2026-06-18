@@ -21,6 +21,16 @@ explicitly in the entries below.
   per-epic progress you already see inside an issue's detail sheet now also lifts
   into a side-by-side portfolio comparison, and clicking a parent scopes the
   detail charts below to its children (REEF-187).
+- **A personal "My Work" view.** A dedicated `/my-work` page shows the issues
+  assigned to you, automatically scoped to your account — no assignee picker to
+  set. A light summary strip counts your in-progress work, what's due soon, what's
+  overdue, your open work by stage, and your remaining/done in the current sprint;
+  below it, a focus-sorted queue answers "what do I do next" by ordering on
+  urgency, then priority, then how close the work is to active. Switch the queue
+  between one flat priority list and a by-status grouping, and blocked items are
+  flagged so you can skip what you can't start yet. Clean empty and signed-out
+  states round it out. (The sidebar entry point and its attention badge ship
+  separately in REEF-204.) (REEF-181).
 - **At-a-glance portfolio health on Reports.** The Reports page now shows a
   "Portfolio health" rollup beneath the headline numbers: a worst-first list of
   your milestones, sprints, and releases, each with a computed On track / At
