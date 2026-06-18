@@ -455,4 +455,64 @@ describe("ActivityItemCard", () => {
       );
     });
   });
+
+  describe("issue_change", () => {
+    const issueChangeItem: ActivityFeedItem = {
+      id: "event:11111111-1111-4111-8111-111111111111",
+      type: "issue_change",
+      timestamp: "2026-04-13T11:00:00.000Z",
+      issueId: "REEF-208",
+      issueTitle: "Backlog rank drag ordering",
+      event: {
+        id: "11111111-1111-4111-8111-111111111111",
+        reef_id: "REEF-208",
+        event_type: "status_change",
+        event_key:
+          "status_change:in_progress->in_review@2026-04-13T11:00:00.000Z",
+        payload: { from: "in_progress", to: "in_review" },
+        actor: "alice",
+        at: "2026-04-13T11:00:00.000Z",
+        source: null,
+        issue_title: "Backlog rank drag ordering",
+      },
+    };
+
+    it("renders an informational change card with issue link, transition, and actor", () => {
+      render(wrap(<ActivityItemCard item={issueChangeItem} />));
+
+      expect(
+        screen.getByTestId("activity-item-issue_change"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Status change")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "REEF-208" })).toHaveAttribute(
+        "href",
+        "/issues/REEF-208",
+      );
+      expect(screen.getByTestId("issue-change-transition")).toBeInTheDocument();
+      expect(screen.getByText("by alice")).toBeInTheDocument();
+    });
+
+    it("offers no Approve / Edit / Dismiss actions — it is a fact, not a proposal", () => {
+      render(
+        wrap(
+          <ActivityItemCard
+            item={issueChangeItem}
+            onApproveStatusChange={vi.fn()}
+            onDismissStatusChange={vi.fn()}
+            onSaveStatusChange={vi.fn()}
+          />,
+        ),
+      );
+
+      expect(
+        screen.queryByRole("button", { name: /Approve/i }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Edit/i }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Dismiss/i }),
+      ).not.toBeInTheDocument();
+    });
+  });
 });

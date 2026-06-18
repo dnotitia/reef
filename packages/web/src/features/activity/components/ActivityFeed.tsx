@@ -75,11 +75,17 @@ function ActivityFeedContent({
   initialLastVisitAt,
   updateLastVisitAt,
 }: ActivityFeedContentProps) {
+  // Capture the pre-visit marker exactly once. The mount effect below refreshes
+  // `last_visit_at`, which re-renders this component with a "now" prop; reading
+  // that directly would re-scope both the "new since last visit" counts and the
+  // change-event query to "now" and make just-arrived items vanish (REEF-077
+  // AC3). The capture keeps the whole visit stable until the next mount.
+  const [capturedLastVisitAt] = useState(() => initialLastVisitAt);
   const {
     items,
     isLoading: feedLoading,
     refreshInbox,
-  } = useActivityFeed(vault);
+  } = useActivityFeed(vault, capturedLastVisitAt);
   const {
     repo: scanRepo,
     monitoredRepos,
@@ -131,21 +137,26 @@ function ActivityFeedContent({
     [items, removedIds],
   );
 
-  const newDrafts = initialLastVisitAt
+  const newDrafts = capturedLastVisitAt
     ? displayItems.filter(
-        (i) => i.type === "ai_draft" && i.timestamp > initialLastVisitAt,
+        (i) => i.type === "ai_draft" && i.timestamp > capturedLastVisitAt,
       ).length
     : 0;
-  const newStatusChanges = initialLastVisitAt
+  const newStatusChanges = capturedLastVisitAt
     ? displayItems.filter(
         (i) =>
-          i.type === "ai_status_change" && i.timestamp > initialLastVisitAt,
+          i.type === "ai_status_change" && i.timestamp > capturedLastVisitAt,
+      ).length
+    : 0;
+  const newIssueChanges = capturedLastVisitAt
+    ? displayItems.filter(
+        (i) => i.type === "issue_change" && i.timestamp > capturedLastVisitAt,
       ).length
     : 0;
   const showSummary =
     !summaryDismissed &&
-    initialLastVisitAt !== undefined &&
-    (newDrafts > 0 || newStatusChanges > 0);
+    capturedLastVisitAt !== undefined &&
+    (newDrafts > 0 || newStatusChanges > 0 || newIssueChanges > 0);
 
   const handleDismissSummary = async () => {
     setSummaryDismissed(true);
@@ -154,10 +165,7 @@ function ActivityFeedContent({
 
   const filteredItems = displayItems.filter((item) => {
     if (activityTypeFilter === "all") return true;
-    if (activityTypeFilter === "ai_draft") return item.type === "ai_draft";
-    if (activityTypeFilter === "ai_status_change")
-      return item.type === "ai_status_change";
-    return true;
+    return item.type === activityTypeFilter;
   });
 
   const markRemoved = (id: string) =>
@@ -302,7 +310,8 @@ function ActivityFeedContent({
             [
               { value: "all", label: "All" },
               { value: "ai_draft", label: "AI Drafts" },
-              { value: "ai_status_change", label: "Status Changes" },
+              { value: "ai_status_change", label: "AI Status Changes" },
+              { value: "issue_change", label: "Issue Changes" },
             ] as const
           ).map(({ value, label }) => (
             <button
@@ -386,13 +395,14 @@ function ActivityFeedContent({
         <UnreviewedSummaryCard
           draftCount={newDrafts}
           statusChangeCount={newStatusChanges}
+          issueChangeCount={newIssueChanges}
           onDismiss={handleDismissSummary}
         />
       )}
 
       {filteredItems.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">
-          No AI drafts or status changes to review
+          No recent activity to show
         </p>
       ) : (
         <ul className="space-y-3">

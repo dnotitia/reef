@@ -5,12 +5,15 @@ import {
   type ActivityEvent,
   ActivityEventMetaSchema,
   ActivityEventSchema,
+  type RecentActivityEvent,
+  RecentActivityEventSchema,
   StatusChangePayloadSchema,
 } from "../../../schemas/issues/activity";
 import type { Status } from "../../../schemas/issues/metadata";
 import {
   type AkbAdapter,
   REEF_ACTIVITY_TABLE,
+  REEF_ISSUES_TABLE,
   decodeSettingsValue,
   ensureReefTables,
   isMissingTableError,
@@ -211,4 +214,97 @@ export async function listIssueActivity(
       return events;
     },
   );
+}
+
+/** Default cap on how many recent events the cross-issue feed pulls per read. */
+const RECENT_ACTIVITY_DEFAULT_LIMIT = 100;
+/** Hard upper bound so a caller-supplied limit can never unbounded the query. */
+const RECENT_ACTIVITY_MAX_LIMIT = 500;
+
+export interface ListRecentActivityOptions {
+  /**
+   * ISO-8601 lower bound (exclusive) on `meta.at` — only events strictly after
+   * this are returned. This is the Activity hub's `last_visit_at` marker; omit
+   * for no lower bound.
+   */
+  since?: string;
+  /** Cap on the number of events returned, newest first (clamped to a max). */
+  limit?: number;
+}
+
+/**
+ * Map a JOINed `reef_activity` + `reef_issues.title` row to a RecentActivityEvent.
+ * Reuses `rowToActivityEvent` for the event projection, then attaches the owning
+ * issue's title so the feed renders the issue link without an N+1 lookup.
+ */
+function rowToRecentActivityEvent(
+  row: Record<string, unknown>,
+): RecentActivityEvent {
+  const base = rowToActivityEvent(row);
+  return RecentActivityEventSchema.parse({
+    ...base,
+    issue_title: row.issue_title,
+  });
+}
+
+/**
+ * List recent issue activity events across the whole vault, newest-first, for
+ * the cross-issue Activity feed (REEF-077). Each event is joined to its issue's
+ * current `title` so the hub can render an issue link + title in one round trip.
+ *
+ * This is the vault-wide companion to `listIssueActivity` (one issue's full
+ * history). The Activity hub merges these informational change events with the
+ * AI review inbox to answer "what changed since you were last here", so the read
+ * is bounded by an optional `since` marker and a hard `limit`.
+ *
+ * Read-path resilience mirrors `listIssueActivity`: an unprovisioned vault (no
+ * `reef_activity` table) reads as an empty feed WITHOUT reconciling — a read
+ * never provisions (REEF-125 AC9). A single malformed row is skipped rather than
+ * blanking the whole feed. The inner JOIN drops events whose issue row no longer
+ * exists, which is the desired behavior (a change to a deleted issue has nothing
+ * to link to).
+ */
+export async function listRecentActivity(
+  adapter: AkbAdapter,
+  vault: string,
+  options: ListRecentActivityOptions = {},
+): Promise<RecentActivityEvent[]> {
+  const limit = Math.min(
+    Math.max(1, Math.trunc(options.limit ?? RECENT_ACTIVITY_DEFAULT_LIMIT)),
+    RECENT_ACTIVITY_MAX_LIMIT,
+  );
+  return withSpan("akb.list_recent_activity", { vault }, async (span) => {
+    const sinceClause = options.since
+      ? ` WHERE a.meta->>'at' > ${quoteText(options.since, "activity since")}`
+      : "";
+    let rows: Record<string, unknown>[];
+    try {
+      const res = await runSql(
+        adapter,
+        vault,
+        `SELECT a.*, i.title AS issue_title FROM ${tableRef(
+          REEF_ACTIVITY_TABLE,
+        )} a JOIN ${tableRef(
+          REEF_ISSUES_TABLE,
+        )} i ON i.reef_id = a.reef_id${sinceClause} ORDER BY a.meta->>'at' DESC, a.id DESC LIMIT ${limit}`,
+      );
+      rows = res.kind === "table_query" ? res.items : [];
+    } catch (err) {
+      if (isMissingTableError(err)) {
+        span.setAttribute("table_exists", false);
+        return [];
+      }
+      throw err;
+    }
+    const events: RecentActivityEvent[] = [];
+    for (const row of rows) {
+      try {
+        events.push(rowToRecentActivityEvent(row));
+      } catch {
+        // Skip a malformed row rather than blanking the whole feed.
+      }
+    }
+    span.setAttribute("event_count", events.length);
+    return events;
+  });
 }

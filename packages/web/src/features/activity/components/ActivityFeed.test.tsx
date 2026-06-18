@@ -82,14 +82,17 @@ describe("ActivityFeed", () => {
     expect(screen.queryByText(/loading/i) ?? document.body).toBeInTheDocument();
   });
 
-  it("renders activity filter buttons (All / AI Drafts / Status Changes)", () => {
+  it("renders activity filter buttons (All / AI Drafts / AI Status Changes / Issue Changes)", () => {
     render(wrap(<ActivityFeed vault="reef-acme" />));
     expect(screen.getByRole("button", { name: /All/i })).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /AI Drafts/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Status Changes/i }),
+      screen.getByRole("button", { name: /AI Status Changes/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Issue Changes/i }),
     ).toBeInTheDocument();
   });
 });

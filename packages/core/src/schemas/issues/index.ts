@@ -45,9 +45,13 @@ export {
   StatusChangePayloadSchema,
   ActivityEventMetaSchema,
   ActivityEventSchema,
+  RecentActivityEventSchema,
+  RecentActivityResultSchema,
   type StatusChangePayload,
   type ActivityEventMeta,
   type ActivityEvent,
+  type RecentActivityEvent,
+  type RecentActivityResult,
 } from "./activity";
 
 export {

@@ -1,6 +1,10 @@
 import { create } from "zustand";
 
-type ActivityTypeFilter = "all" | "ai_draft" | "ai_status_change";
+type ActivityTypeFilter =
+  | "all"
+  | "ai_draft"
+  | "ai_status_change"
+  | "issue_change";
 
 interface ActivityState {
   activityTypeFilter: ActivityTypeFilter;

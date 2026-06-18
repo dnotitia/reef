@@ -66,3 +66,24 @@ export const ActivityEventSchema = z.object({
   source: z.string().nullable().default(null),
 });
 export type ActivityEvent = z.infer<typeof ActivityEventSchema>;
+
+/**
+ * An activity event projected for the cross-issue Activity feed (REEF-077): an
+ * `ActivityEvent` plus the owning issue's current `title`, joined in at read time
+ * so the feed renders the issue link + title without an N+1 lookup per event.
+ *
+ * This is the vault-wide "what changed since you were last here" projection the
+ * Activity hub merges with the AI review inbox — distinct from
+ * `listIssueActivity`, which returns a single issue's full history for the
+ * REEF-064 detail timeline.
+ */
+export const RecentActivityEventSchema = ActivityEventSchema.extend({
+  issue_title: z.string().min(1, "issue_title is required"),
+});
+export type RecentActivityEvent = z.infer<typeof RecentActivityEventSchema>;
+
+/** `/api/activity/events` response — the vault-wide recent issue-change feed. */
+export const RecentActivityResultSchema = z.object({
+  events: z.array(RecentActivityEventSchema),
+});
+export type RecentActivityResult = z.infer<typeof RecentActivityResultSchema>;

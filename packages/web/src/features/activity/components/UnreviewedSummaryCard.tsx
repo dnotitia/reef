@@ -3,20 +3,25 @@
 interface UnreviewedSummaryCardProps {
   draftCount: number;
   statusChangeCount: number;
+  /** Recorded issue changes (REEF-063 events) since the last visit. */
+  issueChangeCount: number;
   onDismiss: () => void;
 }
 
 /**
  * Summary card shown at the top of the Activity feed when the PM returns after
  * a period of absence. Uses brand-tinted surface to read as "important but
- * informational" against the neutral feed.
+ * informational" against the neutral feed. Counts AI proposals (drafts +
+ * status changes) and recorded issue changes separately so the line is not
+ * mistaken for an AI-only summary (REEF-077).
  */
 export function UnreviewedSummaryCard({
   draftCount,
   statusChangeCount,
+  issueChangeCount,
   onDismiss,
 }: UnreviewedSummaryCardProps) {
-  if (draftCount === 0 && statusChangeCount === 0) {
+  if (draftCount === 0 && statusChangeCount === 0 && issueChangeCount === 0) {
     return null;
   }
 
@@ -26,8 +31,15 @@ export function UnreviewedSummaryCard({
   }
   if (statusChangeCount > 0) {
     parts.push(
-      `${statusChangeCount} status ${
+      `${statusChangeCount} AI status ${
         statusChangeCount === 1 ? "change" : "changes"
+      }`,
+    );
+  }
+  if (issueChangeCount > 0) {
+    parts.push(
+      `${issueChangeCount} issue ${
+        issueChangeCount === 1 ? "change" : "changes"
       }`,
     );
   }

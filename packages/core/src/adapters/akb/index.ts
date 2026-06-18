@@ -62,7 +62,9 @@ export {
 export {
   appendStatusChangeEvent,
   listIssueActivity,
+  listRecentActivity,
   statusChangeEventKey,
+  type ListRecentActivityOptions,
   type StatusChangeEventInput,
 } from "./issues/activity";
 export {

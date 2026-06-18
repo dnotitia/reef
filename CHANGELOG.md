@@ -14,6 +14,16 @@ explicitly in the entries below.
 
 ### Added
 
+- **Activity feed now shows issue changes, not just AI suggestions.** The
+  Activity hub merges recorded issue changes (status moves, from the activity
+  log) with the AI draft and status-change review inbox, newest first, so
+  returning after a break shows what actually happened to your issues — not only
+  what the AI proposed. Recorded changes render as plain informational cards with
+  no Approve/Edit/Dismiss actions, kept visually distinct from AI proposals. The
+  "Since you were last here" summary and the sidebar unread badge now count these
+  changes too, a new "Issue Changes" filter isolates them, and the feed bounds
+  itself to changes since your last visit so it does not grow unbounded
+  (REEF-077).
 - **Issue activity log (status changes).** Every status change on an issue now
   records an immutable, append-only event — who moved it, from which status to
   which, and when — captured the moment the change is saved, whether it came from

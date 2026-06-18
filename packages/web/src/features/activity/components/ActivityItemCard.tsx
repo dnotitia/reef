@@ -10,6 +10,7 @@ import {
   ActivityDraftCard,
   type ActivityDraftEditPatch,
 } from "./ActivityDraftCard";
+import { IssueChangeCard } from "./IssueChangeCard";
 import { StatusChangeCard } from "./StatusChangeCard";
 
 export type { ActivityDraftEditPatch };
@@ -74,5 +75,7 @@ export function ActivityItemCard({
           isApproving={isApproving}
         />
       );
+    case "issue_change":
+      return <IssueChangeCard item={item} />;
   }
 }

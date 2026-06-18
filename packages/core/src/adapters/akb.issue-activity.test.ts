@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   ALL_REEF_TABLES,
   REEF_ACTIVITY_TABLE,
+  REEF_ISSUES_TABLE,
   appendStatusChangeEvent,
   listIssueActivity,
+  listRecentActivity,
   makeAdapter,
   makeListTablesResponse,
   makeSqlQueryResponse,
@@ -243,6 +245,148 @@ describe("listIssueActivity", () => {
       "reef-sample",
       "REEF-063",
     );
+
+    expect(events).toHaveLength(1);
+    expect(events[0]?.id).toBe("e1");
+  });
+});
+
+// REEF-077: the vault-wide recent-activity feed projection — events joined to
+// their issue title, distinct from listIssueActivity's single-issue history.
+const RECENT_ACTIVITY_ROW_COLUMNS = [...ACTIVITY_ROW_COLUMNS, "issue_title"];
+
+function makeRecentRow(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    ...makeActivityRow(),
+    issue_title: "Some issue title",
+    ...overrides,
+  };
+}
+
+describe("listRecentActivity", () => {
+  it("joins the issue title, orders newest-first, and applies since + limit", async () => {
+    const { calls } = setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [
+            makeRecentRow({
+              id: "e2",
+              reef_id: "REEF-101",
+              issue_title: "Newer issue",
+              payload: { from: "in_progress", to: "in_review" },
+              meta: {
+                actor: "bob",
+                at: "2026-06-18T02:00:00.000Z",
+                source: null,
+              },
+            }),
+            makeRecentRow({
+              id: "e1",
+              reef_id: "REEF-063",
+              issue_title: "Older issue",
+              payload: { from: "todo", to: "in_progress" },
+              meta: {
+                actor: "alice",
+                at: "2026-06-18T01:00:00.000Z",
+                source: "ai-agent:user_request",
+              },
+            }),
+          ],
+          RECENT_ACTIVITY_ROW_COLUMNS,
+        ),
+      },
+    ]);
+
+    const events = await listRecentActivity(makeAdapter(), "reef-sample", {
+      since: "2026-06-18T00:00:00.000Z",
+      limit: 50,
+    });
+
+    expect(events).toHaveLength(2);
+    expect(events[0]).toMatchObject({
+      id: "e2",
+      reef_id: "REEF-101",
+      issue_title: "Newer issue",
+      payload: { from: "in_progress", to: "in_review" },
+      actor: "bob",
+    });
+    expect(events[1]).toMatchObject({
+      reef_id: "REEF-063",
+      issue_title: "Older issue",
+      actor: "alice",
+    });
+
+    const sql = lastSql(calls[0]?.init?.body);
+    // Vault-wide read joins the issue title so the feed renders a link in one
+    // round trip.
+    expect(sql).toContain(`FROM ${REEF_ACTIVITY_TABLE} a`);
+    expect(sql).toContain(
+      `JOIN ${REEF_ISSUES_TABLE} i ON i.reef_id = a.reef_id`,
+    );
+    expect(sql).toContain("i.title AS issue_title");
+    // `since` is an exclusive lower bound on the semantic event time.
+    expect(sql).toContain("a.meta->>'at' > '2026-06-18T00:00:00.000Z'");
+    expect(sql).toContain("ORDER BY a.meta->>'at' DESC, a.id DESC");
+    expect(sql).toContain("LIMIT 50");
+  });
+
+  it("omits the since clause and uses the default limit when no options are given", async () => {
+    const { calls } = setupFetch([
+      { body: makeSqlQueryResponse([], RECENT_ACTIVITY_ROW_COLUMNS) },
+    ]);
+
+    const events = await listRecentActivity(makeAdapter(), "reef-sample");
+
+    expect(events).toEqual([]);
+    const sql = lastSql(calls[0]?.init?.body);
+    expect(sql).not.toContain("WHERE");
+    expect(sql).toContain("LIMIT 100");
+  });
+
+  it("clamps an oversized limit to the hard maximum", async () => {
+    const { calls } = setupFetch([
+      { body: makeSqlQueryResponse([], RECENT_ACTIVITY_ROW_COLUMNS) },
+    ]);
+
+    await listRecentActivity(makeAdapter(), "reef-sample", { limit: 100_000 });
+
+    const sql = lastSql(calls[0]?.init?.body);
+    expect(sql).toContain("LIMIT 500");
+  });
+
+  it("returns an empty feed for an unprovisioned vault (no reconcile)", async () => {
+    const { calls } = setupFetch([
+      makeSqlRuntimeErrorResponse(REEF_ACTIVITY_TABLE),
+    ]);
+
+    const events = await listRecentActivity(makeAdapter(), "reef-sample");
+
+    expect(events).toEqual([]);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("skips a malformed row rather than blanking the whole feed", async () => {
+    setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [
+            makeRecentRow({ id: "e1" }),
+            // missing meta.actor → fails ActivityEventMetaSchema
+            makeRecentRow({
+              id: "e2",
+              meta: { at: "2026-06-18T02:00:00.000Z", source: null },
+            }),
+            // present event but missing the joined title → fails the feed schema
+            makeRecentRow({ id: "e3", issue_title: "" }),
+          ],
+          RECENT_ACTIVITY_ROW_COLUMNS,
+        ),
+      },
+    ]);
+
+    const events = await listRecentActivity(makeAdapter(), "reef-sample");
 
     expect(events).toHaveLength(1);
     expect(events[0]?.id).toBe("e1");

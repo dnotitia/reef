@@ -86,10 +86,35 @@ function makeStatusChange(createdAt: string) {
   };
 }
 
-function mockSuggestions(suggestions: unknown[]) {
-  mockedApiFetch.mockResolvedValueOnce(
-    new Response(JSON.stringify({ suggestions }), { status: 200 }),
-  );
+// The hook reads two endpoints (suggestions + events); route by URL so the
+// assertions do not depend on the order the two queries fire.
+function mockApi({
+  suggestions = [],
+  events = [],
+}: {
+  suggestions?: unknown[];
+  events?: unknown[];
+} = {}) {
+  mockedApiFetch.mockImplementation((input: RequestInfo | URL) => {
+    const body = String(input).includes("/api/activity/events")
+      ? { events }
+      : { suggestions };
+    return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
+  });
+}
+
+function makeEvent(at: string) {
+  return {
+    id: `evt-${at.replace(/\D/g, "").slice(0, 16)}`,
+    reef_id: "REEF-001",
+    event_type: "status_change",
+    event_key: `status_change:todo->in_progress@${at}`,
+    payload: { from: "todo", to: "in_progress" },
+    actor: "alice",
+    at,
+    source: null,
+    issue_title: "Existing",
+  };
 }
 
 describe("useUnreadInboxCount", () => {
@@ -109,13 +134,15 @@ describe("useUnreadInboxCount", () => {
 
   it("counts draft and status-change suggestions created after the last visit", async () => {
     getConfigValueMock.mockResolvedValue("2026-05-01T00:00:00.000Z");
-    mockSuggestions([
-      makeDraft("2026-04-30T00:00:00.000Z"),
-      makeDraft("2026-05-02T00:00:00.000Z"),
-      makeDraft("2026-05-03T00:00:00.000Z"),
-      makeStatusChange("2026-04-30T00:00:00.000Z"),
-      makeStatusChange("2026-05-04T00:00:00.000Z"),
-    ]);
+    mockApi({
+      suggestions: [
+        makeDraft("2026-04-30T00:00:00.000Z"),
+        makeDraft("2026-05-02T00:00:00.000Z"),
+        makeDraft("2026-05-03T00:00:00.000Z"),
+        makeStatusChange("2026-04-30T00:00:00.000Z"),
+        makeStatusChange("2026-05-04T00:00:00.000Z"),
+      ],
+    });
 
     const { result } = renderHook(() => useUnreadInboxCount("reef-acme"), {
       wrapper,
@@ -123,9 +150,27 @@ describe("useUnreadInboxCount", () => {
     await waitFor(() => expect(result.current).toBe(3));
   });
 
-  it("returns 0 when no suggestions are pending", async () => {
+  it("adds recorded issue-change events since the last visit to the count", async () => {
     getConfigValueMock.mockResolvedValue("2026-05-01T00:00:00.000Z");
-    mockSuggestions([]);
+    mockApi({
+      suggestions: [makeDraft("2026-05-02T00:00:00.000Z")],
+      // The server already filters events by `since`, so all returned events
+      // count.
+      events: [
+        makeEvent("2026-05-02T00:00:00.000Z"),
+        makeEvent("2026-05-03T00:00:00.000Z"),
+      ],
+    });
+
+    const { result } = renderHook(() => useUnreadInboxCount("reef-acme"), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current).toBe(3));
+  });
+
+  it("returns 0 when no suggestions or events are pending", async () => {
+    getConfigValueMock.mockResolvedValue("2026-05-01T00:00:00.000Z");
+    mockApi();
 
     const { result } = renderHook(() => useUnreadInboxCount("reef-acme"), {
       wrapper,

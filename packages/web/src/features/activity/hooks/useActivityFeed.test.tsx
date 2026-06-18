@@ -81,6 +81,34 @@ function mockSuggestions(suggestions: unknown[]) {
   );
 }
 
+// Route by URL so the suggestions + events queries can resolve in any order.
+function mockFeed({
+  suggestions = [],
+  events = [],
+}: {
+  suggestions?: unknown[];
+  events?: unknown[];
+}) {
+  mockedApiFetch.mockImplementation((input: RequestInfo | URL) => {
+    const body = String(input).includes("/api/activity/events")
+      ? { events }
+      : { suggestions };
+    return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
+  });
+}
+
+const makeEvent = (id: string, at: string) => ({
+  id,
+  reef_id: "REEF-208",
+  event_type: "status_change",
+  event_key: `status_change:todo->in_progress@${at}`,
+  payload: { from: "todo", to: "in_progress" },
+  actor: "alice",
+  at,
+  source: null,
+  issue_title: "Backlog rank drag ordering",
+});
+
 describe("useActivityFeed", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -249,5 +277,66 @@ describe("useActivityFeed", () => {
     const types = result.current.items.map((i) => i.type);
     expect(types).toContain("ai_draft");
     expect(types).toContain("ai_status_change");
+  });
+
+  it("does not fetch issue-change events without an eventsSince marker", async () => {
+    mockFeed({ suggestions: [] });
+
+    const { result } = renderHook(() => useActivityFeed("reef-acme"), {
+      wrapper,
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    // Only the suggestions endpoint is hit; the change stream stays dormant
+    // until the page captures last_visit_at.
+    for (const [url] of mockedApiFetch.mock.calls) {
+      expect(url).not.toContain("/api/activity/events");
+    }
+  });
+
+  it("merges issue_change events with suggestions when eventsSince is set", async () => {
+    mockFeed({
+      suggestions: [
+        makeDraft("reef-draft-0000000000000001", "2026-04-13T12:00:00.000Z"),
+      ],
+      events: [makeEvent("evt-1", "2026-04-13T11:30:00.000Z")],
+    });
+
+    const { result } = renderHook(
+      () => useActivityFeed("reef-acme", "2026-04-13T09:00:00.000Z"),
+      { wrapper },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    await waitFor(() => {
+      const types = result.current.items.map((i) => i.type);
+      expect(types).toContain("ai_draft");
+      expect(types).toContain("issue_change");
+    });
+
+    const issueChange = result.current.items.find(
+      (i) => i.type === "issue_change",
+    );
+    expect(issueChange).toMatchObject({
+      id: "event:evt-1",
+      issueId: "REEF-208",
+      issueTitle: "Backlog rank drag ordering",
+    });
+    // The requested events query carries the since marker.
+    const eventCall = mockedApiFetch.mock.calls.find(([url]) =>
+      String(url).includes("/api/activity/events"),
+    );
+    expect(String(eventCall?.[0])).toContain(
+      "since=2026-04-13T09%3A00%3A00.000Z",
+    );
+
+    // Newest first: the 12:00 draft precedes the 11:30 change.
+    expect(result.current.items[0]?.type).toBe("ai_draft");
   });
 });

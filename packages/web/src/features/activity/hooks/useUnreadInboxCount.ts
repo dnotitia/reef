@@ -2,7 +2,10 @@
 
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
 import { getConfigValue } from "@/lib/storage/config";
-import { ActivitySuggestionsResultSchema } from "@reef/core";
+import {
+  ActivitySuggestionsResultSchema,
+  RecentActivityResultSchema,
+} from "@reef/core";
 import { useQuery } from "@tanstack/react-query";
 
 const LAST_VISIT_AT_KEY = "last_visit_at";
@@ -10,9 +13,10 @@ const LAST_VISIT_AT_KEY = "last_visit_at";
 export const UNREAD_INBOX_QUERY_KEY = ["unread-inbox"] as const;
 
 /**
- * Returns the number of pending inbox items created after the user's last
- * Activity-page visit. Suggestion state lives in AKB; `last_visit_at` remains
- * browser-local because it is a per-user read marker.
+ * Returns the number of inbox items the PM has not yet seen since their last
+ * Activity-page visit: pending AI suggestions (drafts + status changes) plus
+ * recorded issue-change events (REEF-077). Suggestion and event state live in
+ * AKB; `last_visit_at` stays browser-local because it is a per-user read marker.
  *
  *  - A scan run finishes (DashboardShell invalidates on mutation success)
  *  - The user lands on /activity (ActivityFeed updates `last_visit_at` on
@@ -34,20 +38,41 @@ export function useUnreadInboxCount(vault: string): number {
         // does not had a chance to see.
         return 0;
       }
-      const params = new URLSearchParams({ vault, status: "pending" });
-      const res = await apiFetch(`/api/activity/suggestions?${params}`);
-      if (!res.ok) {
+      const suggestionParams = new URLSearchParams({
+        vault,
+        status: "pending",
+      });
+      const suggestionRes = await apiFetch(
+        `/api/activity/suggestions?${suggestionParams}`,
+      );
+      if (!suggestionRes.ok) {
         await throwHttpError(
-          res,
-          `Failed to load activity suggestions: ${res.status}`,
+          suggestionRes,
+          `Failed to load activity suggestions: ${suggestionRes.status}`,
         );
       }
       const { suggestions } = ActivitySuggestionsResultSchema.parse(
-        await res.json(),
+        await suggestionRes.json(),
       );
-      return suggestions.filter(
+      const newSuggestions = suggestions.filter(
         (suggestion) => suggestion.created_at > lastVisit,
       ).length;
+
+      // Recorded issue changes since the last visit. The server filters on
+      // `since`, so every returned event is unseen — no client-side recount.
+      const eventParams = new URLSearchParams({ vault, since: lastVisit });
+      const eventRes = await apiFetch(`/api/activity/events?${eventParams}`);
+      if (!eventRes.ok) {
+        await throwHttpError(
+          eventRes,
+          `Failed to load activity events: ${eventRes.status}`,
+        );
+      }
+      const { events } = RecentActivityResultSchema.parse(
+        await eventRes.json(),
+      );
+
+      return newSuggestions + events.length;
     },
     enabled: vault.length > 0,
     staleTime: 5_000,

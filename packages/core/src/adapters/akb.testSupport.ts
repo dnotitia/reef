@@ -39,6 +39,7 @@ export {
   listActivitySuggestions,
   listComments,
   listIssueActivity,
+  listRecentActivity,
   listIssues,
   listPlanningCatalog,
   listTemplates,
