@@ -27,8 +27,10 @@ import {
   RISK_PRIORITIES,
   type ReportAggregates,
   type ReportKpis,
+  type ReportMeasure,
   type RiskSummary,
   SEVERITY_OPTIONS,
+  type Tally,
   type ThroughputWeek,
   WEEK_MS,
   ageBucket,
@@ -37,6 +39,7 @@ import {
   isOpenReportWork,
   matchesFilters,
   rankAndTake,
+  tally,
 } from "./aggregateModel";
 
 export {
@@ -52,6 +55,7 @@ export {
   type ReportAggregates,
   type ReportFilters,
   type ReportKpis,
+  type ReportMeasure,
   type ReportPeriod,
   type ReportScope,
   type RiskBucket,
@@ -63,8 +67,10 @@ export {
   type TypeCount,
 } from "./aggregateModel";
 
-/** Single-pass aggregation. Named buckets sort count-desc, then name-asc
- *  for stable rendering. Priority appends a trailing `"none"` bucket. */
+/** Single-pass aggregation. Every distribution bucket carries both an issue
+ *  `count` and a story-`points` sum; `filters.measure` selects which one ranked
+ *  lists sort by (desc, then name-asc) and which a card renders. Priority
+ *  appends a trailing `"none"` bucket. */
 export function computeAggregates(
   issues: ReadonlyArray<IssueListItem>,
   options: AggregateOptions = {},
@@ -79,25 +85,25 @@ export function computeAggregates(
       : REPORT_PERIOD_WEEKS[filters.period],
   } = options;
 
+  const measure: ReportMeasure = filters.measure;
   const filteredIssues = issues.filter((issue) =>
     matchesFilters(issue, filters),
   );
   const dependencyIndex = indexIssuesById(issues);
-  const statusBuckets = new Map<Status, number>(
-    STATUS_OPTIONS.map((s) => [s, 0]),
-  );
-  const priorityBuckets = new Map<Priority | "none", number>([
-    ...PRIORITY_OPTIONS.map((p) => [p, 0] as const),
-    ["none", 0],
+  // Each bucket accrues a count and a point sum in one pass; the seeded zero
+  // buckets give every distribution a fresh, independent Tally per key.
+  const seed = <K>(keys: readonly K[]): Map<K, Tally> =>
+    new Map(keys.map((k) => [k, { count: 0, points: 0 }]));
+  const statusBuckets = seed<Status>(STATUS_OPTIONS);
+  const priorityBuckets = seed<Priority | "none">([
+    ...PRIORITY_OPTIONS,
+    "none",
   ]);
-  const typeBuckets = new Map<IssueType, number>(
-    ISSUE_TYPE_OPTIONS.map((t) => [t, 0]),
-  );
-  const severityBuckets = new Map<Severity, number>(
-    SEVERITY_OPTIONS.map((s) => [s, 0]),
-  );
-  const assigneeBuckets = new Map<string, number>();
-  const labelBuckets = new Map<string, number>();
+  const typeBuckets = seed<IssueType>(ISSUE_TYPE_OPTIONS);
+  const severityBuckets = seed<Severity>(SEVERITY_OPTIONS);
+  const assigneeBuckets = new Map<string, Tally>();
+  const labelBuckets = new Map<string, Tally>();
+  // riskMatrix stays count-only (risk posture, not load); leave it a number map.
   const riskBuckets = new Map<string, number>(
     RISK_PRIORITIES.flatMap((priority) =>
       AGING_BUCKETS.map((aging) => [`${priority}:${aging}`, 0] as const),
@@ -142,6 +148,8 @@ export function computeAggregates(
         label: `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`,
         created: 0,
         closed: 0,
+        createdPoints: 0,
+        closedPoints: 0,
       };
     },
   );
@@ -157,49 +165,51 @@ export function computeAggregates(
   let total = 0;
 
   for (const issue of filteredIssues) {
+    // A missing estimate contributes 0 points, so the count and points views
+    // share one population (REEF-188 AC3).
+    const pts = issue.estimate_points ?? 0;
+
     // Throughput is historical — count creation/completion regardless of the
     // issue's current active/archived state.
     const createdIdx = windowIndex(Date.parse(issue.created_at));
-    if (createdIdx >= 0) throughput[createdIdx].created++;
+    if (createdIdx >= 0) {
+      throughput[createdIdx].created++;
+      throughput[createdIdx].createdPoints += pts;
+    }
     const completedAt = completionTime(issue);
     if (completedAt != null) {
       const closedIdx = windowIndex(completedAt);
-      if (closedIdx >= 0) throughput[closedIdx].closed++;
+      if (closedIdx >= 0) {
+        throughput[closedIdx].closed++;
+        throughput[closedIdx].closedPoints += pts;
+      }
     }
 
     if (filters.scope !== "all" && !isActive(issue)) continue;
     total++;
     kpis.active++;
 
-    statusBuckets.set(issue.status, (statusBuckets.get(issue.status) ?? 0) + 1);
+    tally(statusBuckets, issue.status, pts);
     if (issue.status === "in_progress" || issue.status === "in_review") {
       kpis.inProgress++;
     }
     if (isResolvedStatus(issue.status)) kpis.done++;
 
     const prioKey: Priority | "none" = issue.priority ?? "none";
-    priorityBuckets.set(prioKey, (priorityBuckets.get(prioKey) ?? 0) + 1);
+    tally(priorityBuckets, prioKey, pts);
 
     // Mirror filterIssues: a missing issue_type is treated as "task" so the
     // donut total matches the active-issue count even for older/cached data.
     const issueType = issue.issue_type ?? "task";
-    typeBuckets.set(issueType, (typeBuckets.get(issueType) ?? 0) + 1);
-    if (issue.severity) {
-      severityBuckets.set(
-        issue.severity,
-        (severityBuckets.get(issue.severity) ?? 0) + 1,
-      );
-    }
+    tally(typeBuckets, issueType, pts);
+    if (issue.severity) tally(severityBuckets, issue.severity, pts);
 
     const assigneeName = issue.assigned_to?.trim() || "Unassigned";
-    assigneeBuckets.set(
-      assigneeName,
-      (assigneeBuckets.get(assigneeName) ?? 0) + 1,
-    );
+    tally(assigneeBuckets, assigneeName, pts);
     for (const label of issue.labels ?? []) {
       const name = label.trim();
       if (!name) continue;
-      labelBuckets.set(name, (labelBuckets.get(name) ?? 0) + 1);
+      tally(labelBuckets, name, pts);
     }
 
     // Health metrics — open work just.
@@ -254,37 +264,36 @@ export function computeAggregates(
   const netThroughput = throughput.map((week) => ({
     ...week,
     net: week.created - week.closed,
+    netPoints: week.createdPoints - week.closedPoints,
   }));
   riskSummary.netThroughput = netThroughput.reduce(
     (sum, week) => sum + week.net,
     0,
   );
 
+  const ZERO: Tally = { count: 0, points: 0 };
   return {
     filteredTotal: filteredIssues.length,
     total,
-    byStatus: STATUS_OPTIONS.map((status) => ({
-      status,
-      count: statusBuckets.get(status) ?? 0,
-    })),
-    byPriority: [
-      ...PRIORITY_OPTIONS.map((priority) => ({
-        priority,
-        count: priorityBuckets.get(priority) ?? 0,
-      })),
-      { priority: "none" as const, count: priorityBuckets.get("none") ?? 0 },
-    ],
-    topAssignees: rankAndTake(assigneeBuckets, assigneeLimit),
-    topLabels: rankAndTake(labelBuckets, labelLimit),
+    byStatus: STATUS_OPTIONS.map((status) => {
+      const t = statusBuckets.get(status) ?? ZERO;
+      return { status, count: t.count, points: t.points };
+    }),
+    byPriority: [...PRIORITY_OPTIONS, "none" as const].map((priority) => {
+      const t = priorityBuckets.get(priority) ?? ZERO;
+      return { priority, count: t.count, points: t.points };
+    }),
+    topAssignees: rankAndTake(assigneeBuckets, assigneeLimit, measure),
+    topLabels: rankAndTake(labelBuckets, labelLimit, measure),
     kpis,
-    byType: ISSUE_TYPE_OPTIONS.map((type) => ({
-      type,
-      count: typeBuckets.get(type) ?? 0,
-    })).filter((b) => b.count > 0),
-    bySeverity: SEVERITY_OPTIONS.map((severity) => ({
-      severity,
-      count: severityBuckets.get(severity) ?? 0,
-    })).filter((b) => b.count > 0),
+    byType: ISSUE_TYPE_OPTIONS.map((type) => {
+      const t = typeBuckets.get(type) ?? ZERO;
+      return { type, count: t.count, points: t.points };
+    }).filter((b) => b.count > 0),
+    bySeverity: SEVERITY_OPTIONS.map((severity) => {
+      const t = severityBuckets.get(severity) ?? ZERO;
+      return { severity, count: t.count, points: t.points };
+    }).filter((b) => b.count > 0),
     throughput,
     netThroughput,
     dueHealth,

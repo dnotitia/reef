@@ -8,6 +8,7 @@ import {
 import {
   DeadlineCard,
   HealthSummary,
+  NamedRows,
   StatusFunnel,
 } from "./ReportSummarySections";
 
@@ -43,32 +44,71 @@ describe("ReportSummarySections — single-home metrics (REEF-192)", () => {
   });
 
   it("StatusFunnel keeps Completion + WIP but drops the duplicate Review queue line", () => {
+    // Completion / WIP are derived from the rows themselves: done+closed = 4 of
+    // 10 → 40%, in_progress+in_review = 3 of 10 → 30% (REEF-188).
     const byStatus: StatusCount[] = [
-      { status: "backlog", count: 0 },
-      { status: "todo", count: 3 },
-      { status: "in_progress", count: 1 },
-      { status: "in_review", count: 2 },
-      { status: "done", count: 4 },
-      { status: "closed", count: 0 },
+      { status: "backlog", count: 0, points: 0 },
+      { status: "todo", count: 3, points: 0 },
+      { status: "in_progress", count: 1, points: 0 },
+      { status: "in_review", count: 2, points: 0 },
+      { status: "done", count: 4, points: 0 },
+      { status: "closed", count: 0, points: 0 },
     ];
-    const agg: ReportAggregates = {
-      ...base,
-      total: 10,
-      kpis: { ...base.kpis, inProgress: 1, done: 4 },
-      byStatus,
-    };
 
-    render(<StatusFunnel rows={byStatus} agg={agg} />);
+    render(<StatusFunnel rows={byStatus} />);
 
     // Completion is the single home for the done ratio.
     expect(screen.getByText("Completion")).toBeInTheDocument();
     expect(screen.getByText("40%")).toBeInTheDocument();
     // WIP is a distinct ratio, not echoed by the funnel, so it stays.
     expect(screen.getByText("WIP")).toBeInTheDocument();
-    expect(screen.getByText("10%")).toBeInTheDocument();
+    expect(screen.getByText("30%")).toBeInTheDocument();
     // The in-review count lives in the funnel legend; the "Review queue"
     // MetricLine that repeated it is gone.
     expect(screen.queryByText("Review queue")).not.toBeInTheDocument();
+  });
+
+  it("StatusFunnel weights Completion + WIP by story points when measured by points (REEF-188)", () => {
+    // Same issue distribution, but points are concentrated in done + WIP:
+    // done+closed = 8 of 20 pts → 40%; in_progress+in_review = 9 of 20 → 45%.
+    const byStatus: StatusCount[] = [
+      { status: "backlog", count: 0, points: 0 },
+      { status: "todo", count: 3, points: 3 },
+      { status: "in_progress", count: 1, points: 5 },
+      { status: "in_review", count: 2, points: 4 },
+      { status: "done", count: 4, points: 8 },
+      { status: "closed", count: 0, points: 0 },
+    ];
+
+    render(<StatusFunnel rows={byStatus} measure="points" />);
+
+    expect(screen.getByText("40%")).toBeInTheDocument(); // 8 / 20 points done
+    expect(screen.getByText("45%")).toBeInTheDocument(); // 9 / 20 points WIP
+  });
+
+  it("NamedRows renders the count or the points value per the active measure (REEF-188)", () => {
+    const rows = [
+      { name: "alice", count: 2, points: 13 },
+      { name: "bob", count: 5, points: 3 },
+    ];
+
+    const counted = render(<NamedRows rows={rows} />);
+    const aliceCount = counted
+      .getAllByTestId("named-row")
+      .find((el) => el.dataset.name === "alice");
+    expect(aliceCount?.dataset.value).toBe("2");
+    expect(
+      within(aliceCount as HTMLElement).getByText("2"),
+    ).toBeInTheDocument();
+    counted.unmount();
+
+    render(<NamedRows rows={rows} measure="points" />);
+    // The same alice row now reads its summed points, not its issue count.
+    const aliceRow = screen
+      .getAllByTestId("named-row")
+      .find((el) => el.dataset.name === "alice");
+    expect(aliceRow?.dataset.value).toBe("13");
+    expect(within(aliceRow as HTMLElement).getByText("13")).toBeInTheDocument();
   });
 
   it("DeadlineCard renders each bucket once via the legend, undated only in the subtitle", () => {
