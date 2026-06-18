@@ -123,7 +123,7 @@ describe("HealthRollup", () => {
   });
 
   it("counts off-track items separately from at-risk in the header", () => {
-    // A milestone past its target with open work is off track — the header must
+    // A milestone past its target with open work is off track; the header should
     // not fold it into an "at risk" count (REEF-191 follow-up).
     render(
       <HealthRollup

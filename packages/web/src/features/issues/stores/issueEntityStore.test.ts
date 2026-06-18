@@ -46,7 +46,7 @@ describe("issueEntityStore", () => {
     upsertIssues("v1", [a]);
     const before = issueEntityStore.state;
     // Re-upserting the SAME object refs (what TanStack Query structural sharing
-    // yields for unchanged rows on a refetch) must not produce new state.
+    // yields for unchanged rows on a refetch) preserves the state reference.
     upsertIssues("v1", [a]);
     expect(issueEntityStore.state).toBe(before);
   });

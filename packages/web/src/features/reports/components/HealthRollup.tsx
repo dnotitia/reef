@@ -66,8 +66,8 @@ export function HealthRollup({
   /** Toggle the page scope to one planning item (drill in / out). */
   onDrill: (dimension: RollupDimension, id: string) => void;
 }) {
-  // Only offer dimensions that actually have items; derive during render so a
-  // vault switch can't strand the toggle on an empty dimension (no effect).
+  // Offer dimensions that have items; derive during render so a vault switch
+  // does not strand the toggle on an empty dimension (no effect).
   const availableDims = useMemo(
     () => ROLLUP_DIMENSIONS.filter((d) => dimensionItemCount(catalog, d) > 0),
     [catalog],
@@ -232,7 +232,7 @@ const HealthRow = memo(function HealthRow({
           active && "ring-1 ring-brand/40",
         )}
       >
-        {/* Verdict rail — the single at-a-glance scan signal, paired only with
+        {/* Verdict rail — the at-a-glance scan signal, paired with
             the colored verdict label (the HealthSummary danger-tile idiom: rail +
             colored text, no badge). On track stays thin so red/amber lead. */}
         <span

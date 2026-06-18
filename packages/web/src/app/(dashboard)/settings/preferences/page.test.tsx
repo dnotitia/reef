@@ -109,8 +109,8 @@ describe("PreferencesPage layout", () => {
   });
 
   it("renders the shared GitHub scope hint while a token is configured (REEF-236)", async () => {
-    // getGitHubToken resolves a token here, so only the always-visible section
-    // copy shows (no input form). The scope guidance must still be present —
+    // getGitHubToken resolves a token here, so the persistent section copy
+    // shows instead of the input form. The scope guidance remains present:
     // this is the re-issue moment: a person changing GitHub accounts needs to
     // know the scopes before they Disconnect.
     render(<PreferencesPage />);

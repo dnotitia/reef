@@ -183,7 +183,7 @@ describe("useUpdateIssue", () => {
       queryKey: ["issues", "relations", "reef-acme"],
     });
     // The detail cache is overwritten with the server response (above), so it
-    // is never blanket-invalidated (REEF-098).
+    // avoids blanket invalidation (REEF-098).
     expect(invalidateSpy).not.toHaveBeenCalledWith({
       queryKey: ["issues", "detail", "reef-acme", "REEF-001"],
     });
@@ -216,8 +216,8 @@ describe("useUpdateIssue", () => {
       });
     });
 
-    // A title edit is patched in place. The plain list is never blanket
-    // refetched, and the relation graph is untouched. (Only active q-filtered
+    // A title edit is patched in place. The plain list is not blanket
+    // refetched, and the relation graph is untouched. (Active q-filtered
     // variants are reconciled, via a predicate — none exist here.)
     expect(invalidateSpy).not.toHaveBeenCalledWith({
       queryKey: ["issues", "list", "reef-acme"],

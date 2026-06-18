@@ -20,7 +20,7 @@ import { useEffect, useState } from "react";
 // and a new relation projection key (`['issues','relations',vault]`) was added.
 // v5 (REEF-098): issue list/detail caches now feed a normalized entity store
 // that is the render source for board/list rows; bump once so a stale snapshot
-// can't render against the old read path (one blank reload is accepted).
+// does not render against the old read path (one blank reload is accepted).
 const PERSIST_BUSTER = "reef-cache-v5";
 
 /**
@@ -94,7 +94,7 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
   // refetch with the new token completes. queryClient.clear() invalidates
   // every query — broad on purpose, since cache entries below this layer
   // are not account-scoped. Purge the entity store on the same signal so it
-  // can't outlive the credential it was populated under.
+  // does not outlive the credential it was populated under.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handler = () => {

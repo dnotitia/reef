@@ -1,29 +1,29 @@
 "use client";
 
 import type { IssueListItem } from "@reef/core";
-import { Store, useStore } from "@tanstack/react-store";
+import { Store, useSelector } from "@tanstack/react-store";
 
 /**
  * Normalized client entity store for issue list items (REEF-098).
  *
  * Why this exists, on top of TanStack Query: the issue list is fetched as an
  * `IssueListItem[]` per `['issues','list',vault,<query>]` cache, so the same
- * issue is duplicated across every filter/sort variant and across the board /
+ * issue is duplicated across filter/sort variants and across the board /
  * list / search views. Editing one field forced the whole list cache to be
  * invalidated and re-pulled (`SELECT *` over the vault — akb has no ETag), which
- * re-issued every issue identity and re-rendered every card. This store is the
- * single normalized render source for issue *content*: one entity per id, so an
- * edit touches exactly one entry and only the components subscribed to that id
+ * re-issued issue identities and re-rendered cards. This store is the
+ * normalized render source for issue *content*: one entity per id, so an
+ * edit touches one entry and the components subscribed to that id
  * re-render ("cost scales with what changed").
  *
  * The TanStack Query list cache is kept as the ordering / membership source and
  * for whole-set consumers (Reports aggregation, Timeline derivation); the store
  * is fed from those query results by the normalizer in `QueryProvider`, and by
  * the issue mutations directly. Query stays the server/data-state owner; this is
- * a derived, normalized read-through projection, not a second source of truth.
+ * a derived, normalized read-through projection, not an owner of server state.
  *
  * Vault isolation is structural: entities live under `byVault[vault]`, so a
- * lookup can never cross workspaces. A vault switch or credential change purges
+ * lookup does not cross workspaces. A vault switch or credential change purges
  * the relevant namespace (see `purgeVault` / `purgeAll`).
  */
 export interface IssueEntityState {
@@ -39,7 +39,7 @@ export const issueEntityStore = new Store<IssueEntityState>({ byVault: {} });
  * is unchanged (TanStack Query's structural sharing preserves the refs of rows
  * that did not change across a refetch) is left in place, so a refetch that
  * returns identical data produces no new entity refs and therefore no
- * re-render. Only changed/new rows replace their entry.
+ * re-render. Changed/new rows replace their entry.
  */
 export function upsertIssues(
   vault: string,
@@ -124,7 +124,7 @@ export function getIssueEntity(
 }
 
 /**
- * Subscribe a component to a single issue entity. Re-renders only when *this*
+ * Subscribe a component to a single issue entity. Re-renders when *this*
  * id's entity changes in *this* vault — the granular read source for cards and
  * rows. Returns `undefined` until the entity has been normalized into the store
  * (callers pass a seed item for the first paint).
@@ -133,5 +133,5 @@ export function useIssueEntity(
   vault: string,
   id: string,
 ): IssueListItem | undefined {
-  return useStore(issueEntityStore, (state) => state.byVault[vault]?.[id]);
+  return useSelector(issueEntityStore, (state) => state.byVault[vault]?.[id]);
 }

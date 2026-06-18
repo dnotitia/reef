@@ -10,8 +10,8 @@ import {
 } from "./issueEntityStore";
 
 /**
- * SC1 lock-in (REEF-098): editing one issue must re-render only that issue's
- * subscriber, not the whole list. The list rows subscribe to a single entity
+ * SC1 lock-in (REEF-098): editing one issue re-renders that issue's subscriber,
+ * not the whole list. The list rows subscribe to a single entity
  * via `useIssueEntity` and are memoized — exactly what this probe reproduces —
  * so a per-entity store update is the granular signal "cost scales with what
  * changed".
@@ -62,7 +62,7 @@ describe("issue entity store — granular reactivity", () => {
     );
     for (const id of ids) expect(renderCounts[id]).toBe(1);
 
-    // A non-membership edit to ONE issue: only its subscriber re-renders.
+    // A non-membership edit to ONE issue: its subscriber re-renders.
     act(() => upsertIssue("v", item("R-3", "Renamed")));
 
     expect(renderCounts["R-3"]).toBe(2);
@@ -84,7 +84,7 @@ describe("issue entity store — granular reactivity", () => {
     for (const id of ids) expect(renderCounts[id]).toBe(1);
 
     // Re-normalizing the SAME object refs (TanStack Query structural sharing on
-    // an unchanged refetch) must be a no-op for every subscriber.
+    // an unchanged refetch) is a no-op for the subscribers.
     act(() => upsertIssues("v", seed));
 
     for (const id of ids) expect(renderCounts[id]).toBe(1);

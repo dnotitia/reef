@@ -4,9 +4,9 @@ import { describe, expect, it } from "vitest";
 import { GithubScopeHint } from "./GithubScopeHint";
 
 /**
- * REEF-236: the monitored-repo PAT scope guidance is unified in one component so
- * onboarding and Settings › Preferences cannot drift. The scope copy and the
- * token-creation deep link are the issue's done-check, asserted here once.
+ * REEF-236: the monitored-repo PAT scope guidance is unified in one component
+ * shared by onboarding and Settings Preferences. The scope copy and the
+ * token-creation deep link are asserted here.
  */
 describe("GithubScopeHint (REEF-236)", () => {
   it("names the least-privilege scopes for public and private repos, read-only", () => {

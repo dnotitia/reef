@@ -24,14 +24,14 @@ import {
 /**
  * Per-planning-item health rollup (REEF-191). A pure derivation over the
  * already-loaded issue list — it lives beside `computeAggregates` in the web
- * reports feature rather than in `core`, because the whole reports aggregation
+ * reports feature rather than in `core`, because the reports aggregation
  * pipeline (its blocker/aging/throughput classifiers, `matchesFilters`) is a
  * web-local concern operating on `IssueListItem`s the client already holds, not
  * a data-plane boundary call.
  *
- * The RAG thresholds live in exactly one place — `classifyHealth` — so the
+ * The RAG thresholds live in `classifyHealth`, so the
  * verdict stays "clear and consistent" (REEF-191 AC3). `computeHealthRollup`
- * only normalizes each planning item's linked issues into the `HealthInput`
+ * function normalizes each planning item's linked issues into the `HealthInput`
  * that function judges.
  */
 
@@ -173,7 +173,7 @@ function isShipped(
   dimension: RollupDimension,
 ): boolean {
   if (dimension === "release") return item.status === "released";
-  // milestone and sprint both use `closed` as their terminal status.
+  // milestone and sprint both use `closed` as their completed status.
   return item.status === "closed";
 }
 
@@ -288,7 +288,7 @@ export function computeHealthRollup(
         verdict = null; // empty item — nothing to judge
       } else if (shipped) {
         // Finished work is on track by definition; a closed/released item should
-        // never read as off track.
+        // not read as off track.
         verdict = { level: "on_track", reason: "shipped" };
       } else {
         // Timeline anchor: explicit start (sprint) else earliest linked issue.

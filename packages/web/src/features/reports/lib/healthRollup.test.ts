@@ -214,8 +214,8 @@ describe("computeHealthRollup — grouping & sort", () => {
       {
         dimension: "milestone",
         now: NOW,
-        // milestone_id filter must be IGNORED (rollup shows every milestone);
-        // assignee filter must still apply.
+        // milestone_id filter is ignored (rollup shows all milestones);
+        // assignee filter still applies.
         filters: {
           period: "12w",
           scope: "active",

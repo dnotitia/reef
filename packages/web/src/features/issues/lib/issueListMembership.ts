@@ -2,11 +2,11 @@ import type { IssueUpdatePatch } from "@reef/core";
 import type { IssueQueryParams } from "./buildIssueQuery";
 
 /**
- * Decide what an issue edit can actually invalidate, so mutations refetch
- * narrowly instead of blanket-invalidating the whole issue read path (REEF-098).
+ * Decide what an issue edit can invalidate, so mutations refetch narrowly
+ * instead of blanket-invalidating the whole issue read path (REEF-098).
  *
- * The in-place cache patch a mutation already applies keeps every list value
- * fresh; a refetch is only needed when an edit can change *which* list an issue
+ * The in-place cache patch a mutation already applies keeps list values fresh; a
+ * refetch is needed when an edit can change *which* list an issue
  * belongs to (a server facet), *where* it sorts, or the relation graph.
  */
 
@@ -14,7 +14,7 @@ import type { IssueQueryParams } from "./buildIssueQuery";
  * Patch keys that map to a server-side issue-list facet (see `buildIssueQuery`)
  * or the default sort field (`priority`). Editing any of them can change
  * whether — or where — the issue appears in a filtered/sorted list, so the
- * affected list queries must be refetched to reconcile membership and order
+ * affected list queries refetch to reconcile membership and order
  * rather than patched in place.
  */
 const LIST_MEMBERSHIP_KEYS = [
@@ -37,7 +37,7 @@ export function patchAffectsListMembership(patch: IssueUpdatePatch): boolean {
 /**
  * Patch keys reflected in the whole-vault relation projection
  * (`['issues','relations',vault]` → `{id, status, depends_on}`); editing them
- * shifts blocker / blocking state, so that projection must refetch.
+ * shifts blocker / blocking state, so that projection refetches.
  */
 const RELATION_GRAPH_KEYS = [
   "status",
@@ -52,9 +52,9 @@ export function patchAffectsRelationGraph(patch: IssueUpdatePatch): boolean {
 /**
  * Whether a list query carries a free-text (`q`) facet. `q` matches the issue's
  * id/title/assignee/etc. server-side, so a content edit can change its result
- * set in ways the client cannot predict — those variants refetch even for an
+ * set in ways the client does not predict — those variants refetch even for an
  * otherwise non-membership edit. The plain (`['issues','list',vault]`) and
- * facet-only variants have no `q` and stay patched in place.
+ * facet variants have no `q` and stay patched in place.
  */
 export function listQueryHasFreeText(query: {
   queryKey: readonly unknown[];

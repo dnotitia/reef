@@ -35,8 +35,8 @@ interface UpdateIssueMutationContext {
 /**
  * Update an issue in the active akb vault. The affected list/detail caches are
  * patched optimistically so board moves feel immediate, then overwritten with
- * the server response on success — never blanket-invalidated (REEF-098). The
- * caches stay the fresh server truth in place, and only membership/order or
+ * the server response on success, avoiding blanket invalidation (REEF-098). The
+ * caches stay the fresh server truth in place, and membership/order or
  * relation-graph changes trigger a narrow refetch (see `issueListMembership`).
  * akb is LWW so concurrent edits merge server-side per field; there is no
  * CAS-conflict dialog.
@@ -138,9 +138,9 @@ export function useUpdateIssue() {
         (current) => current?.map((issue) => (issue.id === id ? item : issue)),
       );
 
-      // No blanket invalidation (REEF-098). A non-membership edit (title,
-      // dates, labels, …) needs no re-request: the in-place patch above is the
-      // server truth. Refetch only what an edit can actually invalidate.
+      // Avoid blanket invalidation (REEF-098). A non-membership edit (title,
+      // dates, labels, ...) needs no re-request: the in-place patch above is the
+      // server truth. Refetch the projections an edit can invalidate.
       if (patchAffectsListMembership(patch)) {
         // A server facet or the sort field changed → the issue may move, leave,
         // or enter a filtered/sorted list; refetch every variant to reconcile.
@@ -149,8 +149,8 @@ export function useUpdateIssue() {
         });
       } else {
         // A free-text (`q`) search matches title/assignee/etc., so a content
-        // edit can change its membership unpredictably — refetch only the
-        // active q-filtered variants; plain/facet-only lists stay patched.
+        // edit can change its membership unpredictably: refetch the active
+        // q-filtered variants; plain/facet lists stay patched.
         void queryClient.invalidateQueries({
           queryKey: ["issues", "list", vault],
           predicate: listQueryHasFreeText,
