@@ -247,4 +247,45 @@ describe("buildTimeline — full pipeline (AC1 + AC3 + AC5)", () => {
         only.event.reason,
     ).toBe("wont_fix");
   });
+
+  it("attributes the close to the logged close actor, not a later editor (updated_by drift)", () => {
+    const closedAt = "2026-06-09T00:00:00.000Z";
+    // Alice closed it; Bob later edited a field, bumping updated_by to bob.
+    const issue = makeIssue({
+      status: "closed",
+      closed_at: closedAt,
+      closed_reason: "completed",
+      last_status_change: closedAt,
+      updated_by: "bob",
+    });
+    const loggedClose: ActivityEvent = {
+      ...activity("a1", closedAt, "in_progress", "closed"),
+      actor: "alice",
+    };
+
+    const timeline = buildTimeline([], [loggedClose], issue);
+    const closed = timeline.find(
+      (e) => e.type === "system" && e.event.kind === "closed",
+    );
+    expect(
+      closed?.type === "system" &&
+        closed.event.kind === "closed" &&
+        closed.event.actor,
+    ).toBe("alice");
+  });
+
+  it("de-dupes activity rows by event_key, keeping the first (REEF-125 residual race)", () => {
+    const at = "2026-06-03T00:00:00.000Z";
+    const dup1 = activity("dup-1", at, "todo", "in_progress");
+    const dup2 = { ...activity("dup-2", at, "todo", "in_progress") }; // same event_key
+
+    const entries = buildEntries([], [dup1, dup2], makeIssue());
+    const statusRows = entries.filter(
+      (e) => e.type === "system" && e.event.kind === "status_change",
+    );
+    expect(statusRows).toHaveLength(1);
+    expect(statusRows[0].type === "system" && statusRows[0].event.id).toBe(
+      "dup-1",
+    );
+  });
 });

@@ -146,10 +146,17 @@ export function reconstructEvents(
   // it coincides with creation, since `created` already represents that state.
   const closedAt = closedReconstructionAt(issue);
   if (closedAt != null) {
+    // Prefer the logged close's authoritative actor. `updated_by` is only the
+    // right closer for a pre-activity close (no logged event); it goes stale the
+    // moment a different user edits any field while the issue stays closed, so
+    // trusting it would misattribute the close to that later editor.
+    const loggedClose = activity.find(
+      (event) => event.payload.to === "closed" && event.at === closedAt,
+    );
     events.push({
       id: "current-status",
       at: closedAt,
-      actor: issue.updated_by || null,
+      actor: loggedClose?.actor ?? issue.updated_by ?? null,
       kind: "closed",
       reason: issue.closed_reason ?? null,
     });
@@ -219,7 +226,14 @@ export function buildEntries(
   for (const comment of comments) {
     entries.push({ type: "comment", at: comment.created_at, comment });
   }
+  // De-dupe activity by event_key, keeping the first server-ordered row. The
+  // append path is idempotent on event_key but akb's HTTP surface has no unique
+  // index, so two simultaneous identical inserts can leave duplicate rows; the
+  // adapter documents that the timeline is the downstream de-duper (REEF-125).
+  const seenKeys = new Set<string>();
   for (const event of activity) {
+    if (seenKeys.has(event.event_key)) continue;
+    seenKeys.add(event.event_key);
     if (
       supersededCloseAt != null &&
       event.payload.to === "closed" &&
