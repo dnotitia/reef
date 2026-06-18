@@ -74,6 +74,13 @@ export type IssueDetailDraftAction =
       type: "sync";
       previous: IssueDetailDraft;
       next: IssueDetailDraft;
+    }
+  | {
+      // Replace the whole draft with a server snapshot, discarding local edits.
+      // Used on a save conflict (REEF-227) to drop the rejected edit so a stale
+      // dirty field can't be re-saved over the change that won.
+      type: "reset";
+      next: IssueDetailDraft;
     };
 
 export function createIssueDetailDraft(data: IssueDocument): IssueDetailDraft {
@@ -112,6 +119,9 @@ export function issueDetailDraftReducer(
   switch (action.type) {
     case "set":
       return { ...state, [action.field]: action.value };
+    case "reset":
+      // Discard local edits wholesale (conflict recovery, REEF-227).
+      return action.next;
     case "sync": {
       // Pull newer server data into fields the user has not edited locally since
       // the previous server snapshot; keep dirty fields intact.

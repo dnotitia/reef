@@ -10,6 +10,15 @@ export type IssueDetailResponse = IssueDocument;
  * caches so the same issue id in two workspaces does not shares one entry (which
  * would let one workspace's data render — and autosave — under another).
  * Disabled when either input is empty.
+ *
+ * `refetchOnMount: "always"` (REEF-227): opening the issue card always
+ * revalidates, so an external akb edit made inside the 30s stale window is
+ * pulled in and the 3-way form sync re-displays it, instead of the editor
+ * showing — and then overwriting — a stale cached body. This is scoped to the
+ * detail query (its only consumer is the detail card); the list/global
+ * staleTime that REEF-097/098 rely on is untouched, so it does not reintroduce
+ * the request churn or break the staleTime-driven list self-heal. The cached
+ * value still renders instantly while the revalidation is in flight.
  */
 export function useIssue(id: string, vault: string) {
   return useQuery({
@@ -25,5 +34,6 @@ export function useIssue(id: string, vault: string) {
     },
     enabled: !!id && !!vault,
     staleTime: 30_000,
+    refetchOnMount: "always",
   });
 }
