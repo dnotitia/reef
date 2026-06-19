@@ -12,6 +12,14 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Changed
+
+- **Reports names its workspace, like every other page.** The Reports header now
+  shows the active workspace as a subtitle, matching the Issues, Planning, and
+  Activity headers so the page's vault scope is visible at a glance. Page-header
+  subtitles (the workspace name, or `@login` on My Work) are now marked as
+  identifiers so machine translation leaves them untouched (REEF-260).
+
 ## v0.5.0 - 2026-06-19
 
 ### Added

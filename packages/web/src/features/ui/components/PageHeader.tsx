@@ -5,7 +5,16 @@ import { cn } from "@/lib/utils";
 
 interface PageHeaderProps {
   title: string;
-  description?: string;
+  /**
+   * Header subtitle. A plain string is treated as an identifier — the active
+   * workspace name on the vault-scoped pages — and the whole span is marked
+   * translate="no" so machine translation leaves it intact (matching the
+   * scope-name span in SettingsGroup). Pass a node when the subtitle mixes an
+   * identifier with translatable prose (My Work's `@login · N open`) and wrap
+   * only the identifier portion in translate="no" yourself, so the prose still
+   * translates (REEF-260).
+   */
+  description?: React.ReactNode;
   /** Right-aligned action slot — buttons, toggles, etc. */
   actions?: React.ReactNode;
   className?: string;
@@ -20,6 +29,10 @@ export function PageHeader({
   const mounted = useHydrated();
 
   const renderedDescription = mounted ? (description ?? "") : "";
+  // A string subtitle is a bare identifier, so opt the whole span out of
+  // translation. A node subtitle owns its own translate boundaries (see the
+  // `description` prop doc), so leave the span translatable.
+  const identifierOnly = typeof renderedDescription === "string";
 
   return (
     <header
@@ -38,6 +51,7 @@ export function PageHeader({
         </h1>
         <span
           className="truncate text-[12px] text-muted-foreground"
+          translate={identifierOnly ? "no" : undefined}
           aria-hidden={!renderedDescription}
         >
           {renderedDescription}
