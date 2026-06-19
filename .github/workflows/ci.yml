@@ -1,9 +1,6 @@
 name: CI
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
@@ -16,6 +13,12 @@ on:
   # stale-PR domino (PR A merges -> B, C, D all go out-of-date -> each reruns)
   # into a single queued check per PR.
   merge_group:
+  # Intentionally NOT `push: branches: [main]`. The merge queue is the only path
+  # to main, so the commit it fast-forwards onto main is byte-identical to the
+  # `merge_group` ref CI just validated — a push run here would re-test that exact
+  # commit a third time for no new signal. (Live-drift detection on main is a
+  # separate concern owned by live-akb-contract.yml, which keeps its own push
+  # trigger.) If direct pushes to main are ever allowed again, restore this.
 
 # Least-privilege default: jobs only need to read the checked-out repo.
 permissions:
