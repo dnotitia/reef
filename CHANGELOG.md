@@ -12,6 +12,13 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Fixed
+
+- **Navigate up to the parent issue.** The issue detail now shows a clickable
+  breadcrumb above the id line — the parent's id and title — so you can jump to
+  the parent in one click, mirroring how the Sub-issues list already navigates
+  down to children. The `Parent` field under Relationships stays edit-only for
+  reassigning, and the breadcrumb is hidden for top-level issues (REEF-266).
 ### Changed
 
 - **Reports names its workspace, like every other page.** The Reports header now
