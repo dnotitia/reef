@@ -1,5 +1,6 @@
 "use client";
 
+import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
 import { formatTimestampMonthDay } from "../../issues/lib/dateHelpers";
 import { useActiveVault } from "../hooks/useActiveVault";
@@ -32,10 +33,16 @@ export function WorkspaceSkillSection() {
   const canWrite = role != null && WRITER_ROLES.has(role);
 
   if (!vault || status.isLoading || vaultsQuery.isLoading) {
+    // Placeholder for the resolved two-line status block, matching the skeleton
+    // language used across the app's loading states (REEF-255).
     return (
-      <p className="text-sm text-muted-foreground">
-        Checking workspace instructions…
-      </p>
+      <div
+        data-testid="workspace-skill-skeleton"
+        className="flex flex-col gap-2"
+      >
+        <Skeleton className="h-4 w-64" />
+        <Skeleton tone="secondary" className="h-4 w-40" />
+      </div>
     );
   }
 

@@ -1,11 +1,11 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
 import { buildIssueQuery } from "@/features/issues/lib/buildIssueQuery";
+import { MyWorkSkeleton } from "@/features/my-work/components/MyWorkPageSkeleton";
 import {
   type GroupMode,
   MyWorkQueue,
@@ -53,29 +53,6 @@ function CenteredNotice({
       className="rounded-lg border border-dashed border-border-subtle bg-surface-subtle px-6 py-16 text-center"
     >
       {children}
-    </div>
-  );
-}
-
-function MyWorkSkeleton() {
-  return (
-    <div className="flex flex-col gap-6" data-testid="my-work-skeleton">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[0, 1, 2, 3].map((i) => (
-          <div
-            key={`tile-${i}`}
-            className="flex min-h-[78px] flex-col justify-between gap-2 rounded-lg border border-border-subtle bg-surface-subtle p-3"
-          >
-            <Skeleton className="h-3 w-16" />
-            <Skeleton className="h-6 w-10" />
-          </div>
-        ))}
-      </div>
-      <div className="flex flex-col gap-2 rounded-xl border border-border-subtle p-3">
-        {[0, 1, 2, 3, 4].map((i) => (
-          <Skeleton key={`row-${i}`} className="h-7 w-full" />
-        ))}
-      </div>
     </div>
   );
 }

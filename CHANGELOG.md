@@ -174,6 +174,15 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Pages no longer flash a blank body while loading.** Opening or refreshing
+  Issues, My Work, Planning, Reports, Activity, or Settings — or following a deep
+  link to an issue — now paints that page's skeleton (its board columns, summary
+  tiles, cards, or rows under the real header and sidebar) from the first frame,
+  instead of leaving the content area empty until the data arrived. Each route
+  also shows the same skeleton the instant it is opened from the sidebar, and the
+  deployment AI-status, workspace-instructions, and GitHub-token settings rows
+  show a small placeholder while they resolve rather than a line of "Checking…"
+  text (REEF-255).
 - **Scrolling a page to its end no longer drags the sidebar along.** When the
   body of a page (Reports, My Work, Activity, Planning, the issues list, Backlog)
   is scrolled to its top or bottom edge, continuing to scroll in the same

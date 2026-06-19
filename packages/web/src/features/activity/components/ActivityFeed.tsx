@@ -55,7 +55,7 @@ export function ActivityFeed({ vault }: ActivityFeedProps) {
   );
 }
 
-function ActivityFeedSkeleton() {
+export function ActivityFeedSkeleton() {
   return (
     <div data-testid="activity-feed" className="space-y-3">
       {[1, 2, 3].map((n) => (
