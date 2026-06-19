@@ -1,0 +1,103 @@
+name: Live AKB Contract
+
+# REEF-056 — live contract smoke against a REAL akb backend.
+#
+# Kept OFF the PR hot path (a separate workflow, never `pull_request`): it
+# source-builds akb and needs Docker, so it is slow. The static REEF-050
+# contract test still runs on every PR via ci.yml against CAPTURED responses;
+# THIS is the live drift detector that complements it — it re-applies reef's
+# hand-mirrored Zod envelopes to a running akb so a backend wire change fails
+# here instead of in production.
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Nightly drift sweep. The `main` akb_ref leg below is the whole point: it
+    # builds akb's latest and fails if the live wire shape drifted.
+    - cron: "0 7 * * *"
+  workflow_dispatch: {}
+
+# Least-privilege: only read the checked-out repos (both reef and public akb).
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live-akb-contract:
+    name: Live AKB contract (akb ${{ matrix.akb_ref }})
+    runs-on: ubuntu-latest
+    strategy:
+      # One leg failing must not cancel the other — we want both signals (a
+      # pinned-ref regression vs. a `main` drift) on every run.
+      fail-fast: false
+      matrix:
+        # Two legs, one workflow:
+        #   - a PINNED ref = reproducible regression net. This SHA is the akb
+        #     HEAD the smoke was authored and verified against; bump it in
+        #     lockstep with the akb version reef actually deploys.
+        #   - `main` = drift detector. It builds akb's latest, so a new akb
+        #     wire shape fails this leg BEFORE it reaches a reef deploy.
+        akb_ref:
+          - a21b505a56ae9f7b55d0832f54b985ce2986d6f2
+          - main
+    steps:
+      - name: Checkout reef
+        uses: actions/checkout@v5
+
+      # akb is public, so no token is needed — just pin the ref.
+      - name: Checkout akb
+        uses: actions/checkout@v5
+        with:
+          repository: dnotitia/akb
+          ref: ${{ matrix.akb_ref }}
+          path: .akb-live
+
+      - name: Configure akb (local-dev defaults)
+        working-directory: .akb-live
+        run: |
+          cp config/app.yaml.example config/app.yaml
+          cp config/secret.yaml.example config/secret.yaml
+
+      # akb owns its compose topology (postgres + pgvector, minio); reef layers
+      # only ci/akb-live.override.yml (a backend healthcheck so `--wait` blocks
+      # until the API answers). No embed key needed: search degrades to BM25,
+      # which still returns a valid contract envelope. Only `backend` (+ its
+      # deps) is built — the frontend is not a dependency, so it is skipped.
+      - name: Build and start akb backend stack
+        run: |
+          docker compose \
+            -f .akb-live/docker-compose.yaml \
+            -f ci/akb-live.override.yml \
+            up -d --build --wait backend
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run live akb contract smoke
+        env:
+          REEF_LIVE_AKB_URL: http://localhost:8000
+        run: pnpm --filter @reef/core test:live-akb
+
+      - name: Dump akb backend logs on failure
+        if: failure()
+        run: |
+          docker compose -f .akb-live/docker-compose.yaml \
+            -f ci/akb-live.override.yml logs backend --tail 200
+
+      - name: Tear down akb
+        if: always()
+        run: |
+          docker compose -f .akb-live/docker-compose.yaml \
+            -f ci/akb-live.override.yml down -v
