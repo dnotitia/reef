@@ -120,6 +120,11 @@ export function LabelChipInput({
         onBlur={commitDraft}
         placeholder={value.length === 0 ? placeholder : undefined}
         disabled={disabled}
+        // Labels are free-form tokens, not prose: suppress the browser's
+        // spellcheck underline and autofill suggestions so the field reads as a
+        // tag entry everywhere this control is reused.
+        autoComplete="off"
+        spellCheck={false}
         className="min-w-[6rem] flex-1 border-0 bg-transparent px-1 py-0.5 text-[13px] outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
       />
     </div>

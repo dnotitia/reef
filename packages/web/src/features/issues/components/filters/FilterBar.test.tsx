@@ -396,6 +396,16 @@ describe("FilterBar", () => {
     expect(screen.getByText("ui")).toBeTruthy();
   });
 
+  // Labels are free-form tokens, not prose — the input suppresses the browser's
+  // spellcheck underline and autofill so it reads as tag entry (web interface
+  // guidelines: spellcheck off + autocomplete off on non-prose fields).
+  it("disables spellcheck and autocomplete on the labels input", () => {
+    renderFilterBar();
+    const input = screen.getByTestId("labels-input");
+    expect(input.getAttribute("spellcheck")).toBe("false");
+    expect(input.getAttribute("autocomplete")).toBe("off");
+  });
+
   it("serializes multiple label chips with the existing comma filter contract", async () => {
     const user = userEvent.setup();
     renderFilterBar();
