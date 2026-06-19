@@ -19,6 +19,13 @@ explicitly in the entries below.
   the parent in one click, mirroring how the Sub-issues list already navigates
   down to children. The `Parent` field under Relationships stays edit-only for
   reassigning, and the breadcrumb is hidden for top-level issues (REEF-266).
+### Changed
+
+- **Reports names its workspace, like every other page.** The Reports header now
+  shows the active workspace as a subtitle, matching the Issues, Planning, and
+  Activity headers so the page's vault scope is visible at a glance. Page-header
+  subtitles (the workspace name, or `@login` on My Work) are now marked as
+  identifiers so machine translation leaves them untouched (REEF-260).
 
 ## v0.5.0 - 2026-06-19
 

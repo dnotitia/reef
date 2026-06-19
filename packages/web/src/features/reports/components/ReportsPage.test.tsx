@@ -113,6 +113,22 @@ describe("ReportsPage", () => {
     expect(screen.getByText(/Pick a workspace/i)).toBeInTheDocument();
   });
 
+  it("names the active workspace in the Reports header subtitle, like its peer pages (REEF-260)", async () => {
+    mockApi(issues);
+
+    render(wrap(<ReportsPage />));
+
+    // Reports is vault-scoped, so its header now carries the workspace name as a
+    // subtitle just like the Issues / Planning / Activity headers.
+    const heading = await screen.findByRole("heading", {
+      name: "Reports",
+      level: 1,
+    });
+    const header = heading.closest('[data-slot="page-header"]');
+    expect(header).not.toBeNull();
+    expect(header).toHaveTextContent("reef-acme");
+  });
+
   it("requests /api/issues?vault={vault} when a vault is active", async () => {
     mockApiFetch.mockResolvedValue(
       new Response(JSON.stringify({ issues: [] }), { status: 200 }),
