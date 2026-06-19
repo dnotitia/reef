@@ -27,6 +27,10 @@ function Shell({
   description,
   children,
 }: {
+  /** The header subtitle here is the *personal* scope (`@login · N open`), not
+   *  the active workspace name the other PageHeader subtitles carry. My Work is
+   *  a per-user view, so this divergence is intentional — it is the one caller
+   *  that does not pass the vault (REEF-260). */
   description?: string;
   children: ReactNode;
 }) {

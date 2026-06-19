@@ -36,8 +36,13 @@ export function PageHeader({
         >
           {title}
         </h1>
+        {/* The subtitle is always an identifier — the active workspace name on
+            the vault-scoped pages, `@login` on My Work — never prose, so it is
+            marked translate="no" to keep machine translators from mangling it
+            (matches the scope-name span in SettingsGroup). */}
         <span
           className="truncate text-[12px] text-muted-foreground"
+          translate="no"
           aria-hidden={!renderedDescription}
         >
           {renderedDescription}
