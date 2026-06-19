@@ -12,165 +12,139 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.5.0 - 2026-06-19
+
 ### Added
 
 - **Unified activity timeline on issues.** The issue detail's Comments section
   becomes a single chronological Activity thread that interleaves comments with
-  status changes and events reconstructed from the issue itself — when it was
-  created, each delivery (PR/commit/branch) recorded on it, and how it was
-  closed. Older issues that predate the activity log fill in without any backfill,
-  because the reconstructed events are synthesized at read time rather than
-  stored, and a change already captured in the activity log is never shown twice.
-  Comments keep their avatar cards; system events read as a lighter one-line entry
-  with the actor and time, and a run of three or more consecutive status changes
-  folds into one expandable row to keep the thread legible (REEF-064).
-- **Issue activity log (status changes).** Every status change on an issue now
-  records an immutable, append-only event — who moved it, from which status to
-  which, and when — captured the moment the change is saved, whether it came from
-  the app or an automated agent. This is the foundation the merged comment +
-  activity timeline will read; the timeline view itself ships separately
-  (REEF-064). (REEF-063).
-- **Activity log now tracks more than status.** Beyond status changes, the
-  activity log now records reassignments, priority changes, planning links
-  (milestone, sprint, release attach/detach), and newly-linked delivery refs
-  (pull requests, commits, branches) — each as the same immutable, append-only
-  event with who, the before→after, and when. When one save changes several
-  fields at once, the events share a single timestamp so they read as one moment.
-  The timeline view that surfaces these ships separately (REEF-064) (REEF-126).
+  status changes and events reconstructed from the issue itself — creation, each
+  recorded delivery (PR/commit/branch), and how it was closed. Older issues fill
+  in with no backfill, since events are synthesized at read time and a change
+  already in the log is never shown twice. Comments keep their avatar cards;
+  system events read as lighter one-line entries, and a run of three or more
+  consecutive status changes folds into one expandable row (REEF-064).
+- **Issue activity log (status changes).** Every status change now records an
+  immutable, append-only event — who moved it, from and to which status, and
+  when — captured the moment the change is saved, whether from the app or an
+  automated agent. This is the foundation the unified timeline reads (REEF-063).
+- **Activity log now tracks more than status.** Beyond status changes, the log
+  now records reassignments, priority changes, planning links (milestone, sprint,
+  release attach/detach), and newly-linked delivery refs (pull requests, commits,
+  branches) — each an immutable event with who, the before→after, and when.
+  Fields changed in one save share a timestamp so they read as one moment
+  (REEF-126).
+- **Comments on issues.** Each issue gains a Comments section: leave a note, read
+  the thread oldest-first with author and time, and edit your own (an "edited"
+  marker shows). Comments render markdown including inline `code`, and `⌘↵`
+  posts. This is the flat first cut — threads, reactions, and the merged timeline
+  come later (REEF-062).
+- **A personal "My Work" view.** A dedicated `/my-work` page shows the issues
+  assigned to you, auto-scoped to your account. A summary strip counts your
+  in-progress, due-soon, overdue, open-by-stage, and sprint remaining/done work;
+  below it a focus-sorted queue orders by urgency, then priority, then closeness
+  to active, and flags blocked items. Toggle the queue between a flat priority
+  list and a by-status grouping. (The sidebar entry point and attention badge
+  ship in REEF-204.) (REEF-181).
+- **My Work sidebar entry with an attention badge.** A My Work item joins the
+  sidebar nav (second, after Issues), badged with the count of your overdue and
+  due-soon issues so the number of things needing attention is visible without
+  opening the page (REEF-204).
+- **Manage who's in a workspace from Settings.** The Workspace → Members tab
+  lists everyone with access to the active workspace and their role. Admins and
+  owners can add an existing akb user via directory search, change a member's
+  role inline, or remove a member — the owner can't be removed and you can't
+  remove yourself; writers and readers see it read-only. There is no email invite
+  (akb has none), so this grants access to people who already have an akb account
+  (REEF-179).
 - **Delivery forecast on Reports.** A new Monte Carlo forecast card projects when
   the open work in scope will finish, and how many items finish by a near-term
   date, each at the 50/70/85/95 confidence levels. It bootstraps the weekly
-  completion throughput the dashboard already tracks — no new data, event log, or
-  cycle-time setup — and reuses the Period control to choose the sample window
-  (default 12 weeks). An empty or thin history is labeled ("not enough history",
-  "treat these as rough") rather than guessed, so the numbers stay honest
-  (REEF-190).
-- **Custom pivot (crosstab) report.** Reports gains a Pivot card: pick any two
-  categorical fields for the rows and columns — status, type, priority, severity,
-  assignee, or label — and see a count-based crosstab without an engineer shipping
-  a new card. Each cell shades by how many issues fall at that intersection, empty
-  intersections read as blank rather than zero, and a Total row, column, and grand
-  total close out the margins. Fields with many values (assignee, label) show the
-  busiest buckets and fold the rest into an "Other" lane that the card names rather
-  than hiding. It always measures by issue count; story-point pivots are out of
-  scope here (REEF-189).
+  throughput the dashboard already tracks — no new data or setup — and reuses the
+  Period control for the sample window (default 12 weeks). Thin history is
+  labeled as rough rather than guessed (REEF-190).
+- **Custom pivot (crosstab) report.** A new Pivot card lets you pick any two
+  categorical fields — status, type, priority, severity, assignee, or label — for
+  the rows and columns and see a count-based crosstab without an engineer
+  shipping a new card. Cells shade by count, empty intersections read blank, and
+  a Total row, column, and grand total close the margins. High-cardinality fields
+  show the busiest buckets and fold the rest into a named "Other" lane. It always
+  measures by issue count (REEF-189).
 - **Measure Reports by story points, not just issue count.** The report scope bar
-  gains a Measure control: switch from "Issue count" to "Story points" and the
-  load and throughput cards — Workflow, By type, By severity, Top assignees, Top
-  labels, and Throughput — re-weight by summed estimate points instead of counting
-  issues, so a 13-point item no longer reads the same as a 3-point one. Issues with
-  no estimate count as zero points, so the toggle never changes which issues are
-  included. Count stays the default, and the risk map, deadlines, and headline
-  tiles remain count-based (REEF-188).
-- **Comments on issues.** Each issue now has a Comments section at the bottom of
-  the detail view: leave a note, see the thread oldest-first with each author and
-  when they wrote it, and edit your own comments (an "edited" marker shows when
-  you do). Comments render markdown — including inline `code` — and `⌘↵` posts
-  without reaching for the mouse. This is the flat first cut; threads, reactions,
-  and a merged comment + activity timeline come later (REEF-062).
-- **Portfolio health now rolls up by parent epic too.** The Reports "Portfolio
-  health" rollup adds a "Parents" dimension alongside milestones, sprints, and
-  releases: every parent issue that has children, ranked worst-first with the
-  same On track / At risk / Off track verdict and a done/total progress bar. The
-  per-epic progress you already see inside an issue's detail sheet now also lifts
-  into a side-by-side portfolio comparison, and clicking a parent scopes the
-  detail charts below to its children (REEF-187).
-- **A personal "My Work" view.** A dedicated `/my-work` page shows the issues
-  assigned to you, automatically scoped to your account — no assignee picker to
-  set. A light summary strip counts your in-progress work, what's due soon, what's
-  overdue, your open work by stage, and your remaining/done in the current sprint;
-  below it, a focus-sorted queue answers "what do I do next" by ordering on
-  urgency, then priority, then how close the work is to active. Switch the queue
-  between one flat priority list and a by-status grouping, and blocked items are
-  flagged so you can skip what you can't start yet. Clean empty and signed-out
-  states round it out. (The sidebar entry point and its attention badge ship
-  separately in REEF-204.) (REEF-181).
-- **At-a-glance portfolio health on Reports.** The Reports page now shows a
-  "Portfolio health" rollup beneath the headline numbers: a worst-first list of
-  your milestones, sprints, and releases, each with a computed On track / At
-  risk / Off track verdict derived from the same signals as the rest of the page
-  — overdue and blocked work, pace against the target date, and a growing
-  backlog (sprints also weigh work done against declared capacity). Switch
-  between the three dimensions with the header toggle, and click any row to
-  scope the detail charts below to that planning item. Shipped milestones,
-  sprints, and releases stay hidden until you toggle them on (REEF-191).
-- **Reef-owned AKB tables now have a guarded schema manifest.** Lazy table
-  provisioning creates the new `reef_comments` and `reef_activity` tables
-  alongside the existing Reef tables, verifies column shapes when AKB returns
-  metadata, and records a `reef_settings.schema_version` stamp only after the
-  desired manifest matches. Creation races now absorb a 409 only when the
-  refreshed table metadata matches the manifest; mismatched existing tables fail
-  hard instead of pretending an unsupported ALTER can repair them (REEF-125).
-- **Manage who's in a workspace, right from Settings.** The Workspace → Members
-  tab now lists everyone with access to the active workspace alongside their
-  role. Admins and owners can add an existing akb user by searching the user
-  directory and picking a role, change a member's role inline, or remove a
-  member — the owner can't be removed, and you can't remove yourself. Writers and
-  readers see the roster read-only. There is no email invite: akb has no
-  invitation flow, so this grants access to people who already have an akb
-  account rather than sending an invitation (REEF-179).
+  gains a Measure control: switch to "Story points" and the load and throughput
+  cards — Workflow, By type, By severity, Top assignees, Top labels, and
+  Throughput — re-weight by summed estimate points instead of counting issues.
+  Issues with no estimate count as zero points, so the toggle never changes which
+  issues are included. Count stays the default; the risk map, deadlines, and
+  headline tiles remain count-based (REEF-188).
+- **"By severity" report card.** Reports gains a By severity breakdown of the
+  in-scope issues, alongside the existing By type, Top assignees, and Top labels
+  cards, and honoring the count/points Measure toggle (REEF-186).
+- **Portfolio health on Reports, including a roll-up by parent epic.** Reports
+  shows a Portfolio health rollup beneath the headline numbers: a worst-first
+  list of your milestones, sprints, releases, and parent epics, each with a
+  computed On track / At risk / Off track verdict from overdue and blocked work,
+  pace against the target date, and backlog growth (sprints also weigh done work
+  against declared capacity). Toggle between the dimensions, and click any row to
+  scope the detail charts below — clicking a parent scopes them to its children.
+  Shipped planning items stay hidden until toggled on (REEF-191, REEF-187).
 
 ### Changed
 
-- **Calmer loading skeletons.** Loading placeholders across the app now read as
-  one quiet light source sweeping across a panel instead of every bar blinking in
-  lockstep, and the issue detail placeholder gives its labels a fainter tone than
-  the values so the hierarchy of the loaded panel is already hinted while it
-  loads. The sweep pauses to a flat, static two-tone for anyone who prefers
-  reduced motion. No new colors, chips, or fonts — just grey (REEF-250).
+- **Calmer loading skeletons.** Loading placeholders now read as one quiet light
+  sweeping across a panel instead of every bar blinking in lockstep, and the
+  issue detail placeholder fades its labels below its values to hint the loaded
+  hierarchy. The sweep flattens to a static two-tone for anyone who prefers
+  reduced motion. No new colors, chips, or fonts (REEF-250).
 - **Snappier editing — changing one issue no longer reloads the whole list.**
   Editing an issue's title, dates, labels, or other non-membership fields now
   updates just that card in place instead of re-fetching and re-rendering the
-  entire board/list. Edits that actually move an issue between filters/columns,
-  change its sort position, or alter its dependencies still refresh the affected
-  views; an active text search refreshes only itself. Switching workspaces or
-  signing out clears the in-memory issue cache (REEF-098).
-- **Faster first load — the rich-text editor now loads on demand.** The markdown
+  whole board/list. Edits that move an issue between filters/columns, change its
+  sort position, or alter its dependencies still refresh the affected views; an
+  active text search refreshes only itself. Switching workspaces or signing out
+  clears the in-memory issue cache (REEF-098).
+- **Faster first load — the rich-text editor loads on demand.** The markdown
   editor and its formatting engine (TipTap/ProseMirror) are no longer part of the
   initial app bundle; they load the first time you open a surface that edits text
-  (creating an issue, editing an issue's description, the planning editor, or a
-  settings template). A height-matched placeholder holds the editor's space while
-  that happens, so the form doesn't jump. Behavior is unchanged once the editor is
-  open (REEF-220).
-- **Clearer GitHub token setup — which scopes, and where to create one.**
-  Onboarding and Settings → Preferences now show the same guidance wherever you
-  paste a monitored-repo Personal Access Token: it is read-only access, use
-  `public_repo` for public repos or `repo` for private ones, and a "Create a
-  token" link opens GitHub's token page with the scope preset. The guidance
-  stays visible even when a token is already saved — so re-issuing one after
-  changing GitHub accounts is no longer guesswork — and the Monitored Repos
-  "Preferences tab" pointer is now an actual link (REEF-236).
-- **Backend logs are now structured via pino, and pretty in development.**
-  Server-side request and error logs are emitted as one JSON line per event in
-  production and as human-readable colorized output when running locally.
-  Credential-bearing headers (`Authorization`, `X-Reef-LLM`, `Cookie`,
-  `Set-Cookie`, `Proxy-Authorization`) are redacted at the logger, and logs
-  emitted inside a request trace now carry the `trace_id`/`span_id` so they line
-  up with the OpenTelemetry spans for that request (REEF-235).
+  (creating or editing an issue, the planning editor, a settings template). A
+  height-matched placeholder holds the editor's space so the form doesn't jump,
+  and behavior is unchanged once it is open (REEF-220).
+- **Clearer GitHub token setup.** Onboarding and Settings → Preferences now show
+  the same guidance wherever you paste a monitored-repo Personal Access Token:
+  it is read-only access, use `public_repo` for public repos or `repo` for
+  private ones, and a "Create a token" link opens GitHub's token page with the
+  scope preset. The guidance stays visible even when a token is already saved
+  (REEF-236).
 - **Settings is now organized into scope-based tabs.** The single long scroll is
-  split into **Workspace**, **Preferences**, and **Deployment** tabs, each its
-  own page — so back/forward, open-in-new-tab, deep-link, and bookmark all work,
-  and adding settings no longer lengthens one screen. The Active Workspace
-  selector lives on the Workspace tab only (it doesn't apply to the
-  browser-local Preferences or operator-managed Deployment), and the Workspace
-  tab itself has **General** and **Members** sub-views governed by that one
-  selector — switching workspace re-scopes both together. Existing settings moved
-  to their matching tab with nothing dropped; the member list arrives later
-  (REEF-183).
+  split into Workspace, Preferences, and Deployment tabs, each its own page — so
+  back/forward, open-in-new-tab, deep-link, and bookmark all work, and adding
+  settings no longer lengthens one screen. The Active Workspace selector lives on
+  the Workspace tab only, which itself has General and Members sub-views governed
+  by that one selector. Existing settings moved to their matching tab with nothing
+  dropped (REEF-183).
 - **The Reports dashboard no longer double-encodes priority and age.** The
-  priority × last-update **Risk map** is now the single home for both axes, so
-  the standalone one-dimensional **By priority** and **Aging** cards it already
-  contained as its row and column totals have been removed. The Risk map is also
-  labelled as covering open work, so its counts can't be mistaken for the
-  in-scope total (REEF-184).
+  priority × last-update Risk map is now the single home for both axes, so the
+  standalone one-dimensional By priority and Aging cards (which it already
+  contained as its row and column totals) have been removed. The Risk map is
+  labelled as covering open work, so its counts can't be mistaken for the in-scope
+  total (REEF-184).
+- **The Reports Period control now clearly scopes only the throughput window.**
+  Period re-scopes the Throughput series (its sample window) rather than appearing
+  to drive the whole page, and the load cards now label their populations — "In
+  scope" on By type, "Open work" on Deadlines — so it's clear which numbers a
+  period change does and doesn't move (REEF-185).
+- **Unified visual language across Reports.** The dashboard's cards share one
+  render vocabulary — neutral grey heat ramps (brand color reserved for quantity),
+  consistent bars, and uniform card framing — and the risk matrix renders as a
+  semantic table. Motion respects reduced-motion. Render-only; no metric changed
+  (REEF-248).
 - **Global search (⌘K) results are now real links.** Each result row links
   directly to the issue, so Cmd/Ctrl-click, middle-click, and right-click → "Open
-  in new tab" all work as expected; keyboard selection is unchanged. The palette
-  also reads better with assistive technology — the search box has an explicit
-  label, status changes ("Searching…", "No matching issues.") are announced, and
-  the results list no longer scroll-chains the page behind it. The duplicate
-  close ✕ that overlapped the search box is gone (Esc still closes), and issue
-  ids are no longer altered by browser auto-translation (REEF-221).
+  in new tab" all work; keyboard selection is unchanged. The palette also reads
+  better with assistive technology — the search box has an explicit label, status
+  changes are announced, and the results list no longer scroll-chains the page
+  behind it. The duplicate close ✕ is gone (Esc still closes), and issue ids are
+  no longer altered by browser auto-translation (REEF-221).
 
 ### Fixed
 
@@ -178,78 +152,89 @@ explicitly in the entries below.
   Issues, My Work, Planning, Reports, Activity, or Settings — or following a deep
   link to an issue — now paints that page's skeleton (its board columns, summary
   tiles, cards, or rows under the real header and sidebar) from the first frame,
-  instead of leaving the content area empty until the data arrived. Each route
-  also shows the same skeleton the instant it is opened from the sidebar, and the
-  deployment AI-status, workspace-instructions, and GitHub-token settings rows
-  show a small placeholder while they resolve rather than a line of "Checking…"
-  text (REEF-255).
+  instead of leaving the content area empty until the data arrived. The same
+  skeleton also shows the instant a route is opened from the sidebar (REEF-255).
 - **Scrolling a page to its end no longer drags the sidebar along.** When the
-  body of a page (Reports, My Work, Activity, Planning, the issues list, Backlog)
-  is scrolled to its top or bottom edge, continuing to scroll in the same
-  direction is now absorbed by the body instead of chaining out to the document
-  and rubber-banding the whole shell — including the fixed left sidebar — on
-  macOS trackpad/wheel overscroll (REEF-254).
+  body of a page is scrolled to its top or bottom edge, continuing to scroll in
+  the same direction is now absorbed by the body instead of chaining out to the
+  document and rubber-banding the whole shell — including the fixed left sidebar —
+  on macOS trackpad/wheel overscroll (REEF-254).
 - **The issue editor's loading skeleton now matches the panel's shape.** While an
-  issue loads, the placeholder mirrors the real layout component-for-component —
-  the header row, the main title and description canvas, and the property rail
-  with its Details, People, and Planning sections — instead of one full-panel
-  block that rearranged into a different structure the moment the issue appeared
-  (REEF-249).
+  issue loads, the placeholder mirrors the real layout — the header row, the title
+  and description canvas, and the property rail with its Details, People, and
+  Planning sections — instead of one full-panel block that rearranged into a
+  different structure the moment the issue appeared (REEF-249).
 - **Disconnecting a GitHub token no longer signs you out.** On Settings →
   Preferences, the GitHub token "Disconnect" action now removes only the
-  browser-local token and returns to the token-entry form. It no longer ends your
-  workspace session or bounces you to the login screen — signing out of the
-  workspace stays a separate action in the sidebar account menu (REEF-247).
+  browser-local token and returns to the token-entry form; it no longer ends your
+  workspace session or bounces you to the login screen (REEF-247).
+- **Editing an issue no longer silently overwrites a change made outside it.**
+  Opening an issue card now always re-reads the latest from the workspace, so an
+  edit made elsewhere (the akb tools, another tab) shows up instead of a stale
+  cached copy. If the body, title, labels, or relations changed after you opened
+  the card, saving surfaces a retryable save conflict — your view refreshes and
+  you can re-apply — rather than quietly replacing their change. Plain table
+  fields keep their per-field server merge (REEF-227).
 - Planning filters for Sprint, Milestone, and Release no longer squeeze long
-  selected names into narrow controls. Empty filters stay compact, selected long
-  names grow to a bounded readable width, dropdown panels open wide enough to
-  distinguish names and badges, and the Reports scope bar now wraps planning
-  controls onto readable tracks instead of collapsing them into narrow columns
-  (REEF-246).
-- Opening an issue from the **List**, **Timeline**, or **Backlog** tab no longer
-  flips the background to the Board. Clicking an issue now keeps the tab (and any
-  active filters/sort) you were on while the detail sheet slides over, and
-  closing it returns you to that same tab. Typing or refreshing a
-  `/issues/REEF-XXX` deep link still opens over the Board as before (REEF-222).
-- Editing an issue in the web app no longer silently overwrites a change made
-  outside it. Opening an issue card now always re-reads the latest from the
-  workspace, so an edit made elsewhere (the akb tools, another tab) shows up
-  instead of a stale cached copy. If someone changed the body, title, labels, or
-  relations after you opened the card, saving now surfaces a retryable save
-  conflict — your view is refreshed and you can re-apply — rather than quietly
-  replacing their change. Plain table fields (status, priority, assignee, …)
-  keep their per-field server merge (REEF-227).
-- The built-in workspace agent playbook now guards three issue-creation
-  pitfalls so an agent following it can no longer leave a malformed or
-  invisible issue: it surfaces the parent link so an issue filed under an epic
-  is attached rather than orphaned, requires a fully-formed timestamp on status
-  changes so a status edit can't silently drop the issue off the board, and
-  explains how to spot and repair a saved issue that a malformed field is
-  hiding. Existing workspaces are offered the updated playbook from Settings
-  (REEF-224).
-- The built-in workspace agent playbook now covers reading an issue's activity
-  history and reading, writing, and editing its comments. An agent operating a
-  workspace through the akb tools can answer "what changed on this issue" from
-  the activity timeline and work with comment threads, where before the playbook
-  only documented how activity events are written — not how to read them back, or
-  how to handle comments at all. The data-model reference also now lists the
-  `reef_comments` and `reef_activity` tables it had been silently relying on.
-  Existing workspaces are offered the updated playbook from Settings (REEF-252).
+  selected names into narrow controls. Empty filters stay compact, selected names
+  grow to a bounded readable width, dropdown panels open wide enough to read, and
+  the Reports scope bar wraps planning controls onto readable tracks (REEF-246).
+- Opening an issue from the List, Timeline, or Backlog tab no longer flips the
+  background to the Board. The tab (and any active filters/sort) you were on is
+  preserved while the detail sheet slides over, and closing it returns you there.
+  A typed or refreshed `/issues/REEF-XXX` deep link still opens over the Board
+  (REEF-222).
 - **Focus outlines on form fields are no longer shaved off on the left and
-  right.** When you focused a field inside a column that hides horizontal
-  overflow — most visibly the Title field on the issue edit screen — the teal
-  focus border was clipped on its left and right edges while the top and bottom
-  stayed intact. The border now shows on all four sides, and long content is
-  still kept from widening the column. Focus rings across the edit, settings,
-  sidebar, and activity surfaces also behave consistently now: they appear on
-  keyboard focus only (no flash on a mouse click) and share one color and weight
-  (REEF-226).
+  right.** Focusing a field inside a column that hides horizontal overflow — most
+  visibly the Title field on the issue edit screen — clipped the teal focus
+  border on its left and right edges; it now shows on all four sides while still
+  keeping long content from widening the column. Focus rings across the edit,
+  settings, sidebar, and activity surfaces are consistent now too: keyboard focus
+  only (no flash on a mouse click), one color and weight (REEF-226).
 - **The sidebar footer workspace and account triggers now show a focus ring for
-  keyboard users.** Tabbing onto either trigger previously gave no visible
-  indication; both now draw the same focus-visible ring used elsewhere. The
-  workspace switcher's search field also opts out of password-manager and
-  spellcheck prompts and uses a proper ellipsis (…) placeholder, and menu items
-  highlight on keyboard focus only (REEF-172).
+  keyboard users.** Both draw the same focus-visible ring used elsewhere, the
+  workspace switcher's search field opts out of password-manager and spellcheck
+  prompts with a proper ellipsis (…) placeholder, and menu items highlight on
+  keyboard focus only (REEF-172).
+- The built-in workspace agent playbook now guards three issue-creation pitfalls:
+  it surfaces the parent link so an issue filed under an epic is attached rather
+  than orphaned, requires a fully-formed timestamp on status changes so an edit
+  can't silently drop the issue off the board, and explains how to spot and repair
+  a saved issue that a malformed field is hiding. Existing workspaces are offered
+  the updated playbook from Settings (REEF-224).
+- The built-in workspace agent playbook now covers reading an issue's activity
+  history and reading, writing, and editing its comments, and its data-model
+  reference lists the `reef_comments` and `reef_activity` tables. An agent
+  operating a workspace through the akb tools can now answer "what changed on this
+  issue" and work with comment threads. Existing workspaces are offered the
+  updated playbook from Settings (REEF-252).
+
+### Migration
+
+- New AKB tables `reef_comments` and `reef_activity` back issue comments and the
+  activity log. Both are provisioned lazily by `ensureReefTables` and verified
+  against a guarded schema manifest stamped in `reef_settings.schema_version`: new
+  vaults get them at workspace creation, existing vaults on first comment or event
+  write. No manual akb migration is required (REEF-062, REEF-063, REEF-125).
+- The Reef vault skill / runbook documents were updated (now version 13) to
+  document comment and activity read/write, the new tables, and the three
+  issue-creation guards. New vaults install the current documents at creation;
+  existing vaults should rerun vault skill installation (offered from Settings)
+  before relying on generic AKB agents for comments or activity (REEF-126,
+  REEF-224, REEF-252).
+- The persisted client query cache buster was bumped to `reef-cache-v5`. Stale
+  cached issue snapshots are discarded on first load; no user action is required
+  (REEF-098).
+
+### Operational
+
+- Backend request and error logs are now structured as one JSON line per event in
+  production (pretty colorized output when running locally) via pino.
+  Credential-bearing headers (`Authorization`, `X-Reef-LLM`, `Cookie`,
+  `Set-Cookie`, `Proxy-Authorization`) are redacted at the logger, and logs
+  emitted inside a request trace carry the `trace_id`/`span_id` so they line up
+  with the OpenTelemetry spans for that request. Operators parsing reef-web logs
+  should expect JSON; no other deploy action is required (REEF-235).
 
 ## v0.4.0 - 2026-06-12
 
