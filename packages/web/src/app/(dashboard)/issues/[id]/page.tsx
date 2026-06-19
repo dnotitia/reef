@@ -2,6 +2,7 @@
 
 import { IssueDetailSheet } from "@/features/issues/components/detail/IssueDetailSheet";
 import { IssuesWorkspace } from "@/features/issues/components/filters/IssuesWorkspace";
+import { IssuesWorkspaceSkeleton } from "@/features/issues/components/filters/IssuesWorkspaceSkeleton";
 import { useHydrated } from "@/lib/useHydrated";
 import { useRouter } from "next/navigation";
 import { Suspense, use } from "react";
@@ -41,7 +42,7 @@ export default function IssuePage({ params }: IssuePageProps) {
 
   return (
     <>
-      <Suspense>
+      <Suspense fallback={<IssuesWorkspaceSkeleton />}>
         <IssuesWorkspace />
       </Suspense>
       {mounted && (

@@ -43,7 +43,7 @@ describe("AiConfigurationStatus", () => {
     expect(screen.getByText(/This deployment needs/)).toBeInTheDocument();
   });
 
-  it("uses a typographic ellipsis in the loading text (REEF-151)", () => {
+  it("renders a skeleton placeholder while the status is loading (REEF-255)", () => {
     useAiAvailableMock.mockReturnValue({
       isAvailable: false,
       isLoading: true,
@@ -53,6 +53,9 @@ describe("AiConfigurationStatus", () => {
 
     render(<AiConfigurationStatus />);
 
-    expect(screen.getByText("Checking AI status…")).toBeInTheDocument();
+    // The loading state is a skeleton matching the resolved status line, not the
+    // old bare "Checking AI status…" text (REEF-255).
+    expect(screen.getByTestId("ai-status-skeleton")).toBeInTheDocument();
+    expect(screen.queryByText("Checking AI status…")).not.toBeInTheDocument();
   });
 });

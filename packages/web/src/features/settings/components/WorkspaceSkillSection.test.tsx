@@ -138,13 +138,16 @@ describe("WorkspaceSkillSection", () => {
     expect(mutate).toHaveBeenCalledTimes(1);
   });
 
-  it("shows a loading state while the status is in flight", () => {
+  it("renders a skeleton placeholder while the status is in flight (REEF-255)", () => {
     setup({ statusLoading: true });
 
     render(<WorkspaceSkillSection />);
 
+    // The loading state is a skeleton matching the resolved two-line block, not
+    // the old bare "Checking workspace instructions…" text (REEF-255).
+    expect(screen.getByTestId("workspace-skill-skeleton")).toBeInTheDocument();
     expect(
-      screen.getByText("Checking workspace instructions…"),
-    ).toBeInTheDocument();
+      screen.queryByText("Checking workspace instructions…"),
+    ).not.toBeInTheDocument();
   });
 });

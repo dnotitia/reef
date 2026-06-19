@@ -1,5 +1,6 @@
 "use client";
 
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAiAvailable } from "@/features/settings/hooks/useAiAvailable";
 
 export function AiConfigurationStatus() {
@@ -7,7 +8,9 @@ export function AiConfigurationStatus() {
   const providerLabel = provider === "openrouter" ? "OpenRouter" : provider;
 
   if (isLoading) {
-    return <p className="text-sm text-muted-foreground">Checking AI status…</p>;
+    // Placeholder for the resolved status line (dot + provider · model), so the
+    // panel reads as loading rather than a bare text line (REEF-255).
+    return <Skeleton data-testid="ai-status-skeleton" className="h-4 w-44" />;
   }
 
   if (!isAvailable) {

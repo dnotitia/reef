@@ -1,6 +1,7 @@
 "use client";
 
 import { GithubScopeHint } from "@/components/GithubScopeHint";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PreferencesSection } from "@/features/preferences/components/PreferencesSection";
 import { SettingsGroup } from "@/features/settings/components/SettingsGroup";
 import {
@@ -106,9 +107,10 @@ export default function PreferencesPage() {
         <GithubScopeHint className="text-xs" />
 
         {status === "unknown" && (
-          <p className="text-sm text-muted-foreground">
-            Checking token status…
-          </p>
+          // Placeholder for the resolved token-status line while the IndexedDB
+          // read settles, matching the app's skeleton loading language
+          // (REEF-255).
+          <Skeleton data-testid="token-status-skeleton" className="h-4 w-48" />
         )}
 
         {status === "configured" && (
