@@ -1,0 +1,31 @@
+# REEF-056 — thin reef-owned override layered on akb's OWN docker-compose.
+#
+# reef does NOT re-spell akb's service topology (postgres + pgvector, minio,
+# vector store) — akb owns that recipe and we consume it by checking the akb
+# repo out at a pinned ref and pointing `-f` at its compose. This override adds
+# only what the live-contract CI job needs on top:
+#
+#   - a `backend` healthcheck so `docker compose up --wait` blocks until akb's
+#     HTTP API actually answers. akb's base compose healthchecks postgres and
+#     minio but NOT backend, so without this `--wait` returns before the API is
+#     reachable and the smoke races the boot.
+#
+# akb's base compose already maps backend 8000:8000 to the host, so the live
+# smoke reaches it at http://localhost:8000. Usage (see the CI job):
+#   docker compose -f .akb-live/docker-compose.yaml -f ci/akb-live.override.yml \
+#     up -d --build --wait backend
+services:
+  backend:
+    healthcheck:
+      # akb's backend is a Python image (no curl); urllib is always present.
+      test:
+        [
+          "CMD",
+          "python3",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/openapi.json')",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s

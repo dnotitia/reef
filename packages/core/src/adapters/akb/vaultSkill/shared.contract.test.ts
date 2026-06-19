@@ -23,6 +23,9 @@ import {
  * (akb 0.1.0, OpenAPI 3.1) at localhost:8000, vault `reef`, JWT-authenticated:
  *   - DOC_GET_CAPTURE / SQL_QUERY_CAPTURE / SQL_MUTATION_CAPTURE /
  *     SEARCH_ENVELOPE_CAPTURE are verbatim live responses.
+ *   - DOC_GET_CAPTURE refreshed 2026-06-19: akb 0.1.0 grew a `created_by_name`
+ *     field within the same version string, caught by REEF-056's live contract
+ *     smoke (`core/__tests__/integration/akb-live.contract.test.ts`).
  *   - DOC_PUT_FROM_SOURCE and SEARCH_HIT_FROM_SOURCE are NOT live: POST/PATCH
  *     mutate state, and search returned 0 hits for the test vault, so these two
  *     are synthesized from akb's serialization source (backend/app/models/
@@ -60,6 +63,7 @@ describe("DocumentResponseSchema contract", () => {
     summary: "Testing",
     domain: null,
     created_by: "jylkim",
+    created_by_name: null,
     created_at: "2026-05-20T05:25:00.025473Z",
     updated_at: "2026-05-20T05:25:00.025473Z",
     current_commit: "76c72531a7709aff0453696de3d34f11736c8079",
@@ -80,7 +84,7 @@ describe("DocumentResponseSchema contract", () => {
     expect(parsed.tags).toEqual(["feat"]);
   });
 
-  it("silently strips akb keys reef does not mirror (content_hash, hash_algorithm, metadata_is_current)", () => {
+  it("silently strips akb keys reef does not mirror (content_hash, created_by_name, hash_algorithm, metadata_is_current)", () => {
     // akb sends these on every document GET — even without a `version` param.
     expect(DOC_GET_CAPTURE).toHaveProperty("content_hash");
     expect(DOC_GET_CAPTURE).toHaveProperty("metadata_is_current");
@@ -93,9 +97,17 @@ describe("DocumentResponseSchema contract", () => {
     expect(parsed).not.toHaveProperty("hash_algorithm");
     expect(parsed).not.toHaveProperty("metadata_is_current");
     // Pin the dropped set: if akb adds another field, this fails and we decide.
+    // `created_by_name` was added by REEF-056's live smoke (akb 0.1.0 grew it
+    // after the 2026-06-04 capture); reef consciously does not mirror the doc
+    // author display name, so it stays in the stripped set.
     expect(
       strippedKeys(DOC_GET_CAPTURE, Object.keys(DocumentResponseSchema.shape)),
-    ).toEqual(["content_hash", "hash_algorithm", "metadata_is_current"]);
+    ).toEqual([
+      "content_hash",
+      "created_by_name",
+      "hash_algorithm",
+      "metadata_is_current",
+    ]);
   });
 
   it("throws when a required key is renamed (REEF-049 class drift)", () => {
