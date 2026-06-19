@@ -130,7 +130,9 @@ export function TimelineBody({ vault }: TimelineBodyProps) {
   // without a relations mock). Mirrors KanbanBoard / IssueListTable.
   const graph = relations ?? allIssues;
   const visibleIssues = useMemo(() => {
-    const filtered = filterIssues(allIssues, filter);
+    const filtered = filterIssues(allIssues, filter, {
+      searchActive: searchQuery.trim().length > 0,
+    });
     const searched = searchIssues(filtered, searchQuery);
     const depFiltered = applyDependencyFilter(
       searched,

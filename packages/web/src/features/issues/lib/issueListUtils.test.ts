@@ -367,6 +367,35 @@ describe("filterIssues — stale resolved auto-hide (REEF-275)", () => {
       expect(filterIssues(noAnchor, {})).toHaveLength(1);
     });
   });
+
+  it("surfaces a stale issue when an in-view search is active (recoverability)", () => {
+    withFixedNow(() => {
+      const staleDone = [
+        makeIssue({
+          id: "REEF-905",
+          status: "done",
+          last_status_change: ago(60),
+        }),
+      ];
+      expect(filterIssues(staleDone, {})).toHaveLength(0);
+      expect(filterIssues(staleDone, {}, { searchActive: true })).toHaveLength(
+        1,
+      );
+    });
+  });
+
+  it("keeps archived hidden even under an active search (explicit hide, unlike the passive stale auto-hide)", () => {
+    const archivedDone = [
+      makeIssue({
+        id: "REEF-906",
+        status: "done",
+        archived_at: "2020-01-01T00:00:00.000Z",
+      }),
+    ];
+    expect(filterIssues(archivedDone, {}, { searchActive: true })).toHaveLength(
+      0,
+    );
+  });
 });
 
 describe("searchIssues", () => {

@@ -94,7 +94,9 @@ export function IssueListTable({ vault }: IssueListTableProps) {
   // the displayed set until it loads (or in tests without a relations mock).
   const graph = relations ?? allIssues;
   const sorted = useMemo(() => {
-    const filtered = filterIssues(allIssues, filter);
+    const filtered = filterIssues(allIssues, filter, {
+      searchActive: searchQuery.trim().length > 0,
+    });
     const searched = searchIssues(filtered, searchQuery);
     const depFiltered = applyDependencyFilter(
       searched,
