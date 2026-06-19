@@ -19,6 +19,13 @@ explicitly in the entries below.
   the parent in one click, mirroring how the Sub-issues list already navigates
   down to children. The `Parent` field under Relationships stays edit-only for
   reassigning, and the breadcrumb is hidden for top-level issues (REEF-266).
+- **The Close issue reason picker no longer looks broken.** When you close an
+  issue, the selected close reason now reads as one clean line on the picker —
+  left-aligned with the dropdown's option labels — instead of the squished,
+  misaligned two-line value it showed before. The dropdown still lists each
+  reason with its helper line. The dialog also drops a redundant "Closed" chip
+  and adopts the same width and field framing as the Delete and planning dialogs
+  (REEF-272).
 ### Changed
 
 - **Reports names its workspace, like every other page.** The Reports header now
