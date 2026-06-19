@@ -5,11 +5,11 @@ import { PageBody } from "./PageBody";
 
 describe("PageBody", () => {
   // This is the runnable done-check for REEF-254: the overscroll-chaining bug is
-  // a CSS/layout behavior jsdom cannot measure, so we pin the structural cause
-  // instead — the scroll container must declare `overscroll-contain` so a scroll
+  // a CSS/layout behavior jsdom does not measure, so we pin the structural cause
+  // instead — the scroll container declares `overscroll-contain` so a scroll
   // at the body edge is absorbed rather than chaining out to the fixed shell
   // (and dragging the left sidebar) on macOS trackpad/wheel overscroll.
-  it("contains overscroll on the scroll container so it cannot chain to the shell", () => {
+  it("contains overscroll on the scroll container so it does not chain to the shell", () => {
     const { container } = render(
       <PageBody>
         <p>body content</p>

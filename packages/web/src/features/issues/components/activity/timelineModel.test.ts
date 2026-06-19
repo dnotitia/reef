@@ -150,7 +150,7 @@ describe("buildEntries — merge-sort (AC1)", () => {
 
   it("does not render impl_ref_linked as its own row — the delivery line is reconstructed (AC4)", () => {
     // The issue carries the ref, so reconstructEvents emits exactly one delivery
-    // row for it; the impl_ref_linked activity row must NOT add a second.
+    // row for it; the impl_ref_linked activity row should not add a second.
     const issue = makeIssue({
       implementation_refs: [
         { type: "pull_request", repo: "o/r", ref: "25", actor: "carol" },

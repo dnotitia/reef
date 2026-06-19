@@ -4,8 +4,8 @@ import { pmModelContent } from "./pmModel";
 /**
  * Contract regression for the PM data-model manifest (REEF-252). issue-workflows.md
  * instructs agents to INSERT into reef_activity and comments-and-activity.md to
- * read/write reef_comments, so both tables must appear in the data-model manifest
- * — otherwise an agent told to use a table it cannot find in pm-model.md hits a
+ * read/write reef_comments, so both tables need entries in the data-model manifest
+ * — otherwise an agent told to use a table absent from pm-model.md hits a
  * documented-vs-reality gap. These assertions pin that the manifest lists both
  * tables and their columns.
  */

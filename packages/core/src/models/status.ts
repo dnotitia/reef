@@ -98,14 +98,14 @@ export function isResolvedStatus(status: Status): boolean {
 
 /**
  * Auto-hide windows for resolved issues, in milliseconds (REEF-275). A resolved
- * issue drops out of the default board/list once it has sat in its terminal
+ * issue drops out of the default board/list once it has sat in its resolved
  * state longer than its bucket's window — recently-resolved work stays visible,
- * older work is tucked away (but never deleted; it stays searchable and
+ * older work is tucked away (while staying searchable and
  * deep-linkable). Mirrors Linear's auto-archive defaults: completed work lingers
  * ~a month, abandoned (canceled) work clears in a week.
  *
  * The bucket is by completion *semantics*, not raw status (see `isStaleResolved`):
- * a `done` issue, or a `closed` one with reason `completed`, is "completed"; every
+ * a `done` issue, or a `closed` one with reason `completed`, is "completed"; other
  * other close reason (or none) is "canceled" and clears faster.
  */
 export const STALE_COMPLETED_WINDOW_MS = 28 * 24 * 60 * 60 * 1000;
@@ -117,11 +117,11 @@ export const STALE_CANCELED_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
  * caller injects `now` (client `Date.now()`, mirroring the `due` facet) so the
  * staleness is recomputed on every render with no stored flag and no scheduler.
  *
- * The anchor is `lastStatusChange` — the moment the issue entered its terminal
- * state, which any status write stamps (and a reopen clears, surfacing the issue
+ * The anchor is `lastStatusChange` — the moment the issue entered its resolved
+ * state, which any status write stamps (and moving it active clears, surfacing the issue
  * again). `closed_at` would miss `done`, so the unified status-change timestamp
  * is used for both buckets. An active (non-resolved) status, or a missing /
- * unparseable anchor, is never stale — it stays visible.
+ * unparseable anchor, is treated as visible.
  */
 export function isStaleResolved(params: {
   status: Status;

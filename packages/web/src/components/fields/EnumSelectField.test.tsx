@@ -72,7 +72,7 @@ describe("EnumSelectField renderValue split (REEF-272)", () => {
       />,
     );
 
-    // The trigger shows the compact, single-line renderValue — never the
+    // The trigger shows the compact, single-line renderValue instead of the
     // two-line renderItem hint that used to squish in the single-line slot.
     const trigger = screen.getByTestId("status-select");
     expect(trigger).toHaveTextContent("value:In Progress");

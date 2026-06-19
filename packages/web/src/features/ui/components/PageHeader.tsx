@@ -11,7 +11,7 @@ interface PageHeaderProps {
    * translate="no" so machine translation leaves it intact (matching the
    * scope-name span in SettingsGroup). Pass a node when the subtitle mixes an
    * identifier with translatable prose (My Work's `@login · N open`) and wrap
-   * only the identifier portion in translate="no" yourself, so the prose still
+   * the identifier portion in translate="no" yourself, so the prose still
    * translates (REEF-260).
    */
   description?: React.ReactNode;

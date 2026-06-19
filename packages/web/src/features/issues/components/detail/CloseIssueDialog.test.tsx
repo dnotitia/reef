@@ -27,7 +27,7 @@ describe("CloseIssueDialog (REEF-272)", () => {
   it("shows the selected reason as a single-line label on the trigger, without the hint", () => {
     renderDialog();
 
-    // Default reason is "completed": the trigger shows the label only — the
+    // Default reason is "completed": the trigger shows the label while the
     // two-line hint that used to squish in the single-line slot stays out.
     const trigger = screen.getByTestId("closed-reason-select");
     expect(trigger).toHaveTextContent("Completed");
@@ -39,7 +39,7 @@ describe("CloseIssueDialog (REEF-272)", () => {
     renderDialog();
 
     await user.click(screen.getByTestId("closed-reason-select"));
-    // The hint only ever lives in the dropdown option, never on the trigger.
+    // The hint lives in the dropdown option, outside the trigger.
     expect(
       await screen.findByText("The work is finished and accepted."),
     ).toBeInTheDocument();
@@ -60,7 +60,7 @@ describe("CloseIssueDialog (REEF-272)", () => {
     renderDialog();
 
     // The header now mirrors DeleteIssueDialog / PlanningEditorDialog: title +
-    // description only, with no standalone "Closed" status chip above the title.
+    // description, with no standalone "Closed" status chip above the title.
     expect(screen.queryByText("Closed", { exact: true })).toBeNull();
 
     // The single field is a plain label + control stack, not a tinted-border

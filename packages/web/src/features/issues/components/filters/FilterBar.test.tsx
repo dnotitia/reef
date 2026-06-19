@@ -362,10 +362,10 @@ describe("FilterBar", () => {
     }
   });
 
-  // REEF-269: the multi-select facet chips are NOT value fields — they keep the
+  // REEF-269: the multi-select facet chips are separate from value fields — they keep the
   // auto-width "hug the label" vocabulary (CBX_TRIGGER_CHIP is inline-flex with
-  // no width token) and must not adopt the value-field width policy. Nail it down
-  // so a future "unify all the comboboxes" pass can't sweep the chips in too.
+  // no width token) and should not adopt the value-field width policy. Pin it down
+  // so a future "unify all the comboboxes" pass leaves the chips out.
   it("keeps the facet chips auto-width, not the value-field token (REEF-269)", () => {
     renderFilterBar();
     for (const testId of [

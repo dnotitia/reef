@@ -237,7 +237,7 @@ describe("ActivityTimeline — field-change rows (REEF-276)", () => {
     expect(text).toContain("bob");
     expect(text).toMatch(/priority/i);
     expect(text).toContain("High");
-    // The planning kind is named in text (a11y); the raw id is never rendered.
+    // The planning kind is named in text (a11y); the raw id is omitted.
     expect(text).toContain("sprint");
     expect(text).not.toContain("spr-secret-id");
   });

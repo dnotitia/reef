@@ -30,7 +30,7 @@ describe("root skill — authoring language (REEF-136)", () => {
   });
 });
 
-// REEF-252: the always-loaded skill must expose the activity-history and comment
+// REEF-252: the root skill exposes the activity-history and comment
 // paths so an agent asked "show the history" or "add a comment" is routed to the
 // comments-and-activity runbook instead of improvising.
 describe("root skill — history and comment routing (REEF-252)", () => {

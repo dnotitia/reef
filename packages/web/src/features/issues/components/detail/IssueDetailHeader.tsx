@@ -54,7 +54,7 @@ export function IssueDetailHeader({
   allIssues: readonly IssueListItem[];
 }) {
   // Resolve the parent from the already-loaded list (no network request); a set
-  // parent_id that is absent from the list still renders id-only (REEF-266).
+  // parent_id that is absent from the list still renders by id (REEF-266).
   const parent = useMemo(
     () =>
       parentId
@@ -73,9 +73,9 @@ export function IssueDetailHeader({
       <div className="flex min-w-0 flex-1 items-center gap-2 text-xs">
         {/* Parent breadcrumb (REEF-266) — a click-through link up to the parent,
             placed before the current issue. This is *navigation*; the
-            Relationships `Parent` combobox stays *reassignment*, so the two never
+            Relationships `Parent` combobox stays *reassignment*, so the two do not
             duplicate-encode the parent identity. Hidden for a top-level issue.
-            Only the parent's title truncates; the current-issue cluster stays
+            The parent's title truncates; the current-issue cluster stays
             fully visible (Linear truncates the parent name, not the current id). */}
         {parentId ? (
           <nav
