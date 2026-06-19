@@ -29,3 +29,28 @@ describe("root skill — authoring language (REEF-136)", () => {
     );
   });
 });
+
+// REEF-252: the always-loaded skill must expose the activity-history and comment
+// paths so an agent asked "show the history" or "add a comment" is routed to the
+// comments-and-activity runbook instead of improvising.
+describe("root skill — history and comment routing (REEF-252)", () => {
+  const content = rootSkillContent("reef-test");
+
+  it("links the comments-and-activity runbook in the runbook list", () => {
+    expect(content).toContain(
+      "akb://reef-test/doc/overview/reef/comments-and-activity.md",
+    );
+  });
+
+  it("routes an issue-history request to the comments-and-activity runbook", () => {
+    expect(content).toMatch(
+      /Read an issue's history[\s\S]*comments-and-activity\.md[\s\S]*reef_activity/,
+    );
+  });
+
+  it("routes a comment request to the comments-and-activity runbook", () => {
+    expect(content).toMatch(
+      /Read or write comments[\s\S]*comments-and-activity\.md[\s\S]*reef_comments/,
+    );
+  });
+});

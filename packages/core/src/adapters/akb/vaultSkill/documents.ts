@@ -1,4 +1,5 @@
 import { activityInboxWorkflowsContent } from "./content/activityInboxWorkflows";
+import { commentsAndActivityContent } from "./content/commentsAndActivity";
 import { conversationalPlaybookContent } from "./content/conversationalPlaybook";
 import { githubActivityScanContent } from "./content/githubActivityScan";
 import { issueWorkflowsContent } from "./content/issueWorkflows";
@@ -62,6 +63,17 @@ export function buildReefVaultSkillDocuments(
       summary:
         "How to create, update, transition, complete, and close Reef issues.",
       content: issueWorkflowsContent(),
+    },
+    {
+      path: docPath(runbookCollection, "comments-and-activity"),
+      collection: runbookCollection,
+      slug: "comments-and-activity",
+      title: "Reef Comments and Activity History",
+      type: "reference",
+      tags: RUNBOOK_TAGS,
+      summary:
+        "How to read an issue's activity timeline and read, write, and edit its comments.",
+      content: commentsAndActivityContent(),
     },
     {
       path: docPath(runbookCollection, "conversational-playbook"),

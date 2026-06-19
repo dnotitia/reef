@@ -118,10 +118,10 @@ describe("installReefVaultSkill", () => {
 
     await installReefVaultSkill({ adapter: makeAdapter(), vault: "reef-new" });
 
-    // 7 document upserts, then the version stamp (listTables + DELETE + INSERT).
-    expect(calls).toHaveLength(10);
+    // 8 document upserts, then the version stamp (listTables + DELETE + INSERT).
+    expect(calls).toHaveLength(11);
     expect(
-      calls.slice(0, 7).every((call) => call.init?.method === "PATCH"),
+      calls.slice(0, 8).every((call) => call.init?.method === "PATCH"),
     ).toBe(true);
     expect(calls[0].url).toBe(
       "https://akb.test/api/v1/documents/reef-new/overview/vault-skill.md",
@@ -142,9 +142,9 @@ describe("installReefVaultSkill", () => {
     await installReefVaultSkill({ adapter: makeAdapter(), vault: "reef-new" });
 
     // The stamp runs last so a partial document failure leaves the old version.
-    const listTables = calls[7];
-    const del = calls[8];
-    const insert = calls[9];
+    const listTables = calls[8];
+    const del = calls[9];
+    const insert = calls[10];
     expect(listTables.url).toBe("https://akb.test/api/v1/tables/reef-new");
     expect(del.url).toBe("https://akb.test/api/v1/tables/reef-new/sql");
     expect(String(bodyOf(del).sql)).toContain("DELETE FROM reef_settings");

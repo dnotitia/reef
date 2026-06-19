@@ -13,6 +13,8 @@ This vault, ${vault}, stores Reef PM work as AKB documents plus AKB tables.
 - reef_releases: release metadata.
 - reef_activity_suggestions: AI activity inbox projection.
 - reef_templates: issue templates.
+- reef_comments: per-issue discussion thread (one row per comment).
+- reef_activity: per-issue immutable activity/audit log (one row per recorded change).
 
 ## Querying Reef tables with akb_sql
 
@@ -31,6 +33,28 @@ severity is for bugs and uses blocker, critical, major, minor, trivial; it descr
 AKB manages id, created_at, updated_at, and created_by automatically. Never set them. Any UPDATE on the row bumps updated_at for free, so a plain SQL UPDATE is enough to record a change.
 
 The reef_issues row is the source of truth for status and every queryable field. A document without a matching row is invisible to the board.
+
+## reef_comments columns
+
+reef_comments stores an issue's discussion thread, one row per comment. Columns:
+
+- reef_id: the issue the comment belongs to.
+- body: the comment's markdown text.
+- meta (json): {author, created_at, edited_at}. author is the reef-semantic actor (akb username) who wrote the comment; created_at is the ISO-8601 write time and the thread's sort key; edited_at is the ISO-8601 of the last body edit, or null when never edited. As with reef_issues, the author and timestamps live in meta -- NOT in akb's auto created_by/created_at columns.
+
+AKB manages id (the comment's uuid), created_at, updated_at, and created_by automatically; never set them. See comments-and-activity.md for the read, write, and edit procedures.
+
+## reef_activity columns
+
+reef_activity is an issue's immutable, append-only audit history, one row per recorded change (the board timeline reads it). Columns:
+
+- reef_id: the issue the event belongs to.
+- event_type: which kind of change -- status_change, assignee_change, priority_change, planning_link, or impl_ref_linked.
+- event_key: the idempotency key, so the same logical change retried does not double a row.
+- payload (json): event-specific data, for example {from,to} for a status_change. The exact shape per event_type is in comments-and-activity.md.
+- meta (json): {actor, at, source}. actor is the reef-semantic actor who caused the event; at is the ISO-8601 event time and sort key; source is the trigger provenance or null. As with reef_comments, these live in meta, not akb's auto columns.
+
+Append-only: rows are written only as a side effect of a lifecycle change (see issue-workflows.md) and are never updated or deleted. See comments-and-activity.md to read the timeline.
 
 ## Identifiers and paths
 
