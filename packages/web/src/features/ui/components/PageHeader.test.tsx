@@ -21,4 +21,25 @@ describe("PageHeader", () => {
     render(<PageHeader title="Reports" description="reef-acme" />);
     expect(screen.getByText("reef-acme")).toBeInTheDocument();
   });
+
+  it("lets a node subtitle own its translation boundaries so mixed prose still translates (REEF-260)", () => {
+    // My Work's `@login · N open` mixes an identifier with a prose count, so it
+    // passes a node that protects only the identifier — the prose must NOT be
+    // frozen by a blanket translate="no" on the whole subtitle.
+    render(
+      <PageHeader
+        title="My Work"
+        description={
+          <>
+            <span translate="no">@alice</span>
+            {" · 3 open"}
+          </>
+        }
+      />,
+    );
+    // The identifier the caller wrapped stays protected...
+    expect(screen.getByText("@alice")).toHaveAttribute("translate", "no");
+    // ...but the prose count label is not under any translate="no" element.
+    expect(screen.getByText(/open/).closest("[translate='no']")).toBeNull();
+  });
 });
