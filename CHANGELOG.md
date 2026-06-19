@@ -112,6 +112,12 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Calmer loading skeletons.** Loading placeholders across the app now read as
+  one quiet light source sweeping across a panel instead of every bar blinking in
+  lockstep, and the issue detail placeholder gives its labels a fainter tone than
+  the values so the hierarchy of the loaded panel is already hinted while it
+  loads. The sweep pauses to a flat, static two-tone for anyone who prefers
+  reduced motion. No new colors, chips, or fonts — just grey (REEF-250).
 - **Snappier editing — changing one issue no longer reloads the whole list.**
   Editing an issue's title, dates, labels, or other non-membership fields now
   updates just that card in place instead of re-fetching and re-rendering the
