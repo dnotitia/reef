@@ -32,6 +32,7 @@ const ISSUE_QUERY_KEYS = [
   "labels",
   "dep",
   "archived",
+  "stale",
   "sort",
   "order",
   "q",
@@ -75,6 +76,7 @@ function readIssueUrlState(searchParams: URLSearchParams): {
   const sort = searchParams.get("sort");
   const order = searchParams.get("order");
   const archived = searchParams.get("archived");
+  const stale = searchParams.get("stale");
 
   if (status.length) filter.status = status;
   if (issueType.length) filter.issueType = issueType;
@@ -104,6 +106,11 @@ function readIssueUrlState(searchParams: URLSearchParams): {
   // => store default; this reader leaves showArchived=false to the store.
   if (archived === "1" || archived === "true") {
     filter.showArchived = true;
+  }
+  // REEF-275: same tolerant codec as `archived` — `stale=1` (our emitted form)
+  // or `stale=true` (hand-written links) reveals the auto-hidden resolved issues.
+  if (stale === "1" || stale === "true") {
+    filter.showStale = true;
   }
 
   return {
@@ -170,6 +177,7 @@ function buildIssueSearchParams(
   // bare. NOTE: the wire codec (buildIssueQuery) sends `archived=true` to the
   // server — a separate codec; do not unify the two.
   if (filter.showArchived) params.set("archived", "1");
+  if (filter.showStale) params.set("stale", "1");
   if (filter.sortField) params.set("sort", filter.sortField);
   if (filter.sortOrder) params.set("order", filter.sortOrder);
   if (searchQuery) params.set("q", searchQuery);

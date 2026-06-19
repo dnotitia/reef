@@ -122,7 +122,9 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
     [allIssues, graph],
   );
   const visibleIssues = useMemo(() => {
-    const filtered = filterIssues(allIssues, filter);
+    const filtered = filterIssues(allIssues, filter, {
+      searchActive: searchQuery.trim().length > 0,
+    });
     const searched = searchIssues(filtered, searchQuery);
     const depFiltered = applyDependencyFilter(
       searched,

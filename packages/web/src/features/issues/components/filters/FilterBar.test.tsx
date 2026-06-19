@@ -452,4 +452,45 @@ describe("FilterBar", () => {
     renderFilterBar();
     expect(screen.queryByTestId("clear-filters-button")).toBeNull();
   });
+
+  describe("Display options popover (REEF-275)", () => {
+    it("toggles Show archived and Show completed from one Display popover", async () => {
+      const user = userEvent.setup();
+      renderFilterBar();
+      // The toggles live behind the Display trigger, not inline on the bar.
+      expect(screen.queryByTestId("show-archived-toggle")).toBeNull();
+      await user.click(screen.getByTestId("display-options-trigger"));
+
+      await user.click(screen.getByTestId("show-archived-toggle"));
+      expect(useIssueStore.getState().filter.showArchived).toBe(true);
+      // Panel stays open for the second toggle (not a one-shot menu item).
+      await user.click(screen.getByTestId("show-stale-toggle"));
+      expect(useIssueStore.getState().filter.showStale).toBe(true);
+
+      // Toggling off drops the flag to undefined so the default URL/persist slot
+      // stays bare (mirrors the multi-select facets' empty→undefined rule).
+      await user.click(screen.getByTestId("show-archived-toggle"));
+      expect(useIssueStore.getState().filter.showArchived).toBeUndefined();
+    });
+
+    it("drops the Show completed toggle in the backlog scope — backlog rows are never resolved (REEF-275)", async () => {
+      const user = userEvent.setup();
+      renderFilterBar({ backlogScope: true });
+      await user.click(screen.getByTestId("display-options-trigger"));
+      expect(screen.getByTestId("show-archived-toggle")).toBeTruthy();
+      expect(screen.queryByTestId("show-stale-toggle")).toBeNull();
+    });
+
+    it("marks the Display trigger active when a view-mode toggle is on", () => {
+      useIssueStore.setState({
+        filter: { showStale: true },
+        searchQuery: "",
+        selectedIssueId: null,
+      });
+      renderFilterBar();
+      expect(screen.getByTestId("display-options-trigger").className).toContain(
+        "border-brand",
+      );
+    });
+  });
 });

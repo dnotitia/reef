@@ -1,4 +1,8 @@
-import { type IssueListItem, isResolvedStatus } from "@reef/core";
+import {
+  type IssueListItem,
+  isResolvedStatus,
+  isStaleResolved,
+} from "@reef/core";
 import type { IssueFilter } from "../stores/useIssueStore";
 
 /** True when the issue has not been archived. Shared by Board / Reports /
@@ -135,13 +139,42 @@ export function matchesSharedFacets(
 /**
  * Filters issues by metadata fields (status, priority, assignee, labels).
  * Returns a new array; does not mutate the input.
+ *
+ * `opts.searchActive` reports whether the caller is about to narrow the result
+ * with a live in-view text query (`searchIssues`). When it is, the stale-resolved
+ * auto-hide is bypassed so a long-finished issue the user is explicitly searching
+ * for still surfaces — recoverability over declutter once there is a query. The
+ * archived gate is deliberately NOT bypassed: archiving is an explicit "put away"
+ * action, so it stays hidden until the user toggles Show archived, whereas the
+ * stale auto-hide is passive and a search expresses intent to find it (REEF-275).
  */
 export function filterIssues(
   issues: IssueListItem[],
   filter: IssueFilter,
+  opts: { searchActive?: boolean } = {},
 ): IssueListItem[] {
+  // Now-relative cut, evaluated once for the whole pass so every row in this
+  // render is compared against the same instant (shared by the stale-resolved
+  // auto-hide and the `due` overdue/due-soon window below).
+  const now = Date.now();
   return issues.filter((issue) => {
     if (!filter.showArchived && !isActive(issue)) return false;
+    // Hide resolved issues that have aged past their auto-hide window unless the
+    // user opted in via "Show completed" — orthogonal to the archived toggle
+    // (REEF-275). The ⌘K palette and deep links bypass this whole pipeline; an
+    // active in-view search bypasses just this gate (see `opts.searchActive`), so
+    // a stale issue stays findable wherever a query is doing the looking.
+    if (
+      !filter.showStale &&
+      !opts.searchActive &&
+      isStaleResolved({
+        status: issue.status,
+        closedReason: issue.closed_reason,
+        lastStatusChange: issue.last_status_change,
+        now,
+      })
+    )
+      return false;
     // Multi-select facets (REEF-031): an issue matches when its value is one of
     // the selected members (OR within a facet, AND across facets).
     if (filter.status?.length && !filter.status.includes(issue.status))
@@ -170,7 +203,6 @@ export function filterIssues(
       if (!issue.due_date) return false;
       if (isResolvedStatus(issue.status)) return false;
       const due = new Date(issue.due_date).getTime();
-      const now = Date.now();
       const sevenDays = 7 * 24 * 60 * 60 * 1000;
       const isOverdue = due < now;
       const isDueSoon = due >= now && due <= now + sevenDays;

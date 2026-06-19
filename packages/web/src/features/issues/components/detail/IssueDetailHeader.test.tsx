@@ -6,27 +6,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { IssueDetailHeader } from "./IssueDetailHeader";
 
 // next/link needs the app-router context for prefetch; in unit tests we just
-// care that it renders a navigable anchor, so stub it to a plain <a>.
+// care that it renders a navigable anchor, so stub it to a plain <a> that
+// forwards every prop (href, className, data-*, title, aria-label).
 vi.mock("next/link", () => ({
   default: ({
     children,
     href,
-    className,
-    "data-testid": dataTestId,
-    "data-issue-id": dataIssueId,
-  }: {
-    children: ReactNode;
-    href: string;
-    className?: string;
-    "data-testid"?: string;
-    "data-issue-id"?: string;
-  }) => (
-    <a
-      href={href}
-      className={className}
-      data-testid={dataTestId}
-      data-issue-id={dataIssueId}
-    >
+    ...rest
+  }: { children: ReactNode; href: string } & Record<string, unknown>) => (
+    <a href={href} {...rest}>
       {children}
     </a>
   ),
@@ -116,6 +104,25 @@ describe("IssueDetailHeader", () => {
       expect(link).toHaveAttribute("data-issue-id", "REEF-182");
       expect(link).toHaveTextContent("REEF-182");
       expect(link).toHaveTextContent("Reports & analytics epic");
+    });
+
+    it("names the parent relationship for hover and assistive tech", () => {
+      // The up-arrow + id-column alignment carry the at-a-glance "parent"
+      // reading; the explicit wording lives in title/aria-label so it does not
+      // push the id out of the shared column (REEF-266 follow-up).
+      setup({ parentId: PARENT_ID, allIssues: [parent] });
+      const link = screen.getByTestId("issue-parent-breadcrumb");
+      expect(link).toHaveAttribute("title", "Go to parent issue");
+      expect(link).toHaveAccessibleName(
+        "Parent issue REEF-182: Reports & analytics epic",
+      );
+    });
+
+    it("falls back to an id-only accessible name when the title is unresolved", () => {
+      setup({ parentId: PARENT_ID, allIssues: [] });
+      expect(
+        screen.getByTestId("issue-parent-breadcrumb"),
+      ).toHaveAccessibleName("Parent issue REEF-182");
     });
 
     it("hides the glyph from assistive tech", () => {

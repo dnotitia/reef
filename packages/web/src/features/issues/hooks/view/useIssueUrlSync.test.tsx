@@ -551,4 +551,41 @@ describe("useIssueUrlSync", () => {
     );
     expect(params.has("archived")).toBe(false);
   });
+
+  it("restores showStale from stale=1 and emits it back, mirroring archived (REEF-275)", async () => {
+    navigationState.searchParams = new URLSearchParams("stale=1");
+
+    render(<Harness />);
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.showStale).toBe(true);
+    });
+  });
+
+  it("reads stale=true as well as stale=1 (REEF-275)", async () => {
+    navigationState.searchParams = new URLSearchParams("stale=true");
+
+    render(<Harness />);
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.showStale).toBe(true);
+    });
+  });
+
+  it("emits stale=1 when showStale is true and omits it otherwise (REEF-275)", async () => {
+    useIssueStore.setState({
+      filter: { showStale: true },
+      filterVault: null,
+      searchQuery: "",
+      selectedIssueId: null,
+    });
+
+    render(<Harness />);
+
+    await waitFor(() => expect(mockPush).toHaveBeenCalled());
+    const params = new URLSearchParams(
+      (mockPush.mock.calls[0][0] as string).split("?")[1] ?? "",
+    );
+    expect(params.get("stale")).toBe("1");
+  });
 });

@@ -1,4 +1,8 @@
-import type { IssueCreateInput, Status } from "../schemas/issues/metadata";
+import type {
+  ClosedReason,
+  IssueCreateInput,
+  Status,
+} from "../schemas/issues/metadata";
 
 export type CodeSignal = "branch_created" | "pr_created" | "pr_merged";
 
@@ -90,6 +94,51 @@ export const DEFAULT_NEW_ISSUE_STATUS: Status = "backlog";
  */
 export function isResolvedStatus(status: Status): boolean {
   return RESOLVED_STATUSES.has(status);
+}
+
+/**
+ * Auto-hide windows for resolved issues, in milliseconds (REEF-275). A resolved
+ * issue drops out of the default board/list once it has sat in its terminal
+ * state longer than its bucket's window — recently-resolved work stays visible,
+ * older work is tucked away (but never deleted; it stays searchable and
+ * deep-linkable). Mirrors Linear's auto-archive defaults: completed work lingers
+ * ~a month, abandoned (canceled) work clears in a week.
+ *
+ * The bucket is by completion *semantics*, not raw status (see `isStaleResolved`):
+ * a `done` issue, or a `closed` one with reason `completed`, is "completed"; every
+ * other close reason (or none) is "canceled" and clears faster.
+ */
+export const STALE_COMPLETED_WINDOW_MS = 28 * 24 * 60 * 60 * 1000;
+export const STALE_CANCELED_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * True when a resolved issue has aged past its auto-hide window and should drop
+ * out of the default board/list view (REEF-275). Pure and now-relative — the
+ * caller injects `now` (client `Date.now()`, mirroring the `due` facet) so the
+ * staleness is recomputed on every render with no stored flag and no scheduler.
+ *
+ * The anchor is `lastStatusChange` — the moment the issue entered its terminal
+ * state, which any status write stamps (and a reopen clears, surfacing the issue
+ * again). `closed_at` would miss `done`, so the unified status-change timestamp
+ * is used for both buckets. An active (non-resolved) status, or a missing /
+ * unparseable anchor, is never stale — it stays visible.
+ */
+export function isStaleResolved(params: {
+  status: Status;
+  closedReason?: ClosedReason | null;
+  lastStatusChange?: string | null;
+  now: number;
+}): boolean {
+  const { status, closedReason, lastStatusChange, now } = params;
+  if (!RESOLVED_STATUSES.has(status)) return false;
+  if (!lastStatusChange) return false;
+  const enteredAt = Date.parse(lastStatusChange);
+  if (Number.isNaN(enteredAt)) return false;
+  const isCompleted = status === "done" || closedReason === "completed";
+  const window = isCompleted
+    ? STALE_COMPLETED_WINDOW_MS
+    : STALE_CANCELED_WINDOW_MS;
+  return now - enteredAt > window;
 }
 
 /**

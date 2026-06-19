@@ -7,12 +7,7 @@ import { SeverityBadge } from "@/components/fields/SeverityBadge";
 import { TypePill } from "@/components/fields/TypePill";
 import { DEPENDENCY_OPTIONS, DUE_OPTIONS } from "@/components/fields/fieldKit";
 import type { ComboboxOption } from "@/components/ui/combobox";
-import {
-  CBX_TRIGGER_ACTIVE,
-  CBX_TRIGGER_CHIP,
-  CBX_TRIGGER_CHIP_ACTIVE,
-  CBX_TRIGGER_CHIP_INACTIVE,
-} from "@/components/ui/comboboxChrome";
+import { CBX_TRIGGER_ACTIVE } from "@/components/ui/comboboxChrome";
 import { LabelChipInput } from "@/components/ui/label-chip-input";
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
 import { PRIORITY_OPTIONS, PriorityBadge } from "@/components/ui/priority-dot";
@@ -21,7 +16,7 @@ import { PlanningItemCombobox } from "@/features/planning/components/PlanningIte
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { cn } from "@/lib/utils";
 import type { Status } from "@reef/core";
-import { X } from "lucide-react";
+import { Archive, CircleCheck, X } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { formatLabelFilter, parseLabelFilter } from "../../lib/issueListUtils";
 import {
@@ -80,6 +75,48 @@ export const FILTER_FIELD_CLASS = "w-fit min-w-[9rem] max-w-[16rem]";
  * wrap without overflowing the bar.
  */
 export const PLANNING_FILTER_WRAPPER_CLASS = "relative inline-block max-w-full";
+
+/**
+ * The "Display" view-mode toggles (REEF-275), modeled as a multi-select facet so
+ * they reuse the exact same `MultiSelectCombobox` chrome (panel, glyph+label row,
+ * trailing brand Check, chip trigger) as every sibling facet in this bar — rather
+ * than a bespoke popover. Each toggle maps to one boolean filter flag (`archived`
+ * → `showArchived`, `completed` → `showStale`); "selected" means the flag is on.
+ * Glyph-aligned with the facet rows; the primitive adds the trailing selection
+ * Check itself, so the leading glyph is the value mark only.
+ */
+type ViewModeKey = "archived" | "completed";
+
+const VIEW_MODE_OPTIONS: ComboboxOption<ViewModeKey>[] = [
+  {
+    value: "archived",
+    label: "Show archived",
+    content: (
+      <>
+        <Archive
+          className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+          aria-hidden
+        />
+        Show archived
+      </>
+    ),
+    testId: "show-archived-toggle",
+  },
+  {
+    value: "completed",
+    label: "Show completed",
+    content: (
+      <>
+        <CircleCheck
+          className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+          aria-hidden
+        />
+        Show completed
+      </>
+    ),
+    testId: "show-stale-toggle",
+  },
+];
 
 /**
  * Static multi-select facet option lists. Hoisted to module scope so the badge
@@ -237,6 +274,16 @@ export function FilterBar({
 
   const activeCount = countActiveFilters(filter, backlogScope);
   const hasActiveFilters = activeCount > 0;
+
+  // The two view-mode flags projected into the multi-select facet's value array
+  // ("selected" = flag on). The backlog scope drops the resolved-only "completed"
+  // toggle, mirroring how the facets above drop status/sprint/etc. there.
+  const viewModeValues: ViewModeKey[] = [];
+  if (filter.showArchived) viewModeValues.push("archived");
+  if (filter.showStale) viewModeValues.push("completed");
+  const viewModeOptions = backlogScope
+    ? VIEW_MODE_OPTIONS.slice(0, 1)
+    : VIEW_MODE_OPTIONS;
 
   return (
     <div className="flex flex-wrap items-center gap-2" data-testid="filter-bar">
@@ -461,26 +508,28 @@ export function FilterBar({
         />
       </div>
 
-      {/* Show archived toggle — orthogonal to the active-filter counter
-          (archived state is part of "view mode", not a filter on issue
-          attributes). Lives at the end so it doesn't shift focus order on
-          users who does not archive. */}
-      <button
-        type="button"
-        onClick={() =>
-          setFilter({ showArchived: !filter.showArchived || undefined })
+      {/* Display options — the "view mode" toggles (what shows up): Show archived
+          + Show completed. Reuses the same MultiSelectCombobox as every facet
+          above (identical panel/row/check/chip chrome) instead of a bespoke
+          popover; kept apart from the active-filter counter since these widen
+          rather than narrow the set, and placed at the end so they do not shift
+          focus order for users who never touch them (REEF-275). */}
+      <MultiSelectCombobox
+        label="Display"
+        values={viewModeValues}
+        onToggle={(value, checked) =>
+          setFilter(
+            value === "archived"
+              ? { showArchived: checked || undefined }
+              : { showStale: checked || undefined },
+          )
         }
-        className={cn(
-          CBX_TRIGGER_CHIP,
-          filter.showArchived
-            ? CBX_TRIGGER_CHIP_ACTIVE
-            : CBX_TRIGGER_CHIP_INACTIVE,
-        )}
-        data-testid="show-archived-toggle"
-        aria-pressed={filter.showArchived === true}
-      >
-        {filter.showArchived ? "Hide archived" : "Show archived"}
-      </button>
+        options={viewModeOptions}
+        active={Boolean(filter.showArchived || filter.showStale)}
+        ariaLabel="Display options"
+        triggerTestId="display-options-trigger"
+        contentTestId="display-options-content"
+      />
 
       {/* Active filter count + clear */}
       {hasActiveFilters && (
