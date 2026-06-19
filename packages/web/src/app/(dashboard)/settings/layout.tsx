@@ -15,6 +15,11 @@ export default function SettingsLayout({
 }) {
   return (
     <div className="flex h-full flex-col">
+      {/* No workspace subtitle here, by design: unlike the vault-scoped pages
+          (Issues / Planning / Activity / Reports), Settings surfaces the active
+          workspace in its body — the Workspace tab's Active Workspace selector
+          (REEF-174) — which both names and lets you switch it, so a header
+          subtitle would be redundant (REEF-260). */}
       <PageHeader title="Settings" />
       <PageBody width="narrow" className="flex flex-col gap-6">
         <SettingsTabs />

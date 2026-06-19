@@ -10,7 +10,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { StatusIcon } from "@/components/ui/status-icon";
 import type { ClosedReason } from "@reef/core";
 import {
   CLOSED_REASON_HINTS,
@@ -60,22 +59,18 @@ function CloseIssueDialogContent({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-testid="close-issue-dialog" className="max-w-[420px]">
-        <DialogHeader className="gap-2">
-          <div className="inline-flex w-fit items-center gap-2 rounded-md border border-border-subtle bg-surface-subtle px-2 py-1 text-xs text-muted-foreground">
-            <StatusIcon status="closed" size={12} />
-            Closed
-          </div>
+      <DialogContent data-testid="close-issue-dialog" className="max-w-md">
+        <DialogHeader>
           <DialogTitle>Close {issueId}</DialogTitle>
           <DialogDescription>
             Pick the reason that should be recorded with this closure.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="rounded-md border border-border-subtle bg-surface-subtle/60 p-3">
+        <div className="flex flex-col gap-1">
           <label
             htmlFor="closed-reason"
-            className="mb-1.5 block text-xs font-medium text-muted-foreground"
+            className="text-xs font-medium text-muted-foreground"
           >
             Close reason
           </label>
@@ -84,6 +79,12 @@ function CloseIssueDialogContent({
             onValueChange={(value) => setReason(value as ClosedReason)}
             disabled={disabled}
             options={CLOSED_REASON_OPTIONS}
+            // The dropdown options carry a second hint line; the trigger value
+            // slot is single-line only, so the selected value renders the label
+            // alone via `renderValue` (REEF-272).
+            renderValue={(option) => (
+              <span>{CLOSED_REASON_LABELS[option]}</span>
+            )}
             renderItem={(option) => (
               <span className="flex min-w-0 flex-col">
                 <span>{CLOSED_REASON_LABELS[option]}</span>

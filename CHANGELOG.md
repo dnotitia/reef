@@ -12,6 +12,36 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Fixed
+
+- **Sign-out now clears every open tab.** Signing out of a workspace in one
+  browser tab now also clears the cached account data in the other reef tabs
+  open on the same browser, so a shared computer no longer keeps showing the
+  previous account's boards or activity after sign-out. This only clears the
+  in-memory query cache across tabs — there is no persisted cache-format change
+  and no schema buster bump, so existing sessions are not forced to refetch.
+  Falls back gracefully where cross-tab messaging is unavailable, and single-tab
+  sign-out is unchanged (REEF-106).
+- **Navigate up to the parent issue.** The issue detail now shows a clickable
+  breadcrumb above the id line — the parent's id and title — so you can jump to
+  the parent in one click, mirroring how the Sub-issues list already navigates
+  down to children. The `Parent` field under Relationships stays edit-only for
+  reassigning, and the breadcrumb is hidden for top-level issues (REEF-266).
+- **The Close issue reason picker no longer looks broken.** When you close an
+  issue, the selected close reason now reads as one clean line on the picker —
+  left-aligned with the dropdown's option labels — instead of the squished,
+  misaligned two-line value it showed before. The dropdown still lists each
+  reason with its helper line. The dialog also drops a redundant "Closed" chip
+  and adopts the same width and field framing as the Delete and planning dialogs
+  (REEF-272).
+### Changed
+
+- **Reports names its workspace, like every other page.** The Reports header now
+  shows the active workspace as a subtitle, matching the Issues, Planning, and
+  Activity headers so the page's vault scope is visible at a glance. Page-header
+  subtitles (the workspace name, or `@login` on My Work) are now marked as
+  identifiers so machine translation leaves them untouched (REEF-260).
+
 ## v0.5.0 - 2026-06-19
 
 ### Added
