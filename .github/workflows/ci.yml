@@ -7,12 +7,23 @@ on:
   pull_request:
     branches:
       - main
+  # Merge queue. When a PR enters the queue GitHub builds a temporary
+  # `gh-readonly-queue/main/...` ref — the PR merged onto the *current* tip of
+  # main — and fires `merge_group`. CI must run here and report the same
+  # required contexts so the queue can verify each PR against the latest base
+  # exactly once at merge time. This replaces the manual "Update branch" click
+  # plus full-CI rerun that every stale PR otherwise needs, and collapses the
+  # stale-PR domino (PR A merges -> B, C, D all go out-of-date -> each reruns)
+  # into a single queued check per PR.
+  merge_group:
 
 # Least-privilege default: jobs only need to read the checked-out repo.
 permissions:
   contents: read
 
 # Cancel superseded runs for the same workflow + ref (e.g. new pushes to a PR).
+# Each merge-queue entry gets its own unique `gh-readonly-queue/...` ref, so
+# queued runs never cancel one another — only repeated events on the same ref do.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
