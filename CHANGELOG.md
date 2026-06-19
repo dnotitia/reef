@@ -218,6 +218,14 @@ explicitly in the entries below.
   explains how to spot and repair a saved issue that a malformed field is
   hiding. Existing workspaces are offered the updated playbook from Settings
   (REEF-224).
+- The built-in workspace agent playbook now covers reading an issue's activity
+  history and reading, writing, and editing its comments. An agent operating a
+  workspace through the akb tools can answer "what changed on this issue" from
+  the activity timeline and work with comment threads, where before the playbook
+  only documented how activity events are written — not how to read them back, or
+  how to handle comments at all. The data-model reference also now lists the
+  `reef_comments` and `reef_activity` tables it had been silently relying on.
+  Existing workspaces are offered the updated playbook from Settings (REEF-252).
 - **Focus outlines on form fields are no longer shaved off on the left and
   right.** When you focused a field inside a column that hides horizontal
   overflow — most visibly the Title field on the issue edit screen — the teal

@@ -31,6 +31,7 @@ Creating an issue needs two runbooks, not one: conversational-playbook.md (what 
 
 - PM data model: akb://${vault}/doc/overview/reef/pm-model.md
 - Creating and updating issues (mechanics): akb://${vault}/doc/overview/reef/issue-workflows.md
+- Reading an issue's activity history and its comments: akb://${vault}/doc/overview/reef/comments-and-activity.md
 - Acting like a PM (deciding fields, asking, confirming): akb://${vault}/doc/overview/reef/conversational-playbook.md
 - Sprints, milestones, and releases: akb://${vault}/doc/overview/reef/planning-workflows.md
 - AI drafts and status-change approval: akb://${vault}/doc/overview/reef/activity-inbox-workflows.md
@@ -43,6 +44,8 @@ Match the request to one path. Requests arrive in any language; route by meaning
 - Make a new issue ("Create an issue for the broken login redirect", "file a bug for X") means read conversational-playbook.md to decide the fields, then issue-workflows.md to write it. Resolve the actor and search for duplicates first.
 - Move an issue along its lifecycle ("start development on REEF-012", "put it up for review", "Mark REEF-001 as done") means read conversational-playbook.md for the phrase-to-transition mapping and side effects, then issue-workflows.md for the transition mechanics.
 - Edit issue fields ("reassign REEF-003 to me", "bump priority to high") means read issue-workflows.md for the update rules, using conversational-playbook.md judgment for anything left unspecified.
+- Read an issue's history ("Show the history of REEF-012", "What changed on this issue", "Who moved it to in_review") means read comments-and-activity.md and query the reef_activity timeline.
+- Read or write comments ("Show the comments on REEF-012", "Add a comment saying ...", "Reply on this issue") means read comments-and-activity.md for the reef_comments read, write, and edit rules.
 - Plan ("create Sprint 5", "move these into the 0.4 milestone") means read planning-workflows.md.
 - Review the AI inbox ("Show pending AI drafts", "Approve this draft", "Dismiss that suggestion") means read activity-inbox-workflows.md.
 - Scan code activity ("Scan recent GitHub activity and create pending drafts") means read github-activity-scan.md.
