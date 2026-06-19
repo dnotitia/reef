@@ -447,8 +447,15 @@ export function FilterBar({
           onChange={handleLabelsChange}
           placeholder="Labels"
           data-testid="labels-input"
+          // Unlike the combobox value fields — whose closed trigger shows a short
+          // placeholder so they rest at the shared `9rem` floor — the chip input's
+          // text field carries a browser-default ~20ch intrinsic width that would
+          // push this `w-fit` wrapper past the floor and break the empty-state
+          // alignment. Zero the input's width basis so it flexes to fill the
+          // floored field instead of dictating it; the field still hugs upward as
+          // chips accumulate, up to the shared `16rem` cap (REEF-269).
           className={cn(
-            "min-h-8 py-1",
+            "min-h-8 py-1 [&_input]:w-0",
             filter.label?.trim() && CBX_TRIGGER_ACTIVE,
           )}
         />
