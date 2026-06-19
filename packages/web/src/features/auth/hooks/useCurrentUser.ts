@@ -20,14 +20,15 @@ export const CURRENT_USER_QUERY_KEY = ["auth", "me"] as const;
  * retries so an expired cookie doesn't spin a refetch loop. Identity rarely
  * changes within a session, so a long `staleTime` keeps this off the hot path.
  *
- * Known, deliberately-deferred limitation: a `null` cached on a cookie expiry
- * stays fresh for `staleTime`, so if the SAME account re-logs-in within that
- * window (reconcile no-ops for same-account), the menu briefly shows the
- * "Account" fallback until the query goes stale. This is the cookie-expiry
- * path REEF-068 left out of scope; it is tracked separately as REEF-103
- * (deferred, minor). The explicit sign-out path already clears this query via
- * `AUTH_CHANGED_EVENT` → `queryClient.clear()`, so just passive expiry is
- * affected. Fix there by invalidating CURRENT_USER_QUERY_KEY on every login.
+ * A `null` cached on a passive cookie expiry would otherwise stay fresh for the
+ * whole `staleTime`, so the sign-in paths re-fetch identity explicitly: both
+ * `LoginForm` and the SSO completion handler invalidate `CURRENT_USER_QUERY_KEY`
+ * after a successful login. That covers a same-account re-login too — which
+ * `reconcileAkbAccount` treats as a no-op — so the account menu shows the live
+ * identity immediately instead of the stale "Account" fallback. The explicit
+ * sign-out path additionally clears this query via `AUTH_CHANGED_EVENT` →
+ * `queryClient.clear()`. (This closed the REEF-103 cookie-expiry case that
+ * REEF-068 had left out of scope.)
  */
 export function useCurrentUser() {
   return useQuery<AkbMeProfile | null>({

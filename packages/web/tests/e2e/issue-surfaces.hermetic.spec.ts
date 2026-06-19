@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
+  clearPersistedQueryCacheOnLoad,
   openExistingWorkspace,
   readFixtureState,
   resetFixture,
@@ -62,6 +63,14 @@ test.describe("Hermetic issue route surfaces", () => {
       "2026-06-01T00:00:00.000Z",
     );
 
+    // The Activity unread badge derives from `useUnreadInboxCount`, which runs
+    // once when DashboardShell first mounts during onboarding — before this test
+    // sets `last_visit_at` — and caches 0. That 0 is persisted to localStorage
+    // and, with the hook's 5s staleTime, the reload below rehydrates it as still
+    // fresh on a fast run, so no refetch fires and the badge never appears
+    // (count 0 renders nothing). Drop the persisted snapshot at document-start so
+    // the board entry fetches the unread count fresh against the now-set marker.
+    await clearPersistedQueryCacheOnLoad(page);
     await page.goto("/issues?view=board");
     await expect(page.locator('[data-testid="kanban-board"]')).toBeVisible();
     await expect(page.locator('[data-testid="kanban-card"]')).toHaveCount(11);

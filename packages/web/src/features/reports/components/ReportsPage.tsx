@@ -114,7 +114,7 @@ export function ReportsPage() {
 
   if (!vaultLoading && !vault) {
     return (
-      <PageShell>
+      <PageShell description={vault || undefined}>
         <EmptyState>
           <p className="text-sm text-muted-foreground">
             Pick a workspace in{" "}
@@ -133,7 +133,7 @@ export function ReportsPage() {
 
   if (vaultLoading || issuesQuery.isPending) {
     return (
-      <PageShell>
+      <PageShell description={vault || undefined}>
         <ReportsSkeleton />
       </PageShell>
     );
@@ -141,7 +141,7 @@ export function ReportsPage() {
 
   if (issuesQuery.isError) {
     return (
-      <PageShell>
+      <PageShell description={vault || undefined}>
         <div
           data-testid="reports-error"
           className="flex flex-col items-start gap-2"
@@ -165,7 +165,7 @@ export function ReportsPage() {
 
   if (issues.length === 0) {
     return (
-      <PageShell>
+      <PageShell description={vault || undefined}>
         <EmptyState>
           <p className="text-sm text-muted-foreground">
             No active issues yet. Create one to start building reports.
@@ -176,7 +176,7 @@ export function ReportsPage() {
   }
 
   return (
-    <PageShell>
+    <PageShell description={vault || undefined}>
       <div data-testid="reports-page" className="flex flex-col gap-6">
         <ReportScopeBar filters={filters} onChange={setFilters} />
 

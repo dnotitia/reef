@@ -5,10 +5,18 @@ import { PageBody } from "@/features/ui/components/PageBody";
 import { PageHeader } from "@/features/ui/components/PageHeader";
 import type { ReactNode } from "react";
 
-export function PageShell({ children }: { children: ReactNode }) {
+export function PageShell({
+  description,
+  children,
+}: {
+  /** Active workspace name, shown as the header subtitle so Reports names its
+   *  vault scope like the Issues / Planning / Activity headers do (REEF-260). */
+  description?: string;
+  children: ReactNode;
+}) {
   return (
     <div className="flex h-full flex-col">
-      <PageHeader title="Reports" />
+      <PageHeader title="Reports" description={description} />
       <PageBody width="wide" className="flex flex-col gap-6">
         {children}
       </PageBody>
