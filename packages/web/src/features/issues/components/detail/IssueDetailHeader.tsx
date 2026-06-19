@@ -14,7 +14,7 @@ import type { IssueListItem, IssueType, Status } from "@reef/core";
 import {
   Archive,
   ArchiveRestore,
-  CornerLeftUp,
+  ArrowUp,
   MoreHorizontal,
   Trash2,
 } from "lucide-react";
@@ -83,13 +83,29 @@ export function IssueDetailHeader({
             href={`/issues/${parentId}`}
             data-testid="issue-parent-breadcrumb"
             data-issue-id={parentId}
+            title="Go to parent issue"
+            aria-label={
+              parent?.title
+                ? `Parent issue ${parentId}: ${parent.title}`
+                : `Parent issue ${parentId}`
+            }
             className={cn(
-              "inline-flex max-w-full touch-manipulation items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors duration-150",
+              // `-ml-1.5` offsets the px-1.5 so the glyph sits at the same x as
+              // the issue-id row's status icon below (both 12px) — the two mono
+              // ids line up in one column — while the hover background keeps its
+              // inset padding (REEF-266 follow-up). gap-2 matches that row's gap.
+              "-ml-1.5 inline-flex max-w-full touch-manipulation items-center gap-2 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors duration-150",
               "hover:bg-surface-hover hover:text-foreground",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
             )}
           >
-            <CornerLeftUp className="h-3 w-3 shrink-0" aria-hidden />
+            {/* A plain up-arrow reads as "up to the parent" far better than a
+                corner arrow did; combined with the id-column alignment below it
+                the row stacks as parent-over-child. The explicit "Parent issue"
+                wording lives in the link's aria-label/title so it is available to
+                hover + assistive tech without pushing the id out of the shared
+                column (REEF-266 follow-up). */}
+            <ArrowUp className="h-3 w-3 shrink-0" aria-hidden />
             {/* `translate="no"` keeps machine translation from mangling the reef
                 id (a code identifier, not prose). */}
             <span translate="no" className="shrink-0 font-mono tabular-nums">
