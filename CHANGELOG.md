@@ -12,6 +12,17 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Fixed
+
+- **Sign-out now clears every open tab.** Signing out of a workspace in one
+  browser tab now also clears the cached account data in the other reef tabs
+  open on the same browser, so a shared computer no longer keeps showing the
+  previous account's boards or activity after sign-out. This only clears the
+  in-memory query cache across tabs — there is no persisted cache-format change
+  and no schema buster bump, so existing sessions are not forced to refetch.
+  Falls back gracefully where cross-tab messaging is unavailable, and single-tab
+  sign-out is unchanged (REEF-106).
+
 ## v0.5.0 - 2026-06-19
 
 ### Added

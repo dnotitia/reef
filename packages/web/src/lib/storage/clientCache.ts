@@ -11,6 +11,12 @@
  * session next. To prevent that we wipe both layers, and dispatch
  * AUTH_CHANGED_EVENT so the in-memory QueryClient can also call clear()
  * (handled in QueryProvider).
+ *
+ * The window event only reaches the tab that triggered the change. A second
+ * reef tab open on the same browser keeps the previous account's in-memory
+ * data until it hears about the change, so we also mirror it across tabs via a
+ * BroadcastChannel; receiving tabs re-dispatch AUTH_CHANGED_EVENT locally (see
+ * subscribeCrossTabAuthChange). (REEF-106)
  */
 
 /**
@@ -26,6 +32,37 @@ const ETAG_KEY_PREFIX = "reef:etag:";
 
 /** DOM event broadcast on credential change. QueryProvider subscribes to it. */
 export const AUTH_CHANGED_EVENT = "reef:auth-changed";
+
+/** Cross-tab channel name; an auth change in any tab is mirrored to siblings. */
+const AUTH_BROADCAST_CHANNEL = "reef:auth";
+
+/**
+ * Lazily-created BroadcastChannel that mirrors auth changes across tabs of the
+ * same origin. One instance per tab serves as BOTH sender (postMessage in
+ * `clearAuthScopedClientCache`) and receiver (`subscribeCrossTabAuthChange`).
+ * BroadcastChannel never delivers a message back to the instance that sent it,
+ * so the tab that triggered the change does not re-process its own broadcast.
+ *
+ * Returns null when BroadcastChannel is unavailable (SSR, private mode, or an
+ * old runtime) — the single-tab dispatch path stays fully functional.
+ */
+let authChannel: BroadcastChannel | null = null;
+function getAuthChannel(): BroadcastChannel | null {
+  if (
+    typeof window === "undefined" ||
+    typeof BroadcastChannel === "undefined"
+  ) {
+    return null;
+  }
+  if (authChannel === null) {
+    try {
+      authChannel = new BroadcastChannel(AUTH_BROADCAST_CHANNEL);
+    } catch {
+      authChannel = null;
+    }
+  }
+  return authChannel;
+}
 
 /**
  * Wipe every browser-side cache entry that was populated under the
@@ -62,4 +99,57 @@ export function clearAuthScopedClientCache(): void {
   } catch {
     // CustomEvent unsupported (extremely old runtimes) — non-fatal.
   }
+
+  // Mirror the change to every OTHER reef tab of this origin. The window event
+  // above only reaches this tab; siblings keep the previous account's in-memory
+  // QueryClient / entity-store data until they hear about it. Best-effort: a
+  // missing channel leaves the single-tab path (already run above) intact.
+  try {
+    getAuthChannel()?.postMessage(AUTH_CHANGED_EVENT);
+  } catch {
+    // Channel closed mid-flight or postMessage unsupported — non-fatal.
+  }
+}
+
+/**
+ * Subscribe THIS tab to cross-tab auth changes. When another tab signs out,
+ * switches accounts, or changes its GitHub token, it broadcasts on the shared
+ * channel; here we re-dispatch AUTH_CHANGED_EVENT on this tab's window so the
+ * same in-tab consumers (QueryProvider's `clear()` + entity-store purge, the
+ * token-presence gate, the scan re-arm) run and the previous account's
+ * in-memory data is dropped.
+ *
+ * Returns an unsubscribe function. No-op (returns a no-op cleanup) when
+ * BroadcastChannel is unavailable, so callers can wire it unconditionally. The
+ * receiver only re-dispatches the local window event; it never re-broadcasts,
+ * so there is no cross-tab echo. (REEF-106)
+ */
+export function subscribeCrossTabAuthChange(): () => void {
+  const channel = getAuthChannel();
+  if (channel === null) return () => {};
+
+  const handler = (event: MessageEvent) => {
+    if (event.data !== AUTH_CHANGED_EVENT) return;
+    try {
+      window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+    } catch {
+      // CustomEvent unsupported (extremely old runtimes) — non-fatal.
+    }
+  };
+  channel.addEventListener("message", handler);
+  return () => channel.removeEventListener("message", handler);
+}
+
+/**
+ * Test-only: close and forget the cross-tab channel singleton so each test can
+ * start from a clean slate and swap in a fresh BroadcastChannel mock. Not part
+ * of the runtime API.
+ */
+export function __resetAuthChannelForTests(): void {
+  try {
+    authChannel?.close();
+  } catch {
+    // already closed — ignore
+  }
+  authChannel = null;
 }
