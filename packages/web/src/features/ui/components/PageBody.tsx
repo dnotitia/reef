@@ -56,7 +56,10 @@ export function PageBody({
   children,
 }: PageBodyProps) {
   return (
-    <div className="flex-1 overflow-auto">
+    // `overscroll-contain` keeps a scroll at the body's top/bottom edge from
+    // chaining to the document, which would otherwise drag the fixed shell —
+    // including the left sidebar — along on macOS trackpad/wheel overscroll.
+    <div className="flex-1 overflow-auto overscroll-contain">
       <div
         className={cn(
           "mx-auto px-6",

@@ -174,6 +174,12 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Scrolling a page to its end no longer drags the sidebar along.** When the
+  body of a page (Reports, My Work, Activity, Planning, the issues list, Backlog)
+  is scrolled to its top or bottom edge, continuing to scroll in the same
+  direction is now absorbed by the body instead of chaining out to the document
+  and rubber-banding the whole shell — including the fixed left sidebar — on
+  macOS trackpad/wheel overscroll (REEF-254).
 - **The issue editor's loading skeleton now matches the panel's shape.** While an
   issue loads, the placeholder mirrors the real layout component-for-component —
   the header row, the main title and description canvas, and the property rail
