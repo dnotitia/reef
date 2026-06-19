@@ -15,12 +15,23 @@ import type { ReactNode } from "react";
  * field-specific concerns — value, commit logic in `onValueChange`, and how
  * each option renders via `renderItem` (plain label, status icon, priority dot,
  * …). Generic over the option value type so `renderItem` stays type-safe.
+ *
+ * The trigger value slot enforces a single-line contract (`select.tsx`:
+ * `line-clamp-1` + `flex items-center`), so an option renderer that stacks two
+ * lines (label + hint) squishes in the trigger. A caller with such a multi-line
+ * `renderItem` passes a compact, trigger-only `renderValue` for the selected
+ * value while keeping the rich `renderItem` for the dropdown options — the same
+ * split the `<Combobox>`/`AssigneeCombobox` primitive draws between `renderValue`
+ * and option `content` (REEF-272). When omitted, the trigger falls back to
+ * `renderItem`, so every single-line caller renders unchanged.
  */
 interface EnumSelectFieldProps<V extends string> {
   value: string;
   onValueChange: (value: string) => void;
   options: readonly V[];
   renderItem: (value: V) => ReactNode;
+  /** Trigger-only display for the selected value. Falls back to `renderItem`. */
+  renderValue?: (value: V) => ReactNode;
   placeholder?: string;
   /** Optional leading item for the unset state (e.g. NO_SELECTION → "No priority"). */
   noneOption?: { value: string; label: ReactNode };
@@ -35,6 +46,7 @@ export function EnumSelectField<V extends string>({
   onValueChange,
   options,
   renderItem,
+  renderValue,
   placeholder,
   noneOption,
   testId,
@@ -42,10 +54,11 @@ export function EnumSelectField<V extends string>({
   id,
   disabled,
 }: EnumSelectFieldProps<V>) {
+  const renderTrigger = renderValue ?? renderItem;
   const selectedOption = options.find((option) => option === value);
   const selectedContent =
     selectedOption !== undefined
-      ? renderItem(selectedOption)
+      ? renderTrigger(selectedOption)
       : noneOption?.value === value
         ? noneOption.label
         : placeholder;
