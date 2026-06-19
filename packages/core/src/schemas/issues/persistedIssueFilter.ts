@@ -78,6 +78,7 @@ export const PersistedIssueFilterSchema = z.object({
   label: z.string().optional().catch(undefined),
   dependencyFilter: multiEnumFacet(z.enum(["blocked", "blocking"])),
   showArchived: z.boolean().optional().catch(undefined),
+  showStale: z.boolean().optional().catch(undefined),
   sortField: z.enum(USER_SORT_FIELDS).optional().catch(undefined),
   sortOrder: z.enum(["asc", "desc"]).optional().catch(undefined),
 });

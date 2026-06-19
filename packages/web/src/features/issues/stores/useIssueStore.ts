@@ -30,6 +30,14 @@ export interface IssueFilter {
    * the user explicitly asks to see them.
    */
   showArchived?: boolean;
+  /**
+   * Controls whether resolved issues that have aged past their auto-hide window
+   * (`isStaleResolved`) appear in the board/list. Default false — long-finished
+   * work is tucked out of the active view unless the user asks to see it
+   * (REEF-275). Orthogonal to `showArchived`: a manual archive and a stale
+   * auto-hide are distinct reasons an issue leaves the default view.
+   */
+  showStale?: boolean;
 }
 
 interface IssueState {

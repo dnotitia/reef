@@ -8,6 +8,9 @@ export {
 export {
   isForwardStatus,
   isResolvedStatus,
+  isStaleResolved,
+  STALE_COMPLETED_WINDOW_MS,
+  STALE_CANCELED_WINDOW_MS,
   withRecoveredDraftStatus,
   ACTIVE_STATUSES,
 } from "./status";

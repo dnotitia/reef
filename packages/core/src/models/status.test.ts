@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { IssueCreateInput } from "../schemas/issues/metadata";
 import {
   ACTIVE_STATUSES,
+  STALE_CANCELED_WINDOW_MS,
+  STALE_COMPLETED_WINDOW_MS,
   canTransition,
   inferStatusFromCodeSignal,
   isForwardStatus,
   isResolvedStatus,
+  isStaleResolved,
   withRecoveredDraftStatus,
 } from "./status";
 
@@ -198,5 +201,125 @@ describe("withRecoveredDraftStatus (REEF-130)", () => {
     const out = withRecoveredDraftStatus(input, "pr");
     expect(out.fields.status).toBe("done");
     expect(out).toBe(input);
+  });
+});
+
+describe("isStaleResolved", () => {
+  // A fixed "now" so the windows are exercised deterministically (no Date.now()).
+  const NOW = Date.parse("2026-06-19T00:00:00Z");
+  const daysAgo = (days: number): string =>
+    new Date(NOW - days * 24 * 60 * 60 * 1000).toISOString();
+
+  it("is never stale for an active (non-resolved) status", () => {
+    for (const status of ACTIVE_STATUSES) {
+      expect(
+        isStaleResolved({ status, lastStatusChange: daysAgo(999), now: NOW }),
+      ).toBe(false);
+    }
+    expect(
+      isStaleResolved({
+        status: "backlog",
+        lastStatusChange: daysAgo(999),
+        now: NOW,
+      }),
+    ).toBe(false);
+  });
+
+  it("is never stale without a parseable anchor (legacy rows stay visible)", () => {
+    expect(isStaleResolved({ status: "done", now: NOW })).toBe(false);
+    expect(
+      isStaleResolved({ status: "done", lastStatusChange: null, now: NOW }),
+    ).toBe(false);
+    expect(
+      isStaleResolved({
+        status: "closed",
+        lastStatusChange: "not-a-date",
+        now: NOW,
+      }),
+    ).toBe(false);
+  });
+
+  it("hides a done issue only past the 28-day completed window", () => {
+    expect(
+      isStaleResolved({
+        status: "done",
+        lastStatusChange: daysAgo(27),
+        now: NOW,
+      }),
+    ).toBe(false);
+    expect(
+      isStaleResolved({
+        status: "done",
+        lastStatusChange: daysAgo(29),
+        now: NOW,
+      }),
+    ).toBe(true);
+  });
+
+  it("treats closed+completed as the completed bucket (28 days)", () => {
+    const base = {
+      status: "closed" as const,
+      closedReason: "completed" as const,
+      now: NOW,
+    };
+    expect(isStaleResolved({ ...base, lastStatusChange: daysAgo(20) })).toBe(
+      false,
+    );
+    expect(isStaleResolved({ ...base, lastStatusChange: daysAgo(40) })).toBe(
+      true,
+    );
+  });
+
+  it("uses the shorter 7-day canceled window for non-completed close reasons", () => {
+    for (const reason of [
+      "duplicate",
+      "wont_fix",
+      "invalid",
+      "stale",
+    ] as const) {
+      expect(
+        isStaleResolved({
+          status: "closed",
+          closedReason: reason,
+          lastStatusChange: daysAgo(6),
+          now: NOW,
+        }),
+      ).toBe(false);
+      expect(
+        isStaleResolved({
+          status: "closed",
+          closedReason: reason,
+          lastStatusChange: daysAgo(8),
+          now: NOW,
+        }),
+      ).toBe(true);
+    }
+  });
+
+  it("treats a closed issue with no reason as the canceled bucket (7 days)", () => {
+    expect(
+      isStaleResolved({
+        status: "closed",
+        closedReason: null,
+        lastStatusChange: daysAgo(10),
+        now: NOW,
+      }),
+    ).toBe(true);
+    // …and a completed-bucket age (between the two windows) would NOT hide it if
+    // it were completed — confirming the bucket split actually bites.
+    expect(
+      isStaleResolved({
+        status: "closed",
+        closedReason: "completed",
+        lastStatusChange: daysAgo(10),
+        now: NOW,
+      }),
+    ).toBe(false);
+  });
+
+  it("exposes the two windows as completed > canceled (Linear's 28 vs 7 default)", () => {
+    expect(STALE_COMPLETED_WINDOW_MS).toBe(28 * 24 * 60 * 60 * 1000);
+    expect(STALE_CANCELED_WINDOW_MS).toBe(7 * 24 * 60 * 60 * 1000);
+    expect(STALE_COMPLETED_WINDOW_MS).toBeGreaterThan(STALE_CANCELED_WINDOW_MS);
   });
 });

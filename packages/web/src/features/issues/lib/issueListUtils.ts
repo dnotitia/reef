@@ -1,4 +1,8 @@
-import { type IssueListItem, isResolvedStatus } from "@reef/core";
+import {
+  type IssueListItem,
+  isResolvedStatus,
+  isStaleResolved,
+} from "@reef/core";
 import type { IssueFilter } from "../stores/useIssueStore";
 
 /** True when the issue has not been archived. Shared by Board / Reports /
@@ -140,8 +144,26 @@ export function filterIssues(
   issues: IssueListItem[],
   filter: IssueFilter,
 ): IssueListItem[] {
+  // Now-relative cut, evaluated once for the whole pass so every row in this
+  // render is compared against the same instant (shared by the stale-resolved
+  // auto-hide and the `due` overdue/due-soon window below).
+  const now = Date.now();
   return issues.filter((issue) => {
     if (!filter.showArchived && !isActive(issue)) return false;
+    // Hide resolved issues that have aged past their auto-hide window unless the
+    // user opted in via "Show completed" — orthogonal to the archived toggle
+    // (REEF-275). Search and deep links bypass this pipeline, so a stale issue
+    // stays findable even while hidden from the default board/list.
+    if (
+      !filter.showStale &&
+      isStaleResolved({
+        status: issue.status,
+        closedReason: issue.closed_reason,
+        lastStatusChange: issue.last_status_change,
+        now,
+      })
+    )
+      return false;
     // Multi-select facets (REEF-031): an issue matches when its value is one of
     // the selected members (OR within a facet, AND across facets).
     if (filter.status?.length && !filter.status.includes(issue.status))
@@ -170,7 +192,6 @@ export function filterIssues(
       if (!issue.due_date) return false;
       if (isResolvedStatus(issue.status)) return false;
       const due = new Date(issue.due_date).getTime();
-      const now = Date.now();
       const sevenDays = 7 * 24 * 60 * 60 * 1000;
       const isOverdue = due < now;
       const isDueSoon = due >= now && due <= now + sevenDays;
