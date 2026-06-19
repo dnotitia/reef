@@ -5,6 +5,7 @@ import { purgeAll } from "@/features/issues/stores/issueEntityStore";
 import {
   AUTH_CHANGED_EVENT,
   PERSISTED_QUERY_CACHE_KEY,
+  subscribeCrossTabAuthChange,
 } from "@/lib/storage/clientCache";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { QueryClient } from "@tanstack/react-query";
@@ -104,6 +105,13 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener(AUTH_CHANGED_EVENT, handler);
     return () => window.removeEventListener(AUTH_CHANGED_EVENT, handler);
   }, [queryClient]);
+
+  // Mirror auth changes from sibling tabs into this one. When another tab signs
+  // out (or switches account / token), it broadcasts on the shared channel and
+  // subscribeCrossTabAuthChange re-dispatches AUTH_CHANGED_EVENT here, driving
+  // the same in-memory clear as a same-tab change — so a sign-out in one tab no
+  // longer leaves this tab showing the previous account's data. (REEF-106)
+  useEffect(() => subscribeCrossTabAuthChange(), []);
 
   return (
     <PersistQueryClientProvider

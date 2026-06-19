@@ -7,8 +7,8 @@ import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useIssueStore } from "../../stores/useIssueStore";
 import {
+  FILTER_FIELD_CLASS,
   FilterBar,
-  PLANNING_FILTER_COMBOBOX_CLASS,
   PLANNING_FILTER_WRAPPER_CLASS,
   USER_FILTER_PANEL_CLASS,
 } from "./FilterBar";
@@ -118,10 +118,10 @@ describe("FilterBar", () => {
     }
     expect(
       screen.getByTestId("sprint-input").parentElement?.className,
-    ).toContain(PLANNING_FILTER_COMBOBOX_CLASS);
+    ).toContain(FILTER_FIELD_CLASS);
     expect(
       screen.getByLabelText("Milestone").parentElement?.className,
-    ).toContain(PLANNING_FILTER_COMBOBOX_CLASS);
+    ).toContain(FILTER_FIELD_CLASS);
 
     await user.click(screen.getByLabelText("Milestone"));
     const panel = screen.getByRole("listbox").parentElement;
@@ -285,12 +285,13 @@ describe("FilterBar", () => {
     expect(trigger).toBeDisabled();
   });
 
-  // REEF-134: the Assignee/Requester triggers stay compact (w-36), but the
-  // OPEN user dropdown should be wide enough to read a long display name + @login.
-  // jsdom does not measure pixels, so assert the structural policy: the opened
-  // panel adopts the readable floor (not the default narrow min-width) AND
-  // anchors to the start edge so a widened panel on a trigger that wraps to the
-  // start of a row grows rightward instead of off the left edge.
+  // REEF-134/269: the Assignee/Requester triggers stay narrow (they hug from a
+  // `9rem` floor via FILTER_FIELD_CLASS), but the OPEN user dropdown should be
+  // wide enough to read a long display name + @login. jsdom does not measure
+  // pixels, so assert the structural policy: the opened panel adopts the readable
+  // floor (not the default narrow min-width) AND anchors to the start edge so a
+  // widened panel on a trigger that wraps to the start of a row grows rightward
+  // instead of off the left edge.
   it.each([
     ["assignee-filter", "Assignee"],
     ["requester-filter", "Requester"],
@@ -324,6 +325,65 @@ describe("FilterBar", () => {
     expect(USER_FILTER_PANEL_CLASS).toContain("min-w-[17rem]");
   });
 
+  // REEF-269: the six "value field" comboboxes (Assignee · Requester · Sprint ·
+  // Milestone · Release · Labels) all draw their width from the single
+  // FILTER_FIELD_CLASS token, replacing the pre-REEF-269 mix of fixed `w-36`
+  // (people), fit-content capped at `22rem` (planning), and fixed `w-52`
+  // (labels). The token lives on each field's width-controlling element: the
+  // wrapper for the user + labels fields, the inner combobox root (the trigger's
+  // parent) for the planning fields, matching REEF-246's fit-content placement.
+  // jsdom can not measure pixels, so this is a class-contract regression guard;
+  // the real visual alignment is checked in the hermetic runtime (see the
+  // issue's manual-verification note).
+  it("sizes every value field from the shared FILTER_FIELD_CLASS token (REEF-269)", () => {
+    vi.mocked(useActiveVault).mockReturnValue({
+      vault: "reef-acme",
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    renderFilterBar();
+
+    // User + labels fields: the token is on the field wrapper.
+    for (const testId of [
+      "assignee-filter",
+      "requester-filter",
+      "labels-filter",
+    ]) {
+      expect(screen.getByTestId(testId).className).toContain(
+        FILTER_FIELD_CLASS,
+      );
+    }
+    // Planning fields: the token is on the inner combobox root (the trigger's
+    // parent), per REEF-246's fit-content placement.
+    for (const label of ["Sprint", "Milestone", "Release"]) {
+      expect(screen.getByLabelText(label).parentElement?.className).toContain(
+        FILTER_FIELD_CLASS,
+      );
+    }
+  });
+
+  // REEF-269: the multi-select facet chips are NOT value fields — they keep the
+  // auto-width "hug the label" vocabulary (CBX_TRIGGER_CHIP is inline-flex with
+  // no width token) and must not adopt the value-field width policy. Nail it down
+  // so a future "unify all the comboboxes" pass can't sweep the chips in too.
+  it("keeps the facet chips auto-width, not the value-field token (REEF-269)", () => {
+    renderFilterBar();
+    for (const testId of [
+      "status-dropdown-trigger",
+      "type-dropdown-trigger",
+      "priority-dropdown-trigger",
+      "severity-dropdown-trigger",
+      "due-dropdown-trigger",
+      "dependency-dropdown-trigger",
+    ]) {
+      const chip = screen.getByTestId(testId);
+      expect(chip.className).toContain("inline-flex");
+      expect(chip.className).not.toContain("w-fit");
+      expect(chip.className).not.toContain("min-w-[9rem]");
+      expect(chip.className).not.toContain("w-full");
+    }
+  });
+
   it("commits labels with Enter instead of asking for comma-separated text", async () => {
     const user = userEvent.setup();
     renderFilterBar();
@@ -334,6 +394,16 @@ describe("FilterBar", () => {
 
     expect(useIssueStore.getState().filter.label).toBe("ui");
     expect(screen.getByText("ui")).toBeTruthy();
+  });
+
+  // Labels are free-form tokens, not prose — the input suppresses the browser's
+  // spellcheck underline and autofill so it reads as tag entry (web interface
+  // guidelines: spellcheck off + autocomplete off on non-prose fields).
+  it("disables spellcheck and autocomplete on the labels input", () => {
+    renderFilterBar();
+    const input = screen.getByTestId("labels-input");
+    expect(input.getAttribute("spellcheck")).toBe("false");
+    expect(input.getAttribute("autocomplete")).toBe("off");
   });
 
   it("serializes multiple label chips with the existing comma filter contract", async () => {

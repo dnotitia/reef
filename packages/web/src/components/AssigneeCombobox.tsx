@@ -29,15 +29,16 @@ interface AssigneeComboboxProps {
   active?: boolean;
   /**
    * Extra classes for the opened dropdown panel. A narrow-trigger surface — the
-   * issue filter bar pins the Assignee/Requester triggers to `w-36` — passes a
-   * wider `min-w` here so a long display name and `@login` stay readable in the
-   * open list even though the closed trigger stays compact (REEF-134).
+   * issue filter bar keeps the Assignee/Requester triggers compact (a `9rem`
+   * floor) — passes a wider `min-w` here so a long display name and `@login` stay
+   * readable in the open list even though the closed trigger stays narrow
+   * (REEF-134/269).
    */
   panelClassName?: string;
   /**
    * Panel anchoring. Defaults to `"end"` (right-aligned) so a right-hand trigger
    * — e.g. a dialog header field — keeps the panel inside its clipped container.
-   * The issue filter bar passes `"start"` so a widened panel on a `w-36` trigger
+   * The issue filter bar passes `"start"` so a widened panel on a narrow trigger
    * that wraps to the start of a row grows rightward into the bar instead of off
    * the left edge (REEF-134), matching the sibling planning filters.
    */

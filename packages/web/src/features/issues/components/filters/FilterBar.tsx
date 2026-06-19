@@ -31,14 +31,15 @@ import {
 import { type IssueFilter, useIssueStore } from "../../stores/useIssueStore";
 
 /**
- * The Assignee/Requester filter triggers stay compact (`w-36`), but their open
- * user dropdown needs room to show a long display name and its `@login`
- * together — at the 144px trigger width both get truncated. Floor the *opened*
- * panel at a readable width and cap it to the viewport so it can not be
- * excessively clipped when the filter bar wraps onto multiple rows (REEF-134).
+ * The Assignee/Requester filter triggers stay narrow — they hug their value from
+ * a compact `9rem` floor (`FILTER_FIELD_CLASS`) — but their open user dropdown
+ * needs room to show a long display name and its `@login` together, which a
+ * floor-width trigger truncates. Floor the *opened* panel at a readable width and
+ * cap it to the viewport so it can not be excessively clipped when the filter bar
+ * wraps onto multiple rows (REEF-134/269).
  *
  * The user filters pass `align="start"` (see below) to match the sibling
- * planning filters in this bar: a panel wider than its compact trigger then
+ * planning filters in this bar: a panel wider than its trigger then
  * grows rightward, keeping the realistic left-edge wrap case on-screen. A panel
  * wider than its trigger can still overflow whichever edge it grows toward when
  * the trigger lands at the far end of a wrapped row — true of every non-portaled
@@ -48,8 +49,36 @@ import { type IssueFilter, useIssueStore } from "../../stores/useIssueStore";
  * bounds the worst case in the meantime.
  */
 export const USER_FILTER_PANEL_CLASS = "min-w-[17rem] max-w-[90vw]";
-export const PLANNING_FILTER_COMBOBOX_CLASS =
-  "inline-block w-fit min-w-[9rem] max-w-[22rem]";
+
+/**
+ * Shared width policy for the bar's "value field" comboboxes — Assignee,
+ * Requester, Sprint, Milestone, Release, and Labels. One token so the whole
+ * value-field group sizes identically: hug the selected value (`w-fit`), floored
+ * at `9rem` — the old `w-36` people-trigger width — so an empty field still reads
+ * as a field, and capped at `16rem` so a long value truncates instead of pushing
+ * the bar wide. This converges REEF-134 (people triggers pinned compact at a
+ * fixed `w-36`) and REEF-246 (planning triggers already fit-content, but capped
+ * at a wider `22rem`) onto a single vocabulary: every value field now grows with
+ * its value up to the same cap. The people triggers gaining hug behavior is the
+ * intended change REEF-246 deferred under its "Ask First" (REEF-269).
+ *
+ * Two pieces stay deliberately separate:
+ * - The OPEN user dropdown panel keeps its own readable floor via
+ *   `USER_FILTER_PANEL_CLASS` — REEF-134's compact-trigger / wide-panel split is
+ *   preserved; only the closed trigger's width policy is unified here.
+ * - The multi-select facet "chips" (Status, Type, Priority, Severity, Due,
+ *   Dependency) stay auto-width via `CBX_TRIGGER_CHIP` (`inline-flex`, no `w-full`
+ *   and no width token). That hug-the-label chip vocabulary is a separate,
+ *   intended one and is NOT given this class.
+ */
+export const FILTER_FIELD_CLASS = "w-fit min-w-[9rem] max-w-[16rem]";
+
+/**
+ * Wrapper for the planning value fields. The width token lives on the inner
+ * combobox (`FILTER_FIELD_CLASS`, passed as its `className`), matching REEF-246;
+ * this wrapper only provides the relative box and a viewport cap so the field can
+ * wrap without overflowing the bar.
+ */
 export const PLANNING_FILTER_WRAPPER_CLASS = "relative inline-block max-w-full";
 
 /**
@@ -310,7 +339,10 @@ export function FilterBar({
       />
 
       {/* Assignee filter */}
-      <div className="relative w-36" data-testid="assignee-filter">
+      <div
+        className={cn("relative", FILTER_FIELD_CLASS)}
+        data-testid="assignee-filter"
+      >
         <AssigneeCombobox
           value={filter.assignee ?? ""}
           onChange={(login) => setFilter({ assignee: login || undefined })}
@@ -325,7 +357,10 @@ export function FilterBar({
       </div>
 
       {/* Requester filter */}
-      <div className="relative w-36" data-testid="requester-filter">
+      <div
+        className={cn("relative", FILTER_FIELD_CLASS)}
+        data-testid="requester-filter"
+      >
         <AssigneeCombobox
           value={filter.requester ?? ""}
           onChange={(login) => setFilter({ requester: login || undefined })}
@@ -356,7 +391,7 @@ export function FilterBar({
             emptyLabel="Any sprint"
             testId="sprint-input"
             active={Boolean(filter.sprint_id)}
-            className={PLANNING_FILTER_COMBOBOX_CLASS}
+            className={FILTER_FIELD_CLASS}
           />
         </div>
       )}
@@ -377,7 +412,7 @@ export function FilterBar({
           placeholder="Milestone"
           emptyLabel="Any milestone"
           active={Boolean(filter.milestone_id)}
-          className={PLANNING_FILTER_COMBOBOX_CLASS}
+          className={FILTER_FIELD_CLASS}
         />
       </div>
 
@@ -397,20 +432,30 @@ export function FilterBar({
             placeholder="Release"
             emptyLabel="Any release"
             active={Boolean(filter.release_id)}
-            className={PLANNING_FILTER_COMBOBOX_CLASS}
+            className={FILTER_FIELD_CLASS}
           />
         </div>
       )}
 
       {/* Labels filter */}
-      <div className="relative w-52">
+      <div
+        className={cn("relative", FILTER_FIELD_CLASS)}
+        data-testid="labels-filter"
+      >
         <LabelChipInput
           value={labelValues}
           onChange={handleLabelsChange}
           placeholder="Labels"
           data-testid="labels-input"
+          // Unlike the combobox value fields — whose closed trigger shows a short
+          // placeholder so they rest at the shared `9rem` floor — the chip input's
+          // text field carries a browser-default ~20ch intrinsic width that would
+          // push this `w-fit` wrapper past the floor and break the empty-state
+          // alignment. Zero the input's width basis so it flexes to fill the
+          // floored field instead of dictating it; the field still hugs upward as
+          // chips accumulate, up to the shared `16rem` cap (REEF-269).
           className={cn(
-            "min-h-8 py-1",
+            "min-h-8 py-1 [&_input]:w-0",
             filter.label?.trim() && CBX_TRIGGER_ACTIVE,
           )}
         />
