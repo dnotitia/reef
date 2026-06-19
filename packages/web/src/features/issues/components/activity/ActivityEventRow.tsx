@@ -1,10 +1,24 @@
 "use client";
 
-import { STATUS_LABELS } from "@/components/fields/fieldKit";
+import { PlanningKindIcon } from "@/components/fields/PlanningKindIcon";
+import { PRIORITY_LABELS, STATUS_LABELS } from "@/components/fields/fieldKit";
 import { StatusIcon } from "@/components/ui/status-icon";
-import type { ImplementationRef } from "@reef/core";
+import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
+import { findPlanningName } from "@/features/planning/lib/planningItems";
+import type { ImplementationRef, PlanningLinkField } from "@reef/core";
 import { CLOSED_REASON_LABELS } from "@reef/core/fields";
-import { CircleDot, GitBranch, GitCommit, GitPullRequest } from "lucide-react";
+import {
+  PLANNING_KIND_SINGULAR,
+  type PlanningKind,
+} from "@reef/core/fields/planning";
+import {
+  CircleDot,
+  Flag,
+  GitBranch,
+  GitCommit,
+  GitPullRequest,
+  UserRound,
+} from "lucide-react";
 import { type ReactNode, memo, useState } from "react";
 import {
   formatAbsoluteTime,
@@ -18,6 +32,19 @@ const DELIVERY_ICON = {
   branch: GitBranch,
 } as const;
 
+/** A `planning_link` field (singular) → the planning catalog kind (plural). */
+const PLANNING_FIELD_KIND: Record<PlanningLinkField, PlanningKind> = {
+  milestone: "milestones",
+  sprint: "sprints",
+  release: "releases",
+};
+
+/** Resolve a planning id to its human name; null when absent/unresolved. */
+type PlanningNameResolver = (
+  field: PlanningLinkField,
+  id: string | null,
+) => string | null;
+
 /** A short, human label for a delivery ref ("PR #25", "commit a1b2c3d"). */
 function deliveryLabel(ref: ImplementationRef): string {
   if (ref.type === "pull_request") return `PR #${ref.ref.replace(/^#/, "")}`;
@@ -28,6 +55,37 @@ function deliveryLabel(ref: ImplementationRef): string {
 /** The actor name as an emphasized inline token. */
 function Actor({ name }: { name: string }) {
   return <span className="font-medium text-foreground">{name}</span>;
+}
+
+/** A changed value (assignee login, priority label, planning name) as a token. */
+function valueToken(text: string): ReactNode {
+  return <span className="font-medium text-foreground">{text}</span>;
+}
+
+/**
+ * Compose a field-change line (REEF-276). With an actor it reads
+ * "alice <lead> <rest>"; without one it leads with the capitalized verb phrase
+ * ("<Lead> <rest>") — the same actor-optional shape the status/closed rows use.
+ */
+function sentence(
+  actor: string | null,
+  lead: string,
+  rest?: ReactNode,
+): ReactNode {
+  const leadNode = actor ? (
+    <>
+      <Actor name={actor} /> {lead}
+    </>
+  ) : (
+    `${lead.charAt(0).toUpperCase()}${lead.slice(1)}`
+  );
+  return rest != null ? (
+    <>
+      {leadNode} {rest}
+    </>
+  ) : (
+    leadNode
+  );
 }
 
 /** The gutter glyph node, by event kind. */
@@ -49,11 +107,32 @@ function glyphFor(event: TimelineSystemEvent): ReactNode {
       // Delivery stays neutral — status color is reserved for status changes.
       return <Icon className="size-3.5 text-muted-foreground" aria-hidden />;
     }
+    case "assignee_change":
+      return (
+        <UserRound className="size-3.5 text-muted-foreground" aria-hidden />
+      );
+    case "priority_change":
+      // Neutral glyph — the priority is encoded once, in the label text (AC6).
+      return <Flag className="size-3.5 text-muted-foreground" aria-hidden />;
+    case "planning_link":
+      // Canonical planning-kind glyph (shape-coded, not colored); decorative,
+      // with the kind also named in the line text for screen readers (AC3/AC6).
+      return (
+        <PlanningKindIcon
+          kind={PLANNING_FIELD_KIND[event.field]}
+          size={14}
+          decorative
+          className="text-muted-foreground"
+        />
+      );
   }
 }
 
 /** The one-line description, by event kind. */
-function lineFor(event: TimelineSystemEvent): ReactNode {
+function lineFor(
+  event: TimelineSystemEvent,
+  resolvePlanning: PlanningNameResolver,
+): ReactNode {
   switch (event.kind) {
     case "created":
       return event.actor ? (
@@ -124,6 +203,69 @@ function lineFor(event: TimelineSystemEvent): ReactNode {
         </>
       );
     }
+    case "assignee_change": {
+      const { from, to } = event;
+      if (from && to)
+        return sentence(
+          event.actor,
+          "reassigned",
+          <>
+            {valueToken(from)} → {valueToken(to)}
+          </>,
+        );
+      if (to) return sentence(event.actor, "assigned this to", valueToken(to));
+      if (from) return sentence(event.actor, "unassigned", valueToken(from));
+      return sentence(event.actor, "changed the assignee");
+    }
+    case "priority_change": {
+      const { from, to } = event;
+      if (from && to)
+        return sentence(
+          event.actor,
+          "changed priority",
+          <>
+            {PRIORITY_LABELS[from]} → {PRIORITY_LABELS[to]}
+          </>,
+        );
+      if (to)
+        return sentence(
+          event.actor,
+          "set priority to",
+          valueToken(PRIORITY_LABELS[to]),
+        );
+      if (from) return sentence(event.actor, "cleared priority");
+      return sentence(event.actor, "changed priority");
+    }
+    case "planning_link": {
+      const kind = PLANNING_FIELD_KIND[event.field];
+      // Lowercase kind word ("sprint"/"milestone"/"release") names the dimension
+      // in text (a11y), reinforced by the shape glyph. A raw id is never shown —
+      // an unresolved name simply drops the token (AC3).
+      const word = PLANNING_KIND_SINGULAR[kind].toLowerCase();
+      const fromName = resolvePlanning(event.field, event.from);
+      const toName = resolvePlanning(event.field, event.to);
+      if (event.from == null && event.to != null)
+        return sentence(
+          event.actor,
+          `added to ${word}`,
+          toName ? valueToken(toName) : null,
+        );
+      if (event.from != null && event.to == null)
+        return sentence(
+          event.actor,
+          `removed from ${word}`,
+          fromName ? valueToken(fromName) : null,
+        );
+      return sentence(
+        event.actor,
+        `moved ${word}`,
+        <>
+          {fromName ? valueToken(fromName) : null}
+          {fromName && toName ? " → " : null}
+          {toName ? valueToken(toName) : null}
+        </>,
+      );
+    }
   }
 }
 
@@ -135,10 +277,18 @@ function lineFor(event: TimelineSystemEvent): ReactNode {
  */
 export const ActivityEventRow = memo(function ActivityEventRow({
   event,
+  vault,
 }: {
   event: TimelineSystemEvent;
+  /** Active vault — resolves `planning_link` ids to names (REEF-276). */
+  vault: string;
 }) {
   const [nowMs] = useState(() => Date.now());
+  // Resolve planning ids to names the same way board/list/draft surfaces do
+  // (REEF-233). Cached per vault, so every row sharing the query pays once.
+  const { data: planningCatalog } = usePlanningCatalog(vault);
+  const resolvePlanning: PlanningNameResolver = (field, id) =>
+    findPlanningName(planningCatalog, PLANNING_FIELD_KIND[field], id);
 
   return (
     <div className="flex items-center gap-3" data-testid="activity-event">
@@ -148,7 +298,7 @@ export const ActivityEventRow = memo(function ActivityEventRow({
         {glyphFor(event)}
       </span>
       <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
-        <span className="min-w-0">{lineFor(event)}</span>
+        <span className="min-w-0">{lineFor(event, resolvePlanning)}</span>
         <time
           dateTime={event.at}
           title={formatAbsoluteTime(event.at)}

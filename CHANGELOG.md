@@ -12,6 +12,14 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Added
+
+- **The activity timeline now shows assignee, priority, and planning changes.**
+  Reassignments, priority changes, and planning links (milestone, sprint, and
+  release attach/detach) — already recorded in the log — now render as their own
+  one-line entries in an issue's Activity thread, next to status changes and
+  delivery. Planning links read by name rather than a raw id, and a linked
+  delivery ref still appears once, not twice (REEF-276).
 ### Fixed
 
 - **Sign-out now clears every open tab.** Signing out of a workspace in one

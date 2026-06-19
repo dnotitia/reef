@@ -1,6 +1,9 @@
 // @vitest-environment node
 import {
   ACTIVITY_EVENT_ASSIGNEE_CHANGE,
+  ACTIVITY_EVENT_IMPL_REF_LINKED,
+  ACTIVITY_EVENT_PLANNING_LINK,
+  ACTIVITY_EVENT_PRIORITY_CHANGE,
   type ActivityEvent,
   type Comment,
   type IssueMetadata,
@@ -94,10 +97,8 @@ describe("buildEntries — merge-sort (AC1)", () => {
     expect(ids).toEqual(["created", "c-offset", "a-utc"]);
   });
 
-  it("renders only status_change activity; other REEF-126 event kinds are filtered out", () => {
+  it("renders status, assignee, priority, and planning events as their own rows (REEF-276)", () => {
     const issue = makeIssue();
-    // REEF-126 widened the activity union; REEF-064's MVP renders status changes
-    // just, so a non-status event should not appear as a timeline row.
     const assignee: ActivityEvent = {
       id: "asg-1",
       reef_id: "REEF-001",
@@ -108,6 +109,26 @@ describe("buildEntries — merge-sort (AC1)", () => {
       at: "2026-06-03T00:00:00.000Z",
       source: null,
     };
+    const priority: ActivityEvent = {
+      id: "pri-1",
+      reef_id: "REEF-001",
+      event_type: ACTIVITY_EVENT_PRIORITY_CHANGE,
+      event_key: "priority_change:low->high@2026-06-03T06:00:00.000Z",
+      payload: { from: "low", to: "high" },
+      actor: "bob",
+      at: "2026-06-03T06:00:00.000Z",
+      source: null,
+    };
+    const planning: ActivityEvent = {
+      id: "pln-1",
+      reef_id: "REEF-001",
+      event_type: ACTIVITY_EVENT_PLANNING_LINK,
+      event_key: "planning_link:sprint:∅->spr-1@2026-06-03T12:00:00.000Z",
+      payload: { field: "sprint", from: null, to: "spr-1" },
+      actor: "bob",
+      at: "2026-06-03T12:00:00.000Z",
+      source: null,
+    };
     const status = activity(
       "st-1",
       "2026-06-04T00:00:00.000Z",
@@ -115,11 +136,48 @@ describe("buildEntries — merge-sort (AC1)", () => {
       "in_progress",
     );
 
-    const systemIds = buildEntries([], [assignee, status], issue)
+    const systemIds = buildEntries(
+      [],
+      [assignee, priority, planning, status],
+      issue,
+    )
       .filter((e) => e.type === "system")
       .map((e) => (e.type === "system" ? e.event.id : ""));
-    expect(systemIds).toContain("st-1");
-    expect(systemIds).not.toContain("asg-1");
+    expect(systemIds).toEqual(
+      expect.arrayContaining(["st-1", "asg-1", "pri-1", "pln-1"]),
+    );
+  });
+
+  it("does not render impl_ref_linked as its own row — the delivery line is reconstructed (AC4)", () => {
+    // The issue carries the ref, so reconstructEvents emits exactly one delivery
+    // row for it; the impl_ref_linked activity row must NOT add a second.
+    const issue = makeIssue({
+      implementation_refs: [
+        { type: "pull_request", repo: "o/r", ref: "25", actor: "carol" },
+      ],
+    });
+    const implRef: ActivityEvent = {
+      id: "impl-1",
+      reef_id: "REEF-001",
+      event_type: ACTIVITY_EVENT_IMPL_REF_LINKED,
+      event_key: "impl_ref_linked:pull_request:o/r:25@2026-06-05T00:00:00.000Z",
+      payload: { ref_type: "pull_request", ref: "25", repo: "o/r" },
+      actor: "carol",
+      at: "2026-06-05T00:00:00.000Z",
+      source: null,
+    };
+
+    const systemEvents = buildEntries([], [implRef], issue).filter(
+      (e) => e.type === "system",
+    );
+    const deliveryRows = systemEvents.filter(
+      (e) => e.type === "system" && e.event.kind === "delivery",
+    );
+    expect(deliveryRows).toHaveLength(1);
+    const ids = systemEvents.map((e) =>
+      e.type === "system" ? e.event.id : "",
+    );
+    expect(ids).not.toContain("impl-1");
   });
 });
 

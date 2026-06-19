@@ -1,18 +1,23 @@
 import {
+  ACTIVITY_EVENT_ASSIGNEE_CHANGE,
+  ACTIVITY_EVENT_IMPL_REF_LINKED,
+  ACTIVITY_EVENT_PLANNING_LINK,
+  ACTIVITY_EVENT_PRIORITY_CHANGE,
   ACTIVITY_EVENT_STATUS_CHANGE,
   type ActivityEvent,
   type ClosedReason,
   type Comment,
   type ImplementationRef,
   type IssueMetadata,
+  type PlanningLinkField,
+  type Priority,
   type Status,
 } from "@reef/core";
 
 /**
- * The status-change variant of the `reef_activity` discriminated union (REEF-126
- * widened it to assignee / priority / planning / impl-ref events). REEF-064's MVP
- * renders status changes (its `from → to` glyph line); the other event kinds
- * are filtered out here and surfaced by a follow-up.
+ * The status-change variant of the `reef_activity` discriminated union. Used by
+ * `reconstructEvents`, which only consults the logged status transitions when
+ * deciding whether to synthesize a fallback current-status / closed event.
  */
 type StatusChangeActivityEvent = Extract<
   ActivityEvent,
@@ -74,6 +79,34 @@ export type TimelineSystemEvent =
       actor: string | null;
       kind: "closed";
       reason: ClosedReason | null;
+    }
+  | {
+      id: string;
+      at: string;
+      actor: string | null;
+      kind: "assignee_change";
+      /** `assigned_to` either side (login), null for an (un)assign edge. */
+      from: string | null;
+      to: string | null;
+    }
+  | {
+      id: string;
+      at: string;
+      actor: string | null;
+      kind: "priority_change";
+      from: Priority | null;
+      to: Priority | null;
+    }
+  | {
+      id: string;
+      at: string;
+      actor: string | null;
+      kind: "planning_link";
+      /** Which planning dimension moved (milestone / sprint / release). */
+      field: PlanningLinkField;
+      /** Planning ids; null on an attach (`null → id`) or detach (`id → null`). */
+      from: string | null;
+      to: string | null;
     };
 
 export interface CommentEntry {
@@ -105,19 +138,52 @@ export type TimelineEntry = CommentEntry | SystemEntry | CollapsedEntry;
  */
 const COLLAPSE_THRESHOLD = 3;
 
-/** Map a `reef_activity` status-change event to a normalized system event. */
-function fromActivityEvent(
-  event: StatusChangeActivityEvent,
-): TimelineSystemEvent {
-  return {
-    id: event.id,
-    at: event.at,
-    actor: event.actor,
-    kind: "status_change",
-    from: event.payload.from,
-    to: event.payload.to,
-    source: event.source,
-  };
+/**
+ * Map a `reef_activity` row to a normalized system event (REEF-276). Each of
+ * status_change / assignee_change / priority_change / planning_link becomes its
+ * own timeline row. `impl_ref_linked` maps to `null`: a linked delivery ref is
+ * already surfaced as a reconstructed `delivery` event from the issue's own
+ * `implementation_refs`, so rendering the activity row too would double the
+ * delivery line (AC4). The discriminated union narrows `payload` per case.
+ */
+function fromActivityEvent(event: ActivityEvent): TimelineSystemEvent | null {
+  const base = { id: event.id, at: event.at, actor: event.actor };
+  switch (event.event_type) {
+    case ACTIVITY_EVENT_STATUS_CHANGE:
+      return {
+        ...base,
+        kind: "status_change",
+        from: event.payload.from,
+        to: event.payload.to,
+        source: event.source,
+      };
+    case ACTIVITY_EVENT_ASSIGNEE_CHANGE:
+      return {
+        ...base,
+        kind: "assignee_change",
+        from: event.payload.from,
+        to: event.payload.to,
+      };
+    case ACTIVITY_EVENT_PRIORITY_CHANGE:
+      return {
+        ...base,
+        kind: "priority_change",
+        from: event.payload.from,
+        to: event.payload.to,
+      };
+    case ACTIVITY_EVENT_PLANNING_LINK:
+      return {
+        ...base,
+        kind: "planning_link",
+        field: event.payload.field,
+        from: event.payload.from,
+        to: event.payload.to,
+      };
+    case ACTIVITY_EVENT_IMPL_REF_LINKED:
+      // Delivery is reconstructed from the issue's implementation_refs; the
+      // activity row would render a second, duplicate delivery line (AC4).
+      return null;
+  }
 }
 
 /** Stable de-dupe key for a delivery ref (vault-skill `type:repo:ref`). */
@@ -262,24 +328,28 @@ export function buildEntries(
   // append path is idempotent on event_key but akb's HTTP surface has no unique
   // index, so two simultaneous identical inserts can leave duplicate rows; the
   // adapter documents that the timeline is the downstream de-duper (REEF-125).
-  // status_change events render today (REEF-064 MVP); other REEF-126 event
-  // kinds are filtered out pending a follow-up that designs their rows.
+  // Every recorded event kind renders (REEF-276) — status_change, assignee /
+  // priority / planning changes — except impl_ref_linked, which `fromActivityEvent`
+  // drops to null because the delivery line is reconstructed from the issue's
+  // own refs (AC4).
   const seenKeys = new Set<string>();
-  for (const event of activity.filter(isStatusChangeEvent)) {
+  for (const event of activity) {
     if (seenKeys.has(event.event_key)) continue;
     seenKeys.add(event.event_key);
+    const systemEvent = fromActivityEvent(event);
+    if (!systemEvent) continue;
+    // A logged plain close (status_change → closed) is superseded by the
+    // reconstructed `closed` event, which carries the closure reason the
+    // `{from,to}` payload lacks; render the close once, with its reason.
     if (
+      systemEvent.kind === "status_change" &&
       supersededCloseAt != null &&
-      event.payload.to === "closed" &&
-      event.at === supersededCloseAt
+      systemEvent.to === "closed" &&
+      systemEvent.at === supersededCloseAt
     ) {
       continue;
     }
-    entries.push({
-      type: "system",
-      at: event.at,
-      event: fromActivityEvent(event),
-    });
+    entries.push({ type: "system", at: event.at, event: systemEvent });
   }
   for (const event of reconstructEvents(issue, activity)) {
     entries.push({ type: "system", at: event.at, event });

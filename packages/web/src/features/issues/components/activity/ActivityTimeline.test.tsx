@@ -87,6 +87,8 @@ beforeEach(() => {
     async (input: URL | RequestInfo, init?: RequestInit) => {
       const url = String(input);
       const method = init?.method ?? "GET";
+      if (url.includes("/planning"))
+        return json({ sprints: [], milestones: [], releases: [] });
       if (url.includes("/activity")) return json({ activity });
       if (url.includes("/comments")) {
         if (method === "GET") return json({ comments });
@@ -181,6 +183,63 @@ describe("ActivityTimeline — unified feed (AC1, AC2)", () => {
     expect(text).toContain("closed this issue");
     expect(text).toContain("Completed");
     expect(text).toContain("bob");
+  });
+});
+
+describe("ActivityTimeline — field-change rows (REEF-276)", () => {
+  it("renders assignee, priority, and planning changes, and never a raw planning id", async () => {
+    comments = [];
+    activity = [
+      {
+        id: "asg-1",
+        reef_id: "REEF-001",
+        event_type: "assignee_change",
+        event_key: "assignee_change:∅->bob@2026-06-03T00:00:00.000Z",
+        payload: { from: null, to: "bob" },
+        actor: "alice",
+        at: "2026-06-03T00:00:00.000Z",
+        source: null,
+      },
+      {
+        id: "pri-1",
+        reef_id: "REEF-001",
+        event_type: "priority_change",
+        event_key: "priority_change:∅->high@2026-06-03T06:00:00.000Z",
+        payload: { from: null, to: "high" },
+        actor: "alice",
+        at: "2026-06-03T06:00:00.000Z",
+        source: null,
+      },
+      {
+        id: "pln-1",
+        reef_id: "REEF-001",
+        event_type: "planning_link",
+        event_key:
+          "planning_link:sprint:∅->spr-secret-id@2026-06-03T12:00:00.000Z",
+        payload: { field: "sprint", from: null, to: "spr-secret-id" },
+        actor: "alice",
+        at: "2026-06-03T12:00:00.000Z",
+        source: null,
+      },
+    ];
+    renderTimeline(makeIssue());
+
+    await waitFor(() =>
+      expect(
+        screen.getAllByTestId("activity-event").length,
+      ).toBeGreaterThanOrEqual(4),
+    );
+    const text = screen
+      .getAllByTestId("activity-event")
+      .map((r) => r.textContent ?? "")
+      .join(" | ");
+    expect(text).toContain("assigned this to");
+    expect(text).toContain("bob");
+    expect(text).toMatch(/priority/i);
+    expect(text).toContain("High");
+    // The planning kind is named in text (a11y); the raw id is never rendered.
+    expect(text).toContain("sprint");
+    expect(text).not.toContain("spr-secret-id");
   });
 });
 
