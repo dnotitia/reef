@@ -57,6 +57,14 @@ vi.mock("next/link", () => ({
 import { MyWorkPage } from "./MyWorkPage";
 
 const base = { created_by: "alice", updated_by: "alice" };
+
+// A fixed reference "now". Both the `Date.now` mock and the date-relative
+// fixtures (overdue/due-soon) derive from this single constant, so the suite no
+// longer silently depended on the real wall clock matching the mock: `iso()`
+// fixtures are evaluated at module-collection time, before `beforeEach` installs
+// the mock, so computing them from the real `Date.now()` made the overdue
+// boundary drift by a day on any date other than the one the test was written.
+const MOCK_NOW_MS = new Date("2026-06-18T00:00:00.000Z").getTime();
 const makeIssue = (
   overrides: Partial<IssueListItem> & { id: string },
 ): IssueListItem =>
@@ -85,9 +93,7 @@ function issueListResult(data: IssueListItem[] | undefined, extra = {}) {
 describe("MyWorkPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(Date, "now").mockReturnValue(
-      new Date("2026-06-18T00:00:00.000Z").getTime(),
-    );
+    vi.spyOn(Date, "now").mockReturnValue(MOCK_NOW_MS);
     mockUseActiveVault.mockReturnValue({
       vault: "reef-acme",
       isLoading: false,
@@ -146,7 +152,7 @@ describe("MyWorkPage", () => {
 
   describe("with assigned work", () => {
     const iso = (days: number) =>
-      new Date(Date.now() + days * 86_400_000).toISOString();
+      new Date(MOCK_NOW_MS + days * 86_400_000).toISOString();
     const issues = [
       makeIssue({
         id: "REEF-1",
