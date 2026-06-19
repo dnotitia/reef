@@ -107,9 +107,9 @@ describe("IssueDetailHeader", () => {
     });
 
     it("names the parent relationship for hover and assistive tech", () => {
-      // The up-arrow + id-column alignment carry the at-a-glance "parent"
-      // reading; the explicit wording lives in title/aria-label so it does not
-      // push the id out of the shared column (REEF-266 follow-up).
+      // The horizontal breadcrumb trail + the › separator carry the at-a-glance
+      // "parent" reading; the explicit wording lives in title/aria-label for
+      // hover + assistive tech (REEF-266 follow-up).
       setup({ parentId: PARENT_ID, allIssues: [parent] });
       const link = screen.getByTestId("issue-parent-breadcrumb");
       expect(link).toHaveAttribute("title", "Go to parent issue");
@@ -125,12 +125,15 @@ describe("IssueDetailHeader", () => {
       ).toHaveAccessibleName("Parent issue REEF-182");
     });
 
-    it("hides the glyph from assistive tech", () => {
+    it("orders the parent crumb before the current issue id (trail order)", () => {
+      // Horizontal breadcrumb: parent first, current issue last ("you are here").
       setup({ parentId: PARENT_ID, allIssues: [parent] });
-      const glyph = screen
-        .getByTestId("issue-parent-breadcrumb")
-        .querySelector("svg");
-      expect(glyph).toHaveAttribute("aria-hidden", "true");
+      const crumb = screen.getByTestId("issue-parent-breadcrumb");
+      const currentId = screen.getByText("REEF-111");
+      expect(
+        crumb.compareDocumentPosition(currentId) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
     });
 
     it("renders nothing above the header for a top-level issue", () => {
@@ -148,6 +151,21 @@ describe("IssueDetailHeader", () => {
       expect(link).toHaveAttribute("href", "/issues/REEF-182");
       // No resolved title to show — the link stays navigable with the id alone.
       expect(link.textContent).toBe("REEF-182");
+    });
+
+    it("keeps the close button out of the breadcrumb/id content row", () => {
+      // The breadcrumb + id share the left content row; the close button sits in
+      // a separate top-right action group. Guards against the close button
+      // slipping into the content row, which would push it below the breadcrumb
+      // (REEF-266 follow-up).
+      setup({ parentId: PARENT_ID, allIssues: [parent] });
+      const contentRow = screen.getByRole("navigation", {
+        name: "Issue hierarchy",
+      }).parentElement;
+      expect(contentRow).not.toBeNull();
+      expect(contentRow?.contains(screen.getByTestId("issue-close"))).toBe(
+        false,
+      );
     });
   });
 });
