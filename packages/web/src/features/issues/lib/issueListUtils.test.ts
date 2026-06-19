@@ -296,6 +296,108 @@ describe("filterIssues", () => {
   });
 });
 
+describe("filterIssues — stale resolved auto-hide (REEF-275)", () => {
+  const FIXED_NOW = new Date("2026-06-19T00:00:00.000Z");
+  const DAY = 24 * 60 * 60 * 1000;
+  const ago = (days: number): string =>
+    new Date(FIXED_NOW.getTime() - days * DAY).toISOString();
+
+  const withFixedNow = (run: () => void): void => {
+    vi.useFakeTimers();
+    vi.setSystemTime(FIXED_NOW);
+    try {
+      run();
+    } finally {
+      vi.useRealTimers();
+    }
+  };
+
+  it("hides a long-finished done issue by default and reveals it with showStale", () => {
+    withFixedNow(() => {
+      const staleDone = [
+        makeIssue({
+          id: "REEF-900",
+          status: "done",
+          last_status_change: ago(60),
+        }),
+      ];
+      expect(filterIssues(staleDone, {})).toHaveLength(0);
+      expect(filterIssues(staleDone, { showStale: true })).toHaveLength(1);
+    });
+  });
+
+  it("keeps a recently-resolved issue visible", () => {
+    withFixedNow(() => {
+      const fresh = [
+        makeIssue({
+          id: "REEF-901",
+          status: "done",
+          last_status_change: ago(2),
+        }),
+      ];
+      expect(filterIssues(fresh, {})).toHaveLength(1);
+    });
+  });
+
+  it("uses the shorter canceled window: a non-completed close hides before a completed one", () => {
+    withFixedNow(() => {
+      // 10 days: past the 7-day canceled window, within the 28-day completed one.
+      const canceled = makeIssue({
+        id: "REEF-902",
+        status: "closed",
+        closed_reason: "wont_fix",
+        last_status_change: ago(10),
+      });
+      const shipped = makeIssue({
+        id: "REEF-903",
+        status: "closed",
+        closed_reason: "completed",
+        last_status_change: ago(10),
+      });
+      expect(filterIssues([canceled], {})).toHaveLength(0);
+      expect(filterIssues([shipped], {}).map((i) => i.id)).toEqual([
+        "REEF-903",
+      ]);
+    });
+  });
+
+  it("never auto-hides a resolved issue that lacks a status-change anchor", () => {
+    withFixedNow(() => {
+      const noAnchor = [makeIssue({ id: "REEF-904", status: "done" })];
+      expect(filterIssues(noAnchor, {})).toHaveLength(1);
+    });
+  });
+
+  it("surfaces a stale issue when an in-view search is active (recoverability)", () => {
+    withFixedNow(() => {
+      const staleDone = [
+        makeIssue({
+          id: "REEF-905",
+          status: "done",
+          last_status_change: ago(60),
+        }),
+      ];
+      expect(filterIssues(staleDone, {})).toHaveLength(0);
+      expect(filterIssues(staleDone, {}, { searchActive: true })).toHaveLength(
+        1,
+      );
+    });
+  });
+
+  it("keeps archived hidden even under an active search (explicit hide, unlike the passive stale auto-hide)", () => {
+    const archivedDone = [
+      makeIssue({
+        id: "REEF-906",
+        status: "done",
+        archived_at: "2020-01-01T00:00:00.000Z",
+      }),
+    ];
+    expect(filterIssues(archivedDone, {}, { searchActive: true })).toHaveLength(
+      0,
+    );
+  });
+});
+
 describe("searchIssues", () => {
   it("returns all issues when query is empty", () => {
     expect(searchIssues(issues, "")).toHaveLength(4);

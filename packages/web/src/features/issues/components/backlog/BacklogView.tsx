@@ -244,7 +244,9 @@ export function BacklogView({ vault }: BacklogViewProps) {
   );
 
   const visibleIssues = useMemo(() => {
-    const filtered = filterIssues(allIssues, backlogFilter);
+    const filtered = filterIssues(allIssues, backlogFilter, {
+      searchActive: searchQuery.trim().length > 0,
+    });
     const searched = searchIssues(filtered, searchQuery);
     const depFiltered = applyDependencyFilter(
       searched,

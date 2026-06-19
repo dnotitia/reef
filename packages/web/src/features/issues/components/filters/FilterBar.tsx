@@ -15,13 +15,18 @@ import {
 } from "@/components/ui/comboboxChrome";
 import { LabelChipInput } from "@/components/ui/label-chip-input";
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { PRIORITY_OPTIONS, PriorityBadge } from "@/components/ui/priority-dot";
 import { STATUS_OPTIONS, StatusBadge } from "@/components/ui/status-icon";
 import { PlanningItemCombobox } from "@/features/planning/components/PlanningItemCombobox";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { cn } from "@/lib/utils";
 import type { Status } from "@reef/core";
-import { X } from "lucide-react";
+import { Check, SlidersHorizontal, X } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { formatLabelFilter, parseLabelFilter } from "../../lib/issueListUtils";
 import {
@@ -80,6 +85,16 @@ export const FILTER_FIELD_CLASS = "w-fit min-w-[9rem] max-w-[16rem]";
  * wrap without overflowing the bar.
  */
 export const PLANNING_FILTER_WRAPPER_CLASS = "relative inline-block max-w-full";
+
+/** A toggle row inside the Display popover (REEF-275). A leading check marks the
+ *  on state (space reserved when off so labels stay aligned); the row is a
+ *  toggle button (`aria-pressed`), not a one-shot menu item, so clicking it
+ *  flips one view-mode flag and leaves the panel open to flip the other. */
+const VIEW_TOGGLE_ROW_CLASS =
+  "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left " +
+  "text-[13px] text-foreground transition-colors duration-150 " +
+  "hover:bg-surface-hover focus-visible:outline-none " +
+  "focus-visible:ring-2 focus-visible:ring-brand/30";
 
 /**
  * Static multi-select facet option lists. Hoisted to module scope so the badge
@@ -461,26 +476,81 @@ export function FilterBar({
         />
       </div>
 
-      {/* Show archived toggle — orthogonal to the active-filter counter
-          (archived state is part of "view mode", not a filter on issue
-          attributes). Lives at the end so it doesn't shift focus order on
-          users who does not archive. */}
-      <button
-        type="button"
-        onClick={() =>
-          setFilter({ showArchived: !filter.showArchived || undefined })
-        }
-        className={cn(
-          CBX_TRIGGER_CHIP,
-          filter.showArchived
-            ? CBX_TRIGGER_CHIP_ACTIVE
-            : CBX_TRIGGER_CHIP_INACTIVE,
-        )}
-        data-testid="show-archived-toggle"
-        aria-pressed={filter.showArchived === true}
-      >
-        {filter.showArchived ? "Hide archived" : "Show archived"}
-      </button>
+      {/* Display options — the "view mode" toggles (what shows up), kept apart
+          from the active-filter counter since they widen rather than narrow the
+          set. Consolidated into one popover (REEF-275) so the bar carries a
+          single Display entry instead of a chip per toggle; lives at the end so
+          it does not shift focus order for users who never touch it. */}
+      <Popover>
+        <PopoverTrigger
+          className={cn(
+            CBX_TRIGGER_CHIP,
+            filter.showArchived || filter.showStale
+              ? CBX_TRIGGER_CHIP_ACTIVE
+              : CBX_TRIGGER_CHIP_INACTIVE,
+          )}
+          data-testid="display-options-trigger"
+          aria-label="Display options"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          Display
+        </PopoverTrigger>
+        <PopoverContent
+          align="end"
+          className="min-w-[15rem]"
+          data-testid="display-options-content"
+        >
+          <div className="px-2 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            View
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              setFilter({ showArchived: !filter.showArchived || undefined })
+            }
+            className={VIEW_TOGGLE_ROW_CLASS}
+            data-testid="show-archived-toggle"
+            aria-pressed={filter.showArchived === true}
+          >
+            <Check
+              className={cn(
+                "h-3.5 w-3.5 shrink-0",
+                filter.showArchived ? "text-brand opacity-100" : "opacity-0",
+              )}
+              aria-hidden
+            />
+            Show archived
+          </button>
+          {/* "Show completed" reveals resolved issues auto-hidden once they age
+              past their window. Dropped in the backlog scope, whose rows are
+              never resolved, so the toggle would be a no-op there (REEF-275). */}
+          {backlogScope ? null : (
+            <button
+              type="button"
+              onClick={() =>
+                setFilter({ showStale: !filter.showStale || undefined })
+              }
+              className={VIEW_TOGGLE_ROW_CLASS}
+              data-testid="show-stale-toggle"
+              aria-pressed={filter.showStale === true}
+            >
+              <Check
+                className={cn(
+                  "mt-0.5 h-3.5 w-3.5 shrink-0 self-start",
+                  filter.showStale ? "text-brand opacity-100" : "opacity-0",
+                )}
+                aria-hidden
+              />
+              <span className="flex flex-col">
+                <span>Show completed</span>
+                <span className="text-[11px] text-muted-foreground">
+                  Long-finished work, hidden by default
+                </span>
+              </span>
+            </button>
+          )}
+        </PopoverContent>
+      </Popover>
 
       {/* Active filter count + clear */}
       {hasActiveFilters && (
