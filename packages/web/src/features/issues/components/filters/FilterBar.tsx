@@ -7,26 +7,16 @@ import { SeverityBadge } from "@/components/fields/SeverityBadge";
 import { TypePill } from "@/components/fields/TypePill";
 import { DEPENDENCY_OPTIONS, DUE_OPTIONS } from "@/components/fields/fieldKit";
 import type { ComboboxOption } from "@/components/ui/combobox";
-import {
-  CBX_TRIGGER_ACTIVE,
-  CBX_TRIGGER_CHIP,
-  CBX_TRIGGER_CHIP_ACTIVE,
-  CBX_TRIGGER_CHIP_INACTIVE,
-} from "@/components/ui/comboboxChrome";
+import { CBX_TRIGGER_ACTIVE } from "@/components/ui/comboboxChrome";
 import { LabelChipInput } from "@/components/ui/label-chip-input";
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { PRIORITY_OPTIONS, PriorityBadge } from "@/components/ui/priority-dot";
 import { STATUS_OPTIONS, StatusBadge } from "@/components/ui/status-icon";
 import { PlanningItemCombobox } from "@/features/planning/components/PlanningItemCombobox";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { cn } from "@/lib/utils";
 import type { Status } from "@reef/core";
-import { Check, SlidersHorizontal, X } from "lucide-react";
+import { Archive, CircleCheck, X } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { formatLabelFilter, parseLabelFilter } from "../../lib/issueListUtils";
 import {
@@ -86,15 +76,47 @@ export const FILTER_FIELD_CLASS = "w-fit min-w-[9rem] max-w-[16rem]";
  */
 export const PLANNING_FILTER_WRAPPER_CLASS = "relative inline-block max-w-full";
 
-/** A toggle row inside the Display popover (REEF-275). A leading check marks the
- *  on state (space reserved when off so labels stay aligned); the row is a
- *  toggle button (`aria-pressed`), not a one-shot menu item, so clicking it
- *  flips one view-mode flag and leaves the panel open to flip the other. */
-const VIEW_TOGGLE_ROW_CLASS =
-  "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left " +
-  "text-[13px] text-foreground transition-colors duration-150 " +
-  "hover:bg-surface-hover focus-visible:outline-none " +
-  "focus-visible:ring-2 focus-visible:ring-brand/30";
+/**
+ * The "Display" view-mode toggles (REEF-275), modeled as a multi-select facet so
+ * they reuse the exact same `MultiSelectCombobox` chrome (panel, glyph+label row,
+ * trailing brand Check, chip trigger) as every sibling facet in this bar — rather
+ * than a bespoke popover. Each toggle maps to one boolean filter flag (`archived`
+ * → `showArchived`, `completed` → `showStale`); "selected" means the flag is on.
+ * Glyph-aligned with the facet rows; the primitive adds the trailing selection
+ * Check itself, so the leading glyph is the value mark only.
+ */
+type ViewModeKey = "archived" | "completed";
+
+const VIEW_MODE_OPTIONS: ComboboxOption<ViewModeKey>[] = [
+  {
+    value: "archived",
+    label: "Show archived",
+    content: (
+      <>
+        <Archive
+          className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+          aria-hidden
+        />
+        Show archived
+      </>
+    ),
+    testId: "show-archived-toggle",
+  },
+  {
+    value: "completed",
+    label: "Show completed",
+    content: (
+      <>
+        <CircleCheck
+          className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+          aria-hidden
+        />
+        Show completed
+      </>
+    ),
+    testId: "show-stale-toggle",
+  },
+];
 
 /**
  * Static multi-select facet option lists. Hoisted to module scope so the badge
@@ -252,6 +274,16 @@ export function FilterBar({
 
   const activeCount = countActiveFilters(filter, backlogScope);
   const hasActiveFilters = activeCount > 0;
+
+  // The two view-mode flags projected into the multi-select facet's value array
+  // ("selected" = flag on). The backlog scope drops the resolved-only "completed"
+  // toggle, mirroring how the facets above drop status/sprint/etc. there.
+  const viewModeValues: ViewModeKey[] = [];
+  if (filter.showArchived) viewModeValues.push("archived");
+  if (filter.showStale) viewModeValues.push("completed");
+  const viewModeOptions = backlogScope
+    ? VIEW_MODE_OPTIONS.slice(0, 1)
+    : VIEW_MODE_OPTIONS;
 
   return (
     <div className="flex flex-wrap items-center gap-2" data-testid="filter-bar">
@@ -476,81 +508,28 @@ export function FilterBar({
         />
       </div>
 
-      {/* Display options — the "view mode" toggles (what shows up), kept apart
-          from the active-filter counter since they widen rather than narrow the
-          set. Consolidated into one popover (REEF-275) so the bar carries a
-          single Display entry instead of a chip per toggle; lives at the end so
-          it does not shift focus order for users who never touch it. */}
-      <Popover>
-        <PopoverTrigger
-          className={cn(
-            CBX_TRIGGER_CHIP,
-            filter.showArchived || filter.showStale
-              ? CBX_TRIGGER_CHIP_ACTIVE
-              : CBX_TRIGGER_CHIP_INACTIVE,
-          )}
-          data-testid="display-options-trigger"
-          aria-label="Display options"
-        >
-          <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          Display
-        </PopoverTrigger>
-        <PopoverContent
-          align="end"
-          className="min-w-[15rem]"
-          data-testid="display-options-content"
-        >
-          <div className="px-2 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            View
-          </div>
-          <button
-            type="button"
-            onClick={() =>
-              setFilter({ showArchived: !filter.showArchived || undefined })
-            }
-            className={VIEW_TOGGLE_ROW_CLASS}
-            data-testid="show-archived-toggle"
-            aria-pressed={filter.showArchived === true}
-          >
-            <Check
-              className={cn(
-                "h-3.5 w-3.5 shrink-0",
-                filter.showArchived ? "text-brand opacity-100" : "opacity-0",
-              )}
-              aria-hidden
-            />
-            Show archived
-          </button>
-          {/* "Show completed" reveals resolved issues auto-hidden once they age
-              past their window. Dropped in the backlog scope, whose rows are
-              never resolved, so the toggle would be a no-op there (REEF-275). */}
-          {backlogScope ? null : (
-            <button
-              type="button"
-              onClick={() =>
-                setFilter({ showStale: !filter.showStale || undefined })
-              }
-              className={VIEW_TOGGLE_ROW_CLASS}
-              data-testid="show-stale-toggle"
-              aria-pressed={filter.showStale === true}
-            >
-              <Check
-                className={cn(
-                  "mt-0.5 h-3.5 w-3.5 shrink-0 self-start",
-                  filter.showStale ? "text-brand opacity-100" : "opacity-0",
-                )}
-                aria-hidden
-              />
-              <span className="flex flex-col">
-                <span>Show completed</span>
-                <span className="text-[11px] text-muted-foreground">
-                  Long-finished work, hidden by default
-                </span>
-              </span>
-            </button>
-          )}
-        </PopoverContent>
-      </Popover>
+      {/* Display options — the "view mode" toggles (what shows up): Show archived
+          + Show completed. Reuses the same MultiSelectCombobox as every facet
+          above (identical panel/row/check/chip chrome) instead of a bespoke
+          popover; kept apart from the active-filter counter since these widen
+          rather than narrow the set, and placed at the end so they do not shift
+          focus order for users who never touch them (REEF-275). */}
+      <MultiSelectCombobox
+        label="Display"
+        values={viewModeValues}
+        onToggle={(value, checked) =>
+          setFilter(
+            value === "archived"
+              ? { showArchived: checked || undefined }
+              : { showStale: checked || undefined },
+          )
+        }
+        options={viewModeOptions}
+        active={Boolean(filter.showArchived || filter.showStale)}
+        ariaLabel="Display options"
+        triggerTestId="display-options-trigger"
+        contentTestId="display-options-content"
+      />
 
       {/* Active filter count + clear */}
       {hasActiveFilters && (
