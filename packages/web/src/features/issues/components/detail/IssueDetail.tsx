@@ -305,6 +305,8 @@ function IssueDetailLoaded({
         onArchiveToggle={() => void handleArchiveToggle()}
         onDeleteRequested={() => setConfirmDeleteOpen(true)}
         onClose={onClose}
+        parentId={draft.parentId || null}
+        allIssues={allIssues ?? []}
       />
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
