@@ -24,7 +24,13 @@ function fromStatus(entry: SystemEntry | undefined) {
  * to the individual events. The toggle is one button (chevron node + label) so
  * the whole row is one accessible control with `aria-expanded`.
  */
-export function CollapsedEventsRow({ events }: { events: SystemEntry[] }) {
+export function CollapsedEventsRow({
+  events,
+  vault,
+}: {
+  events: SystemEntry[];
+  vault: string;
+}) {
   const [expanded, setExpanded] = useState(false);
   const from = fromStatus(events[0]);
   const to = toStatus(events[events.length - 1]);
@@ -59,7 +65,11 @@ export function CollapsedEventsRow({ events }: { events: SystemEntry[] }) {
 
       {expanded
         ? events.map((entry) => (
-            <ActivityEventRow key={entry.event.id} event={entry.event} />
+            <ActivityEventRow
+              key={entry.event.id}
+              event={entry.event}
+              vault={vault}
+            />
           ))
         : null}
     </div>

@@ -107,10 +107,17 @@ export function ActivityTimeline({
               <CollapsedEventsRow
                 key={`collapsed:${entry.events[0].event.id}`}
                 events={entry.events}
+                vault={vault}
               />
             );
           }
-          return <ActivityEventRow key={entry.event.id} event={entry.event} />;
+          return (
+            <ActivityEventRow
+              key={entry.event.id}
+              event={entry.event}
+              vault={vault}
+            />
+          );
         })}
 
         <CommentComposer
