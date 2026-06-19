@@ -418,7 +418,16 @@ hr {
   padding-inline-start: 1.25rem;
 }
 
-/* Skeleton shimmer — slow horizontal sweep on a soft base */
+/* Skeleton shimmer — a single calm light source that sweeps across a group of
+ * placeholders rather than each bar pulsing on its own (REEF-250). Every
+ * skeleton carries a position index `--i` (0 by default); the per-index
+ * negative `animation-delay` phases neighbours a few hundredths of a second
+ * apart, so one soft band travels through the group instead of all of them
+ * blinking in lockstep. Two static tones (`data-tone`) pre-encode the loaded
+ * hierarchy — value placeholders sit one step stronger than labels / section
+ * headers — using only foreground alpha, no new colour or chrome. Both tones
+ * derive from `--foreground` so the contrast holds in light and dark and stays
+ * legible when the sweep is paused under reduced motion. */
 @keyframes reef-shimmer {
   0% {
     background-position: -200% 0;
@@ -429,6 +438,7 @@ hr {
 }
 
 .reef-shimmer {
+  background-color: color-mix(in oklab, var(--foreground) 8%, transparent);
   background-image: linear-gradient(
     90deg,
     transparent 0%,
@@ -438,6 +448,11 @@ hr {
   background-size: 200% 100%;
   background-repeat: no-repeat;
   animation: reef-shimmer 1.6s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * -0.04s);
+}
+
+.reef-shimmer[data-tone="secondary"] {
+  background-color: color-mix(in oklab, var(--foreground) 4%, transparent);
 }
 
 /* Save-confirm flash — a single brand pulse on the card/row that just
@@ -496,5 +511,10 @@ hr {
   .reef-flash-card::after,
   .reef-flash-row {
     animation: none;
+  }
+  /* Keep the static two-tone structure (the base fills) but drop the sweep so
+   * nothing moves or freezes mid-highlight (REEF-250 AC3). */
+  .reef-shimmer {
+    background-image: none;
   }
 }
