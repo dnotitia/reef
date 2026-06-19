@@ -12,7 +12,7 @@
  * AUTH_CHANGED_EVENT so the in-memory QueryClient can also call clear()
  * (handled in QueryProvider).
  *
- * The window event only reaches the tab that triggered the change. A second
+ * The window event reaches the tab that triggered the change. A second
  * reef tab open on the same browser keeps the previous account's in-memory
  * data until it hears about the change, so we also mirror it across tabs via a
  * BroadcastChannel; receiving tabs re-dispatch AUTH_CHANGED_EVENT locally (see
@@ -38,9 +38,9 @@ const AUTH_BROADCAST_CHANNEL = "reef:auth";
 
 /**
  * Lazily-created BroadcastChannel that mirrors auth changes across tabs of the
- * same origin. One instance per tab serves as BOTH sender (postMessage in
+ * same origin. One instance per tab serves as sender (postMessage in
  * `clearAuthScopedClientCache`) and receiver (`subscribeCrossTabAuthChange`).
- * BroadcastChannel never delivers a message back to the instance that sent it,
+ * BroadcastChannel does not deliver a message back to the instance that sent it,
  * so the tab that triggered the change does not re-process its own broadcast.
  *
  * Returns null when BroadcastChannel is unavailable (SSR, private mode, or an
@@ -100,8 +100,8 @@ export function clearAuthScopedClientCache(): void {
     // CustomEvent unsupported (extremely old runtimes) — non-fatal.
   }
 
-  // Mirror the change to every OTHER reef tab of this origin. The window event
-  // above only reaches this tab; siblings keep the previous account's in-memory
+  // Mirror the change to other reef tabs of this origin. The window event
+  // above reaches this tab; siblings keep the previous account's in-memory
   // QueryClient / entity-store data until they hear about it. Best-effort: a
   // missing channel leaves the single-tab path (already run above) intact.
   try {
@@ -112,7 +112,7 @@ export function clearAuthScopedClientCache(): void {
 }
 
 /**
- * Subscribe THIS tab to cross-tab auth changes. When another tab signs out,
+ * Subscribe this tab to cross-tab auth changes. When another tab signs out,
  * switches accounts, or changes its GitHub token, it broadcasts on the shared
  * channel; here we re-dispatch AUTH_CHANGED_EVENT on this tab's window so the
  * same in-tab consumers (QueryProvider's `clear()` + entity-store purge, the
@@ -121,7 +121,7 @@ export function clearAuthScopedClientCache(): void {
  *
  * Returns an unsubscribe function. No-op (returns a no-op cleanup) when
  * BroadcastChannel is unavailable, so callers can wire it unconditionally. The
- * receiver only re-dispatches the local window event; it never re-broadcasts,
+ * receiver re-dispatches the local window event; it does not re-broadcast,
  * so there is no cross-tab echo. (REEF-106)
  */
 export function subscribeCrossTabAuthChange(): () => void {
@@ -141,7 +141,7 @@ export function subscribeCrossTabAuthChange(): () => void {
 }
 
 /**
- * Test-only: close and forget the cross-tab channel singleton so each test can
+ * Test helper: close and forget the cross-tab channel singleton so each test can
  * start from a clean slate and swap in a fresh BroadcastChannel mock. Not part
  * of the runtime API.
  */

@@ -239,7 +239,7 @@ function lineFor(
     case "planning_link": {
       const kind = PLANNING_FIELD_KIND[event.field];
       // Lowercase kind word ("sprint"/"milestone"/"release") names the dimension
-      // in text (a11y), reinforced by the shape glyph. A raw id is never shown —
+      // in text (a11y), reinforced by the shape glyph. A raw id is not shown —
       // an unresolved name simply drops the token (AC3).
       const word = PLANNING_KIND_SINGULAR[kind].toLowerCase();
       const fromName = resolvePlanning(event.field, event.from);

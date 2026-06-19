@@ -29,10 +29,10 @@ function Shell({
 }: {
   /** The header subtitle here is the *personal* scope (`@login · N open`), not
    *  the active workspace name the other PageHeader subtitles carry. My Work is
-   *  a per-user view, so this divergence is intentional — it is the one caller
+   *  a per-user view, so this divergence is intentional — it is the caller
    *  that does not pass the vault. It is also the one subtitle that mixes an
    *  identifier with translatable prose (the `open` count label), so the
-   *  full-summary state passes a node that marks only `@login` translate="no"
+   *  full-summary state passes a node that marks `@login` translate="no"
    *  and leaves the count translatable (REEF-260). */
   description?: ReactNode;
   children: ReactNode;
@@ -245,7 +245,7 @@ export function MyWorkPage() {
     <Shell
       description={
         <>
-          {/* Only the login is an identifier; the count label is prose, so it
+          {/* The login is an identifier; the count label is prose, so it
               stays translatable (REEF-260). */}
           <span translate="no">@{login}</span>
           {` · ${myWork.summary.open} open`}

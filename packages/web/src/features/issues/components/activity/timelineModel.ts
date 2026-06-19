@@ -16,7 +16,7 @@ import {
 
 /**
  * The status-change variant of the `reef_activity` discriminated union. Used by
- * `reconstructEvents`, which only consults the logged status transitions when
+ * `reconstructEvents`, which consults logged status transitions when
  * deciding whether to synthesize a fallback current-status / closed event.
  */
 type StatusChangeActivityEvent = Extract<

@@ -5,7 +5,7 @@ import { PageHeader } from "@/features/ui/components/PageHeader";
 /**
  * Route-level loading UI for /activity (REEF-255). Holds the page chrome
  * (header + narrow body) around the feed skeleton the live feed already shows
- * while loading, so a soft-nav into Activity is never a blank panel.
+ * while loading, so a soft-nav into Activity shows progress instead of a blank panel.
  */
 export default function Loading() {
   return (
