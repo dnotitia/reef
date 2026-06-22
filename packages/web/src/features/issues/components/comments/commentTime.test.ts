@@ -17,10 +17,17 @@ describe("formatRelativeTime", () => {
     expect(formatRelativeTime("2026-06-16T12:00:00.000Z", NOW)).toBe("2d ago");
   });
 
-  it("falls back to an ISO date past a week", () => {
-    expect(formatRelativeTime("2026-06-01T12:00:00.000Z", NOW)).toBe(
-      "2026-06-01",
-    );
+  it("falls back to a localized calendar date past a week (Intl, not raw ISO)", () => {
+    const iso = "2026-06-01T12:00:00.000Z";
+    const expected = new Intl.DateTimeFormat(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }).format(Date.parse(iso));
+    const out = formatRelativeTime(iso, NOW);
+    expect(out).toBe(expected);
+    // No longer the bare ISO slice.
+    expect(out).not.toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
   it("returns empty string for an unparseable value", () => {

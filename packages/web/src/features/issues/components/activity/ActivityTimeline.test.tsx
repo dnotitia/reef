@@ -317,3 +317,29 @@ describe("ActivityTimeline — comment mutations", () => {
     );
   });
 });
+
+describe("ActivityTimeline — load failure (a11y)", () => {
+  it("announces a load failure in a polite live region", async () => {
+    // Fail the activity query so `activityError` flips on.
+    mockApiFetch.mockImplementation(async (input: URL | RequestInfo) => {
+      const url = String(input);
+      if (url.includes("/planning"))
+        return json({ sprints: [], milestones: [], releases: [] });
+      if (url.includes("/activity")) return json({ error: "boom" }, 500);
+      if (url.includes("/comments")) return json({ comments: [] });
+      return json({});
+    });
+
+    renderTimeline();
+
+    const msg = await screen.findByText(/load the full activity/i);
+    // Lives in a polite live region (an <output>, implicit role="status") so it
+    // is announced when it appears after mount, not rendered silently.
+    const region = msg.closest("output");
+    expect(region).not.toBeNull();
+    expect(region).toHaveAttribute("aria-live", "polite");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /load the full activity/i,
+    );
+  });
+});

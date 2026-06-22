@@ -41,18 +41,21 @@ export function CollapsedEventsRow({
         type="button"
         aria-expanded={expanded}
         onClick={() => setExpanded((value) => !value)}
-        className="group/collapse flex w-full items-center gap-3 text-left"
+        className="group/collapse flex w-full items-center gap-3 text-left focus-visible:outline-none"
       >
         <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
           <ChevronRight
             className={cn(
-              "size-3.5 transition-transform duration-150 ease-[var(--ease-signature)]",
+              "size-3.5 motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-[var(--ease-signature)]",
               expanded && "rotate-90",
             )}
             aria-hidden
           />
         </span>
-        <span className="rounded-full border border-border bg-surface-subtle px-2 py-0.5 text-xs text-muted-foreground transition-colors group-hover/collapse:bg-surface-hover">
+        {/* Focus ring rides on the visible pill (driven by the button's
+            focus-visible state) so keyboard focus is shown without a full-width
+            ring — canonical ring-brand/40, matching the other buttons. */}
+        <span className="rounded-full border border-border bg-surface-subtle px-2 py-0.5 text-xs text-muted-foreground transition-colors group-hover/collapse:bg-surface-hover group-focus-visible/collapse:ring-2 group-focus-visible/collapse:ring-brand/40">
           {events.length} status changes
           {!expanded && from && to ? (
             <span className="text-muted-foreground">

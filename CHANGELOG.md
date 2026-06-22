@@ -153,6 +153,16 @@ explicitly in the entries below.
   an archived or missing issue degrades to an id-only link rather than dropping
   navigation. The create and activity-draft forms keep the plain, non-navigating
   chips so clicking one never abandons an unsaved issue (REEF-268).
+- **The issue activity timeline is easier to use with a keyboard, screen reader,
+  or browser translation.** Tabbing to the collapsed "N status changes" toggle
+  now shows a visible focus ring; an event or comment older than a week shows a
+  localized date (for example "Jun 1, 2026") instead of a bare `2026-06-01`; a
+  failed load of the timeline is now announced to assistive tech instead of
+  appearing silently; the expand chevron and the comment edit button stop
+  animating when you ask for reduced motion; and code identifiers — logins and
+  PR/commit/branch references — are no longer mangled by automatic page
+  translation. Wording, layout, and behavior are otherwise unchanged (REEF-287).
+
 ### Changed
 
 - **Loading skeletons are quieter for screen readers.** While a page, panel, or
