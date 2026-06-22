@@ -20,6 +20,13 @@ all differ from your training data. Read the relevant guide in
   through thin Route Handlers and browser-facing UI.
 - Preserve `next.config.ts` `output: "standalone"` for Docker.
 
+## UX Contract
+
+- Concrete web UX policy lives in `docs/ux-design.md`: surface map,
+  loading/empty/error behavior, AI affordance tone, component strategy, and
+  state-owner consequences. Read it before visible UX/layout work and update it
+  when those contracts change.
+
 ## Subtree Rules
 
 - Source-wide rules, proxy/CSP logging, and browser runtime verification live in

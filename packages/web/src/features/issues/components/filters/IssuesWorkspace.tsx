@@ -20,10 +20,12 @@ import { PageHeader } from "@/features/ui/components/PageHeader";
 import { useSearchParams } from "next/navigation";
 
 /**
- * Unified issues workspace. Board / List / Timeline are peer renderings of
- * the same issue collection, so they share one route (`/issues`), one header,
- * one filter toolbar, and one filter scope (`useIssueStore`). The active view
- * is read from `?view=` and swapped via the ViewSwitcher.
+ * Unified issues workspace. Board / List / Timeline / Backlog are peer
+ * renderings of the issue collection, so they share one route (`/issues`), one
+ * header, one filter toolbar, and one filter scope (`useIssueStore`). The active
+ * view is read from `?view=` and swapped via the ViewSwitcher. Backlog is a
+ * dedicated triage lens that pins the `backlog` status while the other views
+ * render the active workflow.
  *
  * Used both by the `/issues` page and as the backdrop behind the
  * `/issues/[id]` detail slide-over on hard navigation.
