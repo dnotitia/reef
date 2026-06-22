@@ -59,6 +59,25 @@ export const LLMConfigSchema = z.object({
 });
 
 /**
+ * GitHubAppConfigSchema — deployment-managed GitHub App credential.
+ *
+ * Mirrors LLMConfigSchema: this is server state injected from infra env, NOT
+ * team-shared config committed to the akb vault and NOT a per-user PAT. It lets
+ * the server mint a read-only installation token (App JWT → installation token)
+ * so server-driven monitored-repo grounding does not depend on a browser PAT.
+ *
+ * `private_key` is the App's RSA private key in PEM form and is a secret — it is
+ * never written to the akb vault, a log line, an LLM prompt, or a client
+ * response. `app_id` and `installation_id` are GitHub's numeric ids carried as
+ * strings (env values are strings; the App auth client accepts string ids).
+ */
+export const GitHubAppConfigSchema = z.object({
+  app_id: z.string().min(1, "app_id is required"),
+  installation_id: z.string().min(1, "installation_id is required"),
+  private_key: z.string().min(1, "private_key is required"),
+});
+
+/**
  * Pattern enforced for `project_prefix` — uppercase ASCII alphabetic just.
  * Mirrors `PREFIX_PATTERN` in `packages/core/src/models/id.ts` so prefixes
  * round-trip through `nextIssueId` / `parseIssueId` without rejection.
@@ -141,6 +160,7 @@ export const CreateVaultRequestSchema = z.object({
 
 export type MonitoredRepo = z.infer<typeof MonitoredRepoSchema>;
 export type LLMConfig = z.infer<typeof LLMConfigSchema>;
+export type GitHubAppConfig = z.infer<typeof GitHubAppConfigSchema>;
 export type Config = z.infer<typeof ConfigSchema>;
 
 /**

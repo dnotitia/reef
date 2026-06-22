@@ -1,6 +1,7 @@
 export {
   MonitoredRepoSchema,
   LLMConfigSchema,
+  GitHubAppConfigSchema,
   ConfigSchema,
   CreateVaultRequestSchema,
   VaultNameSchema,
@@ -10,6 +11,7 @@ export {
   PROJECT_PREFIX_PATTERN,
   type MonitoredRepo,
   type LLMConfig,
+  type GitHubAppConfig,
   type Config,
 } from "./config";
 
