@@ -15,17 +15,26 @@ export function PlanningPageSkeleton() {
     <div className="flex h-full flex-col" data-testid="planning-skeleton">
       <PageHeader title="Planning" />
       <PageBody pad="compact">
-        {/* Kind toggle group placeholder (Sprints / Milestones / Releases). */}
-        <div className="mb-4 inline-flex gap-1 rounded-md border border-border-subtle bg-elevated p-0.5">
-          {[0, 1, 2].map((i) => (
-            <Skeleton key={`kind-${i}`} tone="secondary" className="h-8 w-24" />
-          ))}
-        </div>
-        {/* Table rows — mirrors PlanningTable's own pending placeholder. */}
-        <div className="flex flex-col gap-2">
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-11/12" />
+        {/* sr-only loading announcement (REEF-281), sibling to the decorative
+            body; PageHeader's h1 stays a real heading. */}
+        <output className="sr-only">Loading…</output>
+        <div aria-hidden="true">
+          {/* Kind toggle group placeholder (Sprints / Milestones / Releases). */}
+          <div className="mb-4 inline-flex gap-1 rounded-md border border-border-subtle bg-elevated p-0.5">
+            {[0, 1, 2].map((i) => (
+              <Skeleton
+                key={`kind-${i}`}
+                tone="secondary"
+                className="h-8 w-24"
+              />
+            ))}
+          </div>
+          {/* Table rows — mirrors PlanningTable's own pending placeholder. */}
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-11/12" />
+          </div>
         </div>
       </PageBody>
     </div>

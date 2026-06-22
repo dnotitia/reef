@@ -51,28 +51,36 @@ const FILTER_CHIPS = [
 export function IssuesWorkspaceSkeleton() {
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="issues-skeleton">
+      {/* sr-only loading announcement (REEF-281). Sibling to the decorative body
+          so it is NOT under aria-hidden; PageHeader's h1 stays a real heading. */}
+      <output className="sr-only">Loading…</output>
       <PageHeader title="Issues" />
-      {/* Mirrors IssueFilterToolbar's outer bar (border-b · px-6 · py-2.5) and
-          its SearchBar-over-FilterBar two-row stack so the toolbar appearing on
-          hydration is not a vertical jump. */}
-      <div
-        className="flex flex-col gap-2 border-b border-border-subtle bg-background px-6 py-2.5"
-        data-testid="issues-skeleton-toolbar"
-      >
-        {/* SearchBar row (Input h-9, full width). */}
-        <Skeleton tone="secondary" className="h-9 w-full" />
-        {/* FilterBar row — the wrapping facet/value chips (each h-8). */}
-        <div className="flex flex-wrap items-center gap-2">
-          {FILTER_CHIPS.map((chip) => (
-            <Skeleton
-              key={chip.key}
-              tone="secondary"
-              className={`h-8 ${chip.width}`}
-            />
-          ))}
+      {/* The placeholder body is decorative: aria-hidden keeps assistive tech
+          from traversing the empty toolbar/board DOM. The wrapper inherits the
+          column's flex sizing so the board still fills the remaining height. */}
+      <div className="flex min-h-0 flex-1 flex-col" aria-hidden="true">
+        {/* Mirrors IssueFilterToolbar's outer bar (border-b · px-6 · py-2.5) and
+            its SearchBar-over-FilterBar two-row stack so the toolbar appearing on
+            hydration is not a vertical jump. */}
+        <div
+          className="flex flex-col gap-2 border-b border-border-subtle bg-background px-6 py-2.5"
+          data-testid="issues-skeleton-toolbar"
+        >
+          {/* SearchBar row (Input h-9, full width). */}
+          <Skeleton tone="secondary" className="h-9 w-full" />
+          {/* FilterBar row — the wrapping facet/value chips (each h-8). */}
+          <div className="flex flex-wrap items-center gap-2">
+            {FILTER_CHIPS.map((chip) => (
+              <Skeleton
+                key={chip.key}
+                tone="secondary"
+                className={`h-8 ${chip.width}`}
+              />
+            ))}
+          </div>
         </div>
+        <BoardColumnsSkeleton className="flex-1 overflow-hidden" />
       </div>
-      <BoardColumnsSkeleton className="flex-1 overflow-hidden" />
     </div>
   );
 }

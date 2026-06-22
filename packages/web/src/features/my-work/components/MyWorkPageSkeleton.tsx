@@ -27,57 +27,66 @@ export function MyWorkSkeleton({ hasSprint = false }: { hasSprint?: boolean }) {
     : ["wip", "due", "overdue"];
   return (
     <div className="flex flex-col gap-6" data-testid="my-work-skeleton">
-      {/* Summary: stat tiles + status StageBar (mirrors MyWorkSummary). */}
-      <section className="flex flex-col gap-3">
-        <ul
-          className={cn(
-            "grid grid-cols-2 gap-3",
-            hasSprint ? "sm:grid-cols-4" : "sm:grid-cols-3",
-          )}
-        >
-          {tileKeys.map((key) => (
-            <li
-              key={key}
-              className="flex min-h-[78px] flex-col justify-between gap-1 rounded-lg border border-border-subtle bg-surface-subtle p-3"
-            >
-              <Skeleton tone="secondary" className="h-3 w-16" />
-              <Skeleton className="h-6 w-10" />
-            </li>
-          ))}
-        </ul>
-        {/* StageBar: caption + distribution bar + per-stage legend. */}
-        <div className="flex flex-col gap-2 rounded-lg border border-border-subtle bg-surface-subtle p-3">
-          <Skeleton tone="secondary" className="h-3 w-32" />
-          <Skeleton className="h-2 w-full rounded-full" />
-          <div className="flex flex-wrap gap-x-4 gap-y-1">
-            {STAGE_LEGEND_KEYS.map((key) => (
-              <Skeleton key={key} tone="secondary" className="h-3 w-16" />
+      {/* Single per-surface loading announcement (REEF-281). It lives on the
+          body-only leaf so the full-page MyWorkPageSkeleton (and MyWorkPage's
+          in-flight branches) inherit exactly one — never a doubled notification.
+          Sibling to the decorative body, so it is not under aria-hidden. */}
+      <output className="sr-only">Loading…</output>
+      {/* The placeholder body is decorative — aria-hidden so assistive tech does
+          not walk the empty stat/queue DOM. */}
+      <div className="flex flex-col gap-6" aria-hidden="true">
+        {/* Summary: stat tiles + status StageBar (mirrors MyWorkSummary). */}
+        <section className="flex flex-col gap-3">
+          <ul
+            className={cn(
+              "grid grid-cols-2 gap-3",
+              hasSprint ? "sm:grid-cols-4" : "sm:grid-cols-3",
+            )}
+          >
+            {tileKeys.map((key) => (
+              <li
+                key={key}
+                className="flex min-h-[78px] flex-col justify-between gap-1 rounded-lg border border-border-subtle bg-surface-subtle p-3"
+              >
+                <Skeleton tone="secondary" className="h-3 w-16" />
+                <Skeleton className="h-6 w-10" />
+              </li>
+            ))}
+          </ul>
+          {/* StageBar: caption + distribution bar + per-stage legend. */}
+          <div className="flex flex-col gap-2 rounded-lg border border-border-subtle bg-surface-subtle p-3">
+            <Skeleton tone="secondary" className="h-3 w-32" />
+            <Skeleton className="h-2 w-full rounded-full" />
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              {STAGE_LEGEND_KEYS.map((key) => (
+                <Skeleton key={key} tone="secondary" className="h-3 w-16" />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Queue: header (title + count + group toggle) + the bordered row list
+          (mirrors MyWorkQueue). */}
+        <section className="flex flex-col gap-3">
+          <header className="flex items-baseline justify-between gap-3">
+            <div className="flex items-baseline gap-2">
+              <Skeleton tone="secondary" className="h-4 w-32" />
+              <Skeleton tone="secondary" className="h-3 w-6" />
+            </div>
+            <Skeleton className="h-8 w-40" />
+          </header>
+          <div className="overflow-hidden rounded-xl border border-border-subtle bg-background">
+            {QUEUE_ROW_KEYS.map((key) => (
+              <div
+                key={key}
+                className="border-t border-border-subtle px-3 py-2 first:border-t-0"
+              >
+                <Skeleton className="h-5 w-full" />
+              </div>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* Queue: header (title + count + group toggle) + the bordered row list
-          (mirrors MyWorkQueue). */}
-      <section className="flex flex-col gap-3">
-        <header className="flex items-baseline justify-between gap-3">
-          <div className="flex items-baseline gap-2">
-            <Skeleton tone="secondary" className="h-4 w-32" />
-            <Skeleton tone="secondary" className="h-3 w-6" />
-          </div>
-          <Skeleton className="h-8 w-40" />
-        </header>
-        <div className="overflow-hidden rounded-xl border border-border-subtle bg-background">
-          {QUEUE_ROW_KEYS.map((key) => (
-            <div
-              key={key}
-              className="border-t border-border-subtle px-3 py-2 first:border-t-0"
-            >
-              <Skeleton className="h-5 w-full" />
-            </div>
-          ))}
-        </div>
-      </section>
+        </section>
+      </div>
     </div>
   );
 }

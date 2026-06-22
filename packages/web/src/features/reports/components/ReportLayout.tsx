@@ -121,8 +121,15 @@ function ReportCardSkeleton({ bodyHeight }: { bodyHeight: string }) {
 export function ReportsSkeleton() {
   return (
     <div className="flex flex-col gap-6">
+      {/* sr-only loading announcement (REEF-281). The wrapping PageShell owns
+          the page header; the section band headings below stay real headings,
+          so only the placeholder clusters take aria-hidden. */}
+      <output className="sr-only">Loading…</output>
       {/* Scope bar — same auto-fit control grid as ReportScopeBar (8 controls). */}
-      <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-2 rounded-lg border border-border-subtle bg-surface-subtle p-2">
+      <div
+        className="grid w-full grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-2 rounded-lg border border-border-subtle bg-surface-subtle p-2"
+        aria-hidden="true"
+      >
         {SCOPE_CONTROL_KEYS.map((key) => (
           <Skeleton key={key} tone="secondary" className="h-8 w-full" />
         ))}
@@ -130,7 +137,7 @@ export function ReportsSkeleton() {
 
       <div className="flex flex-col gap-10">
         <ReportSection label="Snapshot">
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4" aria-hidden="true">
             {/* KPI grid — lg:grid-cols-5 × 8 tiles (matches HealthSummary). */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
               {KPI_TILE_KEYS.map((key) => (
@@ -149,7 +156,7 @@ export function ReportsSkeleton() {
         </ReportSection>
 
         <ReportSection label="Flow & forecast">
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-6" aria-hidden="true">
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <ReportCardSkeleton bodyHeight="h-40" />
               <ReportCardSkeleton bodyHeight="h-40" />
@@ -161,7 +168,10 @@ export function ReportsSkeleton() {
         </ReportSection>
 
         <ReportSection label="Breakdown">
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div
+            className="grid grid-cols-1 gap-6 lg:grid-cols-2"
+            aria-hidden="true"
+          >
             {BREAKDOWN_CARD_KEYS.map((key) => (
               <ReportCardSkeleton key={key} bodyHeight="h-28" />
             ))}

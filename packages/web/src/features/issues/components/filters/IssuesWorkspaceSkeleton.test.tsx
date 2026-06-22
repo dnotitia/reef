@@ -34,4 +34,25 @@ describe("IssuesWorkspaceSkeleton", () => {
     // the same row count as the live FilterBar.
     expect(container.querySelector(".flex.flex-wrap")).not.toBeNull();
   });
+
+  it("hides the decorative body and announces loading to assistive tech (REEF-281)", () => {
+    const { container } = render(<IssuesWorkspaceSkeleton />);
+
+    // The toolbar/board placeholders are decorative — aria-hidden so a screen
+    // reader does not traverse the empty frame.
+    expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
+    // The toolbar lives inside the aria-hidden body…
+    expect(
+      screen
+        .getByTestId("issues-skeleton-toolbar")
+        .closest('[aria-hidden="true"]'),
+    ).not.toBeNull();
+
+    // …but the role=status loading announcement does NOT, so it is still heard,
+    // and the real "Issues" h1 stays a heading (not inside aria-hidden).
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("Loading…");
+    expect(status.closest('[aria-hidden="true"]')).toBeNull();
+    expect(screen.getByRole("heading", { name: "Issues" })).toBeInTheDocument();
+  });
 });

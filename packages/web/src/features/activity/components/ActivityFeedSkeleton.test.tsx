@@ -20,4 +20,18 @@ describe("ActivityFeedSkeleton", () => {
     expect(container.querySelectorAll(".reef-shimmer.h-32")).toHaveLength(3);
     expect(container.querySelectorAll(".reef-shimmer.h-16")).toHaveLength(0);
   });
+
+  it("hides the decorative tree and announces loading to assistive tech (REEF-281)", () => {
+    const { container } = render(<ActivityFeedSkeleton />);
+
+    // The placeholder chrome is decorative — aria-hidden so a screen reader
+    // skips the empty DOM instead of walking it.
+    expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
+
+    // A sibling role=status (the <output>) carries the loading announcement and
+    // must NOT sit under aria-hidden, or assistive tech would never hear it.
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("Loading…");
+    expect(status.closest('[aria-hidden="true"]')).toBeNull();
+  });
 });

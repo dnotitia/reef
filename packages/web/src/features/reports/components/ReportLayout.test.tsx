@@ -33,4 +33,25 @@ describe("ReportsSkeleton", () => {
       screen.getByRole("heading", { name: "Breakdown" }),
     ).toBeInTheDocument();
   });
+
+  it("hides the placeholder clusters but keeps the band headings, and announces loading (REEF-281)", () => {
+    const { container } = render(<ReportsSkeleton />);
+
+    // The placeholder clusters (scope bar, KPI grid, cards) are decorative —
+    // aria-hidden so a screen reader skips the empty DOM.
+    expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
+
+    // The section band heading is real chrome — NOT under aria-hidden — so it
+    // stays in the accessibility tree across the skeleton↔loaded swap.
+    expect(
+      screen
+        .getByRole("heading", { name: "Snapshot" })
+        .closest('[aria-hidden="true"]'),
+    ).toBeNull();
+
+    // The role=status loading announcement is a sibling, not under aria-hidden.
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("Loading…");
+    expect(status.closest('[aria-hidden="true"]')).toBeNull();
+  });
 });

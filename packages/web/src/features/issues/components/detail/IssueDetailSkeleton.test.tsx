@@ -69,4 +69,17 @@ describe("IssueDetailSkeleton", () => {
     expect(container.querySelectorAll(".reef-shimmer.h-20")).toHaveLength(1);
     expect(container.querySelectorAll(".reef-shimmer.h-12")).toHaveLength(3);
   });
+
+  it("hides the decorative panel and announces loading to assistive tech (REEF-281)", () => {
+    const { container } = render(<IssueDetailSkeleton />);
+
+    // Every placeholder bar is decorative — aria-hidden so a screen reader does
+    // not walk the empty header/canvas/rail DOM.
+    expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
+
+    // The role=status loading announcement is a sibling, not under aria-hidden.
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("Loading…");
+    expect(status.closest('[aria-hidden="true"]')).toBeNull();
+  });
 });
