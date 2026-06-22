@@ -151,6 +151,7 @@ export function IssueDetailMain({
             allIssues={allIssues}
             relationGraph={relations}
             currentIssueId={issueId}
+            navigable
             onChange={(next) => {
               setDependsOn(next);
               if (!sameStringArray(next, issue?.depends_on ?? [])) {
@@ -165,6 +166,7 @@ export function IssueDetailMain({
             allIssues={allIssues}
             relationGraph={relations}
             currentIssueId={issueId}
+            navigable
             onChange={(next) => {
               setBlocks(next);
               if (!sameStringArray(next, issue?.blocks ?? [])) {
@@ -179,6 +181,7 @@ export function IssueDetailMain({
             allIssues={allIssues}
             relationGraph={relations}
             currentIssueId={issueId}
+            navigable
             onChange={(next) => {
               setRelatedTo(next);
               if (!sameStringArray(next, issue?.related_to ?? [])) {
