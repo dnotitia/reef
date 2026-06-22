@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 import { CircleDashed, Columns3, GanttChart, List } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback } from "react";
+import { useCallback, useTransition } from "react";
 import { ISSUE_VIEW_MODES, type IssueViewMode } from "../../lib/viewMode";
 
 const VIEW_META: Record<
@@ -30,17 +30,33 @@ interface ViewSwitcherProps {
  * Modeled as a group of toggle buttons (`aria-pressed`) rather than a tablist:
  * each click is a route navigation, and the rendered body is not an ARIA
  * tabpanel owned by this control.
+ *
+ * The four views are static imports sharing one `useIssueList` query key, so the
+ * data is effectively ready on switch — the perceived lag is a pure render/nav
+ * artifact (REEF-265). Wrapping `router.push` in a React transition makes the
+ * navigation non-blocking: the App Router suppresses the route `loading.tsx`
+ * fallback and keeps the current view mounted while the next one is prepared
+ * concurrently, so there is no board-skeleton flicker and the heavy unmount of
+ * Timeline/List does not block the click. `isPending` surfaces that in-flight
+ * state as `aria-busy` plus a faint dim on the group; the buttons stay enabled
+ * so a fast re-click interrupts and redirects the pending transition.
  */
 export function ViewSwitcher({ activeView }: ViewSwitcherProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
 
   const selectView = useCallback(
     (view: IssueViewMode) => {
       if (view === activeView) return;
       const next = new URLSearchParams(searchParams);
       next.set("view", view);
-      router.push(`/issues?${next.toString()}`, { scroll: false });
+      // Non-blocking navigation: keep the current view on screen and let the
+      // next one render concurrently instead of a synchronous, fallback-flashing
+      // swap. The `?view=` URL still updates so deep links / back-forward work.
+      startTransition(() => {
+        router.push(`/issues?${next.toString()}`, { scroll: false });
+      });
     },
     [activeView, router, searchParams],
   );
@@ -50,8 +66,17 @@ export function ViewSwitcher({ activeView }: ViewSwitcherProps) {
     <div
       role="group"
       aria-label="Issue view"
+      aria-busy={isPending}
       data-testid="view-switcher"
-      className="inline-flex items-center gap-0.5 rounded-md border border-border-subtle bg-elevated p-0.5"
+      className={cn(
+        "inline-flex items-center gap-0.5 rounded-md border border-border-subtle bg-elevated p-0.5",
+        // Faint pending feedback while the transition is in flight. The opacity
+        // change still applies under reduced motion (the busy state stays
+        // visible); only its easing is gated on motion-safe so nothing animates
+        // for users who opt out (REEF-265 AC2/AC4).
+        "motion-safe:transition-opacity motion-safe:duration-150",
+        isPending && "cursor-progress opacity-60",
+      )}
     >
       {ISSUE_VIEW_MODES.map((view) => {
         const { label, icon: Icon } = VIEW_META[view];

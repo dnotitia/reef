@@ -41,6 +41,9 @@ describe("ViewSwitcher", () => {
     );
   });
 
+  // The push now flows through a React transition (REEF-265); the `?view=` URL
+  // must still update with the preserved filter params so deep links and
+  // back/forward keep working (AC3).
   it("pushes ?view= while preserving existing filter params", async () => {
     navigationState.searchParams = new URLSearchParams("status=todo&q=auth");
     const user = userEvent.setup();
@@ -56,6 +59,18 @@ describe("ViewSwitcher", () => {
     expect(params.get("status")).toBe("todo");
     expect(params.get("q")).toBe("auth");
     expect(opts).toEqual({ scroll: false });
+  });
+
+  // The pending-transition feedback can only be observed live in a browser (a
+  // jsdom transition resolves synchronously, so `isPending` never settles true).
+  // Assert instead that the wiring is present: the group declares an `aria-busy`
+  // state (AC2) and the dim it toggles is gated on `motion-safe` so reduced
+  // motion gets the state without the fade (AC4).
+  it("declares an aria-busy state and a motion-safe pending transition", () => {
+    render(<ViewSwitcher activeView="board" />);
+    const group = screen.getByTestId("view-switcher");
+    expect(group).toHaveAttribute("aria-busy", "false");
+    expect(group.className).toContain("motion-safe:transition-opacity");
   });
 
   it("does not navigate when the active view is re-selected", async () => {
