@@ -73,4 +73,38 @@ test.describe("Hermetic planning workflow", () => {
       .poll(async () => sprintNames(await readFixtureState(request)))
       .not.toContain("E2E Sprint Edited");
   });
+
+  test("expands a planning row by clicking its name, with one keyboard-operable toggle (REEF-264)", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/planning");
+    await expect(page.getByText("Sprint Alpha")).toBeVisible();
+
+    // The expanded detail panel is absent while collapsed.
+    const panel = page.locator('[id^="planning-detail-"]');
+    await expect(panel).toHaveCount(0);
+
+    // AC1/AC2: the row name itself is the single disclosure toggle — clicking the
+    // name (not just the 20px chevron) opens the detail body, and the one button
+    // flips to its collapse state with aria-expanded=true.
+    await page.getByText("Sprint Alpha").click();
+    await expect(panel).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Collapse Sprint Alpha details" }),
+    ).toHaveAttribute("aria-expanded", "true");
+
+    // Clicking the name again collapses it.
+    await page.getByText("Sprint Alpha").click();
+    await expect(panel).toHaveCount(0);
+
+    // AC5: the merged toggle is keyboard-operable via Enter and Space.
+    await page
+      .getByRole("button", { name: "Expand Sprint Alpha details" })
+      .focus();
+    await page.keyboard.press("Enter");
+    await expect(panel).toBeVisible();
+    await page.keyboard.press(" ");
+    await expect(panel).toHaveCount(0);
+  });
 });

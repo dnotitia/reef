@@ -407,4 +407,41 @@ describe("PlanningPage", () => {
     expect(params.get("detail")).toBe(SPRINT_ID);
     expect(opts).toEqual({ scroll: false });
   });
+
+  it("toggles by clicking the title, with a single disclosure control (REEF-264)", async () => {
+    const user = userEvent.setup();
+    render(wrap(<PlanningPage />));
+    await screen.findByText("Sprint One");
+
+    const title = screen.getByText("Sprint One");
+    const row = title.closest("tr") as HTMLElement;
+    // AC2: chevron + title are one button — exactly one aria-expanded toggle in
+    // the row (Edit/Delete carry no aria-expanded), not two disclosure controls.
+    expect(
+      within(row).getAllByRole("button", { expanded: false }),
+    ).toHaveLength(1);
+    // AC1: the title text itself lives inside that single disclosure button.
+    expect(title.closest("button")).toHaveAttribute("aria-expanded", "false");
+
+    // AC1: clicking the title (not just the 20px chevron) toggles the panel.
+    await user.click(title);
+    expect(mockReplace).toHaveBeenCalledTimes(1);
+    const [url] = mockReplace.mock.calls[0];
+    const params = new URLSearchParams((url as string).split("?")[1]);
+    expect(params.get("detail")).toBe(SPRINT_ID);
+  });
+
+  it("renders a row without a detail body as plain text, not a toggle (REEF-264)", async () => {
+    navigationState.searchParams = new URLSearchParams("kind=milestones");
+    render(wrap(<PlanningPage />));
+    await screen.findByText("Beta");
+
+    // AC3: Beta has no description, so its name stays plain text on the spacer
+    // branch — not a dead button — and the row exposes no aria-expanded control.
+    const title = screen.getByText("Beta");
+    expect(title.closest("button")).toBeNull();
+    const row = title.closest("tr") as HTMLElement;
+    expect(within(row).queryByRole("button", { expanded: true })).toBeNull();
+    expect(within(row).queryByRole("button", { expanded: false })).toBeNull();
+  });
 });
