@@ -37,6 +37,18 @@ explicitly in the entries below.
   one-line entries in an issue's Activity thread, next to status changes and
   delivery. Planning links read by name rather than a raw id, and a linked
   delivery ref still appears once, not twice (REEF-276).
+
+### Changed
+
+- **Related, blocking, and dependency links now drill in place like the rest.**
+  Clicking a depends-on, blocks, or related issue in an open issue's
+  Relationships swaps the panel to that issue and adds it to the same **Back**
+  trail as the parent breadcrumb and sub-issues — keeping the list or board you
+  came from behind it — instead of opening as a separate navigation that lost
+  your place. The drill **Back** and **Close** now share one row at the top of
+  the panel, so they line up instead of Back sitting on its own strip above the
+  header (REEF-284).
+
 ### Fixed
 
 - **Switching issue views no longer flickers or feels laggy.** Clicking between

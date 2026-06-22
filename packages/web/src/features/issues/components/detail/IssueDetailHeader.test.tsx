@@ -56,7 +56,6 @@ function makeIssue(overrides: Partial<IssueListItem>): IssueListItem {
 }
 
 function setup(overrides: Partial<HeaderProps> = {}) {
-  const onClose = vi.fn();
   const props: HeaderProps = {
     issueId: "REEF-111",
     issueType: "bug",
@@ -69,35 +68,24 @@ function setup(overrides: Partial<HeaderProps> = {}) {
     isDeletePending: false,
     onArchiveToggle: vi.fn(),
     onDeleteRequested: vi.fn(),
-    onClose,
     parentId: null,
     allIssues: [],
     ...overrides,
   };
   render(<IssueDetailHeader {...props} />);
-  return { onClose };
 }
 
 describe("IssueDetailHeader", () => {
-  it("renders an in-flow close button that dismisses via onClose (REEF-111)", async () => {
-    const user = userEvent.setup();
-    const { onClose } = setup();
-
-    const close = screen.getByRole("button", { name: "Close" });
-    expect(close).toHaveAttribute("data-testid", "issue-close");
-
-    await user.click(close);
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  it("keeps the issue actions menu as a sibling of the close button", () => {
+  it("renders the issue actions menu (close lives in the sheet chrome row, REEF-284)", () => {
     setup();
-    // Both affordances coexist in the header's right-hand action group rather
-    // than the actions menu competing with an overlay X.
+    // The header keeps the per-issue actions menu; the close affordance moved up
+    // to the sheet's top chrome row, so it is no longer rendered here.
     expect(
       screen.getByRole("button", { name: "Issue actions" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Close" }),
+    ).not.toBeInTheDocument();
   });
 
   describe("parent breadcrumb (REEF-266)", () => {
@@ -188,21 +176,6 @@ describe("IssueDetailHeader", () => {
       // AC4).
       expect(link.querySelector("svg")).toBeNull();
       expect(link.textContent).toBe("REEF-182");
-    });
-
-    it("keeps the close button out of the breadcrumb/id content row", () => {
-      // The breadcrumb + id share the left content row; the close button sits in
-      // a separate top-right action group. Guards against the close button
-      // slipping into the content row, which would push it below the breadcrumb
-      // (REEF-266 follow-up).
-      setup({ parentId: PARENT_ID, allIssues: [parent] });
-      const contentRow = screen.getByRole("navigation", {
-        name: "Issue hierarchy",
-      }).parentElement;
-      expect(contentRow).not.toBeNull();
-      expect(contentRow?.contains(screen.getByTestId("issue-close"))).toBe(
-        false,
-      );
     });
   });
 });

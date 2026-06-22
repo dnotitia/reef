@@ -17,7 +17,6 @@ import { toast } from "sonner";
 import { buildStatusPatch } from "../../lib/statusPatch";
 import { CloseIssueDialog } from "./CloseIssueDialog";
 import { DeleteIssueDialog } from "./DeleteIssueDialog";
-import { IssueDetailCloseButton } from "./IssueDetailCloseButton";
 import {
   type IssueDetailDraft,
   createIssueDetailDraft,
@@ -52,52 +51,28 @@ export function IssueDetail({ issueId, vault, onClose }: IssueDetailProps) {
   // Whole-vault relation graph for accurate blocked badges in the relation dropdowns.
   const { data: relations } = useIssueRelations(vault);
 
-  // The skeleton and error states render no IssueDetailHeader, so they supply
-  // their own top-right close button to keep the sheet dismissable (REEF-111).
+  // The skeleton and error states render no IssueDetailHeader. The sheet's top
+  // chrome row owns the close affordance in every state (REEF-284), so these
+  // states no longer carry their own close button.
   if (isPending) {
-    return (
-      <>
-        <IssueDetailCloseButton
-          onClose={onClose}
-          className="absolute top-4 right-4 z-10"
-        />
-        <IssueDetailSkeleton />
-      </>
-    );
+    return <IssueDetailSkeleton />;
   }
 
   if (isError) {
     return (
-      <>
-        <IssueDetailCloseButton
-          onClose={onClose}
-          className="absolute top-4 right-4 z-10"
-        />
-        <div
-          data-testid="issue-detail-error"
-          className="p-6 flex flex-col gap-4"
-        >
-          <p className="text-sm text-destructive">
-            {error instanceof Error ? error.message : "Failed to load issue."}
-          </p>
-          <Button variant="outline" size="sm" onClick={() => void refetch()}>
-            Retry
-          </Button>
-        </div>
-      </>
+      <div data-testid="issue-detail-error" className="p-6 flex flex-col gap-4">
+        <p className="text-sm text-destructive">
+          {error instanceof Error ? error.message : "Failed to load issue."}
+        </p>
+        <Button variant="outline" size="sm" onClick={() => void refetch()}>
+          Retry
+        </Button>
+      </div>
     );
   }
 
   if (!data) {
-    return (
-      <>
-        <IssueDetailCloseButton
-          onClose={onClose}
-          className="absolute top-4 right-4 z-10"
-        />
-        <IssueDetailSkeleton />
-      </>
-    );
+    return <IssueDetailSkeleton />;
   }
 
   return (
@@ -304,7 +279,6 @@ function IssueDetailLoaded({
         isDeletePending={deleteMutation.isPending}
         onArchiveToggle={() => void handleArchiveToggle()}
         onDeleteRequested={() => setConfirmDeleteOpen(true)}
-        onClose={onClose}
         parentId={draft.parentId || null}
         allIssues={allIssues ?? []}
       />

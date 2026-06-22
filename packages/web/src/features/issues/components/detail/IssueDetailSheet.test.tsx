@@ -194,6 +194,26 @@ describe("IssueDetailSheet", () => {
       expect(onClose).toHaveBeenCalledTimes(1);
       expect(useIssueNavStack.getState().trail).toEqual([]);
     });
+
+    it("places Back and Close together in one top chrome row, Back before Close (REEF-284)", () => {
+      useIssueNavStack.setState({ trail: ["REEF-A"], currentId: "REEF-001" });
+      renderDrilledInto("REEF-001");
+
+      const back = screen.getByTestId("issue-drill-back");
+      const close = screen.getByTestId("issue-close");
+
+      // Both affordances live in the same chrome row (a shared ancestor that is
+      // not the whole modal), so the history Back and the dismiss Close align on
+      // one line instead of Back stacking as a strip above the header.
+      const row = back.closest("div");
+      expect(row).not.toBeNull();
+      expect(row?.contains(close)).toBe(true);
+
+      // Back leads (left), Close follows (right, pushed by ml-auto).
+      expect(
+        back.compareDocumentPosition(close) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
   });
 
   // REEF-149: the detail sheet uses a wider canvas (1080) so the rail's property
