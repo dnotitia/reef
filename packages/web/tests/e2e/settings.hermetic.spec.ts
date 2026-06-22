@@ -168,6 +168,43 @@ test.describe("Hermetic settings workflows", () => {
       .not.toContain("e2e-template");
   });
 
+  test("seeds the canonical issue-type default templates from an empty workspace (REEF-256)", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/settings/workspace");
+
+    // A workspace with no templates shows the seed-defaults call to action.
+    await expect(
+      page.locator('[data-testid="templates-section-empty"]'),
+    ).toBeVisible();
+    await page.locator('[data-testid="templates-seed-defaults"]').click();
+
+    // All six canonical issue types land as rows; the legacy feature /
+    // tech-debt templates are gone.
+    for (const name of ["epic", "story", "task", "bug", "spike", "chore"]) {
+      await expect(
+        page.locator(`[data-testid="templates-row-${name}"]`),
+      ).toBeVisible();
+    }
+    await expect(
+      page.locator('[data-testid="templates-row-feature"]'),
+    ).toHaveCount(0);
+    await expect(
+      page.locator('[data-testid="templates-row-tech-debt"]'),
+    ).toHaveCount(0);
+
+    // The seed wrote through the real writeTemplate route into the fixture vault.
+    await expect
+      .poll(async () =>
+        reefVault(await readFixtureState(request))
+          .templates.map((template) => template.name)
+          .sort(),
+      )
+      .toEqual(["bug", "chore", "epic", "spike", "story", "task"]);
+  });
+
   test("routes settings root to workspace, then renders members and deployment subpages", async ({
     page,
   }) => {
