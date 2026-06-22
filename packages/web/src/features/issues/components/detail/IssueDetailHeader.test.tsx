@@ -93,17 +93,24 @@ describe("IssueDetailHeader", () => {
       title: "Reports & analytics epic",
     });
 
-    it("links the breadcrumb to the parent detail with id and title", () => {
+    it("renders the resolved crumb as a status glyph + title, with the id only in href/data (REEF-279)", () => {
       setup({ parentId: PARENT_ID, allIssues: [parent] });
 
       const nav = screen.getByRole("navigation", { name: "Issue hierarchy" });
       expect(nav).toBeInTheDocument();
 
       const link = screen.getByTestId("issue-parent-breadcrumb");
+      // Routing + test hooks still carry the parent id…
       expect(link).toHaveAttribute("href", "/issues/REEF-182");
       expect(link).toHaveAttribute("data-issue-id", "REEF-182");
-      expect(link).toHaveTextContent("REEF-182");
+      // …but the raw mono id no longer shows in the visible crumb text — the
+      // parent title alone names it (REEF-279 AC1).
       expect(link).toHaveTextContent("Reports & analytics epic");
+      expect(link.textContent).not.toContain("REEF-182");
+      // A leading status glyph replaces the id (REEF-279 AC2). It is decorative,
+      // so it adds an svg but no extra accessible text (the aria-label is the
+      // single accessible name, asserted below).
+      expect(link.querySelector("svg")).not.toBeNull();
     });
 
     it("names the parent relationship for hover and assistive tech", () => {
@@ -144,12 +151,15 @@ describe("IssueDetailHeader", () => {
       expect(screen.queryByTestId("issue-parent-breadcrumb")).toBeNull();
     });
 
-    it("degrades to id-only when the parent is absent from the loaded list", () => {
+    it("degrades to id-only without an icon when the parent is absent from the loaded list", () => {
       setup({ parentId: PARENT_ID, allIssues: [] });
 
       const link = screen.getByTestId("issue-parent-breadcrumb");
       expect(link).toHaveAttribute("href", "/issues/REEF-182");
-      // No resolved title to show — the link stays navigable with the id alone.
+      // No resolved parent → no status to show, so no glyph renders and the link
+      // degrades to the id alone, staying navigable and never empty (REEF-279
+      // AC4).
+      expect(link.querySelector("svg")).toBeNull();
       expect(link.textContent).toBe("REEF-182");
     });
 
