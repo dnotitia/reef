@@ -40,6 +40,21 @@ describe("SettingsTabs (REEF-183)", () => {
     ).not.toHaveAttribute("aria-current");
   });
 
+  // REEF-261: tabs share the segmented-control family vocabulary. They aligned
+  // to the canonical ViewSwitcher dimensions (`px-2`, not the prior `px-2.5`)
+  // and the canonical `ring-brand` focus ring, sourced from one shared module.
+  it("uses the shared family dimensions and focus ring (REEF-261)", () => {
+    render(<SettingsTabs />);
+    const classes = screen
+      .getByRole("link", { name: "Workspace" })
+      .className.split(/\s+/);
+    expect(classes).toContain("px-2");
+    expect(classes).not.toContain("px-2.5");
+    expect(classes).toContain("text-[12px]");
+    expect(classes).toContain("font-medium");
+    expect(classes).toContain("focus-visible:ring-brand");
+  });
+
   it("keeps the Workspace tab active on its nested members route", () => {
     navigationState.pathname = "/settings/workspace/members";
     render(<SettingsTabs />);

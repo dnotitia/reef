@@ -1,6 +1,12 @@
 "use client";
 
 import { PlanningKindIcon } from "@/components/fields/PlanningKindIcon";
+import {
+  SEGMENTED_CONTROL_ITEM,
+  SEGMENTED_CONTROL_ITEM_ACTIVE,
+  SEGMENTED_CONTROL_ITEM_INACTIVE,
+  SEGMENTED_CONTROL_TRACK,
+} from "@/components/segmentedControl";
 import { Button } from "@/components/ui/button";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
@@ -183,7 +189,7 @@ export function PlanningPage() {
         <div
           role="group"
           aria-label="Planning kind"
-          className="mb-4 inline-flex rounded-md border border-border-subtle bg-elevated p-0.5"
+          className={cn("mb-4", SEGMENTED_CONTROL_TRACK)}
         >
           {PLANNING_KINDS.map((kind) => {
             const isActive = activeKind === kind;
@@ -193,10 +199,10 @@ export function PlanningPage() {
                 type="button"
                 aria-pressed={isActive}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-[5px] px-3 py-1.5 text-sm transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
+                  SEGMENTED_CONTROL_ITEM,
                   isActive
-                    ? "bg-surface-hover text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
+                    ? SEGMENTED_CONTROL_ITEM_ACTIVE
+                    : SEGMENTED_CONTROL_ITEM_INACTIVE,
                 )}
                 onClick={() => selectKind(kind)}
               >

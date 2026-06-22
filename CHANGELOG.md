@@ -117,6 +117,30 @@ explicitly in the entries below.
   an archived or missing issue degrades to an id-only link rather than dropping
   navigation. The create and activity-draft forms keep the plain, non-navigating
   chips so clicking one never abandons an unsaved issue (REEF-268).
+### Changed
+
+- **Loading skeletons are quieter for screen readers.** While a page, panel, or
+  feed is loading, assistive technology now hears a single "Loading…" status
+  instead of walking through the empty placeholder bars — the decorative skeleton
+  trees are hidden from the accessibility tree and a sibling status region
+  carries the announcement. Real page and section headings stay readable, and
+  nothing changes visually (REEF-281).
+- **Reports names its workspace, like every other page.** The Reports header now
+  shows the active workspace as a subtitle, matching the Issues, Planning, and
+  Activity headers so the page's vault scope is visible at a glance. Page-header
+  subtitles (the workspace name, or `@login` on My Work) are now marked as
+  identifiers so machine translation leaves them untouched (REEF-260).
+- **Click a planning row's name to open its details.** On the Planning list
+  (sprints, milestones, releases), clicking a row's name now expands and
+  collapses its detail body, not just the small chevron — the chevron and name
+  are one larger, keyboard-accessible toggle instead of two controls for the same
+  panel. Rows with no detail stay plain text with no toggle (REEF-264).
+- **The segmented toggles look and behave alike, and show keyboard focus.** The
+  issue view switcher (Board / List / Timeline / Backlog), the Settings tabs, and
+  the Planning kind toggle now share one size, spacing, and focus style. The view
+  switcher, which previously gave keyboard users no visible focus indicator, now
+  shows the same focus ring as the others, and the Planning toggle is no longer a
+  larger outlier (REEF-261).
 - **Relation chips in the create and draft forms finish their accessibility.**
   The plain relation chips in the create dialog and activity-draft editor now
   show a keyboard focus ring on their remove `X` (matching the detail panel's
