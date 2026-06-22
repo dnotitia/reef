@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { StatusIcon } from "@/components/ui/status-icon";
+import { useIssueDrill } from "@/features/issues/hooks/view/useIssueDrill";
 import { cn } from "@/lib/utils";
 import type { IssueListItem, IssueType, Status } from "@reef/core";
 import { Archive, ArchiveRestore, MoreHorizontal, Trash2 } from "lucide-react";
@@ -63,6 +64,11 @@ export function IssueDetailHeader({
     [parentId, allIssues],
   );
 
+  // Drilling to the parent is an in-sheet content swap that records the hop on
+  // the nav stack (REEF-270), so a Back from the parent returns here. Modifier
+  // clicks still open the parent in a fresh tab via the link href.
+  const getDrillProps = useIssueDrill(issueId);
+
   return (
     // Single-row header (REEF-266): a horizontal breadcrumb trail — parent ›
     // current — on the left, the action cluster (save state · menu · close) on
@@ -83,7 +89,7 @@ export function IssueDetailHeader({
             className="flex min-w-0 items-center gap-2"
           >
             <Link
-              href={`/issues/${parentId}`}
+              {...getDrillProps(parentId)}
               data-testid="issue-parent-breadcrumb"
               data-issue-id={parentId}
               title="Go to parent issue"

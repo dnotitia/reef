@@ -1,6 +1,7 @@
 "use client";
 
 import { IssueOptionRow } from "@/components/fields/IssueOptionRow";
+import { useIssueDrill } from "@/features/issues/hooks/view/useIssueDrill";
 import {
   type IssueRelationLike,
   indexIssuesById,
@@ -84,6 +85,10 @@ export const IssueChildren = memo(function IssueChildren({
     [relationGraph, allIssues],
   );
 
+  // Opening a sub-issue is an in-sheet drill (REEF-270): it swaps the panel to
+  // the child and records the hop so Back returns to this parent.
+  const getDrillProps = useIssueDrill(issueId);
+
   if (children.length === 0) return null;
 
   const total = children.length;
@@ -122,7 +127,7 @@ export const IssueChildren = memo(function IssueChildren({
             return (
               <li key={child.id}>
                 <Link
-                  href={`/issues/${child.id}`}
+                  {...getDrillProps(child.id)}
                   data-issue-id={child.id}
                   className={cn(
                     "flex touch-manipulation items-center rounded-md px-1.5 py-1 transition-colors duration-150",

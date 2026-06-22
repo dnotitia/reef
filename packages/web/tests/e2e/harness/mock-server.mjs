@@ -308,6 +308,9 @@ function demoBoardVault(name) {
       milestone_id: milestoneId,
       release_id: releaseId,
       estimate_points: 3,
+      // REEF-270: a parent chain REEF-101 → REEF-102 → REEF-103 gives the drill
+      // navigation hermetic spec a sub-issue / breadcrumb path to walk.
+      parent_id: "REEF-101",
       labels: ["onboarding", "workspace"],
     }),
     issueRow({
@@ -321,6 +324,7 @@ function demoBoardVault(name) {
       milestone_id: milestoneId,
       release_id: releaseId,
       estimate_points: 2,
+      parent_id: "REEF-102",
       labels: ["reports"],
     }),
     issueRow({

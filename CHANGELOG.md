@@ -14,6 +14,14 @@ explicitly in the entries below.
 
 ### Added
 
+- **Drill through related issues without losing your place.** Following a
+  parent breadcrumb or sub-issue from an open issue now swaps the side panel to
+  that issue in place and shows a top-left **Back** to the issue you came from,
+  so you can explore the relationship graph and step back one issue at a time.
+  **Close** (the ✕, an outside click, or Esc when you're not drilled in) exits
+  straight to the list in one action instead of unwinding every hop, and Esc
+  steps back while you're drilled in. Opening an issue fresh, refreshing, or
+  following a deep link starts with no Back, as before (REEF-270).
 - **Filter issues by several people, sprints, or releases at once.** The
   Assignee, Requester, Sprint, and Release filters now accept multiple values
   and match any of them (OR within a field, AND across fields) — the same

@@ -27,6 +27,26 @@ vi.mock("sonner", () => ({
   },
 }));
 
+// The header breadcrumb + sub-issue rows now call the drill hook (REEF-270),
+// which reads router + the live query, so the detail tree needs both navigation
+// primitives stubbed. An empty `useSearchParams` keeps relation hrefs bare.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn(), back: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+vi.mock("next/link", () => ({
+  default: ({
+    children,
+    href,
+    ...rest
+  }: { children: ReactNode; href: string } & Record<string, unknown>) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
 import { apiFetch } from "@/lib/apiClient";
 import type { IssueMetadata } from "@reef/core";
 import { toast } from "sonner";

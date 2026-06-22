@@ -10,12 +10,20 @@ vi.mock("@/lib/apiClient", async () => {
   return { ...actual, apiFetch: vi.fn() };
 });
 
-const { mockUseActiveVault } = vi.hoisted(() => ({
+const { mockUseActiveVault, mockReplace } = vi.hoisted(() => ({
   mockUseActiveVault: vi.fn(),
+  mockReplace: vi.fn(),
 }));
 
 vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   useActiveVault: mockUseActiveVault,
+}));
+
+// The sheet's drill-aware dismiss controller reads router + the live query
+// (REEF-270). With an empty trail there is no Back affordance.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: mockReplace, push: vi.fn(), back: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 // `data-next-link` marks anchors routed through Next `Link`; a raw `<a>` lacks
@@ -36,6 +44,7 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+import { useIssueNavStack } from "@/features/issues/stores/useIssueNavStack";
 import { IssueDetailSheet } from "./IssueDetailSheet";
 
 function wrap(ui: ReactNode) {
@@ -48,6 +57,7 @@ function wrap(ui: ReactNode) {
 describe("IssueDetailSheet", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useIssueNavStack.setState({ trail: [], currentId: null });
   });
 
   it("renders the skeleton path while vault is loading", () => {
@@ -121,6 +131,69 @@ describe("IssueDetailSheet", () => {
 
     await user.click(screen.getByTestId("issue-close"));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // REEF-270: the drill trail drives a top-left Back affordance and makes Close
+  // exit the whole trail in one shot.
+  describe("drill navigation (REEF-270)", () => {
+    function renderDrilledInto(issueId: string, onClose = vi.fn()) {
+      mockUseActiveVault.mockReturnValue({
+        vault: "",
+        isLoading: false,
+        refetch: () => Promise.resolve(),
+      });
+      render(wrap(<IssueDetailSheet issueId={issueId} onClose={onClose} />));
+      return onClose;
+    }
+
+    it("shows no Back affordance when the trail is empty (depth 0)", () => {
+      renderDrilledInto("REEF-001");
+      expect(screen.queryByTestId("issue-drill-back")).toBeNull();
+    });
+
+    it("shows a Back affordance to the previous issue when drilled in", () => {
+      // Trail expects REEF-001 on screen, having drilled here from REEF-A, so
+      // reconcile keeps the trail (currentId already matches).
+      useIssueNavStack.setState({ trail: ["REEF-A"], currentId: "REEF-001" });
+      renderDrilledInto("REEF-001");
+
+      const back = screen.getByTestId("issue-drill-back");
+      expect(back).toHaveAccessibleName("Back to REEF-A");
+      expect(back).toHaveAttribute("data-back-to", "REEF-A");
+      // Exposed as its own labelled nav landmark, separate from the breadcrumb's
+      // "Issue hierarchy" — drill trail vs. structure (AC5).
+      const nav = screen.getByRole("navigation", { name: "Back navigation" });
+      expect(nav).toContainElement(back);
+    });
+
+    it("Back pops one hop and replaces to the previous issue (AC1/AC4)", async () => {
+      const user = userEvent.setup();
+      useIssueNavStack.setState({
+        trail: ["REEF-A", "REEF-B"],
+        currentId: "REEF-001",
+      });
+      renderDrilledInto("REEF-001");
+
+      await user.click(screen.getByTestId("issue-drill-back"));
+
+      // One hop only: REEF-B leaves the trail and we replace to it.
+      expect(useIssueNavStack.getState().trail).toEqual(["REEF-A"]);
+      expect(mockReplace).toHaveBeenCalledWith("/issues/REEF-B");
+    });
+
+    it("Close exits the whole trail in one shot (AC2)", async () => {
+      const user = userEvent.setup();
+      useIssueNavStack.setState({
+        trail: ["REEF-A", "REEF-B"],
+        currentId: "REEF-001",
+      });
+      const onClose = renderDrilledInto("REEF-001");
+
+      await user.click(screen.getByTestId("issue-close"));
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(useIssueNavStack.getState().trail).toEqual([]);
+    });
   });
 
   // REEF-149: the detail sheet uses a wider canvas (1080) so the rail's property
