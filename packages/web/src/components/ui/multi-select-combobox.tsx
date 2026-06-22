@@ -69,6 +69,7 @@ import {
   CBX_TRIGGER_CHIP_ACTIVE,
   CBX_TRIGGER_CHIP_INACTIVE,
 } from "./comboboxChrome";
+import { useOverlayOpenRegistration } from "./overlayDismiss";
 
 interface MultiSelectComboboxProps<T extends string> {
   /** Short facet label in the trigger ("Status"); the primitive appends the
@@ -157,6 +158,10 @@ export function MultiSelectCombobox<T extends string>({
     vertical: "down",
     horizontal: align,
   });
+
+  // While open inside a Sheet/Dialog, defer Escape to this overlay so it closes
+  // the panel rather than the surrounding sheet (REEF-288).
+  useOverlayOpenRegistration(open);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);

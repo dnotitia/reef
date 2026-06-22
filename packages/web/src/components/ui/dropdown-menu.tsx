@@ -6,6 +6,7 @@
  */
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { useOverlayOpenRegistration } from "./overlayDismiss";
 
 /* ----------------------------- Root ----------------------------- */
 interface DropdownMenuContextValue {
@@ -32,6 +33,9 @@ function DropdownMenu({
   // for an outside click — otherwise mousedown closes and the trigger's click
   // immediately re-opens (REEF-073).
   const rootRef = React.useRef<HTMLDivElement>(null);
+  // While open inside a Sheet/Dialog, defer Escape to this menu so it closes the
+  // menu rather than the surrounding sheet (REEF-288).
+  useOverlayOpenRegistration(open);
   return (
     <DropdownMenuContext.Provider value={{ open, setOpen, rootRef }}>
       {/* `inline-block` (shrink-to-fit) by default. Callers that need the

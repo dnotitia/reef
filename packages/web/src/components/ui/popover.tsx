@@ -7,6 +7,7 @@
  */
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { useOverlayOpenRegistration } from "./overlayDismiss";
 
 /* ----------------------------- Context ----------------------------- */
 interface PopoverContextValue {
@@ -41,6 +42,9 @@ function Popover({
     },
     [onOpenChange],
   );
+  // While open inside a Sheet/Dialog, defer Escape to this popover so it closes
+  // the panel rather than the surrounding sheet (REEF-288).
+  useOverlayOpenRegistration(open);
   // Wraps BOTH trigger and content. Outside-click detection keys off this root
   // (not the content alone) so re-clicking the trigger to close is not mistaken
   // for an outside click — otherwise mousedown closes and the trigger's click
