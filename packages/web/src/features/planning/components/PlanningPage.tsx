@@ -4,6 +4,7 @@ import { PlanningKindIcon } from "@/components/fields/PlanningKindIcon";
 import { Button } from "@/components/ui/button";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { PageHeader } from "@/features/ui/components/PageHeader";
 import { cn } from "@/lib/utils";
@@ -154,15 +155,7 @@ export function PlanningPage() {
     return (
       <div className="flex h-full flex-col">
         <PageHeader title="Planning" />
-        <div className="flex flex-1 items-center justify-center px-6 py-12">
-          <p className="text-sm text-muted-foreground">
-            Configure a workspace in{" "}
-            <a href="/settings" className="text-brand underline">
-              Settings
-            </a>{" "}
-            to get started.
-          </p>
-        </div>
+        <EmptyWorkspaceNotice />
       </div>
     );
   }

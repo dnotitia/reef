@@ -109,14 +109,14 @@ describe("IssuesWorkspace", () => {
     expect(screen.getByTestId("board-body")).toBeInTheDocument();
   });
 
-  it("shows the configure-workspace empty state and no toolbar/body when no vault", () => {
+  it("shows the shared pick-workspace empty state and no toolbar/body when no vault", () => {
     mockUseActiveVault.mockReturnValue({
       vault: "",
       isLoading: false,
       refetch: () => Promise.resolve(),
     });
     render(wrap(<IssuesWorkspace />));
-    expect(screen.getByText(/Configure a workspace/i)).toBeInTheDocument();
+    expect(screen.getByTestId("empty-workspace-notice")).toBeInTheDocument();
     expect(screen.queryByTestId("filter-toolbar")).toBeNull();
     expect(screen.queryByTestId("board-body")).toBeNull();
   });

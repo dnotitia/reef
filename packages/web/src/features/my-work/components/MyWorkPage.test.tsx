@@ -116,10 +116,10 @@ describe("MyWorkPage", () => {
     );
   });
 
-  it("shows the pick-workspace notice when no vault is active (AC7)", () => {
+  it("shows the shared pick-workspace notice when no vault is active (AC7)", () => {
     mockUseActiveVault.mockReturnValue({ vault: "", isLoading: false });
     render(<MyWorkPage />);
-    expect(screen.getByTestId("my-work-no-vault")).toBeInTheDocument();
+    expect(screen.getByTestId("empty-workspace-notice")).toBeInTheDocument();
   });
 
   it("shows the no-session notice when logged out (AC7)", () => {

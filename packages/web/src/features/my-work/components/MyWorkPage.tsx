@@ -18,6 +18,7 @@ import {
 } from "@/features/my-work/lib/myWork";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { PageHeader } from "@/features/ui/components/PageHeader";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -133,21 +134,16 @@ export function MyWorkPage() {
   }
 
   if (!vault) {
+    // The no-vault gate is the app-level "no workspace" state, shared across all
+    // five surfaces (REEF-259), so it bypasses `Shell` (which wraps children in a
+    // PageBody) and lets the shared notice own its own centered layout beneath
+    // the header. The other empty states below stay section-level CenteredNotice
+    // cards.
     return (
-      <Shell>
-        <CenteredNotice testId="my-work-no-vault">
-          <p className="text-sm text-muted-foreground">
-            Pick a workspace in{" "}
-            <a
-              href="/settings"
-              className="text-foreground underline-offset-4 hover:underline"
-            >
-              Settings
-            </a>{" "}
-            to see your work.
-          </p>
-        </CenteredNotice>
-      </Shell>
+      <div className="flex h-full flex-col">
+        <PageHeader title="My Work" />
+        <EmptyWorkspaceNotice />
+      </div>
     );
   }
 
