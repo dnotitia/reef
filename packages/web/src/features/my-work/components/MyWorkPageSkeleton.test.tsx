@@ -56,4 +56,29 @@ describe("MyWorkPageSkeleton", () => {
         .querySelector("ul.sm\\:grid-cols-4"),
     ).not.toBeNull();
   });
+
+  it("carries one role=status announcement and hides the decorative body (REEF-281)", () => {
+    const { container } = render(<MyWorkSkeleton />);
+
+    // The stat/queue placeholders are decorative — aria-hidden so a screen
+    // reader skips the empty DOM.
+    expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
+
+    // The role=status loading announcement is a sibling, not under aria-hidden.
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("Loading…");
+    expect(status.closest('[aria-hidden="true"]')).toBeNull();
+  });
+
+  it("announces loading exactly once on the full page — no nested duplicate (REEF-281)", () => {
+    render(<MyWorkPageSkeleton />);
+
+    // The announcement lives on the embedded MyWorkSkeleton leaf, so the
+    // full-page skeleton surfaces exactly one — getByRole throws on a duplicate.
+    expect(screen.getByRole("status")).toHaveTextContent("Loading…");
+    // The "My Work" h1 stays a real heading (PageHeader is not aria-hidden).
+    expect(
+      screen.getByRole("heading", { name: "My Work" }),
+    ).toBeInTheDocument();
+  });
 });

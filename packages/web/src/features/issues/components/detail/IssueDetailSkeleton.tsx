@@ -134,102 +134,115 @@ export function IssueDetailSkeleton() {
       data-testid="issue-detail-skeleton"
       className="flex flex-col gap-5 p-6"
     >
-      {/* Header row — the id / type cluster (mirrors IssueDetailHeader's
+      {/* sr-only loading announcement (REEF-281), sibling to the decorative
+          panel so it is not under aria-hidden. */}
+      <output className="sr-only">Loading…</output>
+      {/* The mirrored panel is all placeholder bars — decorative, so aria-hidden
+          keeps assistive tech from walking the empty header/canvas/rail DOM. */}
+      <div className="flex flex-col gap-5" aria-hidden="true">
+        {/* Header row — the id / type cluster (mirrors IssueDetailHeader's
           left side). The top-right corner is left empty on purpose: every state
           that renders this skeleton (IssueDetail isPending/!data,
           IssueDetailSheet vaultLoading) pins the real IssueDetailCloseButton
           there (`absolute top-4 right-4`), and REEF-111 relies on those states
           having nothing else in that corner to collide with. The actions menu
           exists in the loaded header, so the live close owns the corner. */}
-      <div className="flex min-w-0 items-center gap-2">
-        <Skeleton style={wave(0)} className="h-3 w-3 rounded-full" />
-        <Skeleton style={wave(1)} className="h-4 w-16" />
-        <Skeleton style={wave(2)} className="h-5 w-12 rounded-full" />
-      </div>
+        <div className="flex min-w-0 items-center gap-2">
+          <Skeleton style={wave(0)} className="h-3 w-3 rounded-full" />
+          <Skeleton style={wave(1)} className="h-4 w-16" />
+          <Skeleton style={wave(2)} className="h-5 w-12 rounded-full" />
+        </div>
 
-      {/* Two-column grid: main canvas + 340px rail (mirrors IssueDetail). */}
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-        {/* Main canvas: title + description + relationships + activity
+        {/* Two-column grid: main canvas + 340px rail (mirrors IssueDetail). */}
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+          {/* Main canvas: title + description + relationships + activity
             (mirrors IssueDetailMain). */}
-        <div className="flex min-w-0 flex-col gap-4">
-          <div className="flex flex-col gap-1">
-            <Skeleton tone="secondary" style={wave(3)} className="h-3 w-10" />
-            {/* Title value matches the `Input` height (h-8), not h-9. */}
-            <Skeleton style={wave(4)} className="h-8 w-full" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Skeleton tone="secondary" style={wave(5)} className="h-3 w-20" />
-            {/* Description value reserves the MarkdownEditor's height: a ~36px
+          <div className="flex min-w-0 flex-col gap-4">
+            <div className="flex flex-col gap-1">
+              <Skeleton tone="secondary" style={wave(3)} className="h-3 w-10" />
+              {/* Title value matches the `Input` height (h-8), not h-9. */}
+              <Skeleton style={wave(4)} className="h-8 w-full" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Skeleton tone="secondary" style={wave(5)} className="h-3 w-20" />
+              {/* Description value reserves the MarkdownEditor's height: a ~36px
                 toolbar strip over its 200px body floor (≈236px → h-60), so the
                 editor chunk loading in does not push the sections below down. */}
-            <Skeleton style={wave(6)} className="h-60 w-full" />
-          </div>
+              <Skeleton style={wave(6)} className="h-60 w-full" />
+            </div>
 
-          {/* Relationships — IssueFormSection "Relationships" + its 2-col grid
+            {/* Relationships — IssueFormSection "Relationships" + its 2-col grid
               of Parent / Depends on / Blocks / Related fields. Always rendered
               in the loaded panel, so reserve it here. */}
-          <div className="grid gap-3">
-            <Skeleton
-              tone="secondary"
-              style={wave(relationshipsStart)}
-              className="h-3 w-24"
-            />
-            <div className="grid gap-3 md:grid-cols-2">
-              {RELATIONSHIP_ROWS.map((row, k) => (
-                <div key={row} className="flex flex-col gap-1">
-                  <Skeleton
-                    tone="secondary"
-                    style={wave(relationshipsStart + 1 + k * 2)}
-                    className="h-3 w-16"
-                  />
-                  <Skeleton
-                    style={wave(relationshipsStart + 2 + k * 2)}
-                    className="h-8 w-full"
-                  />
-                </div>
+            <div className="grid gap-3">
+              <Skeleton
+                tone="secondary"
+                style={wave(relationshipsStart)}
+                className="h-3 w-24"
+              />
+              <div className="grid gap-3 md:grid-cols-2">
+                {RELATIONSHIP_ROWS.map((row, k) => (
+                  <div key={row} className="flex flex-col gap-1">
+                    <Skeleton
+                      tone="secondary"
+                      style={wave(relationshipsStart + 1 + k * 2)}
+                      className="h-3 w-16"
+                    />
+                    <Skeleton
+                      style={wave(relationshipsStart + 2 + k * 2)}
+                      className="h-8 w-full"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Activity timeline + comment composer (REEF-064) — always rendered
+              at the bottom of the loaded canvas and typically tall, so a couple
+              of event rows under the composer keep the panel from doubling in
+              height when it hydrates. */}
+            <div className="grid gap-3">
+              <Skeleton
+                tone="secondary"
+                style={wave(activityStart)}
+                className="h-3 w-20"
+              />
+              <Skeleton
+                style={wave(activityStart + 1)}
+                className="h-20 w-full"
+              />
+              {ACTIVITY_ROWS.map((row, k) => (
+                <Skeleton
+                  key={row}
+                  style={wave(activityStart + 2 + k)}
+                  className="h-12 w-full"
+                />
               ))}
             </div>
           </div>
 
-          {/* Activity timeline + comment composer (REEF-064) — always rendered
-              at the bottom of the loaded canvas and typically tall, so a couple
-              of event rows under the composer keep the panel from doubling in
-              height when it hydrates. */}
-          <div className="grid gap-3">
-            <Skeleton
-              tone="secondary"
-              style={wave(activityStart)}
-              className="h-3 w-20"
-            />
-            <Skeleton style={wave(activityStart + 1)} className="h-20 w-full" />
-            {ACTIVITY_ROWS.map((row, k) => (
-              <Skeleton
-                key={row}
-                style={wave(activityStart + 2 + k)}
-                className="h-12 w-full"
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Property rail: Details / People / Planning sections
+          {/* Property rail: Details / People / Planning sections
             (mirrors IssueDetailSidebar). */}
-        <div className="flex min-w-0 flex-col gap-4 border-t border-border-subtle pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
-          <RailSectionSkeleton rows={DETAILS_ROWS} startIndex={detailsStart} />
-          {/* Labels keeps a stacked label-above layout in the loaded rail. */}
-          <div className="flex flex-col gap-1">
-            <Skeleton
-              tone="secondary"
-              style={wave(labelsStart)}
-              className="h-3 w-12"
+          <div className="flex min-w-0 flex-col gap-4 border-t border-border-subtle pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+            <RailSectionSkeleton
+              rows={DETAILS_ROWS}
+              startIndex={detailsStart}
             />
-            <Skeleton style={wave(labelsStart + 1)} className="h-9 w-full" />
+            {/* Labels keeps a stacked label-above layout in the loaded rail. */}
+            <div className="flex flex-col gap-1">
+              <Skeleton
+                tone="secondary"
+                style={wave(labelsStart)}
+                className="h-3 w-12"
+              />
+              <Skeleton style={wave(labelsStart + 1)} className="h-9 w-full" />
+            </div>
+            <RailSectionSkeleton rows={PEOPLE_ROWS} startIndex={peopleStart} />
+            <RailSectionSkeleton
+              rows={PLANNING_ROWS}
+              startIndex={planningStart}
+            />
           </div>
-          <RailSectionSkeleton rows={PEOPLE_ROWS} startIndex={peopleStart} />
-          <RailSectionSkeleton
-            rows={PLANNING_ROWS}
-            startIndex={planningStart}
-          />
         </div>
       </div>
     </div>

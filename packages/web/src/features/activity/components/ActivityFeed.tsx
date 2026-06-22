@@ -65,20 +65,27 @@ export function ActivityFeedSkeleton() {
   // so the placeholders approximate the loaded card height rather than matching
   // it exactly.
   return (
-    <div data-testid="activity-feed" className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Skeleton tone="secondary" className="h-6 w-12 rounded-full" />
-          <Skeleton tone="secondary" className="h-6 w-20 rounded-full" />
-          <Skeleton tone="secondary" className="h-6 w-28 rounded-full" />
+    // The body-only feed skeleton; the route's loading.tsx (and the live feed)
+    // own the page header. One sr-only loading announcement per surface
+    // (REEF-281). The decorative chrome carries the original `space-y-4` so the
+    // sr-only sibling does not pick up a stacking margin.
+    <div data-testid="activity-feed">
+      <output className="sr-only">Loading…</output>
+      <div className="space-y-4" aria-hidden="true">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Skeleton tone="secondary" className="h-6 w-12 rounded-full" />
+            <Skeleton tone="secondary" className="h-6 w-20 rounded-full" />
+            <Skeleton tone="secondary" className="h-6 w-28 rounded-full" />
+          </div>
+          <Skeleton tone="secondary" className="h-7 w-20" />
         </div>
-        <Skeleton tone="secondary" className="h-7 w-20" />
-      </div>
-      <Skeleton tone="secondary" className="h-4 w-48" />
-      <div className="space-y-3">
-        {[1, 2, 3].map((n) => (
-          <Skeleton key={n} className="h-32 w-full" />
-        ))}
+        <Skeleton tone="secondary" className="h-4 w-48" />
+        <div className="space-y-3">
+          {[1, 2, 3].map((n) => (
+            <Skeleton key={n} className="h-32 w-full" />
+          ))}
+        </div>
       </div>
     </div>
   );

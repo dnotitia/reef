@@ -53,6 +53,12 @@ explicitly in the entries below.
   (REEF-272).
 ### Changed
 
+- **Loading skeletons are quieter for screen readers.** While a page, panel, or
+  feed is loading, assistive technology now hears a single "Loading…" status
+  instead of walking through the empty placeholder bars — the decorative skeleton
+  trees are hidden from the accessibility tree and a sibling status region
+  carries the announcement. Real page and section headings stay readable, and
+  nothing changes visually (REEF-281).
 - **Reports names its workspace, like every other page.** The Reports header now
   shows the active workspace as a subtitle, matching the Issues, Planning, and
   Activity headers so the page's vault scope is visible at a glance. Page-header
