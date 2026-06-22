@@ -21,9 +21,10 @@ interface IssuePageProps {
  *
  * UX: the IssuesWorkspace fills the layout slot as a backdrop and the
  * IssueDetailSheet slide-over sits on top. On a cold hit there is no `?view=`,
- * so the workspace defaults to the Board view. Closing the sheet pushes
- * the user to /issues — we does not rely on history.back() here because the
- * tab may have started directly at this URL with no prior entry.
+ * so the workspace defaults to the Board view. A cold hit starts a depth-0
+ * drill trail (REEF-270), so exiting pushes the user to /issues — we don't rely
+ * on history.back() here because the tab may have started directly at this URL
+ * with no prior entry.
  */
 export default function IssuePage({ params }: IssuePageProps) {
   const { id } = use(params);

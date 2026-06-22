@@ -1,30 +1,40 @@
+import { useIssueNavStack } from "@/features/issues/stores/useIssueNavStack";
 import type { IssueListItem } from "@reef/core";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { IssueChildren } from "./IssueChildren";
 
+const { mockReplace } = vi.hoisted(() => ({ mockReplace: vi.fn() }));
+
 // next/link needs the app-router context for prefetch; in unit tests we just
-// care that it renders a navigable anchor, so stub it to a plain <a>.
+// care that it renders a navigable anchor, so stub it to a plain <a> that
+// forwards every prop (href, className, data-*, the drill onClick — REEF-270).
 vi.mock("next/link", () => ({
   default: ({
     children,
     href,
-    className,
-    "data-issue-id": dataIssueId,
-  }: {
-    children: ReactNode;
-    href: string;
-    className?: string;
-    "data-issue-id"?: string;
-  }) => (
-    <a href={href} className={className} data-issue-id={dataIssueId}>
+    ...rest
+  }: { children: ReactNode; href: string } & Record<string, unknown>) => (
+    <a href={href} {...rest}>
       {children}
     </a>
   ),
 }));
 
-afterEach(cleanup);
+// The sub-issue drill reads the live query + router; an empty `useSearchParams`
+// keeps the href bare so the existing assertions hold (REEF-270).
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: mockReplace, push: vi.fn(), back: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+afterEach(() => {
+  cleanup();
+  mockReplace.mockClear();
+  useIssueNavStack.setState({ trail: [], currentId: null });
+});
 
 const base = {
   created_by: "alice",
@@ -118,6 +128,38 @@ describe("IssueChildren", () => {
       .getAllByRole("link")
       .find((a) => a.getAttribute("data-issue-id") === "REEF-101");
     expect(openLink?.getAttribute("href")).toBe("/issues/REEF-101");
+  });
+
+  it("drills into a child in place: records the hop and replaces (REEF-270)", async () => {
+    const user = userEvent.setup();
+    render(<IssueChildren issueId={PARENT} allIssues={ALL} />);
+    const openLink = screen
+      .getAllByRole("link")
+      .find((a) => a.getAttribute("data-issue-id") === "REEF-101");
+
+    await user.click(openLink as HTMLElement);
+
+    // The parent we left is pushed onto the in-memory trail and the target
+    // becomes the expected current issue, so a later Back returns here.
+    expect(useIssueNavStack.getState().trail).toEqual([PARENT]);
+    expect(useIssueNavStack.getState().currentId).toBe("REEF-101");
+    // The hop swaps content with replace (flat history), never a pushed entry.
+    expect(mockReplace).toHaveBeenCalledTimes(1);
+    expect(mockReplace).toHaveBeenCalledWith("/issues/REEF-101");
+  });
+
+  it("lets a modifier click open a fresh tab instead of drilling (REEF-270)", () => {
+    render(<IssueChildren issueId={PARENT} allIssues={ALL} />);
+    const openLink = screen
+      .getAllByRole("link")
+      .find((a) => a.getAttribute("data-issue-id") === "REEF-101");
+
+    // Cmd/Ctrl-click falls through to the anchor's native new-tab behavior, so
+    // the in-panel drill must not fire and the trail stays empty.
+    fireEvent.click(openLink as HTMLElement, { button: 0, metaKey: true });
+
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(useIssueNavStack.getState().trail).toEqual([]);
   });
 
   it("shows a blocked badge for a child with an unresolved dependency", () => {

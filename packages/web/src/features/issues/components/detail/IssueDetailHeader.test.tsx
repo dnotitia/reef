@@ -1,3 +1,4 @@
+import { useIssueNavStack } from "@/features/issues/stores/useIssueNavStack";
 import type { IssueListItem } from "@reef/core";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -5,9 +6,11 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { IssueDetailHeader } from "./IssueDetailHeader";
 
+const { mockReplace } = vi.hoisted(() => ({ mockReplace: vi.fn() }));
+
 // next/link needs the app-router context for prefetch; in unit tests we just
 // care that it renders a navigable anchor, so stub it to a plain <a> that
-// forwards every prop (href, className, data-*, title, aria-label).
+// forwards every prop (href, className, data-*, title, aria-label, onClick).
 vi.mock("next/link", () => ({
   default: ({
     children,
@@ -20,7 +23,18 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-afterEach(cleanup);
+// The parent breadcrumb now drills in place (REEF-270); an empty
+// `useSearchParams` keeps the href bare so the REEF-279 assertions hold.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: mockReplace, push: vi.fn(), back: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+afterEach(() => {
+  cleanup();
+  mockReplace.mockClear();
+  useIssueNavStack.setState({ trail: [], currentId: null });
+});
 
 type HeaderProps = Parameters<typeof IssueDetailHeader>[0];
 
@@ -111,6 +125,19 @@ describe("IssueDetailHeader", () => {
       // so it adds an svg but no extra accessible text (the aria-label is the
       // single accessible name, asserted below).
       expect(link.querySelector("svg")).not.toBeNull();
+    });
+
+    it("drills to the parent in place, recording the hop (REEF-270)", async () => {
+      const user = userEvent.setup();
+      // Current issue is REEF-111 (the header's issueId); clicking the parent
+      // crumb should push REEF-111 onto the trail and replace to the parent.
+      setup({ parentId: PARENT_ID, allIssues: [parent] });
+
+      await user.click(screen.getByTestId("issue-parent-breadcrumb"));
+
+      expect(useIssueNavStack.getState().trail).toEqual(["REEF-111"]);
+      expect(useIssueNavStack.getState().currentId).toBe(PARENT_ID);
+      expect(mockReplace).toHaveBeenCalledWith("/issues/REEF-182");
     });
 
     it("names the parent relationship for hover and assistive tech", () => {
