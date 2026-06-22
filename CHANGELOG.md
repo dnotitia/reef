@@ -75,6 +75,12 @@ explicitly in the entries below.
   an archived or missing issue degrades to an id-only link rather than dropping
   navigation. The create and activity-draft forms keep the plain, non-navigating
   chips so clicking one never abandons an unsaved issue (REEF-268).
+- **Relation chips in the create and draft forms finish their accessibility.**
+  The plain relation chips in the create dialog and activity-draft editor now
+  show a keyboard focus ring on their remove `X` (matching the detail panel's
+  chips), hide that decorative `X` from screen readers while the button keeps its
+  "Remove {id}" name, and mark the chip id so machine translation leaves the reef
+  id intact. The chips stay non-navigating and look exactly the same (REEF-282).
 ### Changed
 
 - **Loading skeletons are quieter for screen readers.** While a page, panel, or
