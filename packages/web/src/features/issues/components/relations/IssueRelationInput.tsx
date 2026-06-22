@@ -669,15 +669,21 @@ export function IssueRelationInput({
                 key={relationId}
                 className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-[11px] font-medium text-foreground"
               >
-                <span className="font-mono">{relationId}</span>
+                <span className="font-mono" translate="no">
+                  {relationId}
+                </span>
                 <button
                   type="button"
                   aria-label={`Remove ${relationId}`}
                   disabled={disabled}
                   onClick={() => removeRelation(relationId)}
-                  className="text-muted-foreground hover:text-foreground disabled:opacity-50"
+                  // Match the navigable chip's remove button (REEF-268): a
+                  // keyboard-visible focus ring and rounded ring corners, reusing
+                  // the same tokens. `rounded-md` only shapes the ring (no bg/
+                  // padding here), so the pill layout is unchanged (REEF-282).
+                  className="touch-manipulation rounded-md text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50"
                 >
-                  <X className="h-3 w-3" />
+                  <X className="h-3 w-3" aria-hidden="true" />
                 </button>
               </span>
             ))}
