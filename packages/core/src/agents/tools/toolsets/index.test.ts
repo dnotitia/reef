@@ -35,11 +35,17 @@ describe("agent toolsets", () => {
     ).toEqual(["list_assignees", "read_issue", "search_issues"]);
   });
 
-  it("builds repoRead as unbound or closure-bound to the selected repo", () => {
+  it("builds repoRead as allowlist-scoped unbound or closure-bound to the selected repo", () => {
     const githubAdapter = createGitHubAdapter({ token: "test-token" });
 
+    // Unbound tools require a monitored-repo allowlist (REEF-243).
     expect(
-      Object.keys(createRepoReadToolset({ githubAdapter })).sort(),
+      Object.keys(
+        createRepoReadToolset({
+          githubAdapter,
+          allowedRepos: [{ owner: "acme", repo: "platform" }],
+        }),
+      ).sort(),
     ).toEqual(["dev_read_file", "search_code"]);
 
     expect(
@@ -50,6 +56,42 @@ describe("agent toolsets", () => {
         }),
       ).sort(),
     ).toEqual(["dev_read_file", "search_code"]);
+  });
+
+  it("scopes unbound repo tools to the allowlist (rejects others) even when empty", async () => {
+    // Safe-by-default: with no repoContext the unbound tools always enforce the
+    // allowlist, so an empty allowlist rejects every repo rather than exposing
+    // an unbounded GitHub read (REEF-243).
+    const githubAdapter = {
+      searchCode: async () => {
+        throw new Error("unbounded GitHub read must not happen");
+      },
+    } as unknown as GitHubAdapter;
+
+    const toolset = createRepoReadToolset({ githubAdapter, allowedRepos: [] });
+    expect(Object.keys(toolset).sort()).toEqual([
+      "dev_read_file",
+      "search_code",
+    ]);
+
+    const searchCodeTool = toolset.search_code as {
+      execute?: (
+        input: {
+          query: string;
+          owner: string;
+          repo: string;
+          maxResults: number;
+        },
+        options: never,
+      ) => Promise<unknown>;
+    };
+    if (!searchCodeTool.execute) throw new Error("search_code has no execute");
+    await expect(
+      searchCodeTool.execute(
+        { query: "x", owner: "any", repo: "repo", maxResults: 10 },
+        undefined as never,
+      ),
+    ).rejects.toThrow();
   });
 
   it("executes repoRead tools against the server-selected repo context", async () => {

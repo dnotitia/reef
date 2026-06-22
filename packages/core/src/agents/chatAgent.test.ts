@@ -9,17 +9,22 @@ import {
 } from "./chatAgent";
 import type { AgentRunEvent } from "./framework/events";
 
-const { ToolLoopAgentMock, createAgentUIStreamResponseMock, stepCountIsMock } =
-  vi.hoisted(() => ({
-    ToolLoopAgentMock: vi.fn(function ToolLoopAgentMock(
-      this: { settings?: unknown },
-      settings: unknown,
-    ) {
-      this.settings = settings;
-    }),
-    createAgentUIStreamResponseMock: vi.fn(),
-    stepCountIsMock: vi.fn((steps: number) => ({ steps })),
-  }));
+const {
+  ToolLoopAgentMock,
+  createAgentUIStreamResponseMock,
+  stepCountIsMock,
+  readConfigMock,
+} = vi.hoisted(() => ({
+  ToolLoopAgentMock: vi.fn(function ToolLoopAgentMock(
+    this: { settings?: unknown },
+    settings: unknown,
+  ) {
+    this.settings = settings;
+  }),
+  createAgentUIStreamResponseMock: vi.fn(),
+  stepCountIsMock: vi.fn((steps: number) => ({ steps })),
+  readConfigMock: vi.fn(),
+}));
 
 vi.mock("ai", async (importOriginal) => {
   const actual = await importOriginal<typeof import("ai")>();
@@ -29,6 +34,13 @@ vi.mock("ai", async (importOriginal) => {
     createAgentUIStreamResponse: createAgentUIStreamResponseMock,
     stepCountIs: stepCountIsMock,
   };
+});
+
+// The chat agent reads monitored_repos to scope the unbound repo tools
+// (REEF-243); mock the config read so tool assembly is deterministic.
+vi.mock("../adapters/akb", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../adapters/akb")>();
+  return { ...actual, readConfig: readConfigMock };
 });
 
 const message = {
@@ -70,6 +82,13 @@ describe("workspace chat agent task", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     createAgentUIStreamResponseMock.mockResolvedValue(new Response("ok"));
+    // Default: one monitored repo so the unbound chat repo tools are wired.
+    readConfigMock.mockResolvedValue({
+      config: {
+        monitored_repos: [{ github_id: 1, owner: "acme", name: "platform" }],
+      },
+      exists: true,
+    });
   });
 
   it("declares chat.workspace streaming config in the registry", () => {
@@ -117,6 +136,39 @@ describe("workspace chat agent task", () => {
       githubAdapter: undefined,
     });
 
+    expect(Object.keys(getAgentSettings().tools).sort()).toEqual([
+      "list_assignees",
+      "read_issue",
+      "search_issues",
+    ]);
+    // No GitHub grounding → the monitored-repo read is skipped entirely.
+    expect(readConfigMock).not.toHaveBeenCalled();
+  });
+
+  it("omits repo tools when the vault monitors no repositories (REEF-243)", async () => {
+    readConfigMock.mockResolvedValueOnce({
+      config: { monitored_repos: [] },
+      exists: true,
+    });
+
+    await createWorkspaceChatAgentResponse(createParams());
+
+    // GitHub is connected, but with no monitored repos there is nothing the
+    // unbound tools may safely read, so no repo tools are wired.
+    expect(Object.keys(getAgentSettings().tools).sort()).toEqual([
+      "list_assignees",
+      "read_issue",
+      "search_issues",
+    ]);
+  });
+
+  it("degrades to AKB-only when the monitored-repo read fails (REEF-243)", async () => {
+    readConfigMock.mockRejectedValueOnce(new Error("akb unreachable"));
+
+    await createWorkspaceChatAgentResponse(createParams());
+
+    // A config-read failure must not break chat or expose an unbounded read —
+    // it drops repo grounding and proceeds AKB-only.
     expect(Object.keys(getAgentSettings().tools).sort()).toEqual([
       "list_assignees",
       "read_issue",

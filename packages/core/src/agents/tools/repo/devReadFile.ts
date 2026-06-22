@@ -13,21 +13,29 @@ import {
   type DevReadFileOutput,
   DevReadFileOutputSchema,
 } from "../../../schemas/ai/tools";
+import { type RepoRef, assertRepoAllowed } from "./allowlist";
 
 const tracer = trace.getTracer("@reef/core");
 
 /**
  * Factory function — creates a per-request `dev_read_file` AI SDK tool.
  *
- * Uses the GitHub adapter's monitored-repo file read surface.
- * Supports optional line range slicing.
+ * The LLM supplies `owner`/`repo`, so the call is constrained to
+ * `allowedRepos` — the active vault's monitored repositories — before it
+ * reaches GitHub. This keeps a deployment App installation token (which can
+ * read more repos than the vault monitors) from reading an out-of-scope
+ * repository's files (REEF-243). Supports optional line range slicing.
  */
-export function createDevReadFileTool(adapter: GitHubAdapter) {
+export function createDevReadFileTool(
+  adapter: GitHubAdapter,
+  allowedRepos: RepoRef[],
+) {
   return tool({
     description:
-      "Read the contents of a file from a GitHub repository. Supports optional line range. Returns file content and whether it was truncated.",
+      "Read the contents of a file from one of this workspace's monitored GitHub repositories. Supports optional line range. Returns file content and whether it was truncated.",
     inputSchema: DevReadFileInputSchema,
     execute: async ({ owner, repo, path, ref, startLine, endLine }) => {
+      assertRepoAllowed(allowedRepos, owner, repo);
       return executeDevReadFile({
         adapter,
         owner,
