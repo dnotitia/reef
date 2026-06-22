@@ -25,6 +25,21 @@ vi.mock("@/features/settings/hooks/useHasGithubToken", () => ({
   useHasGithubToken: () => tokenState.current,
 }));
 
+// useRepos also enables when the deployment-managed GitHub App is available
+// (REEF-239), so a workspace can list repos without a browser PAT. Default to
+// "not available" so the existing token-gated tests are unchanged; the
+// App-available test flips it on.
+const appState = vi.hoisted(() => ({
+  current: {
+    isAvailable: false,
+    isLoading: false,
+    appId: null as string | null,
+  },
+}));
+vi.mock("@/features/settings/hooks/useGithubAppAvailable", () => ({
+  useGithubAppAvailable: () => appState.current,
+}));
+
 import { apiFetch } from "@/lib/apiClient";
 import { useRepos } from "./useRepos";
 
@@ -46,6 +61,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   window.localStorage.clear();
   tokenState.current = { hasToken: true, isLoading: false };
+  appState.current = { isAvailable: false, isLoading: false, appId: null };
 });
 
 afterEach(() => {
@@ -186,6 +202,25 @@ describe("useRepos", () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(mockApiFetch).not.toHaveBeenCalled();
     expect(result.current.fetchStatus).toBe("idle");
+  });
+
+  it("fetches without a browser PAT when the server GitHub App is available (REEF-239)", async () => {
+    // No browser token, but the deployment-managed App can serve the list — the
+    // query is enabled and the route returns the installation repos.
+    tokenState.current = { hasToken: false, isLoading: false };
+    appState.current = { isAvailable: true, isLoading: false, appId: "123456" };
+    const repos = [{ full_name: "octo/reef", id: 1001 }];
+    mockApiFetch.mockResolvedValue(
+      new Response(JSON.stringify({ repos }), { status: 200 }),
+    );
+
+    const { result } = renderHook(() => useRepos(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual(repos);
+    expect(mockApiFetch).toHaveBeenCalledWith("/api/repos");
   });
 
   it("does not retry an invalid-token 401 — one request, not three (REEF-159)", async () => {

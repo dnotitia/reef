@@ -1,3 +1,4 @@
+import { useGithubAppAvailable } from "@/features/settings/hooks/useGithubAppAvailable";
 import { useHasGithubToken } from "@/features/settings/hooks/useHasGithubToken";
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -58,15 +59,21 @@ function writeStoredEtag(etag: string | null): void {
 
 export function useRepos() {
   const queryClient = useQueryClient();
-  // Gate the GitHub API call on a configured token. Without this the query runs
-  // on every mount (no `enabled`) and, with staleTime expiry + window-focus
+  // Gate the GitHub API call on an available credential. Without this the query
+  // runs on every mount (no `enabled`) and, with staleTime expiry + window-focus
   // refetch, spams 401s in an unconfigured workspace (REEF-159). `retry: false`
   // keeps an invalid/expired token to a single 401 instead of three.
+  //
+  // Two credential sources can serve the list (REEF-239): a per-user browser
+  // PAT, or a deployment-managed GitHub App the server uses to mint an
+  // installation token. Either one enables the call — a workspace whose
+  // deployment has a GitHub App configured lists repos without a browser PAT.
   const { hasToken } = useHasGithubToken();
+  const { isAvailable: appAvailable } = useGithubAppAvailable();
 
   return useQuery({
     queryKey: REPOS_KEY,
-    enabled: hasToken,
+    enabled: hasToken || appAvailable,
     retry: false,
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<RepoListItem[]> => {

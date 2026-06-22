@@ -32,6 +32,20 @@ vi.mock("@/features/settings/hooks/useHasGithubToken", () => ({
   useHasGithubToken: () => tokenState.current,
 }));
 
+// Deployment-managed GitHub App availability (REEF-239). Default to "not
+// available" so the existing PAT-gated tests are unchanged; the App-available
+// test flips it on to assert the picker works without a browser token.
+const appState = vi.hoisted(() => ({
+  current: {
+    isAvailable: false,
+    isLoading: false,
+    appId: null as string | null,
+  },
+}));
+vi.mock("@/features/settings/hooks/useGithubAppAvailable", () => ({
+  useGithubAppAvailable: () => appState.current,
+}));
+
 import { apiFetch } from "@/lib/apiClient";
 import { RepoPickerSection } from "./RepoPickerSection";
 
@@ -49,6 +63,7 @@ describe("RepoPickerSection", () => {
     vi.clearAllMocks();
     activeVault.current = { vault: "reef-acme", isLoading: false };
     tokenState.current = { hasToken: true, isLoading: false };
+    appState.current = { isAvailable: false, isLoading: false, appId: null };
     mockApiFetch.mockImplementation(async (url) => {
       const u = String(url);
       if (u.startsWith("/api/vaults")) {
@@ -181,6 +196,48 @@ describe("RepoPickerSection", () => {
         String(url).startsWith("/api/repos"),
       ),
     ).toBe(false);
+  });
+
+  it("lists repos without a browser token when the server GitHub App is available (REEF-239)", async () => {
+    // No browser PAT, but the deployment-managed App can serve the list: the
+    // selector loads available repos and shows no connect-GitHub hint.
+    tokenState.current = { hasToken: false, isLoading: false };
+    appState.current = { isAvailable: true, isLoading: false, appId: "123456" };
+    mockApiFetch.mockImplementation(async (url) => {
+      const u = String(url);
+      if (u.startsWith("/api/config")) {
+        return new Response(
+          JSON.stringify({
+            config: { project_prefix: "REEF", monitored_repos: [] },
+          }),
+          { status: 200 },
+        );
+      }
+      if (u.startsWith("/api/repos")) {
+        return new Response(
+          JSON.stringify({ repos: [{ full_name: "octo/reef", id: 1001 }] }),
+          { status: 200 },
+        );
+      }
+      return new Response("{}", { status: 200 });
+    });
+
+    render(wrap(<RepoPickerSection />));
+
+    // The selector trigger renders (not the connect hint), and /api/repos was hit.
+    expect(
+      await screen.findByTestId("monitored-repos-trigger"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("monitored-repos-load-error"),
+    ).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        mockApiFetch.mock.calls.some(([url]) =>
+          String(url).startsWith("/api/repos"),
+        ),
+      ).toBe(true),
+    );
   });
 
   it("links the connect-GitHub hint to the Preferences tab (REEF-236)", async () => {

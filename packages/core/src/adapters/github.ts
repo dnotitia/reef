@@ -11,6 +11,11 @@ import {
   listAuthenticatedRepositories,
 } from "./github/authenticatedRepos";
 import {
+  type ListInstallationRepositoriesParams,
+  type ListInstallationRepositoriesResult,
+  listInstallationRepositories,
+} from "./github/installationRepos";
+import {
   type GitHubCodeSearchResult,
   type GitHubFileContent,
   type ListRepoLabelsParams,
@@ -28,6 +33,10 @@ export type {
   ListAuthenticatedRepositoriesParams,
   ListAuthenticatedRepositoriesResult,
 } from "./github/authenticatedRepos";
+export type {
+  ListInstallationRepositoriesParams,
+  ListInstallationRepositoriesResult,
+} from "./github/installationRepos";
 export type {
   GitHubCommitNode,
   GitHubPullRequestNode,
@@ -47,6 +56,9 @@ export interface GitHubAdapter {
   listAuthenticatedRepositories: (
     params?: ListAuthenticatedRepositoriesParams,
   ) => Promise<ListAuthenticatedRepositoriesResult>;
+  listInstallationRepositories: (
+    params?: ListInstallationRepositoriesParams,
+  ) => Promise<ListInstallationRepositoriesResult>;
   listRecentActivity: (
     params: ListRecentActivityParams,
   ) => Promise<ListRecentActivityResult>;
@@ -84,6 +96,8 @@ export function createGitHubAdapter({
   return {
     listAuthenticatedRepositories: (params) =>
       listAuthenticatedRepositories({ rest, ...params }),
+    listInstallationRepositories: (params) =>
+      listInstallationRepositories({ rest, ...params }),
     listRecentActivity: (params) =>
       listRecentActivity({ graphqlClient, ...params }),
     searchCode: (params) => searchCode({ rest, ...params }),

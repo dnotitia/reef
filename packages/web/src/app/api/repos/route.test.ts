@@ -6,6 +6,7 @@ vi.mock("@reef/core", async () => {
   return {
     ...actual,
     createGitHubAdapter: vi.fn(),
+    createGitHubAppInstallationTokenProvider: vi.fn(),
   };
 });
 
@@ -13,21 +14,65 @@ vi.mock("@/lib/logging/logger", () => ({
   logger: { error: vi.fn() },
 }));
 
+// Deployment GitHub App config — default "not configured" so the existing PAT
+// tests exercise the fallback path; the App-path block flips it to configured.
+type ServerAppConfig =
+  | {
+      ok: true;
+      config: { app_id: string; installation_id: string; private_key: string };
+      status: { isConfigured: true; appId: string };
+    }
+  | {
+      ok: false;
+      status: { isConfigured: false; appId: string | null };
+      issues: string[];
+    };
+
+const NOT_CONFIGURED: ServerAppConfig = {
+  ok: false,
+  status: { isConfigured: false, appId: null },
+  issues: ["app_id is required"],
+};
+
+const appConfigState = vi.hoisted(() => ({
+  current: undefined as unknown,
+}));
+
+vi.mock("@/lib/github/serverAppConfig", () => ({
+  resolveServerGitHubAppConfig: () => appConfigState.current,
+}));
+
+// The App path validates the reef session against the akb backend before
+// minting; mock that boundary so route tests stay hermetic.
+vi.mock("@/lib/api/requestHelpers", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/lib/api/requestHelpers")
+  >("@/lib/api/requestHelpers");
+  return { ...actual, getAkbCurrentActor: vi.fn() };
+});
+
+import { getAkbCurrentActor } from "@/lib/api/requestHelpers";
 import { logger } from "@/lib/logging/logger";
 import {
   AuthError,
   GitHubApiError,
   NotFoundError,
   createGitHubAdapter,
+  createGitHubAppInstallationTokenProvider,
 } from "@reef/core";
 import { GET } from "./route";
 
 const mockCreateGitHubAdapter = vi.mocked(createGitHubAdapter);
+const mockCreateProvider = vi.mocked(createGitHubAppInstallationTokenProvider);
+const mockGetActor = vi.mocked(getAkbCurrentActor);
 const mockLogError = vi.mocked(logger.error);
 
 type RepoListMethod = ReturnType<
   typeof createGitHubAdapter
 >["listAuthenticatedRepositories"];
+type InstallationRepoListMethod = ReturnType<
+  typeof createGitHubAdapter
+>["listInstallationRepositories"];
 
 function makeRequest(headers: Record<string, string> = {}): Request {
   return new Request("http://localhost/api/repos", { headers });
@@ -44,6 +89,7 @@ function mockRepoList(): ReturnType<typeof vi.fn<RepoListMethod>> {
 describe("GET /api/repos", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    appConfigState.current = NOT_CONFIGURED;
   });
 
   it("returns 401 when Authorization header is missing", async () => {
@@ -215,5 +261,156 @@ describe("GET /api/repos", () => {
     expect(res.headers.get("etag")).toBe('W/"v1-old"');
     expect(res.body).toBeNull();
     expect(mockLogError).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/repos — server-managed GitHub App path", () => {
+  const APP_CONFIG: ServerAppConfig = {
+    ok: true,
+    config: {
+      app_id: "123456",
+      installation_id: "789",
+      private_key:
+        "-----BEGIN RSA PRIVATE KEY-----\nx\n-----END RSA PRIVATE KEY-----",
+    },
+    status: { isConfigured: true, appId: "123456" },
+  };
+
+  function mockInstallationRepoList(token = "ghs_minted_installation_token"): {
+    listInstallationRepositories: ReturnType<
+      typeof vi.fn<InstallationRepoListMethod>
+    >;
+    mintInstallationToken: ReturnType<typeof vi.fn<() => Promise<string>>>;
+  } {
+    const listInstallationRepositories = vi.fn<InstallationRepoListMethod>();
+    mockCreateGitHubAdapter.mockReturnValue({
+      listInstallationRepositories,
+    } as unknown as ReturnType<typeof createGitHubAdapter>);
+    const mintInstallationToken = vi.fn<() => Promise<string>>(
+      async () => token,
+    );
+    mockCreateProvider.mockReturnValue(mintInstallationToken);
+    return { listInstallationRepositories, mintInstallationToken };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    appConfigState.current = APP_CONFIG;
+    // Default: a valid, akb-verified reef session.
+    mockGetActor.mockResolvedValue({ actor: "alice" });
+  });
+
+  it("returns 401 without minting when the akb backend rejects the session (REEF-239)", async () => {
+    const { listInstallationRepositories, mintInstallationToken } =
+      mockInstallationRepoList();
+    // akb /auth/me rejected the session (missing/expired/forged cookie) — the
+    // server must not mint a credential or expose the installation's repo list.
+    mockGetActor.mockResolvedValue({
+      response: Response.json(
+        { error: "Your session has expired. Please sign in again." },
+        { status: 401 },
+      ),
+    });
+
+    const req = makeRequest();
+    const res = await GET(req);
+
+    expect(res.status).toBe(401);
+    expect(mintInstallationToken).not.toHaveBeenCalled();
+    expect(listInstallationRepositories).not.toHaveBeenCalled();
+    expect(mockLogError).not.toHaveBeenCalled();
+  });
+
+  it("lists installation repos with the minted token and no browser PAT (AC1/AC2)", async () => {
+    const { listInstallationRepositories, mintInstallationToken } =
+      mockInstallationRepoList();
+    listInstallationRepositories.mockResolvedValue({
+      kind: "ok",
+      repos: [{ full_name: "octo/reef", id: 1001 }],
+      etag: null,
+    });
+
+    // A signed-in workspace user, no browser PAT — the App path serves the list.
+    const req = makeRequest();
+    const res = await GET(req);
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.repos).toEqual([{ full_name: "octo/reef", id: 1001 }]);
+    // The adapter was built from the minted installation token, not a PAT.
+    expect(mintInstallationToken).toHaveBeenCalledTimes(1);
+    expect(mockCreateProvider).toHaveBeenCalledWith({
+      config: APP_CONFIG.config,
+    });
+    expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
+      token: "ghs_minted_installation_token",
+    });
+    expect(listInstallationRepositories).toHaveBeenCalledWith({
+      ifNoneMatch: null,
+    });
+  });
+
+  it("ignores a browser PAT header when the App is configured", async () => {
+    const { listInstallationRepositories } = mockInstallationRepoList();
+    listInstallationRepositories.mockResolvedValue({
+      kind: "ok",
+      repos: [],
+      etag: null,
+    });
+
+    const req = makeRequest({ Authorization: "Bearer ghp_browser_pat" });
+    const res = await GET(req);
+
+    expect(res.status).toBe(200);
+    // The App token, never the browser PAT, authenticates the read.
+    expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
+      token: "ghs_minted_installation_token",
+    });
+    expect(listInstallationRepositories).toHaveBeenCalledTimes(1);
+  });
+
+  it("forwards If-None-Match and returns the ETag on the App path", async () => {
+    const { listInstallationRepositories } = mockInstallationRepoList();
+    listInstallationRepositories.mockResolvedValue({
+      kind: "ok",
+      repos: [{ full_name: "octo/reef", id: 1001 }],
+      etag: 'W/"inst-abc"',
+    });
+
+    const req = makeRequest({ "If-None-Match": 'W/"inst-old"' });
+    const res = await GET(req);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("etag")).toBe('W/"inst-abc"');
+    expect(listInstallationRepositories).toHaveBeenCalledWith({
+      ifNoneMatch: 'W/"inst-old"',
+    });
+  });
+
+  it("translates a credential-free GitHubApiError from token minting (AC3)", async () => {
+    // The provider mint fails (e.g. installation revoked) — surface PM copy, no
+    // secret, and still no browser-PAT requirement.
+    mockCreateGitHubAdapter.mockReturnValue({
+      listInstallationRepositories: vi.fn(),
+    } as unknown as ReturnType<typeof createGitHubAdapter>);
+    mockCreateProvider.mockReturnValue(
+      vi.fn(async () => {
+        throw new GitHubApiError({
+          status: 403,
+          message: "GitHub App installation token request failed",
+        });
+      }),
+    );
+
+    const req = makeRequest();
+    const res = await GET(req);
+
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).not.toContain("PRIVATE KEY");
+    expect(mockLogError).toHaveBeenCalledWith(
+      { err: expect.any(GitHubApiError), status: 403 },
+      "list_repos failed",
+    );
   });
 });

@@ -124,6 +124,36 @@ describe("createGitHubAppInstallationTokenProvider", () => {
     expect(sentAuthHeader).toContain(MINTED_TOKEN);
   });
 
+  it("mints an installation token and lists installation repos through createGitHubAdapter (REEF-239)", async () => {
+    // The server-managed monitored-repo path: no browser PAT, the minted
+    // installation token authenticates GET /installation/repositories.
+    let sentAuthHeader: string | null = null;
+    server.use(
+      http.get(`${GITHUB_API}/installation/repositories`, ({ request }) => {
+        sentAuthHeader = request.headers.get("authorization");
+        return HttpResponse.json({
+          total_count: 1,
+          repository_selection: "selected",
+          repositories: [{ full_name: "octo/reef", id: 1001 }],
+        });
+      }),
+    );
+
+    const provider = createGitHubAppInstallationTokenProvider({
+      config: TEST_CONFIG,
+    });
+    const token = await provider();
+    const adapter = createGitHubAdapter({ token });
+    const result = await adapter.listInstallationRepositories();
+
+    expect(result).toEqual({
+      kind: "ok",
+      repos: [{ full_name: "octo/reef", id: 1001 }],
+      etag: null,
+    });
+    expect(sentAuthHeader).toContain(MINTED_TOKEN);
+  });
+
   it("down-scopes the installation token to read-only permissions even if the App has broader grants", async () => {
     let requestedPermissions: unknown;
     server.use(
