@@ -174,6 +174,110 @@ describe("listAuthenticatedRepositories", () => {
   });
 });
 
+// ─── listInstallationRepositories ────────────────────────────────────────────
+
+describe("listInstallationRepositories", () => {
+  const INSTALLATION_REPOS = `${GITHUB_API}/installation/repositories`;
+
+  it("unwraps { total_count, repositories } into the route-safe wire shape", async () => {
+    server.use(
+      http.get(INSTALLATION_REPOS, () =>
+        HttpResponse.json(
+          {
+            total_count: 2,
+            repository_selection: "selected",
+            repositories: [
+              { full_name: "octo/reef", id: 1001 },
+              { full_name: "octo/reef-mobile", id: 1002 },
+            ],
+          },
+          { headers: { etag: 'W/"inst-abc"' } },
+        ),
+      ),
+    );
+    const adapter = createGitHubAdapter({ token: "ghs_installation" });
+
+    const result = await adapter.listInstallationRepositories();
+
+    expect(result).toEqual({
+      kind: "ok",
+      repos: [
+        { full_name: "octo/reef", id: 1001 },
+        { full_name: "octo/reef-mobile", id: 1002 },
+      ],
+      etag: 'W/"inst-abc"',
+    });
+  });
+
+  it("forwards If-None-Match to GitHub", async () => {
+    let observedIfNoneMatch: string | null = null;
+    server.use(
+      http.get(INSTALLATION_REPOS, ({ request }) => {
+        observedIfNoneMatch = request.headers.get("if-none-match");
+        return HttpResponse.json(
+          { total_count: 0, repositories: [] },
+          { headers: { etag: 'W/"inst-new"' } },
+        );
+      }),
+    );
+    const adapter = createGitHubAdapter({ token: "ghs_installation" });
+
+    await adapter.listInstallationRepositories({ ifNoneMatch: 'W/"inst-old"' });
+
+    expect(observedIfNoneMatch).toBe('W/"inst-old"');
+  });
+
+  it("returns not_modified when GitHub responds 304", async () => {
+    server.use(
+      http.get(
+        INSTALLATION_REPOS,
+        () =>
+          new HttpResponse(null, {
+            status: 304,
+            headers: { etag: 'W/"inst-old"' },
+          }),
+      ),
+    );
+    const adapter = createGitHubAdapter({ token: "ghs_installation" });
+
+    await expect(adapter.listInstallationRepositories()).resolves.toEqual({
+      kind: "not_modified",
+      etag: 'W/"inst-old"',
+    });
+  });
+
+  it("maps 401 to AuthError", async () => {
+    server.use(
+      http.get(INSTALLATION_REPOS, () =>
+        HttpResponse.json({ message: "Bad credentials" }, { status: 401 }),
+      ),
+    );
+    const adapter = createGitHubAdapter({ token: "ghs_installation" });
+
+    await expect(adapter.listInstallationRepositories()).rejects.toBeInstanceOf(
+      AuthError,
+    );
+  });
+
+  it("maps other statuses to GitHubApiError without surfacing secret text", async () => {
+    server.use(
+      http.get(INSTALLATION_REPOS, () =>
+        HttpResponse.json(
+          { message: "secret upstream: token ghs_secret leaked" },
+          { status: 500 },
+        ),
+      ),
+    );
+    const adapter = createGitHubAdapter({ token: "ghs_installation" });
+
+    await expect(adapter.listInstallationRepositories()).rejects.toMatchObject({
+      status: 500,
+      message:
+        "An error occurred while communicating with GitHub. Please try again.",
+    });
+  });
+});
+
 // ─── listRecentActivity ──────────────────────────────────────────────────────
 
 describe("listRecentActivity", () => {

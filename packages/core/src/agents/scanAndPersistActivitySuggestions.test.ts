@@ -37,6 +37,7 @@ import { scanAndPersistActivitySuggestions } from "./scanAndPersistActivitySugge
 const akbAdapter = { request: vi.fn() } as unknown as AkbAdapter;
 const githubAdapter = {
   listAuthenticatedRepositories: vi.fn(),
+  listInstallationRepositories: vi.fn(),
   listRecentActivity: vi.fn(),
   searchCode: vi.fn(),
   readFile: vi.fn(),
