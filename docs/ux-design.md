@@ -7,10 +7,10 @@ system that renders them, and the design principles those choices serve. It is
 living documentation — every claim here is meant to be true of the current UI,
 and it is corrected when the UI changes.
 
-It complements, rather than restates, the implementation rules in `CLAUDE.md`.
-Where the two overlap (state separation, field-display ownership, PM
-vocabulary), `CLAUDE.md` is the binding engineering contract and this document
-explains the user-facing consequence.
+It complements, rather than restates, the implementation rules in the repo and
+package `AGENTS.md` files. Where they overlap (state separation,
+field-display ownership, PM vocabulary), `AGENTS.md` is the binding engineering
+contract and this document explains the user-facing consequence.
 
 ## Platform & Architecture Context
 
@@ -19,18 +19,24 @@ in the browser; there is no desktop build, no native packaging, no offline
 mode, and no cross-platform responsive obligation beyond ordinary desktop
 window sizes. The product is a stateless BFF in front of the akb backend —
 the server persists nothing that belongs to a user, so the entire experience
-is shaped around three browser-side state owners working together:
+is shaped around a strict state-owner split:
 
 - **Zustand** holds UI state only — sidebar collapse, the active issue view,
   filters, the open/closed state of the New Issue and Ask AI dialogs, user
   preferences. Components read it through granular selectors.
 - **TanStack Query** holds server state — issues, planning catalog, activity
-  inbox, provenance — fetched through Route Handlers via `apiFetch`. All
-  loading and error affordances derive from its per-query `isPending` /
-  `isError`; there is no global loading flag.
-- **Dexie (IndexedDB)** holds per-user persisted state — the active vault,
-  monitored repos, project prefix, theme, the GitHub PAT, and dismissed/
-  in-progress AI suggestions that must survive a reload.
+  inbox, linked documents, refs, activity timelines, and workspace config —
+  fetched through Route Handlers via `apiFetch`. All loading and error
+  affordances derive from its per-query `isPending` / `isError`; there is no
+  global loading flag.
+- **Dexie (IndexedDB)** holds per-user persisted browser state with no akb home
+  — the active vault pointer, theme preference, GitHub PAT, per-vault issue
+  filters, the currently selected activity-scan repo, last visit/scan markers,
+  and the previously signed-in akb user id used for account reconciliation.
+- **akb-backed workspace config** holds team-shared project state — the project
+  prefix, monitored repositories, issue templates, and default authoring
+  language. It is read and mutated through Route Handlers, not stored as a
+  browser-local source of truth.
 
 The data the UI sits on is not files. A reef issue is an akb document plus a
 `reef_issues` row; there is no markdown-with-frontmatter, no Git working copy,
@@ -67,7 +73,7 @@ work flows in through grounding and detection rather than data entry.
 ## The Defining Experience
 
 The experience reef is built around is **AI issue enrichment with visible
-provenance**.
+evidence**.
 
 A PM opens the New Issue dialog, types a title and as much or as little
 description as they want, and clicks **Enrich with AI**. The agent reads the
@@ -91,7 +97,8 @@ grounding agent.
 Across all three, the design rule is identical and load-bearing: **show the
 why, not just the what.** A suggestion carries its reasoning and confidence; a
 detected status change carries its rationale and the count of commits/PRs that
-evidence it; an issue's detail panel carries a Provenance section. AI is
+evidence it; an issue detail panel keeps the connected context visible through
+linked documents, implementation refs, and the activity timeline. AI is
 positioned as a transparent collaborator, never a black box.
 
 ### Experience Principles
@@ -259,13 +266,14 @@ fluid main column:
 
 - **Sidebar** — collapsible between an expanded `w-60` and a `w-14` icon rail.
   It holds the reef wordmark, a prominent New Issue button, the primary nav
-  (Issues / Planning / Activity / Reports / Settings), and the app version in
-  the footer.
+  (Issues / My Work / Planning / Activity / Reports / Settings), and the app
+  version in the footer.
 - **Main column** — a per-page header and the page body. The Issues page body
-  swaps between Board, List, and Timeline.
-- **Issue detail** — a right-side slide-over Sheet (`min(92vw, 860px)`),
-  internally a two-column layout: editable body/relationships/refs/provenance
-  on the left, a Details/People/Planning metadata rail on the right.
+  swaps between Board, List, Timeline, and Backlog.
+- **Issue detail** — a right-side slide-over Sheet (`min(94vw, 1080px)`),
+  internally a two-column layout: editable body, relationships, linked
+  documents, refs, and activity timeline on the left; a Details/People/Planning
+  metadata rail on the right.
 - **Ask AI** — a floating non-modal panel (≈420×560) anchored bottom-right,
   above its FAB.
 
@@ -288,11 +296,14 @@ can also be changed from the detail panel's status select).
 
 ## Core Surfaces
 
-### Issues Workspace — Board / List / Timeline
+### Issues Workspace — Board / List / Timeline / Backlog
 
-`/issues` is one workspace with three peer renderings of the same filtered
-issue set, switched via `?view=` and a ViewSwitcher in the page header. They
-share a single filter scope (a Zustand store) and a single filter toolbar.
+`/issues` is one workspace with four peer renderings switched via `?view=` and
+a ViewSwitcher in the page header. Board, List, and Timeline render the active
+workflow collection; Backlog is a dedicated triage lens over the `backlog`
+status. They share one route, one header, one Zustand filter scope, and one
+filter toolbar, with the backlog view hiding facets that are pinned or
+irrelevant there.
 
 **Kanban Board.** Five columns, one per status (Open, In Progress, In Review,
 Done, Closed), populated by drag-and-drop (`@dnd-kit`). A short drag distance
@@ -310,9 +321,17 @@ leaves.
 
 **Timeline.** A date-windowed schedule view of the same set.
 
-The board shows a column-skeleton while loading and a soft inline notice if
-some issues fail to load (cached data is still shown). An unconfigured
-workspace shows a "Configure a workspace in Settings" empty state.
+**Backlog.** A flat triage list of backlog issues with manual rank order,
+drag-to-reorder when no explicit sort is active, and an inline status picker to
+promote work out of the backlog. Empty and no-match states are distinct: an
+empty backlog explains how deferred work arrives there, while filtered-out
+results offer a Clear filters action.
+
+The board shows a column-skeleton while loading, the list and backlog show row
+skeletons, and timeline/settings have route-level skeletons shaped to their
+content. A soft inline notice appears if some issues fail to load (cached data
+is still shown). An unconfigured workspace shows a "Configure a workspace in
+Settings" empty state.
 
 ### Issue Detail Slide-Over
 
@@ -334,15 +353,16 @@ The panel composes the field leaves rather than a configurable mega-view: the
 header carries the status glyph, ID, type pill, and (when applicable) an
 Archived badge; the left column holds the title input, the markdown
 description editor, the relationships editor, the external/implementation refs
-editor, and the **Provenance** section; the right rail holds Details (type,
-status, priority, severity, labels), People (assignee, requester, reporter),
-and Planning (dates, sprint, milestone, release, points). A "more" menu offers
-Archive/Unarchive and a confirmed Delete.
+editor, linked documents, and the unified activity timeline; the right rail
+holds Details (type, status, priority, severity, labels), People (assignee,
+requester, reporter), and Planning (dates, sprint, milestone, release, points).
+A "more" menu offers Archive/Unarchive and a confirmed Delete.
 
-**Provenance** is the detail panel's expression of "show the why": it shows the
-issue's latest akb commit (short SHA + relative time) and a compact list of
-graph relations (incoming/outgoing depends-on / related-to edges, by name), so
-the user can see what the issue is connected to and how recently it changed.
+The detail panel's expression of "show the why" is split by intent:
+relationships show issue-to-issue context, linked documents show akb-native
+reference edges, implementation refs hold external/code references, and the
+activity timeline merges comments, status changes, and reconstructed events into
+one chronological thread.
 
 ### Activity Hub
 
@@ -369,8 +389,9 @@ human-in-the-loop:
 When the PM returns after an absence with new items waiting, a brand-tinted
 **"Since you were last here"** summary card leads the feed with the counts,
 dismissible with "Got it". Type filters (All / AI Drafts / Status Changes)
-sit above the feed. Dismissed suggestions persist (Dexie) so they don't
-reappear. The empty state reads "No AI drafts or status changes to review."
+sit above the feed. Dismissed and approved suggestions persist as akb activity
+suggestion state so they don't reappear for the workspace. The empty state reads
+"No AI drafts or status changes to review."
 
 ### Ask AI
 
@@ -405,11 +426,13 @@ no issue is committed under anyone's GitHub identity.
 
 ### Planning, Reports, Settings
 
-The remaining nav destinations are first-class pages: **Planning** (sprints,
-milestones, releases that issues link to), **Reports**, and **Settings** (the
-active vault/prefix, monitored repos, GitHub token, theme, preferences). They
-share the standard page header + body chrome and the same field leaves where
-issue fields appear.
+The remaining nav destinations are first-class pages: **My Work** (the signed-in
+user's overdue and due-soon work), **Planning** (sprints, milestones, releases
+that issues link to), **Reports**, and **Settings**. Settings separates the
+per-user active workspace pointer, GitHub token, theme, and preferences from the
+team-shared workspace settings such as project prefix, monitored repos,
+templates, and authoring language. These pages share the standard page header +
+body chrome and the same field leaves where issue fields appear.
 
 ## User Journey Flows
 
@@ -466,8 +489,8 @@ that exist and define the experience:
   and no `UnifiedIssueView`.
 - **Board.** `KanbanBoard`, `KanbanColumn`, `KanbanCard` (with a drag preview).
 - **Issue surfaces.** `IssuesWorkspace`, `IssueDetailSheet`, `IssueDetail`,
-  `IssueProvenance`, `NewIssueDialog`, the list table/row, the filter toolbar,
-  and the relations/refs editors.
+  `NewIssueDialog`, the list table/row, `BacklogView`, the filter toolbar,
+  linked documents, the activity timeline, and the relations/refs editors.
 - **AI surfaces.** `EnrichmentReviewBar` (the purple strip with loading/empty/
   error/progress states), `FieldSuggestion` (the inline per-field review card),
   `ConfidenceBadge`, `TextDiff` (word/line diffs), the Activity `ActivityFeed`
@@ -503,9 +526,10 @@ actions (Delete) are red and confirmed.
 ### Empty & Loading States
 
 Loading uses TanStack Query's `isPending` with shadcn `<Skeleton>` placeholders
-shaped like the content they replace (column skeletons on the board, a
-structured skeleton in the detail panel, row skeletons in the activity feed),
-plus a slow shimmer. The **AI enrichment loading state is purple-tinted** — the
+shaped like the content they replace (column skeletons on the board, table rows
+for list/backlog, a structured skeleton in the detail panel, settings group
+skeletons, row skeletons in the activity feed), plus a slow shimmer. The **AI
+enrichment loading state is purple-tinted** — the
 `EnrichmentReviewBar`'s "Analyzing fields…" strip uses the `--ai-subtle`
 surface with a spinning indicator, matching the purple of the suggestions it
 precedes — so AI work is visually distinct from neutral content loading.

@@ -28,10 +28,10 @@ interface ViewSwitcherProps {
 }
 
 /**
- * Segmented control that swaps between the Board / List / Timeline renderings
- * of the same issue collection. Writes the choice to the `?view=` param on the
- * canonical `/issues` route while preserving any existing filter/search params
- * so the active filter scope carries across views.
+ * Segmented control that swaps between the Board / List / Timeline / Backlog
+ * renderings of the issue collection. Writes the choice to the `?view=` param
+ * on the canonical `/issues` route while preserving any existing filter/search
+ * params so the active filter scope carries across views.
  *
  * Modeled as a group of toggle buttons (`aria-pressed`) rather than a tablist:
  * each click is a route navigation, and the rendered body is not an ARIA
