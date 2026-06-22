@@ -58,11 +58,13 @@ export function buildIssueQuery(
     (t) => IssueTypeEnum.safeParse(t).success,
   );
   if (issueType?.length) q.issue_type = issueType;
-  if (filter.assignee) q.assigned_to = filter.assignee;
-  if (filter.requester) q.requester = filter.requester;
-  if (filter.sprint_id) q.sprint_id = filter.sprint_id;
+  // People/planning facets are multi-select arrays too (REEF-267) → repeated
+  // wire params; milestone_id stays a single scalar.
+  if (filter.assignee?.length) q.assigned_to = filter.assignee;
+  if (filter.requester?.length) q.requester = filter.requester;
+  if (filter.sprint_id?.length) q.sprint_id = filter.sprint_id;
   if (filter.milestone_id) q.milestone_id = filter.milestone_id;
-  if (filter.release_id) q.release_id = filter.release_id;
+  if (filter.release_id?.length) q.release_id = filter.release_id;
   // Free-text search → server `q`. Trim so a whitespace box does not sends a
   // facet (the server schema rejects an empty `q`).
   const trimmedSearch = searchQuery?.trim();

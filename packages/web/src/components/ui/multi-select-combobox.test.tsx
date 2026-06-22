@@ -257,4 +257,83 @@ describe("MultiSelectCombobox", () => {
     heightSpy.mockRestore();
     widthSpy.mockRestore();
   });
+
+  describe("searchable (REEF-267)", () => {
+    it("focuses the panel search input on open and filters options client-side", async () => {
+      const user = userEvent.setup();
+      render(
+        <MultiSelectCombobox
+          label="Fruit"
+          values={[]}
+          onToggle={() => {}}
+          options={OPTIONS}
+          searchable
+          searchPlaceholder="Search fruit…"
+          triggerTestId="fruit-trigger"
+          contentTestId="fruit-content"
+        />,
+      );
+
+      await user.click(screen.getByTestId("fruit-trigger"));
+      const input = screen.getByPlaceholderText("Search fruit…");
+      expect(input).toHaveFocus();
+
+      await user.type(input, "ban");
+      expect(screen.queryByTestId("opt-apple")).toBeNull();
+      expect(screen.getByTestId("opt-banana")).toBeTruthy();
+    });
+
+    it("delegates to onQueryChange (server search) and keeps the panel + query open on toggle", async () => {
+      const onQueryChange = vi.fn();
+      const onToggle = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <MultiSelectCombobox
+          label="People"
+          values={[]}
+          onToggle={onToggle}
+          options={OPTIONS}
+          searchable
+          onQueryChange={onQueryChange}
+          triggerTestId="fruit-trigger"
+          contentTestId="fruit-content"
+        />,
+      );
+
+      await user.click(screen.getByTestId("fruit-trigger"));
+      const input = screen.getByRole("combobox");
+      await user.type(input, "ap");
+      expect(onQueryChange).toHaveBeenCalledWith("ap");
+      // Server-driven: the primitive does NOT client-filter, so every provided
+      // option stays visible regardless of the typed query.
+      expect(screen.getByTestId("opt-banana")).toBeTruthy();
+
+      await user.click(screen.getByTestId("opt-apple"));
+      expect(onToggle).toHaveBeenCalledWith("apple", true);
+      // Multi-select stays open with the query preserved for the next pick.
+      expect(screen.queryByTestId("fruit-content")).not.toBeNull();
+      expect((input as HTMLInputElement).value).toBe("ap");
+    });
+
+    it("shows a loading state and no rows while loading", async () => {
+      const user = userEvent.setup();
+      render(
+        <MultiSelectCombobox
+          label="People"
+          values={[]}
+          onToggle={() => {}}
+          options={OPTIONS}
+          searchable
+          onQueryChange={() => {}}
+          loading
+          triggerTestId="fruit-trigger"
+          contentTestId="fruit-content"
+        />,
+      );
+
+      await user.click(screen.getByTestId("fruit-trigger"));
+      expect(screen.queryByTestId("opt-apple")).toBeNull();
+      expect(screen.getByText("Loading…")).toBeTruthy();
+    });
+  });
 });

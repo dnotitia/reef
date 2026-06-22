@@ -69,18 +69,33 @@ export function sortIssues(
  * their own extra controls (issues adds status/type/priority/…, reports adds
  * period/scope), but these should match identically everywhere — so the
  * predicate lives here once and both call it (REEF-074). `IssueFilter` and the
- * reports `ReportFilters` both structurally satisfy this shape. `parent_id` is
- * the one facet `/reports` sets today (the portfolio rollup drill,
- * REEF-187 — there is no issues-list control for it), but it shares the same
- * exact-id predicate so the semantics stay in one place.
+ * reports `ReportFilters` both structurally satisfy this shape.
+ *
+ * `assignee` / `sprint_id` / `release_id` accept either a single scalar (reports
+ * still selects one) or a multi-select array (the issues filter, REEF-267); the
+ * predicate normalizes both and OR-combines within the facet, so the two
+ * surfaces share one matching semantics regardless of cardinality. `milestone_id`
+ * stays single (multi-select out of scope), and `parent_id` is the one facet
+ * `/reports` sets today (the portfolio rollup drill, REEF-187 — no issues-list
+ * control), both exact-id single values.
  */
 export interface SharedIssueFacets {
-  assignee?: string;
+  assignee?: string | readonly string[];
   label?: string;
-  sprint_id?: string;
+  sprint_id?: string | readonly string[];
   milestone_id?: string;
-  release_id?: string;
+  release_id?: string | readonly string[];
   parent_id?: string;
+}
+
+/** Normalize a facet that may arrive as a single scalar (reports) or a
+ *  multi-select array (issues, REEF-267) into an array; an unset facet is an
+ *  empty array, which the caller treats as "passes". */
+function facetValues(
+  value: string | readonly string[] | undefined,
+): readonly string[] {
+  if (value == null) return [];
+  return Array.isArray(value) ? value : [value as string];
 }
 
 /**
@@ -114,23 +129,30 @@ function matchesLabelFilter(issue: IssueListItem, label: string): boolean {
 
 /**
  * Match an issue against the facets shared by the issues list and reports.
- * Assignee is a case-insensitive substring of `assigned_to`; sprint/milestone/
- * release/parent are exact id equality; label is comma-separated OR (see
- * `matchesLabelFilter`). An unset facet consistently passes.
+ * Assignee is a case-insensitive EXACT match of `assigned_to` (REEF-267 — no
+ * longer a substring, so filtering to `ann` never incidentally returns `joann`),
+ * OR-combined across the selected logins; sprint / release are exact id equality
+ * OR-combined across selected ids; milestone / parent are single exact ids; label
+ * is comma-separated OR (see `matchesLabelFilter`). An unset facet consistently
+ * passes. The exact predicate is the single source both surfaces share, so the
+ * issues filter and reports never diverge (AC5).
  */
 export function matchesSharedFacets(
   issue: IssueListItem,
   facets: SharedIssueFacets,
 ): boolean {
-  if (
-    facets.assignee &&
-    !issue.assigned_to?.toLowerCase().includes(facets.assignee.toLowerCase())
-  )
-    return false;
-  if (facets.sprint_id && issue.sprint_id !== facets.sprint_id) return false;
+  const assignees = facetValues(facets.assignee);
+  if (assignees.length) {
+    const who = issue.assigned_to?.toLowerCase() ?? "";
+    if (!assignees.some((a) => a.toLowerCase() === who)) return false;
+  }
+  const sprints = facetValues(facets.sprint_id);
+  if (sprints.length && !sprints.includes(issue.sprint_id ?? "")) return false;
   if (facets.milestone_id && issue.milestone_id !== facets.milestone_id)
     return false;
-  if (facets.release_id && issue.release_id !== facets.release_id) return false;
+  const releases = facetValues(facets.release_id);
+  if (releases.length && !releases.includes(issue.release_id ?? ""))
+    return false;
   if (facets.parent_id && issue.parent_id !== facets.parent_id) return false;
   if (facets.label && !matchesLabelFilter(issue, facets.label)) return false;
   return true;
@@ -194,11 +216,12 @@ export function filterIssues(
       !filter.severity.includes(issue.severity ?? "")
     )
       return false;
-    if (
-      filter.requester &&
-      !issue.requester?.toLowerCase().includes(filter.requester.toLowerCase())
-    )
-      return false;
+    // Requester mirrors assignee: case-insensitive exact match, OR-combined
+    // across the selected logins (REEF-267 — no longer a substring).
+    if (filter.requester?.length) {
+      const who = issue.requester?.toLowerCase() ?? "";
+      if (!filter.requester.some((r) => r.toLowerCase() === who)) return false;
+    }
     if (filter.due?.length) {
       if (!issue.due_date) return false;
       if (isResolvedStatus(issue.status)) return false;

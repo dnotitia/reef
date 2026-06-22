@@ -110,9 +110,11 @@ describe("MyWorkPage", () => {
 
   it("scopes the fetch to the signed-in user — no manual picker (AC1)", () => {
     render(<MyWorkPage />);
+    // The assignee facet is now a multi-select array (REEF-267); My Work sends a
+    // one-element array and relies on the server's exact match.
     expect(mockUseIssueList).toHaveBeenCalledWith(
       "reef-acme",
-      expect.objectContaining({ assigned_to: "alice" }),
+      expect.objectContaining({ assigned_to: ["alice"] }),
     );
   });
 
@@ -195,21 +197,6 @@ describe("MyWorkPage", () => {
       render(<MyWorkPage />);
       const row = screen.getByTestId("my-work-row-REEF-1");
       expect(row).toHaveAttribute("href", "/issues/REEF-1?group=status");
-    });
-
-    it("excludes substring-only assignee matches from the queue (REEF-181)", () => {
-      mockUseIssueList.mockReturnValue(
-        issueListResult([
-          ...issues,
-          // The server `assigned_to` filter is a substring match, so it can
-          // return another user whose login contains "alice".
-          makeIssue({ id: "REEF-9", status: "todo", assigned_to: "alicexyz" }),
-        ]),
-      );
-      render(<MyWorkPage />);
-      expect(
-        screen.queryByTestId("my-work-row-REEF-9"),
-      ).not.toBeInTheDocument();
     });
 
     it("groups by status and writes the mode to the URL", () => {

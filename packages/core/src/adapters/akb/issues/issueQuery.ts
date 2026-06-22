@@ -140,7 +140,9 @@ export function buildIssueWhere(filter: IssueListQuery): string | undefined {
     );
   }
   if (filter.release_id?.length) {
-    clauses.push(inClause("release_id", filter.release_id, "release_id filter"));
+    clauses.push(
+      inClause("release_id", filter.release_id, "release_id filter"),
+    );
   }
   if (filter.due_after) {
     clauses.push(

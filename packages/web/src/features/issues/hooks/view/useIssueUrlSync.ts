@@ -56,11 +56,14 @@ function readIssueUrlState(searchParams: URLSearchParams): {
     .filter((s) => StatusEnum.safeParse(s).success);
   const issueType = searchParams.getAll("type");
   const priority = searchParams.getAll("priority");
-  const assignee = searchParams.get("assignee");
-  const requester = searchParams.get("requester");
-  const sprintId = searchParams.get("sprint_id");
+  // assignee/requester/sprint/release are multi-select (REEF-267): read every
+  // repeated param, compatible with older single-value shared URLs. milestone
+  // stays single.
+  const assignee = searchParams.getAll("assignee");
+  const requester = searchParams.getAll("requester");
+  const sprintId = searchParams.getAll("sprint_id");
   const milestoneId = searchParams.get("milestone_id");
-  const releaseId = searchParams.get("release_id");
+  const releaseId = searchParams.getAll("release_id");
   const severity = searchParams.getAll("severity");
   const due = searchParams
     .getAll("due")
@@ -81,11 +84,11 @@ function readIssueUrlState(searchParams: URLSearchParams): {
   if (status.length) filter.status = status;
   if (issueType.length) filter.issueType = issueType;
   if (priority.length) filter.priority = priority;
-  if (assignee) filter.assignee = assignee;
-  if (requester) filter.requester = requester;
-  if (sprintId) filter.sprint_id = sprintId;
+  if (assignee.length) filter.assignee = assignee;
+  if (requester.length) filter.requester = requester;
+  if (sprintId.length) filter.sprint_id = sprintId;
   if (milestoneId) filter.milestone_id = milestoneId;
-  if (releaseId) filter.release_id = releaseId;
+  if (releaseId.length) filter.release_id = releaseId;
   if (severity.length) filter.severity = severity;
   if (due.length) filter.due = due;
   if (label) filter.label = label;
@@ -161,11 +164,17 @@ function buildIssueSearchParams(
     for (const v of filter.issueType) params.append("type", v);
   if (filter.priority)
     for (const v of filter.priority) params.append("priority", v);
-  if (filter.assignee) params.set("assignee", filter.assignee);
-  if (filter.requester) params.set("requester", filter.requester);
-  if (filter.sprint_id) params.set("sprint_id", filter.sprint_id);
+  // Multi-select people/planning facets (REEF-267) emit one repeated param per
+  // value; milestone stays a single param.
+  if (filter.assignee)
+    for (const v of filter.assignee) params.append("assignee", v);
+  if (filter.requester)
+    for (const v of filter.requester) params.append("requester", v);
+  if (filter.sprint_id)
+    for (const v of filter.sprint_id) params.append("sprint_id", v);
   if (filter.milestone_id) params.set("milestone_id", filter.milestone_id);
-  if (filter.release_id) params.set("release_id", filter.release_id);
+  if (filter.release_id)
+    for (const v of filter.release_id) params.append("release_id", v);
   if (filter.severity)
     for (const v of filter.severity) params.append("severity", v);
   if (filter.due) for (const v of filter.due) params.append("due", v);

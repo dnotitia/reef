@@ -13,7 +13,6 @@ import {
 import { MyWorkSummary } from "@/features/my-work/components/MyWorkSummary";
 import {
   buildMyWork,
-  filterAssignedTo,
   selectCurrentSprint,
 } from "@/features/my-work/lib/myWork";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
@@ -79,7 +78,7 @@ export function MyWorkPage() {
   // a login so a logged-out visit does not fan out a whole-vault query.
   const scopedVault = login ? vault : "";
   const query = useMemo(
-    () => (login ? buildIssueQuery({ assignee: login }) : undefined),
+    () => (login ? buildIssueQuery({ assignee: [login] }) : undefined),
     [login],
   );
   const issuesQuery = useIssueList(scopedVault, query);
@@ -89,13 +88,10 @@ export function MyWorkPage() {
   // Captured once so the deadline classification is stable across re-renders
   // (and so memoised rows are not invalidated every render).
   const [now] = useState(() => Date.now());
-  // The server `assigned_to` filter is a substring match, so exact-scope the
-  // fetched rows to the full login before anything treats them as "mine"
-  // (REEF-181 autoreview).
-  const issues = useMemo(
-    () => filterAssignedTo(issuesQuery.data ?? [], login ?? ""),
-    [issuesQuery.data, login],
-  );
+  // The server `assigned_to` facet is now an exact match (REEF-267), so the
+  // fetched rows are already exactly this user's work — no client re-scope
+  // needed (the REEF-181 substring workaround is retired).
+  const issues = useMemo(() => issuesQuery.data ?? [], [issuesQuery.data]);
   const currentSprint = useMemo(
     () => selectCurrentSprint(planningQuery.data?.sprints ?? []),
     [planningQuery.data],

@@ -83,24 +83,6 @@ export function classifyDue(
   return "none";
 }
 
-/**
- * Exact personal scope. The server `assigned_to` facet is a substring `ILIKE`
- * (so scoping to `ann` also returns `joann` / `anna`); My Work has no assignee
- * picker and treats every row as the current user's work, so re-match the full
- * login here before deriving anything. Case-insensitive full-string equality —
- * an empty login matches nothing (REEF-181 autoreview).
- */
-export function filterAssignedTo(
-  issues: readonly IssueListItem[],
-  login: string,
-): IssueListItem[] {
-  const me = login.trim().toLowerCase();
-  if (!me) return [];
-  return issues.filter(
-    (issue) => (issue.assigned_to ?? "").trim().toLowerCase() === me,
-  );
-}
-
 export interface MyWorkItem {
   issue: IssueListItem;
   dueState: DueState;

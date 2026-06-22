@@ -3,7 +3,7 @@
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { buildIssueQuery } from "@/features/issues/lib/buildIssueQuery";
-import { buildMyWork, filterAssignedTo } from "@/features/my-work/lib/myWork";
+import { buildMyWork } from "@/features/my-work/lib/myWork";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useEffect, useMemo, useState } from "react";
 
@@ -36,7 +36,7 @@ export function useMyWorkAttention(): MyWorkAttention {
   // whole-vault query — mirrors MyWorkPage's scoping so the keys line up.
   const scopedVault = login ? vault : "";
   const query = useMemo(
-    () => (login ? buildIssueQuery({ assignee: login }) : undefined),
+    () => (login ? buildIssueQuery({ assignee: [login] }) : undefined),
     [login],
   );
   const { data } = useIssueList(scopedVault, query);
@@ -55,10 +55,9 @@ export function useMyWorkAttention(): MyWorkAttention {
 
   return useMemo(() => {
     if (!login) return NONE;
-    // The server `assigned_to` facet is a substring `ILIKE`, so exact-scope the
-    // rows to the full login before counting (REEF-181 autoreview).
-    const issues = filterAssignedTo(data ?? [], login);
-    const { summary } = buildMyWork(issues, [], { now });
+    // The server `assigned_to` facet is now an exact match (REEF-267), so the
+    // rows are already exactly this user's work — no client re-scope needed.
+    const { summary } = buildMyWork(data ?? [], [], { now });
     return {
       attention: summary.attention,
       overdue: summary.overdue,

@@ -49,14 +49,14 @@ describe("useMyWorkAttention", () => {
     issuesState.value = undefined;
   });
 
-  it("counts overdue + due-soon for the exact signed-in assignee only", () => {
+  it("counts overdue + due-soon over the signed-in user's server-scoped rows", () => {
+    // The server `assigned_to` facet is now an exact match (REEF-267), so the
+    // rows it returns are already exactly this user's work — the hook counts them
+    // directly with no client re-scope.
     issuesState.value = [
       makeIssue({ id: "A", status: "in_progress", due_date: iso(-DAY) }), // overdue
       makeIssue({ id: "B", status: "todo", due_date: iso(DAY) }), // due soon
       makeIssue({ id: "C", status: "todo", due_date: iso(30 * DAY) }), // far → none
-      // Substring assignee ("joann" contains "ann") should not count — the server
-      // facet is a substring ILIKE, so the hook re-scopes to the full login.
-      makeIssue({ id: "D", assigned_to: "joann", due_date: iso(-DAY) }),
       // Resolved work has no deadline state even when past due.
       makeIssue({ id: "E", status: "done", due_date: iso(-DAY) }),
     ];

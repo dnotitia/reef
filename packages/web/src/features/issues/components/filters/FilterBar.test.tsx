@@ -72,7 +72,7 @@ describe("FilterBar", () => {
     expect(screen.getByTestId("labels-input")).toBeTruthy();
   });
 
-  it("gives planning filters room to identify long sprint, milestone, and release names", async () => {
+  it("keeps Milestone a single-select value field with a readable panel; Sprint/Release are multi-select chips (REEF-267)", async () => {
     const user = userEvent.setup();
     vi.mocked(useActiveVault).mockReturnValue({
       vault: "reef-acme",
@@ -107,22 +107,23 @@ describe("FilterBar", () => {
 
     renderFilterBar();
 
-    for (const testId of [
-      "sprint-filter",
-      "milestone-filter",
-      "release-filter",
-    ]) {
-      expect(screen.getByTestId(testId).className).toContain(
-        PLANNING_FILTER_WRAPPER_CLASS,
-      );
-    }
-    expect(
-      screen.getByTestId("sprint-input").parentElement?.className,
-    ).toContain(FILTER_FIELD_CLASS);
+    // Sprint and Release are multi-select chips now (REEF-267): a chip trigger,
+    // no single-select `sprint-input`.
+    expect(screen.getByTestId("sprint-dropdown-trigger")).toBeTruthy();
+    expect(screen.getByTestId("release-dropdown-trigger")).toBeTruthy();
+    expect(screen.queryByTestId("sprint-input")).toBeNull();
+
+    // Milestone stays a single-select value field (multi-select out of scope,
+    // REEF-267): the wrapper keeps the planning wrapper class and the inner
+    // combobox the value-field width token.
+    expect(screen.getByTestId("milestone-filter").className).toContain(
+      PLANNING_FILTER_WRAPPER_CLASS,
+    );
     expect(
       screen.getByLabelText("Milestone").parentElement?.className,
     ).toContain(FILTER_FIELD_CLASS);
 
+    // The opened Milestone panel keeps the readable planning floor.
     await user.click(screen.getByLabelText("Milestone"));
     const panel = screen.getByRole("listbox").parentElement;
     expect(panel?.className).toContain(PLANNING_ITEM_PANEL_CLASS);
@@ -159,9 +160,9 @@ describe("FilterBar", () => {
     // (does not in the backlog), and a Due date on an uncommitted item is
     // contradictory (the view also drops its Due column).
     expect(screen.queryByTestId("status-dropdown-trigger")).toBeNull();
-    expect(screen.queryByTestId("sprint-input")).toBeNull();
+    expect(screen.queryByTestId("sprint-dropdown-trigger")).toBeNull();
     expect(screen.queryByTestId("due-dropdown-trigger")).toBeNull();
-    expect(screen.queryByLabelText("Release")).toBeNull();
+    expect(screen.queryByTestId("release-dropdown-trigger")).toBeNull();
     // Kept — Milestone (a long-horizon theme grooms unscheduled backlog work)
     // plus every triage axis.
     expect(screen.getByLabelText("Milestone")).toBeTruthy();
@@ -182,8 +183,8 @@ describe("FilterBar", () => {
     useIssueStore.setState({
       filter: {
         status: ["todo"],
-        sprint_id: "spr-1",
-        release_id: "rel-1",
+        sprint_id: ["spr-1"],
+        release_id: ["rel-1"],
         due: ["overdue"],
       },
       searchQuery: "",
@@ -198,7 +199,7 @@ describe("FilterBar", () => {
     // A hidden facet (sprint) should not count, but a kept one (priority) should — so
     // the carve-out narrows the count without zeroing real triage filters.
     useIssueStore.setState({
-      filter: { sprint_id: "spr-1", priority: ["high"] },
+      filter: { sprint_id: ["spr-1"], priority: ["high"] },
       searchQuery: "",
       selectedIssueId: null,
     });
@@ -279,25 +280,18 @@ describe("FilterBar", () => {
 
   it("disables the assignee combobox when no vault is configured", () => {
     renderFilterBar();
-    const trigger = within(
-      screen.getByTestId("assignee-filter"),
-    ).getByLabelText("Assignee");
-    expect(trigger).toBeDisabled();
+    expect(screen.getByTestId("assignee-dropdown-trigger")).toBeDisabled();
   });
 
-  // REEF-134/269: the Assignee/Requester triggers stay narrow (they hug from a
-  // `9rem` floor via FILTER_FIELD_CLASS), but the OPEN user dropdown should be
-  // wide enough to read a long display name + @login. jsdom does not measure
-  // pixels, so assert the structural policy: the opened panel adopts the readable
-  // floor (not the default narrow min-width) AND anchors to the start edge so a
-  // widened panel on a trigger that wraps to the start of a row grows rightward
-  // instead of off the left edge.
-  it.each([
-    ["assignee-filter", "Assignee"],
-    ["requester-filter", "Requester"],
-  ] as const)(
-    "opens the %s user dropdown with a readable, start-anchored panel (REEF-134)",
-    async (testId, label) => {
+  // REEF-134/267: the Assignee/Requester triggers are auto-width multi-select
+  // chips now, but the OPEN user dropdown should still be wide enough to read a
+  // long display name + @login. jsdom does not measure pixels, so assert the
+  // structural policy: the opened panel adopts the readable floor (not the
+  // default narrow min-width) AND anchors to the start edge so a widened panel on
+  // a trigger that wraps to the start of a row grows rightward, not off the left.
+  it.each(["assignee", "requester"] as const)(
+    "opens the %s user dropdown with a readable, start-anchored panel (REEF-134/267)",
+    async (name) => {
       const user = userEvent.setup();
       vi.mocked(useActiveVault).mockReturnValue({
         vault: "reef-acme",
@@ -306,16 +300,14 @@ describe("FilterBar", () => {
       });
       renderFilterBar();
 
-      const surface = screen.getByTestId(testId);
-      await user.click(within(surface).getByLabelText(label));
-
-      const panel = (await within(surface).findByRole("listbox")).parentElement;
-      expect(panel?.className).toContain("min-w-[17rem]");
-      expect(panel?.className).not.toContain("min-w-[12rem]");
+      await user.click(screen.getByTestId(`${name}-dropdown-trigger`));
+      const panel = await screen.findByTestId(`${name}-dropdown-content`);
+      expect(panel.className).toContain("min-w-[17rem]");
+      expect(panel.className).not.toContain("min-w-[12rem]");
       // Start-anchored (left-0), not right-anchored (right-0): a right-anchored
       // wide panel overflows off-screen-left when the bar wraps (REEF-134).
-      expect(panel?.className).toContain("left-0");
-      expect(panel?.className).not.toContain("right-0");
+      expect(panel.className).toContain("left-0");
+      expect(panel.className).not.toContain("right-0");
     },
   );
 
@@ -325,17 +317,15 @@ describe("FilterBar", () => {
     expect(USER_FILTER_PANEL_CLASS).toContain("min-w-[17rem]");
   });
 
-  // REEF-269: the six "value field" comboboxes (Assignee · Requester · Sprint ·
-  // Milestone · Release · Labels) all draw their width from the single
-  // FILTER_FIELD_CLASS token, replacing the pre-REEF-269 mix of fixed `w-36`
-  // (people), fit-content capped at `22rem` (planning), and fixed `w-52`
-  // (labels). The token lives on each field's width-controlling element: the
-  // wrapper for the user + labels fields, the inner combobox root (the trigger's
-  // parent) for the planning fields, matching REEF-246's fit-content placement.
-  // jsdom can not measure pixels, so this is a class-contract regression guard;
-  // the real visual alignment is checked in the hermetic runtime (see the
-  // issue's manual-verification note).
-  it("sizes every value field from the shared FILTER_FIELD_CLASS token (REEF-269)", () => {
+  // REEF-269/267: after Assignee · Requester · Sprint · Release became
+  // multi-select chips, the remaining "value field" comboboxes are just Milestone
+  // and Labels, both still drawing their width from the single FILTER_FIELD_CLASS
+  // token. The token lives on each field's width-controlling element: the wrapper
+  // for the labels field, the inner combobox root (the trigger's parent) for
+  // Milestone, matching REEF-246's fit-content placement. jsdom can not measure
+  // pixels, so this is a class-contract regression guard; the real visual
+  // alignment is checked in the hermetic runtime.
+  it("sizes the remaining value fields (Milestone, Labels) from the shared FILTER_FIELD_CLASS token (REEF-269/267)", () => {
     vi.mocked(useActiveVault).mockReturnValue({
       vault: "reef-acme",
       isLoading: false,
@@ -343,30 +333,23 @@ describe("FilterBar", () => {
     });
     renderFilterBar();
 
-    // User + labels fields: the token is on the field wrapper.
-    for (const testId of [
-      "assignee-filter",
-      "requester-filter",
-      "labels-filter",
-    ]) {
-      expect(screen.getByTestId(testId).className).toContain(
-        FILTER_FIELD_CLASS,
-      );
-    }
-    // Planning fields: the token is on the inner combobox root (the trigger's
-    // parent), per REEF-246's fit-content placement.
-    for (const label of ["Sprint", "Milestone", "Release"]) {
-      expect(screen.getByLabelText(label).parentElement?.className).toContain(
-        FILTER_FIELD_CLASS,
-      );
-    }
+    // Labels field: the token is on the field wrapper.
+    expect(screen.getByTestId("labels-filter").className).toContain(
+      FILTER_FIELD_CLASS,
+    );
+    // Milestone (the one single-select planning field): the token is on the
+    // inner combobox root (the trigger's parent), per REEF-246's placement.
+    expect(
+      screen.getByLabelText("Milestone").parentElement?.className,
+    ).toContain(FILTER_FIELD_CLASS);
   });
 
-  // REEF-269: the multi-select facet chips are NOT value fields — they keep the
-  // auto-width "hug the label" vocabulary (CBX_TRIGGER_CHIP is inline-flex with
-  // no width token) and must not adopt the value-field width policy. Nail it down
-  // so a future "unify all the comboboxes" pass can't sweep the chips in too.
-  it("keeps the facet chips auto-width, not the value-field token (REEF-269)", () => {
+  // REEF-269/267: the multi-select facet chips are NOT value fields — they keep
+  // the auto-width "hug the label" vocabulary (CBX_TRIGGER_CHIP is inline-flex
+  // with no width token) and must not adopt the value-field width policy. The
+  // people/planning multi-select filters (Assignee · Requester · Sprint ·
+  // Release) joined this chip group in REEF-267, so guard them here too.
+  it("keeps the facet chips auto-width, not the value-field token (REEF-269/267)", () => {
     renderFilterBar();
     for (const testId of [
       "status-dropdown-trigger",
@@ -375,6 +358,10 @@ describe("FilterBar", () => {
       "severity-dropdown-trigger",
       "due-dropdown-trigger",
       "dependency-dropdown-trigger",
+      "assignee-dropdown-trigger",
+      "requester-dropdown-trigger",
+      "sprint-dropdown-trigger",
+      "release-dropdown-trigger",
     ]) {
       const chip = screen.getByTestId(testId);
       expect(chip.className).toContain("inline-flex");
@@ -382,6 +369,41 @@ describe("FilterBar", () => {
       expect(chip.className).not.toContain("min-w-[9rem]");
       expect(chip.className).not.toContain("w-full");
     }
+  });
+
+  it("toggles an assignee into the multi-select facet, accumulating and folding empty → undefined (REEF-267)", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useActiveVault).mockReturnValue({
+      vault: "reef-acme",
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    vi.mocked(apiFetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          users: [
+            { login: "alice", name: "Alice" },
+            { login: "bob", name: "Bob" },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+    renderFilterBar();
+
+    await user.click(screen.getByTestId("assignee-dropdown-trigger"));
+    // Vault-member rows are addressable by their role; pick two.
+    await user.click(
+      await screen.findByRole("menuitemcheckbox", { name: /Alice/ }),
+    );
+    expect(useIssueStore.getState().filter.assignee).toEqual(["alice"]);
+    await user.click(screen.getByRole("menuitemcheckbox", { name: /Bob/ }));
+    expect(useIssueStore.getState().filter.assignee).toEqual(["alice", "bob"]);
+
+    // Unchecking the last selected drops the facet to undefined, not [].
+    await user.click(screen.getByRole("menuitemcheckbox", { name: /Alice/ }));
+    await user.click(screen.getByRole("menuitemcheckbox", { name: /Bob/ }));
+    expect(useIssueStore.getState().filter.assignee).toBeUndefined();
   });
 
   it("commits labels with Enter instead of asking for comma-separated text", async () => {

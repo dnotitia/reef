@@ -14,9 +14,32 @@ describe("buildIssueQuery", () => {
   });
 
   it("maps valid facets to the snake_case wire query", () => {
-    expect(buildIssueQuery({ status: ["todo"], assignee: "alice" })).toEqual({
+    expect(buildIssueQuery({ status: ["todo"], assignee: ["alice"] })).toEqual({
       status: ["todo"],
-      assigned_to: "alice",
+      assigned_to: ["alice"],
+      ...DEFAULT_SORT,
+    });
+  });
+
+  it("maps multi-value people/planning facets to repeated wire arrays (REEF-267)", () => {
+    expect(
+      buildIssueQuery({
+        assignee: ["alice", "bob"],
+        requester: ["carol"],
+        sprint_id: ["s1", "s2"],
+        release_id: ["r1"],
+      }),
+    ).toEqual({
+      assigned_to: ["alice", "bob"],
+      requester: ["carol"],
+      sprint_id: ["s1", "s2"],
+      release_id: ["r1"],
+      ...DEFAULT_SORT,
+    });
+  });
+
+  it("omits an empty people/planning facet array", () => {
+    expect(buildIssueQuery({ assignee: [], sprint_id: [] })).toEqual({
       ...DEFAULT_SORT,
     });
   });

@@ -185,9 +185,33 @@ describe("filterIssues", () => {
     expect(result[0].id).toBe("REEF-002");
   });
 
-  it("filters by assignee (case-insensitive partial match)", () => {
-    const result = filterIssues(issues, { assignee: "alice" });
-    expect(result).toHaveLength(2);
+  it("filters by assignee (case-insensitive exact match) (REEF-267)", () => {
+    const result = filterIssues(issues, { assignee: ["alice"] });
+    expect(result.map((i) => i.id).sort()).toEqual(["REEF-001", "REEF-003"]);
+  });
+
+  it("matches assignee exactly, not as a substring (REEF-267)", () => {
+    // The old behavior substring-matched, so `ali` returned alice; exact does not.
+    expect(filterIssues(issues, { assignee: ["ali"] })).toHaveLength(0);
+  });
+
+  it("OR-combines multiple assignees within the facet (REEF-267)", () => {
+    const result = filterIssues(issues, { assignee: ["alice", "bob"] });
+    expect(result.map((i) => i.id).sort()).toEqual([
+      "REEF-001",
+      "REEF-002",
+      "REEF-003",
+    ]);
+  });
+
+  it("filters by requester exactly, OR-combined (REEF-267)", () => {
+    const withReq = [
+      makeIssue({ id: "REEF-010", requester: "carol" }),
+      makeIssue({ id: "REEF-011", requester: "dave" }),
+      makeIssue({ id: "REEF-012", requester: "carolyn" }), // not an exact `carol`
+    ];
+    const result = filterIssues(withReq, { requester: ["carol", "dave"] });
+    expect(result.map((i) => i.id).sort()).toEqual(["REEF-010", "REEF-011"]);
   });
 
   it("filters by label (single label)", () => {
@@ -459,16 +483,32 @@ describe("matchesSharedFacets", () => {
     expect(matchesSharedFacets(issue, {})).toBe(true);
   });
 
-  it("matches assignee case-insensitively as a substring", () => {
-    expect(matchesSharedFacets(issue, { assignee: "ali" })).toBe(true);
-    expect(matchesSharedFacets(issue, { assignee: "bob" })).toBe(false);
+  it("matches assignee by case-insensitive exact value, scalar or array (REEF-267)", () => {
+    // Exact, not substring: `ali` no longer matches `Alice`.
+    expect(matchesSharedFacets(issue, { assignee: "ali" })).toBe(false);
+    // Reports passes a single scalar; the issues filter passes an array — both
+    // share this predicate and case-fold.
+    expect(matchesSharedFacets(issue, { assignee: "alice" })).toBe(true);
+    expect(matchesSharedFacets(issue, { assignee: ["bob"] })).toBe(false);
+    expect(matchesSharedFacets(issue, { assignee: ["bob", "ALICE"] })).toBe(
+      true,
+    );
   });
 
-  it("requires exact planning-id equality", () => {
+  it("requires exact planning-id equality, OR-combined for multi-select (REEF-267)", () => {
     expect(matchesSharedFacets(issue, { sprint_id: "spr-1" })).toBe(true);
     expect(matchesSharedFacets(issue, { sprint_id: "spr-2" })).toBe(false);
+    // The issues filter passes an array of sprint / release ids → OR within facet.
+    expect(matchesSharedFacets(issue, { sprint_id: ["spr-2", "spr-1"] })).toBe(
+      true,
+    );
+    expect(matchesSharedFacets(issue, { release_id: ["rel-9"] })).toBe(false);
+    expect(matchesSharedFacets(issue, { release_id: ["rel-1", "rel-2"] })).toBe(
+      true,
+    );
+    // milestone stays a single scalar (multi-select out of scope, REEF-267).
     expect(matchesSharedFacets(issue, { milestone_id: "mil-9" })).toBe(false);
-    expect(matchesSharedFacets(issue, { release_id: "rel-1" })).toBe(true);
+    expect(matchesSharedFacets(issue, { milestone_id: "mil-1" })).toBe(true);
   });
 
   it("matches the parent issue id exactly (reports rollup drill, REEF-187)", () => {

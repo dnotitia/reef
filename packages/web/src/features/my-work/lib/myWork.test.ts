@@ -6,7 +6,6 @@ import {
   buildMyWork,
   classifyDue,
   compareFocus,
-  filterAssignedTo,
   groupByStatus,
   selectCurrentSprint,
 } from "./myWork";
@@ -40,22 +39,6 @@ const SPRINT: Sprint = {
   goal: "",
   capacity_points: null,
 };
-
-describe("filterAssignedTo", () => {
-  it("keeps exact assignees and drops substring matches", () => {
-    const mine = makeIssue({ id: "A", assigned_to: "ann" });
-    const other = makeIssue({ id: "B", assigned_to: "joann" }); // contains "ann"
-    const cased = makeIssue({ id: "C", assigned_to: "Ann" });
-    const none = makeIssue({ id: "D", assigned_to: null });
-    expect(
-      filterAssignedTo([mine, other, cased, none], "ann").map((i) => i.id),
-    ).toEqual(["A", "C"]);
-  });
-
-  it("matches nothing for an empty login", () => {
-    expect(filterAssignedTo([makeIssue({ id: "A" })], "  ")).toEqual([]);
-  });
-});
 
 describe("classifyDue", () => {
   it("flags a past deadline overdue and a near one due_soon", () => {

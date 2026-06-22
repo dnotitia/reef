@@ -2,19 +2,21 @@ import type { UserSortField } from "@reef/core/fields";
 import { create } from "zustand";
 
 export interface IssueFilter {
-  // Multi-select facets (REEF-031): an empty selection is represented as
-  // `undefined` (the field is dropped), does not an empty array, so truthy
+  // Multi-select facets (REEF-031 / REEF-267): an empty selection is represented
+  // as `undefined` (the field is dropped), not an empty array, so truthy
   // `?.length` checks and the persisted/URL projections stay consistent.
+  // assignee/requester/sprint_id/release_id became multi-select in REEF-267;
+  // milestone_id and reporter stay single scalars.
   status?: string[];
   issueType?: string[];
   priority?: string[];
-  assignee?: string;
-  requester?: string;
+  assignee?: string[];
+  requester?: string[];
   reporter?: string;
   severity?: string[];
-  sprint_id?: string;
+  sprint_id?: string[];
   milestone_id?: string;
-  release_id?: string;
+  release_id?: string[];
   due?: ("overdue" | "due_soon")[];
   label?: string;
   /** Retired: Use top-level searchQuery instead */

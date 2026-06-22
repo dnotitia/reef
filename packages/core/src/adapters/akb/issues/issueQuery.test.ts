@@ -48,9 +48,9 @@ describe("buildIssueWhere", () => {
   it("uses a case-insensitive exact IN for assigned_to (REEF-267, no longer substring)", () => {
     // Exact match, not the old `ILIKE '%ali%'` substring — so scoping to `ali`
     // never incidentally returns `alice` / `khalil`.
-    expect(buildIssueWhere(parse({ assigned_to: ["ali"], archived: true }))).toBe(
-      `LOWER("assigned_to") IN ('ali')`,
-    );
+    expect(
+      buildIssueWhere(parse({ assigned_to: ["ali"], archived: true })),
+    ).toBe(`LOWER("assigned_to") IN ('ali')`);
   });
 
   it("OR-combines a multi-value assigned_to facet and folds case (REEF-267)", () => {
@@ -78,9 +78,9 @@ describe("buildIssueWhere", () => {
   });
 
   it("keeps milestone_id a single exact match (multi-select out of scope, REEF-267)", () => {
-    expect(
-      buildIssueWhere(parse({ milestone_id: "m1", archived: true })),
-    ).toBe(`"milestone_id" = 'm1'`);
+    expect(buildIssueWhere(parse({ milestone_id: "m1", archived: true }))).toBe(
+      `"milestone_id" = 'm1'`,
+    );
   });
 
   it("escapes LIKE metacharacters in the value", () => {
