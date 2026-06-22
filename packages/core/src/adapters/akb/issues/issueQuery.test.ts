@@ -45,10 +45,42 @@ describe("buildIssueWhere", () => {
     ).toBe(`"issue_type" = 'bug'`);
   });
 
-  it("uses escaped substring ILIKE for assigned_to", () => {
-    expect(buildIssueWhere(parse({ assigned_to: "ali", archived: true }))).toBe(
-      `"assigned_to" ILIKE '%ali%' ESCAPE '\\'`,
+  it("uses a case-insensitive exact IN for assigned_to (REEF-267, no longer substring)", () => {
+    // Exact match, not the old `ILIKE '%ali%'` substring — so scoping to `ali`
+    // never incidentally returns `alice` / `khalil`.
+    expect(buildIssueWhere(parse({ assigned_to: ["ali"], archived: true }))).toBe(
+      `LOWER("assigned_to") IN ('ali')`,
     );
+  });
+
+  it("OR-combines a multi-value assigned_to facet and folds case (REEF-267)", () => {
+    expect(
+      buildIssueWhere(parse({ assigned_to: ["Alice", "BOB"], archived: true })),
+    ).toBe(`LOWER("assigned_to") IN ('alice', 'bob')`);
+  });
+
+  it("uses a case-insensitive exact IN for requester (REEF-267)", () => {
+    expect(
+      buildIssueWhere(parse({ requester: ["carol", "dave"], archived: true })),
+    ).toBe(`LOWER("requester") IN ('carol', 'dave')`);
+  });
+
+  it("renders a multi-value sprint_id IN list (REEF-267)", () => {
+    expect(
+      buildIssueWhere(parse({ sprint_id: ["s1", "s2"], archived: true })),
+    ).toBe(`"sprint_id" IN ('s1', 's2')`);
+  });
+
+  it("renders a multi-value release_id IN list (REEF-267)", () => {
+    expect(
+      buildIssueWhere(parse({ release_id: ["r1", "r2"], archived: true })),
+    ).toBe(`"release_id" IN ('r1', 'r2')`);
+  });
+
+  it("keeps milestone_id a single exact match (multi-select out of scope, REEF-267)", () => {
+    expect(
+      buildIssueWhere(parse({ milestone_id: "m1", archived: true })),
+    ).toBe(`"milestone_id" = 'm1'`);
   });
 
   it("escapes LIKE metacharacters in the value", () => {
@@ -64,8 +96,8 @@ describe("buildIssueWhere", () => {
   });
 
   it("escapes single quotes (injection-safe)", () => {
-    expect(buildIssueWhere(parse({ sprint_id: "a'b", archived: true }))).toBe(
-      `"sprint_id" = 'a''b'`,
+    expect(buildIssueWhere(parse({ sprint_id: ["a'b"], archived: true }))).toBe(
+      `"sprint_id" IN ('a''b')`,
     );
   });
 
