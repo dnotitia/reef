@@ -138,12 +138,12 @@ function matchesLabelFilter(issue: IssueListItem, label: string): boolean {
 /**
  * Match an issue against the facets shared by the issues list and reports.
  * Assignee is a case-insensitive EXACT match of `assigned_to` (REEF-267 — no
- * longer a substring, so filtering to `ann` never incidentally returns `joann`),
+ * longer a substring, so filtering to `ann` does not incidentally return `joann`),
  * OR-combined across the selected logins; sprint / release are exact id equality
  * OR-combined across selected ids; milestone / parent are single exact ids; label
  * is comma-separated OR (see `matchesLabelFilter`). An unset facet consistently
  * passes. The exact predicate is the single source both surfaces share, so the
- * issues filter and reports never diverge (AC5).
+ * issues filter and reports do not diverge (AC5).
  */
 export function matchesSharedFacets(
   issue: IssueListItem,

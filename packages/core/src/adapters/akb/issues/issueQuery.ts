@@ -21,7 +21,7 @@ export function priorityRankCase(): string {
  * emitted, then the whole pattern is quoted via `quoteText`. Mirrors the client
  * `searchIssues` substring semantics for the free-text `q` facet. (The
  * assignee/requester *facets* now match exactly — see `lowerInClause` — so this
- * substring form is the `q` search path only, REEF-267.)
+ * substring form is reserved for the `q` search path, REEF-267.)
  */
 function likeContainsClause(
   column: string,
@@ -54,7 +54,7 @@ function labelsContainsClause(value: string, fieldDescriptor: string): string {
  * A case-insensitive exact-match `IN` predicate: `LOWER("col") IN ('a', 'b')`,
  * each value lowercased and quoted. Used for the assignee / requester facets
  * (REEF-267) — exact equality, OR-combined within the facet — so a one-person
- * filter never incidentally matches a different login the way the old substring
+ * filter does not incidentally match a different login the way the old substring
  * `ILIKE` did (which forced My Work's client re-scope, REEF-181). Case-folding
  * mirrors the client `matchesSharedFacets` / `filterAssignedTo`, which compare
  * `assigned_to` lowercased on both sides, so the server pre-filter and the

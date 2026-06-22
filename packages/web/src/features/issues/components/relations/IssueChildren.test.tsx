@@ -143,7 +143,7 @@ describe("IssueChildren", () => {
     // becomes the expected current issue, so a later Back returns here.
     expect(useIssueNavStack.getState().trail).toEqual([PARENT]);
     expect(useIssueNavStack.getState().currentId).toBe("REEF-101");
-    // The hop swaps content with replace (flat history), never a pushed entry.
+    // The hop swaps content with replace (flat history), not a pushed entry.
     expect(mockReplace).toHaveBeenCalledTimes(1);
     expect(mockReplace).toHaveBeenCalledWith("/issues/REEF-101");
   });
@@ -155,7 +155,7 @@ describe("IssueChildren", () => {
       .find((a) => a.getAttribute("data-issue-id") === "REEF-101");
 
     // Cmd/Ctrl-click falls through to the anchor's native new-tab behavior, so
-    // the in-panel drill must not fire and the trail stays empty.
+    // the in-panel drill should not fire and the trail stays empty.
     fireEvent.click(openLink as HTMLElement, { button: 0, metaKey: true });
 
     expect(mockReplace).not.toHaveBeenCalled();

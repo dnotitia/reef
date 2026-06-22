@@ -84,7 +84,7 @@ export function MyWorkPage() {
     [login],
   );
   // Opt out of placeholder reuse: this query is scoped to one login, so its key
-  // only changes on an account switch — never reuse the previous login's rows as
+  // changes on an account switch — does not reuse the previous login's rows as
   // placeholder (it would briefly show another user's work in the same vault).
   const issuesQuery = useIssueList(scopedVault, query, {
     keepPreviousData: false,

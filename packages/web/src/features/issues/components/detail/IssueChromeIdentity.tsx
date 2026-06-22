@@ -22,7 +22,7 @@ import { useMemo } from "react";
  * `useIssue` / `useIssueList` land, matching the reference (Linear / Asana) bar
  * that keeps its frame while the panel below loads. The sheet reads those
  * queries and feeds them here as props, so this stays a pure presentational
- * leaf that renders id-only until `status` / `issueType` arrive.
+ * leaf that renders id fallback until `status` / `issueType` arrive.
  */
 export function IssueChromeIdentity({
   issueId,
@@ -33,7 +33,7 @@ export function IssueChromeIdentity({
   allIssues,
   allIssuesPending,
 }: {
-  /** Current issue id (the route param) — always rendered, even mid-load. */
+  /** Current issue id (the route param) — consistently rendered, even mid-load. */
   issueId: string;
   /** Current issue status, or undefined until the issue loads. */
   status?: Status;
@@ -44,7 +44,7 @@ export function IssueChromeIdentity({
   parentId: string | null;
   /** Whole-vault list (resolves the parent title without an extra request). */
   allIssues: readonly IssueListItem[];
-  /** The whole-vault list is still loading, so a set `parentId` cannot be
+  /** The whole-vault list is still loading, so a set `parentId` is not yet
    *  resolved yet — hold a neutral skeleton instead of flashing the raw id
    *  (REEF-283). */
   allIssuesPending: boolean;
@@ -104,22 +104,22 @@ export function IssueChromeIdentity({
             {parent ? (
               // Resolved parent: lead with the parent's status glyph, then its
               // title (REEF-279). The raw reef id leaves the visible crumb — it
-              // lives on only in `href`/`data-issue-id` for routing + tests — so
+              // stays in `href`/`data-issue-id` for routing + tests — so
               // the trail reads `[status] Parent title › ● Current`, the same
               // status-first visual language as the current-issue cluster below.
               // The glyph is decorative: the link's aria-label already names the
-              // parent, so the status never double-announces.
+              // parent, so the status does not double-announce.
               <>
                 <StatusIcon status={parent.status} size={12} decorative />
                 <span className="min-w-0 truncate">{parent.title}</span>
               </>
             ) : allIssuesPending ? (
-              // List still loading (REEF-283): hold a neutral skeleton — never
+              // List still loading (REEF-283): hold a neutral skeleton — not
               // the raw reef id — so the later title is a fill, not a visible
               // "id → title" swap. The crumb is already navigable from
               // `href`/`getDrillProps(parentId)`, so it works during the wait.
               // The skeleton is decorative (aria-hidden); the link's aria-label
-              // stays its only accessible name.
+              // stays its accessible name.
               <span
                 aria-hidden
                 data-testid="issue-parent-breadcrumb-loading"
@@ -131,7 +131,7 @@ export function IssueChromeIdentity({
             ) : (
               // Degrade: parent_id is set but the parent is absent from the
               // already-loaded list (archived, etc.), so there is no status or
-              // title to render. Fall back to the raw id so the link is never
+              // title to render. Fall back to the raw id so the link is not
               // empty and stays navigable (REEF-279 AC4). `translate="no"` keeps
               // machine translation from mangling the reef id.
               <span translate="no" className="shrink-0 font-mono tabular-nums">
@@ -146,7 +146,7 @@ export function IssueChromeIdentity({
         </nav>
       ) : null}
 
-      {/* Current status glyph — only once the issue lands; until then the bar
+      {/* Current status glyph — once the issue lands; until then the bar
           shows the route-param id alone (no glyph flash). */}
       {status ? <StatusIcon status={status} size={12} /> : null}
       <span className="shrink-0 font-mono text-muted-foreground tabular-nums">

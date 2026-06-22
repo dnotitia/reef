@@ -14,7 +14,7 @@ import { useIssueNavStack } from "../../stores/useIssueNavStack";
  *    a modifier/middle click opening a new tab lands on a deep link whose
  *    backdrop keeps the originating view instead of the Board default (REEF-222),
  *    and starts a fresh depth-0 trail.
- *  - `onClick` (plain left click only) records the hop on the in-memory nav
+ *  - `onClick` (plain left click) records the hop on the in-memory nav
  *    stack and swaps the sheet content with `router.replace`, keeping the browser
  *    history flat (list ⇄ sheet) so Close returns to the list in one step. A
  *    drill is an in-panel content swap, not a new history entry.

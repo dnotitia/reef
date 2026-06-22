@@ -40,7 +40,7 @@ export function useMyWorkAttention(): MyWorkAttention {
     [login],
   );
   // Same identity-scoped query as MyWorkPage (shared cache entry); opt out of
-  // placeholder reuse so an account switch never counts the previous login's
+  // placeholder reuse so an account switch does not count the previous login's
   // cached rows in the badge (REEF-267 autoreview).
   const { data } = useIssueList(scopedVault, query, {
     keepPreviousData: false,

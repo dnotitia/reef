@@ -29,7 +29,7 @@ describe("ActivityFeedSkeleton", () => {
     expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
 
     // A sibling role=status (the <output>) carries the loading announcement and
-    // must NOT sit under aria-hidden, or assistive tech would never hear it.
+    // should not sit under aria-hidden, or assistive tech would not hear it.
     const status = screen.getByRole("status");
     expect(status).toHaveTextContent("Loading…");
     expect(status.closest('[aria-hidden="true"]')).toBeNull();

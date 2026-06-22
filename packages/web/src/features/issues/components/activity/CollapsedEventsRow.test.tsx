@@ -48,7 +48,7 @@ describe("CollapsedEventsRow — focus & motion (REEF-287)", () => {
       "group-focus-visible/collapse:ring-brand/40",
     );
 
-    // The chevron only animates when motion is allowed (prefers-reduced-motion).
+    // The chevron animates when motion is allowed (prefers-reduced-motion).
     const chevron = toggle.querySelector("svg");
     expect(chevron?.getAttribute("class")).toContain(
       "motion-safe:transition-transform",

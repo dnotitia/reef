@@ -116,7 +116,7 @@ describe("useIssueList", () => {
   });
 
   it("drops prior rows (no placeholder) on a key change when keepPreviousData is false (REEF-267)", async () => {
-    // The identity-scoped My Work query opts out so an account switch never
+    // The identity-scoped My Work query opts out so an account switch does not
     // reuses the previous login's rows in the same vault.
     const aliceRows = [{ ...ISSUES[0], id: "REEF-A" }] as IssueMetadata[];
     mockApiFetch.mockResolvedValueOnce(

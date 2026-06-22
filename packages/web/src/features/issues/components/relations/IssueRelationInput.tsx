@@ -61,8 +61,8 @@ interface IssueRelationInputProps {
    * Make multi-mode relation chips navigable (REEF-268): each chip becomes a
    * link to `/issues/{id}`, rendered as the Sub-issues-style `IssueOptionRow`
    * (status · id · title · type · priority), with the remove `X` kept as a
-   * separate hit target. Detail-panel only — the create dialog and the
-   * activity-draft editor leave this `false` so clicking a chip never navigates
+   * separate hit target. Detail-panel — the create dialog and the
+   * activity-draft editor leave this `false` so clicking a chip does not navigate
    * away from an unsaved issue. No effect in single mode (parent uses a field).
    */
   navigable?: boolean;
@@ -210,7 +210,7 @@ export function IssueRelationInput({
 
   // Resolve each stored relation id to its full list item so a navigable chip
   // can render the Sub-issues-style row (status · id · title); an unresolved id
-  // — e.g. an archived target absent from the list — degrades to an id-only
+  // — e.g. an archived target absent from the list — degrades to an id fallback
   // link rather than dropping navigation entirely (REEF-268).
   const issuesById = useMemo(() => {
     const map = new Map<string, IssueListItem>();
@@ -619,8 +619,8 @@ export function IssueRelationInput({
           // Detail panel (REEF-268/284): chips become self-describing rows that
           // drill in place through the same nav model as the parent breadcrumb
           // and Sub-issues. Isolated in its own component so the drill hook
-          // (router/searchParams) runs only on the detail path — the create
-          // dialog / activity-draft editor (navigable=false) never mount it.
+          // (router/searchParams) runs on the detail path — the create
+          // dialog / activity-draft editor (navigable=false) does not mount it.
           <NavigableRelationChips
             value={value}
             currentIssueId={currentIssueId}
@@ -631,7 +631,7 @@ export function IssueRelationInput({
           />
         ) : (
           // Create dialog / activity-draft editor: keep the existing
-          // non-navigable id chips so clicking never leaves an unsaved issue.
+          // non-navigable id chips so clicking does not leave an unsaved issue.
           <div className="flex flex-wrap gap-1">
             {value.map((relationId) => (
               <span
@@ -648,7 +648,7 @@ export function IssueRelationInput({
                   onClick={() => removeRelation(relationId)}
                   // Match the navigable chip's remove button (REEF-268): a
                   // keyboard-visible focus ring and rounded ring corners, reusing
-                  // the same tokens. `rounded-md` only shapes the ring (no bg/
+                  // the same tokens. `rounded-md` shapes the ring (no bg/
                   // padding here), so the pill layout is unchanged (REEF-282).
                   className="touch-manipulation rounded-md text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50"
                 >
@@ -671,12 +671,12 @@ export function IssueRelationInput({
  * already use. `getDrillProps` builds the href through `buildOpenIssueHref`, so a
  * modifier / middle click still opens a fresh deep link that carries the active
  * `?view=` (REEF-222). The id/title region links; the `X` is a separate hit
- * target so removing never navigates.
+ * target so removing does not navigate.
  *
  * Split out of `IssueRelationInput` on purpose: the drill hook reads the router
- * and search params, so keeping it in its own component means it runs only where
+ * and search params, so keeping it in its own component means it runs where
  * chips are navigable (the detail panel). The create dialog and activity-draft
- * editor pass `navigable={false}` and never mount this, so they stay free of any
+ * editor pass `navigable={false}` and does not mount this, so they stay free of any
  * router dependency.
  */
 function NavigableRelationChips({
@@ -716,7 +716,7 @@ function NavigableRelationChips({
                 />
               ) : (
                 // Relation target absent from allIssues (archived, etc.):
-                // degrade to an id-only link, keeping navigation.
+                // degrade to an id fallback link, keeping navigation.
                 <span
                   translate="no"
                   className="font-mono text-xs tabular-nums text-muted-foreground"

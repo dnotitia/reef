@@ -46,7 +46,7 @@ vi.mock("@/features/my-work/hooks/useMyWorkAttention", () => ({
 }));
 
 // The Settings skill-drift badge (REEF-257) reads workspace skill status from
-// this hook. DashboardShell only consumes `.data?.up_to_date`, so a partial
+// this hook. DashboardShell consumes `.data?.up_to_date`, so a partial
 // query-result shape is enough to drive the badge directly.
 vi.mock("@/features/settings/hooks/useWorkspaceSkillStatus", () => ({
   useWorkspaceSkillStatus: () => skillStatusState,
@@ -303,13 +303,13 @@ describe("DashboardShell", () => {
     );
     const badge = screen.getByTestId("workspace-skill-badge");
     expect(badge).toBeVisible();
-    // Orange (warn) advisory tone, never the destructive red reserved for My
+    // Orange (warn) advisory tone, not the destructive red reserved for My
     // Work's missed commitments.
     expect(badge).toHaveClass("bg-priority-high");
     expect(badge).toHaveAccessibleName(
       "Workspace instructions update available",
     );
-    // It is a count-less dot, not a numeric pill — the label is the only signal.
+    // It is a count-less dot, not a numeric pill — the label is the sole signal.
     expect(badge).toBeEmptyDOMElement();
   });
 

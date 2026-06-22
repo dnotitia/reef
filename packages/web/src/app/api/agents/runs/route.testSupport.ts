@@ -78,7 +78,7 @@ export const APP_CONFIG = {
   status: { isConfigured: true, appId: "123456" },
 } satisfies ServerAppConfig;
 
-// Not exported directly: a `vi.hoisted` binding cannot be re-exported. Tests
+// Not exported directly: a `vi.hoisted` binding is not yet re-exported. Tests
 // flip the config through `setServerAppConfig`.
 const appConfigState = vi.hoisted(() => ({
   current: undefined as unknown,

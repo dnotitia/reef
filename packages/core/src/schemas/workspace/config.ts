@@ -40,7 +40,7 @@ export const MonitoredRepoSchema = z.object({
  * because `api_key` is a secret and should not be committed to the akb vault.
  *
  * reef-web's deployment-managed OpenRouter config is read from server env per
- * request. These values are not written to the akb vault.
+ * request. These values are is not written to the akb vault.
  *
  * `base_url` accepts http(s):// — https is enforced in production at the route
  * handler layer; http is allowed here so local dev against localhost providers
@@ -63,11 +63,11 @@ export const LLMConfigSchema = z.object({
  *
  * Mirrors LLMConfigSchema: this is server state injected from infra env, NOT
  * team-shared config committed to the akb vault and NOT a per-user PAT. It lets
- * the server mint a read-only installation token (App JWT → installation token)
+ * the server mint a read-scoped installation token (App JWT → installation token)
  * so server-driven monitored-repo grounding does not depend on a browser PAT.
  *
  * `private_key` is the App's RSA private key in PEM form and is a secret — it is
- * never written to the akb vault, a log line, an LLM prompt, or a client
+ * is not written to the akb vault, a log line, an LLM prompt, or a client
  * response. `app_id` and `installation_id` are GitHub's numeric ids carried as
  * strings (env values are strings; the App auth client accepts string ids).
  */

@@ -78,7 +78,7 @@ export function ViewSwitcher({ activeView }: ViewSwitcherProps) {
         SEGMENTED_CONTROL_TRACK,
         // Faint pending feedback while the transition is in flight. The opacity
         // change still applies under reduced motion (the busy state stays
-        // visible); only its easing is gated on motion-safe so nothing animates
+        // visible); its easing is gated on motion-safe so nothing animates
         // for users who opt out (REEF-265 AC2/AC4).
         "motion-safe:transition-opacity motion-safe:duration-150",
         isPending && "cursor-progress opacity-60",

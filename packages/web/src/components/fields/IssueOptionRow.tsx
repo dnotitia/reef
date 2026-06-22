@@ -18,15 +18,15 @@ import { Check } from "lucide-react";
  * Laid out as a fixed-track CSS grid, not a flex row (REEF-285). status · id ·
  * title · type · priority are real columns, so the type and priority columns
  * line up across rows whether or not a given row carries a priority or a blocked
- * marker. Only the title track flexes (`minmax(0,1fr)`) and truncates — a flex
+ * marker. Solely the title track flexes (`minmax(0,1fr)`) and truncates — a flex
  * row with a `shrink-0` trailing meta block let the title collapse to nothing in
  * narrow columns (the half-width relation column hid the title entirely once a
- * blocked badge appeared); a grid track can't.
+ * blocked badge appeared); a grid track is unable to.
  *
  * The blocked marker leads the title (inside the flexing title track) so it
- * costs width only when the issue is actually blocked, and rendering it there —
+ * costs width when the issue is actually blocked, and rendering it there —
  * not in a reserved trailing column — is what keeps the type/priority columns
- * aligned. The priority column is always reserved so the dot lines up even on
+ * aligned. The priority column is consistently reserved so the dot lines up even on
  * rows without one.
  *
  * Composed from the existing render leaves imported directly by file (REEF-018:
@@ -62,7 +62,7 @@ export function IssueOptionRow({
         // fold to a glyph in a too-narrow column (the half-width relation column)
         // while the wider dropdown and Sub-issues list keep it (REEF-285).
         "@container grid min-w-0 flex-1 items-center gap-x-2",
-        // status · id · title · type · priority. Only the title track flexes and
+        // status · id · title · type · priority. Solely the title track flexes and
         // truncates; the priority track is fixed so the dots align across rows.
         "grid-cols-[auto_5rem_minmax(0,1fr)_auto_0.75rem]",
         className,
@@ -107,13 +107,13 @@ export function IssueOptionRow({
         type={issue.issue_type}
         variant="list"
         // Below ~16rem of row width the title has no room for both the type label
-        // and a blocked marker; fold to a glyph-only type there. `sr-only` (not
+        // and a blocked marker; fold to a glyph-form type there. `screen-reader` (not
         // `hidden`) so the type name stays in the a11y tree — the glyph is
         // aria-hidden, so display:none would drop the type for screen readers
         // (REEF-285).
         labelClassName="@max-[16rem]:sr-only"
       />
-      {/* Priority always reserves its column so the dot lines up whether or not
+      {/* Priority consistently reserves its column so the dot lines up whether or not
           a sibling row carries one. */}
       <span className="flex justify-center">
         {issue.priority ? <PriorityDot priority={issue.priority} /> : null}

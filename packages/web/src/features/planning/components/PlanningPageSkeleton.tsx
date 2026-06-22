@@ -15,7 +15,7 @@ export function PlanningPageSkeleton() {
     <div className="flex h-full flex-col" data-testid="planning-skeleton">
       <PageHeader title="Planning" />
       <PageBody pad="compact">
-        {/* sr-only loading announcement (REEF-281), sibling to the decorative
+        {/* screen-reader loading announcement (REEF-281), sibling to the decorative
             body; PageHeader's h1 stays a real heading. */}
         <output className="sr-only">Loading…</output>
         <div aria-hidden="true">

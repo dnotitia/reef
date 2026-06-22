@@ -24,16 +24,16 @@ type RepoListResult = Awaited<
  *
  * Two token sources, chosen per request:
  *   1. **Server-managed GitHub App** — when the deployment is configured
- *      (`REEF_GITHUB_APP_*`), the server mints a read-only installation token
+ *      (`REEF_GITHUB_APP_*`), the server mints a read-scoped installation token
  *      and lists the installation's repositories, so the picker works without
  *      any browser PAT (REEF-239 AC1/AC2).
  *   2. **Per-user browser PAT** — the fallback when no App is configured. The
  *      two paths run in parallel during the migration away from PATs
  *      (REEF-237/REEF-238); the PAT UI is removed in a later cleanup issue.
  *
- * Thin Route Handler wrapper: it owns only credential selection and PM-facing
+ * Thin Route Handler wrapper: it owns credential selection and PM-facing
  * error translation; the GitHub I/O and error normalization live in core.
- * Stateless — the adapter and any minted token are per-request, never stored.
+ * Stateless — the adapter and any minted token are per-request, not stored.
  */
 export async function GET(request: Request): Promise<Response> {
   const ifNoneMatch = request.headers.get("If-None-Match");
@@ -47,7 +47,7 @@ export async function GET(request: Request): Promise<Response> {
     // without an auth check an unauthenticated caller could read the
     // installation's repo list (including private repo names/ids). Validate the
     // session against the akb backend (akb `/auth/me`) rather than just decoding
-    // the cookie: this route never otherwise calls akb, so a syntactic
+    // the cookie: this route does not otherwise call akb, so a syntactic
     // presence/`exp` check would accept a forged cookie. `getAkbCurrentActor`
     // returns a ready 401/5xx Response when the session is missing, expired, or
     // rejected by akb (REEF-239).

@@ -24,13 +24,13 @@ function makeProps(overrides: Partial<ActionsProps> = {}): ActionsProps {
 
 describe("IssueChromeActions", () => {
   it("renders the ⋮ issue-actions menu in-flow when no chrome slot is in scope", () => {
-    // A standalone render (no sheet / no provider) must still show the actions —
+    // A standalone render (no sheet / no provider) should still show the actions —
     // it falls back to rendering in-flow rather than portaling.
     render(<IssueChromeActions {...makeProps()} />);
     expect(
       screen.getByRole("button", { name: "Issue actions" }),
     ).toBeInTheDocument();
-    // Close is the sheet's own affordance, never rendered by the actions cluster.
+    // Close is the sheet's own affordance, not rendered by the actions cluster.
     expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
   });
 
@@ -53,7 +53,7 @@ describe("IssueChromeActions", () => {
       />,
     );
     expect(screen.getByTestId("issue-save-status")).toHaveTextContent("Saving");
-    // The static "Edited …" time is suppressed so the two never compete.
+    // The static "Edited …" time is suppressed so the two do not compete.
     expect(screen.queryByTestId("issue-updated-at")).toBeNull();
   });
 

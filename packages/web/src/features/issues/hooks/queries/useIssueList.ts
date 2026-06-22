@@ -25,9 +25,9 @@ export function useIssueList(
      * Reuse the previous query's rows as placeholder while a new query key
      * fetches WITHIN the same vault (no skeleton flicker on filter/sort changes).
      * Default true. Set false for an identity-scoped query (My Work) where the
-     * key only changes on an account switch — reusing the previous login's rows
+     * key changes on an account switch — reusing the previous login's rows
      * as placeholder would briefly show another user's work in the same vault
-     * (REEF-267 autoreview). With it off, a login change shows a skeleton, never
+     * (REEF-267 autoreview). With it off, a login change shows a skeleton, not
      * stale rows.
      */
     keepPreviousData?: boolean;
@@ -42,7 +42,7 @@ export function useIssueList(
     // Keep prior results visible across filter/sort changes WITHIN the same
     // vault (no skeleton flicker), but does not across a workspace switch — that
     // would briefly show another vault's issues. An identity-scoped caller opts
-    // out via `keepPreviousData: false` so an account change never reuses the
+    // out via `keepPreviousData: false` so an account change does not reuse the
     // previous login's rows (see the option doc above).
     placeholderData: keepPreviousData
       ? (previousData, previousQuery) =>

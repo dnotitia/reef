@@ -76,12 +76,12 @@ function setup(overrides: Partial<IdentityProps> = {}) {
 describe("IssueChromeIdentity", () => {
   describe("route-param id persistence (REEF-286)", () => {
     it("shows the route-param id with no status glyph or type pill before the issue loads", () => {
-      // The bar opens on a drill into an uncached issue: only the route param is
+      // The bar opens on a drill into an uncached issue: the route param is
       // known, so the id is shown alone (no glyph/pill flash) until useIssue
       // lands.
       setup({ status: undefined, issueType: undefined });
       expect(screen.getByText("REEF-111")).toBeInTheDocument();
-      // No current-status glyph (StatusIcon is the only role=img here) and no
+      // No current-status glyph (StatusIcon is the sole role=img here) and no
       // archived badge until the data arrives.
       expect(screen.queryByRole("img")).toBeNull();
       expect(screen.queryByTestId("issue-archived-badge")).toBeNull();
@@ -179,7 +179,7 @@ describe("IssueChromeIdentity", () => {
       const link = screen.getByTestId("issue-parent-breadcrumb");
       expect(link).toHaveAttribute("href", "/issues/REEF-182");
       // No resolved parent → no status glyph, so the link degrades to the id
-      // alone, staying navigable and never empty (REEF-279 AC4).
+      // alone, staying navigable and not empty (REEF-279 AC4).
       expect(link.querySelector("svg")).toBeNull();
       expect(link.textContent).toBe("REEF-182");
     });

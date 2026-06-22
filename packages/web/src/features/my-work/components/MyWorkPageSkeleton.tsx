@@ -28,8 +28,8 @@ export function MyWorkSkeleton({ hasSprint = false }: { hasSprint?: boolean }) {
   return (
     <div className="flex flex-col gap-6" data-testid="my-work-skeleton">
       {/* Single per-surface loading announcement (REEF-281). It lives on the
-          body-only leaf so the full-page MyWorkPageSkeleton (and MyWorkPage's
-          in-flight branches) inherit exactly one — never a doubled notification.
+          body-level leaf so the full-page MyWorkPageSkeleton (and MyWorkPage's
+          in-flight branches) inherit exactly one — not a doubled notification.
           Sibling to the decorative body, so it is not under aria-hidden. */}
       <output className="sr-only">Loading…</output>
       {/* The placeholder body is decorative — aria-hidden so assistive tech does
@@ -96,7 +96,7 @@ export function MyWorkSkeleton({ hasSprint = false }: { hasSprint?: boolean }) {
  * {@link MyWorkSkeleton}. Used by the route's `loading.tsx` (soft-nav) and the
  * page's `<Suspense fallback>` (the `useSearchParams` CSR bail-out on a hard
  * navigation), so neither path paints a blank body before hydration (REEF-255).
- * It can't know the sprint state before data, so it defaults to the no-sprint
+ * It is unable to know the sprint state before data, so it defaults to the no-sprint
  * three-tile layout (the baseline); the page passes the resolved sprint state
  * to {@link MyWorkSkeleton} once the planning catalog is in.
  */

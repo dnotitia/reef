@@ -121,9 +121,9 @@ function ReportCardSkeleton({ bodyHeight }: { bodyHeight: string }) {
 export function ReportsSkeleton() {
   return (
     <div className="flex flex-col gap-6">
-      {/* sr-only loading announcement (REEF-281). The wrapping PageShell owns
+      {/* screen-reader loading announcement (REEF-281). The wrapping PageShell owns
           the page header; the section band headings below stay real headings,
-          so only the placeholder clusters take aria-hidden. */}
+          so the placeholder clusters take aria-hidden. */}
       <output className="sr-only">Loading…</output>
       {/* Scope bar — same auto-fit control grid as ReportScopeBar (8 controls). */}
       <div

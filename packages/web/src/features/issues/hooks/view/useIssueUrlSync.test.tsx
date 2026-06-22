@@ -236,7 +236,7 @@ describe("useIssueUrlSync", () => {
       expect(useIssueStore.getState().filter.status).toEqual(["todo"]);
     });
     const { filter } = useIssueStore.getState();
-    // A bare `?assignee=` / `?sprint_id=` must not seed an empty-member array.
+    // A bare `?assignee=` / `?sprint_id=` should not seed an empty-member array.
     expect(filter.assignee).toBeUndefined();
     expect(filter.sprint_id).toBeUndefined();
   });

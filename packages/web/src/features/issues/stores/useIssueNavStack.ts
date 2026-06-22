@@ -16,14 +16,14 @@ import { create } from "zustand";
  *    to. The currently-shown issue is NOT in `trail` — it is tracked separately
  *    as `currentId`.
  *  - `currentId` is the issue the trail expects on screen. The sheet trusts the
- *    trail only while `currentId` matches the route id, so the outgoing sheet
- *    never flashes a Back to itself mid-hop, and `reconcile` can reset the trail
+ *    trail while `currentId` matches the route id, so the outgoing sheet
+ *    does not flash a Back to itself mid-hop, and `reconcile` can reset the trail
  *    when a fresh navigation lands on a different issue.
  *
  * The trail is emptied at session boundaries by whoever owns them: `clear()` on
  * Close / outside click, and the `@modal` default slot when the sheet leaves and
  * the list comes back (including a browser Back that pops the modal). So when a
- * sheet mounts, the only way `currentId` already matches its id is a genuine
+ * sheet mounts, the sole way `currentId` already matches its id is a genuine
  * drill/back this store just drove — `reconcile` keeps the trail then, and
  * resets to depth 0 otherwise. Every operation here is idempotent so React
  * StrictMode's double-invoked effects can call `reconcile` twice safely.

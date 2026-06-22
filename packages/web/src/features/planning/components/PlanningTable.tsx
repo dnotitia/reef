@@ -127,7 +127,7 @@ export function PlanningTable({
                     // whole name is the hit target and the panel has a single
                     // aria-expanded control. The row supplies the surface hover;
                     // the chevron darkens on group-hover to mark this strip as the
-                    // toggle. Scoped to the Name cell — the row is never clickable.
+                    // toggle. Scoped to the Name cell — the row is not clickable.
                     <button
                       type="button"
                       onClick={() =>

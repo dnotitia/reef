@@ -1,5 +1,6 @@
 "use client";
 
+import { createAssigneeComboboxOption } from "@/components/assigneeComboboxOption";
 import { PersonAvatar, personToneFor } from "@/components/fields/PersonAvatar";
 import { PersonChip } from "@/components/fields/PersonChip";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
@@ -7,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { useUserSearch } from "@/features/issues/hooks/queries/useUserSearch";
 import { useHydrated } from "@/lib/useHydrated";
-import type { Collaborator } from "@reef/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 interface AssigneeComboboxProps {
@@ -98,27 +98,9 @@ export function AssigneeCombobox({
 
   const options = useMemo<ComboboxOption<string>[]>(
     () =>
-      (users ?? []).map((c: Collaborator) => ({
-        value: c.login,
-        label: c.name ?? c.login,
-        keywords: c.login,
-        content: (
-          <>
-            <PersonAvatar
-              identityKey={c.login}
-              name={c.name ?? undefined}
-              avatarUrl={c.avatar_url}
-              size="sm"
-              tone={personToneFor(c.login, currentLogin)}
-              decorative
-            />
-            <span className="truncate">{c.name ?? c.login}</span>
-            <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-              @{c.login}
-            </span>
-          </>
-        ),
-      })),
+      (users ?? []).map((user) =>
+        createAssigneeComboboxOption(user, currentLogin),
+      ),
     [users, currentLogin],
   );
 

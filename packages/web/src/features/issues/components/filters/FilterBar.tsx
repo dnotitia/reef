@@ -61,7 +61,7 @@ export const FILTER_FIELD_CLASS = "w-fit min-w-[9rem] max-w-[16rem]";
 /**
  * Wrapper for the single-select Milestone value field. The width token lives on
  * the inner combobox (`FILTER_FIELD_CLASS`, passed as its `className`), matching
- * REEF-246; this wrapper only provides the relative box and a viewport cap so the
+ * REEF-246; this wrapper provides the relative box and a viewport cap so the
  * field can wrap without overflowing the bar.
  */
 export const PLANNING_FILTER_WRAPPER_CLASS = "relative inline-block max-w-full";

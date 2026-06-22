@@ -87,7 +87,7 @@ describe("resolveScanGitHubAdapter", () => {
       const mint = vi.fn(async () => "ghs_minted_token");
       mockCreateProvider.mockReturnValue(mint);
 
-      // No Authorization header — the App path must not need a browser PAT.
+      // No Authorization header — the App path should not need a browser PAT.
       const result = await resolveScanGitHubAdapter(makeRequest());
 
       expect(result).toEqual({ kind: "adapter", adapter: SENTINEL_ADAPTER });
@@ -140,7 +140,7 @@ describe("resolveScanGitHubAdapter", () => {
       );
 
       expect(result).toEqual({ kind: "adapter", adapter: SENTINEL_ADAPTER });
-      // The minted token authenticates the scan, never the browser PAT.
+      // The minted token authenticates the scan, not the browser PAT.
       expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
         token: "ghs_minted_token",
       });

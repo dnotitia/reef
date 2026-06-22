@@ -3,7 +3,7 @@ import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 // usePlanningCatalog uses useQuery; stub it so the row renders without a
-// QueryClient — these cases never resolve a planning name.
+// QueryClient — these cases do not resolve a planning name.
 vi.mock("@/features/planning/hooks/usePlanningCatalog", () => ({
   usePlanningCatalog: () => ({ data: undefined }),
 }));
@@ -63,7 +63,7 @@ describe("ActivityEventRow — identifier i18n (REEF-287)", () => {
     const link = container.querySelector('a[translate="no"]');
     expect(link).not.toBeNull();
     expect(link).toHaveTextContent("PR #25");
-    // The PR title is prose — it must NOT sit inside a translate="no" node.
+    // The PR title is prose — it should not sit inside a translate="no" node.
     expect(getByText(/Forecast/).closest('[translate="no"]')).toBeNull();
   });
 
