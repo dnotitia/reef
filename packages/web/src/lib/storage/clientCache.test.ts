@@ -133,7 +133,7 @@ describe("credentials → cache invalidation", () => {
 /**
  * Deterministic, synchronous stand-in for the platform BroadcastChannel so the
  * cross-tab tests can model two tabs in one process. Real-channel semantics:
- * postMessage delivers to every OTHER open instance of the same name, never
+ * postMessage delivers to other open instances of the same name, not
  * back to the sender.
  */
 class FakeBroadcastChannel {
@@ -253,7 +253,7 @@ describe("cross-tab auth propagation", () => {
 
   it("does not re-process the broadcasting tab's own message", () => {
     // The singleton instance is both sender and receiver; a real
-    // BroadcastChannel never echoes a message to its own sender, so the
+    // BroadcastChannel does not echo a message to its own sender, so the
     // signing-out tab fires its window handler exactly once (the direct
     // dispatch), not twice via the channel.
     const unsubscribe = subscribeCrossTabAuthChange();

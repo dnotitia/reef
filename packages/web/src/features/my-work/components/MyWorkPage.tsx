@@ -17,8 +17,10 @@ import {
 } from "@/features/my-work/lib/myWork";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { PageHeader } from "@/features/ui/components/PageHeader";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 
@@ -28,10 +30,10 @@ function Shell({
 }: {
   /** The header subtitle here is the *personal* scope (`@login · N open`), not
    *  the active workspace name the other PageHeader subtitles carry. My Work is
-   *  a per-user view, so this divergence is intentional — it is the one caller
+   *  a per-user view, so this divergence is intentional — it is the caller
    *  that does not pass the vault. It is also the one subtitle that mixes an
    *  identifier with translatable prose (the `open` count label), so the
-   *  full-summary state passes a node that marks only `@login` translate="no"
+   *  full-summary state passes a node that marks `@login` translate="no"
    *  and leaves the count translatable (REEF-260). */
   description?: ReactNode;
   children: ReactNode;
@@ -134,21 +136,16 @@ export function MyWorkPage() {
   }
 
   if (!vault) {
+    // The no-vault gate is the app-level "no workspace" state, shared across all
+    // five surfaces (REEF-259), so it bypasses `Shell` (which wraps children in a
+    // PageBody) and lets the shared notice own its own centered layout beneath
+    // the header. The other empty states below stay section-level CenteredNotice
+    // cards.
     return (
-      <Shell>
-        <CenteredNotice testId="my-work-no-vault">
-          <p className="text-sm text-muted-foreground">
-            Pick a workspace in{" "}
-            <a
-              href="/settings"
-              className="text-foreground underline-offset-4 hover:underline"
-            >
-              Settings
-            </a>{" "}
-            to see your work.
-          </p>
-        </CenteredNotice>
-      </Shell>
+      <div className="flex h-full flex-col">
+        <PageHeader title="My Work" />
+        <EmptyWorkspaceNotice />
+      </div>
     );
   }
 
@@ -210,12 +207,12 @@ export function MyWorkPage() {
             Issues assigned to you show up here, prioritized for what to do
             next.
           </p>
-          <a
+          <Link
             href="/issues?view=board"
             className="mt-3 inline-block text-[13px] font-medium text-brand hover:underline"
           >
             Go to the board →
-          </a>
+          </Link>
         </CenteredNotice>
       </Shell>
     );
@@ -231,12 +228,12 @@ export function MyWorkPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             No open work is assigned to you right now.
           </p>
-          <a
+          <Link
             href="/issues?view=board"
             className="mt-3 inline-block text-[13px] font-medium text-brand hover:underline"
           >
             Go to the board →
-          </a>
+          </Link>
         </CenteredNotice>
       </Shell>
     );
@@ -246,7 +243,7 @@ export function MyWorkPage() {
     <Shell
       description={
         <>
-          {/* Only the login is an identifier; the count label is prose, so it
+          {/* The login is an identifier; the count label is prose, so it
               stays translatable (REEF-260). */}
           <span translate="no">@{login}</span>
           {` · ${myWork.summary.open} open`}

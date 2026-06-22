@@ -7,6 +7,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import Link from "next/link";
 import { IssueDetail } from "./IssueDetail";
 import { IssueDetailCloseButton } from "./IssueDetailCloseButton";
 import { IssueDetailSkeleton } from "./IssueDetailSkeleton";
@@ -44,9 +45,9 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
           className="p-6 text-sm text-muted-foreground"
         >
           Configure a workspace in{" "}
-          <a href="/settings" className="text-brand underline">
+          <Link href="/settings" className="text-brand underline">
             Settings
-          </a>{" "}
+          </Link>{" "}
           to view this issue.
         </div>
       );

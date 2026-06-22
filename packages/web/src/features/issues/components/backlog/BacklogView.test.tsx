@@ -23,6 +23,24 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => navigationState.searchParams,
 }));
 
+// `data-next-link` marks anchors routed through Next `Link`; a raw `<a>` lacks
+// it, so the empty-state CTA assertion fails if the link regresses to a
+// full-reload anchor (REEF-262).
+vi.mock("next/link", () => ({
+  default: ({
+    href,
+    children,
+    ...rest
+  }: {
+    href: string;
+    children: React.ReactNode;
+  }) => (
+    <a data-next-link="true" href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
 import { BacklogView } from "./BacklogView";
 
 const mockApiFetch = vi.mocked(apiFetch);
@@ -145,11 +163,14 @@ describe("BacklogView", () => {
     expect(mockPush).toHaveBeenCalledWith("/issues/REEF-1?view=backlog");
   });
 
-  it("renders the empty state when the backlog has no issues", async () => {
+  it("renders the empty state with a client-side board link when the backlog has no issues (REEF-262)", async () => {
     mockList([]);
     render(wrap(<BacklogView vault="reef-acme" />));
 
     expect(await screen.findByTestId("backlog-empty")).toBeInTheDocument();
+    const cta = screen.getByRole("link", { name: /Go to the board/ });
+    expect(cta).toHaveAttribute("href", "/issues?view=board");
+    expect(cta).toHaveAttribute("data-next-link", "true");
   });
 
   it("shows a no-matches (not empty) state when triage filters hide the backlog (REEF-109)", async () => {

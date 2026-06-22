@@ -6,7 +6,7 @@ import { commentsAndActivityContent } from "./commentsAndActivity";
  * runbook is the agent-facing surface for reading the reef_activity timeline and
  * reading/writing reef_comments. These assertions pin the load-bearing SQL and
  * guards against the real adapters (akb/issues/activity.ts, akb/issues/comments.ts)
- * so the prose can never drift from the code path an MCP agent must reproduce by
+ * so the prose stays aligned with the code path an MCP agent reproduces by
  * hand.
  */
 describe("comments-and-activity runbook (REEF-252)", () => {
@@ -83,7 +83,7 @@ describe("comments-and-activity runbook (REEF-252)", () => {
 
     it("requires escaping the user-controlled body as data (double single quotes)", () => {
       // The body is the most user-controlled free text in the runbook, so the
-      // single-quote-doubling rule must be stated at the point of use to avoid a
+      // single-quote-doubling rule is stated at the point of use to avoid a
       // broken INSERT or an akb_sql injection path. Mirrors quoteText in
       // adapters/akb/core/sql.ts (value.replace(/'/g, "''")).
       expect(content).toContain("user-controlled free text");

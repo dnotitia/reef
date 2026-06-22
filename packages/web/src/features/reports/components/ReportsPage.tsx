@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
+import { PageHeader } from "@/features/ui/components/PageHeader";
 import { ACTIVE_STATUSES, type Status } from "@reef/core";
 import { SEVERITY_LABELS } from "@reef/core/fields";
 import { useCallback, useMemo, useState } from "react";
@@ -113,21 +115,15 @@ export function ReportsPage() {
     : agg.riskSummary.netThroughput;
 
   if (!vaultLoading && !vault) {
+    // App-level "no workspace" gate, shared across all five surfaces (REEF-259).
+    // It renders beneath the header without PageShell's PageBody so the shared
+    // notice can self-center; PageShell + EmptyState below stay for the
+    // section-level empty/error states that do carry a vault.
     return (
-      <PageShell description={vault || undefined}>
-        <EmptyState>
-          <p className="text-sm text-muted-foreground">
-            Pick a workspace in{" "}
-            <a
-              href="/settings"
-              className="text-foreground underline-offset-4 hover:underline"
-            >
-              Settings
-            </a>{" "}
-            to see reports.
-          </p>
-        </EmptyState>
-      </PageShell>
+      <div className="flex h-full flex-col">
+        <PageHeader title="Reports" />
+        <EmptyWorkspaceNotice />
+      </div>
     );
   }
 

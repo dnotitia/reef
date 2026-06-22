@@ -80,7 +80,7 @@ function CloseIssueDialogContent({
             disabled={disabled}
             options={CLOSED_REASON_OPTIONS}
             // The dropdown options carry a second hint line; the trigger value
-            // slot is single-line only, so the selected value renders the label
+            // slot is single-line, so the selected value renders the label
             // alone via `renderValue` (REEF-272).
             renderValue={(option) => (
               <span>{CLOSED_REASON_LABELS[option]}</span>

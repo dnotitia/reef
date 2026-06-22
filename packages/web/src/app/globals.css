@@ -419,13 +419,13 @@ hr {
 }
 
 /* Skeleton shimmer — a single calm light source that sweeps across a group of
- * placeholders rather than each bar pulsing on its own (REEF-250). Every
+ * placeholders rather than each bar pulsing on its own (REEF-250). Each
  * skeleton carries a position index `--i` (0 by default); the per-index
  * negative `animation-delay` phases neighbours a few hundredths of a second
  * apart, so one soft band travels through the group instead of all of them
  * blinking in lockstep. Two static tones (`data-tone`) pre-encode the loaded
  * hierarchy — value placeholders sit one step stronger than labels / section
- * headers — using only foreground alpha, no new colour or chrome. Both tones
+ * headers — using foreground alpha, no new colour or chrome. Both tones
  * derive from `--foreground` so the contrast holds in light and dark and stays
  * legible when the sweep is paused under reduced motion. */
 @keyframes reef-shimmer {
