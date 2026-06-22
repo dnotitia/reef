@@ -6,9 +6,14 @@ import {
   SheetDescription,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { useIssue } from "@/features/issues/hooks/queries/useIssue";
+import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueSheetDismiss } from "@/features/issues/hooks/view/useIssueSheetDismiss";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import Link from "next/link";
+import { useState } from "react";
+import { IssueChromeIdentity } from "./IssueChromeIdentity";
+import { IssueChromeSlotProvider } from "./IssueChromeSlot";
 import { IssueDetail } from "./IssueDetail";
 import { IssueDetailCloseButton } from "./IssueDetailCloseButton";
 import { IssueDetailSkeleton } from "./IssueDetailSkeleton";
@@ -32,6 +37,17 @@ interface IssueDetailSheetProps {
  * intercepting route (soft nav) and the base route (deep link) mount this
  * so the chrome stays identical — the entry-exit target differs.
  *
+ * Persistent chrome bar (REEF-286): the sheet owns a single top bar that lives
+ * *outside* the body — wayfinding + identity on the left (drill Back · parent
+ * breadcrumb · status · id · type), actions on the right (save status · ⋮ ·
+ * Close). The bar renders in every state (loaded, skeleton, error, no-vault), so
+ * the id (from the route param) and Close are always present and Back persists
+ * while a drilled-in, uncached issue loads — only the body below skeletons. The
+ * data-dependent identity (status / type / breadcrumb) is read here from
+ * `useIssue` / `useIssueList` and fills in on arrival; the body portals its
+ * action cluster (save status + ⋮) into the bar's slot so the autosave + dialog
+ * wiring stays in the body while the controls render in the bar.
+ *
  * Drill navigation (REEF-270): following a relationship link swaps the content
  * in place and records the hop on an in-memory nav stack. A top-left Back
  * unwinds one hop; Close / outside click exit the whole trail to the entry view;
@@ -43,6 +59,21 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
     issueId,
     onExit: onClose,
   });
+
+  // Identity data for the persistent bar. Read here (not in the body) so the
+  // status glyph / type pill / parent breadcrumb fill the bar the moment they
+  // land and survive the body skeleton. Both queries are vault-gated, so while
+  // the vault pointer is loading or unset they stay pending and the bar shows
+  // the route-param id alone. `useUpdateIssue` patches these caches
+  // optimistically (REEF-098), so an inline status / type / parent edit reflects
+  // in the bar immediately.
+  const { data } = useIssue(issueId, vault);
+  const { data: allIssues, isPending: allIssuesPending } = useIssueList(vault);
+  const issue = data?.issue;
+
+  // The bar's action slot: the loaded body portals its save-status + ⋮ cluster
+  // here, so that wiring stays in the body while the controls land in the bar.
+  const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
 
   // `useIssue` is gated on `vault`. When the pointer is still loading or
   // unset, TanStack Query v5 keeps the query in `isPending: true`, which
@@ -86,9 +117,9 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
       >
         <SheetContent
           side="right"
-          // The sheet's own top chrome row owns the close affordance (REEF-284),
-          // so the overlay X is suppressed here to avoid a duplicate, colliding
-          // control in the top-right corner.
+          // The sheet's own persistent chrome bar owns the close affordance
+          // (REEF-286), so the overlay X is suppressed here to avoid a
+          // duplicate, colliding control in the top-right corner.
           showCloseButton={false}
           // Esc means Back while drilled into a relation trail, Close otherwise
           // (AC3); an outside click always exits to the entry view (AC2). We own
@@ -109,32 +140,50 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
           className="w-[min(94vw,1080px)] sm:max-w-[1080px] overflow-y-auto overscroll-contain"
         >
           {/* Visually-hidden title/description satisfy Radix Dialog a11y
-              without duplicating the PM-facing header rendered inside
-              IssueDetail. */}
+              without duplicating the PM-facing identity rendered in the bar. */}
           <SheetTitle className="sr-only">Issue {issueId}</SheetTitle>
           <SheetDescription className="sr-only">
             Edit details for issue {issueId}.
           </SheetDescription>
-          {/* Single top chrome row owns the sheet's navigation + dismiss pair:
-              the drill Back (left, only when drilled in) and Close (right,
-              always). Keeping them on one row — rather than stacking Back as a
-              strip above the header — aligns the two, and keeps the history Back
-              here visually separate (above) from the structural parent
-              breadcrumb in the header below, so navigation and hierarchy never
-              read as one trail (REEF-284 / REEF-270 AC5). The row renders in
-              every state (loaded, skeleton, error, no-vault) so Close is always
-              present and Back persists while a drilled-in issue loads. Wrapped
-              with the body in a no-gap column so SheetContent's gap-4 doesn't
-              open between the chrome row and the body. */}
-          <div className="flex flex-col">
-            <div className="flex items-center px-6 pt-4">
-              {backTo ? (
-                <IssueDrillBackBar backTo={backTo} onBack={goBack} />
-              ) : null}
-              <IssueDetailCloseButton onClose={exit} className="ml-auto" />
+          {/* Single persistent chrome bar (REEF-286): wayfinding + identity on
+              the left, actions + Close on the right. It renders in every state,
+              so the id/Back/Close never blink while the body below skeletons, and
+              no state leaves an empty band — the id always fills the bar's left
+              and Close is the single control on the right (AC1 · AC2 · AC3). The
+              history Back (its own `Back navigation` landmark) stays visually
+              separate from the structural parent breadcrumb (`Issue hierarchy`),
+              so navigation and hierarchy never read as one trail (AC4 / REEF-270
+              AC5). Wrapped with the body in a no-gap column so SheetContent's
+              gap-4 doesn't open between the bar and the body. */}
+          <IssueChromeSlotProvider value={actionsSlot}>
+            <div className="flex flex-col">
+              <div
+                data-testid="issue-detail-chrome"
+                className="flex items-center gap-2 px-6 pt-4"
+              >
+                {backTo ? (
+                  <IssueDrillBackBar backTo={backTo} onBack={goBack} />
+                ) : null}
+                <IssueChromeIdentity
+                  issueId={issueId}
+                  status={issue?.status}
+                  issueType={issue ? (issue.issue_type ?? "task") : undefined}
+                  isArchived={issue?.archived_at != null}
+                  parentId={issue?.parent_id ?? null}
+                  allIssues={allIssues ?? []}
+                  allIssuesPending={allIssuesPending}
+                />
+                <div className="flex shrink-0 items-center gap-2">
+                  {/* `display:contents` so the body's portaled save-status + ⋮
+                      become flex siblings of Close, and the slot adds no gap
+                      while it is empty during loading. */}
+                  <div ref={setActionsSlot} className="contents" />
+                  <IssueDetailCloseButton onClose={exit} />
+                </div>
+              </div>
+              {renderBody()}
             </div>
-            {renderBody()}
-          </div>
+          </IssueChromeSlotProvider>
         </SheetContent>
       </Sheet>
     </div>

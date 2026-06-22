@@ -19,8 +19,11 @@ const RELATIONSHIP_ROWS = ["parent", "depends", "blocks", "related"] as const;
 /** Placeholder event rows under the activity composer. */
 const ACTIVITY_ROWS = ["a", "b", "c"] as const;
 
-/** Skeletons before the main canvas sections: 3 header + 2 title + 2 description. */
-const HEADER_SKELETONS = 3;
+/** Skeletons before the title: none — the identity row that used to head the
+ *  panel now lives in the sheet's persistent chrome bar (REEF-286), so the body
+ *  skeleton opens straight on the title. Kept as a named `0` so the derived sweep
+ *  offsets below stay self-documenting. */
+const HEADER_SKELETONS = 0;
 const TITLE_SKELETONS = 2;
 const DESCRIPTION_SKELETONS = 2;
 /** Relationships section: one header + a label/value pair per field. */
@@ -97,12 +100,13 @@ function RailSectionSkeleton({
 }
 
 /**
- * Skeleton placeholder for `IssueDetail` while the issue is loading. It mirrors
- * the loaded layout component-for-component — the header row, then the
- * two-column grid of the main canvas and the 340px property rail with its
- * Details / People / Planning sections — so the panel settles into the same
- * shape instead of flashing one full-panel block that then rearranges into a
- * different structure.
+ * Skeleton placeholder for the `IssueDetail` body while the issue is loading. It
+ * mirrors the loaded layout component-for-component — the two-column grid of the
+ * main canvas and the 340px property rail with its Details / People / Planning
+ * sections — so the panel settles into the same shape instead of flashing one
+ * full-panel block that then rearranges into a different structure. The identity
+ * row is no longer mirrored here: it lives in the sheet's persistent chrome bar
+ * (REEF-286), which stays put while this body skeleton swaps in and out.
  *
  * The main canvas reserves the loaded column's full height: title + description
  * (the description bar sized to the MarkdownEditor's toolbar + 200px body floor,
@@ -138,37 +142,41 @@ export function IssueDetailSkeleton() {
           panel so it is not under aria-hidden. */}
       <output className="sr-only">Loading…</output>
       {/* The mirrored panel is all placeholder bars — decorative, so aria-hidden
-          keeps assistive tech from walking the empty header/canvas/rail DOM. */}
+          keeps assistive tech from walking the empty canvas/rail DOM. */}
       <div className="flex flex-col gap-5" aria-hidden="true">
-        {/* Header row — the id / type cluster (mirrors IssueDetailHeader's
-          left side). The top-right corner is left empty on purpose: every state
-          that renders this skeleton (IssueDetail isPending/!data,
-          IssueDetailSheet vaultLoading) pins the real IssueDetailCloseButton
-          there (`absolute top-4 right-4`), and REEF-111 relies on those states
-          having nothing else in that corner to collide with. The actions menu
-          exists in the loaded header, so the live close owns the corner. */}
-        <div className="flex min-w-0 items-center gap-2">
-          <Skeleton style={wave(0)} className="h-3 w-3 rounded-full" />
-          <Skeleton style={wave(1)} className="h-4 w-16" />
-          <Skeleton style={wave(2)} className="h-5 w-12 rounded-full" />
-        </div>
-
-        {/* Two-column grid: main canvas + 340px rail (mirrors IssueDetail). */}
+        {/* Two-column grid: main canvas + 340px rail (mirrors IssueDetail). The
+            identity row is not mirrored — the sheet's persistent chrome bar owns
+            it across loading (REEF-286), so the body skeleton opens on the
+            canvas. */}
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
           {/* Main canvas: title + description + relationships + activity
             (mirrors IssueDetailMain). */}
           <div className="flex min-w-0 flex-col gap-4">
             <div className="flex flex-col gap-1">
-              <Skeleton tone="secondary" style={wave(3)} className="h-3 w-10" />
+              <Skeleton
+                tone="secondary"
+                style={wave(HEADER_SKELETONS)}
+                className="h-3 w-10"
+              />
               {/* Title value matches the `Input` height (h-8), not h-9. */}
-              <Skeleton style={wave(4)} className="h-8 w-full" />
+              <Skeleton
+                style={wave(HEADER_SKELETONS + 1)}
+                className="h-8 w-full"
+              />
             </div>
             <div className="flex flex-col gap-1">
-              <Skeleton tone="secondary" style={wave(5)} className="h-3 w-20" />
+              <Skeleton
+                tone="secondary"
+                style={wave(HEADER_SKELETONS + 2)}
+                className="h-3 w-20"
+              />
               {/* Description value reserves the MarkdownEditor's height: a ~36px
                 toolbar strip over its 200px body floor (≈236px → h-60), so the
                 editor chunk loading in does not push the sections below down. */}
-              <Skeleton style={wave(6)} className="h-60 w-full" />
+              <Skeleton
+                style={wave(HEADER_SKELETONS + 3)}
+                className="h-60 w-full"
+              />
             </div>
 
             {/* Relationships — IssueFormSection "Relationships" + its 2-col grid
