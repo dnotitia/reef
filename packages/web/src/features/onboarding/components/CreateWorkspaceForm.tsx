@@ -13,6 +13,7 @@ import {
   buildMonitoredReposPayload,
 } from "@/features/settings/components/MonitoredRepoSelector";
 import { useSetActiveVault } from "@/features/settings/hooks/useActiveVault";
+import { useGithubAppAvailable } from "@/features/settings/hooks/useGithubAppAvailable";
 import { useHasGithubToken } from "@/features/settings/hooks/useHasGithubToken";
 import { useRepos } from "@/features/settings/hooks/useRepos";
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
@@ -72,10 +73,17 @@ export function CreateWorkspaceForm({
 }: CreateWorkspaceFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  // Token gate (REEF-159): repo listing is disabled without a configured token,
-  // so drive the selector's loading/error from token state to avoid a
-  // forever-skeleton and surface the "connect GitHub or skip" hint instead.
+  // Credential gate (REEF-159, extended in REEF-239): repo listing is disabled
+  // without an available credential, so drive the selector's loading/error from
+  // credential state to avoid a forever-skeleton and surface the "connect GitHub
+  // or skip" hint instead. Either a browser PAT or a deployment-managed GitHub
+  // App can serve the list, so the selector is usable without a PAT when the
+  // server App is configured.
   const { hasToken, isLoading: tokenLoading } = useHasGithubToken();
+  const { isAvailable: appAvailable, isLoading: appLoading } =
+    useGithubAppAvailable();
+  const canListRepos = hasToken || appAvailable;
+  const credentialLoading = tokenLoading || appLoading;
   const reposQuery = useRepos();
   const setActiveVault = useSetActiveVault();
 
@@ -280,8 +288,10 @@ export function CreateWorkspaceForm({
           availableRepos={reposQuery.data ?? []}
           selectedRepos={selectedRepos}
           onToggle={toggleRepo}
-          isLoading={tokenLoading || (hasToken && reposQuery.isPending)}
-          isError={!hasToken || (reposQuery.isError && !reposQuery.data)}
+          isLoading={
+            credentialLoading || (canListRepos && reposQuery.isPending)
+          }
+          isError={!canListRepos || (reposQuery.isError && !reposQuery.data)}
           errorMessage="Connect GitHub to select repositories, or skip this step."
           testIdPrefix={`${idPrefix}-monitored-repos`}
         />

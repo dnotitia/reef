@@ -14,6 +14,13 @@ explicitly in the entries below.
 
 ### Added
 
+- **Pick monitored repositories without a personal access token.** When a
+  deployment configures a GitHub App, the repository picker in Settings (and the
+  new-workspace form) now lists and saves monitored repos through the
+  server-managed App installation, so a workspace admin no longer has to put a
+  GitHub PAT in every browser just to configure repo grounding. Deployments
+  without a GitHub App keep working through the existing browser-PAT path, and
+  saved repositories keep their stable GitHub id and owner/name (REEF-239).
 - **Drill through related issues without losing your place.** Following a
   parent breadcrumb or sub-issue from an open issue now swaps the side panel to
   that issue in place and shows a top-left **Back** to the issue you came from,

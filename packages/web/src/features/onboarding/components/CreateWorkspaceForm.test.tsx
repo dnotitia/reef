@@ -26,6 +26,17 @@ vi.mock("@/lib/apiClient", async () => {
   return { ...actual, apiFetch: vi.fn() };
 });
 
+// Deployment-managed GitHub App availability (REEF-239) — keep the monitored-
+// repo selector's credential gate deterministic instead of hitting the network
+// for /api/github/status during the onboarding form tests.
+vi.mock("@/features/settings/hooks/useGithubAppAvailable", () => ({
+  useGithubAppAvailable: () => ({
+    isAvailable: false,
+    isLoading: false,
+    appId: null,
+  }),
+}));
+
 import { apiFetch } from "@/lib/apiClient";
 import { getActiveVault } from "@/lib/storage/config";
 import { db } from "@/lib/storage/db";

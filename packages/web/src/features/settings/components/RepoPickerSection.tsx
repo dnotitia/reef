@@ -2,6 +2,7 @@
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import { useGithubAppAvailable } from "@/features/settings/hooks/useGithubAppAvailable";
 import { useHasGithubToken } from "@/features/settings/hooks/useHasGithubToken";
 import {
   type ConfigMutation,
@@ -46,20 +47,29 @@ export function RepoPickerSection({
   const { vault: activeVault, isLoading: activeVaultLoading } =
     useActiveVault();
 
-  // Token gate (REEF-159): without a configured token `useRepos` is disabled,
-  // so its query sits in a permanent `pending` fetchStatus. Drive the selector's
-  // loading/error from token state directly — keying loading off `isPending`
-  // alone would pin the picker to a forever-skeleton, and treating "no token"
-  // as an error surfaces the same "connect GitHub first" hint without ever
-  // issuing the 401-bound request.
+  // Credential gate (REEF-159, extended in REEF-239): without an available
+  // credential `useRepos` is disabled, so its query sits in a permanent
+  // `pending` fetchStatus. Drive the selector's loading/error from credential
+  // state directly — keying loading off `isPending` alone would pin the picker
+  // to a forever-skeleton, and treating "no credential" as an error surfaces the
+  // "connect GitHub first" hint without ever issuing the 401-bound request.
+  //
+  // Either a browser PAT or a deployment-managed GitHub App can serve the list,
+  // so the picker is usable without a PAT when the server App is configured.
   const { hasToken, isLoading: tokenLoading } = useHasGithubToken();
+  const { isAvailable: appAvailable, isLoading: appLoading } =
+    useGithubAppAvailable();
+  const canListRepos = hasToken || appAvailable;
+  const credentialLoading = tokenLoading || appLoading;
   const reposQuery = useRepos();
   const availableRepos = useMemo(
     () => reposQuery.data ?? [],
     [reposQuery.data],
   );
-  const reposFetchLoading = tokenLoading || (hasToken && reposQuery.isPending);
-  const reposFetchError = !hasToken || (reposQuery.isError && !reposQuery.data);
+  const reposFetchLoading =
+    credentialLoading || (canListRepos && reposQuery.isPending);
+  const reposFetchError =
+    !canListRepos || (reposQuery.isError && !reposQuery.data);
 
   const configQuery = useProjectConfig(activeVault);
   const updateConfig = useUpdateProjectConfig(activeVault);
