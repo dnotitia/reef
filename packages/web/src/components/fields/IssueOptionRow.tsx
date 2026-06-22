@@ -58,7 +58,10 @@ export function IssueOptionRow({
   return (
     <div
       className={cn(
-        "grid min-w-0 flex-1 items-center gap-x-2",
+        // `@container` makes the row's own width queryable so the type label can
+        // fold to a glyph in a too-narrow column (the half-width relation column)
+        // while the wider dropdown and Sub-issues list keep it (REEF-285).
+        "@container grid min-w-0 flex-1 items-center gap-x-2",
         // status · id · title · type · priority. Only the title track flexes and
         // truncates; the priority track is fixed so the dots align across rows.
         "grid-cols-[auto_5rem_minmax(0,1fr)_auto_0.75rem]",
@@ -100,7 +103,13 @@ export function IssueOptionRow({
           />
         ) : null}
       </span>
-      <TypePill type={issue.issue_type} variant="list" />
+      <TypePill
+        type={issue.issue_type}
+        variant="list"
+        // Below ~16rem of row width the title has no room for both the type label
+        // and a blocked marker; drop to a glyph-only type there (REEF-285).
+        labelClassName="@max-[16rem]:hidden"
+      />
       {/* Priority always reserves its column so the dot lines up whether or not
           a sibling row carries one. */}
       <span className="flex justify-center">

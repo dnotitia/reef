@@ -17,9 +17,11 @@ describe("TypePill", () => {
     expect(screen.getByText("Task")).toBeInTheDocument();
   });
 
+  // The label sits in its own span (so a caller can hide it responsively —
+  // REEF-285); the variant chrome lives on the pill wrapper, i.e. its parent.
   it("applies the kanban variant classes verbatim", () => {
     render(<TypePill type="story" variant="kanban" />);
-    const el = screen.getByText("Story");
+    const el = screen.getByText("Story").parentElement as HTMLElement;
     expect(el.className).toContain("rounded-sm");
     expect(el.className).toContain("bg-surface-subtle");
     expect(el.className).toContain("text-[10px]");
@@ -27,7 +29,7 @@ describe("TypePill", () => {
 
   it("applies the list variant classes verbatim", () => {
     render(<TypePill type="story" variant="list" />);
-    const el = screen.getByText("Story");
+    const el = screen.getByText("Story").parentElement as HTMLElement;
     expect(el.className).toContain("rounded-full");
     expect(el.className).toContain("bg-secondary");
     expect(el.className).toContain("text-[11px]");
@@ -35,13 +37,13 @@ describe("TypePill", () => {
 
   it("applies the activity variant classes verbatim", () => {
     render(<TypePill type="epic" variant="activity" />);
-    const el = screen.getByText("Epic");
+    const el = screen.getByText("Epic").parentElement as HTMLElement;
     expect(el.className).toContain("bg-background/70");
   });
 
   it("renders the badge variant chrome-less for dropdown rows", () => {
     render(<TypePill type="bug" variant="badge" />);
-    const el = screen.getByText("Bug");
+    const el = screen.getByText("Bug").parentElement as HTMLElement;
     // No chip chrome — the dropdown row reads as bare glyph + label, matching
     // the StatusBadge / PriorityBadge / SeverityBadge leaves beside it.
     expect(el.className).not.toContain("rounded-full");
@@ -52,7 +54,25 @@ describe("TypePill", () => {
 
   it("merges a caller className", () => {
     render(<TypePill type="task" variant="kanban" className="ml-auto" />);
-    expect(screen.getByText("Task").className).toContain("ml-auto");
+    expect(
+      (screen.getByText("Task").parentElement as HTMLElement).className,
+    ).toContain("ml-auto");
+  });
+
+  it("applies labelClassName to the label span only (responsive hide)", () => {
+    render(
+      <TypePill
+        type="story"
+        variant="list"
+        labelClassName="@max-[16rem]:hidden"
+      />,
+    );
+    const label = screen.getByText("Story");
+    // The hide class is on the label, not the pill wrapper, so the glyph stays.
+    expect(label.className).toContain("@max-[16rem]:hidden");
+    expect((label.parentElement as HTMLElement).className).not.toContain(
+      "@max-[16rem]:hidden",
+    );
   });
 
   it("renders a per-type colored glyph hidden from the a11y tree", () => {

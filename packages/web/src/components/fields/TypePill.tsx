@@ -74,9 +74,20 @@ interface TypePillProps {
   type: IssueType | null | undefined;
   variant?: TypePillVariant;
   className?: string;
+  /**
+   * Classes for the label span — e.g. a container-query `@max-[…]:hidden` so a
+   * dense row can drop to a glyph-only type when its column is too narrow for
+   * the label (REEF-285). The glyph still carries the type via shape + color.
+   */
+  labelClassName?: string;
 }
 
-export function TypePill({ type, variant = "list", className }: TypePillProps) {
+export function TypePill({
+  type,
+  variant = "list",
+  className,
+  labelClassName,
+}: TypePillProps) {
   const resolved = type ?? "task";
   const Icon = TYPE_ICON[resolved];
   return (
@@ -90,7 +101,7 @@ export function TypePill({ type, variant = "list", className }: TypePillProps) {
         )}
         aria-hidden="true"
       />
-      {ISSUE_TYPE_LABELS[resolved]}
+      <span className={labelClassName}>{ISSUE_TYPE_LABELS[resolved]}</span>
     </span>
   );
 }
