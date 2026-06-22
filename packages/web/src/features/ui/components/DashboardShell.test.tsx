@@ -45,25 +45,38 @@ vi.mock("@/features/my-work/hooks/useMyWorkAttention", () => ({
   useMyWorkAttention: () => myWorkAttentionState,
 }));
 
+// The Settings skill-drift badge (REEF-257) reads workspace skill status from
+// this hook. DashboardShell only consumes `.data?.up_to_date`, so a partial
+// query-result shape is enough to drive the badge directly.
+vi.mock("@/features/settings/hooks/useWorkspaceSkillStatus", () => ({
+  useWorkspaceSkillStatus: () => skillStatusState,
+}));
+
 vi.mock("@/features/preferences/hooks/useThemeSync", () => ({
   useThemeSync: vi.fn(),
 }));
 
-const { navigationState, unreadInboxState, myWorkAttentionState } = vi.hoisted(
-  () => ({
-    navigationState: {
-      pathname: "/issues",
-    },
-    unreadInboxState: {
-      count: 0,
-    },
-    myWorkAttentionState: {
-      attention: 0,
-      overdue: 0,
-      dueSoon: 0,
-    },
-  }),
-);
+const {
+  navigationState,
+  unreadInboxState,
+  myWorkAttentionState,
+  skillStatusState,
+} = vi.hoisted(() => ({
+  navigationState: {
+    pathname: "/issues",
+  },
+  unreadInboxState: {
+    count: 0,
+  },
+  myWorkAttentionState: {
+    attention: 0,
+    overdue: 0,
+    dueSoon: 0,
+  },
+  skillStatusState: {
+    data: undefined as { up_to_date: boolean } | undefined,
+  },
+}));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => navigationState.pathname,
@@ -88,6 +101,7 @@ describe("DashboardShell", () => {
     myWorkAttentionState.attention = 0;
     myWorkAttentionState.overdue = 0;
     myWorkAttentionState.dueSoon = 0;
+    skillStatusState.data = undefined;
     useViewStore.setState({
       sidebarCollapsed: false,
       newIssueDialogOpen: false,
@@ -276,6 +290,113 @@ describe("DashboardShell", () => {
     );
 
     expect(screen.getByTestId("activity-unread-dot")).toBeVisible();
+  });
+
+  it("shows the Settings skill-update dot when the active workspace skill is outdated (REEF-257)", () => {
+    skillStatusState.data = { up_to_date: false };
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+    const badge = screen.getByTestId("workspace-skill-badge");
+    expect(badge).toBeVisible();
+    // Orange (warn) advisory tone, never the destructive red reserved for My
+    // Work's missed commitments.
+    expect(badge).toHaveClass("bg-priority-high");
+    expect(badge).toHaveAccessibleName(
+      "Workspace instructions update available",
+    );
+    // It is a count-less dot, not a numeric pill — the label is the only signal.
+    expect(badge).toBeEmptyDOMElement();
+  });
+
+  it("hides the Settings skill-update dot when the workspace skill is up to date (REEF-257 AC3)", () => {
+    skillStatusState.data = { up_to_date: true };
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+    expect(
+      screen.queryByTestId("workspace-skill-badge"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the Settings skill-update dot while the status is indeterminate (REEF-257 AC3)", () => {
+    // Loading, errored, or a vault-less shell all leave `data` undefined.
+    skillStatusState.data = undefined;
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+    expect(
+      screen.queryByTestId("workspace-skill-badge"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the Settings skill-update dot while on /settings — the page owns the drift (REEF-257)", () => {
+    navigationState.pathname = "/settings/workspace";
+    skillStatusState.data = { up_to_date: false };
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+    expect(
+      screen.queryByTestId("workspace-skill-badge"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("reduces the Settings skill-update badge to a dot when collapsed (REEF-257)", () => {
+    useViewStore.setState({ sidebarCollapsed: true });
+    skillStatusState.data = { up_to_date: false };
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+    const dot = screen.getByTestId("workspace-skill-dot");
+    expect(dot).toBeVisible();
+    expect(dot).toHaveClass("bg-priority-high");
+    expect(dot).toHaveAccessibleName("Workspace instructions update available");
+  });
+
+  it("removes the Settings dot once the workspace skill is updated (REEF-257 AC2)", () => {
+    skillStatusState.data = { up_to_date: false };
+    const { rerender } = render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+    expect(screen.getByTestId("workspace-skill-badge")).toBeVisible();
+    // Applying the update primes the shared ["vault-skill", vault] cache to
+    // up_to_date; the badge rides that same query, so it clears with no extra
+    // wiring.
+    skillStatusState.data = { up_to_date: true };
+    rerender(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+    expect(
+      screen.queryByTestId("workspace-skill-badge"),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps Issues active on the /issues/[id] detail route", () => {

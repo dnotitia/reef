@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  SEGMENTED_CONTROL_ITEM,
+  SEGMENTED_CONTROL_ITEM_ACTIVE,
+  SEGMENTED_CONTROL_ITEM_INACTIVE,
+  SEGMENTED_CONTROL_TRACK,
+} from "@/components/segmentedControl";
 import { cn } from "@/lib/utils";
 import { CircleDashed, Columns3, GanttChart, List } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -69,7 +75,7 @@ export function ViewSwitcher({ activeView }: ViewSwitcherProps) {
       aria-busy={isPending}
       data-testid="view-switcher"
       className={cn(
-        "inline-flex items-center gap-0.5 rounded-md border border-border-subtle bg-elevated p-0.5",
+        SEGMENTED_CONTROL_TRACK,
         // Faint pending feedback while the transition is in flight. The opacity
         // change still applies under reduced motion (the busy state stays
         // visible); only its easing is gated on motion-safe so nothing animates
@@ -91,13 +97,13 @@ export function ViewSwitcher({ activeView }: ViewSwitcherProps) {
             data-testid={`view-switcher-${view}`}
             onClick={() => selectView(view)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-[5px] px-2 py-1 text-[12px] font-medium transition-colors duration-150",
+              SEGMENTED_CONTROL_ITEM,
               isActive
-                ? "bg-surface-hover text-foreground"
-                : "text-muted-foreground hover:text-foreground",
+                ? SEGMENTED_CONTROL_ITEM_ACTIVE
+                : SEGMENTED_CONTROL_ITEM_INACTIVE,
             )}
           >
-            <Icon className="h-3.5 w-3.5 shrink-0" />
+            <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span className="hidden sm:inline">{label}</span>
           </button>
         );

@@ -194,6 +194,28 @@ describe("PlanningPage", () => {
     expect(opts).toEqual({ scroll: false });
   });
 
+  // REEF-261: the kind toggle was the family outlier — `text-sm`, `px-3 py-1.5`,
+  // and a `ring-ring` + offset focus ring. It now draws the canonical
+  // ViewSwitcher dimensions and the shared `ring-brand` ring from one module.
+  // This guards against the outlier classes reappearing.
+  it("uses the shared segmented-control dimensions and focus ring (REEF-261)", async () => {
+    render(wrap(<PlanningPage />));
+    const group = await screen.findByRole("group", { name: "Planning kind" });
+    const classes = within(group)
+      .getByRole("button", { name: "Sprints" })
+      .className.split(/\s+/);
+    expect(classes).toContain("text-[12px]");
+    expect(classes).toContain("px-2");
+    expect(classes).toContain("font-medium");
+    expect(classes).toContain("focus-visible:ring-brand");
+    // The prior outlier dimensions and focus token are gone.
+    expect(classes).not.toContain("text-sm");
+    expect(classes).not.toContain("px-3");
+    expect(classes).not.toContain("py-1.5");
+    expect(classes).not.toContain("focus-visible:ring-ring");
+    expect(classes).not.toContain("focus-visible:ring-offset-1");
+  });
+
   it("keeps Save enabled and validates a missing name inline", async () => {
     const user = userEvent.setup();
     render(wrap(<PlanningPage />));

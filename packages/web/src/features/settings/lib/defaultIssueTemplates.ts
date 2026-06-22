@@ -2,14 +2,132 @@ import type { Template } from "@reef/core";
 
 /**
  * Seed templates the "Seed default templates" button commits when
- * `.reef/templates/` is empty. After seeding, these constants are no longer
- * read — the user edits the on-disk files instead.
+ * `reef_templates` is empty. After seeding, these constants are no longer read —
+ * the user edits the stored rows instead.
+ *
+ * The set is aligned 1:1 to reef's canonical `IssueTypeEnum`
+ * (epic / story / task / bug / spike / chore): each template `name` is the type
+ * id and `default_labels` seeds the matching kind label. Templates do not set
+ * `issue_type` directly — the create dialog owns the Type field, and templates
+ * are not queried by type, so wiring a template→type column is deliberately out
+ * of scope (REEF-256). `feature` (→ `story`) and `tech-debt` (→ a `task`/`chore`
+ * carrying the `tech-debt` label) are intentionally dropped: neither is a reef
+ * issue type.
+ *
+ * Acceptance-criteria policy is deliberate, not blanket. Given/When/Then lands
+ * only on the behavior-bearing types — `story` (user-facing scenarios) and `bug`
+ * (a regression guard). The other four encode a done-definition that fits their
+ * kind instead, because forcing a behavioral scenario onto them would be noise:
+ *   - epic  → outcome success criteria (the scenarios live on its child stories)
+ *   - task  → verifiable checks that reference the parent story's AC
+ *   - spike → a question answered with a documented recommendation
+ *   - chore → the change performed plus a verification step
+ *
+ * Richness is calibrated for a general workspace, not reef's own process. The
+ * universally-useful PM-hygiene sections proven on reef's dogfooding vault are
+ * carried over — bug Boundaries + Verification, epic Requirements, task Testing —
+ * while reef-specific scaffolds (Code Map paths, "Project Structure Notes") are
+ * left out so adopting teams get a substantive but not reef-shaped starting point.
  */
 export const DEFAULT_ISSUE_TEMPLATES: readonly Template[] = [
   {
+    name: "epic",
+    label: "Epic",
+    description:
+      "Large outcome with requirements and success criteria; decomposes into child stories.",
+    title_prefix: "Epic: ",
+    default_labels: ["epic"],
+    body: [
+      "## Outcome",
+      "<the product outcome this epic delivers, and for whom>",
+      "",
+      "## Why now",
+      "<the user value or business goal — describe what, not how>",
+      "",
+      "## Requirements",
+      "- Functional: <FR-1 — a capability this epic must deliver>",
+      "- Non-functional: <NFR-1 — performance, accessibility, security, …>",
+      "",
+      "## Success criteria",
+      "<!-- Epics are measured by outcomes, not Given/When/Then. The behavioral",
+      "     scenarios live on the child stories. -->",
+      "- <observable outcome or metric that proves the epic is done>",
+      "- <quality / operational bar that must hold>",
+      "",
+      "## Scope",
+      "- In scope: ",
+      "- Out of scope: ",
+      "",
+      "## Child stories",
+      "<!-- Break down into story issues with this epic as parent_id. -->",
+      "- <story 1>",
+      "",
+      "## Open questions",
+      "- ",
+    ].join("\n"),
+  },
+  {
+    name: "story",
+    label: "User story",
+    description:
+      "User-facing outcome with Given/When/Then acceptance criteria.",
+    title_prefix: "Story: ",
+    default_labels: ["story"],
+    body: [
+      "## User story",
+      "As a <role>,",
+      "I want <action>,",
+      "so that <benefit>.",
+      "",
+      "## Context",
+      "<the user problem, product context, and why this matters>",
+      "",
+      "## Acceptance criteria",
+      "- [ ] Given <context / precondition>, when <user action>, then <observable outcome>.",
+      "- [ ] Given <an edge case or constraint>, when <action>, then <expected handling>.",
+      "",
+      "## Scope",
+      "- In scope: ",
+      "- Out of scope: ",
+      "",
+      "## Notes",
+      "- ",
+    ].join("\n"),
+  },
+  {
+    name: "task",
+    label: "Task",
+    description:
+      "Scoped work item; done as checks that reference the parent story's AC.",
+    priority: "medium",
+    default_labels: [],
+    body: [
+      "## Goal",
+      "<the implementation outcome this task achieves>",
+      "",
+      "## Approach",
+      "<high-level plan; key files / modules to touch>",
+      "",
+      "## Done when",
+      "<!-- A task is a slice of a story. State done as verifiable checks and",
+      "     reference the parent story's acceptance criteria instead of restating",
+      "     Given/When/Then here. -->",
+      "- [ ] <verifiable check> (satisfies parent AC: <story AC # or N/A>)",
+      "- [ ] Gates pass: typecheck, lint, tests.",
+      "",
+      "## Testing",
+      "- Unit: <unit coverage to add or update>",
+      "- Integration / E2E: <end-to-end or contract coverage, or N/A>",
+      "",
+      "## Notes",
+      "- ",
+    ].join("\n"),
+  },
+  {
     name: "bug",
     label: "Bug report",
-    description: "Reproducible defect with steps + expected vs. actual.",
+    description:
+      "Reproducible defect; acceptance criteria are the regression guard.",
     title_prefix: "Bug: ",
     priority: "high",
     default_labels: ["bug"],
@@ -28,68 +146,66 @@ export const DEFAULT_ISSUE_TEMPLATES: readonly Template[] = [
       "## Actual",
       "<what actually happens>",
       "",
+      "## Boundaries",
+      "- Always: <invariant that must hold while fixing — what not to break>",
+      "- Ask first: <a decision that needs product or technical approval>",
+      "- Never: <out-of-scope change or forbidden approach>",
+      "",
+      "## Acceptance criteria",
+      "- Given <the reproduction precondition>, when <the triggering action>, then <the expected behavior> instead of the reported defect.",
+      "- Given the same flow, when a regression test guards it, then it fails before the fix and passes after.",
+      "",
+      "## Verification",
+      "- Commands: <command> — expected: <success criteria>",
+      "- Manual checks: <what to inspect and the expected state>",
+      "",
       "## Environment",
       "- ",
     ].join("\n"),
   },
   {
-    name: "feature",
-    label: "Feature request",
-    description: "Problem statement + proposed solution + acceptance.",
-    title_prefix: "Feature: ",
-    priority: "medium",
-    default_labels: ["feature"],
+    name: "spike",
+    label: "Spike",
+    description:
+      "Time-boxed investigation; done is a documented recommendation.",
+    title_prefix: "Spike: ",
+    default_labels: ["spike"],
     body: [
-      "## Problem",
-      "<the user pain or business goal>",
+      "## Question",
+      "<the specific question or uncertainty this spike resolves>",
       "",
-      "## Proposed solution",
-      "<sketch of the approach>",
+      "## Time box",
+      "<the effort ceiling, e.g. 1 day — stop and report when reached>",
       "",
-      "## Acceptance criteria",
-      "- [ ] ",
-      "- [ ] ",
+      "## Done when",
+      "<!-- A spike produces a decision, not shipped behavior — no Given/When/Then. -->",
+      "- [ ] The question above is answered.",
+      "- [ ] Options considered are documented with trade-offs.",
+      "- [ ] A recommendation (and any follow-up issues) is recorded.",
       "",
-      "## Out of scope",
-      "- ",
+      "## Findings",
+      "<filled in as the spike progresses>",
     ].join("\n"),
   },
   {
-    name: "task",
-    label: "Task",
-    description: "Scoped work item with goal + approach + notes.",
-    priority: "medium",
-    default_labels: [],
+    name: "chore",
+    label: "Chore",
+    description:
+      "Maintenance / housekeeping; done is the change plus a verification.",
+    title_prefix: "Chore: ",
+    priority: "low",
+    default_labels: ["chore"],
     body: [
       "## Goal",
-      "<what we're trying to achieve>",
+      "<the maintenance / housekeeping outcome — deps, config, tooling, cleanup>",
       "",
-      "## Approach",
-      "<high-level plan>",
+      "## Done when",
+      "<!-- Operational work, not user-facing behavior — no Given/When/Then. -->",
+      "- [ ] <the change is performed>",
+      "- [ ] Verification: <command or check confirming nothing regressed>",
       "",
       "## Notes",
       "- ",
-    ].join("\n"),
-  },
-  {
-    name: "tech-debt",
-    label: "Tech debt",
-    description: "Cleanup / refactor with risk + payoff.",
-    title_prefix: "Tech debt: ",
-    priority: "low",
-    default_labels: ["tech-debt"],
-    body: [
-      "## Current state",
-      "<what's there today and why it's painful>",
-      "",
-      "## Target state",
-      "<what we want it to look like>",
-      "",
-      "## Risk",
-      "<what could go sideways during the change>",
-      "",
-      "## Payoff",
-      "<why now>",
     ].join("\n"),
   },
 ];

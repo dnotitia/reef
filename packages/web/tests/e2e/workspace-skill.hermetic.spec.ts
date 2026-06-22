@@ -22,11 +22,15 @@ test.describe("Hermetic workspace skill update workflow", () => {
     await resetFixture(request, "skill_outdated");
   });
 
-  test("applies the workspace AI instruction update and stamps the current skill version", async ({
+  test("applies the workspace AI instruction update, stamps the version, and reflects drift in the sidebar Settings badge (REEF-257)", async ({
     page,
     request,
   }) => {
     await openExistingWorkspace(page);
+
+    // REEF-257 AC1: the drift lights the sidebar Settings badge on the landing
+    // route (/issues), so it is discoverable without opening settings.
+    await expect(page.getByTestId("workspace-skill-badge")).toBeVisible();
 
     const before = reefVault(await readFixtureState(request));
     expect(before.settings.vault_skill).toMatchObject({ version: 9 });
@@ -39,6 +43,9 @@ test.describe("Hermetic workspace skill update workflow", () => {
     await expect(
       page.getByText("Newer AI instructions are available."),
     ).toBeVisible();
+    // The badge yields once Settings is active — the page now owns the drift
+    // detail, so the sidebar dot would be redundant.
+    await expect(page.getByTestId("workspace-skill-badge")).toHaveCount(0);
     await page.locator('[data-testid="update-skill-btn"]').click();
     await expect(
       page.locator('[data-testid="confirm-skill-update"]'),
@@ -74,5 +81,12 @@ test.describe("Hermetic workspace skill update workflow", () => {
           "overview/reef/activity-inbox-workflows.md",
         ]),
       );
+
+    // REEF-257 AC2: once the workspace is up to date, the sidebar badge is gone.
+    // Checked off the settings route (where the active state would hide it
+    // regardless) — the vault is now stamped current, so even a fresh load
+    // resolves up_to_date and the badge stays dark.
+    await page.goto("/issues");
+    await expect(page.getByTestId("workspace-skill-badge")).toHaveCount(0);
   });
 });

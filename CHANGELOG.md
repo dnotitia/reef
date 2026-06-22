@@ -21,6 +21,12 @@ explicitly in the entries below.
   GitHub PAT in every browser just to configure repo grounding. Deployments
   without a GitHub App keep working through the existing browser-PAT path, and
   saved repositories keep their stable GitHub id and owner/name (REEF-239).
+- **Spot outdated workspace AI instructions from the sidebar.** When your active
+  workspace is running an older agent playbook, the sidebar **Settings** entry
+  now shows a small amber dot, so the drift is discoverable without opening
+  settings first. The dot clears as soon as you apply the update — and applying
+  it now confirms with a brief "Workspace instructions updated." message — and it
+  stays hidden while the status is still loading or already current (REEF-257).
 - **Drill through related issues without losing your place.** Following a
   parent breadcrumb or sub-issue from an open issue now swaps the side panel to
   that issue in place and shows a top-left **Back** to the issue you came from,
@@ -44,8 +50,55 @@ explicitly in the entries below.
   one-line entries in an issue's Activity thread, next to status changes and
   delivery. Planning links read by name rather than a raw id, and a linked
   delivery ref still appears once, not twice (REEF-276).
+
+### Changed
+
+- **New workspaces start from issue-type-aligned templates.** The default issue
+  templates seeded by Settings → Templates now match reef's issue types — Epic,
+  User story, Task, Bug, Spike, and Chore — replacing the previous Bug / Feature
+  / Task / Tech debt set. Story and Bug ship with `Given / When / Then`
+  acceptance criteria, and the other types carry a done-definition that fits
+  them (epic success criteria, task checks tied to the parent story, spike
+  recommendation, chore verification). Each template also carries the practical
+  sections proven on reef's own board — bug boundaries and verification, epic
+  requirements, task testing — kept general rather than reef-specific. Templates
+  still seed each issue's kind label; you continue to pick the Type in the create
+  dialog. Workspaces that already seeded templates keep them unchanged (REEF-256).
+- **Related, blocking, and dependency links now drill in place like the rest.**
+  Clicking a depends-on, blocks, or related issue in an open issue's
+  Relationships swaps the panel to that issue and adds it to the same **Back**
+  trail as the parent breadcrumb and sub-issues — keeping the list or board you
+  came from behind it — instead of opening as a separate navigation that lost
+  your place. The drill **Back** and **Close** now share one row at the top of
+  the panel, so they line up instead of Back sitting on its own strip above the
+  header (REEF-284).
+- **Loading skeletons are quieter for screen readers.** While a page, panel, or
+  feed is loading, assistive technology now hears a single "Loading…" status
+  instead of walking through the empty placeholder bars — the decorative skeleton
+  trees are hidden from the accessibility tree and a sibling status region
+  carries the announcement. Real page and section headings stay readable, and
+  nothing changes visually (REEF-281).
+- **Reports names its workspace, like every other page.** The Reports header now
+  shows the active workspace as a subtitle, matching the Issues, Planning, and
+  Activity headers so the page's vault scope is visible at a glance. Page-header
+  subtitles (the workspace name, or `@login` on My Work) are now marked as
+  identifiers so machine translation leaves them untouched (REEF-260).
+- **Click a planning row's name to open its details.** On the Planning list
+  (sprints, milestones, releases), clicking a row's name now expands and
+  collapses its detail body, not just the small chevron — the chevron and name
+  are one larger, keyboard-accessible toggle instead of two controls for the same
+  panel. Rows with no detail stay plain text with no toggle (REEF-264).
+
 ### Fixed
 
+- **The parent breadcrumb no longer flashes a raw issue number before its
+  title.** Opening a sub-issue from a deep link or a cold cache used to briefly
+  show the parent's raw id (for example `REEF-273`) in the header breadcrumb
+  until the issue list finished loading, then swap it for the parent's title.
+  The breadcrumb now holds a neutral placeholder while the list loads and fills
+  in the title with no visible "number → title" flicker. A parent that is
+  genuinely missing from the loaded list still falls back to its id so the link
+  stays usable (REEF-283).
 - **Switching issue views no longer flickers or feels laggy.** Clicking between
   the Board, List, Timeline, and Backlog tabs now keeps the current view on
   screen and swaps in the next one without flashing the board-shaped loading
@@ -100,6 +153,18 @@ explicitly in the entries below.
   collapses its detail body, not just the small chevron — the chevron and name
   are one larger, keyboard-accessible toggle instead of two controls for the same
   panel. Rows with no detail stay plain text with no toggle (REEF-264).
+- **The segmented toggles look and behave alike, and show keyboard focus.** The
+  issue view switcher (Board / List / Timeline / Backlog), the Settings tabs, and
+  the Planning kind toggle now share one size, spacing, and focus style. The view
+  switcher, which previously gave keyboard users no visible focus indicator, now
+  shows the same focus ring as the others, and the Planning toggle is no longer a
+  larger outlier (REEF-261).
+- **Relation chips in the create and draft forms finish their accessibility.**
+  The plain relation chips in the create dialog and activity-draft editor now
+  show a keyboard focus ring on their remove `X` (matching the detail panel's
+  chips), hide that decorative `X` from screen readers while the button keeps its
+  "Remove {id}" name, and mark the chip id so machine translation leaves the reef
+  id intact. The chips stay non-navigating and look exactly the same (REEF-282).
 
 ## v0.5.0 - 2026-06-19
 

@@ -17,7 +17,6 @@ import { toast } from "sonner";
 import { buildStatusPatch } from "../../lib/statusPatch";
 import { CloseIssueDialog } from "./CloseIssueDialog";
 import { DeleteIssueDialog } from "./DeleteIssueDialog";
-import { IssueDetailCloseButton } from "./IssueDetailCloseButton";
 import {
   type IssueDetailDraft,
   createIssueDetailDraft,
@@ -48,56 +47,38 @@ interface IssueDetailProps {
  */
 export function IssueDetail({ issueId, vault, onClose }: IssueDetailProps) {
   const { data, isPending, isError, error, refetch } = useIssue(issueId, vault);
-  const { data: allIssues = [] } = useIssueList(vault);
+  // `isPending` (status === 'pending') is true only when the list has no rows
+  // yet — a cold cache / deep link. A within-vault navigation keeps the previous
+  // rows as placeholder (status 'success'), so this stays false and the parent
+  // resolves immediately. The header uses it to skeleton the parent crumb rather
+  // than flash the raw id while the list lands (REEF-283).
+  const { data: allIssues = [], isPending: allIssuesPending } =
+    useIssueList(vault);
   // Whole-vault relation graph for accurate blocked badges in the relation dropdowns.
   const { data: relations } = useIssueRelations(vault);
 
-  // The skeleton and error states render no IssueDetailHeader, so they supply
-  // their own top-right close button to keep the sheet dismissable (REEF-111).
+  // The skeleton and error states render no IssueDetailHeader. The sheet's top
+  // chrome row owns the close affordance in every state (REEF-284), so these
+  // states no longer carry their own close button.
   if (isPending) {
-    return (
-      <>
-        <IssueDetailCloseButton
-          onClose={onClose}
-          className="absolute top-4 right-4 z-10"
-        />
-        <IssueDetailSkeleton />
-      </>
-    );
+    return <IssueDetailSkeleton />;
   }
 
   if (isError) {
     return (
-      <>
-        <IssueDetailCloseButton
-          onClose={onClose}
-          className="absolute top-4 right-4 z-10"
-        />
-        <div
-          data-testid="issue-detail-error"
-          className="p-6 flex flex-col gap-4"
-        >
-          <p className="text-sm text-destructive">
-            {error instanceof Error ? error.message : "Failed to load issue."}
-          </p>
-          <Button variant="outline" size="sm" onClick={() => void refetch()}>
-            Retry
-          </Button>
-        </div>
-      </>
+      <div data-testid="issue-detail-error" className="p-6 flex flex-col gap-4">
+        <p className="text-sm text-destructive">
+          {error instanceof Error ? error.message : "Failed to load issue."}
+        </p>
+        <Button variant="outline" size="sm" onClick={() => void refetch()}>
+          Retry
+        </Button>
+      </div>
     );
   }
 
   if (!data) {
-    return (
-      <>
-        <IssueDetailCloseButton
-          onClose={onClose}
-          className="absolute top-4 right-4 z-10"
-        />
-        <IssueDetailSkeleton />
-      </>
-    );
+    return <IssueDetailSkeleton />;
   }
 
   return (
@@ -107,6 +88,7 @@ export function IssueDetail({ issueId, vault, onClose }: IssueDetailProps) {
       vault={vault}
       data={data}
       allIssues={allIssues}
+      allIssuesPending={allIssuesPending}
       relations={relations}
       onClose={onClose}
     />
@@ -118,11 +100,13 @@ function IssueDetailLoaded({
   vault,
   data,
   allIssues,
+  allIssuesPending,
   relations,
   onClose,
 }: IssueDetailProps & {
   data: IssueDetailResponse;
   allIssues: ReturnType<typeof useIssueList>["data"];
+  allIssuesPending: boolean;
   relations: ReturnType<typeof useIssueRelations>["data"];
 }) {
   const updateMutation = useUpdateIssue();
@@ -304,9 +288,9 @@ function IssueDetailLoaded({
         isDeletePending={deleteMutation.isPending}
         onArchiveToggle={() => void handleArchiveToggle()}
         onDeleteRequested={() => setConfirmDeleteOpen(true)}
-        onClose={onClose}
         parentId={draft.parentId || null}
         allIssues={allIssues ?? []}
+        allIssuesPending={allIssuesPending}
       />
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
