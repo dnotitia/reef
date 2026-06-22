@@ -72,6 +72,14 @@ explicitly in the entries below.
   your place. The drill **Back** and **Close** now share one row at the top of
   the panel, so they line up instead of Back sitting on its own strip above the
   header (REEF-284).
+- **The issue panel's top bar is now one steady strip.** The issue id, its
+  status and type, the parent breadcrumb, and the **Back** / **Close** controls
+  now live in a single bar that stays put while the issue below it loads — so the
+  id and Close never blink when you drill into an issue that isn't cached yet, and
+  only the title, description, side rail, and timeline show a loading skeleton.
+  This also removes the empty strip that used to sit above the header when you
+  weren't drilled in: the id always fills the bar's left and **Close** is the one
+  control on its right, in every state (REEF-286).
 - **Loading skeletons are quieter for screen readers.** While a page, panel, or
   feed is loading, assistive technology now hears a single "Loading…" status
   instead of walking through the empty placeholder bars — the decorative skeleton

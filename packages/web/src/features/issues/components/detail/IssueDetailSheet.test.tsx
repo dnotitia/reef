@@ -44,6 +44,17 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+// The persistent chrome bar reads these for its identity cluster (REEF-286).
+// They are query data, not what these chrome/dismiss tests exercise, so stub
+// them empty — the bar then shows the route-param id alone, which is exactly the
+// loading / id-only state the AC2 assertions check.
+vi.mock("@/features/issues/hooks/queries/useIssue", () => ({
+  useIssue: () => ({ data: undefined }),
+}));
+vi.mock("@/features/issues/hooks/queries/useIssueList", () => ({
+  useIssueList: () => ({ data: undefined, isPending: false }),
+}));
+
 import { useIssueNavStack } from "@/features/issues/stores/useIssueNavStack";
 import { IssueDetailSheet } from "./IssueDetailSheet";
 
@@ -117,6 +128,27 @@ describe("IssueDetailSheet", () => {
     const closers = screen.getAllByRole("button", { name: "Close" });
     expect(closers).toHaveLength(1);
     expect(closers[0]).toHaveAttribute("data-testid", "issue-close");
+  });
+
+  // REEF-286: the identity/nav bar is persistent chrome outside the body, so the
+  // route-param id fills the bar's left in every state — there is never an empty
+  // band, and the id never blinks while the body below skeletons (AC1 · AC2).
+  it.each([
+    ["vault loading", { vault: "", isLoading: true }],
+    ["no vault", { vault: "", isLoading: false }],
+    ["vault available", { vault: "reef-acme", isLoading: false }],
+  ])("fills the chrome bar with the issue id (%s)", (_label, vaultState) => {
+    mockUseActiveVault.mockReturnValue({
+      ...vaultState,
+      refetch: () => Promise.resolve(),
+    });
+    render(wrap(<IssueDetailSheet issueId="REEF-001" onClose={() => {}} />));
+
+    const bar = screen.getByTestId("issue-detail-chrome");
+    expect(bar).toHaveTextContent("REEF-001");
+    // The bar also owns the single Close, so the left id + right Close pair is
+    // present without an empty band in any state.
+    expect(bar).toContainElement(screen.getByTestId("issue-close"));
   });
 
   it("dismisses through the fallback close button in a header-less state (REEF-111)", async () => {

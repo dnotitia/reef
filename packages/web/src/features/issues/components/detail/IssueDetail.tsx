@@ -17,12 +17,12 @@ import { toast } from "sonner";
 import { buildStatusPatch } from "../../lib/statusPatch";
 import { CloseIssueDialog } from "./CloseIssueDialog";
 import { DeleteIssueDialog } from "./DeleteIssueDialog";
+import { IssueChromeActions } from "./IssueChromeActions";
 import {
   type IssueDetailDraft,
   createIssueDetailDraft,
   issueDetailDraftReducer,
 } from "./IssueDetailDraft";
-import { IssueDetailHeader } from "./IssueDetailHeader";
 import { IssueDetailMain } from "./IssueDetailMain";
 import { IssueDetailSidebar } from "./IssueDetailSidebar";
 import { IssueDetailSkeleton } from "./IssueDetailSkeleton";
@@ -47,19 +47,17 @@ interface IssueDetailProps {
  */
 export function IssueDetail({ issueId, vault, onClose }: IssueDetailProps) {
   const { data, isPending, isError, error, refetch } = useIssue(issueId, vault);
-  // `isPending` (status === 'pending') is true only when the list has no rows
-  // yet — a cold cache / deep link. A within-vault navigation keeps the previous
-  // rows as placeholder (status 'success'), so this stays false and the parent
-  // resolves immediately. The header uses it to skeleton the parent crumb rather
-  // than flash the raw id while the list lands (REEF-283).
-  const { data: allIssues = [], isPending: allIssuesPending } =
-    useIssueList(vault);
+  // Whole-vault list, the relation inputs' option source. The parent breadcrumb
+  // that also reads it now lives in the sheet's persistent chrome bar (REEF-286),
+  // which owns its own `useIssueList` read for the crumb's loading skeleton
+  // (REEF-283) — so the body no longer threads `allIssuesPending` through.
+  const { data: allIssues = [] } = useIssueList(vault);
   // Whole-vault relation graph for accurate blocked badges in the relation dropdowns.
   const { data: relations } = useIssueRelations(vault);
 
-  // The skeleton and error states render no IssueDetailHeader. The sheet's top
-  // chrome row owns the close affordance in every state (REEF-284), so these
-  // states no longer carry their own close button.
+  // Skeleton / error render only the body. The sheet's persistent chrome bar
+  // owns the identity (id · status · type · breadcrumb) and Close in every state
+  // (REEF-286), so these states carry neither a header nor a close button.
   if (isPending) {
     return <IssueDetailSkeleton />;
   }
@@ -88,7 +86,6 @@ export function IssueDetail({ issueId, vault, onClose }: IssueDetailProps) {
       vault={vault}
       data={data}
       allIssues={allIssues}
-      allIssuesPending={allIssuesPending}
       relations={relations}
       onClose={onClose}
     />
@@ -100,13 +97,11 @@ function IssueDetailLoaded({
   vault,
   data,
   allIssues,
-  allIssuesPending,
   relations,
   onClose,
 }: IssueDetailProps & {
   data: IssueDetailResponse;
   allIssues: ReturnType<typeof useIssueList>["data"];
-  allIssuesPending: boolean;
   relations: ReturnType<typeof useIssueRelations>["data"];
 }) {
   const updateMutation = useUpdateIssue();
@@ -276,21 +271,20 @@ function IssueDetailLoaded({
 
   return (
     <div data-testid="issue-detail" className="flex flex-col gap-5 p-6">
-      <IssueDetailHeader
-        issueId={issueId}
-        issueType={draft.issueType}
-        status={draft.status}
-        isArchived={isArchived}
+      {/* Identity (status · id · type · parent breadcrumb) now lives in the
+          sheet's persistent chrome bar (REEF-286); the body owns only the action
+          cluster — save status + ⋮ — which IssueChromeActions portals up into
+          that bar (and renders in-flow as a fallback when no bar is in scope,
+          e.g. a standalone unit render). */}
+      <IssueChromeActions
+        updatedAt={issue.updated_at ?? null}
         saveStatus={saveStatus}
         onRetryLastCommit={retryFailedCommits}
-        updatedAt={issue.updated_at ?? null}
+        isArchived={isArchived}
         isArchivePending={archiveMutation.isPending}
         isDeletePending={deleteMutation.isPending}
         onArchiveToggle={() => void handleArchiveToggle()}
         onDeleteRequested={() => setConfirmDeleteOpen(true)}
-        parentId={draft.parentId || null}
-        allIssues={allIssues ?? []}
-        allIssuesPending={allIssuesPending}
       />
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
