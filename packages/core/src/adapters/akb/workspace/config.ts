@@ -7,14 +7,19 @@ import {
   type Config,
   ConfigSchema,
   DEFAULT_CONFIG,
+  DEFAULT_STALE_HIDE_CANCELED_DAYS,
+  DEFAULT_STALE_HIDE_COMPLETED_DAYS,
   type MonitoredRepo,
   MonitoredRepoSchema,
+  StaleHideDaysSchema,
 } from "../../../schemas/workspace/config";
 import {
   type AkbSqlResponse,
   MONITORED_REPOS_TABLE,
   REEF_SETTINGS_AUTHORING_LANGUAGE_KEY,
   REEF_SETTINGS_PROJECT_PREFIX_KEY,
+  REEF_SETTINGS_STALE_HIDE_CANCELED_DAYS_KEY,
+  REEF_SETTINGS_STALE_HIDE_COMPLETED_DAYS_KEY,
   REEF_SETTINGS_TABLE,
   decodeSettingsValue,
   ensureReefTables,
@@ -87,6 +92,16 @@ function parseAuthoringLanguage(
   return parsed.success ? parsed.data : null;
 }
 
+function parseStaleHideDays(
+  settings: Map<string, unknown>,
+  key: string,
+  fallback: number,
+): number {
+  const decoded = settings.get(key);
+  const parsed = StaleHideDaysSchema.safeParse(decoded);
+  return parsed.success ? parsed.data : fallback;
+}
+
 function parseMonitoredRepoRow(raw: Record<string, unknown>): MonitoredRepo {
   const result = MonitoredRepoSchema.safeParse({
     github_id:
@@ -123,6 +138,12 @@ export async function readConfig(
             "settings key",
           )}, ${quoteText(
             REEF_SETTINGS_AUTHORING_LANGUAGE_KEY,
+            "settings key",
+          )}, ${quoteText(
+            REEF_SETTINGS_STALE_HIDE_COMPLETED_DAYS_KEY,
+            "settings key",
+          )}, ${quoteText(
+            REEF_SETTINGS_STALE_HIDE_CANCELED_DAYS_KEY,
             "settings key",
           )})`,
         ),
@@ -161,6 +182,16 @@ export async function readConfig(
       project_prefix: projectPrefix,
       monitored_repos: reposRows.map(parseMonitoredRepoRow),
       authoring_language: parseAuthoringLanguage(settings),
+      stale_hide_completed_days: parseStaleHideDays(
+        settings,
+        REEF_SETTINGS_STALE_HIDE_COMPLETED_DAYS_KEY,
+        DEFAULT_STALE_HIDE_COMPLETED_DAYS,
+      ),
+      stale_hide_canceled_days: parseStaleHideDays(
+        settings,
+        REEF_SETTINGS_STALE_HIDE_CANCELED_DAYS_KEY,
+        DEFAULT_STALE_HIDE_CANCELED_DAYS,
+      ),
     });
     return { config, exists: true };
   });
@@ -233,7 +264,49 @@ export async function writeConfig(params: WriteConfigParams): Promise<void> {
       );
     }
 
-    // (3) Replace all monitored_repos rows.
+    // (3) Replace resolved-issue auto-hide window rows.
+    span.setAttribute(
+      "stale_hide_completed_days",
+      config.stale_hide_completed_days,
+    );
+    span.setAttribute(
+      "stale_hide_canceled_days",
+      config.stale_hide_canceled_days,
+    );
+    await runSql(
+      adapter,
+      vault,
+      `DELETE FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${quoteText(
+        REEF_SETTINGS_STALE_HIDE_COMPLETED_DAYS_KEY,
+        "settings key",
+      )}`,
+    );
+    await runSql(
+      adapter,
+      vault,
+      `INSERT INTO ${tableRef(REEF_SETTINGS_TABLE)} (key, value) VALUES (${quoteText(
+        REEF_SETTINGS_STALE_HIDE_COMPLETED_DAYS_KEY,
+        "settings key",
+      )}, ${quoteJson(config.stale_hide_completed_days)})`,
+    );
+    await runSql(
+      adapter,
+      vault,
+      `DELETE FROM ${tableRef(REEF_SETTINGS_TABLE)} WHERE key = ${quoteText(
+        REEF_SETTINGS_STALE_HIDE_CANCELED_DAYS_KEY,
+        "settings key",
+      )}`,
+    );
+    await runSql(
+      adapter,
+      vault,
+      `INSERT INTO ${tableRef(REEF_SETTINGS_TABLE)} (key, value) VALUES (${quoteText(
+        REEF_SETTINGS_STALE_HIDE_CANCELED_DAYS_KEY,
+        "settings key",
+      )}, ${quoteJson(config.stale_hide_canceled_days)})`,
+    );
+
+    // (4) Replace all monitored_repos rows.
     await runSql(
       adapter,
       vault,

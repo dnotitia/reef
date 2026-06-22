@@ -25,6 +25,8 @@ export interface ConfigPatch {
   monitored_repos?: MonitoredRepo[];
   /** Workspace default authoring language (REEF-136); null clears it. */
   authoring_language?: AuthoringLanguage | null;
+  stale_hide_completed_days?: number;
+  stale_hide_canceled_days?: number;
 }
 
 const STALE_TIME_MS = 60_000;

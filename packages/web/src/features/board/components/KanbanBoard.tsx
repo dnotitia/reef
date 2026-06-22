@@ -13,6 +13,7 @@ import { CloseIssueDialog } from "@/features/issues/components/detail/CloseIssue
 import { useUpdateIssue } from "@/features/issues/hooks/mutations/useUpdateIssue";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
+import { useResolvedAutoHideWindows } from "@/features/issues/hooks/useResolvedAutoHideWindows";
 import { useOpenIssue } from "@/features/issues/hooks/view/useOpenIssue";
 import { useWorkflowStatusGuard } from "@/features/issues/hooks/view/useWorkflowStatusGuard";
 import { buildIssueQuery } from "@/features/issues/lib/buildIssueQuery";
@@ -90,6 +91,7 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
   );
   // isPending (not isLoading) — see useActiveVault for the rationale.
   const { data: issues, isPending, isError } = useIssueList(vault, query);
+  const staleWindowDays = useResolvedAutoHideWindows(vault);
   const { data: relations } = useIssueRelations(vault);
   const { data: planningCatalog } = usePlanningCatalog(vault);
   const mutation = useUpdateIssue();
@@ -124,6 +126,7 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
   const visibleIssues = useMemo(() => {
     const filtered = filterIssues(allIssues, filter, {
       searchActive: searchQuery.trim().length > 0,
+      staleWindowDays,
     });
     const searched = searchIssues(filtered, searchQuery);
     const depFiltered = applyDependencyFilter(
@@ -135,7 +138,7 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
     // (REEF-059). Grouping by status below preserves this order within each
     // column. An unset sort is a no-op here, leaving the server's default order.
     return sortIssues(depFiltered, filter.sortField, filter.sortOrder);
-  }, [allIssues, filter, graph, searchQuery]);
+  }, [allIssues, filter, graph, searchQuery, staleWindowDays]);
 
   // The filtered list controls card visibility; the full `allIssues` list
   // still powers dependency lookups so hidden deps can resolve accurately.

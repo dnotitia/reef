@@ -10,6 +10,9 @@ vi.mock("@/features/settings/components/ProjectSection", () => ({
 vi.mock("@/features/settings/components/AuthoringLanguageSection", () => ({
   AuthoringLanguageSection: () => <section>Authoring language</section>,
 }));
+vi.mock("@/features/settings/components/ResolvedAutoHideSection", () => ({
+  ResolvedAutoHideSection: () => <section>Resolved auto-hide</section>,
+}));
 vi.mock("@/features/settings/components/TemplatesSection", () => ({
   TemplatesSection: () => <section>Templates</section>,
 }));
@@ -51,6 +54,9 @@ describe("Workspace › General settings page (REEF-183)", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Authoring Language", level: 3 }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Completed Issues", level: 3 }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Templates", level: 3 }),

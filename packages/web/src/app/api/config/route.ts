@@ -14,6 +14,7 @@ import {
   ConfigSchema,
   MonitoredRepoSchema,
   PROJECT_PREFIX_PATTERN,
+  StaleHideDaysSchema,
   akbReadConfig as readConfig,
   akbWriteConfig as writeConfig,
 } from "@reef/core";
@@ -44,6 +45,8 @@ const ConfigPatchSchema = z
     // REEF-136: a language code sets the workspace authoring default; explicit
     // null clears it (the patch-merge keeps null, drops just `undefined`).
     authoring_language: AuthoringLanguageSchema.nullable().optional(),
+    stale_hide_completed_days: StaleHideDaysSchema.optional(),
+    stale_hide_canceled_days: StaleHideDaysSchema.optional(),
   })
   .refine((p) => Object.keys(p).length > 0, "patch must not be empty");
 

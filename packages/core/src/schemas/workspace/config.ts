@@ -100,6 +100,14 @@ export const VaultNameSchema = z
  */
 export const CREATE_VAULT_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
+export const DEFAULT_STALE_HIDE_COMPLETED_DAYS = 28;
+export const DEFAULT_STALE_HIDE_CANCELED_DAYS = 7;
+
+export const StaleHideDaysSchema = z
+  .number()
+  .int("stale hide window must be a whole number of days")
+  .nonnegative("stale hide window must be zero or more days");
+
 /**
  * ConfigSchema — team-shared workspace settings, persisted in akb's structured
  * tables (`reef_settings` key-value + `monitored_repos` typed). Each Config
@@ -123,6 +131,9 @@ export const CREATE_VAULT_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
  *   authoring_language — default language for AI-generated content (REEF-136).
  *                        A stored `reef_settings` key; `null` means unset (no
  *                        language forced), the first-run default.
+ *   stale_hide_completed_days / stale_hide_canceled_days — workspace-level
+ *                        auto-hide windows for resolved issues (REEF-278).
+ *                        Missing or stale values fall back to 28 / 7.
  */
 export const ConfigSchema = z.object({
   project_prefix: z
@@ -131,6 +142,12 @@ export const ConfigSchema = z.object({
     .regex(PROJECT_PREFIX_PATTERN, "project_prefix must be uppercase A–Z only"),
   monitored_repos: z.array(MonitoredRepoSchema).default([]),
   authoring_language: AuthoringLanguageSchema.nullable().default(null),
+  stale_hide_completed_days: StaleHideDaysSchema.default(
+    DEFAULT_STALE_HIDE_COMPLETED_DAYS,
+  ),
+  stale_hide_canceled_days: StaleHideDaysSchema.default(
+    DEFAULT_STALE_HIDE_CANCELED_DAYS,
+  ),
 });
 
 export const CreateVaultRequestSchema = z.object({
@@ -173,4 +190,6 @@ export const DEFAULT_CONFIG: Config = {
   project_prefix: "REEF",
   monitored_repos: [],
   authoring_language: null,
+  stale_hide_completed_days: DEFAULT_STALE_HIDE_COMPLETED_DAYS,
+  stale_hide_canceled_days: DEFAULT_STALE_HIDE_CANCELED_DAYS,
 };

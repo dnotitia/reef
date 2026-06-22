@@ -36,6 +36,8 @@ describe("useUpdateProjectConfig", () => {
       project_prefix: "REEF",
       monitored_repos: [{ github_id: 1001, owner: "octo", name: "reef" }],
       authoring_language: null,
+      stale_hide_completed_days: 14,
+      stale_hide_canceled_days: 3,
     };
     mockApiFetch.mockResolvedValue(
       new Response(JSON.stringify({ config }), { status: 200 }),
@@ -47,7 +49,11 @@ describe("useUpdateProjectConfig", () => {
 
     await act(async () => {
       await result.current.mutateAsync({
-        patch: { monitored_repos: config.monitored_repos },
+        patch: {
+          monitored_repos: config.monitored_repos,
+          stale_hide_completed_days: config.stale_hide_completed_days,
+          stale_hide_canceled_days: config.stale_hide_canceled_days,
+        },
       });
     });
 
