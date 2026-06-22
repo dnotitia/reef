@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  SEGMENTED_CONTROL_ITEM,
+  SEGMENTED_CONTROL_ITEM_ACTIVE,
+  SEGMENTED_CONTROL_ITEM_INACTIVE,
+  SEGMENTED_CONTROL_TRACK,
+} from "@/components/segmentedControl";
 import { cn } from "@/lib/utils";
 import { Building2, Server, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
@@ -35,7 +41,7 @@ export function SettingsTabs() {
     <nav
       aria-label="Settings sections"
       data-testid="settings-tabs"
-      className="inline-flex items-center gap-0.5 self-start rounded-md border border-border-subtle bg-elevated p-0.5"
+      className={cn(SEGMENTED_CONTROL_TRACK, "self-start")}
     >
       {SETTINGS_TABS.map(({ href, label, icon: Icon }) => {
         // A tab owns its segment, so it stays active on nested routes too
@@ -48,10 +54,10 @@ export function SettingsTabs() {
             aria-current={isActive ? "page" : undefined}
             data-testid={`settings-tab-${label.toLowerCase()}`}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-[5px] px-2.5 py-1 text-[12px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+              SEGMENTED_CONTROL_ITEM,
               isActive
-                ? "bg-surface-hover text-foreground"
-                : "text-muted-foreground hover:text-foreground",
+                ? SEGMENTED_CONTROL_ITEM_ACTIVE
+                : SEGMENTED_CONTROL_ITEM_INACTIVE,
             )}
           >
             <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />

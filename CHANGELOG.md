@@ -93,6 +93,12 @@ explicitly in the entries below.
   collapses its detail body, not just the small chevron — the chevron and name
   are one larger, keyboard-accessible toggle instead of two controls for the same
   panel. Rows with no detail stay plain text with no toggle (REEF-264).
+- **The segmented toggles look and behave alike, and show keyboard focus.** The
+  issue view switcher (Board / List / Timeline / Backlog), the Settings tabs, and
+  the Planning kind toggle now share one size, spacing, and focus style. The view
+  switcher, which previously gave keyboard users no visible focus indicator, now
+  shows the same focus ring as the others, and the Planning toggle is no longer a
+  larger outlier (REEF-261).
 
 ## v0.5.0 - 2026-06-19
 
