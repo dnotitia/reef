@@ -22,13 +22,19 @@ import type { Template } from "@reef/core";
  *   - task  → verifiable checks that reference the parent story's AC
  *   - spike → a question answered with a documented recommendation
  *   - chore → the change performed plus a verification step
+ *
+ * Richness is calibrated for a general workspace, not reef's own process. The
+ * universally-useful PM-hygiene sections proven on reef's dogfooding vault are
+ * carried over — bug Boundaries + Verification, epic Requirements, task Testing —
+ * while reef-specific scaffolds (Code Map paths, "Project Structure Notes") are
+ * left out so adopting teams get a substantive but not reef-shaped starting point.
  */
 export const DEFAULT_ISSUE_TEMPLATES: readonly Template[] = [
   {
     name: "epic",
     label: "Epic",
     description:
-      "Large outcome with success criteria; decomposes into child stories.",
+      "Large outcome with requirements and success criteria; decomposes into child stories.",
     title_prefix: "Epic: ",
     default_labels: ["epic"],
     body: [
@@ -37,6 +43,10 @@ export const DEFAULT_ISSUE_TEMPLATES: readonly Template[] = [
       "",
       "## Why now",
       "<the user value or business goal — describe what, not how>",
+      "",
+      "## Requirements",
+      "- Functional: <FR-1 — a capability this epic must deliver>",
+      "- Non-functional: <NFR-1 — performance, accessibility, security, …>",
       "",
       "## Success criteria",
       "<!-- Epics are measured by outcomes, not Given/When/Then. The behavioral",
@@ -105,6 +115,10 @@ export const DEFAULT_ISSUE_TEMPLATES: readonly Template[] = [
       "- [ ] <verifiable check> (satisfies parent AC: <story AC # or N/A>)",
       "- [ ] Gates pass: typecheck, lint, tests.",
       "",
+      "## Testing",
+      "- Unit: <unit coverage to add or update>",
+      "- Integration / E2E: <end-to-end or contract coverage, or N/A>",
+      "",
       "## Notes",
       "- ",
     ].join("\n"),
@@ -132,9 +146,18 @@ export const DEFAULT_ISSUE_TEMPLATES: readonly Template[] = [
       "## Actual",
       "<what actually happens>",
       "",
+      "## Boundaries",
+      "- Always: <invariant that must hold while fixing — what not to break>",
+      "- Ask first: <a decision that needs product or technical approval>",
+      "- Never: <out-of-scope change or forbidden approach>",
+      "",
       "## Acceptance criteria",
       "- Given <the reproduction precondition>, when <the triggering action>, then <the expected behavior> instead of the reported defect.",
       "- Given the same flow, when a regression test guards it, then it fails before the fix and passes after.",
+      "",
+      "## Verification",
+      "- Commands: <command> — expected: <success criteria>",
+      "- Manual checks: <what to inspect and the expected state>",
       "",
       "## Environment",
       "- ",

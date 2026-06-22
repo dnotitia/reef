@@ -46,9 +46,11 @@ explicitly in the entries below.
   / Task / Tech debt set. Story and Bug ship with `Given / When / Then`
   acceptance criteria, and the other types carry a done-definition that fits
   them (epic success criteria, task checks tied to the parent story, spike
-  recommendation, chore verification). Templates still seed each issue's kind
-  label; you continue to pick the Type in the create dialog. Workspaces that
-  already seeded templates keep them unchanged (REEF-256).
+  recommendation, chore verification). Each template also carries the practical
+  sections proven on reef's own board — bug boundaries and verification, epic
+  requirements, task testing — kept general rather than reef-specific. Templates
+  still seed each issue's kind label; you continue to pick the Type in the create
+  dialog. Workspaces that already seeded templates keep them unchanged (REEF-256).
 - **Related, blocking, and dependency links now drill in place like the rest.**
   Clicking a depends-on, blocks, or related issue in an open issue's
   Relationships swaps the panel to that issue and adds it to the same **Back**

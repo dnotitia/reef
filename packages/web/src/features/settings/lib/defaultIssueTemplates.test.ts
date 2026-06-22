@@ -58,4 +58,14 @@ describe("DEFAULT_ISSUE_TEMPLATES", () => {
     expect(body).toContain(heading);
     expect(body).not.toMatch(/Given .*when .*then/i);
   });
+
+  // Universal PM-hygiene sections ported from the dogfooding vault's richer
+  // templates (reef-specific scaffolds are deliberately excluded).
+  it("carries the universal richness sections on bug, epic, and task", () => {
+    const bug = byName.get("bug")?.body ?? "";
+    expect(bug).toContain("## Boundaries");
+    expect(bug).toContain("## Verification");
+    expect(byName.get("epic")?.body ?? "").toContain("## Requirements");
+    expect(byName.get("task")?.body ?? "").toContain("## Testing");
+  });
 });
