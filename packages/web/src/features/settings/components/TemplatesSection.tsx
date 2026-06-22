@@ -196,8 +196,8 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
             <>
               <p className="text-sm text-muted-foreground">
                 No templates yet. Click <strong>New template</strong> to add
-                one, or start with the four defaults (Bug, Feature, Task, Tech
-                debt).
+                one, or start with the six defaults (Epic, Story, Task, Bug,
+                Spike, Chore).
               </p>
               <Button
                 type="button"
