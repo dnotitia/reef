@@ -31,6 +31,14 @@ explicitly in the entries below.
   delivery ref still appears once, not twice (REEF-276).
 ### Fixed
 
+- **Switching issue views no longer flickers or feels laggy.** Clicking between
+  the Board, List, Timeline, and Backlog tabs now keeps the current view on
+  screen and swaps in the next one without flashing the board-shaped loading
+  skeleton — the four views already share the same cached data, so the switch is
+  now instant instead of stalling on a blocking re-render. The switcher shows a
+  faint "busy" dim while a heavier view prepares, and respects the reduced-motion
+  setting. The `?view=` URL still updates, so deep links, bookmarks, and
+  back/forward are unchanged (REEF-265).
 - **Sign-out now clears every open tab.** Signing out of a workspace in one
   browser tab now also clears the cached account data in the other reef tabs
   open on the same browser, so a shared computer no longer keeps showing the
