@@ -13,6 +13,10 @@ import { ArrowLeft } from "lucide-react";
  * status icon + `›` naming *this issue's parent* — structure). The two coexist
  * without reading as one trail (AC5).
  *
+ * Wrapped in its own labelled `<nav>` landmark, mirroring the breadcrumb's
+ * `<nav aria-label="Issue hierarchy">`, so assistive tech exposes the drill
+ * trail and the structural hierarchy as two separate, named navigation regions.
+ *
  * The raw reef id is the label here on purpose: Back is wayfinding, so the
  * concrete "← REEF-A" target is what a PM scans for; `translate="no"` keeps the
  * id (a code identifier) out of machine translation.
@@ -26,7 +30,7 @@ export function IssueDrillBackBar({
   onBack: () => void;
 }) {
   return (
-    <div className="px-6 pt-4">
+    <nav aria-label="Back navigation" className="px-6 pt-4">
       <button
         type="button"
         data-testid="issue-drill-back"
@@ -40,6 +44,6 @@ export function IssueDrillBackBar({
           {backTo}
         </span>
       </button>
-    </div>
+    </nav>
   );
 }

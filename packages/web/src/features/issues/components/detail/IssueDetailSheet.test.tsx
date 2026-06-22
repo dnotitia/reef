@@ -159,6 +159,10 @@ describe("IssueDetailSheet", () => {
       const back = screen.getByTestId("issue-drill-back");
       expect(back).toHaveAccessibleName("Back to REEF-A");
       expect(back).toHaveAttribute("data-back-to", "REEF-A");
+      // Exposed as its own labelled nav landmark, separate from the breadcrumb's
+      // "Issue hierarchy" — drill trail vs. structure (AC5).
+      const nav = screen.getByRole("navigation", { name: "Back navigation" });
+      expect(nav).toContainElement(back);
     });
 
     it("Back pops one hop and replaces to the previous issue (AC1/AC4)", async () => {
