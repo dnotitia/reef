@@ -65,6 +65,10 @@ export const REEF_SETTINGS_VAULT_SKILL_KEY = "vault_skill";
  * authoring-language default — AI generation falls back to its prior behavior.
  */
 export const REEF_SETTINGS_AUTHORING_LANGUAGE_KEY = "authoring_language";
+export const REEF_SETTINGS_STALE_HIDE_COMPLETED_DAYS_KEY =
+  "stale_hide_completed_days";
+export const REEF_SETTINGS_STALE_HIDE_CANCELED_DAYS_KEY =
+  "stale_hide_canceled_days";
 
 /**
  * Closed set of every table name reef writes SQL against. Used as the input

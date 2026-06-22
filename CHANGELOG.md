@@ -14,6 +14,12 @@ explicitly in the entries below.
 
 ### Added
 
+- **Tune when completed issues leave the default views.** Workspace admins can
+  now set separate "Hide completed after N days" and "Hide canceled after N
+  days" windows from Settings > Workspace > General. The values are stored in
+  `reef_settings`, default to 28 / 7 when unset or invalid, and the Board, List,
+  Backlog, and Timeline views re-evaluate resolved issue visibility after the
+  setting is saved (REEF-278).
 - **Pick monitored repositories without a personal access token.** When a
   deployment configures a GitHub App, the repository picker in Settings (and the
   new-workspace form) now lists and saves monitored repos through the

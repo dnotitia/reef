@@ -19,6 +19,7 @@ import { useReorderBacklog } from "@/features/issues/hooks/mutations/useReorderB
 import { useUpdateIssue } from "@/features/issues/hooks/mutations/useUpdateIssue";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
+import { useResolvedAutoHideWindows } from "@/features/issues/hooks/useResolvedAutoHideWindows";
 import { useOpenIssue } from "@/features/issues/hooks/view/useOpenIssue";
 import { buildIssueQuery } from "@/features/issues/lib/buildIssueQuery";
 import { applyDependencyFilter } from "@/features/issues/lib/dependencyUtils";
@@ -212,6 +213,7 @@ export function BacklogView({ vault }: BacklogViewProps) {
     isPlaceholderData,
     refetch,
   } = useIssueList(vault, query);
+  const staleWindowDays = useResolvedAutoHideWindows(vault);
   const { data: relations } = useIssueRelations(vault);
 
   // Reorder on the FRESH active backlog, does not while a previous reorder is still
@@ -247,6 +249,7 @@ export function BacklogView({ vault }: BacklogViewProps) {
   const visibleIssues = useMemo(() => {
     const filtered = filterIssues(allIssues, backlogFilter, {
       searchActive: searchQuery.trim().length > 0,
+      staleWindowDays,
     });
     const searched = searchIssues(filtered, searchQuery);
     const depFiltered = applyDependencyFilter(
@@ -257,7 +260,15 @@ export function BacklogView({ vault }: BacklogViewProps) {
     return isManualOrder
       ? [...depFiltered].sort(compareBacklogManualOrder)
       : sortIssues(depFiltered, filter.sortField, filter.sortOrder);
-  }, [allIssues, backlogFilter, graph, searchQuery, filter, isManualOrder]);
+  }, [
+    allIssues,
+    backlogFilter,
+    graph,
+    searchQuery,
+    filter,
+    isManualOrder,
+    staleWindowDays,
+  ]);
 
   // The divider sits between the manually-ordered (ranked) rows and the unranked
   // tail. Hidden when the backlog is entirely ranked or entirely unranked.

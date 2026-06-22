@@ -12,6 +12,7 @@ import { IssueListSkeleton } from "@/features/issues/components/list/IssueListSk
 import { COLUMN_LABELS } from "@/features/issues/components/list/issueListColumns";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
+import { useResolvedAutoHideWindows } from "@/features/issues/hooks/useResolvedAutoHideWindows";
 import { useOpenIssue } from "@/features/issues/hooks/view/useOpenIssue";
 import { buildIssueQuery } from "@/features/issues/lib/buildIssueQuery";
 import { applyDependencyFilter } from "@/features/issues/lib/dependencyUtils";
@@ -67,6 +68,7 @@ export function IssueListTable({ vault }: IssueListTableProps) {
     isError,
     refetch,
   } = useIssueList(vault, query);
+  const staleWindowDays = useResolvedAutoHideWindows(vault);
   const { data: relations } = useIssueRelations(vault);
   const { data: planningCatalog } = usePlanningCatalog(vault);
 
@@ -77,6 +79,7 @@ export function IssueListTable({ vault }: IssueListTableProps) {
   const sorted = useMemo(() => {
     const filtered = filterIssues(allIssues, filter, {
       searchActive: searchQuery.trim().length > 0,
+      staleWindowDays,
     });
     const searched = searchIssues(filtered, searchQuery);
     const depFiltered = applyDependencyFilter(
@@ -85,7 +88,7 @@ export function IssueListTable({ vault }: IssueListTableProps) {
       graph,
     );
     return sortIssues(depFiltered, filter.sortField, filter.sortOrder);
-  }, [allIssues, filter, graph, searchQuery]);
+  }, [allIssues, filter, graph, searchQuery, staleWindowDays]);
 
   const hasActiveFilters = !!(
     filter.status?.length ||

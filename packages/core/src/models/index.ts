@@ -11,6 +11,8 @@ export {
   isStaleResolved,
   withRecoveredDraftStatus,
   ACTIVE_STATUSES,
+  DEFAULT_STALE_HIDE_CANCELED_DAYS,
+  DEFAULT_STALE_HIDE_COMPLETED_DAYS,
 } from "./status";
 export type { CodeSignal } from "./status";
 export { buildIssueUpdateMetadataPatch } from "./issueUpdate";

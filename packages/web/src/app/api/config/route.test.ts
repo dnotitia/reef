@@ -39,6 +39,8 @@ const BASE_CONFIG: Config = {
   project_prefix: "REEF",
   monitored_repos: [{ github_id: 123456, owner: "octo", name: "cat" }],
   authoring_language: null,
+  stale_hide_completed_days: 28,
+  stale_hide_canceled_days: 7,
 };
 
 beforeEach(() => {
@@ -127,6 +129,28 @@ describe("PATCH /api/config", () => {
     expect(res.status).toBe(400);
   });
 
+  it("returns 400 when a resolved auto-hide window is negative or fractional", async () => {
+    const negative = new Request("http://localhost/api/config", {
+      method: "PATCH",
+      headers: authedHeaders(),
+      body: JSON.stringify({
+        vault: "reef-acme",
+        patch: { stale_hide_completed_days: -1 },
+      }),
+    });
+    expect((await PATCH(negative)).status).toBe(400);
+
+    const fractional = new Request("http://localhost/api/config", {
+      method: "PATCH",
+      headers: authedHeaders(),
+      body: JSON.stringify({
+        vault: "reef-acme",
+        patch: { stale_hide_canceled_days: 2.5 },
+      }),
+    });
+    expect((await PATCH(fractional)).status).toBe(400);
+  });
+
   it("merges patch into existing config and writes via akb", async () => {
     mockAkbReadConfig.mockResolvedValueOnce({
       config: BASE_CONFIG,
@@ -154,7 +178,48 @@ describe("PATCH /api/config", () => {
     expect(mockAkbWriteConfig).toHaveBeenCalledWith(
       expect.objectContaining({
         vault: "reef-acme",
-        config: expect.objectContaining({ project_prefix: "ACME" }),
+        config: expect.objectContaining({
+          project_prefix: "ACME",
+          stale_hide_completed_days: 28,
+          stale_hide_canceled_days: 7,
+        }),
+      }),
+    );
+  });
+
+  it("merges resolved auto-hide windows into existing config", async () => {
+    mockAkbReadConfig.mockResolvedValueOnce({
+      config: BASE_CONFIG,
+      exists: true,
+    });
+    mockAkbWriteConfig.mockResolvedValueOnce({
+      path: "_reef/config.md",
+      commit_hash: "c1",
+    });
+
+    const req = new Request("http://localhost/api/config", {
+      method: "PATCH",
+      headers: authedHeaders(),
+      body: JSON.stringify({
+        vault: "reef-acme",
+        patch: {
+          stale_hide_completed_days: 14,
+          stale_hide_canceled_days: 3,
+        },
+      }),
+    });
+    const res = await PATCH(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.config.stale_hide_completed_days).toBe(14);
+    expect(body.config.stale_hide_canceled_days).toBe(3);
+    expect(mockAkbWriteConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: expect.objectContaining({
+          project_prefix: "REEF",
+          stale_hide_completed_days: 14,
+          stale_hide_canceled_days: 3,
+        }),
       }),
     );
   });

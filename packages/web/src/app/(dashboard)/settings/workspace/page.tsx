@@ -3,6 +3,7 @@
 import { AuthoringLanguageSection } from "@/features/settings/components/AuthoringLanguageSection";
 import { ProjectSection } from "@/features/settings/components/ProjectSection";
 import { RepoPickerSection } from "@/features/settings/components/RepoPickerSection";
+import { ResolvedAutoHideSection } from "@/features/settings/components/ResolvedAutoHideSection";
 import { SettingsGroup } from "@/features/settings/components/SettingsGroup";
 import { TemplatesSection } from "@/features/settings/components/TemplatesSection";
 import { WorkspaceSkillSection } from "@/features/settings/components/WorkspaceSkillSection";
@@ -68,6 +69,14 @@ export default function WorkspaceGeneralPage() {
           Authoring Language
         </h3>
         <AuthoringLanguageSection canEdit={canEditWorkspace} />
+      </section>
+
+      {/* Completed Issues - workspace auto-hide windows for resolved issues */}
+      <section className="flex flex-col gap-3">
+        <h3 className="font-display text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Completed Issues
+        </h3>
+        <ResolvedAutoHideSection canEdit={canEditWorkspace} />
       </section>
 
       {/* Templates — issue templates shared across the workspace */}

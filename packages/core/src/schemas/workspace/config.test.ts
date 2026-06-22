@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   ConfigSchema,
   DEFAULT_CONFIG,
+  DEFAULT_STALE_HIDE_CANCELED_DAYS,
+  DEFAULT_STALE_HIDE_COMPLETED_DAYS,
   LLMConfigSchema,
   MonitoredRepoSchema,
   PROJECT_PREFIX_PATTERN,
+  StaleHideDaysSchema,
 } from "./config";
 
 const validLLMConfig = {
@@ -217,6 +220,12 @@ describe("ConfigSchema (team-shared _reef/config.md in akb vault)", () => {
     if (result.success) {
       expect(result.data.project_prefix).toBe("REEF");
       expect(result.data.monitored_repos).toHaveLength(1);
+      expect(result.data.stale_hide_completed_days).toBe(
+        DEFAULT_STALE_HIDE_COMPLETED_DAYS,
+      );
+      expect(result.data.stale_hide_canceled_days).toBe(
+        DEFAULT_STALE_HIDE_CANCELED_DAYS,
+      );
     }
   });
 
@@ -304,6 +313,47 @@ describe("ConfigSchema (team-shared _reef/config.md in akb vault)", () => {
       );
     }
   });
+
+  it("accepts non-negative whole-day resolved auto-hide windows", () => {
+    const result = ConfigSchema.safeParse({
+      ...validConfig,
+      stale_hide_completed_days: 14,
+      stale_hide_canceled_days: 0,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.stale_hide_completed_days).toBe(14);
+      expect(result.data.stale_hide_canceled_days).toBe(0);
+    }
+  });
+
+  it("rejects negative or non-integer resolved auto-hide windows", () => {
+    expect(
+      ConfigSchema.safeParse({
+        ...validConfig,
+        stale_hide_completed_days: -1,
+      }).success,
+    ).toBe(false);
+    expect(
+      ConfigSchema.safeParse({
+        ...validConfig,
+        stale_hide_canceled_days: 1.5,
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("StaleHideDaysSchema", () => {
+  it("accepts zero and positive whole days", () => {
+    expect(StaleHideDaysSchema.safeParse(0).success).toBe(true);
+    expect(StaleHideDaysSchema.safeParse(28).success).toBe(true);
+  });
+
+  it("rejects negative, fractional, or non-numeric values", () => {
+    expect(StaleHideDaysSchema.safeParse(-1).success).toBe(false);
+    expect(StaleHideDaysSchema.safeParse(2.5).success).toBe(false);
+    expect(StaleHideDaysSchema.safeParse("7").success).toBe(false);
+  });
 });
 
 describe("PROJECT_PREFIX_PATTERN", () => {
@@ -325,5 +375,9 @@ describe("DEFAULT_CONFIG", () => {
   it("passes ConfigSchema validation", () => {
     const result = ConfigSchema.safeParse(DEFAULT_CONFIG);
     expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.stale_hide_completed_days).toBe(28);
+      expect(result.data.stale_hide_canceled_days).toBe(7);
+    }
   });
 });

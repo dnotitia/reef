@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { IssueCreateInput } from "../schemas/issues/metadata";
 import {
   ACTIVE_STATUSES,
+  DEFAULT_STALE_HIDE_CANCELED_DAYS,
+  DEFAULT_STALE_HIDE_COMPLETED_DAYS,
   STALE_CANCELED_WINDOW_MS,
   STALE_COMPLETED_WINDOW_MS,
   canTransition,
@@ -318,8 +320,50 @@ describe("isStaleResolved", () => {
   });
 
   it("exposes the two windows as completed > canceled (Linear's 28 vs 7 default)", () => {
+    expect(DEFAULT_STALE_HIDE_COMPLETED_DAYS).toBe(28);
+    expect(DEFAULT_STALE_HIDE_CANCELED_DAYS).toBe(7);
     expect(STALE_COMPLETED_WINDOW_MS).toBe(28 * 24 * 60 * 60 * 1000);
     expect(STALE_CANCELED_WINDOW_MS).toBe(7 * 24 * 60 * 60 * 1000);
     expect(STALE_COMPLETED_WINDOW_MS).toBeGreaterThan(STALE_CANCELED_WINDOW_MS);
+  });
+
+  it("uses caller-provided workspace window days", () => {
+    expect(
+      isStaleResolved({
+        status: "done",
+        lastStatusChange: daysAgo(10),
+        now: NOW,
+        completedWindowDays: 5,
+      }),
+    ).toBe(true);
+    expect(
+      isStaleResolved({
+        status: "closed",
+        closedReason: "wont_fix",
+        lastStatusChange: daysAgo(3),
+        now: NOW,
+        canceledWindowDays: 2,
+      }),
+    ).toBe(true);
+  });
+
+  it("falls back to default windows for invalid caller-provided days", () => {
+    expect(
+      isStaleResolved({
+        status: "done",
+        lastStatusChange: daysAgo(20),
+        now: NOW,
+        completedWindowDays: -1,
+      }),
+    ).toBe(false);
+    expect(
+      isStaleResolved({
+        status: "closed",
+        closedReason: "wont_fix",
+        lastStatusChange: daysAgo(10),
+        now: NOW,
+        canceledWindowDays: Number.NaN,
+      }),
+    ).toBe(true);
   });
 });

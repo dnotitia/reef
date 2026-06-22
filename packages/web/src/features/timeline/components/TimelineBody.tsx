@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { WORKFLOW_STATUS_OPTIONS } from "@/components/ui/status-icon";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
+import { useResolvedAutoHideWindows } from "@/features/issues/hooks/useResolvedAutoHideWindows";
 import { useOpenIssue } from "@/features/issues/hooks/view/useOpenIssue";
 import { useWorkflowStatusGuard } from "@/features/issues/hooks/view/useWorkflowStatusGuard";
 import { buildIssueQuery } from "@/features/issues/lib/buildIssueQuery";
@@ -94,6 +95,7 @@ export function TimelineBody({ vault }: TimelineBodyProps) {
     isError,
     refetch,
   } = useIssueList(vault, query);
+  const staleWindowDays = useResolvedAutoHideWindows(vault);
   const openIssue = useOpenIssue();
   const [today, setToday] = useState(() => calendarDayFromDate(new Date()));
   const [quarterReference, setQuarterReference] = useState(() => new Date());
@@ -132,6 +134,7 @@ export function TimelineBody({ vault }: TimelineBodyProps) {
   const visibleIssues = useMemo(() => {
     const filtered = filterIssues(allIssues, filter, {
       searchActive: searchQuery.trim().length > 0,
+      staleWindowDays,
     });
     const searched = searchIssues(filtered, searchQuery);
     const depFiltered = applyDependencyFilter(
@@ -143,7 +146,7 @@ export function TimelineBody({ vault }: TimelineBodyProps) {
     // the empty-state check and the rendered rows agree — a result set of just
     // backlog issues reads as an empty timeline, not a blank grid (REEF-109).
     return depFiltered.filter((issue) => WORKFLOW_STATUS_SET.has(issue.status));
-  }, [allIssues, filter, searchQuery, graph]);
+  }, [allIssues, filter, searchQuery, graph, staleWindowDays]);
 
   const timelineItems = useMemo(
     () =>

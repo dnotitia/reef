@@ -3,6 +3,15 @@ import type {
   IssueCreateInput,
   Status,
 } from "../schemas/issues/metadata";
+import {
+  DEFAULT_STALE_HIDE_CANCELED_DAYS,
+  DEFAULT_STALE_HIDE_COMPLETED_DAYS,
+} from "../schemas/workspace/config";
+
+export {
+  DEFAULT_STALE_HIDE_CANCELED_DAYS,
+  DEFAULT_STALE_HIDE_COMPLETED_DAYS,
+} from "../schemas/workspace/config";
 
 export type CodeSignal = "branch_created" | "pr_created" | "pr_merged";
 
@@ -108,8 +117,18 @@ export function isResolvedStatus(status: Status): boolean {
  * a `done` issue, or a `closed` one with reason `completed`, is "completed"; other
  * other close reason (or none) is "canceled" and clears faster.
  */
-export const STALE_COMPLETED_WINDOW_MS = 28 * 24 * 60 * 60 * 1000;
-export const STALE_CANCELED_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+export const STALE_COMPLETED_WINDOW_MS =
+  DEFAULT_STALE_HIDE_COMPLETED_DAYS * DAY_MS;
+export const STALE_CANCELED_WINDOW_MS =
+  DEFAULT_STALE_HIDE_CANCELED_DAYS * DAY_MS;
+
+function windowMsFromDays(days: number | undefined, fallbackDays: number) {
+  if (days == null || !Number.isFinite(days) || days < 0) {
+    return fallbackDays * DAY_MS;
+  }
+  return days * DAY_MS;
+}
 
 /**
  * True when a resolved issue has aged past its auto-hide window and should drop
@@ -128,16 +147,25 @@ export function isStaleResolved(params: {
   closedReason?: ClosedReason | null;
   lastStatusChange?: string | null;
   now: number;
+  completedWindowDays?: number;
+  canceledWindowDays?: number;
 }): boolean {
-  const { status, closedReason, lastStatusChange, now } = params;
+  const {
+    status,
+    closedReason,
+    lastStatusChange,
+    now,
+    completedWindowDays,
+    canceledWindowDays,
+  } = params;
   if (!RESOLVED_STATUSES.has(status)) return false;
   if (!lastStatusChange) return false;
   const enteredAt = Date.parse(lastStatusChange);
   if (Number.isNaN(enteredAt)) return false;
   const isCompleted = status === "done" || closedReason === "completed";
   const window = isCompleted
-    ? STALE_COMPLETED_WINDOW_MS
-    : STALE_CANCELED_WINDOW_MS;
+    ? windowMsFromDays(completedWindowDays, DEFAULT_STALE_HIDE_COMPLETED_DAYS)
+    : windowMsFromDays(canceledWindowDays, DEFAULT_STALE_HIDE_CANCELED_DAYS);
   return now - enteredAt > window;
 }
 

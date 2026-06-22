@@ -41,7 +41,7 @@ test.describe("Hermetic settings workflows", () => {
 
     await page.goto("/settings/preferences");
     await expect(
-      page.locator('[data-testid="settings-group-personal"]'),
+      page.getByRole("main").locator('[data-testid="settings-group-personal"]'),
     ).toBeVisible();
     await page
       .getByLabel("GitHub Personal Access Token")
@@ -111,6 +111,19 @@ test.describe("Hermetic settings workflows", () => {
     await expect
       .poll(async () => reefVault(await readFixtureState(request)).settings)
       .toMatchObject({ authoring_language: "en" });
+
+    await page.getByLabel("Hide completed after N days").fill("14");
+    await page.getByLabel("Hide canceled after N days").fill("3");
+    await page.locator('[data-testid="resolved-auto-hide-save"]').click();
+    await expect(page.getByLabel("Hide completed after N days")).toHaveValue(
+      "14",
+    );
+    await expect
+      .poll(async () => reefVault(await readFixtureState(request)).settings)
+      .toMatchObject({
+        stale_hide_completed_days: 14,
+        stale_hide_canceled_days: 3,
+      });
   });
 
   test("creates, updates, and deletes an issue template from workspace settings", async ({

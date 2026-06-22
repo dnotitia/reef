@@ -88,6 +88,14 @@ export interface SharedIssueFacets {
   parent_id?: string;
 }
 
+interface FilterIssuesOptions {
+  searchActive?: boolean;
+  staleWindowDays?: {
+    completed?: number;
+    canceled?: number;
+  };
+}
+
 /** Normalize a facet that may arrive as a single scalar (reports) or a
  *  multi-select array (issues, REEF-267) into an array; an unset facet is an
  *  empty array, which the caller treats as "passes". */
@@ -173,7 +181,7 @@ export function matchesSharedFacets(
 export function filterIssues(
   issues: IssueListItem[],
   filter: IssueFilter,
-  opts: { searchActive?: boolean } = {},
+  opts: FilterIssuesOptions = {},
 ): IssueListItem[] {
   // Now-relative cut, evaluated once for the whole pass so every row in this
   // render is compared against the same instant (shared by the stale-resolved
@@ -194,6 +202,8 @@ export function filterIssues(
         closedReason: issue.closed_reason,
         lastStatusChange: issue.last_status_change,
         now,
+        completedWindowDays: opts.staleWindowDays?.completed,
+        canceledWindowDays: opts.staleWindowDays?.canceled,
       })
     )
       return false;

@@ -40,6 +40,7 @@ import {
   AkbApiError,
   AuthError,
   type Config,
+  DEFAULT_CONFIG,
   type VaultSummary,
 } from "@reef/core";
 import { VALID_JWT, makeJwt } from "../__test-helpers__/jwt";
@@ -67,6 +68,7 @@ const SAMPLE_VAULTS: VaultSummary[] = [
 ];
 
 const GREENFIELD_CONFIG: Config = {
+  ...DEFAULT_CONFIG,
   project_prefix: "REEF",
   monitored_repos: [{ github_id: 123456, owner: "octo", name: "cat" }],
   authoring_language: null,

@@ -23,6 +23,8 @@ describe("readConfig (tables)", () => {
     expect(result.config.project_prefix).toBe("REEF");
     expect(result.config.monitored_repos).toEqual([]);
     expect(result.config.authoring_language).toBeNull();
+    expect(result.config.stale_hide_completed_days).toBe(28);
+    expect(result.config.stale_hide_canceled_days).toBe(7);
     expect(result.exists).toBe(false);
   });
 
@@ -130,6 +132,56 @@ describe("readConfig (tables)", () => {
     expect(result.config.authoring_language).toBeNull();
   });
 
+  it("reads resolved auto-hide windows from reef_settings (REEF-278)", async () => {
+    setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [
+            { key: "project_prefix", value: '"ACME"' },
+            { key: "stale_hide_completed_days", value: "14" },
+            { key: "stale_hide_canceled_days", value: "3" },
+          ],
+          ["key", "value"],
+        ),
+      },
+      {
+        body: makeSqlQueryResponse(
+          [],
+          ["github_id", "owner", "name", "description"],
+        ),
+      },
+    ]);
+    const adapter = makeAdapter();
+    const result = await readConfig({ adapter, vault: "reef-sample" });
+    expect(result.config.stale_hide_completed_days).toBe(14);
+    expect(result.config.stale_hide_canceled_days).toBe(3);
+  });
+
+  it("falls back to default resolved auto-hide windows for missing or invalid stored values", async () => {
+    setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [
+            { key: "project_prefix", value: '"ACME"' },
+            { key: "stale_hide_completed_days", value: "-1" },
+            { key: "stale_hide_canceled_days", value: '"soon"' },
+          ],
+          ["key", "value"],
+        ),
+      },
+      {
+        body: makeSqlQueryResponse(
+          [],
+          ["github_id", "owner", "name", "description"],
+        ),
+      },
+    ]);
+    const adapter = makeAdapter();
+    const result = await readConfig({ adapter, vault: "reef-sample" });
+    expect(result.config.stale_hide_completed_days).toBe(28);
+    expect(result.config.stale_hide_canceled_days).toBe(7);
+  });
+
   it("degrades an unknown/stale authoring_language code to null", async () => {
     setupFetch([
       {
@@ -222,6 +274,8 @@ describe("readConfig (tables)", () => {
     expect(firstSql).toContain(`FROM ${REEF_SETTINGS_TABLE}`);
     expect(firstSql).toContain("'project_prefix'");
     expect(firstSql).toContain("'authoring_language'");
+    expect(firstSql).toContain("'stale_hide_completed_days'");
+    expect(firstSql).toContain("'stale_hide_canceled_days'");
     const secondSql = JSON.parse(calls[1]?.init?.body as string).sql as string;
     expect(secondSql).toContain(`FROM ${MONITORED_REPOS_TABLE}`);
   });

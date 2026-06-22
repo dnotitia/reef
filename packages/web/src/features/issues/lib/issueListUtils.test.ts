@@ -385,6 +385,37 @@ describe("filterIssues — stale resolved auto-hide (REEF-275)", () => {
     });
   });
 
+  it("uses workspace-provided stale window days when filtering resolved issues", () => {
+    withFixedNow(() => {
+      const tenDayDone = [
+        makeIssue({
+          id: "REEF-907",
+          status: "done",
+          last_status_change: ago(10),
+        }),
+      ];
+      expect(filterIssues(tenDayDone, {})).toHaveLength(1);
+      expect(
+        filterIssues(tenDayDone, {}, { staleWindowDays: { completed: 5 } }),
+      ).toHaveLength(0);
+    });
+  });
+
+  it("falls back to default stale windows when provided values are invalid", () => {
+    withFixedNow(() => {
+      const twentyDayDone = [
+        makeIssue({
+          id: "REEF-908",
+          status: "done",
+          last_status_change: ago(20),
+        }),
+      ];
+      expect(
+        filterIssues(twentyDayDone, {}, { staleWindowDays: { completed: -1 } }),
+      ).toHaveLength(1);
+    });
+  });
+
   it("never auto-hides a resolved issue that lacks a status-change anchor", () => {
     withFixedNow(() => {
       const noAnchor = [makeIssue({ id: "REEF-904", status: "done" })];
