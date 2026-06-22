@@ -51,6 +51,14 @@ explicitly in the entries below.
   reason with its helper line. The dialog also drops a redundant "Closed" chip
   and adopts the same width and field framing as the Delete and planning dialogs
   (REEF-272).
+- **Jump to a depends-on, blocks, or related issue in one click.** On the issue
+  detail, the Depends on / Blocks / Related chips now read as self-describing
+  rows — status icon, id, and title — and clicking one opens that issue, the same
+  as the Sub-issues list and the parent breadcrumb already do. Removing a
+  relation still uses the `X`, which no longer navigates. A relation pointing at
+  an archived or missing issue degrades to an id-only link rather than dropping
+  navigation. The create and activity-draft forms keep the plain, non-navigating
+  chips so clicking one never abandons an unsaved issue (REEF-268).
 ### Changed
 
 - **Reports names its workspace, like every other page.** The Reports header now

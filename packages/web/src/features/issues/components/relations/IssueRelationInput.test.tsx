@@ -127,6 +127,95 @@ describe("IssueRelationInput", () => {
     },
   ];
 
+  // REEF-268: detail-panel chips are navigable, self-describing rows; the
+  // create dialog / activity-draft editor keep the non-navigable id chips.
+  describe("navigable chips (REEF-268)", () => {
+    it("renders each chip as a link to the issue with id + title", () => {
+      render(
+        <IssueRelationInput
+          id="depends-on"
+          label="Depends on"
+          value={["REEF-001"]}
+          allIssues={RICH}
+          onChange={() => {}}
+          navigable
+        />,
+      );
+
+      const link = screen.getByRole("link");
+      expect(link).toHaveAttribute("href", "/issues/REEF-001");
+      // Self-describing: the id AND the title render inside the link, matching
+      // the Sub-issues row (not the old id-only chip).
+      expect(link).toHaveTextContent("REEF-001");
+      expect(link).toHaveTextContent("Login fails");
+      // Same focus contract as IssueChildren's rows.
+      expect(link).toHaveClass("focus-visible:ring-brand/40");
+    });
+
+    it("keeps the remove X as a separate hit target that does not navigate", async () => {
+      const onChange = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <IssueRelationInput
+          id="depends-on"
+          label="Depends on"
+          value={["REEF-001"]}
+          allIssues={RICH}
+          onChange={onChange}
+          navigable
+        />,
+      );
+
+      const removeButton = screen.getByRole("button", {
+        name: "Remove REEF-001",
+      });
+      // The remove button is outside the navigating link, so clicking it
+      // removes the relation without following the href.
+      expect(screen.getByRole("link")).not.toContainElement(removeButton);
+
+      await user.click(removeButton);
+      expect(onChange).toHaveBeenLastCalledWith([]);
+    });
+
+    it("degrades an unresolved relation id to an id-only link, keeping navigation", () => {
+      render(
+        <IssueRelationInput
+          id="depends-on"
+          label="Depends on"
+          // REEF-999 is absent from allIssues (e.g. an archived target).
+          value={["REEF-999"]}
+          allIssues={RICH}
+          onChange={() => {}}
+          navigable
+        />,
+      );
+
+      const link = screen.getByRole("link");
+      expect(link).toHaveAttribute("href", "/issues/REEF-999");
+      expect(link).toHaveTextContent("REEF-999");
+    });
+
+    it("stays non-navigable by default (create dialog / draft editor)", () => {
+      render(
+        <IssueRelationInput
+          id="depends-on"
+          label="Depends on"
+          value={["REEF-001"]}
+          allIssues={RICH}
+          onChange={() => {}}
+        />,
+      );
+
+      // No link: clicking a chip in an unsaved-issue form must not navigate.
+      expect(screen.queryByRole("link")).not.toBeInTheDocument();
+      // The id chip + its remove control are still rendered.
+      expect(screen.getByText("REEF-001")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Remove REEF-001" }),
+      ).toBeInTheDocument();
+    });
+  });
+
   it("renders candidate rows with type, priority, and blocked badge", async () => {
     const user = userEvent.setup();
     render(

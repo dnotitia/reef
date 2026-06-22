@@ -13,6 +13,7 @@ import { scrollOptionIntoView } from "@/lib/scrollOptionIntoView";
 import { cn } from "@/lib/utils";
 import type { IssueListItem } from "@reef/core";
 import { Check, Plus, X } from "lucide-react";
+import Link from "next/link";
 import {
   type KeyboardEvent,
   useCallback,
@@ -54,6 +55,15 @@ interface IssueRelationInputProps {
   maxItems?: number;
   /** Suppress the internal label when an external `<label>` already labels it. */
   hideLabel?: boolean;
+  /**
+   * Make multi-mode relation chips navigable (REEF-268): each chip becomes a
+   * link to `/issues/{id}`, rendered as the Sub-issues-style `IssueOptionRow`
+   * (status · id · title · type · priority), with the remove `X` kept as a
+   * separate hit target. Detail-panel only — the create dialog and the
+   * activity-draft editor leave this `false` so clicking a chip never navigates
+   * away from an unsaved issue. No effect in single mode (parent uses a field).
+   */
+  navigable?: boolean;
 }
 
 /** A dropdown row is either a real candidate or the free-text "Use …" affordance. */
@@ -91,6 +101,7 @@ export function IssueRelationInput({
   disabled = false,
   maxItems,
   hideLabel = false,
+  navigable = false,
 }: IssueRelationInputProps) {
   const listId = useId();
   const isSingle = maxItems === 1;
@@ -191,6 +202,16 @@ export function IssueRelationInput({
     () => indexIssuesById(relationGraph ?? allIssues),
     [relationGraph, allIssues],
   );
+
+  // Resolve each stored relation id to its full list item so a navigable chip
+  // can render the Sub-issues-style row (status · id · title); an unresolved id
+  // — e.g. an archived target absent from the list — degrades to an id-only
+  // link rather than dropping navigation entirely (REEF-268).
+  const issuesById = useMemo(() => {
+    const map = new Map<string, IssueListItem>();
+    for (const issue of allIssues) map.set(issue.id, issue);
+    return map;
+  }, [allIssues]);
 
   const inputValue = isSingle && !open ? selectedSingleValue : draft;
   const trimmed = inputValue.trim();
@@ -587,27 +608,81 @@ export function IssueRelationInput({
           : ""}
       </span>
 
-      {!isSingle && value.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {value.map((relationId) => (
-            <span
-              key={relationId}
-              className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-[11px] font-medium text-foreground"
-            >
-              <span className="font-mono">{relationId}</span>
-              <button
-                type="button"
-                aria-label={`Remove ${relationId}`}
-                disabled={disabled}
-                onClick={() => removeRelation(relationId)}
-                className="text-muted-foreground hover:text-foreground disabled:opacity-50"
+      {!isSingle &&
+        value.length > 0 &&
+        (navigable ? (
+          // Detail panel (REEF-268): chips become self-describing, navigable
+          // rows that reuse the Sub-issues interaction contract (IssueChildren's
+          // Link + hover/focus). The id/body region links to the target; the
+          // `X` is a separate hit target so removing never navigates.
+          <ul className="flex flex-col gap-0.5">
+            {value.map((relationId) => {
+              const target = issuesById.get(relationId);
+              return (
+                <li key={relationId} className="flex items-center gap-1">
+                  <Link
+                    href={`/issues/${relationId}`}
+                    data-issue-id={relationId}
+                    className={cn(
+                      "flex min-w-0 flex-1 touch-manipulation items-center rounded-md px-1.5 py-1 transition-colors duration-150",
+                      "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+                    )}
+                  >
+                    {target ? (
+                      <IssueOptionRow
+                        issue={target}
+                        blockerCount={unresolvedBlockerCountIn(
+                          target,
+                          blockedIndex,
+                        )}
+                      />
+                    ) : (
+                      // Relation target absent from allIssues (archived, etc.):
+                      // degrade to an id-only link, keeping navigation.
+                      <span
+                        translate="no"
+                        className="font-mono text-xs tabular-nums text-muted-foreground"
+                      >
+                        {relationId}
+                      </span>
+                    )}
+                  </Link>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${relationId}`}
+                    disabled={disabled}
+                    onClick={() => removeRelation(relationId)}
+                    className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          // Create dialog / activity-draft editor: keep the existing
+          // non-navigable id chips so clicking never leaves an unsaved issue.
+          <div className="flex flex-wrap gap-1">
+            {value.map((relationId) => (
+              <span
+                key={relationId}
+                className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-[11px] font-medium text-foreground"
               >
-                <X className="h-3 w-3" />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
+                <span className="font-mono">{relationId}</span>
+                <button
+                  type="button"
+                  aria-label={`Remove ${relationId}`}
+                  disabled={disabled}
+                  onClick={() => removeRelation(relationId)}
+                  className="text-muted-foreground hover:text-foreground disabled:opacity-50"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        ))}
     </div>
   );
 }
