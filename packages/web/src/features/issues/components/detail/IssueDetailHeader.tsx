@@ -17,7 +17,6 @@ import { Archive, ArchiveRestore, MoreHorizontal, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
 import { formatRelativeTime } from "../../lib/formatRelativeTime";
-import { IssueDetailCloseButton } from "./IssueDetailCloseButton";
 import { IssueSaveStatus, type SaveStatus } from "./IssueSaveStatus";
 
 export function IssueDetailHeader({
@@ -32,7 +31,6 @@ export function IssueDetailHeader({
   isDeletePending,
   onArchiveToggle,
   onDeleteRequested,
-  onClose,
   parentId,
   allIssues,
   allIssuesPending,
@@ -48,8 +46,6 @@ export function IssueDetailHeader({
   isDeletePending: boolean;
   onArchiveToggle: () => void;
   onDeleteRequested: () => void;
-  /** Dismiss the detail sheet — same path as Esc / outside click / route back. */
-  onClose: () => void;
   /** Parent issue's reef id, or null for a top-level issue (REEF-266). */
   parentId: string | null;
   /** Whole-vault list already loaded by the detail panel; resolves the parent
@@ -78,10 +74,10 @@ export function IssueDetailHeader({
 
   return (
     // Single-row header (REEF-266): a horizontal breadcrumb trail — parent ›
-    // current — on the left, the action cluster (save state · menu · close) on
-    // the right. The current issue is the last, "you are here" crumb; the parent
-    // is a leading crumb whose title truncates first, matching Linear's
-    // breadcrumb. The close button stays in the top-right corner.
+    // current — on the left, the action cluster (save state · menu) on the
+    // right. The current issue is the last, "you are here" crumb; the parent is
+    // a leading crumb whose title truncates first, matching Linear's breadcrumb.
+    // Close lives in the sheet's top chrome row, not here (REEF-284).
     <div className="flex items-start justify-between gap-2">
       <div className="flex min-w-0 flex-1 items-center gap-2 text-xs">
         {/* Parent breadcrumb (REEF-266) — a click-through link up to the parent,
@@ -242,7 +238,6 @@ export function IssueDetailHeader({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <IssueDetailCloseButton onClose={onClose} />
       </div>
     </div>
   );

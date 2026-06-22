@@ -111,8 +111,8 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
 
     // On the leaf both are present and point at the mid issue, but they are
     // different controls: Back is navigation (where you came from), the
-    // breadcrumb is structure (this issue's parent). The Back strip sits above
-    // the header that holds the breadcrumb.
+    // breadcrumb is structure (this issue's parent). Back sits in the top chrome
+    // row, above the header that holds the breadcrumb (REEF-284).
     const back = page.locator(drillBack);
     const crumb = page.locator(breadcrumb);
     await expect(back).toHaveAttribute("data-back-to", MID);
@@ -125,6 +125,63 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
       breadcrumb,
     );
     expect(order).toBeTruthy(); // Back precedes the breadcrumb in the DOM.
+  });
+
+  test("drills through a Relationships chip in place, Back + Close share one chrome row (REEF-284)", async ({
+    page,
+  }) => {
+    // REEF-105 depends on REEF-104 (fixture), so its Relationships "Depends on"
+    // renders a navigable chip — the relation-link kind REEF-284 folds into the
+    // same in-place drill model as the breadcrumb and sub-issues.
+    await openExistingWorkspace(page);
+    await page.goto("/issues?view=list");
+    await page.getByText("Stream grounded Ask AI answers from core").click();
+    await page.waitForURL(/\/issues\/REEF-105/, { timeout: 10_000 });
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+    await expect(page.locator(drillBack)).toHaveCount(0);
+
+    // Click the depends-on chip → swap the panel to REEF-104 in place.
+    await page.locator('a[data-issue-id="REEF-104"]').click();
+    await page.waitForURL(/\/issues\/REEF-104(\?|$)/, { timeout: 10_000 });
+    await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
+      "Wire board filters into shareable URL state",
+    );
+
+    // Drilled in like any other hop: Back points to where we came from, and the
+    // originating ?view= rides along so Close returns to the list, not the Board
+    // default (REEF-222).
+    await expect(page.locator(drillBack)).toHaveAttribute(
+      "data-back-to",
+      "REEF-105",
+    );
+    await expect(page).toHaveURL(/view=list/);
+
+    // Back and Close occupy the single top chrome row, Back first (left).
+    const back = page.locator(drillBack);
+    await expect(back).toBeVisible();
+    await expect(page.locator('[data-testid="issue-close"]')).toBeVisible();
+    const sameRowBackFirst = await back.evaluate((el) => {
+      const closeEl = document.querySelector('[data-testid="issue-close"]');
+      const row = el.closest("div");
+      return (
+        !!closeEl &&
+        !!row &&
+        row.contains(closeEl) &&
+        Boolean(
+          el.compareDocumentPosition(closeEl) &
+            Node.DOCUMENT_POSITION_FOLLOWING,
+        )
+      );
+    });
+    expect(sameRowBackFirst).toBe(true);
+
+    // Back returns to REEF-105 at depth 0.
+    await back.click();
+    await page.waitForURL(/\/issues\/REEF-105/, { timeout: 10_000 });
+    await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
+      "Stream grounded Ask AI answers from core",
+    );
+    await expect(page.locator(drillBack)).toHaveCount(0);
   });
 
   test("reopening the drilled-in issue after a browser Back starts at depth 0", async ({

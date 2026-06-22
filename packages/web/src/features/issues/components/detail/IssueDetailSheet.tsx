@@ -44,11 +44,6 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
     onExit: onClose,
   });
 
-  // These two states render no IssueDetailHeader (and therefore no header
-  // close button), so the sheet itself supplies the close affordance. The
-  // loaded IssueDetail path owns its own close button in the header instead.
-  const showFallbackClose = vaultLoading || !vault;
-
   // `useIssue` is gated on `vault`. When the pointer is still loading or
   // unset, TanStack Query v5 keeps the query in `isPending: true`, which
   // would leave a permanent skeleton — so we render the skeleton / empty
@@ -91,9 +86,9 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
       >
         <SheetContent
           side="right"
-          // IssueDetailHeader renders its own close button next to the issue
-          // actions menu, so the overlay X is suppressed here to avoid a
-          // duplicate, colliding affordance in the top-right corner.
+          // The sheet's own top chrome row owns the close affordance (REEF-284),
+          // so the overlay X is suppressed here to avoid a duplicate, colliding
+          // control in the top-right corner.
           showCloseButton={false}
           // Esc means Back while drilled into a relation trail, Close otherwise
           // (AC3); an outside click always exits to the entry view (AC2). We own
@@ -120,20 +115,24 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
           <SheetDescription className="sr-only">
             Edit details for issue {issueId}.
           </SheetDescription>
-          {showFallbackClose ? (
-            <IssueDetailCloseButton
-              onClose={exit}
-              className="absolute top-4 right-4 z-10"
-            />
-          ) : null}
-          {/* Drill Back chrome sits above the body in every state (loaded,
-              skeleton, error, no-vault) so it stays available while a drilled-in
-              issue loads. The nested flex column drops the SheetContent gap
-              between the strip and the body. */}
+          {/* Single top chrome row owns the sheet's navigation + dismiss pair:
+              the drill Back (left, only when drilled in) and Close (right,
+              always). Keeping them on one row — rather than stacking Back as a
+              strip above the header — aligns the two, and keeps the history Back
+              here visually separate (above) from the structural parent
+              breadcrumb in the header below, so navigation and hierarchy never
+              read as one trail (REEF-284 / REEF-270 AC5). The row renders in
+              every state (loaded, skeleton, error, no-vault) so Close is always
+              present and Back persists while a drilled-in issue loads. Wrapped
+              with the body in a no-gap column so SheetContent's gap-4 doesn't
+              open between the chrome row and the body. */}
           <div className="flex flex-col">
-            {backTo ? (
-              <IssueDrillBackBar backTo={backTo} onBack={goBack} />
-            ) : null}
+            <div className="flex items-center px-6 pt-4">
+              {backTo ? (
+                <IssueDrillBackBar backTo={backTo} onBack={goBack} />
+              ) : null}
+              <IssueDetailCloseButton onClose={exit} className="ml-auto" />
+            </div>
             {renderBody()}
           </div>
         </SheetContent>
