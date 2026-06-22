@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/table";
 import { IssueListRow } from "@/features/issues/components/list/IssueListRow";
 import { IssueListSkeleton } from "@/features/issues/components/list/IssueListSkeleton";
+import { COLUMN_LABELS } from "@/features/issues/components/list/issueListColumns";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
 import { useOpenIssue } from "@/features/issues/hooks/view/useOpenIssue";
@@ -27,26 +28,6 @@ import { useAutoAnimate } from "@formkit/auto-animate/react";
 import { useMemo } from "react";
 
 const EMPTY_ISSUES: never[] = [];
-
-// Column headers are display labels. Sorting is driven solely by the
-// header SortControl — the single sort entry point across every view — so the
-// list no longer offers a second, click-to-sort path off these headers
-// (REEF-175). This mirrors the backlog's plain table header.
-const COLUMN_LABELS = [
-  "ID",
-  "Type",
-  "Title",
-  "Status",
-  "Priority",
-  "Assignee",
-  "Start",
-  "Due",
-  "Sprint",
-  "Milestone",
-  "Release",
-  "Updated",
-  "",
-] as const;
 
 interface IssueListTableProps {
   vault: string;

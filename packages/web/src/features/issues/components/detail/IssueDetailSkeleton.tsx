@@ -13,9 +13,28 @@ const PLANNING_ROWS = [
   "points",
 ] as const;
 
-/** Skeletons before the rail sections: 3 header + 4 main-canvas placeholders. */
+/** The four relationship fields the loaded main canvas renders in a 2-col grid
+ *  (Parent / Depends on / Blocks / Related — IssueDetailMain). */
+const RELATIONSHIP_ROWS = ["parent", "depends", "blocks", "related"] as const;
+/** Placeholder event rows under the activity composer. */
+const ACTIVITY_ROWS = ["a", "b", "c"] as const;
+
+/** Skeletons before the main canvas sections: 3 header + 2 title + 2 description. */
 const HEADER_SKELETONS = 3;
-const MAIN_SKELETONS = 4;
+const TITLE_SKELETONS = 2;
+const DESCRIPTION_SKELETONS = 2;
+/** Relationships section: one header + a label/value pair per field. */
+const RELATIONSHIP_SKELETONS = 1 + RELATIONSHIP_ROWS.length * 2;
+/** Activity section: one header + the composer + one bar per event row. */
+const ACTIVITY_SKELETONS = 1 + 1 + ACTIVITY_ROWS.length;
+/** Everything the main canvas paints before the rail begins (title +
+ *  description + relationships + activity), so the rail's sweep indices follow
+ *  the main column in reading order. */
+const MAIN_SKELETONS =
+  TITLE_SKELETONS +
+  DESCRIPTION_SKELETONS +
+  RELATIONSHIP_SKELETONS +
+  ACTIVITY_SKELETONS;
 
 type WaveStyle = CSSProperties & { "--i": number };
 
@@ -32,9 +51,11 @@ function wave(index: number): WaveStyle {
 /**
  * One rail property row: a fixed-width label gutter and a full-width value,
  * mirroring `IssueFieldRow` (REEF-149) so the placeholder lines up with the
- * loaded rail. The label takes the fainter `secondary` tone and the value the
- * default `primary` tone, pre-encoding the loaded row's emphasis. `index` is
- * the label's sweep position; the value follows one step behind it.
+ * loaded rail. The label gutter is `w-20` — the exact `IssueFieldRow` gutter
+ * width — so the value column does not shift right when the rail hydrates
+ * (REEF-258; was `w-12`). The label takes the fainter `secondary` tone and the
+ * value the default `primary` tone, pre-encoding the loaded row's emphasis.
+ * `index` is the label's sweep position; the value follows one step behind it.
  */
 function RailRowSkeleton({ index }: { index: number }) {
   return (
@@ -42,7 +63,7 @@ function RailRowSkeleton({ index }: { index: number }) {
       <Skeleton
         tone="secondary"
         style={wave(index)}
-        className="h-3 w-12 shrink-0"
+        className="h-3 w-20 shrink-0"
       />
       <Skeleton style={wave(index + 1)} className="h-8 min-w-0 flex-1" />
     </div>
@@ -78,21 +99,31 @@ function RailSectionSkeleton({
 /**
  * Skeleton placeholder for `IssueDetail` while the issue is loading. It mirrors
  * the loaded layout component-for-component — the header row, then the
- * two-column grid of the main canvas (title + description) and the 340px
- * property rail with its Details / People / Planning sections — so the panel
- * settles into the same shape instead of flashing one full-panel block that
- * then rearranges into a different structure.
+ * two-column grid of the main canvas and the 340px property rail with its
+ * Details / People / Planning sections — so the panel settles into the same
+ * shape instead of flashing one full-panel block that then rearranges into a
+ * different structure.
  *
- * On top of that REEF-249 structure, REEF-250 gives the placeholders a shared
- * design language: each `Skeleton` carries a reading-order `--i` so one calm
- * light source sweeps the panel, and labels / section headers take the fainter
+ * The main canvas reserves the loaded column's full height: title + description
+ * (the description bar sized to the MarkdownEditor's toolbar + 200px body floor,
+ * not a short stub), then the always-present Relationships section and the
+ * Activity timeline + composer below it. Before REEF-258 it stopped after the
+ * description, so the panel grew ~2× when the real relationships + activity
+ * hydrated in; the reserved sections keep the visible region from jumping.
+ *
+ * On top of that structure, REEF-250 gives the placeholders a shared design
+ * language: each `Skeleton` carries a reading-order `--i` so one calm light
+ * source sweeps the panel, and labels / section headers take the fainter
  * `secondary` tone while value placeholders keep the default `primary` tone.
  */
 export function IssueDetailSkeleton() {
-  // Sweep positions are assigned in DOM (reading) order. Rail sections start
-  // after the header + main-canvas skeletons; each rail row spends two indices,
-  // so the offsets below are derived from the row arrays' lengths and stay
-  // correct if a row list grows.
+  // Sweep positions are assigned in DOM (reading) order. The main canvas spends
+  // HEADER_SKELETONS..(HEADER_SKELETONS + MAIN_SKELETONS - 1); the rail begins
+  // after it. Each rail row spends two indices, so the offsets below are derived
+  // from the row arrays' lengths and stay correct if a row list grows.
+  const relationshipsStart =
+    HEADER_SKELETONS + TITLE_SKELETONS + DESCRIPTION_SKELETONS;
+  const activityStart = relationshipsStart + RELATIONSHIP_SKELETONS;
   const detailsStart = HEADER_SKELETONS + MAIN_SKELETONS;
   const labelsStart = detailsStart + 1 + DETAILS_ROWS.length * 2;
   const peopleStart = labelsStart + 2;
@@ -118,16 +149,66 @@ export function IssueDetailSkeleton() {
 
       {/* Two-column grid: main canvas + 340px rail (mirrors IssueDetail). */}
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-        {/* Main canvas: title field + description editor
+        {/* Main canvas: title + description + relationships + activity
             (mirrors IssueDetailMain). */}
         <div className="flex min-w-0 flex-col gap-4">
           <div className="flex flex-col gap-1">
             <Skeleton tone="secondary" style={wave(3)} className="h-3 w-10" />
-            <Skeleton style={wave(4)} className="h-9 w-full" />
+            {/* Title value matches the `Input` height (h-8), not h-9. */}
+            <Skeleton style={wave(4)} className="h-8 w-full" />
           </div>
           <div className="flex flex-col gap-1">
             <Skeleton tone="secondary" style={wave(5)} className="h-3 w-20" />
-            <Skeleton style={wave(6)} className="h-44 w-full" />
+            {/* Description value reserves the MarkdownEditor's height: a ~36px
+                toolbar strip over its 200px body floor (≈236px → h-60), so the
+                editor chunk loading in does not push the sections below down. */}
+            <Skeleton style={wave(6)} className="h-60 w-full" />
+          </div>
+
+          {/* Relationships — IssueFormSection "Relationships" + its 2-col grid
+              of Parent / Depends on / Blocks / Related fields. Always rendered
+              in the loaded panel, so reserve it here. */}
+          <div className="grid gap-3">
+            <Skeleton
+              tone="secondary"
+              style={wave(relationshipsStart)}
+              className="h-3 w-24"
+            />
+            <div className="grid gap-3 md:grid-cols-2">
+              {RELATIONSHIP_ROWS.map((row, k) => (
+                <div key={row} className="flex flex-col gap-1">
+                  <Skeleton
+                    tone="secondary"
+                    style={wave(relationshipsStart + 1 + k * 2)}
+                    className="h-3 w-16"
+                  />
+                  <Skeleton
+                    style={wave(relationshipsStart + 2 + k * 2)}
+                    className="h-8 w-full"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Activity timeline + comment composer (REEF-064) — always rendered
+              at the bottom of the loaded canvas and typically tall, so a couple
+              of event rows under the composer keep the panel from doubling in
+              height when it hydrates. */}
+          <div className="grid gap-3">
+            <Skeleton
+              tone="secondary"
+              style={wave(activityStart)}
+              className="h-3 w-20"
+            />
+            <Skeleton style={wave(activityStart + 1)} className="h-20 w-full" />
+            {ACTIVITY_ROWS.map((row, k) => (
+              <Skeleton
+                key={row}
+                style={wave(activityStart + 2 + k)}
+                className="h-12 w-full"
+              />
+            ))}
           </div>
         </div>
 
