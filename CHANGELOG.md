@@ -37,6 +37,19 @@ explicitly in the entries below.
   one-line entries in an issue's Activity thread, next to status changes and
   delivery. Planning links read by name rather than a raw id, and a linked
   delivery ref still appears once, not twice (REEF-276).
+
+### Changed
+
+- **New workspaces start from issue-type-aligned templates.** The default issue
+  templates seeded by Settings → Templates now match reef's issue types — Epic,
+  User story, Task, Bug, Spike, and Chore — replacing the previous Bug / Feature
+  / Task / Tech debt set. Story and Bug ship with `Given / When / Then`
+  acceptance criteria, and the other types carry a done-definition that fits
+  them (epic success criteria, task checks tied to the parent story, spike
+  recommendation, chore verification). Templates still seed each issue's kind
+  label; you continue to pick the Type in the create dialog. Workspaces that
+  already seeded templates keep them unchanged (REEF-256).
+
 ### Fixed
 
 - **Switching issue views no longer flickers or feels laggy.** Clicking between
