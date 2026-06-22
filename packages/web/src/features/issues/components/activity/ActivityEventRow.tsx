@@ -52,12 +52,35 @@ function deliveryLabel(ref: ImplementationRef): string {
   return `branch ${ref.ref}`;
 }
 
-/** The actor name as an emphasized inline token. */
+/**
+ * The actor name as an emphasized inline token. An actor is a login/username —
+ * a code identifier — so `translate="no"` keeps machine translation from
+ * mangling it (REEF-279/282 convention).
+ */
 function Actor({ name }: { name: string }) {
-  return <span className="font-medium text-foreground">{name}</span>;
+  return (
+    <span className="font-medium text-foreground" translate="no">
+      {name}
+    </span>
+  );
 }
 
-/** A changed value (assignee login, priority label, planning name) as a token. */
+/**
+ * A login/username value (assignee) as a token. Like the actor, it is a code
+ * identifier, so it is kept un-translated.
+ */
+function loginToken(text: string): ReactNode {
+  return (
+    <span className="font-medium text-foreground" translate="no">
+      {text}
+    </span>
+  );
+}
+
+/**
+ * A human-readable changed value (priority label, planning name) as a token.
+ * Unlike a login, this is translatable prose — no `translate="no"`.
+ */
 function valueToken(text: string): ReactNode {
   return <span className="font-medium text-foreground">{text}</span>;
 }
@@ -175,17 +198,22 @@ function lineFor(
     case "delivery": {
       const { ref } = event;
       const label = deliveryLabel(ref);
+      // The label ("PR #25", "commit a1b2c3d", "branch …") is a code identifier
+      // — translate="no" keeps it intact; the ref title below stays translatable.
       const link = ref.url ? (
         <a
           href={ref.url}
           target="_blank"
           rel="noopener noreferrer"
+          translate="no"
           className="font-medium text-foreground underline-offset-2 hover:underline"
         >
           {label}
         </a>
       ) : (
-        <span className="font-medium text-foreground">{label}</span>
+        <span className="font-medium text-foreground" translate="no">
+          {label}
+        </span>
       );
       const title = ref.title ? <span> — {ref.title}</span> : null;
       // Lead with the actor when the ref carries provenance (activity-scan refs
@@ -210,11 +238,11 @@ function lineFor(
           event.actor,
           "reassigned",
           <>
-            {valueToken(from)} → {valueToken(to)}
+            {loginToken(from)} → {loginToken(to)}
           </>,
         );
-      if (to) return sentence(event.actor, "assigned this to", valueToken(to));
-      if (from) return sentence(event.actor, "unassigned", valueToken(from));
+      if (to) return sentence(event.actor, "assigned this to", loginToken(to));
+      if (from) return sentence(event.actor, "unassigned", loginToken(from));
       return sentence(event.actor, "changed the assignee");
     }
     case "priority_change": {

@@ -127,11 +127,18 @@ export function ActivityTimeline({
         />
       </div>
 
-      {commentsError || activityError ? (
-        <p className="text-xs text-destructive">
-          Couldn't load the full activity. Try again.
-        </p>
-      ) : null}
+      {/* Persistent polite live region (implicit role="status") so a load
+          failure that appears after mount is announced to screen readers, not
+          just rendered silently. `empty:hidden` keeps it out of the layout
+          until there is something to say. */}
+      <output
+        aria-live="polite"
+        className="text-xs text-destructive empty:hidden"
+      >
+        {commentsError || activityError
+          ? "Couldn't load the full activity. Try again."
+          : null}
+      </output>
     </section>
   );
 }

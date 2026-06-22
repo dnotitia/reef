@@ -77,7 +77,10 @@ export function CommentCard({
       />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-xs font-medium text-foreground">
+          <span
+            className="truncate text-xs font-medium text-foreground"
+            translate="no"
+          >
             {comment.author}
           </span>
           <time
@@ -102,7 +105,7 @@ export function CommentCard({
               size="icon-sm"
               aria-label="Edit comment"
               onClick={startEditing}
-              className="ml-auto text-muted-foreground opacity-0 transition-opacity duration-150 ease-[var(--ease-signature)] hover:text-foreground focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
+              className="ml-auto text-muted-foreground opacity-0 motion-safe:transition-opacity motion-safe:duration-150 motion-safe:ease-[var(--ease-signature)] hover:text-foreground focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
             >
               <Pencil className="size-3.5" aria-hidden="true" />
             </Button>
