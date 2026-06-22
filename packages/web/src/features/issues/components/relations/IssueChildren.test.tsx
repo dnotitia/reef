@@ -178,6 +178,6 @@ describe("IssueChildren", () => {
         relationGraph={[blocker, blockedChild]}
       />,
     );
-    expect(screen.getByText(/Blocked \(1\)/)).toBeTruthy();
+    expect(screen.getByLabelText("Blocked by 1 issue")).toBeTruthy();
   });
 });

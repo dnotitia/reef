@@ -25,4 +25,22 @@ describe("BlockedBadge", () => {
     render(<BlockedBadge variant="kanban" className="ml-auto" />);
     expect(screen.getByText("Blocked").className).toContain("ml-auto");
   });
+
+  it("compact variant encodes the count as glyph + number, no word, with an accessible name", () => {
+    render(<BlockedBadge variant="compact" count={2} />);
+    // No visible "Blocked (N)" word — the value is encoded once, visually.
+    expect(screen.queryByText(/Blocked \(/)).toBeNull();
+    // The count is the visible text…
+    expect(screen.getByText("2")).toBeInTheDocument();
+    // …and the full sentence is the single accessible name (REEF-285).
+    expect(screen.getByLabelText("Blocked by 2 issues")).toBeInTheDocument();
+  });
+
+  it("compact variant singularizes one blocker and clamps large counts", () => {
+    const { rerender } = render(<BlockedBadge variant="compact" count={1} />);
+    expect(screen.getByLabelText("Blocked by 1 issue")).toBeInTheDocument();
+
+    rerender(<BlockedBadge variant="compact" count={12} />);
+    expect(screen.getByText("9+")).toBeInTheDocument();
+  });
 });

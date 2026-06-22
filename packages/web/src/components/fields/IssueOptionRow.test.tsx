@@ -30,14 +30,31 @@ describe("IssueOptionRow", () => {
     expect(screen.queryByLabelText(/Priority:/)).toBeNull();
   });
 
-  it("renders the blocked badge only when blockerCount > 0", () => {
+  it("renders the blocked marker only when blockerCount > 0", () => {
     const { rerender } = render(
       <IssueOptionRow issue={ISSUE} blockerCount={0} />,
     );
-    expect(screen.queryByText(/Blocked/)).toBeNull();
+    expect(screen.queryByLabelText(/^Blocked by/)).toBeNull();
 
     rerender(<IssueOptionRow issue={ISSUE} blockerCount={2} />);
-    expect(screen.getByText("Blocked (2)")).toBeInTheDocument();
+    // The compact marker encodes the count as glyph + number; the full sentence
+    // is its accessible name (REEF-285).
+    expect(screen.getByLabelText("Blocked by 2 issues")).toBeInTheDocument();
+  });
+
+  it("lays the row out as a fixed-track grid with a reserved priority column", () => {
+    // The grid (not a flex row) keeps the title from collapsing and the type /
+    // priority columns aligned across rows whether or not a row has a priority
+    // or a blocked marker (REEF-285).
+    const { container } = render(
+      <IssueOptionRow issue={{ ...ISSUE, priority: null }} />,
+    );
+    const root = container.firstChild as HTMLElement;
+    expect(root.className).toContain(
+      "grid-cols-[auto_5rem_minmax(0,1fr)_auto_0.75rem]",
+    );
+    // No priority dot, but its column is still reserved so dots align row-to-row.
+    expect(screen.queryByLabelText(/Priority:/)).toBeNull();
   });
 
   it("highlights the query inside id and title", () => {

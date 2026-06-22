@@ -289,10 +289,12 @@ describe("IssueRelationInput", () => {
 
     await user.type(screen.getByLabelText("Depends on"), "REEF-002");
 
-    // Type pill, priority dot, and blocked badge all surface on the row.
+    // Type pill, priority dot, and blocked marker all surface on the row.
     expect(screen.getByText("Story")).toBeInTheDocument();
     expect(screen.getByLabelText("Priority: Medium")).toBeInTheDocument();
-    expect(screen.getByText("Blocked (1)")).toBeInTheDocument();
+    // The blocked marker is the compact glyph + count; its accessible name is
+    // the full sentence (REEF-285).
+    expect(screen.getByLabelText("Blocked by 1 issue")).toBeInTheDocument();
   });
 
   it("adds a candidate chosen from the dropdown", async () => {
