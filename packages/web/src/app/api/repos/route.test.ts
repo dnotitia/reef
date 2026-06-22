@@ -282,9 +282,33 @@ describe("GET /api/repos — server-managed GitHub App path", () => {
     return { listInstallationRepositories, mintInstallationToken };
   }
 
+  // A non-expired session cookie (no parseable `exp` reads as not-expired).
+  // The App path requires a valid reef session before using the server token.
+  function makeAuthedRequest(headers: Record<string, string> = {}): Request {
+    return makeRequest({
+      Cookie: "__reef_session=test-session-jwt",
+      ...headers,
+    });
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
     appConfigState.current = APP_CONFIG;
+  });
+
+  it("returns 401 without minting when there is no reef session (REEF-239)", async () => {
+    const { listInstallationRepositories, mintInstallationToken } =
+      mockInstallationRepoList();
+
+    // App configured, but the caller has no session cookie — the server must
+    // not mint a credential or expose the installation's repo list.
+    const req = makeRequest();
+    const res = await GET(req);
+
+    expect(res.status).toBe(401);
+    expect(mintInstallationToken).not.toHaveBeenCalled();
+    expect(listInstallationRepositories).not.toHaveBeenCalled();
+    expect(mockLogError).not.toHaveBeenCalled();
   });
 
   it("lists installation repos with the minted token and no browser PAT (AC1/AC2)", async () => {
@@ -296,8 +320,8 @@ describe("GET /api/repos — server-managed GitHub App path", () => {
       etag: null,
     });
 
-    // No Authorization header — the App path must not require a browser PAT.
-    const req = makeRequest();
+    // A signed-in workspace user, no browser PAT — the App path serves the list.
+    const req = makeAuthedRequest();
     const res = await GET(req);
 
     expect(res.status).toBe(200);
@@ -324,7 +348,7 @@ describe("GET /api/repos — server-managed GitHub App path", () => {
       etag: null,
     });
 
-    const req = makeRequest({ Authorization: "Bearer ghp_browser_pat" });
+    const req = makeAuthedRequest({ Authorization: "Bearer ghp_browser_pat" });
     const res = await GET(req);
 
     expect(res.status).toBe(200);
@@ -343,7 +367,7 @@ describe("GET /api/repos — server-managed GitHub App path", () => {
       etag: 'W/"inst-abc"',
     });
 
-    const req = makeRequest({ "If-None-Match": 'W/"inst-old"' });
+    const req = makeAuthedRequest({ "If-None-Match": 'W/"inst-old"' });
     const res = await GET(req);
 
     expect(res.status).toBe(200);
@@ -368,7 +392,7 @@ describe("GET /api/repos — server-managed GitHub App path", () => {
       }),
     );
 
-    const req = makeRequest();
+    const req = makeAuthedRequest();
     const res = await GET(req);
 
     expect(res.status).toBe(403);
