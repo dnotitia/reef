@@ -83,4 +83,70 @@ describe("useIssueList", () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.error?.message).toContain("Workspace not found");
   });
+
+  it("keeps prior same-vault rows as placeholder by default during a key change", async () => {
+    const aliceRows = [{ ...ISSUES[0], id: "REEF-A" }] as IssueMetadata[];
+    mockApiFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ issues: aliceRows }), { status: 200 }),
+    );
+    let resolveSecond: (r: Response) => void = () => {};
+    mockApiFetch.mockReturnValueOnce(
+      new Promise<Response>((res) => {
+        resolveSecond = res;
+      }),
+    );
+
+    const { result, rerender } = renderHook(
+      ({ q }: { q: Record<string, string> }) => useIssueList("reef-acme", q),
+      {
+        wrapper: createWrapper(),
+        initialProps: { q: { assigned_to: "alice" } },
+      },
+    );
+    await waitFor(() => expect(result.current.data).toEqual(aliceRows));
+
+    rerender({ q: { assigned_to: "bob" } });
+    // Same vault, new query key → prior rows stay visible as placeholder.
+    expect(result.current.data).toEqual(aliceRows);
+
+    resolveSecond(
+      new Response(JSON.stringify({ issues: [] }), { status: 200 }),
+    );
+    await waitFor(() => expect(result.current.data).toEqual([]));
+  });
+
+  it("drops prior rows (no placeholder) on a key change when keepPreviousData is false (REEF-267)", async () => {
+    // The identity-scoped My Work query opts out so an account switch never
+    // reuses the previous login's rows in the same vault.
+    const aliceRows = [{ ...ISSUES[0], id: "REEF-A" }] as IssueMetadata[];
+    mockApiFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ issues: aliceRows }), { status: 200 }),
+    );
+    let resolveSecond: (r: Response) => void = () => {};
+    mockApiFetch.mockReturnValueOnce(
+      new Promise<Response>((res) => {
+        resolveSecond = res;
+      }),
+    );
+
+    const { result, rerender } = renderHook(
+      ({ q }: { q: Record<string, string> }) =>
+        useIssueList("reef-acme", q, { keepPreviousData: false }),
+      {
+        wrapper: createWrapper(),
+        initialProps: { q: { assigned_to: "alice" } },
+      },
+    );
+    await waitFor(() => expect(result.current.data).toEqual(aliceRows));
+
+    rerender({ q: { assigned_to: "bob" } });
+    // No placeholder: the prior login's rows are NOT shown while bob loads.
+    expect(result.current.data).toBeUndefined();
+    expect(result.current.isPending).toBe(true);
+
+    resolveSecond(
+      new Response(JSON.stringify({ issues: [] }), { status: 200 }),
+    );
+    await waitFor(() => expect(result.current.data).toEqual([]));
+  });
 });

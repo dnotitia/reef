@@ -111,10 +111,13 @@ describe("MyWorkPage", () => {
   it("scopes the fetch to the signed-in user — no manual picker (AC1)", () => {
     render(<MyWorkPage />);
     // The assignee facet is now a multi-select array (REEF-267); My Work sends a
-    // one-element array and relies on the server's exact match.
+    // one-element array and relies on the server's exact match. It also opts out
+    // of placeholder reuse so an account switch never shows the previous login's
+    // rows.
     expect(mockUseIssueList).toHaveBeenCalledWith(
       "reef-acme",
       expect.objectContaining({ assigned_to: ["alice"] }),
+      { keepPreviousData: false },
     );
   });
 
@@ -128,8 +131,11 @@ describe("MyWorkPage", () => {
     mockUseCurrentUser.mockReturnValue({ data: null, isPending: false });
     render(<MyWorkPage />);
     expect(screen.getByTestId("my-work-no-session")).toBeInTheDocument();
-    // A logged-out visit should not fan out a whole-vault fetch.
-    expect(mockUseIssueList).toHaveBeenCalledWith("", undefined);
+    // A logged-out visit should not fan out a whole-vault fetch (blank vault,
+    // no query); placeholder reuse is opted out as for every My Work fetch.
+    expect(mockUseIssueList).toHaveBeenCalledWith("", undefined, {
+      keepPreviousData: false,
+    });
   });
 
   it("shows the empty state when nothing is assigned (AC7)", () => {

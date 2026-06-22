@@ -81,7 +81,12 @@ export function MyWorkPage() {
     () => (login ? buildIssueQuery({ assignee: [login] }) : undefined),
     [login],
   );
-  const issuesQuery = useIssueList(scopedVault, query);
+  // Opt out of placeholder reuse: this query is scoped to one login, so its key
+  // only changes on an account switch — never reuse the previous login's rows as
+  // placeholder (it would briefly show another user's work in the same vault).
+  const issuesQuery = useIssueList(scopedVault, query, {
+    keepPreviousData: false,
+  });
   const relationsQuery = useIssueRelations(scopedVault);
   const planningQuery = usePlanningCatalog(scopedVault);
 

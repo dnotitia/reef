@@ -39,7 +39,12 @@ export function useMyWorkAttention(): MyWorkAttention {
     () => (login ? buildIssueQuery({ assignee: [login] }) : undefined),
     [login],
   );
-  const { data } = useIssueList(scopedVault, query);
+  // Same identity-scoped query as MyWorkPage (shared cache entry); opt out of
+  // placeholder reuse so an account switch never counts the previous login's
+  // cached rows in the badge (REEF-267 autoreview).
+  const { data } = useIssueList(scopedVault, query, {
+    keepPreviousData: false,
+  });
 
   // The dashboard shell hosting this badge does not unmount, so a once-captured
   // `now` would freeze the deadline clock — an item crossing into the due-soon

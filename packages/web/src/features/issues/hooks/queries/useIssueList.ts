@@ -17,7 +17,23 @@ import { useQuery } from "@tanstack/react-query";
  */
 const issueListKey = (vault: string) => ["issues", "list", vault] as const;
 
-export function useIssueList(vault: string, query?: IssueQueryParams) {
+export function useIssueList(
+  vault: string,
+  query?: IssueQueryParams,
+  options?: {
+    /**
+     * Reuse the previous query's rows as placeholder while a new query key
+     * fetches WITHIN the same vault (no skeleton flicker on filter/sort changes).
+     * Default true. Set false for an identity-scoped query (My Work) where the
+     * key only changes on an account switch — reusing the previous login's rows
+     * as placeholder would briefly show another user's work in the same vault
+     * (REEF-267 autoreview). With it off, a login change shows a skeleton, never
+     * stale rows.
+     */
+    keepPreviousData?: boolean;
+  },
+) {
+  const keepPreviousData = options?.keepPreviousData ?? true;
   return useQuery({
     queryKey: query
       ? (["issues", "list", vault, normalizeIssueQuery(query)] as const)
@@ -25,9 +41,13 @@ export function useIssueList(vault: string, query?: IssueQueryParams) {
     staleTime: 60_000,
     // Keep prior results visible across filter/sort changes WITHIN the same
     // vault (no skeleton flicker), but does not across a workspace switch — that
-    // would briefly show another vault's issues.
-    placeholderData: (previousData, previousQuery) =>
-      previousQuery?.queryKey[2] === vault ? previousData : undefined,
+    // would briefly show another vault's issues. An identity-scoped caller opts
+    // out via `keepPreviousData: false` so an account change never reuses the
+    // previous login's rows (see the option doc above).
+    placeholderData: keepPreviousData
+      ? (previousData, previousQuery) =>
+          previousQuery?.queryKey[2] === vault ? previousData : undefined
+      : undefined,
     queryFn: async (): Promise<IssueListItem[]> => {
       const params = new URLSearchParams();
       params.set("vault", vault);
