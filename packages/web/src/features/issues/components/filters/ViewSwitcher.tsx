@@ -103,7 +103,7 @@ export function ViewSwitcher({ activeView }: ViewSwitcherProps) {
                 : SEGMENTED_CONTROL_ITEM_INACTIVE,
             )}
           >
-            <Icon className="h-3.5 w-3.5 shrink-0" />
+            <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span className="hidden sm:inline">{label}</span>
           </button>
         );

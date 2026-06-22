@@ -90,13 +90,16 @@ describe("ViewSwitcher", () => {
   // contract that guards against the indicator being dropped again.
   it("gives each segment the canonical focus-visible ring and shared dimensions", () => {
     render(<ViewSwitcher activeView="board" />);
-    const classes = screen
-      .getByTestId("view-switcher-board")
-      .className.split(/\s+/);
+    const board = screen.getByTestId("view-switcher-board");
+    const classes = board.className.split(/\s+/);
     expect(classes).toContain("focus-visible:ring-2");
     expect(classes).toContain("focus-visible:ring-brand");
     expect(classes).toContain("text-[12px]");
     expect(classes).toContain("px-2");
     expect(classes).toContain("font-medium");
+    // The segment's glyph is decorative — the button already carries an
+    // aria-label and a text label — so it stays out of the accessibility tree,
+    // matching the SettingsTabs / Planning-toggle siblings.
+    expect(board.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
   });
 });
