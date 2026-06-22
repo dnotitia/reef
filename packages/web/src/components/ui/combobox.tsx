@@ -57,6 +57,7 @@ import {
   CBX_TRIGGER_BUTTON,
   CBX_TRIGGER_FIELD,
 } from "./comboboxChrome";
+import { useOverlayOpenRegistration } from "./overlayDismiss";
 
 export interface ComboboxOption<T extends string> {
   value: T;
@@ -160,6 +161,10 @@ export function Combobox<T extends string>({
     vertical: "down",
     horizontal: align,
   });
+
+  // While open inside a Sheet/Dialog, defer Escape to this overlay so it closes
+  // the panel rather than the surrounding sheet (REEF-288).
+  useOverlayOpenRegistration(open);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);

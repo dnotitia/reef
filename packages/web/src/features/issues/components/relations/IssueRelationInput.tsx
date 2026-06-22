@@ -2,6 +2,7 @@
 
 import { IssueOptionRow } from "@/components/fields/IssueOptionRow";
 import { Button } from "@/components/ui/button";
+import { useOverlayOpenRegistration } from "@/components/ui/overlayDismiss";
 import { useIssueDrill } from "@/features/issues/hooks/view/useIssueDrill";
 import {
   type IssueRelationLike,
@@ -110,6 +111,9 @@ export function IssueRelationInput({
   const [draft, setDraft] = useState(isSingle ? selectedSingleValue : "");
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  // While open inside a Sheet/Dialog, defer Escape to this dropdown so it closes
+  // the panel rather than the surrounding sheet (REEF-288).
+  useOverlayOpenRegistration(open);
   // Focus stays on the input (aria combobox pattern), so keep the highlighted
   // row in view manually when ↑/↓ moves past the capped-height list.
   const listRef = useRef<HTMLDivElement>(null);

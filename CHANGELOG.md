@@ -99,6 +99,15 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Esc now closes the open dropdown, not the whole issue editor.** While
+  editing an issue, pressing Esc with an open Assignee/Sprint/Release/Labels
+  picker, a Start/Due date popover, a relationship dropdown, or the ⋮ actions
+  menu now closes just that overlay and leaves the issue panel open — matching
+  how the Status/Priority/Type selects already behaved. Previously Esc dismissed
+  the entire panel (and the New issue / Planning editor dialogs behaved the same
+  way), because these custom overlays did not participate in the dialog's
+  keyboard-dismiss stack. When no overlay is open, Esc still steps back or closes
+  the panel as before (REEF-288).
 - **Related-issue and sub-issue rows no longer hide their title.** In the issue
   detail, the Depends on / Blocks / Related rows, the relationship picker, and
   the Sub-issues list now lay their issues out as aligned columns — status, id,

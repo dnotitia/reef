@@ -4,6 +4,11 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { XIcon } from "lucide-react";
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import {
+  OverlayDismissProvider,
+  useGuardedEscapeKeyDown,
+  useOverlayDismissRegistry,
+} from "./overlayDismiss";
 
 function Sheet({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
   return <DialogPrimitive.Root data-slot="sheet" {...props} />;
@@ -60,13 +65,22 @@ function SheetContent({
   children,
   side = "right",
   showCloseButton = true,
+  onEscapeKeyDown,
   ...props
 }: SheetContentProps) {
+  // Defer Escape to an open child custom overlay (Combobox / Popover / menu /
+  // relation input) so it closes the overlay, not the whole sheet (REEF-288).
+  const overlayDismiss = useOverlayDismissRegistry();
+  const handleEscapeKeyDown = useGuardedEscapeKeyDown(
+    overlayDismiss,
+    onEscapeKeyDown,
+  );
   return (
     <SheetPortal>
       <SheetOverlay />
       <DialogPrimitive.Content
         data-slot="sheet-content"
+        onEscapeKeyDown={handleEscapeKeyDown}
         className={cn(
           "fixed z-50 flex flex-col gap-4 bg-elevated shadow-xl shadow-foreground/10 transition ease-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=open]:duration-200",
           side === "right" &&
@@ -81,7 +95,9 @@ function SheetContent({
         )}
         {...props}
       >
-        {children}
+        <OverlayDismissProvider registry={overlayDismiss}>
+          {children}
+        </OverlayDismissProvider>
         {showCloseButton ? (
           <DialogPrimitive.Close className="absolute top-3 right-3 rounded-sm p-1 text-muted-foreground opacity-70 transition-opacity hover:bg-surface-hover hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:pointer-events-none">
             <XIcon className="size-4" />
