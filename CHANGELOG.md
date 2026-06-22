@@ -14,6 +14,12 @@ explicitly in the entries below.
 
 ### Added
 
+- **Spot outdated workspace AI instructions from the sidebar.** When your active
+  workspace is running an older agent playbook, the sidebar **Settings** entry
+  now shows a small amber dot, so the drift is discoverable without opening
+  settings first. The dot clears as soon as you apply the update — and applying
+  it now confirms with a brief "Workspace instructions updated." message — and it
+  stays hidden while the status is still loading or already current (REEF-257).
 - **Drill through related issues without losing your place.** Following a
   parent breadcrumb or sub-issue from an open issue now swaps the side panel to
   that issue in place and shows a top-left **Back** to the issue you came from,

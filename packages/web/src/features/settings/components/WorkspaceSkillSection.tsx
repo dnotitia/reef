@@ -2,6 +2,7 @@
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
+import { toast } from "sonner";
 import { formatTimestampMonthDay } from "../../issues/lib/dateHelpers";
 import { useActiveVault } from "../hooks/useActiveVault";
 import { useVaults } from "../hooks/useVaults";
@@ -108,7 +109,15 @@ export function WorkspaceSkillSection() {
                 disabled={apply.isPending}
                 onClick={() =>
                   apply.mutate(undefined, {
-                    onSuccess: () => setConfirming(false),
+                    onSuccess: () => {
+                      setConfirming(false);
+                      // State (drift) lives in the badge/box; this toast marks
+                      // the one-shot *event* of applying the update (REEF-257).
+                      // A single non-reversible success → plain toast.success per
+                      // toastFeedback's convention; the failure path keeps its
+                      // inline role="alert" below, so it is not doubled here.
+                      toast.success("Workspace instructions updated.");
+                    },
                   })
                 }
                 className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors duration-150 hover:bg-foreground/90 disabled:opacity-60"

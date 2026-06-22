@@ -25,6 +25,7 @@ import { GlobalSearchDialog } from "@/features/search/components/GlobalSearchDia
 import { useGlobalSearchStore } from "@/features/search/stores/useGlobalSearchStore";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useProjectConfig } from "@/features/settings/hooks/useProjectConfig";
+import { useWorkspaceSkillStatus } from "@/features/settings/hooks/useWorkspaceSkillStatus";
 import { KeyboardShortcutsDialog } from "@/features/shortcuts/components/KeyboardShortcutsDialog";
 import { useShortcutsStore } from "@/features/shortcuts/stores/useShortcutsStore";
 import { useViewStore } from "@/features/ui/stores/useViewStore";
@@ -84,7 +85,7 @@ const navLinks: ReadonlyArray<{
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
-/** A sidebar nav count badge (REEF-204): the Activity "unread" pill and the My
+/** A sidebar nav badge (REEF-204): the Activity "unread" pill and the My
  * Work "needs attention" pill share one render path, differing in tone.
  * Filled-pill + white foreground is the sidebar's badge vocabulary (the count is
  * also carried by an aria-label, so the small chip is not the signal). */
@@ -103,9 +104,16 @@ const NAV_BADGE_DOT: Record<NavBadgeTone, string> = {
 };
 
 interface NavBadge {
-  /** Capped display text, e.g. "9+". */
+  /** "count" → a numeric pill when expanded, a dot when collapsed (Activity, My
+   * Work). "state" → a dot in both layouts: a binary signal that carries no
+   * quantity, so a counting pill would be the wrong vocabulary (REEF-257 — the
+   * workspace skill is either drifted or not). */
+  kind: "count" | "state";
+  /** Capped display text for a count badge, e.g. "9+". Unused when kind is
+   * "state" (a dot shows no number). */
   display: string;
-  /** Full accessible label carrying the real counts. */
+  /** Full accessible label — the real counts for a count badge, the state for a
+   * state badge. The dot/pill is silent, so this label is the only signal. */
   label: string;
   tone: NavBadgeTone;
   badgeTestId: string;
@@ -186,12 +194,26 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   // Activity badge.
   const { attention, overdue, dueSoon } = useMyWorkAttention();
 
-  // Resolve the count badge a nav link shows, if any. Returns null while the
-  // link is active so the page itself owns the count then (matches Activity).
+  // Workspace skill (agent-playbook) drift for the sidebar Settings badge
+  // (REEF-257). The status is read by agents, not the PM, so it stays invisible
+  // until a surface shows it; this lifts the existing Settings-page signal up to
+  // the always-present sidebar. Rides the same `["vault-skill", vault]` query the
+  // settings section uses (5-min cache, no extra fetch), so applying the update
+  // — which primes that cache — clears the badge automatically.
+  const skillStatus = useWorkspaceSkillStatus(vault);
+  // Only an explicit `up_to_date === false` lights the badge; while the status
+  // is loading, errored, or for a vault-less shell the data is undefined and the
+  // badge stays dark (REEF-257 AC3).
+  const skillOutdated = skillStatus.data?.up_to_date === false;
+
+  // Resolve the badge a nav link shows, if any. Returns null while the link is
+  // active so the page itself owns the signal then (matches Activity; for
+  // Settings the drift detail + update affordance lives on the page).
   function navBadgeFor(href: string, isActive: boolean): NavBadge | null {
     if (isActive) return null;
     if (href === "/activity" && unreadInboxCount > 0) {
       return {
+        kind: "count",
         display: cap(unreadInboxCount),
         label: `${unreadInboxCount} unread`,
         tone: "brand",
@@ -204,6 +226,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
       if (overdue > 0) parts.push(`${overdue} overdue`);
       if (dueSoon > 0) parts.push(`${dueSoon} due soon`);
       return {
+        kind: "count",
         display: cap(attention),
         label: parts.join(", "),
         // overdue dominates the tone: any overdue work reads as destructive,
@@ -211,6 +234,21 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
         tone: overdue > 0 ? "danger" : "warn",
         badgeTestId: "my-work-attention-badge",
         dotTestId: "my-work-attention-dot",
+      };
+    }
+    if (href === "/settings" && skillOutdated) {
+      return {
+        // Not a count — drift is a binary state, so it shows as a dot in both
+        // layouts rather than a pill (anti-slop: encode the one state once,
+        // reuse the dot vocabulary). `warn` (orange), matching the advisory tone
+        // of the Settings-page "Newer AI instructions are available." box;
+        // destructive red stays reserved for missed commitments (My Work).
+        kind: "state",
+        display: "",
+        label: "Workspace instructions update available",
+        tone: "warn",
+        badgeTestId: "workspace-skill-badge",
+        dotTestId: "workspace-skill-dot",
       };
     }
     return null;
@@ -401,18 +439,32 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                     ) : (
                       <>
                         <span className="flex-1">{label}</span>
-                        {badge && (
-                          <span
-                            data-testid={badge.badgeTestId}
-                            aria-label={badge.label}
-                            className={cn(
-                              "ml-auto inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-semibold leading-none tabular-nums",
-                              NAV_BADGE_PILL[badge.tone],
-                            )}
-                          >
-                            {badge.display}
-                          </span>
-                        )}
+                        {badge &&
+                          (badge.kind === "state" ? (
+                            // A count-less state shows the same dot as the
+                            // collapsed layout, parked in the badge gutter where
+                            // the count pills sit so the right edge stays a single
+                            // scan column (REEF-257).
+                            <span
+                              data-testid={badge.badgeTestId}
+                              aria-label={badge.label}
+                              className={cn(
+                                "ml-auto inline-block h-1.5 w-1.5 rounded-full",
+                                NAV_BADGE_DOT[badge.tone],
+                              )}
+                            />
+                          ) : (
+                            <span
+                              data-testid={badge.badgeTestId}
+                              aria-label={badge.label}
+                              className={cn(
+                                "ml-auto inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-semibold leading-none tabular-nums",
+                                NAV_BADGE_PILL[badge.tone],
+                              )}
+                            >
+                              {badge.display}
+                            </span>
+                          ))}
                       </>
                     )}
                   </Link>
