@@ -336,4 +336,51 @@ describe("MultiSelectCombobox", () => {
       expect(screen.getByText("Loading…")).toBeTruthy();
     });
   });
+
+  describe("summarizeValue (REEF-246/267)", () => {
+    const NAME_BY_ID: Record<string, string> = {
+      s1: "Sprint 4",
+      s2: "Sprint 5",
+    };
+    const summarize = (id: string) => NAME_BY_ID[id] ?? id;
+
+    it("shows a readable single-selection label instead of the raw value", () => {
+      render(
+        <MultiSelectCombobox<string>
+          label="Sprint"
+          values={["s1"]}
+          onToggle={() => {}}
+          options={[
+            { value: "s1", label: "Sprint 4", content: <span>Sprint 4</span> },
+            { value: "s2", label: "Sprint 5", content: <span>Sprint 5</span> },
+          ]}
+          summarizeValue={summarize}
+          triggerTestId="sprint-trigger"
+        />,
+      );
+      // Not the opaque id "s1" — the resolved name.
+      expect(screen.getByTestId("sprint-trigger")).toHaveTextContent(
+        "Sprint (Sprint 4)",
+      );
+    });
+
+    it("collapses two or more selections to a bounded count", () => {
+      render(
+        <MultiSelectCombobox<string>
+          label="Sprint"
+          values={["s1", "s2"]}
+          onToggle={() => {}}
+          options={[
+            { value: "s1", label: "Sprint 4", content: <span>Sprint 4</span> },
+            { value: "s2", label: "Sprint 5", content: <span>Sprint 5</span> },
+          ]}
+          summarizeValue={summarize}
+          triggerTestId="sprint-trigger"
+        />,
+      );
+      expect(screen.getByTestId("sprint-trigger")).toHaveTextContent(
+        "Sprint (2)",
+      );
+    });
+  });
 });

@@ -44,6 +44,22 @@ describe("buildIssueQuery", () => {
     });
   });
 
+  it("drops blank members so a stale `?assignee=` does not 400 the list (REEF-267)", () => {
+    // A hand-edited/stale URL reads as `[""]`; the strict server schema rejects
+    // an empty string, so blanks must be filtered before the wire query.
+    expect(buildIssueQuery({ assignee: [""], sprint_id: ["", " "] })).toEqual({
+      ...DEFAULT_SORT,
+    });
+    // Mixed valid + blank keeps the valid members.
+    expect(
+      buildIssueQuery({ assignee: ["alice", ""], release_id: [" ", "r1"] }),
+    ).toEqual({
+      assigned_to: ["alice"],
+      release_id: ["r1"],
+      ...DEFAULT_SORT,
+    });
+  });
+
   it("keeps the valid members of a multi-select facet (REEF-031)", () => {
     expect(buildIssueQuery({ status: ["todo", "in_progress"] })).toEqual({
       status: ["todo", "in_progress"],

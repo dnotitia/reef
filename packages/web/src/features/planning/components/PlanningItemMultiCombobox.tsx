@@ -50,6 +50,14 @@ export function PlanningItemMultiCombobox({
   const { data: catalog, isPending } = usePlanningCatalog(vault);
   const items = useMemo(() => itemsForKind(catalog, kind), [catalog, kind]);
 
+  // Resolve a single selection's opaque id to its name for the trigger summary,
+  // so the closed chip reads "Sprint (Sprint 4)" rather than the raw UUID
+  // (REEF-246/267). Two or more selections collapse to "(N)" in the primitive.
+  const nameById = useMemo(
+    () => new Map(items.map((item) => [item.id, item.name])),
+    [items],
+  );
+
   const options = useMemo<ComboboxOption<string>[]>(
     () =>
       items.map((item) => ({
@@ -84,6 +92,7 @@ export function PlanningItemMultiCombobox({
       contentTestId={contentTestId}
       className={className}
       contentClassName={panelClassName}
+      summarizeValue={(id) => nameById.get(id) ?? id}
     />
   );
 }

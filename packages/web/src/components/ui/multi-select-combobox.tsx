@@ -105,12 +105,28 @@ interface MultiSelectComboboxProps<T extends string> {
   contentClassName?: string;
   /** Per-row layout override (defaults to the shared single-line row). */
   optionClassName?: string;
+  /**
+   * Render a single selected value in the trigger summary ("(value)"). Defaults
+   * to the raw value, which reads fine for enum members and logins, but a
+   * planning facet passes this to show the item name instead of its opaque id
+   * (REEF-246/267). Two or more selections always collapse to "(N)".
+   */
+  summarizeValue?: (value: T) => string;
 }
 
-/** Short trigger suffix: " (value)" for one selection, " (N)" for many. */
-function facetSummary(values: readonly string[] | undefined): string {
+/** Short trigger suffix: " (value)" for one selection, " (N)" for many. The
+ *  single-selection form runs `summarizeValue` so a caller can show a readable
+ *  label (e.g. a planning name) instead of an opaque id. */
+function facetSummary<T extends string>(
+  values: readonly T[] | undefined,
+  summarizeValue?: (value: T) => string,
+): string {
   if (!values || values.length === 0) return "";
-  return values.length === 1 ? ` (${values[0]})` : ` (${values.length})`;
+  if (values.length === 1) {
+    const value = values[0];
+    return ` (${summarizeValue ? summarizeValue(value) : value})`;
+  }
+  return ` (${values.length})`;
 }
 
 export function MultiSelectCombobox<T extends string>({
@@ -132,6 +148,7 @@ export function MultiSelectCombobox<T extends string>({
   className,
   contentClassName,
   optionClassName,
+  summarizeValue,
 }: MultiSelectComboboxProps<T>) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -395,7 +412,7 @@ export function MultiSelectCombobox<T extends string>({
         )}
       >
         {label}
-        {facetSummary(values)}
+        {facetSummary(values, summarizeValue)}
         <ChevronDown data-open={open} className={CBX_CHEVRON} />
       </button>
 

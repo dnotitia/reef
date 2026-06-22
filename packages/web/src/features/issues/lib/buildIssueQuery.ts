@@ -59,12 +59,19 @@ export function buildIssueQuery(
   );
   if (issueType?.length) q.issue_type = issueType;
   // People/planning facets are multi-select arrays too (REEF-267) → repeated
-  // wire params; milestone_id stays a single scalar.
-  if (filter.assignee?.length) q.assigned_to = filter.assignee;
-  if (filter.requester?.length) q.requester = filter.requester;
-  if (filter.sprint_id?.length) q.sprint_id = filter.sprint_id;
+  // wire params. Drop blank members so a hand-edited/stale `?assignee=` (which
+  // reads as `[""]`) is ignored rather than sent — the strict server schema
+  // (`min(1)`) would 400 the whole list, where the old scalar truthiness check
+  // simply skipped an empty value. milestone_id stays a single scalar.
+  const assignee = filter.assignee?.filter((v) => v.trim());
+  if (assignee?.length) q.assigned_to = assignee;
+  const requester = filter.requester?.filter((v) => v.trim());
+  if (requester?.length) q.requester = requester;
+  const sprintId = filter.sprint_id?.filter((v) => v.trim());
+  if (sprintId?.length) q.sprint_id = sprintId;
   if (filter.milestone_id) q.milestone_id = filter.milestone_id;
-  if (filter.release_id?.length) q.release_id = filter.release_id;
+  const releaseId = filter.release_id?.filter((v) => v.trim());
+  if (releaseId?.length) q.release_id = releaseId;
   // Free-text search → server `q`. Trim so a whitespace box does not sends a
   // facet (the server schema rejects an empty `q`).
   const trimmedSearch = searchQuery?.trim();

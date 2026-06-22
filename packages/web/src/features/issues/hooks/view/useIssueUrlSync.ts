@@ -57,13 +57,15 @@ function readIssueUrlState(searchParams: URLSearchParams): {
   const issueType = searchParams.getAll("type");
   const priority = searchParams.getAll("priority");
   // assignee/requester/sprint/release are multi-select (REEF-267): read every
-  // repeated param, compatible with older single-value shared URLs. milestone
-  // stays single.
-  const assignee = searchParams.getAll("assignee");
-  const requester = searchParams.getAll("requester");
-  const sprintId = searchParams.getAll("sprint_id");
+  // repeated param, compatible with older single-value shared URLs. Blank members
+  // (a hand-edited `?assignee=`) are dropped so the store never carries an empty
+  // value that would inflate the active-filter count or be sent to the server.
+  // milestone stays single (a bare `?milestone_id=` is already falsy below).
+  const assignee = searchParams.getAll("assignee").filter((v) => v.trim());
+  const requester = searchParams.getAll("requester").filter((v) => v.trim());
+  const sprintId = searchParams.getAll("sprint_id").filter((v) => v.trim());
   const milestoneId = searchParams.get("milestone_id");
-  const releaseId = searchParams.getAll("release_id");
+  const releaseId = searchParams.getAll("release_id").filter((v) => v.trim());
   const severity = searchParams.getAll("severity");
   const due = searchParams
     .getAll("due")

@@ -225,6 +225,22 @@ describe("useIssueUrlSync", () => {
     expect(mockPush).not.toHaveBeenCalled();
   });
 
+  it("ignores a blank people/planning facet param (REEF-267)", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      "assignee=&sprint_id=&status=todo",
+    );
+
+    render(<Harness />);
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.status).toEqual(["todo"]);
+    });
+    const { filter } = useIssueStore.getState();
+    // A bare `?assignee=` / `?sprint_id=` must not seed an empty-member array.
+    expect(filter.assignee).toBeUndefined();
+    expect(filter.sprint_id).toBeUndefined();
+  });
+
   it("serializes multi-select people/planning facets as repeated params (REEF-267)", async () => {
     useIssueStore.setState({
       filter: { assignee: ["alice", "bob"], sprint_id: ["s1"] },
