@@ -110,6 +110,12 @@ export const DEFAULT_ISSUE_SORT_ORDER = "desc" satisfies "asc" | "desc";
  * snake_case on the wire. Multi-value facets are arrays → SQL `IN`. The Route
  * Handler coerces the raw query string into this shape (repeated params →
  * arrays, `"true"` → boolean, numeric `limit`) before parsing.
+ *
+ * REEF-267 unified filter cardinality: assigned_to / requester / sprint_id /
+ * release_id are multi-select arrays (OR within the facet) alongside the enum
+ * facets, and assigned_to / requester match exactly rather than by substring.
+ * milestone_id stays a single scalar (narrowing to one milestone is the common
+ * case — multi-select left out of scope per REEF-267 Scope).
  */
 /**
  * A keyset cursor is opaque `base64url(JSON({k,id}))`. Validate decodability at
@@ -137,11 +143,11 @@ export const IssueListQuerySchema = z.object({
   priority: z.array(PriorityEnum).optional(),
   severity: z.array(SeverityEnum).optional(),
   issue_type: z.array(IssueTypeEnum).optional(),
-  assigned_to: z.string().min(1).optional(),
-  requester: z.string().min(1).optional(),
-  sprint_id: z.string().min(1).optional(),
+  assigned_to: z.array(z.string().min(1)).optional(),
+  requester: z.array(z.string().min(1)).optional(),
+  sprint_id: z.array(z.string().min(1)).optional(),
   milestone_id: z.string().min(1).optional(),
-  release_id: z.string().min(1).optional(),
+  release_id: z.array(z.string().min(1)).optional(),
   due_before: IsoDateFieldSchema.optional(),
   due_after: IsoDateFieldSchema.optional(),
   archived: z.boolean().default(false),

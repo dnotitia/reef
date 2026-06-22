@@ -77,6 +77,22 @@ describe("IssueListQuerySchema", () => {
     expect(parsed.priority).toEqual(["high"]);
   });
 
+  it("accepts multi-value people/planning facets as arrays (REEF-267)", () => {
+    const parsed = IssueListQuerySchema.parse({
+      assigned_to: ["alice", "bob"],
+      requester: ["carol"],
+      sprint_id: ["s1", "s2"],
+      release_id: ["r1"],
+      milestone_id: "m1",
+    });
+    expect(parsed.assigned_to).toEqual(["alice", "bob"]);
+    expect(parsed.requester).toEqual(["carol"]);
+    expect(parsed.sprint_id).toEqual(["s1", "s2"]);
+    expect(parsed.release_id).toEqual(["r1"]);
+    // milestone_id stays a single scalar (multi-select out of scope, REEF-267).
+    expect(parsed.milestone_id).toBe("m1");
+  });
+
   it("rejects an out-of-range limit", () => {
     expect(() => IssueListQuerySchema.parse({ limit: 0 })).toThrow();
     expect(() => IssueListQuerySchema.parse({ limit: 101 })).toThrow();
@@ -117,7 +133,7 @@ describe("hasAnyFilter", () => {
       true,
     );
     expect(
-      hasAnyFilter(IssueListQuerySchema.parse({ assigned_to: "alice" })),
+      hasAnyFilter(IssueListQuerySchema.parse({ assigned_to: ["alice"] })),
     ).toBe(true);
     expect(hasAnyFilter(IssueListQuerySchema.parse({ q: "login" }))).toBe(true);
   });

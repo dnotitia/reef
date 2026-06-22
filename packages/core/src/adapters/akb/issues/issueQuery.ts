@@ -19,7 +19,9 @@ export function priorityRankCase(): string {
  * A case-insensitive substring (`ILIKE '%value%'`) predicate. The value's LIKE
  * metacharacters (`%`, `_`, `\`) are escaped and an explicit `ESCAPE '\'` is
  * emitted, then the whole pattern is quoted via `quoteText`. Mirrors the client
- * `filterIssues` substring semantics for assignee/requester/`q`.
+ * `searchIssues` substring semantics for the free-text `q` facet. (The
+ * assignee/requester *facets* now match exactly — see `lowerInClause` — so this
+ * substring form is the `q` search path only, REEF-267.)
  */
 function likeContainsClause(
   column: string,
@@ -49,16 +51,40 @@ function labelsContainsClause(value: string, fieldDescriptor: string): string {
 }
 
 /**
+ * A case-insensitive exact-match `IN` predicate: `LOWER("col") IN ('a', 'b')`,
+ * each value lowercased and quoted. Used for the assignee / requester facets
+ * (REEF-267) — exact equality, OR-combined within the facet — so a one-person
+ * filter never incidentally matches a different login the way the old substring
+ * `ILIKE` did (which forced My Work's client re-scope, REEF-181). Case-folding
+ * mirrors the client `matchesSharedFacets` / `filterAssignedTo`, which compare
+ * `assigned_to` lowercased on both sides, so the server pre-filter and the
+ * client safety net agree.
+ */
+function lowerInClause(
+  column: string,
+  values: readonly string[],
+  descriptor: string,
+): string {
+  const list = values
+    .map((v) => quoteText(v.toLowerCase(), descriptor))
+    .join(", ");
+  return `LOWER(${quoteIdent(column)}) IN (${list})`;
+}
+
+/**
  * Build the SQL `WHERE` body (without the `WHERE` keyword) for the issue-list
  * filter facets, or `undefined` when nothing narrows the set. Every value is
  * escaped via `quoteText` / `quoteIdent`; columns are quoted, the table is a
  * bare `tableRef`. No raw interpolation.
  *
- * `assigned_to` / `requester` use substring `ILIKE` to match the client filter;
- * the My-Issues *default* predicate (exact `=`) lives in the default-view
- * resolver. `issue_type = 'task'` also matches NULL rows, mirroring the client
- * `(issue_type ?? "task")` default. `archived: false` (the default) adds the
- * `archived_at IS NULL` floor; `archived: true` widens and omits it.
+ * The multi-select facets OR-combine their values via `IN`: `status` / `priority`
+ * / `severity` / `sprint_id` / `release_id` by exact value, `assigned_to` /
+ * `requester` by case-insensitive exact match (`lowerInClause`, REEF-267 — the
+ * same exact predicate the My-Issues default view already uses). `milestone_id`
+ * stays a single exact `=` (multi-select out of scope, REEF-267). `issue_type =
+ * 'task'` also matches NULL rows, mirroring the client `(issue_type ?? "task")`
+ * default. `archived: false` (the default) adds the `archived_at IS NULL` floor;
+ * `archived: true` widens and omits it.
  *
  * The free-text `q` facet is a single OR group spanning nine fields — the eight
  * TEXT columns `reef_id` / `title` / `assigned_to` / `requester` / `reporter` /
@@ -95,33 +121,27 @@ export function buildIssueWhere(filter: IssueListQuery): string | undefined {
     );
     clauses.push(parts.length === 1 ? parts[0] : `(${parts.join(" OR ")})`);
   }
-  if (filter.assigned_to) {
+  if (filter.assigned_to?.length) {
     clauses.push(
-      likeContainsClause(
-        "assigned_to",
-        filter.assigned_to,
-        "assigned_to filter",
-      ),
+      lowerInClause("assigned_to", filter.assigned_to, "assigned_to filter"),
     );
   }
-  if (filter.requester) {
+  if (filter.requester?.length) {
     clauses.push(
-      likeContainsClause("requester", filter.requester, "requester filter"),
+      lowerInClause("requester", filter.requester, "requester filter"),
     );
   }
-  if (filter.sprint_id) {
-    clauses.push(
-      `"sprint_id" = ${quoteText(filter.sprint_id, "sprint_id filter")}`,
-    );
+  if (filter.sprint_id?.length) {
+    clauses.push(inClause("sprint_id", filter.sprint_id, "sprint_id filter"));
   }
   if (filter.milestone_id) {
     clauses.push(
       `"milestone_id" = ${quoteText(filter.milestone_id, "milestone_id filter")}`,
     );
   }
-  if (filter.release_id) {
+  if (filter.release_id?.length) {
     clauses.push(
-      `"release_id" = ${quoteText(filter.release_id, "release_id filter")}`,
+      inClause("release_id", filter.release_id, "release_id filter"),
     );
   }
   if (filter.due_after) {

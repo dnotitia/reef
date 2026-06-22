@@ -63,17 +63,36 @@ function multiEnumFacet<T extends z.ZodTypeAny>(member: T) {
     .catch(undefined);
 }
 
+/**
+ * A multi-select facet of free-form strings — assignee / requester / sprint /
+ * release (REEF-267). Same scalar→array read coercion as `multiEnumFacet`, so a
+ * pre-REEF-267 saved filter that stored `assignee: "alice"` upgrades to
+ * `["alice"]` instead of being dropped by `.catch(undefined)`; mirrors the URL
+ * reader widening a single `?assignee=alice` to `["alice"]`. No enum membership
+ * to validate, so the inner element is a plain string.
+ */
+function multiStringFacet() {
+  return z
+    .preprocess(
+      (v) => (v == null || Array.isArray(v) ? v : [v]),
+      z.array(z.string()),
+    )
+    .optional()
+    .catch(undefined);
+}
+
 export const PersistedIssueFilterSchema = z.object({
   status: multiEnumFacet(StatusEnum),
   issueType: multiEnumFacet(IssueTypeEnum),
   priority: multiEnumFacet(PriorityEnum),
-  assignee: z.string().optional().catch(undefined),
-  requester: z.string().optional().catch(undefined),
+  assignee: multiStringFacet(),
+  requester: multiStringFacet(),
   reporter: z.string().optional().catch(undefined),
   severity: multiEnumFacet(SeverityEnum),
-  sprint_id: z.string().optional().catch(undefined),
+  sprint_id: multiStringFacet(),
+  // milestone_id stays a single scalar — multi-select out of scope (REEF-267).
   milestone_id: z.string().optional().catch(undefined),
-  release_id: z.string().optional().catch(undefined),
+  release_id: multiStringFacet(),
   due: multiEnumFacet(z.enum(["overdue", "due_soon"])),
   label: z.string().optional().catch(undefined),
   dependencyFilter: multiEnumFacet(z.enum(["blocked", "blocking"])),

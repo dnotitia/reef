@@ -90,7 +90,7 @@ describe("KanbanBoard filtering and rendering", () => {
 
   it("applies assignee and label filters to board cards", async () => {
     useIssueStore.setState({
-      filter: { assignee: "alice", label: "ui" },
+      filter: { assignee: ["alice"], label: "ui" },
       searchQuery: "",
       selectedIssueId: null,
     });

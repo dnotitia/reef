@@ -14,6 +14,15 @@ explicitly in the entries below.
 
 ### Added
 
+- **Filter issues by several people, sprints, or releases at once.** The
+  Assignee, Requester, Sprint, and Release filters now accept multiple values
+  and match any of them (OR within a field, AND across fields) — the same
+  multi-select the Status, Type, and Priority filters already had — so you can
+  ask for "Alice or Bob's issues" or compare "Sprint 3 and 4" in one view. The
+  selection serializes to the URL and restores on revisit or share. Assignee and
+  Requester now match a login exactly rather than as a substring, so filtering to
+  one person no longer pulls in others whose login contains it. Milestone stays
+  single-select (REEF-267).
 - **The activity timeline now shows assignee, priority, and planning changes.**
   Reassignments, priority changes, and planning links (milestone, sprint, and
   release attach/detach) — already recorded in the log — now render as their own

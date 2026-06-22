@@ -122,11 +122,13 @@ describe("useIssueUrlSync", () => {
     const { filter, searchQuery } = useIssueStore.getState();
     expect(filter.issueType).toEqual(["bug"]);
     expect(filter.priority).toEqual(["high"]);
-    expect(filter.assignee).toBe("alice");
-    expect(filter.requester).toBe("bob");
-    expect(filter.sprint_id).toBe("spr-1");
+    // Multi-select people/planning facets parse as arrays (REEF-267); milestone
+    // stays a single scalar.
+    expect(filter.assignee).toEqual(["alice"]);
+    expect(filter.requester).toEqual(["bob"]);
+    expect(filter.sprint_id).toEqual(["spr-1"]);
     expect(filter.milestone_id).toBe("mil-1");
-    expect(filter.release_id).toBe("rel-1");
+    expect(filter.release_id).toEqual(["rel-1"]);
     expect(filter.severity).toEqual(["major"]);
     expect(filter.due).toEqual(["overdue"]);
     expect(filter.label).toBe("ui");
@@ -203,6 +205,59 @@ describe("useIssueUrlSync", () => {
     expect(mockPush).not.toHaveBeenCalled();
   });
 
+  it("reads repeated people & planning facet params into arrays (REEF-267)", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      "assignee=alice&assignee=bob&requester=carol&sprint_id=s1&sprint_id=s2&release_id=r1",
+    );
+
+    render(<Harness />);
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.assignee).toEqual([
+        "alice",
+        "bob",
+      ]);
+    });
+    const { filter } = useIssueStore.getState();
+    expect(filter.requester).toEqual(["carol"]);
+    expect(filter.sprint_id).toEqual(["s1", "s2"]);
+    expect(filter.release_id).toEqual(["r1"]);
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it("ignores a blank people/planning facet param (REEF-267)", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      "assignee=&sprint_id=&status=todo",
+    );
+
+    render(<Harness />);
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.status).toEqual(["todo"]);
+    });
+    const { filter } = useIssueStore.getState();
+    // A bare `?assignee=` / `?sprint_id=` must not seed an empty-member array.
+    expect(filter.assignee).toBeUndefined();
+    expect(filter.sprint_id).toBeUndefined();
+  });
+
+  it("serializes multi-select people/planning facets as repeated params (REEF-267)", async () => {
+    useIssueStore.setState({
+      filter: { assignee: ["alice", "bob"], sprint_id: ["s1"] },
+      searchQuery: "",
+      selectedIssueId: null,
+    });
+
+    render(<Harness />);
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith(
+        "/issues?assignee=alice&assignee=bob&sprint_id=s1",
+        { scroll: false },
+      );
+    });
+  });
+
   it("keeps existing store filters when the new route has no issue params", async () => {
     useIssueStore.setState({
       filter: { status: ["todo"], priority: ["high"] },
@@ -239,7 +294,7 @@ describe("useIssueUrlSync", () => {
     navigationState.pathname = "/issues/REEF-001";
     navigationState.searchParams = new URLSearchParams();
     useIssueStore.setState({
-      filter: { assignee: "jylkim" },
+      filter: { assignee: ["jylkim"] },
       searchQuery: "",
       selectedIssueId: null,
     });

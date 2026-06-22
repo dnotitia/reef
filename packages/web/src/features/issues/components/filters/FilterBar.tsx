@@ -1,6 +1,6 @@
 "use client";
 
-import { AssigneeCombobox } from "@/components/AssigneeCombobox";
+import { MultiAssigneeCombobox } from "@/components/MultiAssigneeCombobox";
 import { DependencyBadge } from "@/components/fields/DependencyBadge";
 import { DueBadge } from "@/components/fields/DueBadge";
 import { SeverityBadge } from "@/components/fields/SeverityBadge";
@@ -13,6 +13,7 @@ import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
 import { PRIORITY_OPTIONS, PriorityBadge } from "@/components/ui/priority-dot";
 import { STATUS_OPTIONS, StatusBadge } from "@/components/ui/status-icon";
 import { PlanningItemCombobox } from "@/features/planning/components/PlanningItemCombobox";
+import { PlanningItemMultiCombobox } from "@/features/planning/components/PlanningItemMultiCombobox";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { cn } from "@/lib/utils";
 import type { Status } from "@reef/core";
@@ -27,53 +28,41 @@ import { type IssueFilter, useIssueStore } from "../../stores/useIssueStore";
 import { DisplayOptionsFilter } from "./DisplayOptionsFilter";
 
 /**
- * The Assignee/Requester filter triggers stay narrow — they hug their value from
- * a compact `9rem` floor (`FILTER_FIELD_CLASS`) — but their open user dropdown
- * needs room to show a long display name and its `@login` together, which a
- * floor-width trigger truncates. Floor the *opened* panel at a readable width and
- * cap it to the viewport so it can not be excessively clipped when the filter bar
- * wraps onto multiple rows (REEF-134/269).
+ * The Assignee/Requester filters are now multi-select chip triggers (REEF-267),
+ * so their closed trigger is the auto-width "(N)" facet chip like every other
+ * facet — but their open dropdown still needs room to show a long display name
+ * and its `@login` together, which a narrow panel truncates. Floor the *opened*
+ * panel at a readable width and cap it to the viewport so it can not be
+ * excessively clipped when the filter bar wraps onto multiple rows (REEF-134/269).
  *
- * The user filters pass `align="start"` (see below) to match the sibling
- * planning filters in this bar: a panel wider than its trigger then
- * grows rightward, keeping the realistic left-edge wrap case on-screen. A panel
- * wider than its trigger can still overflow whichever edge it grows toward when
- * the trigger lands at the far end of a wrapped row — true of the non-portaled
- * combobox here (the planning filters included). Eliminating that entirely needs
- * collision-aware positioning in the shared Combobox/popover primitive, which is
- * intentionally simple (REEF-073/092) and out of scope for this fix; `max-w-[90vw]`
- * bounds the worst case in the meantime.
+ * The panel can still overflow whichever edge it grows toward when the trigger
+ * lands at the far end of a wrapped row — true of every non-portaled combobox
+ * here. Eliminating that entirely needs collision-aware positioning in the
+ * shared Combobox/popover primitive, which is intentionally simple (REEF-073/092)
+ * and out of scope; `max-w-[90vw]` bounds the worst case in the meantime.
  */
 export const USER_FILTER_PANEL_CLASS = "min-w-[17rem] max-w-[90vw]";
 
 /**
- * Shared width policy for the bar's "value field" comboboxes — Assignee,
- * Requester, Sprint, Milestone, Release, and Labels. One token so the whole
- * value-field group sizes identically: hug the selected value (`w-fit`), floored
- * at `9rem` — the old `w-36` people-trigger width — so an empty field still reads
- * as a field, and capped at `16rem` so a long value truncates instead of pushing
- * the bar wide. This converges REEF-134 (people triggers pinned compact at a
- * fixed `w-36`) and REEF-246 (planning triggers already fit-content, but capped
- * at a wider `22rem`) onto a single vocabulary: value fields now grow with
- * its value up to the same cap. The people triggers gaining hug behavior is the
- * intended change REEF-246 deferred under its "Ask First" (REEF-269).
+ * Shared width policy for the bar's remaining "value field" comboboxes —
+ * Milestone and Labels. One token so they size identically: hug the selected
+ * value (`w-fit`), floored at `9rem` so an empty field still reads as a field,
+ * and capped at `16rem` so a long value truncates instead of pushing the bar
+ * wide (REEF-269).
  *
- * Two pieces stay deliberately separate:
- * - The OPEN user dropdown panel keeps its own readable floor via
- *   `USER_FILTER_PANEL_CLASS` — REEF-134's compact-trigger / wide-panel split is
- *   preserved; the closed trigger's width policy is unified here.
- * - The multi-select facet "chips" (Status, Type, Priority, Severity, Due,
- *   Dependency) stay auto-width via `CBX_TRIGGER_CHIP` (`inline-flex`, no `w-full`
- *   and no width token). That hug-the-label chip vocabulary is a separate,
- *   intended one and does not receive this class.
+ * REEF-267 moved Assignee / Requester / Sprint / Release off this value-field
+ * vocabulary onto the auto-width multi-select chip (alongside Status / Type /
+ * Priority / Severity / Due / Dependency, all via `CBX_TRIGGER_CHIP`); Milestone
+ * stays a single-select value field because it was deliberately left
+ * single-cardinality (REEF-267 Scope).
  */
 export const FILTER_FIELD_CLASS = "w-fit min-w-[9rem] max-w-[16rem]";
 
 /**
- * Wrapper for the planning value fields. The width token lives on the inner
- * combobox (`FILTER_FIELD_CLASS`, passed as its `className`), matching REEF-246;
- * this wrapper provides the relative box and a viewport cap so the field can
- * wrap without overflowing the bar.
+ * Wrapper for the single-select Milestone value field. The width token lives on
+ * the inner combobox (`FILTER_FIELD_CLASS`, passed as its `className`), matching
+ * REEF-246; this wrapper only provides the relative box and a viewport cap so the
+ * field can wrap without overflowing the bar.
  */
 export const PLANNING_FILTER_WRAPPER_CLASS = "relative inline-block max-w-full";
 
@@ -161,11 +150,11 @@ function countActiveFilters(
   if (!backlogScope && filter.status?.length) count++;
   if (filter.issueType?.length) count++;
   if (filter.priority?.length) count++;
-  if (filter.assignee?.trim()) count++;
-  if (filter.requester?.trim()) count++;
-  if (!backlogScope && filter.sprint_id) count++;
+  if (filter.assignee?.length) count++;
+  if (filter.requester?.length) count++;
+  if (!backlogScope && filter.sprint_id?.length) count++;
   if (filter.milestone_id) count++;
-  if (!backlogScope && filter.release_id) count++;
+  if (!backlogScope && filter.release_id?.length) count++;
   if (filter.severity?.length) count++;
   if (!backlogScope && filter.due?.length) count++;
   if (filter.label?.trim()) count++;
@@ -334,60 +323,61 @@ export function FilterBar({
         contentTestId="dependency-dropdown-content"
       />
 
-      {/* Assignee filter */}
-      <div
-        className={cn("relative", FILTER_FIELD_CLASS)}
-        data-testid="assignee-filter"
-      >
-        <AssigneeCombobox
-          value={filter.assignee ?? ""}
-          onChange={(login) => setFilter({ assignee: login || undefined })}
+      {/* Assignee filter — multi-select (REEF-267): a chip trigger like the
+          facets above, OR-combining the picked logins. */}
+      <div data-testid="assignee-filter">
+        <MultiAssigneeCombobox
+          values={filter.assignee}
+          onToggle={(login, checked) =>
+            setFilter({
+              assignee: toggleFacet(filter.assignee, login, checked),
+            })
+          }
           vault={vault}
           label="Assignee"
-          placeholder="Assignee"
-          emptyLabel="Any assignee"
-          active={Boolean(filter.assignee?.trim())}
+          active={Boolean(filter.assignee?.length)}
+          triggerTestId="assignee-dropdown-trigger"
+          contentTestId="assignee-dropdown-content"
           panelClassName={USER_FILTER_PANEL_CLASS}
-          align="start"
         />
       </div>
 
-      {/* Requester filter */}
-      <div
-        className={cn("relative", FILTER_FIELD_CLASS)}
-        data-testid="requester-filter"
-      >
-        <AssigneeCombobox
-          value={filter.requester ?? ""}
-          onChange={(login) => setFilter({ requester: login || undefined })}
+      {/* Requester filter — multi-select (REEF-267). */}
+      <div data-testid="requester-filter">
+        <MultiAssigneeCombobox
+          values={filter.requester}
+          onToggle={(login, checked) =>
+            setFilter({
+              requester: toggleFacet(filter.requester, login, checked),
+            })
+          }
           vault={vault}
           label="Requester"
-          placeholder="Requester"
-          emptyLabel="Any requester"
-          active={Boolean(filter.requester?.trim())}
+          active={Boolean(filter.requester?.length)}
+          triggerTestId="requester-dropdown-trigger"
+          contentTestId="requester-dropdown-content"
           panelClassName={USER_FILTER_PANEL_CLASS}
-          align="start"
         />
       </div>
 
-      {/* Sprint filter — dropped in the backlog view: a sprinted item is
-          committed, so it can not be in the backlog (REEF-177). */}
+      {/* Sprint filter — multi-select (REEF-267). Dropped in the backlog view:
+          a sprinted item is committed, so it can not be in the backlog
+          (REEF-177). */}
       {backlogScope ? null : (
-        <div
-          className={PLANNING_FILTER_WRAPPER_CLASS}
-          data-testid="sprint-filter"
-        >
-          <PlanningItemCombobox
+        <div data-testid="sprint-filter">
+          <PlanningItemMultiCombobox
             kind="sprints"
             vault={vault}
-            value={filter.sprint_id ?? ""}
-            onChange={(id) => setFilter({ sprint_id: id || undefined })}
+            values={filter.sprint_id}
+            onToggle={(id, checked) =>
+              setFilter({
+                sprint_id: toggleFacet(filter.sprint_id, id, checked),
+              })
+            }
             label="Sprint"
-            placeholder="Sprint"
-            emptyLabel="Any sprint"
-            testId="sprint-input"
-            active={Boolean(filter.sprint_id)}
-            className={FILTER_FIELD_CLASS}
+            active={Boolean(filter.sprint_id?.length)}
+            triggerTestId="sprint-dropdown-trigger"
+            contentTestId="sprint-dropdown-content"
           />
         </div>
       )}
@@ -412,23 +402,24 @@ export function FilterBar({
         />
       </div>
 
-      {/* Release filter — dropped in the backlog view: a released item is
-          committed, so it can not be in the backlog (REEF-177). */}
+      {/* Release filter — multi-select (REEF-267). Dropped in the backlog view:
+          a released item is committed, so it can not be in the backlog
+          (REEF-177). */}
       {backlogScope ? null : (
-        <div
-          className={PLANNING_FILTER_WRAPPER_CLASS}
-          data-testid="release-filter"
-        >
-          <PlanningItemCombobox
+        <div data-testid="release-filter">
+          <PlanningItemMultiCombobox
             kind="releases"
             vault={vault}
-            value={filter.release_id ?? ""}
-            onChange={(id) => setFilter({ release_id: id || undefined })}
+            values={filter.release_id}
+            onToggle={(id, checked) =>
+              setFilter({
+                release_id: toggleFacet(filter.release_id, id, checked),
+              })
+            }
             label="Release"
-            placeholder="Release"
-            emptyLabel="Any release"
-            active={Boolean(filter.release_id)}
-            className={FILTER_FIELD_CLASS}
+            active={Boolean(filter.release_id?.length)}
+            triggerTestId="release-dropdown-trigger"
+            contentTestId="release-dropdown-content"
           />
         </div>
       )}

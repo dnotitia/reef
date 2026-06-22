@@ -14,6 +14,13 @@
  * The trigger is an auto-width "chip" ("Status (2)") rather than a value field,
  * so it uses the chip trigger token, not `CBX_TRIGGER_FIELD`.
  *
+ * Optionally searchable (REEF-267), mirroring the single-select primitive: pass
+ * `searchable` to render a panel-top search input, and `onQueryChange` to wire it
+ * to a debounced server search (omit it to filter `options` client-side). This is
+ * what lets the people facets (assignee/requester) be both multi-select and
+ * typeahead-searchable over vault members. A toggle keeps the panel — and the
+ * current query — open so several picks accumulate without re-searching.
+ *
  * Empty-array folding (`[] → undefined` for the URL / IndexedDB projection) is
  * the caller's filter-store concern: the primitive only reports each toggle via
  * `onToggle(value, checked)` and never owns that rule.
@@ -36,10 +43,12 @@ import { cn } from "@/lib/utils";
 import { Check, ChevronDown } from "lucide-react";
 import {
   type KeyboardEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -47,6 +56,7 @@ import type { ComboboxOption } from "./combobox";
 import {
   CBX_CHECK,
   CBX_CHEVRON,
+  CBX_EMPTY,
   CBX_LIST,
   CBX_OPTION_ACTIVE,
   CBX_OPTION_BASE,
@@ -54,6 +64,7 @@ import {
   CBX_PANEL,
   CBX_PANEL_ABOVE,
   CBX_PANEL_BELOW,
+  CBX_SEARCH,
   CBX_TRIGGER_CHIP,
   CBX_TRIGGER_CHIP_ACTIVE,
   CBX_TRIGGER_CHIP_INACTIVE,
@@ -72,6 +83,16 @@ interface MultiSelectComboboxProps<T extends string> {
   /** Filter affordance — paints the brand ring + foreground label when set. */
   active?: boolean;
   disabled?: boolean;
+  loading?: boolean;
+
+  /** Render a panel-top search input (REEF-267). */
+  searchable?: boolean;
+  /** Immediate keystrokes — wire to a debounced server search. When omitted and
+   *  `searchable` is set, the primitive filters `options` client-side. */
+  onQueryChange?: (query: string) => void;
+  searchPlaceholder?: string;
+  /** Shown when the (filtered) option list is empty and not loading. */
+  emptyState?: ReactNode;
 
   ariaLabel?: string;
   /** data-testid on the trigger button. */
@@ -84,12 +105,28 @@ interface MultiSelectComboboxProps<T extends string> {
   contentClassName?: string;
   /** Per-row layout override (defaults to the shared single-line row). */
   optionClassName?: string;
+  /**
+   * Render a single selected value in the trigger summary ("(value)"). Defaults
+   * to the raw value, which reads fine for enum members and logins, but a
+   * planning facet passes this to show the item name instead of its opaque id
+   * (REEF-246/267). Two or more selections always collapse to "(N)".
+   */
+  summarizeValue?: (value: T) => string;
 }
 
-/** Short trigger suffix: " (value)" for one selection, " (N)" for many. */
-function facetSummary(values: readonly string[] | undefined): string {
+/** Short trigger suffix: " (value)" for one selection, " (N)" for many. The
+ *  single-selection form runs `summarizeValue` so a caller can show a readable
+ *  label (e.g. a planning name) instead of an opaque id. */
+function facetSummary<T extends string>(
+  values: readonly T[] | undefined,
+  summarizeValue?: (value: T) => string,
+): string {
   if (!values || values.length === 0) return "";
-  return values.length === 1 ? ` (${values[0]})` : ` (${values.length})`;
+  if (values.length === 1) {
+    const value = values[0];
+    return ` (${summarizeValue ? summarizeValue(value) : value})`;
+  }
+  return ` (${values.length})`;
 }
 
 export function MultiSelectCombobox<T extends string>({
@@ -99,6 +136,11 @@ export function MultiSelectCombobox<T extends string>({
   options,
   active,
   disabled,
+  loading,
+  searchable,
+  onQueryChange,
+  searchPlaceholder = "Search…",
+  emptyState,
   ariaLabel,
   triggerTestId,
   contentTestId,
@@ -106,8 +148,10 @@ export function MultiSelectCombobox<T extends string>({
   className,
   contentClassName,
   optionClassName,
+  summarizeValue,
 }: MultiSelectComboboxProps<T>) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const [placement, setPlacement] = useState<PanelPlacement>({
     vertical: "down",
@@ -116,6 +160,7 @@ export function MultiSelectCombobox<T extends string>({
 
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const typeahead = useRef<{ buffer: string; timer: number | null }>({
@@ -124,12 +169,31 @@ export function MultiSelectCombobox<T extends string>({
   });
   const listId = useId();
 
-  const clampedActive =
-    options.length === 0
-      ? -1
-      : Math.min(Math.max(activeIndex, 0), options.length - 1);
+  // Client-side filter only when searchable AND the caller is not running its
+  // own (server) search via onQueryChange — mirrors the single-select primitive.
+  const visibleOptions = useMemo(() => {
+    if (!searchable || onQueryChange) return options;
+    const q = query.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter((o) =>
+      `${o.label} ${o.keywords ?? ""}`.toLowerCase().includes(q),
+    );
+  }, [options, searchable, onQueryChange, query]);
 
-  const close = useCallback(() => setOpen(false), []);
+  // Async option rows are dropped while loading so a stale row can't be toggled
+  // by Enter mid-fetch (mirrors the single-select primitive).
+  const rows = loading ? [] : visibleOptions;
+
+  const clampedActive =
+    rows.length === 0 ? -1 : Math.min(Math.max(activeIndex, 0), rows.length - 1);
+
+  const showEmptyState = !loading && visibleOptions.length === 0;
+
+  const close = useCallback(() => {
+    setOpen(false);
+    setQuery("");
+    onQueryChange?.("");
+  }, [onQueryChange]);
 
   const openPanel = useCallback(() => {
     if (disabled) return;
@@ -139,13 +203,13 @@ export function MultiSelectCombobox<T extends string>({
 
   const toggleAt = useCallback(
     (index: number) => {
-      const option = options[index];
+      const option = rows[index];
       if (!option || option.disabled) return;
       const checked = !(values?.includes(option.value) ?? false);
       onToggle(option.value, checked);
       // Stay open — multi-select accumulates across several toggles.
     },
-    [options, values, onToggle],
+    [rows, values, onToggle],
   );
 
   // Outside-click close, keyed off the whole root (trigger + panel) so a
@@ -159,6 +223,11 @@ export function MultiSelectCombobox<T extends string>({
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
   }, [open, close]);
+
+  // Focus the search input when a searchable panel opens.
+  useEffect(() => {
+    if (open && searchable) searchRef.current?.focus();
+  }, [open, searchable]);
 
   // Keep the active row in view as ↑/↓ moves past the capped-height list.
   // Scroll only the list (never `scrollIntoView`, which would drag an ancestor
@@ -194,30 +263,31 @@ export function MultiSelectCombobox<T extends string>({
         ? prev
         : next,
     );
-  }, [open, align, options.length]);
+  }, [open, align, rows.length]);
 
   const moveActive = useCallback(
     (delta: number) => {
-      if (options.length === 0) return;
+      if (rows.length === 0) return;
       setActiveIndex((current) => {
         let next = current;
-        for (let step = 0; step < options.length; step++) {
-          next = (next + delta + options.length) % options.length;
-          if (!options[next]?.disabled) return next;
+        for (let step = 0; step < rows.length; step++) {
+          next = (next + delta + rows.length) % rows.length;
+          if (!rows[next]?.disabled) return next;
         }
         return current;
       });
     },
-    [options],
+    [rows],
   );
 
-  // First-letter type-ahead, mirroring the single-select primitive.
+  // First-letter type-ahead, mirroring the single-select primitive — only when
+  // there is no search input to type into.
   const onTypeahead = useCallback(
     (char: string) => {
       const ta = typeahead.current;
       if (ta.timer) window.clearTimeout(ta.timer);
       ta.buffer += char.toLowerCase();
-      const match = options.findIndex(
+      const match = rows.findIndex(
         (o) => !o.disabled && o.label.toLowerCase().startsWith(ta.buffer),
       );
       if (match >= 0) setActiveIndex(match);
@@ -225,7 +295,7 @@ export function MultiSelectCombobox<T extends string>({
         ta.buffer = "";
       }, 600);
     },
-    [options],
+    [rows],
   );
 
   const handleKeyDown = useCallback(
@@ -250,11 +320,12 @@ export function MultiSelectCombobox<T extends string>({
         case "End":
           if (open) {
             e.preventDefault();
-            setActiveIndex(options.length - 1);
+            setActiveIndex(rows.length - 1);
           }
           break;
         case "Enter":
-          // Toggle (don't commit-and-close) — multi-select stays open.
+          // Toggle (don't commit-and-close) — multi-select stays open, and the
+          // search query is preserved so further picks accumulate.
           if (open) {
             e.preventDefault();
             if (clampedActive >= 0) toggleAt(clampedActive);
@@ -262,10 +333,11 @@ export function MultiSelectCombobox<T extends string>({
           break;
         case " ":
           // The trigger keeps focus on the button, so a bare Space would fire
-          // its native click and close the menu. While open, toggle the active
-          // row and suppress that click; while closed, let the native click open
-          // the panel.
-          if (open) {
+          // its native click and close the menu. While open (and not typing in a
+          // search input, where Space must type), toggle the active row and
+          // suppress that click; while closed, let the native click open the
+          // panel.
+          if (open && !searchable) {
             e.preventDefault();
             if (clampedActive >= 0) toggleAt(clampedActive);
           }
@@ -280,6 +352,7 @@ export function MultiSelectCombobox<T extends string>({
           break;
         default:
           if (
+            !searchable &&
             open &&
             e.key.length === 1 &&
             !e.metaKey &&
@@ -290,7 +363,17 @@ export function MultiSelectCombobox<T extends string>({
           }
       }
     },
-    [open, openPanel, moveActive, options.length, clampedActive, toggleAt, close, onTypeahead],
+    [
+      open,
+      openPanel,
+      moveActive,
+      rows.length,
+      clampedActive,
+      toggleAt,
+      close,
+      searchable,
+      onTypeahead,
+    ],
   );
 
   const activeRowId =
@@ -320,7 +403,7 @@ export function MultiSelectCombobox<T extends string>({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
-        aria-activedescendant={open ? activeRowId : undefined}
+        aria-activedescendant={!searchable && open ? activeRowId : undefined}
         onClick={() => (open ? close() : openPanel())}
         onKeyDown={handleKeyDown}
         className={cn(
@@ -329,7 +412,7 @@ export function MultiSelectCombobox<T extends string>({
         )}
       >
         {label}
-        {facetSummary(values)}
+        {facetSummary(values, summarizeValue)}
         <ChevronDown data-open={open} className={CBX_CHEVRON} />
       </button>
 
@@ -344,6 +427,29 @@ export function MultiSelectCombobox<T extends string>({
             contentClassName,
           )}
         >
+          {searchable && (
+            <input
+              ref={searchRef}
+              type="text"
+              role="combobox"
+              aria-expanded
+              aria-controls={listId}
+              aria-activedescendant={activeRowId}
+              aria-autocomplete="list"
+              autoComplete="off"
+              spellCheck={false}
+              value={query}
+              placeholder={searchPlaceholder}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setActiveIndex(0);
+                onQueryChange?.(e.target.value);
+              }}
+              onKeyDown={handleKeyDown}
+              className={CBX_SEARCH}
+            />
+          )}
+
           <div
             ref={listRef}
             id={listId}
@@ -351,13 +457,13 @@ export function MultiSelectCombobox<T extends string>({
             aria-label={ariaLabel ?? label}
             className={CBX_LIST}
           >
-            {options.map((option, index) => {
+            {rows.map((option, index) => {
               const selected = values?.includes(option.value) ?? false;
               const isActive = index === clampedActive;
               return (
                 // Rows are buttons kept out of the tab order (tabIndex -1); the
-                // trigger owns ↑/↓ + Enter/Space. Mirrors the single-select
-                // primitive's lint-clean pattern.
+                // trigger / search input owns ↑/↓ + Enter/Space. Mirrors the
+                // single-select primitive's lint-clean pattern.
                 <button
                   key={option.value}
                   type="button"
@@ -369,8 +475,9 @@ export function MultiSelectCombobox<T extends string>({
                   data-testid={option.testId}
                   disabled={option.disabled}
                   data-active={isActive}
-                  // Keep focus on the trigger so the row's click fires before the
-                  // outside-mousedown handler (and the panel stays open).
+                  // Keep focus on the trigger / search input so the row's click
+                  // fires before the outside-mousedown handler (and the panel
+                  // stays open).
                   onMouseDown={(e) => e.preventDefault()}
                   onMouseEnter={() => setActiveIndex(index)}
                   onClick={() => toggleAt(index)}
@@ -386,6 +493,10 @@ export function MultiSelectCombobox<T extends string>({
                 </button>
               );
             })}
+            {loading && <p className={CBX_EMPTY}>Loading…</p>}
+            {showEmptyState && (
+              <p className={CBX_EMPTY}>{emptyState ?? "No results."}</p>
+            )}
           </div>
         </div>
       )}

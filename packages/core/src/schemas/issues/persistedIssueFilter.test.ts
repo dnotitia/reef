@@ -10,13 +10,15 @@ describe("PersistedIssueFilterSchema", () => {
       status: ["todo"],
       issueType: ["bug"],
       priority: ["high"],
-      assignee: "alice",
-      requester: "bob",
+      // assignee / requester / sprint_id / release_id are multi-select arrays
+      // (REEF-267); milestone_id stays a single scalar.
+      assignee: ["alice", "carol"],
+      requester: ["bob"],
       reporter: "carol",
       severity: ["major"],
-      sprint_id: "spr-1",
+      sprint_id: ["spr-1", "spr-2"],
       milestone_id: "mil-1",
-      release_id: "rel-1",
+      release_id: ["rel-1"],
       due: ["overdue"],
       label: "ui",
       dependencyFilter: ["blocked"],
@@ -66,13 +68,16 @@ describe("PersistedIssueFilterSchema", () => {
     expect(parsed.status).toEqual(["todo"]);
   });
 
-  it("keeps a dangling reference id (string validates; existence is not checked)", () => {
+  it("keeps a dangling reference id and widens a pre-REEF-267 scalar to an array", () => {
+    // A string id that no longer resolves still validates (existence is not
+    // checked), and a pre-REEF-267 saved scalar assignee/sprint upgrades to a
+    // one-element array rather than being dropped (multiStringFacet coercion).
     const parsed = PersistedIssueFilterSchema.parse({
       assignee: "ghost-user",
       sprint_id: "spr-does-not-exist",
     });
-    expect(parsed.assignee).toBe("ghost-user");
-    expect(parsed.sprint_id).toBe("spr-does-not-exist");
+    expect(parsed.assignee).toEqual(["ghost-user"]);
+    expect(parsed.sprint_id).toEqual(["spr-does-not-exist"]);
   });
 
   it("drops a `rank` sort (not user-selectable) but keeps a valid sort", () => {

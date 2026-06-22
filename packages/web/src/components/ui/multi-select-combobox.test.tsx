@@ -257,4 +257,130 @@ describe("MultiSelectCombobox", () => {
     heightSpy.mockRestore();
     widthSpy.mockRestore();
   });
+
+  describe("searchable (REEF-267)", () => {
+    it("focuses the panel search input on open and filters options client-side", async () => {
+      const user = userEvent.setup();
+      render(
+        <MultiSelectCombobox
+          label="Fruit"
+          values={[]}
+          onToggle={() => {}}
+          options={OPTIONS}
+          searchable
+          searchPlaceholder="Search fruit…"
+          triggerTestId="fruit-trigger"
+          contentTestId="fruit-content"
+        />,
+      );
+
+      await user.click(screen.getByTestId("fruit-trigger"));
+      const input = screen.getByPlaceholderText("Search fruit…");
+      expect(input).toHaveFocus();
+
+      await user.type(input, "ban");
+      expect(screen.queryByTestId("opt-apple")).toBeNull();
+      expect(screen.getByTestId("opt-banana")).toBeTruthy();
+    });
+
+    it("delegates to onQueryChange (server search) and keeps the panel + query open on toggle", async () => {
+      const onQueryChange = vi.fn();
+      const onToggle = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <MultiSelectCombobox
+          label="People"
+          values={[]}
+          onToggle={onToggle}
+          options={OPTIONS}
+          searchable
+          onQueryChange={onQueryChange}
+          triggerTestId="fruit-trigger"
+          contentTestId="fruit-content"
+        />,
+      );
+
+      await user.click(screen.getByTestId("fruit-trigger"));
+      const input = screen.getByRole("combobox");
+      await user.type(input, "ap");
+      expect(onQueryChange).toHaveBeenCalledWith("ap");
+      // Server-driven: the primitive does NOT client-filter, so every provided
+      // option stays visible regardless of the typed query.
+      expect(screen.getByTestId("opt-banana")).toBeTruthy();
+
+      await user.click(screen.getByTestId("opt-apple"));
+      expect(onToggle).toHaveBeenCalledWith("apple", true);
+      // Multi-select stays open with the query preserved for the next pick.
+      expect(screen.queryByTestId("fruit-content")).not.toBeNull();
+      expect((input as HTMLInputElement).value).toBe("ap");
+    });
+
+    it("shows a loading state and no rows while loading", async () => {
+      const user = userEvent.setup();
+      render(
+        <MultiSelectCombobox
+          label="People"
+          values={[]}
+          onToggle={() => {}}
+          options={OPTIONS}
+          searchable
+          onQueryChange={() => {}}
+          loading
+          triggerTestId="fruit-trigger"
+          contentTestId="fruit-content"
+        />,
+      );
+
+      await user.click(screen.getByTestId("fruit-trigger"));
+      expect(screen.queryByTestId("opt-apple")).toBeNull();
+      expect(screen.getByText("Loading…")).toBeTruthy();
+    });
+  });
+
+  describe("summarizeValue (REEF-246/267)", () => {
+    const NAME_BY_ID: Record<string, string> = {
+      s1: "Sprint 4",
+      s2: "Sprint 5",
+    };
+    const summarize = (id: string) => NAME_BY_ID[id] ?? id;
+
+    it("shows a readable single-selection label instead of the raw value", () => {
+      render(
+        <MultiSelectCombobox<string>
+          label="Sprint"
+          values={["s1"]}
+          onToggle={() => {}}
+          options={[
+            { value: "s1", label: "Sprint 4", content: <span>Sprint 4</span> },
+            { value: "s2", label: "Sprint 5", content: <span>Sprint 5</span> },
+          ]}
+          summarizeValue={summarize}
+          triggerTestId="sprint-trigger"
+        />,
+      );
+      // Not the opaque id "s1" — the resolved name.
+      expect(screen.getByTestId("sprint-trigger")).toHaveTextContent(
+        "Sprint (Sprint 4)",
+      );
+    });
+
+    it("collapses two or more selections to a bounded count", () => {
+      render(
+        <MultiSelectCombobox<string>
+          label="Sprint"
+          values={["s1", "s2"]}
+          onToggle={() => {}}
+          options={[
+            { value: "s1", label: "Sprint 4", content: <span>Sprint 4</span> },
+            { value: "s2", label: "Sprint 5", content: <span>Sprint 5</span> },
+          ]}
+          summarizeValue={summarize}
+          triggerTestId="sprint-trigger"
+        />,
+      );
+      expect(screen.getByTestId("sprint-trigger")).toHaveTextContent(
+        "Sprint (2)",
+      );
+    });
+  });
 });

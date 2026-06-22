@@ -70,21 +70,23 @@ export function parseVaultParam(request: Request): string | null {
   return raw;
 }
 
-/** Issue-list facets that may repeat in the query string (→ SQL `IN`). */
+/** Issue-list facets that may repeat in the query string (→ SQL `IN`).
+ *  assigned_to / requester / sprint_id / release_id joined the multi-select set
+ *  in REEF-267; milestone_id stays single (multi-select out of scope). */
 const ISSUE_LIST_MULTI_KEYS = [
   "status",
   "priority",
   "severity",
   "issue_type",
+  "assigned_to",
+  "requester",
+  "sprint_id",
+  "release_id",
 ] as const;
 
 /** Single-valued issue-list facets / sort / pagination params. */
 const ISSUE_LIST_SINGLE_KEYS = [
-  "assigned_to",
-  "requester",
-  "sprint_id",
   "milestone_id",
-  "release_id",
   "due_before",
   "due_after",
   "q",

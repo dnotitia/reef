@@ -380,7 +380,7 @@ describe("BacklogView", () => {
     // control.
     mockList(issues);
     useIssueStore.setState({
-      filter: { sprint_id: "spr-1", release_id: "rel-1", due: ["overdue"] },
+      filter: { sprint_id: ["spr-1"], release_id: ["rel-1"], due: ["overdue"] },
       searchQuery: "",
       selectedIssueId: null,
     });
