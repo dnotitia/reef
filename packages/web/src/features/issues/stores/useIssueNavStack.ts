@@ -15,11 +15,18 @@ import { create } from "zustand";
  *    (`trail.at(-1)`) is the immediately previous issue a single Back returns
  *    to. The currently-shown issue is NOT in `trail` — it is tracked separately
  *    as `currentId`.
- *  - `currentId` is the issue the trail expects to be on screen. It lets the
- *    sheet tell apart a drill/back this store drove (keep the trail) from any
- *    other navigation that landed on a detail route — a fresh open from the
- *    list, the ⌘K palette, a sidebar link (reconcile to depth 0). See
- *    `reconcile`.
+ *  - `currentId` is the issue the trail expects on screen. The sheet trusts the
+ *    trail only while `currentId` matches the route id, so the outgoing sheet
+ *    never flashes a Back to itself mid-hop, and `reconcile` can reset the trail
+ *    when a fresh navigation lands on a different issue.
+ *
+ * The trail is emptied at session boundaries by whoever owns them: `clear()` on
+ * Close / outside click, and the `@modal` default slot when the sheet leaves and
+ * the list comes back (including a browser Back that pops the modal). So when a
+ * sheet mounts, the only way `currentId` already matches its id is a genuine
+ * drill/back this store just drove — `reconcile` keeps the trail then, and
+ * resets to depth 0 otherwise. Every operation here is idempotent so React
+ * StrictMode's double-invoked effects can call `reconcile` twice safely.
  *
  * Module-level (Zustand 5, no Provider) so it survives the soft-nav remounts a
  * drill triggers, and deliberately NOT persisted: a hard refresh / deep link
@@ -42,13 +49,13 @@ interface IssueNavStackState {
    */
   back: () => string | null;
   /**
-   * Reconcile the trail with an issue id that appeared on a detail route. When
-   * it matches `currentId` the store drove the navigation (drill/back) — leave
-   * the trail alone. Otherwise the route was reached some other way, so reset to
-   * a depth-0 trail rooted at that id.
+   * Reconcile the trail with an issue id that appeared on a detail route.
+   * Idempotent: when `currentId` already matches, the store drove this arrival
+   * (a drill/back), so keep the trail; otherwise a fresh navigation landed here,
+   * so reset to a depth-0 trail rooted at this id.
    */
   reconcile: (id: string) => void;
-  /** Empty the trail entirely (Close / exit to the entry view). */
+  /** Empty the trail entirely (Close / outside click / return to the list). */
   clear: () => void;
 }
 

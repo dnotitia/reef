@@ -152,7 +152,8 @@ describe("IssueDetailSheet", () => {
     });
 
     it("shows a Back affordance to the previous issue when drilled in", () => {
-      // Trail expects REEF-001 on screen, having drilled here from REEF-A.
+      // Trail expects REEF-001 on screen, having drilled here from REEF-A, so
+      // reconcile keeps the trail (currentId already matches).
       useIssueNavStack.setState({ trail: ["REEF-A"], currentId: "REEF-001" });
       renderDrilledInto("REEF-001");
 

@@ -45,8 +45,14 @@ describe("useIssueNavStack (REEF-270)", () => {
     expect(useIssueNavStack.getState().currentId).toBe("REEF-B");
   });
 
-  it("reconcile resets to depth 0 when the id was reached some other way", () => {
-    // Drilled into a trail, then a fresh open lands on an unrelated issue.
+  it("reconcile is idempotent for a matching id (safe under StrictMode)", () => {
+    useIssueNavStack.setState({ trail: ["REEF-A"], currentId: "REEF-B" });
+    useIssueNavStack.getState().reconcile("REEF-B");
+    useIssueNavStack.getState().reconcile("REEF-B");
+    expect(useIssueNavStack.getState().trail).toEqual(["REEF-A"]);
+  });
+
+  it("reconcile resets to depth 0 when a fresh navigation lands on a new id", () => {
     useIssueNavStack.setState({
       trail: ["REEF-A", "REEF-B"],
       currentId: "REEF-C",
@@ -56,7 +62,10 @@ describe("useIssueNavStack (REEF-270)", () => {
     expect(useIssueNavStack.getState().currentId).toBe("REEF-Z");
   });
 
-  it("clear empties the trail and current pointer", () => {
+  it("clear empties the trail and current pointer (the session-boundary reset)", () => {
+    // Owned by Close/outside click and the @modal default slot when the list
+    // returns — including a browser Back that popped the modal — so the next
+    // open, even of the same id, starts fresh.
     useIssueNavStack.setState({ trail: ["REEF-A"], currentId: "REEF-B" });
     useIssueNavStack.getState().clear();
     expect(useIssueNavStack.getState().trail).toEqual([]);

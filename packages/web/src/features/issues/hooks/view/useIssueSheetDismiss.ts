@@ -42,17 +42,21 @@ export function useIssueSheetDismiss({
   const reconcile = useIssueNavStack((state) => state.reconcile);
   const clear = useIssueNavStack((state) => state.clear);
 
-  // Reconcile only when the route id changes (deps = [issueId]); reading the
-  // store imperatively here keeps a drill's own store write from re-firing this
-  // on the outgoing sheet mid-transition (which would wipe the just-pushed
-  // trail). A drill/back already set `currentId` to this id, so those are no-ops;
-  // any other arrival resets to a depth-0 trail.
+  // Reconcile the trail with the route id the sheet mounted on. The intercepted
+  // sheet remounts on every hop AND every fresh open, so this runs once per
+  // arrival; it's idempotent (safe under StrictMode's double-invoked effects).
+  // A drill/back set `currentId` to this id, so its arrival keeps the trail; any
+  // other arrival resets to depth 0. The stale-trail case — a sheet left via
+  // browser Back without Close — is cleared by the `@modal` default slot when
+  // the list comes back, so `currentId` is no longer matching by the time the
+  // same id is reopened.
   useEffect(() => {
     reconcile(issueId);
   }, [issueId, reconcile]);
 
-  // Only trust the trail when it actually describes the on-screen issue, so a
-  // cross-navigation that hasn't reconciled yet never flashes a stale Back.
+  // Only trust the trail when it actually describes the on-screen issue, so the
+  // outgoing sheet never flashes a Back to itself the instant a hop moves the
+  // store's `currentId` before its `router.replace` swaps the route in.
   const backTo =
     currentId === issueId && trail.length > 0
       ? (trail[trail.length - 1] ?? null)

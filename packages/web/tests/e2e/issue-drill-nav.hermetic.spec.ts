@@ -127,6 +127,26 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
     expect(order).toBeTruthy(); // Back precedes the breadcrumb in the DOM.
   });
 
+  test("reopening the drilled-in issue after a browser Back starts at depth 0", async ({
+    page,
+  }) => {
+    // Drill A → B, then leave the modal with the browser Back button (not our
+    // Close), which pops the flat history straight to the list without running
+    // exit(). Reopening B fresh must not resurrect the stale Back.
+    await openRootFromList(page);
+    await drillIntoChild(page, MID, ROOT);
+
+    await page.goBack();
+    await page.waitForURL(/\/issues\?view=list$/, { timeout: 10_000 });
+
+    await page
+      .getByText("Polish onboarding for existing AKB workspaces")
+      .click();
+    await page.waitForURL(new RegExp(`/issues/${MID}`), { timeout: 10_000 });
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+    await expect(page.locator(drillBack)).toHaveCount(0);
+  });
+
   test("a cold deep link starts at depth 0 — breadcrumb but no Back", async ({
     page,
   }) => {

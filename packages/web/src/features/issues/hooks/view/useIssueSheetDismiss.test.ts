@@ -17,17 +17,30 @@ afterEach(() => {
 
 describe("useIssueSheetDismiss (REEF-270)", () => {
   it("reconciles a fresh open to a depth-0 trail (no Back)", () => {
-    // Store still holds a stale trail from a previous drill.
+    // Store still holds a stale trail from a previous drill, on a different id.
     useIssueNavStack.setState({ trail: ["REEF-A"], currentId: "REEF-A" });
 
     const { result } = renderHook(() =>
       useIssueSheetDismiss({ issueId: "REEF-Z", onExit: vi.fn() }),
     );
 
-    // The mount effect reconciled the stale trail away; REEF-Z is depth 0.
+    // The mount reconcile reset the stale trail away; REEF-Z is depth 0.
     expect(result.current.backTo).toBeNull();
     expect(useIssueNavStack.getState().trail).toEqual([]);
     expect(useIssueNavStack.getState().currentId).toBe("REEF-Z");
+  });
+
+  it("starts at depth 0 when the session boundary cleared the trail", () => {
+    // The @modal default slot clears on return-to-list, so a reopen — even of
+    // the id a stale trail was left on — arrives with currentId null.
+    useIssueNavStack.setState({ trail: [], currentId: null });
+
+    const { result } = renderHook(() =>
+      useIssueSheetDismiss({ issueId: "REEF-B", onExit: vi.fn() }),
+    );
+
+    expect(result.current.backTo).toBeNull();
+    expect(useIssueNavStack.getState().trail).toEqual([]);
   });
 
   it("exposes the previous issue as backTo when the trail describes the screen", () => {
