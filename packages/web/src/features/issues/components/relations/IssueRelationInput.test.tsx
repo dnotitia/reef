@@ -269,6 +269,65 @@ describe("IssueRelationInput", () => {
     });
   });
 
+  // REEF-282: the non-navigable chips (create dialog / draft editor) get the
+  // same a11y/i18n finish the navigable chips already have (REEF-268), without
+  // gaining navigation or changing the pill layout. jsdom loads no Tailwind, so
+  // these assert the structural class/attribute contract the fix turns on.
+  describe("non-navigable chip a11y/i18n finish (REEF-282)", () => {
+    it("gives the remove button the same keyboard focus ring as the navigable chip", () => {
+      render(
+        <IssueRelationInput
+          id="depends-on"
+          label="Depends on"
+          value={["REEF-001"]}
+          allIssues={RICH}
+          onChange={() => {}}
+        />,
+      );
+
+      // No navigation was added — still the non-navigable chip branch.
+      expect(screen.queryByRole("link")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Remove REEF-001" }),
+      ).toHaveClass("focus-visible:ring-brand/40");
+    });
+
+    it("marks the decorative X aria-hidden while the button keeps its accessible name", () => {
+      render(
+        <IssueRelationInput
+          id="depends-on"
+          label="Depends on"
+          value={["REEF-001"]}
+          allIssues={RICH}
+          onChange={() => {}}
+        />,
+      );
+
+      const removeButton = screen.getByRole("button", {
+        name: "Remove REEF-001",
+      });
+      // The accessible name comes from aria-label, so the icon is decorative.
+      expect(removeButton.querySelector("svg")).toHaveAttribute(
+        "aria-hidden",
+        "true",
+      );
+    });
+
+    it("marks the id span translate=no so auto-translation preserves the reef id", () => {
+      render(
+        <IssueRelationInput
+          id="depends-on"
+          label="Depends on"
+          value={["REEF-001"]}
+          allIssues={RICH}
+          onChange={() => {}}
+        />,
+      );
+
+      expect(screen.getByText("REEF-001")).toHaveAttribute("translate", "no");
+    });
+  });
+
   it("renders candidate rows with type, priority, and blocked badge", async () => {
     const user = userEvent.setup();
     render(
