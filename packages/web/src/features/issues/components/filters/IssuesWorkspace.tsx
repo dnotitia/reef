@@ -15,6 +15,7 @@ import { useIssueUrlSync } from "@/features/issues/hooks/view/useIssueUrlSync";
 import { parseViewParam } from "@/features/issues/lib/viewMode";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { TimelineBody } from "@/features/timeline/components/TimelineBody";
+import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageHeader } from "@/features/ui/components/PageHeader";
 import { useSearchParams } from "next/navigation";
 
@@ -55,7 +56,7 @@ export function IssuesWorkspace() {
       />
 
       {!vault && !isLoading ? (
-        <EmptyVault />
+        <EmptyWorkspaceNotice />
       ) : (
         <>
           {/* The backlog view drops the facets it pins or does not partition on
@@ -81,20 +82,6 @@ export function IssuesWorkspace() {
           </div>
         </>
       )}
-    </div>
-  );
-}
-
-function EmptyVault() {
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 px-6 py-12">
-      <p className="text-sm text-muted-foreground">
-        Configure a workspace in{" "}
-        <a href="/settings" className="text-brand underline">
-          Settings
-        </a>{" "}
-        to get started.
-      </p>
     </div>
   );
 }
