@@ -64,14 +64,15 @@ describe("TypePill", () => {
       <TypePill
         type="story"
         variant="list"
-        labelClassName="@max-[16rem]:hidden"
+        labelClassName="@max-[16rem]:sr-only"
       />,
     );
     const label = screen.getByText("Story");
-    // The hide class is on the label, not the pill wrapper, so the glyph stays.
-    expect(label.className).toContain("@max-[16rem]:hidden");
+    // The fold class is on the label, not the pill wrapper, so the glyph stays.
+    // `sr-only` (not `hidden`) keeps the type name in the a11y tree.
+    expect(label.className).toContain("@max-[16rem]:sr-only");
     expect((label.parentElement as HTMLElement).className).not.toContain(
-      "@max-[16rem]:hidden",
+      "@max-[16rem]:sr-only",
     );
   });
 

@@ -107,8 +107,11 @@ export function IssueOptionRow({
         type={issue.issue_type}
         variant="list"
         // Below ~16rem of row width the title has no room for both the type label
-        // and a blocked marker; drop to a glyph-only type there (REEF-285).
-        labelClassName="@max-[16rem]:hidden"
+        // and a blocked marker; fold to a glyph-only type there. `sr-only` (not
+        // `hidden`) so the type name stays in the a11y tree — the glyph is
+        // aria-hidden, so display:none would drop the type for screen readers
+        // (REEF-285).
+        labelClassName="@max-[16rem]:sr-only"
       />
       {/* Priority always reserves its column so the dot lines up whether or not
           a sibling row carries one. */}
