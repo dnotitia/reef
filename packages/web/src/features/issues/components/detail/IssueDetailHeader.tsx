@@ -101,22 +101,31 @@ export function IssueDetailHeader({
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
               )}
             >
-              {/* `translate="no"` keeps machine translation from mangling the reef
-                  id (a code identifier, not prose). */}
-              <span translate="no" className="shrink-0 font-mono tabular-nums">
-                {parentId}
-              </span>
-              {parent?.title ? (
+              {parent ? (
+                // Resolved parent: lead with the parent's status glyph, then its
+                // title (REEF-279). The raw reef id leaves the visible crumb — it
+                // lives on only in `href`/`data-issue-id` for routing + tests — so
+                // the trail reads `[status] Parent title › ● Current`, the same
+                // status-first visual language as the current-issue cluster below.
+                // The glyph is decorative: the link's aria-label already names the
+                // parent, so the status never double-announces (AC1 · AC2 · AC3).
                 <>
-                  <span
-                    aria-hidden
-                    className="shrink-0 text-muted-foreground/60"
-                  >
-                    ·
-                  </span>
+                  <StatusIcon status={parent.status} size={12} decorative />
                   <span className="min-w-0 truncate">{parent.title}</span>
                 </>
-              ) : null}
+              ) : (
+                // Degrade: parent_id is set but the parent is absent from the
+                // loaded list, so there is no status or title to render. Fall back
+                // to the raw id so the link is never empty and stays navigable
+                // (REEF-279 AC4). `translate="no"` keeps machine translation from
+                // mangling the reef id (a code identifier, not prose).
+                <span
+                  translate="no"
+                  className="shrink-0 font-mono tabular-nums"
+                >
+                  {parentId}
+                </span>
+              )}
             </Link>
             {/* Trail separator pointing from the parent to the current issue. */}
             <span aria-hidden className="shrink-0 text-muted-foreground/50">
