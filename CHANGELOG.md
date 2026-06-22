@@ -37,8 +37,44 @@ explicitly in the entries below.
   one-line entries in an issue's Activity thread, next to status changes and
   delivery. Planning links read by name rather than a raw id, and a linked
   delivery ref still appears once, not twice (REEF-276).
+
+### Changed
+
+- **Related, blocking, and dependency links now drill in place like the rest.**
+  Clicking a depends-on, blocks, or related issue in an open issue's
+  Relationships swaps the panel to that issue and adds it to the same **Back**
+  trail as the parent breadcrumb and sub-issues — keeping the list or board you
+  came from behind it — instead of opening as a separate navigation that lost
+  your place. The drill **Back** and **Close** now share one row at the top of
+  the panel, so they line up instead of Back sitting on its own strip above the
+  header (REEF-284).
+- **Loading skeletons are quieter for screen readers.** While a page, panel, or
+  feed is loading, assistive technology now hears a single "Loading…" status
+  instead of walking through the empty placeholder bars — the decorative skeleton
+  trees are hidden from the accessibility tree and a sibling status region
+  carries the announcement. Real page and section headings stay readable, and
+  nothing changes visually (REEF-281).
+- **Reports names its workspace, like every other page.** The Reports header now
+  shows the active workspace as a subtitle, matching the Issues, Planning, and
+  Activity headers so the page's vault scope is visible at a glance. Page-header
+  subtitles (the workspace name, or `@login` on My Work) are now marked as
+  identifiers so machine translation leaves them untouched (REEF-260).
+- **Click a planning row's name to open its details.** On the Planning list
+  (sprints, milestones, releases), clicking a row's name now expands and
+  collapses its detail body, not just the small chevron — the chevron and name
+  are one larger, keyboard-accessible toggle instead of two controls for the same
+  panel. Rows with no detail stay plain text with no toggle (REEF-264).
+
 ### Fixed
 
+- **The parent breadcrumb no longer flashes a raw issue number before its
+  title.** Opening a sub-issue from a deep link or a cold cache used to briefly
+  show the parent's raw id (for example `REEF-273`) in the header breadcrumb
+  until the issue list finished loading, then swap it for the parent's title.
+  The breadcrumb now holds a neutral placeholder while the list loads and fills
+  in the title with no visible "number → title" flicker. A parent that is
+  genuinely missing from the loaded list still falls back to its id so the link
+  stays usable (REEF-283).
 - **Switching issue views no longer flickers or feels laggy.** Clicking between
   the Board, List, Timeline, and Backlog tabs now keeps the current view on
   screen and swaps in the next one without flashing the board-shaped loading
@@ -99,6 +135,12 @@ explicitly in the entries below.
   switcher, which previously gave keyboard users no visible focus indicator, now
   shows the same focus ring as the others, and the Planning toggle is no longer a
   larger outlier (REEF-261).
+- **Relation chips in the create and draft forms finish their accessibility.**
+  The plain relation chips in the create dialog and activity-draft editor now
+  show a keyboard focus ring on their remove `X` (matching the detail panel's
+  chips), hide that decorative `X` from screen readers while the button keeps its
+  "Remove {id}" name, and mark the chip id so machine translation leaves the reef
+  id intact. The chips stay non-navigating and look exactly the same (REEF-282).
 
 ## v0.5.0 - 2026-06-19
 

@@ -5,13 +5,14 @@ import { ArrowLeft } from "lucide-react";
 /**
  * Back affordance for the issue detail sheet's drill trail (REEF-270).
  *
- * Sits in the sheet's top-left chrome — above the issue header — and returns to
- * the previous issue in the trail (`backTo`). It is deliberately distinct from
- * the parent breadcrumb (REEF-266) in both axes the issue calls out: position
- * (a standalone top-left strip vs. the header's inline left cluster) and glyph
- * (a `←` arrow naming *where you came from* — navigation — vs. the breadcrumb's
- * status icon + `›` naming *this issue's parent* — structure). The two coexist
- * without reading as one trail (AC5).
+ * Lives at the left of the sheet's single top chrome row (REEF-284) — Close sits
+ * at its right — and returns to the previous issue in the trail (`backTo`). It is
+ * deliberately distinct from the parent breadcrumb (REEF-266) in both axes the
+ * issue calls out: position (the top chrome row, above the header, vs. the
+ * header's inline left cluster) and glyph (a `←` arrow naming *where you came
+ * from* — navigation — vs. the breadcrumb's status icon + `›` naming *this
+ * issue's parent* — structure). The two coexist without reading as one trail
+ * (AC5).
  *
  * Wrapped in its own labelled `<nav>` landmark, mirroring the breadcrumb's
  * `<nav aria-label="Issue hierarchy">`, so assistive tech exposes the drill
@@ -19,7 +20,8 @@ import { ArrowLeft } from "lucide-react";
  *
  * The raw reef id is the label here on purpose: Back is wayfinding, so the
  * concrete "← REEF-A" target is what a PM scans for; `translate="no"` keeps the
- * id (a code identifier) out of machine translation.
+ * id (a code identifier) out of machine translation. Layout padding lives on the
+ * chrome row, so this renders just the landmark + button.
  */
 export function IssueDrillBackBar({
   backTo,
@@ -30,7 +32,7 @@ export function IssueDrillBackBar({
   onBack: () => void;
 }) {
   return (
-    <nav aria-label="Back navigation" className="px-6 pt-4">
+    <nav aria-label="Back navigation">
       <button
         type="button"
         data-testid="issue-drill-back"
