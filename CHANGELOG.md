@@ -58,6 +58,11 @@ explicitly in the entries below.
   Activity headers so the page's vault scope is visible at a glance. Page-header
   subtitles (the workspace name, or `@login` on My Work) are now marked as
   identifiers so machine translation leaves them untouched (REEF-260).
+- **Click a planning row's name to open its details.** On the Planning list
+  (sprints, milestones, releases), clicking a row's name now expands and
+  collapses its detail body, not just the small chevron — the chevron and name
+  are one larger, keyboard-accessible toggle instead of two controls for the same
+  panel. Rows with no detail stay plain text with no toggle (REEF-264).
 
 ## v0.5.0 - 2026-06-19
 

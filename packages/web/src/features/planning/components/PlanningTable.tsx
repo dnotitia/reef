@@ -122,18 +122,23 @@ export function PlanningTable({
             <Fragment key={item.id}>
               <TableRow className="transition-colors duration-150 hover:bg-surface-hover">
                 <TableCell className="max-w-xs font-medium">
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    {body ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onExpandedIdChange(isExpanded ? null : item.id)
-                        }
-                        aria-expanded={isExpanded}
-                        aria-controls={panelId}
-                        aria-label={`${isExpanded ? "Collapse" : "Expand"} ${item.name} details`}
-                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      >
+                  {body ? (
+                    // REEF-264: chevron + title are one disclosure button so the
+                    // whole name is the hit target and the panel has a single
+                    // aria-expanded control. The row supplies the surface hover;
+                    // the chevron darkens on group-hover to mark this strip as the
+                    // toggle. Scoped to the Name cell — the row is never clickable.
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onExpandedIdChange(isExpanded ? null : item.id)
+                      }
+                      aria-expanded={isExpanded}
+                      aria-controls={panelId}
+                      aria-label={`${isExpanded ? "Collapse" : "Expand"} ${item.name} details`}
+                      className="group/disclosure flex w-full min-w-0 items-center gap-1.5 rounded text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center text-muted-foreground transition-colors group-hover/disclosure:text-foreground">
                         <ChevronRight
                           aria-hidden="true"
                           className={cn(
@@ -141,12 +146,15 @@ export function PlanningTable({
                             isExpanded && "rotate-90",
                           )}
                         />
-                      </button>
-                    ) : (
+                      </span>
+                      <span className="min-w-0 line-clamp-1">{item.name}</span>
+                    </button>
+                  ) : (
+                    <div className="flex min-w-0 items-center gap-1.5">
                       <span className="w-5 shrink-0" aria-hidden="true" />
-                    )}
-                    <span className="min-w-0 line-clamp-1">{item.name}</span>
-                  </div>
+                      <span className="min-w-0 line-clamp-1">{item.name}</span>
+                    </div>
+                  )}
                 </TableCell>
                 <TableCell>
                   <PlanningStatusBadge kind={kind} status={item.status} />
