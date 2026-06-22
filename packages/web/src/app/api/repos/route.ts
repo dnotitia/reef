@@ -51,6 +51,19 @@ export async function GET(request: Request): Promise<Response> {
     // presence/`exp` check would accept a forged cookie. `getAkbCurrentActor`
     // returns a ready 401/5xx Response when the session is missing, expired, or
     // rejected by akb (REEF-239).
+    //
+    // The floor is an akb-verified session, not a per-workspace role. reef is
+    // single-tenant per deployment — one akb backend, one shared Keycloak
+    // tenant, and one deployment-managed GitHub App installation
+    // (`REEF_GITHUB_APP_INSTALLATION_ID` is singular, with no per-org/per-vault
+    // installation mechanism); the root AGENTS.md carries no multi-tenant
+    // isolation contract. So an akb-verified caller is an org member, and the
+    // installation's repo list is in-tenant data, trusted the same way the
+    // deployment-managed LLM config is. A per-vault writer floor would solve a
+    // cross-tenant problem reef does not have, and would break the create-
+    // workspace flow (no vault exists yet to authorize against). Scoping the
+    // installation to specific workspaces is REEF-239's deferred open question,
+    // tracked for a follow-up rather than guessed here.
     const auth = await getAkbCurrentActor(request);
     if ("response" in auth) {
       return auth.response;
