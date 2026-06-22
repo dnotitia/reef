@@ -130,7 +130,10 @@ export const IssueChildren = memo(function IssueChildren({
                   {...getDrillProps(child.id)}
                   data-issue-id={child.id}
                   className={cn(
-                    "flex touch-manipulation items-center rounded-md px-1.5 py-1 transition-colors duration-150",
+                    // `min-w-0 flex-1` lets the IssueOptionRow grid inside truncate
+                    // instead of overflowing the column (REEF-285), matching the
+                    // navigable relation chip's Link.
+                    "flex min-w-0 flex-1 touch-manipulation items-center rounded-md px-1.5 py-1 transition-colors duration-150",
                     "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
                     resolved && "opacity-60 hover:opacity-100",
                   )}

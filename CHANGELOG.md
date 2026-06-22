@@ -91,6 +91,16 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Related-issue and sub-issue rows no longer hide their title.** In the issue
+  detail, the Depends on / Blocks / Related rows, the relationship picker, and
+  the Sub-issues list now lay their issues out as aligned columns — status, id,
+  title, type, priority — so the title always keeps a readable width instead of
+  collapsing to nothing once a "blocked" marker appeared in a narrow column, and
+  the type and priority columns line up from row to row whether or not a row has
+  a priority. The "blocked" marker is now a compact glyph with its count (the
+  full "Blocked by N issues" stays available to screen readers), and in a
+  too-narrow column the type label folds to its glyph to keep the title legible
+  (REEF-285).
 - **The parent breadcrumb no longer flashes a raw issue number before its
   title.** Opening a sub-issue from a deep link or a cold cache used to briefly
   show the parent's raw id (for example `REEF-273`) in the header breadcrumb
