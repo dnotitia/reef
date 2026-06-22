@@ -652,9 +652,9 @@ export function IssueRelationInput({
                     aria-label={`Remove ${relationId}`}
                     disabled={disabled}
                     onClick={() => removeRelation(relationId)}
-                    className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50"
+                    className="shrink-0 touch-manipulation rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50"
                   >
-                    <X className="h-3.5 w-3.5" />
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
                 </li>
               );
