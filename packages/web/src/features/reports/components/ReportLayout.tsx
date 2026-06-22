@@ -87,46 +87,86 @@ export function EmptyState({ children }: { children: ReactNode }) {
   );
 }
 
+// Stable React keys for the fixed-count placeholder groups (avoids index-as-key).
+const SCOPE_CONTROL_KEYS = Array.from({ length: 8 }, (_, i) => `scope-${i}`);
+const KPI_TILE_KEYS = Array.from({ length: 8 }, (_, i) => `kpi-${i}`);
+const BREAKDOWN_CARD_KEYS = Array.from(
+  { length: 6 },
+  (_, i) => `breakdown-${i}`,
+);
+
+/** Card placeholder matching {@link Card}'s frame (rounded border + p-4) with a
+ *  header bar and a body block, so a report card hydrating in does not resize
+ *  its slot. `bodyHeight` approximates the loaded chart/list height. */
+function ReportCardSkeleton({ bodyHeight }: { bodyHeight: string }) {
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-border-subtle bg-surface-subtle p-4">
+      <Skeleton tone="secondary" className="h-4 w-24" />
+      <Skeleton className={`${bodyHeight} w-full`} />
+    </div>
+  );
+}
+
+/**
+ * First-paint skeleton for the reports page. Mirrors the loaded page's structure
+ * so the body does not shift when the real cards hydrate (REEF-258): the
+ * {@link ReportScopeBar}'s control grid (was missing entirely → the whole page
+ * dropped a row when it appeared), the KPI grid at the loaded `lg:grid-cols-5`
+ * with all eight tiles (was `lg:grid-cols-6` × 6 → one row vs two), and the same
+ * three labeled {@link ReportSection} bands (Snapshot / Flow & forecast /
+ * Breakdown) with `gap-10` between them (was a flat `gap-6` with no headings).
+ * The section labels are static page chrome, so rendering them for real keeps
+ * the band headers pixel-identical across the skeleton↔loaded swap.
+ */
 export function ReportsSkeleton() {
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {[0, 1, 2, 3, 4, 5].map((i) => (
-          <div
-            key={`kpi-skeleton-${i}`}
-            className="flex flex-col gap-2 rounded-lg border border-border-subtle bg-surface-subtle p-3"
-          >
-            <Skeleton className="h-3 w-14" />
-            <Skeleton className="h-6 w-10" />
-          </div>
+      {/* Scope bar — same auto-fit control grid as ReportScopeBar (8 controls). */}
+      <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-2 rounded-lg border border-border-subtle bg-surface-subtle p-2">
+        {SCOPE_CONTROL_KEYS.map((key) => (
+          <Skeleton key={key} tone="secondary" className="h-8 w-full" />
         ))}
       </div>
-      {[0, 1].map((i) => (
-        <div
-          key={`wide-skeleton-${i}`}
-          className="flex flex-col gap-3 rounded-lg border border-border-subtle bg-surface-subtle p-4"
-        >
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-24 w-full" />
-        </div>
-      ))}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {[0, 1, 2, 3].map((i) => (
-          <div
-            key={`reports-skeleton-${i}`}
-            className="flex flex-col gap-3 rounded-lg border border-border-subtle bg-surface-subtle p-4"
-          >
-            <Skeleton className="h-4 w-24" />
-            <div className="flex flex-col gap-1.5">
-              {[0, 1, 2, 3].map((j) => (
-                <Skeleton
-                  key={`reports-skeleton-${i}-${j}`}
-                  className="h-4 w-full"
-                />
+
+      <div className="flex flex-col gap-10">
+        <ReportSection label="Snapshot">
+          <div className="flex flex-col gap-4">
+            {/* KPI grid — lg:grid-cols-5 × 8 tiles (matches HealthSummary). */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              {KPI_TILE_KEYS.map((key) => (
+                <div
+                  key={key}
+                  className="flex min-h-[76px] flex-col justify-between gap-1 rounded-lg border border-border-subtle bg-surface-subtle p-3"
+                >
+                  <Skeleton tone="secondary" className="h-3 w-14" />
+                  <Skeleton className="h-6 w-10" />
+                </div>
               ))}
             </div>
+            {/* Per-item RAG rollup card. */}
+            <ReportCardSkeleton bodyHeight="h-28" />
           </div>
-        ))}
+        </ReportSection>
+
+        <ReportSection label="Flow & forecast">
+          <div className="flex flex-col gap-6">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <ReportCardSkeleton bodyHeight="h-40" />
+              <ReportCardSkeleton bodyHeight="h-40" />
+            </div>
+            {/* Forecast + custom pivot, both full width. */}
+            <ReportCardSkeleton bodyHeight="h-32" />
+            <ReportCardSkeleton bodyHeight="h-32" />
+          </div>
+        </ReportSection>
+
+        <ReportSection label="Breakdown">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            {BREAKDOWN_CARD_KEYS.map((key) => (
+              <ReportCardSkeleton key={key} bodyHeight="h-28" />
+            ))}
+          </div>
+        </ReportSection>
       </div>
     </div>
   );

@@ -127,10 +127,16 @@ export function MyWorkPage() {
     [router, searchParams],
   );
 
+  // The planning catalog is an independent query, so the current sprint can be
+  // known before the issues finish loading. Thread it into the in-flight
+  // skeleton so its tile count matches the loaded summary (sprint → 4 tiles, no
+  // sprint → 3) instead of reflowing on hydration (REEF-258).
+  const hasSprint = Boolean(currentSprint);
+
   if (vaultLoading || meLoading) {
     return (
       <Shell>
-        <MyWorkSkeleton />
+        <MyWorkSkeleton hasSprint={hasSprint} />
       </Shell>
     );
   }
@@ -167,7 +173,7 @@ export function MyWorkPage() {
   if (issuesQuery.isPending) {
     return (
       <Shell>
-        <MyWorkSkeleton />
+        <MyWorkSkeleton hasSprint={hasSprint} />
       </Shell>
     );
   }

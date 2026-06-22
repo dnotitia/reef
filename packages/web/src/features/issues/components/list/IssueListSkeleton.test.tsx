@@ -1,6 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { IssueListSkeleton } from "./IssueListSkeleton";
+import { COLUMN_LABELS } from "./issueListColumns";
 
 afterEach(cleanup);
 
@@ -28,7 +29,7 @@ describe("IssueListSkeleton", () => {
     expect(screen.getAllByTestId("skeleton-row")).toHaveLength(3);
   });
 
-  it("each row has 8 cells", () => {
+  it("renders one cell per real table column so the table does not re-layout on hydration (REEF-258)", () => {
     render(
       <table>
         <tbody>
@@ -38,6 +39,10 @@ describe("IssueListSkeleton", () => {
     );
     const row = screen.getByTestId("skeleton-row");
     const cells = row.querySelectorAll("td");
-    expect(cells).toHaveLength(8);
+    // The skeleton's column count is derived from COLUMN_LABELS, the same
+    // source IssueListTable's header uses, so the two can never drift (the bug
+    // was a hard-coded 8 against a 13-column header).
+    expect(cells).toHaveLength(COLUMN_LABELS.length);
+    expect(cells.length).toBe(13);
   });
 });
