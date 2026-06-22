@@ -39,6 +39,14 @@ explicitly in the entries below.
   delivery ref still appears once, not twice (REEF-276).
 ### Fixed
 
+- **The parent breadcrumb no longer flashes a raw issue number before its
+  title.** Opening a sub-issue from a deep link or a cold cache used to briefly
+  show the parent's raw id (for example `REEF-273`) in the header breadcrumb
+  until the issue list finished loading, then swap it for the parent's title.
+  The breadcrumb now holds a neutral placeholder while the list loads and fills
+  in the title with no visible "number → title" flicker. A parent that is
+  genuinely missing from the loaded list still falls back to its id so the link
+  stays usable (REEF-283).
 - **Switching issue views no longer flickers or feels laggy.** Clicking between
   the Board, List, Timeline, and Backlog tabs now keeps the current view on
   screen and swaps in the next one without flashing the board-shaped loading

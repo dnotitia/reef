@@ -72,6 +72,10 @@ function setup(overrides: Partial<HeaderProps> = {}) {
     onClose,
     parentId: null,
     allIssues: [],
+    // Default: the list has finished loading. The `allIssues: []` cases below
+    // therefore mean "loaded, parent genuinely absent" (REEF-279 AC4), not
+    // "still loading" — the loading path opts in with `allIssuesPending: true`.
+    allIssuesPending: false,
     ...overrides,
   };
   render(<IssueDetailHeader {...props} />);
@@ -188,6 +192,48 @@ describe("IssueDetailHeader", () => {
       // AC4).
       expect(link.querySelector("svg")).toBeNull();
       expect(link.textContent).toBe("REEF-182");
+    });
+
+    it("holds a neutral skeleton — never the raw id — while the list is still loading (REEF-283)", () => {
+      // Cold list cache / deep link: the detail arrives before `useIssueList`,
+      // so the parent is unresolved AND the list is still pending. The crumb
+      // must not flash the raw reef id (which would then swap to the title once
+      // the list lands) — it holds a neutral skeleton placeholder instead.
+      setup({ parentId: PARENT_ID, allIssues: [], allIssuesPending: true });
+
+      const link = screen.getByTestId("issue-parent-breadcrumb");
+      // The link is navigable throughout the wait — the id lives on in
+      // href/data, driving drill + modifier-click without waiting for the list.
+      expect(link).toHaveAttribute("href", "/issues/REEF-182");
+      expect(link).toHaveAttribute("data-issue-id", "REEF-182");
+      // A loading placeholder renders, and crucially the raw id never appears in
+      // the visible crumb text — that is the whole bug (no "id → title" flicker).
+      expect(
+        screen.getByTestId("issue-parent-breadcrumb-loading"),
+      ).toBeInTheDocument();
+      expect(link.textContent).not.toContain("REEF-182");
+      // It is a placeholder, not the resolved state: no status glyph (svg) yet.
+      expect(link.querySelector("svg")).toBeNull();
+      // The skeleton is decorative; the link keeps its id-only accessible name.
+      expect(link).toHaveAccessibleName("Parent issue REEF-182");
+    });
+
+    it("shows the resolved title even if the list is flagged pending (resolved wins)", () => {
+      // Guards the branch order: a resolved parent always renders its
+      // status-glyph + title, so a stale pending flag can never regress a
+      // resolved crumb back to a skeleton.
+      setup({
+        parentId: PARENT_ID,
+        allIssues: [parent],
+        allIssuesPending: true,
+      });
+
+      const link = screen.getByTestId("issue-parent-breadcrumb");
+      expect(link).toHaveTextContent("Reports & analytics epic");
+      expect(link.querySelector("svg")).not.toBeNull();
+      expect(
+        screen.queryByTestId("issue-parent-breadcrumb-loading"),
+      ).toBeNull();
     });
 
     it("keeps the close button out of the breadcrumb/id content row", () => {

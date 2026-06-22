@@ -48,7 +48,13 @@ interface IssueDetailProps {
  */
 export function IssueDetail({ issueId, vault, onClose }: IssueDetailProps) {
   const { data, isPending, isError, error, refetch } = useIssue(issueId, vault);
-  const { data: allIssues = [] } = useIssueList(vault);
+  // `isPending` (status === 'pending') is true only when the list has no rows
+  // yet — a cold cache / deep link. A within-vault navigation keeps the previous
+  // rows as placeholder (status 'success'), so this stays false and the parent
+  // resolves immediately. The header uses it to skeleton the parent crumb rather
+  // than flash the raw id while the list lands (REEF-283).
+  const { data: allIssues = [], isPending: allIssuesPending } =
+    useIssueList(vault);
   // Whole-vault relation graph for accurate blocked badges in the relation dropdowns.
   const { data: relations } = useIssueRelations(vault);
 
@@ -107,6 +113,7 @@ export function IssueDetail({ issueId, vault, onClose }: IssueDetailProps) {
       vault={vault}
       data={data}
       allIssues={allIssues}
+      allIssuesPending={allIssuesPending}
       relations={relations}
       onClose={onClose}
     />
@@ -118,11 +125,13 @@ function IssueDetailLoaded({
   vault,
   data,
   allIssues,
+  allIssuesPending,
   relations,
   onClose,
 }: IssueDetailProps & {
   data: IssueDetailResponse;
   allIssues: ReturnType<typeof useIssueList>["data"];
+  allIssuesPending: boolean;
   relations: ReturnType<typeof useIssueRelations>["data"];
 }) {
   const updateMutation = useUpdateIssue();
@@ -307,6 +316,7 @@ function IssueDetailLoaded({
         onClose={onClose}
         parentId={draft.parentId || null}
         allIssues={allIssues ?? []}
+        allIssuesPending={allIssuesPending}
       />
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">

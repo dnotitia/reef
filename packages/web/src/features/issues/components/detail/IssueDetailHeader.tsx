@@ -8,6 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
 import { StatusIcon } from "@/components/ui/status-icon";
 import { useIssueDrill } from "@/features/issues/hooks/view/useIssueDrill";
 import { cn } from "@/lib/utils";
@@ -34,6 +35,7 @@ export function IssueDetailHeader({
   onClose,
   parentId,
   allIssues,
+  allIssuesPending,
 }: {
   issueId: string;
   issueType: IssueType;
@@ -53,6 +55,11 @@ export function IssueDetailHeader({
   /** Whole-vault list already loaded by the detail panel; resolves the parent
    *  title without an extra request. */
   allIssues: readonly IssueListItem[];
+  /** The whole-vault list is still loading, so a set `parentId` cannot be
+   *  resolved to its parent row yet. While true the parent crumb holds a neutral
+   *  skeleton instead of degrading to the raw id, so the user never sees an
+   *  "id → title" flicker on a cold list cache (REEF-283). */
+  allIssuesPending: boolean;
 }) {
   // Resolve the parent from the already-loaded list (no network request); a set
   // parent_id that is absent from the list still renders by id (REEF-266).
@@ -119,12 +126,31 @@ export function IssueDetailHeader({
                   <StatusIcon status={parent.status} size={12} decorative />
                   <span className="min-w-0 truncate">{parent.title}</span>
                 </>
+              ) : allIssuesPending ? (
+                // List still loading (REEF-283): the parent row has not arrived,
+                // so neither its status nor title is known yet. Hold a neutral
+                // skeleton — never the raw reef id — so the later title is a
+                // fill, not a visible "id → title" swap. The crumb is already
+                // navigable from `href`/`getDrillProps(parentId)`, so it works
+                // during the wait. The skeleton is decorative (aria-hidden); the
+                // link's aria-label ("Parent issue REEF-XXX") stays its only
+                // accessible name. The glyph + text bar mirror the resolved
+                // crumb's shape so resolving introduces no layout shift.
+                <span
+                  aria-hidden
+                  data-testid="issue-parent-breadcrumb-loading"
+                  className="inline-flex items-center gap-1.5"
+                >
+                  <Skeleton className="h-3 w-3 rounded-full" />
+                  <Skeleton className="h-3 w-20" />
+                </span>
               ) : (
                 // Degrade: parent_id is set but the parent is absent from the
-                // loaded list, so there is no status or title to render. Fall back
-                // to the raw id so the link is never empty and stays navigable
-                // (REEF-279 AC4). `translate="no"` keeps machine translation from
-                // mangling the reef id (a code identifier, not prose).
+                // already-loaded list (archived, etc.), so there is no status or
+                // title to render. Fall back to the raw id so the link is never
+                // empty and stays navigable (REEF-279 AC4). `translate="no"` keeps
+                // machine translation from mangling the reef id (a code
+                // identifier, not prose).
                 <span
                   translate="no"
                   className="shrink-0 font-mono tabular-nums"
