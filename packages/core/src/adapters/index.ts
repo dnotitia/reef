@@ -5,6 +5,11 @@ export {
   type RepoLabel,
 } from "./github";
 export {
+  createGitHubAppInstallationTokenProvider,
+  type GitHubTokenProvider,
+  type CreateGitHubAppInstallationTokenProviderParams,
+} from "./github/appAuth";
+export {
   createLlmAdapter,
   type LlmAdapter,
   type CreateLlmAdapterParams,

@@ -37,8 +37,19 @@
 - Monitored-repo grounding only: activity detection, `search_code`,
   `dev_read_file`, and `list_repo_labels`.
 - Read-only. No managed-repo writes, no local Git, and no cloning.
-- Keep `createGitHubAdapter` / `listLabelsForRepo` as the only value exports,
-  plus their supporting type interfaces.
+- Keep `createGitHubAdapter` / `listLabelsForRepo` as the only value exports of
+  `github.ts`, plus their supporting type interfaces.
+- The deployment-managed GitHub App credential provider lives in
+  `github/appAuth.ts` and exports `createGitHubAppInstallationTokenProvider`
+  (App JWT → installation token). It feeds the same `createGitHubAdapter`
+  via a token string; it is an alternative token source to the per-user browser
+  PAT, not a second adapter. The minted token is down-scoped to read-only
+  permissions (`contents`/`metadata`/`pull_requests` read) so it stays read-only
+  even if the App was granted write — the App permission set is not the only
+  guardrail. The private key, App JWT, and minted token must stay out of logs,
+  span attributes, prompts, and responses — record only the App and installation
+  ids and the token expiry, and normalize failures to a credential-free
+  `GitHubApiError`.
 
 ## LLM Adapter (`llm.ts`)
 
