@@ -35,6 +35,11 @@ export function useIssueSheetDismiss({
   onExit,
 }: UseIssueSheetDismissArgs) {
   const router = useRouter();
+  // `useSearchParams()` needs no Suspense boundary here: every (dashboard) route
+  // — `/issues/[id]` included — is server-rendered on demand (dynamic `ƒ` in the
+  // build output), never statically prerendered, so it can't trigger the
+  // static-prerender CSR bailout. The sibling `useOpenIssue` reads the query the
+  // same way in this route family.
   const searchParams = useSearchParams();
   const trail = useIssueNavStack((state) => state.trail);
   const currentId = useIssueNavStack((state) => state.currentId);
