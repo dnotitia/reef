@@ -21,6 +21,15 @@ explicitly in the entries below.
   GitHub PAT in every browser just to configure repo grounding. Deployments
   without a GitHub App keep working through the existing browser-PAT path, and
   saved repositories keep their stable GitHub id and owner/name (REEF-239).
+- **Scan repository activity without a personal access token.** When a
+  deployment configures a GitHub App, both the manual **Scan** action and
+  agent-run activity scans now read monitored-repo commits and pull requests
+  through the server-managed App installation, so generating activity-inbox
+  suggestions no longer requires a GitHub PAT in the browser. Deployments
+  without a GitHub App keep working through the existing browser-PAT path, and
+  when the App is configured but unavailable — a revoked installation, missing
+  permission, or rate limit — the scan surfaces a PM-facing error instead of
+  failing silently (REEF-240).
 - **Spot outdated workspace AI instructions from the sidebar.** When your active
   workspace is running an older agent playbook, the sidebar **Settings** entry
   now shows a small amber dot, so the drift is discoverable without opening
