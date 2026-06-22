@@ -56,7 +56,6 @@ function makeIssue(overrides: Partial<IssueListItem>): IssueListItem {
 }
 
 function setup(overrides: Partial<HeaderProps> = {}) {
-  const onClose = vi.fn();
   const props: HeaderProps = {
     issueId: "REEF-111",
     issueType: "bug",
@@ -69,35 +68,28 @@ function setup(overrides: Partial<HeaderProps> = {}) {
     isDeletePending: false,
     onArchiveToggle: vi.fn(),
     onDeleteRequested: vi.fn(),
-    onClose,
     parentId: null,
     allIssues: [],
+    // Default: the list has finished loading. The `allIssues: []` cases below
+    // therefore mean "loaded, parent genuinely absent" (REEF-279 AC4), not
+    // "still loading" — the loading path opts in with `allIssuesPending: true`.
+    allIssuesPending: false,
     ...overrides,
   };
   render(<IssueDetailHeader {...props} />);
-  return { onClose };
 }
 
 describe("IssueDetailHeader", () => {
-  it("renders an in-flow close button that dismisses via onClose (REEF-111)", async () => {
-    const user = userEvent.setup();
-    const { onClose } = setup();
-
-    const close = screen.getByRole("button", { name: "Close" });
-    expect(close).toHaveAttribute("data-testid", "issue-close");
-
-    await user.click(close);
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  it("keeps the issue actions menu as a sibling of the close button", () => {
+  it("renders the issue actions menu (close lives in the sheet chrome row, REEF-284)", () => {
     setup();
-    // Both affordances coexist in the header's right-hand action group rather
-    // than the actions menu competing with an overlay X.
+    // The header keeps the per-issue actions menu; the close affordance moved up
+    // to the sheet's top chrome row, so it is no longer rendered here.
     expect(
       screen.getByRole("button", { name: "Issue actions" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Close" }),
+    ).not.toBeInTheDocument();
   });
 
   describe("parent breadcrumb (REEF-266)", () => {
@@ -189,20 +181,49 @@ describe("IssueDetailHeader", () => {
       expect(link.querySelector("svg")).toBeNull();
       expect(link.textContent).toBe("REEF-182");
     });
+    it("holds a neutral skeleton — never the raw id — while the list is still loading (REEF-283)", () => {
+      // Cold list cache / deep link: the detail arrives before `useIssueList`,
+      // so the parent is unresolved AND the list is still pending. The crumb
+      // must not flash the raw reef id (which would then swap to the title once
+      // the list lands) — it holds a neutral skeleton placeholder instead.
+      setup({ parentId: PARENT_ID, allIssues: [], allIssuesPending: true });
 
-    it("keeps the close button out of the breadcrumb/id content row", () => {
-      // The breadcrumb + id share the left content row; the close button sits in
-      // a separate top-right action group. Guards against the close button
-      // slipping into the content row, which would push it below the breadcrumb
-      // (REEF-266 follow-up).
-      setup({ parentId: PARENT_ID, allIssues: [parent] });
-      const contentRow = screen.getByRole("navigation", {
-        name: "Issue hierarchy",
-      }).parentElement;
-      expect(contentRow).not.toBeNull();
-      expect(contentRow?.contains(screen.getByTestId("issue-close"))).toBe(
-        false,
-      );
+      const link = screen.getByTestId("issue-parent-breadcrumb");
+      // The link is navigable throughout the wait — the id lives on in
+      // href/data, driving drill + modifier-click without waiting for the list.
+      expect(link).toHaveAttribute("href", "/issues/REEF-182");
+      expect(link).toHaveAttribute("data-issue-id", "REEF-182");
+      // A loading placeholder renders, and crucially the raw id never appears in
+      // the visible crumb text — that is the whole bug (no "id → title" flicker).
+      expect(
+        screen.getByTestId("issue-parent-breadcrumb-loading"),
+      ).toBeInTheDocument();
+      expect(link.textContent).not.toContain("REEF-182");
+      // It is a placeholder, not the resolved state: no status glyph (svg) yet.
+      expect(link.querySelector("svg")).toBeNull();
+      // The skeleton is decorative; the link keeps its id-only accessible name.
+      expect(link).toHaveAccessibleName("Parent issue REEF-182");
     });
+
+    it("shows the resolved title even if the list is flagged pending (resolved wins)", () => {
+      // Guards the branch order: a resolved parent always renders its
+      // status-glyph + title, so a stale pending flag can never regress a
+      // resolved crumb back to a skeleton.
+      setup({
+        parentId: PARENT_ID,
+        allIssues: [parent],
+        allIssuesPending: true,
+      });
+
+      const link = screen.getByTestId("issue-parent-breadcrumb");
+      expect(link).toHaveTextContent("Reports & analytics epic");
+      expect(link.querySelector("svg")).not.toBeNull();
+      expect(
+        screen.queryByTestId("issue-parent-breadcrumb-loading"),
+      ).toBeNull();
+    });
+    // The "close button out of the content row" guard from REEF-266 is dropped:
+    // REEF-284 moves Close out of the header entirely into the sheet's chrome
+    // row, so there is no close button here to keep out of the breadcrumb row.
   });
 });

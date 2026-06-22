@@ -1,8 +1,37 @@
+import { useIssueNavStack } from "@/features/issues/stores/useIssueNavStack";
 import type { IssueMetadata } from "@reef/core";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { IssueRelationInput } from "./IssueRelationInput";
+
+// Navigable chips drill in place through `useIssueDrill` (REEF-284), which reads
+// the router + live query, so stub both navigation primitives. An empty
+// `useSearchParams` keeps relation hrefs bare (`/issues/REEF-001`).
+const { mockReplace } = vi.hoisted(() => ({ mockReplace: vi.fn() }));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: mockReplace, push: vi.fn(), back: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+vi.mock("next/link", () => ({
+  default: ({
+    children,
+    href,
+    ...rest
+  }: { children: ReactNode; href: string } & Record<string, unknown>) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
+afterEach(() => {
+  mockReplace.mockClear();
+  useIssueNavStack.setState({ trail: [], currentId: null });
+});
 
 const ISSUES: IssueMetadata[] = [
   {
@@ -152,6 +181,30 @@ describe("IssueRelationInput", () => {
       expect(link).toHaveClass("focus-visible:ring-brand/40");
     });
 
+    it("drills in place on click, recording the hop like the breadcrumb (REEF-284)", async () => {
+      const user = userEvent.setup();
+      render(
+        <IssueRelationInput
+          id="depends-on"
+          label="Depends on"
+          value={["REEF-001"]}
+          allIssues={RICH}
+          currentIssueId="REEF-002"
+          onChange={() => {}}
+          navigable
+        />,
+      );
+
+      await user.click(screen.getByRole("link"));
+
+      // Same nav model as the parent breadcrumb / Sub-issues: push the issue we
+      // are leaving onto the trail, move currentId to the target, and replace
+      // (not push) so the browser history stays flat.
+      expect(useIssueNavStack.getState().trail).toEqual(["REEF-002"]);
+      expect(useIssueNavStack.getState().currentId).toBe("REEF-001");
+      expect(mockReplace).toHaveBeenCalledWith("/issues/REEF-001");
+    });
+
     it("keeps the remove X as a separate hit target that does not navigate", async () => {
       const onChange = vi.fn();
       const user = userEvent.setup();
@@ -213,6 +266,65 @@ describe("IssueRelationInput", () => {
       expect(
         screen.getByRole("button", { name: "Remove REEF-001" }),
       ).toBeInTheDocument();
+    });
+  });
+
+  // REEF-282: the non-navigable chips (create dialog / draft editor) get the
+  // same a11y/i18n finish the navigable chips already have (REEF-268), without
+  // gaining navigation or changing the pill layout. jsdom loads no Tailwind, so
+  // these assert the structural class/attribute contract the fix turns on.
+  describe("non-navigable chip a11y/i18n finish (REEF-282)", () => {
+    it("gives the remove button the same keyboard focus ring as the navigable chip", () => {
+      render(
+        <IssueRelationInput
+          id="depends-on"
+          label="Depends on"
+          value={["REEF-001"]}
+          allIssues={RICH}
+          onChange={() => {}}
+        />,
+      );
+
+      // No navigation was added — still the non-navigable chip branch.
+      expect(screen.queryByRole("link")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Remove REEF-001" }),
+      ).toHaveClass("focus-visible:ring-brand/40");
+    });
+
+    it("marks the decorative X aria-hidden while the button keeps its accessible name", () => {
+      render(
+        <IssueRelationInput
+          id="depends-on"
+          label="Depends on"
+          value={["REEF-001"]}
+          allIssues={RICH}
+          onChange={() => {}}
+        />,
+      );
+
+      const removeButton = screen.getByRole("button", {
+        name: "Remove REEF-001",
+      });
+      // The accessible name comes from aria-label, so the icon is decorative.
+      expect(removeButton.querySelector("svg")).toHaveAttribute(
+        "aria-hidden",
+        "true",
+      );
+    });
+
+    it("marks the id span translate=no so auto-translation preserves the reef id", () => {
+      render(
+        <IssueRelationInput
+          id="depends-on"
+          label="Depends on"
+          value={["REEF-001"]}
+          allIssues={RICH}
+          onChange={() => {}}
+        />,
+      );
+
+      expect(screen.getByText("REEF-001")).toHaveAttribute("translate", "no");
     });
   });
 
