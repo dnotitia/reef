@@ -1,7 +1,6 @@
 import { type Page, expect, test } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
-  clearPersistedQueryCache,
   clearPersistedQueryCacheOnLoad,
   openExistingWorkspace,
   readFixtureState,
@@ -93,16 +92,21 @@ test.describe("Hermetic issue list flow", () => {
 
     await applyTodoFilter(page);
     await expectPersistedStatus(page, REEF_E2E_VAULT, "todo");
-    await clearPersistedQueryCache(page);
+
+    // The bare entry must hit the server with the restored filter. The original
+    // page's async query-cache persister (throttled ~1s flush) is a live writer:
+    // it can re-write the localStorage snapshot after any reader-side clear, and
+    // on slower CI that re-write lands in the window between the clear and the
+    // restored page's QueryProvider rehydration — the restored page then serves
+    // the todo list from cache and sends no /api/issues?status=todo, so the filter
+    // still restores but the request assertion below times out (the flake REEF-280
+    // tracked). Close the original page first to remove the writer entirely; with
+    // no concurrent writer, clearing the snapshot at the restored page's
+    // document-start is sufficient and deterministic. The saved filter lives in
+    // IndexedDB (context-scoped, survives the page close), so it still restores.
+    await page.close();
 
     const restored = await context.newPage();
-    // The bare entry must hit the server with the restored filter. The async
-    // query-cache persister on the original page can re-write the localStorage
-    // snapshot after the clear above (its throttled flush races the page swap);
-    // if the restored page rehydrates that snapshot it serves the todo list from
-    // cache and sends no /api/issues?status=todo — the filter still restores, but
-    // the request assertion below flakes (deterministically on slower CI). Clear
-    // at document-start, before QueryProvider rehydrates, to remove the race.
     await clearPersistedQueryCacheOnLoad(restored);
     const todoIssueRequest = restored.waitForRequest((request) => {
       const url = new URL(request.url());
@@ -133,9 +137,16 @@ test.describe("Hermetic issue list flow", () => {
 
     await applyTodoFilter(page);
     await expectPersistedStatus(page, REEF_E2E_VAULT, "todo");
-    await clearPersistedQueryCache(page);
+
+    // Same writer race as the sibling test above (REEF-280): close the original
+    // page so its throttled query-cache persister cannot re-write the snapshot
+    // mid-swap, then clear at the new page's document-start. The saved filter
+    // lives in IndexedDB and survives the close, so the "explicit URL filter wins"
+    // assertion still exercises a real restore-vs-override.
+    await page.close();
 
     const urlFiltered = await context.newPage();
+    await clearPersistedQueryCacheOnLoad(urlFiltered);
     const issueRequests = collectIssueListRequests(urlFiltered);
     await urlFiltered.goto("/issues?view=list&status=in_progress");
 
