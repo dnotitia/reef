@@ -1,8 +1,14 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockScanAndPersistActivitySuggestions } = vi.hoisted(() => ({
+const {
+  mockScanAndPersistActivitySuggestions,
+  mockCreateGitHubAdapter,
+  mockCreateProvider,
+} = vi.hoisted(() => ({
   mockScanAndPersistActivitySuggestions: vi.fn(),
+  mockCreateGitHubAdapter: vi.fn(),
+  mockCreateProvider: vi.fn(),
 }));
 
 vi.mock("@reef/core", async (importOriginal) => {
@@ -10,13 +16,54 @@ vi.mock("@reef/core", async (importOriginal) => {
   return {
     ...original,
     scanAndPersistActivitySuggestions: mockScanAndPersistActivitySuggestions,
+    createGitHubAdapter: mockCreateGitHubAdapter,
+    createGitHubAppInstallationTokenProvider: mockCreateProvider,
   };
 });
 
+// Deployment GitHub App config — default "not configured" so the existing tests
+// exercise the browser-PAT fallback; the App-path block flips it on.
+type ServerAppConfig =
+  | {
+      ok: true;
+      config: { app_id: string; installation_id: string; private_key: string };
+      status: { isConfigured: true; appId: string };
+    }
+  | {
+      ok: false;
+      status: { isConfigured: false; appId: string | null };
+      issues: string[];
+    };
+
+const NOT_CONFIGURED: ServerAppConfig = {
+  ok: false,
+  status: { isConfigured: false, appId: null },
+  issues: ["app_id is required"],
+};
+
+const appConfigState = vi.hoisted(() => ({ current: undefined as unknown }));
+
+vi.mock("@/lib/github/serverAppConfig", () => ({
+  resolveServerGitHubAppConfig: () => appConfigState.current,
+}));
+
+// The App path validates the reef session against akb before minting; mock that
+// boundary so route tests stay hermetic. getAkbAdapter stays real so the
+// session-cookie checks below still exercise the cookie decode.
+vi.mock("@/lib/api/requestHelpers", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/lib/api/requestHelpers")
+  >("@/lib/api/requestHelpers");
+  return { ...actual, getAkbCurrentActor: vi.fn() };
+});
+
 import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
-import { AkbApiError, AuthError } from "@reef/core";
+import { getAkbCurrentActor } from "@/lib/api/requestHelpers";
+import { AkbApiError, AuthError, GitHubApiError } from "@reef/core";
 import { VALID_JWT } from "../../__test-helpers__/jwt";
 import { POST } from "./route";
+
+const mockGetActor = vi.mocked(getAkbCurrentActor);
 
 const VALID_BODY = {
   owner: "octo",
@@ -50,6 +97,8 @@ describe("POST /api/activity/scan", () => {
     vi.stubEnv("OPENROUTER_API_KEY", "sk-test");
     vi.stubEnv("OPENROUTER_BASE_URL", "https://api.openai.com/v1");
     vi.stubEnv("REEF_LLM_MODEL", "gpt-4o");
+    appConfigState.current = NOT_CONFIGURED;
+    mockCreateGitHubAdapter.mockReturnValue({});
     mockScanAndPersistActivitySuggestions.mockResolvedValue({
       status: "completed",
       drafts: [],
@@ -174,5 +223,108 @@ describe("POST /api/activity/scan", () => {
     );
     const res = await POST(makeRequest({}));
     expect(res.status).toBe(401);
+  });
+});
+
+describe("POST /api/activity/scan — server-managed GitHub App path", () => {
+  const APP_CONFIG: ServerAppConfig = {
+    ok: true,
+    config: {
+      app_id: "123456",
+      installation_id: "789",
+      private_key:
+        "-----BEGIN RSA PRIVATE KEY-----\nx\n-----END RSA PRIVATE KEY-----",
+    },
+    status: { isConfigured: true, appId: "123456" },
+  };
+
+  // A signed-in workspace session, but no browser PAT — the App path serves it.
+  function makeAppRequest(headers: Record<string, string> = {}): Request {
+    return new Request("http://localhost/api/activity/scan", {
+      method: "POST",
+      body: JSON.stringify(VALID_BODY),
+      headers: {
+        "Content-Type": "application/json",
+        cookie: `${SESSION_COOKIE}=${VALID_JWT}`,
+        ...headers,
+      },
+    });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("AKB_BACKEND_URL", "http://akb.test");
+    vi.stubEnv("OPENROUTER_API_KEY", "sk-test");
+    vi.stubEnv("OPENROUTER_BASE_URL", "https://api.openai.com/v1");
+    vi.stubEnv("REEF_LLM_MODEL", "gpt-4o");
+    appConfigState.current = APP_CONFIG;
+    mockGetActor.mockResolvedValue({ actor: "alice" });
+    mockCreateGitHubAdapter.mockReturnValue({});
+    mockScanAndPersistActivitySuggestions.mockResolvedValue({
+      status: "completed",
+      drafts: [],
+      statusChanges: [],
+      persistedSuggestions: [],
+      addedDrafts: 0,
+      addedStatusChanges: 0,
+      scannedAt: "2026-05-08T10:00:00.000Z",
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("scans with a minted installation token and no browser PAT (AC1/AC2)", async () => {
+    const mint = vi.fn(async () => "ghs_minted_token");
+    mockCreateProvider.mockReturnValue(mint);
+
+    const res = await POST(makeAppRequest());
+
+    expect(res.status).toBe(200);
+    expect(mint).toHaveBeenCalledTimes(1);
+    expect(mockCreateProvider).toHaveBeenCalledWith({
+      config: APP_CONFIG.config,
+    });
+    // The scan adapter is built from the minted token, never a browser PAT.
+    expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
+      token: "ghs_minted_token",
+    });
+    expect(mockScanAndPersistActivitySuggestions).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns 401 without minting when the akb backend rejects the session (AC1)", async () => {
+    const mint = vi.fn(async () => "ghs_minted_token");
+    mockCreateProvider.mockReturnValue(mint);
+    mockGetActor.mockResolvedValue({
+      response: Response.json(
+        { error: "Your session has expired. Please sign in again." },
+        { status: 401 },
+      ),
+    });
+
+    const res = await POST(makeAppRequest());
+
+    expect(res.status).toBe(401);
+    expect(mint).not.toHaveBeenCalled();
+    expect(mockScanAndPersistActivitySuggestions).not.toHaveBeenCalled();
+  });
+
+  it("maps a credential-free GitHubApiError from token minting (AC4)", async () => {
+    mockCreateProvider.mockReturnValue(
+      vi.fn(async () => {
+        throw new GitHubApiError({
+          status: 403,
+          message: "GitHub App installation token request failed",
+        });
+      }),
+    );
+
+    const res = await POST(makeAppRequest());
+
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).not.toContain("PRIVATE KEY");
+    expect(mockScanAndPersistActivitySuggestions).not.toHaveBeenCalled();
   });
 });

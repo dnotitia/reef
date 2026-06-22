@@ -1,7 +1,9 @@
 // @vitest-environment node
+import { GitHubApiError } from "@reef/core";
 import type { AgentRunEvent } from "@reef/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  APP_CONFIG,
   POST,
   activityRunBody,
   chatRunBody,
@@ -10,14 +12,18 @@ import {
   enrichmentRunBody,
   issueDraftFields,
   makeRequest,
+  mockCreateGitHubAdapter,
+  mockCreateGitHubAppInstallationTokenProvider,
   mockCreateWorkspaceChatAgentResponse,
   mockEnrichIssue,
+  mockGetAkbCurrentActor,
   mockScanAndPersistActivitySuggestions,
   parseSseEvents,
   resetAgentRunsRouteMocks,
   runCompleted,
   runError,
   runStarted,
+  setServerAppConfig,
 } from "./route.testSupport";
 
 describe("POST /api/agents/runs task execution", () => {
@@ -165,6 +171,17 @@ describe("POST /api/agents/runs task execution", () => {
     });
   });
 
+  it("falls back to the browser PAT and scans when no GitHub App is configured", async () => {
+    // Default reset leaves the App unconfigured; the Authorization header PAT
+    // resolves the adapter, with no token minting.
+    const res = await POST(makeRequest(activityRunBody));
+
+    expect(res.status).toBe(200);
+    expect(mockCreateGitHubAppInstallationTokenProvider).not.toHaveBeenCalled();
+    expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({ token: "ghp_test" });
+    expect(mockScanAndPersistActivitySuggestions).toHaveBeenCalledTimes(1);
+  });
+
   it("emits a cancelled terminal event after the run is aborted", async () => {
     mockScanAndPersistActivitySuggestions.mockImplementationOnce(async () => {
       return {
@@ -208,5 +225,101 @@ describe("POST /api/agents/runs task execution", () => {
       "run.started",
       "run.cancelled",
     ]);
+  });
+});
+
+describe("POST /api/agents/runs activity.scan — server-managed GitHub App path", () => {
+  beforeEach(() => {
+    resetAgentRunsRouteMocks();
+    setServerAppConfig(APP_CONFIG);
+    mockGetAkbCurrentActor.mockResolvedValue({ actor: "alice" });
+  });
+
+  afterEach(() => {
+    cleanupAgentRunsRouteMocks();
+  });
+
+  it("scans with a minted installation token and no browser PAT (AC2)", async () => {
+    const mint = vi.fn(async () => "ghs_minted_token");
+    mockCreateGitHubAppInstallationTokenProvider.mockReturnValue(mint);
+
+    // No Authorization header — the agent run scans through the App credential.
+    const res = await POST(
+      makeRequest(activityRunBody, { Authorization: null }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(mint).toHaveBeenCalledTimes(1);
+    expect(mockCreateGitHubAppInstallationTokenProvider).toHaveBeenCalledWith({
+      config: APP_CONFIG.config,
+    });
+    expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
+      token: "ghs_minted_token",
+    });
+    expect(mockScanAndPersistActivitySuggestions).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns 401 without minting when the akb backend rejects the session", async () => {
+    const mint = vi.fn(async () => "ghs_minted_token");
+    mockCreateGitHubAppInstallationTokenProvider.mockReturnValue(mint);
+    mockGetAkbCurrentActor.mockResolvedValue({
+      response: Response.json({ error: "expired" }, { status: 401 }),
+    });
+
+    const res = await POST(
+      makeRequest(activityRunBody, { Authorization: null }),
+    );
+
+    expect(res.status).toBe(401);
+    expect(mint).not.toHaveBeenCalled();
+    expect(mockScanAndPersistActivitySuggestions).not.toHaveBeenCalled();
+  });
+
+  it("keeps an akb backend outage as a recoverable 5xx, not a 401 auth error", async () => {
+    mockCreateGitHubAppInstallationTokenProvider.mockReturnValue(
+      vi.fn(async () => "ghs_minted_token"),
+    );
+    // getAkbCurrentActor returns 502 when the akb backend is unreachable.
+    mockGetAkbCurrentActor.mockResolvedValue({
+      response: Response.json({ error: "backend down" }, { status: 502 }),
+    });
+
+    const res = await POST(
+      makeRequest(activityRunBody, { Authorization: null }),
+    );
+
+    expect(res.status).toBe(502);
+    const body = (await res.json()) as {
+      runtime_error?: { code?: string; recoverable?: boolean };
+    };
+    expect(body.runtime_error?.code).toBe("workspace_unavailable");
+    expect(body.runtime_error?.recoverable).toBe(true);
+    expect(mockScanAndPersistActivitySuggestions).not.toHaveBeenCalled();
+  });
+
+  it("returns a structured agent error when token minting fails", async () => {
+    mockCreateGitHubAppInstallationTokenProvider.mockReturnValue(
+      vi.fn(async () => {
+        throw new GitHubApiError({
+          status: 403,
+          message: "installation token request failed",
+        });
+      }),
+    );
+
+    const res = await POST(
+      makeRequest(activityRunBody, { Authorization: null }),
+    );
+
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as {
+      error?: string;
+      runtime_error?: { code?: string; recoverable?: boolean };
+    };
+    expect(body.runtime_error?.code).toBe("github_unavailable");
+    // 403 is non-recoverable; the structured shape is preserved either way.
+    expect(body.runtime_error?.recoverable).toBe(false);
+    expect(body.error).not.toContain("installation token request failed");
+    expect(mockScanAndPersistActivitySuggestions).not.toHaveBeenCalled();
   });
 });

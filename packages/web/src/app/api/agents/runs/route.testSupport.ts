@@ -3,18 +3,22 @@ import { vi } from "vitest";
 
 const {
   mockCreateGitHubAdapter,
+  mockCreateGitHubAppInstallationTokenProvider,
   mockCreateLlmAdapter,
   mockCreateWorkspaceChatAgentResponse,
   mockEnrichIssue,
   mockGetAkbAdapter,
+  mockGetAkbCurrentActor,
   mockReadAuthoringLanguage,
   mockScanAndPersistActivitySuggestions,
 } = vi.hoisted(() => ({
   mockCreateGitHubAdapter: vi.fn(),
+  mockCreateGitHubAppInstallationTokenProvider: vi.fn(),
   mockCreateLlmAdapter: vi.fn(),
   mockCreateWorkspaceChatAgentResponse: vi.fn(),
   mockEnrichIssue: vi.fn(),
   mockGetAkbAdapter: vi.fn(),
+  mockGetAkbCurrentActor: vi.fn(),
   mockReadAuthoringLanguage: vi.fn(),
   mockScanAndPersistActivitySuggestions: vi.fn(),
 }));
@@ -25,6 +29,8 @@ vi.mock("@reef/core", async (importOriginal) => {
     ...original,
     akbReadAuthoringLanguage: mockReadAuthoringLanguage,
     createGitHubAdapter: mockCreateGitHubAdapter,
+    createGitHubAppInstallationTokenProvider:
+      mockCreateGitHubAppInstallationTokenProvider,
     createLlmAdapter: mockCreateLlmAdapter,
     createWorkspaceChatAgentResponse: mockCreateWorkspaceChatAgentResponse,
     enrichIssue: mockEnrichIssue,
@@ -34,7 +40,58 @@ vi.mock("@reef/core", async (importOriginal) => {
 
 vi.mock("@/lib/api/requestHelpers", () => ({
   getAkbAdapter: mockGetAkbAdapter,
+  getAkbCurrentActor: mockGetAkbCurrentActor,
 }));
+
+// Deployment GitHub App config — default "not configured" so the existing task
+// tests use the browser-PAT fallback. Flip `appConfigState.current` to exercise
+// the server-managed App path (REEF-240).
+export type ServerAppConfig =
+  | {
+      ok: true;
+      config: { app_id: string; installation_id: string; private_key: string };
+      status: { isConfigured: true; appId: string };
+    }
+  | {
+      ok: false;
+      status: { isConfigured: false; appId: string | null };
+      issues: string[];
+    };
+
+export const NOT_CONFIGURED: ServerAppConfig = {
+  ok: false,
+  status: { isConfigured: false, appId: null },
+  issues: ["app_id is required"],
+};
+
+// `satisfies` (not a `: ServerAppConfig` annotation) so the exported type keeps
+// the `ok: true` branch — importers can read `APP_CONFIG.config` without the
+// union widening it back to "maybe not configured".
+export const APP_CONFIG = {
+  ok: true,
+  config: {
+    app_id: "123456",
+    installation_id: "789",
+    private_key:
+      "-----BEGIN RSA PRIVATE KEY-----\nx\n-----END RSA PRIVATE KEY-----",
+  },
+  status: { isConfigured: true, appId: "123456" },
+} satisfies ServerAppConfig;
+
+// Not exported directly: a `vi.hoisted` binding cannot be re-exported. Tests
+// flip the config through `setServerAppConfig`.
+const appConfigState = vi.hoisted(() => ({
+  current: undefined as unknown,
+}));
+
+vi.mock("@/lib/github/serverAppConfig", () => ({
+  resolveServerGitHubAppConfig: () => appConfigState.current,
+}));
+
+/** Override the deployment GitHub App config the route resolver sees. */
+export function setServerAppConfig(config: ServerAppConfig): void {
+  appConfigState.current = config;
+}
 
 import { VAULT_HEADER } from "@/lib/akb/headers";
 import type { AgentRunEvent } from "@reef/core";
@@ -228,10 +285,12 @@ export function makeUiMessageStreamResponse(chunks: string[]): Response {
 
 export {
   mockCreateGitHubAdapter,
+  mockCreateGitHubAppInstallationTokenProvider,
   mockCreateLlmAdapter,
   mockCreateWorkspaceChatAgentResponse,
   mockEnrichIssue,
   mockGetAkbAdapter,
+  mockGetAkbCurrentActor,
   mockReadAuthoringLanguage,
   mockScanAndPersistActivitySuggestions,
 };
@@ -246,7 +305,9 @@ export function resetAgentRunsRouteMocks() {
   vi.stubEnv("OPENROUTER_API_KEY", "sk-test");
   vi.stubEnv("OPENROUTER_BASE_URL", "https://api.openai.com/v1");
   vi.stubEnv("REEF_LLM_MODEL", "gpt-4o");
+  appConfigState.current = NOT_CONFIGURED;
   mockGetAkbAdapter.mockReturnValue({ adapter: { request: vi.fn() } });
+  mockGetAkbCurrentActor.mockResolvedValue({ actor: "alice" });
   mockCreateGitHubAdapter.mockReturnValue({});
   mockCreateLlmAdapter.mockReturnValue({ model: vi.fn() });
   mockReadAuthoringLanguage.mockResolvedValue(null);

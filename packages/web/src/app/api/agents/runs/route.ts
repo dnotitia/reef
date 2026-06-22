@@ -1,6 +1,7 @@
 import { extractVault } from "@/lib/akb/extractVault";
 import { getAkbAdapter } from "@/lib/api/requestHelpers";
 import { extractGithubToken } from "@/lib/github/extractGithubToken";
+import { resolveScanGitHubAdapter } from "@/lib/github/resolveScanGitHubAdapter";
 import {
   ServerLlmConfigError,
   getRequiredServerLlmConfig,
@@ -15,6 +16,7 @@ import {
   createWorkspaceChatAgentResponse,
   enrichIssue,
   scanAndPersistActivitySuggestions,
+  translateError,
 } from "@reef/core";
 import type { UIMessage } from "ai";
 import {
@@ -27,8 +29,12 @@ import {
 
 const BAD_BODY_MESSAGE = "Agent run request is missing or invalid.";
 const BAD_AKB_AUTH_MESSAGE = "Workspace session is missing or invalid.";
+const BAD_AKB_BACKEND_MESSAGE =
+  "Workspace backend is unavailable. Please try again.";
 const BAD_GITHUB_AUTH_MESSAGE =
   "Reconnect GitHub in Settings to run this agent task.";
+const BAD_GITHUB_CREDENTIAL_MESSAGE =
+  "GitHub App credentials are unavailable. Check the deployment GitHub App configuration.";
 const BAD_VAULT_MESSAGE = "X-Reef-Vault header is missing or invalid.";
 const UNAVAILABLE_MESSAGE =
   "AI service is unavailable for this deployment. Please contact an administrator.";
@@ -183,21 +189,44 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const { owner, repo, vault, since, projectPrefix } = runRequest.input;
-  let githubToken: string;
-  try {
-    githubToken = extractGithubToken(request);
-  } catch (err) {
-    if (err instanceof AuthError) {
-      return jsonAgentError(
-        BAD_GITHUB_AUTH_MESSAGE,
-        401,
-        "github_auth_required",
-      );
-    }
-    throw err;
+  // Same credential selection as POST /api/activity/scan: server-managed GitHub
+  // App when the deployment is configured, browser PAT fallback otherwise
+  // (REEF-240 AC2). Resolved before the stream opens, so a credential failure
+  // surfaces as a structured agent error rather than mid-stream.
+  const github = await resolveScanGitHubAdapter(request);
+  if (github.kind === "session_invalid") {
+    // The resolver surfaces getAkbCurrentActor's response, which is 401 for a
+    // bad/expired session but 5xx when the akb backend itself is unreachable.
+    // Preserve that status — and its recoverable semantics — instead of
+    // flattening a backend outage into a non-recoverable auth error.
+    const status = github.response.status;
+    return status === 401
+      ? jsonAgentError(BAD_AKB_AUTH_MESSAGE, 401, "workspace_auth_required")
+      : jsonAgentError(
+          BAD_AKB_BACKEND_MESSAGE,
+          status,
+          "workspace_unavailable",
+        );
   }
-
-  const githubAdapter = createGitHubAdapter({ token: githubToken });
+  if (github.kind === "github_auth_required") {
+    return jsonAgentError(BAD_GITHUB_AUTH_MESSAGE, 401, "github_auth_required");
+  }
+  if (github.kind === "github_error") {
+    logger.error(
+      { err: github.error, owner, repo, vault },
+      "activity_scan_agent_run github credential failed",
+    );
+    // Keep the structured agent-error contract the rest of this route uses,
+    // mapping the GitHub mint failure through the same status ladder as the
+    // manual scan route (translateError) so a revoked/rate-limited App is
+    // reported with the right status and recoverable flag.
+    return jsonAgentError(
+      BAD_GITHUB_CREDENTIAL_MESSAGE,
+      translateError(github.error).status,
+      "github_unavailable",
+    );
+  }
+  const githubAdapter = github.adapter;
   return createAgentEventStream(
     "activity.scan",
     request.signal,
