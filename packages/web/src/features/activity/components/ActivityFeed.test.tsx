@@ -24,13 +24,37 @@ vi.mock("../hooks/useActivityFeed", () => ({
   }),
 }));
 
+// Mutable so a test can drop to zero monitored repos and exercise the
+// "Add a monitored repository in Settings" empty state (REEF-262).
+const { activityRepoState } = vi.hoisted(() => ({
+  activityRepoState: { monitoredRepos: ["octo/cat"] as string[] },
+}));
+
 vi.mock("../hooks/useActivityRepo", () => ({
   useActivityRepo: () => ({
-    repo: "octo/cat",
-    monitoredRepos: ["octo/cat"],
+    repo: activityRepoState.monitoredRepos[0] ?? "",
+    monitoredRepos: activityRepoState.monitoredRepos,
     setRepo: vi.fn(),
     isLoading: false,
   }),
+}));
+
+// `data-next-link` marks anchors routed through Next `Link`; a raw `<a>` lacks
+// it, so the empty-state Settings link assertion fails on a full-reload
+// regression (REEF-262).
+vi.mock("next/link", () => ({
+  default: ({
+    href,
+    children,
+    ...rest
+  }: {
+    href: string;
+    children: React.ReactNode;
+  }) => (
+    <a data-next-link="true" href={href} {...rest}>
+      {children}
+    </a>
+  ),
 }));
 
 vi.mock("../hooks/useScanActivity", () => ({
@@ -74,6 +98,7 @@ function wrap(ui: ReactNode) {
 describe("ActivityFeed", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    activityRepoState.monitoredRepos = ["octo/cat"];
   });
 
   it("renders without crashing with a vault prop", () => {
@@ -91,5 +116,16 @@ describe("ActivityFeed", () => {
     expect(
       screen.getByRole("button", { name: /Status Changes/i }),
     ).toBeInTheDocument();
+  });
+
+  it("links to Settings client-side when no monitored repo is configured (REEF-262)", () => {
+    activityRepoState.monitoredRepos = [];
+    render(wrap(<ActivityFeed vault="reef-acme" />));
+    expect(
+      screen.getByTestId("activity-scan-target-empty"),
+    ).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Settings" });
+    expect(link).toHaveAttribute("href", "/settings");
+    expect(link).toHaveAttribute("data-next-link", "true");
   });
 });

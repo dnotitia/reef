@@ -18,6 +18,24 @@ vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   useActiveVault: mockUseActiveVault,
 }));
 
+// `data-next-link` marks anchors routed through Next `Link`; a raw `<a>` lacks
+// it, so the no-vault CTA assertion fails if the Settings link regresses to a
+// full-reload anchor (REEF-262).
+vi.mock("next/link", () => ({
+  default: ({
+    href,
+    children,
+    ...rest
+  }: {
+    href: string;
+    children: React.ReactNode;
+  }) => (
+    <a data-next-link="true" href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
 import { IssueDetailSheet } from "./IssueDetailSheet";
 
 function wrap(ui: ReactNode) {
@@ -46,7 +64,7 @@ describe("IssueDetailSheet", () => {
     ).not.toBeInTheDocument();
   });
 
-  it('renders the "Configure a workspace" CTA when no vault is set', () => {
+  it('renders the "Configure a workspace" CTA with a client-side Settings link when no vault is set (REEF-262)', () => {
     mockUseActiveVault.mockReturnValue({
       vault: "",
       isLoading: false,
@@ -54,6 +72,9 @@ describe("IssueDetailSheet", () => {
     });
     render(wrap(<IssueDetailSheet issueId="REEF-001" onClose={() => {}} />));
     expect(screen.getByTestId("issue-detail-no-vault")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Settings" });
+    expect(link).toHaveAttribute("href", "/settings");
+    expect(link).toHaveAttribute("data-next-link", "true");
   });
 
   it("mounts IssueDetail when vault is available", () => {

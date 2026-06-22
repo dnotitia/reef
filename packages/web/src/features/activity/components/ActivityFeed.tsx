@@ -9,6 +9,7 @@ import type {
   Status,
 } from "@reef/core";
 import { useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -336,9 +337,9 @@ function ActivityFeedContent({
           data-testid="activity-scan-target-empty"
         >
           Add a monitored repository in{" "}
-          <a href="/settings" className="text-brand underline">
+          <Link href="/settings" className="text-brand underline">
             Settings
-          </a>{" "}
+          </Link>{" "}
           to scan for activity.
         </p>
       ) : (

@@ -39,6 +39,9 @@ vi.mock("next/navigation", () => ({
   useSearchParams: mockUseSearchParams,
   useRouter: () => ({ replace: mockReplace, push: vi.fn() }),
 }));
+// `data-next-link` marks anchors that came through Next `Link`; a raw `<a>`
+// would not carry it, so the empty-state CTA assertions below fail if an
+// internal nav link regresses to a full-reload anchor (REEF-262).
 vi.mock("next/link", () => ({
   default: ({
     href,
@@ -48,7 +51,7 @@ vi.mock("next/link", () => ({
     href: string;
     children: React.ReactNode;
   }) => (
-    <a href={href} {...rest}>
+    <a data-next-link="true" href={href} {...rest}>
       {children}
     </a>
   ),
@@ -130,18 +133,24 @@ describe("MyWorkPage", () => {
     expect(mockUseIssueList).toHaveBeenCalledWith("", undefined);
   });
 
-  it("shows the empty state when nothing is assigned (AC7)", () => {
+  it("shows the empty state with a client-side board link when nothing is assigned (AC7, REEF-262)", () => {
     mockUseIssueList.mockReturnValue(issueListResult([]));
     render(<MyWorkPage />);
     expect(screen.getByTestId("my-work-empty")).toBeInTheDocument();
+    const cta = screen.getByRole("link", { name: /Go to the board/ });
+    expect(cta).toHaveAttribute("href", "/issues?view=board");
+    expect(cta).toHaveAttribute("data-next-link", "true");
   });
 
-  it("shows 'all caught up' when assigned work is all resolved (AC7)", () => {
+  it("shows 'all caught up' with a client-side board link when assigned work is all resolved (AC7, REEF-262)", () => {
     mockUseIssueList.mockReturnValue(
       issueListResult([makeIssue({ id: "REEF-1", status: "done" })]),
     );
     render(<MyWorkPage />);
     expect(screen.getByTestId("my-work-caught-up")).toBeInTheDocument();
+    const cta = screen.getByRole("link", { name: /Go to the board/ });
+    expect(cta).toHaveAttribute("href", "/issues?view=board");
+    expect(cta).toHaveAttribute("data-next-link", "true");
   });
 
   it("renders a skeleton while identity/workspace resolve", () => {

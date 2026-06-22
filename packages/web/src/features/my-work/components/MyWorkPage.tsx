@@ -21,6 +21,7 @@ import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { PageHeader } from "@/features/ui/components/PageHeader";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 
@@ -205,12 +206,12 @@ export function MyWorkPage() {
             Issues assigned to you show up here, prioritized for what to do
             next.
           </p>
-          <a
+          <Link
             href="/issues?view=board"
             className="mt-3 inline-block text-[13px] font-medium text-brand hover:underline"
           >
             Go to the board →
-          </a>
+          </Link>
         </CenteredNotice>
       </Shell>
     );
@@ -226,12 +227,12 @@ export function MyWorkPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             No open work is assigned to you right now.
           </p>
-          <a
+          <Link
             href="/issues?view=board"
             className="mt-3 inline-block text-[13px] font-medium text-brand hover:underline"
           >
             Go to the board →
-          </a>
+          </Link>
         </CenteredNotice>
       </Shell>
     );
