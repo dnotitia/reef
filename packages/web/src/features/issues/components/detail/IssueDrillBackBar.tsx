@@ -32,7 +32,12 @@ export function IssueDrillBackBar({
   onBack: () => void;
 }) {
   return (
-    <nav aria-label="Back navigation">
+    // `flex items-center` (not the default block) so the button is a flex child
+    // with no inline line-box strut — otherwise the block nav's baseline pulls
+    // the whole Back cluster a fraction above the flex-centered identity cluster
+    // beside it, and the back id / status glyph / current id stop sharing a line
+    // (REEF-286). Mirrors the breadcrumb's `<nav className="flex items-center">`.
+    <nav aria-label="Back navigation" className="flex items-center">
       <button
         type="button"
         data-testid="issue-drill-back"
