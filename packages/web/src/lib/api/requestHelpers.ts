@@ -129,7 +129,7 @@ export function parseIssueListQueryParams(
 
 // ─── 4xx helpers ─────────────────────────────────────────────────────────────
 
-export function authErrorResponse(): Response {
+function authErrorResponse(): Response {
   return Response.json(
     { error: "Your session has expired. Please sign in again." },
     { status: 401 },

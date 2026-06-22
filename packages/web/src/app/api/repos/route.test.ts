@@ -42,6 +42,16 @@ vi.mock("@/lib/github/serverAppConfig", () => ({
   resolveServerGitHubAppConfig: () => appConfigState.current,
 }));
 
+// The App path validates the reef session against the akb backend before
+// minting; mock that boundary so route tests stay hermetic.
+vi.mock("@/lib/api/requestHelpers", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/lib/api/requestHelpers")
+  >("@/lib/api/requestHelpers");
+  return { ...actual, getAkbCurrentActor: vi.fn() };
+});
+
+import { getAkbCurrentActor } from "@/lib/api/requestHelpers";
 import { logger } from "@/lib/logging/logger";
 import {
   AuthError,
@@ -54,6 +64,7 @@ import { GET } from "./route";
 
 const mockCreateGitHubAdapter = vi.mocked(createGitHubAdapter);
 const mockCreateProvider = vi.mocked(createGitHubAppInstallationTokenProvider);
+const mockGetActor = vi.mocked(getAkbCurrentActor);
 const mockLogError = vi.mocked(logger.error);
 
 type RepoListMethod = ReturnType<
@@ -282,26 +293,25 @@ describe("GET /api/repos — server-managed GitHub App path", () => {
     return { listInstallationRepositories, mintInstallationToken };
   }
 
-  // A non-expired session cookie (no parseable `exp` reads as not-expired).
-  // The App path requires a valid reef session before using the server token.
-  function makeAuthedRequest(headers: Record<string, string> = {}): Request {
-    return makeRequest({
-      Cookie: "__reef_session=test-session-jwt",
-      ...headers,
-    });
-  }
-
   beforeEach(() => {
     vi.clearAllMocks();
     appConfigState.current = APP_CONFIG;
+    // Default: a valid, akb-verified reef session.
+    mockGetActor.mockResolvedValue({ actor: "alice" });
   });
 
-  it("returns 401 without minting when there is no reef session (REEF-239)", async () => {
+  it("returns 401 without minting when the akb backend rejects the session (REEF-239)", async () => {
     const { listInstallationRepositories, mintInstallationToken } =
       mockInstallationRepoList();
+    // akb /auth/me rejected the session (missing/expired/forged cookie) — the
+    // server must not mint a credential or expose the installation's repo list.
+    mockGetActor.mockResolvedValue({
+      response: Response.json(
+        { error: "Your session has expired. Please sign in again." },
+        { status: 401 },
+      ),
+    });
 
-    // App configured, but the caller has no session cookie — the server must
-    // not mint a credential or expose the installation's repo list.
     const req = makeRequest();
     const res = await GET(req);
 
@@ -321,7 +331,7 @@ describe("GET /api/repos — server-managed GitHub App path", () => {
     });
 
     // A signed-in workspace user, no browser PAT — the App path serves the list.
-    const req = makeAuthedRequest();
+    const req = makeRequest();
     const res = await GET(req);
 
     expect(res.status).toBe(200);
@@ -348,7 +358,7 @@ describe("GET /api/repos — server-managed GitHub App path", () => {
       etag: null,
     });
 
-    const req = makeAuthedRequest({ Authorization: "Bearer ghp_browser_pat" });
+    const req = makeRequest({ Authorization: "Bearer ghp_browser_pat" });
     const res = await GET(req);
 
     expect(res.status).toBe(200);
@@ -367,7 +377,7 @@ describe("GET /api/repos — server-managed GitHub App path", () => {
       etag: 'W/"inst-abc"',
     });
 
-    const req = makeAuthedRequest({ "If-None-Match": 'W/"inst-old"' });
+    const req = makeRequest({ "If-None-Match": 'W/"inst-old"' });
     const res = await GET(req);
 
     expect(res.status).toBe(200);
@@ -392,7 +402,7 @@ describe("GET /api/repos — server-managed GitHub App path", () => {
       }),
     );
 
-    const req = makeAuthedRequest();
+    const req = makeRequest();
     const res = await GET(req);
 
     expect(res.status).toBe(403);

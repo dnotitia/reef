@@ -1,5 +1,4 @@
-import { extractAkbSession } from "@/lib/akb/extractAkbSession";
-import { authErrorResponse } from "@/lib/api/requestHelpers";
+import { getAkbCurrentActor } from "@/lib/api/requestHelpers";
 import { extractGithubToken } from "@/lib/github/extractGithubToken";
 import { resolveServerGitHubAppConfig } from "@/lib/github/serverAppConfig";
 import { logger } from "@/lib/logging/logger";
@@ -45,15 +44,16 @@ export async function GET(request: Request): Promise<Response> {
     // Authorize before using the server-managed credential. Unlike the PAT path
     // — which is self-authorizing, since the caller lists the repos of the token
     // they themselves supply — the App path mints a deployment credential, so
-    // without a session check an unauthenticated caller could read the
-    // installation's repo list (including private repo names/ids). Require a
-    // valid reef session, the same gate `/api/config` (the monitored-repo save
-    // path) applies. A missing/expired session is an expected rejection, so it
-    // returns a clean 401 without error logging (REEF-239).
-    try {
-      extractAkbSession(request);
-    } catch {
-      return authErrorResponse();
+    // without an auth check an unauthenticated caller could read the
+    // installation's repo list (including private repo names/ids). Validate the
+    // session against the akb backend (akb `/auth/me`) rather than just decoding
+    // the cookie: this route never otherwise calls akb, so a syntactic
+    // presence/`exp` check would accept a forged cookie. `getAkbCurrentActor`
+    // returns a ready 401/5xx Response when the session is missing, expired, or
+    // rejected by akb (REEF-239).
+    const auth = await getAkbCurrentActor(request);
+    if ("response" in auth) {
+      return auth.response;
     }
 
     try {
