@@ -53,6 +53,7 @@ import {
   backlogRankSortKey,
 } from "@reef/core";
 import { CircleDashed } from "lucide-react";
+import Link from "next/link";
 import { Fragment, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -552,12 +553,12 @@ function BacklogEmptyState() {
           out of the active board.
         </p>
       </div>
-      <a
+      <Link
         href="/issues?view=board"
         className="text-[13px] font-medium text-brand hover:underline"
       >
         Go to the board →
-      </a>
+      </Link>
     </div>
   );
 }
