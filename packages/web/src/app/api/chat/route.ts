@@ -3,7 +3,6 @@ import { ChatRequestBodySchema } from "@/lib/schemas/llmConfig";
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import {
   AuthError,
-  createGitHubAdapter,
   createLlmAdapter,
   createWorkspaceChatAgentResponse,
   getWorkspaceChatTaskConfig,
@@ -11,17 +10,17 @@ import {
 import type { UIMessage } from "ai";
 import { extractVault } from "../../../lib/akb/extractVault";
 import { getAkbAdapter } from "../../../lib/api/requestHelpers";
-import { extractGithubToken } from "../../../lib/github/extractGithubToken";
+import { resolveGroundingGitHubAdapter } from "../../../lib/github/resolveGroundingGitHubAdapter";
 import {
   ServerLlmConfigError,
   getRequiredServerLlmConfig,
 } from "../../../lib/llm/serverConfig";
+import { logger } from "../../../lib/logging/logger";
 
 const tracer = trace.getTracer("reef-web");
 
 const UNAVAILABLE_MESSAGE =
   "AI service is unavailable for this deployment. Please contact an administrator.";
-const BAD_AUTH_MESSAGE = "GitHub token is missing or invalid";
 const BAD_VAULT_MESSAGE = "X-Reef-Vault header is missing or invalid";
 const BAD_BODY_MESSAGE = "Request body is missing or invalid";
 
@@ -30,18 +29,21 @@ const BAD_BODY_MESSAGE = "Request body is missing or invalid";
  *
  * Wires the read reef chat task via `chat.workspace`:
  *   • vault reads (`read_issue`, `search_issues`, `list_assignees`) — akb
- *   • monitored-repo grounding (`search_code`, `dev_read_file`) — GitHub,
- *     when the browser has a GitHub PAT
+ *   • monitored-repo grounding (`search_code`, `dev_read_file`) — GitHub, via
+ *     the deployment GitHub App when configured, the browser PAT otherwise
+ *     (`resolveGroundingGitHubAdapter`). When neither is available the chat
+ *     degrades to AKB-only grounding (REEF-243).
  *
  * No vault-mutating tools are wired here — the chat loop is read
  * grounding; mutations go through dedicated Route Handlers.
  *
  * Per-user state rides in headers and cookies — does not persisted.
- *   - `Authorization: Bearer <github_token>` (IndexedDB, optional for AKB chat)
+ *   - `Authorization: Bearer <github_token>` (browser PAT fallback, optional)
  *   - `__reef_session` httpOnly cookie (akb JWT)
  *   - `X-Reef-Vault: <vault_name>` (active vault identifier)
- * LLM credentials are deployment-managed via `OPENROUTER_*` env vars.
- * Both adapter instances fall out of scope when this handler returns.
+ * The GitHub App credential and the LLM credentials are deployment-managed
+ * server state; both adapter instances fall out of scope when this handler
+ * returns.
  *
  * Reverse-proxy deployment requirement: `proxy_buffering off;` is mandatory
  * for this route so SSE delivery is not buffered.
@@ -55,16 +57,6 @@ export async function POST(request: Request): Promise<Response> {
       return jsonError(UNAVAILABLE_MESSAGE, 503);
     }
     return jsonError(UNAVAILABLE_MESSAGE, 503);
-  }
-
-  let githubToken: string | undefined;
-  try {
-    githubToken = extractOptionalGithubToken(request);
-  } catch (err) {
-    if (err instanceof AuthError) {
-      return jsonError(BAD_AUTH_MESSAGE, 401);
-    }
-    return jsonError(BAD_AUTH_MESSAGE, 400);
   }
 
   let vault: string;
@@ -99,9 +91,18 @@ export async function POST(request: Request): Promise<Response> {
     model: config.model,
   });
 
-  const githubAdapter = githubToken
-    ? createGitHubAdapter({ token: githubToken })
-    : undefined;
+  // Server-managed GitHub App when configured, browser PAT fallback otherwise.
+  // Any failure to obtain a GitHub adapter degrades to AKB-only grounding
+  // (REEF-243); the credential never reaches the response or the LLM prompt.
+  const githubResolution = await resolveGroundingGitHubAdapter(request);
+  if (githubResolution.kind === "degraded" && githubResolution.error) {
+    logger.warn(
+      { err: githubResolution.error, vault },
+      "chat_grounding_github_app_unavailable",
+    );
+  }
+  const githubAdapter =
+    githubResolution.kind === "adapter" ? githubResolution.adapter : undefined;
 
   const chatTaskConfig = getWorkspaceChatTaskConfig();
 
@@ -163,9 +164,4 @@ export async function POST(request: Request): Promise<Response> {
 
 function jsonError(message: string, status: number): Response {
   return Response.json({ error: message }, { status });
-}
-
-function extractOptionalGithubToken(request: Request): string | undefined {
-  if (!request.headers.get("authorization")) return undefined;
-  return extractGithubToken(request);
 }

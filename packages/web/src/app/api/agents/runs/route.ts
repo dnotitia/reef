@@ -1,6 +1,6 @@
 import { extractVault } from "@/lib/akb/extractVault";
 import { getAkbAdapter } from "@/lib/api/requestHelpers";
-import { extractGithubToken } from "@/lib/github/extractGithubToken";
+import { resolveGroundingGitHubAdapter } from "@/lib/github/resolveGroundingGitHubAdapter";
 import { resolveScanGitHubAdapter } from "@/lib/github/resolveScanGitHubAdapter";
 import {
   ServerLlmConfigError,
@@ -10,8 +10,8 @@ import { logger } from "@/lib/logging/logger";
 import {
   AgentRunRequestSchema,
   AuthError,
+  type GitHubAdapter,
   akbReadAuthoringLanguage,
-  createGitHubAdapter,
   createLlmAdapter,
   createWorkspaceChatAgentResponse,
   enrichIssue,
@@ -88,20 +88,7 @@ export async function POST(request: Request): Promise<Response> {
   });
 
   if (runRequest.task_id === "chat.workspace") {
-    let githubToken: string | undefined;
     let vault: string;
-    try {
-      githubToken = extractOptionalGithubToken(request);
-    } catch (err) {
-      if (err instanceof AuthError) {
-        return jsonAgentError(
-          BAD_GITHUB_AUTH_MESSAGE,
-          401,
-          "github_auth_required",
-        );
-      }
-      throw err;
-    }
     try {
       vault = extractVault(request);
     } catch (err) {
@@ -111,9 +98,20 @@ export async function POST(request: Request): Promise<Response> {
       throw err;
     }
 
-    const githubAdapter = githubToken
-      ? createGitHubAdapter({ token: githubToken })
-      : undefined;
+    // Server-managed GitHub App when configured, browser PAT fallback otherwise;
+    // any GitHub unavailability degrades to AKB-only grounding (REEF-243). The
+    // credential never reaches the response or the LLM prompt.
+    const githubResolution = await resolveGroundingGitHubAdapter(request);
+    if (githubResolution.kind === "degraded" && githubResolution.error) {
+      logger.warn(
+        { err: githubResolution.error, task_id: runRequest.task_id, vault },
+        "agent_run_chat_grounding_github_app_unavailable",
+      );
+    }
+    const githubAdapter =
+      githubResolution.kind === "adapter"
+        ? githubResolution.adapter
+        : undefined;
     return createAgentEventStream(
       "chat.workspace",
       request.signal,
@@ -144,23 +142,24 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   if (runRequest.task_id === "issue.enrichment") {
-    let githubAdapter: ReturnType<typeof createGitHubAdapter> | undefined;
+    // Code grounding only matters when the run carries a monitored repo.
+    // Server-managed GitHub App when configured, browser PAT fallback otherwise;
+    // any GitHub unavailability degrades to AKB-only enrichment (REEF-243).
+    let githubAdapter: GitHubAdapter | undefined;
     if (runRequest.input.repoContext) {
-      try {
-        githubAdapter = createGitHubAdapter({
-          token: extractGithubToken(request),
-        });
-      } catch (err) {
-        if (!(err instanceof AuthError)) {
-          logger.error(
-            {
-              err,
-              task_id: runRequest.task_id,
-              issue_id: runRequest.input.issueId,
-            },
-            "agent_run_enrichment_github_token_error",
-          );
-        }
+      const githubResolution = await resolveGroundingGitHubAdapter(request);
+      if (githubResolution.kind === "degraded" && githubResolution.error) {
+        logger.warn(
+          {
+            err: githubResolution.error,
+            task_id: runRequest.task_id,
+            issue_id: runRequest.input.issueId,
+          },
+          "agent_run_enrichment_grounding_github_app_unavailable",
+        );
+      }
+      if (githubResolution.kind === "adapter") {
+        githubAdapter = githubResolution.adapter;
       }
     }
 
@@ -287,9 +286,4 @@ export async function POST(request: Request): Promise<Response> {
       }
     },
   );
-}
-
-function extractOptionalGithubToken(request: Request): string | undefined {
-  if (!request.headers.get("authorization")) return undefined;
-  return extractGithubToken(request);
 }

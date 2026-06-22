@@ -129,11 +129,16 @@ describe("POST /api/chat", () => {
       expect(args.githubAdapter).toBeUndefined();
     });
 
-    it("returns 401 when Authorization (GitHub) header is malformed", async () => {
+    it("continues AKB-only when Authorization (GitHub) header is malformed", async () => {
+      // A malformed PAT degrades to AKB-only grounding rather than 401 — the
+      // server App is the credential of record now, and a stale browser token
+      // must not block the AI request (REEF-243).
       const res = await POST(makeRequest({ auth: "Token ghp_token" }));
-      expect(res.status).toBe(401);
-      expect((await res.json()).error).toContain("GitHub");
-      expect(mockCreateWorkspaceChatAgentResponse).not.toHaveBeenCalled();
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("ok");
+      expect(mockCreateGitHubAdapter).not.toHaveBeenCalled();
+      const args = mockCreateWorkspaceChatAgentResponse.mock.calls[0]?.[0];
+      expect(args.githubAdapter).toBeUndefined();
     });
 
     it("returns 401 when X-Reef-Vault header is missing", async () => {
