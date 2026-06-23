@@ -1,3 +1,4 @@
+import { type Locale, isLocale } from "@/i18n/locales";
 import { VAULT_NAME_RE } from "@/lib/akb/vaultName";
 import {
   type PersistedIssueFilter,
@@ -379,4 +380,34 @@ export async function getTheme(): Promise<ThemePreference> {
  */
 export async function setTheme(theme: ThemePreference): Promise<void> {
   return setConfigValue("theme", theme);
+}
+
+// ─── UI locale preference (REEF-291) ─────────────────────────────────────────
+//
+// The per-viewer UI language. IndexedDB is the canonical store (ADR-0001),
+// mirrored to a non-httpOnly `NEXT_LOCALE` cookie that the server reads on the
+// first request (Dexie isn't readable during SSR). Unlike `theme`, there is no
+// default-on value: an absent entry means "no explicit choice yet", so the
+// server detection chain (cookie → Accept-Language → en) governs instead.
+
+/**
+ * Returns the user's stored UI locale, or `undefined` when none has been chosen
+ * (or the persisted value is not a supported locale — defensive against a
+ * hand-edited config row). `undefined` defers to server-side detection.
+ */
+export async function getLocale(): Promise<Locale | undefined> {
+  const val = await getConfigValue("locale");
+  return isLocale(val) ? val : undefined;
+}
+
+/**
+ * Persists the user's UI locale to IndexedDB.
+ *
+ * Pairs with the `NEXT_LOCALE` cookie written in `applyLocale` (UI layer) so the
+ * server can resolve the locale on the next request before paint. IndexedDB
+ * remains the canonical source and restores the choice if the cookie is cleared
+ * or expires.
+ */
+export async function setLocale(locale: Locale): Promise<void> {
+  return setConfigValue("locale", locale);
 }

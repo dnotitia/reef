@@ -1,0 +1,10 @@
+{
+  "settings": {
+    "preferences": {
+      "language": {
+        "heading": "Language",
+        "description": "Choose the language reef's interface uses on this device. The selection persists per device."
+      }
+    }
+  }
+}

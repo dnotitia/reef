@@ -20,6 +20,7 @@ import { NewIssueDialog } from "@/features/issues/components/create/NewIssueDial
 import { useMyWorkAttention } from "@/features/my-work/hooks/useMyWorkAttention";
 import { OfflineBanner } from "@/features/network/components/OfflineBanner";
 import { CreateWorkspaceDialog } from "@/features/onboarding/components/CreateWorkspaceDialog";
+import { useLocaleSync } from "@/features/preferences/hooks/useLocaleSync";
 import { useThemeSync } from "@/features/preferences/hooks/useThemeSync";
 import { GlobalSearchDialog } from "@/features/search/components/GlobalSearchDialog";
 import { useGlobalSearchStore } from "@/features/search/stores/useGlobalSearchStore";
@@ -134,6 +135,10 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   // The shell is consistently mounted, so this is the one place they run; every
   // theme control reads the shared store via useTheme (REEF-095).
   useThemeSync();
+  // Singleton locale side-effects (one-time hydrate + cookie/lang reconcile),
+  // mirroring useThemeSync. Restores a persisted locale if the cookie was
+  // cleared (REEF-291).
+  useLocaleSync();
   const pathname = usePathname();
   // Keep the assistant message count in DashboardShell so the FAB can show
   // an unread dot without subscribing to useChat itself.
