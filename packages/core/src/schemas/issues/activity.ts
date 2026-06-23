@@ -14,8 +14,11 @@ import {
  * REEF-063 shipped the MVP with a single kind, `status_change`. REEF-126 widens
  * the log to the rest of the high-signal field changes — assignee, priority,
  * planning links (milestone/sprint/release), and delivery refs — by making
- * `payload` a discriminated union keyed on `event_type`. The timeline render
- * that consumes the union is REEF-064.
+ * `payload` a discriminated union keyed on `event_type`. REEF-277 completes the
+ * Linear IssueHistory parity set — title, labels, due date, estimate, parent,
+ * relations (depends_on/blocks/related_to), and archive — so the rest of the
+ * editable high-signal fields leave a trace too. The timeline render that
+ * consumes the union is REEF-064 / REEF-276.
  *
  * Storage shape (REEF-125 provisioned the table): every event row carries
  *   reef_id    — the issue the event belongs to
@@ -35,10 +38,28 @@ export const ACTIVITY_EVENT_PRIORITY_CHANGE = "priority_change";
 export const ACTIVITY_EVENT_PLANNING_LINK = "planning_link";
 /** A delivery ref (PR/commit/branch) was linked to the issue. */
 export const ACTIVITY_EVENT_IMPL_REF_LINKED = "impl_ref_linked";
+/** A title edit: the issue `title` moved from one string to another (REEF-277). */
+export const ACTIVITY_EVENT_TITLE_CHANGE = "title_change";
+/** A labels edit: tags added and/or removed from the issue, a set change (REEF-277). */
+export const ACTIVITY_EVENT_LABELS_CHANGE = "labels_change";
+/** A due-date edit: `due_date` moved, or was set/cleared (REEF-277). */
+export const ACTIVITY_EVENT_DUE_DATE_CHANGE = "due_date_change";
+/** An estimate edit: `estimate_points` moved, or was set/cleared (REEF-277). */
+export const ACTIVITY_EVENT_ESTIMATE_CHANGE = "estimate_change";
+/** A parent edit: `parent_id` moved, or was set/cleared (REEF-277). */
+export const ACTIVITY_EVENT_PARENT_CHANGE = "parent_change";
+/** A relation edit: depends_on/blocks/related_to ids added and/or removed (REEF-277). */
+export const ACTIVITY_EVENT_RELATION_CHANGE = "relation_change";
+/** An archive edit: the issue was archived or restored (REEF-277). */
+export const ACTIVITY_EVENT_ARCHIVED_CHANGE = "archived_change";
 
 /** Which planning dimension a `planning_link` event records. */
 export const PlanningLinkFieldEnum = z.enum(["milestone", "sprint", "release"]);
 export type PlanningLinkField = z.infer<typeof PlanningLinkFieldEnum>;
+
+/** Which relation dimension a `relation_change` event records (REEF-277). */
+export const RelationFieldEnum = z.enum(["depends_on", "blocks", "related_to"]);
+export type RelationField = z.infer<typeof RelationFieldEnum>;
 
 /** `reef_activity.payload` for a `status_change` event: the from→to transition. */
 export const StatusChangePayloadSchema = z.object({
@@ -91,6 +112,80 @@ export const ImplRefLinkedPayloadSchema = z.object({
 });
 export type ImplRefLinkedPayload = z.infer<typeof ImplRefLinkedPayloadSchema>;
 
+/**
+ * `title_change` payload (REEF-277). The issue title is a required non-empty
+ * string, so both ends carry the human title text — a rename, never an
+ * attach/detach.
+ */
+export const TitleChangePayloadSchema = z.object({
+  from: z.string(),
+  to: z.string(),
+});
+export type TitleChangePayload = z.infer<typeof TitleChangePayloadSchema>;
+
+/**
+ * The set-change shape shared by `labels_change` and `relation_change`
+ * (REEF-277): the ids `added` and `removed` in one save. Labels and relations
+ * are unordered sets, so the diff is two collections rather than a from→to
+ * mutation — generalizing the `impl_ref_linked` set-addition precedent to
+ * removals too. The producer emits an event only when at least one side is
+ * non-empty.
+ */
+const stringSetChangeShape = {
+  added: z.array(z.string()),
+  removed: z.array(z.string()),
+} as const;
+
+/** `labels_change` payload: the labels added and/or removed in one save (REEF-277). */
+export const LabelsChangePayloadSchema = z.object({ ...stringSetChangeShape });
+export type LabelsChangePayload = z.infer<typeof LabelsChangePayloadSchema>;
+
+/**
+ * `relation_change` payload (REEF-277). `relation` names which relation
+ * dimension moved so a single event_type covers all three id arrays — the
+ * `planning_link` precedent that folds milestone/sprint/release behind one
+ * `field`. `added`/`removed` are the reef ids linked/unlinked in this save.
+ */
+export const RelationChangePayloadSchema = z.object({
+  relation: RelationFieldEnum,
+  ...stringSetChangeShape,
+});
+export type RelationChangePayload = z.infer<typeof RelationChangePayloadSchema>;
+
+/** `due_date_change` payload (REEF-277). Nullable both ends — a due date may be unset. */
+export const DueDateChangePayloadSchema = z.object({
+  from: IsoDateFieldSchema.nullable(),
+  to: IsoDateFieldSchema.nullable(),
+});
+export type DueDateChangePayload = z.infer<typeof DueDateChangePayloadSchema>;
+
+/** `estimate_change` payload (REEF-277). Nullable both ends — an estimate may be unset. */
+export const EstimateChangePayloadSchema = z.object({
+  from: z.number().nonnegative().nullable(),
+  to: z.number().nonnegative().nullable(),
+});
+export type EstimateChangePayload = z.infer<typeof EstimateChangePayloadSchema>;
+
+/**
+ * `parent_change` payload (REEF-277). Nullable both ends — the parent reef id
+ * (REEF-012), or null on an attach (`null → id`) / detach (`id → null`).
+ */
+export const ParentChangePayloadSchema = z.object({
+  from: z.string().nullable(),
+  to: z.string().nullable(),
+});
+export type ParentChangePayload = z.infer<typeof ParentChangePayloadSchema>;
+
+/**
+ * `archived_change` payload (REEF-277). The archived flag flipping: archive is
+ * `false → true`, restore is `true → false`.
+ */
+export const ArchivedChangePayloadSchema = z.object({
+  from: z.boolean(),
+  to: z.boolean(),
+});
+export type ArchivedChangePayload = z.infer<typeof ArchivedChangePayloadSchema>;
+
 /** Every `reef_activity.event_type` value this release knows how to record. */
 export const ACTIVITY_EVENT_TYPES = [
   ACTIVITY_EVENT_STATUS_CHANGE,
@@ -98,6 +193,13 @@ export const ACTIVITY_EVENT_TYPES = [
   ACTIVITY_EVENT_PRIORITY_CHANGE,
   ACTIVITY_EVENT_PLANNING_LINK,
   ACTIVITY_EVENT_IMPL_REF_LINKED,
+  ACTIVITY_EVENT_TITLE_CHANGE,
+  ACTIVITY_EVENT_LABELS_CHANGE,
+  ACTIVITY_EVENT_DUE_DATE_CHANGE,
+  ACTIVITY_EVENT_ESTIMATE_CHANGE,
+  ACTIVITY_EVENT_PARENT_CHANGE,
+  ACTIVITY_EVENT_RELATION_CHANGE,
+  ACTIVITY_EVENT_ARCHIVED_CHANGE,
 ] as const;
 export type ActivityEventType = (typeof ACTIVITY_EVENT_TYPES)[number];
 
@@ -161,6 +263,41 @@ export const ActivityEventSchema = z.discriminatedUnion("event_type", [
     ...activityEventBaseShape,
     event_type: z.literal(ACTIVITY_EVENT_IMPL_REF_LINKED),
     payload: ImplRefLinkedPayloadSchema,
+  }),
+  z.object({
+    ...activityEventBaseShape,
+    event_type: z.literal(ACTIVITY_EVENT_TITLE_CHANGE),
+    payload: TitleChangePayloadSchema,
+  }),
+  z.object({
+    ...activityEventBaseShape,
+    event_type: z.literal(ACTIVITY_EVENT_LABELS_CHANGE),
+    payload: LabelsChangePayloadSchema,
+  }),
+  z.object({
+    ...activityEventBaseShape,
+    event_type: z.literal(ACTIVITY_EVENT_DUE_DATE_CHANGE),
+    payload: DueDateChangePayloadSchema,
+  }),
+  z.object({
+    ...activityEventBaseShape,
+    event_type: z.literal(ACTIVITY_EVENT_ESTIMATE_CHANGE),
+    payload: EstimateChangePayloadSchema,
+  }),
+  z.object({
+    ...activityEventBaseShape,
+    event_type: z.literal(ACTIVITY_EVENT_PARENT_CHANGE),
+    payload: ParentChangePayloadSchema,
+  }),
+  z.object({
+    ...activityEventBaseShape,
+    event_type: z.literal(ACTIVITY_EVENT_RELATION_CHANGE),
+    payload: RelationChangePayloadSchema,
+  }),
+  z.object({
+    ...activityEventBaseShape,
+    event_type: z.literal(ACTIVITY_EVENT_ARCHIVED_CHANGE),
+    payload: ArchivedChangePayloadSchema,
   }),
 ]);
 export type ActivityEvent = z.infer<typeof ActivityEventSchema>;

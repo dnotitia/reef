@@ -179,6 +179,84 @@ describe("buildEntries — merge-sort (AC1)", () => {
     );
     expect(ids).not.toContain("impl-1");
   });
+
+  it("renders each REEF-277 field-change event as its own row with its payload", () => {
+    const issue = makeIssue();
+    const base = (
+      id: string,
+      event_type: ActivityEvent["event_type"],
+      payload: ActivityEvent["payload"],
+    ): ActivityEvent =>
+      ({
+        id,
+        reef_id: "REEF-001",
+        event_type,
+        event_key: `${event_type}:${id}@2026-06-03T00:00:00.000Z`,
+        payload,
+        actor: "bob",
+        at: "2026-06-03T00:00:00.000Z",
+        source: null,
+      }) as ActivityEvent;
+
+    const events: ActivityEvent[] = [
+      base("title-1", "title_change", { from: "Old", to: "New" }),
+      base("labels-1", "labels_change", { added: ["bug"], removed: ["chore"] }),
+      base("due-1", "due_date_change", {
+        from: null,
+        to: "2026-07-01T00:00:00.000Z",
+      }),
+      base("est-1", "estimate_change", { from: 3, to: 5 }),
+      base("parent-1", "parent_change", { from: null, to: "REEF-012" }),
+      base("rel-1", "relation_change", {
+        relation: "depends_on",
+        added: ["REEF-002"],
+        removed: [],
+      }),
+      base("arch-1", "archived_change", { from: false, to: true }),
+    ];
+
+    const byId = new Map(
+      buildEntries([], events, issue)
+        .filter((e) => e.type === "system")
+        .map((e) => [
+          e.type === "system" ? e.event.id : "",
+          e.type === "system" ? e.event : null,
+        ]),
+    );
+
+    expect(byId.get("title-1")).toMatchObject({
+      kind: "title_change",
+      from: "Old",
+      to: "New",
+    });
+    expect(byId.get("labels-1")).toMatchObject({
+      kind: "labels_change",
+      added: ["bug"],
+      removed: ["chore"],
+    });
+    expect(byId.get("due-1")).toMatchObject({
+      kind: "due_date_change",
+      to: "2026-07-01T00:00:00.000Z",
+    });
+    expect(byId.get("est-1")).toMatchObject({
+      kind: "estimate_change",
+      from: 3,
+      to: 5,
+    });
+    expect(byId.get("parent-1")).toMatchObject({
+      kind: "parent_change",
+      to: "REEF-012",
+    });
+    expect(byId.get("rel-1")).toMatchObject({
+      kind: "relation_change",
+      relation: "depends_on",
+      added: ["REEF-002"],
+    });
+    expect(byId.get("arch-1")).toMatchObject({
+      kind: "archived_change",
+      to: true,
+    });
+  });
 });
 
 describe("reconstructEvents (AC5)", () => {

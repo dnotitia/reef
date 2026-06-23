@@ -1,27 +1,49 @@
 import { ZodError } from "zod";
 import { SchemaValidationError } from "../../../errors";
 import {
+  ACTIVITY_EVENT_ARCHIVED_CHANGE,
   ACTIVITY_EVENT_ASSIGNEE_CHANGE,
+  ACTIVITY_EVENT_DUE_DATE_CHANGE,
+  ACTIVITY_EVENT_ESTIMATE_CHANGE,
   ACTIVITY_EVENT_IMPL_REF_LINKED,
+  ACTIVITY_EVENT_LABELS_CHANGE,
+  ACTIVITY_EVENT_PARENT_CHANGE,
   ACTIVITY_EVENT_PLANNING_LINK,
   ACTIVITY_EVENT_PRIORITY_CHANGE,
+  ACTIVITY_EVENT_RELATION_CHANGE,
   ACTIVITY_EVENT_STATUS_CHANGE,
+  ACTIVITY_EVENT_TITLE_CHANGE,
   type ActivityEvent,
   ActivityEventMetaSchema,
   type ActivityEventPayload,
   ActivityEventSchema,
   type ActivityEventType,
+  type ArchivedChangePayload,
+  ArchivedChangePayloadSchema,
   type AssigneeChangePayload,
   AssigneeChangePayloadSchema,
+  type DueDateChangePayload,
+  DueDateChangePayloadSchema,
+  type EstimateChangePayload,
+  EstimateChangePayloadSchema,
   type ImplRefLinkedPayload,
   ImplRefLinkedPayloadSchema,
+  type LabelsChangePayload,
+  LabelsChangePayloadSchema,
+  type ParentChangePayload,
+  ParentChangePayloadSchema,
   type PlanningLinkField,
   type PlanningLinkPayload,
   PlanningLinkPayloadSchema,
   type PriorityChangePayload,
   PriorityChangePayloadSchema,
+  type RelationChangePayload,
+  RelationChangePayloadSchema,
+  type RelationField,
   type StatusChangePayload,
   StatusChangePayloadSchema,
+  type TitleChangePayload,
+  TitleChangePayloadSchema,
 } from "../../../schemas/issues/activity";
 import type { IssueMetadata, Status } from "../../../schemas/issues/metadata";
 import {
@@ -63,6 +85,34 @@ export type ActivityEventDescriptor =
   | {
       eventType: typeof ACTIVITY_EVENT_IMPL_REF_LINKED;
       payload: ImplRefLinkedPayload;
+    }
+  | {
+      eventType: typeof ACTIVITY_EVENT_TITLE_CHANGE;
+      payload: TitleChangePayload;
+    }
+  | {
+      eventType: typeof ACTIVITY_EVENT_LABELS_CHANGE;
+      payload: LabelsChangePayload;
+    }
+  | {
+      eventType: typeof ACTIVITY_EVENT_DUE_DATE_CHANGE;
+      payload: DueDateChangePayload;
+    }
+  | {
+      eventType: typeof ACTIVITY_EVENT_ESTIMATE_CHANGE;
+      payload: EstimateChangePayload;
+    }
+  | {
+      eventType: typeof ACTIVITY_EVENT_PARENT_CHANGE;
+      payload: ParentChangePayload;
+    }
+  | {
+      eventType: typeof ACTIVITY_EVENT_RELATION_CHANGE;
+      payload: RelationChangePayload;
+    }
+  | {
+      eventType: typeof ACTIVITY_EVENT_ARCHIVED_CHANGE;
+      payload: ArchivedChangePayload;
     };
 
 /**
@@ -80,9 +130,22 @@ export type ActivityEventInput = ActivityEventDescriptor & {
   source: string | null;
 };
 
-/** Render a nullable key segment so an attach/detach does not collide with a value. */
-function eventKeySegment(value: string | null): string {
-  return value ?? "∅";
+/**
+ * Render a nullable scalar key segment so an attach/detach does not collide with
+ * a value. Accepts numbers and booleans too (estimate / archived), with the same
+ * `∅` token for a null end — `== null` keeps `0` and `false` as real values.
+ */
+function eventKeySegment(value: string | number | boolean | null): string {
+  return value == null ? "∅" : String(value);
+}
+
+/**
+ * Render a set-change (labels / relations) as a deterministic key segment: the
+ * sorted `added` and `removed` ids, so the same logical change reproduces the
+ * same key regardless of array order (REEF-277).
+ */
+function setKeySegment(added: string[], removed: string[]): string {
+  return `+${[...added].sort().join(",")}:-${[...removed].sort().join(",")}`;
 }
 
 /**
@@ -107,8 +170,17 @@ export function activityEventKey(
       const { ref_type, repo, ref } = descriptor.payload;
       return `${descriptor.eventType}:${ref_type}:${eventKeySegment(repo)}:${ref}@${at}`;
     }
+    case ACTIVITY_EVENT_LABELS_CHANGE: {
+      const { added, removed } = descriptor.payload;
+      return `${descriptor.eventType}:${setKeySegment(added, removed)}@${at}`;
+    }
+    case ACTIVITY_EVENT_RELATION_CHANGE: {
+      const { relation, added, removed } = descriptor.payload;
+      return `${descriptor.eventType}:${relation}:${setKeySegment(added, removed)}@${at}`;
+    }
     default: {
-      // status_change / assignee_change / priority_change all key on from→to.
+      // status / assignee / priority / title / due_date / estimate / parent /
+      // archived all key on from→to (each from/to is a scalar or null).
       const { from, to } = descriptor.payload;
       return `${descriptor.eventType}:${eventKeySegment(from)}->${eventKeySegment(to)}@${at}`;
     }
@@ -287,12 +359,34 @@ function implRefDedupeKey(ref: {
 }
 
 /**
- * Derive the non-status field-change events for one `updateIssue` (REEF-126).
- * Pure: compares the pre-update snapshot against the merged result and emits one
- * event per changed dimension — assignee, priority, each planning link, and each
- * newly-linked delivery ref. status_change is NOT emitted here; it keeps its own
- * funnel keyed on `last_status_change`. Every event shares the one `meta.at`
- * timestamp so a multi-field save groups under a single instant (AC3).
+ * The set difference between two id arrays (labels / a relation dimension) as
+ * `added`/`removed`, or null when nothing moved (REEF-277). Order- and
+ * duplicate-insensitive: the arrays are unordered sets, so the diff compares
+ * membership, not position.
+ */
+function diffStringSet(
+  before: readonly string[] | undefined,
+  after: readonly string[] | undefined,
+): { added: string[]; removed: string[] } | null {
+  const beforeSet = new Set(before ?? []);
+  const afterSet = new Set(after ?? []);
+  const added = [...afterSet].filter((id) => !beforeSet.has(id));
+  const removed = [...beforeSet].filter((id) => !afterSet.has(id));
+  if (added.length === 0 && removed.length === 0) {
+    return null;
+  }
+  return { added, removed };
+}
+
+/**
+ * Derive the non-status field-change events for one `updateIssue` (REEF-126 /
+ * REEF-277). Pure: compares the pre-update snapshot against the merged result and
+ * emits one event per changed dimension — assignee, priority, each planning link,
+ * each newly-linked delivery ref, plus the REEF-277 parity set (title, labels,
+ * due date, estimate, parent, each relation dimension, and archive). status_change
+ * is NOT emitted here; it keeps its own funnel keyed on `last_status_change`.
+ * Every event shares the one `meta.at` timestamp so a multi-field save groups
+ * under a single instant (AC3).
  */
 export function diffFieldActivityEvents(
   reefId: string,
@@ -376,6 +470,96 @@ export function diffFieldActivityEvents(
     }
   }
 
+  // ── REEF-277 parity set ──────────────────────────────────────────────────
+  // title is a required non-empty string, so a change is always a rename.
+  if (before.title !== after.title) {
+    events.push({
+      ...base,
+      eventType: ACTIVITY_EVENT_TITLE_CHANGE,
+      payload: { from: before.title, to: after.title },
+    });
+  }
+
+  const dueFrom = before.due_date ?? null;
+  const dueTo = after.due_date ?? null;
+  if (dueFrom !== dueTo) {
+    events.push({
+      ...base,
+      eventType: ACTIVITY_EVENT_DUE_DATE_CHANGE,
+      payload: { from: dueFrom, to: dueTo },
+    });
+  }
+
+  const estimateFrom = before.estimate_points ?? null;
+  const estimateTo = after.estimate_points ?? null;
+  if (estimateFrom !== estimateTo) {
+    events.push({
+      ...base,
+      eventType: ACTIVITY_EVENT_ESTIMATE_CHANGE,
+      payload: { from: estimateFrom, to: estimateTo },
+    });
+  }
+
+  const parentFrom = before.parent_id ?? null;
+  const parentTo = after.parent_id ?? null;
+  if (parentFrom !== parentTo) {
+    events.push({
+      ...base,
+      eventType: ACTIVITY_EVENT_PARENT_CHANGE,
+      payload: { from: parentFrom, to: parentTo },
+    });
+  }
+
+  // archived is a boolean projection of the nullable `archived_at` timestamp.
+  const archivedFrom = before.archived_at != null;
+  const archivedTo = after.archived_at != null;
+  if (archivedFrom !== archivedTo) {
+    events.push({
+      ...base,
+      eventType: ACTIVITY_EVENT_ARCHIVED_CHANGE,
+      payload: { from: archivedFrom, to: archivedTo },
+    });
+  }
+
+  const labelsDiff = diffStringSet(before.labels, after.labels);
+  if (labelsDiff) {
+    events.push({
+      ...base,
+      eventType: ACTIVITY_EVENT_LABELS_CHANGE,
+      payload: labelsDiff,
+    });
+  }
+
+  // One relation_change per moved dimension, labeled by `relation` — the
+  // planning_link precedent (one event per changed planning dimension).
+  const relationDimensions: ReadonlyArray<{
+    relation: RelationField;
+    before: readonly string[] | undefined;
+    after: readonly string[] | undefined;
+  }> = [
+    {
+      relation: "depends_on",
+      before: before.depends_on,
+      after: after.depends_on,
+    },
+    { relation: "blocks", before: before.blocks, after: after.blocks },
+    {
+      relation: "related_to",
+      before: before.related_to,
+      after: after.related_to,
+    },
+  ];
+  for (const dimension of relationDimensions) {
+    const relationDiff = diffStringSet(dimension.before, dimension.after);
+    if (relationDiff) {
+      events.push({
+        ...base,
+        eventType: ACTIVITY_EVENT_RELATION_CHANGE,
+        payload: { relation: dimension.relation, ...relationDiff },
+      });
+    }
+  }
+
   return events;
 }
 
@@ -386,6 +570,13 @@ const PAYLOAD_SCHEMA_BY_EVENT_TYPE = {
   [ACTIVITY_EVENT_PRIORITY_CHANGE]: PriorityChangePayloadSchema,
   [ACTIVITY_EVENT_PLANNING_LINK]: PlanningLinkPayloadSchema,
   [ACTIVITY_EVENT_IMPL_REF_LINKED]: ImplRefLinkedPayloadSchema,
+  [ACTIVITY_EVENT_TITLE_CHANGE]: TitleChangePayloadSchema,
+  [ACTIVITY_EVENT_LABELS_CHANGE]: LabelsChangePayloadSchema,
+  [ACTIVITY_EVENT_DUE_DATE_CHANGE]: DueDateChangePayloadSchema,
+  [ACTIVITY_EVENT_ESTIMATE_CHANGE]: EstimateChangePayloadSchema,
+  [ACTIVITY_EVENT_PARENT_CHANGE]: ParentChangePayloadSchema,
+  [ACTIVITY_EVENT_RELATION_CHANGE]: RelationChangePayloadSchema,
+  [ACTIVITY_EVENT_ARCHIVED_CHANGE]: ArchivedChangePayloadSchema,
 } as const;
 
 /**
