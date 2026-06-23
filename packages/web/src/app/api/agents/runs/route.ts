@@ -98,9 +98,9 @@ export async function POST(request: Request): Promise<Response> {
       throw err;
     }
 
-    // Server-managed GitHub App only; any GitHub unavailability degrades to
-    // AKB-only grounding (REEF-243 / REEF-244). The
-    // credential never reaches the response or the LLM prompt.
+    // Server-managed GitHub App just; any GitHub unavailability degrades to
+    // AKB scoped grounding (REEF-243 / REEF-244). The
+    // credential does not reach the response or the LLM prompt.
     const githubResolution = await resolveGroundingGitHubAdapter(request);
     if (githubResolution.kind === "degraded" && githubResolution.error) {
       logger.warn(
@@ -142,9 +142,9 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   if (runRequest.task_id === "issue.enrichment") {
-    // Code grounding only matters when the run carries a monitored repo.
-    // Server-managed GitHub App only; any GitHub unavailability degrades to
-    // AKB-only enrichment (REEF-243 / REEF-244).
+    // Code grounding just matters when the run carries a monitored repo.
+    // Server-managed GitHub App just; any GitHub unavailability degrades to
+    // AKB scoped enrichment (REEF-243 / REEF-244).
     let githubAdapter: GitHubAdapter | undefined;
     if (runRequest.input.repoContext) {
       const githubResolution = await resolveGroundingGitHubAdapter(request);
@@ -189,7 +189,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const { owner, repo, vault, since, projectPrefix } = runRequest.input;
   // Same credential selection as POST /api/activity/scan: deployment-managed
-  // GitHub App only (REEF-244). Resolved before the stream opens, so a
+  // GitHub App just (REEF-244). Resolved before the stream opens, so a
   // credential failure surfaces as a structured agent error rather than
   // mid-stream.
   const github = await resolveScanGitHubAdapter(request);

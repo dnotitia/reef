@@ -1,4 +1,9 @@
 // @vitest-environment node
+import {
+  APP_CONFIG,
+  NOT_CONFIGURED,
+  setServerAppConfig,
+} from "@/lib/github/serverCredentials.testSupport";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -20,43 +25,6 @@ vi.mock("@reef/core", async (importOriginal) => {
     createGitHubAppInstallationTokenProvider: mockCreateProvider,
   };
 });
-
-// Deployment GitHub App config - default configured in tests so activity scan
-// exercises the REEF-244 server-managed credential path.
-type ServerAppConfig =
-  | {
-      ok: true;
-      config: { app_id: string; installation_id: string; private_key: string };
-      status: { isConfigured: true; appId: string };
-    }
-  | {
-      ok: false;
-      status: { isConfigured: false; appId: string | null };
-      issues: string[];
-    };
-
-const NOT_CONFIGURED: ServerAppConfig = {
-  ok: false,
-  status: { isConfigured: false, appId: null },
-  issues: ["app_id is required"],
-};
-
-const APP_CONFIG: ServerAppConfig = {
-  ok: true,
-  config: {
-    app_id: "123456",
-    installation_id: "789",
-    private_key:
-      "-----BEGIN RSA PRIVATE KEY-----\nx\n-----END RSA PRIVATE KEY-----",
-  },
-  status: { isConfigured: true, appId: "123456" },
-};
-
-const appConfigState = vi.hoisted(() => ({ current: undefined as unknown }));
-
-vi.mock("@/lib/github/serverAppConfig", () => ({
-  resolveServerGitHubAppConfig: () => appConfigState.current,
-}));
 
 // The App path validates the reef session against akb before minting; mock that
 // boundary so route tests stay hermetic. getAkbAdapter stays real so the
@@ -107,7 +75,7 @@ describe("POST /api/activity/scan", () => {
     vi.stubEnv("OPENROUTER_API_KEY", "sk-test");
     vi.stubEnv("OPENROUTER_BASE_URL", "https://api.openai.com/v1");
     vi.stubEnv("REEF_LLM_MODEL", "gpt-4o");
-    appConfigState.current = APP_CONFIG;
+    setServerAppConfig(APP_CONFIG);
     mockGetActor.mockResolvedValue({ actor: "alice" });
     mockCreateGitHubAdapter.mockReturnValue({});
     mockCreateProvider.mockReturnValue(vi.fn(async () => "ghs_minted_token"));
@@ -183,7 +151,7 @@ describe("POST /api/activity/scan", () => {
   });
 
   it("returns 503 when the GitHub App is not configured", async () => {
-    appConfigState.current = NOT_CONFIGURED;
+    setServerAppConfig(NOT_CONFIGURED);
 
     const res = await POST(makeRequest({}));
 
@@ -257,7 +225,7 @@ describe("POST /api/activity/scan — server-managed GitHub App path", () => {
     vi.stubEnv("OPENROUTER_API_KEY", "sk-test");
     vi.stubEnv("OPENROUTER_BASE_URL", "https://api.openai.com/v1");
     vi.stubEnv("REEF_LLM_MODEL", "gpt-4o");
-    appConfigState.current = APP_CONFIG;
+    setServerAppConfig(APP_CONFIG);
     mockGetActor.mockResolvedValue({ actor: "alice" });
     mockCreateGitHubAdapter.mockReturnValue({});
     mockScanAndPersistActivitySuggestions.mockResolvedValue({

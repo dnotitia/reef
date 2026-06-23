@@ -132,7 +132,7 @@ describe("createDevReadFileTool", () => {
 
   it("rejects a repo outside the monitored-repo allowlist without calling GitHub", async () => {
     // MSW errors on unhandled requests, so a leaked GitHub call would fail the
-    // test; the allowlist guard must reject before any network read.
+    // test; the allowlist guard should reject before any network read.
     const adapter = createGitHubAdapter({ token: "test-token" });
     const toolObj = createDevReadFileTool(adapter, ALLOWED_REPOS);
 

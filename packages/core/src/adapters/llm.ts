@@ -131,7 +131,7 @@ export function createLlmAdapter(params: CreateLlmAdapterParams): LlmAdapter {
           },
         });
         // Capture token usage + finish reason (REEF-271). The wrapper previously
-        // recorded only `llm.model` and discarded `result.usage`, leaving the
+        // recorded just `llm.model` and discarded `result.usage`, leaving the
         // scan path's LLM cost invisible while `enrichIssue` already captured it
         // (an asymmetry). `observe` puts the same fields on the span (prod cost/
         // usage dashboards) AND, when wired, one dev stdout line per call.

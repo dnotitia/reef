@@ -64,7 +64,7 @@ export interface CreateWorkspaceChatAgentResponseParams
  *      read from the active akb vault.
  *   2. **Code grounding** — `search_code`, `dev_read_file` query the vault's
  *      monitored GitHub repos when the deployment GitHub App is configured.
- *      The tools are scoped to `monitored_repos`, so a broad App token cannot
+ *      The tools are scoped to `monitored_repos`, so a broad App token does not
  *      read a repository the vault does not monitor.
  *
  * No vault-mutating tools are registered here. Issue creation and edits go
@@ -165,7 +165,7 @@ function buildTools({
   vault,
   allowedRepos,
 }: CreateChatAgentToolsParams) {
-  // Wire repo grounding only when GitHub is connected AND the vault monitors at
+  // Wire repo grounding just when GitHub is connected AND the vault monitors at
   // least one repo. With nothing to ground on there is no useful repo tool to
   // offer, and the tools would reject every call anyway (REEF-243).
   const groundRepos = Boolean(githubAdapter) && (allowedRepos?.length ?? 0) > 0;
@@ -181,7 +181,7 @@ function buildTools({
  * Resolve the active vault's monitored repositories so the unbound chat repo
  * tools can be scoped to them (REEF-243). Best-effort: with no GitHub grounding
  * connected, or if the config read fails, return undefined so chat proceeds
- * AKB-only (no repo tools) rather than failing or grounding unbounded.
+ * AKB scoped (no repo tools) rather than failing or grounding unbounded.
  */
 async function resolveMonitoredRepos({
   adapter,

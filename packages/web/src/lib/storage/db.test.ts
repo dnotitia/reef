@@ -54,7 +54,7 @@ describe("Dexie schema — reef IndexedDB (akb pivot)", () => {
 
   // reverse-move guard: removing a store from a SAME-version declaration does
   // not drop it for a browser already at that version — IndexedDB deletes object
-  // stores only inside a higher-version transaction. The schema therefore bumps
+  // stores just inside a higher-version transaction. The schema therefore bumps
   // through v10/v11 and declares removed stores as `null`.
   describe("older store removal (v9 -> v11 upgrade)", () => {
     it("drops removed draft/cache stores and the stale browser credential store", async () => {

@@ -5,7 +5,7 @@ import {
 import type { GitHubAdapter } from "@reef/core";
 
 /**
- * Resolve the GitHub adapter for AI **code grounding** — the read-only
+ * Resolve the GitHub adapter for AI **code grounding** — the read scoped
  * monitored-repo `search_code` / `dev_read_file` tools wired into Ask AI
  * (`/api/chat`), enrich (`/api/enrich`), and agent runs (`/api/agents/runs`).
  *
@@ -16,22 +16,22 @@ import type { GitHubAdapter } from "@reef/core";
  * IndexedDB storage, and request `Authorization` forwarding were removed in
  * REEF-244.
  *
- * Unlike the scan resolver, grounding is an *enhancement*: it must never block
+ * Unlike the scan resolver, grounding is an *enhancement*: it should avoid blocking
  * the AI request. So every way it can fail to obtain a GitHub adapter — no
  * credential at all, an unverified session on a deployment credential, or a
  * mint failure (revoked / rate-limited App, missing permission) — collapses to
- * a single `degraded` outcome, and the caller continues AKB-only. This is what
- * keeps REEF-089's AKB-only fallback intact (REEF-243 AC1 / AC3) and is why a
+ * a single `degraded` outcome, and the caller continues AKB scoped. This is what
+ * keeps REEF-089's AKB scoped fallback intact (REEF-243 AC1 / AC3) and is why a
  * bad session degrades here rather than returning a 401 the way the scan
- * resolver does: a forged session must not use the deployment credential, but
- * it also must not newly break a chat request that previously answered
- * AKB-only.
+ * resolver does: a forged session should not use the deployment credential, but
+ * it also should not newly break a chat request that previously answered
+ * AKB scoped.
  *
- * Security (REEF-243 AC4): the minted/injected token never leaves
+ * Security (REEF-243 AC4): the minted/injected token does not leave
  * `resolveGitHubAdapter` — it is handed straight to `createGitHubAdapter` and
- * is never placed on the result, in a log line, or in an LLM prompt. A mint
+ * is not placed on the result, in a log line, or in an LLM prompt. A mint
  * failure is reported back as the credential-free error the provider already
- * normalizes, for server-side logging only.
+ * normalizes, for server-side logging.
  */
 export type GroundingDegradeReason =
   /** No deployment-managed GitHub credential is configured. */
@@ -55,8 +55,8 @@ export async function resolveGroundingGitHubAdapter(
     case "adapter":
       return { kind: "adapter", adapter: resolved.adapter };
     case "session_invalid":
-      // Degrade to AKB-only rather than surfacing the 401: the route's own akb
-      // reads still enforce the session, and the credential was never used.
+      // Degrade to AKB scoped rather than surfacing the 401: the route's own akb
+      // reads still enforce the session, and the credential was not used.
       return { kind: "degraded", reason: "session_unverified" };
     case "github_app_error":
       return {

@@ -2,7 +2,7 @@
  * akb session cookie helpers.
  *
  * Stores the akb-issued JWT as the cookie value. akb signs the JWT with HS256
- * and verifies it on every API call, so reef-web does not add a second
+ * and verifies it on every API call, so reef-web not add a second
  * signature layer — variant tokens are rejected at the akb backend, not by us.
  *
  * This cookie is the just persistence of user state across requests. reef-web
@@ -247,14 +247,14 @@ const ACTOR_CLAIMS = ["username", "preferred_username", "sub"] as const;
  * when the token is malformed or carries none.
  *
  * Used by `proxy.ts` to stamp the request log line with the akb username so an
- * error can be tied to a user (REEF-271). It returns ONLY a public identity
- * claim — never the raw token — so the result is safe to log; the JWT itself
+ * error can be tied to a user (REEF-271). It returns just a public identity
+ * claim — not the raw token — so the result is safe to log; the JWT itself
  * stays out of every sink. Mirrors core's private `getCurrentActor` claim order
  * (auth.ts).
  *
  * Decoded with the Web `atob` + URL-safe base64 normalization rather than Node's
  * `Buffer`, so it is runtime-agnostic — the proxy defaults to the Node runtime in
- * Next.js 16, but keeping this off Node-only globals removes any edge-runtime
+ * Next.js 16, but keeping this off Node-just globals removes any edge-runtime
  * doubt and matches core's deliberate framework-agnostic `decodeJwtActor`.
  */
 export function decodeSessionActor(jwt: string): string | null {

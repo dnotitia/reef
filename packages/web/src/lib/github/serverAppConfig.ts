@@ -8,7 +8,7 @@ import { type GitHubAppConfig, GitHubAppConfigSchema } from "@reef/core";
  * configured, the server can mint a read-scoped installation token so
  * monitored-repo grounding does not depend on browser storage. When NOT
  * configured, GitHub-specific features either return a clear unavailable
- * response or degrade to AKB-only behavior; there is no browser-supplied token
+ * response or degrade to AKB scoped behavior; there is no browser-supplied token
  * fallback after REEF-244.
  */
 
@@ -79,7 +79,7 @@ export function getRequiredServerGitHubAppConfig(
 
 /**
  * Whether this deployment is configured to mint server-managed GitHub App
- * tokens. When false, callers must degrade or report GitHub as unavailable.
+ * tokens. When false, callers should degrade or report GitHub as unavailable.
  */
 export function isServerGitHubAppConfigured(
   env: NodeJS.ProcessEnv = process.env,

@@ -7,7 +7,7 @@ const tracer = trace.getTracer("@reef/core");
 /**
  * Warn once the GraphQL point budget falls to/below this remaining count
  * (GitHub's GraphQL secondary budget is 5000 points/hour). Surfacing it as a
- * span attribute always, plus a dev warn line near exhaustion, makes a throttled
+ * span attribute on each response, plus a dev warn line near exhaustion, makes a throttled
  * scan diagnosable instead of a silent stall (REEF-271).
  */
 const GITHUB_RATELIMIT_WARN_REMAINING = 500;
@@ -182,7 +182,7 @@ export async function listRecentActivity({
 }
 
 /**
- * Record the GraphQL rate-limit budget on the span (always, when GitHub returned
+ * Record the GraphQL rate-limit budget on the span (when emitted, when GitHub returned
  * it) and emit one dev warn line as it nears exhaustion (REEF-271). The mocked
  * GraphQL client in hermetic/unit runs omits `rateLimit`, so this is a no-op
  * there — guarded on a numeric `remaining`.
@@ -200,7 +200,7 @@ function recordRateLimit(
     span.setAttribute("github.ratelimit.reset", rateLimit.resetAt);
   }
   if (rateLimit.remaining <= GITHUB_RATELIMIT_WARN_REMAINING) {
-    // Attributes are already on the span; pass `undefined` so `observe` only
+    // Attributes are already on the span; pass `undefined` so `observe` just
     // emits the dev warn line rather than re-setting them.
     observe(
       undefined,

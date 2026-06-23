@@ -91,7 +91,7 @@ describe("ActivityEventRow — REEF-277 field-change rows", () => {
       to: "New name",
     });
     expect(getByText(/changed the title/)).toBeInTheDocument();
-    // Titles are prose, not code identifiers — never translate="no".
+    // Titles are prose, not code identifiers — does not translate="no".
     expect(getByText("New name").closest('[translate="no"]')).toBeNull();
     expect(container).toHaveTextContent("Old name");
   });

@@ -1,3 +1,10 @@
+import {
+  APP_CONFIG,
+  NOT_CONFIGURED,
+  resetServerGitHubCredentials,
+  setServerAppConfig,
+  setServerGitHubPat,
+} from "@/lib/github/serverCredentials.testSupport";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@reef/core", async () => {
@@ -12,47 +19,6 @@ vi.mock("@reef/core", async () => {
 
 vi.mock("@/lib/logging/logger", () => ({
   logger: { error: vi.fn() },
-}));
-
-type ServerAppConfig =
-  | {
-      ok: true;
-      config: { app_id: string; installation_id: string; private_key: string };
-      status: { isConfigured: true; appId: string };
-    }
-  | {
-      ok: false;
-      status: { isConfigured: false; appId: string | null };
-      issues: string[];
-    };
-
-const NOT_CONFIGURED: ServerAppConfig = {
-  ok: false,
-  status: { isConfigured: false, appId: null },
-  issues: ["app_id is required"],
-};
-
-const APP_CONFIG: ServerAppConfig = {
-  ok: true,
-  config: {
-    app_id: "123456",
-    installation_id: "789",
-    private_key:
-      "-----BEGIN RSA PRIVATE KEY-----\nx\n-----END RSA PRIVATE KEY-----",
-  },
-  status: { isConfigured: true, appId: "123456" },
-};
-
-const appConfigState = vi.hoisted(() => ({
-  current: undefined as unknown,
-}));
-const serverPatState = vi.hoisted(() => ({ current: null as string | null }));
-
-vi.mock("@/lib/github/serverAppConfig", () => ({
-  resolveServerGitHubAppConfig: () => appConfigState.current,
-}));
-vi.mock("@/lib/github/serverPat", () => ({
-  resolveServerGitHubPat: () => serverPatState.current,
 }));
 
 vi.mock("@/lib/api/requestHelpers", async () => {
@@ -116,8 +82,7 @@ function mockInstallationRepoList(token = "ghs_minted_installation_token"): {
 describe("GET /api/repos", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    appConfigState.current = NOT_CONFIGURED;
-    serverPatState.current = null;
+    resetServerGitHubCredentials();
   });
 
   it("returns 503 when no deployment-managed GitHub credential is configured", async () => {
@@ -136,8 +101,8 @@ describe("GET /api/repos", () => {
 describe("GET /api/repos - server-managed GitHub App path", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    appConfigState.current = APP_CONFIG;
-    serverPatState.current = null;
+    setServerAppConfig(APP_CONFIG);
+    setServerGitHubPat(null);
     mockGetActor.mockResolvedValue({ actor: "alice" });
   });
 
@@ -304,8 +269,8 @@ describe("GET /api/repos - server-managed PAT path (REEF-290)", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    appConfigState.current = NOT_CONFIGURED;
-    serverPatState.current = SERVER_PAT;
+    setServerAppConfig(NOT_CONFIGURED);
+    setServerGitHubPat(SERVER_PAT);
     mockGetActor.mockResolvedValue({ actor: "alice" });
   });
 

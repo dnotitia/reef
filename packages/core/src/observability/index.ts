@@ -7,17 +7,17 @@ import type { Span } from "@opentelemetry/api";
  * (prod → trace backend). But the rich data a developer needs to see locally —
  * scan checkpoints, LLM token usage, upstream latency — is invisible in dev,
  * because dev runs no Jaeger/Langfuse and spans are dropped. The fix is to emit
- * the SAME fields twice at one instrumentation point: as span attributes (always,
+ * the SAME fields twice at one instrumentation point: as span attributes (when emitted,
  * for prod OTel) and as one structured log line (for dev stdout / a trace-backend-
  * less prod).
  *
  * The log half goes through a *port*, not a concrete logger: `core` is framework-
- * agnostic and cannot import `web`'s pino instance (that would invert the
+ * agnostic and does not import `web`'s pino instance (that would invert the
  * `web → core` dependency and duplicate the redaction config). Instead `web` wires
  * a `CoreLogger` at instrumentation startup via {@link setCoreLogger}. When no
  * logger is wired (the default), the log half is a no-op, so:
  *
- *   - prod WITH a trace backend  → only span attributes (stdout stays quiet)
+ *   - prod WITH a trace backend  → just span attributes (stdout stays quiet)
  *   - dev, or prod with `REEF_RESPONSE_LOG=1` → web wires the pino logger, so the
  *     same fields also appear as a stdout line, correlated by `trace_id`.
  *
@@ -89,9 +89,9 @@ export interface ObserveOptions {
 /**
  * Emit one measurement two ways: set each defined field as a span attribute on
  * `span` (prod → OTel) AND emit one structured log line via the wired
- * {@link CoreLogger} (dev stdout / log-only prod). `undefined` fields are
- * dropped from both. When no span is given, only the log line is emitted; when
- * no logger is wired, only the attributes are set.
+ * {@link CoreLogger} (dev stdout / log scoped prod). `undefined` fields are
+ * dropped from both. When no span is given, just the log line is emitted; when
+ * no logger is wired, just the attributes are set.
  */
 export function observe(
   span: Span | undefined,

@@ -59,7 +59,7 @@ describe("agent toolsets", () => {
   });
 
   it("scopes unbound repo tools to the allowlist (rejects others) even when empty", async () => {
-    // Safe-by-default: with no repoContext the unbound tools always enforce the
+    // Safe-by-default: with no repoContext the unbound tools consistently enforce the
     // allowlist, so an empty allowlist rejects every repo rather than exposing
     // an unbounded GitHub read (REEF-243).
     const githubAdapter = {

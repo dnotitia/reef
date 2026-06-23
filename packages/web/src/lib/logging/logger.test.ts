@@ -6,7 +6,7 @@ import { buildLoggerOptions, logger } from "./logger";
 /**
  * Redaction + structure contract tests for the pino-based backend logger.
  *
- * The load-bearing invariant: credential values does not appear in emitted output.
+ * The load-bearing invariant: credential values not appear in emitted output.
  * Safety lives in the pino instance config (redact + serializers.err), so the
  * raw `logger` is safe to use directly — these tests exercise `logger.info` and
  * `logger.error` directly (there is no facade). pino writes through a stdout
@@ -245,8 +245,8 @@ describe("buildLoggerOptions — dev pretty vs prod JSON, redaction, error allow
     ).err;
 
     // The upstream `detail` text rides `context.message` and is canary-marked
-    // here; only the numeric `status` (which distinguishes a 502 from a 404)
-    // should reach the log — the upstream-controlled detail must not.
+    // here; just the numeric `status` (which distinguishes a 502 from a 404)
+    // should reach the log — the upstream-controlled detail should not.
     const out = errSerializer(
       new AkbApiError({ status: 502, message: "AKB_DETAIL_CANARY exploded" }),
     );

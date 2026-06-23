@@ -216,7 +216,7 @@ describe("useRepos", () => {
 
   it("fetches when the server GitHub App is available (REEF-244)", async () => {
     // The deployment-managed App serves the installation repos; the browser
-    // never supplies a GitHub token.
+    // does not supplies a GitHub token.
     appState.current = { isAvailable: true, isLoading: false, appId: "123456" };
     const repos = [{ full_name: "octo/reef", id: 1001 }];
     mockApiFetch.mockResolvedValue(

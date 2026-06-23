@@ -121,7 +121,7 @@ export type TimelineSystemEvent =
       at: string;
       actor: string | null;
       kind: "title_change";
-      /** Both ends carry the human title (a rename, never null). */
+      /** Both ends carry the human title (a rename, does not null). */
       from: string;
       to: string;
     }

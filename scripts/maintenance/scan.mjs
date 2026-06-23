@@ -88,6 +88,7 @@ const SLOW_TEST_SUPPRESSIONS = new Set([
   "GlobalSearchDialog keeps a typed id-search bounded with a `limit` (no unbounded scan)",
   "BacklogView promotes a backlog issue to Todo via the inline status picker",
   "NewIssueDialog confirms discard when only an uncommitted child draft has content",
+  "buildLoggerOptions — dev pretty vs prod JSON, redaction, error allowlist preserves the upstream status of a typed reef API error, not its detail (REEF-271)",
   "IssueDetail requests /api/issues/{id}?vault={vault} on mount",
 ]);
 
@@ -118,6 +119,14 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
   [
     "packages/core/src/agents/approveActivitySuggestion.test.ts",
     "Approval policy matrix; extract fixtures when another approval suite reuses them.",
+  ],
+  [
+    "packages/core/src/adapters/akb.issue-activity.test.ts",
+    "Activity append/readback regression suite; split key/diff/list groups when another activity suite reuses the setup.",
+  ],
+  [
+    "packages/core/src/adapters/akb/issues/activity.ts",
+    "Activity table adapter boundary; split key/diff/row conversion helpers when a second adapter consumes them.",
   ],
   [
     "packages/web/src/features/issues/components/relations/IssueRelationInput.tsx",
@@ -154,6 +163,14 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
   [
     "packages/web/src/features/issues/components/refs/IssueRefsEditor.tsx",
     "Reference editor workflow; extract card/list pieces after reuse appears.",
+  ],
+  [
+    "packages/web/src/features/issues/components/activity/timelineModel.ts",
+    "Activity timeline projection model; split reconstructed-event helpers when another timeline surface consumes them.",
+  ],
+  [
+    "packages/web/src/features/issues/components/activity/ActivityEventRow.tsx",
+    "Single activity event-row renderer; split glyph or sentence leaves when another row surface reuses them.",
   ],
   [
     "packages/core/src/adapters/akb/workspace/auth.ts",
