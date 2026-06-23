@@ -71,8 +71,7 @@ test.describe("Hermetic dashboard surfaces and global dialogs", () => {
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
     await page.locator('[data-testid="issue-close"]').click();
 
-    await page.getByLabel("Account menu").click();
-    await page.locator('[data-testid="account-shortcuts"]').click();
+    await page.locator('[data-testid="sidebar-shortcuts-trigger"]').click();
     await expect(
       page.locator('[data-testid="keyboard-shortcuts-dialog"]'),
     ).toBeVisible();
@@ -80,6 +79,15 @@ test.describe("Hermetic dashboard surfaces and global dialogs", () => {
     await expect(
       page.locator('[data-testid="keyboard-shortcuts-dialog"]'),
     ).toBeHidden();
+
+    await page.getByLabel("Account menu").click();
+    await expect(
+      page.locator('[data-testid="account-release-notes"]'),
+    ).toHaveAttribute(
+      "href",
+      "https://github.com/dnotitia/reef/releases/tag/v0.5.0",
+    );
+    await page.keyboard.press("Escape");
 
     await expect(page.locator('[data-testid="ask-ai-fab"]')).toBeVisible();
     await page.locator('[data-testid="ask-ai-fab"]').click();

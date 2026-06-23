@@ -1,11 +1,8 @@
 "use client";
 
-import { PersonAvatar } from "@/components/fields/PersonAvatar";
-import { computeInitials } from "@/components/fields/personIdentity";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -13,105 +10,45 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { AccountThemeToggle } from "@/features/preferences/components/AccountThemeToggle";
-import { useShortcutsStore } from "@/features/shortcuts/stores/useShortcutsStore";
 import { cn } from "@/lib/utils";
-import type { AkbMeProfile } from "@reef/core";
 import { useMutation } from "@tanstack/react-query";
-import { ChevronsUpDown, Keyboard, LogOut } from "lucide-react";
+import { ChevronsUpDown, ExternalLink, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { signOutOfWorkspace } from "../signOut.actions";
 import { navigateToSignOutTarget } from "../signOutNavigation";
+import { AccountAvatar, deriveIdentity } from "./SidebarAccountIdentity";
+
+export type { AccountIdentity } from "./SidebarAccountIdentity";
+export { deriveIdentity };
 
 interface SidebarAccountProps {
   appVersion: string;
   collapsed: boolean;
 }
 
-/** Display name + email + monogram initials derived from the akb profile. */
-export interface AccountIdentity {
-  name: string;
-  email: string | null;
-  /**
-   * The row's secondary line under the name: email when present, else the akb
-   * username when it carries info the name line doesn't already show. Kept
-   * non-null for the common cases so the account row holds the same two-line
-   * height as the workspace row above it, keeping the footer rows aligned
-   * (REEF-168).
-   */
-  secondary: string | null;
-  initials: string;
-  /**
-   * The akb login (username), or null when logged out. This is the identity key
-   * issue rows store in `assigned_to`, so keying the account avatar by it makes
-   * the signed-in user's avatar color and monogram match how they render as an
-   * assignee elsewhere (REEF-173).
-   */
-  login: string | null;
+export function releaseNotesUrl(appVersion: string): string {
+  return `https://github.com/dnotitia/reef/releases/tag/${encodeURIComponent(releaseVersionLabel(appVersion))}`;
 }
 
-/**
- * Resolve a display identity from the (possibly absent) akb profile. Falls
- * back through display_name → username → a neutral "Account" label so the row
- * consistently renders, even when `/auth/me` is 401 or omits the optional fields.
- */
-export function deriveIdentity(
-  profile: AkbMeProfile | null | undefined,
-): AccountIdentity {
-  const username = profile?.username?.trim() || null;
-  const name = profile?.display_name?.trim() || username || "Account";
-  const email = profile?.email?.trim() || null;
-  // Prefer email; otherwise show the username when it differs from the name so
-  // the row keeps its second line (and therefore its height).
-  const secondary = email ?? (username && username !== name ? username : null);
-  return {
-    name,
-    email,
-    secondary,
-    initials: computeInitials(name),
-    login: username,
-  };
-}
-
-/**
- * The current user's avatar, consistently teal (`tone="brand"`). The same brand tone
- * now marks the signed-in user on every people surface — board cards, list
- * rows, the assignee picker — so the account avatar and the user's own assignee
- * avatar match (REEF-173). Keyed by the akb login (the identifier issue rows
- * store), so its color and monogram line up with how that person renders as an
- * assignee elsewhere; falls back to the display name when logged out (no login).
- */
-function AccountAvatar({
-  name,
-  login,
-  large,
-}: { name: string; login: string | null; large?: boolean }) {
-  return (
-    <PersonAvatar
-      identityKey={login ?? name}
-      name={name}
-      tone="brand"
-      size={large ? "lg" : "md"}
-      decorative
-    />
-  );
+function releaseVersionLabel(appVersion: string): string {
+  return appVersion.startsWith("v") ? appVersion : `v${appVersion}`;
 }
 
 /**
  * consistently-visible akb workspace account control, anchored to the sidebar footer
- * (REEF-068). Opens an upward menu with a keyboard-shortcuts launcher and an
- * akb sign-out (which ends the akb session distinct from the GitHub
- * "Disconnect & sign out" in Settings, AC3). Shown regardless of GitHub PAT
- * state (AC1). The app version, which previously sat bare in the footer, now
- * lives at the bottom of this menu.
+ * (REEF-068). Opens an upward menu with an akb sign-out (which ends the akb
+ * session distinct from the GitHub "Disconnect & sign out" in Settings, AC3).
+ * Shown regardless of GitHub PAT state (AC1). The global shortcuts launcher is
+ * owned by the shell footer utility row, so this component stays scoped to the
+ * person/account identity; the menu keeps version context as a release-notes
+ * link (REEF-170).
  */
 export function SidebarAccount({ appVersion, collapsed }: SidebarAccountProps) {
   const router = useRouter();
   const { data: profile, isLoading } = useCurrentUser();
   const identity = deriveIdentity(profile);
-  // Granular selector — the toggle, so the menu doesn't re-render when the
-  // shortcuts dialog opens/closes elsewhere.
-  const toggleShortcuts = useShortcutsStore((state) => state.toggle);
+  const releaseVersion = releaseVersionLabel(appVersion);
 
   const signOut = useMutation({
     mutationFn: signOutOfWorkspace,
@@ -131,8 +68,8 @@ export function SidebarAccount({ appVersion, collapsed }: SidebarAccountProps) {
       data-testid="sidebar-account"
     >
       {/* w-full so the trigger fills the footer row and its trailing chevron
-          reaches the right edge — aligned with the workspace row above, whose
-          Popover root is already w-full (REEF-168). */}
+            reaches the right edge — aligned with the workspace row above, whose
+            Popover root is already w-full (REEF-168). */}
       <DropdownMenu className="w-full">
         <DropdownMenuTrigger
           aria-label="Account menu"
@@ -198,32 +135,6 @@ export function SidebarAccount({ appVersion, collapsed }: SidebarAccountProps) {
 
           <DropdownMenuSeparator />
 
-          {/* Keyboard shortcuts launcher — opens the existing ⌘? cheat sheet.
-              Pure dialog launcher (not a duplicated setting), so the standard
-              DropdownMenuItem that auto-closes the menu on select is exactly
-              right here. */}
-          <DropdownMenuItem
-            onSelect={toggleShortcuts}
-            data-testid="account-shortcuts"
-            className="justify-between gap-2 py-1.5 [touch-action:manipulation]"
-          >
-            <span className="flex items-center gap-2">
-              <Keyboard
-                aria-hidden="true"
-                className="size-3.5 text-muted-foreground"
-              />
-              Keyboard shortcuts
-            </span>
-            <span
-              aria-hidden="true"
-              className="text-[11px] text-muted-foreground"
-            >
-              ⌘?
-            </span>
-          </DropdownMenuItem>
-
-          <DropdownMenuSeparator />
-
           {/* Theme quick switch (REEF-095). High-frequency setting surfaced
               here for fast access; the shared cursor (useThemeStore) keeps it
               in lockstep with Settings → Appearance. The buttons live inside
@@ -269,12 +180,20 @@ export function SidebarAccount({ appVersion, collapsed }: SidebarAccountProps) {
 
           <DropdownMenuSeparator />
 
-          <div
-            className="px-2 py-1 font-mono text-[11px] tabular-nums text-muted-foreground"
-            data-testid="account-version"
+          <a
+            href={releaseNotesUrl(appVersion)}
+            target="_blank"
+            rel="noreferrer"
+            role="menuitem"
+            data-testid="account-release-notes"
+            className="flex items-center justify-between gap-3 rounded-sm px-2 py-1.5 text-[13px] text-foreground outline-none transition-colors duration-150 hover:bg-surface-hover focus-visible:bg-surface-hover"
           >
-            <span translate="no">reef</span> v{appVersion}
-          </div>
+            <span>What's new</span>
+            <span className="flex items-center gap-1 font-mono text-[11px] tabular-nums text-muted-foreground">
+              <span data-testid="account-version">{releaseVersion}</span>
+              <ExternalLink aria-hidden="true" className="size-3" />
+            </span>
+          </a>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

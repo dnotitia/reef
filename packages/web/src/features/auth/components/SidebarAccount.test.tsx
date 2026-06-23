@@ -1,12 +1,20 @@
+import type { AkbMeProfile } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const currentUserState = vi.hoisted(() => ({
+interface CurrentUserState {
   value: {
-    data: null as unknown,
+    data: AkbMeProfile | null;
+    isLoading: boolean;
+  };
+}
+
+const currentUserState = vi.hoisted<CurrentUserState>(() => ({
+  value: {
+    data: null,
     isLoading: false,
   },
 }));
@@ -28,12 +36,6 @@ vi.mock("../signOutNavigation", () => ({
 const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
-const toggleShortcuts = vi.hoisted(() => vi.fn());
-vi.mock("@/features/shortcuts/stores/useShortcutsStore", () => ({
-  useShortcutsStore: (selector: (s: { toggle: () => void }) => unknown) =>
-    selector({ toggle: toggleShortcuts }),
-}));
-
 // Isolate the embedded theme toggle from Dexie/the shared store.
 const setThemeMock = vi.hoisted(() => vi.fn(async () => {}));
 const themeState = vi.hoisted(() => ({
@@ -43,7 +45,11 @@ vi.mock("@/features/preferences/hooks/useTheme", () => ({
   useTheme: () => ({ theme: themeState.value, setTheme: setThemeMock }),
 }));
 
-import { SidebarAccount, deriveIdentity } from "./SidebarAccount";
+import {
+  SidebarAccount,
+  deriveIdentity,
+  releaseNotesUrl,
+} from "./SidebarAccount";
 
 function wrap(ui: ReactNode) {
   const queryClient = new QueryClient({
@@ -116,6 +122,20 @@ describe("deriveIdentity", () => {
     // The username becomes the name, so repeating it below would be noise; the
     // row falls back to a single line in this rare (display_name-less) case.
     expect(deriveIdentity({ username: "alice" }).secondary).toBeNull();
+  });
+});
+
+describe("releaseNotesUrl", () => {
+  it("builds the release tag URL from a bare app version", () => {
+    expect(releaseNotesUrl("0.4.0")).toBe(
+      "https://github.com/dnotitia/reef/releases/tag/v0.4.0",
+    );
+  });
+
+  it("does not duplicate a leading v in the app version", () => {
+    expect(releaseNotesUrl("v0.4.0")).toBe(
+      "https://github.com/dnotitia/reef/releases/tag/v0.4.0",
+    );
   });
 });
 
@@ -212,14 +232,24 @@ describe("SidebarAccount", () => {
     expect(router.push).not.toHaveBeenCalled();
   });
 
-  it("opens the keyboard shortcuts dialog from the menu", async () => {
-    const user = userEvent.setup();
+  it("keeps global shortcuts out of the account identity row (REEF-170)", () => {
     render(wrap(<SidebarAccount appVersion="0.4.0" collapsed={false} />));
 
-    await user.click(screen.getByRole("button", { name: "Account menu" }));
-    await user.click(screen.getByTestId("account-shortcuts"));
+    expect(
+      screen.queryByRole("button", { name: "Keyboard shortcuts" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Account menu" })).toBeVisible();
+  });
 
-    expect(toggleShortcuts).toHaveBeenCalledOnce();
+  it("renders only the account control when collapsed (REEF-170)", () => {
+    render(wrap(<SidebarAccount appVersion="0.4.0" collapsed={true} />));
+
+    expect(
+      screen.queryByRole("button", { name: "Keyboard shortcuts" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Account menu" })).toHaveClass(
+      "justify-center",
+    );
   });
 
   it("switches theme from the menu and keeps the menu open (REEF-095)", async () => {
@@ -242,12 +272,22 @@ describe("SidebarAccount", () => {
     expect(screen.getByTestId("account-version")).toBeInTheDocument();
   });
 
-  it("shows the app version inside the menu", async () => {
+  it("links What's new to the app version's GitHub release tag", async () => {
     const user = userEvent.setup();
     render(wrap(<SidebarAccount appVersion="0.4.0" collapsed={false} />));
 
     await user.click(screen.getByRole("button", { name: "Account menu" }));
-    expect(screen.getByTestId("account-version")).toHaveTextContent("v0.4.0");
+    const releaseLink = screen.getByTestId("account-release-notes");
+    expect(releaseLink).toHaveAttribute(
+      "href",
+      "https://github.com/dnotitia/reef/releases/tag/v0.4.0",
+    );
+    expect(releaseLink).toHaveAttribute("target", "_blank");
+    expect(releaseLink).toHaveAttribute("rel", "noreferrer");
+    expect(releaseLink).toHaveTextContent("What's new");
+    expect(
+      within(releaseLink).getByTestId("account-version"),
+    ).toHaveTextContent("v0.4.0");
   });
 
   it("surfaces an error message when sign-out fails, keeping the menu open", async () => {

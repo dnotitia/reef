@@ -46,6 +46,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { SidebarFooterShortcuts } from "./SidebarFooterShortcuts";
 
 // The Ask AI panel pulls in the chat heavy deps (streamdown + its mermaid/
 // math/code/CJK plugins, the AI SDK). Load it lazily and after the first
@@ -474,10 +475,11 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
           </ul>
         </nav>
 
-        {/* Footer — a two-tier identity block. The workspace row (REEF-146)
-            shows/ switches the active vault and opens the create dialog; the
-            account row below (REEF-068) is the person identity + akb sign-out,
-            kept separate so the avatar's "this is you" meaning is preserved. */}
+        {/* Footer — one global utility row, then a two-tier identity block.
+            Keyboard shortcuts are app chrome; workspace (place, REEF-146) and
+            account (person, REEF-068) stay grouped below so their identity
+            meanings remain distinct. */}
+        <SidebarFooterShortcuts collapsed={sidebarCollapsed} />
         <SidebarWorkspace collapsed={sidebarCollapsed} />
         <SidebarAccount appVersion={appVersion} collapsed={sidebarCollapsed} />
       </aside>

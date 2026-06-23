@@ -88,6 +88,11 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Sidebar footer shortcuts and release notes are easier to find.** The
+  keyboard shortcuts launcher now sits directly in the sidebar footer instead of
+  hiding inside the account menu, and the account menu's version row is now a
+  **What's new** link to the current `appVersion` GitHub Release tag while still
+  showing the exact version for bug reports (REEF-170).
 - **New workspaces start from issue-type-aligned templates.** The default issue
   templates seeded by Settings → Templates now match reef's issue types — Epic,
   User story, Task, Bug, Spike, and Chore — replacing the previous Bug / Feature
