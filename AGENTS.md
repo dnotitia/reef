@@ -67,6 +67,26 @@ metadata.
 - Wrap async server-side GitHub, akb, and LLM boundaries in OpenTelemetry spans.
   Browser IndexedDB access is not traced.
 
+## Logging And Observability
+
+- Backend logging is split by package: `web` owns pino stdout logging and
+  request access lines, while `core` owns framework-agnostic spans and reusable
+  backend measurements.
+- In `web` server code, log through the shared `logger` from
+  `@/lib/logging/logger`; do not use `console.*` for request, API, or Route
+  Handler diagnostics.
+- `/api/*` request logging happens once in `proxy.ts`. Route Handlers may log
+  failures or domain events, but must not duplicate inbound request lines.
+- Server-side GitHub, akb, and LLM calls should be wrapped in OpenTelemetry
+  spans. Use stable operational fields such as route, vault, repo, upstream
+  status, duration, and counts.
+- Do not put credentials, raw cookies, PATs, LLM headers, prompt text,
+  upstream-controlled response bodies, or full request/response objects in logs
+  or span attributes.
+- In `core`, emit reusable backend measurements through the existing
+  observability helper rather than importing the web logger or reading logging
+  environment variables.
+
 ## Issue Data Model
 
 - A reef issue is an akb task document plus a `reef_issues` row linked by

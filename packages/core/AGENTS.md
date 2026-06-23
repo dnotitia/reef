@@ -9,6 +9,12 @@
   utilities. Do not import Next.js, React, DOM APIs, or browser storage here.
 - Data-plane access to akb, GitHub, and LLM providers originates here. `web`
   calls `core` through thin Route Handlers.
+- Adapter and agent diagnostics that should appear in both traces and optional
+  backend logs use `src/observability/observe`. Keep logged/span fields
+  credential-safe and operational: status, duration, counts, provider, repo, and
+  similar bounded values.
+- Do not import pino, `@/lib/logging/logger`, or Next.js instrumentation in
+  `core`; `web` decides whether core measurements are also emitted to stdout.
 - Domain layout is
   `packages/core/src/{schemas,models,adapters,agents,errors,utils,index}/`.
 
