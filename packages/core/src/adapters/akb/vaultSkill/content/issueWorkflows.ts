@@ -137,7 +137,7 @@ Do not set updated_at yourself; AKB bumps it on any row UPDATE.
 
 ## Record a field-change activity event
 
-reef_activity logs more than status. When an update changes the assignee, the priority, a planning link (milestone, sprint, or release), the title, the labels, the due date, the estimate, the parent, a relation (depends_on, blocks, or related_to), the archived state, or links a new delivery ref (a pull_request, commit, or branch in implementation_refs), you MUST ALSO append one immutable reef_activity row per change, in the same update -- the same append-only mechanism as the status_change rule below, just a different event_type. This is what populates the issue timeline (REEF-064) with the full history, not status alone. Append:
+reef_activity logs more than status. When an update changes the assignee, the priority, a planning link (milestone, sprint, or release), the title, the labels, the due date, the estimate, the parent, a relation (depends_on, blocks, or related_to), the archived state, or links a new delivery ref (a pull_request, commit, or branch in implementation_refs), you MUST ALSO append one immutable reef_activity row per change, in the same update -- the same append-only mechanism as the status_change rule below, just a different event_type. This is what populates the issue timeline with the full history, not status alone. Append:
 
 INSERT INTO reef_activity (reef_id, event_type, event_key, payload, meta)
 VALUES (
