@@ -209,7 +209,13 @@ timing already live on the request span in the trace backend, correlated to the
 inbound `request` log by `trace_id`, so synthesizing a second stdout line per
 request would be redundant noise. The inbound `request` line (emitted once at the
 proxy) stays on in every environment, now stamped with the akb `actor` so an
-error can be tied to a user (REEF-271).
+error can be tied to a user (REEF-271). That actor is the **claimed** session
+identity decoded from the cookie, not a verified one — reef-web is not the JWT
+signing authority (akb is, and re-validates every forwarded request), so it is
+reliable for akb-accepted requests and a best-effort hint on a forged cookie that
+akb then rejects. It is a debug aid only, never used for authorization, and is
+deliberately not emitted as the OTel `enduser.id` attribute (which denotes a
+verified end user).
 
 This leaves one gap: a deployment that runs **without a trace backend** would see
 no response status/duration anywhere, and the richer backend signals (activity-
