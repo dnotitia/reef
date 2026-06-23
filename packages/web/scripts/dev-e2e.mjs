@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
+import { generateKeyPairSync } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -24,6 +25,9 @@ const SCENARIOS = new Set([
   "activity_suggestions",
   "skill_outdated",
 ]);
+const E2E_GITHUB_APP_PRIVATE_KEY = generateKeyPairSync("rsa", {
+  modulusLength: 2048,
+}).privateKey.export({ type: "pkcs1", format: "pem" });
 
 const children = new Set();
 let shuttingDown = false;
@@ -130,6 +134,11 @@ try {
       REEF_LLM_MODEL: process.env.REEF_LLM_MODEL ?? "e2e/mock-model",
       REEF_GITHUB_API_BASE_URL:
         process.env.REEF_GITHUB_API_BASE_URL ?? `${MOCK_URL}/github`,
+      REEF_GITHUB_APP_ID: process.env.REEF_GITHUB_APP_ID ?? "123456",
+      REEF_GITHUB_APP_INSTALLATION_ID:
+        process.env.REEF_GITHUB_APP_INSTALLATION_ID ?? "789",
+      REEF_GITHUB_APP_PRIVATE_KEY:
+        process.env.REEF_GITHUB_APP_PRIVATE_KEY ?? E2E_GITHUB_APP_PRIVATE_KEY,
     },
   );
 

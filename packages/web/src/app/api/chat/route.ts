@@ -30,15 +30,14 @@ const BAD_BODY_MESSAGE = "Request body is missing or invalid";
  * Wires the read reef chat task via `chat.workspace`:
  *   • vault reads (`read_issue`, `search_issues`, `list_assignees`) — akb
  *   • monitored-repo grounding (`search_code`, `dev_read_file`) — GitHub, via
- *     the deployment GitHub App when configured, the browser PAT otherwise
- *     (`resolveGroundingGitHubAdapter`). When neither is available the chat
- *     degrades to AKB-only grounding (REEF-243).
+ *     the deployment GitHub App (`resolveGroundingGitHubAdapter`). When the
+ *     App is unavailable, chat degrades to AKB-only grounding (REEF-243 /
+ *     REEF-244).
  *
  * No vault-mutating tools are wired here — the chat loop is read
  * grounding; mutations go through dedicated Route Handlers.
  *
  * Per-user state rides in headers and cookies — does not persisted.
- *   - `Authorization: Bearer <github_token>` (browser PAT fallback, optional)
  *   - `__reef_session` httpOnly cookie (akb JWT)
  *   - `X-Reef-Vault: <vault_name>` (active vault identifier)
  * The GitHub App credential and the LLM credentials are deployment-managed
@@ -91,9 +90,9 @@ export async function POST(request: Request): Promise<Response> {
     model: config.model,
   });
 
-  // Server-managed GitHub App when configured, browser PAT fallback otherwise.
-  // Any failure to obtain a GitHub adapter degrades to AKB-only grounding
-  // (REEF-243); the credential never reaches the response or the LLM prompt.
+  // Server-managed GitHub App only. Any failure to obtain a GitHub adapter
+  // degrades to AKB-only grounding (REEF-243 / REEF-244); the credential never
+  // reaches the response or the LLM prompt.
   const githubResolution = await resolveGroundingGitHubAdapter(request);
   if (githubResolution.kind === "degraded" && githubResolution.error) {
     logger.warn(

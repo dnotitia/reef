@@ -11,8 +11,8 @@ export interface SignOutResult {
 /**
  * Sign out of the akb workspace (REEF-068).
  *
- * Independent of the GitHub PAT: this ends the akb session just, leaving the
- * GitHub connection (`credentials` store) intact (AC3). Two steps:
+ * This ends the akb session only. GitHub access is deployment-managed and is
+ * not connected to this browser action. Two steps:
  *
  *  1. POST `/api/auth/akb/logout` expires the `__reef_session` cookie (AC2).
  *     akb has no server-side token revoke, so the cleared httpOnly cookie is
@@ -22,9 +22,6 @@ export interface SignOutResult {
  *     config — active vault, saved `filter:*`, `akb_user_id` (AC6). The wipe
  *     runs after the cookie is cleared, so a failed logout request leaves
  *     local state untouched and the caller can surface a retry.
- *
- * The GitHub PAT, monitored repos, and LLM config are person-scoped and
- * deliberately preserved by `wipeAkbScopedBrowserState`.
  */
 export async function signOutOfWorkspace(): Promise<SignOutResult> {
   const res = await apiFetch("/api/auth/akb/logout", { method: "POST" });

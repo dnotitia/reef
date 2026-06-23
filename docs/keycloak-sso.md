@@ -81,7 +81,7 @@ token is stored only in httpOnly cookies for SSO logout continuation.
 ## Sign-Out Flow
 
 Password and local sign-out always clear `__reef_session` and AKB-scoped browser
-state while preserving the monitored-repo GitHub PAT.
+state. GitHub access is deployment-managed and is not affected by user sign-out.
 
 For SSO-backed sessions, reef also:
 

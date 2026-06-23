@@ -88,14 +88,13 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
   // QueryClient, so it also catches the persisted snapshot rehydrated on load.
   useEffect(() => startIssueEntityNormalizer(queryClient), [queryClient]);
 
-  // When credentials change (set with a different token, or cleared),
-  // clearAuthScopedClientCache wipes the persisted snapshot AND broadcasts
-  // AUTH_CHANGED_EVENT. We have to also drop the in-memory cache here so
-  // the next render does not flash the previous account's data before the
-  // refetch with the new token completes. queryClient.clear() invalidates
-  // every query — broad on purpose, since cache entries below this layer
-  // are not account-scoped. Purge the entity store on the same signal so it
-  // does not outlive the credential it was populated under.
+  // When the akb account/session changes, clearAuthScopedClientCache wipes the
+  // persisted snapshot AND broadcasts AUTH_CHANGED_EVENT. We also drop the
+  // in-memory cache here so the next render does not flash the previous
+  // account's data before refetch. queryClient.clear() invalidates every query
+  // - broad on purpose, since cache entries below this layer are not
+  // account-scoped. Purge the entity store on the same signal so it does not
+  // outlive the account it was populated under.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handler = () => {
@@ -107,7 +106,7 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
   }, [queryClient]);
 
   // Mirror auth changes from sibling tabs into this one. When another tab signs
-  // out (or switches account / token), it broadcasts on the shared channel and
+  // out or switches account, it broadcasts on the shared channel and
   // subscribeCrossTabAuthChange re-dispatches AUTH_CHANGED_EVENT here, driving
   // the same in-memory clear as a same-tab change — so a sign-out in one tab no
   // longer leaves this tab showing the previous account's data. (REEF-106)

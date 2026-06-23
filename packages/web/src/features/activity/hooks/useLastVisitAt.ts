@@ -9,8 +9,8 @@ const LAST_VISIT_AT_KEY = "last_visit_at";
  * store.
  *
  * Design notes:
- *  - Uses `useEffect`-driven pattern (same as useCredentials), NOT TanStack
- *    Query — this is Dexie/browser state, not server state.
+ *  - Uses a `useEffect`-driven pattern, not TanStack Query — this is
+ *    Dexie/browser state, not server state.
  *  - `updateLastVisitAt()` writes the current ISO 8601 timestamp and syncs
  *    local state so the component re-renders without a remount.
  *  - `isLoading` lets callers distinguish "still hydrating from IndexedDB"

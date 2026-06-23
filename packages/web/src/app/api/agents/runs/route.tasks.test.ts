@@ -4,6 +4,7 @@ import type { AgentRunEvent } from "@reef/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   APP_CONFIG,
+  NOT_CONFIGURED,
   POST,
   activityRunBody,
   chatRunBody,
@@ -171,15 +172,20 @@ describe("POST /api/agents/runs task execution", () => {
     });
   });
 
-  it("falls back to the browser PAT and scans when no GitHub App is configured", async () => {
-    // Default reset leaves the App unconfigured; the Authorization header PAT
-    // resolves the adapter, with no token minting.
+  it("returns a structured unavailable error when no GitHub App is configured", async () => {
+    setServerAppConfig(NOT_CONFIGURED);
+
     const res = await POST(makeRequest(activityRunBody));
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(503);
+    const body = (await res.json()) as {
+      runtime_error?: { code?: string; recoverable?: boolean };
+    };
+    expect(body.runtime_error?.code).toBe("github_unavailable");
+    expect(body.runtime_error?.recoverable).toBe(true);
     expect(mockCreateGitHubAppInstallationTokenProvider).not.toHaveBeenCalled();
-    expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({ token: "ghp_test" });
-    expect(mockScanAndPersistActivitySuggestions).toHaveBeenCalledTimes(1);
+    expect(mockCreateGitHubAdapter).not.toHaveBeenCalled();
+    expect(mockScanAndPersistActivitySuggestions).not.toHaveBeenCalled();
   });
 
   it("emits a cancelled terminal event after the run is aborted", async () => {
@@ -239,14 +245,12 @@ describe("POST /api/agents/runs activity.scan — server-managed GitHub App path
     cleanupAgentRunsRouteMocks();
   });
 
-  it("scans with a minted installation token and no browser PAT (AC2)", async () => {
+  it("scans with a minted installation token and no Authorization header (AC2)", async () => {
     const mint = vi.fn(async () => "ghs_minted_token");
     mockCreateGitHubAppInstallationTokenProvider.mockReturnValue(mint);
 
-    // No Authorization header — the agent run scans through the App credential.
-    const res = await POST(
-      makeRequest(activityRunBody, { Authorization: null }),
-    );
+    // No Authorization header - the agent run scans through the App credential.
+    const res = await POST(makeRequest(activityRunBody));
 
     expect(res.status).toBe(200);
     expect(mint).toHaveBeenCalledTimes(1);
@@ -266,9 +270,7 @@ describe("POST /api/agents/runs activity.scan — server-managed GitHub App path
       response: Response.json({ error: "expired" }, { status: 401 }),
     });
 
-    const res = await POST(
-      makeRequest(activityRunBody, { Authorization: null }),
-    );
+    const res = await POST(makeRequest(activityRunBody));
 
     expect(res.status).toBe(401);
     expect(mint).not.toHaveBeenCalled();
@@ -284,9 +286,7 @@ describe("POST /api/agents/runs activity.scan — server-managed GitHub App path
       response: Response.json({ error: "backend down" }, { status: 502 }),
     });
 
-    const res = await POST(
-      makeRequest(activityRunBody, { Authorization: null }),
-    );
+    const res = await POST(makeRequest(activityRunBody));
 
     expect(res.status).toBe(502);
     const body = (await res.json()) as {
@@ -307,9 +307,7 @@ describe("POST /api/agents/runs activity.scan — server-managed GitHub App path
       }),
     );
 
-    const res = await POST(
-      makeRequest(activityRunBody, { Authorization: null }),
-    );
+    const res = await POST(makeRequest(activityRunBody));
 
     expect(res.status).toBe(403);
     const body = (await res.json()) as {

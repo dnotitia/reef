@@ -7,7 +7,7 @@
  * network failure, server down) is treated as "no session".
  *
  * Used by RootPage and OnboardingGuard to gate dashboard access without
- * trusting IndexedDB state alone — a stale GitHub PAT can outlive a cookie.
+ * trusting IndexedDB state alone.
  */
 export async function hasActiveAkbSession(
   signal?: AbortSignal,

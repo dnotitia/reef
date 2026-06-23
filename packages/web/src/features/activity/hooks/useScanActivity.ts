@@ -1,17 +1,16 @@
 "use client";
 
 import { useAiAvailable } from "@/features/settings/hooks/useAiAvailable";
-import { useHasGithubToken } from "@/features/settings/hooks/useHasGithubToken";
+import { useGithubAppAvailable } from "@/features/settings/hooks/useGithubAppAvailable";
 import { ensureProjectConfig } from "@/features/settings/hooks/useProjectConfig";
 import { apiFetch } from "@/lib/apiClient";
-import { AUTH_CHANGED_EVENT } from "@/lib/storage/clientCache";
 import {
   getLastScanAt,
   setLastScanAt,
   shouldAutoScan,
 } from "@/lib/storage/lastScan";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 interface ScanActivityInput {
@@ -93,12 +92,12 @@ export function useScanActivity(options?: {
 
       if (res.status === 401) {
         throw new MissingCredentialsError(
-          "Reconnect GitHub in Settings to scan for activity.",
+          "Sign in again to scan for activity.",
         );
       }
       if (res.status === 503) {
         throw new MissingCredentialsError(
-          "AI is not configured for this deployment.",
+          "GitHub App or AI is not configured for this deployment.",
         );
       }
       if (!res.ok) {
@@ -155,23 +154,10 @@ function scanToastMessage(result: ScanActivityResult): string {
 }
 
 /**
- * Fires the auto on-mount scan run, gated by AI availability + a configured
- * GitHub token + cooldown. `{vault}::{repo}` keyed ref prevents React 19
+ * Fires the auto on-mount scan run, gated by AI availability, GitHub App
+ * availability, and cooldown. `{vault}::{repo}` keyed ref prevents React 19
  * StrictMode double-invocation and re-fires when workspace switches even if
  * both vaults monitor the same GitHub repo.
- *
- * The token gate (REEF-159) suppresses the scan when GitHub is unconfigured —
- * the scan route requires a token and would otherwise return 401 on every
- * trigger. (A vault with no monitored repos is already suppressed upstream by
- * `useActivityRepo` returning `repo: ""`; this additionally covers the
- * "repo configured, token missing" case.)
- *
- * `hasToken` is a presence boolean, so replacing an *invalid* token with a valid
- * one is a true→true no-op that would not re-run the trigger effect, and the
- * `firedFor` key would still suppress the retry. Subscribing to
- * `AUTH_CHANGED_EVENT` (broadcast on any token set/clear) resets the fired key
- * and bumps a revision so a reconnected token resumes the scan without a
- * remount (REEF-159 AC3).
  */
 export function useScanAutoTrigger(
   vault: string,
@@ -179,25 +165,11 @@ export function useScanAutoTrigger(
   mutate: (input: ScanActivityInput) => void,
 ): void {
   const { isAvailable } = useAiAvailable();
-  const { hasToken } = useHasGithubToken();
+  const { isAvailable: githubAppAvailable } = useGithubAppAvailable();
   const firedFor = useRef<string | null>(null);
-  const [authRevision, setAuthRevision] = useState(0);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const handler = () => {
-      // A credential change re-arms the trigger: drop the fired key and force a
-      // re-evaluation, since token *replacement* leaves `hasToken` unchanged.
-      firedFor.current = null;
-      setAuthRevision((n) => n + 1);
-    };
-    window.addEventListener(AUTH_CHANGED_EVENT, handler);
-    return () => window.removeEventListener(AUTH_CHANGED_EVENT, handler);
-  }, []);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: authRevision is a re-arm signal, not read in the body — listing it makes a credential change re-evaluate the trigger even when hasToken is unchanged (invalid→valid token replacement).
-  useEffect(() => {
-    if (!vault || !repo || !isAvailable || !hasToken) return;
+    if (!vault || !repo || !isAvailable || !githubAppAvailable) return;
     const triggerKey = `${vault}::${repo}`;
     if (firedFor.current === triggerKey) return;
     firedFor.current = triggerKey;
@@ -207,5 +179,5 @@ export function useScanAutoTrigger(
       if (!shouldRun) return;
       mutate({ vault, repo, source: "auto" });
     })();
-  }, [vault, repo, isAvailable, hasToken, mutate, authRevision]);
+  }, [vault, repo, isAvailable, githubAppAvailable, mutate]);
 }

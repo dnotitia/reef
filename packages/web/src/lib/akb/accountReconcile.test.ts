@@ -23,7 +23,6 @@ import {
   setConfigValue,
   setPersistedIssueFilter,
 } from "@/lib/storage/config";
-import { getGitHubToken, setGitHubToken } from "@/lib/storage/credentials";
 import { db } from "@/lib/storage/db";
 import { getLastScanAt, setLastScanAt } from "@/lib/storage/lastScan";
 import {
@@ -40,7 +39,7 @@ describe("reconcileAkbAccount", () => {
       searchQuery: "",
       selectedIssueId: null,
     });
-    await Promise.all([db.config.clear(), db.credentials.clear()]);
+    await db.config.clear();
   });
 
   it("records the user id and clears caches on the first login", async () => {
@@ -111,7 +110,7 @@ describe("wipeAkbScopedBrowserState", () => {
       searchQuery: "",
       selectedIssueId: null,
     });
-    await Promise.all([db.config.clear(), db.credentials.clear()]);
+    await db.config.clear();
   });
 
   it("clears the cache, active vault, saved filters, user id, and in-memory filter", async () => {
@@ -150,20 +149,5 @@ describe("wipeAkbScopedBrowserState", () => {
     expect(await getConfigValue("last_visit_at")).toBeUndefined();
     expect(await getLastScanAt("octo/cat")).toBeUndefined();
     expect(await getConfigValue("theme")).toBe("dark");
-  });
-
-  it("preserves the GitHub PAT while clearing akb-scoped browser state", async () => {
-    await setGitHubToken("ghp_test");
-    clearAuthScopedClientCache.mockClear();
-
-    await setAkbUserId("user-1");
-    await setActiveVault("reef-acme");
-
-    await wipeAkbScopedBrowserState();
-
-    expect(await getGitHubToken()).toBe("ghp_test");
-    expect(await getAkbUserId()).toBeUndefined();
-    expect(await getActiveVault()).toBe("");
-    expect(clearAuthScopedClientCache).toHaveBeenCalledOnce();
   });
 });

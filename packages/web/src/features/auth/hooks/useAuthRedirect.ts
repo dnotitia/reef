@@ -20,8 +20,8 @@ export type AuthGateMode = "root" | "dashboard" | "onboarding";
  *   3. No active vault → `/onboarding`
  *   4. Otherwise: `root` redirects to `/issues`; `dashboard` passes through.
  *
- * GitHub PAT and LLM config are NOT gates — they are deferred capabilities
- * surfaced via inline CTAs on the issues / activity / AI surfaces.
+ * GitHub App and LLM config are NOT login gates - they are deployment
+ * capabilities surfaced on the GitHub / activity / AI surfaces.
  */
 export function useAuthRedirect(mode: AuthGateMode): void {
   const router = useRouter();

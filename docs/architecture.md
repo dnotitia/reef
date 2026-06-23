@@ -126,18 +126,21 @@ the system needs are each placed deliberately:
   decoded read-only per request and forwarded to AKB as
   `Authorization: Bearer <pat>`. It is never mirrored to server memory or disk,
   and `httpOnly` keeps it out of browser JavaScript.
-- **GitHub token** — stored only in browser IndexedDB (origin-scoped) and
-  attached per request as `Authorization: Bearer <github_token>` for read-only
-  monitored-repo grounding. PAT scopes stay least-privilege (`public_repo` where
-  enough, `repo` for private monitored repos).
+- **GitHub credentials** — deployment-managed server environment:
+  `REEF_GITHUB_APP_ID`, `REEF_GITHUB_APP_INSTALLATION_ID`, and
+  `REEF_GITHUB_APP_PRIVATE_KEY`. reef-web mints per-request installation tokens
+  server-side for read-only monitored-repo grounding, repository listing, and
+  activity scans. Local development and CI may set `REEF_GITHUB_PAT` as a
+  server-managed fallback when no App is configured. Browser clients do not
+  collect or forward GitHub tokens.
 - **LLM configuration** — deployment-managed server environment:
   `OPENROUTER_API_KEY` (secret), `OPENROUTER_BASE_URL`, and `REEF_LLM_MODEL`.
   There are no per-user or bring-your-own LLM keys and no per-user LLM headers.
 
 A redacting logger masks `Authorization`, `Cookie`, `Set-Cookie`, and the
 LLM-config header in request and error logs; if a known token substring appears
-in output, tests fail. The main residual risk — a PAT in the browser as an XSS
-target — is mitigated by the strict CSP described below.
+in output, tests fail. Browser-side token exposure is minimized by keeping
+GitHub and LLM credentials out of browser storage.
 
 ## The AI layer
 
@@ -185,11 +188,11 @@ emerge:
 - **TanStack Query** — server/data state only, fetched via `apiFetch`. Query
   keys are hierarchical and loading/error state is per query; there is no global
   loading flag.
-- **Dexie / IndexedDB** — per-user persistent browser state only, in two live
-  stores. `config` holds the active `vault`, theme, AKB user id, and per-vault UI
-  preferences (active scan repo, saved issue filters). `credentials` holds the
-  GitHub PAT only. Monitored repos, `project_prefix`, and LLM settings are *not*
-  in `config` — they are AKB or deployment state. The AKB session is not browser
+- **Dexie / IndexedDB** — per-user persistent browser state only, in one live
+  store. `config` holds the active `vault`, theme, AKB user id, and per-vault UI
+  preferences (active scan repo, saved issue filters). Monitored repos,
+  `project_prefix`, GitHub credentials, and LLM settings are *not* in
+  `config` — they are AKB or deployment state. The AKB session is not browser
   JavaScript state at all; it is the `__reef_session` cookie.
 
 Changing a Dexie store layout requires a version bump plus a migration closure,
@@ -265,8 +268,9 @@ preserves Server-Sent Events.
 - **Security headers.** Authenticated routes go through
   `packages/web/src/proxy.ts`, which applies a strict nonce-based Content
   Security Policy: `script-src 'self'`, no `unsafe-inline`, no third-party
-  scripts, and a per-request nonce. Combined with the redacting logger, this
-  contains the XSS risk of a browser-held PAT. CI audits for CSP regressions.
+  scripts, and a per-request nonce. Combined with the redacting logger and
+  server-side credential placement, this keeps GitHub and LLM credentials out of
+  browser JavaScript. CI audits for CSP regressions.
 - **Deployment.** `next.config.ts` sets `output: "standalone"`, and the root
   `Dockerfile` builds a small `node:22-alpine` image that runs the standalone
   server as a non-root user. It deploys to Kubernetes as a sibling of the AKB

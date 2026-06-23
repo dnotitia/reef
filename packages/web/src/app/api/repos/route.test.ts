@@ -14,8 +14,6 @@ vi.mock("@/lib/logging/logger", () => ({
   logger: { error: vi.fn() },
 }));
 
-// Deployment GitHub App config — default "not configured" so the existing PAT
-// tests exercise the fallback path; the App-path block flips it to configured.
 type ServerAppConfig =
   | {
       ok: true;
@@ -34,6 +32,17 @@ const NOT_CONFIGURED: ServerAppConfig = {
   issues: ["app_id is required"],
 };
 
+const APP_CONFIG: ServerAppConfig = {
+  ok: true,
+  config: {
+    app_id: "123456",
+    installation_id: "789",
+    private_key:
+      "-----BEGIN RSA PRIVATE KEY-----\nx\n-----END RSA PRIVATE KEY-----",
+  },
+  status: { isConfigured: true, appId: "123456" },
+};
+
 const appConfigState = vi.hoisted(() => ({
   current: undefined as unknown,
 }));
@@ -46,8 +55,6 @@ vi.mock("@/lib/github/serverPat", () => ({
   resolveServerGitHubPat: () => serverPatState.current,
 }));
 
-// The App path validates the reef session against the akb backend before
-// minting; mock that boundary so route tests stay hermetic.
 vi.mock("@/lib/api/requestHelpers", async () => {
   const actual = await vi.importActual<
     typeof import("@/lib/api/requestHelpers")
@@ -58,7 +65,6 @@ vi.mock("@/lib/api/requestHelpers", async () => {
 import { getAkbCurrentActor } from "@/lib/api/requestHelpers";
 import { logger } from "@/lib/logging/logger";
 import {
-  AuthError,
   GitHubApiError,
   NotFoundError,
   createGitHubAdapter,
@@ -71,7 +77,7 @@ const mockCreateProvider = vi.mocked(createGitHubAppInstallationTokenProvider);
 const mockGetActor = vi.mocked(getAkbCurrentActor);
 const mockLogError = vi.mocked(logger.error);
 
-type RepoListMethod = ReturnType<
+type AuthenticatedRepoListMethod = ReturnType<
   typeof createGitHubAdapter
 >["listAuthenticatedRepositories"];
 type InstallationRepoListMethod = ReturnType<
@@ -82,12 +88,29 @@ function makeRequest(headers: Record<string, string> = {}): Request {
   return new Request("http://localhost/api/repos", { headers });
 }
 
-function mockRepoList(): ReturnType<typeof vi.fn<RepoListMethod>> {
-  const listAuthenticatedRepositories = vi.fn<RepoListMethod>();
+function mockAuthenticatedRepoList(): ReturnType<
+  typeof vi.fn<AuthenticatedRepoListMethod>
+> {
+  const listAuthenticatedRepositories = vi.fn<AuthenticatedRepoListMethod>();
   mockCreateGitHubAdapter.mockReturnValue({
     listAuthenticatedRepositories,
   } as unknown as ReturnType<typeof createGitHubAdapter>);
   return listAuthenticatedRepositories;
+}
+
+function mockInstallationRepoList(token = "ghs_minted_installation_token"): {
+  listInstallationRepositories: ReturnType<
+    typeof vi.fn<InstallationRepoListMethod>
+  >;
+  mintInstallationToken: ReturnType<typeof vi.fn<() => Promise<string>>>;
+} {
+  const listInstallationRepositories = vi.fn<InstallationRepoListMethod>();
+  mockCreateGitHubAdapter.mockReturnValue({
+    listInstallationRepositories,
+  } as unknown as ReturnType<typeof createGitHubAdapter>);
+  const mintInstallationToken = vi.fn<() => Promise<string>>(async () => token);
+  mockCreateProvider.mockReturnValue(mintInstallationToken);
+  return { listInstallationRepositories, mintInstallationToken };
 }
 
 describe("GET /api/repos", () => {
@@ -97,220 +120,30 @@ describe("GET /api/repos", () => {
     serverPatState.current = null;
   });
 
-  it("returns 401 when Authorization header is missing", async () => {
-    const req = makeRequest();
-    const res = await GET(req);
-    expect(res.status).toBe(401);
-    const body = await res.json();
-    expect(body.error).toContain("Authentication required");
-  });
+  it("returns 503 when no deployment-managed GitHub credential is configured", async () => {
+    const res = await GET(makeRequest({ Authorization: "Bearer ghp_ignored" }));
 
-  it("returns 401 when Authorization header is malformed (no Bearer prefix)", async () => {
-    const req = makeRequest({ Authorization: "Token abc123" });
-    const res = await GET(req);
-    expect(res.status).toBe(401);
-    const body = await res.json();
-    expect(body.error).toContain("Authentication required");
-  });
-
-  it("returns repos as { full_name, id } objects on happy path", async () => {
-    const listAuthenticatedRepositories = mockRepoList();
-    listAuthenticatedRepositories.mockResolvedValue({
-      kind: "ok",
-      repos: [
-        { full_name: "owner/repo-a", id: 111 },
-        { full_name: "owner/repo-b", id: 222 },
-      ],
-      etag: null,
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({
+      error: "GitHub App is not configured for this deployment.",
     });
-
-    const req = makeRequest({ Authorization: "Bearer ghp_validtoken" });
-    const res = await GET(req);
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.repos).toEqual([
-      { full_name: "owner/repo-a", id: 111 },
-      { full_name: "owner/repo-b", id: 222 },
-    ]);
-    expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
-      token: "ghp_validtoken",
-    });
-  });
-
-  it("returns 401 when AuthError is thrown by the core adapter", async () => {
-    const listAuthenticatedRepositories = mockRepoList();
-    listAuthenticatedRepositories.mockRejectedValue(
-      new AuthError({ message: "invalid_token" }),
-    );
-
-    const req = makeRequest({ Authorization: "Bearer ghp_badtoken" });
-    const res = await GET(req);
-    expect(res.status).toBe(401);
-    const body = await res.json();
-    expect(body.error).toContain("Authentication failed");
-  });
-
-  it("passes through GitHubApiError 403", async () => {
-    const listAuthenticatedRepositories = mockRepoList();
-    listAuthenticatedRepositories.mockRejectedValue(
-      new GitHubApiError({ status: 403, message: "rate limit exceeded" }),
-    );
-
-    const req = makeRequest({ Authorization: "Bearer ghp_rate_limited" });
-    const res = await GET(req);
-    expect(res.status).toBe(403);
-    const body = await res.json();
-    expect(body.error).toContain("Authentication failed");
-    expect(body.error).not.toContain("rate limit");
-    expect(body.error).not.toContain("ghp_");
-    expect(mockLogError).toHaveBeenCalledWith(
-      { err: expect.any(GitHubApiError), status: 403 },
-      "list_repos failed",
-    );
-  });
-
-  it("maps NotFoundError through repository copy", async () => {
-    const listAuthenticatedRepositories = mockRepoList();
-    listAuthenticatedRepositories.mockRejectedValue(
-      new NotFoundError({ resource: "repository" }),
-    );
-
-    const req = makeRequest({ Authorization: "Bearer ghp_valid" });
-    const res = await GET(req);
-    expect(res.status).toBe(404);
-    const body = await res.json();
-    expect(body.error).toBe("The requested repository could not be found.");
-  });
-
-  it("maps other GitHubApiError statuses to generic GitHub 502 copy", async () => {
-    const listAuthenticatedRepositories = mockRepoList();
-    listAuthenticatedRepositories.mockRejectedValue(
-      new GitHubApiError({
-        status: 500,
-        message: "secret upstream: token ghp_secret leaked",
-      }),
-    );
-
-    const req = makeRequest({ Authorization: "Bearer ghp_valid" });
-    const res = await GET(req);
-    expect(res.status).toBe(502);
-    const body = await res.json();
-    expect(body.error).toBe(
-      "An error occurred while communicating with GitHub. Please try again.",
-    );
-    expect(body.error).not.toContain("(500)");
-    expect(body.error).not.toContain("ghp_secret");
-  });
-
-  it("maps unexpected errors to a deterministic generic 500", async () => {
-    const listAuthenticatedRepositories = mockRepoList();
-    listAuthenticatedRepositories.mockRejectedValue(new Error("boom"));
-
-    const req = makeRequest({ Authorization: "Bearer ghp_valid" });
-    const res = await GET(req);
-    expect(res.status).toBe(500);
-    const body = await res.json();
-    expect(body.error).toBe("An unexpected error occurred.");
-  });
-
-  it("returns empty repos array when user has no repositories", async () => {
-    const listAuthenticatedRepositories = mockRepoList();
-    listAuthenticatedRepositories.mockResolvedValue({
-      kind: "ok",
-      repos: [],
-      etag: null,
-    });
-
-    const req = makeRequest({ Authorization: "Bearer ghp_valid" });
-    const res = await GET(req);
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.repos).toEqual([]);
-  });
-
-  it("forwards If-None-Match to core and returns ETag header on 200", async () => {
-    const listAuthenticatedRepositories = mockRepoList();
-    listAuthenticatedRepositories.mockResolvedValue({
-      kind: "ok",
-      repos: [{ full_name: "owner/repo-a", id: 111 }],
-      etag: 'W/"v2-abc"',
-    });
-
-    const req = makeRequest({
-      Authorization: "Bearer ghp_valid",
-      "If-None-Match": 'W/"v1-old"',
-    });
-    const res = await GET(req);
-
-    expect(res.status).toBe(200);
-    expect(res.headers.get("etag")).toBe('W/"v2-abc"');
-    expect(listAuthenticatedRepositories).toHaveBeenCalledWith({
-      ifNoneMatch: 'W/"v1-old"',
-    });
-  });
-
-  it("returns 304 with ETag and no body when core reports not_modified", async () => {
-    const listAuthenticatedRepositories = mockRepoList();
-    listAuthenticatedRepositories.mockResolvedValue({
-      kind: "not_modified",
-      etag: 'W/"v1-old"',
-    });
-
-    const req = makeRequest({
-      Authorization: "Bearer ghp_valid",
-      "If-None-Match": 'W/"v1-old"',
-    });
-    const res = await GET(req);
-
-    expect(res.status).toBe(304);
-    expect(res.headers.get("etag")).toBe('W/"v1-old"');
-    expect(res.body).toBeNull();
-    expect(mockLogError).not.toHaveBeenCalled();
+    expect(mockGetActor).not.toHaveBeenCalled();
+    expect(mockCreateProvider).not.toHaveBeenCalled();
+    expect(mockCreateGitHubAdapter).not.toHaveBeenCalled();
   });
 });
 
-describe("GET /api/repos — server-managed GitHub App path", () => {
-  const APP_CONFIG: ServerAppConfig = {
-    ok: true,
-    config: {
-      app_id: "123456",
-      installation_id: "789",
-      private_key:
-        "-----BEGIN RSA PRIVATE KEY-----\nx\n-----END RSA PRIVATE KEY-----",
-    },
-    status: { isConfigured: true, appId: "123456" },
-  };
-
-  function mockInstallationRepoList(token = "ghs_minted_installation_token"): {
-    listInstallationRepositories: ReturnType<
-      typeof vi.fn<InstallationRepoListMethod>
-    >;
-    mintInstallationToken: ReturnType<typeof vi.fn<() => Promise<string>>>;
-  } {
-    const listInstallationRepositories = vi.fn<InstallationRepoListMethod>();
-    mockCreateGitHubAdapter.mockReturnValue({
-      listInstallationRepositories,
-    } as unknown as ReturnType<typeof createGitHubAdapter>);
-    const mintInstallationToken = vi.fn<() => Promise<string>>(
-      async () => token,
-    );
-    mockCreateProvider.mockReturnValue(mintInstallationToken);
-    return { listInstallationRepositories, mintInstallationToken };
-  }
-
+describe("GET /api/repos - server-managed GitHub App path", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     appConfigState.current = APP_CONFIG;
     serverPatState.current = null;
-    // Default: a valid, akb-verified reef session.
     mockGetActor.mockResolvedValue({ actor: "alice" });
   });
 
   it("returns 401 without minting when the akb backend rejects the session (REEF-239)", async () => {
     const { listInstallationRepositories, mintInstallationToken } =
       mockInstallationRepoList();
-    // akb /auth/me rejected the session (missing/expired/forged cookie) — the
-    // server should not mint a credential or expose the installation's repo list.
     mockGetActor.mockResolvedValue({
       response: Response.json(
         { error: "Your session has expired. Please sign in again." },
@@ -318,8 +151,7 @@ describe("GET /api/repos — server-managed GitHub App path", () => {
       ),
     });
 
-    const req = makeRequest();
-    const res = await GET(req);
+    const res = await GET(makeRequest());
 
     expect(res.status).toBe(401);
     expect(mintInstallationToken).not.toHaveBeenCalled();
@@ -327,7 +159,7 @@ describe("GET /api/repos — server-managed GitHub App path", () => {
     expect(mockLogError).not.toHaveBeenCalled();
   });
 
-  it("lists installation repos with the minted token and no browser PAT (AC1/AC2)", async () => {
+  it("lists installation repos with the minted token and no Authorization header (AC1/AC2)", async () => {
     const { listInstallationRepositories, mintInstallationToken } =
       mockInstallationRepoList();
     listInstallationRepositories.mockResolvedValue({
@@ -336,14 +168,12 @@ describe("GET /api/repos — server-managed GitHub App path", () => {
       etag: null,
     });
 
-    // A signed-in workspace user, no browser PAT — the App path serves the list.
-    const req = makeRequest();
-    const res = await GET(req);
+    const res = await GET(makeRequest());
 
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.repos).toEqual([{ full_name: "octo/reef", id: 1001 }]);
-    // The adapter was built from the minted installation token, not a PAT.
+    expect(await res.json()).toEqual({
+      repos: [{ full_name: "octo/reef", id: 1001 }],
+    });
     expect(mintInstallationToken).toHaveBeenCalledTimes(1);
     expect(mockCreateProvider).toHaveBeenCalledWith({
       config: APP_CONFIG.config,
@@ -356,7 +186,7 @@ describe("GET /api/repos — server-managed GitHub App path", () => {
     });
   });
 
-  it("ignores a browser PAT header when the App is configured", async () => {
+  it("ignores an Authorization header when the App is configured", async () => {
     const { listInstallationRepositories } = mockInstallationRepoList();
     listInstallationRepositories.mockResolvedValue({
       kind: "ok",
@@ -364,13 +194,16 @@ describe("GET /api/repos — server-managed GitHub App path", () => {
       etag: null,
     });
 
-    const req = makeRequest({ Authorization: "Bearer ghp_browser_pat" });
-    const res = await GET(req);
+    const res = await GET(
+      makeRequest({ Authorization: "Bearer ghp_browser_pat" }),
+    );
 
     expect(res.status).toBe(200);
-    // The App token, not the browser PAT, authenticates the read.
     expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
       token: "ghs_minted_installation_token",
+    });
+    expect(mockCreateGitHubAdapter).not.toHaveBeenCalledWith({
+      token: "ghp_browser_pat",
     });
     expect(listInstallationRepositories).toHaveBeenCalledTimes(1);
   });
@@ -383,8 +216,7 @@ describe("GET /api/repos — server-managed GitHub App path", () => {
       etag: 'W/"inst-abc"',
     });
 
-    const req = makeRequest({ "If-None-Match": 'W/"inst-old"' });
-    const res = await GET(req);
+    const res = await GET(makeRequest({ "If-None-Match": 'W/"inst-old"' }));
 
     expect(res.status).toBe(200);
     expect(res.headers.get("etag")).toBe('W/"inst-abc"');
@@ -393,9 +225,56 @@ describe("GET /api/repos — server-managed GitHub App path", () => {
     });
   });
 
+  it("returns 304 with ETag and no body when GitHub reports not_modified", async () => {
+    const { listInstallationRepositories } = mockInstallationRepoList();
+    listInstallationRepositories.mockResolvedValue({
+      kind: "not_modified",
+      etag: 'W/"inst-old"',
+    });
+
+    const res = await GET(makeRequest({ "If-None-Match": 'W/"inst-old"' }));
+
+    expect(res.status).toBe(304);
+    expect(res.headers.get("etag")).toBe('W/"inst-old"');
+    expect(res.body).toBeNull();
+    expect(mockLogError).not.toHaveBeenCalled();
+  });
+
+  it("maps NotFoundError through repository copy", async () => {
+    const { listInstallationRepositories } = mockInstallationRepoList();
+    listInstallationRepositories.mockRejectedValue(
+      new NotFoundError({ resource: "repository" }),
+    );
+
+    const res = await GET(makeRequest());
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({
+      error: "The requested repository could not be found.",
+    });
+  });
+
+  it("maps other GitHubApiError statuses to generic GitHub 502 copy", async () => {
+    const { listInstallationRepositories } = mockInstallationRepoList();
+    listInstallationRepositories.mockRejectedValue(
+      new GitHubApiError({
+        status: 500,
+        message: "secret upstream: token ghp_secret leaked",
+      }),
+    );
+
+    const res = await GET(makeRequest());
+
+    expect(res.status).toBe(502);
+    const body = await res.json();
+    expect(body.error).toBe(
+      "An error occurred while communicating with GitHub. Please try again.",
+    );
+    expect(body.error).not.toContain("(500)");
+    expect(body.error).not.toContain("ghp_secret");
+  });
+
   it("translates a credential-free GitHubApiError from token minting (AC3)", async () => {
-    // The provider mint fails (e.g. installation revoked) — surface PM copy, no
-    // secret, and still no browser-PAT requirement.
     mockCreateGitHubAdapter.mockReturnValue({
       listInstallationRepositories: vi.fn(),
     } as unknown as ReturnType<typeof createGitHubAdapter>);
@@ -408,8 +287,7 @@ describe("GET /api/repos — server-managed GitHub App path", () => {
       }),
     );
 
-    const req = makeRequest();
-    const res = await GET(req);
+    const res = await GET(makeRequest());
 
     expect(res.status).toBe(403);
     const body = await res.json();
@@ -421,43 +299,39 @@ describe("GET /api/repos — server-managed GitHub App path", () => {
   });
 });
 
-describe("GET /api/repos — server-managed PAT path (REEF-290)", () => {
+describe("GET /api/repos - server-managed PAT path (REEF-290)", () => {
   const SERVER_PAT = "ghp_server_dev_pat";
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // No App configured — the dev/CI server PAT fallback serves the list.
     appConfigState.current = NOT_CONFIGURED;
     serverPatState.current = SERVER_PAT;
-    // Default: a valid, akb-verified reef session.
     mockGetActor.mockResolvedValue({ actor: "alice" });
   });
 
   it("lists the authenticated account's repos with the server PAT and no browser PAT", async () => {
-    const listAuthenticatedRepositories = mockRepoList();
+    const listAuthenticatedRepositories = mockAuthenticatedRepoList();
     listAuthenticatedRepositories.mockResolvedValue({
       kind: "ok",
       repos: [{ full_name: "octo/reef", id: 1001 }],
       etag: null,
     });
 
-    // A signed-in user, no browser PAT — the server PAT serves the list.
     const res = await GET(makeRequest());
 
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.repos).toEqual([{ full_name: "octo/reef", id: 1001 }]);
-    // A PAT lists the authenticated account's repos (not the installation's).
+    expect(await res.json()).toEqual({
+      repos: [{ full_name: "octo/reef", id: 1001 }],
+    });
     expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({ token: SERVER_PAT });
     expect(listAuthenticatedRepositories).toHaveBeenCalledWith({
       ifNoneMatch: null,
     });
-    // The server PAT is a deployment credential, so the session is validated.
     expect(mockGetActor).toHaveBeenCalledTimes(1);
   });
 
   it("returns the session 401 without listing when akb rejects the session", async () => {
-    const listAuthenticatedRepositories = mockRepoList();
+    const listAuthenticatedRepositories = mockAuthenticatedRepoList();
     mockGetActor.mockResolvedValue({
       response: Response.json(
         { error: "Your session has expired. Please sign in again." },
@@ -473,7 +347,7 @@ describe("GET /api/repos — server-managed PAT path (REEF-290)", () => {
   });
 
   it("ignores a browser PAT header when the server PAT is configured", async () => {
-    const listAuthenticatedRepositories = mockRepoList();
+    const listAuthenticatedRepositories = mockAuthenticatedRepoList();
     listAuthenticatedRepositories.mockResolvedValue({
       kind: "ok",
       repos: [],
@@ -483,7 +357,6 @@ describe("GET /api/repos — server-managed PAT path (REEF-290)", () => {
     const res = await GET(makeRequest({ Authorization: "Bearer ghp_browser" }));
 
     expect(res.status).toBe(200);
-    // The server PAT, not the browser PAT, authenticates the read.
     expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({ token: SERVER_PAT });
     expect(mockCreateGitHubAdapter).not.toHaveBeenCalledWith({
       token: "ghp_browser",

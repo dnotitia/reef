@@ -90,11 +90,11 @@ describe("resolveScanGitHubAdapter", () => {
       mockGetActor.mockResolvedValue({ actor: "alice" });
     });
 
-    it("mints an installation token and returns the adapter without a browser PAT", async () => {
+    it("mints an installation token and returns the adapter without an Authorization header", async () => {
       const mint = vi.fn(async () => "ghs_minted_token");
       mockCreateProvider.mockReturnValue(mint);
 
-      // No Authorization header — the App path should not need a browser PAT.
+      // No Authorization header - the App path should not need browser storage.
       const result = await resolveScanGitHubAdapter(makeRequest());
 
       expect(result).toEqual({ kind: "adapter", adapter: SENTINEL_ADAPTER });
@@ -138,7 +138,7 @@ describe("resolveScanGitHubAdapter", () => {
       expect(mockCreateGitHubAdapter).not.toHaveBeenCalled();
     });
 
-    it("ignores a browser PAT header when the App is configured", async () => {
+    it("ignores an Authorization header when the App is configured", async () => {
       const mint = vi.fn(async () => "ghs_minted_token");
       mockCreateProvider.mockReturnValue(mint);
 
@@ -147,43 +147,33 @@ describe("resolveScanGitHubAdapter", () => {
       );
 
       expect(result).toEqual({ kind: "adapter", adapter: SENTINEL_ADAPTER });
-      // The minted token authenticates the scan, not the browser PAT.
+      // The minted token authenticates the scan, not a browser-supplied value.
       expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
         token: "ghs_minted_token",
       });
     });
   });
 
-  describe("browser PAT fallback path", () => {
+  describe("unconfigured GitHub App path", () => {
     beforeEach(() => {
       appConfigState.current = NOT_CONFIGURED;
     });
 
-    it("builds the adapter from the Authorization header and never validates the session", async () => {
+    it("returns github_app_unconfigured without reading an Authorization header", async () => {
       const result = await resolveScanGitHubAdapter(
         makeRequest({ Authorization: "Bearer ghp_user_pat" }),
       );
 
-      expect(result).toEqual({ kind: "adapter", adapter: SENTINEL_ADAPTER });
-      expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
-        token: "ghp_user_pat",
-      });
-      // The PAT path is self-authorizing — no akb /auth/me round-trip.
+      expect(result).toEqual({ kind: "github_app_unconfigured" });
       expect(mockGetActor).not.toHaveBeenCalled();
       expect(mockCreateProvider).not.toHaveBeenCalled();
-    });
-
-    it("returns github_auth_required when the Authorization header is missing", async () => {
-      const result = await resolveScanGitHubAdapter(makeRequest());
-      expect(result).toEqual({ kind: "github_auth_required" });
       expect(mockCreateGitHubAdapter).not.toHaveBeenCalled();
     });
 
-    it("returns github_auth_required when the Authorization header is malformed", async () => {
-      const result = await resolveScanGitHubAdapter(
-        makeRequest({ Authorization: "Token abc123" }),
-      );
-      expect(result).toEqual({ kind: "github_auth_required" });
+    it("returns github_app_unconfigured when the Authorization header is missing", async () => {
+      const result = await resolveScanGitHubAdapter(makeRequest());
+      expect(result).toEqual({ kind: "github_app_unconfigured" });
+      expect(mockCreateGitHubAdapter).not.toHaveBeenCalled();
     });
   });
 
@@ -206,7 +196,7 @@ describe("resolveScanGitHubAdapter", () => {
       expect(mockCreateProvider).not.toHaveBeenCalled();
     });
 
-    it("returns session_invalid (not github_auth_required) when akb rejects the session", async () => {
+    it("returns session_invalid when akb rejects the session", async () => {
       const response = Response.json({ error: "expired" }, { status: 401 });
       mockGetActor.mockResolvedValue({ response });
 

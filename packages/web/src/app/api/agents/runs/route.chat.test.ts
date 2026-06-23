@@ -2,6 +2,7 @@
 import type { AgentRunEvent } from "@reef/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  NOT_CONFIGURED,
   POST,
   chatRunBody,
   cleanupAgentRunsRouteMocks,
@@ -11,10 +12,12 @@ import {
   mockCreateGitHubAdapter,
   mockCreateWorkspaceChatAgentResponse,
   mockEnrichIssue,
+  mockGetAkbCurrentActor,
   parseSseEvents,
   resetAgentRunsRouteMocks,
   runError,
   runStarted,
+  setServerAppConfig,
 } from "./route.testSupport";
 
 describe("POST /api/agents/runs chat streaming", () => {
@@ -48,8 +51,9 @@ describe("POST /api/agents/runs chat streaming", () => {
     );
   });
 
-  it("streams chat.workspace without GitHub adapter when Authorization is missing", async () => {
-    const res = await POST(makeRequest(chatRunBody, { Authorization: null }));
+  it("streams chat.workspace AKB-only when the GitHub App is not configured", async () => {
+    setServerAppConfig(NOT_CONFIGURED);
+    const res = await POST(makeRequest(chatRunBody));
 
     expect(res.status).toBe(200);
     expect(parseSseEvents(await res.text()).map((event) => event.type)).toEqual(
@@ -63,12 +67,12 @@ describe("POST /api/agents/runs chat streaming", () => {
     );
   });
 
-  it("streams chat.workspace AKB-only for malformed GitHub Authorization", async () => {
-    // A malformed PAT degrades to AKB-only grounding rather than 401 — a stale
-    // browser token must not block the agent run (REEF-243).
-    const res = await POST(
-      makeRequest(chatRunBody, { Authorization: "Token ghp_test" }),
-    );
+  it("streams chat.workspace AKB-only when GitHub App session verification fails", async () => {
+    mockGetAkbCurrentActor.mockResolvedValueOnce({
+      response: Response.json({ error: "expired" }, { status: 401 }),
+    });
+
+    const res = await POST(makeRequest(chatRunBody));
 
     expect(res.status).toBe(200);
     expect(parseSseEvents(await res.text()).map((event) => event.type)).toEqual(

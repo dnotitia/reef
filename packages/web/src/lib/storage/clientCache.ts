@@ -1,14 +1,14 @@
 /**
- * Helpers for invalidating the browser-side query cache when the GitHub
- * credential changes.
+ * Helpers for invalidating browser-side query cache when account/session
+ * identity changes.
  *
  * The TanStack Query persister (configured in QueryProvider) writes a
  * snapshot to localStorage under `REACT_QUERY_OFFLINE_CACHE`. `useRepos`
  * also stores an `If-None-Match` ETag under `reef:etag:*`. None of these
- * are scoped to a GitHub account identifier
- * — when the user disconnects or switches accounts, leftover state can
- * leak the previous account's repos / issues to whoever picks up the
- * session next. To prevent that we wipe both layers, and dispatch
+ * are scoped to an AKB account identifier. When the user signs out or switches
+ * accounts, leftover state can leak the previous account's repos / issues to
+ * whoever picks up the session next. To prevent that we wipe both layers and
+ * dispatch
  * AUTH_CHANGED_EVENT so the in-memory QueryClient can also call clear()
  * (handled in QueryProvider).
  *
@@ -66,8 +66,8 @@ function getAuthChannel(): BroadcastChannel | null {
 
 /**
  * Wipe every browser-side cache entry that was populated under the
- * previous GitHub credential, and notify the in-memory QueryClient via a
- * window event.
+ * previous account/session, and notify the in-memory QueryClient via a window
+ * event.
  *
  * Safe to call from SSR (no-op when `window` is undefined) and from
  * environments where localStorage throws (private mode / disabled).
@@ -112,12 +112,11 @@ export function clearAuthScopedClientCache(): void {
 }
 
 /**
- * Subscribe this tab to cross-tab auth changes. When another tab signs out,
- * switches accounts, or changes its GitHub token, it broadcasts on the shared
- * channel; here we re-dispatch AUTH_CHANGED_EVENT on this tab's window so the
- * same in-tab consumers (QueryProvider's `clear()` + entity-store purge, the
- * token-presence gate, the scan re-arm) run and the previous account's
- * in-memory data is dropped.
+ * Subscribe this tab to cross-tab auth changes. When another tab signs out or
+ * switches accounts, it broadcasts on the shared channel; here we re-dispatch
+ * AUTH_CHANGED_EVENT on this tab's window so the same in-tab consumers
+ * (QueryProvider's `clear()` + entity-store purge) run and the previous
+ * account's in-memory data is dropped.
  *
  * Returns an unsubscribe function. No-op (returns a no-op cleanup) when
  * BroadcastChannel is unavailable, so callers can wire it unconditionally. The

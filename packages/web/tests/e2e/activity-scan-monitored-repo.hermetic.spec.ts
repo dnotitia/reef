@@ -10,12 +10,11 @@ import { REEF_E2E_VAULT, resetFixture, signInAsAlice } from "./harness/fixture";
  * hermetic fixture: an unmonitored repo is rejected with a PM-facing 422, while
  * a monitored repo still scans normally.
  *
- * The fixture configures no GitHub App, so the scan uses the browser-PAT
- * fallback — any token on the `Authorization` header is accepted by the fixture
- * GitHub mock, which returns empty repo activity.
+ * The fixture configures a GitHub App path through the mock server. The browser
+ * request carries only the session cookie; the web route mints a fixture
+ * installation token server-side.
  */
 const SCAN_AUTH_HEADERS = {
-  Authorization: "Bearer ghp_e2e_pat",
   "Content-Type": "application/json",
 };
 

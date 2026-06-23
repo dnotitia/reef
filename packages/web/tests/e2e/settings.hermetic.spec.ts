@@ -4,7 +4,6 @@ import {
   clearPersistedQueryCacheOnLoad,
   openExistingWorkspace,
   readFixtureState,
-  readIndexedDbCredential,
   resetFixture,
 } from "./harness/fixture";
 
@@ -24,7 +23,7 @@ test.describe("Hermetic settings workflows", () => {
     await resetFixture(request, "configured");
   });
 
-  test("saves a browser GitHub token and persists monitored repositories through real config routes", async ({
+  test("persists monitored repositories through GitHub App-backed config routes", async ({
     page,
     request,
   }) => {
@@ -43,14 +42,10 @@ test.describe("Hermetic settings workflows", () => {
     await expect(
       page.getByRole("main").locator('[data-testid="settings-group-personal"]'),
     ).toBeVisible();
-    await page
-      .getByLabel("GitHub Personal Access Token")
-      .fill("ghp_hermetic_fixture_token");
-    await page.locator('[data-testid="save-token-btn"]').click();
-    await expect(page.getByText("Token saved.")).toBeVisible();
-    await expect
-      .poll(() => readIndexedDbCredential(page, "github_token"))
-      .toBe("ghp_hermetic_fixture_token");
+    await expect(page.getByLabel("GitHub Personal Access Token")).toHaveCount(
+      0,
+    );
+    await expect(page.locator('[data-testid="disconnect-btn"]')).toHaveCount(0);
 
     await page.goto("/settings/workspace");
     await expect(
@@ -242,32 +237,20 @@ test.describe("Hermetic settings workflows", () => {
     await expect(page.getByText("AI Configuration")).toBeVisible();
   });
 
-  test("disconnects the browser GitHub token without signing out (REEF-247)", async ({
+  test("does not expose browser GitHub token controls in preferences (REEF-244)", async ({
     page,
   }) => {
     await openExistingWorkspace(page);
     await page.goto("/settings/preferences");
 
-    await page
-      .getByLabel("GitHub Personal Access Token")
-      .fill("ghp_disconnect_fixture_token");
-    await page.locator('[data-testid="save-token-btn"]').click();
-    await expect(page.getByText("Token saved.")).toBeVisible();
-    await expect
-      .poll(() => readIndexedDbCredential(page, "github_token"))
-      .toBe("ghp_disconnect_fixture_token");
-
-    await page.locator('[data-testid="disconnect-btn"]').click();
-
-    // The PAT is removed and the page returns to the token-entry form...
-    await expect(page.getByText("GitHub token removed.")).toBeVisible();
-    await expect(page.getByLabel("GitHub Personal Access Token")).toBeVisible();
-    await expect
-      .poll(() => readIndexedDbCredential(page, "github_token"))
-      .toBeUndefined();
-
-    // ...but the akb workspace session is untouched: still on preferences, no
-    // redirect to /login (REEF-247 — workspace sign-out is the sidebar menu).
+    await expect(
+      page.getByRole("main").locator('[data-testid="settings-group-personal"]'),
+    ).toBeVisible();
+    await expect(page.getByLabel("GitHub Personal Access Token")).toHaveCount(
+      0,
+    );
+    await expect(page.locator('[data-testid="save-token-btn"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="disconnect-btn"]')).toHaveCount(0);
     await expect(page).toHaveURL(/\/settings\/preferences$/);
     await expect(page.locator('[data-testid="akb-login-form"]')).toHaveCount(0);
   });

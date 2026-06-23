@@ -26,13 +26,16 @@ vi.mock("@/features/settings/hooks/useAiAvailable", () => ({
   useAiAvailable: () => ({ isAvailable: true }),
 }));
 
-// Auto-trigger is gated on a configured GitHub token (REEF-159). Default to
-// "token present"; the token-missing test flips this.
-const tokenState = vi.hoisted(() => ({
-  current: { hasToken: true, isLoading: false },
+// Auto-trigger is gated on the deployment-managed GitHub App (REEF-244).
+const appState = vi.hoisted(() => ({
+  current: {
+    isAvailable: true,
+    isLoading: false,
+    appId: "123456" as string | null,
+  },
 }));
-vi.mock("@/features/settings/hooks/useHasGithubToken", () => ({
-  useHasGithubToken: () => tokenState.current,
+vi.mock("@/features/settings/hooks/useGithubAppAvailable", () => ({
+  useGithubAppAvailable: () => appState.current,
 }));
 
 const { toastSuccess, toastInfo, toastError } = vi.hoisted(() => ({
@@ -49,7 +52,6 @@ vi.mock("sonner", () => ({
 
 import { ensureProjectConfig } from "@/features/settings/hooks/useProjectConfig";
 import { apiFetch } from "@/lib/apiClient";
-import { AUTH_CHANGED_EVENT } from "@/lib/storage/clientCache";
 import {
   getLastScanAt,
   setLastScanAt,
@@ -82,7 +84,7 @@ const SCAN_RESPONSE = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  tokenState.current = { hasToken: true, isLoading: false };
+  appState.current = { isAvailable: true, isLoading: false, appId: "123456" };
   mockGetLastScanAt.mockResolvedValue(undefined);
   mockShouldAutoScan.mockResolvedValue(true);
   mockEnsureProjectConfig.mockResolvedValue({
@@ -143,7 +145,7 @@ describe("useScanActivity", () => {
         repo: "octo/cat",
         source: "auto",
       }),
-    ).rejects.toThrow(/Reconnect GitHub/);
+    ).rejects.toThrow(/Sign in again/);
 
     // Auto failures stay silent — no toast.
     expect(toastError).not.toHaveBeenCalled();
@@ -276,30 +278,14 @@ describe("useScanAutoTrigger", () => {
     expect(mutate).not.toHaveBeenCalled();
   });
 
-  it("does not fire when no GitHub token is configured (REEF-159)", async () => {
-    // repo + AI + cooldown all green, but the workspace has no GitHub token:
-    // the scan route would 401, so the auto-trigger should stay silent.
-    tokenState.current = { hasToken: false, isLoading: false };
+  it("does not fire when the GitHub App is unavailable (REEF-244)", async () => {
+    // repo + AI + cooldown all green, but the deployment has no GitHub App:
+    // the scan route would 503, so the auto-trigger should stay silent.
+    appState.current = { isAvailable: false, isLoading: false, appId: null };
     const mutate = vi.fn();
     renderHook(() => useScanAutoTrigger("reef-acme", "octo/cat", mutate));
     await new Promise((r) => setTimeout(r, 10));
     expect(mutate).not.toHaveBeenCalled();
     expect(mockShouldAutoScan).not.toHaveBeenCalled();
-  });
-
-  it("re-arms on AUTH_CHANGED_EVENT so a replaced token resumes the scan (REEF-159)", async () => {
-    // An invalid token has presence (hasToken stays true), so it fires once and
-    // 401s. Replacing it broadcasts AUTH_CHANGED_EVENT — without re-arming, the
-    // fired-key guard would suppress the retry and the scan would does not resume
-    // until a remount.
-    const mutate = vi.fn();
-    renderHook(() => useScanAutoTrigger("reef-acme", "octo/cat", mutate));
-    await waitFor(() => expect(mutate).toHaveBeenCalledTimes(1));
-
-    await act(async () => {
-      window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
-    });
-
-    await waitFor(() => expect(mutate).toHaveBeenCalledTimes(2));
   });
 });

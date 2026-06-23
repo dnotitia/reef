@@ -97,7 +97,7 @@ function buildApiMessage(status: number, m: ApiErrorMessages): string {
 }
 
 const GITHUB_MESSAGES: ApiErrorMessages = {
-  auth: "Authentication failed. Please reconnect your GitHub account.",
+  auth: "GitHub authentication failed. Please ask an operator to check the GitHub App installation.",
   notFound: "The requested item could not be found.",
   conflict: "Save conflict occurred — please refresh and try again.",
   unknown:
@@ -208,9 +208,9 @@ export interface AuthErrorContext {
 // Origin-NEUTRAL auth copy. AuthError is shared by the akb session surface AND
 // GitHub-origin auth failures (search_code, dev_read_file, list_repo_labels —
 // surfaced verbatim via chatAgent error.message). A workspace-session-specific
-// string ("Your session has expired…") would misdirect a failed GitHub PAT, so
-// the shared message stays neutral. The cookie-missing akb path keeps its more
-// specific copy via the separate `authErrorResponse()` web helper.
+// string ("Your session has expired…") would misdirect a GitHub App auth
+// failure, so the shared message stays neutral. The cookie-missing akb path
+// keeps its more specific copy via the separate `authErrorResponse()` web helper.
 const AUTH_MESSAGE = "Authentication failed. Please sign in again.";
 
 export class AuthError extends ReefError {

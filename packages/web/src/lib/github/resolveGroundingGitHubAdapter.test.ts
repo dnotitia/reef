@@ -92,11 +92,11 @@ describe("resolveGroundingGitHubAdapter", () => {
       mockGetActor.mockResolvedValue({ actor: "alice" });
     });
 
-    it("mints an installation token and returns the adapter without a browser PAT", async () => {
+    it("mints an installation token and returns the adapter without an Authorization header", async () => {
       const mint = vi.fn(async () => MINTED_TOKEN);
       mockCreateProvider.mockReturnValue(mint);
 
-      // No Authorization header — grounding must not need a browser PAT (AC1).
+      // No Authorization header - grounding must not need browser storage.
       const result = await resolveGroundingGitHubAdapter(makeRequest());
 
       expect(result).toEqual({ kind: "adapter", adapter: SENTINEL_ADAPTER });
@@ -109,7 +109,7 @@ describe("resolveGroundingGitHubAdapter", () => {
       });
     });
 
-    it("ignores a browser PAT header when the App is configured", async () => {
+    it("ignores an Authorization header when the App is configured", async () => {
       const mint = vi.fn(async () => MINTED_TOKEN);
       mockCreateProvider.mockReturnValue(mint);
 
@@ -118,7 +118,7 @@ describe("resolveGroundingGitHubAdapter", () => {
       );
 
       expect(result).toEqual({ kind: "adapter", adapter: SENTINEL_ADAPTER });
-      // The minted token grounds the request, never the browser PAT.
+      // The minted token grounds the request, never a browser-supplied value.
       expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
         token: MINTED_TOKEN,
       });
@@ -182,35 +182,24 @@ describe("resolveGroundingGitHubAdapter", () => {
     });
   });
 
-  describe("browser PAT fallback path", () => {
+  describe("unconfigured GitHub App path", () => {
     beforeEach(() => {
       appConfigState.current = NOT_CONFIGURED;
     });
 
-    it("builds the adapter from the Authorization header and never validates the session", async () => {
+    it("degrades to AKB-only even when an Authorization header is present", async () => {
       const result = await resolveGroundingGitHubAdapter(
         makeRequest({ Authorization: "Bearer ghp_user_pat" }),
       );
 
-      expect(result).toEqual({ kind: "adapter", adapter: SENTINEL_ADAPTER });
-      expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
-        token: "ghp_user_pat",
-      });
-      // The PAT path is self-authorizing — no akb /auth/me round-trip.
+      expect(result).toEqual({ kind: "degraded", reason: "no_credential" });
       expect(mockGetActor).not.toHaveBeenCalled();
       expect(mockCreateProvider).not.toHaveBeenCalled();
+      expect(mockCreateGitHubAdapter).not.toHaveBeenCalled();
     });
 
     it("degrades to AKB-only when the Authorization header is missing (AC1/AC3)", async () => {
       const result = await resolveGroundingGitHubAdapter(makeRequest());
-      expect(result).toEqual({ kind: "degraded", reason: "no_credential" });
-      expect(mockCreateGitHubAdapter).not.toHaveBeenCalled();
-    });
-
-    it("degrades to AKB-only when the Authorization header is malformed", async () => {
-      const result = await resolveGroundingGitHubAdapter(
-        makeRequest({ Authorization: "Token abc123" }),
-      );
       expect(result).toEqual({ kind: "degraded", reason: "no_credential" });
       expect(mockCreateGitHubAdapter).not.toHaveBeenCalled();
     });

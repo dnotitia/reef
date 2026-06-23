@@ -1,3 +1,4 @@
+import { generateKeyPairSync } from "node:crypto";
 import { defineConfig, devices } from "@playwright/test";
 
 /**
@@ -13,6 +14,11 @@ function buildWebServerEnv(): Record<string, string> {
     REEF_LLM_MODEL: process.env.REEF_LLM_MODEL ?? "e2e/mock-model",
     REEF_GITHUB_API_BASE_URL:
       process.env.REEF_GITHUB_API_BASE_URL ?? `${E2E_MOCK_URL}/github`,
+    REEF_GITHUB_APP_ID: process.env.REEF_GITHUB_APP_ID ?? "123456",
+    REEF_GITHUB_APP_INSTALLATION_ID:
+      process.env.REEF_GITHUB_APP_INSTALLATION_ID ?? "789",
+    REEF_GITHUB_APP_PRIVATE_KEY:
+      process.env.REEF_GITHUB_APP_PRIVATE_KEY ?? E2E_GITHUB_APP_PRIVATE_KEY,
   };
 }
 
@@ -20,6 +26,11 @@ const REEF_WEB_URL = process.env.REEF_WEB_URL ?? "http://localhost:7353";
 const E2E_MOCK_URL = process.env.REEF_E2E_MOCK_URL ?? "http://127.0.0.1:7354";
 const REEF_WEB_PORT = new URL(REEF_WEB_URL).port || "7353";
 const E2E_MOCK_PORT = new URL(E2E_MOCK_URL).port || "7354";
+const E2E_GITHUB_APP_PRIVATE_KEY = generateKeyPairSync("rsa", {
+  modulusLength: 2048,
+})
+  .privateKey.export({ type: "pkcs1", format: "pem" })
+  .toString();
 
 export default defineConfig({
   testDir: "./tests/e2e",

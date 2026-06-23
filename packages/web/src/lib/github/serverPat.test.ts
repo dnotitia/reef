@@ -21,7 +21,7 @@ describe("server GitHub PAT fallback", () => {
     ).toBe(true);
   });
 
-  it("reports disabled when REEF_GITHUB_PAT is unset (App / browser-PAT path)", () => {
+  it("reports disabled when REEF_GITHUB_PAT is unset", () => {
     expect(resolveServerGitHubPat({ NODE_ENV: "test" })).toBeNull();
     expect(isServerGitHubPatConfigured({ NODE_ENV: "test" })).toBe(false);
   });

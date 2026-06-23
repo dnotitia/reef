@@ -18,14 +18,14 @@ type RepoListResult = Awaited<
  * 304 with ETag). `id` is GitHub's stable numeric repo id — the logical PK for
  * `monitored_repos` rows (REEF-239 AC4).
  *
- * Credential selection (App → server PAT → browser PAT) is shared with the
- * grounding and scan callers via `resolveGitHubAdapter` (REEF-290 AC2). The
- * route only branches on which credential served the adapter: an App
- * installation token lists the *installation's* repositories, while any PAT —
- * the dev/CI server PAT or a per-user browser PAT — lists the *authenticated*
- * account's repositories. The deployment credentials (App, server PAT) are
- * session-gated inside the resolver, so an unauthenticated caller can never
- * read the deployment's repo list.
+ * Credential selection (App → server PAT) is shared with the grounding and scan
+ * callers via `resolveGitHubAdapter` (REEF-290 AC2). The route only branches on
+ * which credential served the adapter: an App installation token lists the
+ * *installation's* repositories, while the dev/CI server PAT lists the
+ * *authenticated* account's repositories. Both credentials are session-gated
+ * inside the resolver, so an unauthenticated caller can never read the
+ * deployment's repo list. Browser PAT collection, IndexedDB storage, and
+ * request `Authorization` forwarding were removed in REEF-244.
  *
  * Thin Route Handler wrapper: it owns only the repo-listing branch and PM-facing
  * error translation; the GitHub I/O and error normalization live in core.
@@ -45,9 +45,9 @@ export async function GET(request: Request): Promise<Response> {
     case "no_credential":
       return Response.json(
         {
-          error: "Authentication required. Please configure your GitHub token.",
+          error: "GitHub App is not configured for this deployment.",
         },
-        { status: 401 },
+        { status: 503 },
       );
     case "github_app_error":
       return handleReposError(resolved.error);
@@ -63,7 +63,7 @@ async function listRepos(
 ): Promise<Response> {
   try {
     // An App installation token can only enumerate the installation's repos;
-    // any PAT (server or browser) enumerates the authenticated account's repos.
+    // the server PAT enumerates the authenticated account's repos.
     const result =
       source === "app"
         ? await adapter.listInstallationRepositories({ ifNoneMatch })

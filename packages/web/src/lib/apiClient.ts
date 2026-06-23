@@ -1,33 +1,21 @@
 import { VAULT_HEADER } from "./akb/headers";
 import { VAULT_NAME_RE } from "./akb/vaultName";
 import { getActiveVault } from "./storage/config";
-import { getGitHubToken } from "./storage/credentials";
 
 /**
- * A fetch() wrapper that reads the GitHub token from IndexedDB on every call
- * and attaches it as Authorization: Bearer <token>.
+ * A fetch() wrapper that attaches browser-local request context.
  *
  * LLM credentials are deployment-managed server-side via OpenRouter env vars,
- * so this client does not attaches `X-Reef-LLM`.
- *
- * The token is does not cached in module-level state — it is read fresh from
- * IndexedDB on each invocation to keep the server stateless.
+ * and GitHub grounding now uses deployment-managed GitHub App credentials, so
+ * this client does not attach `X-Reef-LLM` or `Authorization`.
  *
  * This file has NO Next.js imports — it is a plain TypeScript module.
  */
 export const apiClient = {
   async fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-    // Read browser-local request context in parallel to avoid serial latency.
-    const [token, vault] = await Promise.all([
-      getGitHubToken(),
-      getActiveVault(),
-    ]);
+    const vault = await getActiveVault();
 
     const headers = new Headers(init?.headers);
-
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
-    }
 
     // X-Reef-Vault — read by the chat Route Handler which does not accept a
     // `?vault=` querystring (the AI SDK transport owns the URL). Validated

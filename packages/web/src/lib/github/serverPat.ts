@@ -7,11 +7,10 @@
  * real read-only GitHub I/O path is still needed for grounding, the activity
  * scan, and the monitored-repo picker (REEF-290).
  *
- * Credential precedence is App → server PAT → browser PAT: the App is the
- * production path, the server PAT is an interim/dev tier that is **disabled
- * unless `REEF_GITHUB_PAT` is set**, and the browser PAT remains the per-user
- * fallback. Because it is unset by default, this tier never silently becomes a
- * deployment's production credential (REEF-290 AC3).
+ * Credential precedence is App → server PAT: the App is the production path,
+ * and the server PAT is an interim/dev tier that is **disabled unless
+ * `REEF_GITHUB_PAT` is set**. Because it is unset by default, this tier never
+ * silently becomes a deployment's production credential (REEF-290 AC3).
  *
  * Use a fine-grained, read-only PAT scoped like the App installation
  * (`contents:read`, `metadata:read`, `pull_requests:read`). Like the App

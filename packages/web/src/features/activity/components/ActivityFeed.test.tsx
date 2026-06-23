@@ -12,10 +12,6 @@ vi.mock("@/lib/apiClient", async () => {
   return { ...actual, apiFetch: vi.fn() };
 });
 
-vi.mock("@/features/auth/hooks/useCredentials", () => ({
-  useCredentials: () => ({ token: "ghp_token", isLoading: false }),
-}));
-
 vi.mock("../hooks/useActivityFeed", () => ({
   useActivityFeed: () => ({
     items: [],

@@ -37,12 +37,10 @@ function releaseVersionLabel(appVersion: string): string {
 
 /**
  * consistently-visible akb workspace account control, anchored to the sidebar footer
- * (REEF-068). Opens an upward menu with an akb sign-out (which ends the akb
- * session distinct from the GitHub "Disconnect & sign out" in Settings, AC3).
- * Shown regardless of GitHub PAT state (AC1). The global shortcuts launcher is
- * owned by the shell footer utility row, so this component stays scoped to the
- * person/account identity; the menu keeps version context as a release-notes
- * link (REEF-170).
+ * (REEF-068). Opens an upward menu with the akb sign-out and release-notes
+ * context. The global shortcuts launcher is owned by the shell footer utility
+ * row, so this component stays scoped to the person/account identity
+ * (REEF-170).
  */
 export function SidebarAccount({ appVersion, collapsed }: SidebarAccountProps) {
   const router = useRouter();

@@ -30,9 +30,9 @@ is shaped around a strict state-owner split:
   affordances derive from its per-query `isPending` / `isError`; there is no
   global loading flag.
 - **Dexie (IndexedDB)** holds per-user persisted browser state with no akb home
-  — the active vault pointer, theme preference, GitHub PAT, per-vault issue
-  filters, the currently selected activity-scan repo, last visit/scan markers,
-  and the previously signed-in akb user id used for account reconciliation.
+  — the active vault pointer, theme preference, per-vault issue filters, the
+  currently selected activity-scan repo, last visit/scan markers, and the
+  previously signed-in akb user id used for account reconciliation.
 - **akb-backed workspace config** holds team-shared project state — the project
   prefix, monitored repositories, issue templates, and default authoring
   language. It is read and mutated through Route Handlers, not stored as a
@@ -419,21 +419,21 @@ First-time users hit an **OnboardingGuard** that redirects to `/onboarding`
 until setup is complete. Onboarding is a single screen whose required step is
 **Create a project workspace**: name a new akb vault (lowercase/digits/
 hyphens), choose an issue **prefix** (uppercase, e.g. `REEF`), optionally add a
-description and monitored repositories, and create. Two secondary, collapsed
-paths let the user pick an existing reef workspace instead, or connect a GitHub
-PAT (optional — it only enables read-only monitored-repo grounding; the token
-lives in IndexedDB). Onboarding configures a *workspace*, not a Git repo, and
-no issue is committed under anyone's GitHub identity.
+description and monitored repositories, and create. A secondary, collapsed path
+lets the user pick an existing reef workspace instead. Monitored repository
+access comes from deployment-managed GitHub credentials, so onboarding
+configures a *workspace*, not a Git repo, and no issue is committed under
+anyone's GitHub identity.
 
 ### Planning, Reports, Settings
 
 The remaining nav destinations are first-class pages: **My Work** (the signed-in
 user's overdue and due-soon work), **Planning** (sprints, milestones, releases
-that issues link to), **Reports**, and **Settings**. Settings separates the
-per-user active workspace pointer, GitHub token, theme, and preferences from the
-team-shared workspace settings such as project prefix, monitored repos,
-templates, and authoring language. These pages share the standard page header +
-body chrome and the same field leaves where issue fields appear.
+that issues link to), **Reports**, and **Settings**. Settings separates
+per-user preferences from team-shared workspace settings such as project prefix,
+monitored repos, templates, and authoring language. These pages share the
+standard page header + body chrome and the same field leaves where issue fields
+appear.
 
 ## User Journey Flows
 

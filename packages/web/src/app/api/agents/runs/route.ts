@@ -31,8 +31,8 @@ const BAD_BODY_MESSAGE = "Agent run request is missing or invalid.";
 const BAD_AKB_AUTH_MESSAGE = "Workspace session is missing or invalid.";
 const BAD_AKB_BACKEND_MESSAGE =
   "Workspace backend is unavailable. Please try again.";
-const BAD_GITHUB_AUTH_MESSAGE =
-  "Reconnect GitHub in Settings to run this agent task.";
+const BAD_GITHUB_APP_UNCONFIGURED_MESSAGE =
+  "GitHub App is not configured for this deployment.";
 const BAD_GITHUB_CREDENTIAL_MESSAGE =
   "GitHub App credentials are unavailable. Check the deployment GitHub App configuration.";
 const BAD_VAULT_MESSAGE = "X-Reef-Vault header is missing or invalid.";
@@ -98,8 +98,8 @@ export async function POST(request: Request): Promise<Response> {
       throw err;
     }
 
-    // Server-managed GitHub App when configured, browser PAT fallback otherwise;
-    // any GitHub unavailability degrades to AKB-only grounding (REEF-243). The
+    // Server-managed GitHub App only; any GitHub unavailability degrades to
+    // AKB-only grounding (REEF-243 / REEF-244). The
     // credential never reaches the response or the LLM prompt.
     const githubResolution = await resolveGroundingGitHubAdapter(request);
     if (githubResolution.kind === "degraded" && githubResolution.error) {
@@ -143,8 +143,8 @@ export async function POST(request: Request): Promise<Response> {
 
   if (runRequest.task_id === "issue.enrichment") {
     // Code grounding only matters when the run carries a monitored repo.
-    // Server-managed GitHub App when configured, browser PAT fallback otherwise;
-    // any GitHub unavailability degrades to AKB-only enrichment (REEF-243).
+    // Server-managed GitHub App only; any GitHub unavailability degrades to
+    // AKB-only enrichment (REEF-243 / REEF-244).
     let githubAdapter: GitHubAdapter | undefined;
     if (runRequest.input.repoContext) {
       const githubResolution = await resolveGroundingGitHubAdapter(request);
@@ -188,10 +188,10 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const { owner, repo, vault, since, projectPrefix } = runRequest.input;
-  // Same credential selection as POST /api/activity/scan: server-managed GitHub
-  // App when the deployment is configured, browser PAT fallback otherwise
-  // (REEF-240 AC2). Resolved before the stream opens, so a credential failure
-  // surfaces as a structured agent error rather than mid-stream.
+  // Same credential selection as POST /api/activity/scan: deployment-managed
+  // GitHub App only (REEF-244). Resolved before the stream opens, so a
+  // credential failure surfaces as a structured agent error rather than
+  // mid-stream.
   const github = await resolveScanGitHubAdapter(request);
   if (github.kind === "session_invalid") {
     // The resolver surfaces getAkbCurrentActor's response, which is 401 for a
@@ -207,8 +207,12 @@ export async function POST(request: Request): Promise<Response> {
           "workspace_unavailable",
         );
   }
-  if (github.kind === "github_auth_required") {
-    return jsonAgentError(BAD_GITHUB_AUTH_MESSAGE, 401, "github_auth_required");
+  if (github.kind === "github_app_unconfigured") {
+    return jsonAgentError(
+      BAD_GITHUB_APP_UNCONFIGURED_MESSAGE,
+      503,
+      "github_unavailable",
+    );
   }
   if (github.kind === "github_error") {
     logger.error(

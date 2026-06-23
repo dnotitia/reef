@@ -24,38 +24,35 @@ explicitly in the entries below.
   deployment configures a GitHub App, the repository picker in Settings (and the
   new-workspace form) now lists and saves monitored repos through the
   server-managed App installation, so a workspace admin no longer has to put a
-  GitHub PAT in every browser just to configure repo grounding. Deployments
-  without a GitHub App keep working through the existing browser-PAT path, and
-  saved repositories keep their stable GitHub id and owner/name (REEF-239).
+  GitHub credential in every browser just to configure repo grounding. Saved
+  repositories keep their stable GitHub id and owner/name (REEF-239 / REEF-244).
 - **Scan repository activity without a personal access token.** When a
   deployment configures a GitHub App, both the manual **Scan** action and
   agent-run activity scans now read monitored-repo commits and pull requests
   through the server-managed App installation, so generating activity-inbox
-  suggestions no longer requires a GitHub PAT in the browser. Deployments
-  without a GitHub App keep working through the existing browser-PAT path, and
+  suggestions no longer requires a browser-stored GitHub credential. Deployments
+  without a GitHub App now surface GitHub-specific features as unavailable, and
   when the App is configured but unavailable — a revoked installation, missing
   permission, or rate limit — the scan surfaces a PM-facing error instead of
-  failing silently (REEF-240).
+  failing silently (REEF-240 / REEF-244).
 - **Ground Ask AI, enrich, and agent runs without a personal access token.**
   When a deployment configures a GitHub App, the monitored-repo code grounding
   behind Ask AI (`/api/chat`), issue enrichment (`/api/enrich`), and agent runs
   (`/api/agents/runs`) now reads repositories through the server-managed App
   installation, so AI answers can cite repo code without a GitHub PAT in the
-  browser. Deployments without a GitHub App keep working through the existing
-  browser-PAT path. Because grounding is an enhancement, any GitHub
-  unavailability — no App and no PAT, an unverified session, or a revoked /
+  browser. Because grounding is an enhancement, any GitHub unavailability — no
+  deployment-managed credential, an unverified session, or a revoked /
   rate-limited App — now degrades cleanly to AKB-only answers instead of failing
-  the request; a stale or malformed browser token no longer returns a 401 from
-  these AI routes (REEF-243).
+  the request (REEF-243 / REEF-244).
 - **Verify GitHub grounding locally and in CI without a GitHub App.** A new
   optional `REEF_GITHUB_PAT` deployment env var lets a server read GitHub with a
   read-only personal access token when no GitHub App is configured, so local
   development and CI can exercise the real repo picker, activity scan, and AI
   grounding without each browser supplying a PAT. It is a deployment-managed
   secret (never per-user), disabled unless set, and used only when no App is
-  configured — credential precedence is GitHub App, then this server PAT, then
-  the per-user browser PAT — so it never overrides or becomes a production
-  deployment's primary credential (REEF-290).
+  configured — credential precedence is GitHub App, then this server PAT — so it
+  never overrides or becomes a production deployment's primary credential
+  (REEF-290).
 - **Spot outdated workspace AI instructions from the sidebar.** When your active
   workspace is running an older agent playbook, the sidebar **Settings** entry
   now shows a small amber dot, so the drift is discoverable without opening
@@ -88,6 +85,13 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Removed browser GitHub PAT setup and storage.** Settings > Preferences and
+  onboarding no longer collect monitored-repo Personal Access Tokens, the web
+  client no longer attaches GitHub `Authorization` headers, and Dexie v11 drops
+  the legacy `credentials` store so stale browser tokens stop being readable.
+  GitHub-specific repo listing and activity scan surfaces now require a
+  deployment-managed GitHub credential; Ask AI and enrichment continue AKB-only
+  when GitHub is unavailable (REEF-244).
 - **Sidebar footer shortcuts and release notes are easier to find.** The
   keyboard shortcuts launcher now sits directly in the sidebar footer instead of
   hiding inside the account menu, and the account menu's version row is now a
@@ -158,8 +162,7 @@ explicitly in the entries below.
   is installed on — an authenticated workspace user could otherwise have scanned
   an arbitrary App-installed repo and pulled its commit/PR activity into their
   inbox. This applies the same monitored-repo boundary already enforced for Ask
-  AI code grounding and issue enrichment; the browser-PAT path is unchanged
-  (REEF-289).
+  AI code grounding and issue enrichment (REEF-289).
 - **Esc now closes the open dropdown, not the whole issue editor.** While
   editing an issue, pressing Esc with an open Assignee/Sprint/Release/Labels
   picker, a Start/Due date popover, a relationship dropdown, or the ⋮ actions
@@ -361,12 +364,6 @@ explicitly in the entries below.
   (creating or editing an issue, the planning editor, a settings template). A
   height-matched placeholder holds the editor's space so the form doesn't jump,
   and behavior is unchanged once it is open (REEF-220).
-- **Clearer GitHub token setup.** Onboarding and Settings → Preferences now show
-  the same guidance wherever you paste a monitored-repo Personal Access Token:
-  it is read-only access, use `public_repo` for public repos or `repo` for
-  private ones, and a "Create a token" link opens GitHub's token page with the
-  scope preset. The guidance stays visible even when a token is already saved
-  (REEF-236).
 - **Settings is now organized into scope-based tabs.** The single long scroll is
   split into Workspace, Preferences, and Deployment tabs, each its own page — so
   back/forward, open-in-new-tab, deep-link, and bookmark all work, and adding
@@ -416,10 +413,6 @@ explicitly in the entries below.
   and description canvas, and the property rail with its Details, People, and
   Planning sections — instead of one full-panel block that rearranged into a
   different structure the moment the issue appeared (REEF-249).
-- **Disconnecting a GitHub token no longer signs you out.** On Settings →
-  Preferences, the GitHub token "Disconnect" action now removes only the
-  browser-local token and returns to the token-entry form; it no longer ends your
-  workspace session or bounces you to the login screen (REEF-247).
 - **Editing an issue no longer silently overwrites a change made outside it.**
   Opening an issue card now always re-reads the latest from the workspace, so an
   edit made elsewhere (the akb tools, another tab) shows up instead of a stale
@@ -578,8 +571,9 @@ explicitly in the entries below.
   and a **Sign out** that ends your akb session independently of GitHub; signing
   out also clears this browser's akb-scoped cache and per-account view state
   (active vault, saved filters, activity markers) so the next person on a shared
-  machine can't inherit it, while preserving your GitHub token and theme. It also
-  carries a "Keyboard shortcuts" launcher (⌘?) and the app version (REEF-068).
+  machine can't inherit it, while preserving device preferences such as theme.
+  It also carries a "Keyboard shortcuts" launcher (⌘?) and the app version
+  (REEF-068).
 
 ### Changed
 
@@ -634,10 +628,10 @@ explicitly in the entries below.
   cards, list and backlog rows, the assignee picker), keyed by the same akb login
   the issue rows use, so your color and monogram line up with how you appear as an
   assignee. Everyone else keeps their distinct hashed color (REEF-173).
-- **Ask AI no longer requires a GitHub connection.** With no GitHub token
-  configured, the assistant grounds answers on your akb workspace alone (issues
-  and assignees) and skips monitored-repo code search instead of failing the
-  request; connect GitHub to add code grounding back (REEF-089).
+- **Ask AI no longer requires GitHub code grounding.** When GitHub grounding is
+  unavailable, the assistant grounds answers on your akb workspace alone
+  (issues and assignees) and skips monitored-repo code search instead of failing
+  the request (REEF-089).
 - The Planning create and edit dialogs now follow the same pattern as the issue
   dialogs: the date fields use the in-app calendar picker instead of the
   browser-native popup, and the dialog sizing and close control line up with the
@@ -738,12 +732,10 @@ explicitly in the entries below.
   reef config, matching the onboarding picker, so you can no longer select a
   workspace reef can't read issues in and land on an empty board with no way to
   initialize it (REEF-143).
-- Workspaces that haven't connected GitHub no longer pile up repeated
-  "authentication required" errors: reef treats "no GitHub token" as a normal
-  state, skipping the repository listing and the activity scan and showing a
-  "connect GitHub first" hint; saving a token resumes those features with no
-  refresh, and an invalid or expired token surfaces a single error instead of
-  retrying (REEF-159).
+- Deployments without a configured GitHub App no longer pile up repeated
+  "authentication required" errors: reef treats GitHub unavailability as a
+  normal deployment state, skips repository listing / auto activity scan, and
+  surfaces a single unavailable hint instead of retrying (REEF-159 / REEF-244).
 - The two identity rows and the two pop-up menus at the bottom of the sidebar —
   your workspace and your account — now line up and behave consistently: the rows
   share one layout (the switch arrow stays put through loading, no stray accent
@@ -754,10 +746,9 @@ explicitly in the entries below.
   planning view is reflected in the URL so it can be shared and restored on
   reload, and dates render through the shared themed display (REEF-152).
 - Settings is cleaner and more accessible: each setting nests as a proper
-  sub-heading under its group, the project-prefix and search fields announce their
-  labels to screen readers, decorative icons are hidden from them, ellipses use a
-  real character, and saving a GitHub token disables the button and shows a
-  spinner while it's in flight (REEF-151).
+  sub-heading under its group, the project-prefix and search fields announce
+  their labels to screen readers, decorative icons are hidden from them, and
+  ellipses use a real character (REEF-151).
 
 ### Migration
 

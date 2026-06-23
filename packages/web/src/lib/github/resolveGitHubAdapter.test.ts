@@ -109,7 +109,7 @@ describe("resolveGitHubAdapter", () => {
       });
     });
 
-    it("wins over a configured server PAT and a browser PAT header (App > serverPat > header)", async () => {
+    it("wins over a configured server PAT and ignores a browser PAT header", async () => {
       serverPatState.current = SERVER_PAT;
       const mint = vi.fn(async () => MINTED_TOKEN);
       mockCreateProvider.mockReturnValue(mint);
@@ -184,7 +184,7 @@ describe("resolveGitHubAdapter", () => {
       expect(mockCreateProvider).not.toHaveBeenCalled();
     });
 
-    it("wins over a browser PAT header (serverPat > header)", async () => {
+    it("ignores a browser PAT header when the server PAT is configured", async () => {
       const result = await resolveGitHubAdapter(
         makeRequest({ Authorization: `Bearer ${BROWSER_PAT}` }),
       );
@@ -209,27 +209,20 @@ describe("resolveGitHubAdapter", () => {
     });
   });
 
-  describe("browser PAT tier (self-authorizing fallback)", () => {
+  describe("no deployment credential", () => {
     beforeEach(() => {
       appConfigState.current = NOT_CONFIGURED;
       serverPatState.current = null;
     });
 
-    it("builds the adapter from the Authorization header and never validates the session", async () => {
+    it("returns no_credential even when an Authorization header is present", async () => {
       const result = await resolveGitHubAdapter(
         makeRequest({ Authorization: `Bearer ${BROWSER_PAT}` }),
       );
 
-      expect(result).toEqual({
-        kind: "adapter",
-        adapter: SENTINEL_ADAPTER,
-        source: "browser-pat",
-      });
-      expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
-        token: BROWSER_PAT,
-      });
-      // The browser PAT is caller-supplied, so no akb round-trip.
+      expect(result).toEqual({ kind: "no_credential" });
       expect(mockGetActor).not.toHaveBeenCalled();
+      expect(mockCreateGitHubAdapter).not.toHaveBeenCalled();
     });
 
     it("returns no_credential when the Authorization header is missing", async () => {

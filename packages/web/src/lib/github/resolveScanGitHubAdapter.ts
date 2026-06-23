@@ -9,9 +9,10 @@ import type { GitHubAdapter } from "@reef/core";
  *
  * Credential selection is shared with the grounding and repo-list callers
  * through `resolveGitHubAdapter` (REEF-290 AC2): server-managed GitHub App,
- * then the dev/CI server PAT fallback, then the per-user browser PAT. The App
- * token and server PAT are deployment credentials, validated against akb
- * (`/auth/me`) before use; the browser PAT is self-authorizing.
+ * then the dev/CI server PAT fallback. Both are deployment credentials,
+ * validated against akb (`/auth/me`) before use. Browser PAT collection,
+ * IndexedDB storage, and request `Authorization` forwarding were removed in
+ * REEF-244.
  *
  * Both scan callers — the manual `POST /api/activity/scan` route and the
  * `agent-run` `activity.scan` task — share this resolver so they use one
@@ -23,8 +24,8 @@ export type ResolveScanGitHubAdapterResult =
   | { kind: "adapter"; adapter: GitHubAdapter }
   /** A deployment credential was selected but akb rejected the session; `response` is the ready 401/5xx. */
   | { kind: "session_invalid"; response: Response }
-  /** No App, no server PAT, and no usable browser PAT on the Authorization header. */
-  | { kind: "github_auth_required" }
+  /** No deployment-managed GitHub credential is configured. */
+  | { kind: "github_app_unconfigured" }
   /** App configured but minting the installation token failed (perm/rate-limit). */
   | { kind: "github_error"; error: unknown };
 
@@ -42,6 +43,6 @@ export async function resolveScanGitHubAdapter(
     case "github_app_error":
       return { kind: "github_error", error: resolved.error };
     case "no_credential":
-      return { kind: "github_auth_required" };
+      return { kind: "github_app_unconfigured" };
   }
 }

@@ -11,12 +11,10 @@ import type { GitHubAdapter } from "@reef/core";
  *
  * Credential selection is shared with the scan and repo-list callers through
  * `resolveGitHubAdapter` (REEF-290 AC2): server-managed GitHub App, then the
- * dev/CI server PAT fallback, then the per-user browser PAT. The App token and
- * server PAT are deployment credentials, so both are validated against akb
- * (`/auth/me`) before use; the browser PAT is self-authorizing. The two
- * server-managed paths run in parallel with the browser PAT during the
- * migration away from PATs (REEF-237 / REEF-238); the PAT UI is removed in a
- * later cleanup issue.
+ * dev/CI server PAT fallback. Both are deployment credentials, so both are
+ * validated against akb (`/auth/me`) before use. Browser PAT collection,
+ * IndexedDB storage, and request `Authorization` forwarding were removed in
+ * REEF-244.
  *
  * Unlike the scan resolver, grounding is an *enhancement*: it must never block
  * the AI request. So every way it can fail to obtain a GitHub adapter — no
@@ -36,7 +34,7 @@ import type { GitHubAdapter } from "@reef/core";
  * normalizes, for server-side logging only.
  */
 export type GroundingDegradeReason =
-  /** No App, no server PAT, and no usable browser PAT on the Authorization header. */
+  /** No deployment-managed GitHub credential is configured. */
   | "no_credential"
   /** A deployment credential was selected but akb rejected the session. */
   | "session_unverified"
