@@ -44,8 +44,9 @@ metadata.
   per request and forward it to akb as `Authorization: Bearer <pat>`.
 - GitHub access for monitored-repo grounding and activity scans is deployment
   managed through `REEF_GITHUB_APP_ID`, `REEF_GITHUB_APP_INSTALLATION_ID`, and
-  `REEF_GITHUB_APP_PRIVATE_KEY`; reef-web must not collect, store, or forward a
-  browser GitHub PAT.
+  `REEF_GITHUB_APP_PRIVATE_KEY`, with `REEF_GITHUB_PAT` allowed only as a
+  deployment-managed dev/CI fallback; reef-web must not collect, store, or
+  forward a browser GitHub PAT.
 - LLM configuration is deployment-managed server state:
   `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, and `REEF_LLM_MODEL`; never store
   per-user LLM keys.
@@ -113,8 +114,8 @@ metadata.
 ## Security And Persistence
 
 - Do not commit API keys or secrets; `.env.example` is only a template.
-- External calls use HTTPS, and the deployment GitHub App permissions should
-  stay least-privilege for monitored-repo reads.
+- External calls use HTTPS, and the deployment GitHub App or server PAT
+  permissions should stay least-privilege for monitored-repo reads.
 - Keep credentials in headers or the httpOnly cookie, never URL query strings.
 - Do not include sensitive metadata such as tokens, user ids, or server internals
   in LLM prompts.

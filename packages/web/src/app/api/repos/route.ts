@@ -1,12 +1,9 @@
-import { getAkbCurrentActor } from "@/lib/api/requestHelpers";
-import { resolveServerGitHubAppConfig } from "@/lib/github/serverAppConfig";
-import { logger } from "@/lib/logging/logger";
 import {
-  type GitHubAdapter,
-  createGitHubAdapter,
-  createGitHubAppInstallationTokenProvider,
-  translateError,
-} from "@reef/core";
+  type GitHubCredentialSource,
+  resolveGitHubAdapter,
+} from "@/lib/github/resolveGitHubAdapter";
+import { logger } from "@/lib/logging/logger";
+import { type GitHubAdapter, translateError } from "@reef/core";
 
 /** The shared repo-list result shape, derived so no extra core type export is needed. */
 type RepoListResult = Awaited<
@@ -21,56 +18,56 @@ type RepoListResult = Awaited<
  * 304 with ETag). `id` is GitHub's stable numeric repo id — the logical PK for
  * `monitored_repos` rows (REEF-239 AC4).
  *
- * Requires the deployment-managed GitHub App. Browser PAT collection, IndexedDB
- * storage, and request `Authorization` forwarding were removed in REEF-244, so
- * deployments without `REEF_GITHUB_APP_*` get a clear 503 instead of a token
- * prompt.
+ * Credential selection (App → server PAT) is shared with the grounding and scan
+ * callers via `resolveGitHubAdapter` (REEF-290 AC2). The route only branches on
+ * which credential served the adapter: an App installation token lists the
+ * *installation's* repositories, while the dev/CI server PAT lists the
+ * *authenticated* account's repositories. Both credentials are session-gated
+ * inside the resolver, so an unauthenticated caller can never read the
+ * deployment's repo list. Browser PAT collection, IndexedDB storage, and
+ * request `Authorization` forwarding were removed in REEF-244.
  *
- * Thin Route Handler wrapper: it owns credential selection and PM-facing
+ * Thin Route Handler wrapper: it owns only the repo-listing branch and PM-facing
  * error translation; the GitHub I/O and error normalization live in core.
- * Stateless — the adapter and any minted token are per-request, not stored.
+ * Stateless — the adapter and any minted/injected token are per-request, not
+ * stored.
  */
 export async function GET(request: Request): Promise<Response> {
   const ifNoneMatch = request.headers.get("If-None-Match");
 
-  const appConfig = resolveServerGitHubAppConfig();
-  if (!appConfig.ok) {
-    return Response.json(
-      {
-        error: "GitHub App is not configured for this deployment.",
-      },
-      { status: 503 },
-    );
+  const resolved = await resolveGitHubAdapter(request);
+  switch (resolved.kind) {
+    case "session_invalid":
+      // A deployment credential (App or server PAT) was selected but akb
+      // rejected the session — surface the ready 401/5xx so an unauthenticated
+      // caller never reads the installation/server-PAT repo list.
+      return resolved.response;
+    case "no_credential":
+      return Response.json(
+        {
+          error: "GitHub App is not configured for this deployment.",
+        },
+        { status: 503 },
+      );
+    case "github_app_error":
+      return handleReposError(resolved.error);
+    case "adapter":
+      return listRepos(resolved.adapter, resolved.source, ifNoneMatch);
   }
+}
 
-  // Authorize before using the server-managed credential. The App path mints a
-  // deployment credential, so without an auth check an unauthenticated caller
-  // could read the installation's repo list (including private repo names/ids).
-  // Validate the session against the akb backend (akb `/auth/me`) rather than
-  // just decoding the cookie: this route does not otherwise call akb, so a
-  // syntactic presence/`exp` check would accept a forged cookie.
-  //
-  // The floor is an akb-verified session, not a per-workspace role. reef is
-  // single-tenant per deployment — one akb backend, one shared Keycloak tenant,
-  // and one deployment-managed GitHub App installation
-  // (`REEF_GITHUB_APP_INSTALLATION_ID` is singular, with no per-org/per-vault
-  // installation mechanism); the root AGENTS.md carries no multi-tenant
-  // isolation contract. So an akb-verified caller is an org member, and the
-  // installation's repo list is in-tenant data, trusted the same way the
-  // deployment-managed LLM config is. Scoping the installation to specific
-  // workspaces is REEF-239's deferred open question, tracked for follow-up.
-  const auth = await getAkbCurrentActor(request);
-  if ("response" in auth) {
-    return auth.response;
-  }
-
+async function listRepos(
+  adapter: GitHubAdapter,
+  source: GitHubCredentialSource,
+  ifNoneMatch: string | null,
+): Promise<Response> {
   try {
-    const mintInstallationToken = createGitHubAppInstallationTokenProvider({
-      config: appConfig.config,
-    });
-    const token = await mintInstallationToken();
-    const adapter = createGitHubAdapter({ token });
-    const result = await adapter.listInstallationRepositories({ ifNoneMatch });
+    // An App installation token can only enumerate the installation's repos;
+    // the server PAT enumerates the authenticated account's repos.
+    const result =
+      source === "app"
+        ? await adapter.listInstallationRepositories({ ifNoneMatch })
+        : await adapter.listAuthenticatedRepositories({ ifNoneMatch });
     return buildReposResponse(result);
   } catch (err) {
     return handleReposError(err);

@@ -41,9 +41,18 @@ explicitly in the entries below.
   (`/api/agents/runs`) now reads repositories through the server-managed App
   installation, so AI answers can cite repo code without a GitHub PAT in the
   browser. Because grounding is an enhancement, any GitHub unavailability — no
-  App, an unverified session, or a revoked / rate-limited App — now degrades
-  cleanly to AKB-only answers instead of failing the request (REEF-243 /
-  REEF-244).
+  deployment-managed credential, an unverified session, or a revoked /
+  rate-limited App — now degrades cleanly to AKB-only answers instead of failing
+  the request (REEF-243 / REEF-244).
+- **Verify GitHub grounding locally and in CI without a GitHub App.** A new
+  optional `REEF_GITHUB_PAT` deployment env var lets a server read GitHub with a
+  read-only personal access token when no GitHub App is configured, so local
+  development and CI can exercise the real repo picker, activity scan, and AI
+  grounding without each browser supplying a PAT. It is a deployment-managed
+  secret (never per-user), disabled unless set, and used only when no App is
+  configured — credential precedence is GitHub App, then this server PAT — so it
+  never overrides or becomes a production deployment's primary credential
+  (REEF-290).
 - **Spot outdated workspace AI instructions from the sidebar.** When your active
   workspace is running an older agent playbook, the sidebar **Settings** entry
   now shows a small amber dot, so the drift is discoverable without opening
@@ -81,8 +90,13 @@ explicitly in the entries below.
   client no longer attaches GitHub `Authorization` headers, and Dexie v11 drops
   the legacy `credentials` store so stale browser tokens stop being readable.
   GitHub-specific repo listing and activity scan surfaces now require a
-  deployment-managed GitHub App; Ask AI and enrichment continue AKB-only when
-  GitHub is unavailable (REEF-244).
+  deployment-managed GitHub credential; Ask AI and enrichment continue AKB-only
+  when GitHub is unavailable (REEF-244).
+- **Sidebar footer shortcuts and release notes are easier to find.** The
+  keyboard shortcuts launcher now sits directly in the sidebar footer instead of
+  hiding inside the account menu, and the account menu's version row is now a
+  **What's new** link to the current `appVersion` GitHub Release tag while still
+  showing the exact version for bug reports (REEF-170).
 - **New workspaces start from issue-type-aligned templates.** The default issue
   templates seeded by Settings → Templates now match reef's issue types — Epic,
   User story, Task, Bug, Spike, and Chore — replacing the previous Bug / Feature

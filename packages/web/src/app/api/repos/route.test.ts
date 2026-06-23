@@ -46,9 +46,13 @@ const APP_CONFIG: ServerAppConfig = {
 const appConfigState = vi.hoisted(() => ({
   current: undefined as unknown,
 }));
+const serverPatState = vi.hoisted(() => ({ current: null as string | null }));
 
 vi.mock("@/lib/github/serverAppConfig", () => ({
   resolveServerGitHubAppConfig: () => appConfigState.current,
+}));
+vi.mock("@/lib/github/serverPat", () => ({
+  resolveServerGitHubPat: () => serverPatState.current,
 }));
 
 vi.mock("@/lib/api/requestHelpers", async () => {
@@ -73,12 +77,25 @@ const mockCreateProvider = vi.mocked(createGitHubAppInstallationTokenProvider);
 const mockGetActor = vi.mocked(getAkbCurrentActor);
 const mockLogError = vi.mocked(logger.error);
 
+type AuthenticatedRepoListMethod = ReturnType<
+  typeof createGitHubAdapter
+>["listAuthenticatedRepositories"];
 type InstallationRepoListMethod = ReturnType<
   typeof createGitHubAdapter
 >["listInstallationRepositories"];
 
 function makeRequest(headers: Record<string, string> = {}): Request {
   return new Request("http://localhost/api/repos", { headers });
+}
+
+function mockAuthenticatedRepoList(): ReturnType<
+  typeof vi.fn<AuthenticatedRepoListMethod>
+> {
+  const listAuthenticatedRepositories = vi.fn<AuthenticatedRepoListMethod>();
+  mockCreateGitHubAdapter.mockReturnValue({
+    listAuthenticatedRepositories,
+  } as unknown as ReturnType<typeof createGitHubAdapter>);
+  return listAuthenticatedRepositories;
 }
 
 function mockInstallationRepoList(token = "ghs_minted_installation_token"): {
@@ -100,9 +117,10 @@ describe("GET /api/repos", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     appConfigState.current = NOT_CONFIGURED;
+    serverPatState.current = null;
   });
 
-  it("returns 503 when the GitHub App is not configured", async () => {
+  it("returns 503 when no deployment-managed GitHub credential is configured", async () => {
     const res = await GET(makeRequest({ Authorization: "Bearer ghp_ignored" }));
 
     expect(res.status).toBe(503);
@@ -119,6 +137,7 @@ describe("GET /api/repos - server-managed GitHub App path", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     appConfigState.current = APP_CONFIG;
+    serverPatState.current = null;
     mockGetActor.mockResolvedValue({ actor: "alice" });
   });
 
@@ -182,6 +201,9 @@ describe("GET /api/repos - server-managed GitHub App path", () => {
     expect(res.status).toBe(200);
     expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
       token: "ghs_minted_installation_token",
+    });
+    expect(mockCreateGitHubAdapter).not.toHaveBeenCalledWith({
+      token: "ghp_browser_pat",
     });
     expect(listInstallationRepositories).toHaveBeenCalledTimes(1);
   });
@@ -274,5 +296,70 @@ describe("GET /api/repos - server-managed GitHub App path", () => {
       { err: expect.any(GitHubApiError), status: 403 },
       "list_repos failed",
     );
+  });
+});
+
+describe("GET /api/repos - server-managed PAT path (REEF-290)", () => {
+  const SERVER_PAT = "ghp_server_dev_pat";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    appConfigState.current = NOT_CONFIGURED;
+    serverPatState.current = SERVER_PAT;
+    mockGetActor.mockResolvedValue({ actor: "alice" });
+  });
+
+  it("lists the authenticated account's repos with the server PAT and no browser PAT", async () => {
+    const listAuthenticatedRepositories = mockAuthenticatedRepoList();
+    listAuthenticatedRepositories.mockResolvedValue({
+      kind: "ok",
+      repos: [{ full_name: "octo/reef", id: 1001 }],
+      etag: null,
+    });
+
+    const res = await GET(makeRequest());
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      repos: [{ full_name: "octo/reef", id: 1001 }],
+    });
+    expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({ token: SERVER_PAT });
+    expect(listAuthenticatedRepositories).toHaveBeenCalledWith({
+      ifNoneMatch: null,
+    });
+    expect(mockGetActor).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns the session 401 without listing when akb rejects the session", async () => {
+    const listAuthenticatedRepositories = mockAuthenticatedRepoList();
+    mockGetActor.mockResolvedValue({
+      response: Response.json(
+        { error: "Your session has expired. Please sign in again." },
+        { status: 401 },
+      ),
+    });
+
+    const res = await GET(makeRequest());
+
+    expect(res.status).toBe(401);
+    expect(listAuthenticatedRepositories).not.toHaveBeenCalled();
+    expect(mockLogError).not.toHaveBeenCalled();
+  });
+
+  it("ignores a browser PAT header when the server PAT is configured", async () => {
+    const listAuthenticatedRepositories = mockAuthenticatedRepoList();
+    listAuthenticatedRepositories.mockResolvedValue({
+      kind: "ok",
+      repos: [],
+      etag: null,
+    });
+
+    const res = await GET(makeRequest({ Authorization: "Bearer ghp_browser" }));
+
+    expect(res.status).toBe(200);
+    expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({ token: SERVER_PAT });
+    expect(mockCreateGitHubAdapter).not.toHaveBeenCalledWith({
+      token: "ghp_browser",
+    });
   });
 });

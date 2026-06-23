@@ -3,9 +3,9 @@
 reef ships as a single stateless web service, **reef-web**, that talks to an
 [akb](https://github.com/dnotitia/akb) backend. reef-web persists nothing of its
 own: the akb session lives in an httpOnly cookie, monitored repositories are
-accessed through a deployment-managed GitHub App, and LLM config is
+accessed through deployment-managed GitHub credentials, and LLM config is
 deployment-managed server state. That means deployment is just "run the
-container, point it at akb, give it OpenRouter and GitHub App configuration."
+container, point it at akb, give it OpenRouter and GitHub configuration."
 
 This guide covers three ways to run it:
 
@@ -158,6 +158,8 @@ services:
       REEF_GITHUB_APP_ID: ${REEF_GITHUB_APP_ID:?set REEF_GITHUB_APP_ID}
       REEF_GITHUB_APP_INSTALLATION_ID: ${REEF_GITHUB_APP_INSTALLATION_ID:?set REEF_GITHUB_APP_INSTALLATION_ID}
       REEF_GITHUB_APP_PRIVATE_KEY: ${REEF_GITHUB_APP_PRIVATE_KEY:?set REEF_GITHUB_APP_PRIVATE_KEY}
+      # Optional dev/CI fallback when no GitHub App is configured
+      # REEF_GITHUB_PAT: ${REEF_GITHUB_PAT}
 ```
 
 ```bash
@@ -189,6 +191,7 @@ the `reef-web-config` ConfigMap plus the `reef-web-secret` Secret).
 | `REEF_GITHUB_APP_ID` | yes for GitHub features | GitHub App id used to mint server-side installation tokens for monitored-repo listing, grounding, and activity scans. |
 | `REEF_GITHUB_APP_INSTALLATION_ID` | yes for GitHub features | Installation id for the repository/org installation reef should read from. |
 | `REEF_GITHUB_APP_PRIVATE_KEY` | yes for GitHub features | PEM private key for the GitHub App. Keep it in a Secret; literal `\\n` escapes are accepted and normalized at runtime. |
+| `REEF_GITHUB_PAT` | no | Optional server-managed read-only PAT fallback for local development and CI when no GitHub App is configured. Keep it in a Secret; it is not a browser token and must not be used as the production primary credential. |
 | `NODE_ENV` | recommended | Set to `production` in any real deployment — it enables the `Secure` cookie flag and the strict CSP. |
 
 Optional tracing/observability:

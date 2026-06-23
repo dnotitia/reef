@@ -1,21 +1,18 @@
-import { getAkbCurrentActor } from "@/lib/api/requestHelpers";
-import { resolveServerGitHubAppConfig } from "@/lib/github/serverAppConfig";
 import {
-  type GitHubAdapter,
-  createGitHubAdapter,
-  createGitHubAppInstallationTokenProvider,
-} from "@reef/core";
+  type ResolveGitHubAdapterResult,
+  resolveGitHubAdapter,
+} from "@/lib/github/resolveGitHubAdapter";
+import type { GitHubAdapter } from "@reef/core";
 
 /**
- * Resolve the GitHub adapter for a monitored-repo activity scan, preferring the
- * deployment-managed GitHub App (REEF-240 / REEF-244).
+ * Resolve the GitHub adapter for a monitored-repo activity scan.
  *
- * Mirrors the credential selection `GET /api/repos` introduced in REEF-239:
- * when `REEF_GITHUB_APP_*` is configured, mint a read-scoped installation token
- * so the scan runs without any browser-supplied token. The session is validated against
- * akb (`/auth/me`) *before* minting, because the App path mints a deployment
- * credential rather than consuming a caller-supplied one — without that check a
- * forged-but-decodable session cookie could trigger a credential mint.
+ * Credential selection is shared with the grounding and repo-list callers
+ * through `resolveGitHubAdapter` (REEF-290 AC2): server-managed GitHub App,
+ * then the dev/CI server PAT fallback. Both are deployment credentials,
+ * validated against akb (`/auth/me`) before use. Browser PAT collection,
+ * IndexedDB storage, and request `Authorization` forwarding were removed in
+ * REEF-244.
  *
  * Both scan callers — the manual `POST /api/activity/scan` route and the
  * `agent-run` `activity.scan` task — share this resolver so they use one
@@ -25,9 +22,9 @@ import {
  */
 export type ResolveScanGitHubAdapterResult =
   | { kind: "adapter"; adapter: GitHubAdapter }
-  /** akb rejected the session on the App path; `response` is the ready 401/5xx. */
+  /** A deployment credential was selected but akb rejected the session; `response` is the ready 401/5xx. */
   | { kind: "session_invalid"; response: Response }
-  /** No deployment-managed GitHub App is configured. */
+  /** No deployment-managed GitHub credential is configured. */
   | { kind: "github_app_unconfigured" }
   /** App configured but minting the installation token failed (perm/rate-limit). */
   | { kind: "github_error"; error: unknown };
@@ -35,23 +32,17 @@ export type ResolveScanGitHubAdapterResult =
 export async function resolveScanGitHubAdapter(
   request: Request,
 ): Promise<ResolveScanGitHubAdapterResult> {
-  const appConfig = resolveServerGitHubAppConfig();
-  if (!appConfig.ok) {
-    return { kind: "github_app_unconfigured" };
-  }
+  const resolved: ResolveGitHubAdapterResult =
+    await resolveGitHubAdapter(request);
 
-  const auth = await getAkbCurrentActor(request);
-  if ("response" in auth) {
-    return { kind: "session_invalid", response: auth.response };
-  }
-
-  try {
-    const mintInstallationToken = createGitHubAppInstallationTokenProvider({
-      config: appConfig.config,
-    });
-    const token = await mintInstallationToken();
-    return { kind: "adapter", adapter: createGitHubAdapter({ token }) };
-  } catch (error) {
-    return { kind: "github_error", error };
+  switch (resolved.kind) {
+    case "adapter":
+      return { kind: "adapter", adapter: resolved.adapter };
+    case "session_invalid":
+      return { kind: "session_invalid", response: resolved.response };
+    case "github_app_error":
+      return { kind: "github_error", error: resolved.error };
+    case "no_credential":
+      return { kind: "github_app_unconfigured" };
   }
 }

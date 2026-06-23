@@ -266,8 +266,9 @@ fluid main column:
 
 - **Sidebar** — collapsible between an expanded `w-60` and a `w-14` icon rail.
   It holds the reef wordmark, a prominent New Issue button, the primary nav
-  (Issues / My Work / Planning / Activity / Reports / Settings), and the app
-  version in the footer.
+  (Issues / My Work / Planning / Activity / Reports / Settings), a footer
+  utility row for keyboard shortcuts, and the workspace/account identity block.
+  App-version context lives in the account menu as a release-notes link.
 - **Main column** — a per-page header and the page body. The Issues page body
   swaps between Board, List, Timeline, and Backlog.
 - **Issue detail** — a right-side slide-over Sheet (`min(94vw, 1080px)`),
@@ -420,9 +421,9 @@ until setup is complete. Onboarding is a single screen whose required step is
 hyphens), choose an issue **prefix** (uppercase, e.g. `REEF`), optionally add a
 description and monitored repositories, and create. A secondary, collapsed path
 lets the user pick an existing reef workspace instead. Monitored repository
-access comes from the deployment-managed GitHub App, so onboarding configures a
-*workspace*, not a Git repo, and no issue is committed under anyone's GitHub
-identity.
+access comes from deployment-managed GitHub credentials, so onboarding
+configures a *workspace*, not a Git repo, and no issue is committed under
+anyone's GitHub identity.
 
 ### Planning, Reports, Settings
 
@@ -496,9 +497,9 @@ that exist and define the experience:
   `ConfidenceBadge`, `TextDiff` (word/line diffs), the Activity `ActivityFeed`
   / `ActivityItemCard` / `UnreviewedSummaryCard`, and the Ask AI
   `AskAiFab` / `AskAiDialog` / `ChatSurface`.
-- **Shell.** `DashboardShell` (sidebar, nav, version, global dialogs),
-  page header/body, the global search palette, the keyboard-shortcuts sheet,
-  and the offline banner.
+- **Shell.** `DashboardShell` (sidebar, nav, account/release context, global
+  dialogs), page header/body, the global search palette, the keyboard-shortcuts
+  sheet, and the offline banner.
 
 The AI components share the `--ai` token family so that AI work reads as a
 consistent purple track wherever it appears, distinct from the teal brand.

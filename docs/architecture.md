@@ -126,11 +126,13 @@ the system needs are each placed deliberately:
   decoded read-only per request and forwarded to AKB as
   `Authorization: Bearer <pat>`. It is never mirrored to server memory or disk,
   and `httpOnly` keeps it out of browser JavaScript.
-- **GitHub App credentials** — deployment-managed server environment:
+- **GitHub credentials** — deployment-managed server environment:
   `REEF_GITHUB_APP_ID`, `REEF_GITHUB_APP_INSTALLATION_ID`, and
   `REEF_GITHUB_APP_PRIVATE_KEY`. reef-web mints per-request installation tokens
   server-side for read-only monitored-repo grounding, repository listing, and
-  activity scans. Browser clients do not collect or forward GitHub tokens.
+  activity scans. Local development and CI may set `REEF_GITHUB_PAT` as a
+  server-managed fallback when no App is configured. Browser clients do not
+  collect or forward GitHub tokens.
 - **LLM configuration** — deployment-managed server environment:
   `OPENROUTER_API_KEY` (secret), `OPENROUTER_BASE_URL`, and `REEF_LLM_MODEL`.
   There are no per-user or bring-your-own LLM keys and no per-user LLM headers.
@@ -189,7 +191,7 @@ emerge:
 - **Dexie / IndexedDB** — per-user persistent browser state only, in one live
   store. `config` holds the active `vault`, theme, AKB user id, and per-vault UI
   preferences (active scan repo, saved issue filters). Monitored repos,
-  `project_prefix`, GitHub App credentials, and LLM settings are *not* in
+  `project_prefix`, GitHub credentials, and LLM settings are *not* in
   `config` — they are AKB or deployment state. The AKB session is not browser
   JavaScript state at all; it is the `__reef_session` cookie.
 
