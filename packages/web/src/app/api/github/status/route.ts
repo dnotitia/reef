@@ -16,7 +16,7 @@ import { isServerGitHubPatConfigured } from "@/lib/github/serverPat";
  * repo picker gates on it so a deployment with any server-managed credential
  * can list and save monitored repos without browser-supplied GitHub tokens
  * (REEF-239 AC1/AC2 / REEF-244). `appId` stays App-specific — it is null when
- * only the server PAT is set, since it is a diagnostic and not the gate.
+ * just the server PAT is set, since it is a diagnostic and not the gate.
  */
 export function GET(): Response {
   const appStatus = resolveServerGitHubAppConfig().status;

@@ -31,7 +31,7 @@ const BAD_BODY_MESSAGE = "Request body is missing or invalid";
  *   • vault reads (`read_issue`, `search_issues`, `list_assignees`) — akb
  *   • monitored-repo grounding (`search_code`, `dev_read_file`) — GitHub, via
  *     the deployment GitHub App (`resolveGroundingGitHubAdapter`). When the
- *     App is unavailable, chat degrades to AKB-only grounding (REEF-243 /
+ *     App is unavailable, chat degrades to AKB scoped grounding (REEF-243 /
  *     REEF-244).
  *
  * No vault-mutating tools are wired here — the chat loop is read
@@ -90,8 +90,8 @@ export async function POST(request: Request): Promise<Response> {
     model: config.model,
   });
 
-  // Server-managed GitHub App only. Any failure to obtain a GitHub adapter
-  // degrades to AKB-only grounding (REEF-243 / REEF-244); the credential never
+  // Server-managed GitHub App just. Any failure to obtain a GitHub adapter
+  // degrades to AKB scoped grounding (REEF-243 / REEF-244); the credential does not
   // reaches the response or the LLM prompt.
   const githubResolution = await resolveGroundingGitHubAdapter(request);
   if (githubResolution.kind === "degraded" && githubResolution.error) {

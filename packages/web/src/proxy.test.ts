@@ -280,9 +280,9 @@ describe("proxy — credential redaction", () => {
   });
 
   it("logs only the decoded actor, never the raw session token", () => {
-    // The JWT is itself a credential; only the `sub` identity claim should reach
+    // The JWT is itself a credential; just the `sub` identity claim should reach
     // the log. A canary rides the (unused) signature segment to prove the raw
-    // token never leaks while the actor is decoded.
+    // token does not leaks while the actor is decoded.
     const jwt = `${makeSessionJwt({ sub: "alice-actor" })}.sig_token_canary_zzz`;
     const request = new NextRequest("https://reef.test/api/issues", {
       method: "GET",

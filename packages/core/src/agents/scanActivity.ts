@@ -203,7 +203,7 @@ export async function scanActivity(
 
         // Checkpoint 3 — completion summary. The `reef.agent.scanActivity` span
         // already carries these as attributes (above), but a trace-backend-less
-        // deployment sees only stdout, so emit the same counts as one structured
+        // deployment sees just stdout, so emit the same counts as one structured
         // line. Re-setting the attributes here is idempotent and keeps the
         // emit-once-shape-twice call shape uniform.
         observe(

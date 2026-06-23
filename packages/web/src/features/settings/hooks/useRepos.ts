@@ -17,7 +17,7 @@ export interface RepoListItem {
  *
  * Query key: ['repos', 'installation', 'list'] — versioned to the
  *   deployment-managed GitHub App source so older browser-PAT snapshots under
- *   ['repos', 'list'] cannot be rehydrated after REEF-244.
+ *   ['repos', 'list'] does not be rehydrated after REEF-244.
  *
  * staleTime: 5 minutes. The user's repo set rarely changes within a session,
  *   so this trades freshness for instant revisit. Use queryClient.invalidate
@@ -29,7 +29,7 @@ export interface RepoListItem {
  * previously-cached data (via queryClient.getQueryData) so the queryFn does
  * not throw and TanStack Query continues to report success.
  *
- * GitHub credentials are deployment-managed. The browser never provides a
+ * GitHub credentials are deployment-managed. The browser does not provides a
  * GitHub token.
  */
 const REPOS_KEY = ["repos", "installation", "list"] as const;
@@ -37,7 +37,7 @@ const REPOS_KEY = ["repos", "installation", "list"] as const;
 // was added to monitored_repos. Bump the storage key so older clients drop
 // their string cache instead of trying to interpret it as objects.
 // v3 (REEF-244): credential source changed from browser PAT to the deployment
-// GitHub App installation, so old PAT-scoped ETags must not gate the first
+// GitHub App installation, so old PAT-scoped ETags should not gate the first
 // post-upgrade repo-list fetch.
 const REPOS_ETAG_STORAGE_KEY = "reef:etag:repos:installation:list:v3";
 

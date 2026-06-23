@@ -78,17 +78,17 @@ export function proxy(request: NextRequest) {
     // TRUST BOUNDARY: this is the *claimed* session identity, not a verified one.
     // reef-web is not the JWT signing authority — akb is, and it re-validates the
     // forwarded token on every request (see `decodeJwtExp` / `extractAkbSession`).
-    // The proxy runs before that validation and cannot check the signature, so a
+    // The proxy runs before that validation and does not check the signature, so a
     // forged cookie like `{"sub":"alice"}` would be logged as `actor: alice` even
     // though akb then rejects it (401/403) — the request fails, but the line is
     // already written. The field is therefore reliable for akb-accepted requests
     // (the ones a real 500 comes from) and a best-effort, spoofable hint on
-    // rejected ones. It is logged as a debug aid, never used for authorization,
+    // rejected ones. It is logged as a debug aid, not used for authorization,
     // and is deliberately NOT emitted as the OTel `enduser.id` span attribute,
     // whose semantic convention denotes a *verified* end user — setting it from an
     // unverified edge claim would overstate it in traces/cost dashboards.
     //
-    // Only the public identity claim is read; the token/PAT is never touched, so
+    // The public identity claim is read; the token/PAT is not touched, so
     // the credential-redaction invariant above is preserved.
     const sessionJwt = request.cookies.get(SESSION_COOKIE)?.value;
     const actor = sessionJwt ? decodeSessionActor(sessionJwt) : null;
@@ -109,7 +109,7 @@ export function proxy(request: NextRequest) {
 
   // Dev-mode relaxations. React uses `eval` in development to reconstruct
   // server-side error stacks in the browser (per Next.js CSP guide). This is
-  // unavoidable for the dev error overlay and HMR and is does not enabled in
+  // unavoidable for the dev error overlay and HMR and is not enabled in
   // production — `NODE_ENV` is baked at build time so there is no runtime
   // toggle attacker could flip.
   const isDev = process.env.NODE_ENV === "development";

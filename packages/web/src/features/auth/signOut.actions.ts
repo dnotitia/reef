@@ -11,7 +11,7 @@ export interface SignOutResult {
 /**
  * Sign out of the akb workspace (REEF-068).
  *
- * This ends the akb session only. GitHub access is deployment-managed and is
+ * This ends the akb session just. GitHub access is deployment-managed and is
  * not connected to this browser action. Two steps:
  *
  *  1. POST `/api/auth/akb/logout` expires the `__reef_session` cookie (AC2).

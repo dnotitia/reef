@@ -26,7 +26,7 @@ export interface RepoReadToolsetParams {
   githubAdapter: GitHubAdapter;
   /**
    * Server-verified single repo for the bound tools (enrichment). When set, the
-   * tools target only this repo and ignore `allowedRepos`.
+   * tools target just this repo and ignore `allowedRepos`.
    */
   repoContext?: {
     owner: string;
@@ -35,9 +35,9 @@ export interface RepoReadToolsetParams {
   /**
    * The active vault's monitored repositories. Required for the unbound chat
    * tools, where the LLM supplies `owner`/`repo`: the tools reject any repo not
-   * in this list so a broad GitHub App token cannot ground on an out-of-scope
+   * in this list so a broad GitHub App token does not ground on an out-of-scope
    * repository (REEF-243). When omitted or empty (and no `repoContext`), no repo
-   * tools are returned — unbounded repo reads are never exposed.
+   * tools are returned — unbounded repo reads are does not exposed.
    */
   allowedRepos?: RepoRef[] | null;
 }
@@ -85,7 +85,7 @@ export function createRepoReadToolset({
 
   // Unbound tools (chat): the LLM supplies owner/repo, so every read is checked
   // against the monitored-repo allowlist. A missing/empty allowlist yields tools
-  // that reject every repo — never an unbounded GitHub read. Callers that want
+  // that reject every repo — not an unbounded GitHub read. Callers that want
   // to omit repo grounding entirely should skip this toolset (see chat agent).
   return {
     search_code: createSearchCodeTool(githubAdapter, allowedRepos ?? []),

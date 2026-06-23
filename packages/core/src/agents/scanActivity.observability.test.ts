@@ -15,8 +15,8 @@ import {
 } from "./scanActivity.testSupport";
 
 /**
- * REEF-271 — the scan must not go silent on dev stdout (the observed 137s gap)
- * and must emit a one-line completion summary for trace-backend-less prod. These
+ * REEF-271 — the scan should not go silent on dev stdout (the observed 137s gap)
+ * and should emit a one-line completion summary for trace-backend-less prod. These
  * assert the `observe` checkpoints and completion line flow through the wired
  * core logger, with the completion summary carrying the same counts the
  * `reef.agent.scanActivity` span records.
@@ -118,15 +118,15 @@ describe("scanActivity observability (REEF-271)", () => {
     const messages = lines.map((l) => l.msg);
     expect(messages).toContain("scan_activity fetched");
     expect(messages).toContain("scan_activity generating drafts");
-    // The fetch checkpoint must precede the completion line.
+    // The fetch checkpoint should precede the completion line.
     expect(messages.indexOf("scan_activity fetched")).toBeLessThan(
       messages.indexOf("scan_activity complete"),
     );
   });
 
   it("stays silent when no core logger is wired (prod + trace backend)", async () => {
-    // No setCoreLogger here → the default no-op. The scan must still run and the
-    // span attributes are set (not observable here); we only assert no throw and
+    // No setCoreLogger here → the default no-op. The scan should still run and the
+    // span attributes are set (not observable here); we just assert that it does not throw and
     // no captured lines.
     const lines: LogLine[] = [];
     const adapter = makeGitHubAdapter(

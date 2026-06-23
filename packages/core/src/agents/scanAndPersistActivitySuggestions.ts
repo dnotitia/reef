@@ -176,7 +176,7 @@ export async function scanAndPersistActivitySuggestions(
  * (`resolveVerifiedRepoContext`) already apply.
  *
  * Fail closed: a config-read failure or an empty `monitored_repos` rejects the
- * scan rather than letting it proceed unbounded — a security boundary must not
+ * scan rather than letting it proceed unbounded — a security boundary should not
  * fail open. Throws `SchemaValidationError` for an unmonitored repo, which the
  * route translates to a PM-facing 422 (and the agent run surfaces as a
  * structured error).

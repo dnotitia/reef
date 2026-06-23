@@ -93,7 +93,7 @@ describe("appendStatusChangeEvent", () => {
     );
     expect(insertSql).not.toContain("created_by");
     // Idempotency is enforced in the same statement: insert when the
-    // (reef_id, event_key) row does not already exist.
+    // (reef_id, event_key) row not already exist.
     expect(insertSql).toContain("WHERE NOT EXISTS");
     expect(insertSql).toContain(`SELECT 1 FROM ${REEF_ACTIVITY_TABLE}`);
     expect(insertSql).toContain("reef_id = 'REEF-063'");
@@ -394,7 +394,7 @@ describe("diffFieldActivityEvents (REEF-126)", () => {
 
   it("emits nothing when no tracked field changed", () => {
     // severity is deliberately out of the tracked set (REEF-277 Scope), so
-    // changing only it produces no event.
+    // changing just it produces no event.
     expect(diff({ severity: "minor" })).toEqual([]);
   });
 
@@ -723,7 +723,7 @@ describe("listIssueActivity reads the REEF-126 event types", () => {
             activityRow({
               id: "future",
               // content_change (REEF-127) is a deliberately-unmodeled future
-              // type — a clean stand-in for an event this release cannot read.
+              // type — a clean stand-in for an event this release does not read.
               event_type: "content_change",
               at: "2026-06-18T06:00:02.000Z",
               payload: { from: "x", to: "y" },

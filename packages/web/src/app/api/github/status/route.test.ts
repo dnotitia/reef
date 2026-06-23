@@ -29,8 +29,8 @@ describe("GET /api/github/status", () => {
     const res = GET();
     expect(res.status).toBe(200);
     const body = await res.json();
-    // The picker gates on isConfigured; the server PAT must flip it so a
-    // server-PAT-only deployment lists repos without a browser PAT. appId stays
+    // The picker gates on isConfigured; the server PAT should flip it so a
+    // server PAT scoped deployment lists repos without a browser PAT. appId stays
     // App-specific (null here).
     expect(body).toEqual({ isConfigured: true, appId: null });
   });

@@ -4,17 +4,17 @@
  * Mirrors `serverAppConfig.ts`: the token is server state injected from infra
  * env (not a per-user browser PAT, not committed to the akb vault). It exists
  * for local development and CI, where a full GitHub App is not configured but a
- * real read-only GitHub I/O path is still needed for grounding, the activity
+ * real read scoped GitHub I/O path is still needed for grounding, the activity
  * scan, and the monitored-repo picker (REEF-290).
  *
  * Credential precedence is App → server PAT: the App is the production path,
  * and the server PAT is an interim/dev tier that is **disabled unless
- * `REEF_GITHUB_PAT` is set**. Because it is unset by default, this tier never
+ * `REEF_GITHUB_PAT` is set**. Because it is unset by default, this tier does not
  * silently becomes a deployment's production credential (REEF-290 AC3).
  *
- * Use a fine-grained, read-only PAT scoped like the App installation
+ * Use a fine-grained, read scoped PAT scoped like the App installation
  * (`contents:read`, `metadata:read`, `pull_requests:read`). Like the App
- * private key it is a deployment secret: never log it, place it on a span, or
+ * private key it is a deployment secret: does not log it, place it on a span, or
  * put it in an LLM prompt/response.
  */
 export function resolveServerGitHubPat(

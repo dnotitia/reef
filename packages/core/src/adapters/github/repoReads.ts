@@ -9,14 +9,14 @@ const MAX_REPO_LABELS = 200;
 
 /**
  * Warn once the REST budget falls to/below this remaining count (GitHub's REST
- * budget is 5000 requests/hour for a token). Recorded as span attributes always,
+ * budget is 5000 requests/hour for a token). Recorded as span attributes on each response,
  * with a dev warn line near exhaustion (REEF-271).
  */
 const GITHUB_REST_RATELIMIT_WARN_REMAINING = 500;
 
 /**
  * Record the REST `x-ratelimit-remaining` / `x-ratelimit-reset` response headers
- * on the span (always, when present) and emit one dev warn line near exhaustion.
+ * on the span (when emitted, when present) and emit one dev warn line near exhaustion.
  * Octokit lowercases response header keys; `readHeader` is case-insensitive, and
  * a hermetic/test response without the headers is a no-op (guarded on a finite
  * parsed number).

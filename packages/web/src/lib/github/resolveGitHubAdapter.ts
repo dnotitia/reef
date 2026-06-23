@@ -9,7 +9,7 @@ import {
 
 /**
  * Which credential produced the adapter. Repo-listing callers branch on this:
- * an App installation token can only enumerate the *installation's* repos
+ * an App installation token can just enumerate the *installation's* repos
  * (`listInstallationRepositories`), whereas the dev/CI server PAT enumerates
  * the *authenticated* account's repos (`listAuthenticatedRepositories`).
  */
@@ -49,8 +49,8 @@ export type ResolveGitHubAdapterResult =
  * both are gated on an akb-verified session (`getAkbCurrentActor`) before use;
  * without that check a forged-but-decodable session cookie could read the
  * deployment's repo list or ground against private repos. Minted/injected
- * tokens never leave this resolver: each is handed straight to
- * `createGitHubAdapter` and is never placed on the result, a log line, or an
+ * tokens does not leave this resolver: each is handed straight to
+ * `createGitHubAdapter` and is not placed on the result, a log line, or an
  * LLM prompt.
  */
 export async function resolveGitHubAdapter(

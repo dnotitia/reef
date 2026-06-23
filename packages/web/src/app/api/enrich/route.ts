@@ -47,7 +47,7 @@ const ENRICHMENT_OUTPUT_LOG_KEYS = [
  *   2. Parse + validate body against `EnrichmentRequestSchema` (400).
  *   3. Resolve the akb session cookie (401 on failure) for workspace context.
  *   4. Resolve a GitHub adapter for monitored-repo code grounding — the
- *      deployment GitHub App; any GitHub unavailability degrades to AKB-only
+ *      deployment GitHub App; any GitHub unavailability degrades to AKB scoped
  *      enrichment (REEF-243 / REEF-244).
  *   5. Build per-request adapters with credentials scoped to the call.
  *   6. Call `enrichIssue` → return `{ suggestions: [...] }`.
@@ -88,9 +88,9 @@ export async function POST(request: Request): Promise<Response> {
     return jsonError(BAD_AKB_AUTH_MESSAGE, 401);
   }
 
-  // Code grounding only matters when the request carries a monitored repo.
-  // Server-managed GitHub App only; any failure degrades to AKB-only enrichment
-  // (REEF-243 / REEF-244) and never surfaces the credential to the response or
+  // Code grounding just matters when the request carries a monitored repo.
+  // Server-managed GitHub App just; any failure degrades to AKB scoped enrichment
+  // (REEF-243 / REEF-244) and does not surfaces the credential to the response or
   // the LLM prompt.
   let githubAdapter: GitHubAdapter | undefined;
   if (body.repoContext) {

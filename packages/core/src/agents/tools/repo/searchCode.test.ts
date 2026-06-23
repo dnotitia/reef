@@ -133,7 +133,7 @@ describe("createSearchCodeTool", () => {
 
   it("rejects a repo outside the monitored-repo allowlist without calling GitHub", async () => {
     // MSW is set to error on unhandled requests, so a leaked GitHub call would
-    // fail the test; the allowlist guard must reject before any network read.
+    // fail the test; the allowlist guard should reject before any network read.
     const adapter = createGitHubAdapter({ token: "test-token" });
     const toolObj = createSearchCodeTool(adapter, ALLOWED_REPOS);
 

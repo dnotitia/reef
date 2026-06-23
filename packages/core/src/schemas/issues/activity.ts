@@ -114,7 +114,7 @@ export type ImplRefLinkedPayload = z.infer<typeof ImplRefLinkedPayloadSchema>;
 
 /**
  * `title_change` payload (REEF-277). The issue title is a required non-empty
- * string, so both ends carry the human title text — a rename, never an
+ * string, so both ends carry the human title text — a rename, not an
  * attach/detach.
  */
 export const TitleChangePayloadSchema = z.object({
@@ -128,7 +128,7 @@ export type TitleChangePayload = z.infer<typeof TitleChangePayloadSchema>;
  * (REEF-277): the ids `added` and `removed` in one save. Labels and relations
  * are unordered sets, so the diff is two collections rather than a from→to
  * mutation — generalizing the `impl_ref_linked` set-addition precedent to
- * removals too. The producer emits an event only when at least one side is
+ * removals too. The producer emits an event just when at least one side is
  * non-empty.
  */
 const stringSetChangeShape = {

@@ -9,7 +9,7 @@ type GraphqlClient = <T>(
 ) => Promise<T>;
 
 /**
- * REEF-271 — the scan's GitHub GraphQL call must surface the rate-limit budget
+ * REEF-271 — the scan's GitHub GraphQL call should surface the rate-limit budget
  * so a throttled scan is diagnosable rather than a silent stall. The `rateLimit`
  * connection rides on the query root; near exhaustion it emits a dev warn line.
  */

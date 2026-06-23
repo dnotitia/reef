@@ -1,5 +1,12 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  APP_CONFIG,
+  NOT_CONFIGURED,
+  resetServerGitHubCredentials,
+  setServerAppConfig,
+  setServerGitHubPat,
+} from "./serverCredentials.testSupport";
 
 vi.mock("@reef/core", async () => {
   const actual =
@@ -13,46 +20,6 @@ vi.mock("@reef/core", async () => {
 
 vi.mock("@/lib/api/requestHelpers", () => ({
   getAkbCurrentActor: vi.fn(),
-}));
-
-// Deployment GitHub App config — flip per test via appConfigState.
-type ServerAppConfig =
-  | {
-      ok: true;
-      config: { app_id: string; installation_id: string; private_key: string };
-      status: { isConfigured: true; appId: string };
-    }
-  | {
-      ok: false;
-      status: { isConfigured: false; appId: string | null };
-      issues: string[];
-    };
-
-const NOT_CONFIGURED: ServerAppConfig = {
-  ok: false,
-  status: { isConfigured: false, appId: null },
-  issues: ["app_id is required"],
-};
-
-const APP_CONFIG: ServerAppConfig = {
-  ok: true,
-  config: {
-    app_id: "123456",
-    installation_id: "789",
-    private_key:
-      "-----BEGIN RSA PRIVATE KEY-----\nx\n-----END RSA PRIVATE KEY-----",
-  },
-  status: { isConfigured: true, appId: "123456" },
-};
-
-const appConfigState = vi.hoisted(() => ({ current: undefined as unknown }));
-const serverPatState = vi.hoisted(() => ({ current: null as string | null }));
-
-vi.mock("@/lib/github/serverAppConfig", () => ({
-  resolveServerGitHubAppConfig: () => appConfigState.current,
-}));
-vi.mock("@/lib/github/serverPat", () => ({
-  resolveServerGitHubPat: () => serverPatState.current,
 }));
 
 import { getAkbCurrentActor } from "@/lib/api/requestHelpers";
@@ -83,13 +50,12 @@ describe("resolveGitHubAdapter", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockCreateGitHubAdapter.mockReturnValue(SENTINEL_ADAPTER);
-    appConfigState.current = NOT_CONFIGURED;
-    serverPatState.current = null;
+    resetServerGitHubCredentials();
   });
 
   describe("server-managed GitHub App tier (highest precedence)", () => {
     beforeEach(() => {
-      appConfigState.current = APP_CONFIG;
+      setServerAppConfig(APP_CONFIG);
       mockGetActor.mockResolvedValue({ actor: "alice" });
     });
 
@@ -110,7 +76,7 @@ describe("resolveGitHubAdapter", () => {
     });
 
     it("wins over a configured server PAT and ignores a browser PAT header", async () => {
-      serverPatState.current = SERVER_PAT;
+      setServerGitHubPat(SERVER_PAT);
       const mint = vi.fn(async () => MINTED_TOKEN);
       mockCreateProvider.mockReturnValue(mint);
 
@@ -163,8 +129,8 @@ describe("resolveGitHubAdapter", () => {
 
   describe("server-managed PAT tier (dev/CI fallback)", () => {
     beforeEach(() => {
-      appConfigState.current = NOT_CONFIGURED;
-      serverPatState.current = SERVER_PAT;
+      setServerAppConfig(NOT_CONFIGURED);
+      setServerGitHubPat(SERVER_PAT);
       mockGetActor.mockResolvedValue({ actor: "alice" });
     });
 
@@ -211,8 +177,7 @@ describe("resolveGitHubAdapter", () => {
 
   describe("no deployment credential", () => {
     beforeEach(() => {
-      appConfigState.current = NOT_CONFIGURED;
-      serverPatState.current = null;
+      resetServerGitHubCredentials();
     });
 
     it("returns no_credential even when an Authorization header is present", async () => {

@@ -167,8 +167,8 @@ describe("workspace chat agent task", () => {
 
     await createWorkspaceChatAgentResponse(createParams());
 
-    // A config-read failure must not break chat or expose an unbounded read —
-    // it drops repo grounding and proceeds AKB-only.
+    // A config-read failure should not break chat or expose an unbounded read —
+    // it drops repo grounding and proceeds AKB scoped.
     expect(Object.keys(getAgentSettings().tools).sort()).toEqual([
       "list_assignees",
       "read_issue",

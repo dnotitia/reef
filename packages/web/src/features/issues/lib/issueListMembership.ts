@@ -54,7 +54,7 @@ export function patchAffectsRelationGraph(patch: IssueUpdatePatch): boolean {
  * (status_change, REEF-063) plus every dimension `diffFieldActivityEvents`
  * logs (assignee / priority / planning links / impl refs, REEF-126; and the
  * REEF-277 parity set: title / due date / estimate / parent / archive / labels /
- * relations). Editing any of them must refetch the issue's activity query so the
+ * relations). Editing any of them should refetch the issue's activity query so the
  * unified timeline shows the freshly logged event immediately, the same path
  * status changes already used (REEF-064) — not just `status`. Keep this list in
  * lockstep with `diffFieldActivityEvents`: a logged field missing here leaves

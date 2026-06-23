@@ -246,7 +246,7 @@ describe("ActivityEventSchema discriminated union (REEF-126)", () => {
       ActivityEventSchema.parse({
         ...BASE,
         // content_change (REEF-127, body diff) is a deliberately-unmodeled
-        // future type — a clean stand-in for an event this release cannot read.
+        // future type — a clean stand-in for an event this release does not read.
         event_type: "content_change",
         payload: { from: "a", to: "b" },
       }),

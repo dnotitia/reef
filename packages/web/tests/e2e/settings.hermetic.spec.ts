@@ -48,20 +48,21 @@ test.describe("Hermetic settings workflows", () => {
     await expect(page.locator('[data-testid="disconnect-btn"]')).toHaveCount(0);
 
     await page.goto("/settings/workspace");
+    const main = page.getByRole("main");
     await expect(
-      page.locator('[data-testid="settings-group-workspace"]'),
+      main.locator('[data-testid="settings-group-workspace"]'),
     ).toBeVisible();
     await expect(
-      page.locator('[data-testid="monitored-repos-trigger"]'),
+      main.locator('[data-testid="monitored-repos-trigger"]'),
     ).toBeVisible();
-    await page.locator('[data-testid="monitored-repos-trigger"]').click();
+    await main.locator('[data-testid="monitored-repos-trigger"]').click();
     await expect(
       page.getByTestId("monitored-repos-option-octo/reef"),
     ).toBeVisible();
     await page.getByTestId("monitored-repos-option-octo/reef").click();
 
     await expect(
-      page.locator('[data-testid="monitored-repos-trigger"]'),
+      main.locator('[data-testid="monitored-repos-trigger"]'),
     ).toContainText("1 repo(s) selected");
     await expect
       .poll(async () => {
@@ -88,29 +89,30 @@ test.describe("Hermetic settings workflows", () => {
   }) => {
     await openExistingWorkspace(page);
     await page.goto("/settings/workspace");
+    const main = page.getByRole("main");
 
-    await page.locator('[data-testid="project-prefix-input"]').fill("QA");
-    await page.locator('[data-testid="project-prefix-save"]').click();
+    await main.locator('[data-testid="project-prefix-input"]').fill("QA");
+    await main.locator('[data-testid="project-prefix-save"]').click();
     await expect(
-      page.locator('[data-testid="project-prefix-input"]'),
+      main.locator('[data-testid="project-prefix-input"]'),
     ).toHaveValue("QA");
     await expect
       .poll(async () => reefVault(await readFixtureState(request)).settings)
       .toMatchObject({ project_prefix: "QA" });
 
-    await page.locator('[data-testid="authoring-language-select"]').click();
+    await main.locator('[data-testid="authoring-language-select"]').click();
     await page.getByRole("option", { name: "English" }).click();
     await expect(
-      page.locator('[data-testid="authoring-language-select"]'),
+      main.locator('[data-testid="authoring-language-select"]'),
     ).toContainText("English");
     await expect
       .poll(async () => reefVault(await readFixtureState(request)).settings)
       .toMatchObject({ authoring_language: "en" });
 
-    await page.getByLabel("Hide completed after N days").fill("14");
-    await page.getByLabel("Hide canceled after N days").fill("3");
-    await page.locator('[data-testid="resolved-auto-hide-save"]').click();
-    await expect(page.getByLabel("Hide completed after N days")).toHaveValue(
+    await main.getByLabel("Hide completed after N days").fill("14");
+    await main.getByLabel("Hide canceled after N days").fill("3");
+    await main.locator('[data-testid="resolved-auto-hide-save"]').click();
+    await expect(main.getByLabel("Hide completed after N days")).toHaveValue(
       "14",
     );
     await expect
@@ -127,45 +129,46 @@ test.describe("Hermetic settings workflows", () => {
   }) => {
     await openExistingWorkspace(page);
     await page.goto("/settings/workspace");
+    const main = page.getByRole("main");
 
     await expect(
-      page.locator('[data-testid="templates-section"]'),
+      main.locator('[data-testid="templates-section"]'),
     ).toBeVisible();
-    await page.locator('[data-testid="templates-new-button"]').click();
+    await main.locator('[data-testid="templates-new-button"]').click();
     await expect(
-      page.locator('[data-testid="templates-editor"]'),
+      main.locator('[data-testid="templates-editor"]'),
     ).toBeVisible();
-    await page
+    await main
       .locator('[data-testid="templates-name-input"]')
       .fill("e2e-template");
-    await page
+    await main
       .locator('[data-testid="templates-label-input"]')
       .fill("E2E Template");
-    await page
+    await main
       .locator('[data-testid="templates-description-input"]')
       .fill("Created by the hermetic settings workflow.");
-    await page.locator('[data-testid="templates-editor-save"]').click();
+    await main.locator('[data-testid="templates-editor-save"]').click();
 
     await expect(
-      page.locator('[data-testid="templates-row-e2e-template"]'),
+      main.locator('[data-testid="templates-row-e2e-template"]'),
     ).toBeVisible();
     await expect
       .poll(async () => reefVault(await readFixtureState(request)).templates)
       .toContainEqual(expect.objectContaining({ name: "e2e-template" }));
 
-    await page.locator('[data-testid="templates-edit-e2e-template"]').click();
-    await page
+    await main.locator('[data-testid="templates-edit-e2e-template"]').click();
+    await main
       .locator('[data-testid="templates-label-input"]')
       .fill("E2E Template Edited");
-    await page.locator('[data-testid="templates-editor-save"]').click();
+    await main.locator('[data-testid="templates-editor-save"]').click();
     await expect(
-      page.locator('[data-testid="templates-row-e2e-template"]'),
+      main.locator('[data-testid="templates-row-e2e-template"]'),
     ).toContainText("E2E Template Edited");
 
     page.once("dialog", (dialog) => dialog.accept());
-    await page.locator('[data-testid="templates-delete-e2e-template"]').click();
+    await main.locator('[data-testid="templates-delete-e2e-template"]').click();
     await expect(
-      page.locator('[data-testid="templates-row-e2e-template"]'),
+      main.locator('[data-testid="templates-row-e2e-template"]'),
     ).toBeHidden();
     await expect
       .poll(async () =>
@@ -182,25 +185,26 @@ test.describe("Hermetic settings workflows", () => {
   }) => {
     await openExistingWorkspace(page);
     await page.goto("/settings/workspace");
+    const main = page.getByRole("main");
 
     // A workspace with no templates shows the seed-defaults call to action.
     await expect(
-      page.locator('[data-testid="templates-section-empty"]'),
+      main.locator('[data-testid="templates-section-empty"]'),
     ).toBeVisible();
-    await page.locator('[data-testid="templates-seed-defaults"]').click();
+    await main.locator('[data-testid="templates-seed-defaults"]').click();
 
     // All six canonical issue types land as rows; the legacy feature /
     // tech-debt templates are gone.
     for (const name of ["epic", "story", "task", "bug", "spike", "chore"]) {
       await expect(
-        page.locator(`[data-testid="templates-row-${name}"]`),
+        main.locator(`[data-testid="templates-row-${name}"]`),
       ).toBeVisible();
     }
     await expect(
-      page.locator('[data-testid="templates-row-feature"]'),
+      main.locator('[data-testid="templates-row-feature"]'),
     ).toHaveCount(0);
     await expect(
-      page.locator('[data-testid="templates-row-tech-debt"]'),
+      main.locator('[data-testid="templates-row-tech-debt"]'),
     ).toHaveCount(0);
 
     // The seed wrote through the real writeTemplate route into the fixture vault.
@@ -217,24 +221,25 @@ test.describe("Hermetic settings workflows", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
+    const main = page.getByRole("main");
 
     await page.goto("/settings");
     await page.waitForURL(/\/settings\/workspace$/, { timeout: 10_000 });
     await expect(
-      page.locator('[data-testid="settings-group-workspace"]'),
+      main.locator('[data-testid="settings-group-workspace"]'),
     ).toBeVisible();
 
     await page.goto("/settings/workspace/members");
     await expect(
-      page.locator('[data-testid="settings-group-members"]'),
+      main.locator('[data-testid="settings-group-members"]'),
     ).toBeVisible();
-    await expect(page.locator('[data-testid="members-section"]')).toBeVisible();
+    await expect(main.locator('[data-testid="members-section"]')).toBeVisible();
 
     await page.goto("/settings/deployment");
     await expect(
-      page.locator('[data-testid="settings-group-deployment"]'),
+      main.locator('[data-testid="settings-group-deployment"]'),
     ).toBeVisible();
-    await expect(page.getByText("AI Configuration")).toBeVisible();
+    await expect(main.getByText("AI Configuration")).toBeVisible();
   });
 
   test("does not expose browser GitHub token controls in preferences (REEF-244)", async ({
@@ -249,8 +254,9 @@ test.describe("Hermetic settings workflows", () => {
     await expect(page.getByLabel("GitHub Personal Access Token")).toHaveCount(
       0,
     );
-    await expect(page.locator('[data-testid="save-token-btn"]')).toHaveCount(0);
-    await expect(page.locator('[data-testid="disconnect-btn"]')).toHaveCount(0);
+    const main = page.getByRole("main");
+    await expect(main.locator('[data-testid="save-token-btn"]')).toHaveCount(0);
+    await expect(main.locator('[data-testid="disconnect-btn"]')).toHaveCount(0);
     await expect(page).toHaveURL(/\/settings\/preferences$/);
     await expect(page.locator('[data-testid="akb-login-form"]')).toHaveCount(0);
   });

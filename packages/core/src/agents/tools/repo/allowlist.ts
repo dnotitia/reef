@@ -26,7 +26,7 @@ function matches(ref: RepoRef, owner: string, repo: string): boolean {
  * the monitored-repo verification enrichment already applies to its bound
  * `repoContext`.
  *
- * Throws a `SchemaValidationError` (surfaced back to the agent loop, never to
+ * Throws a `SchemaValidationError` (surfaced back to the agent loop, does not to
  * the user) when the requested repo is not monitored, so the model can retry
  * against an in-scope repo instead of silently reading out-of-bounds code.
  */

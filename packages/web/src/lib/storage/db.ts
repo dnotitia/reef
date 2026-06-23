@@ -31,7 +31,7 @@ interface ConfigEntry {
  * deletes the `credentials` store after the browser GitHub PAT path moved to
  * deployment-managed GitHub App credentials. Dexie runs these deletions in
  * versionchange transactions for existing browsers; a fresh install creates
- * only the surviving `config` store.
+ * just the surviving `config` store.
  *
  * ## `config` store — Key-Value Bag (Canonical Pattern)
  *
@@ -72,8 +72,8 @@ class ReefDatabase extends Dexie {
       cache: null,
     });
     // v11: drop the browser GitHub PAT store. The server-managed GitHub App is
-    // now the only monitored-repo credential path, so any stale github_token
-    // rows must stop being readable and should not remain orphaned in
+    // now the monitored-repo credential path, so any stale github_token
+    // rows should stop being readable and should not remain orphaned in
     // persistent browser storage.
     this.version(11).stores({
       credentials: null,

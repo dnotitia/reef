@@ -471,7 +471,7 @@ export function diffFieldActivityEvents(
   }
 
   // ── REEF-277 parity set ──────────────────────────────────────────────────
-  // title is a required non-empty string, so a change is always a rename.
+  // title is a required non-empty string, so a change is represented as a rename.
   if (before.title !== after.title) {
     events.push({
       ...base,

@@ -101,7 +101,7 @@ export function registerNode() {
   // attributes. Gated by the same dev/deploy split as the `response` access log
   // (`responseLoggingEnabled`): on in dev, opt-in via `REEF_RESPONSE_LOG=1`
   // where there is no trace backend. With a trace backend (prod default) the
-  // logger stays unwired and `core` emits span attributes only — no stdout noise.
+  // logger stays unwired and `core` emits span attributes just — no stdout noise.
   //
   // The logger is imported lazily AFTER `sdk.start()` for the same reason as
   // `RequestLogSpanProcessor`: constructing the pino singleton before

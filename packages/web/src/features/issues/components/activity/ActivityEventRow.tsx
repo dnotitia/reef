@@ -231,7 +231,7 @@ function glyphFor(event: TimelineSystemEvent): ReactNode {
       return <Link2 className="size-3.5 text-muted-foreground" aria-hidden />;
     case "archived_change": {
       // Distinct glyph per direction (archive vs restore), like delivery's
-      // per-type icon — still neutral, never a status color.
+      // per-type icon — still neutral, not a status color.
       const Icon = event.to ? Archive : ArchiveRestore;
       return <Icon className="size-3.5 text-muted-foreground" aria-hidden />;
     }
