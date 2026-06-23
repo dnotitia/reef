@@ -7,7 +7,7 @@ import {
   SEGMENTED_CONTROL_TRACK,
 } from "./segmentedControl";
 
-// REEF-261: these tokens are the single source of truth for the segmented-control
+// REEF-261: these tokens are the single canonical reference for the segmented-control
 // family (ViewSwitcher / SettingsTabs / Planning kind toggle). Locking them here
 // is what keeps the three from drifting apart again.
 describe("segmentedControl shared tokens (REEF-261)", () => {

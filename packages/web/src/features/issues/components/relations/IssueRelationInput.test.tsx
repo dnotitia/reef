@@ -174,7 +174,7 @@ describe("IssueRelationInput", () => {
       const link = screen.getByRole("link");
       expect(link).toHaveAttribute("href", "/issues/REEF-001");
       // Self-describing: the id AND the title render inside the link, matching
-      // the Sub-issues row (not the old id-only chip).
+      // the Sub-issues row (not the old id fallback chip).
       expect(link).toHaveTextContent("REEF-001");
       expect(link).toHaveTextContent("Login fails");
       // Same focus contract as IssueChildren's rows.
@@ -259,7 +259,7 @@ describe("IssueRelationInput", () => {
         />,
       );
 
-      // No link: clicking a chip in an unsaved-issue form must not navigate.
+      // No link: clicking a chip in an unsaved-issue form should not navigate.
       expect(screen.queryByRole("link")).not.toBeInTheDocument();
       // The id chip + its remove control are still rendered.
       expect(screen.getByText("REEF-001")).toBeInTheDocument();

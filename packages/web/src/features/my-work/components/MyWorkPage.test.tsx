@@ -115,7 +115,7 @@ describe("MyWorkPage", () => {
     render(<MyWorkPage />);
     // The assignee facet is now a multi-select array (REEF-267); My Work sends a
     // one-element array and relies on the server's exact match. It also opts out
-    // of placeholder reuse so an account switch never shows the previous login's
+    // of placeholder reuse so an account switch does not show the previous login's
     // rows.
     expect(mockUseIssueList).toHaveBeenCalledWith(
       "reef-acme",

@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function Loading() {
   return (
     <div data-testid="settings-skeleton" className="flex flex-col gap-6">
-      {/* sr-only loading announcement (REEF-281). The settings layout owns the
+      {/* screen-reader loading announcement (REEF-281). The settings layout owns the
           page header + tab nav, so this body skeleton carries the surface's one
           announcement. Sibling to the decorative groups, not under aria-hidden. */}
       <output className="sr-only">Loading…</output>

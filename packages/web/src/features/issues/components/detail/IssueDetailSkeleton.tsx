@@ -110,7 +110,7 @@ function RailSectionSkeleton({
  *
  * The main canvas reserves the loaded column's full height: title + description
  * (the description bar sized to the MarkdownEditor's toolbar + 200px body floor,
- * not a short stub), then the always-present Relationships section and the
+ * not a short stub), then the persistent Relationships section and the
  * Activity timeline + composer below it. Before REEF-258 it stopped after the
  * description, so the panel grew ~2× when the real relationships + activity
  * hydrated in; the reserved sections keep the visible region from jumping.
@@ -138,7 +138,7 @@ export function IssueDetailSkeleton() {
       data-testid="issue-detail-skeleton"
       className="flex flex-col gap-5 p-6"
     >
-      {/* sr-only loading announcement (REEF-281), sibling to the decorative
+      {/* screen-reader loading announcement (REEF-281), sibling to the decorative
           panel so it is not under aria-hidden. */}
       <output className="sr-only">Loading…</output>
       {/* The mirrored panel is all placeholder bars — decorative, so aria-hidden
@@ -180,7 +180,7 @@ export function IssueDetailSkeleton() {
             </div>
 
             {/* Relationships — IssueFormSection "Relationships" + its 2-col grid
-              of Parent / Depends on / Blocks / Related fields. Always rendered
+              of Parent / Depends on / Blocks / Related fields. Consistently rendered
               in the loaded panel, so reserve it here. */}
             <div className="grid gap-3">
               <Skeleton
@@ -205,7 +205,7 @@ export function IssueDetailSkeleton() {
               </div>
             </div>
 
-            {/* Activity timeline + comment composer (REEF-064) — always rendered
+            {/* Activity timeline + comment composer (REEF-064) — consistently rendered
               at the bottom of the loaded canvas and typically tall, so a couple
               of event rows under the composer keep the panel from doubling in
               height when it hydrates. */}

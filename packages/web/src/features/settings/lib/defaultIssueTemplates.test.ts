@@ -7,7 +7,7 @@ import { DEFAULT_ISSUE_TEMPLATES } from "./defaultIssueTemplates";
 const byName = new Map(DEFAULT_ISSUE_TEMPLATES.map((t) => [t.name, t]));
 
 describe("DEFAULT_ISSUE_TEMPLATES", () => {
-  // AC3: every shipped default must satisfy the template contract the seed
+  // AC3: every shipped default should satisfy the template contract the seed
   // path (writeTemplate) and TemplatePicker validate against.
   it("each template validates against TemplateSchema", () => {
     for (const template of DEFAULT_ISSUE_TEMPLATES) {
@@ -36,7 +36,7 @@ describe("DEFAULT_ISSUE_TEMPLATES", () => {
     expect(byName.get("task")?.default_labels).toEqual([]);
   });
 
-  // AC2: Given/When/Then lands only on the behavior-bearing types.
+  // AC2: Given/When/Then lands on the behavior-bearing types.
   it.each(["story", "bug"])(
     "%s carries a Given/When/Then acceptance-criteria section",
     (name) => {

@@ -1,6 +1,6 @@
 // Column headers for the issues table view. Sorting is driven solely by the
 // header SortControl — the single sort entry point across every view — so these
-// are display labels only (REEF-175); this mirrors the backlog's plain header.
+// are display labels (REEF-175); this mirrors the backlog's plain header.
 //
 // Extracted to a standalone module (REEF-258) so IssueListTable's real header
 // and IssueListSkeleton's placeholder derive their column count from one source.

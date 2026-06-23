@@ -9,7 +9,7 @@
  * `<Link aria-current>` page links — so the family is shared as class tokens
  * rather than one wrapping component. Each consumer keeps its own element and
  * ARIA model but draws its dimensions and focus ring from this single source so
- * the family cannot silently drift apart again (the divergence this issue
+ * the family is unable to silently drift apart again (the divergence this issue
  * fixes). Consumers append their own layout-context classes (`self-start`,
  * `mb-4`) and any control-specific state (pending/`aria-busy`) via {@link cn}.
  *

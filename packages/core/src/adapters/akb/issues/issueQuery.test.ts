@@ -47,7 +47,7 @@ describe("buildIssueWhere", () => {
 
   it("uses a case-insensitive exact IN for assigned_to (REEF-267, no longer substring)", () => {
     // Exact match, not the old `ILIKE '%ali%'` substring — so scoping to `ali`
-    // never incidentally returns `alice` / `khalil`.
+    // does not incidentally return `alice` / `khalil`.
     expect(
       buildIssueWhere(parse({ assigned_to: ["ali"], archived: true })),
     ).toBe(`LOWER("assigned_to") IN ('ali')`);

@@ -4,8 +4,8 @@ import { type GitHubAppConfig, GitHubAppConfigSchema } from "@reef/core";
  * Deployment-managed GitHub App credential resolution.
  *
  * Mirrors `lib/llm/serverConfig.ts`: the credential is server state injected
- * from infra env (never a per-user PAT, never committed to the akb vault). When
- * configured, the server can mint a read-only installation token so
+ * from infra env (not a per-user PAT, not committed to the akb vault). When
+ * configured, the server can mint a read-scoped installation token so
  * monitored-repo grounding does not depend on the browser PAT. When NOT
  * configured, callers fall back to the per-user PAT — the two provider paths run
  * in parallel during the migration to server-driven grounding (REEF-238 /
@@ -14,7 +14,7 @@ import { type GitHubAppConfig, GitHubAppConfigSchema } from "@reef/core";
 
 export interface ServerGitHubAppStatus {
   isConfigured: boolean;
-  /** GitHub's App id, surfaced for status/diagnostics. Never the private key. */
+  /** GitHub's App id, surfaced for status/diagnostics. Not the private key. */
   appId: string | null;
 }
 

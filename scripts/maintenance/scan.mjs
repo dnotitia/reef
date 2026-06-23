@@ -108,6 +108,10 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
     "Detail workflow regression suite; extract fixtures when a second detail suite needs them.",
   ],
   [
+    "packages/web/src/features/issues/components/relations/IssueRelationInput.test.tsx",
+    "Relation picker regression suite; extract render fixtures when another relation suite reuses them.",
+  ],
+  [
     "scripts/maintenance/scan.mjs",
     "Single CLI scanner orchestrator; split when a category grows its own configuration surface.",
   ],
@@ -132,8 +136,16 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
     "Shared combobox primitive kept together so option, trigger, and keyboard behavior evolve together.",
   ],
   [
+    "packages/web/src/components/ui/multi-select-combobox.tsx",
+    "Shared multi-select primitive; split placement or keyboard helpers when another primitive reuses them.",
+  ],
+  [
     "packages/web/src/features/issues/components/create/NewIssueDialog.tsx",
     "Create dialog composition; extract fields after a second create surface shares them.",
+  ],
+  [
+    "packages/web/src/features/ui/components/DashboardShell.tsx",
+    "App shell composition; extract nav badge or shortcut groups when another shell surface shares them.",
   ],
   [
     "packages/web/src/features/issues/components/backlog/BacklogView.tsx",
@@ -174,6 +186,8 @@ const DUPLICATE_SCAN_IGNORES = [
   "packages/web/src/features/issues/components/backlog/BacklogView.test.tsx",
   "packages/web/src/features/issues/components/list/IssueListTable.test.tsx",
   "packages/web/src/features/issues/components/detail/IssueDetail.test.tsx",
+  "packages/web/src/features/issues/components/detail/IssueChromeIdentity.test.tsx",
+  "packages/web/src/features/issues/components/relations/IssueChildren.test.tsx",
   "packages/web/src/features/settings/components/AuthoringLanguageSection.test.tsx",
   "packages/web/src/features/settings/components/RepoPickerSection.test.tsx",
 ];

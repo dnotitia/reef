@@ -46,7 +46,7 @@ describe("buildIssueQuery", () => {
 
   it("drops blank members so a stale `?assignee=` does not 400 the list (REEF-267)", () => {
     // A hand-edited/stale URL reads as `[""]`; the strict server schema rejects
-    // an empty string, so blanks must be filtered before the wire query.
+    // an empty string, so blanks should be filtered before the wire query.
     expect(buildIssueQuery({ assignee: [""], sprint_id: ["", " "] })).toEqual({
       ...DEFAULT_SORT,
     });

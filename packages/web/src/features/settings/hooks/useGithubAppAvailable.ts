@@ -11,7 +11,7 @@ export interface GithubAppAvailableState {
   isAvailable: boolean;
   /** True while the deployment status request is in flight. */
   isLoading: boolean;
-  /** GitHub's App id, surfaced for diagnostics. Never the private key. */
+  /** GitHub's App id, surfaced for diagnostics. Not the private key. */
   appId: string | null;
 }
 
@@ -21,8 +21,8 @@ export interface GithubAppAvailableState {
  * deployment has a GitHub App configured lists and saves repos without each
  * browser user supplying a personal access token (REEF-239 AC1/AC2).
  *
- * Like `useAiAvailable`, this exposes only the boolean capability and the
- * non-secret App id — never the credential. `staleTime` keeps it from re-probing
+ * Like `useAiAvailable`, this exposes the boolean capability and the
+ * non-secret App id — not the credential. `staleTime` keeps it from re-probing
  * on every mount; deployment config does not change within a session.
  */
 export function useGithubAppAvailable(): GithubAppAvailableState {

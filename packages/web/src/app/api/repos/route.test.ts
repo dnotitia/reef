@@ -304,7 +304,7 @@ describe("GET /api/repos — server-managed GitHub App path", () => {
     const { listInstallationRepositories, mintInstallationToken } =
       mockInstallationRepoList();
     // akb /auth/me rejected the session (missing/expired/forged cookie) — the
-    // server must not mint a credential or expose the installation's repo list.
+    // server should not mint a credential or expose the installation's repo list.
     mockGetActor.mockResolvedValue({
       response: Response.json(
         { error: "Your session has expired. Please sign in again." },
@@ -362,7 +362,7 @@ describe("GET /api/repos — server-managed GitHub App path", () => {
     const res = await GET(req);
 
     expect(res.status).toBe(200);
-    // The App token, never the browser PAT, authenticates the read.
+    // The App token, not the browser PAT, authenticates the read.
     expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
       token: "ghs_minted_installation_token",
     });

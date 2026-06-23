@@ -113,7 +113,7 @@ interface NavBadge {
    * "state" (a dot shows no number). */
   display: string;
   /** Full accessible label — the real counts for a count badge, the state for a
-   * state badge. The dot/pill is silent, so this label is the only signal. */
+   * state badge. The dot/pill is silent, so this label is the sole signal. */
   label: string;
   tone: NavBadgeTone;
   badgeTestId: string;
@@ -197,11 +197,11 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   // Workspace skill (agent-playbook) drift for the sidebar Settings badge
   // (REEF-257). The status is read by agents, not the PM, so it stays invisible
   // until a surface shows it; this lifts the existing Settings-page signal up to
-  // the always-present sidebar. Rides the same `["vault-skill", vault]` query the
+  // the persistent sidebar. Rides the same `["vault-skill", vault]` query the
   // settings section uses (5-min cache, no extra fetch), so applying the update
   // — which primes that cache — clears the badge automatically.
   const skillStatus = useWorkspaceSkillStatus(vault);
-  // Only an explicit `up_to_date === false` lights the badge; while the status
+  // An explicit `up_to_date === false` lights the badge; while the status
   // is loading, errored, or for a vault-less shell the data is undefined and the
   // badge stays dark (REEF-257 AC3).
   const skillOutdated = skillStatus.data?.up_to_date === false;

@@ -42,7 +42,7 @@ describe("ViewSwitcher", () => {
   });
 
   // The push now flows through a React transition (REEF-265); the `?view=` URL
-  // must still update with the preserved filter params so deep links and
+  // should still update with the preserved filter params so deep links and
   // back/forward keep working (AC3).
   it("pushes ?view= while preserving existing filter params", async () => {
     navigationState.searchParams = new URLSearchParams("status=todo&q=auth");
@@ -61,8 +61,8 @@ describe("ViewSwitcher", () => {
     expect(opts).toEqual({ scroll: false });
   });
 
-  // The pending-transition feedback can only be observed live in a browser (a
-  // jsdom transition resolves synchronously, so `isPending` never settles true).
+  // The pending-transition feedback can be observed live in a browser (a
+  // jsdom transition resolves synchronously, so `isPending` does not settle true).
   // Assert instead that the wiring is present: the group declares an `aria-busy`
   // state (AC2) and the dim it toggles is gated on `motion-safe` so reduced
   // motion gets the state without the fade (AC4).
@@ -86,7 +86,7 @@ describe("ViewSwitcher", () => {
   // indicator at all (the a11y gap) and the family had drifted on dimensions.
   // Each segment now draws the canonical `ring-brand` focus-visible ring and the
   // shared family dimensions from one source. The ring's actual visibility is a
-  // runtime concern (jsdom can't render :focus-visible) — this is the class
+  // runtime concern (jsdom is unable to render :focus-visible) — this is the class
   // contract that guards against the indicator being dropped again.
   it("gives each segment the canonical focus-visible ring and shared dimensions", () => {
     render(<ViewSwitcher activeView="board" />);

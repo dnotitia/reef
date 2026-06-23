@@ -313,7 +313,7 @@ describe("FilterBar", () => {
 
   it("shares the same readable user-panel width across both user filters (REEF-134)", () => {
     // Both filters draw from one constant, so the Assignee/Requester dropdowns
-    // can not drift apart on width policy.
+    // do not drift apart on width policy.
     expect(USER_FILTER_PANEL_CLASS).toContain("min-w-[17rem]");
   });
 
@@ -346,7 +346,7 @@ describe("FilterBar", () => {
 
   // REEF-269/267: the multi-select facet chips are NOT value fields — they keep
   // the auto-width "hug the label" vocabulary (CBX_TRIGGER_CHIP is inline-flex
-  // with no width token) and must not adopt the value-field width policy. The
+  // with no width token) and should not adopt the value-field width policy. The
   // people/planning multi-select filters (Assignee · Requester · Sprint ·
   // Release) joined this chip group in REEF-267, so guard them here too.
   it("keeps the facet chips auto-width, not the value-field token (REEF-269/267)", () => {

@@ -19,7 +19,7 @@ const tracer = trace.getTracer("@reef/core");
  *
  * The per-user browser PAT lists repos via `GET /user/repos`
  * (`listAuthenticatedRepositories`), but an installation token is not a user
- * token — it must list the repositories the App installation can reach via
+ * token — it should list the repositories the App installation can reach via
  * `GET /installation/repositories`. Both paths feed the same
  * `createGitHubAdapter` and return the identical route-safe wire shape
  * (`{ full_name, id }` + ETag), so the persisted `monitored_repos` projection

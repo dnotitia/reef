@@ -47,7 +47,7 @@ vi.mock("next/link", () => ({
 // The persistent chrome bar reads these for its identity cluster (REEF-286).
 // They are query data, not what these chrome/dismiss tests exercise, so stub
 // them empty — the bar then shows the route-param id alone, which is exactly the
-// loading / id-only state the AC2 assertions check.
+// loading / id fallback state the AC2 assertions check.
 vi.mock("@/features/issues/hooks/queries/useIssue", () => ({
   useIssue: () => ({ data: undefined }),
 }));
@@ -131,8 +131,8 @@ describe("IssueDetailSheet", () => {
   });
 
   // REEF-286: the identity/nav bar is persistent chrome outside the body, so the
-  // route-param id fills the bar's left in every state — there is never an empty
-  // band, and the id never blinks while the body below skeletons (AC1 · AC2).
+  // route-param id fills the bar's left in every state — there is no empty
+  // band, and the id does not blink while the body below skeletons (AC1 · AC2).
   it.each([
     ["vault loading", { vault: "", isLoading: true }],
     ["no vault", { vault: "", isLoading: false }],
@@ -208,7 +208,7 @@ describe("IssueDetailSheet", () => {
 
       await user.click(screen.getByTestId("issue-drill-back"));
 
-      // One hop only: REEF-B leaves the trail and we replace to it.
+      // One hop: REEF-B leaves the trail and we replace to it.
       expect(useIssueNavStack.getState().trail).toEqual(["REEF-A"]);
       expect(mockReplace).toHaveBeenCalledWith("/issues/REEF-B");
     });

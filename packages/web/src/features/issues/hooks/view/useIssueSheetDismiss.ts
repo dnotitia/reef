@@ -37,7 +37,7 @@ export function useIssueSheetDismiss({
   const router = useRouter();
   // `useSearchParams()` needs no Suspense boundary here: every (dashboard) route
   // — `/issues/[id]` included — is server-rendered on demand (dynamic `ƒ` in the
-  // build output), never statically prerendered, so it can't trigger the
+  // build output), not statically prerendered, so it is unable to trigger the
   // static-prerender CSR bailout. The sibling `useOpenIssue` reads the query the
   // same way in this route family.
   const searchParams = useSearchParams();
@@ -59,8 +59,8 @@ export function useIssueSheetDismiss({
     reconcile(issueId);
   }, [issueId, reconcile]);
 
-  // Only trust the trail when it actually describes the on-screen issue, so the
-  // outgoing sheet never flashes a Back to itself the instant a hop moves the
+  // Solely trust the trail when it actually describes the on-screen issue, so the
+  // outgoing sheet does not flash a Back to itself the instant a hop moves the
   // store's `currentId` before its `router.replace` swaps the route in.
   const backTo =
     currentId === issueId && trail.length > 0

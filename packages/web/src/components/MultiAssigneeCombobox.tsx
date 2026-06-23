@@ -1,11 +1,10 @@
 "use client";
 
-import { PersonAvatar, personToneFor } from "@/components/fields/PersonAvatar";
+import { createAssigneeComboboxOption } from "@/components/assigneeComboboxOption";
 import type { ComboboxOption } from "@/components/ui/combobox";
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { useUserSearch } from "@/features/issues/hooks/queries/useUserSearch";
-import type { Collaborator } from "@reef/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 interface MultiAssigneeComboboxProps {
@@ -39,7 +38,7 @@ interface MultiAssigneeComboboxProps {
  * people are picked (REEF-246 truncation concern).
  *
  * Unlike the single-select picker there is no raw-text Input fallback on a
- * lookup error: a filter can only narrow to logins that exist, and the trigger
+ * lookup error: a filter can narrow to logins that exist, and the trigger
  * count plus the bar's Clear control still let the user drop a stale selection.
  */
 export function MultiAssigneeCombobox({
@@ -79,27 +78,9 @@ export function MultiAssigneeCombobox({
 
   const options = useMemo<ComboboxOption<string>[]>(
     () =>
-      (users ?? []).map((c: Collaborator) => ({
-        value: c.login,
-        label: c.name ?? c.login,
-        keywords: c.login,
-        content: (
-          <>
-            <PersonAvatar
-              identityKey={c.login}
-              name={c.name ?? undefined}
-              avatarUrl={c.avatar_url}
-              size="sm"
-              tone={personToneFor(c.login, currentLogin)}
-              decorative
-            />
-            <span className="truncate">{c.name ?? c.login}</span>
-            <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-              @{c.login}
-            </span>
-          </>
-        ),
-      })),
+      (users ?? []).map((user) =>
+        createAssigneeComboboxOption(user, currentLogin),
+      ),
     [users, currentLogin],
   );
 

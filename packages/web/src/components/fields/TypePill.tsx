@@ -76,7 +76,7 @@ interface TypePillProps {
   className?: string;
   /**
    * Classes for the label span — e.g. a container-query `@max-[…]:hidden` so a
-   * dense row can drop to a glyph-only type when its column is too narrow for
+   * dense row can drop to a glyph-form type when its column is too narrow for
    * the label (REEF-285). The glyph still carries the type via shape + color.
    */
   labelClassName?: string;

@@ -40,7 +40,7 @@ describe("IssueListSkeleton", () => {
     const row = screen.getByTestId("skeleton-row");
     const cells = row.querySelectorAll("td");
     // The skeleton's column count is derived from COLUMN_LABELS, the same
-    // source IssueListTable's header uses, so the two can never drift (the bug
+    // source IssueListTable's header uses, so the two do not drift (the bug
     // was a hard-coded 8 against a 13-column header).
     expect(cells).toHaveLength(COLUMN_LABELS.length);
     expect(cells.length).toBe(13);

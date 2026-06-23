@@ -31,7 +31,7 @@ describe("useIssueSheetDismiss (REEF-270)", () => {
   });
 
   it("starts at depth 0 when the session boundary cleared the trail", () => {
-    // The @modal default slot clears on return-to-list, so a reopen — even of
+    // The @modal default slot clears on return-to-list, so opening again — even of
     // the id a stale trail was left on — arrives with currentId null.
     useIssueNavStack.setState({ trail: [], currentId: null });
 

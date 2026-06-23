@@ -55,7 +55,7 @@ export function IssueDetail({ issueId, vault, onClose }: IssueDetailProps) {
   // Whole-vault relation graph for accurate blocked badges in the relation dropdowns.
   const { data: relations } = useIssueRelations(vault);
 
-  // Skeleton / error render only the body. The sheet's persistent chrome bar
+  // Skeleton / error render the body. The sheet's persistent chrome bar
   // owns the identity (id · status · type · breadcrumb) and Close in every state
   // (REEF-286), so these states carry neither a header nor a close button.
   if (isPending) {
@@ -272,7 +272,7 @@ function IssueDetailLoaded({
   return (
     <div data-testid="issue-detail" className="flex flex-col gap-5 p-6">
       {/* Identity (status · id · type · parent breadcrumb) now lives in the
-          sheet's persistent chrome bar (REEF-286); the body owns only the action
+          sheet's persistent chrome bar (REEF-286); the body owns the action
           cluster — save status + ⋮ — which IssueChromeActions portals up into
           that bar (and renders in-flow as a fallback when no bar is in scope,
           e.g. a standalone unit render). */}

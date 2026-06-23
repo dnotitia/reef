@@ -7,14 +7,14 @@ import { getErrorStatus } from "./errors";
 const tracer = trace.getTracer("@reef/core");
 
 /**
- * Read-only permissions requested on every minted installation token.
+ * Read-scoped permissions requested on every minted installation token.
  *
- * Defense in depth for the read-only contract (the GitHub adapter does
- * monitored-repo grounding only — commits, pull requests, and file contents).
+ * Defense in depth for the read-scoped contract (the GitHub adapter does
+ * limited monitored-repo grounding — commits, pull requests, and file contents).
  * GitHub lets a token down-scope to a subset of the installation's grants, so
- * requesting these read levels yields a read-only token even if the deployment
- * App was granted write — the App's permission set is not the only guardrail.
- * These are the baseline grants a grounding App must have; requesting a level
+ * requesting these read levels yields a read-scoped token even if the deployment
+ * App was granted write — the App's permission set is not the sole guardrail.
+ * These are the baseline grants a grounding App should have; requesting a level
  * the installation lacks fails the mint (surfaced as a credential-free error).
  */
 const READ_ONLY_GROUNDING_PERMISSIONS = {
@@ -39,18 +39,18 @@ export interface CreateGitHubAppInstallationTokenProviderParams {
 /**
  * Build a token provider backed by a deployment-managed GitHub App credential.
  *
- * The App JWT is signed locally from `config.private_key`; only the
+ * The App JWT is signed locally from `config.private_key`; the
  * installation-token exchange touches GitHub. `@octokit/auth-app` caches the
  * minted installation token until it nears expiry, so reusing the returned
  * provider within a request avoids re-minting.
  *
- * The minted token is down-scoped to read-only permissions
- * (`READ_ONLY_GROUNDING_PERMISSIONS`) so it cannot write even if the deployment
+ * The minted token is down-scoped to read-scoped permissions
+ * (`READ_ONLY_GROUNDING_PERMISSIONS`) so it is unable to write even if the deployment
  * App was granted broader access.
  *
  * Security (REEF-238 AC2): the private key, the App JWT, and the minted
- * installation token never reach a log line, a span attribute, an LLM prompt,
- * or a client response. The span records only the App/installation ids and the
+ * installation token does not reach a log line, a span attribute, an LLM prompt,
+ * or a client response. The span records the App/installation ids and the
  * token's expiry; failures are normalized to a credential-free `GitHubApiError`.
  */
 export function createGitHubAppInstallationTokenProvider({
@@ -64,7 +64,7 @@ export function createGitHubAppInstallationTokenProvider({
 
   return () =>
     tracer.startActiveSpan("github.mint_installation_token", async (span) => {
-      // Non-secret identifiers only — never the private key, the App JWT, or
+      // Non-secret identifiers — not the private key, the App JWT, or
       // the minted installation token.
       span.setAttribute("github.app_id", config.app_id);
       span.setAttribute("github.installation_id", config.installation_id);

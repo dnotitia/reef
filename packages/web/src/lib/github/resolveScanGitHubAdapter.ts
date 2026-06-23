@@ -14,7 +14,7 @@ import {
  *
  * Mirrors the credential selection `GET /api/repos` introduced in REEF-239:
  *   1. **Server-managed GitHub App** — when the deployment is configured
- *      (`REEF_GITHUB_APP_*`), mint a read-only installation token so the scan
+ *      (`REEF_GITHUB_APP_*`), mint a read-scoped installation token so the scan
  *      runs without any browser PAT. The session is validated against akb
  *      (`/auth/me`) *before* minting, because the App path mints a deployment
  *      credential rather than consuming a caller-supplied one — without that

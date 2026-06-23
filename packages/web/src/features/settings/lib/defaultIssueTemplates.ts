@@ -15,7 +15,7 @@ import type { Template } from "@reef/core";
  * issue type.
  *
  * Acceptance-criteria policy is deliberate, not blanket. Given/When/Then lands
- * only on the behavior-bearing types — `story` (user-facing scenarios) and `bug`
+ * on the behavior-bearing types — `story` (user-facing scenarios) and `bug`
  * (a regression guard). The other four encode a done-definition that fits their
  * kind instead, because forcing a behavioral scenario onto them would be noise:
  *   - epic  → outcome success criteria (the scenarios live on its child stories)

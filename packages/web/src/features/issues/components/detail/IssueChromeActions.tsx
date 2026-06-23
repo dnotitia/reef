@@ -52,8 +52,8 @@ export function IssueChromeActions({
       {/* The live save-status (Saving… / Saved / Not saved · Retry) temporarily
           covers the static "Edited …" time: while a write is in flight the
           static time is meaningless, and once it settles back to idle the
-          now-refreshed time reappears — so the two never read as duplicate,
-          competing labels. `error` is the only state that escalates to a
+          now-refreshed time reappears — so the two do not read as duplicate,
+          competing labels. `error` is the sole state that escalates to a
           destructive color; the rest stay muted. */}
       {saveStatus !== "idle" ? (
         <IssueSaveStatus status={saveStatus} onRetry={onRetryLastCommit} />

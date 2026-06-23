@@ -52,7 +52,7 @@ const TOKEN_ENDPOINT = `${GITHUB_API}/app/installations/${INSTALLATION_ID}/acces
 
 // A throwaway RSA key in PKCS#1 PEM ("BEGIN RSA PRIVATE KEY") — the format
 // GitHub hands out when you generate an App private key. The JWT is signed
-// locally, so this never leaves the process.
+// locally, so this does not leave the process.
 const TEST_PRIVATE_KEY = generateKeyPairSync("rsa", {
   modulusLength: 2048,
   publicKeyEncoding: { type: "spki", format: "pem" },
@@ -174,7 +174,7 @@ describe("createGitHubAppInstallationTokenProvider", () => {
     await provider();
 
     // GitHub down-scopes a token to the requested subset, so requesting read
-    // levels yields a read-only token regardless of the App's own grants.
+    // levels yields a read-scoped token regardless of the App's own grants.
     expect(requestedPermissions).toEqual({
       contents: "read",
       metadata: "read",

@@ -69,7 +69,7 @@ describe("TypePill", () => {
     );
     const label = screen.getByText("Story");
     // The fold class is on the label, not the pill wrapper, so the glyph stays.
-    // `sr-only` (not `hidden`) keeps the type name in the a11y tree.
+    // `screen-reader` (not `hidden`) keeps the type name in the a11y tree.
     expect(label.className).toContain("@max-[16rem]:sr-only");
     expect((label.parentElement as HTMLElement).className).not.toContain(
       "@max-[16rem]:sr-only",

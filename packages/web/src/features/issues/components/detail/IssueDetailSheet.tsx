@@ -41,8 +41,8 @@ interface IssueDetailSheetProps {
  * *outside* the body — wayfinding + identity on the left (drill Back · parent
  * breadcrumb · status · id · type), actions on the right (save status · ⋮ ·
  * Close). The bar renders in every state (loaded, skeleton, error, no-vault), so
- * the id (from the route param) and Close are always present and Back persists
- * while a drilled-in, uncached issue loads — only the body below skeletons. The
+ * the id (from the route param) and Close are consistently present and Back persists
+ * while a drilled-in, uncached issue loads — the body below skeletons. The
  * data-dependent identity (status / type / breadcrumb) is read here from
  * `useIssue` / `useIssueList` and fills in on arrival; the body portals its
  * action cluster (save status + ⋮) into the bar's slot so the autosave + dialog
@@ -122,7 +122,7 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
           // duplicate, colliding control in the top-right corner.
           showCloseButton={false}
           // Esc means Back while drilled into a relation trail, Close otherwise
-          // (AC3); an outside click always exits to the entry view (AC2). We own
+          // (AC3); an outside click consistently exits to the entry view (AC2). We own
           // both so the in-memory nav stack — not the browser history — decides
           // (REEF-270). preventDefault stops Radix's default one-step dismiss.
           onEscapeKeyDown={(event) => {
@@ -147,12 +147,12 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
           </SheetDescription>
           {/* Single persistent chrome bar (REEF-286): wayfinding + identity on
               the left, actions + Close on the right. It renders in every state,
-              so the id/Back/Close never blink while the body below skeletons, and
-              no state leaves an empty band — the id always fills the bar's left
+              so the id/Back/Close does not blink while the body below skeletons, and
+              no state leaves an empty band — the id consistently fills the bar's left
               and Close is the single control on the right (AC1 · AC2 · AC3). The
               history Back (its own `Back navigation` landmark) stays visually
               separate from the structural parent breadcrumb (`Issue hierarchy`),
-              so navigation and hierarchy never read as one trail (AC4 / REEF-270
+              so navigation and hierarchy do not read as one trail (AC4 / REEF-270
               AC5). Wrapped with the body in a no-gap column so SheetContent's
               gap-4 doesn't open between the bar and the body. */}
           <IssueChromeSlotProvider value={actionsSlot}>

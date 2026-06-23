@@ -51,7 +51,7 @@ const FILTER_CHIPS = [
 export function IssuesWorkspaceSkeleton() {
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="issues-skeleton">
-      {/* sr-only loading announcement (REEF-281). Sibling to the decorative body
+      {/* screen-reader loading announcement (REEF-281). Sibling to the decorative body
           so it is NOT under aria-hidden; PageHeader's h1 stays a real heading. */}
       <output className="sr-only">Loading…</output>
       <PageHeader title="Issues" />

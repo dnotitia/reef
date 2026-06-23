@@ -65,10 +65,10 @@ export function ActivityFeedSkeleton() {
   // so the placeholders approximate the loaded card height rather than matching
   // it exactly.
   return (
-    // The body-only feed skeleton; the route's loading.tsx (and the live feed)
-    // own the page header. One sr-only loading announcement per surface
+    // The body-level feed skeleton; the route's loading.tsx (and the live feed)
+    // own the page header. One screen-reader loading announcement per surface
     // (REEF-281). The decorative chrome carries the original `space-y-4` so the
-    // sr-only sibling does not pick up a stacking margin.
+    // screen-reader sibling does not pick up a stacking margin.
     <div data-testid="activity-feed">
       <output className="sr-only">Loading…</output>
       <div className="space-y-4" aria-hidden="true">

@@ -286,7 +286,7 @@ describe("POST /api/activity/scan — server-managed GitHub App path", () => {
     expect(mockCreateProvider).toHaveBeenCalledWith({
       config: APP_CONFIG.config,
     });
-    // The scan adapter is built from the minted token, never a browser PAT.
+    // The scan adapter is built from the minted token, not a browser PAT.
     expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
       token: "ghs_minted_token",
     });
