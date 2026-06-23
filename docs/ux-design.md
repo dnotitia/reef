@@ -30,9 +30,11 @@ is shaped around a strict state-owner split:
   affordances derive from its per-query `isPending` / `isError`; there is no
   global loading flag.
 - **Dexie (IndexedDB)** holds per-user persisted browser state with no akb home
-  — the active vault pointer, theme preference, per-vault issue filters, the
-  currently selected activity-scan repo, last visit/scan markers, and the
-  previously signed-in akb user id used for account reconciliation.
+  — the active vault pointer, theme preference, UI locale (mirrored to a
+  non-httpOnly `NEXT_LOCALE` cookie so SSR can resolve it on the first request),
+  per-vault issue filters, the currently selected activity-scan repo, last
+  visit/scan markers, and the previously signed-in akb user id used for account
+  reconciliation.
 - **akb-backed workspace config** holds team-shared project state — the project
   prefix, monitored repositories, issue templates, and default authoring
   language. It is read and mutated through Route Handlers, not stored as a
