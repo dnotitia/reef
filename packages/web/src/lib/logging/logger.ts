@@ -68,27 +68,23 @@ function redactHeaderObject(headers: unknown): unknown {
 }
 
 /**
- * Typed errors whose `context.message` is bounded backend text safe to surface
- * as the `upstream` log field: `AkbApiError` carries akb's FastAPI `detail`,
- * `GitHubApiError` the Octokit error message. This is an ALLOWLIST, not a
- * denylist — `LlmError.context.message` is free-form provider output (it folds
- * in response bodies via `extractErrorDetail`, which can carry credential-bearing
- * diagnostics), and any future typed error is untrusted by default, so neither
- * reaches stdout. (REEF-271 / the REEF-235 credential-safe boundary.)
- */
-const UPSTREAM_DETAIL_SAFE_ERRORS = new Set(["AkbApiError", "GitHubApiError"]);
-
-/**
  * Project any thrown value to a safe, credential-free log shape.
  *
- * Beyond the `type`/`message`/`stack` allowlist, this preserves the upstream
- * HTTP `status` that reef's typed API errors otherwise hide behind a generic
- * PM-facing message (REEF-271): `logger.error({ err })` on an `AkbApiError`
- * previously read only "Authentication failed." with no way to tell a 502 from a
- * 404. The numeric `status` is always safe to copy. The free-form upstream
- * detail is copied only for {@link UPSTREAM_DETAIL_SAFE_ERRORS}; the nested
- * `request`/`response` objects (Octokit `RequestError.request.headers`) and any
- * untrusted typed error's detail are never copied.
+ * Beyond the `type`/`message`/`stack` allowlist, this preserves the upstream HTTP
+ * `status` that reef's typed API errors otherwise hide behind a generic PM-facing
+ * message (REEF-271): `logger.error({ err })` on an `AkbApiError` previously read
+ * only "Authentication failed." with no way to tell a 502 from a 404. A numeric
+ * `status` is always safe to copy.
+ *
+ * The upstream *detail* string (`context.message`) is deliberately NOT logged:
+ * every source of it is upstream-controlled free text — an LLM provider response
+ * body (`LlmError`, via `extractErrorDetail`), an Octokit / GitHub Enterprise
+ * error message (`GitHubApiError`), an akb FastAPI `detail` (`AkbApiError`) — so
+ * copying it would re-open the very credential-safe boundary this allowlist
+ * exists to hold (REEF-235). Distinguishing the failure by `status` is the
+ * load-bearing half of REEF-271; the body stays out of the log. The nested
+ * `request`/`response` objects (Octokit `RequestError.request.headers`) are never
+ * copied either.
  */
 function serializeError(err: unknown): Record<string, unknown> {
   if (!(err instanceof Error)) {
@@ -102,16 +98,6 @@ function serializeError(err: unknown): Record<string, unknown> {
   const status = (err as { status?: unknown }).status;
   if (typeof status === "number") {
     out.status = status;
-  }
-  if (UPSTREAM_DETAIL_SAFE_ERRORS.has(err.name)) {
-    const context = (err as { context?: unknown }).context;
-    if (
-      context !== null &&
-      typeof context === "object" &&
-      typeof (context as { message?: unknown }).message === "string"
-    ) {
-      out.upstream = (context as { message: string }).message;
-    }
   }
   return out;
 }

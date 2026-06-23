@@ -128,7 +128,7 @@ explicitly in the entries below.
   one-line completion summary instead of going silent for minutes, LLM calls
   record token usage, akb/GitHub upstream calls record their HTTP status, latency,
   and remaining GitHub rate limit, slow requests are flagged at WARN, and API
-  errors keep their upstream status/detail. In a deployment that exports traces
+  errors keep their upstream HTTP status. In a deployment that exports traces
   this rich data lives on the traces; set `REEF_RESPONSE_LOG=1` (and optionally
   `REEF_SLOW_REQUEST_MS`) to also surface it on stdout where there is no trace
   backend. Credentials are never logged (REEF-271).

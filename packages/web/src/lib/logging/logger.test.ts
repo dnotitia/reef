@@ -236,7 +236,7 @@ describe("buildLoggerOptions — dev pretty vs prod JSON, redaction, error allow
     expect(JSON.stringify(out)).not.toContain("secret-token");
   });
 
-  it("preserves the upstream status + detail of a typed reef API error (REEF-271)", async () => {
+  it("preserves the upstream status of a typed reef API error, not its detail (REEF-271)", async () => {
     const { AkbApiError } = await import("@reef/core");
     const errSerializer = (
       buildLoggerOptions("production").serializers as {
@@ -244,38 +244,43 @@ describe("buildLoggerOptions — dev pretty vs prod JSON, redaction, error allow
       }
     ).err;
 
+    // The upstream `detail` text rides `context.message` and is canary-marked
+    // here; only the numeric `status` (which distinguishes a 502 from a 404)
+    // should reach the log — the upstream-controlled detail must not.
     const out = errSerializer(
-      new AkbApiError({ status: 502, message: "upstream akb exploded" }),
+      new AkbApiError({ status: 502, message: "AKB_DETAIL_CANARY exploded" }),
     );
 
-    // `message` stays the generic PM-facing copy; the real cause is recovered
-    // from `status` + `upstream` so a 502 is distinguishable from a 404.
-    expect(out).toMatchObject({
-      type: "AkbApiError",
-      status: 502,
-      upstream: "upstream akb exploded",
-    });
+    expect(out).toMatchObject({ type: "AkbApiError", status: 502 });
+    expect(out).not.toHaveProperty("upstream");
+    expect(JSON.stringify(out)).not.toContain("AKB_DETAIL_CANARY");
   });
 
-  it("never logs the free-form upstream detail of an LlmError (provider body may carry credentials)", async () => {
-    const { LlmError } = await import("@reef/core");
+  it("never logs the upstream detail of LLM or GitHub errors (bodies may carry credentials)", async () => {
+    const { LlmError, GitHubApiError } = await import("@reef/core");
     const errSerializer = (
       buildLoggerOptions("production").serializers as {
         err: (e: unknown) => Record<string, unknown>;
       }
     ).err;
 
-    // LlmError.context.message is built from provider error chains and can fold
-    // in response bodies; it must NOT reach stdout via `upstream`.
-    const out = errSerializer(
+    // Both context messages are upstream-controlled free text (an LLM provider
+    // body / an Octokit message) — neither may reach stdout.
+    const llm = errSerializer(
       new LlmError({
         message: 'provider 401: {"key":"LLM_KEY_CANARY_abc invalid"}',
       }),
     );
+    expect(llm.type).toBe("LlmError");
+    expect(llm).not.toHaveProperty("upstream");
+    expect(JSON.stringify(llm)).not.toContain("LLM_KEY_CANARY_abc");
 
-    expect(out.type).toBe("LlmError");
-    expect(out).not.toHaveProperty("upstream");
-    expect(JSON.stringify(out)).not.toContain("LLM_KEY_CANARY_abc");
+    const gh = errSerializer(
+      new GitHubApiError({ status: 500, message: "GH_BODY_CANARY enterprise" }),
+    );
+    expect(gh).toMatchObject({ type: "GitHubApiError", status: 500 });
+    expect(gh).not.toHaveProperty("upstream");
+    expect(JSON.stringify(gh)).not.toContain("GH_BODY_CANARY");
   });
 
   it("surfaces a numeric status but never the nested request/response credentials", () => {

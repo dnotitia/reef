@@ -228,5 +228,6 @@ reach traces is also visible on stdout. Slow requests are promoted to WARN at th
 
 Credentials never reach any log: the proxy reads only the public actor claim from
 the session cookie (never the token/PAT), credential headers are redacted by the
-pino config, and typed API errors surface their upstream status/detail without the
-nested request/response objects that carry credentials.
+pino config, and typed API errors surface only their numeric upstream HTTP status
+— not the upstream-controlled detail body (an LLM provider response, an Octokit
+message) and not the nested request/response objects that carry credentials.
