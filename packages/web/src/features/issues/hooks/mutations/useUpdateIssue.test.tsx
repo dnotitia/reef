@@ -219,8 +219,41 @@ describe("useUpdateIssue", () => {
     expect(invalidateSpy).not.toHaveBeenCalledWith({
       queryKey: ["issues", "relations", "reef-acme"],
     });
-    // A non-status edit logs no activity event, so the timeline query stays
-    // patched in place — no refetch (REEF-064).
+    // A title edit logs a `title_change` activity event (REEF-277), so the
+    // timeline's activity query refetches to surface it immediately — the same
+    // immediate-update path status changes use (REEF-064), now covering the
+    // whole field-change set, not just `status`.
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["issues", "activity", "reef-acme", "REEF-001"],
+    });
+  });
+
+  it("does not refetch the activity timeline on an edit that logs no event", async () => {
+    mockApiFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          issue: { ...UPDATED, reporter: "bob" },
+          content: "",
+        }),
+        { status: 200 },
+      ),
+    );
+    const queryClient = makeTestQueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderUseUpdateIssue(queryClient);
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        id: "REEF-001",
+        vault: "reef-acme",
+        patch: { reporter: "bob" },
+      });
+    });
+
+    // `reporter` is not one of the dimensions `diffFieldActivityEvents` records,
+    // so the edit appends no `reef_activity` row and the timeline stays patched
+    // in place — no refetch (REEF-064/REEF-098).
     expect(invalidateSpy).not.toHaveBeenCalledWith({
       queryKey: ["issues", "activity", "reef-acme", "REEF-001"],
     });

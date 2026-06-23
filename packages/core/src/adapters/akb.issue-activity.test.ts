@@ -315,6 +315,69 @@ describe("activityEventKey (REEF-126)", () => {
   });
 });
 
+describe("activityEventKey (REEF-277)", () => {
+  const at = "2026-06-18T03:00:00.000Z";
+
+  it("keys the from→to family (title/due/parent/estimate/archived) on from→to", () => {
+    expect(
+      activityEventKey(
+        { eventType: "title_change", payload: { from: "Old", to: "New" } },
+        at,
+      ),
+    ).toBe(`title_change:Old->New@${at}`);
+    expect(
+      activityEventKey(
+        {
+          eventType: "due_date_change",
+          payload: { from: null, to: "2026-07-01T00:00:00.000Z" },
+        },
+        at,
+      ),
+    ).toBe(`due_date_change:∅->2026-07-01T00:00:00.000Z@${at}`);
+    expect(
+      activityEventKey(
+        { eventType: "parent_change", payload: { from: "REEF-001", to: null } },
+        at,
+      ),
+    ).toBe(`parent_change:REEF-001->∅@${at}`);
+    // numbers render as digits — 0 is a real value, not the null token.
+    expect(
+      activityEventKey(
+        { eventType: "estimate_change", payload: { from: 0, to: 5 } },
+        at,
+      ),
+    ).toBe(`estimate_change:0->5@${at}`);
+    // booleans render as false/true.
+    expect(
+      activityEventKey(
+        { eventType: "archived_change", payload: { from: false, to: true } },
+        at,
+      ),
+    ).toBe(`archived_change:false->true@${at}`);
+  });
+
+  it("keys set changes (labels/relation) on sorted added/removed, order-insensitive", () => {
+    expect(
+      activityEventKey(
+        {
+          eventType: "labels_change",
+          payload: { added: ["frontend", "bug"], removed: ["chore"] },
+        },
+        at,
+      ),
+    ).toBe(`labels_change:+bug,frontend:-chore@${at}`);
+    expect(
+      activityEventKey(
+        {
+          eventType: "relation_change",
+          payload: { relation: "blocks", added: ["REEF-010"], removed: [] },
+        },
+        at,
+      ),
+    ).toBe(`relation_change:blocks:+REEF-010:-@${at}`);
+  });
+});
+
 describe("diffFieldActivityEvents (REEF-126)", () => {
   const meta = {
     at: "2026-06-18T04:00:00.000Z",
@@ -330,7 +393,9 @@ describe("diffFieldActivityEvents (REEF-126)", () => {
     );
 
   it("emits nothing when no tracked field changed", () => {
-    expect(diff({ title: "a new title" })).toEqual([]);
+    // severity is deliberately out of the tracked set (REEF-277 Scope), so
+    // changing only it produces no event.
+    expect(diff({ severity: "minor" })).toEqual([]);
   });
 
   it("emits an assignee_change carrying the from→to actors, actor, and at", () => {
@@ -404,6 +469,124 @@ describe("diffFieldActivityEvents (REEF-126)", () => {
       eventType: "impl_ref_linked",
       payload: { ref_type: "pull_request", ref: "42", repo: "dnotitia/reef" },
     });
+  });
+});
+
+describe("diffFieldActivityEvents (REEF-277)", () => {
+  const meta = {
+    at: "2026-06-18T04:00:00.000Z",
+    actor: "carol",
+    source: "ai-agent:user_request",
+  };
+  const diff = (
+    after: Partial<IssueMetadata>,
+    before: Partial<IssueMetadata> = {},
+  ) =>
+    diffFieldActivityEvents(
+      "REEF-277",
+      { ...SAMPLE_ISSUE, ...before },
+      { ...SAMPLE_ISSUE, ...before, ...after },
+      meta,
+    );
+
+  it("emits a title_change carrying both ends of the rename", () => {
+    const events = diff({ title: "Fix the logout flow" });
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      eventType: "title_change",
+      payload: { from: "Fix the login flow", to: "Fix the logout flow" },
+      at: meta.at,
+      actor: "carol",
+    });
+  });
+
+  it("emits a due_date_change, treating a clear as a transition to null", () => {
+    expect(diff({ due_date: "2026-07-01T00:00:00.000Z" })[0]).toMatchObject({
+      eventType: "due_date_change",
+      payload: { from: null, to: "2026-07-01T00:00:00.000Z" },
+    });
+    expect(
+      diff({ due_date: null }, { due_date: "2026-07-01T00:00:00.000Z" })[0],
+    ).toMatchObject({
+      eventType: "due_date_change",
+      payload: { from: "2026-07-01T00:00:00.000Z", to: null },
+    });
+  });
+
+  it("emits an estimate_change, including a set to zero points", () => {
+    expect(
+      diff({ estimate_points: 0 }, { estimate_points: 3 })[0],
+    ).toMatchObject({
+      eventType: "estimate_change",
+      payload: { from: 3, to: 0 },
+    });
+  });
+
+  it("emits a parent_change carrying the reef-id transition", () => {
+    expect(diff({ parent_id: "REEF-099" })[0]).toMatchObject({
+      eventType: "parent_change",
+      payload: { from: null, to: "REEF-099" },
+    });
+  });
+
+  it("emits an archived_change as a boolean flip on archive and restore", () => {
+    expect(diff({ archived_at: meta.at })[0]).toMatchObject({
+      eventType: "archived_change",
+      payload: { from: false, to: true },
+    });
+    expect(
+      diff({ archived_at: null }, { archived_at: meta.at })[0],
+    ).toMatchObject({
+      eventType: "archived_change",
+      payload: { from: true, to: false },
+    });
+  });
+
+  it("emits a single labels_change carrying the added/removed sets", () => {
+    // SAMPLE_ISSUE labels: ["bug", "frontend"].
+    const events = diff({ labels: ["bug", "backend"] });
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      eventType: "labels_change",
+      payload: { added: ["backend"], removed: ["frontend"] },
+    });
+  });
+
+  it("emits nothing when a relation array is only reordered", () => {
+    // SAMPLE_ISSUE depends_on: ["REEF-002"] — same membership, no event.
+    expect(diff({ depends_on: ["REEF-002"] })).toEqual([]);
+  });
+
+  it("emits one relation_change per moved dimension, labeled by relation", () => {
+    // SAMPLE_ISSUE: depends_on ["REEF-002"], blocks ["REEF-010"], no related_to.
+    const events = diff({
+      depends_on: ["REEF-002", "REEF-003"],
+      blocks: [],
+      related_to: ["REEF-050"],
+    });
+    expect(
+      events
+        .filter((e) => e.eventType === "relation_change")
+        .map((e) => (e.eventType === "relation_change" ? e.payload : null)),
+    ).toEqual([
+      { relation: "depends_on", added: ["REEF-003"], removed: [] },
+      { relation: "blocks", added: [], removed: ["REEF-010"] },
+      { relation: "related_to", added: ["REEF-050"], removed: [] },
+    ]);
+  });
+
+  it("groups every REEF-277 field changed in one save under one timestamp (AC3)", () => {
+    const events = diff({
+      title: "New title",
+      due_date: "2026-08-01T00:00:00.000Z",
+      parent_id: "REEF-099",
+    });
+    expect(events.map((e) => e.eventType).sort()).toEqual([
+      "due_date_change",
+      "parent_change",
+      "title_change",
+    ]);
+    expect(new Set(events.map((e) => e.at))).toEqual(new Set([meta.at]));
   });
 });
 
@@ -539,7 +722,9 @@ describe("listIssueActivity reads the REEF-126 event types", () => {
             }),
             activityRow({
               id: "future",
-              event_type: "title_change",
+              // content_change (REEF-127) is a deliberately-unmodeled future
+              // type — a clean stand-in for an event this release cannot read.
+              event_type: "content_change",
               at: "2026-06-18T06:00:02.000Z",
               payload: { from: "x", to: "y" },
             }),

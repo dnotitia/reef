@@ -266,6 +266,41 @@ function configuredVault(name) {
         created_by: "alice",
       },
     ],
+    // REEF-277: seeded reef_activity field-change events so the issue timeline
+    // renders the full Linear-parity set (title/labels/due/estimate/parent/
+    // relation/archive) in the hermetic runtime. Real edits append more rows
+    // through the insert handler below.
+    activity: [
+      activityRow("REEF-001", "title_change", "2026-06-17T08:00:00.000Z", {
+        from: "Initial issue Alpha",
+        to: "Initial issue Alpha (revised)",
+      }),
+      activityRow("REEF-001", "labels_change", "2026-06-17T08:05:00.000Z", {
+        added: ["backend"],
+        removed: ["frontend"],
+      }),
+      activityRow("REEF-001", "due_date_change", "2026-06-17T08:10:00.000Z", {
+        from: null,
+        to: "2026-07-15T00:00:00.000Z",
+      }),
+      activityRow("REEF-001", "estimate_change", "2026-06-17T08:15:00.000Z", {
+        from: null,
+        to: 5,
+      }),
+      activityRow("REEF-001", "parent_change", "2026-06-17T08:20:00.000Z", {
+        from: null,
+        to: "REEF-002",
+      }),
+      activityRow("REEF-001", "relation_change", "2026-06-17T08:25:00.000Z", {
+        relation: "depends_on",
+        added: ["REEF-003"],
+        removed: [],
+      }),
+      activityRow("REEF-001", "archived_change", "2026-06-17T08:30:00.000Z", {
+        from: false,
+        to: true,
+      }),
+    ],
   };
 
   seedIssueDocument(vault, "REEF-001", "Alpha description from fixture.");
@@ -530,6 +565,25 @@ function rawVault(name) {
   };
 }
 
+// Append-only id sequence for reef_activity rows (seeded + runtime-inserted).
+let activitySeq = 5000;
+
+/** Build a seeded reef_activity row (REEF-277). `at` is unique per event so it
+ * doubles as a stable id seed and a sufficient event_key for dedup. */
+function activityRow(reefId, eventType, at, payload) {
+  return {
+    id: uuidFor(at.replace(/\D/g, "").slice(-12)),
+    reef_id: reefId,
+    event_type: eventType,
+    event_key: `${eventType}@${at}`,
+    payload,
+    meta: { actor: "alice", at, source: null },
+    created_at: at,
+    updated_at: at,
+    created_by: "alice",
+  };
+}
+
 function issueRow(input) {
   return {
     document_uri: issueDocumentUri(REEF_VAULT, input.id),
@@ -726,6 +780,7 @@ function handleSql(vault, sql) {
   }
 
   if (!vault.comments) vault.comments = [];
+  if (!vault.activity) vault.activity = [];
 
   if (lower.startsWith("select key, value from reef_settings")) {
     return tableQuery(["key", "value"], settingsRows(vault, normalized));
@@ -981,7 +1036,79 @@ function handleSql(vault, sql) {
     return tableQuery(commentColumns(), [row]);
   }
 
+  // REEF-277: the issue activity timeline (reef_activity), distinct from the
+  // activity-scan inbox (reef_activity_suggestions) handled above.
+  if (lower.startsWith("select * from reef_activity where")) {
+    const reefId = matchSqlString(normalized, /reef_id\s*=\s*'([^']+)'/i);
+    const rows = vault.activity
+      .filter((event) => !reefId || event.reef_id === reefId)
+      .sort((a, b) =>
+        String(a.meta?.at ?? "").localeCompare(String(b.meta?.at ?? "")),
+      );
+    return tableQuery(activityTimelineColumns(), rows);
+  }
+  // The producer's conditional append: INSERT INTO reef_activity (cols)
+  // SELECT <values> WHERE NOT EXISTS (...) RETURNING id. Idempotent on
+  // (reef_id, event_key), mirroring the real NOT EXISTS guard.
+  if (lower.startsWith("insert into reef_activity ")) {
+    const parsed = parseConditionalInsert(normalized);
+    if (!parsed) return tableQuery(["id"], []);
+    const row = objectFromColumns(parsed.columns, parsed.values);
+    const duplicate = vault.activity.some(
+      (event) =>
+        event.reef_id === row.reef_id && event.event_key === row.event_key,
+    );
+    if (duplicate) return tableQuery(["id"], []);
+    row.id = uuidFor(activitySeq++);
+    row.created_at = NOW;
+    row.updated_at = NOW;
+    row.created_by = row.meta?.actor ?? "alice";
+    vault.activity.push(row);
+    return tableQuery(["id"], [{ id: row.id }]);
+  }
+
   return tableQuery([], []);
+}
+
+/** Columns a reef_activity timeline row exposes (mirrors the akb row shape). */
+function activityTimelineColumns() {
+  return [
+    "id",
+    "reef_id",
+    "event_type",
+    "event_key",
+    "payload",
+    "meta",
+    "created_at",
+    "updated_at",
+    "created_by",
+  ];
+}
+
+/**
+ * Parse the producer's conditional append (REEF-277):
+ *   INSERT INTO reef_activity (cols) SELECT <values> WHERE NOT EXISTS (...)
+ * Returns the column list and the SELECT-projected values, or null on a shape
+ * this mock does not model.
+ */
+function parseConditionalInsert(sql) {
+  const columnsStart = sql.indexOf("(");
+  if (columnsStart < 0) return null;
+  const columnsEnd = findMatchingParen(sql, columnsStart);
+  const columns = splitSqlCsv(sql.slice(columnsStart + 1, columnsEnd)).map(
+    normalizeColumn,
+  );
+  const selectMatch = sql.slice(columnsEnd).match(/\bselect\b/i);
+  if (!selectMatch || selectMatch.index == null) return null;
+  const selectStart = columnsEnd + selectMatch.index + selectMatch[0].length;
+  const whereIdx = sql.toLowerCase().indexOf(" where not exists", selectStart);
+  const valuesText = sql.slice(
+    selectStart,
+    whereIdx >= 0 ? whereIdx : undefined,
+  );
+  const values = splitSqlCsv(valuesText).map(parseSqlValue);
+  if (values.length !== columns.length) return null;
+  return { columns, values };
 }
 
 function commentColumns() {

@@ -50,6 +50,40 @@ export function patchAffectsRelationGraph(patch: IssueUpdatePatch): boolean {
 }
 
 /**
+ * Patch keys whose edit appends a `reef_activity` timeline event — `status`
+ * (status_change, REEF-063) plus every dimension `diffFieldActivityEvents`
+ * logs (assignee / priority / planning links / impl refs, REEF-126; and the
+ * REEF-277 parity set: title / due date / estimate / parent / archive / labels /
+ * relations). Editing any of them must refetch the issue's activity query so the
+ * unified timeline shows the freshly logged event immediately, the same path
+ * status changes already used (REEF-064) — not just `status`. Keep this list in
+ * lockstep with `diffFieldActivityEvents`: a logged field missing here leaves
+ * its event invisible until a stale-window refetch or full reload.
+ */
+const ACTIVITY_TIMELINE_KEYS = [
+  "status",
+  "assigned_to",
+  "priority",
+  "milestone_id",
+  "sprint_id",
+  "release_id",
+  "implementation_refs",
+  "title",
+  "due_date",
+  "estimate_points",
+  "parent_id",
+  "archived_at",
+  "labels",
+  "depends_on",
+  "blocks",
+  "related_to",
+] as const satisfies readonly (keyof IssueUpdatePatch)[];
+
+export function patchAffectsActivityTimeline(patch: IssueUpdatePatch): boolean {
+  return ACTIVITY_TIMELINE_KEYS.some((key) => key in patch);
+}
+
+/**
  * Whether a list query carries a free-text (`q`) facet. `q` matches the issue's
  * id/title/assignee/etc. server-side, so a content edit can change its result
  * set in ways the client does not predict — those variants refetch even for an

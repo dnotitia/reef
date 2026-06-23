@@ -1,16 +1,30 @@
 import { describe, expect, it } from "vitest";
 import {
+  ACTIVITY_EVENT_ARCHIVED_CHANGE,
   ACTIVITY_EVENT_ASSIGNEE_CHANGE,
+  ACTIVITY_EVENT_DUE_DATE_CHANGE,
+  ACTIVITY_EVENT_ESTIMATE_CHANGE,
   ACTIVITY_EVENT_IMPL_REF_LINKED,
+  ACTIVITY_EVENT_LABELS_CHANGE,
+  ACTIVITY_EVENT_PARENT_CHANGE,
   ACTIVITY_EVENT_PLANNING_LINK,
   ACTIVITY_EVENT_PRIORITY_CHANGE,
+  ACTIVITY_EVENT_RELATION_CHANGE,
   ACTIVITY_EVENT_STATUS_CHANGE,
+  ACTIVITY_EVENT_TITLE_CHANGE,
   ActivityEventSchema,
+  ArchivedChangePayloadSchema,
   AssigneeChangePayloadSchema,
+  DueDateChangePayloadSchema,
+  EstimateChangePayloadSchema,
   ImplRefLinkedPayloadSchema,
+  LabelsChangePayloadSchema,
+  ParentChangePayloadSchema,
   PlanningLinkPayloadSchema,
   PriorityChangePayloadSchema,
+  RelationChangePayloadSchema,
   StatusChangePayloadSchema,
+  TitleChangePayloadSchema,
 } from "./activity";
 
 const BASE = {
@@ -77,6 +91,86 @@ describe("activity payload schemas (REEF-126)", () => {
   });
 });
 
+describe("activity payload schemas (REEF-277)", () => {
+  it("title_change carries both ends of the rename", () => {
+    expect(TitleChangePayloadSchema.parse({ from: "Old", to: "New" })).toEqual({
+      from: "Old",
+      to: "New",
+    });
+  });
+
+  it("labels_change carries added/removed collections", () => {
+    expect(
+      LabelsChangePayloadSchema.parse({ added: ["bug"], removed: ["chore"] }),
+    ).toEqual({ added: ["bug"], removed: ["chore"] });
+    // Either side may be empty (a pure add or pure remove).
+    expect(
+      LabelsChangePayloadSchema.parse({ added: [], removed: ["chore"] }),
+    ).toEqual({ added: [], removed: ["chore"] });
+  });
+
+  it("due_date_change accepts an ISO date or null, rejects junk", () => {
+    expect(
+      DueDateChangePayloadSchema.parse({
+        from: null,
+        to: "2026-07-01T00:00:00.000Z",
+      }),
+    ).toEqual({ from: null, to: "2026-07-01T00:00:00.000Z" });
+    expect(() =>
+      DueDateChangePayloadSchema.parse({ from: "not-a-date", to: null }),
+    ).toThrow();
+  });
+
+  it("estimate_change accepts a non-negative number or null, rejects negatives", () => {
+    expect(EstimateChangePayloadSchema.parse({ from: 3, to: 0 })).toEqual({
+      from: 3,
+      to: 0,
+    });
+    expect(EstimateChangePayloadSchema.parse({ from: null, to: 5 })).toEqual({
+      from: null,
+      to: 5,
+    });
+    expect(() =>
+      EstimateChangePayloadSchema.parse({ from: -1, to: null }),
+    ).toThrow();
+  });
+
+  it("parent_change carries the reef-id transition, nullable both ends", () => {
+    expect(
+      ParentChangePayloadSchema.parse({ from: null, to: "REEF-012" }),
+    ).toEqual({ from: null, to: "REEF-012" });
+    expect(
+      ParentChangePayloadSchema.parse({ from: "REEF-012", to: null }),
+    ).toEqual({ from: "REEF-012", to: null });
+  });
+
+  it("relation_change names the dimension and its added/removed ids", () => {
+    expect(
+      RelationChangePayloadSchema.parse({
+        relation: "depends_on",
+        added: ["REEF-002"],
+        removed: [],
+      }),
+    ).toEqual({ relation: "depends_on", added: ["REEF-002"], removed: [] });
+    expect(() =>
+      RelationChangePayloadSchema.parse({
+        relation: "epic",
+        added: [],
+        removed: [],
+      }),
+    ).toThrow();
+  });
+
+  it("archived_change is a boolean flip", () => {
+    expect(
+      ArchivedChangePayloadSchema.parse({ from: false, to: true }),
+    ).toEqual({ from: false, to: true });
+    expect(() =>
+      ArchivedChangePayloadSchema.parse({ from: "no", to: "yes" }),
+    ).toThrow();
+  });
+});
+
 describe("ActivityEventSchema discriminated union (REEF-126)", () => {
   it("routes each event_type to its matching payload", () => {
     const cases = [
@@ -99,6 +193,34 @@ describe("ActivityEventSchema discriminated union (REEF-126)", () => {
       {
         event_type: ACTIVITY_EVENT_IMPL_REF_LINKED,
         payload: { ref_type: "commit", ref: "abc123", repo: null },
+      },
+      {
+        event_type: ACTIVITY_EVENT_TITLE_CHANGE,
+        payload: { from: "Old", to: "New" },
+      },
+      {
+        event_type: ACTIVITY_EVENT_LABELS_CHANGE,
+        payload: { added: ["bug"], removed: [] },
+      },
+      {
+        event_type: ACTIVITY_EVENT_DUE_DATE_CHANGE,
+        payload: { from: null, to: "2026-07-01T00:00:00.000Z" },
+      },
+      {
+        event_type: ACTIVITY_EVENT_ESTIMATE_CHANGE,
+        payload: { from: 3, to: 5 },
+      },
+      {
+        event_type: ACTIVITY_EVENT_PARENT_CHANGE,
+        payload: { from: null, to: "REEF-012" },
+      },
+      {
+        event_type: ACTIVITY_EVENT_RELATION_CHANGE,
+        payload: { relation: "blocks", added: ["REEF-010"], removed: [] },
+      },
+      {
+        event_type: ACTIVITY_EVENT_ARCHIVED_CHANGE,
+        payload: { from: false, to: true },
       },
     ];
     for (const c of cases) {
@@ -123,7 +245,9 @@ describe("ActivityEventSchema discriminated union (REEF-126)", () => {
     expect(() =>
       ActivityEventSchema.parse({
         ...BASE,
-        event_type: "title_change",
+        // content_change (REEF-127, body diff) is a deliberately-unmodeled
+        // future type — a clean stand-in for an event this release cannot read.
+        event_type: "content_change",
         payload: { from: "a", to: "b" },
       }),
     ).toThrow();

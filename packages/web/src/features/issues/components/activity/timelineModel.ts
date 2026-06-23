@@ -1,9 +1,16 @@
 import {
+  ACTIVITY_EVENT_ARCHIVED_CHANGE,
   ACTIVITY_EVENT_ASSIGNEE_CHANGE,
+  ACTIVITY_EVENT_DUE_DATE_CHANGE,
+  ACTIVITY_EVENT_ESTIMATE_CHANGE,
   ACTIVITY_EVENT_IMPL_REF_LINKED,
+  ACTIVITY_EVENT_LABELS_CHANGE,
+  ACTIVITY_EVENT_PARENT_CHANGE,
   ACTIVITY_EVENT_PLANNING_LINK,
   ACTIVITY_EVENT_PRIORITY_CHANGE,
+  ACTIVITY_EVENT_RELATION_CHANGE,
   ACTIVITY_EVENT_STATUS_CHANGE,
+  ACTIVITY_EVENT_TITLE_CHANGE,
   type ActivityEvent,
   type ClosedReason,
   type Comment,
@@ -11,6 +18,7 @@ import {
   type IssueMetadata,
   type PlanningLinkField,
   type Priority,
+  type RelationField,
   type Status,
 } from "@reef/core";
 
@@ -107,6 +115,71 @@ export type TimelineSystemEvent =
       /** Planning ids; null on an attach (`null → id`) or detach (`id → null`). */
       from: string | null;
       to: string | null;
+    }
+  | {
+      id: string;
+      at: string;
+      actor: string | null;
+      kind: "title_change";
+      /** Both ends carry the human title (a rename, never null). */
+      from: string;
+      to: string;
+    }
+  | {
+      id: string;
+      at: string;
+      actor: string | null;
+      kind: "labels_change";
+      /** Labels added / removed in one save (an unordered set change). */
+      added: string[];
+      removed: string[];
+    }
+  | {
+      id: string;
+      at: string;
+      actor: string | null;
+      kind: "due_date_change";
+      /** ISO date either side; null on a set (`null → date`) or clear (`date → null`). */
+      from: string | null;
+      to: string | null;
+    }
+  | {
+      id: string;
+      at: string;
+      actor: string | null;
+      kind: "estimate_change";
+      /** Story points either side; null on a set or clear. */
+      from: number | null;
+      to: number | null;
+    }
+  | {
+      id: string;
+      at: string;
+      actor: string | null;
+      kind: "parent_change";
+      /** Parent reef id (REEF-012); null on an attach or detach. */
+      from: string | null;
+      to: string | null;
+    }
+  | {
+      id: string;
+      at: string;
+      actor: string | null;
+      kind: "relation_change";
+      /** Which relation moved (depends_on / blocks / related_to). */
+      relation: RelationField;
+      /** Related reef ids added / removed in one save. */
+      added: string[];
+      removed: string[];
+    }
+  | {
+      id: string;
+      at: string;
+      actor: string | null;
+      kind: "archived_change";
+      /** Archive `false → true`, restore `true → false`. */
+      from: boolean;
+      to: boolean;
     };
 
 export interface CommentEntry {
@@ -139,12 +212,14 @@ export type TimelineEntry = CommentEntry | SystemEntry | CollapsedEntry;
 const COLLAPSE_THRESHOLD = 3;
 
 /**
- * Map a `reef_activity` row to a normalized system event (REEF-276). Each of
- * status_change / assignee_change / priority_change / planning_link becomes its
- * own timeline row. `impl_ref_linked` maps to `null`: a linked delivery ref is
- * already surfaced as a reconstructed `delivery` event from the issue's own
- * `implementation_refs`, so rendering the activity row too would double the
- * delivery line (AC4). The discriminated union narrows `payload` per case.
+ * Map a `reef_activity` row to a normalized system event (REEF-276 / REEF-277).
+ * Each field-change kind — status / assignee / priority / planning link, plus the
+ * REEF-277 parity set (title, labels, due date, estimate, parent, relations,
+ * archive) — becomes its own timeline row. `impl_ref_linked` maps to `null`: a
+ * linked delivery ref is already surfaced as a reconstructed `delivery` event
+ * from the issue's own `implementation_refs`, so rendering the activity row too
+ * would double the delivery line (AC4). The discriminated union narrows `payload`
+ * per case.
  */
 function fromActivityEvent(event: ActivityEvent): TimelineSystemEvent | null {
   const base = { id: event.id, at: event.at, actor: event.actor };
@@ -176,6 +251,56 @@ function fromActivityEvent(event: ActivityEvent): TimelineSystemEvent | null {
         ...base,
         kind: "planning_link",
         field: event.payload.field,
+        from: event.payload.from,
+        to: event.payload.to,
+      };
+    case ACTIVITY_EVENT_TITLE_CHANGE:
+      return {
+        ...base,
+        kind: "title_change",
+        from: event.payload.from,
+        to: event.payload.to,
+      };
+    case ACTIVITY_EVENT_LABELS_CHANGE:
+      return {
+        ...base,
+        kind: "labels_change",
+        added: event.payload.added,
+        removed: event.payload.removed,
+      };
+    case ACTIVITY_EVENT_DUE_DATE_CHANGE:
+      return {
+        ...base,
+        kind: "due_date_change",
+        from: event.payload.from,
+        to: event.payload.to,
+      };
+    case ACTIVITY_EVENT_ESTIMATE_CHANGE:
+      return {
+        ...base,
+        kind: "estimate_change",
+        from: event.payload.from,
+        to: event.payload.to,
+      };
+    case ACTIVITY_EVENT_PARENT_CHANGE:
+      return {
+        ...base,
+        kind: "parent_change",
+        from: event.payload.from,
+        to: event.payload.to,
+      };
+    case ACTIVITY_EVENT_RELATION_CHANGE:
+      return {
+        ...base,
+        kind: "relation_change",
+        relation: event.payload.relation,
+        added: event.payload.added,
+        removed: event.payload.removed,
+      };
+    case ACTIVITY_EVENT_ARCHIVED_CHANGE:
+      return {
+        ...base,
+        kind: "archived_change",
         from: event.payload.from,
         to: event.payload.to,
       };

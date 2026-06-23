@@ -1,22 +1,35 @@
 "use client";
 
+import { DateDisplay } from "@/components/fields/DateDisplay";
 import { PlanningKindIcon } from "@/components/fields/PlanningKindIcon";
 import { PRIORITY_LABELS, STATUS_LABELS } from "@/components/fields/fieldKit";
 import { StatusIcon } from "@/components/ui/status-icon";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { findPlanningName } from "@/features/planning/lib/planningItems";
-import type { ImplementationRef, PlanningLinkField } from "@reef/core";
+import type {
+  ImplementationRef,
+  PlanningLinkField,
+  RelationField,
+} from "@reef/core";
 import { CLOSED_REASON_LABELS } from "@reef/core/fields";
 import {
   PLANNING_KIND_SINGULAR,
   type PlanningKind,
 } from "@reef/core/fields/planning";
 import {
+  Archive,
+  ArchiveRestore,
+  CalendarClock,
   CircleDot,
   Flag,
+  GaugeCircle,
   GitBranch,
   GitCommit,
   GitPullRequest,
+  Link2,
+  Network,
+  Tag,
+  Type,
   UserRound,
 } from "lucide-react";
 import { type ReactNode, memo, useState } from "react";
@@ -37,6 +50,13 @@ const PLANNING_FIELD_KIND: Record<PlanningLinkField, PlanningKind> = {
   milestone: "milestones",
   sprint: "sprints",
   release: "releases",
+};
+
+/** A `relation_change` dimension → its human verb phrase. */
+const RELATION_LABELS: Record<RelationField, string> = {
+  depends_on: "depends on",
+  blocks: "blocks",
+  related_to: "related to",
 };
 
 /** Resolve a planning id to its human name; null when absent/unresolved. */
@@ -83,6 +103,49 @@ function loginToken(text: string): ReactNode {
  */
 function valueToken(text: string): ReactNode {
   return <span className="font-medium text-foreground">{text}</span>;
+}
+
+/**
+ * A reef id (parent / relation target, e.g. `REEF-012`) as a token. Like a login
+ * it is a code identifier, so it is kept un-translated. Unlike planning ids
+ * (opaque UUIDs that need name resolution), a reef id is itself human-readable,
+ * so it renders directly with no catalog lookup.
+ */
+function idToken(text: string): ReactNode {
+  return (
+    <span className="font-medium text-foreground" translate="no">
+      {text}
+    </span>
+  );
+}
+
+/** Join a list of value tokens (labels) into a comma-separated inline run. */
+function joinValueTokens(values: string[]): ReactNode {
+  return values.map((value, index) => (
+    <span key={value}>
+      {index > 0 ? ", " : null}
+      {valueToken(value)}
+    </span>
+  ));
+}
+
+/** Join a list of reef-id tokens (relation targets) into a comma-separated run. */
+function joinIdTokens(ids: string[]): ReactNode {
+  return ids.map((id, index) => (
+    <span key={id}>
+      {index > 0 ? ", " : null}
+      {idToken(id)}
+    </span>
+  ));
+}
+
+/** A due-date value as a token — `YYYY-MM-DD` via the shared `DateDisplay`. */
+function dateToken(iso: string): ReactNode {
+  return (
+    <span className="font-medium text-foreground">
+      <DateDisplay date={iso} />
+    </span>
+  );
 }
 
 /**
@@ -148,6 +211,30 @@ function glyphFor(event: TimelineSystemEvent): ReactNode {
           className="text-muted-foreground"
         />
       );
+    // REEF-277 parity set — all neutral, shape-coded glyphs; the changed value
+    // is encoded once, in the line text.
+    case "title_change":
+      return <Type className="size-3.5 text-muted-foreground" aria-hidden />;
+    case "labels_change":
+      return <Tag className="size-3.5 text-muted-foreground" aria-hidden />;
+    case "due_date_change":
+      return (
+        <CalendarClock className="size-3.5 text-muted-foreground" aria-hidden />
+      );
+    case "estimate_change":
+      return (
+        <GaugeCircle className="size-3.5 text-muted-foreground" aria-hidden />
+      );
+    case "parent_change":
+      return <Network className="size-3.5 text-muted-foreground" aria-hidden />;
+    case "relation_change":
+      return <Link2 className="size-3.5 text-muted-foreground" aria-hidden />;
+    case "archived_change": {
+      // Distinct glyph per direction (archive vs restore), like delivery's
+      // per-type icon — still neutral, never a status color.
+      const Icon = event.to ? Archive : ArchiveRestore;
+      return <Icon className="size-3.5 text-muted-foreground" aria-hidden />;
+    }
   }
 }
 
@@ -294,6 +381,115 @@ function lineFor(
         </>,
       );
     }
+    case "title_change":
+      return sentence(
+        event.actor,
+        "changed the title",
+        <>
+          {valueToken(event.from)} → {valueToken(event.to)}
+        </>,
+      );
+    case "labels_change": {
+      const { added, removed } = event;
+      if (added.length && removed.length)
+        return sentence(
+          event.actor,
+          "updated labels",
+          <>
+            added {joinValueTokens(added)}, removed {joinValueTokens(removed)}
+          </>,
+        );
+      if (added.length)
+        return sentence(
+          event.actor,
+          added.length > 1 ? "added labels" : "added label",
+          joinValueTokens(added),
+        );
+      return sentence(
+        event.actor,
+        removed.length > 1 ? "removed labels" : "removed label",
+        joinValueTokens(removed),
+      );
+    }
+    case "due_date_change": {
+      const { from, to } = event;
+      if (from && to)
+        return sentence(
+          event.actor,
+          "changed the due date",
+          <>
+            {dateToken(from)} → {dateToken(to)}
+          </>,
+        );
+      if (to)
+        return sentence(event.actor, "set the due date to", dateToken(to));
+      if (from) return sentence(event.actor, "cleared the due date");
+      return sentence(event.actor, "changed the due date");
+    }
+    case "estimate_change": {
+      const { from, to } = event;
+      if (from != null && to != null)
+        return sentence(
+          event.actor,
+          "changed the estimate",
+          <>
+            {valueToken(String(from))} → {valueToken(String(to))}
+          </>,
+        );
+      if (to != null)
+        return sentence(
+          event.actor,
+          "set the estimate to",
+          valueToken(String(to)),
+        );
+      if (from != null) return sentence(event.actor, "cleared the estimate");
+      return sentence(event.actor, "changed the estimate");
+    }
+    case "parent_change": {
+      const { from, to } = event;
+      if (from && to)
+        return sentence(
+          event.actor,
+          "changed the parent",
+          <>
+            {idToken(from)} → {idToken(to)}
+          </>,
+        );
+      if (to) return sentence(event.actor, "set the parent to", idToken(to));
+      if (from) return sentence(event.actor, "removed the parent");
+      return sentence(event.actor, "changed the parent");
+    }
+    case "relation_change": {
+      const { relation, added, removed } = event;
+      const word = RELATION_LABELS[relation];
+      if (added.length && removed.length)
+        return sentence(
+          event.actor,
+          `updated ${word}`,
+          <>
+            added {joinIdTokens(added)}, removed {joinIdTokens(removed)}
+          </>,
+        );
+      if (added.length)
+        return sentence(
+          event.actor,
+          "added",
+          <>
+            {joinIdTokens(added)} to {word}
+          </>,
+        );
+      return sentence(
+        event.actor,
+        "removed",
+        <>
+          {joinIdTokens(removed)} from {word}
+        </>,
+      );
+    }
+    case "archived_change":
+      return event.to
+        ? sentence(event.actor, "archived this issue")
+        : sentence(event.actor, "restored this issue");
   }
 }
 

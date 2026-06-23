@@ -82,6 +82,15 @@ explicitly in the entries below.
   one-line entries in an issue's Activity thread, next to status changes and
   delivery. Planning links read by name rather than a raw id, and a linked
   delivery ref still appears once, not twice (REEF-276).
+- **The activity timeline now records title, labels, due date, estimate, parent,
+  relations, and archive changes.** Editing an issue's title, labels, due date,
+  estimate, parent, a relation (depends on / blocks / related to), or archiving
+  and restoring it now leaves its own one-line entry in the Activity thread —
+  completing the change history alongside status, assignee, priority, and
+  planning. Every change from one save groups under a single moment, and an
+  older deployment that does not yet understand a new entry type simply skips it
+  instead of erroring. Workspaces created on an earlier version can pick up the
+  matching agent-playbook update from Settings > Workspace (REEF-277).
 
 ### Changed
 
