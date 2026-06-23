@@ -44,7 +44,20 @@ const NOOP_LOGGER: CoreLogger = {
   debug() {},
 };
 
-let currentLogger: CoreLogger = NOOP_LOGGER;
+// The wired logger is stored on `globalThis` under a global-registry Symbol, NOT
+// a module-level `let`. `web` calls `setCoreLogger` from Next.js instrumentation
+// startup, but the scan / LLM / adapter code that calls `observe` runs in a
+// different Next.js bundle layer — and Next.js gives each layer its own instance
+// of this module, so a module-level singleton set in one is invisible in the
+// other (the logger stayed unwired and `observe` no-op'd in a real dev server,
+// even though unit tests — one module registry — passed). `globalThis` plus a
+// `Symbol.for` key is shared across every instance in the process, so the wiring
+// is seen everywhere. (REEF-271)
+const LOGGER_KEY = Symbol.for("reef.observability.coreLogger");
+
+type GlobalWithLogger = typeof globalThis & {
+  [LOGGER_KEY]?: CoreLogger;
+};
 
 /**
  * Wire (or clear) the process-wide core logger. Called once by `web` at
@@ -52,12 +65,12 @@ let currentLogger: CoreLogger = NOOP_LOGGER;
  * to the silent no-op (used by tests and by prod-with-trace-backend). Idempotent.
  */
 export function setCoreLogger(logger: CoreLogger | null): void {
-  currentLogger = logger ?? NOOP_LOGGER;
+  (globalThis as GlobalWithLogger)[LOGGER_KEY] = logger ?? undefined;
 }
 
 /** The currently wired logger, or the silent no-op when none is set. */
 export function getCoreLogger(): CoreLogger {
-  return currentLogger;
+  return (globalThis as GlobalWithLogger)[LOGGER_KEY] ?? NOOP_LOGGER;
 }
 
 export type ObserveLevel = "info" | "warn" | "debug";
@@ -94,5 +107,5 @@ export function observe(
     span?.setAttribute(key, value);
     logFields[key] = value;
   }
-  currentLogger[options.level ?? "info"](logFields, msg);
+  getCoreLogger()[options.level ?? "info"](logFields, msg);
 }
