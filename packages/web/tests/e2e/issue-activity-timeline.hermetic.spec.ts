@@ -88,10 +88,24 @@ test.describe("Hermetic issue activity timeline (REEF-277)", () => {
       "Initial issue Alpha",
     );
 
+    // updateIssue runs the row UPDATE first and the best-effort activity append
+    // last, both before the PATCH responds. Gate on the response — NOT a
+    // side-channel poll of the issue row, which the in-memory mock mutates the
+    // instant the row UPDATE lands, i.e. before the title_change INSERT. Polling
+    // the row therefore races the append: under load the reload below can read
+    // the timeline back before the row exists. Awaiting the response guarantees
+    // the append has committed server-side first.
+    const saved = page.waitForResponse(
+      (response) =>
+        response.url().includes("/api/issues/REEF-001") &&
+        response.request().method() === "PATCH" &&
+        response.ok(),
+    );
     await page
       .locator('[data-testid="issue-title-input"]')
       .fill("Initial issue Alpha v2");
     await page.locator('[data-testid="issue-title-input"]').press("Enter");
+    await saved;
 
     // The row write lands (the PATCH route ran updateIssue).
     await expect
