@@ -10,6 +10,7 @@ import {
   ATTR_SERVICE_NAME,
   ATTR_SERVICE_VERSION,
 } from "@opentelemetry/semantic-conventions";
+import { setCoreLogger } from "@reef/core";
 import pkg from "../../../package.json";
 
 /**
@@ -93,6 +94,29 @@ export function registerNode() {
   });
 
   sdk.start();
+
+  // Wire the core observability seam to the shared pino logger so `core`'s
+  // "emit once, shape twice" instrumentation (scan checkpoints, LLM token usage,
+  // upstream latency — REEF-271) can surface as stdout lines, NOT just span
+  // attributes. Gated by the same dev/deploy split as the `response` access log
+  // (`responseLoggingEnabled`): on in dev, opt-in via `REEF_RESPONSE_LOG=1`
+  // where there is no trace backend. With a trace backend (prod default) the
+  // logger stays unwired and `core` emits span attributes only — no stdout noise.
+  //
+  // The logger is imported lazily AFTER `sdk.start()` for the same reason as
+  // `RequestLogSpanProcessor`: constructing the pino singleton before
+  // PinoInstrumentation installs its module hook would strip trace correlation
+  // (the REEF-235 invariant). `setCoreLogger` itself carries no pino, so it is
+  // safe to import eagerly.
+  if (responseLoggingEnabled()) {
+    void import("@/lib/logging/logger").then(({ logger }) => {
+      setCoreLogger({
+        info: (fields, msg) => logger.info(fields, msg),
+        warn: (fields, msg) => logger.warn(fields, msg),
+        debug: (fields, msg) => logger.debug(fields, msg),
+      });
+    });
+  }
 
   // Graceful shutdown: flush in-flight spans before the Node.js process exits.
   // Without this, spans buffered in the OTLP exporter's batch queue are lost

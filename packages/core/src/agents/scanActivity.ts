@@ -2,6 +2,7 @@ import { SpanStatusCode, trace } from "@opentelemetry/api";
 import type { AkbAdapter } from "../adapters/akb";
 import type { GitHubAdapter } from "../adapters/github";
 import type { LlmAdapter } from "../adapters/llm";
+import { observe } from "../observability";
 import type {
   PendingDraft,
   PendingStatusChange,
@@ -120,8 +121,19 @@ export async function scanActivity(
         const commitNodes = recentActivity.commits;
         const prNodes = recentActivity.pullRequests;
 
-        parentSpan.setAttribute("commits_scanned", commitNodes.length);
-        parentSpan.setAttribute("prs_scanned", prNodes.length);
+        // Checkpoint 1 — GitHub fetch done. Without this the scan is silent on
+        // dev stdout from request start until the LLM stage returns (REEF-271:
+        // the observed 137s gap on a 2.3min scan). `observe` sets the span
+        // attributes (prod → OTel) and, when the logger is wired, one stdout line.
+        observe(
+          parentSpan,
+          {
+            repo: repoFull,
+            commits_scanned: commitNodes.length,
+            prs_scanned: prNodes.length,
+          },
+          "scan_activity fetched",
+        );
 
         const activities = normalizeActivities({
           commitNodes,
@@ -147,8 +159,16 @@ export async function scanActivity(
         const untracked = activities.filter((a) => a.issueRef === null);
         const trackedByIssue = groupTrackedActivities(activities);
 
-        parentSpan.setAttribute("untracked_count", untracked.length);
-        parentSpan.setAttribute("tracked_issue_count", trackedByIssue.size);
+        // Checkpoint 2 — about to enter the per-activity LLM stage, the slow
+        // part. The counts say how many model calls are coming.
+        observe(
+          parentSpan,
+          {
+            untracked_count: untracked.length,
+            tracked_issue_count: trackedByIssue.size,
+          },
+          "scan_activity generating drafts",
+        );
 
         const detectedAt = new Date().toISOString();
         const drafts: PendingDraft[] = [];
@@ -181,10 +201,23 @@ export async function scanActivity(
           if (statusChange !== null) statusChanges.push(statusChange);
         }
 
-        parentSpan.setAttribute("drafts_generated", drafts.length);
-        parentSpan.setAttribute(
-          "status_changes_generated",
-          statusChanges.length,
+        // Checkpoint 3 — completion summary. The `reef.agent.scanActivity` span
+        // already carries these as attributes (above), but a trace-backend-less
+        // deployment sees only stdout, so emit the same counts as one structured
+        // line. Re-setting the attributes here is idempotent and keeps the
+        // emit-once-shape-twice call shape uniform.
+        observe(
+          parentSpan,
+          {
+            repo: repoFull,
+            commits_scanned: commitNodes.length,
+            prs_scanned: prNodes.length,
+            untracked_count: untracked.length,
+            tracked_issue_count: trackedByIssue.size,
+            drafts_generated: drafts.length,
+            status_changes_generated: statusChanges.length,
+          },
+          "scan_activity complete",
         );
         parentSpan.setStatus({ code: SpanStatusCode.OK });
         return { drafts, statusChanges };

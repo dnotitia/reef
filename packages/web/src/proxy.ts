@@ -6,6 +6,7 @@
 // `request` line below is emitted by pino from the proxy with trace correlation.
 // Edge gating still applies to instrumentation-node.ts (sdk-node), which
 // `instrumentation.ts` loads behind `NEXT_RUNTIME === "nodejs"`.
+import { SESSION_COOKIE, decodeSessionActor } from "@/lib/akb/sessionCookie";
 import { logger } from "@/lib/logging/logger";
 import { httpRequestDurationSeconds, httpRequestsTotal } from "@/lib/metrics";
 import { type NextRequest, NextResponse } from "next/server";
@@ -71,12 +72,33 @@ export function proxy(request: NextRequest) {
   // value logging is opt-in. The redaction contract is enforced by proxy.test.ts,
   // which fails if a fake-token substring ever reaches stdout.
   if (path.startsWith("/api/")) {
+    // Stamp the request line with the akb actor (username) so an error can be
+    // tied to a user — "which user hit this 500?" (REEF-271).
+    //
+    // TRUST BOUNDARY: this is the *claimed* session identity, not a verified one.
+    // reef-web is not the JWT signing authority — akb is, and it re-validates the
+    // forwarded token on every request (see `decodeJwtExp` / `extractAkbSession`).
+    // The proxy runs before that validation and cannot check the signature, so a
+    // forged cookie like `{"sub":"alice"}` would be logged as `actor: alice` even
+    // though akb then rejects it (401/403) — the request fails, but the line is
+    // already written. The field is therefore reliable for akb-accepted requests
+    // (the ones a real 500 comes from) and a best-effort, spoofable hint on
+    // rejected ones. It is logged as a debug aid, never used for authorization,
+    // and is deliberately NOT emitted as the OTel `enduser.id` span attribute,
+    // whose semantic convention denotes a *verified* end user — setting it from an
+    // unverified edge claim would overstate it in traces/cost dashboards.
+    //
+    // Only the public identity claim is read; the token/PAT is never touched, so
+    // the credential-redaction invariant above is preserved.
+    const sessionJwt = request.cookies.get(SESSION_COOKIE)?.value;
+    const actor = sessionJwt ? decodeSessionActor(sessionJwt) : null;
     logger.info(
       {
         method: request.method,
         path,
         query: sanitizeQueryForLog(request.nextUrl.search),
         route_class: routeClass,
+        ...(actor ? { actor } : {}),
       },
       "request",
     );

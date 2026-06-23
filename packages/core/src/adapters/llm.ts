@@ -6,6 +6,7 @@ import {
   streamText as aiStreamText,
 } from "ai";
 import { LlmError } from "../errors";
+import { observe } from "../observability";
 import { extractErrorDetail } from "../utils/extractErrorDetail";
 
 const tracer = trace.getTracer("@reef/core");
@@ -129,6 +130,21 @@ export function createLlmAdapter(params: CreateLlmAdapterParams): LlmAdapter {
               .experimental_telemetry ?? {}),
           },
         });
+        // Capture token usage + finish reason (REEF-271). The wrapper previously
+        // recorded only `llm.model` and discarded `result.usage`, leaving the
+        // scan path's LLM cost invisible while `enrichIssue` already captured it
+        // (an asymmetry). `observe` puts the same fields on the span (prod cost/
+        // usage dashboards) AND, when wired, one dev stdout line per call.
+        observe(
+          span,
+          {
+            "llm.model": modelId,
+            "llm.usage.prompt_tokens": result.usage?.inputTokens,
+            "llm.usage.completion_tokens": result.usage?.outputTokens,
+            "llm.finish_reason": result.finishReason ?? "unknown",
+          },
+          "llm.generateText",
+        );
         span.setStatus({ code: SpanStatusCode.OK });
         return result;
       } catch (err) {

@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { LlmError } from "../errors";
+import { type CoreLogger, setCoreLogger } from "../observability";
 import { createLlmAdapter } from "./llm";
 
 // ─── AI SDK Mocks ─────────────────────────────────────────────────────────────
@@ -111,6 +112,68 @@ describe("createLlmAdapter", () => {
       expect(callArgs.experimental_telemetry).toMatchObject({
         isEnabled: true,
         functionId: "reef.generateText",
+      });
+    });
+
+    describe("token usage + finish reason capture (REEF-271)", () => {
+      afterEach(() => {
+        setCoreLogger(null);
+      });
+
+      function captureObserve() {
+        const calls: Array<{
+          fields: Record<string, unknown>;
+          msg: string;
+        }> = [];
+        const record = () => (fields: Record<string, unknown>, msg: string) => {
+          calls.push({ fields, msg });
+        };
+        const logger: CoreLogger = {
+          info: record(),
+          warn: record(),
+          debug: record(),
+        };
+        setCoreLogger(logger);
+        return calls;
+      }
+
+      it("flows result.usage + finishReason to the observe seam (and span attrs)", async () => {
+        mockGenerateText.mockResolvedValueOnce({
+          text: "ok",
+          usage: { inputTokens: 11, outputTokens: 22 },
+          finishReason: "stop",
+        });
+        const calls = captureObserve();
+
+        const adapter = createLlmAdapter(makeParams());
+        await adapter.generateText({ model: adapter.model(), prompt: "hi" });
+
+        const line = calls.find((c) => c.msg === "llm.generateText");
+        expect(line).toBeDefined();
+        expect(line?.fields).toMatchObject({
+          "llm.model": "gpt-4o",
+          "llm.usage.prompt_tokens": 11,
+          "llm.usage.completion_tokens": 22,
+          "llm.finish_reason": "stop",
+        });
+      });
+
+      it("omits absent token counts but still records model + finish reason", async () => {
+        mockGenerateText.mockResolvedValueOnce({
+          text: "ok",
+          finishReason: "stop",
+        });
+        const calls = captureObserve();
+
+        const adapter = createLlmAdapter(makeParams());
+        await adapter.generateText({ model: adapter.model(), prompt: "hi" });
+
+        const line = calls.find((c) => c.msg === "llm.generateText");
+        expect(line?.fields).toMatchObject({
+          "llm.model": "gpt-4o",
+          "llm.finish_reason": "stop",
+        });
+        expect(line?.fields).not.toHaveProperty("llm.usage.prompt_tokens");
       });
     });
 

@@ -1,15 +1,33 @@
-import { SpanStatusCode, trace } from "@opentelemetry/api";
+import { type Span, SpanStatusCode, trace } from "@opentelemetry/api";
+import { observe } from "../../observability";
 import { normalizeRepositoryReadError } from "./errors";
 
 const tracer = trace.getTracer("@reef/core");
+
+/**
+ * Warn once the GraphQL point budget falls to/below this remaining count
+ * (GitHub's GraphQL secondary budget is 5000 points/hour). Surfacing it as a
+ * span attribute always, plus a dev warn line near exhaustion, makes a throttled
+ * scan diagnosable instead of a silent stall (REEF-271).
+ */
+const GITHUB_RATELIMIT_WARN_REMAINING = 500;
 
 type GraphqlClient = <T>(
   query: string,
   variables?: Record<string, unknown>,
 ) => Promise<T>;
 
+/** GitHub GraphQL `rateLimit` connection (requested at the query root). */
+interface GraphqlRateLimit {
+  remaining: number;
+  resetAt: string;
+  cost: number;
+  limit: number;
+}
+
 const RECENT_COMMITS_QUERY = `
   query RecentCommits($owner: String!, $repo: String!, $since: GitTimestamp) {
+    rateLimit { limit cost remaining resetAt }
     repository(owner: $owner, name: $repo) {
       defaultBranchRef {
         target {
@@ -70,6 +88,7 @@ export interface GitHubCommitNode {
 }
 
 interface RecentCommitsResult {
+  rateLimit?: GraphqlRateLimit | null;
   repository: {
     defaultBranchRef: {
       target: {
@@ -148,6 +167,7 @@ export async function listRecentActivity({
 
       span.setAttribute("commits.count", commits.length);
       span.setAttribute("pull_requests.count", pullRequests.length);
+      recordRateLimit(span, `${owner}/${repo}`, commitsResult.rateLimit);
       span.setStatus({ code: SpanStatusCode.OK });
       return { commits, pullRequests };
     } catch (err) {
@@ -159,4 +179,38 @@ export async function listRecentActivity({
       span.end();
     }
   });
+}
+
+/**
+ * Record the GraphQL rate-limit budget on the span (always, when GitHub returned
+ * it) and emit one dev warn line as it nears exhaustion (REEF-271). The mocked
+ * GraphQL client in hermetic/unit runs omits `rateLimit`, so this is a no-op
+ * there — guarded on a numeric `remaining`.
+ */
+function recordRateLimit(
+  span: Span,
+  repo: string,
+  rateLimit: GraphqlRateLimit | null | undefined,
+): void {
+  if (!rateLimit || typeof rateLimit.remaining !== "number") {
+    return;
+  }
+  span.setAttribute("github.ratelimit.remaining", rateLimit.remaining);
+  if (typeof rateLimit.resetAt === "string") {
+    span.setAttribute("github.ratelimit.reset", rateLimit.resetAt);
+  }
+  if (rateLimit.remaining <= GITHUB_RATELIMIT_WARN_REMAINING) {
+    // Attributes are already on the span; pass `undefined` so `observe` only
+    // emits the dev warn line rather than re-setting them.
+    observe(
+      undefined,
+      {
+        repo,
+        github_ratelimit_remaining: rateLimit.remaining,
+        github_ratelimit_reset: rateLimit.resetAt,
+      },
+      "github rate limit low",
+      { level: "warn" },
+    );
+  }
 }

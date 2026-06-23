@@ -186,8 +186,48 @@ Optional tracing/observability:
 | --- | --- |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP HTTP base endpoint for trace export (the instrumentation appends `/v1/traces`). No-op when unset / nothing is listening. |
 | `OTEL_EXPORTER_OTLP_HEADERS` | Comma-separated `key=value` headers for authenticating to the trace backend. Read once at startup; never logged. |
+| `REEF_RESPONSE_LOG` | Set to `1` to emit the per-request `response` access line (status + duration) and the backend `core` observability lines (scan checkpoints, LLM token usage) on stdout in **any** environment. On by default only in development. See the access-line policy below. |
+| `REEF_SLOW_REQUEST_MS` | Threshold in milliseconds at/above which a `response` line is logged at WARN instead of INFO, so a slow request stands out. Defaults to `1000`; a non-positive or non-numeric value falls back to the default. |
+| `LOG_LEVEL` | pino level for backend stdout logs (`debug`/`info`/`warn`/`error`). Defaults to `debug` in development and `info` otherwise. |
 | `NEXT_PUBLIC_AKB_WEB_URL` | Public URL of the akb web app, used to open a linked akb document in a new tab from an issue. Optional; when unset that action is hidden. |
 
 Per-user secrets are intentionally **not** environment variables: the akb
 session is an httpOnly cookie minted per request, and the GitHub PAT for
 monitored repos lives only in the browser's IndexedDB.
+
+### Backend logging and the prod access-line policy
+
+reef-web logs backend events as structured pino lines on stdout (pretty in
+development, one JSON object per line otherwise) for a log collector to tail.
+OpenTelemetry injects `trace_id` / `span_id` into each line so logs correlate
+with exported traces.
+
+The **per-request `response` access line** (method, route, status, duration) is
+**deliberately off in production by default**. The reasoning is the standard
+logs/traces separation: in a deployment that exports traces, request status and
+timing already live on the request span in the trace backend, correlated to the
+inbound `request` log by `trace_id`, so synthesizing a second stdout line per
+request would be redundant noise. The inbound `request` line (emitted once at the
+proxy) stays on in every environment, now stamped with the akb `actor` so an
+error can be tied to a user (REEF-271). That actor is the **claimed** session
+identity decoded from the cookie, not a verified one — reef-web is not the JWT
+signing authority (akb is, and re-validates every forwarded request), so it is
+reliable for akb-accepted requests and a best-effort hint on a forged cookie that
+akb then rejects. It is a debug aid only, never used for authorization, and is
+deliberately not emitted as the OTel `enduser.id` attribute (which denotes a
+verified end user).
+
+This leaves one gap: a deployment that runs **without a trace backend** would see
+no response status/duration anywhere, and the richer backend signals (activity-
+scan checkpoints, LLM token usage, upstream latency) — which are emitted as span
+attributes for the trace backend — would be invisible. For that case, set
+`REEF_RESPONSE_LOG=1`. It turns on the stdout `response` access line **and** wires
+the backend `core` observability lines, so the same data that would otherwise only
+reach traces is also visible on stdout. Slow requests are promoted to WARN at the
+`REEF_SLOW_REQUEST_MS` threshold so they stand out in that stream.
+
+Credentials never reach any log: the proxy reads only the public actor claim from
+the session cookie (never the token/PAT), credential headers are redacted by the
+pino config, and typed API errors surface only their numeric upstream HTTP status
+— not the upstream-controlled detail body (an LLM provider response, an Octokit
+message) and not the nested request/response objects that carry credentials.

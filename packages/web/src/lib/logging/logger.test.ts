@@ -235,4 +235,72 @@ describe("buildLoggerOptions — dev pretty vs prod JSON, redaction, error allow
     });
     expect(JSON.stringify(out)).not.toContain("secret-token");
   });
+
+  it("preserves the upstream status of a typed reef API error, not its detail (REEF-271)", async () => {
+    const { AkbApiError } = await import("@reef/core");
+    const errSerializer = (
+      buildLoggerOptions("production").serializers as {
+        err: (e: unknown) => Record<string, unknown>;
+      }
+    ).err;
+
+    // The upstream `detail` text rides `context.message` and is canary-marked
+    // here; only the numeric `status` (which distinguishes a 502 from a 404)
+    // should reach the log — the upstream-controlled detail must not.
+    const out = errSerializer(
+      new AkbApiError({ status: 502, message: "AKB_DETAIL_CANARY exploded" }),
+    );
+
+    expect(out).toMatchObject({ type: "AkbApiError", status: 502 });
+    expect(out).not.toHaveProperty("upstream");
+    expect(JSON.stringify(out)).not.toContain("AKB_DETAIL_CANARY");
+  });
+
+  it("never logs the upstream detail of LLM or GitHub errors (bodies may carry credentials)", async () => {
+    const { LlmError, GitHubApiError } = await import("@reef/core");
+    const errSerializer = (
+      buildLoggerOptions("production").serializers as {
+        err: (e: unknown) => Record<string, unknown>;
+      }
+    ).err;
+
+    // Both context messages are upstream-controlled free text (an LLM provider
+    // body / an Octokit message) — neither may reach stdout.
+    const llm = errSerializer(
+      new LlmError({
+        message: 'provider 401: {"key":"LLM_KEY_CANARY_abc invalid"}',
+      }),
+    );
+    expect(llm.type).toBe("LlmError");
+    expect(llm).not.toHaveProperty("upstream");
+    expect(JSON.stringify(llm)).not.toContain("LLM_KEY_CANARY_abc");
+
+    const gh = errSerializer(
+      new GitHubApiError({ status: 500, message: "GH_BODY_CANARY enterprise" }),
+    );
+    expect(gh).toMatchObject({ type: "GitHubApiError", status: 500 });
+    expect(gh).not.toHaveProperty("upstream");
+    expect(JSON.stringify(gh)).not.toContain("GH_BODY_CANARY");
+  });
+
+  it("surfaces a numeric status but never the nested request/response credentials", () => {
+    const errSerializer = (
+      buildLoggerOptions("production").serializers as {
+        err: (e: unknown) => Record<string, unknown>;
+      }
+    ).err;
+
+    const out = errSerializer(
+      Object.assign(new Error("Bad credentials"), {
+        status: 401,
+        request: { headers: { authorization: `token ${FAKE_GITHUB_TOKEN}` } },
+        response: { data: { token: FAKE_GITHUB_TOKEN } },
+      }),
+    );
+
+    expect(out.status).toBe(401);
+    expect(JSON.stringify(out)).not.toContain(FAKE_GITHUB_TOKEN);
+    expect(out).not.toHaveProperty("request");
+    expect(out).not.toHaveProperty("response");
+  });
 });

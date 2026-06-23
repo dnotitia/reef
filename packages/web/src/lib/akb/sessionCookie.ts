@@ -237,6 +237,50 @@ export function isJwtExpired(
   return exp <= nowSeconds;
 }
 
+/** JWT claims, in order, that carry a loggable actor identifier. */
+const ACTOR_CLAIMS = ["username", "preferred_username", "sub"] as const;
+
+/**
+ * Read a display/audit actor identifier from a session JWT's claims WITHOUT
+ * verifying the signature (akb re-validates every forwarded request). Returns
+ * the first non-empty `username` / `preferred_username` / `sub` claim, or null
+ * when the token is malformed or carries none.
+ *
+ * Used by `proxy.ts` to stamp the request log line with the akb username so an
+ * error can be tied to a user (REEF-271). It returns ONLY a public identity
+ * claim — never the raw token — so the result is safe to log; the JWT itself
+ * stays out of every sink. Mirrors core's private `getCurrentActor` claim order
+ * (auth.ts).
+ *
+ * Decoded with the Web `atob` + URL-safe base64 normalization rather than Node's
+ * `Buffer`, so it is runtime-agnostic — the proxy defaults to the Node runtime in
+ * Next.js 16, but keeping this off Node-only globals removes any edge-runtime
+ * doubt and matches core's deliberate framework-agnostic `decodeJwtActor`.
+ */
+export function decodeSessionActor(jwt: string): string | null {
+  const segments = jwt.split(".");
+  if (segments.length < 2) return null;
+  try {
+    const b64 = segments[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+    const binary = atob(padded); // Web API global — Node 18+ and edge alike
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+    const payload = JSON.parse(new TextDecoder().decode(bytes)) as Record<
+      string,
+      unknown
+    >;
+    for (const claim of ACTOR_CLAIMS) {
+      const value = payload[claim];
+      if (typeof value === "string" && value.trim().length > 0) {
+        return value.trim();
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 const COOKIE_PAIR = /^([^=]+)=(.*)$/;
 
 export function parseCookieHeader(
