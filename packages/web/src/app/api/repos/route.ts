@@ -1,13 +1,9 @@
-import { getAkbCurrentActor } from "@/lib/api/requestHelpers";
-import { extractGithubToken } from "@/lib/github/extractGithubToken";
-import { resolveServerGitHubAppConfig } from "@/lib/github/serverAppConfig";
-import { logger } from "@/lib/logging/logger";
 import {
-  type GitHubAdapter,
-  createGitHubAdapter,
-  createGitHubAppInstallationTokenProvider,
-  translateError,
-} from "@reef/core";
+  type GitHubCredentialSource,
+  resolveGitHubAdapter,
+} from "@/lib/github/resolveGitHubAdapter";
+import { logger } from "@/lib/logging/logger";
+import { type GitHubAdapter, translateError } from "@reef/core";
 
 /** The shared repo-list result shape, derived so no extra core type export is needed. */
 type RepoListResult = Awaited<
@@ -22,84 +18,56 @@ type RepoListResult = Awaited<
  * 304 with ETag). `id` is GitHub's stable numeric repo id — the logical PK for
  * `monitored_repos` rows (REEF-239 AC4).
  *
- * Two token sources, chosen per request:
- *   1. **Server-managed GitHub App** — when the deployment is configured
- *      (`REEF_GITHUB_APP_*`), the server mints a read-scoped installation token
- *      and lists the installation's repositories, so the picker works without
- *      any browser PAT (REEF-239 AC1/AC2).
- *   2. **Per-user browser PAT** — the fallback when no App is configured. The
- *      two paths run in parallel during the migration away from PATs
- *      (REEF-237/REEF-238); the PAT UI is removed in a later cleanup issue.
+ * Credential selection (App → server PAT → browser PAT) is shared with the
+ * grounding and scan callers via `resolveGitHubAdapter` (REEF-290 AC2). The
+ * route only branches on which credential served the adapter: an App
+ * installation token lists the *installation's* repositories, while any PAT —
+ * the dev/CI server PAT or a per-user browser PAT — lists the *authenticated*
+ * account's repositories. The deployment credentials (App, server PAT) are
+ * session-gated inside the resolver, so an unauthenticated caller can never
+ * read the deployment's repo list.
  *
- * Thin Route Handler wrapper: it owns credential selection and PM-facing
+ * Thin Route Handler wrapper: it owns only the repo-listing branch and PM-facing
  * error translation; the GitHub I/O and error normalization live in core.
- * Stateless — the adapter and any minted token are per-request, not stored.
+ * Stateless — the adapter and any minted/injected token are per-request, not
+ * stored.
  */
 export async function GET(request: Request): Promise<Response> {
   const ifNoneMatch = request.headers.get("If-None-Match");
 
-  // 1. Server-managed GitHub App path (no browser PAT required).
-  const appConfig = resolveServerGitHubAppConfig();
-  if (appConfig.ok) {
-    // Authorize before using the server-managed credential. Unlike the PAT path
-    // — which is self-authorizing, since the caller lists the repos of the token
-    // they themselves supply — the App path mints a deployment credential, so
-    // without an auth check an unauthenticated caller could read the
-    // installation's repo list (including private repo names/ids). Validate the
-    // session against the akb backend (akb `/auth/me`) rather than just decoding
-    // the cookie: this route does not otherwise call akb, so a syntactic
-    // presence/`exp` check would accept a forged cookie. `getAkbCurrentActor`
-    // returns a ready 401/5xx Response when the session is missing, expired, or
-    // rejected by akb (REEF-239).
-    //
-    // The floor is an akb-verified session, not a per-workspace role. reef is
-    // single-tenant per deployment — one akb backend, one shared Keycloak
-    // tenant, and one deployment-managed GitHub App installation
-    // (`REEF_GITHUB_APP_INSTALLATION_ID` is singular, with no per-org/per-vault
-    // installation mechanism); the root AGENTS.md carries no multi-tenant
-    // isolation contract. So an akb-verified caller is an org member, and the
-    // installation's repo list is in-tenant data, trusted the same way the
-    // deployment-managed LLM config is. A per-vault writer floor would solve a
-    // cross-tenant problem reef does not have, and would break the create-
-    // workspace flow (no vault exists yet to authorize against). Scoping the
-    // installation to specific workspaces is REEF-239's deferred open question,
-    // tracked for a follow-up rather than guessed here.
-    const auth = await getAkbCurrentActor(request);
-    if ("response" in auth) {
-      return auth.response;
-    }
-
-    try {
-      const mintInstallationToken = createGitHubAppInstallationTokenProvider({
-        config: appConfig.config,
-      });
-      const token = await mintInstallationToken();
-      const adapter = createGitHubAdapter({ token });
-      const result = await adapter.listInstallationRepositories({
-        ifNoneMatch,
-      });
-      return buildReposResponse(result);
-    } catch (err) {
-      return handleReposError(err);
-    }
+  const resolved = await resolveGitHubAdapter(request);
+  switch (resolved.kind) {
+    case "session_invalid":
+      // A deployment credential (App or server PAT) was selected but akb
+      // rejected the session — surface the ready 401/5xx so an unauthenticated
+      // caller never reads the installation/server-PAT repo list.
+      return resolved.response;
+    case "no_credential":
+      return Response.json(
+        {
+          error: "Authentication required. Please configure your GitHub token.",
+        },
+        { status: 401 },
+      );
+    case "github_app_error":
+      return handleReposError(resolved.error);
+    case "adapter":
+      return listRepos(resolved.adapter, resolved.source, ifNoneMatch);
   }
+}
 
-  // 2. Fallback: per-user browser PAT from the Authorization header.
-  let token: string;
+async function listRepos(
+  adapter: GitHubAdapter,
+  source: GitHubCredentialSource,
+  ifNoneMatch: string | null,
+): Promise<Response> {
   try {
-    token = extractGithubToken(request);
-  } catch {
-    return Response.json(
-      {
-        error: "Authentication required. Please configure your GitHub token.",
-      },
-      { status: 401 },
-    );
-  }
-
-  try {
-    const adapter = createGitHubAdapter({ token });
-    const result = await adapter.listAuthenticatedRepositories({ ifNoneMatch });
+    // An App installation token can only enumerate the installation's repos;
+    // any PAT (server or browser) enumerates the authenticated account's repos.
+    const result =
+      source === "app"
+        ? await adapter.listInstallationRepositories({ ifNoneMatch })
+        : await adapter.listAuthenticatedRepositories({ ifNoneMatch });
     return buildReposResponse(result);
   } catch (err) {
     return handleReposError(err);
