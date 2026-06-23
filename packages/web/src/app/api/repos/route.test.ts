@@ -37,9 +37,13 @@ const NOT_CONFIGURED: ServerAppConfig = {
 const appConfigState = vi.hoisted(() => ({
   current: undefined as unknown,
 }));
+const serverPatState = vi.hoisted(() => ({ current: null as string | null }));
 
 vi.mock("@/lib/github/serverAppConfig", () => ({
   resolveServerGitHubAppConfig: () => appConfigState.current,
+}));
+vi.mock("@/lib/github/serverPat", () => ({
+  resolveServerGitHubPat: () => serverPatState.current,
 }));
 
 // The App path validates the reef session against the akb backend before
@@ -90,6 +94,7 @@ describe("GET /api/repos", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     appConfigState.current = NOT_CONFIGURED;
+    serverPatState.current = null;
   });
 
   it("returns 401 when Authorization header is missing", async () => {
@@ -296,6 +301,7 @@ describe("GET /api/repos — server-managed GitHub App path", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     appConfigState.current = APP_CONFIG;
+    serverPatState.current = null;
     // Default: a valid, akb-verified reef session.
     mockGetActor.mockResolvedValue({ actor: "alice" });
   });
@@ -412,5 +418,75 @@ describe("GET /api/repos — server-managed GitHub App path", () => {
       { err: expect.any(GitHubApiError), status: 403 },
       "list_repos failed",
     );
+  });
+});
+
+describe("GET /api/repos — server-managed PAT path (REEF-290)", () => {
+  const SERVER_PAT = "ghp_server_dev_pat";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // No App configured — the dev/CI server PAT fallback serves the list.
+    appConfigState.current = NOT_CONFIGURED;
+    serverPatState.current = SERVER_PAT;
+    // Default: a valid, akb-verified reef session.
+    mockGetActor.mockResolvedValue({ actor: "alice" });
+  });
+
+  it("lists the authenticated account's repos with the server PAT and no browser PAT", async () => {
+    const listAuthenticatedRepositories = mockRepoList();
+    listAuthenticatedRepositories.mockResolvedValue({
+      kind: "ok",
+      repos: [{ full_name: "octo/reef", id: 1001 }],
+      etag: null,
+    });
+
+    // A signed-in user, no browser PAT — the server PAT serves the list.
+    const res = await GET(makeRequest());
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.repos).toEqual([{ full_name: "octo/reef", id: 1001 }]);
+    // A PAT lists the authenticated account's repos (not the installation's).
+    expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({ token: SERVER_PAT });
+    expect(listAuthenticatedRepositories).toHaveBeenCalledWith({
+      ifNoneMatch: null,
+    });
+    // The server PAT is a deployment credential, so the session is validated.
+    expect(mockGetActor).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns the session 401 without listing when akb rejects the session", async () => {
+    const listAuthenticatedRepositories = mockRepoList();
+    mockGetActor.mockResolvedValue({
+      response: Response.json(
+        { error: "Your session has expired. Please sign in again." },
+        { status: 401 },
+      ),
+    });
+
+    const res = await GET(makeRequest());
+
+    expect(res.status).toBe(401);
+    expect(listAuthenticatedRepositories).not.toHaveBeenCalled();
+    expect(mockLogError).not.toHaveBeenCalled();
+  });
+
+  it("ignores a browser PAT header when the server PAT is configured", async () => {
+    const listAuthenticatedRepositories = mockRepoList();
+    listAuthenticatedRepositories.mockResolvedValue({
+      kind: "ok",
+      repos: [],
+      etag: null,
+    });
+
+    const res = await GET(makeRequest({ Authorization: "Bearer ghp_browser" }));
+
+    expect(res.status).toBe(200);
+    // The server PAT, not the browser PAT, authenticates the read.
+    expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({ token: SERVER_PAT });
+    expect(mockCreateGitHubAdapter).not.toHaveBeenCalledWith({
+      token: "ghp_browser",
+    });
   });
 });

@@ -46,9 +46,13 @@ const APP_CONFIG: ServerAppConfig = {
 };
 
 const appConfigState = vi.hoisted(() => ({ current: undefined as unknown }));
+const serverPatState = vi.hoisted(() => ({ current: null as string | null }));
 
 vi.mock("@/lib/github/serverAppConfig", () => ({
   resolveServerGitHubAppConfig: () => appConfigState.current,
+}));
+vi.mock("@/lib/github/serverPat", () => ({
+  resolveServerGitHubPat: () => serverPatState.current,
 }));
 
 import { getAkbCurrentActor } from "@/lib/api/requestHelpers";
@@ -73,10 +77,13 @@ const SENTINEL_ADAPTER = {
 
 const MINTED_TOKEN = "ghs_minted_token";
 
+const SERVER_PAT = "ghp_server_dev_pat";
+
 describe("resolveGroundingGitHubAdapter", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockCreateGitHubAdapter.mockReturnValue(SENTINEL_ADAPTER);
+    serverPatState.current = null;
   });
 
   describe("server-managed GitHub App path", () => {
@@ -206,6 +213,55 @@ describe("resolveGroundingGitHubAdapter", () => {
       );
       expect(result).toEqual({ kind: "degraded", reason: "no_credential" });
       expect(mockCreateGitHubAdapter).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("server-managed PAT fallback path (REEF-290)", () => {
+    beforeEach(() => {
+      appConfigState.current = NOT_CONFIGURED;
+      serverPatState.current = SERVER_PAT;
+      mockGetActor.mockResolvedValue({ actor: "alice" });
+    });
+
+    it("grounds with the server PAT without a browser PAT and validates the session", async () => {
+      const result = await resolveGroundingGitHubAdapter(makeRequest());
+
+      expect(result).toEqual({ kind: "adapter", adapter: SENTINEL_ADAPTER });
+      expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
+        token: SERVER_PAT,
+      });
+      // The server PAT is a deployment credential, so the session is validated.
+      expect(mockGetActor).toHaveBeenCalledTimes(1);
+      expect(mockCreateProvider).not.toHaveBeenCalled();
+    });
+
+    it("degrades to AKB-only when akb rejects the session", async () => {
+      mockGetActor.mockResolvedValue({
+        response: Response.json({ error: "expired" }, { status: 401 }),
+      });
+
+      const result = await resolveGroundingGitHubAdapter(makeRequest());
+
+      expect(result).toEqual({
+        kind: "degraded",
+        reason: "session_unverified",
+      });
+      expect(mockCreateGitHubAdapter).not.toHaveBeenCalled();
+    });
+
+    it("prefers the App over the server PAT when both are configured", async () => {
+      appConfigState.current = APP_CONFIG;
+      mockCreateProvider.mockReturnValue(vi.fn(async () => MINTED_TOKEN));
+
+      const result = await resolveGroundingGitHubAdapter(makeRequest());
+
+      expect(result).toEqual({ kind: "adapter", adapter: SENTINEL_ADAPTER });
+      expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
+        token: MINTED_TOKEN,
+      });
+      expect(mockCreateGitHubAdapter).not.toHaveBeenCalledWith({
+        token: SERVER_PAT,
+      });
     });
   });
 });
