@@ -42,16 +42,23 @@ Please read the relevant `AGENTS.md` before making changes in that area.
 
 ## Gates to run before opening a PR
 
-Run all three from the repository root and make sure they pass:
+Run these from the repository root and make sure they pass:
 
 ```bash
 pnpm biome check .
 pnpm -r run typecheck
 pnpm -r run test
+pnpm --filter @reef/web run test:e2e
 ```
 
-These are the same lint, typecheck, and unit-test gates CI enforces. Fixing
-formatting is `pnpm biome check . --write` (or `pnpm format`).
+The first three are the lint, typecheck, and unit-test gates. The last is the
+full hermetic Playwright suite, which CI enforces as the required `Playwright
+E2E` check (it needs no secrets — `pnpm --filter @reef/web exec playwright
+install chromium` is the only one-time local setup). Run the **whole** suite,
+not just the spec for the path you touched: a change to shared fixtures or the
+vault-skill version can break a sibling hermetic spec that a focused run never
+exercises. Fixing formatting is `pnpm biome check . --write` (or `pnpm
+format`).
 
 ## Continuous integration
 
@@ -59,8 +66,9 @@ Every pull request runs the **lint**, **typecheck**, **test**, and
 **release-policy** jobs. These run for external contributors too — they need no
 secrets.
 
-The **e2e** (Playwright) job runs on top of those, and the LLM eval work runs
-as separate follow-up tooling. Specs and jobs that require deployment secrets
+The **e2e** (Playwright) job runs on top of those — the same hermetic suite the
+gate above asks you to run locally — and the LLM eval work runs as separate
+follow-up tooling. Specs and jobs that require deployment secrets
 (GitHub tokens, an LLM API key, etc.) self-skip when those secrets are absent,
 so a fork PR still gets a complete, green CI signal without access to repo
 secrets.
