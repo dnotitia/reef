@@ -4,12 +4,14 @@ const {
   mockEnsureReefTables,
   mockListActivitySuggestions,
   mockReadAuthoringLanguage,
+  mockReadConfig,
   mockScanActivity,
   mockWriteActivitySuggestion,
 } = vi.hoisted(() => ({
   mockEnsureReefTables: vi.fn(),
   mockListActivitySuggestions: vi.fn(),
   mockReadAuthoringLanguage: vi.fn(),
+  mockReadConfig: vi.fn(),
   mockScanActivity: vi.fn(),
   mockWriteActivitySuggestion: vi.fn(),
 }));
@@ -21,6 +23,7 @@ vi.mock("../adapters", async (importOriginal) => {
     akbEnsureReefTables: mockEnsureReefTables,
     akbListActivitySuggestions: mockListActivitySuggestions,
     akbReadAuthoringLanguage: mockReadAuthoringLanguage,
+    akbReadConfig: mockReadConfig,
     akbWriteActivitySuggestion: mockWriteActivitySuggestion,
   };
 });
@@ -30,9 +33,35 @@ vi.mock("./scanActivity", () => ({
 }));
 
 import type { AkbAdapter, GitHubAdapter, LlmAdapter } from "../adapters";
+import { SchemaValidationError } from "../errors";
 import type { PendingDraft } from "../schemas/activity/pendingDraft";
 import type { ActivitySuggestion } from "../schemas/activity/suggestion";
 import { scanAndPersistActivitySuggestions } from "./scanAndPersistActivitySuggestions";
+
+/**
+ * Default config read result: `octo/cat` (the repo the existing tests scan) is
+ * monitored, so the REEF-289 boundary check passes and the existing behavior is
+ * exercised. Cases that test the boundary override this per-test.
+ */
+function monitoredConfig(
+  repos: { owner: string; name: string }[] = [{ owner: "octo", name: "cat" }],
+) {
+  return {
+    config: {
+      project_prefix: "REEF",
+      monitored_repos: repos.map((repo, index) => ({
+        github_id: index + 1,
+        owner: repo.owner,
+        name: repo.name,
+        description: null,
+      })),
+      authoring_language: null,
+      stale_hide_completed_days: 14,
+      stale_hide_canceled_days: 14,
+    },
+    exists: true,
+  };
+}
 
 const akbAdapter = { request: vi.fn() } as unknown as AkbAdapter;
 const githubAdapter = {
@@ -148,6 +177,7 @@ describe("scanAndPersistActivitySuggestions", () => {
     mockEnsureReefTables.mockResolvedValue(undefined);
     mockListActivitySuggestions.mockResolvedValue({ suggestions: [] });
     mockReadAuthoringLanguage.mockResolvedValue(null);
+    mockReadConfig.mockResolvedValue(monitoredConfig());
     mockScanActivity.mockResolvedValue({ drafts: [], statusChanges: [] });
     mockWriteActivitySuggestion.mockResolvedValue({
       path: "_reef/activity-inbox/reef-draft-test.md",
@@ -232,5 +262,88 @@ describe("scanAndPersistActivitySuggestions", () => {
     expect(result.status).toBe("aborted");
     expect(result.drafts).toHaveLength(1);
     expect(mockWriteActivitySuggestion).not.toHaveBeenCalled();
+  });
+
+  it("rejects a scan of a repo the vault does not monitor (REEF-289)", async () => {
+    mockReadConfig.mockResolvedValueOnce(
+      monitoredConfig([{ owner: "octo", name: "other-repo" }]),
+    );
+
+    await expect(
+      scanAndPersistActivitySuggestions({
+        adapter: githubAdapter,
+        akbAdapter,
+        vault: "reef-test",
+        llmAdapter,
+        owner: "octo",
+        repo: "cat",
+        projectPrefix: "REEF",
+      }),
+    ).rejects.toBeInstanceOf(SchemaValidationError);
+
+    // No GitHub read and no akb write happen for an unmonitored repo.
+    expect(mockScanActivity).not.toHaveBeenCalled();
+    expect(mockEnsureReefTables).not.toHaveBeenCalled();
+    expect(mockWriteActivitySuggestion).not.toHaveBeenCalled();
+  });
+
+  it("rejects when the vault monitors no repos", async () => {
+    mockReadConfig.mockResolvedValueOnce(monitoredConfig([]));
+
+    await expect(
+      scanAndPersistActivitySuggestions({
+        adapter: githubAdapter,
+        akbAdapter,
+        vault: "reef-test",
+        llmAdapter,
+        owner: "octo",
+        repo: "cat",
+        projectPrefix: "REEF",
+      }),
+    ).rejects.toBeInstanceOf(SchemaValidationError);
+
+    expect(mockScanActivity).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the config read fails (does not scan unbounded)", async () => {
+    mockReadConfig.mockRejectedValueOnce(new Error("akb backend unreachable"));
+
+    await expect(
+      scanAndPersistActivitySuggestions({
+        adapter: githubAdapter,
+        akbAdapter,
+        vault: "reef-test",
+        llmAdapter,
+        owner: "octo",
+        repo: "cat",
+        projectPrefix: "REEF",
+      }),
+    ).rejects.toThrow("akb backend unreachable");
+
+    expect(mockScanActivity).not.toHaveBeenCalled();
+    expect(mockWriteActivitySuggestion).not.toHaveBeenCalled();
+  });
+
+  it("matches a monitored repo case-insensitively and proceeds (AC3)", async () => {
+    mockReadConfig.mockResolvedValueOnce(
+      monitoredConfig([{ owner: "octo", name: "cat" }]),
+    );
+    mockScanActivity.mockResolvedValueOnce({
+      drafts: [draftFixture],
+      statusChanges: [],
+    });
+
+    const result = await scanAndPersistActivitySuggestions({
+      adapter: githubAdapter,
+      akbAdapter,
+      vault: "reef-test",
+      llmAdapter,
+      owner: "Octo",
+      repo: "CAT",
+      projectPrefix: "REEF",
+    });
+
+    expect(result.status).toBe("completed");
+    expect(mockScanActivity).toHaveBeenCalledTimes(1);
   });
 });
