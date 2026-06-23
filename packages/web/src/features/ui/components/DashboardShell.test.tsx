@@ -290,11 +290,53 @@ describe("DashboardShell", () => {
       ),
     );
 
+    const utility = screen.getByTestId("sidebar-footer-shortcuts");
+    const shortcuts = within(utility).getByTestId("sidebar-shortcuts-trigger");
+    const workspace = screen.getByTestId("sidebar-workspace");
+    const account = screen.getByTestId("sidebar-account");
+
+    expect(utility).toHaveClass("py-1");
+    expect(shortcuts).toHaveClass(
+      "h-7",
+      "w-full",
+      "justify-between",
+      "text-[12px]",
+      "text-muted-foreground/80",
+    );
+    expect(utility.compareDocumentPosition(workspace)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(workspace.compareDocumentPosition(account)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
     await user.click(
       screen.getByRole("button", { name: "Keyboard shortcuts" }),
     );
 
     expect(screen.getByTestId("keyboard-shortcuts-dialog")).toBeVisible();
+  });
+
+  it("keeps the collapsed shortcuts utility above the identity controls (REEF-170)", () => {
+    useViewStore.setState({ sidebarCollapsed: true });
+
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+
+    const utility = screen.getByTestId("sidebar-footer-shortcuts");
+    const shortcut = within(utility).getByTestId("sidebar-shortcuts-trigger");
+    const workspace = screen.getByTestId("sidebar-workspace");
+
+    expect(utility).toHaveClass("py-1");
+    expect(shortcut).toHaveClass("h-8", "w-8", "justify-center");
+    expect(shortcut).not.toHaveTextContent("Keyboard shortcuts");
+    expect(utility.compareDocumentPosition(workspace)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
   });
 
   it("keeps the collapsed Activity unread dot visible", () => {

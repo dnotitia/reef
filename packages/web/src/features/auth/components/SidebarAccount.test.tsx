@@ -1,12 +1,20 @@
+import type { AkbMeProfile } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const currentUserState = vi.hoisted(() => ({
+interface CurrentUserState {
   value: {
-    data: null as unknown,
+    data: AkbMeProfile | null;
+    isLoading: boolean;
+  };
+}
+
+const currentUserState = vi.hoisted<CurrentUserState>(() => ({
+  value: {
+    data: null,
     isLoading: false,
   },
 }));
@@ -27,12 +35,6 @@ vi.mock("../signOutNavigation", () => ({
 
 const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
-
-const toggleShortcuts = vi.hoisted(() => vi.fn());
-vi.mock("@/features/shortcuts/stores/useShortcutsStore", () => ({
-  useShortcutsStore: (selector: (s: { toggle: () => void }) => unknown) =>
-    selector({ toggle: toggleShortcuts }),
-}));
 
 // Isolate the embedded theme toggle from Dexie/the shared store.
 const setThemeMock = vi.hoisted(() => vi.fn(async () => {}));
@@ -230,40 +232,24 @@ describe("SidebarAccount", () => {
     expect(router.push).not.toHaveBeenCalled();
   });
 
-  it("opens the keyboard shortcuts dialog from the footer utility button", async () => {
-    const user = userEvent.setup();
+  it("keeps global shortcuts out of the account identity row (REEF-170)", () => {
     render(wrap(<SidebarAccount appVersion="0.4.0" collapsed={false} />));
 
-    expect(screen.queryByTestId("account-shortcuts")).not.toBeInTheDocument();
-    await user.click(
-      screen.getByRole("button", { name: "Keyboard shortcuts" }),
-    );
-
-    expect(toggleShortcuts).toHaveBeenCalledOnce();
+    expect(
+      screen.queryByRole("button", { name: "Keyboard shortcuts" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Account menu" })).toBeVisible();
   });
 
-  it("keeps shortcuts separate from the expanded account row (REEF-170)", () => {
-    render(wrap(<SidebarAccount appVersion="0.4.0" collapsed={false} />));
-
-    const actions = screen.getByTestId("sidebar-account-actions");
-    const shortcut = within(actions).getByTestId("sidebar-shortcuts-trigger");
-    const accountMenu = screen.getByRole("button", { name: "Account menu" });
-
-    expect(actions).toHaveClass("flex-col");
-    expect(shortcut).toHaveClass("w-full", "justify-between");
-    expect(shortcut.compareDocumentPosition(accountMenu)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    );
-  });
-
-  it("stacks shortcuts above account controls when collapsed (REEF-170)", () => {
+  it("renders only the account control when collapsed (REEF-170)", () => {
     render(wrap(<SidebarAccount appVersion="0.4.0" collapsed={true} />));
 
-    const actions = screen.getByTestId("sidebar-account-actions");
-    expect(actions).toHaveClass("flex-col");
     expect(
-      within(actions).getByTestId("sidebar-shortcuts-trigger"),
-    ).toHaveClass("h-9", "w-9");
+      screen.queryByRole("button", { name: "Keyboard shortcuts" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Account menu" })).toHaveClass(
+      "justify-center",
+    );
   });
 
   it("switches theme from the menu and keeps the menu open (REEF-095)", async () => {

@@ -266,9 +266,9 @@ fluid main column:
 
 - **Sidebar** — collapsible between an expanded `w-60` and a `w-14` icon rail.
   It holds the reef wordmark, a prominent New Issue button, the primary nav
-  (Issues / My Work / Planning / Activity / Reports / Settings), and footer
-  account controls. The footer keeps keyboard shortcuts directly reachable,
-  while app-version context lives in the account menu as a release-notes link.
+  (Issues / My Work / Planning / Activity / Reports / Settings), a footer
+  utility row for keyboard shortcuts, and the workspace/account identity block.
+  App-version context lives in the account menu as a release-notes link.
 - **Main column** — a per-page header and the page body. The Issues page body
   swaps between Board, List, Timeline, and Backlog.
 - **Issue detail** — a right-side slide-over Sheet (`min(94vw, 1080px)`),
