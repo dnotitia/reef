@@ -125,6 +125,17 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Activity scans can no longer read a repository the workspace does not
+  monitor.** The manual **Scan** action and agent-run activity scans now verify
+  the requested owner/repo against the workspace's monitored repositories before
+  reading any GitHub activity, rejecting an unmonitored repo with a PM-facing
+  error. Since scans began running on a deployment's server-managed GitHub App
+  installation (REEF-240) — a credential that can read every repository the App
+  is installed on — an authenticated workspace user could otherwise have scanned
+  an arbitrary App-installed repo and pulled its commit/PR activity into their
+  inbox. This applies the same monitored-repo boundary already enforced for Ask
+  AI code grounding and issue enrichment; the browser-PAT path is unchanged
+  (REEF-289).
 - **Esc now closes the open dropdown, not the whole issue editor.** While
   editing an issue, pressing Esc with an open Assignee/Sprint/Release/Labels
   picker, a Start/Due date popover, a relationship dropdown, or the ⋮ actions
