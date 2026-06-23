@@ -126,6 +126,11 @@ metadata.
   validated against `IssueMetadataSchema` or derived schemas.
 - Standard gates are `pnpm biome check .`, `pnpm -r run typecheck`, and
   `pnpm -r run test`; package-specific details live in the package `AGENTS.md`.
+- The web E2E suite (`pnpm --filter @reef/web run test:e2e`) is a required CI
+  check (`Playwright E2E`); run the full suite before opening or updating a PR,
+  not just the focused spec for the path you changed. A change to shared
+  fixtures or the vault-skill version can break a sibling hermetic spec you
+  never opened, and that only surfaces in the sharded CI run otherwise.
 - Release, migration, Docker, changelog, and deployment rules live in
   `docs/release-policy.md` and `docs/migration-policy.md`. Release-impacting
   changes update `CHANGELOG.md` under `Unreleased`.
