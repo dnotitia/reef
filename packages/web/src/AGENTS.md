@@ -9,6 +9,14 @@
   redacts credential headers (`Authorization`, `X-Reef-LLM`, `Cookie`,
   `Set-Cookie`, `Proxy-Authorization`) and serializes errors to a safe shape, so
   calling it directly is safe.
+- Route Handlers should log failures with bounded context such as route, vault,
+  issue id, upstream status, and operation name. Do not attach raw `Request`,
+  `Response`, headers, cookies, provider response bodies, or token-bearing
+  adapter objects to log fields.
+- Response access logs and core observability stdout lines are enabled by
+  `responseLoggingEnabled`. Preserve the lazy logger import and `setCoreLogger`
+  wiring in instrumentation so tracing-only production deployments do not gain
+  extra stdout noise.
 
 ## Browser Runtime Verification
 
