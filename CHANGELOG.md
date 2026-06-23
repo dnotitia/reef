@@ -47,6 +47,15 @@ explicitly in the entries below.
   rate-limited App — now degrades cleanly to AKB-only answers instead of failing
   the request; a stale or malformed browser token no longer returns a 401 from
   these AI routes (REEF-243).
+- **Verify GitHub grounding locally and in CI without a GitHub App.** A new
+  optional `REEF_GITHUB_PAT` deployment env var lets a server read GitHub with a
+  read-only personal access token when no GitHub App is configured, so local
+  development and CI can exercise the real repo picker, activity scan, and AI
+  grounding without each browser supplying a PAT. It is a deployment-managed
+  secret (never per-user), disabled unless set, and used only when no App is
+  configured — credential precedence is GitHub App, then this server PAT, then
+  the per-user browser PAT — so it never overrides or becomes a production
+  deployment's primary credential (REEF-290).
 - **Spot outdated workspace AI instructions from the sidebar.** When your active
   workspace is running an older agent playbook, the sidebar **Settings** entry
   now shows a small amber dot, so the drift is discoverable without opening
