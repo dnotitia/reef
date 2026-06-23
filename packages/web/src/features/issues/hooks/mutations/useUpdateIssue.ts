@@ -13,6 +13,7 @@ import {
 } from "@tanstack/react-query";
 import {
   listQueryHasFreeText,
+  patchAffectsActivityTimeline,
   patchAffectsListMembership,
   patchAffectsRelationGraph,
 } from "../../lib/issueListMembership";
@@ -200,12 +201,14 @@ export function useUpdateIssue() {
           queryKey: ["issues", "relations", vault],
         });
       }
-      // A status change appends a `reef_activity` event server-side
-      // (best-effort, REEF-063). Refetch the issue's activity query so the
-      // unified timeline shows the actual logged from→to transition immediately,
-      // instead of the reconstructed current-status fallback until the
-      // stale window elapses (REEF-064).
-      if (patch.status !== undefined) {
+      // A logged field edit appends a `reef_activity` event server-side
+      // (best-effort): status_change (REEF-063) and the field-change set
+      // `diffFieldActivityEvents` records — assignee / priority / planning /
+      // impl refs (REEF-126) and title / due / estimate / parent / archive /
+      // labels / relations (REEF-277). Refetch the issue's activity query so the
+      // unified timeline shows the freshly logged event immediately, instead of
+      // the reconstructed fallback until the stale window elapses (REEF-064).
+      if (patchAffectsActivityTimeline(patch)) {
         void queryClient.invalidateQueries({
           queryKey: activityKey(vault, id),
         });

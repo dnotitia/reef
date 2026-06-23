@@ -3,6 +3,7 @@ import type { IssueUpdatePatch } from "@reef/core";
 import { describe, expect, it } from "vitest";
 import {
   listQueryHasFreeText,
+  patchAffectsActivityTimeline,
   patchAffectsListMembership,
   patchAffectsRelationGraph,
 } from "./issueListMembership";
@@ -45,6 +46,42 @@ describe("patchAffectsRelationGraph", () => {
   it("is false for edits that don't touch the relation projection", () => {
     expect(patchAffectsRelationGraph({ title: "x" })).toBe(false);
     expect(patchAffectsRelationGraph({ priority: "low" })).toBe(false);
+  });
+});
+
+describe("patchAffectsActivityTimeline", () => {
+  it("is true for every dimension that logs a reef_activity event", () => {
+    const logged: IssueUpdatePatch[] = [
+      { status: "done" },
+      { assigned_to: "alice" },
+      { priority: "high" },
+      { milestone_id: "ms-1" },
+      { sprint_id: "spr-1" },
+      { release_id: "rel-1" },
+      { implementation_refs: [] },
+      { title: "Renamed" },
+      { due_date: "2026-02-02" },
+      { estimate_points: 3 },
+      { parent_id: "REEF-2" },
+      { archived_at: "2026-01-01T00:00:00.000Z" },
+      { labels: ["ui"] },
+      { depends_on: ["REEF-2"] },
+      { blocks: ["REEF-3"] },
+      { related_to: ["REEF-4"] },
+    ];
+    for (const patch of logged) {
+      expect(patchAffectsActivityTimeline(patch)).toBe(true);
+    }
+  });
+
+  it("is false for edits that append no activity event", () => {
+    expect(patchAffectsActivityTimeline({ reporter: "bob" })).toBe(false);
+    expect(patchAffectsActivityTimeline({ requester: "carol" })).toBe(false);
+    expect(patchAffectsActivityTimeline({ issue_type: "bug" })).toBe(false);
+    expect(patchAffectsActivityTimeline({ start_date: "2026-02-02" })).toBe(
+      false,
+    );
+    expect(patchAffectsActivityTimeline({})).toBe(false);
   });
 });
 

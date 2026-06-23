@@ -1,20 +1,5 @@
 import { expect, test } from "@playwright/test";
-import {
-  REEF_E2E_VAULT,
-  openExistingWorkspace,
-  readFixtureState,
-  resetFixture,
-} from "./harness/fixture";
-
-function reefVault(
-  state: Awaited<ReturnType<typeof readFixtureState>>,
-): Awaited<ReturnType<typeof readFixtureState>>["vaults"][number] {
-  const vault = state.vaults.find(
-    (candidate) => candidate.name === REEF_E2E_VAULT,
-  );
-  if (!vault) throw new Error(`Missing fixture vault: ${REEF_E2E_VAULT}`);
-  return vault;
-}
+import { openExistingWorkspace, resetFixture } from "./harness/fixture";
 
 // REEF-277: the issue activity timeline now records title / labels / due date /
 // estimate / parent / relation / archive changes. These flows render the seeded
@@ -80,7 +65,6 @@ test.describe("Hermetic issue activity timeline (REEF-277)", () => {
 
   test("appends a fresh title_change event when the title is edited through the route", async ({
     page,
-    request,
   }) => {
     await openExistingWorkspace(page);
     await page.goto("/issues/REEF-001");
@@ -88,37 +72,20 @@ test.describe("Hermetic issue activity timeline (REEF-277)", () => {
       "Initial issue Alpha",
     );
 
-    // updateIssue runs the row UPDATE first and the best-effort activity append
-    // last, both before the PATCH responds. Gate on the response — NOT a
-    // side-channel poll of the issue row, which the in-memory mock mutates the
-    // instant the row UPDATE lands, i.e. before the title_change INSERT. Polling
-    // the row therefore races the append: under load the reload below can read
-    // the timeline back before the row exists. Awaiting the response guarantees
-    // the append has committed server-side first.
-    const saved = page.waitForResponse(
-      (response) =>
-        response.url().includes("/api/issues/REEF-001") &&
-        response.request().method() === "PATCH" &&
-        response.ok(),
-    );
     await page
       .locator('[data-testid="issue-title-input"]')
       .fill("Initial issue Alpha v2");
     await page.locator('[data-testid="issue-title-input"]').press("Enter");
-    await saved;
 
-    // The row write lands (the PATCH route ran updateIssue).
-    await expect
-      .poll(async () => {
-        const state = await readFixtureState(request);
-        return reefVault(state).issues.find((issue) => issue.id === "REEF-001")
-          ?.title;
-      })
-      .toBe("Initial issue Alpha v2");
-
-    // Reload so the activity query refetches; the producer's appended
-    // title_change row now renders carrying the new title (end-to-end proof).
-    await page.reload();
+    // The title edit appends a `title_change` row server-side (REEF-277), and
+    // the update mutation invalidates the issue's activity query, so the unified
+    // timeline refetches in place and renders the freshly logged event — the
+    // immediate-update path status changes already use (REEF-064), now covering
+    // the whole field-change set. No `page.reload()`: a full reload recompiles
+    // the dev server and, under CI load, can outrun the assertion timeout while
+    // the timeline is still cold-loading. The rendered event is the server's
+    // persisted row fetched back through the real activity route, so this stays
+    // an end-to-end proof of the append.
     await expect(
       page
         .locator('[data-testid="activity-event"]')
