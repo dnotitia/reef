@@ -19,6 +19,13 @@ import {
 import { callTool } from "../__test-helpers__/callTool";
 import { createBoundSearchCodeTool, createSearchCodeTool } from "./searchCode";
 
+// Monitored-repo allowlist the unbound tool is scoped to. Covers the repos the
+// happy-path tests exercise; out-of-allowlist access is asserted separately.
+const ALLOWED_REPOS = [
+  { owner: "owner", repo: "repo" },
+  { owner: "owner", repo: "nonexistent" },
+];
+
 // ─── OTEL Mock ────────────────────────────────────────────────────────────────
 // Reuse exact mock shape from github.test.ts — passthrough with spy functions.
 type SpanMock = {
@@ -97,14 +104,14 @@ afterAll(() => server.close());
 describe("createSearchCodeTool", () => {
   it("returns a tool object with execute function", () => {
     const adapter = createGitHubAdapter({ token: "test-token" });
-    const toolObj = createSearchCodeTool(adapter);
+    const toolObj = createSearchCodeTool(adapter, ALLOWED_REPOS);
     expect(toolObj).toHaveProperty("inputSchema");
     expect(typeof toolObj.execute).toBe("function");
   });
 
   it("success: returns correctly-shaped results with path, line, and snippet", async () => {
     const adapter = createGitHubAdapter({ token: "test-token" });
-    const toolObj = createSearchCodeTool(adapter);
+    const toolObj = createSearchCodeTool(adapter, ALLOWED_REPOS);
 
     const result = await callTool(toolObj, {
       query: "const x",
@@ -122,6 +129,22 @@ describe("createSearchCodeTool", () => {
         },
       ],
     });
+  });
+
+  it("rejects a repo outside the monitored-repo allowlist without calling GitHub", async () => {
+    // MSW is set to error on unhandled requests, so a leaked GitHub call would
+    // fail the test; the allowlist guard must reject before any network read.
+    const adapter = createGitHubAdapter({ token: "test-token" });
+    const toolObj = createSearchCodeTool(adapter, ALLOWED_REPOS);
+
+    await expect(
+      callTool(toolObj, {
+        query: "const x",
+        owner: "other-owner",
+        repo: "private-repo",
+        maxResults: 10,
+      }),
+    ).rejects.toBeInstanceOf(SchemaValidationError);
   });
 
   it("bound tool searches only the server-selected monitored repo", async () => {
@@ -228,7 +251,7 @@ describe("createSearchCodeTool", () => {
     );
 
     const adapter = createGitHubAdapter({ token: "test-token" });
-    const toolObj = createSearchCodeTool(adapter);
+    const toolObj = createSearchCodeTool(adapter, ALLOWED_REPOS);
 
     const result = await callTool(toolObj, {
       query: "something",
@@ -252,7 +275,7 @@ describe("createSearchCodeTool", () => {
     );
 
     const adapter = createGitHubAdapter({ token: "bad-token" });
-    const toolObj = createSearchCodeTool(adapter);
+    const toolObj = createSearchCodeTool(adapter, ALLOWED_REPOS);
 
     await expect(
       callTool(toolObj, {
@@ -272,7 +295,7 @@ describe("createSearchCodeTool", () => {
     );
 
     const adapter = createGitHubAdapter({ token: "test-token" });
-    const toolObj = createSearchCodeTool(adapter);
+    const toolObj = createSearchCodeTool(adapter, ALLOWED_REPOS);
 
     await expect(
       callTool(toolObj, {
@@ -292,7 +315,7 @@ describe("createSearchCodeTool", () => {
     );
 
     const adapter = createGitHubAdapter({ token: "test-token" });
-    const toolObj = createSearchCodeTool(adapter);
+    const toolObj = createSearchCodeTool(adapter, ALLOWED_REPOS);
 
     await expect(
       callTool(toolObj, {
@@ -315,7 +338,7 @@ describe("createSearchCodeTool", () => {
     );
 
     const adapter = createGitHubAdapter({ token: "test-token" });
-    const toolObj = createSearchCodeTool(adapter);
+    const toolObj = createSearchCodeTool(adapter, ALLOWED_REPOS);
 
     await expect(
       callTool(toolObj, {
@@ -332,7 +355,7 @@ describe("createSearchCodeTool", () => {
     // is called, the span's end() should be called in the finally block.
     // We verify by checking the mock was called without throwing.
     const adapter = createGitHubAdapter({ token: "test-token" });
-    const toolObj = createSearchCodeTool(adapter);
+    const toolObj = createSearchCodeTool(adapter, ALLOWED_REPOS);
 
     // Should not throw — OTEL span lifecycle is managed by the tool execute body
     await expect(

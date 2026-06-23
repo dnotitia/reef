@@ -22,6 +22,10 @@ import {
   createDevReadFileTool,
 } from "./devReadFile";
 
+// Monitored-repo allowlist the unbound tool is scoped to; out-of-allowlist
+// access is asserted separately.
+const ALLOWED_REPOS = [{ owner: "owner", repo: "repo" }];
+
 // ─── OTEL Mock ────────────────────────────────────────────────────────────────
 // Reuse exact mock shape from github.test.ts — passthrough with spy functions.
 type SpanMock = {
@@ -103,14 +107,14 @@ afterAll(() => server.close());
 describe("createDevReadFileTool", () => {
   it("returns a tool object with execute function", () => {
     const adapter = createGitHubAdapter({ token: "test-token" });
-    const toolObj = createDevReadFileTool(adapter);
+    const toolObj = createDevReadFileTool(adapter, ALLOWED_REPOS);
     expect(toolObj).toHaveProperty("inputSchema");
     expect(typeof toolObj.execute).toBe("function");
   });
 
   it("success: returns full content, path, and truncated: false", async () => {
     const adapter = createGitHubAdapter({ token: "test-token" });
-    const toolObj = createDevReadFileTool(adapter);
+    const toolObj = createDevReadFileTool(adapter, ALLOWED_REPOS);
 
     const result = await callTool(toolObj, {
       owner: "owner",
@@ -124,6 +128,24 @@ describe("createDevReadFileTool", () => {
     expect(result.content).toBe(FILE_CONTENT);
     expect(result.path).toBe("src/main.ts");
     expect(result.truncated).toBe(false);
+  });
+
+  it("rejects a repo outside the monitored-repo allowlist without calling GitHub", async () => {
+    // MSW errors on unhandled requests, so a leaked GitHub call would fail the
+    // test; the allowlist guard must reject before any network read.
+    const adapter = createGitHubAdapter({ token: "test-token" });
+    const toolObj = createDevReadFileTool(adapter, ALLOWED_REPOS);
+
+    await expect(
+      callTool(toolObj, {
+        owner: "other-owner",
+        repo: "private-repo",
+        path: "src/main.ts",
+        ref: null,
+        startLine: null,
+        endLine: null,
+      }),
+    ).rejects.toBeInstanceOf(SchemaValidationError);
   });
 
   it("bound tool reads only from the server-selected monitored repo", async () => {
@@ -170,7 +192,7 @@ describe("createDevReadFileTool", () => {
 
   it("line range: startLine=2, endLine=3 → returns lines 2–3 and truncated: true", async () => {
     const adapter = createGitHubAdapter({ token: "test-token" });
-    const toolObj = createDevReadFileTool(adapter);
+    const toolObj = createDevReadFileTool(adapter, ALLOWED_REPOS);
 
     const result = await callTool(toolObj, {
       owner: "owner",
@@ -187,7 +209,7 @@ describe("createDevReadFileTool", () => {
 
   it("path traversal '../etc/passwd' → throws SchemaValidationError before any network call", async () => {
     const adapter = createGitHubAdapter({ token: "test-token" });
-    const toolObj = createDevReadFileTool(adapter);
+    const toolObj = createDevReadFileTool(adapter, ALLOWED_REPOS);
 
     // Guard throws before any network call — no MSW intercept needed.
     // onUnhandledRequest: "error" would catch any accidental network call.
@@ -212,7 +234,7 @@ describe("createDevReadFileTool", () => {
     );
 
     const adapter = createGitHubAdapter({ token: "test-token" });
-    const toolObj = createDevReadFileTool(adapter);
+    const toolObj = createDevReadFileTool(adapter, ALLOWED_REPOS);
 
     await expect(
       callTool(toolObj, {
@@ -234,7 +256,7 @@ describe("createDevReadFileTool", () => {
     );
 
     const adapter = createGitHubAdapter({ token: "test-token" });
-    const toolObj = createDevReadFileTool(adapter);
+    const toolObj = createDevReadFileTool(adapter, ALLOWED_REPOS);
 
     await expect(
       callTool(toolObj, {
@@ -259,7 +281,7 @@ describe("createDevReadFileTool", () => {
     );
 
     const adapter = createGitHubAdapter({ token: "bad-token" });
-    const toolObj = createDevReadFileTool(adapter);
+    const toolObj = createDevReadFileTool(adapter, ALLOWED_REPOS);
 
     await expect(
       callTool(toolObj, {
@@ -284,7 +306,7 @@ describe("createDevReadFileTool", () => {
     );
 
     const adapter = createGitHubAdapter({ token: "test-token" });
-    const toolObj = createDevReadFileTool(adapter);
+    const toolObj = createDevReadFileTool(adapter, ALLOWED_REPOS);
 
     await expect(
       callTool(toolObj, {
@@ -300,7 +322,7 @@ describe("createDevReadFileTool", () => {
 
   it("only startLine provided → truncated: true", async () => {
     const adapter = createGitHubAdapter({ token: "test-token" });
-    const toolObj = createDevReadFileTool(adapter);
+    const toolObj = createDevReadFileTool(adapter, ALLOWED_REPOS);
 
     const result = await callTool(toolObj, {
       owner: "owner",
@@ -317,7 +339,7 @@ describe("createDevReadFileTool", () => {
 
   it("only endLine provided → truncated: true", async () => {
     const adapter = createGitHubAdapter({ token: "test-token" });
-    const toolObj = createDevReadFileTool(adapter);
+    const toolObj = createDevReadFileTool(adapter, ALLOWED_REPOS);
 
     const result = await callTool(toolObj, {
       owner: "owner",
@@ -334,7 +356,7 @@ describe("createDevReadFileTool", () => {
 
   it("OTEL span is started and ended on success", async () => {
     const adapter = createGitHubAdapter({ token: "test-token" });
-    const toolObj = createDevReadFileTool(adapter);
+    const toolObj = createDevReadFileTool(adapter, ALLOWED_REPOS);
 
     await expect(
       callTool(toolObj, {

@@ -1,16 +1,16 @@
 import { getAkbAdapter } from "@/lib/api/requestHelpers";
-import { extractGithubToken } from "@/lib/github/extractGithubToken";
+import { resolveGroundingGitHubAdapter } from "@/lib/github/resolveGroundingGitHubAdapter";
 import { logger } from "@/lib/logging/logger";
 import {
   type AgentRunEvent,
   AkbApiError,
   AuthError,
   EnrichmentRequestSchema,
+  type GitHubAdapter,
   LlmError,
   NotFoundError,
   SchemaValidationError,
   akbReadAuthoringLanguage,
-  createGitHubAdapter,
   createLlmAdapter,
   enrichIssue,
   translateError,
@@ -46,8 +46,9 @@ const ENRICHMENT_OUTPUT_LOG_KEYS = [
  *   1. Resolve deployment-managed OpenRouter config from server env (503 on failure).
  *   2. Parse + validate body against `EnrichmentRequestSchema` (400).
  *   3. Resolve the akb session cookie (401 on failure) for workspace context.
- *   4. Optionally parse `Authorization: Bearer <token>` when monitored repo
- *      code grounding is available; missing GitHub auth degrades to AKB.
+ *   4. Resolve a GitHub adapter for monitored-repo code grounding — the
+ *      deployment GitHub App when configured, the browser PAT otherwise; any
+ *      GitHub unavailability degrades to AKB-only enrichment (REEF-243).
  *   5. Build per-request adapters with credentials scoped to the call.
  *   6. Call `enrichIssue` → return `{ suggestions: [...] }`.
  *   7. `LlmError` → 503 with a PM-vocabulary message so the panel can show
@@ -87,19 +88,21 @@ export async function POST(request: Request): Promise<Response> {
     return jsonError(BAD_AKB_AUTH_MESSAGE, 401);
   }
 
-  let githubAdapter: ReturnType<typeof createGitHubAdapter> | undefined;
+  // Code grounding only matters when the request carries a monitored repo.
+  // Server-managed GitHub App when configured, browser PAT fallback otherwise;
+  // any failure degrades to AKB-only enrichment (REEF-243) and never surfaces
+  // the credential to the response or the LLM prompt.
+  let githubAdapter: GitHubAdapter | undefined;
   if (body.repoContext) {
-    try {
-      githubAdapter = createGitHubAdapter({
-        token: extractGithubToken(request),
-      });
-    } catch (err) {
-      if (!(err instanceof AuthError)) {
-        logger.error(
-          { err, issueId: body.issueId },
-          "enrich_github_token_unexpected_error",
-        );
-      }
+    const githubResolution = await resolveGroundingGitHubAdapter(request);
+    if (githubResolution.kind === "degraded" && githubResolution.error) {
+      logger.warn(
+        { err: githubResolution.error, issueId: body.issueId },
+        "enrich_grounding_github_app_unavailable",
+      );
+    }
+    if (githubResolution.kind === "adapter") {
+      githubAdapter = githubResolution.adapter;
     }
   }
 

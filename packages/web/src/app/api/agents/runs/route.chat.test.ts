@@ -63,16 +63,23 @@ describe("POST /api/agents/runs chat streaming", () => {
     );
   });
 
-  it("returns 401 for malformed chat.workspace GitHub Authorization", async () => {
+  it("streams chat.workspace AKB-only for malformed GitHub Authorization", async () => {
+    // A malformed PAT degrades to AKB-only grounding rather than 401 — a stale
+    // browser token must not block the agent run (REEF-243).
     const res = await POST(
       makeRequest(chatRunBody, { Authorization: "Token ghp_test" }),
     );
 
-    expect(res.status).toBe(401);
-    expect(await res.json()).toMatchObject({
-      runtime_error: { code: "github_auth_required" },
-    });
-    expect(mockCreateWorkspaceChatAgentResponse).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(parseSseEvents(await res.text()).map((event) => event.type)).toEqual(
+      ["run.started", "model.delta", "run.completed"],
+    );
+    expect(mockCreateGitHubAdapter).not.toHaveBeenCalled();
+    expect(mockCreateWorkspaceChatAgentResponse).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        githubAdapter: expect.anything(),
+      }),
+    );
   });
 
   it("does not emit a duplicate route error after a task terminal error", async () => {

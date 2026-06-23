@@ -1,3 +1,4 @@
+export { type RepoRef, assertRepoAllowed } from "./allowlist";
 export {
   createBoundDevReadFileTool,
   createDevReadFileTool,

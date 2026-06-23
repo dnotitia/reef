@@ -36,6 +36,17 @@ explicitly in the entries below.
   when the App is configured but unavailable — a revoked installation, missing
   permission, or rate limit — the scan surfaces a PM-facing error instead of
   failing silently (REEF-240).
+- **Ground Ask AI, enrich, and agent runs without a personal access token.**
+  When a deployment configures a GitHub App, the monitored-repo code grounding
+  behind Ask AI (`/api/chat`), issue enrichment (`/api/enrich`), and agent runs
+  (`/api/agents/runs`) now reads repositories through the server-managed App
+  installation, so AI answers can cite repo code without a GitHub PAT in the
+  browser. Deployments without a GitHub App keep working through the existing
+  browser-PAT path. Because grounding is an enhancement, any GitHub
+  unavailability — no App and no PAT, an unverified session, or a revoked /
+  rate-limited App — now degrades cleanly to AKB-only answers instead of failing
+  the request; a stale or malformed browser token no longer returns a 401 from
+  these AI routes (REEF-243).
 - **Spot outdated workspace AI instructions from the sidebar.** When your active
   workspace is running an older agent playbook, the sidebar **Settings** entry
   now shows a small amber dot, so the drift is discoverable without opening

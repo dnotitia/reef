@@ -12,6 +12,7 @@ import {
   SearchCodeInputSchema,
   SearchCodeOutputSchema,
 } from "../../../schemas/ai/tools";
+import { type RepoRef, assertRepoAllowed } from "./allowlist";
 
 const tracer = trace.getTracer("@reef/core");
 const GITHUB_SCOPE_QUALIFIER_PATTERN =
@@ -20,15 +21,22 @@ const GITHUB_SCOPE_QUALIFIER_PATTERN =
 /**
  * Factory function — creates a per-request `search_code` AI SDK tool.
  *
- * Uses the GitHub adapter's monitored-repo code search surface.
- * Rate limit: 30 requests/minute.
+ * The LLM supplies `owner`/`repo`, so the call is constrained to
+ * `allowedRepos` — the active vault's monitored repositories — before it
+ * reaches GitHub. This keeps a deployment App installation token (which can
+ * read more repos than the vault monitors) from grounding on an out-of-scope
+ * repository (REEF-243). Rate limit: 30 requests/minute.
  */
-export function createSearchCodeTool(adapter: GitHubAdapter) {
+export function createSearchCodeTool(
+  adapter: GitHubAdapter,
+  allowedRepos: RepoRef[],
+) {
   return tool({
     description:
-      "Search code in a GitHub repository. Returns file paths, line numbers, and code snippets matching the query. Rate limit: 30 requests/minute (GitHub Code Search API).",
+      "Search code in one of this workspace's monitored GitHub repositories. Returns file paths, line numbers, and code snippets matching the query. Rate limit: 30 requests/minute (GitHub Code Search API).",
     inputSchema: SearchCodeInputSchema,
     execute: async ({ query, owner, repo, maxResults }) => {
+      assertRepoAllowed(allowedRepos, owner, repo);
       return executeSearchCode({ adapter, query, owner, repo, maxResults });
     },
   });
