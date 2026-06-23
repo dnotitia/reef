@@ -6,10 +6,10 @@ import { type GitHubAppConfig, GitHubAppConfigSchema } from "@reef/core";
  * Mirrors `lib/llm/serverConfig.ts`: the credential is server state injected
  * from infra env (not a per-user PAT, not committed to the akb vault). When
  * configured, the server can mint a read-scoped installation token so
- * monitored-repo grounding does not depend on the browser PAT. When NOT
- * configured, callers fall back to the per-user PAT — the two provider paths run
- * in parallel during the migration to server-driven grounding (REEF-238 /
- * REEF-237).
+ * monitored-repo grounding does not depend on browser storage. When NOT
+ * configured, GitHub-specific features either return a clear unavailable
+ * response or degrade to AKB-only behavior; there is no browser-supplied token
+ * fallback after REEF-244.
  */
 
 export interface ServerGitHubAppStatus {
@@ -79,7 +79,7 @@ export function getRequiredServerGitHubAppConfig(
 
 /**
  * Whether this deployment is configured to mint server-managed GitHub App
- * tokens. When false, callers fall back to the per-user browser PAT.
+ * tokens. When false, callers must degrade or report GitHub as unavailable.
  */
 export function isServerGitHubAppConfigured(
   env: NodeJS.ProcessEnv = process.env,

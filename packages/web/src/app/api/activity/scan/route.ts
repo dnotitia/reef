@@ -23,8 +23,8 @@ import { z } from "zod";
  * Thin wrapper:
  *  1. Parse body
  *  2. Resolve the GitHub adapter via the shared scan resolver (server-managed
- *     GitHub App when configured, browser PAT fallback otherwise — REEF-240),
- *     read the akb session from the cookie, and the LLM config from env
+ *     GitHub App required — REEF-244), read the akb session from the cookie,
+ *     and the LLM config from env
  *  3. Call core scan-and-persist workflow
  *  4. Return added suggestion counts
  *  5. Return `{ addedDrafts, addedStatusChanges, scannedAt }`
@@ -67,12 +67,12 @@ export async function POST(request: Request): Promise<Response> {
   if (github.kind === "session_invalid") {
     return github.response;
   }
-  if (github.kind === "github_auth_required") {
+  if (github.kind === "github_app_unconfigured") {
     return Response.json(
       {
-        error: "Authentication required. Reconnect GitHub in Settings.",
+        error: "GitHub App is not configured for this deployment.",
       },
-      { status: 401 },
+      { status: 503 },
     );
   }
   if (github.kind === "github_error") {

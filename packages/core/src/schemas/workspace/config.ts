@@ -115,9 +115,9 @@ export const StaleHideDaysSchema = z
  * to the contents of the `monitored_repos` table.
  *
  * TEAM-SHARED settings just. Anything in this shape is committed to the vault
- * and visible to every contributor; per-user data (the GitHub PAT, the user's
- * active-vault selection, UI preferences) lives in IndexedDB instead. LLM
- * configuration is deployment-managed server env.
+ * and visible to every contributor; per-user browser state (the user's
+ * active-vault selection, UI preferences) lives in IndexedDB instead. GitHub
+ * App and LLM configuration are deployment-managed server env.
  *
  *   project_prefix — drives issue ID generation (e.g. "REEF" → "REEF-001").
  *                    should be uppercase A–Z just.

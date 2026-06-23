@@ -100,9 +100,7 @@ function AccountAvatar({
 /**
  * consistently-visible akb workspace account control, anchored to the sidebar footer
  * (REEF-068). Opens an upward menu with a keyboard-shortcuts launcher and an
- * akb sign-out (which ends the akb session distinct from the GitHub
- * "Disconnect & sign out" in Settings, AC3). Shown regardless of GitHub PAT
- * state (AC1). The app version, which previously sat bare in the footer, now
+ * akb sign-out. The app version, which previously sat bare in the footer, now
  * lives at the bottom of this menu.
  */
 export function SidebarAccount({ appVersion, collapsed }: SidebarAccountProps) {

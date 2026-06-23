@@ -1,11 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
 
-interface CredentialEntry {
-  id?: number;
-  key: string; // e.g. 'github_token'
-  value: string;
-}
-
 interface ConfigEntry {
   id?: number;
   key: string; // e.g. 'vault', 'theme', 'activity_repo:{vault}'
@@ -15,20 +9,16 @@ interface ConfigEntry {
 /**
  * ReefDatabase — single canonical source for IndexedDB structure.
  *
- * Two stores just:
- *  - `credentials` (key-value): the GitHub PAT (`github_token`) for
- *    monitored-repo grounding. The akb session is NOT here — it lives in the
- *    `__reef_session` httpOnly cookie.
- *  - `config` (key-value bag): client workspace state with no akb backend
- *    home — the active `vault`, `theme`, `activity_repo:{vault}`,
- *    `filter:{vault}` (the per-vault last-used issue filter, REEF-009),
- *    `last_visit_at`, `last_scan:{repo}`, and `akb_user_id` (the
- *    previously-signed-in account, read by `accountReconcile` to detect an
- *    account switch).
+ * One live store:
+ *  - `config` (key-value bag): client workspace state with no akb backend home
+ *    — the active `vault`, `theme`, `activity_repo:{vault}`, `filter:{vault}`
+ *    (the per-vault last-used issue filter, REEF-009), `last_visit_at`,
+ *    `last_scan:{repo}`, and `akb_user_id` (the previously-signed-in account,
+ *    read by `accountReconcile` to detect an account switch).
  *
  * ## Versioning
  *
- * The historical v1..v9 ladder was collapsed, but the removed stores should be
+ * The historical v1..v9 ladder was collapsed, but removed stores should be
  * dropped via a real version bump — NOT by silently dropping them from a
  * same-version declaration. IndexedDB creates/deletes object stores inside
  * a versionchange transaction, which fires when the opened version is
@@ -36,13 +26,12 @@ interface ConfigEntry {
  * the old `auto_issue_drafts` / `dismissed_suggestions` / `cache` stores (which
  * held AI drafts and issue snapshots) on disk forever.
  *
- * So `version(9)` re-declares the full historical store set, and `version(10)`
- * explicitly deletes the three removed stores (`store: null`). Dexie runs the
- * deletions in the v9 -> v10 upgrade transaction for existing browsers; a fresh
- * install  creates the two surviving stores (the deleted ones are
- * absent from the final schema). Those features moved server-side to the akb
- * `reef_activity_suggestions` table, and offline issue snapshots were dropped
- * with offline mode.
+ * So `version(9)` re-declares the full historical store set, `version(10)`
+ * explicitly deletes the three removed draft/cache stores, and `version(11)`
+ * deletes the `credentials` store after the browser GitHub PAT path moved to
+ * deployment-managed GitHub App credentials. Dexie runs these deletions in
+ * versionchange transactions for existing browsers; a fresh install creates
+ * only the surviving `config` store.
  *
  * ## `config` store — Key-Value Bag (Canonical Pattern)
  *
@@ -53,7 +42,6 @@ interface ConfigEntry {
  * @see `web/src/lib/storage/config.ts` for the accessor layer.
  */
 class ReefDatabase extends Dexie {
-  credentials!: EntityTable<CredentialEntry, "id">;
   config!: EntityTable<ConfigEntry, "id">;
 
   constructor() {
@@ -83,8 +71,15 @@ class ReefDatabase extends Dexie {
       dismissed_suggestions: null,
       cache: null,
     });
+    // v11: drop the browser GitHub PAT store. The server-managed GitHub App is
+    // now the only monitored-repo credential path, so any stale github_token
+    // rows must stop being readable and should not remain orphaned in
+    // persistent browser storage.
+    this.version(11).stores({
+      credentials: null,
+    });
   }
 }
 
 export const db = new ReefDatabase();
-export type { CredentialEntry, ConfigEntry };
+export type { ConfigEntry };

@@ -14,7 +14,6 @@ import {
 } from "@/features/settings/components/MonitoredRepoSelector";
 import { useSetActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useGithubAppAvailable } from "@/features/settings/hooks/useGithubAppAvailable";
-import { useHasGithubToken } from "@/features/settings/hooks/useHasGithubToken";
 import { useRepos } from "@/features/settings/hooks/useRepos";
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
 import {
@@ -73,17 +72,13 @@ export function CreateWorkspaceForm({
 }: CreateWorkspaceFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  // Credential gate (REEF-159, extended in REEF-239): repo listing is disabled
-  // without an available credential, so drive the selector's loading/error from
-  // credential state to avoid a forever-skeleton and surface the "connect GitHub
-  // or skip" hint instead. Either a browser PAT or a deployment-managed GitHub
-  // App can serve the list, so the selector is usable without a PAT when the
-  // server App is configured.
-  const { hasToken, isLoading: tokenLoading } = useHasGithubToken();
+  // Deployment credential gate: repo listing is disabled without a configured
+  // GitHub App, so drive the selector from deployment status instead of asking
+  // the browser user for a personal access token.
   const { isAvailable: appAvailable, isLoading: appLoading } =
     useGithubAppAvailable();
-  const canListRepos = hasToken || appAvailable;
-  const credentialLoading = tokenLoading || appLoading;
+  const canListRepos = appAvailable;
+  const credentialLoading = appLoading;
   const reposQuery = useRepos();
   const setActiveVault = useSetActiveVault();
 
@@ -292,7 +287,7 @@ export function CreateWorkspaceForm({
             credentialLoading || (canListRepos && reposQuery.isPending)
           }
           isError={!canListRepos || (reposQuery.isError && !reposQuery.data)}
-          errorMessage="Connect GitHub to select repositories, or skip this step."
+          errorMessage="GitHub App is not configured for this deployment. You can skip monitored repositories."
           testIdPrefix={`${idPrefix}-monitored-repos`}
         />
       </div>

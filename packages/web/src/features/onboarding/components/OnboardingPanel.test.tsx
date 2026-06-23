@@ -1,4 +1,4 @@
-// fake-indexeddb/auto — OnboardingPanel reads/writes vault + token via Dexie.
+// fake-indexeddb/auto - OnboardingPanel reads/writes the active vault via Dexie.
 import "fake-indexeddb/auto";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -18,9 +18,19 @@ vi.mock("@/lib/apiClient", async () => {
   return { ...actual, apiFetch: vi.fn() };
 });
 
+const appState = vi.hoisted(() => ({
+  current: {
+    isAvailable: true,
+    isLoading: false,
+    appId: "123456" as string | null,
+  },
+}));
+vi.mock("@/features/settings/hooks/useGithubAppAvailable", () => ({
+  useGithubAppAvailable: () => appState.current,
+}));
+
 import { apiFetch } from "@/lib/apiClient";
 import { getActiveVault, setActiveVault } from "@/lib/storage/config";
-import { getGitHubToken, setGitHubToken } from "@/lib/storage/credentials";
 import { db } from "@/lib/storage/db";
 import { OnboardingPanel } from "./OnboardingPanel";
 
@@ -90,9 +100,13 @@ describe("OnboardingPanel", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     mockPush.mockReset();
+    appState.current = {
+      isAvailable: true,
+      isLoading: false,
+      appId: "123456",
+    };
     window.localStorage.clear();
     await db.config.clear();
-    await db.credentials.clear();
   });
 
   afterEach(() => {
@@ -137,9 +151,7 @@ describe("OnboardingPanel", () => {
   });
 
   it("includes optional monitored repos (with github_id) in the create request", async () => {
-    // The repo picker fetches once a GitHub token is configured (REEF-159);
-    // seed one so the selector is populated.
-    await setGitHubToken("ghp_seeded");
+    // The repo picker fetches through the deployment-managed GitHub App.
     setupMockApi({
       repos: [
         { full_name: "octo/cat", id: 111 },
@@ -235,66 +247,16 @@ describe("OnboardingPanel", () => {
     expect(btn).toBeDisabled();
   });
 
-  it("opens the repo picker when a GitHub token is saved, and issues no /api/repos call until then (REEF-159)", async () => {
-    let repoCalls = 0;
-    mockApiFetch.mockImplementation(async (url, init) => {
-      const u = String(url);
-      if (u.startsWith("/api/vaults") && init?.method === "POST") {
-        return new Response(
-          JSON.stringify({
-            name: "reef-new",
-            config: { project_prefix: "REEF", monitored_repos: [] },
-          }),
-          { status: 200 },
-        );
-      }
-      if (u.startsWith("/api/vaults")) return vaultsResponse([]);
-      if (u.startsWith("/api/repos")) {
-        repoCalls++;
-        return new Response(
-          JSON.stringify({ repos: [{ full_name: "octo/cat", id: 111 }] }),
-          { status: 200 },
-        );
-      }
-      return new Response("{}", { status: 200 });
-    });
-    // GitHubTokenInput verifies the PAT via a raw fetch("/api/repos") before
-    // persisting; that path is the global fetch, not apiFetch, so it does not
-    // touch repoCalls.
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn()
-        .mockResolvedValue(
-          new Response(JSON.stringify({ repos: [] }), { status: 200 }),
-        ),
-    );
-    const user = userEvent.setup();
-
+  it("does not render a Connect GitHub token panel (REEF-244)", async () => {
+    setupMockApi();
     render(wrap(<OnboardingPanel />));
 
-    // Unconfigured: the picker shows the connect hint and the gate suppresses
-    // the GitHub call entirely — no 401 can accumulate.
+    expect(await screen.findByTestId("onboarding-panel")).toBeInTheDocument();
     expect(
-      await screen.findByTestId("greenfield-monitored-repos-load-error"),
-    ).toBeInTheDocument();
-    expect(repoCalls).toBe(0);
-
-    await user.click(
-      await screen.findByText(/Connect GitHub/i, { selector: "summary" }),
-    );
-    await user.type(
-      await screen.findByTestId("onboarding-token-input"),
-      "ghp_valid",
-    );
-    await user.click(screen.getByTestId("onboarding-save-token-btn"));
-
-    // Saving the token flips the gate (via AUTH_CHANGED_EVENT), so the now-enabled
-    // query fetches and the picker becomes available without a manual refresh.
+      screen.queryByText(/Connect GitHub/i, { selector: "summary" }),
+    ).not.toBeInTheDocument();
     expect(
-      await screen.findByTestId("greenfield-monitored-repos-trigger"),
-    ).toBeInTheDocument();
-    await waitFor(() => expect(repoCalls).toBeGreaterThanOrEqual(1));
-    expect(await getGitHubToken()).toBe("ghp_valid");
+      screen.queryByTestId("onboarding-token-input"),
+    ).not.toBeInTheDocument();
   });
 });

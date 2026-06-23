@@ -6,11 +6,9 @@ import {
   useSetActiveVault,
 } from "@/features/settings/hooks/useActiveVault";
 import { useVaults } from "@/features/settings/hooks/useVaults";
-import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { CreateWorkspaceForm } from "./CreateWorkspaceForm";
-import { GitHubTokenInput } from "./GitHubTokenInput";
 
 /**
  * Single-screen onboarding for new projects, with existing reef workspaces as
@@ -25,7 +23,6 @@ import { GitHubTokenInput } from "./GitHubTokenInput";
  */
 export function OnboardingPanel() {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const vaultsQuery = useVaults();
   const { vault: activeVault, isLoading: activeVaultLoading } =
     useActiveVault();
@@ -93,24 +90,6 @@ export function OnboardingPanel() {
           >
             Continue to workspace
           </button>
-        </div>
-      </details>
-
-      <details className="group rounded-md border border-border bg-elevated">
-        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-foreground">
-          Connect GitHub{" "}
-          <span className="text-xs font-normal text-muted-foreground">
-            (optional)
-          </span>
-        </summary>
-        <div className="border-t border-border px-4 py-3">
-          <GitHubTokenInput
-            onSaved={() =>
-              void queryClient.invalidateQueries({
-                queryKey: ["repos", "list"],
-              })
-            }
-          />
         </div>
       </details>
     </div>

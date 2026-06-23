@@ -31,7 +31,7 @@ describe("server GitHub App config", () => {
     expect(result.status).toEqual({ isConfigured: true, appId: "123456" });
   });
 
-  it("reports unconfigured when no GitHub App env is set (browser PAT fallback)", () => {
+  it("reports unconfigured when no GitHub App env is set", () => {
     const result = resolveServerGitHubAppConfig({ NODE_ENV: "test" });
 
     expect(result.ok).toBe(false);

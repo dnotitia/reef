@@ -2,10 +2,10 @@
 
 reef ships as a single stateless web service, **reef-web**, that talks to an
 [akb](https://github.com/dnotitia/akb) backend. reef-web persists nothing of its
-own: the akb session lives in an httpOnly cookie, the GitHub PAT for monitored
-repos lives in the browser, and LLM config is deployment-managed server state.
-That means deployment is just "run the container, point it at akb, give it an
-OpenRouter key."
+own: the akb session lives in an httpOnly cookie, monitored repositories are
+accessed through a deployment-managed GitHub App, and LLM config is
+deployment-managed server state. That means deployment is just "run the
+container, point it at akb, give it OpenRouter and GitHub App configuration."
 
 This guide covers three ways to run it:
 
@@ -154,10 +154,18 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:?set OPENROUTER_API_KEY}
       OPENROUTER_BASE_URL: https://openrouter.ai/api/v1
       REEF_LLM_MODEL: deepseek/deepseek-v4-flash
+      # Deployment-managed GitHub App for monitored-repo features
+      REEF_GITHUB_APP_ID: ${REEF_GITHUB_APP_ID:?set REEF_GITHUB_APP_ID}
+      REEF_GITHUB_APP_INSTALLATION_ID: ${REEF_GITHUB_APP_INSTALLATION_ID:?set REEF_GITHUB_APP_INSTALLATION_ID}
+      REEF_GITHUB_APP_PRIVATE_KEY: ${REEF_GITHUB_APP_PRIVATE_KEY:?set REEF_GITHUB_APP_PRIVATE_KEY}
 ```
 
 ```bash
-OPENROUTER_API_KEY=sk-or-... docker compose up
+OPENROUTER_API_KEY=sk-or-... \
+REEF_GITHUB_APP_ID=123456 \
+REEF_GITHUB_APP_INSTALLATION_ID=789 \
+REEF_GITHUB_APP_PRIVATE_KEY="$(cat github-app.private-key.pem)" \
+docker compose up
 ```
 
 reef-web is stateless, so there is no database or volume to manage. If your
@@ -178,6 +186,9 @@ the `reef-web-config` ConfigMap plus the `reef-web-secret` Secret).
 | `OPENROUTER_API_KEY` | yes for AI | OpenRouter API key for reef-web's AI routes. Keep it in a Secret; never inline it in manifests or commit it. |
 | `OPENROUTER_BASE_URL` | no | OpenRouter API base. Defaults to `https://openrouter.ai/api/v1`. |
 | `REEF_LLM_MODEL` | no | Model id passed to OpenRouter (e.g. `deepseek/deepseek-v4-flash`). |
+| `REEF_GITHUB_APP_ID` | yes for GitHub features | GitHub App id used to mint server-side installation tokens for monitored-repo listing, grounding, and activity scans. |
+| `REEF_GITHUB_APP_INSTALLATION_ID` | yes for GitHub features | Installation id for the repository/org installation reef should read from. |
+| `REEF_GITHUB_APP_PRIVATE_KEY` | yes for GitHub features | PEM private key for the GitHub App. Keep it in a Secret; literal `\\n` escapes are accepted and normalized at runtime. |
 | `NODE_ENV` | recommended | Set to `production` in any real deployment — it enables the `Secure` cookie flag and the strict CSP. |
 
 Optional tracing/observability:
@@ -192,8 +203,8 @@ Optional tracing/observability:
 | `NEXT_PUBLIC_AKB_WEB_URL` | Public URL of the akb web app, used to open a linked akb document in a new tab from an issue. Optional; when unset that action is hidden. |
 
 Per-user secrets are intentionally **not** environment variables: the akb
-session is an httpOnly cookie minted per request, and the GitHub PAT for
-monitored repos lives only in the browser's IndexedDB.
+session is an httpOnly cookie minted per request. GitHub and LLM credentials are
+deployment-managed server secrets, not browser storage.
 
 ### Backend logging and the prod access-line policy
 
@@ -227,7 +238,8 @@ reach traces is also visible on stdout. Slow requests are promoted to WARN at th
 `REEF_SLOW_REQUEST_MS` threshold so they stand out in that stream.
 
 Credentials never reach any log: the proxy reads only the public actor claim from
-the session cookie (never the token/PAT), credential headers are redacted by the
-pino config, and typed API errors surface only their numeric upstream HTTP status
-— not the upstream-controlled detail body (an LLM provider response, an Octokit
-message) and not the nested request/response objects that carry credentials.
+the session cookie (never the token), credential headers are redacted by the
+pino config, and typed API errors surface only their numeric upstream HTTP
+status — not the upstream-controlled detail body (an LLM provider response, an
+Octokit message) and not the nested request/response objects that carry
+credentials.

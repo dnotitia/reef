@@ -1231,6 +1231,17 @@ async function handleOpenRouter(req, res) {
 
 function handleGitHub(req, res, url) {
   const path = url.pathname.slice("/github".length);
+  if (
+    req.method === "POST" &&
+    /^\/app\/installations\/[^/]+\/access_tokens$/.test(path)
+  ) {
+    return json(res, 201, {
+      token: "ghs_e2e_installation_token",
+      expires_at: "2026-06-15T01:00:00.000Z",
+      permissions: { contents: "read", metadata: "read" },
+      repository_selection: "selected",
+    });
+  }
   if (req.method === "POST" && path.endsWith("/graphql")) {
     return json(res, 200, {
       data: {
@@ -1256,6 +1267,20 @@ function handleGitHub(req, res, url) {
       ETag: '"reef-e2e-repos"',
     });
     res.end(JSON.stringify(state.githubRepos));
+    return;
+  }
+  if (req.method === "GET" && path === "/installation/repositories") {
+    res.writeHead(200, {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      ETag: '"reef-e2e-installation-repos"',
+    });
+    res.end(
+      JSON.stringify({
+        total_count: state.githubRepos.length,
+        repositories: state.githubRepos,
+      }),
+    );
     return;
   }
   if (req.method === "GET") {

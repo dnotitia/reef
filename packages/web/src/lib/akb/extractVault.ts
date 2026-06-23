@@ -15,10 +15,10 @@ import { VAULT_NAME_RE } from "./vaultName";
  * span attributes for traceability. Validation against {@link VAULT_NAME_RE}
  * is defense-in-depth before the value reaches the akb adapter URL builder.
  *
- * Mirrors `extractGithubToken` / `extractAkbSession` by throwing
- * `AuthError` so chat-route error translation collapses to a single 401
- * branch — vault selection is an authentication-adjacent concern: until a
- * vault is selected, the chat agent has nothing to bind its akb tools to.
+ * Mirrors `extractAkbSession` by throwing `AuthError` so chat-route error
+ * translation collapses to a single 401 branch. Vault selection is an
+ * authentication-adjacent concern: until a vault is selected, the chat agent
+ * has nothing to bind its akb tools to.
  */
 export function extractVault(source: Request | ReadonlyHeaders): string {
   const headers = source instanceof Request ? source.headers : source;

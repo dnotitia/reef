@@ -29,7 +29,7 @@ export function PreferencesSection() {
       <div
         role="radiogroup"
         aria-labelledby="preferences-heading"
-        className="grid grid-cols-3 gap-2"
+        className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-2"
       >
         {THEME_OPTIONS.map((opt) => {
           const isSelected = theme === opt.value;
@@ -44,19 +44,19 @@ export function PreferencesSection() {
               data-testid={`theme-option-${opt.value}`}
               onClick={() => void setTheme(opt.value)}
               className={cn(
-                "flex flex-col items-start gap-1.5 rounded-md border px-3 py-2.5 text-left transition-colors",
+                "flex min-w-0 flex-col items-start gap-1.5 rounded-md border px-3 py-2.5 text-left transition-colors",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 isSelected
                   ? "border-brand bg-surface-subtle"
                   : "border-border hover:border-border-subtle hover:bg-surface-hover",
               )}
             >
-              <span className="flex items-center gap-1.5">
+              <span className="flex min-w-0 items-center gap-1.5">
                 <Icon
                   aria-hidden
-                  className="h-3.5 w-3.5 text-muted-foreground"
+                  className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
                 />
-                <span className="text-[13px] font-medium text-foreground">
+                <span className="min-w-0 text-[13px] font-medium text-foreground">
                   {opt.label}
                 </span>
               </span>

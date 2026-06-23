@@ -63,8 +63,6 @@ const VALID_BODY = {
   },
 };
 
-const DEFAULT_GITHUB_TOKEN = "ghp_test";
-
 function makeRequest(opts: {
   body?: unknown;
   headers?: Record<string, string>;
@@ -74,7 +72,6 @@ function makeRequest(opts: {
     body: JSON.stringify(opts.body ?? VALID_BODY),
     headers: opts.headers ?? {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${DEFAULT_GITHUB_TOKEN}`,
     },
   });
 }
@@ -142,14 +139,13 @@ describe("POST /api/enrich", () => {
       body: "not json",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${DEFAULT_GITHUB_TOKEN}`,
       },
     });
     const res = await POST(req);
     expect(res.status).toBe(400);
   });
 
-  it("continues without GitHub code tools when Authorization header is missing", async () => {
+  it("continues without GitHub code tools when the GitHub App is not configured", async () => {
     const result = { suggestions: [] };
     mockEnrichIssue.mockResolvedValueOnce(result);
 

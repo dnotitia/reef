@@ -9,50 +9,22 @@ import { db } from "./db";
 
 describe("Dexie schema — reef IndexedDB (akb pivot)", () => {
   beforeEach(async () => {
-    await Promise.all([db.credentials.clear(), db.config.clear()]);
+    await db.config.clear();
   });
 
   afterEach(async () => {
-    await Promise.all([db.credentials.clear(), db.config.clear()]);
+    await db.config.clear();
   });
 
   describe("store shape", () => {
-    it("opens at the current claimed version (>= 9)", async () => {
+    it("opens at the current claimed version (>= 11)", async () => {
       await db.open();
-      expect(db.verno).toBeGreaterThanOrEqual(9);
+      expect(db.verno).toBeGreaterThanOrEqual(11);
     });
 
-    it("exposes the two expected stores", () => {
+    it("exposes the expected live store", () => {
       const names = db.tables.map((t) => t.name).sort();
-      expect(names).toEqual(["config", "credentials"].sort());
-    });
-  });
-
-  describe("credentials store (per-user secrets)", () => {
-    it("stores arbitrary key/value entries (github_token, llm_api_key)", async () => {
-      await db.credentials.add({ key: "github_token", value: "ghp_xxx" });
-      await db.credentials.add({ key: "llm_api_key", value: "sk-xxx" });
-
-      const gh = await db.credentials
-        .where("key")
-        .equals("github_token")
-        .first();
-      const llm = await db.credentials
-        .where("key")
-        .equals("llm_api_key")
-        .first();
-      expect(gh?.value).toBe("ghp_xxx");
-      expect(llm?.value).toBe("sk-xxx");
-    });
-
-    it("does NOT store the akb session JWT — that belongs in the __reef_session httpOnly cookie", async () => {
-      // Sanity invariant: no row should ever be keyed "akb_session" / "reef_session".
-      // Test future-proofs against accidental migrations that try to mirror the JWT.
-      const akb = await db.credentials
-        .where("key")
-        .anyOf(["akb_session", "reef_session", "session_jwt"])
-        .first();
-      expect(akb).toBeUndefined();
+      expect(names).toEqual(["config"]);
     });
   });
 
@@ -80,14 +52,12 @@ describe("Dexie schema — reef IndexedDB (akb pivot)", () => {
     });
   });
 
-  // reverse-move guard: removing a store from a SAME-version declaration does not
-  // drop it for a browser already at that version — IndexedDB just deletes
-  // object stores inside a versionchange (higher-version) transaction. The
-  // schema therefore bumps to v10 and declares the removed stores as `null`.
-  // Uses a throwaway DB name so it does not collides with the `reef` singleton the
-  // other tests open. Mirrors the production schema in `db.ts`.
-  describe("older store removal (v9 -> v10 upgrade)", () => {
-    it("drops auto_issue_drafts / dismissed_suggestions / cache for an existing v9 database", async () => {
+  // reverse-move guard: removing a store from a SAME-version declaration does
+  // not drop it for a browser already at that version — IndexedDB deletes object
+  // stores only inside a higher-version transaction. The schema therefore bumps
+  // through v10/v11 and declares removed stores as `null`.
+  describe("older store removal (v9 -> v11 upgrade)", () => {
+    it("drops removed draft/cache stores and the stale browser credential store", async () => {
       const NAME = "reef-upgrade-regression";
       await Dexie.delete(NAME);
 
@@ -101,6 +71,10 @@ describe("Dexie schema — reef IndexedDB (akb pivot)", () => {
         cache: "id, fetchedAt",
       });
       await older.open();
+      await older.table("credentials").add({
+        key: "github_token",
+        value: "ghp_stale",
+      });
       expect(older.tables.map((t) => t.name).sort()).toEqual(
         [
           "auto_issue_drafts",
@@ -113,7 +87,8 @@ describe("Dexie schema — reef IndexedDB (akb pivot)", () => {
       older.close();
 
       // re-open the SAME database with the production schema (full v9 set + the
-      // v10 null-drops). The v9 -> v10 upgrade should delete the three old stores.
+      // v10/v11 null-drops). The upgrade should delete old stores and any stale
+      // browser GitHub PAT row with them.
       const upgraded = new Dexie(NAME);
       upgraded.version(9).stores({
         credentials: "++id, key",
@@ -127,11 +102,12 @@ describe("Dexie schema — reef IndexedDB (akb pivot)", () => {
         dismissed_suggestions: null,
         cache: null,
       });
+      upgraded.version(11).stores({
+        credentials: null,
+      });
       await upgraded.open();
-      expect(upgraded.verno).toBe(10);
-      expect(upgraded.tables.map((t) => t.name).sort()).toEqual(
-        ["config", "credentials"].sort(),
-      );
+      expect(upgraded.verno).toBe(11);
+      expect(upgraded.tables.map((t) => t.name).sort()).toEqual(["config"]);
       upgraded.close();
       await Dexie.delete(NAME);
     });

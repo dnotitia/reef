@@ -34,7 +34,7 @@ that could mis-render old cached data:
 
 Browser migrations must never move the akb session into IndexedDB. The akb
 session stays in the `__reef_session` httpOnly cookie, and GitHub credentials
-stay browser-local.
+stay deployment-managed server state rather than browser-local state.
 
 ## akb Compatibility
 

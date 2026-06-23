@@ -43,9 +43,9 @@ vi.mock("@/lib/api/requestHelpers", () => ({
   getAkbCurrentActor: mockGetAkbCurrentActor,
 }));
 
-// Deployment GitHub App config — default "not configured" so the existing task
-// tests use the browser-PAT fallback. Flip `appConfigState.current` to exercise
-// the server-managed App path (REEF-240).
+// Deployment GitHub App config - default configured in reset so route tests
+// exercise the REEF-244 server-managed credential path. Flip
+// `appConfigState.current` to exercise unavailable deployments.
 export type ServerAppConfig =
   | {
       ok: true;
@@ -159,7 +159,6 @@ export function makeRequest(
 ) {
   const mergedHeaders: Record<string, string> = {
     "Content-Type": "application/json",
-    Authorization: "Bearer ghp_test",
     [VAULT_HEADER]: "reef-test",
   };
   for (const [key, value] of Object.entries(headers)) {
@@ -305,10 +304,13 @@ export function resetAgentRunsRouteMocks() {
   vi.stubEnv("OPENROUTER_API_KEY", "sk-test");
   vi.stubEnv("OPENROUTER_BASE_URL", "https://api.openai.com/v1");
   vi.stubEnv("REEF_LLM_MODEL", "gpt-4o");
-  appConfigState.current = NOT_CONFIGURED;
+  appConfigState.current = APP_CONFIG;
   mockGetAkbAdapter.mockReturnValue({ adapter: { request: vi.fn() } });
   mockGetAkbCurrentActor.mockResolvedValue({ actor: "alice" });
   mockCreateGitHubAdapter.mockReturnValue({});
+  mockCreateGitHubAppInstallationTokenProvider.mockReturnValue(
+    vi.fn(async () => "ghs_test_installation_token"),
+  );
   mockCreateLlmAdapter.mockReturnValue({ model: vi.fn() });
   mockReadAuthoringLanguage.mockResolvedValue(null);
   mockScanAndPersistActivitySuggestions.mockResolvedValue({

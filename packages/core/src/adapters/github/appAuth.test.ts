@@ -44,11 +44,13 @@ vi.mock("@opentelemetry/api", () => ({
 }));
 
 const GITHUB_API = "https://api.github.com";
+const ENTERPRISE_GITHUB_API = "https://github.enterprise.local/api/v3";
 const APP_ID = "123456";
 const INSTALLATION_ID = "789";
 const MINTED_TOKEN = "ghs_minted_installation_token_value";
 const FUTURE_EXPIRY = "2999-01-01T00:00:00Z";
 const TOKEN_ENDPOINT = `${GITHUB_API}/app/installations/${INSTALLATION_ID}/access_tokens`;
+const ENTERPRISE_TOKEN_ENDPOINT = `${ENTERPRISE_GITHUB_API}/app/installations/${INSTALLATION_ID}/access_tokens`;
 
 // A throwaway RSA key in PKCS#1 PEM ("BEGIN RSA PRIVATE KEY") — the format
 // GitHub hands out when you generate an App private key. The JWT is signed
@@ -152,6 +154,30 @@ describe("createGitHubAppInstallationTokenProvider", () => {
       etag: null,
     });
     expect(sentAuthHeader).toContain(MINTED_TOKEN);
+  });
+
+  it("uses the configured API base URL when minting an installation token (REEF-244)", async () => {
+    let usedEnterpriseEndpoint = false;
+    server.use(
+      http.post(TOKEN_ENDPOINT, () =>
+        HttpResponse.json({ message: "wrong endpoint" }, { status: 500 }),
+      ),
+      http.post(ENTERPRISE_TOKEN_ENDPOINT, () => {
+        usedEnterpriseEndpoint = true;
+        return HttpResponse.json(
+          { token: MINTED_TOKEN, expires_at: FUTURE_EXPIRY },
+          { status: 201 },
+        );
+      }),
+    );
+
+    const provider = createGitHubAppInstallationTokenProvider({
+      config: TEST_CONFIG,
+      baseUrl: `${ENTERPRISE_GITHUB_API}/`,
+    });
+
+    await expect(provider()).resolves.toBe(MINTED_TOKEN);
+    expect(usedEnterpriseEndpoint).toBe(true);
   });
 
   it("down-scopes the installation token to read-only permissions even if the App has broader grants", async () => {

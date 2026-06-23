@@ -1,7 +1,9 @@
 import { createAppAuth } from "@octokit/auth-app";
+import { Octokit } from "@octokit/rest";
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { GitHubApiError } from "../../errors";
 import type { GitHubAppConfig } from "../../schemas/workspace/config";
+import { stripTrailingSlashes } from "../url";
 import { getErrorStatus } from "./errors";
 
 const tracer = trace.getTracer("@reef/core");
@@ -34,6 +36,11 @@ export type GitHubTokenProvider = () => Promise<string>;
 
 export interface CreateGitHubAppInstallationTokenProviderParams {
   config: GitHubAppConfig;
+  /**
+   * Optional API base URL for hermetic tests and GitHub Enterprise.
+   * Production callers omit this and use Octokit's default github.com endpoint.
+   */
+  baseUrl?: string;
 }
 
 /**
@@ -55,11 +62,17 @@ export interface CreateGitHubAppInstallationTokenProviderParams {
  */
 export function createGitHubAppInstallationTokenProvider({
   config,
+  baseUrl = process.env.REEF_GITHUB_API_BASE_URL,
 }: CreateGitHubAppInstallationTokenProviderParams): GitHubTokenProvider {
+  const normalizedBaseUrl = baseUrl ? stripTrailingSlashes(baseUrl) : undefined;
+  const tokenRequest = normalizedBaseUrl
+    ? new Octokit({ baseUrl: normalizedBaseUrl }).request
+    : undefined;
   const auth = createAppAuth({
     appId: config.app_id,
     privateKey: config.private_key,
     installationId: config.installation_id,
+    ...(tokenRequest ? { request: tokenRequest } : {}),
   });
 
   return () =>

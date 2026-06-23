@@ -63,9 +63,9 @@ export interface CreateWorkspaceChatAgentResponseParams
  *   1. **Vault reads** — `read_issue`, `search_issues`, `list_assignees`
  *      read from the active akb vault.
  *   2. **Code grounding** — `search_code`, `dev_read_file` query the vault's
- *      monitored GitHub repos when grounding is connected (deployment GitHub
- *      App or browser PAT). The tools are scoped to `monitored_repos`, so a
- *      broad App token cannot read a repository the vault does not monitor.
+ *      monitored GitHub repos when the deployment GitHub App is configured.
+ *      The tools are scoped to `monitored_repos`, so a broad App token cannot
+ *      read a repository the vault does not monitor.
  *
  * No vault-mutating tools are registered here. Issue creation and edits go
  * through dedicated Route Handlers (`/api/issues`, `/api/issues/[id]`,

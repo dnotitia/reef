@@ -21,8 +21,8 @@ vi.mock("@reef/core", async (importOriginal) => {
   };
 });
 
-// Deployment GitHub App config — default "not configured" so the existing tests
-// exercise the browser-PAT fallback; the App-path block flips it on.
+// Deployment GitHub App config - default configured in tests so activity scan
+// exercises the REEF-244 server-managed credential path.
 type ServerAppConfig =
   | {
       ok: true;
@@ -39,6 +39,17 @@ const NOT_CONFIGURED: ServerAppConfig = {
   ok: false,
   status: { isConfigured: false, appId: null },
   issues: ["app_id is required"],
+};
+
+const APP_CONFIG: ServerAppConfig = {
+  ok: true,
+  config: {
+    app_id: "123456",
+    installation_id: "789",
+    private_key:
+      "-----BEGIN RSA PRIVATE KEY-----\nx\n-----END RSA PRIVATE KEY-----",
+  },
+  status: { isConfigured: true, appId: "123456" },
 };
 
 const appConfigState = vi.hoisted(() => ({ current: undefined as unknown }));
@@ -75,7 +86,6 @@ const VALID_BODY = {
 
 const VALID_HEADERS: Record<string, string> = {
   "Content-Type": "application/json",
-  Authorization: "Bearer ghp_test",
   cookie: `${SESSION_COOKIE}=${VALID_JWT}`,
 };
 
@@ -97,8 +107,10 @@ describe("POST /api/activity/scan", () => {
     vi.stubEnv("OPENROUTER_API_KEY", "sk-test");
     vi.stubEnv("OPENROUTER_BASE_URL", "https://api.openai.com/v1");
     vi.stubEnv("REEF_LLM_MODEL", "gpt-4o");
-    appConfigState.current = NOT_CONFIGURED;
+    appConfigState.current = APP_CONFIG;
+    mockGetActor.mockResolvedValue({ actor: "alice" });
     mockCreateGitHubAdapter.mockReturnValue({});
+    mockCreateProvider.mockReturnValue(vi.fn(async () => "ghs_minted_token"));
     mockScanAndPersistActivitySuggestions.mockResolvedValue({
       status: "completed",
       drafts: [],
@@ -164,23 +176,23 @@ describe("POST /api/activity/scan", () => {
       makeRequest({
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer ghp_test",
         },
       }),
     );
     expect(res.status).toBe(401);
   });
 
-  it("returns 401 when Authorization header is missing", async () => {
-    const res = await POST(
-      makeRequest({
-        headers: {
-          "Content-Type": "application/json",
-          cookie: `${SESSION_COOKIE}=${VALID_JWT}`,
-        },
-      }),
-    );
-    expect(res.status).toBe(401);
+  it("returns 503 when the GitHub App is not configured", async () => {
+    appConfigState.current = NOT_CONFIGURED;
+
+    const res = await POST(makeRequest({}));
+
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({
+      error: "GitHub App is not configured for this deployment.",
+    });
+    expect(mockCreateProvider).not.toHaveBeenCalled();
+    expect(mockScanAndPersistActivitySuggestions).not.toHaveBeenCalled();
   });
 
   it("returns 503 when deployment OpenRouter config is missing", async () => {
@@ -189,7 +201,6 @@ describe("POST /api/activity/scan", () => {
       makeRequest({
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer ghp_test",
           cookie: `${SESSION_COOKIE}=${VALID_JWT}`,
         },
       }),
@@ -227,18 +238,7 @@ describe("POST /api/activity/scan", () => {
 });
 
 describe("POST /api/activity/scan — server-managed GitHub App path", () => {
-  const APP_CONFIG: ServerAppConfig = {
-    ok: true,
-    config: {
-      app_id: "123456",
-      installation_id: "789",
-      private_key:
-        "-----BEGIN RSA PRIVATE KEY-----\nx\n-----END RSA PRIVATE KEY-----",
-    },
-    status: { isConfigured: true, appId: "123456" },
-  };
-
-  // A signed-in workspace session, but no browser PAT — the App path serves it.
+  // A signed-in workspace session; no Authorization header is needed.
   function makeAppRequest(headers: Record<string, string> = {}): Request {
     return new Request("http://localhost/api/activity/scan", {
       method: "POST",
@@ -275,7 +275,7 @@ describe("POST /api/activity/scan — server-managed GitHub App path", () => {
     vi.unstubAllEnvs();
   });
 
-  it("scans with a minted installation token and no browser PAT (AC1/AC2)", async () => {
+  it("scans with a minted installation token and no Authorization header (AC1/AC2)", async () => {
     const mint = vi.fn(async () => "ghs_minted_token");
     mockCreateProvider.mockReturnValue(mint);
 
@@ -286,7 +286,7 @@ describe("POST /api/activity/scan — server-managed GitHub App path", () => {
     expect(mockCreateProvider).toHaveBeenCalledWith({
       config: APP_CONFIG.config,
     });
-    // The scan adapter is built from the minted token, not a browser PAT.
+    // The scan adapter is built from the minted token.
     expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
       token: "ghs_minted_token",
     });

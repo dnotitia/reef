@@ -223,40 +223,6 @@ export async function writeIndexedDbConfig(
   );
 }
 
-export async function readIndexedDbCredential(
-  page: Page,
-  key: string,
-): Promise<string | undefined> {
-  return page.evaluate(async (credentialKey) => {
-    const open = indexedDB.open("reef");
-    return new Promise<string | undefined>((resolve, reject) => {
-      open.onsuccess = () => {
-        const db = open.result;
-        try {
-          const tx = db.transaction("credentials", "readonly");
-          const store = tx.objectStore("credentials");
-          const idx = store.index("key");
-          const lookup = idx.get(credentialKey);
-          lookup.onsuccess = () => {
-            const value = lookup.result?.value;
-            db.close();
-            resolve(typeof value === "string" ? value : undefined);
-          };
-          lookup.onerror = () => {
-            db.close();
-            reject(lookup.error);
-          };
-        } catch (err) {
-          db.close();
-          reject(err);
-        }
-      };
-      open.onerror = () => reject(open.error);
-      open.onblocked = () => reject(new Error("IndexedDB open blocked"));
-    });
-  }, key);
-}
-
 export async function clearPersistedQueryCache(page: Page): Promise<void> {
   await page.evaluate(() => {
     window.localStorage.removeItem("REACT_QUERY_OFFLINE_CACHE");

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -23,21 +23,10 @@ vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   }),
 }));
 
-// GitHub token gate (REEF-159). Default to "token present" so the existing
-// config/selector tests keep their behavior; the unconfigured test flips it.
-const tokenState = vi.hoisted(() => ({
-  current: { hasToken: true, isLoading: false },
-}));
-vi.mock("@/features/settings/hooks/useHasGithubToken", () => ({
-  useHasGithubToken: () => tokenState.current,
-}));
-
-// Deployment-managed GitHub App availability (REEF-239). Default to "not
-// available" so the existing PAT-gated tests are unchanged; the App-available
-// test flips it on to assert the picker works without a browser token.
+// Deployment-managed GitHub App availability (REEF-244).
 const appState = vi.hoisted(() => ({
   current: {
-    isAvailable: false,
+    isAvailable: true,
     isLoading: false,
     appId: null as string | null,
   },
@@ -62,8 +51,7 @@ describe("RepoPickerSection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     activeVault.current = { vault: "reef-acme", isLoading: false };
-    tokenState.current = { hasToken: true, isLoading: false };
-    appState.current = { isAvailable: false, isLoading: false, appId: null };
+    appState.current = { isAvailable: true, isLoading: false, appId: "123456" };
     mockApiFetch.mockImplementation(async (url) => {
       const u = String(url);
       if (u.startsWith("/api/vaults")) {
@@ -177,10 +165,11 @@ describe("RepoPickerSection", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the connect-GitHub hint and issues no /api/repos request when unconfigured (REEF-159)", async () => {
-    // No token → the selector renders the connect hint instead of a forever
-    // skeleton, and useRepos stays disabled so no 401-bound request is sent.
-    tokenState.current = { hasToken: false, isLoading: false };
+  it("shows the GitHub App hint and issues no /api/repos request when unconfigured (REEF-244)", async () => {
+    // No deployment App -> the selector renders the deployment-state hint
+    // instead of a forever skeleton, and useRepos stays disabled so no
+    // unavailable-bound request is sent.
+    appState.current = { isAvailable: false, isLoading: false, appId: null };
     render(wrap(<RepoPickerSection />));
 
     expect(
@@ -190,7 +179,7 @@ describe("RepoPickerSection", () => {
     await waitFor(() =>
       expect(mockApiFetch).toHaveBeenCalledWith("/api/config?vault=reef-acme"),
     );
-    // ...but /api/repos is does not hit.
+    // ...but /api/repos is not hit.
     expect(
       mockApiFetch.mock.calls.some(([url]) =>
         String(url).startsWith("/api/repos"),
@@ -198,10 +187,9 @@ describe("RepoPickerSection", () => {
     ).toBe(false);
   });
 
-  it("lists repos without a browser token when the server GitHub App is available (REEF-239)", async () => {
-    // No browser PAT, but the deployment-managed App can serve the list: the
-    // selector loads available repos and shows no connect-GitHub hint.
-    tokenState.current = { hasToken: false, isLoading: false };
+  it("lists repos when the server GitHub App is available (REEF-244)", async () => {
+    // The deployment-managed App serves the list: the selector loads available
+    // repos and shows no GitHub-unavailable hint.
     appState.current = { isAvailable: true, isLoading: false, appId: "123456" };
     mockApiFetch.mockImplementation(async (url) => {
       const u = String(url);
@@ -238,16 +226,5 @@ describe("RepoPickerSection", () => {
         ),
       ).toBe(true),
     );
-  });
-
-  it("links the connect-GitHub hint to the Preferences tab (REEF-236)", async () => {
-    // The token lives on the Preferences tab; the dead-end string is now a link
-    // so the user can actually get there.
-    tokenState.current = { hasToken: false, isLoading: false };
-    render(wrap(<RepoPickerSection />));
-
-    const error = await screen.findByTestId("monitored-repos-load-error");
-    const link = within(error).getByRole("link", { name: "Preferences tab" });
-    expect(link).toHaveAttribute("href", "/settings/preferences");
   });
 });

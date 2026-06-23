@@ -71,7 +71,7 @@ function makeRequest(
 ): Request {
   const headers: Record<string, string> = {};
   if (options.auth !== null)
-    headers.authorization = options.auth ?? "Bearer ghp_token";
+    headers.authorization = options.auth ?? "Bearer ignored";
   if (options.vault !== null)
     headers[VAULT_HEADER.toLowerCase()] = options.vault ?? "reef-acme";
   if (options.cookie !== null)
@@ -119,8 +119,8 @@ describe("POST /api/chat", () => {
     });
   });
 
-  describe("credential headers", () => {
-    it("continues AKB-only when Authorization (GitHub) header is missing", async () => {
+  describe("GitHub grounding availability", () => {
+    it("continues AKB-only when the GitHub App is not configured", async () => {
       const res = await POST(makeRequest({ auth: null }));
       expect(res.status).toBe(200);
       expect(await res.text()).toBe("ok");
@@ -129,10 +129,7 @@ describe("POST /api/chat", () => {
       expect(args.githubAdapter).toBeUndefined();
     });
 
-    it("continues AKB-only when Authorization (GitHub) header is malformed", async () => {
-      // A malformed PAT degrades to AKB-only grounding rather than 401 — the
-      // server App is the credential of record now, and a stale browser token
-      // must not block the AI request (REEF-243).
+    it("ignores browser Authorization while GitHub grounding is unavailable", async () => {
       const res = await POST(makeRequest({ auth: "Token ghp_token" }));
       expect(res.status).toBe(200);
       expect(await res.text()).toBe("ok");
@@ -188,13 +185,13 @@ describe("POST /api/chat", () => {
     });
   });
 
-  describe("happy path — workspace chat task delegation", () => {
+  describe("happy path - workspace chat task delegation", () => {
     it("uses chat.workspace registry config for route telemetry", async () => {
       await POST(makeRequest());
       expect(mockGetWorkspaceChatTaskConfig).toHaveBeenCalledTimes(1);
     });
 
-    it("creates per-request adapters (github + akb + llm) inside the handler", async () => {
+    it("creates per-request akb and llm adapters inside the handler", async () => {
       await POST(makeRequest());
       expect(mockCreateLlmAdapter).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -203,9 +200,7 @@ describe("POST /api/chat", () => {
           model: "gpt-4o-mini",
         }),
       );
-      expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
-        token: "ghp_token",
-      });
+      expect(mockCreateGitHubAdapter).not.toHaveBeenCalled();
       expect(mockCreateAkbAdapter).toHaveBeenCalledTimes(1);
     });
 
@@ -220,7 +215,7 @@ describe("POST /api/chat", () => {
         }),
       );
       expect(args.adapter).toBeDefined();
-      expect(args.githubAdapter).toBeDefined();
+      expect(args.githubAdapter).toBeUndefined();
       expect(args.llmAdapter).toBeDefined();
       expect(typeof args.onStepFinish).toBe("function");
       expect(typeof args.onFinish).toBe("function");

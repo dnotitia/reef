@@ -11,8 +11,8 @@ import { resolveServerGitHubAppConfig } from "@/lib/github/serverAppConfig";
  * the App id — not the credential itself.
  *
  * The repo picker gates on this so a workspace whose deployment has a GitHub
- * App configured can list and save monitored repos without each browser user
- * supplying a personal access token (REEF-239 AC1/AC2).
+ * App configured can list and save monitored repos through the server-managed
+ * installation token (REEF-239 / REEF-244).
  */
 export function GET(): Response {
   return Response.json(resolveServerGitHubAppConfig().status);

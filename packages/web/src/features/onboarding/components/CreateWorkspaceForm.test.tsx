@@ -1,4 +1,4 @@
-// fake-indexeddb/auto — the form sets the new vault active via Dexie.
+// fake-indexeddb/auto - the form sets the new vault active via Dexie.
 import "fake-indexeddb/auto";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -26,15 +26,18 @@ vi.mock("@/lib/apiClient", async () => {
   return { ...actual, apiFetch: vi.fn() };
 });
 
-// Deployment-managed GitHub App availability (REEF-239) — keep the monitored-
+// Deployment-managed GitHub App availability (REEF-244) - keep the monitored-
 // repo selector's credential gate deterministic instead of hitting the network
 // for /api/github/status during the onboarding form tests.
-vi.mock("@/features/settings/hooks/useGithubAppAvailable", () => ({
-  useGithubAppAvailable: () => ({
+const appState = vi.hoisted(() => ({
+  current: {
     isAvailable: false,
     isLoading: false,
-    appId: null,
-  }),
+    appId: null as string | null,
+  },
+}));
+vi.mock("@/features/settings/hooks/useGithubAppAvailable", () => ({
+  useGithubAppAvailable: () => appState.current,
 }));
 
 import { apiFetch } from "@/lib/apiClient";
@@ -91,6 +94,7 @@ describe("CreateWorkspaceForm", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     mockPush.mockReset();
+    appState.current = { isAvailable: false, isLoading: false, appId: null };
     window.localStorage.clear();
     await db.config.clear();
   });
@@ -195,7 +199,7 @@ describe("CreateWorkspaceForm", () => {
     const description = screen.getByTestId(
       "create-workspace-description-input",
     );
-    const reposLabel = screen.getByText(/monitored repositories/i);
+    const reposLabel = screen.getAllByText(/monitored repositories/i)[0];
     expect(
       description.compareDocumentPosition(trigger) &
         Node.DOCUMENT_POSITION_FOLLOWING,

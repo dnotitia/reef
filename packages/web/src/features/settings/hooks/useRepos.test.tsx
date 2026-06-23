@@ -15,23 +15,10 @@ vi.mock("@/lib/apiClient", async () => {
   };
 });
 
-// useRepos gates its fetch on a configured GitHub token (REEF-159). Default to
-// "token present" so the existing fetch/ETag tests exercise the enabled path;
-// individual tests flip `tokenState.current` to assert the gated behavior.
-const tokenState = vi.hoisted(() => ({
-  current: { hasToken: true, isLoading: false },
-}));
-vi.mock("@/features/settings/hooks/useHasGithubToken", () => ({
-  useHasGithubToken: () => tokenState.current,
-}));
-
-// useRepos also enables when the deployment-managed GitHub App is available
-// (REEF-239), so a workspace can list repos without a browser PAT. Default to
-// "not available" so the existing token-gated tests are unchanged; the
-// App-available test flips it on.
+// useRepos gates its fetch on the deployment-managed GitHub App (REEF-244).
 const appState = vi.hoisted(() => ({
   current: {
-    isAvailable: false,
+    isAvailable: true,
     isLoading: false,
     appId: null as string | null,
   },
@@ -44,7 +31,8 @@ import { apiFetch } from "@/lib/apiClient";
 import { useRepos } from "./useRepos";
 
 const mockApiFetch = vi.mocked(apiFetch);
-const ETAG_KEY = "reef:etag:repos:list:v2";
+const ETAG_KEY = "reef:etag:repos:installation:list:v3";
+const LEGACY_PAT_ETAG_KEY = "reef:etag:repos:list:v2";
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -60,8 +48,7 @@ function createWrapper() {
 beforeEach(() => {
   vi.clearAllMocks();
   window.localStorage.clear();
-  tokenState.current = { hasToken: true, isLoading: false };
-  appState.current = { isAvailable: false, isLoading: false, appId: null };
+  appState.current = { isAvailable: true, isLoading: false, appId: "123456" };
 });
 
 afterEach(() => {
@@ -115,6 +102,29 @@ describe("useRepos", () => {
       (first?.[1] as { headers?: Headers })?.headers?.get("If-None-Match"),
     ).toBe('W/"prev"');
     expect(window.localStorage.getItem(ETAG_KEY)).toBe('W/"next"');
+  });
+
+  it("ignores the legacy PAT-backed ETag key after the App migration (REEF-244)", async () => {
+    window.localStorage.setItem(LEGACY_PAT_ETAG_KEY, 'W/"pat-era"');
+    const repos = [{ full_name: "octo/reef", id: 1001 }];
+    mockApiFetch.mockResolvedValue(
+      new Response(JSON.stringify({ repos }), {
+        status: 200,
+        headers: { etag: 'W/"app-era"' },
+      }),
+    );
+
+    const { result } = renderHook(() => useRepos(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual(repos);
+    expect(mockApiFetch).toHaveBeenCalledWith("/api/repos");
+    expect(window.localStorage.getItem(LEGACY_PAT_ETAG_KEY)).toBe(
+      'W/"pat-era"',
+    );
+    expect(window.localStorage.getItem(ETAG_KEY)).toBe('W/"app-era"');
   });
 
   it("recovers when 304 arrives without any cached body (ETag survived a cache wipe)", async () => {
@@ -186,10 +196,10 @@ describe("useRepos", () => {
     expect(result.current.error?.message).toContain("Authentication required");
   });
 
-  it("does not fetch at all when no GitHub token is configured (REEF-159)", async () => {
-    // The unconfigured-workspace case: the query is disabled, so no /api/repos
-    // request is ever issued and no 401 can accumulate.
-    tokenState.current = { hasToken: false, isLoading: false };
+  it("does not fetch at all when the GitHub App is unavailable (REEF-244)", async () => {
+    // The deployment-unconfigured case: the query is disabled, so no /api/repos
+    // request is ever issued and no 503 can accumulate.
+    appState.current = { isAvailable: false, isLoading: false, appId: null };
     mockApiFetch.mockResolvedValue(
       new Response(JSON.stringify({ repos: [] }), { status: 200 }),
     );
@@ -204,10 +214,9 @@ describe("useRepos", () => {
     expect(result.current.fetchStatus).toBe("idle");
   });
 
-  it("fetches without a browser PAT when the server GitHub App is available (REEF-239)", async () => {
-    // No browser token, but the deployment-managed App can serve the list — the
-    // query is enabled and the route returns the installation repos.
-    tokenState.current = { hasToken: false, isLoading: false };
+  it("fetches when the server GitHub App is available (REEF-244)", async () => {
+    // The deployment-managed App serves the installation repos; the browser
+    // never supplies a GitHub token.
     appState.current = { isAvailable: true, isLoading: false, appId: "123456" };
     const repos = [{ full_name: "octo/reef", id: 1001 }];
     mockApiFetch.mockResolvedValue(
@@ -223,8 +232,7 @@ describe("useRepos", () => {
     expect(mockApiFetch).toHaveBeenCalledWith("/api/repos");
   });
 
-  it("does not retry an invalid-token 401 — one request, not three (REEF-159)", async () => {
-    tokenState.current = { hasToken: true, isLoading: false };
+  it("does not retry an auth 401 — one request, not three (REEF-159)", async () => {
     mockApiFetch.mockResolvedValue(
       new Response(JSON.stringify({ error: "Authentication required." }), {
         status: 401,

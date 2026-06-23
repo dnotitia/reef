@@ -1,5 +1,4 @@
 import { useGithubAppAvailable } from "@/features/settings/hooks/useGithubAppAvailable";
-import { useHasGithubToken } from "@/features/settings/hooks/useHasGithubToken";
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -16,8 +15,9 @@ export interface RepoListItem {
 /**
  * TanStack Query hook to list the authenticated user's GitHub repositories.
  *
- * Query key: ['repos', 'list'] — flat resource, no per-user fan-out needed
- *   because the token already scopes the response.
+ * Query key: ['repos', 'installation', 'list'] — versioned to the
+ *   deployment-managed GitHub App source so older browser-PAT snapshots under
+ *   ['repos', 'list'] cannot be rehydrated after REEF-244.
  *
  * staleTime: 5 minutes. The user's repo set rarely changes within a session,
  *   so this trades freshness for instant revisit. Use queryClient.invalidate
@@ -29,13 +29,17 @@ export interface RepoListItem {
  * previously-cached data (via queryClient.getQueryData) so the queryFn does
  * not throw and TanStack Query continues to report success.
  *
- * Token attached per-call inside apiFetch — does not module-scoped.
+ * GitHub credentials are deployment-managed. The browser never provides a
+ * GitHub token.
  */
-const REPOS_KEY = ["repos", "list"] as const;
+const REPOS_KEY = ["repos", "installation", "list"] as const;
 // v2: response shape changed from string[] to {full_name, id}[] when github_id
 // was added to monitored_repos. Bump the storage key so older clients drop
 // their string cache instead of trying to interpret it as objects.
-const REPOS_ETAG_STORAGE_KEY = "reef:etag:repos:list:v2";
+// v3 (REEF-244): credential source changed from browser PAT to the deployment
+// GitHub App installation, so old PAT-scoped ETags must not gate the first
+// post-upgrade repo-list fetch.
+const REPOS_ETAG_STORAGE_KEY = "reef:etag:repos:installation:list:v3";
 
 function readStoredEtag(): string | null {
   if (typeof window === "undefined") return null;
@@ -59,21 +63,11 @@ function writeStoredEtag(etag: string | null): void {
 
 export function useRepos() {
   const queryClient = useQueryClient();
-  // Gate the GitHub API call on an available credential. Without this the query
-  // runs on every mount (no `enabled`) and, with staleTime expiry + window-focus
-  // refetch, spams 401s in an unconfigured workspace (REEF-159). `retry: false`
-  // keeps an invalid/expired token to a single 401 instead of three.
-  //
-  // Two credential sources can serve the list (REEF-239): a per-user browser
-  // PAT, or a deployment-managed GitHub App the server uses to mint an
-  // installation token. Either one enables the call — a workspace whose
-  // deployment has a GitHub App configured lists repos without a browser PAT.
-  const { hasToken } = useHasGithubToken();
   const { isAvailable: appAvailable } = useGithubAppAvailable();
 
   return useQuery({
     queryKey: REPOS_KEY,
-    enabled: hasToken || appAvailable,
+    enabled: appAvailable,
     retry: false,
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<RepoListItem[]> => {
