@@ -48,6 +48,32 @@ function captureOutput() {
   };
 }
 
+/** Build an unsigned (akb re-validates) session JWT carrying the given claims. */
+function makeSessionJwt(claims: Record<string, unknown>): string {
+  const header = Buffer.from(
+    JSON.stringify({ alg: "HS256", typ: "JWT" }),
+  ).toString("base64url");
+  const body = Buffer.from(JSON.stringify(claims)).toString("base64url");
+  return `${header}.${body}.sig-not-verified`;
+}
+
+/** The single parsed pino `request` line from captured stdout, if any. */
+function requestLine(sink: string[]): Record<string, unknown> | undefined {
+  return sink
+    .join("")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => {
+      try {
+        return JSON.parse(l) as Record<string, unknown>;
+      } catch {
+        return null;
+      }
+    })
+    .find((o): o is Record<string, unknown> => o?.msg === "request");
+}
+
 describe("proxy — credential redaction", () => {
   let capture: ReturnType<typeof captureOutput>;
 
@@ -228,6 +254,47 @@ describe("proxy — credential redaction", () => {
 
     expect(line).toBeTruthy();
     expect(line).not.toHaveProperty("query");
+  });
+
+  it("stamps the request line with the akb actor from the session cookie (REEF-271)", () => {
+    const jwt = makeSessionJwt({ sub: "alice-actor" });
+    const request = new NextRequest("https://reef.test/api/issues", {
+      method: "GET",
+      headers: { cookie: `__reef_session=${jwt}` },
+    });
+
+    proxy(request);
+
+    const line = requestLine(capture.sink);
+    expect(line?.actor).toBe("alice-actor");
+  });
+
+  it("omits the actor field when there is no session cookie", () => {
+    const request = new NextRequest("https://reef.test/api/issues", {
+      method: "GET",
+    });
+
+    proxy(request);
+
+    expect(requestLine(capture.sink)).not.toHaveProperty("actor");
+  });
+
+  it("logs only the decoded actor, never the raw session token", () => {
+    // The JWT is itself a credential; only the `sub` identity claim should reach
+    // the log. A canary rides the (unused) signature segment to prove the raw
+    // token never leaks while the actor is decoded.
+    const jwt = `${makeSessionJwt({ sub: "alice-actor" })}.sig_token_canary_zzz`;
+    const request = new NextRequest("https://reef.test/api/issues", {
+      method: "GET",
+      headers: { cookie: `__reef_session=${jwt}` },
+    });
+
+    proxy(request);
+
+    const combined = capture.sink.join("");
+    expect(combined).toContain('"actor":"alice-actor"');
+    expect(combined).not.toContain("sig_token_canary_zzz");
+    expect(combined).not.toContain(jwt);
   });
 
   it("matcher targets all non-static routes for CSP nonce coverage", async () => {

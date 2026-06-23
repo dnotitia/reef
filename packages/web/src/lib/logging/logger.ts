@@ -67,11 +67,41 @@ function redactHeaderObject(headers: unknown): unknown {
   return result;
 }
 
-/** Project any thrown value to a safe, credential-free log shape. */
+/**
+ * Project any thrown value to a safe, credential-free log shape.
+ *
+ * Beyond the `type`/`message`/`stack` allowlist, this preserves the upstream
+ * HTTP status and detail that reef's typed API errors otherwise hide behind a
+ * generic PM-facing message (REEF-271). `AkbApiError` / `GitHubApiError` /
+ * `LlmError` stash the real cause on `.status` and `.context.message` (e.g. an
+ * akb FastAPI `detail` or a provider error body), so a `logger.error({ err })`
+ * previously read only "Authentication failed." with no way to tell a 502 from
+ * a 404. Only the numeric `status` and the upstream string are copied — never
+ * the nested `request`/`response` objects, which carry live credentials the
+ * allowlist deliberately drops (Octokit `RequestError.request.headers`).
+ */
 function serializeError(err: unknown): Record<string, unknown> {
-  return err instanceof Error
-    ? { type: err.name, message: err.message, stack: err.stack }
-    : { message: String(err) };
+  if (!(err instanceof Error)) {
+    return { message: String(err) };
+  }
+  const out: Record<string, unknown> = {
+    type: err.name,
+    message: err.message,
+    stack: err.stack,
+  };
+  const status = (err as { status?: unknown }).status;
+  if (typeof status === "number") {
+    out.status = status;
+  }
+  const context = (err as { context?: unknown }).context;
+  if (
+    context !== null &&
+    typeof context === "object" &&
+    typeof (context as { message?: unknown }).message === "string"
+  ) {
+    out.upstream = (context as { message: string }).message;
+  }
+  return out;
 }
 
 /**

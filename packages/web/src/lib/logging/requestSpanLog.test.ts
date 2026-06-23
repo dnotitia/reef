@@ -6,6 +6,7 @@ import {
   RequestLogSpanProcessor,
   requestCompletionFromSpan,
   responseLoggingEnabled,
+  slowRequestThresholdMs,
 } from "./requestSpanLog";
 
 /**
@@ -191,5 +192,38 @@ describe("RequestLogSpanProcessor", () => {
     await processor.logResponse(fakeSpan({ route: "/board" })); // page navigation
 
     expect(responseLine()).toBeUndefined();
+  });
+
+  it("promotes a slow request to WARN (REEF-271)", async () => {
+    // 2s ≥ the 1000ms default threshold → level 40 (warn), not 30 (info).
+    await new RequestLogSpanProcessor().logResponse(
+      fakeSpan({
+        route: "/api/activity/scan",
+        method: "POST",
+        status: 200,
+        duration: [2, 0],
+      }),
+    );
+
+    const line = responseLine();
+    expect(line?.duration_ms).toBe(2000);
+    expect(line?.level).toBe(40);
+  });
+});
+
+describe("slowRequestThresholdMs — env-tunable slow-request promotion", () => {
+  it("defaults to 1000ms when unset", () => {
+    expect(slowRequestThresholdMs(undefined)).toBe(1000);
+  });
+
+  it("reads a positive numeric REEF_SLOW_REQUEST_MS", () => {
+    expect(slowRequestThresholdMs("250")).toBe(250);
+  });
+
+  it("falls back to the default for non-positive or non-numeric values", () => {
+    expect(slowRequestThresholdMs("0")).toBe(1000);
+    expect(slowRequestThresholdMs("-5")).toBe(1000);
+    expect(slowRequestThresholdMs("fast")).toBe(1000);
+    expect(slowRequestThresholdMs("")).toBe(1000);
   });
 });

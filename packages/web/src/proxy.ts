@@ -6,8 +6,10 @@
 // `request` line below is emitted by pino from the proxy with trace correlation.
 // Edge gating still applies to instrumentation-node.ts (sdk-node), which
 // `instrumentation.ts` loads behind `NEXT_RUNTIME === "nodejs"`.
+import { SESSION_COOKIE, decodeSessionActor } from "@/lib/akb/sessionCookie";
 import { logger } from "@/lib/logging/logger";
 import { httpRequestDurationSeconds, httpRequestsTotal } from "@/lib/metrics";
+import { trace } from "@opentelemetry/api";
 import { type NextRequest, NextResponse } from "next/server";
 
 /**
@@ -71,12 +73,28 @@ export function proxy(request: NextRequest) {
   // value logging is opt-in. The redaction contract is enforced by proxy.test.ts,
   // which fails if a fake-token substring ever reaches stdout.
   if (path.startsWith("/api/")) {
+    // Stamp the request line with the akb actor (username) so an error can be
+    // tied to a user — "which user hit this 500?" (REEF-271). The value is
+    // decoded read-only from the `__reef_session` cookie's JWT claims and is
+    // resilient: a missing/malformed/expired cookie yields no actor instead of
+    // throwing. ONLY the public identity claim is read — the token/PAT is never
+    // touched, so the credential-redaction invariant above is preserved.
+    const sessionJwt = request.cookies.get(SESSION_COOKIE)?.value;
+    const actor = sessionJwt ? decodeSessionActor(sessionJwt) : null;
+    // In prod the same identity rides the active request span as the OTel
+    // `enduser.id` attribute. The proxy runs inside the request's trace context
+    // (the `request` line below is already trace-correlated), so the active span
+    // is the Next.js root request span; the optional chain is a no-op if absent.
+    if (actor) {
+      trace.getActiveSpan()?.setAttribute("enduser.id", actor);
+    }
     logger.info(
       {
         method: request.method,
         path,
         query: sanitizeQueryForLog(request.nextUrl.search),
         route_class: routeClass,
+        ...(actor ? { actor } : {}),
       },
       "request",
     );

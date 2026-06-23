@@ -24,6 +24,7 @@ import {
   buildSsoSessionCookie,
   buildSsoStartCookie,
   decodeJwtExp,
+  decodeSessionActor,
   isJwtExpired,
   parseCookieHeader,
 } from "./sessionCookie";
@@ -183,6 +184,46 @@ describe("decodeJwtExp", () => {
   it("returns null when payload is not valid JSON", () => {
     const jwt = `header.${Buffer.from("not-json").toString("base64url")}.sig`;
     expect(decodeJwtExp(jwt)).toBeNull();
+  });
+});
+
+describe("decodeSessionActor", () => {
+  it("prefers username over preferred_username and sub", () => {
+    const jwt = makeJwt({
+      username: "alice",
+      preferred_username: "alice-kc",
+      sub: "uuid-1",
+    });
+    expect(decodeSessionActor(jwt)).toBe("alice");
+  });
+
+  it("falls back to preferred_username, then sub", () => {
+    expect(
+      decodeSessionActor(makeJwt({ preferred_username: "bob-kc", sub: "x" })),
+    ).toBe("bob-kc");
+    expect(decodeSessionActor(makeJwt({ sub: "uuid-2" }))).toBe("uuid-2");
+  });
+
+  it("trims whitespace and skips empty/non-string claims", () => {
+    expect(decodeSessionActor(makeJwt({ username: "  carol  " }))).toBe(
+      "carol",
+    );
+    expect(decodeSessionActor(makeJwt({ username: "", sub: "uuid-3" }))).toBe(
+      "uuid-3",
+    );
+    expect(decodeSessionActor(makeJwt({ username: 42, sub: "uuid-4" }))).toBe(
+      "uuid-4",
+    );
+  });
+
+  it("returns null when no actor claim is present or the token is malformed", () => {
+    expect(decodeSessionActor(makeJwt({ exp: 123 }))).toBeNull();
+    expect(decodeSessionActor("only-one-segment")).toBeNull();
+    expect(
+      decodeSessionActor(
+        `h.${Buffer.from("not-json").toString("base64url")}.s`,
+      ),
+    ).toBeNull();
   });
 });
 

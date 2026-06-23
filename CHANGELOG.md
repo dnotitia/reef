@@ -122,6 +122,16 @@ explicitly in the entries below.
   collapses its detail body, not just the small chevron — the chevron and name
   are one larger, keyboard-accessible toggle instead of two controls for the same
   panel. Rows with no detail stay plain text with no toggle (REEF-264).
+- **Backend logs explain what the server is doing.** Operators get more from
+  stdout: every `/api/*` request line now names the acting user (the akb
+  username, never a token), activity scans log step-by-step checkpoints and a
+  one-line completion summary instead of going silent for minutes, LLM calls
+  record token usage, akb/GitHub upstream calls record their HTTP status, latency,
+  and remaining GitHub rate limit, slow requests are flagged at WARN, and API
+  errors keep their upstream status/detail. In a deployment that exports traces
+  this rich data lives on the traces; set `REEF_RESPONSE_LOG=1` (and optionally
+  `REEF_SLOW_REQUEST_MS`) to also surface it on stdout where there is no trace
+  backend. Credentials are never logged (REEF-271).
 
 ### Fixed
 

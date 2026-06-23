@@ -1,10 +1,53 @@
 import type { Octokit } from "@octokit/rest";
-import { SpanStatusCode, trace } from "@opentelemetry/api";
+import { type Span, SpanStatusCode, trace } from "@opentelemetry/api";
 import { NotFoundError } from "../../errors";
-import { normalizeRepositoryReadError } from "./errors";
+import { observe } from "../../observability";
+import { normalizeRepositoryReadError, readHeader } from "./errors";
 
 const tracer = trace.getTracer("@reef/core");
 const MAX_REPO_LABELS = 200;
+
+/**
+ * Warn once the REST budget falls to/below this remaining count (GitHub's REST
+ * budget is 5000 requests/hour for a token). Recorded as span attributes always,
+ * with a dev warn line near exhaustion (REEF-271).
+ */
+const GITHUB_REST_RATELIMIT_WARN_REMAINING = 500;
+
+/**
+ * Record the REST `x-ratelimit-remaining` / `x-ratelimit-reset` response headers
+ * on the span (always, when present) and emit one dev warn line near exhaustion.
+ * Octokit lowercases response header keys; `readHeader` is case-insensitive, and
+ * a hermetic/test response without the headers is a no-op (guarded on a finite
+ * parsed number).
+ */
+function recordRestRateLimit(span: Span, repo: string, headers: unknown): void {
+  const remainingRaw = readHeader(headers, "x-ratelimit-remaining");
+  if (remainingRaw === null) {
+    return;
+  }
+  const remaining = Number(remainingRaw);
+  if (!Number.isFinite(remaining)) {
+    return;
+  }
+  span.setAttribute("github.ratelimit.remaining", remaining);
+  const reset = readHeader(headers, "x-ratelimit-reset");
+  if (reset !== null) {
+    span.setAttribute("github.ratelimit.reset", reset);
+  }
+  if (remaining <= GITHUB_REST_RATELIMIT_WARN_REMAINING) {
+    observe(
+      undefined,
+      {
+        repo,
+        github_ratelimit_remaining: remaining,
+        github_ratelimit_reset: reset ?? undefined,
+      },
+      "github rate limit low",
+      { level: "warn" },
+    );
+  }
+}
 
 export interface SearchGitHubCodeParams {
   query: string;
@@ -48,6 +91,7 @@ export async function searchCode({
         snippet: item.text_matches?.[0]?.fragment ?? "",
       }));
       span.setAttribute("results.count", results.length);
+      recordRestRateLimit(span, `${owner}/${repo}`, response.headers);
       span.setStatus({ code: SpanStatusCode.OK });
       return results;
     } catch (err) {
@@ -103,6 +147,7 @@ export async function readFile({
         "base64",
       ).toString("utf8");
 
+      recordRestRateLimit(span, `${owner}/${repo}`, response.headers);
       span.setStatus({ code: SpanStatusCode.OK });
       return { content, path: rawData.path };
     } catch (err) {

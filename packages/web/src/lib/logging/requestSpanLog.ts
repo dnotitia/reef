@@ -104,6 +104,25 @@ export function responseLoggingEnabled(
   return nodeEnv === "development" || process.env.REEF_RESPONSE_LOG === "1";
 }
 
+/** Default slow-request threshold (ms) when `REEF_SLOW_REQUEST_MS` is unset. */
+const DEFAULT_SLOW_REQUEST_MS = 1000;
+
+/**
+ * The duration (ms) at/above which a `response` line is promoted from INFO to
+ * WARN (REEF-271). Without this a 2.3-minute request and a 64ms request share
+ * one level, so a slow path does not stand out in the log stream. Configurable
+ * via `REEF_SLOW_REQUEST_MS`; a missing / non-positive / non-numeric value falls
+ * back to the default. Pure and exported for unit testing.
+ */
+export function slowRequestThresholdMs(
+  raw: string | undefined = process.env.REEF_SLOW_REQUEST_MS,
+): number {
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_SLOW_REQUEST_MS;
+}
+
 /**
  * SpanProcessor that emits one completion line per `/api/*` request span. The
  * other lifecycle hooks are no-ops — export/batching is owned by the separate
@@ -134,7 +153,13 @@ export class RequestLogSpanProcessor implements tracing.SpanProcessor {
     }
     try {
       const { logger } = await import("@/lib/logging/logger");
-      logger.info(record, "response");
+      // Promote a slow request to WARN so it stands out from the steady stream
+      // of fast 2xx access lines (REEF-271).
+      if (record.duration_ms >= slowRequestThresholdMs()) {
+        logger.warn(record, "response");
+      } else {
+        logger.info(record, "response");
+      }
     } catch {
       // Logging should not surface an error from a span processor.
     }

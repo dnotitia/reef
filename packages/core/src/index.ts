@@ -381,3 +381,12 @@ export {
   type ProjectStateSystemPromptOptions,
   type ProjectStateUserPromptRequest,
 } from "./agents/prompts";
+export {
+  observe,
+  setCoreLogger,
+  getCoreLogger,
+  type CoreLogger,
+  type ObserveFields,
+  type ObserveLevel,
+  type ObserveOptions,
+} from "./observability";

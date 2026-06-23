@@ -1,3 +1,4 @@
+import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { z } from "zod";
 import {
   AkbApiError,
@@ -7,6 +8,8 @@ import {
   SchemaValidationError,
 } from "../../../errors";
 import { stripTrailingSlashes } from "../../url";
+
+const tracer = trace.getTracer("@reef/core");
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -162,41 +165,67 @@ function translateAkbHttpError(
 function makeRequest(baseUrl: string, jwt: string): AkbRequest {
   return async (path, init = {}) => {
     const url = buildUrl(baseUrl, path, init.query);
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${jwt}`,
-      Accept: "application/json",
-    };
-    let body: string | undefined;
-    if (init.body !== undefined) {
-      headers["Content-Type"] = "application/json";
-      body = JSON.stringify(init.body);
-    }
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        method: init.method ?? "GET",
-        headers,
-        body,
-      });
-    } catch (err) {
-      throw new AkbApiError({
-        status: 0,
-        message: err instanceof Error ? err.message : "Network error",
-      });
-    }
-    if (response.status === 204) {
-      return null;
-    }
-    if (!response.ok) {
-      const message = await extractErrorMessage(response);
-      translateAkbHttpError(response.status, message, init.resource);
-    }
-    try {
-      return await response.json();
-    } catch {
-      // 2xx with empty body — treat as null payload.
-      return null;
-    }
+    const method = init.method ?? "GET";
+    // Wrap the raw akb fetch in its own span so the upstream HTTP status and
+    // duration are first-class trace data (REEF-271). The per-operation `akb.*`
+    // work-unit spans record vault/resource but not the HTTP status — on an
+    // upstream error they surface only the translated ReefError, so a slow or
+    // failing akb backend was invisible at the HTTP level. The Bearer token is a
+    // header and never reaches the URL, so the recorded path carries no secret.
+    return tracer.startActiveSpan("akb.http.request", async (span) => {
+      span.setAttribute("http.method", method);
+      span.setAttribute("akb.http.path", path);
+      const startMs = Date.now();
+      try {
+        const headers: Record<string, string> = {
+          Authorization: `Bearer ${jwt}`,
+          Accept: "application/json",
+        };
+        let body: string | undefined;
+        if (init.body !== undefined) {
+          headers["Content-Type"] = "application/json";
+          body = JSON.stringify(init.body);
+        }
+        let response: Response;
+        try {
+          response = await fetch(url, { method, headers, body });
+        } catch (err) {
+          const error = err instanceof Error ? err : new Error("Network error");
+          span.recordException(error);
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: error.message,
+          });
+          throw new AkbApiError({ status: 0, message: error.message });
+        }
+        span.setAttribute("http.status_code", response.status);
+        // Only a 5xx (or the network failure above) marks the span errored;
+        // a 4xx such as an expected 404 keeps the status_code attribute without
+        // flagging the span, so not-found probes stay clean in the trace.
+        if (response.status >= 500) {
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: `akb upstream ${response.status}`,
+          });
+        }
+        if (response.status === 204) {
+          return null;
+        }
+        if (!response.ok) {
+          const message = await extractErrorMessage(response);
+          translateAkbHttpError(response.status, message, init.resource);
+        }
+        try {
+          return await response.json();
+        } catch {
+          // 2xx with empty body — treat as null payload.
+          return null;
+        }
+      } finally {
+        span.setAttribute("akb.http.duration_ms", Date.now() - startMs);
+        span.end();
+      }
+    });
   };
 }
 

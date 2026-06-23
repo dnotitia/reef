@@ -235,4 +235,46 @@ describe("buildLoggerOptions — dev pretty vs prod JSON, redaction, error allow
     });
     expect(JSON.stringify(out)).not.toContain("secret-token");
   });
+
+  it("preserves the upstream status + detail of a typed reef API error (REEF-271)", async () => {
+    const { AkbApiError } = await import("@reef/core");
+    const errSerializer = (
+      buildLoggerOptions("production").serializers as {
+        err: (e: unknown) => Record<string, unknown>;
+      }
+    ).err;
+
+    const out = errSerializer(
+      new AkbApiError({ status: 502, message: "upstream akb exploded" }),
+    );
+
+    // `message` stays the generic PM-facing copy; the real cause is recovered
+    // from `status` + `upstream` so a 502 is distinguishable from a 404.
+    expect(out).toMatchObject({
+      type: "AkbApiError",
+      status: 502,
+      upstream: "upstream akb exploded",
+    });
+  });
+
+  it("surfaces a numeric status but never the nested request/response credentials", () => {
+    const errSerializer = (
+      buildLoggerOptions("production").serializers as {
+        err: (e: unknown) => Record<string, unknown>;
+      }
+    ).err;
+
+    const out = errSerializer(
+      Object.assign(new Error("Bad credentials"), {
+        status: 401,
+        request: { headers: { authorization: `token ${FAKE_GITHUB_TOKEN}` } },
+        response: { data: { token: FAKE_GITHUB_TOKEN } },
+      }),
+    );
+
+    expect(out.status).toBe(401);
+    expect(JSON.stringify(out)).not.toContain(FAKE_GITHUB_TOKEN);
+    expect(out).not.toHaveProperty("request");
+    expect(out).not.toHaveProperty("response");
+  });
 });
