@@ -68,17 +68,27 @@ function redactHeaderObject(headers: unknown): unknown {
 }
 
 /**
+ * Typed errors whose `context.message` is bounded backend text safe to surface
+ * as the `upstream` log field: `AkbApiError` carries akb's FastAPI `detail`,
+ * `GitHubApiError` the Octokit error message. This is an ALLOWLIST, not a
+ * denylist — `LlmError.context.message` is free-form provider output (it folds
+ * in response bodies via `extractErrorDetail`, which can carry credential-bearing
+ * diagnostics), and any future typed error is untrusted by default, so neither
+ * reaches stdout. (REEF-271 / the REEF-235 credential-safe boundary.)
+ */
+const UPSTREAM_DETAIL_SAFE_ERRORS = new Set(["AkbApiError", "GitHubApiError"]);
+
+/**
  * Project any thrown value to a safe, credential-free log shape.
  *
  * Beyond the `type`/`message`/`stack` allowlist, this preserves the upstream
- * HTTP status and detail that reef's typed API errors otherwise hide behind a
- * generic PM-facing message (REEF-271). `AkbApiError` / `GitHubApiError` /
- * `LlmError` stash the real cause on `.status` and `.context.message` (e.g. an
- * akb FastAPI `detail` or a provider error body), so a `logger.error({ err })`
- * previously read only "Authentication failed." with no way to tell a 502 from
- * a 404. Only the numeric `status` and the upstream string are copied — never
- * the nested `request`/`response` objects, which carry live credentials the
- * allowlist deliberately drops (Octokit `RequestError.request.headers`).
+ * HTTP `status` that reef's typed API errors otherwise hide behind a generic
+ * PM-facing message (REEF-271): `logger.error({ err })` on an `AkbApiError`
+ * previously read only "Authentication failed." with no way to tell a 502 from a
+ * 404. The numeric `status` is always safe to copy. The free-form upstream
+ * detail is copied only for {@link UPSTREAM_DETAIL_SAFE_ERRORS}; the nested
+ * `request`/`response` objects (Octokit `RequestError.request.headers`) and any
+ * untrusted typed error's detail are never copied.
  */
 function serializeError(err: unknown): Record<string, unknown> {
   if (!(err instanceof Error)) {
@@ -93,13 +103,15 @@ function serializeError(err: unknown): Record<string, unknown> {
   if (typeof status === "number") {
     out.status = status;
   }
-  const context = (err as { context?: unknown }).context;
-  if (
-    context !== null &&
-    typeof context === "object" &&
-    typeof (context as { message?: unknown }).message === "string"
-  ) {
-    out.upstream = (context as { message: string }).message;
+  if (UPSTREAM_DETAIL_SAFE_ERRORS.has(err.name)) {
+    const context = (err as { context?: unknown }).context;
+    if (
+      context !== null &&
+      typeof context === "object" &&
+      typeof (context as { message?: unknown }).message === "string"
+    ) {
+      out.upstream = (context as { message: string }).message;
+    }
   }
   return out;
 }

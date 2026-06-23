@@ -257,6 +257,27 @@ describe("buildLoggerOptions — dev pretty vs prod JSON, redaction, error allow
     });
   });
 
+  it("never logs the free-form upstream detail of an LlmError (provider body may carry credentials)", async () => {
+    const { LlmError } = await import("@reef/core");
+    const errSerializer = (
+      buildLoggerOptions("production").serializers as {
+        err: (e: unknown) => Record<string, unknown>;
+      }
+    ).err;
+
+    // LlmError.context.message is built from provider error chains and can fold
+    // in response bodies; it must NOT reach stdout via `upstream`.
+    const out = errSerializer(
+      new LlmError({
+        message: 'provider 401: {"key":"LLM_KEY_CANARY_abc invalid"}',
+      }),
+    );
+
+    expect(out.type).toBe("LlmError");
+    expect(out).not.toHaveProperty("upstream");
+    expect(JSON.stringify(out)).not.toContain("LLM_KEY_CANARY_abc");
+  });
+
   it("surfaces a numeric status but never the nested request/response credentials", () => {
     const errSerializer = (
       buildLoggerOptions("production").serializers as {
