@@ -35,6 +35,9 @@ test.describe("Hermetic dashboard surfaces and global dialogs", () => {
     await openExistingWorkspace(page);
     await page.goto("/issues?view=list");
 
+    await expect(
+      page.locator('[data-testid="issue-list-row"]').first(),
+    ).toBeVisible();
     await page.keyboard.press("Control+K");
     await expect(
       page.locator('[data-testid="global-search-input"]'),

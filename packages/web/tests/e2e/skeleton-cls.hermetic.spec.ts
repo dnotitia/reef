@@ -76,7 +76,9 @@ test.describe("Route skeleton layout stability (REEF-258)", () => {
   }) => {
     await openExistingWorkspace(page);
     await page.goto("/settings/workspace");
-    await expect(page.getByTestId("settings-group-workspace")).toBeVisible();
+    await expect(
+      page.getByRole("main").getByTestId("settings-group-workspace"),
+    ).toBeVisible();
     expect(await cumulativeLayoutShift(page)).toBeLessThan(CLS_BUDGET);
   });
 
