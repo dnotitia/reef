@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -43,7 +43,11 @@ vi.mock("@/features/preferences/hooks/useTheme", () => ({
   useTheme: () => ({ theme: themeState.value, setTheme: setThemeMock }),
 }));
 
-import { SidebarAccount, deriveIdentity } from "./SidebarAccount";
+import {
+  SidebarAccount,
+  deriveIdentity,
+  releaseNotesUrl,
+} from "./SidebarAccount";
 
 function wrap(ui: ReactNode) {
   const queryClient = new QueryClient({
@@ -116,6 +120,20 @@ describe("deriveIdentity", () => {
     // The username becomes the name, so repeating it below would be noise; the
     // row falls back to a single line in this rare (display_name-less) case.
     expect(deriveIdentity({ username: "alice" }).secondary).toBeNull();
+  });
+});
+
+describe("releaseNotesUrl", () => {
+  it("builds the release tag URL from a bare app version", () => {
+    expect(releaseNotesUrl("0.4.0")).toBe(
+      "https://github.com/dnotitia/reef/releases/tag/v0.4.0",
+    );
+  });
+
+  it("does not duplicate a leading v in the app version", () => {
+    expect(releaseNotesUrl("v0.4.0")).toBe(
+      "https://github.com/dnotitia/reef/releases/tag/v0.4.0",
+    );
   });
 });
 
@@ -212,14 +230,40 @@ describe("SidebarAccount", () => {
     expect(router.push).not.toHaveBeenCalled();
   });
 
-  it("opens the keyboard shortcuts dialog from the menu", async () => {
+  it("opens the keyboard shortcuts dialog from the footer utility button", async () => {
     const user = userEvent.setup();
     render(wrap(<SidebarAccount appVersion="0.4.0" collapsed={false} />));
 
-    await user.click(screen.getByRole("button", { name: "Account menu" }));
-    await user.click(screen.getByTestId("account-shortcuts"));
+    expect(screen.queryByTestId("account-shortcuts")).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Keyboard shortcuts" }),
+    );
 
     expect(toggleShortcuts).toHaveBeenCalledOnce();
+  });
+
+  it("keeps shortcuts separate from the expanded account row (REEF-170)", () => {
+    render(wrap(<SidebarAccount appVersion="0.4.0" collapsed={false} />));
+
+    const actions = screen.getByTestId("sidebar-account-actions");
+    const shortcut = within(actions).getByTestId("sidebar-shortcuts-trigger");
+    const accountMenu = screen.getByRole("button", { name: "Account menu" });
+
+    expect(actions).toHaveClass("flex-col");
+    expect(shortcut).toHaveClass("w-full", "justify-between");
+    expect(shortcut.compareDocumentPosition(accountMenu)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it("stacks shortcuts above account controls when collapsed (REEF-170)", () => {
+    render(wrap(<SidebarAccount appVersion="0.4.0" collapsed={true} />));
+
+    const actions = screen.getByTestId("sidebar-account-actions");
+    expect(actions).toHaveClass("flex-col");
+    expect(
+      within(actions).getByTestId("sidebar-shortcuts-trigger"),
+    ).toHaveClass("h-9", "w-9");
   });
 
   it("switches theme from the menu and keeps the menu open (REEF-095)", async () => {
@@ -242,12 +286,22 @@ describe("SidebarAccount", () => {
     expect(screen.getByTestId("account-version")).toBeInTheDocument();
   });
 
-  it("shows the app version inside the menu", async () => {
+  it("links What's new to the app version's GitHub release tag", async () => {
     const user = userEvent.setup();
     render(wrap(<SidebarAccount appVersion="0.4.0" collapsed={false} />));
 
     await user.click(screen.getByRole("button", { name: "Account menu" }));
-    expect(screen.getByTestId("account-version")).toHaveTextContent("v0.4.0");
+    const releaseLink = screen.getByTestId("account-release-notes");
+    expect(releaseLink).toHaveAttribute(
+      "href",
+      "https://github.com/dnotitia/reef/releases/tag/v0.4.0",
+    );
+    expect(releaseLink).toHaveAttribute("target", "_blank");
+    expect(releaseLink).toHaveAttribute("rel", "noreferrer");
+    expect(releaseLink).toHaveTextContent("What's new");
+    expect(
+      within(releaseLink).getByTestId("account-version"),
+    ).toHaveTextContent("v0.4.0");
   });
 
   it("surfaces an error message when sign-out fails, keeping the menu open", async () => {

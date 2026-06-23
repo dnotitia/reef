@@ -1,5 +1,7 @@
+import { useShortcutsStore } from "@/features/shortcuts/stores/useShortcutsStore";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -106,6 +108,7 @@ describe("DashboardShell", () => {
       sidebarCollapsed: false,
       newIssueDialogOpen: false,
     });
+    useShortcutsStore.setState({ isOpen: false });
   });
 
   it("renders the expanded sidebar brand lockup", () => {
@@ -275,6 +278,23 @@ describe("DashboardShell", () => {
     expect(screen.getByTestId("sidebar-nav-icon-activity")).toBeVisible();
     expect(screen.getByTestId("sidebar-nav-icon-reports")).toBeVisible();
     expect(screen.getByTestId("sidebar-nav-icon-settings")).toBeVisible();
+  });
+
+  it("opens keyboard shortcuts from the sidebar footer utility button (REEF-170)", async () => {
+    const user = userEvent.setup();
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Keyboard shortcuts" }),
+    );
+
+    expect(screen.getByTestId("keyboard-shortcuts-dialog")).toBeVisible();
   });
 
   it("keeps the collapsed Activity unread dot visible", () => {
