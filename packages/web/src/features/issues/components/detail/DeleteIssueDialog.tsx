@@ -1,3 +1,5 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -7,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useTranslations } from "next-intl";
 
 export function DeleteIssueDialog({
   open,
@@ -23,6 +26,8 @@ export function DeleteIssueDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const t = useTranslations("issues.detailDialogs");
+  const c = useTranslations("common");
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -30,12 +35,15 @@ export function DeleteIssueDialog({
         className="max-w-md gap-4"
       >
         <DialogHeader>
-          <DialogTitle>Delete {issueId}?</DialogTitle>
+          <DialogTitle>
+            {c("delete")} {issueId}?
+          </DialogTitle>
           <DialogDescription>
-            The issue file will be removed from the workspace vault. akb's git
-            history is preserved, but the issue won't be reachable from reef.
-            Use <span className="font-medium">Archive</span> instead if you
-            might restore it later.
+            {t.rich("deleteDescription", {
+              archive: (chunks) => (
+                <span className="font-medium">{chunks}</span>
+              ),
+            })}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -46,7 +54,7 @@ export function DeleteIssueDialog({
             disabled={isDeleting}
             data-testid="issue-delete-cancel"
           >
-            Cancel
+            {c("cancel")}
           </Button>
           <Button
             variant="destructive"
@@ -55,7 +63,7 @@ export function DeleteIssueDialog({
             disabled={isDeleting}
             data-testid="issue-delete-confirm-btn"
           >
-            {isDeleting ? "Deleting…" : "Delete"}
+            {isDeleting ? t("deleting") : c("delete")}
           </Button>
         </DialogFooter>
       </DialogContent>

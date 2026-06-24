@@ -3,6 +3,7 @@
 import { PersonAvatar } from "@/components/fields/PersonAvatar";
 import { Button } from "@/components/ui/button";
 import { CornerDownLeftIcon, Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { type KeyboardEvent, useState } from "react";
 
 interface CommentComposerProps {
@@ -26,6 +27,7 @@ export function CommentComposer({
 }: CommentComposerProps) {
   const [value, setValue] = useState("");
   const trimmed = value.trim();
+  const t = useTranslations("issues.comments");
 
   async function submit() {
     if (!trimmed || pending) return;
@@ -67,8 +69,8 @@ export function CommentComposer({
           onKeyDown={onKeyDown}
           rows={2}
           disabled={pending}
-          aria-label="Add a comment"
-          placeholder="Add a comment…"
+          aria-label={t("addLabel")}
+          placeholder={t("placeholder")}
           className="max-h-60 w-full resize-none bg-transparent px-3 py-2 text-[13px] text-foreground outline-none [field-sizing:content] placeholder:text-muted-foreground disabled:opacity-50"
         />
         <div className="flex items-center justify-end gap-2 px-2 pb-2">
@@ -89,7 +91,7 @@ export function CommentComposer({
             ) : (
               <CornerDownLeftIcon className="size-3.5" aria-hidden="true" />
             )}
-            Comment
+            {t("submit")}
           </Button>
         </div>
       </div>

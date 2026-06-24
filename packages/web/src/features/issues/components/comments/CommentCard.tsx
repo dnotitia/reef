@@ -6,7 +6,7 @@ import { formatAbsoluteTime, formatRelativeTime } from "@/lib/relativeTime";
 import { cn } from "@/lib/utils";
 import type { Comment } from "@reef/core";
 import { Pencil } from "lucide-react";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { type KeyboardEvent, useState } from "react";
 import { Streamdown } from "streamdown";
 
@@ -38,6 +38,8 @@ export function CommentCard({
   const [saving, setSaving] = useState(false);
   const [nowMs] = useState(() => Date.now());
   const locale = useLocale();
+  const t = useTranslations("issues.comments");
+  const c = useTranslations("common");
 
   function startEditing() {
     setDraft(comment.body);
@@ -97,7 +99,7 @@ export function CommentCard({
               title={formatAbsoluteTime(comment.edited_at, locale)}
               className="shrink-0 text-[11px] text-muted-foreground"
             >
-              · edited
+              · {t("edited")}
             </span>
           ) : null}
           {isOwn && !editing ? (
@@ -105,7 +107,7 @@ export function CommentCard({
               type="button"
               variant="ghost"
               size="icon-sm"
-              aria-label="Edit comment"
+              aria-label={t("editComment")}
               onClick={startEditing}
               className="ml-auto text-muted-foreground opacity-0 motion-safe:transition-opacity motion-safe:duration-150 motion-safe:ease-[var(--ease-signature)] hover:text-foreground focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
             >
@@ -122,7 +124,7 @@ export function CommentCard({
               onKeyDown={onKeyDown}
               rows={3}
               disabled={saving}
-              aria-label="Comment draft"
+              aria-label={t("draftLabel")}
               // biome-ignore lint/a11y/noAutofocus: focusing the field is the point of entering edit mode.
               autoFocus
               className="max-h-60 w-full resize-none bg-transparent px-3 py-2 text-[13px] text-foreground outline-none [field-sizing:content] disabled:opacity-50"
@@ -135,7 +137,7 @@ export function CommentCard({
                 onClick={() => setEditing(false)}
                 disabled={saving}
               >
-                Cancel
+                {c("cancel")}
               </Button>
               <Button
                 type="button"
@@ -144,7 +146,7 @@ export function CommentCard({
                 onClick={() => void save()}
                 disabled={saving || !draft.trim()}
               >
-                Save
+                {c("save")}
               </Button>
             </div>
           </div>

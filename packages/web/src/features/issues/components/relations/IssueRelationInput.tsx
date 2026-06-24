@@ -15,6 +15,7 @@ import { scrollOptionIntoView } from "@/lib/scrollOptionIntoView";
 import { cn } from "@/lib/utils";
 import type { IssueListItem } from "@reef/core";
 import { Check, Plus, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import {
   type KeyboardEvent,
@@ -105,6 +106,7 @@ export function IssueRelationInput({
   hideLabel = false,
   navigable = false,
 }: IssueRelationInputProps) {
+  const t = useTranslations("issues.relations");
   const listId = useId();
   const isSingle = maxItems === 1;
   const selectedSingleValue = value[0] ?? "";
@@ -462,7 +464,7 @@ export function IssueRelationInput({
             onKeyDown={handleKeyDown}
             // Short enough to stay readable in a narrow column while still
             // showing the example id shape and ending with an ellipsis.
-            placeholder="REEF-001 or title…"
+            placeholder={t("idPlaceholder")}
             disabled={disabled}
             autoComplete="off"
             spellCheck={false}
@@ -474,10 +476,10 @@ export function IssueRelationInput({
             size="icon"
             aria-label={
               isClearMode
-                ? `Clear ${label}`
+                ? t("clearField", { field: label })
                 : isSingle
-                  ? `Set ${label}`
-                  : `Add ${label}`
+                  ? t("setField", { field: label })
+                  : t("addField", { field: label })
             }
             // Clear is consistently available; Set/Add require something committable
             // (a match or a valid free-text id) so a non-id string does not be saved.
@@ -530,7 +532,7 @@ export function IssueRelationInput({
             >
               {options.length === 0 ? (
                 <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-                  No matching issues.
+                  {t("noMatches")}
                 </p>
               ) : (
                 <div
@@ -567,7 +569,12 @@ export function IssueRelationInput({
                             aria-hidden="true"
                           />
                           <span>
-                            Use <span className="font-mono">{option.id}</span>
+                            {t.rich("useOption", {
+                              id: option.id,
+                              mono: (chunks) => (
+                                <span className="font-mono">{chunks}</span>
+                              ),
+                            })}
                           </span>
                         </button>
                       );
@@ -609,7 +616,7 @@ export function IssueRelationInput({
       {/* Screen-reader hint for the live result count. */}
       <span aria-live="polite" className="sr-only">
         {showPanel && trimmed.length > 0
-          ? `${matches.length} matching ${matches.length === 1 ? "issue" : "issues"}`
+          ? t("matchCount", { count: matches.length })
           : ""}
       </span>
 
@@ -643,7 +650,7 @@ export function IssueRelationInput({
                 </span>
                 <button
                   type="button"
-                  aria-label={`Remove ${relationId}`}
+                  aria-label={t("removeRelation", { id: relationId })}
                   disabled={disabled}
                   onClick={() => removeRelation(relationId)}
                   // Match the navigable chip's remove button (REEF-268): a
@@ -694,6 +701,7 @@ function NavigableRelationChips({
   disabled: boolean;
   onRemove: (id: string) => void;
 }) {
+  const t = useTranslations("issues.relations");
   const getDrillProps = useIssueDrill(currentIssueId ?? "");
   return (
     <ul className="flex flex-col gap-0.5">
@@ -727,7 +735,7 @@ function NavigableRelationChips({
             </Link>
             <button
               type="button"
-              aria-label={`Remove ${relationId}`}
+              aria-label={t("removeRelation", { id: relationId })}
               disabled={disabled}
               onClick={() => onRemove(relationId)}
               className="shrink-0 touch-manipulation rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50"

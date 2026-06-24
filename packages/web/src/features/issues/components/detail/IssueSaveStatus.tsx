@@ -1,4 +1,5 @@
 import { AlertTriangle, Check } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { memo } from "react";
 
 /**
@@ -22,13 +23,15 @@ function IssueSaveStatusComponent({
   status: SaveStatus;
   onRetry: () => void;
 }) {
+  const t = useTranslations("issues.detail");
+  const c = useTranslations("common");
   if (status === "saving") {
     return (
       <span
         data-testid="issue-save-status"
         className="text-[11px] text-muted-foreground"
       >
-        Saving…
+        {t("saving")}
       </span>
     );
   }
@@ -39,7 +42,7 @@ function IssueSaveStatusComponent({
         className="inline-flex items-center gap-1 text-[11px] text-muted-foreground"
       >
         <Check className="h-3 w-3" aria-hidden="true" />
-        Saved
+        {t("saved")}
       </span>
     );
   }
@@ -50,7 +53,7 @@ function IssueSaveStatusComponent({
         className="inline-flex items-center gap-1 text-[11px] text-destructive"
       >
         <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-        Not saved
+        {t("notSaved")}
         <span aria-hidden="true">·</span>
         <button
           type="button"
@@ -58,7 +61,7 @@ function IssueSaveStatusComponent({
           onClick={onRetry}
           className="rounded-sm font-medium underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40"
         >
-          Retry
+          {c("retry")}
         </button>
       </span>
     );

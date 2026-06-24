@@ -1,13 +1,23 @@
 {
-  "app/(dashboard)/activity/loading.tsx": ["Activity"],
-  "app/(dashboard)/activity/page.tsx": ["Activity"],
+  "app/(dashboard)/activity/loading.tsx": [
+    "Activity"
+  ],
+  "app/(dashboard)/activity/page.tsx": [
+    "Activity"
+  ],
   "app/(dashboard)/settings/deployment/page.tsx": [
     "AI Configuration",
     "Deployment"
   ],
-  "app/(dashboard)/settings/layout.tsx": ["Settings"],
-  "app/(dashboard)/settings/loading.tsx": ["Loading…"],
-  "app/(dashboard)/settings/preferences/page.tsx": ["Your preferences"],
+  "app/(dashboard)/settings/layout.tsx": [
+    "Settings"
+  ],
+  "app/(dashboard)/settings/loading.tsx": [
+    "Loading…"
+  ],
+  "app/(dashboard)/settings/preferences/page.tsx": [
+    "Your preferences"
+  ],
   "app/(dashboard)/settings/workspace/members/page.tsx": [
     "Members",
     "Select a workspace to manage its members."
@@ -25,13 +35,19 @@
     "Sign in with your workspace account to continue.",
     "reef"
   ],
-  "app/login/sso-complete/SsoCompleteClient.tsx": ["Finishing sign-in..."],
+  "app/login/sso-complete/SsoCompleteClient.tsx": [
+    "Finishing sign-in..."
+  ],
   "app/onboarding/page.tsx": [
     "Create a project workspace or pick an existing one.",
     "reef"
   ],
-  "components/AppShellSkeleton.tsx": ["Loading…"],
-  "components/AssigneeCombobox.tsx": ["Vault member"],
+  "components/AppShellSkeleton.tsx": [
+    "Loading…"
+  ],
+  "components/AssigneeCombobox.tsx": [
+    "Vault member"
+  ],
   "components/MarkdownEditorImpl.tsx": [
     "Apply",
     "Bold",
@@ -54,12 +70,28 @@
     "Toggle source mode",
     "https://example.com"
   ],
-  "components/ai-elements/prompt-input/PromptInput.tsx": ["Upload files"],
-  "components/fields/BlockedBadge.tsx": ["Blocked", "Blocked ("],
-  "components/fields/Calendar.tsx": ["Next month", "Previous month"],
-  "components/fields/DatePickerField.tsx": ["Clear", "Today", "YYYY-MM-DD"],
-  "components/fields/IssueOptionRow.tsx": ["Selected"],
-  "components/fields/fieldValue.tsx": ["None"],
+  "components/ai-elements/prompt-input/PromptInput.tsx": [
+    "Upload files"
+  ],
+  "components/fields/BlockedBadge.tsx": [
+    "Blocked",
+    "Blocked ("
+  ],
+  "components/fields/Calendar.tsx": [
+    "Next month",
+    "Previous month"
+  ],
+  "components/fields/DatePickerField.tsx": [
+    "Clear",
+    "Today",
+    "YYYY-MM-DD"
+  ],
+  "components/fields/IssueOptionRow.tsx": [
+    "Selected"
+  ],
+  "components/fields/fieldValue.tsx": [
+    "None"
+  ],
   "features/activity/components/ActivityDraftCard.tsx": [
     "Type",
     "due",
@@ -95,7 +127,9 @@
     "Scan for new activity",
     "Scanned"
   ],
-  "features/activity/components/StatusChangeCard.tsx": ["Target status"],
+  "features/activity/components/StatusChangeCard.tsx": [
+    "Target status"
+  ],
   "features/activity/components/UnreviewedSummaryCard.tsx": [
     "Got it",
     "Since you were last here:"
@@ -109,7 +143,10 @@
     "Close (Esc)",
     "New chat"
   ],
-  "features/ai/components/AskAiFab.tsx": ["Ask AI (", "Unread messages"],
+  "features/ai/components/AskAiFab.tsx": [
+    "Ask AI (",
+    "Unread messages"
+  ],
   "features/ai/components/EnrichmentReviewBar.tsx": [
     "Analyzing fields…",
     "Apply all (",
@@ -120,9 +157,16 @@
     "applied",
     "to review ·"
   ],
-  "features/ai/review/InlineFieldSuggestionPresenter.tsx": ["Review"],
-  "features/ai/review/RunStatusIndicator.tsx": ["artifact"],
-  "features/auth/components/LoginForm.tsx": ["Password", "Username"],
+  "features/ai/review/InlineFieldSuggestionPresenter.tsx": [
+    "Review"
+  ],
+  "features/ai/review/RunStatusIndicator.tsx": [
+    "artifact"
+  ],
+  "features/auth/components/LoginForm.tsx": [
+    "Password",
+    "Username"
+  ],
   "features/auth/components/LoginPanel.tsx": [
     "Continue with workspace SSO",
     "Use your akb-platform identity.",
@@ -143,229 +187,6 @@
     "Search workspaces…",
     "Workspace"
   ],
-  "features/board/components/KanbanBoard.tsx": [
-    "Failed to load some issues. Displaying cached data if available."
-  ],
-  "features/issues/components/activity/ActivityEventRow.tsx": [
-    ", removed",
-    "added",
-    "closed this issue",
-    "created this issue",
-    "from",
-    "moved",
-    "set to",
-    "to"
-  ],
-  "features/issues/components/activity/ActivityTimeline.tsx": ["Activity"],
-  "features/issues/components/activity/CollapsedEventsRow.tsx": [
-    "status changes"
-  ],
-  "features/issues/components/backlog/BacklogView.tsx": [
-    "Clear filters",
-    "Failed to load the backlog.",
-    "Go to the board →",
-    "New issues arrive in Todo. Send work you want to defer here to keep it out of the active board.",
-    "No backlog issues match your filters.",
-    "Retry",
-    "Unranked · newest first",
-    "Your backlog is empty"
-  ],
-  "features/issues/components/comments/CommentCard.tsx": [
-    "Cancel",
-    "Comment draft",
-    "Edit comment",
-    "Save",
-    "· edited"
-  ],
-  "features/issues/components/comments/CommentComposer.tsx": [
-    "Add a comment",
-    "Add a comment…",
-    "Comment"
-  ],
-  "features/issues/components/create/DiscardDraftDialog.tsx": [
-    "Discard Draft",
-    "Discard Draft?",
-    "Keep Editing",
-    "This issue hasn't been created yet. Your draft will be lost."
-  ],
-  "features/issues/components/create/EnrichmentReferencesPanel.tsx": [
-    "Linked documents"
-  ],
-  "features/issues/components/create/IssueDraftFields.tsx": [
-    "Add a label and press Enter…",
-    "Description",
-    "Details",
-    "No priority",
-    "Title"
-  ],
-  "features/issues/components/create/NewIssueDialog.tsx": [
-    "Cancel",
-    "Configure a workspace in Settings first.",
-    "Create an issue in",
-    "New Issue",
-    "Type"
-  ],
-  "features/issues/components/create/NewIssueRailFields.tsx": [
-    "Due date",
-    "No severity",
-    "People",
-    "Planning",
-    "Start date"
-  ],
-  "features/issues/components/create/NewIssueRelationFields.tsx": [
-    "Blocks",
-    "Depends on",
-    "Related",
-    "Relationships"
-  ],
-  "features/issues/components/create/TemplatePicker.tsx": ["Template"],
-  "features/issues/components/detail/CloseIssueDialog.tsx": [
-    "Close",
-    "Close issue",
-    "Close reason",
-    "Keep open",
-    "Pick the reason that should be recorded with this closure."
-  ],
-  "features/issues/components/detail/DeleteIssueDialog.tsx": [
-    "Archive",
-    "Cancel",
-    "Delete",
-    "The issue file will be removed from the workspace vault. akb's git history is preserved, but the issue won't be reachable from reef. Use",
-    "instead if you might restore it later."
-  ],
-  "features/issues/components/detail/IssueChromeActions.tsx": [
-    "Archive",
-    "Delete…",
-    "Edited",
-    "Issue actions",
-    "Unarchive"
-  ],
-  "features/issues/components/detail/IssueChromeIdentity.tsx": [
-    "Archived",
-    "Go to parent issue",
-    "Issue hierarchy"
-  ],
-  "features/issues/components/detail/IssueDetail.tsx": ["Retry"],
-  "features/issues/components/detail/IssueDetailCloseButton.tsx": ["Close"],
-  "features/issues/components/detail/IssueDetailMain.tsx": [
-    "Blocks",
-    "Depends on",
-    "Describe the issue…",
-    "Description",
-    "Issue title",
-    "Related",
-    "Relationships",
-    "Title"
-  ],
-  "features/issues/components/detail/IssueDetailSheet.tsx": [
-    "Configure a workspace in",
-    "Edit details for issue",
-    "Issue",
-    "Settings",
-    "to view this issue."
-  ],
-  "features/issues/components/detail/IssueDetailSidebar.tsx": [
-    "Add a label and press Enter…",
-    "Details",
-    "No priority",
-    "No severity",
-    "People",
-    "Planning",
-    "Points",
-    "Start"
-  ],
-  "features/issues/components/detail/IssueDetailSkeleton.tsx": ["Loading…"],
-  "features/issues/components/detail/IssueDrillBackBar.tsx": [
-    "Back navigation"
-  ],
-  "features/issues/components/detail/IssueSaveStatus.tsx": [
-    "Not saved",
-    "Retry",
-    "Saved",
-    "Saving…"
-  ],
-  "features/issues/components/filters/DisplayOptionsFilter.tsx": [
-    "Display",
-    "Show archived",
-    "Show completed"
-  ],
-  "features/issues/components/filters/FilterBar.tsx": [
-    "Clear filters",
-    "filter"
-  ],
-  "features/issues/components/filters/IssuesWorkspace.tsx": ["Issues"],
-  "features/issues/components/filters/IssuesWorkspaceSkeleton.tsx": [
-    "Issues",
-    "Loading…"
-  ],
-  "features/issues/components/filters/SearchBar.tsx": [
-    "Clear search",
-    "Search issues..."
-  ],
-  "features/issues/components/filters/SortControl.tsx": [
-    "Drag",
-    "Reset to default",
-    "Sort by",
-    "Toggle sort direction"
-  ],
-  "features/issues/components/filters/ViewSwitcher.tsx": ["Issue view"],
-  "features/issues/components/list/IssueListTable.tsx": [
-    "Clear filters",
-    "Failed to load issues.",
-    "No issues match your filters.",
-    "Retry",
-    "Your workspace is empty. What are you working on?"
-  ],
-  "features/issues/components/refs/DocumentRefCard.tsx": [
-    "Open document in akb",
-    "Remove linked document"
-  ],
-  "features/issues/components/refs/DocumentRefInput.tsx": [
-    "Search documents to link",
-    "Search is unavailable right now.",
-    "Type to search documents…"
-  ],
-  "features/issues/components/refs/IssueLinkedDocuments.tsx": [
-    "Couldn't link that document. Try again.",
-    "Linked documents"
-  ],
-  "features/issues/components/refs/IssueRefsEditor.tsx": [
-    "Activity kind",
-    "Activity reference",
-    "Activity title",
-    "Add activity",
-    "Add reference",
-    "Delivery activity",
-    "Delivery links",
-    "External reference",
-    "External references",
-    "Kind",
-    "Optional URL",
-    "Optional label",
-    "Optional title",
-    "PR number, commit, or branch",
-    "Reference kind",
-    "Remove delivery activity",
-    "Remove external reference",
-    "Title",
-    "URL",
-    "URL or reference",
-    "reference"
-  ],
-  "features/issues/components/refs/ReferenceSuggestionCard.tsx": [
-    "Add",
-    "Dismiss suggested document"
-  ],
-  "features/issues/components/relations/IssueChildren.tsx": [
-    "Sub-issues",
-    "done",
-    "of"
-  ],
-  "features/issues/components/relations/IssueRelationInput.tsx": [
-    "No matching issues.",
-    "REEF-001 or title…",
-    "Use"
-  ],
   "features/my-work/components/MyWorkPage.tsx": [
     "Go to the board →",
     "Issues assigned to you show up here, prioritized for what to do next.",
@@ -377,7 +198,10 @@
     "We couldn't find your session",
     "You're all caught up"
   ],
-  "features/my-work/components/MyWorkPageSkeleton.tsx": ["Loading…", "My Work"],
+  "features/my-work/components/MyWorkPageSkeleton.tsx": [
+    "Loading…",
+    "My Work"
+  ],
   "features/my-work/components/MyWorkQueue.tsx": [
     "Group the queue",
     "What to do next"
@@ -463,7 +287,9 @@
     "Target",
     "yet."
   ],
-  "features/preferences/components/AccountThemeToggle.tsx": ["Theme"],
+  "features/preferences/components/AccountThemeToggle.tsx": [
+    "Theme"
+  ],
   "features/preferences/components/PreferencesSection.tsx": [
     "Appearance",
     "Choose how reef looks in this browser. The selection persists per device."
@@ -586,7 +412,9 @@
     "Hide canceled after N days",
     "Hide completed after N days"
   ],
-  "features/settings/components/SettingsTabs.tsx": ["Settings sections"],
+  "features/settings/components/SettingsTabs.tsx": [
+    "Settings sections"
+  ],
   "features/settings/components/TemplatesSection.tsx": [
     "## Steps to reproduce...",
     "Add a label and press Enter…",
@@ -636,8 +464,12 @@
   "features/settings/components/WorkspaceSubNav.tsx": [
     "Workspace settings sections"
   ],
-  "features/settings/components/members/AddMemberRow.tsx": ["Add a member"],
-  "features/settings/components/members/MemberRow.tsx": ["You"],
+  "features/settings/components/members/AddMemberRow.tsx": [
+    "Add a member"
+  ],
+  "features/settings/components/members/MemberRow.tsx": [
+    "You"
+  ],
   "features/settings/components/members/MembersSection.tsx": [
     "Couldn&apos;t load members:",
     "No members yet."
@@ -652,7 +484,10 @@
     "Keyboard shortcuts",
     "Speed up everyday actions with these shortcuts."
   ],
-  "features/timeline/components/TimelineBar.tsx": ["&gt;", "&lt;"],
+  "features/timeline/components/TimelineBar.tsx": [
+    "&gt;",
+    "&lt;"
+  ],
   "features/timeline/components/TimelineBody.tsx": [
     "Clear filters",
     "Failed to load some issues. Displaying cached data if available.",

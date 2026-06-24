@@ -14,6 +14,7 @@ import { TimelineBody } from "@/features/timeline/components/TimelineBody";
 import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageHeader } from "@/features/ui/components/PageHeader";
 import { STATUS_OPTIONS, WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
+import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 
 /**
@@ -31,6 +32,7 @@ export function IssuesWorkspace() {
   const { vault, isLoading } = useActiveVault();
   const searchParams = useSearchParams();
   const view = parseViewParam(searchParams.get("view"));
+  const nav = useTranslations("nav");
 
   const { skipNextSave } = useIssueUrlSync();
   useIssueFilterPersistence(vault, skipNextSave);
@@ -38,7 +40,7 @@ export function IssuesWorkspace() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <PageHeader
-        title="Issues"
+        title={nav("issues")}
         description={vault || undefined}
         actions={
           <div className="flex items-center gap-2">

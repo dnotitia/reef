@@ -8,19 +8,19 @@ import {
 } from "@/components/segmentedControl";
 import { cn } from "@/lib/utils";
 import { CircleDashed, Columns3, GanttChart, List } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useTransition } from "react";
 import { ISSUE_VIEW_MODES, type IssueViewMode } from "../../lib/viewMode";
 
-const VIEW_META: Record<
-  IssueViewMode,
-  { label: string; icon: typeof Columns3 }
-> = {
-  board: { label: "Board", icon: Columns3 },
-  list: { label: "List", icon: List },
-  timeline: { label: "Timeline", icon: GanttChart },
+// Icons are static; the human-readable labels are resolved per-locale inside the
+// component via `useTranslations` (REEF-298).
+const VIEW_ICONS: Record<IssueViewMode, typeof Columns3> = {
+  board: Columns3,
+  list: List,
+  timeline: GanttChart,
   // The dashed circle echoes the backlog status glyph (REEF-109).
-  backlog: { label: "Backlog", icon: CircleDashed },
+  backlog: CircleDashed,
 };
 
 interface ViewSwitcherProps {
@@ -51,6 +51,13 @@ export function ViewSwitcher({ activeView }: ViewSwitcherProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const t = useTranslations("issues.filters");
+  const viewLabels: Record<IssueViewMode, string> = {
+    board: t("view.board"),
+    list: t("view.list"),
+    timeline: t("view.timeline"),
+    backlog: t("view.backlog"),
+  };
 
   const selectView = useCallback(
     (view: IssueViewMode) => {
@@ -71,7 +78,7 @@ export function ViewSwitcher({ activeView }: ViewSwitcherProps) {
     // biome-ignore lint/a11y/useSemanticElements: a header toggle group is not a form <fieldset>; role="group" + aria-label is the right semantics here.
     <div
       role="group"
-      aria-label="Issue view"
+      aria-label={t("issueView")}
       aria-busy={isPending}
       data-testid="view-switcher"
       className={cn(
@@ -85,7 +92,8 @@ export function ViewSwitcher({ activeView }: ViewSwitcherProps) {
       )}
     >
       {ISSUE_VIEW_MODES.map((view) => {
-        const { label, icon: Icon } = VIEW_META[view];
+        const Icon = VIEW_ICONS[view];
+        const label = viewLabels[view];
         const isActive = view === activeView;
         return (
           <button

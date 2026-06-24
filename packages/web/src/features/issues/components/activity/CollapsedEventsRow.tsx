@@ -3,6 +3,7 @@
 import { useStatusLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import { ChevronRight } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { ActivityEventRow } from "./ActivityEventRow";
 import type { SystemEntry } from "./timelineModel";
@@ -32,6 +33,7 @@ export function CollapsedEventsRow({
   vault: string;
 }) {
   const statusLabels = useStatusLabels();
+  const t = useTranslations("issues.activity");
   const [expanded, setExpanded] = useState(false);
   const from = fromStatus(events[0]);
   const to = toStatus(events[events.length - 1]);
@@ -57,7 +59,7 @@ export function CollapsedEventsRow({
             focus-visible state) so keyboard focus is shown without a full-width
             ring — canonical ring-brand/40, matching the other buttons. */}
         <span className="rounded-full border border-border bg-surface-subtle px-2 py-0.5 text-xs text-muted-foreground transition-colors group-hover/collapse:bg-surface-hover group-focus-visible/collapse:ring-2 group-focus-visible/collapse:ring-brand/40">
-          {events.length} status changes
+          {t("statusChanges", { count: events.length })}
           {!expanded && from && to ? (
             <span className="text-muted-foreground">
               {" "}

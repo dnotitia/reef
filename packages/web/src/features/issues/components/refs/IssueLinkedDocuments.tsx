@@ -4,6 +4,7 @@ import { useAddIssueReference } from "@/features/issues/hooks/mutations/useAddIs
 import { useRemoveIssueReference } from "@/features/issues/hooks/mutations/useRemoveIssueReference";
 import { useIssueReferences } from "@/features/issues/hooks/queries/useIssueReferences";
 import { akbIssueDocumentUri } from "@reef/core";
+import { useTranslations } from "next-intl";
 import { useMemo } from "react";
 import { ISSUE_SECTION_HEADER_CLASS } from "../shared/IssueFormSection";
 import { DocumentRefCard } from "./DocumentRefCard";
@@ -27,6 +28,7 @@ export function IssueLinkedDocuments({
   vault,
   disabled = false,
 }: IssueLinkedDocumentsProps) {
+  const t = useTranslations("issues.refs");
   const { data: references = [] } = useIssueReferences(issueId, vault);
   const addReference = useAddIssueReference();
   const removeReference = useRemoveIssueReference();
@@ -45,7 +47,7 @@ export function IssueLinkedDocuments({
 
   return (
     <section className="flex min-w-0 flex-col gap-2">
-      <h3 className={ISSUE_SECTION_HEADER_CLASS}>Linked documents</h3>
+      <h3 className={ISSUE_SECTION_HEADER_CLASS}>{t("linkedDocuments")}</h3>
 
       {references.length > 0 ? (
         <div className="flex min-w-0 flex-col gap-1.5">
@@ -75,9 +77,7 @@ export function IssueLinkedDocuments({
       />
 
       {addReference.isError ? (
-        <p className="text-xs text-destructive">
-          Couldn't link that document. Try again.
-        </p>
+        <p className="text-xs text-destructive">{t("linkError")}</p>
       ) : null}
     </section>
   );

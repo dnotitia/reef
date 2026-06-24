@@ -8,6 +8,7 @@ import {
 } from "@/lib/akb/documentUri";
 import type { ReferenceSuggestion } from "@reef/core";
 import { Check, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 /**
  * An AI-proposed akb document reference (REEF-083 AC4), rendered as a candidate
@@ -29,6 +30,8 @@ export function ReferenceSuggestionCard({
   onDismiss,
   disabled = false,
 }: ReferenceSuggestionCardProps) {
+  const t = useTranslations("issues.refs");
+  const c = useTranslations("common");
   const title = suggestion.title ?? akbDocumentSlugTitle(suggestion.uri);
   const breadcrumb = akbDocumentBreadcrumb(suggestion.uri);
 
@@ -62,11 +65,11 @@ export function ReferenceSuggestionCard({
           onClick={onAdd}
         >
           <Check className="size-3.5" />
-          Add
+          {c("add")}
         </Button>
         <button
           type="button"
-          aria-label="Dismiss suggested document"
+          aria-label={t("dismissSuggestedDocument")}
           disabled={disabled}
           onClick={onDismiss}
           className="text-muted-foreground hover:text-foreground disabled:opacity-50"

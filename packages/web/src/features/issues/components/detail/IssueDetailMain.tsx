@@ -10,6 +10,7 @@ import type {
   IssueMetadata,
   IssueUpdatePatch,
 } from "@reef/core";
+import { useTranslations } from "next-intl";
 import type { ComponentProps } from "react";
 import { ActivityTimeline } from "../activity/ActivityTimeline";
 import { IssueLinkedDocuments } from "../refs/IssueLinkedDocuments";
@@ -81,6 +82,8 @@ export function IssueDetailMain({
   commit: (patch: IssueUpdatePatch) => void;
 }) {
   const fieldNames = useFieldNameLabels();
+  const t = useTranslations("issues.detail");
+  const s = useTranslations("sections");
   return (
     <main className="flex min-w-0 flex-col gap-4 overflow-x-clip [overflow-clip-margin:3px]">
       {/* overflow-x-clip stops long bodies/refs from widening the column; the
@@ -91,7 +94,7 @@ export function IssueDetailMain({
           className="text-xs font-medium text-muted-foreground"
           htmlFor="issue-title"
         >
-          Title
+          {fieldNames.title}
         </label>
         <Input
           id="issue-title"
@@ -101,7 +104,7 @@ export function IssueDetailMain({
           onKeyDown={(e) => {
             if (e.key === "Enter") e.currentTarget.blur();
           }}
-          placeholder="Issue title"
+          placeholder={t("titlePlaceholder")}
           data-testid="issue-title-input"
         />
       </div>
@@ -109,14 +112,14 @@ export function IssueDetailMain({
       <div className="flex flex-col gap-1">
         {/* biome-ignore lint/a11y/noLabelWithoutControl: MarkdownEditor uses contenteditable, not a native input */}
         <label className="text-xs font-medium text-muted-foreground">
-          Description
+          {fieldNames.description}
         </label>
         <MarkdownEditor
           value={body}
           onChange={setBody}
           onBlur={commitBody}
-          placeholder="Describe the issue…"
-          ariaLabel="Issue description"
+          placeholder={t("descriptionPlaceholder")}
+          ariaLabel={t("descriptionAriaLabel")}
         />
       </div>
 
@@ -126,7 +129,7 @@ export function IssueDetailMain({
         relationGraph={relations}
       />
 
-      <IssueFormSection title="Relationships">
+      <IssueFormSection title={s("relationships")}>
         <div className="grid gap-3 md:grid-cols-2">
           <IssueRelationInput
             id="issue-parent"
@@ -148,7 +151,7 @@ export function IssueDetailMain({
           />
           <IssueRelationInput
             id="issue-depends-on"
-            label="Depends on"
+            label={fieldNames.dependsOn}
             value={dependsOn}
             allIssues={allIssues}
             relationGraph={relations}
@@ -163,7 +166,7 @@ export function IssueDetailMain({
           />
           <IssueRelationInput
             id="issue-blocks"
-            label="Blocks"
+            label={fieldNames.blocks}
             value={blocks}
             allIssues={allIssues}
             relationGraph={relations}
@@ -178,7 +181,7 @@ export function IssueDetailMain({
           />
           <IssueRelationInput
             id="issue-related-to"
-            label="Related"
+            label={fieldNames.related}
             value={relatedTo}
             allIssues={allIssues}
             relationGraph={relations}

@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useTranslations } from "next-intl";
 
 interface DiscardDraftDialogProps {
   open: boolean;
@@ -31,6 +32,7 @@ export function DiscardDraftDialog({
   onConfirm,
   onCancel,
 }: DiscardDraftDialogProps) {
+  const t = useTranslations("issues.create");
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -39,10 +41,8 @@ export function DiscardDraftDialog({
         showCloseButton={false}
       >
         <DialogHeader>
-          <DialogTitle>Discard Draft?</DialogTitle>
-          <DialogDescription>
-            This issue hasn't been created yet. Your draft will be lost.
-          </DialogDescription>
+          <DialogTitle>{t("discardTitle")}</DialogTitle>
+          <DialogDescription>{t("discardDescription")}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button
@@ -51,7 +51,7 @@ export function DiscardDraftDialog({
             onClick={onCancel}
             data-testid="discard-draft-cancel"
           >
-            Keep Editing
+            {t("keepEditing")}
           </Button>
           <Button
             variant="destructive"
@@ -59,7 +59,7 @@ export function DiscardDraftDialog({
             onClick={onConfirm}
             data-testid="discard-draft-confirm-button"
           >
-            Discard Draft
+            {t("discardConfirm")}
           </Button>
         </DialogFooter>
       </DialogContent>

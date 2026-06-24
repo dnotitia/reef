@@ -2,10 +2,12 @@
 
 import { Input } from "@/components/ui/input";
 import { Search, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useIssueStore } from "../../stores/useIssueStore";
 
 export function SearchBar() {
+  const t = useTranslations("issues.filters");
   const setSearchQuery = useIssueStore((state) => state.setSearchQuery);
 
   const [localValue, setLocalValue] = useState(
@@ -54,7 +56,7 @@ export function SearchBar() {
       <Input
         ref={inputRef}
         className="pl-9 pr-8 h-9"
-        placeholder="Search issues..."
+        placeholder={t("searchPlaceholder")}
         value={localValue}
         onChange={(e) => handleChange(e.target.value)}
         onKeyDown={handleKeyDown}
@@ -66,7 +68,7 @@ export function SearchBar() {
           className="absolute right-2 flex items-center justify-center h-5 w-5 rounded text-muted-foreground hover:text-foreground"
           onClick={handleClear}
           data-testid="search-clear-button"
-          aria-label="Clear search"
+          aria-label={t("clearSearch")}
         >
           <X className="h-3.5 w-3.5" />
         </button>

@@ -1,6 +1,7 @@
 import { BoardColumnsSkeleton } from "@/components/BoardColumnsSkeleton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/features/ui/components/PageHeader";
+import { useTranslations } from "next-intl";
 
 /**
  * Placeholder widths (in `w-*` units) for the filter-bar chips, in source order.
@@ -49,12 +50,14 @@ const FILTER_CHIPS = [
  * the list/timeline/backlog frames stay a separate, deferred concern.
  */
 export function IssuesWorkspaceSkeleton() {
+  const nav = useTranslations("nav");
+  const c = useTranslations("common");
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="issues-skeleton">
       {/* screen-reader loading announcement (REEF-281). Sibling to the decorative body
           so it is NOT under aria-hidden; PageHeader's h1 stays a real heading. */}
-      <output className="sr-only">Loading…</output>
-      <PageHeader title="Issues" />
+      <output className="sr-only">{c("loading")}</output>
+      <PageHeader title={nav("issues")} />
       {/* The placeholder body is decorative: aria-hidden keeps assistive tech
           from traversing the empty toolbar/board DOM. The wrapper inherits the
           column's flex sizing so the board still fills the remaining height. */}

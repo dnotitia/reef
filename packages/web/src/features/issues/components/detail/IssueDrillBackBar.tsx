@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowLeft } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 /**
  * Back affordance for the issue detail sheet's drill trail (REEF-270).
@@ -31,19 +32,20 @@ export function IssueDrillBackBar({
   backTo: string;
   onBack: () => void;
 }) {
+  const t = useTranslations("issues.detailDialogs");
   return (
     // `flex items-center` (not the default block) so the button is a flex child
     // with no inline line-box strut — otherwise the block nav's baseline pulls
     // the whole Back cluster a fraction above the flex-centered identity cluster
     // beside it, and the back id / status glyph / current id stop sharing a line
     // (REEF-286). Mirrors the breadcrumb's `<nav className="flex items-center">`.
-    <nav aria-label="Back navigation" className="flex items-center">
+    <nav aria-label={t("backNavigation")} className="flex items-center">
       <button
         type="button"
         data-testid="issue-drill-back"
         data-back-to={backTo}
         onClick={onBack}
-        aria-label={`Back to ${backTo}`}
+        aria-label={t("backTo", { id: backTo })}
         className="-ml-1.5 inline-flex touch-manipulation items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
       >
         <ArrowLeft className="size-3.5 shrink-0" aria-hidden />

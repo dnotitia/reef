@@ -37,7 +37,7 @@ import {
   Type,
   UserRound,
 } from "lucide-react";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { type ReactNode, memo, useState } from "react";
 import type { TimelineSystemEvent } from "./timelineModel";
 
@@ -54,11 +54,19 @@ const PLANNING_FIELD_KIND: Record<PlanningLinkField, PlanningKind> = {
   release: "releases",
 };
 
-/** A `relation_change` dimension → its human verb phrase. */
-const RELATION_LABELS: Record<RelationField, string> = {
-  depends_on: "depends on",
-  blocks: "blocks",
-  related_to: "related to",
+/**
+ * A `relation_change` dimension → its catalog key for the inline verb phrase
+ * ("depends on" / "blocks" / "related to"). The localized word is threaded into
+ * the full-sentence message as a placeholder so each locale owns word order
+ * (REEF-298), rather than gluing a translated fragment into an English frame.
+ */
+const RELATION_WORD_KEY: Record<
+  RelationField,
+  "relation.depends_on" | "relation.blocks" | "relation.related_to"
+> = {
+  depends_on: "relation.depends_on",
+  blocks: "relation.blocks",
+  related_to: "relation.related_to",
 };
 
 /** Resolve a planning id to its human name; null when absent/unresolved. */
@@ -163,30 +171,13 @@ function dateToken(iso: string): ReactNode {
 }
 
 /**
- * Compose a field-change line (REEF-276). With an actor it reads
- * "alice <lead> <rest>"; without one it leads with the capitalized verb phrase
- * ("<Lead> <rest>") — the same actor-optional shape the status/closed rows use.
+ * The active-namespace translator (`issues.activity`). Each event line is a
+ * complete interpolated sentence resolved through `t.rich` so every locale owns
+ * word order (REEF-298): the actor, value labels, and id/login tokens are
+ * threaded in as placeholders, and a `hasActor` select switches between the
+ * actor-led form ("alice moved …") and the system form ("Status moved …").
  */
-function sentence(
-  actor: string | null,
-  lead: string,
-  rest?: ReactNode,
-): ReactNode {
-  const leadNode = actor ? (
-    <>
-      <Actor name={actor} /> {lead}
-    </>
-  ) : (
-    `${lead.charAt(0).toUpperCase()}${lead.slice(1)}`
-  );
-  return rest != null ? (
-    <>
-      {leadNode} {rest}
-    </>
-  ) : (
-    leadNode
-  );
-}
+type ActivityTranslator = ReturnType<typeof useTranslations<"issues.activity">>;
 
 /** The gutter glyph node, by event kind. */
 function glyphFor(event: TimelineSystemEvent): ReactNode {
@@ -257,38 +248,39 @@ function lineFor(
   event: TimelineSystemEvent,
   resolvePlanning: PlanningNameResolver,
   labels: EventLabels,
+  t: ActivityTranslator,
 ): ReactNode {
+  // The actor renders identically on every line — an emphasized, un-translated
+  // login token. next-intl injects rich nodes through self-closing tag functions
+  // (`<actor/>`), not plain values, so build it once as a tag. The `hasActor`
+  // select drops the tag on the subject-led system phrasing (where it is never
+  // invoked), so a null actor safely returns null.
+  const anActor = event.actor;
+  const hasActor = anActor ? "true" : "false";
+  const actor = () => (anActor ? <Actor name={anActor} /> : null);
+
   switch (event.kind) {
     case "created":
-      return event.actor ? (
-        <>
-          <Actor name={event.actor} /> created this issue
-        </>
-      ) : (
-        "Issue created"
-      );
+      return t.rich("created", { hasActor, actor });
     case "status_change":
-      return event.from ? (
-        <>
-          {event.actor ? <Actor name={event.actor} /> : "Status"} moved{" "}
-          {labels.status[event.from]} → {labels.status[event.to]}
-        </>
-      ) : (
-        <>
-          {event.actor ? <Actor name={event.actor} /> : "Status"} set to{" "}
-          {labels.status[event.to]}
-        </>
-      );
+      // `from`/`to` are plain status-label strings here (bare text, no token
+      // span), so they stay value placeholders rather than tags.
+      return event.from
+        ? t.rich("statusMoved", {
+            hasActor,
+            actor,
+            from: labels.status[event.from],
+            to: labels.status[event.to],
+          })
+        : t.rich("statusSet", {
+            hasActor,
+            actor,
+            to: labels.status[event.to],
+          });
     case "closed":
       return (
         <>
-          {event.actor ? (
-            <>
-              <Actor name={event.actor} /> closed this issue
-            </>
-          ) : (
-            "Closed"
-          )}
+          {t.rich("closed", { hasActor, actor })}
           {event.reason ? (
             <span className="text-muted-foreground">
               {" "}
@@ -301,210 +293,230 @@ function lineFor(
       const { ref } = event;
       const label = deliveryLabel(ref);
       // The label ("PR #25", "commit a1b2c3d", "branch …") is a code identifier
-      // — translate="no" keeps it intact; the ref title below stays translatable.
-      const link = ref.url ? (
-        <a
-          href={ref.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          translate="no"
-          className="font-medium text-foreground underline-offset-2 hover:underline"
-        >
-          {label}
-        </a>
-      ) : (
-        <span className="font-medium text-foreground" translate="no">
-          {label}
-        </span>
-      );
-      const title = ref.title ? <span> — {ref.title}</span> : null;
+      // — translate="no" keeps it intact; the ref title stays translatable.
+      const link = () =>
+        ref.url ? (
+          <a
+            href={ref.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            translate="no"
+            className="font-medium text-foreground underline-offset-2 hover:underline"
+          >
+            {label}
+          </a>
+        ) : (
+          <span className="font-medium text-foreground" translate="no">
+            {label}
+          </span>
+        );
+      const title = () => (ref.title ? <span> — {ref.title}</span> : null);
       // Lead with the actor when the ref carries provenance (activity-scan refs
       // record the PR/commit author), matching the other system rows (AC2). A
-      // hand-recorded ref may have no actor — fall back to the bare link.
-      return event.actor ? (
-        <>
-          <Actor name={event.actor} /> added {link}
-          {title}
-        </>
-      ) : (
-        <>
-          {link}
-          {title}
-        </>
-      );
+      // hand-recorded ref may have no actor — the system arm drops the lead.
+      return t.rich("deliveryAdded", { hasActor, actor, link, title });
     }
     case "assignee_change": {
       const { from, to } = event;
       if (from && to)
-        return sentence(
-          event.actor,
-          "reassigned",
-          <>
-            {loginToken(from)} → {loginToken(to)}
-          </>,
-        );
-      if (to) return sentence(event.actor, "assigned this to", loginToken(to));
-      if (from) return sentence(event.actor, "unassigned", loginToken(from));
-      return sentence(event.actor, "changed the assignee");
+        return t.rich("assigneeReassigned", {
+          hasActor,
+          actor,
+          from: () => loginToken(from),
+          to: () => loginToken(to),
+        });
+      if (to)
+        return t.rich("assigneeAssigned", {
+          hasActor,
+          actor,
+          to: () => loginToken(to),
+        });
+      if (from)
+        return t.rich("assigneeUnassigned", {
+          hasActor,
+          actor,
+          from: () => loginToken(from),
+        });
+      return t.rich("assigneeChanged", { hasActor, actor });
     }
     case "priority_change": {
       const { from, to } = event;
+      // `from`/`to` are bare priority-label strings (value placeholders); the
+      // single "set" target keeps its emphasis token, so it is a tag.
       if (from && to)
-        return sentence(
-          event.actor,
-          "changed priority",
-          <>
-            {labels.priority[from]} → {labels.priority[to]}
-          </>,
-        );
+        return t.rich("priorityChanged", {
+          hasActor,
+          actor,
+          from: labels.priority[from],
+          to: labels.priority[to],
+        });
       if (to)
-        return sentence(
-          event.actor,
-          "set priority to",
-          valueToken(labels.priority[to]),
-        );
-      if (from) return sentence(event.actor, "cleared priority");
-      return sentence(event.actor, "changed priority");
+        return t.rich("prioritySet", {
+          hasActor,
+          actor,
+          to: () => valueToken(labels.priority[to]),
+        });
+      if (from) return t.rich("priorityCleared", { hasActor, actor });
+      return t.rich("priorityChangedNoValue", { hasActor, actor });
     }
     case "planning_link": {
       const kind = PLANNING_FIELD_KIND[event.field];
       // Lowercase kind word ("sprint"/"milestone"/"release") names the dimension
-      // in text (a11y), reinforced by the shape glyph. A raw id is not shown —
-      // an unresolved name simply drops the token (AC3).
+      // in text (a11y), reinforced by the shape glyph — a plain string value. A
+      // raw id is not shown; an unresolved name simply drops the token (AC3).
       const word = labels.planningKindSingular[kind].toLowerCase();
       const fromName = resolvePlanning(event.field, event.from);
       const toName = resolvePlanning(event.field, event.to);
       if (event.from == null && event.to != null)
-        return sentence(
-          event.actor,
-          `added to ${word}`,
-          toName ? valueToken(toName) : null,
-        );
+        return toName
+          ? t.rich("planningAddedNamed", {
+              hasActor,
+              actor,
+              word,
+              name: () => valueToken(toName),
+            })
+          : t.rich("planningAdded", { hasActor, actor, word });
       if (event.from != null && event.to == null)
-        return sentence(
-          event.actor,
-          `removed from ${word}`,
-          fromName ? valueToken(fromName) : null,
-        );
-      return sentence(
-        event.actor,
-        `moved ${word}`,
-        <>
-          {fromName ? valueToken(fromName) : null}
-          {fromName && toName ? " → " : null}
-          {toName ? valueToken(toName) : null}
-        </>,
-      );
+        return fromName
+          ? t.rich("planningRemovedNamed", {
+              hasActor,
+              actor,
+              word,
+              name: () => valueToken(fromName),
+            })
+          : t.rich("planningRemoved", { hasActor, actor, word });
+      return t.rich("planningMoved", {
+        hasActor,
+        actor,
+        word,
+        value: () => (
+          <>
+            {fromName ? valueToken(fromName) : null}
+            {fromName && toName ? " → " : null}
+            {toName ? valueToken(toName) : null}
+          </>
+        ),
+      });
     }
     case "title_change":
-      return sentence(
-        event.actor,
-        "changed the title",
-        <>
-          {valueToken(event.from)} → {valueToken(event.to)}
-        </>,
-      );
+      return t.rich("titleChanged", {
+        hasActor,
+        actor,
+        from: () => valueToken(event.from),
+        to: () => valueToken(event.to),
+      });
     case "labels_change": {
       const { added, removed } = event;
       if (added.length && removed.length)
-        return sentence(
-          event.actor,
-          "updated labels",
-          <>
-            added {joinValueTokens(added)}, removed {joinValueTokens(removed)}
-          </>,
-        );
+        return t.rich("labelsUpdated", {
+          hasActor,
+          actor,
+          added: () => joinValueTokens(added),
+          removed: () => joinValueTokens(removed),
+        });
+      // Singular vs plural ("added label" / "added labels") is chosen here so
+      // each message stays a single-level select, matching how the row already
+      // branched on count before localization (REEF-298).
       if (added.length)
-        return sentence(
-          event.actor,
-          added.length > 1 ? "added labels" : "added label",
-          joinValueTokens(added),
-        );
-      return sentence(
-        event.actor,
-        removed.length > 1 ? "removed labels" : "removed label",
-        joinValueTokens(removed),
-      );
+        return added.length > 1
+          ? t.rich("labelsAddedMany", {
+              hasActor,
+              actor,
+              value: () => joinValueTokens(added),
+            })
+          : t.rich("labelsAddedOne", {
+              hasActor,
+              actor,
+              value: () => joinValueTokens(added),
+            });
+      return removed.length > 1
+        ? t.rich("labelsRemovedMany", {
+            hasActor,
+            actor,
+            value: () => joinValueTokens(removed),
+          })
+        : t.rich("labelsRemovedOne", {
+            hasActor,
+            actor,
+            value: () => joinValueTokens(removed),
+          });
     }
     case "due_date_change": {
       const { from, to } = event;
       if (from && to)
-        return sentence(
-          event.actor,
-          "changed the due date",
-          <>
-            {dateToken(from)} → {dateToken(to)}
-          </>,
-        );
+        return t.rich("dueChanged", {
+          hasActor,
+          actor,
+          from: () => dateToken(from),
+          to: () => dateToken(to),
+        });
       if (to)
-        return sentence(event.actor, "set the due date to", dateToken(to));
-      if (from) return sentence(event.actor, "cleared the due date");
-      return sentence(event.actor, "changed the due date");
+        return t.rich("dueSet", { hasActor, actor, to: () => dateToken(to) });
+      if (from) return t.rich("dueCleared", { hasActor, actor });
+      return t.rich("dueChangedNoValue", { hasActor, actor });
     }
     case "estimate_change": {
       const { from, to } = event;
       if (from != null && to != null)
-        return sentence(
-          event.actor,
-          "changed the estimate",
-          <>
-            {valueToken(String(from))} → {valueToken(String(to))}
-          </>,
-        );
+        return t.rich("estimateChanged", {
+          hasActor,
+          actor,
+          from: () => valueToken(String(from)),
+          to: () => valueToken(String(to)),
+        });
       if (to != null)
-        return sentence(
-          event.actor,
-          "set the estimate to",
-          valueToken(String(to)),
-        );
-      if (from != null) return sentence(event.actor, "cleared the estimate");
-      return sentence(event.actor, "changed the estimate");
+        return t.rich("estimateSet", {
+          hasActor,
+          actor,
+          to: () => valueToken(String(to)),
+        });
+      if (from != null) return t.rich("estimateCleared", { hasActor, actor });
+      return t.rich("estimateChangedNoValue", { hasActor, actor });
     }
     case "parent_change": {
       const { from, to } = event;
       if (from && to)
-        return sentence(
-          event.actor,
-          "changed the parent",
-          <>
-            {idToken(from)} → {idToken(to)}
-          </>,
-        );
-      if (to) return sentence(event.actor, "set the parent to", idToken(to));
-      if (from) return sentence(event.actor, "removed the parent");
-      return sentence(event.actor, "changed the parent");
+        return t.rich("parentChanged", {
+          hasActor,
+          actor,
+          from: () => idToken(from),
+          to: () => idToken(to),
+        });
+      if (to)
+        return t.rich("parentSet", { hasActor, actor, to: () => idToken(to) });
+      if (from) return t.rich("parentRemoved", { hasActor, actor });
+      return t.rich("parentChangedNoValue", { hasActor, actor });
     }
     case "relation_change": {
       const { relation, added, removed } = event;
-      const word = RELATION_LABELS[relation];
+      // `word` is the localized relation verb phrase — a plain string value.
+      const word = t(RELATION_WORD_KEY[relation]);
       if (added.length && removed.length)
-        return sentence(
-          event.actor,
-          `updated ${word}`,
-          <>
-            added {joinIdTokens(added)}, removed {joinIdTokens(removed)}
-          </>,
-        );
+        return t.rich("relationUpdated", {
+          hasActor,
+          actor,
+          word,
+          added: () => joinIdTokens(added),
+          removed: () => joinIdTokens(removed),
+        });
       if (added.length)
-        return sentence(
-          event.actor,
-          "added",
-          <>
-            {joinIdTokens(added)} to {word}
-          </>,
-        );
-      return sentence(
-        event.actor,
-        "removed",
-        <>
-          {joinIdTokens(removed)} from {word}
-        </>,
-      );
+        return t.rich("relationAdded", {
+          hasActor,
+          actor,
+          word,
+          ids: () => joinIdTokens(added),
+        });
+      return t.rich("relationRemoved", {
+        hasActor,
+        actor,
+        word,
+        ids: () => joinIdTokens(removed),
+      });
     }
     case "archived_change":
       return event.to
-        ? sentence(event.actor, "archived this issue")
-        : sentence(event.actor, "restored this issue");
+        ? t.rich("archived", { hasActor, actor })
+        : t.rich("restored", { hasActor, actor });
   }
 }
 
@@ -524,6 +536,7 @@ export const ActivityEventRow = memo(function ActivityEventRow({
 }) {
   const [nowMs] = useState(() => Date.now());
   const locale = useLocale();
+  const t = useTranslations("issues.activity");
   // Resolve planning ids to names the same way board/list/draft surfaces do
   // (REEF-233). Cached per vault, so every row sharing the query pays once.
   const { data: planningCatalog } = usePlanningCatalog(vault);
@@ -551,7 +564,7 @@ export const ActivityEventRow = memo(function ActivityEventRow({
       </span>
       <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
         <span className="min-w-0">
-          {lineFor(event, resolvePlanning, labels)}
+          {lineFor(event, resolvePlanning, labels, t)}
         </span>
         <time
           dateTime={event.at}

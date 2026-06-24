@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReferenceSuggestion } from "@reef/core";
+import { useTranslations } from "next-intl";
 import { DocumentRefCard } from "../refs/DocumentRefCard";
 import { ReferenceSuggestionCard } from "../refs/ReferenceSuggestionCard";
 
@@ -28,12 +29,13 @@ export function EnrichmentReferencesPanel({
   onRemove,
   disabled = false,
 }: EnrichmentReferencesPanelProps) {
+  const t = useTranslations("issues.create");
   if (candidates.length === 0 && confirmed.length === 0) return null;
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <span className="text-xs font-medium text-muted-foreground">
-        Linked documents
+        {t("linkedDocuments")}
       </span>
 
       {confirmed.length > 0 ? (

@@ -4,6 +4,7 @@ import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { useIssueTemplates } from "@/features/settings/hooks/useIssueTemplates";
 import type { Template } from "@reef/core";
 import { FileText } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useMemo } from "react";
 
 interface TemplatePickerProps {
@@ -31,6 +32,7 @@ export function TemplatePicker({
   onSelect,
   disabled,
 }: TemplatePickerProps) {
+  const t = useTranslations("issues.create");
   const query = useIssueTemplates(vault);
   const templates = useMemo(() => query.data?.templates ?? [], [query.data]);
   const triggerDisabled = disabled || vault.length === 0;
@@ -59,7 +61,7 @@ export function TemplatePicker({
     <Combobox<string>
       triggerVariant="button"
       triggerTestId="template-picker-trigger"
-      ariaLabel="Apply issue template"
+      ariaLabel={t("applyTemplate")}
       value={null}
       onChange={(name) => {
         const template = templates.find((t) => t.name === name);
@@ -71,13 +73,13 @@ export function TemplatePicker({
       triggerContent={
         <>
           <FileText className="h-3.5 w-3.5" />
-          <span>Template</span>
+          <span>{t("template")}</span>
         </>
       }
       align="end"
       contentClassName="w-72"
       optionClassName="flex flex-col items-start gap-0.5"
-      emptyState="No templates defined yet. Add one in Settings → Templates."
+      emptyState={t("noTemplates")}
     />
   );
 }

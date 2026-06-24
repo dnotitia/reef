@@ -10,6 +10,7 @@ import { useIssue } from "@/features/issues/hooks/queries/useIssue";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueSheetDismiss } from "@/features/issues/hooks/view/useIssueSheetDismiss";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useState } from "react";
 import { IssueChromeIdentity } from "./IssueChromeIdentity";
@@ -54,6 +55,8 @@ interface IssueDetailSheetProps {
  * Esc means Back while drilled in, Close otherwise.
  */
 export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
+  const t = useTranslations("issues.detail");
+  const nav = useTranslations("nav");
   const { vault, isLoading: vaultLoading } = useActiveVault();
   const { backTo, goBack, exit, dismissViaEsc } = useIssueSheetDismiss({
     issueId,
@@ -87,11 +90,14 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
           data-testid="issue-detail-no-vault"
           className="p-6 text-sm text-muted-foreground"
         >
-          Configure a workspace in{" "}
-          <Link href="/settings" className="text-brand underline">
-            Settings
-          </Link>{" "}
-          to view this issue.
+          {t.rich("noVaultPrompt", {
+            settings: nav("settings"),
+            link: (chunks) => (
+              <Link href="/settings" className="text-brand underline">
+                {chunks}
+              </Link>
+            ),
+          })}
         </div>
       );
     }
@@ -141,9 +147,11 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
         >
           {/* Visually-hidden title/description satisfy Radix Dialog a11y
               without duplicating the PM-facing identity rendered in the bar. */}
-          <SheetTitle className="sr-only">Issue {issueId}</SheetTitle>
+          <SheetTitle className="sr-only">
+            {t("srTitle", { issueId })}
+          </SheetTitle>
           <SheetDescription className="sr-only">
-            Edit details for issue {issueId}.
+            {t("srDescription", { issueId })}
           </SheetDescription>
           {/* Single persistent chrome bar (REEF-286): wayfinding + identity on
               the left, actions + Close on the right. It renders in every state,

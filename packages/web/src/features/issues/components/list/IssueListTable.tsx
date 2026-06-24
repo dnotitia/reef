@@ -27,6 +27,7 @@ import { PageBody } from "@/features/ui/components/PageBody";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { DURATION_BASE, EASE_SIGNATURE } from "@/lib/motionTokens";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
+import { useTranslations } from "next-intl";
 import { useMemo } from "react";
 
 const EMPTY_ISSUES: never[] = [];
@@ -47,6 +48,8 @@ export function IssueListTable({ vault }: IssueListTableProps) {
   const searchQuery = useIssueStore((state) => state.searchQuery);
   const openIssue = useOpenIssue();
   const columnLabels = useFieldNameLabels();
+  const t = useTranslations("issues.list");
+  const common = useTranslations("common");
   // FLIP the rows into place when the sort/filter projection reorders them,
   // instead of swapping content under fixed positions. Honors
   // prefers-reduced-motion by default.
@@ -127,24 +130,20 @@ export function IssueListTable({ vault }: IssueListTableProps) {
         </Table>
       ) : isError ? (
         <div className="flex flex-col items-center justify-center py-12 gap-3">
-          <p className="text-sm text-muted-foreground">
-            Failed to load issues.
-          </p>
+          <p className="text-sm text-muted-foreground">{t("loadError")}</p>
           <button
             type="button"
             className="rounded-md border border-border bg-elevated px-3 py-1.5 text-[13px] font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
             onClick={() => refetch()}
           >
-            Retry
+            {common("retry")}
           </button>
         </div>
       ) : sorted.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 gap-3">
           {hasActiveFilters ? (
             <>
-              <p className="text-sm text-muted-foreground">
-                No issues match your filters.
-              </p>
+              <p className="text-sm text-muted-foreground">{t("noMatches")}</p>
               <button
                 type="button"
                 className="rounded-md border border-border bg-elevated px-3 py-1.5 text-[13px] font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
@@ -152,12 +151,12 @@ export function IssueListTable({ vault }: IssueListTableProps) {
                   useIssueStore.getState().clearFilter();
                 }}
               >
-                Clear filters
+                {common("clearFilters")}
               </button>
             </>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Your workspace is empty. What are you working on?
+              {t("emptyWorkspace")}
             </p>
           )}
         </div>
