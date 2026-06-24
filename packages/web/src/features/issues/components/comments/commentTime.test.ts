@@ -48,10 +48,10 @@ describe("formatRelativeTime", () => {
 });
 
 describe("formatAbsoluteTime", () => {
-  it("renders a UTC date+time in the active locale", () => {
+  it("renders a UTC, 24-hour date+time in the active locale", () => {
     const iso = "2026-06-11T14:05:00.000Z";
-    expect(formatAbsoluteTime(iso, "en")).toBe("Jun 11, 2026, 2:05 PM");
-    expect(formatAbsoluteTime(iso, "ko")).toBe("2026년 6월 11일 오후 2:05");
+    expect(formatAbsoluteTime(iso, "en")).toBe("Jun 11, 2026, 14:05");
+    expect(formatAbsoluteTime(iso, "ko")).toBe("2026년 6월 11일 14:05");
   });
 
   it("falls back to the raw input when unparseable", () => {

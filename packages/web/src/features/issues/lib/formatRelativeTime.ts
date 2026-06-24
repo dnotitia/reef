@@ -28,7 +28,14 @@ function relativeFormatter(locale: string): Intl.RelativeTimeFormat {
   return formatter;
 }
 
-/** Per-locale absolute date+time formatter. UTC-pinned (REEF-294 / ADR-0001). */
+/**
+ * Per-locale absolute date+time formatter. UTC-pinned (REEF-294 / ADR-0001) and
+ * 24-hour (`hour12: false`): a 12-hour clock's day-period word is locale data
+ * that drifts between ICU versions (a Linux CI runner renders the Korean period
+ * as `PM`, macOS as `오후`), which both breaks deterministic tests and risks an
+ * SSR/client hydration mismatch on the rendered `title`. 24-hour has no period,
+ * so the output is identical across every environment.
+ */
 const absoluteFormatters = new Map<string, Intl.DateTimeFormat>();
 
 function absoluteFormatter(locale: string): Intl.DateTimeFormat {
@@ -38,8 +45,9 @@ function absoluteFormatter(locale: string): Intl.DateTimeFormat {
       year: "numeric",
       month: "short",
       day: "numeric",
-      hour: "numeric",
+      hour: "2-digit",
       minute: "2-digit",
+      hour12: false,
       timeZone: "UTC",
     });
     absoluteFormatters.set(locale, formatter);

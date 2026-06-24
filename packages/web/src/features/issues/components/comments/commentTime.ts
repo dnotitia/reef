@@ -43,6 +43,12 @@ function calendarFormatter(locale: string): Intl.DateTimeFormat {
   return formatter;
 }
 
+/**
+ * Absolute date+time for the tooltip. UTC-pinned and 24-hour (`hour12: false`):
+ * a 12-hour day-period word ("오후" / "PM") is ICU-version-dependent locale data,
+ * so it drifts between a Linux CI runner and a browser/macOS. 24-hour drops the
+ * period, keeping the output deterministic and SSR/client hydration-safe.
+ */
 const absoluteFormatters = new Map<string, Intl.DateTimeFormat>();
 
 function absoluteFormatter(locale: string): Intl.DateTimeFormat {
@@ -52,8 +58,9 @@ function absoluteFormatter(locale: string): Intl.DateTimeFormat {
       year: "numeric",
       month: "short",
       day: "numeric",
-      hour: "numeric",
+      hour: "2-digit",
       minute: "2-digit",
+      hour12: false,
       timeZone: "UTC",
     });
     absoluteFormatters.set(locale, formatter);

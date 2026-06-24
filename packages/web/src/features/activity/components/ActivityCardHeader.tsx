@@ -18,8 +18,12 @@ function formatTimestamp(iso: string, locale: string): string {
       formatter = new Intl.DateTimeFormat(locale, {
         month: "short",
         day: "numeric",
-        hour: "numeric",
+        hour: "2-digit",
         minute: "2-digit",
+        // 24-hour: a 12-hour day-period ("오후" / "PM") is ICU-version-dependent
+        // locale data that drifts between environments, breaking SSR/client
+        // hydration parity; dropping it keeps the timestamp deterministic.
+        hour12: false,
         timeZone: "UTC",
       });
       timestampFormatters.set(locale, formatter);
