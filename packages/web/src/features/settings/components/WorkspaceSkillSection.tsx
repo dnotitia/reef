@@ -1,6 +1,7 @@
 "use client";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLocale } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import { formatTimestampMonthDay } from "../../issues/lib/dateHelpers";
@@ -21,6 +22,7 @@ const WRITER_ROLES = new Set(["writer", "admin", "owner"]);
  * this surface shows it. Reuses the status-dot idiom from AiConfigurationStatus.
  */
 export function WorkspaceSkillSection() {
+  const locale = useLocale();
   const { vault } = useActiveVault();
   const vaultsQuery = useVaults();
   const status = useWorkspaceSkillStatus(vault);
@@ -55,7 +57,7 @@ export function WorkspaceSkillSection() {
     );
   }
 
-  const syncedLabel = formatTimestampMonthDay(status.data.synced_at);
+  const syncedLabel = formatTimestampMonthDay(status.data.synced_at, locale);
 
   if (status.data.up_to_date) {
     return (

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Comment } from "@reef/core";
 import { Pencil } from "lucide-react";
+import { useLocale } from "next-intl";
 import { type KeyboardEvent, useState } from "react";
 import { Streamdown } from "streamdown";
 import { formatAbsoluteTime, formatRelativeTime } from "./commentTime";
@@ -36,6 +37,7 @@ export function CommentCard({
   const [draft, setDraft] = useState(comment.body);
   const [saving, setSaving] = useState(false);
   const [nowMs] = useState(() => Date.now());
+  const locale = useLocale();
 
   function startEditing() {
     setDraft(comment.body);
@@ -85,14 +87,14 @@ export function CommentCard({
           </span>
           <time
             dateTime={comment.created_at}
-            title={formatAbsoluteTime(comment.created_at)}
+            title={formatAbsoluteTime(comment.created_at, locale)}
             className="shrink-0 text-[11px] text-muted-foreground tabular-nums"
           >
-            {formatRelativeTime(comment.created_at, nowMs)}
+            {formatRelativeTime(comment.created_at, nowMs, locale)}
           </time>
           {comment.edited_at ? (
             <span
-              title={formatAbsoluteTime(comment.edited_at)}
+              title={formatAbsoluteTime(comment.edited_at, locale)}
               className="shrink-0 text-[11px] text-muted-foreground"
             >
               · edited

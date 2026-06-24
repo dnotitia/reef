@@ -13,7 +13,9 @@ describe("Calendar", () => {
       <Calendar selected="2026-06-15" today="2026-06-09" onSelect={vi.fn()} />,
     );
     expect(screen.getByText("June 2026")).toBeInTheDocument();
-    expect(screen.getByText("Mo")).toBeInTheDocument();
+    // Weekday headers follow the active locale (en short → "Mon"), no longer a
+    // hardcoded two-letter table (REEF-294).
+    expect(screen.getByText("Mon")).toBeInTheDocument();
   });
 
   it("marks the selected day with the brand fill token", () => {

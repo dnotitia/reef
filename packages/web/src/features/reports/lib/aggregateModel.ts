@@ -99,8 +99,9 @@ export interface ReportKpis {
  *  in the window; `closed` counts completion events (`closed_at`, else
  *  `last_status_change`/`updated_at` for done|closed issues). */
 export interface ThroughputWeek {
-  start: string; // ISO date at window start (UTC)
-  label: string; // e.g. "Apr 13"
+  // ISO date at window start (UTC); the chart renders it to a localized
+  // month/day tick via the active locale (REEF-294).
+  start: string;
   created: number;
   closed: number;
   createdPoints: number; // sum of estimate_points for issues created in window
@@ -229,21 +230,6 @@ export const SEVERITY_OPTIONS: readonly Severity[] = [
   "major",
   "minor",
   "trivial",
-] as const;
-
-export const MONTHS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
 ] as const;
 
 export function isOpenReportWork(issue: IssueListItem): boolean {

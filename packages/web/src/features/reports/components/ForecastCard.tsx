@@ -2,6 +2,7 @@
 
 import { formatTimestampMonthDay } from "@/features/issues/lib/dateHelpers";
 import { cn } from "@/lib/utils";
+import { useLocale } from "next-intl";
 import { WEEK_MS } from "../lib/aggregate";
 import type {
   CompletionForecast,
@@ -13,8 +14,11 @@ import { Card } from "./ReportLayout";
 import { RowEmpty } from "./ReportSummarySections";
 
 /** Resolve a whole-week offset from `now` to a short month/day label. */
-function weekDate(now: number, weeks: number): string | null {
-  return formatTimestampMonthDay(new Date(now + weeks * WEEK_MS).toISOString());
+function weekDate(now: number, weeks: number, locale: string): string | null {
+  return formatTimestampMonthDay(
+    new Date(now + weeks * WEEK_MS).toISOString(),
+    locale,
+  );
 }
 
 /**
@@ -40,8 +44,9 @@ export function ForecastCard({
   periodLabel: string;
 }) {
   const { remaining, horizonWeeks, insufficient, lowConfidence } = forecast;
+  const locale = useLocale();
 
-  const targetDate = weekDate(now, horizonWeeks);
+  const targetDate = weekDate(now, horizonWeeks, locale);
   const subtitle = insufficient
     ? `Open work · ${periodLabel}`
     : `Open work · ${remaining} remaining`;
@@ -141,6 +146,7 @@ function CompletionRow({
   row: CompletionForecast;
   now: number;
 }) {
+  const locale = useLocale();
   // A capped trial did not reach the target within the hard week ceiling, so
   // there is no honest date — show it as a floor instead of a false promise.
   if (row.capped) {
@@ -156,7 +162,7 @@ function CompletionRow({
       />
     );
   }
-  const date = weekDate(now, row.weeks);
+  const date = weekDate(now, row.weeks, locale);
   return (
     <ForecastRow
       confidence={row.confidence}

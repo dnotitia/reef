@@ -18,6 +18,7 @@ import {
 } from "@/lib/panelPlacement";
 import { cn } from "@/lib/utils";
 import { Calendar as CalendarIcon, X } from "lucide-react";
+import { useLocale } from "next-intl";
 import {
   type FocusEvent,
   type KeyboardEvent,
@@ -67,10 +68,11 @@ export function DatePickerField({
   const [panelSide, setPanelSide] = useState<"bottom" | "top">("bottom");
   const [panelAlign, setPanelAlign] =
     useState<DatePickerFieldProps["align"]>(align);
+  const locale = useLocale();
   const normalized = dateInputValue(value);
   // Readable, locale-formatted trigger label (e.g. `Jun 1, 2026`); the panel's
   // text input keeps raw `YYYY-MM-DD` for direct typing.
-  const displayValue = formatDisplayDate(normalized);
+  const displayValue = formatDisplayDate(normalized, locale);
   const today = localTodayIso();
   // The last value committed in the current open session, so the focus-out and
   // mouse-close commit paths can both run without firing a duplicate onChange.

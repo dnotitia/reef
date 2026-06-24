@@ -15,6 +15,7 @@ import { CSS } from "@dnd-kit/utilities";
 import type { IssueListItem, Status } from "@reef/core";
 import { STATUS_OPTIONS } from "@reef/core/fields";
 import { GripVertical } from "lucide-react";
+import { useLocale } from "next-intl";
 
 // Hoisted so it is not re-created per render (the status picker renders one per
 // option, per row).
@@ -54,6 +55,7 @@ export function BacklogRow({
     isDragging,
   } = useSortable({ id: issue.id, disabled: !sortable });
   const currentLogin = useCurrentUserLogin();
+  const locale = useLocale();
 
   return (
     <TableRow
@@ -144,7 +146,7 @@ export function BacklogRow({
 
       {/* Updated */}
       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-        {formatRelativeTime(issue.updated_at)}
+        {formatRelativeTime(issue.updated_at, locale)}
       </TableCell>
     </TableRow>
   );

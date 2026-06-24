@@ -3,6 +3,7 @@
 import { formatDisplayDate } from "@/features/issues/lib/dateHelpers";
 import { cn } from "@/lib/utils";
 import type { IssueListItem, PlanningCatalog } from "@reef/core";
+import { useLocale } from "next-intl";
 import { memo, useMemo, useState } from "react";
 import type { ReportFilters } from "../lib/aggregate";
 import { DAY_MS } from "../lib/aggregateModel";
@@ -291,12 +292,13 @@ const HealthRow = memo(function HealthRow({
 });
 
 function Subline({ row }: { row: HealthRollupRow }) {
+  const locale = useLocale();
   const parts: string[] = [];
   if (row.shipped) {
     parts.push("Shipped");
   } else if (row.targetDate) {
     parts.push(
-      `${formatDisplayDate(row.targetDate.slice(0, 10))} · ${deadlineNote(row.targetDate)}`,
+      `${formatDisplayDate(row.targetDate.slice(0, 10), locale)} · ${deadlineNote(row.targetDate)}`,
     );
   } else if (row.verdict) {
     parts.push("No target date");
