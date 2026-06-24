@@ -1,6 +1,8 @@
 "use client";
 
+import { formatTimestampMonthDay } from "@/features/issues/lib/dateHelpers";
 import { cn } from "@/lib/utils";
+import { useLocale } from "next-intl";
 import { useId } from "react";
 import type { NetThroughputWeek, ReportMeasure } from "../lib/aggregate";
 
@@ -14,6 +16,10 @@ export function NetThroughputChart({
   height?: number;
 }) {
   const gradId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
+  const locale = useLocale();
+  // Localize the week tick from the point's ISO start (REEF-294), rather than
+  // the aggregate's fixed-English `label`, so the axis matches the active locale.
+  const tickLabel = (iso: string) => formatTimestampMonthDay(iso, locale) ?? "";
   const W = 600;
   const H = height;
   const padX = 4;
@@ -76,7 +82,7 @@ export function NetThroughputChart({
               fill={positive ? "var(--priority-high)" : "var(--status-done)"}
               opacity={0.32}
             >
-              <title>{`${p.label}: net ${value}`}</title>
+              <title>{`${tickLabel(p.start)}: net ${value}`}</title>
             </rect>
           );
         })}
@@ -112,7 +118,7 @@ export function NetThroughputChart({
             textAnchor={i === 0 ? "start" : i === n - 1 ? "end" : "middle"}
             className="fill-muted-foreground text-[11px]"
           >
-            {points[i]?.label}
+            {points[i] ? tickLabel(points[i].start) : ""}
           </text>
         ))}
       </svg>

@@ -21,7 +21,6 @@ import {
   DEFAULT_REPORT_FILTERS,
   type DueHealth,
   ISSUE_TYPE_OPTIONS,
-  MONTHS,
   type NamedCount,
   REPORT_PERIOD_WEEKS,
   RISK_PRIORITIES,
@@ -143,10 +142,8 @@ export function computeAggregates(
     { length: throughputWeeks },
     (_, k) => {
       const start = seriesStart + k * WEEK_MS;
-      const d = new Date(start);
       return {
         start: new Date(start).toISOString(),
-        label: `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`,
         created: 0,
         closed: 0,
         createdPoints: 0,
