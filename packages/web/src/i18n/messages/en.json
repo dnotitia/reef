@@ -1,4 +1,12 @@
 {
+  "linkSafety": {
+    "title": "Open external link",
+    "warning": "You're about to leave reef and open an external link. Check the destination below before you continue.",
+    "copyLink": "Copy link",
+    "copied": "Copied",
+    "cancel": "Cancel",
+    "open": "Open link"
+  },
   "nav": {
     "issues": "Issues",
     "myWork": "My Work",

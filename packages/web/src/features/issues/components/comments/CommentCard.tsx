@@ -1,6 +1,7 @@
 "use client";
 
 import { PersonAvatar, personToneFor } from "@/components/fields/PersonAvatar";
+import { linkSafetyConfig } from "@/components/markdown/linkSafety";
 import { Button } from "@/components/ui/button";
 import { formatAbsoluteTime, formatRelativeTime } from "@/lib/relativeTime";
 import { cn } from "@/lib/utils";
@@ -151,7 +152,10 @@ export function CommentCard({
             </div>
           </div>
         ) : (
-          <Streamdown className="mt-1 w-full min-w-0 break-words text-[13px] text-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+          <Streamdown
+            className="mt-1 w-full min-w-0 break-words text-[13px] text-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+            linkSafety={linkSafetyConfig}
+          >
             {comment.body}
           </Streamdown>
         )}
