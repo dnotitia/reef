@@ -1,4 +1,12 @@
 {
+  "linkSafety": {
+    "title": "외부 링크 열기",
+    "warning": "reef를 벗어나 외부 링크로 이동하려고 합니다. 계속하기 전에 아래 목적지를 확인하세요.",
+    "copyLink": "링크 복사",
+    "copied": "복사됨",
+    "cancel": "취소",
+    "open": "링크 열기"
+  },
   "nav": {
     "issues": "이슈",
     "myWork": "내 작업",
