@@ -131,6 +131,22 @@
         "in_progress": "진행 중",
         "released": "릴리스됨"
       }
+    },
+    "name": {
+      "type": "유형",
+      "status": "상태",
+      "priority": "우선순위",
+      "severity": "심각도",
+      "labels": "라벨",
+      "assignee": "담당자",
+      "requester": "요청자",
+      "reporter": "보고자",
+      "due": "기한",
+      "dependency": "의존성",
+      "sprint": "스프린트",
+      "milestone": "마일스톤",
+      "release": "릴리스",
+      "parent": "상위 이슈"
     }
   }
 }

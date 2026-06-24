@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CLOSED_REASON_OPTIONS,
+  FIELD_NAME_KEYS,
   ISSUE_FIELD_MESSAGES_EN,
   ISSUE_TYPE_OPTIONS,
   NO_SELECTION,
@@ -93,6 +94,17 @@ describe("fieldRegistry", () => {
       });
     });
   }
+
+  describe("field-name labels (REEF-301)", () => {
+    it("has a non-empty label for every field-name key and no extras", () => {
+      expect(Object.keys(ISSUE_FIELD_MESSAGES_EN.name).sort()).toEqual(
+        [...FIELD_NAME_KEYS].sort(),
+      );
+      for (const key of FIELD_NAME_KEYS) {
+        expect(ISSUE_FIELD_MESSAGES_EN.name[key].length).toBeGreaterThan(0);
+      }
+    });
+  });
 
   it("has a hint for every closed reason", () => {
     expect(

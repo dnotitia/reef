@@ -5,6 +5,7 @@ import { EnumSelectField } from "@/components/fields/EnumSelectField";
 import { Input } from "@/components/ui/input";
 import { LabelChipInput } from "@/components/ui/label-chip-input";
 import { PriorityBadge } from "@/components/ui/priority-dot";
+import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { PRIORITY_OPTIONS } from "@reef/core/fields";
 import { NO_SELECTION } from "@reef/core/fields";
 import { type ReactNode, type Ref, useId } from "react";
@@ -102,6 +103,7 @@ export function IssueDraftFields({
   bodyPlaceholder = "Describe the issue…",
 }: IssueDraftFieldsProps) {
   const priorityLabelId = useId();
+  const fieldNames = useFieldNameLabels();
   const wrap = (field: DraftFieldKey, control: ReactNode): ReactNode =>
     renderField ? renderField(field, control) : control;
   const fieldGridClass =
@@ -164,7 +166,7 @@ export function IssueDraftFields({
           id={priorityLabelId}
           className="text-xs font-medium text-muted-foreground"
         >
-          Priority
+          {fieldNames.priority}
         </span>
         {priorityControl}
       </div>
@@ -179,7 +181,7 @@ export function IssueDraftFields({
         className="text-xs font-medium text-muted-foreground"
         htmlFor={labelsId}
       >
-        Labels
+        {fieldNames.labels}
       </label>
       {wrap(
         "labels",
@@ -234,7 +236,10 @@ export function IssueDraftFields({
               full width reads better than a fixed-gutter row. */}
           <IssueFormSection title="Details">
             {primaryField}
-            <IssueFieldRow label="Priority" labelId={priorityLabelId}>
+            <IssueFieldRow
+              label={fieldNames.priority}
+              labelId={priorityLabelId}
+            >
               {priorityControl}
             </IssueFieldRow>
             {secondaryField}

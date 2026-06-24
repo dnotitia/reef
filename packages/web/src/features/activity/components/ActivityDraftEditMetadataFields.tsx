@@ -17,7 +17,7 @@ import {
   SEVERITY_OPTIONS,
 } from "@/features/issues/lib/metadataOptions";
 import { PlanningItemCombobox } from "@/features/planning/components/PlanningItemCombobox";
-import { useSeverityLabels } from "@/i18n/fieldLabels";
+import { useFieldNameLabels, useSeverityLabels } from "@/i18n/fieldLabels";
 import type { IssueListItem, Severity } from "@reef/core";
 import type { ComponentProps, Dispatch, SetStateAction } from "react";
 
@@ -91,6 +91,7 @@ export function ActivityDraftEditMetadataFields({
   setRelatedTo: Dispatch<SetStateAction<string[]>>;
 }) {
   const severityLabels = useSeverityLabels();
+  const fieldNames = useFieldNameLabels();
   return (
     <div className="grid gap-4">
       <IssueFormSection title="People">
@@ -100,14 +101,14 @@ export function ActivityDraftEditMetadataFields({
               className={FIELD_LABEL_CLASS}
               htmlFor={`draft-edit-assignee-${draftId}`}
             >
-              Assignee
+              {fieldNames.assignee}
             </label>
             <AssigneeCombobox
               id={`draft-edit-assignee-${draftId}`}
               value={assignee}
               onChange={setAssignee}
               vault={vault ?? ""}
-              label="Assignee"
+              label={fieldNames.assignee}
               emptyLabel="Unassigned"
             />
           </div>
@@ -116,14 +117,14 @@ export function ActivityDraftEditMetadataFields({
               className={FIELD_LABEL_CLASS}
               htmlFor={`draft-edit-requester-${draftId}`}
             >
-              Requester
+              {fieldNames.requester}
             </label>
             <AssigneeCombobox
               id={`draft-edit-requester-${draftId}`}
               value={requester}
               onChange={setRequester}
               vault={vault ?? ""}
-              label="Requester"
+              label={fieldNames.requester}
               emptyLabel="No requester"
             />
           </div>
@@ -132,14 +133,14 @@ export function ActivityDraftEditMetadataFields({
               className={FIELD_LABEL_CLASS}
               htmlFor={`draft-edit-reporter-${draftId}`}
             >
-              Reporter
+              {fieldNames.reporter}
             </label>
             <AssigneeCombobox
               id={`draft-edit-reporter-${draftId}`}
               value={reporter}
               onChange={setReporter}
               vault={vault ?? ""}
-              label="Reporter"
+              label={fieldNames.reporter}
               emptyLabel="No reporter"
             />
           </div>
@@ -198,7 +199,7 @@ export function ActivityDraftEditMetadataFields({
               id={`draft-edit-severity-label-${draftId}`}
               className={FIELD_LABEL_CLASS}
             >
-              Severity
+              {fieldNames.severity}
             </span>
             <Select
               value={severity || NO_SELECTION}
@@ -226,7 +227,7 @@ export function ActivityDraftEditMetadataFields({
               className={FIELD_LABEL_CLASS}
               htmlFor={`draft-edit-sprint-${draftId}`}
             >
-              Sprint
+              {fieldNames.sprint}
             </label>
             <PlanningItemCombobox
               kind="sprints"
@@ -243,7 +244,7 @@ export function ActivityDraftEditMetadataFields({
               className={FIELD_LABEL_CLASS}
               htmlFor={`draft-edit-milestone-${draftId}`}
             >
-              Milestone
+              {fieldNames.milestone}
             </label>
             <PlanningItemCombobox
               kind="milestones"
@@ -260,7 +261,7 @@ export function ActivityDraftEditMetadataFields({
               className={FIELD_LABEL_CLASS}
               htmlFor={`draft-edit-release-${draftId}`}
             >
-              Release
+              {fieldNames.release}
             </label>
             <PlanningItemCombobox
               kind="releases"
@@ -279,7 +280,7 @@ export function ActivityDraftEditMetadataFields({
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <IssueRelationInput
             id={`draft-edit-parent-${draftId}`}
-            label="Parent"
+            label={fieldNames.parent}
             value={parentId ? [parentId] : []}
             allIssues={allIssues}
             relationGraph={relations}

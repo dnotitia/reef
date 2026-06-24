@@ -28,6 +28,7 @@ vi.mock("@/i18n/fieldLabels", async () => {
     usePriorityLabels: () => f.priority,
     useIssueTypeLabels: () => f.issueType,
     useSeverityLabels: () => f.severity,
+    useFieldNameLabels: () => f.name,
     useClosedReasonLabels: () => f.closedReason,
     useClosedReasonHints: () => f.closedReasonHint,
     useDueLabels: () => f.due,

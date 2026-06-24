@@ -1,5 +1,6 @@
 "use client";
 
+import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import type { EnrichmentField, ExternalRef, IssueListItem } from "@reef/core";
 import type { ComponentProps, ReactNode } from "react";
 import { IssueRefsEditor } from "../refs/IssueRefsEditor";
@@ -57,17 +58,22 @@ export function NewIssueRelationFields({
   renderEnrichable: RenderEnrichable;
   renderFieldLabel: RenderFieldLabel;
 }) {
+  const fieldNames = useFieldNameLabels();
   return (
     <>
       <IssueFormSection title="Relationships">
         <div className="grid gap-3 md:grid-cols-2">
           <div className="flex flex-col gap-1">
-            {renderFieldLabel("parent_id", "new-issue-parent", "Parent")}
+            {renderFieldLabel(
+              "parent_id",
+              "new-issue-parent",
+              fieldNames.parent,
+            )}
             {renderEnrichable(
               "parent_id",
               <IssueRelationInput
                 id="new-issue-parent"
-                label="Parent"
+                label={fieldNames.parent}
                 hideLabel
                 value={parentId ? [parentId] : []}
                 allIssues={existingIssues}

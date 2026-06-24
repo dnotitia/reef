@@ -18,6 +18,7 @@ import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import {
   useDependencyLabels,
   useDueLabels,
+  useFieldNameLabels,
   useIssueTypeLabels,
   usePriorityLabels,
   useSeverityLabels,
@@ -216,6 +217,9 @@ export function FilterBar({
   const severityLabels = useSeverityLabels();
   const dueLabels = useDueLabels();
   const dependencyLabels = useDependencyLabels();
+  // Field-NAME labels for the facet triggers' aria/label text (REEF-301), so the
+  // facet name localizes alongside its already-localized value summary.
+  const fieldNames = useFieldNameLabels();
 
   const labelValues = useMemo(
     () => parseLabelFilter(filter.label),
@@ -248,7 +252,7 @@ export function FilterBar({
       {/* Status filter — omitted in the backlog view, which pins status itself */}
       {backlogScope ? null : (
         <MultiSelectCombobox
-          label="Status"
+          label={fieldNames.status}
           values={filter.status}
           onToggle={(value, checked) =>
             setFilter({ status: toggleFacet(filter.status, value, checked) })
@@ -256,7 +260,7 @@ export function FilterBar({
           options={statusFacetOptions}
           summarizeValue={(s) => statusLabels[s as keyof typeof statusLabels]}
           active={Boolean(filter.status?.length)}
-          ariaLabel="Status"
+          ariaLabel={fieldNames.status}
           triggerTestId="status-dropdown-trigger"
           contentTestId="status-dropdown-content"
         />
@@ -264,7 +268,7 @@ export function FilterBar({
 
       {/* Type filter */}
       <MultiSelectCombobox
-        label="Type"
+        label={fieldNames.type}
         values={filter.issueType}
         onToggle={(value, checked) =>
           setFilter({
@@ -276,14 +280,14 @@ export function FilterBar({
           issueTypeLabels[t as keyof typeof issueTypeLabels]
         }
         active={Boolean(filter.issueType?.length)}
-        ariaLabel="Type"
+        ariaLabel={fieldNames.type}
         triggerTestId="type-dropdown-trigger"
         contentTestId="type-dropdown-content"
       />
 
       {/* Priority filter */}
       <MultiSelectCombobox
-        label="Priority"
+        label={fieldNames.priority}
         values={filter.priority}
         onToggle={(value, checked) =>
           setFilter({ priority: toggleFacet(filter.priority, value, checked) })
@@ -291,14 +295,14 @@ export function FilterBar({
         options={PRIORITY_FACET_OPTIONS}
         summarizeValue={(p) => priorityLabels[p as keyof typeof priorityLabels]}
         active={Boolean(filter.priority?.length)}
-        ariaLabel="Priority"
+        ariaLabel={fieldNames.priority}
         triggerTestId="priority-dropdown-trigger"
         contentTestId="priority-dropdown-content"
       />
 
       {/* Severity filter */}
       <MultiSelectCombobox
-        label="Severity"
+        label={fieldNames.severity}
         values={filter.severity}
         onToggle={(value, checked) =>
           setFilter({ severity: toggleFacet(filter.severity, value, checked) })
@@ -306,7 +310,7 @@ export function FilterBar({
         options={SEVERITY_FACET_OPTIONS}
         summarizeValue={(s) => severityLabels[s as keyof typeof severityLabels]}
         active={Boolean(filter.severity?.length)}
-        ariaLabel="Severity"
+        ariaLabel={fieldNames.severity}
         triggerTestId="severity-dropdown-trigger"
         contentTestId="severity-dropdown-content"
       />
@@ -316,7 +320,7 @@ export function FilterBar({
           (REEF-177). */}
       {backlogScope ? null : (
         <MultiSelectCombobox
-          label="Due"
+          label={fieldNames.due}
           values={filter.due}
           onToggle={(value, checked) =>
             setFilter({ due: toggleFacet(filter.due, value, checked) })
@@ -324,7 +328,7 @@ export function FilterBar({
           options={DUE_FACET_OPTIONS}
           summarizeValue={(d) => dueLabels[d as keyof typeof dueLabels]}
           active={Boolean(filter.due?.length)}
-          ariaLabel="Due"
+          ariaLabel={fieldNames.due}
           triggerTestId="due-dropdown-trigger"
           contentTestId="due-dropdown-content"
         />
@@ -332,7 +336,7 @@ export function FilterBar({
 
       {/* Dependency filter */}
       <MultiSelectCombobox
-        label="Dependency"
+        label={fieldNames.dependency}
         values={filter.dependencyFilter}
         onToggle={(value, checked) =>
           setFilter({
@@ -348,7 +352,7 @@ export function FilterBar({
           dependencyLabels[d as keyof typeof dependencyLabels]
         }
         active={Boolean(filter.dependencyFilter?.length)}
-        ariaLabel="Dependency"
+        ariaLabel={fieldNames.dependency}
         triggerTestId="dependency-dropdown-trigger"
         contentTestId="dependency-dropdown-content"
       />
@@ -364,7 +368,7 @@ export function FilterBar({
             })
           }
           vault={vault}
-          label="Assignee"
+          label={fieldNames.assignee}
           active={Boolean(filter.assignee?.length)}
           triggerTestId="assignee-dropdown-trigger"
           contentTestId="assignee-dropdown-content"
@@ -382,7 +386,7 @@ export function FilterBar({
             })
           }
           vault={vault}
-          label="Requester"
+          label={fieldNames.requester}
           active={Boolean(filter.requester?.length)}
           triggerTestId="requester-dropdown-trigger"
           contentTestId="requester-dropdown-content"
@@ -404,7 +408,7 @@ export function FilterBar({
                 sprint_id: toggleFacet(filter.sprint_id, id, checked),
               })
             }
-            label="Sprint"
+            label={fieldNames.sprint}
             active={Boolean(filter.sprint_id?.length)}
             triggerTestId="sprint-dropdown-trigger"
             contentTestId="sprint-dropdown-content"
@@ -424,8 +428,8 @@ export function FilterBar({
           vault={vault}
           value={filter.milestone_id ?? ""}
           onChange={(id) => setFilter({ milestone_id: id || undefined })}
-          label="Milestone"
-          placeholder="Milestone"
+          label={fieldNames.milestone}
+          placeholder={fieldNames.milestone}
           emptyLabel="Any milestone"
           active={Boolean(filter.milestone_id)}
           className={FILTER_FIELD_CLASS}
@@ -446,7 +450,7 @@ export function FilterBar({
                 release_id: toggleFacet(filter.release_id, id, checked),
               })
             }
-            label="Release"
+            label={fieldNames.release}
             active={Boolean(filter.release_id?.length)}
             triggerTestId="release-dropdown-trigger"
             contentTestId="release-dropdown-content"
@@ -462,7 +466,7 @@ export function FilterBar({
         <LabelChipInput
           value={labelValues}
           onChange={handleLabelsChange}
-          placeholder="Labels"
+          placeholder={fieldNames.labels}
           data-testid="labels-input"
           // Unlike the combobox value fields — whose closed trigger shows a short
           // placeholder so they rest at the shared `9rem` floor — the chip input's

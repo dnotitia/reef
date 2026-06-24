@@ -14,6 +14,16 @@ explicitly in the entries below.
 
 ### Added
 
+- **Issue field *names* now follow the interface language.** The header words
+  that label a field — Assignee, Requester, Reporter, Priority, Severity, Labels,
+  Due, the Sprint/Milestone/Release planning fields, Type, Status, the dependency
+  filter, and Parent — render in the selected language across the issue detail
+  rail, the issue filters, the report scope bar, the new-issue dialog, and the
+  activity draft editor, so a field's name is localized alongside its
+  already-localized value instead of the name staying English above a translated
+  value. The framework-agnostic `core` package owns the English base catalog for
+  these field names as pure data and `web` resolves the active locale, the same
+  split as the existing field-value labels (REEF-301).
 - **Issue field labels now follow the interface language.** Status, priority,
   type, severity, close-reason (and its hints), the board/list sort field and
   direction labels, the due/dependency filter facets, and the planning

@@ -120,4 +120,62 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
       "진행 중",
     );
   });
+
+  test("renders issue field-NAME labels in the active locale (REEF-301)", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    // Switch the interface to Korean through the real settings control.
+    await page.goto("/settings/preferences");
+    await page.getByTestId("locale-option-ko").click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+
+    // The issue detail rail's field-NAME headers now render in Korean — the word
+    // that labels each field, resolved through the new `fields.name.*` catalog
+    // (REEF-301). Before this work these stayed English ("Assignee", "Priority")
+    // sitting above an already-localized value (the half-translated header the
+    // story calls out, AC2). REEF-002 always renders the full property rail.
+    await page.goto("/issues/REEF-002");
+    const sidebar = page.getByTestId("issue-detail-sidebar");
+    await expect(sidebar).toBeVisible();
+    for (const koLabel of [
+      "담당자", // Assignee
+      "요청자", // Requester
+      "보고자", // Reporter
+      "우선순위", // Priority
+      "심각도", // Severity
+      "라벨", // Labels
+      "기한", // Due
+      "스프린트", // Sprint
+      "마일스톤", // Milestone
+      "릴리스", // Release
+    ]) {
+      await expect(sidebar.getByText(koLabel, { exact: true })).toBeVisible();
+    }
+    // No half-translated English field name lingers for a migrated field.
+    await expect(sidebar.getByText("Assignee", { exact: true })).toHaveCount(0);
+
+    // The issue filter bar localizes its facet field names too: the board's
+    // status facet trigger reads the Korean field name from the same catalog
+    // (REEF-301). The board renders a single filter bar (the list view renders a
+    // responsive pair), so assert there.
+    await page.goto("/issues?view=board");
+    await expect(
+      page.locator('[data-testid="kanban-board"]').first(),
+    ).toBeVisible();
+    await expect(page.getByTestId("status-dropdown-trigger")).toContainText(
+      "상태",
+    );
+    await expect(page.getByTestId("priority-dropdown-trigger")).toContainText(
+      "우선순위",
+    );
+
+    // Capture the localized rail as the REEF-301 visual proof.
+    await page.goto("/issues/REEF-002");
+    await expect(sidebar).toBeVisible();
+    await sidebar.screenshot({
+      path: "test-results/reef-301-field-names-ko.png",
+    });
+  });
 });

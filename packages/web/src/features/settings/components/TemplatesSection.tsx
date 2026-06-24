@@ -18,6 +18,7 @@ import {
   useIssueTemplates,
   useUpsertIssueTemplate,
 } from "@/features/settings/hooks/useIssueTemplates";
+import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import {
   type Priority,
   TEMPLATE_NAME_PATTERN,
@@ -54,6 +55,7 @@ function emptyDraft(): Template {
  */
 export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
   const { vault, isLoading: vaultLoading } = useActiveVault();
+  const fieldNames = useFieldNameLabels();
   const query = useIssueTemplates(vault);
   const upsert = useUpsertIssueTemplate(vault);
   const remove = useDeleteIssueTemplate(vault);
@@ -426,7 +428,7 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
                   id="templates-priority-label"
                   className="text-muted-foreground"
                 >
-                  Priority
+                  {fieldNames.priority}
                 </span>
                 <Select
                   value={editor.draft.priority ?? NO_SELECTION}

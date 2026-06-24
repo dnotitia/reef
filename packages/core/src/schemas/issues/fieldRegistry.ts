@@ -101,6 +101,37 @@ export function naturalSortOrder(field: UserSortField): SortOrder {
   }
 }
 
+// --- Field-name keys (REEF-301) ---------------------------------------------
+//
+// The stable key list for field-NAME labels — the display name of a field
+// itself ("Assignee", "Due", "Priority"), distinct from the VALUE labels below
+// (the "High" / "Low" a priority can take). These header words were duplicated
+// as hardcoded literals across the issue detail rail, filter bar, report scope
+// bar, new-issue dialog, and activity draft editor; the `name` catalog group
+// gives those surfaces one shared source and removes the half-translated header
+// REEF-292 left (a field's values localized but its name still English —
+// REEF-298 AC2/AC4). Keyed by a field id rather than an enum value, so this
+// group carries its own key list instead of deriving one from a schema enum.
+
+export const FIELD_NAME_KEYS = [
+  "type",
+  "status",
+  "priority",
+  "severity",
+  "labels",
+  "assignee",
+  "requester",
+  "reporter",
+  "due",
+  "dependency",
+  "sprint",
+  "milestone",
+  "release",
+  "parent",
+] as const;
+
+export type FieldNameKey = (typeof FIELD_NAME_KEYS)[number];
+
 // --- en base label catalog (ADR-0001 / REEF-292) ----------------------------
 //
 // The single source of the English field labels, keyed by enum value (the
@@ -187,4 +218,23 @@ export const ISSUE_FIELD_MESSAGES_EN = {
     estimate_points: { desc: "Most", asc: "Fewest" },
     title: { desc: "Z → A", asc: "A → Z" },
   } satisfies Record<UserSortField, Record<SortOrder, string>>,
+  // Field-NAME labels (REEF-301): the word that labels a field, keyed by field
+  // id (see FIELD_NAME_KEYS). Shared by the property rail, filter bar, report
+  // scope bar, create dialog, and activity draft editor.
+  name: {
+    type: "Type",
+    status: "Status",
+    priority: "Priority",
+    severity: "Severity",
+    labels: "Labels",
+    assignee: "Assignee",
+    requester: "Requester",
+    reporter: "Reporter",
+    due: "Due",
+    dependency: "Dependency",
+    sprint: "Sprint",
+    milestone: "Milestone",
+    release: "Release",
+    parent: "Parent",
+  } satisfies Record<FieldNameKey, string>,
 };
