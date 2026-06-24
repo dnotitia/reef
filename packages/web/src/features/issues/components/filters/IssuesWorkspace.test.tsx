@@ -2,6 +2,7 @@
 // persists the issue filter through the Dexie config store (REEF-009).
 import "fake-indexeddb/auto";
 
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import {
   getPersistedIssueFilter,
   setPersistedIssueFilter,
@@ -61,7 +62,11 @@ function wrap(ui: ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <IntlTestProvider>{ui}</IntlTestProvider>
+    </QueryClientProvider>
+  );
 }
 
 describe("IssuesWorkspace", () => {

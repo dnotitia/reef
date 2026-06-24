@@ -15,6 +15,7 @@ import { useVaults } from "@/features/settings/hooks/useVaults";
 import { useViewStore } from "@/features/ui/stores/useViewStore";
 import { cn } from "@/lib/utils";
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -73,6 +74,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
     (s) => s.openCreateWorkspaceDialog,
   );
   const router = useRouter();
+  const t = useTranslations("workspace");
 
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -104,7 +106,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
     try {
       await setActiveVault.mutateAsync(next);
     } catch {
-      toast.error("Couldn't switch workspace. Please try again.");
+      toast.error(t("switchError"));
       return;
     }
     // Switching is reachable from any route, so it can fire while a page holds

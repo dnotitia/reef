@@ -1,4 +1,33 @@
 {
+  "nav": {
+    "issues": "이슈",
+    "myWork": "내 작업",
+    "planning": "플래닝",
+    "activity": "활동",
+    "reports": "리포트",
+    "settings": "설정",
+    "newIssue": "새 이슈",
+    "newIssueAriaLabel": "새 이슈 (Cmd+N)",
+    "newIssueTitle": "새 이슈 (⌘N)",
+    "expandSidebar": "사이드바 펼치기",
+    "collapseSidebar": "사이드바 접기",
+    "sidebarLandmark": "사이드바",
+    "mainNavLandmark": "메인 내비게이션",
+    "badge": {
+      "unread": "읽지 않음 {count}개",
+      "overdue": "기한 초과 {count}개",
+      "dueSoon": "기한 임박 {count}개",
+      "skillUpdate": "워크스페이스 안내 업데이트 사용 가능"
+    }
+  },
+  "emptyState": {
+    "workspace": {
+      "prompt": "<link>설정</link>에서 워크스페이스를 선택해 시작하세요."
+    }
+  },
+  "workspace": {
+    "switchError": "워크스페이스를 전환하지 못했습니다. 다시 시도해 주세요."
+  },
   "settings": {
     "preferences": {
       "language": {

@@ -1,4 +1,33 @@
 {
+  "nav": {
+    "issues": "Issues",
+    "myWork": "My Work",
+    "planning": "Planning",
+    "activity": "Activity",
+    "reports": "Reports",
+    "settings": "Settings",
+    "newIssue": "New issue",
+    "newIssueAriaLabel": "New issue (Cmd+N)",
+    "newIssueTitle": "New issue (⌘N)",
+    "expandSidebar": "Expand sidebar",
+    "collapseSidebar": "Collapse sidebar",
+    "sidebarLandmark": "Sidebar",
+    "mainNavLandmark": "Main navigation",
+    "badge": {
+      "unread": "{count} unread",
+      "overdue": "{count} overdue",
+      "dueSoon": "{count} due soon",
+      "skillUpdate": "Workspace instructions update available"
+    }
+  },
+  "emptyState": {
+    "workspace": {
+      "prompt": "Pick a workspace in <link>Settings</link> to get started."
+    }
+  },
+  "workspace": {
+    "switchError": "Couldn't switch workspace. Please try again."
+  },
   "settings": {
     "preferences": {
       "language": {

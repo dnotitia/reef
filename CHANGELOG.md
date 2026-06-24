@@ -23,6 +23,14 @@ explicitly in the entries below.
   the i18n runtime (next-intl, cookie-based, no URL locale routing) that later
   work builds on; only the new Language section itself is translated so far
   (REEF-291).
+- **The sidebar and shared empty state now follow the interface language.** With
+  Korean selected, the left navigation (Issues, My Work, Planning, Activity,
+  Reports, Settings), its New issue button and attention badges, and the shared
+  "pick a workspace" prompt render in Korean; any string a locale has not yet
+  translated falls back to English without breaking the layout. This is the first
+  batch of the larger string migration: the rest of the UI follows in later
+  changes, guarded so newly added English text can't silently slip back in
+  (REEF-293).
 - **Tune when completed issues leave the default views.** Workspace admins can
   now set separate "Hide completed after N days" and "Hide canceled after N
   days" windows from Settings > Workspace > General. The values are stored in

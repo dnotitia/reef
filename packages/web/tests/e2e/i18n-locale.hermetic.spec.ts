@@ -41,6 +41,16 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
       "true",
     );
 
+    // REEF-293 AC1 — the chrome follows the locale, not just the language
+    // section: the persistent sidebar nav re-renders from the ko catalog
+    // (landmark + the Issues link), proving the string migration switches live.
+    const nav = page.getByRole("navigation", { name: "메인 내비게이션" });
+    await expect(nav).toBeVisible();
+    await expect(nav.getByRole("link", { name: "이슈" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "새 이슈 (Cmd+N)" }),
+    ).toBeVisible();
+
     // AC2 — persisted to both the Dexie config (canonical) and the readable
     // NEXT_LOCALE cookie (SSR mirror).
     await expect

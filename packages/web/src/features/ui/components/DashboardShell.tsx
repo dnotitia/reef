@@ -43,6 +43,7 @@ import {
   Plus,
   Settings,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -72,19 +73,39 @@ interface DashboardShellProps {
   appVersion: string;
 }
 
+// `labelKey` resolves through the `nav` catalog at render (REEF-293); `testId`
+// is the stable English slug for `data-testid` / e2e locators so the markup
+// anchor never shifts with the active locale.
 const navLinks: ReadonlyArray<{
   href: string;
-  label: string;
+  labelKey:
+    | "issues"
+    | "myWork"
+    | "planning"
+    | "activity"
+    | "reports"
+    | "settings";
+  testId: string;
   icon: LucideIcon;
 }> = [
-  { href: "/issues", label: "Issues", icon: ListTodo },
+  { href: "/issues", labelKey: "issues", testId: "issues", icon: ListTodo },
   // My Work sits right after Issues (REEF-204 / REEF-181 AC1) — a personal lens
   // on the same work, distinct from the board's `ListTodo` via `CircleUser`.
-  { href: "/my-work", label: "My Work", icon: CircleUser },
-  { href: "/planning", label: "Planning", icon: Milestone },
-  { href: "/activity", label: "Activity", icon: Inbox },
-  { href: "/reports", label: "Reports", icon: BarChart3 },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/my-work", labelKey: "myWork", testId: "my work", icon: CircleUser },
+  {
+    href: "/planning",
+    labelKey: "planning",
+    testId: "planning",
+    icon: Milestone,
+  },
+  { href: "/activity", labelKey: "activity", testId: "activity", icon: Inbox },
+  { href: "/reports", labelKey: "reports", testId: "reports", icon: BarChart3 },
+  {
+    href: "/settings",
+    labelKey: "settings",
+    testId: "settings",
+    icon: Settings,
+  },
 ] as const;
 
 /** A sidebar nav badge (REEF-204): the Activity "unread" pill and the My
@@ -139,6 +160,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   // mirroring useThemeSync. Restores a persisted locale if the cookie was
   // cleared (REEF-291).
   useLocaleSync();
+  const t = useTranslations("nav");
   const pathname = usePathname();
   // Keep the assistant message count in DashboardShell so the FAB can show
   // an unread dot without subscribing to useChat itself.
@@ -221,7 +243,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
       return {
         kind: "count",
         display: cap(unreadInboxCount),
-        label: `${unreadInboxCount} unread`,
+        label: t("badge.unread", { count: unreadInboxCount }),
         tone: "brand",
         badgeTestId: "activity-unread-badge",
         dotTestId: "activity-unread-dot",
@@ -229,8 +251,8 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
     }
     if (href === "/my-work" && attention > 0) {
       const parts: string[] = [];
-      if (overdue > 0) parts.push(`${overdue} overdue`);
-      if (dueSoon > 0) parts.push(`${dueSoon} due soon`);
+      if (overdue > 0) parts.push(t("badge.overdue", { count: overdue }));
+      if (dueSoon > 0) parts.push(t("badge.dueSoon", { count: dueSoon }));
       return {
         kind: "count",
         display: cap(attention),
@@ -251,7 +273,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
         // destructive red stays reserved for missed commitments (My Work).
         kind: "state",
         display: "",
-        label: "Workspace instructions update available",
+        label: t("badge.skillUpdate"),
         tone: "warn",
         badgeTestId: "workspace-skill-badge",
         dotTestId: "workspace-skill-dot",
@@ -324,7 +346,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
           // explicit toggle, not a hot path. (REEF-097 AC3)
           sidebarCollapsed ? "w-14" : "w-60",
         )}
-        aria-label="Sidebar"
+        aria-label={t("sidebarLandmark")}
       >
         {/* Brand header */}
         <div
@@ -337,8 +359,8 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
             <button
               type="button"
               onClick={toggleSidebar}
-              aria-label="Expand sidebar"
-              title="Expand sidebar"
+              aria-label={t("expandSidebar")}
+              title={t("expandSidebar")}
               className="inline-flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
             >
               <ReefMark
@@ -360,13 +382,13 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                   data-testid="sidebar-brand-name"
                   style={{ letterSpacing: "-0.01em" }}
                 >
-                  reef
+                  reef{/* i18n-exempt: brand name, never localized */}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={toggleSidebar}
-                aria-label="Collapse sidebar"
+                aria-label={t("collapseSidebar")}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -382,19 +404,20 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
             size="sm"
             onClick={openNewIssueDialog}
             data-testid="new-issue-trigger"
-            aria-label="New issue (Cmd+N)"
-            title="New issue (⌘N)"
+            aria-label={t("newIssueAriaLabel")}
+            title={t("newIssueTitle")}
             className={cn("w-full", sidebarCollapsed && "px-0")}
           >
             <Plus className="h-3.5 w-3.5 shrink-0" />
-            {!sidebarCollapsed && <span>New issue</span>}
+            {!sidebarCollapsed && <span>{t("newIssue")}</span>}
           </Button>
         </div>
 
         {/* Nav links */}
-        <nav className="flex-1 px-2 py-3" aria-label="Main navigation">
+        <nav className="flex-1 px-2 py-3" aria-label={t("mainNavLandmark")}>
           <ul className="flex flex-col gap-0.5">
-            {navLinks.map(({ href, label, icon: Icon }) => {
+            {navLinks.map(({ href, labelKey, testId, icon: Icon }) => {
+              const label = t(labelKey);
               // A nav link owns its whole section: it stays active on an exact
               // match or any nested route under it — /issues/[id] keeps Issues
               // active while the detail slide-over is open, and /settings/<tab>
@@ -428,7 +451,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                         <span className="sr-only">{label}</span>
                         <Icon
                           aria-hidden="true"
-                          data-testid={`sidebar-nav-icon-${label.toLowerCase()}`}
+                          data-testid={`sidebar-nav-icon-${testId}`}
                           className="h-[18px] w-[18px] shrink-0 stroke-[1.9]"
                         />
                         {badge && (

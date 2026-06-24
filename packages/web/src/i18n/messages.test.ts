@@ -2,6 +2,26 @@
 import { describe, expect, it } from "vitest";
 import { deepMerge, loadMessages } from "./messages";
 import en from "./messages/en.json";
+import ko from "./messages/ko.json";
+
+type CatalogNode = string | { [key: string]: CatalogNode };
+
+/** Dot-joined paths to every string leaf in a catalog. */
+function leafKeyPaths(node: CatalogNode, prefix = ""): string[] {
+  if (typeof node === "string") return prefix ? [prefix] : [];
+  return Object.entries(node).flatMap(([key, value]) =>
+    leafKeyPaths(value, prefix ? `${prefix}.${key}` : key),
+  );
+}
+
+function leafValue(catalog: CatalogNode, keyPath: string): unknown {
+  return keyPath
+    .split(".")
+    .reduce<unknown>(
+      (acc, key) => (acc as Record<string, unknown>)[key],
+      catalog,
+    );
+}
 
 describe("deepMerge — missing-key fallback to base (AC3)", () => {
   it("keeps base keys the override omits", () => {
@@ -57,5 +77,31 @@ describe("loadMessages", () => {
     expect(merged.baseOnly).toBe("english-only");
     // And the real ko catalog carries the full en structure (no missing nodes).
     expect(Object.keys(ko)).toEqual(expect.arrayContaining(Object.keys(en)));
+  });
+});
+
+describe("catalog parity (REEF-293 AC2 — missing-key check)", () => {
+  it("every ko key exists in the en base (no orphan translations)", () => {
+    const enKeys = new Set(leafKeyPaths(en as CatalogNode));
+    const orphans = leafKeyPaths(ko as CatalogNode).filter(
+      (keyPath) => !enKeys.has(keyPath),
+    );
+    expect(orphans, "ko keys absent from the en base catalog").toEqual([]);
+  });
+
+  it("every catalog leaf is a non-empty string", () => {
+    for (const [label, catalog] of [
+      ["en", en],
+      ["ko", ko],
+    ] as const) {
+      for (const keyPath of leafKeyPaths(catalog as CatalogNode)) {
+        const value = leafValue(catalog as CatalogNode, keyPath);
+        expect(typeof value, `${label}.${keyPath}`).toBe("string");
+        expect(
+          (value as string).trim().length,
+          `${label}.${keyPath}`,
+        ).toBeGreaterThan(0);
+      }
+    }
   });
 });
