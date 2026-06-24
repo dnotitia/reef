@@ -92,7 +92,11 @@ describe("loadMessages", () => {
 
 describe("catalog parity (REEF-293 AC2 — missing-key check)", () => {
   it("every ko key exists in the en base (no orphan translations)", () => {
-    const enKeys = new Set(leafKeyPaths(en as CatalogNode));
+    // The en base is the COMPOSED catalog, not raw en.json: REEF-292's core
+    // field labels (`fields.*`) live in `@reef/core` and are merged in at load
+    // time, while their ko translations live in ko.json. Compare against the
+    // merged base so those ko `fields.*` keys are not flagged as orphans.
+    const enKeys = new Set(leafKeyPaths(loadMessages("en") as CatalogNode));
     const orphans = leafKeyPaths(ko as CatalogNode).filter(
       (keyPath) => !enKeys.has(keyPath),
     );

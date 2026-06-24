@@ -60,11 +60,14 @@ function useLabelRecord<K extends string>(
   namespace: string,
   keys: readonly K[],
 ): Record<K, string> {
-  // Every field label is a plain string leaf, so narrow next-intl's translator
-  // to a key→string lookup. Without the optional `IntlMessages` augmentation,
-  // next-intl types `t`'s rest args against the whole tree and a dynamic `t(key)`
-  // reads as possibly needing ICU values; this keeps the call honest and typed.
-  const t = useTranslations(namespace) as unknown as (key: string) => string;
+  // This generic helper resolves any field namespace, so the runtime `namespace`
+  // string can't carry next-intl's typed `NamespaceKeys` (the REEF-293 AppConfig
+  // augmentation) — `as never` satisfies the namespace parameter. Each field
+  // label is a plain string leaf, so the result is narrowed to a key→string
+  // lookup; the concrete namespaces are exercised by `fieldLabels.test.tsx`.
+  const t = useTranslations(namespace as never) as unknown as (
+    key: string,
+  ) => string;
   return useMemo(() => {
     const out = {} as Record<K, string>;
     for (const key of keys) out[key] = t(key);
