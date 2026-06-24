@@ -1,5 +1,6 @@
 "use client";
 
+import { linkSafetyConfig } from "@/components/markdown/linkSafety";
 import { cn } from "@/lib/utils";
 import { cjk } from "@streamdown/cjk";
 import { code } from "@streamdown/code";
@@ -56,6 +57,7 @@ export const MessageResponse = memo(
         "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
         className,
       )}
+      linkSafety={linkSafetyConfig}
       plugins={streamdownPlugins}
       {...props}
     />
