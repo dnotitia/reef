@@ -9,6 +9,7 @@ import { TemplatesSection } from "@/features/settings/components/TemplatesSectio
 import { WorkspaceSkillSection } from "@/features/settings/components/WorkspaceSkillSection";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useWorkspaceAccess } from "@/features/settings/hooks/useWorkspaceAccess";
+import { useTranslations } from "next-intl";
 
 /**
  * Workspace › General (REEF-183) — the team-shared settings that the Active
@@ -16,6 +17,7 @@ import { useWorkspaceAccess } from "@/features/settings/hooks/useWorkspaceAccess
  * former "Workspace settings" group, moved verbatim into its own tab route.
  */
 export default function WorkspaceGeneralPage() {
+  const t = useTranslations("settings.routes");
   // Workspace-common settings are admin-managed (REEF-020); non-admin viewers
   // see them read. The active vault drives which workspace's role applies.
   const { vault, isLoading: vaultLoading } = useActiveVault();
@@ -41,8 +43,8 @@ export default function WorkspaceGeneralPage() {
 
   return (
     <SettingsGroup
-      title="General"
-      description="Shared with everyone in the selected workspace. Members with write access can change these; readers see them read-only."
+      title={t("general.title")}
+      description={t("general.description")}
       access={workspaceAccess}
       scopeName={scopeName}
       testId="settings-group-workspace"
@@ -50,7 +52,7 @@ export default function WorkspaceGeneralPage() {
       {/* Monitored Repositories — team-shared grounding repos */}
       <section className="flex flex-col gap-3">
         <h3 className="font-display text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Monitored Repositories
+          {t("general.monitoredRepositories")}
         </h3>
         <RepoPickerSection canEdit={canEditWorkspace} />
       </section>
@@ -58,7 +60,7 @@ export default function WorkspaceGeneralPage() {
       {/* Project — project_prefix for issue IDs */}
       <section className="flex flex-col gap-3">
         <h3 className="font-display text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Project
+          {t("general.project")}
         </h3>
         <ProjectSection canEdit={canEditWorkspace} />
       </section>
@@ -66,7 +68,7 @@ export default function WorkspaceGeneralPage() {
       {/* Authoring Language — default language for AI-generated content */}
       <section className="flex flex-col gap-3">
         <h3 className="font-display text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Authoring Language
+          {t("general.authoringLanguage")}
         </h3>
         <AuthoringLanguageSection canEdit={canEditWorkspace} />
       </section>
@@ -74,7 +76,7 @@ export default function WorkspaceGeneralPage() {
       {/* Completed Issues - workspace auto-hide windows for resolved issues */}
       <section className="flex flex-col gap-3">
         <h3 className="font-display text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Completed Issues
+          {t("general.completedIssues")}
         </h3>
         <ResolvedAutoHideSection canEdit={canEditWorkspace} />
       </section>
@@ -82,7 +84,7 @@ export default function WorkspaceGeneralPage() {
       {/* Templates — issue templates shared across the workspace */}
       <section className="flex flex-col gap-3">
         <h3 className="font-display text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Templates
+          {t("general.templates")}
         </h3>
         <TemplatesSection canEdit={canEditWorkspace} />
       </section>
@@ -90,7 +92,7 @@ export default function WorkspaceGeneralPage() {
       {/* Workspace AI Instructions — vault-skill version + explicit update */}
       <section className="flex flex-col gap-3">
         <h3 className="font-display text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Workspace AI Instructions
+          {t("general.workspaceAiInstructions")}
         </h3>
         <WorkspaceSkillSection />
       </section>

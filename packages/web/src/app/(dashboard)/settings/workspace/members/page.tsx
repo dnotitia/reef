@@ -5,6 +5,7 @@ import { SettingsGroup } from "@/features/settings/components/SettingsGroup";
 import { MembersSection } from "@/features/settings/components/members/MembersSection";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useWorkspaceAccess } from "@/features/settings/hooks/useWorkspaceAccess";
+import { useTranslations } from "next-intl";
 
 /**
  * Workspace › Members (REEF-183 scaffold, filled by REEF-179) — the second
@@ -14,6 +15,7 @@ import { useWorkspaceAccess } from "@/features/settings/hooks/useWorkspaceAccess
  * grant/revoke. Readers and writers see the roster read (AC1/AC5).
  */
 export default function WorkspaceMembersPage() {
+  const t = useTranslations("settings.routes");
   const { vault, isLoading: vaultLoading } = useActiveVault();
   const { role, isResolving } = useWorkspaceAccess(vault);
 
@@ -30,8 +32,8 @@ export default function WorkspaceMembersPage() {
 
   return (
     <SettingsGroup
-      title="Members"
-      description="People with access to this workspace and their roles. Admins can add members and change their roles."
+      title={t("members.title")}
+      description={t("members.description")}
       access={access}
       scopeName={scopeName}
       testId="settings-group-members"
@@ -45,7 +47,7 @@ export default function WorkspaceMembersPage() {
           className="text-sm text-muted-foreground"
           data-testid="members-no-vault"
         >
-          Select a workspace to manage its members.
+          {t("members.noVault")}
         </p>
       )}
     </SettingsGroup>

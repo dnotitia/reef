@@ -1,10 +1,12 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 import { useTheme } from "../hooks/useTheme";
 import { THEME_OPTIONS } from "../lib/themeOptions";
 
 export function PreferencesSection() {
+  const t = useTranslations("settings.preferences.appearance");
   const { theme, setTheme } = useTheme();
 
   return (
@@ -18,12 +20,9 @@ export function PreferencesSection() {
           id="preferences-heading"
           className="font-display text-[13px] font-semibold uppercase tracking-wider text-muted-foreground"
         >
-          Appearance
+          {t("heading")}
         </h3>
-        <p className="text-xs text-muted-foreground">
-          Choose how reef looks in this browser. The selection persists per
-          device.
-        </p>
+        <p className="text-xs text-muted-foreground">{t("description")}</p>
       </header>
 
       <div

@@ -53,7 +53,150 @@
       "language": {
         "heading": "Language",
         "description": "Choose the language reef's interface uses on this device. The selection persists per device."
+      },
+      "appearance": {
+        "heading": "Appearance",
+        "description": "Choose how reef looks in this browser. The selection persists per device.",
+        "themeLabel": "Theme"
       }
+    },
+    "config": {
+      "loadError": "Couldn't load workspace config:",
+      "activeWorkspace": {
+        "heading": "Active Workspace",
+        "description": "The akb workspace reef reads and writes issues in. This choice is personal — it's stored on your device and only changes your own view. It scopes the workspace settings below.",
+        "newWorkspace": "New workspace…"
+      },
+      "ai": {
+        "notConfigured": "AI is not configured.",
+        "notConfiguredHelp": "This deployment needs an OpenRouter API key before AI features are available."
+      },
+      "authoringLanguage": {
+        "noVault": "Choose a workspace above before configuring the authoring language.",
+        "label": "Default authoring language",
+        "notSet": "Not set (no default)",
+        "description": "The language AI writes new issue and content drafts in, so the team's generated content stays consistent. Leave unset to let AI follow each request. Existing issues are not changed."
+      },
+      "project": {
+        "label": "Project Prefix",
+        "noVault": "Choose a workspace above before configuring the project prefix.",
+        "description": "Used to generate issue IDs like {prefix}-001. Stored in the vault's <code></code> document so the whole team shares one prefix."
+      },
+      "repos": {
+        "heading": "Monitored Code Repositories",
+        "empty": "No repositories are being monitored.",
+        "description": "GitHub repos reef watches for activity (PRs, commits). Stored in the active workspace's <code></code> table — shared with your whole team."
+      },
+      "resolvedAutoHide": {
+        "label": "Completed issues",
+        "noVault": "Choose a workspace above before configuring completed issue visibility.",
+        "description": "Controls when resolved issues leave the default board and list.",
+        "hideCompletedLabel": "Hide completed after N days",
+        "hideCanceledLabel": "Hide canceled after N days"
+      }
+    },
+    "members": {
+      "addMember": "Add a member",
+      "adding": "Adding…",
+      "addFailed": "Couldn't add the member.",
+      "you": "You",
+      "removeMemberLabel": "Remove {name}",
+      "loadFailed": "Couldn't load members:",
+      "noMembersYet": "No members yet.",
+      "removed": "Removed {name}.",
+      "removeFailed": "Couldn't remove the member.",
+      "added": "Added {name}.",
+      "removeConfirm": "Remove {name} from {workspace}?",
+      "removeDescription": "They'll lose access to this workspace's issues. You can add them back anytime.",
+      "removing": "Removing…"
+    },
+    "misc": {
+      "connectGithubFirst": "Connect GitHub first to load repositories.",
+      "selectMonitoredRepos": "Select monitored repositories",
+      "reposSelected": "{count} repo(s) selected",
+      "selectReposPlaceholder": "Select repositories…",
+      "searchReposPlaceholder": "Search repositories…",
+      "searchReposLabel": "Search repositories",
+      "noReposFound": "No repositories found.",
+      "removeRepo": "Remove {repo}",
+      "settingsSections": "Settings sections",
+      "tabWorkspace": "Workspace",
+      "tabPreferences": "Preferences",
+      "tabDeployment": "Deployment",
+      "selectWorkspacePlaceholder": "Select workspace…",
+      "workspacesLoadError": "Couldn't load your workspaces. Try signing out and back in.",
+      "activeWorkspace": "Active workspace: {value}",
+      "searchWorkspacesPlaceholder": "Search workspaces…",
+      "searchWorkspacesLabel": "Search workspaces",
+      "noWorkspacesFound": "No workspaces found.",
+      "skillStatusError": "Couldn't load workspace instruction status.",
+      "upToDateBody": "This workspace runs the current AI playbooks.",
+      "upToDate": "Up to date",
+      "upToDateSynced": "Up to date · last synced {date}",
+      "updateAvailableTitle": "Newer AI instructions are available.",
+      "updateAvailableBody": "Your workspace agents are still following an older playbook. Updating brings them to this release's behavior.",
+      "updateError": "Couldn't update the workspace instructions. Please try again.",
+      "needsWriteAccess": "A workspace member with edit access can apply this update.",
+      "confirmReplace": "This replaces the workspace skill docs for everyone and overwrites manual edits.",
+      "updating": "Updating…",
+      "applyUpdate": "Apply update",
+      "updateInstructions": "Update instructions",
+      "workspaceSections": "Workspace settings sections",
+      "subtabGeneral": "General",
+      "subtabMembers": "Members"
+    },
+    "routes": {
+      "deployment": {
+        "title": "Deployment",
+        "description": "Managed by the server operator — read-only here.",
+        "aiConfiguration": "AI Configuration"
+      },
+      "preferences": {
+        "title": "Your preferences",
+        "description": "Stored in this browser only - for you."
+      },
+      "members": {
+        "title": "Members",
+        "description": "People with access to this workspace and their roles. Admins can add members and change their roles.",
+        "noVault": "Select a workspace to manage its members."
+      },
+      "general": {
+        "title": "General",
+        "description": "Shared with everyone in the selected workspace. Members with write access can change these; readers see them read-only.",
+        "monitoredRepositories": "Monitored Repositories",
+        "project": "Project",
+        "authoringLanguage": "Authoring Language",
+        "completedIssues": "Completed Issues",
+        "templates": "Templates",
+        "workspaceAiInstructions": "Workspace AI Instructions"
+      }
+    },
+    "templates": {
+      "shared": "Issue templates are shared with everyone using this workspace.",
+      "newTemplate": "New template",
+      "noVault": "Choose a workspace above before defining issue templates.",
+      "loadError": "Couldn't load templates:",
+      "emptyReadOnly": "No issue templates in this workspace yet.",
+      "emptyPromptPrefix": "No templates yet. Click",
+      "emptyPromptSuffix": "to add one, or start with the six defaults (Epic, Story, Task, Bug, Spike, Chore).",
+      "seeding": "Seeding…",
+      "seedDefaults": "Seed default templates",
+      "templateDetails": "Template details",
+      "editTemplate": "Edit template",
+      "basics": "Basics",
+      "name": "Name",
+      "nameHint": "Lowercase letters, digits, and hyphens.",
+      "label": "Label",
+      "descriptionHint": "One-line hint shown under the label.",
+      "defaults": "Defaults",
+      "titlePrefix": "Title prefix",
+      "defaultLabels": "Default labels",
+      "body": "Body",
+      "nameInvalid": "Name must be lowercase letters, digits, and hyphens only.",
+      "labelRequired": "Label is required.",
+      "nameTaken": "A template named \"{name}\" already exists. Edit it or pick a different name.",
+      "deleteConfirm": "Delete template \"{label}\"? This removes it from the shared workspace.",
+      "saving": "Saving…"
     }
   },
   "errors": {

@@ -5,6 +5,7 @@ import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { useRevokeMember } from "@/features/settings/hooks/useRevokeMember";
 import { useVaultRoster } from "@/features/settings/hooks/useVaultRoster";
 import type { VaultMember } from "@reef/core";
+import { useTranslations } from "next-intl";
 import { useCallback, useState } from "react";
 import { AddMemberRow } from "./AddMemberRow";
 import { MemberRow } from "./MemberRow";
@@ -43,6 +44,7 @@ export function MembersSection({ vault, canManage }: MembersSectionProps) {
   const { data: members, isPending, isError, error } = useVaultRoster(vault);
   const currentLogin = useCurrentUserLogin();
   const revoke = useRevokeMember(vault);
+  const t = useTranslations("settings.members");
   const [removeTarget, setRemoveTarget] = useState<VaultMember | null>(null);
   const [status, setStatus] = useState("");
 
@@ -55,11 +57,11 @@ export function MembersSection({ vault, canManage }: MembersSectionProps) {
     if (!removeTarget) return;
     const name = removeTarget.display_name?.trim() || removeTarget.username;
     revoke.mutate(removeTarget.username, {
-      onSuccess: () => setStatus(`Removed ${name}.`),
-      onError: (err) => setStatus(err.message || "Couldn't remove the member."),
+      onSuccess: () => setStatus(t("removed", { name })),
+      onError: (err) => setStatus(err.message || t("removeFailed")),
       onSettled: () => setRemoveTarget(null),
     });
-  }, [removeTarget, revoke]);
+  }, [removeTarget, revoke, t]);
 
   if (isPending) {
     return (
@@ -78,7 +80,7 @@ export function MembersSection({ vault, canManage }: MembersSectionProps) {
         className="text-sm text-destructive"
         data-testid="members-error"
       >
-        Couldn&apos;t load members: {error.message}
+        {t("loadFailed")} {error.message}
       </p>
     );
   }
@@ -96,7 +98,7 @@ export function MembersSection({ vault, canManage }: MembersSectionProps) {
           vault={vault}
           roster={roster}
           currentLogin={currentLogin}
-          onAdded={(name) => setStatus(`Added ${name}.`)}
+          onAdded={(name) => setStatus(t("added", { name }))}
           onError={setStatus}
         />
       ) : null}
@@ -106,7 +108,7 @@ export function MembersSection({ vault, canManage }: MembersSectionProps) {
           className="text-sm text-muted-foreground"
           data-testid="members-empty"
         >
-          No members yet.
+          {t("noMembersYet")}
         </p>
       ) : (
         <ul className="divide-y divide-border-subtle overflow-hidden rounded-lg border border-border-subtle">

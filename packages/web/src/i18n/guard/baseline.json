@@ -5,32 +5,6 @@
   "app/(dashboard)/activity/page.tsx": [
     "Activity"
   ],
-  "app/(dashboard)/settings/deployment/page.tsx": [
-    "AI Configuration",
-    "Deployment"
-  ],
-  "app/(dashboard)/settings/layout.tsx": [
-    "Settings"
-  ],
-  "app/(dashboard)/settings/loading.tsx": [
-    "Loading…"
-  ],
-  "app/(dashboard)/settings/preferences/page.tsx": [
-    "Your preferences"
-  ],
-  "app/(dashboard)/settings/workspace/members/page.tsx": [
-    "Members",
-    "Select a workspace to manage its members."
-  ],
-  "app/(dashboard)/settings/workspace/page.tsx": [
-    "Authoring Language",
-    "Completed Issues",
-    "General",
-    "Monitored Repositories",
-    "Project",
-    "Templates",
-    "Workspace AI Instructions"
-  ],
   "app/login/page.tsx": [
     "Sign in with your workspace account to continue.",
     "reef"
@@ -287,13 +261,6 @@
     "Target",
     "yet."
   ],
-  "features/preferences/components/AccountThemeToggle.tsx": [
-    "Theme"
-  ],
-  "features/preferences/components/PreferencesSection.tsx": [
-    "Appearance",
-    "Choose how reef looks in this browser. The selection persists per device."
-  ],
   "features/reports/components/ForecastCard.tsx": [
     "&gt;",
     "Delivery forecast",
@@ -364,121 +331,6 @@
     "Created",
     "Issues created, closed, and net change over time",
     "Net increase"
-  ],
-  "features/settings/components/ActiveWorkspaceSection.tsx": [
-    "Active Workspace",
-    "New workspace…",
-    "The akb workspace reef reads and writes issues in. This choice is personal — it&apos;s stored on your device and only changes your own view. It scopes the workspace settings below."
-  ],
-  "features/settings/components/AiConfigurationStatus.tsx": [
-    "AI is not configured.",
-    "This deployment needs an OpenRouter API key before AI features are available."
-  ],
-  "features/settings/components/AuthoringLanguageSection.tsx": [
-    "Choose a workspace above before configuring the authoring language.",
-    "Couldn't load workspace config:",
-    "Default authoring language",
-    "Not set (no default)",
-    "The language AI writes new issue and content drafts in, so the team's generated content stays consistent. Leave unset to let AI follow each request. Existing issues are not changed."
-  ],
-  "features/settings/components/MonitoredRepoSelector.tsx": [
-    "No repositories found.",
-    "Search repositories",
-    "Search repositories…"
-  ],
-  "features/settings/components/ProjectSection.tsx": [
-    "-001. Stored in the vault's",
-    "Choose a workspace above before configuring the project prefix.",
-    "Couldn't load workspace config:",
-    "Project Prefix",
-    "REEF",
-    "Used to generate issue IDs like",
-    "_reef/config",
-    "document so the whole team shares one prefix."
-  ],
-  "features/settings/components/RepoPickerSection.tsx": [
-    "Couldn't load workspace config:",
-    "GitHub repos reef watches for activity (PRs, commits). Stored in the active workspace's",
-    "Monitored Code Repositories",
-    "No repositories are being monitored.",
-    "monitored_repos",
-    "table — shared with your whole team."
-  ],
-  "features/settings/components/ResolvedAutoHideSection.tsx": [
-    "Choose a workspace above before configuring completed issue visibility.",
-    "Completed issues",
-    "Controls when resolved issues leave the default board and list.",
-    "Couldn't load workspace config:",
-    "Hide canceled after N days",
-    "Hide completed after N days"
-  ],
-  "features/settings/components/SettingsTabs.tsx": [
-    "Settings sections"
-  ],
-  "features/settings/components/TemplatesSection.tsx": [
-    "## Steps to reproduce...",
-    "Add a label and press Enter…",
-    "Basics",
-    "Body",
-    "Bug report",
-    "Bug:",
-    "Choose a workspace above before defining issue templates.",
-    "Couldn't load templates:",
-    "Default labels",
-    "Defaults",
-    "Delete",
-    "Description",
-    "Edit",
-    "Issue templates are shared with everyone using this workspace.",
-    "Label",
-    "Lowercase letters, digits, and hyphens.",
-    "Name",
-    "New template",
-    "No issue templates in this workspace yet.",
-    "No priority",
-    "No templates yet. Click",
-    "One-line hint shown under the label.",
-    "Title prefix",
-    "View",
-    "bug-report",
-    "to add one, or start with the six defaults (Epic, Story, Task, Bug, Spike, Chore)."
-  ],
-  "features/settings/components/VaultPickerInput.tsx": [
-    "Couldn&apos;t load your workspaces. Try signing out and back in.",
-    "No workspaces found.",
-    "None",
-    "Search workspaces",
-    "Search workspaces…"
-  ],
-  "features/settings/components/WorkspaceSkillSection.tsx": [
-    "A workspace member with edit access can apply this update.",
-    "Cancel",
-    "Couldn't load workspace instruction status.",
-    "Couldn't update the workspace instructions. Please try again.",
-    "Newer AI instructions are available.",
-    "This replaces the workspace skill docs for everyone and overwrites manual edits.",
-    "This workspace runs the current AI playbooks.",
-    "Update instructions",
-    "Your workspace agents are still following an older playbook. Updating brings them to this release's behavior."
-  ],
-  "features/settings/components/WorkspaceSubNav.tsx": [
-    "Workspace settings sections"
-  ],
-  "features/settings/components/members/AddMemberRow.tsx": [
-    "Add a member"
-  ],
-  "features/settings/components/members/MemberRow.tsx": [
-    "You"
-  ],
-  "features/settings/components/members/MembersSection.tsx": [
-    "Couldn&apos;t load members:",
-    "No members yet."
-  ],
-  "features/settings/components/members/RemoveMemberDialog.tsx": [
-    "Cancel",
-    "Remove",
-    "They&apos;ll lose access to this workspace&apos;s issues. You can add them back anytime.",
-    "from"
   ],
   "features/shortcuts/components/KeyboardShortcutsDialog.tsx": [
     "Keyboard shortcuts",

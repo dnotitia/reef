@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 import { useTheme } from "../hooks/useTheme";
 import { THEME_OPTIONS } from "../lib/themeOptions";
 
@@ -17,13 +18,14 @@ import { THEME_OPTIONS } from "../lib/themeOptions";
  * "switch theme without the menu closing" behavior AC4 wants.
  */
 export function AccountThemeToggle() {
+  const t = useTranslations("settings.preferences.appearance");
   const { theme, setTheme } = useTheme();
 
   return (
     <div
       // biome-ignore lint/a11y/useSemanticElements: <fieldset> is invalid inside role="menu"; the WAI-ARIA menu pattern groups menuitemradio items under role="group" (mirrors this menu's menuitemcheckbox items).
       role="group"
-      aria-label="Theme"
+      aria-label={t("themeLabel")}
       data-testid="account-theme-toggle"
       className="grid grid-cols-3 gap-1 px-2 py-1"
     >

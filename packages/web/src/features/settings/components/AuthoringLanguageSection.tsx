@@ -14,6 +14,7 @@ import {
   useUpdateProjectConfig,
 } from "@/features/settings/hooks/useProjectConfig";
 import { AUTHORING_LANGUAGES, type AuthoringLanguage } from "@reef/core";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { ReadOnlyValue } from "./ReadOnlyValue";
 
@@ -41,6 +42,7 @@ export function AuthoringLanguageSection({
 }: {
   canEdit?: boolean;
 }) {
+  const t = useTranslations("settings.config");
   const { vault: activeVault, isLoading: vaultLoading } = useActiveVault();
   const configQuery = useProjectConfig(activeVault);
   const updateConfig = useUpdateProjectConfig(activeVault);
@@ -76,7 +78,7 @@ export function AuthoringLanguageSection({
         className="text-sm text-muted-foreground"
         data-testid="authoring-language-no-vault"
       >
-        Choose a workspace above before configuring the authoring language.
+        {t("authoringLanguage.noVault")}
       </p>
     );
   }
@@ -88,7 +90,7 @@ export function AuthoringLanguageSection({
         className="text-sm text-destructive"
         data-testid="authoring-language-load-error"
       >
-        Couldn't load workspace config: {configQuery.error.message}
+        {t("loadError")} {configQuery.error.message}
       </p>
     );
   }
@@ -100,12 +102,10 @@ export function AuthoringLanguageSection({
     >
       <div className="flex flex-col gap-1">
         <p className="text-sm font-medium text-foreground/90">
-          Default authoring language
+          {t("authoringLanguage.label")}
         </p>
         <p className="text-xs text-muted-foreground">
-          The language AI writes new issue and content drafts in, so the team's
-          generated content stays consistent. Leave unset to let AI follow each
-          request. Existing issues are not changed.
+          {t("authoringLanguage.description")}
         </p>
       </div>
 
@@ -120,13 +120,15 @@ export function AuthoringLanguageSection({
           <SelectTrigger
             className="w-56"
             data-testid="authoring-language-select"
-            aria-label="Default authoring language"
+            aria-label={t("authoringLanguage.label")}
             aria-invalid={error != null}
           >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={NONE_VALUE}>Not set (no default)</SelectItem>
+            <SelectItem value={NONE_VALUE}>
+              {t("authoringLanguage.notSet")}
+            </SelectItem>
             {AUTHORING_LANGUAGES.map((lang) => (
               <SelectItem key={lang.code} value={lang.code}>
                 {lang.label}

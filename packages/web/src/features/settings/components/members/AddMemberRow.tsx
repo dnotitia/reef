@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { useGrantMember } from "@/features/settings/hooks/useGrantMember";
 import type { UserSearchResult, VaultMember } from "@reef/core";
+import { useTranslations } from "next-intl";
 import { useCallback, useMemo, useState } from "react";
 import { DirectorySearchCombobox } from "./DirectorySearchCombobox";
 import { type ManageableRole, RoleSelect } from "./RoleSelect";
@@ -36,6 +37,8 @@ export function AddMemberRow({
   );
   const [role, setRole] = useState<ManageableRole>("writer");
   const grant = useGrantMember(vault);
+  const t = useTranslations("settings.members");
+  const c = useTranslations("common");
 
   const existingKeys = useMemo(
     () => new Set(roster.map((m) => m.username)),
@@ -57,17 +60,19 @@ export function AddMemberRow({
           setSelectedUser(null);
           setRole("writer");
         },
-        onError: (err) => onError?.(err.message || "Couldn't add the member."),
+        onError: (err) => onError?.(err.message || t("addFailed")),
       },
     );
-  }, [grant, selectedUser, role, onAdded, onError]);
+  }, [grant, selectedUser, role, onAdded, onError, t]);
 
   return (
     <div
       className="flex flex-col gap-2 rounded-lg border border-border-subtle bg-surface-subtle/40 p-3"
       data-testid="add-member-row"
     >
-      <p className="text-[13px] font-medium text-foreground/90">Add a member</p>
+      <p className="text-[13px] font-medium text-foreground/90">
+        {t("addMember")}
+      </p>
       <div className="flex flex-wrap items-center gap-2">
         <div className="min-w-0 flex-1 basis-64">
           <DirectorySearchCombobox
@@ -92,7 +97,7 @@ export function AddMemberRow({
           onClick={handleAdd}
           data-testid="add-member-submit"
         >
-          {grant.isPending ? "Adding…" : "Add"}
+          {grant.isPending ? t("adding") : c("add")}
         </Button>
       </div>
     </div>

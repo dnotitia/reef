@@ -3,6 +3,7 @@
 import { LanguageSection } from "@/features/preferences/components/LanguageSection";
 import { PreferencesSection } from "@/features/preferences/components/PreferencesSection";
 import { SettingsGroup } from "@/features/settings/components/SettingsGroup";
+import { useTranslations } from "next-intl";
 
 /**
  * Settings > Preferences (REEF-183) - browser-local, per-person settings.
@@ -17,10 +18,11 @@ import { SettingsGroup } from "@/features/settings/components/SettingsGroup";
  *    GitHub App; this screen no longer stores user credentials (REEF-244).
  */
 export default function PreferencesPage() {
+  const t = useTranslations("settings.routes");
   return (
     <SettingsGroup
-      title="Your preferences"
-      description="Stored in this browser only - for you."
+      title={t("preferences.title")}
+      description={t("preferences.description")}
       testId="settings-group-personal"
     >
       {/* Each preference owns its own section heading + description, so they are
