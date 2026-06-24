@@ -1,3 +1,4 @@
+import { ERROR_MESSAGES_EN } from "@reef/core/errors";
 import { ISSUE_FIELD_MESSAGES_EN } from "@reef/core/fields";
 import { PLANNING_FIELD_MESSAGES_EN } from "@reef/core/fields/planning";
 import { BASE_LOCALE, type Locale } from "./locales";
@@ -18,11 +19,25 @@ const FIELD_MESSAGES_EN = {
 };
 
 /**
- * The full en base catalog: the web string files merged with the core field
- * catalog. The structural single source of truth — every other locale is a
- * subset and any key it omits falls back to en at merge time (ADR-0001, AC3).
+ * The `errors` namespace: core-owned error-message codes (`ERROR_MESSAGES_EN`,
+ * REEF-297) composed with the web-boundary strings `en.json` declares (session,
+ * body-validation, and other Route Handler copy). core codes are locale-free
+ * data web localizes at its error boundary; the two key sets are disjoint, so the
+ * spread is a plain compose. ko translations live in `ko.json` under the same
+ * `errors.*` shape and fall back to these strings per key (AC3).
  */
-const EN_BASE = { ...en, fields: FIELD_MESSAGES_EN };
+const ERROR_MESSAGES_BASE = { ...ERROR_MESSAGES_EN, ...en.errors };
+
+/**
+ * The full en base catalog: the web string files merged with the core field and
+ * error catalogs. The structural single source of truth — every other locale is
+ * a subset and any key it omits falls back to en at merge time (ADR-0001, AC3).
+ */
+const EN_BASE = {
+  ...en,
+  fields: FIELD_MESSAGES_EN,
+  errors: ERROR_MESSAGES_BASE,
+};
 
 export type Messages = typeof EN_BASE;
 

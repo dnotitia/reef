@@ -109,7 +109,7 @@ export function createGitHubAppInstallationTokenProvider({
  * Map an installation-token failure to a credential-free `GitHubApiError`.
  *
  * The status is preserved (401/403/404/409 pass through to the same HTTP code
- * via `translateError`; anything else collapses to 502) so a PM sees consistent
+ * via `describeError`; anything else collapses to 502) so a PM sees consistent
  * copy, while the message stays fixed and secret-free — the upstream error's own
  * message is deliberately not echoed.
  */

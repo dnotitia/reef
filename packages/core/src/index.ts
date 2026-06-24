@@ -156,9 +156,12 @@ export {
   AuthError,
   NotFoundError,
   ActivitySuggestionError,
-  translateError,
+  describeError,
+  ERROR_MESSAGES_EN,
   type ActivitySuggestionErrorReason,
   type AkbResourceLabel,
+  type ErrorCode,
+  type ErrorDescriptor,
 } from "./errors";
 export {
   createGitHubAdapter,

@@ -4,12 +4,13 @@ import {
   AkbApiError,
   AuthError,
   ConflictError,
+  ERROR_MESSAGES_EN,
   GitHubApiError,
   LlmError,
   NotFoundError,
   ReefError,
   SchemaValidationError,
-  translateError,
+  describeError,
 } from ".";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -276,77 +277,65 @@ describe("NotFoundError", () => {
   });
 });
 
-// ─── translateError ───────────────────────────────────────────────────────────
+// ─── describeError (the AC4 web-localization seam) ──────────────────────────────
 
-describe("translateError", () => {
-  it("ConflictError → 409", async () => {
-    const res = translateError(new ConflictError());
-    expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: string };
-    expect(body).toMatchObject({ error: expect.any(String) });
+describe("describeError", () => {
+  it("ConflictError → conflict / 409", () => {
+    expect(describeError(new ConflictError())).toEqual({
+      code: "conflict",
+      status: 409,
+    });
   });
 
-  it("AuthError → 401", async () => {
-    const res = translateError(new AuthError());
-    expect(res.status).toBe(401);
-    const body = (await res.json()) as { error: string };
-    expect(body).toMatchObject({ error: expect.any(String) });
+  it("AuthError → auth / 401", () => {
+    expect(describeError(new AuthError())).toEqual({
+      code: "auth",
+      status: 401,
+    });
   });
 
-  it("NotFoundError → 404", async () => {
-    const res = translateError(new NotFoundError());
-    expect(res.status).toBe(404);
-    const body = (await res.json()) as { error: string };
-    expect(body).toMatchObject({ error: expect.any(String) });
+  it("NotFoundError → notFound.item / 404 with default resource param", () => {
+    expect(describeError(new NotFoundError())).toEqual({
+      code: "notFound.item",
+      status: 404,
+      params: { resource: "item" },
+    });
   });
 
-  it("SchemaValidationError → 422", async () => {
-    const res = translateError(new SchemaValidationError());
-    expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: string };
-    expect(body).toMatchObject({ error: expect.any(String) });
-  });
-
-  it("LlmError → 503", async () => {
-    const res = translateError(new LlmError({ message: "timeout" }));
-    expect(res.status).toBe(503);
-    const body = (await res.json()) as { error: string };
-    expect(body).toMatchObject({ error: expect.any(String) });
-  });
-
-  it("GitHubApiError 401 → 401", async () => {
-    const res = translateError(
-      new GitHubApiError({ status: 401, message: "" }),
+  it("NotFoundError resourceKind → curated code, no params", () => {
+    expect(describeError(new NotFoundError({ resourceKind: "issue" }))).toEqual(
+      {
+        code: "notFound.issue",
+        status: 404,
+      },
     );
-    expect(res.status).toBe(401);
   });
 
-  it("GitHubApiError 403 → 403", async () => {
-    const res = translateError(
-      new GitHubApiError({ status: 403, message: "" }),
-    );
-    expect(res.status).toBe(403);
+  it("SchemaValidationError → schema.invalid / 422 with default field param", () => {
+    expect(describeError(new SchemaValidationError())).toEqual({
+      code: "schema.invalid",
+      status: 422,
+      params: { field: "one or more fields" },
+    });
   });
 
-  it("GitHubApiError 404 → 404", async () => {
-    const res = translateError(
-      new GitHubApiError({ status: 404, message: "" }),
-    );
-    expect(res.status).toBe(404);
+  it("LlmError → llm.unavailable / 503", () => {
+    expect(describeError(new LlmError({ message: "timeout" }))).toEqual({
+      code: "llm.unavailable",
+      status: 503,
+    });
   });
 
-  it("GitHubApiError 409 → 409", async () => {
-    const res = translateError(
-      new GitHubApiError({ status: 409, message: "" }),
-    );
-    expect(res.status).toBe(409);
-  });
-
-  it("GitHubApiError 500 → 502", async () => {
-    const res = translateError(
-      new GitHubApiError({ status: 500, message: "" }),
-    );
-    expect(res.status).toBe(502);
+  it.each([
+    [401, "github.auth", 401],
+    [403, "github.auth", 403],
+    [404, "github.notFound", 404],
+    [409, "github.conflict", 409],
+    [500, "github.unknown", 502],
+  ])("GitHubApiError %i → %s / %i", (upstream, code, status) => {
+    expect(
+      describeError(new GitHubApiError({ status: upstream, message: "" })),
+    ).toEqual({ code, status });
   });
 
   // AkbApiError pass-through is a POLICY-PRIMITIVE guard: the akb HTTP adapter
@@ -355,78 +344,100 @@ describe("translateError", () => {
   // reachable adapter path — they pin the policy contract for any future
   // direct AkbApiError(4xx). 422 is in the AKB pass-through set (unlike GitHub).
   it.each([401, 403, 404, 409, 422])(
-    "AkbApiError %i → pass-through",
-    async (status) => {
-      const res = translateError(new AkbApiError({ status, message: "" }));
-      expect(res.status).toBe(status);
+    "AkbApiError %i → pass-through status",
+    (status) => {
+      expect(
+        describeError(new AkbApiError({ status, message: "" })).status,
+      ).toBe(status);
     },
   );
 
-  it.each([500, 429])("AkbApiError %i → 502", async (status) => {
-    const res = translateError(new AkbApiError({ status, message: "" }));
-    expect(res.status).toBe(502);
+  it.each([500, 429])("AkbApiError %i → 502", (status) => {
+    expect(describeError(new AkbApiError({ status, message: "" })).status).toBe(
+      502,
+    );
   });
 
-  it("AkbApiError body suppresses raw upstream message (generic copy only)", async () => {
-    const res = translateError(
+  it("AkbApiError carries a code only — no raw upstream message (AC4)", () => {
+    const descriptor = describeError(
       new AkbApiError({ status: 500, message: "raw postgres: relation x" }),
     );
-    const body = (await res.json()) as { error: string };
-    expect(body.error).not.toContain("postgres");
-    expect(body.error).not.toContain("relation x");
+    expect(descriptor).toEqual({ code: "akb.unknown", status: 502 });
+    expect(JSON.stringify(descriptor)).not.toContain("postgres");
   });
 
-  it("ActivitySuggestionError → its httpStatus", async () => {
-    const res = translateError(new ActivitySuggestionError("dismissed"));
-    expect(res.status).toBe(409);
-    const stale = translateError(
-      new ActivitySuggestionError("prefix_required"),
-    );
-    expect(stale.status).toBe(400);
+  it("ActivitySuggestionError → its code + httpStatus", () => {
+    expect(describeError(new ActivitySuggestionError("dismissed"))).toEqual({
+      code: "activitySuggestion.dismissed",
+      status: 409,
+    });
+    expect(
+      describeError(new ActivitySuggestionError("prefix_required")),
+    ).toEqual({ code: "activitySuggestion.prefixRequired", status: 400 });
   });
 
-  it("SchemaValidationError omits details by default (akb-origin issues stay log-only)", async () => {
-    const res = translateError(
+  it("SchemaValidationError omits details by default (akb-origin issues stay log-only)", () => {
+    const descriptor = describeError(
       new SchemaValidationError({ issues: ["raw fastapi text"] }),
     );
-    const body = (await res.json()) as { error: string; details?: string[] };
-    expect(body.details).toBeUndefined();
+    expect(descriptor.details).toBeUndefined();
   });
 
-  it("SchemaValidationError surfaces details only when clientValidated", async () => {
-    const res = translateError(
+  it("SchemaValidationError surfaces details only when clientValidated", () => {
+    const descriptor = describeError(
       new SchemaValidationError({
         issues: ["title is required"],
         clientValidated: true,
       }),
     );
-    const body = (await res.json()) as { error: string; details?: string[] };
-    expect(body.details).toEqual(["title is required"]);
+    expect(descriptor.details).toEqual(["title is required"]);
   });
 
-  it("unknown error → 500", async () => {
-    const res = translateError(new Error("unexpected"));
-    expect(res.status).toBe(500);
-    const body = (await res.json()) as { error: string };
-    expect(body).toMatchObject({ error: "An unexpected error occurred." });
+  it("unknown error → unknown / 500", () => {
+    expect(describeError(new Error("unexpected"))).toEqual({
+      code: "unknown",
+      status: 500,
+    });
   });
 
-  it("non-Error unknown → 500", async () => {
-    const res = translateError("some string error");
-    expect(res.status).toBe(500);
+  it("non-Error unknown → unknown / 500", () => {
+    expect(describeError("some string error")).toEqual({
+      code: "unknown",
+      status: 500,
+    });
   });
 
-  it("response body has { error: string } shape", async () => {
-    const res = translateError(new ConflictError());
-    const body = (await res.json()) as { error: string };
-    expect(typeof body.error).toBe("string");
-    expect(body.error.length).toBeGreaterThan(0);
+  it("carries a stable code, never message text (AC4)", () => {
+    const descriptor = describeError(new ConflictError());
+    expect(descriptor.code).toBe("conflict");
+    expect(descriptor).not.toHaveProperty("message");
+    expect(descriptor).not.toHaveProperty("error");
   });
 
-  it("uses toUserMessage() value in response body", async () => {
-    const err = new ConflictError();
-    const res = translateError(err);
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toBe(err.toUserMessage());
+  it("every described code resolves to a non-empty en base string", () => {
+    const errors: unknown[] = [
+      new ConflictError(),
+      new AuthError(),
+      new NotFoundError(),
+      new NotFoundError({ resourceKind: "template" }),
+      new SchemaValidationError(),
+      new SchemaValidationError({ resourceKind: "config" }),
+      new LlmError({ message: "" }),
+      new GitHubApiError({ status: 500, message: "" }),
+      new AkbApiError({ status: 404, message: "" }),
+      new ActivitySuggestionError("stale"),
+      new Error("boom"),
+    ];
+    for (const err of errors) {
+      const { code } = describeError(err);
+      const resolved = code
+        .split(".")
+        .reduce<unknown>(
+          (node, segment) => (node as Record<string, unknown>)?.[segment],
+          ERROR_MESSAGES_EN,
+        );
+      expect(typeof resolved, code).toBe("string");
+      expect((resolved as string).length, code).toBeGreaterThan(0);
+    }
   });
 });

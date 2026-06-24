@@ -53,6 +53,16 @@ all differ from your training data. Read the relevant guide in
 - Scope split (epic REEF-178): this is the **web chrome** catalog (S3). core
   field-registry labels are S2 (REEF-292) and date/number/relative-time formats
   are S4 (REEF-294) — keep those out of this catalog.
+- Server/core error messages are the `errors.*` namespace (REEF-297). `core`
+  owns the stable error codes plus the en base catalog (`ERROR_MESSAGES_EN`,
+  composed into `errors.*` in `i18n/messages.ts`, exactly like the field catalog)
+  and never resolves a locale; `describeError` hands `web` a `{ code, status }`.
+  Route Handlers localize at the boundary through `lib/api/errorLocalization`
+  (`localizeError` for a `ReefError`, `localizedErrorResponse` for a web-owned
+  `errors.*` key such as `sessionExpired`); locale is read from `next/headers`
+  (cookie → `Accept-Language` → en), so outside a request scope detection falls
+  back to en. Do not build a localized error body in `core` or hardcode an
+  English error string in a Route Handler.
 
 ## Subtree Rules
 

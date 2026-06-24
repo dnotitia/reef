@@ -184,7 +184,7 @@ describe("GET /api/vaults", () => {
     expect(res.status).toBe(502);
   });
 
-  it("maps non-akb errors to a deterministic 500 (REEF-054 total translateError)", async () => {
+  it("maps non-akb errors to a deterministic 500 (REEF-054 total describeError)", async () => {
     mockAkbListVaults.mockRejectedValueOnce(new Error("unrelated"));
     const req = new Request("http://localhost/api/vaults", {
       headers: authedHeaders(),

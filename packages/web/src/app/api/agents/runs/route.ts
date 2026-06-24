@@ -14,9 +14,9 @@ import {
   akbReadAuthoringLanguage,
   createLlmAdapter,
   createWorkspaceChatAgentResponse,
+  describeError,
   enrichIssue,
   scanAndPersistActivitySuggestions,
-  translateError,
 } from "@reef/core";
 import type { UIMessage } from "ai";
 import {
@@ -221,11 +221,11 @@ export async function POST(request: Request): Promise<Response> {
     );
     // Keep the structured agent-error contract the rest of this route uses,
     // mapping the GitHub mint failure through the same status ladder as the
-    // manual scan route (translateError) so a revoked/rate-limited App is
+    // manual scan route (describeError) so a revoked/rate-limited App is
     // reported with the right status and recoverable flag.
     return jsonAgentError(
       BAD_GITHUB_CREDENTIAL_MESSAGE,
-      translateError(github.error).status,
+      describeError(github.error).status,
       "github_unavailable",
     );
   }

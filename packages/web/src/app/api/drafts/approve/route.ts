@@ -63,8 +63,8 @@ export async function POST(request: Request): Promise<Response> {
     await writeIssue({ adapter, vault, issue, content: create.content });
     return Response.json({ issueId: id }, { status: 201 });
   } catch (err) {
-    // No-internals: does not echo raw err.message — translateError maps known akb
-    // errors to PM copy and unknowns to a generic 500.
+    // No-internals: does not echo raw err.message — respondWithError maps known
+    // akb errors to localized PM copy and unknowns to a generic 500.
     logger.error({ err, vault }, "approve_draft failed");
     return respondWithError(err, { resourceKind: "workspace" });
   }

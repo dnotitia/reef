@@ -182,7 +182,7 @@ describe("POST /api/activity/scan", () => {
     );
     const res = await POST(makeRequest({}));
     expect(res.status).toBe(500);
-    // translateError hides the raw technical message behind PM vocabulary.
+    // localizeError hides the raw technical message behind PM vocabulary.
     expect(await res.json()).toEqual({
       error: "An unexpected error occurred.",
     });
