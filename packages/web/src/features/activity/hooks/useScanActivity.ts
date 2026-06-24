@@ -10,6 +10,7 @@ import {
   shouldAutoScan,
 } from "@/lib/storage/lastScan";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
@@ -58,6 +59,20 @@ export function useScanActivity(options?: {
   onSuccess?: (result: ScanActivityResult) => void;
 }) {
   const queryClient = useQueryClient();
+  const t = useTranslations("toasts");
+  // Build the manual-scan summary toast from localized count parts (REEF-299).
+  // Korean has no plural category, so the `{count, plural, ...}` catalog entries
+  // resolve to a single form; English keeps one/other.
+  const summarize = (result: ScanActivityResult): string => {
+    const parts: string[] = [];
+    if (result.addedDrafts > 0) {
+      parts.push(t("scanDrafts", { count: result.addedDrafts }));
+    }
+    if (result.addedStatusChanges > 0) {
+      parts.push(t("scanStatusChanges", { count: result.addedStatusChanges }));
+    }
+    return t("scanSummary", { parts: parts.join(" + ") });
+  };
 
   return useMutation({
     mutationFn: async ({
@@ -114,12 +129,12 @@ export function useScanActivity(options?: {
       const totalAdded = result.addedDrafts + result.addedStatusChanges;
       if (variables.source === "manual") {
         if (totalAdded > 0) {
-          toast.success(scanToastMessage(result));
+          toast.success(summarize(result));
         } else {
-          toast("No new activity since the last scan.");
+          toast(t("noNewActivity"));
         }
       } else if (totalAdded > 0) {
-        toast.success(scanToastMessage(result));
+        toast.success(summarize(result));
       }
       options?.onSuccess?.(result);
     },
@@ -129,28 +144,9 @@ export function useScanActivity(options?: {
         toast.error(err.message);
         return;
       }
-      toast.error(
-        err instanceof Error ? err.message : "Failed to scan for new activity.",
-      );
+      toast.error(err instanceof Error ? err.message : t("scanError"));
     },
   });
-}
-
-function scanToastMessage(result: ScanActivityResult): string {
-  const parts: string[] = [];
-  if (result.addedDrafts > 0) {
-    parts.push(
-      `${result.addedDrafts} draft${result.addedDrafts === 1 ? "" : "s"}`,
-    );
-  }
-  if (result.addedStatusChanges > 0) {
-    parts.push(
-      `${result.addedStatusChanges} status change${
-        result.addedStatusChanges === 1 ? "" : "s"
-      }`,
-    );
-  }
-  return `${parts.join(" + ")} from recent activity`;
 }
 
 /**

@@ -1,14 +1,15 @@
+import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { EnrichmentFieldEnum } from "@reef/core";
 import type { EnrichmentField, EnrichmentSuggestion } from "@reef/core";
 import { NO_SELECTION } from "@reef/core/fields";
-import { render, screen } from "@testing-library/react";
+import { render, renderHook, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import {
   type EnrichmentFormApi,
   type EnrichmentFormValues,
   FIELD_DESCRIPTORS,
   applySuggestionToForm,
-  fieldLabel,
+  fieldLabelKey,
   formatSuggestedValue,
 } from "./enrichmentFieldDescriptors";
 
@@ -71,14 +72,22 @@ describe("FIELD_DESCRIPTORS", () => {
   it("has an entry for every enrichment field (exhaustive)", () => {
     for (const field of EnrichmentFieldEnum.options as EnrichmentField[]) {
       expect(FIELD_DESCRIPTORS[field]).toBeDefined();
-      expect(typeof FIELD_DESCRIPTORS[field].label).toBe("string");
+      expect(typeof FIELD_DESCRIPTORS[field].labelKey).toBe("string");
     }
   });
 
-  it("exposes a human label per field", () => {
-    expect(fieldLabel("priority")).toBe("Priority");
-    expect(fieldLabel("due_date")).toBe("Due");
-    expect(fieldLabel("content")).toBe("Description");
+  it("maps each field to a shared fieldNames catalog key (REEF-299)", () => {
+    expect(fieldLabelKey("priority")).toBe("priority");
+    expect(fieldLabelKey("due_date")).toBe("due");
+    expect(fieldLabelKey("content")).toBe("description");
+    expect(fieldLabelKey("external_refs")).toBe("externalRefs");
+  });
+
+  it("resolves the label key to a locale string through the catalog", () => {
+    const { result } = renderHook(() => useFieldNameLabels());
+    expect(result.current[fieldLabelKey("priority")]).toBe("Priority");
+    expect(result.current[fieldLabelKey("due_date")]).toBe("Due");
+    expect(result.current[fieldLabelKey("content")]).toBe("Description");
   });
 });
 

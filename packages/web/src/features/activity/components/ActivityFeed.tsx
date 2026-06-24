@@ -2,6 +2,7 @@
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjectConfig } from "@/features/settings/hooks/useProjectConfig";
+import { useStatusLabels } from "@/i18n/fieldLabels";
 import type {
   ActivityDraftSuggestion,
   ActivityStatusChangeSuggestion,
@@ -9,6 +10,7 @@ import type {
   Status,
 } from "@reef/core";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -122,6 +124,8 @@ function ActivityFeedContent({
   );
   const router = useRouter();
   const queryClient = useQueryClient();
+  const t = useTranslations("toasts");
+  const statusLabels = useStatusLabels();
 
   const [summaryDismissed, setSummaryDismissed] = useState(false);
   const [approvingState, setApprovingState] = useState<ApprovingState>({});
@@ -222,13 +226,13 @@ function ActivityFeedContent({
 
       toast.success(
         issueId
-          ? `Issue ${issueId} created from draft`
-          : "Draft suggestion approved",
+          ? t("issueCreatedFromDraft", { id: issueId })
+          : t("draftApproved"),
       );
       if (issueId) router.push(`/issues/${issueId}`);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to approve draft.";
+        err instanceof Error ? err.message : t("approveDraftError");
       console.error("Failed to approve draft:", err);
       setApproveError(message);
       toast.error(message);
@@ -279,10 +283,17 @@ function ActivityFeedContent({
         queryKey: ["issues", "relations", vault],
       });
 
-      toast.success(`${issueId} moved to ${toStatus ?? "the new status"}`);
+      toast.success(
+        t("issueMoved", {
+          id: issueId,
+          status: toStatus
+            ? statusLabels[toStatus]
+            : t("issueMovedFallbackStatus"),
+        }),
+      );
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to update issue status.";
+        err instanceof Error ? err.message : t("statusChangeError");
       console.error("Failed to approve status change:", err);
       setApproveError(message);
       toast.error(message);

@@ -3,20 +3,28 @@ import path from "node:path";
 import ts from "typescript";
 
 /**
- * Hardcoded user-facing JSX string scanner — the engine behind the i18n
- * regression guard (REEF-293, AC2). It walks `.tsx` sources and reports JSX
- * constructs that put English copy directly in the markup instead of routing it
- * through the message catalog (`useTranslations`):
+ * Hardcoded user-facing string scanner — the engine behind the i18n regression
+ * guard (REEF-293, extended in REEF-299). It walks `.ts` / `.tsx` sources and
+ * reports English copy living directly in code instead of routing through the
+ * message catalog (`useTranslations`):
  *
  * - JSX **text** nodes that contain letters (`<span>Issues</span>`).
  * - A small set of **user-facing attributes** whose value is a static string
  *   literal (`aria-label="Collapse sidebar"`, `title`, `placeholder`, `alt`).
+ * - The **message argument** of a `toast(...)` / `toast.success(...)` call — the
+ *   first argument only, where the user-facing copy lives. Options like `id` /
+ *   `className` (2nd arg) are deliberately out of reach so the scan stays free of
+ *   false positives (REEF-299, AC4); a toast `description` option is migrated by
+ *   review, not auto-caught.
  *
  * A value driven through `t(...)` is a call expression, not a string literal, so
- * a migrated `aria-label={t("collapseSidebar")}` is invisible to the scanner —
- * exactly the point. The guard is intentionally JSX-only: AC2 is phrased as "a
- * new hardcoded literal added to JSX", and a literal-vs-key heuristic over bare
- * `.ts` modules would be far noisier than it is useful.
+ * a migrated `aria-label={t("collapseSidebar")}` or `toast.success(t("saved"))`
+ * is invisible to the scanner — exactly the point. The scan is deliberately
+ * narrow: JSX + the bounded toast pattern. It does NOT apply a literal-vs-key
+ * heuristic to arbitrary `.ts` data structures (column-header / field-label
+ * arrays, etc.) — that would be far noisier than useful, so those are kept
+ * copy-free by the review checklist in `packages/web/AGENTS.md` instead (the
+ * REEF-299 AC3 alternative).
  *
  * The scanner is pure (no baseline knowledge). `i18nGuard.test.ts` diffs its
  * output against the committed baseline to enforce the ratchet.
@@ -55,7 +63,16 @@ export interface Violation {
   text: string;
   /** 1-based line number, for human-facing failure output. */
   line: number;
-  kind: "jsx-text" | "attr";
+  kind: "jsx-text" | "attr" | "toast";
+}
+
+/** `toast(...)` or `toast.<method>(...)` — the callee shapes sonner exposes. */
+function isToastCallee(expr: ts.Expression): boolean {
+  if (ts.isIdentifier(expr)) return expr.text === "toast";
+  if (ts.isPropertyAccessExpression(expr)) {
+    return ts.isIdentifier(expr.expression) && expr.expression.text === "toast";
+  }
+  return false;
 }
 
 /** Collapse internal whitespace/newlines so multi-line JSX text keys are stable. */
@@ -92,7 +109,9 @@ export function scanSource(relFile: string, source: string): Violation[] {
     source,
     ts.ScriptTarget.Latest,
     /* setParentNodes */ true,
-    ts.ScriptKind.TSX,
+    // Parse `.ts` as TS so generics/assertions aren't misread as JSX; `.tsx`
+    // as TSX. A `.ts` file has no JSX nodes, so only the toast scan fires there.
+    relFile.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
   const lines = source.split("\n");
   const violations: Violation[] = [];
@@ -111,7 +130,46 @@ export function scanSource(relFile: string, source: string): Violation[] {
     });
   };
 
+  // Record translatable literals inside a toast message argument. Descends
+  // through ternaries/`??` (an inline `err.message : "Failed."` fallback) and
+  // template expressions (static parts + nested string literals), so a migrated
+  // `t(...)` call — having no literal — is invisible, exactly as in JSX.
+  const collectToastLiterals = (node: ts.Node): void => {
+    // A call expression in the message position means the copy is produced by a
+    // function (`t(...)`, a formatter helper) — its string arguments are keys or
+    // identifiers, not raw copy — so stop here. This is what makes a migrated
+    // `toast.success(t("saved"))` invisible while `toast.success("Saved")` is
+    // still caught; ternary/`??` branches are descended so an inline literal
+    // fallback is not missed.
+    if (ts.isCallExpression(node)) return;
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+      if (isTranslatableCopy(node.text)) {
+        recordAt(node.getStart(sourceFile), node.text, "toast");
+      }
+      return;
+    }
+    if (ts.isTemplateExpression(node)) {
+      const staticText = [
+        node.head.text,
+        ...node.templateSpans.map((span) => span.literal.text),
+      ].join(" ");
+      if (isTranslatableCopy(staticText)) {
+        recordAt(node.getStart(sourceFile), staticText, "toast");
+      }
+      for (const span of node.templateSpans) {
+        collectToastLiterals(span.expression);
+      }
+      return;
+    }
+    ts.forEachChild(node, collectToastLiterals);
+  };
+
   const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node) && isToastCallee(node.expression)) {
+      // Only the message (first arg); options like `id`/`className` are exempt.
+      const message = node.arguments[0];
+      if (message) collectToastLiterals(message);
+    }
     if (ts.isJsxText(node)) {
       if (
         !node.containsOnlyTriviaWhiteSpaces &&
@@ -142,7 +200,10 @@ export function scanSource(relFile: string, source: string): Violation[] {
 }
 
 function shouldSkip(relPath: string): boolean {
-  if (!relPath.endsWith(".tsx")) return true;
+  // `.tsx` carries the JSX scan; `.ts` is scanned for the toast pattern only
+  // (REEF-299). `.d.ts` declarations have neither, so skip them.
+  if (!relPath.endsWith(".ts") && !relPath.endsWith(".tsx")) return true;
+  if (relPath.endsWith(".d.ts")) return true;
   if (SKIP_SUFFIXES.some((suffix) => relPath.endsWith(suffix))) return true;
   return SKIP_DIR_SEGMENTS.some(
     (segment) =>
@@ -152,7 +213,7 @@ function shouldSkip(relPath: string): boolean {
   );
 }
 
-/** Recursively collect scannable `.tsx` files under `rootDir`. */
+/** Recursively collect scannable `.ts` / `.tsx` files under `rootDir`. */
 export function collectFiles(rootDir: string): string[] {
   const out: string[] = [];
   const walk = (dir: string): void => {

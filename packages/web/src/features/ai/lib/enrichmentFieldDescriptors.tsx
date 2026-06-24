@@ -8,7 +8,12 @@ import {
 } from "@/components/fields/fieldValue";
 import { PriorityBadge } from "@/components/ui/priority-dot";
 import type { PrioritySelection } from "@/features/issues/lib/issueDraftForm";
-import { useIssueTypeLabels, useSeverityLabels } from "@/i18n/fieldLabels";
+import {
+  type EnrichmentEmptyKey,
+  useEnrichmentEmptyLabels,
+  useIssueTypeLabels,
+  useSeverityLabels,
+} from "@/i18n/fieldLabels";
 import type {
   EnrichmentField,
   EnrichmentSuggestion,
@@ -16,6 +21,7 @@ import type {
   IssueType,
   Severity,
 } from "@reef/core";
+import type { FieldNameKey } from "@reef/core/fields";
 import type { ReactNode } from "react";
 
 /**
@@ -31,6 +37,16 @@ function IssueTypeLabelText({ value }: { value: IssueType }) {
 
 function SeverityLabelText({ value }: { value: Severity }) {
   return <>{useSeverityLabels()[value]}</>;
+}
+
+/**
+ * Empty-state placeholder for a not-yet-filled field. Resolves the active-locale
+ * copy at render time (REEF-299), keeping the descriptor entries declarative —
+ * the leaf renders inside the descriptor's returned JSX, so its hook runs in the
+ * enrichment card's React tree (same shape as the label leaves above).
+ */
+function EnrichmentMuted({ messageKey }: { messageKey: EnrichmentEmptyKey }) {
+  return <Muted>{useEnrichmentEmptyLabels()[messageKey]}</Muted>;
 }
 
 /**
@@ -93,7 +109,8 @@ type SuggestionFor<F extends EnrichmentField> = Extract<
 >;
 
 export interface FieldDescriptor<F extends EnrichmentField> {
-  readonly label: string;
+  /** Shared `fieldNames` catalog key; the label is locale-resolved (REEF-299). */
+  readonly labelKey: FieldNameKey;
   /** Current form value, formatted for the inline "before" slot. */
   formatCurrent: (form: EnrichmentFormApi) => ReactNode;
   /** Suggested value, formatted for the inline "after" slot. */
@@ -115,29 +132,29 @@ type FieldDescriptorMap = {
  */
 export const FIELD_DESCRIPTORS: FieldDescriptorMap = {
   title: {
-    label: "Title",
+    labelKey: "title",
     formatCurrent: (f) =>
       f.values.title ? (
         <PlainValue>{f.values.title}</PlainValue>
       ) : (
-        <Muted>Empty</Muted>
+        <EnrichmentMuted messageKey="empty" />
       ),
     formatSuggested: (s) => <PlainValue>{s.value}</PlainValue>,
     apply: (f, s) => f.setTitle(s.value),
   },
   content: {
-    label: "Description",
+    labelKey: "description",
     formatCurrent: (f) =>
       f.values.content ? (
         <PlainValue>{f.values.content}</PlainValue>
       ) : (
-        <Muted>Empty</Muted>
+        <EnrichmentMuted messageKey="empty" />
       ),
     formatSuggested: (s) => <PlainValue>{s.value}</PlainValue>,
     apply: (f, s) => f.setBody(s.value),
   },
   issue_type: {
-    label: "Type",
+    labelKey: "type",
     formatCurrent: (f) => (
       <PlainValue>
         <IssueTypeLabelText value={f.values.issueType} />
@@ -151,10 +168,10 @@ export const FIELD_DESCRIPTORS: FieldDescriptorMap = {
     apply: (f, s) => f.setIssueType(s.value),
   },
   priority: {
-    label: "Priority",
+    labelKey: "priority",
     formatCurrent: (f) =>
       f.values.priority === NO_SELECTION ? (
-        <Muted>No priority</Muted>
+        <EnrichmentMuted messageKey="noPriority" />
       ) : (
         <PriorityBadge priority={f.values.priority} />
       ),
@@ -162,113 +179,113 @@ export const FIELD_DESCRIPTORS: FieldDescriptorMap = {
     apply: (f, s) => f.setPriority(s.value),
   },
   assigned_to: {
-    label: "Assignee",
+    labelKey: "assignee",
     formatCurrent: (f) =>
       f.values.assignee ? (
         <PlainValue>{f.values.assignee}</PlainValue>
       ) : (
-        <Muted>Unassigned</Muted>
+        <EnrichmentMuted messageKey="unassigned" />
       ),
     formatSuggested: (s) => <PlainValue>{s.value}</PlainValue>,
     apply: (f, s) => f.setAssignee(s.value),
   },
   requester: {
-    label: "Requester",
+    labelKey: "requester",
     formatCurrent: (f) =>
       f.values.requester ? (
         <PlainValue>{f.values.requester}</PlainValue>
       ) : (
-        <Muted>None</Muted>
+        <EnrichmentMuted messageKey="none" />
       ),
     formatSuggested: (s) => <PlainValue>{s.value}</PlainValue>,
     apply: (f, s) => f.setRequester(s.value),
   },
   reporter: {
-    label: "Reporter",
+    labelKey: "reporter",
     formatCurrent: (f) =>
       f.values.reporter ? (
         <PlainValue>{f.values.reporter}</PlainValue>
       ) : (
-        <Muted>None</Muted>
+        <EnrichmentMuted messageKey="none" />
       ),
     formatSuggested: (s) => <PlainValue>{s.value}</PlainValue>,
     apply: (f, s) => f.setReporter(s.value),
   },
   start_date: {
-    label: "Start",
+    labelKey: "start",
     formatCurrent: (f) =>
       f.values.startDate ? (
         <PlainValue>{f.values.startDate}</PlainValue>
       ) : (
-        <Muted>Not set</Muted>
+        <EnrichmentMuted messageKey="notSet" />
       ),
     formatSuggested: (s) => <PlainValue>{s.value.slice(0, 10)}</PlainValue>,
     apply: (f, s) => f.setStartDate(s.value.slice(0, 10)),
   },
   due_date: {
-    label: "Due",
+    labelKey: "due",
     formatCurrent: (f) =>
       f.values.dueDate ? (
         <PlainValue>{f.values.dueDate}</PlainValue>
       ) : (
-        <Muted>Not set</Muted>
+        <EnrichmentMuted messageKey="notSet" />
       ),
     formatSuggested: (s) => <PlainValue>{s.value.slice(0, 10)}</PlainValue>,
     apply: (f, s) => f.setDueDate(s.value.slice(0, 10)),
   },
   milestone_id: {
-    label: "Milestone",
+    labelKey: "milestone",
     formatCurrent: (f) =>
       f.values.milestoneId ? (
         <PlainValue>{f.values.milestoneId}</PlainValue>
       ) : (
-        <Muted>None</Muted>
+        <EnrichmentMuted messageKey="none" />
       ),
     formatSuggested: (s) => <PlainValue>{s.value}</PlainValue>,
     apply: (f, s) => f.setMilestoneId(s.value),
   },
   sprint_id: {
-    label: "Sprint",
+    labelKey: "sprint",
     formatCurrent: (f) =>
       f.values.sprintId ? (
         <PlainValue>{f.values.sprintId}</PlainValue>
       ) : (
-        <Muted>None</Muted>
+        <EnrichmentMuted messageKey="none" />
       ),
     formatSuggested: (s) => <PlainValue>{s.value}</PlainValue>,
     apply: (f, s) => f.setSprintId(s.value),
   },
   release_id: {
-    label: "Release",
+    labelKey: "release",
     formatCurrent: (f) =>
       f.values.releaseId ? (
         <PlainValue>{f.values.releaseId}</PlainValue>
       ) : (
-        <Muted>None</Muted>
+        <EnrichmentMuted messageKey="none" />
       ),
     formatSuggested: (s) => <PlainValue>{s.value}</PlainValue>,
     apply: (f, s) => f.setReleaseId(s.value),
   },
   estimate_points: {
-    label: "Points",
+    labelKey: "points",
     formatCurrent: (f) =>
       f.values.estimatePoints ? (
         <PlainValue>{f.values.estimatePoints}</PlainValue>
       ) : (
-        <Muted>None</Muted>
+        <EnrichmentMuted messageKey="none" />
       ),
     formatSuggested: (s) => <PlainValue>{String(s.value)}</PlainValue>,
     apply: (f, s) => f.setEstimatePoints(String(s.value)),
   },
   severity: {
-    label: "Severity",
+    labelKey: "severity",
     formatCurrent: (f) =>
       f.values.severity ? (
         <PlainValue>
           <SeverityLabelText value={f.values.severity} />
         </PlainValue>
       ) : (
-        <Muted>No severity</Muted>
+        <EnrichmentMuted messageKey="noSeverity" />
       ),
     formatSuggested: (s) => (
       <PlainValue>
@@ -278,42 +295,42 @@ export const FIELD_DESCRIPTORS: FieldDescriptorMap = {
     apply: (f, s) => f.setSeverity(s.value),
   },
   parent_id: {
-    label: "Parent",
+    labelKey: "parent",
     formatCurrent: (f) =>
       f.values.parentId ? (
         <PlainValue>{f.values.parentId}</PlainValue>
       ) : (
-        <Muted>None</Muted>
+        <EnrichmentMuted messageKey="none" />
       ),
     formatSuggested: (s) => <PlainValue>{s.value}</PlainValue>,
     apply: (f, s) => f.setParentId(s.value),
   },
   labels: {
-    label: "Labels",
+    labelKey: "labels",
     formatCurrent: (f) => <LabelChips labels={f.values.labels} />,
     formatSuggested: (s) => <LabelChips labels={s.value} />,
     apply: (f, s) => f.setLabels(s.value),
   },
   depends_on: {
-    label: "Depends on",
+    labelKey: "dependsOn",
     formatCurrent: (f) => <RelationIds ids={f.values.dependsOn} />,
     formatSuggested: (s) => <RelationIds ids={s.value} />,
     apply: (f, s) => f.setDependsOn(s.value),
   },
   blocks: {
-    label: "Blocks",
+    labelKey: "blocks",
     formatCurrent: (f) => <RelationIds ids={f.values.blocks} />,
     formatSuggested: (s) => <RelationIds ids={s.value} />,
     apply: (f, s) => f.setBlocks(s.value),
   },
   related_to: {
-    label: "Related",
+    labelKey: "related",
     formatCurrent: (f) => <RelationIds ids={f.values.relatedTo} />,
     formatSuggested: (s) => <RelationIds ids={s.value} />,
     apply: (f, s) => f.setRelatedTo(s.value),
   },
   external_refs: {
-    label: "External references",
+    labelKey: "externalRefs",
     formatCurrent: (f) => <ExternalRefs refs={f.values.externalRefs} />,
     formatSuggested: (s) => <ExternalRefs refs={s.value} />,
     apply: (f, s) => f.setExternalRefs(s.value),
@@ -326,8 +343,13 @@ export const FIELD_DESCRIPTORS: FieldDescriptorMap = {
 // signature to the union form. This is sound: `suggestion.field` selects the
 // matching descriptor, so the value consistently matches the entry's expected member.
 
-export function fieldLabel(field: EnrichmentField): string {
-  return FIELD_DESCRIPTORS[field].label;
+/**
+ * The shared `fieldNames` catalog key for a field's label. Resolve it to the
+ * active-locale string with `useFieldNameLabels()` (REEF-299); the descriptor
+ * map can not call the label hook directly because it is a module constant.
+ */
+export function fieldLabelKey(field: EnrichmentField): FieldNameKey {
+  return FIELD_DESCRIPTORS[field].labelKey;
 }
 
 export function formatCurrentValue(

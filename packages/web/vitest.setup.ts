@@ -21,9 +21,17 @@ vi.mock("@/i18n/fieldLabels", async () => {
   const { PLANNING_FIELD_MESSAGES_EN } = await vi.importActual<
     typeof import("@reef/core/fields/planning")
   >("@reef/core/fields/planning");
+  // Enrichment empty-state labels live in the web `enrichment` catalog
+  // (REEF-299), so resolve them from the en base directly; field-NAME labels
+  // resolve from the core `fields.name` group (`f.name`, REEF-301) below.
+  const enModule = await vi.importActual<{ default: Record<string, unknown> }>(
+    "@/i18n/messages/en.json",
+  );
+  const en = enModule.default;
   const f = ISSUE_FIELD_MESSAGES_EN;
   const p = PLANNING_FIELD_MESSAGES_EN;
   return {
+    useEnrichmentEmptyLabels: () => en.enrichment,
     useStatusLabels: () => f.status,
     usePriorityLabels: () => f.priority,
     useIssueTypeLabels: () => f.issueType,
@@ -55,6 +63,10 @@ vi.mock("@/i18n/fieldLabels", async () => {
 // pure dateHelpers / relative-time unit tests and the hermetic i18n E2E spec.
 vi.mock("next-intl", async (importActual) => {
   const actual = await importActual<typeof import("next-intl")>();
+  // The en base catalog, loaded once for the provider-less fallback below.
+  const { loadMessages } =
+    await vi.importActual<typeof import("@/i18n/messages")>("@/i18n/messages");
+  const enMessages = loadMessages("en");
   return {
     ...actual,
     // Use the provider's locale when a test wraps the tree (e.g. REEF-293's
@@ -68,6 +80,24 @@ vi.mock("next-intl", async (importActual) => {
         return "en";
       }
     },
+    // Same fallback for `useTranslations` (REEF-299): a component that calls it
+    // (e.g. a toast handler) should render in a bare test without "No intl
+    // context found". When a provider IS present the real hook wins (so a
+    // `IntlTestProvider locale="ko"` test still asserts the translated surface);
+    // otherwise resolve against the en base via the non-hook `createTranslator`,
+    // mirroring the production request config (messages + formats + UTC).
+    useTranslations: ((namespace?: string) => {
+      try {
+        return actual.useTranslations(namespace as never);
+      } catch {
+        return actual.createTranslator({
+          locale: "en",
+          messages: enMessages,
+          timeZone: "UTC",
+          namespace: namespace as never,
+        });
+      }
+    }) as typeof actual.useTranslations,
   };
 });
 

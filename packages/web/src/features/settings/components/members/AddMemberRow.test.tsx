@@ -22,6 +22,7 @@ vi.mock("./RoleSelect", () => ({
   MANAGEABLE_ROLES: ["reader", "writer", "admin"],
 }));
 
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { AddMemberRow } from "./AddMemberRow";
 
 const DIRECTORY = [
@@ -43,6 +44,7 @@ describe("AddMemberRow (REEF-179)", () => {
     });
     render(
       <AddMemberRow vault="reef-acme" roster={ROSTER} currentLogin="dana" />,
+      { wrapper: IntlTestProvider },
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Add a member" }));
@@ -65,6 +67,7 @@ describe("AddMemberRow (REEF-179)", () => {
         currentLogin="dana"
         onAdded={onAdded}
       />,
+      { wrapper: IntlTestProvider },
     );
 
     // Add is disabled until a user is picked.

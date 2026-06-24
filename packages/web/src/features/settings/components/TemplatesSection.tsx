@@ -25,6 +25,7 @@ import {
   type Template,
 } from "@reef/core";
 import { NO_SELECTION, PRIORITY_OPTIONS } from "@reef/core/fields";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import { DEFAULT_ISSUE_TEMPLATES } from "../lib/defaultIssueTemplates";
@@ -54,6 +55,7 @@ function emptyDraft(): Template {
  * changing `name` would change the filename, so the user deletes-and-creates.
  */
 export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
+  const t = useTranslations("toasts");
   const { vault, isLoading: vaultLoading } = useActiveVault();
   const fieldNames = useFieldNameLabels();
   const query = useIssueTemplates(vault);
@@ -80,12 +82,9 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
           upsert.mutateAsync({ template }),
         ),
       );
-      toast.success("Seeded default templates.");
+      toast.success(t("templatesSeeded"));
     } catch (err) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : "Failed to seed default templates.";
+      const msg = err instanceof Error ? err.message : t("templatesSeedError");
       toast.error(msg);
     } finally {
       setSeeding(false);
@@ -148,13 +147,12 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
       await upsert.mutateAsync({ template: draft });
       toast.success(
         editor.originalName === null
-          ? `Template "${draft.label}" created.`
-          : `Template "${draft.label}" saved.`,
+          ? t("templateCreated", { label: draft.label })
+          : t("templateSaved", { label: draft.label }),
       );
       cancel();
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Failed to save template.";
+      const msg = err instanceof Error ? err.message : t("templateSaveError");
       setError(msg);
       toast.error(msg);
     }
@@ -170,11 +168,10 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
     }
     try {
       await remove.mutateAsync({ name: template.name });
-      toast.success(`Template "${template.label}" deleted.`);
+      toast.success(t("templateDeleted", { label: template.label }));
       if (editor?.originalName === template.name) cancel();
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Failed to delete template.";
+      const msg = err instanceof Error ? err.message : t("templateDeleteError");
       toast.error(msg);
     }
   }

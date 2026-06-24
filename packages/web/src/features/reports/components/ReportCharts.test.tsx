@@ -1,3 +1,4 @@
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { RiskBucket } from "../lib/aggregate";
@@ -62,7 +63,11 @@ describe("RiskMatrix (REEF-248 AC3/AC4)", () => {
   ];
 
   it("renders a semantic table with column + row headers (parity with the Pivot)", () => {
-    const { container } = render(<RiskMatrix buckets={buckets} />);
+    const { container } = render(
+      <IntlTestProvider>
+        <RiskMatrix buckets={buckets} />
+      </IntlTestProvider>,
+    );
     const table = container.querySelector("table");
     expect(table).not.toBeNull();
     // 4 aging columns as <th scope=col>, 5 priority rows as <th scope=row>.
@@ -73,7 +78,11 @@ describe("RiskMatrix (REEF-248 AC3/AC4)", () => {
   });
 
   it("fills cells with the neutral density ramp, not a red risk tint (REEF-248 AC1)", () => {
-    const { container } = render(<RiskMatrix buckets={buckets} />);
+    const { container } = render(
+      <IntlTestProvider>
+        <RiskMatrix buckets={buckets} />
+      </IntlTestProvider>,
+    );
     // Populated cells carry the shared neutral heat ramp...
     expect(
       container.querySelectorAll("td[style*='--muted-foreground']").length,

@@ -128,6 +128,18 @@ export const FIELD_NAME_KEYS = [
   "milestone",
   "release",
   "parent",
+  // REEF-299: extra field names the issue-list columns + AI enrichment
+  // descriptors need on top of the rail/filter/scope-bar set above.
+  "id",
+  "title",
+  "description",
+  "start",
+  "updated",
+  "points",
+  "dependsOn",
+  "blocks",
+  "related",
+  "externalRefs",
 ] as const;
 
 export type FieldNameKey = (typeof FIELD_NAME_KEYS)[number];
@@ -236,5 +248,15 @@ export const ISSUE_FIELD_MESSAGES_EN = {
     milestone: "Milestone",
     release: "Release",
     parent: "Parent",
+    id: "ID",
+    title: "Title",
+    description: "Description",
+    start: "Start",
+    updated: "Updated",
+    points: "Points",
+    dependsOn: "Depends on",
+    blocks: "Blocks",
+    related: "Related",
+    externalRefs: "External references",
   } satisfies Record<FieldNameKey, string>,
 };

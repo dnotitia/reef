@@ -6,11 +6,11 @@ import { describe, expect, it } from "vitest";
 import { scanTree } from "./scanLiterals";
 
 /**
- * The i18n hardcoded-string ratchet (REEF-293, AC2).
+ * The i18n hardcoded-string ratchet (REEF-293, extended in REEF-299).
  *
- * `scanLiterals` reports every user-facing English literal still living in JSX.
- * This test pins that set to a committed baseline and enforces a one-way
- * ratchet:
+ * `scanLiterals` reports every user-facing English literal still living in JSX
+ * or in a `toast(...)` message. This test pins that set to a committed baseline
+ * and enforces a one-way ratchet:
  *
  *   - A literal in the code but NOT in the baseline → a NEW hardcoded string was
  *     added. Fails. Route it through `useTranslations` (or, for a genuine
@@ -21,12 +21,13 @@ import { scanTree } from "./scanLiterals";
  *     refuses to add new entries, so the only way the guarded count grows is a
  *     hand-edit a reviewer sees in the diff.
  *
- * The guard is JSX-only (text nodes + a small set of user-facing attributes).
- * Strings hoisted into data structures and rendered via `{expr}`, and toast
- * strings passed to `toast.*()`, are out of its reach by design — AC2 is about
- * literals "added to JSX", and a literal-vs-key heuristic over arbitrary `.ts`
- * would be far noisier than useful. Type-safe keys (the next-intl `AppConfig`
- * augmentation) plus the catalog parity test cover the missing-key half of AC2.
+ * The guard covers JSX (text nodes + a small set of user-facing attributes) and
+ * the message argument of `toast.*()` calls (REEF-299). It deliberately does NOT
+ * apply a literal-vs-key heuristic to arbitrary `.ts` data structures (hoisted
+ * column-header / field-label arrays rendered via `{expr}`) — that would be far
+ * noisier than useful, so those stay copy-free by the review checklist in
+ * `packages/web/AGENTS.md`. Type-safe keys (the next-intl `AppConfig`
+ * augmentation) plus the catalog parity test cover the missing-key half.
  */
 
 const guardDir = path.dirname(fileURLToPath(import.meta.url));
@@ -95,7 +96,7 @@ describe("i18n hardcoded-string guard", () => {
     // offending entries (empty when the lists are empty).
     expect(
       added,
-      `New hardcoded user-facing JSX string(s) detected. Route them through useTranslations(), or add an \`i18n-exempt\` line comment for a genuine non-localized literal (e.g. a brand name):\n${format(added)}`,
+      `New hardcoded user-facing string(s) detected in JSX or a toast() message. Route them through useTranslations(), or add an \`i18n-exempt\` line comment for a genuine non-localized literal (e.g. a brand name):\n${format(added)}`,
     ).toEqual([]);
 
     expect(

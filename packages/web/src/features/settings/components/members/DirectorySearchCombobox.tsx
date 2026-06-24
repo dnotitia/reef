@@ -6,6 +6,7 @@ import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { useDirectorySearch } from "@/features/settings/hooks/useDirectorySearch";
 import { useDebouncedQuery } from "@/lib/useDebouncedQuery";
 import type { UserSearchResult } from "@reef/core";
+import { useTranslations } from "next-intl";
 import { useMemo } from "react";
 
 interface DirectorySearchComboboxProps {
@@ -34,6 +35,7 @@ export function DirectorySearchCombobox({
   currentLogin,
   disabled,
 }: DirectorySearchComboboxProps) {
+  const t = useTranslations("directorySearch");
   const { debounced, onChange, isDebouncing } = useDebouncedQuery();
   const {
     data: users,
@@ -62,13 +64,13 @@ export function DirectorySearchCombobox({
               />
               <span className="truncate">{u.display_name ?? u.username}</span>
               <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                {already ? "Already a member" : `@${u.username}`}
+                {already ? t("alreadyMember") : `@${u.username}`}
               </span>
             </>
           ),
         };
       }),
-    [users, existingKeys, currentLogin],
+    [users, existingKeys, currentLogin, t],
   );
 
   return (
@@ -84,8 +86,8 @@ export function DirectorySearchCombobox({
       loading={isPending || isDebouncing}
       searchable
       onQueryChange={onChange}
-      searchPlaceholder="Search users…"
-      placeholder="Search directory…"
+      searchPlaceholder={t("searchPlaceholder")}
+      placeholder={t("placeholder")}
       renderValue={() =>
         selectedUser ? (
           <PersonChip
@@ -97,11 +99,9 @@ export function DirectorySearchCombobox({
           />
         ) : null
       }
-      emptyState={
-        isError ? "Couldn't search the directory." : "No matching users."
-      }
+      emptyState={isError ? t("error") : t("noMatches")}
       disabled={disabled}
-      ariaLabel="Add a member"
+      ariaLabel={t("addMember")}
     />
   );
 }

@@ -19,6 +19,7 @@ import {
 } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import { Plus } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
@@ -81,6 +82,7 @@ export function PlanningPage() {
   // toast handlers and the kind tabs below all read the same maps.
   const planningKindLabels = usePlanningKindLabels();
   const planningKindSingular = usePlanningKindSingularLabels();
+  const t = useTranslations("toasts");
 
   const selectKind = useCallback(
     (kind: PlanningKind) => {
@@ -133,15 +135,20 @@ export function PlanningPage() {
     try {
       if (editor.mode === "create") {
         await createMutation.mutateAsync({ kind: editor.kind, item: input });
-        toast.success(`${planningKindSingular[editor.kind]} created.`);
+        toast.success(
+          t("planningCreated", { kind: planningKindSingular[editor.kind] }),
+        );
       } else {
         const item = { ...input, id: String(editor.item.id) } as PlanningItem;
         await updateMutation.mutateAsync({ kind: editor.kind, item });
-        toast.success(`${planningKindSingular[editor.kind]} saved.`);
+        toast.success(
+          t("planningSaved", { kind: planningKindSingular[editor.kind] }),
+        );
       }
       closeEditor();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Save failed.";
+      const message =
+        err instanceof Error ? err.message : t("planningSaveError");
       setFormError(message);
       toast.error(message);
     }
@@ -155,10 +162,14 @@ export function PlanningPage() {
         kind: target.kind,
         id: target.item.id,
       });
-      toast.success(`${planningKindSingular[target.kind]} deleted.`);
+      toast.success(
+        t("planningDeleted", { kind: planningKindSingular[target.kind] }),
+      );
       setDeleteTarget(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Delete failed.");
+      toast.error(
+        err instanceof Error ? err.message : t("planningDeleteError"),
+      );
     }
   }
 

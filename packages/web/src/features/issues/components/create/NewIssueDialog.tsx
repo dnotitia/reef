@@ -26,6 +26,7 @@ import { DEFAULT_CONFIG } from "@reef/core";
 import type { IssueType, ReferenceSuggestion, Template } from "@reef/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { Sparkles } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -55,6 +56,7 @@ export function NewIssueDialog() {
   const closeDialog = useViewStore((s) => s.closeNewIssueDialog);
   const { vault } = useActiveVault();
   const router = useRouter();
+  const t = useTranslations("toasts");
   const createMutation = useCreateIssue();
   const queryClient = useQueryClient();
   // Display prefix; the submit handler re-fetches the canonical value
@@ -315,22 +317,20 @@ export function NewIssueDialog() {
       const failedCount = failedReferences?.length ?? 0;
       if (failedCount > 0) {
         toast.warning(
-          `Issue ${issue.id} created, but ${failedCount} linked document${
-            failedCount === 1 ? "" : "s"
-          } couldn't be attached — add ${
-            failedCount === 1 ? "it" : "them"
-          } from the issue.`,
+          t("issueCreatedWithDocFailures", {
+            id: issue.id,
+            count: failedCount,
+          }),
         );
       } else if (issue.status === "backlog") {
         // Read-back: a new issue lands in `backlog` by default (REEF-130), which
         // the default board view hides (it floors to the active statuses). Name
         // where it went so the create doesn't look like it silently vanished.
-        toast.success(`Issue ${issue.id} added to the backlog`, {
-          description:
-            "It won't appear on the default board until you move it to Todo.",
+        toast.success(t("issueAddedToBacklog", { id: issue.id }), {
+          description: t("issueAddedToBacklogDescription"),
         });
       } else {
-        toast.success(`Issue ${issue.id} created`);
+        toast.success(t("issueCreated", { id: issue.id }));
       }
       router.push(`/issues/${issue.id}`);
     } catch (err) {

@@ -45,6 +45,7 @@ vi.mock("@/features/issues/hooks/queries/useIssueRelations", () => ({
   useIssueRelations: () => ({ data: [] }),
 }));
 
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { useGlobalSearchStore } from "../stores/useGlobalSearchStore";
 import { GlobalSearchDialog } from "./GlobalSearchDialog";
 
@@ -91,7 +92,9 @@ function renderDialog() {
     defaultOptions: { queries: { retry: false } },
   });
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      <IntlTestProvider>{children}</IntlTestProvider>
+    </QueryClientProvider>
   );
   return render(<GlobalSearchDialog />, { wrapper });
 }

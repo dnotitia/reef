@@ -1,6 +1,8 @@
 "use client";
 
+import { usePriorityLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 import type {
   AgingBucketKey,
   RiskBucket,
@@ -136,21 +138,6 @@ export function RankedBarList({
   );
 }
 
-const RISK_PRIORITY_LABELS: Record<RiskPriority, string> = {
-  critical: "Critical",
-  high: "High",
-  medium: "Medium",
-  low: "Low",
-  none: "None",
-};
-
-const AGING_LABELS: Record<AgingBucketKey, string> = {
-  fresh: "<1w",
-  recent: "1-2w",
-  stale: "2-4w",
-  stalled: ">4w",
-};
-
 const RISK_PRIORITIES: readonly RiskPriority[] = [
   "critical",
   "high",
@@ -201,6 +188,16 @@ export function RiskMatrix({
 }: {
   buckets: ReadonlyArray<RiskBucket>;
 }) {
+  // Reuse the core priority value labels (REEF-292) so the risk rows stay in
+  // sync with the rest of the app; only the extra "none" row and the aging
+  // column labels are web-catalog copy (REEF-299). The cast mirrors
+  // `fieldLabels.ts` — the `aging.{bucket}` key is built at runtime.
+  const priorityLabels = usePriorityLabels();
+  const t = useTranslations("reports") as unknown as (key: string) => string;
+  const priorityLabel = (priority: RiskPriority): string =>
+    priority === "none" ? t("riskPriorityNone") : priorityLabels[priority];
+  const agingLabel = (aging: AgingBucketKey): string => t(`aging.${aging}`);
+
   const max = Math.max(...buckets.map((b) => b.count), 1);
   const byKey = new Map(
     buckets.map((b) => [`${b.priority}:${b.aging}`, b.count] as const),
@@ -228,7 +225,7 @@ export function RiskMatrix({
                 scope="col"
                 className="px-1 pb-0.5 text-center align-bottom text-[10px] font-normal uppercase tracking-wide text-muted-foreground"
               >
-                {AGING_LABELS[aging]}
+                {agingLabel(aging)}
               </th>
             ))}
           </tr>
@@ -240,7 +237,7 @@ export function RiskMatrix({
                 scope="row"
                 className="text-left text-xs font-normal text-foreground/80"
               >
-                {RISK_PRIORITY_LABELS[priority]}
+                {priorityLabel(priority)}
               </th>
               {AGING_BUCKETS.map((aging) => {
                 const count = byKey.get(`${priority}:${aging}`) ?? 0;
@@ -249,7 +246,7 @@ export function RiskMatrix({
                     key={aging}
                     className={HEAT_CELL}
                     style={{ backgroundColor: heatFill(count, max) }}
-                    title={`${RISK_PRIORITY_LABELS[priority]} ${AGING_LABELS[aging]}: ${count}`}
+                    title={`${priorityLabel(priority)} ${agingLabel(aging)}: ${count}`}
                   >
                     {count > 0 ? count : ""}
                   </td>
