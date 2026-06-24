@@ -7,14 +7,18 @@ import { type MyWorkItem, groupByStatus } from "@/features/my-work/lib/myWork";
 import { useStatusLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { Status } from "@reef/core";
+import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import { Fragment, useCallback, useMemo } from "react";
 
 export type GroupMode = "priority" | "status";
 
-const GROUP_OPTIONS: ReadonlyArray<{ value: GroupMode; label: string }> = [
-  { value: "priority", label: "By priority" },
-  { value: "status", label: "By status" },
+const GROUP_OPTIONS: ReadonlyArray<{
+  value: GroupMode;
+  labelKey: "byPriority" | "byStatus";
+}> = [
+  { value: "priority", labelKey: "byPriority" },
+  { value: "status", labelKey: "byStatus" },
 ];
 
 interface MyWorkQueueProps {
@@ -31,6 +35,7 @@ interface MyWorkQueueProps {
  * preserves it.
  */
 export function MyWorkQueue({ items, mode, onModeChange }: MyWorkQueueProps) {
+  const t = useTranslations("myWork");
   const searchParams = useSearchParams();
   const hrefFor = useCallback(
     (id: string) => buildOpenIssueHref(id, searchParams),
@@ -46,7 +51,7 @@ export function MyWorkQueue({ items, mode, onModeChange }: MyWorkQueueProps) {
       <header className="flex items-baseline justify-between gap-3">
         <div className="flex items-baseline gap-2">
           <h2 className="text-sm font-semibold text-foreground">
-            What to do next
+            {t("queueTitle")}
           </h2>
           <span className="font-mono text-xs tabular-nums text-muted-foreground">
             {items.length}
@@ -55,7 +60,7 @@ export function MyWorkQueue({ items, mode, onModeChange }: MyWorkQueueProps) {
         {/* biome-ignore lint/a11y/useSemanticElements: a header toggle group is not a form <fieldset>; role="group" + aria-label is the right semantics here. */}
         <div
           role="group"
-          aria-label="Group the queue"
+          aria-label={t("groupAriaLabel")}
           className="inline-flex gap-0.5 rounded-lg border border-border-subtle bg-surface-subtle p-0.5"
         >
           {GROUP_OPTIONS.map((option) => {
@@ -74,7 +79,7 @@ export function MyWorkQueue({ items, mode, onModeChange }: MyWorkQueueProps) {
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {option.label}
+                {t(option.labelKey)}
               </button>
             );
           })}

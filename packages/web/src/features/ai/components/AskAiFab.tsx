@@ -3,6 +3,7 @@
 import { useAiAvailable } from "@/features/settings/hooks/useAiAvailable";
 import { cn } from "@/lib/utils";
 import { Sparkles } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useAskAiStore } from "../stores/useAskAiStore";
 
 interface AskAiFabProps {
@@ -41,6 +42,7 @@ function isMacLikeNavigator(): boolean {
  * small dot indicates unread activity.
  */
 export function AskAiFab({ messageCount = 0, onPreload }: AskAiFabProps) {
+  const t = useTranslations("ai");
   const isOpen = useAskAiStore((s) => s.isOpen);
   const seenCount = useAskAiStore((s) => s.seenMessageCount);
   const toggle = useAskAiStore((s) => s.toggle);
@@ -59,8 +61,8 @@ export function AskAiFab({ messageCount = 0, onPreload }: AskAiFabProps) {
       onMouseEnter={onPreload}
       onFocus={onPreload}
       data-testid="ask-ai-fab"
-      aria-label={`Ask AI (${shortcut})`}
-      title={`Ask AI (${shortcut})`}
+      aria-label={t("fabLabel", { shortcut })}
+      title={t("fabLabel", { shortcut })}
       aria-expanded={isOpen}
       className={cn(
         "fixed bottom-5 right-5 z-40",
@@ -75,11 +77,11 @@ export function AskAiFab({ messageCount = 0, onPreload }: AskAiFabProps) {
       {hasUnread && (
         <span
           data-testid="ask-ai-unread-dot"
-          aria-label="Unread messages"
+          aria-label={t("unreadMessages")}
           className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-brand-foreground ring-2 ring-background"
         />
       )}
-      <span className="sr-only">Ask AI ({shortcut})</span>
+      <span className="sr-only">{t("fabLabel", { shortcut })}</span>
     </button>
   );
 }

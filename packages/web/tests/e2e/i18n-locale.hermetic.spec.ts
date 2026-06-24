@@ -265,6 +265,34 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     );
   });
 
+  test("renders migrated my-work + timeline body strings in the active locale (REEF-306)", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    await page.goto("/settings/preferences");
+    await page
+      .getByRole("region", { name: "Language" })
+      .getByTestId("locale-option-ko")
+      .click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+
+    // The My Work page header is web-chrome copy migrated in REEF-306.
+    await page.goto("/my-work");
+    await expect(
+      page.getByRole("heading", { name: "내 작업" }).first(),
+    ).toBeVisible();
+
+    // The timeline's month-year header now formats locale-aware (REEF-306 routes
+    // the old hardcoded English month abbreviations through Intl), so a Korean
+    // timeline reads "2026년 6월" instead of "Jun 2026".
+    await page.goto("/issues?view=timeline");
+    await expect(
+      page.getByText(/\d{4}년 \d{1,2}월/).first(),
+    ).toBeVisible();
+    await expect(page.getByText(/^Jun \d{4}$/)).toHaveCount(0);
+  });
+
   test("renders migrated activity + planning body strings in the active locale (REEF-305)", async ({
     page,
   }) => {

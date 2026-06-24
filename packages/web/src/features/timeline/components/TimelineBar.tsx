@@ -2,7 +2,8 @@
 
 import { cn } from "@/lib/utils";
 import { isResolvedStatus } from "@reef/core";
-import type { TimelineItem } from "../lib/timelineLayout";
+import { useTranslations } from "next-intl";
+import { type TimelineItem, formatCalendarDay } from "../lib/timelineLayout";
 
 interface TimelineBarProps {
   item: TimelineItem;
@@ -29,14 +30,23 @@ function barTone(item: TimelineItem): string {
 }
 
 export function TimelineBar({ item, onClick }: TimelineBarProps) {
+  const t = useTranslations("timeline");
   const isMarker = item.kind === "deadline" || item.kind === "start";
+  // Localized bar label/tooltip (REEF-306). The date keys stay locale-neutral
+  // (REEF-294 owns date display); only the start/due words follow the locale.
+  const label = t("scheduledItemTooltip", {
+    id: item.issue.id,
+    title: item.issue.title,
+    start: formatCalendarDay(item.start),
+    due: formatCalendarDay(item.due),
+  });
 
   return (
     <button
       type="button"
       data-testid="timeline-bar"
-      aria-label={item.title}
-      title={item.title}
+      aria-label={label}
+      title={label}
       onClick={() => onClick(item.issue.id)}
       className={cn(
         "relative z-10 my-1 h-7 min-w-0 overflow-hidden rounded-md border px-2 text-left",
@@ -55,7 +65,7 @@ export function TimelineBar({ item, onClick }: TimelineBarProps) {
           aria-hidden="true"
           className="absolute left-1 top-1/2 -translate-y-1/2 text-[10px] opacity-70"
         >
-          &lt;
+          &lt;{/* i18n-exempt */}
         </span>
       )}
       {isMarker ? (
@@ -76,7 +86,7 @@ export function TimelineBar({ item, onClick }: TimelineBarProps) {
           aria-hidden="true"
           className="absolute right-1 top-1/2 -translate-y-1/2 text-[10px] opacity-70"
         >
-          &gt;
+          &gt;{/* i18n-exempt */}
         </span>
       )}
     </button>

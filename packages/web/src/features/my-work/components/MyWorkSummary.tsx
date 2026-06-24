@@ -4,9 +4,10 @@ import type {
   MyWorkSprint,
   MyWorkSummary as MyWorkSummaryData,
 } from "@/features/my-work/lib/myWork";
-import { useStatusLabels } from "@/i18n/fieldLabels";
+import { useDueLabels, useStatusLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { Status } from "@reef/core";
+import { useTranslations } from "next-intl";
 
 /** Segment fill per stage — the status tokens (fill, not text, here in the
  * distribution strip; rows still encode status as an icon colour). */
@@ -80,6 +81,7 @@ function Tile({
 
 /** Current-sprint tile (AC5): remaining count over a done/total progress bar. */
 function SprintTile({ sprint }: { sprint: MyWorkSprint }) {
+  const t = useTranslations("myWork");
   const pct = sprint.total > 0 ? sprint.done / sprint.total : 0;
   return (
     <li
@@ -90,15 +92,22 @@ function SprintTile({ sprint }: { sprint: MyWorkSprint }) {
         className="truncate text-[11px] uppercase tracking-wide text-muted-foreground"
         title={sprint.name}
       >
-        Sprint · {sprint.name}
+        {t("sprintLabel", { name: sprint.name })}
       </span>
       <span className="flex items-end gap-1">
-        <span className="font-mono text-2xl font-semibold leading-none tabular-nums">
-          {sprint.remaining}
-        </span>
-        <span className="text-[11px] font-medium text-muted-foreground">
-          left
-        </span>
+        {t.rich("sprintLeft", {
+          count: sprint.remaining,
+          value: (chunks) => (
+            <span className="font-mono text-2xl font-semibold leading-none tabular-nums">
+              {chunks}
+            </span>
+          ),
+          label: (chunks) => (
+            <span className="text-[11px] font-medium text-muted-foreground">
+              {chunks}
+            </span>
+          ),
+        })}
       </span>
       <div className="flex flex-col gap-1">
         <div
@@ -111,7 +120,7 @@ function SprintTile({ sprint }: { sprint: MyWorkSprint }) {
           />
         </div>
         <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
-          {sprint.done}/{sprint.total} done
+          {t("sprintDone", { done: sprint.done, total: sprint.total })}
         </span>
       </div>
     </li>
@@ -127,6 +136,7 @@ function StageBar({
   byStatus: MyWorkSummaryData["byStatus"];
   total: number;
 }) {
+  const t = useTranslations("myWork");
   const statusLabels = useStatusLabels();
   const denom = total || 1;
   return (
@@ -135,7 +145,7 @@ function StageBar({
       className="flex flex-col gap-2 rounded-lg border border-border-subtle bg-surface-subtle p-3"
     >
       <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
-        Open work by stage
+        {t("openWorkByStage")}
       </span>
       <div
         aria-hidden="true"
@@ -186,6 +196,8 @@ function StageBar({
  * derived from the same `useIssueList` pass — no extra fetch.
  */
 export function MyWorkSummary({ summary }: { summary: MyWorkSummaryData }) {
+  const t = useTranslations("myWork");
+  const dueLabels = useDueLabels();
   return (
     <section className="flex flex-col gap-3" data-testid="my-work-summary">
       <ul
@@ -195,23 +207,23 @@ export function MyWorkSummary({ summary }: { summary: MyWorkSummaryData }) {
         )}
       >
         <Tile
-          label="In progress"
+          label={t("inProgress")}
           value={summary.wip}
-          hint="active WIP"
+          hint={t("hintActiveWip")}
           testId="my-work-tile-wip"
         />
         <Tile
-          label="Due soon"
+          label={dueLabels.due_soon}
           value={summary.dueSoon}
           tone={summary.dueSoon > 0 ? "warn" : "default"}
-          hint="within 7 days"
+          hint={t("hintWithin7Days")}
           testId="my-work-tile-due-soon"
         />
         <Tile
-          label="Overdue"
+          label={dueLabels.overdue}
           value={summary.overdue}
           tone={summary.overdue > 0 ? "danger" : "default"}
-          hint="past due"
+          hint={t("hintPastDue")}
           testId="my-work-tile-overdue"
         />
         {summary.sprint ? <SprintTile sprint={summary.sprint} /> : null}

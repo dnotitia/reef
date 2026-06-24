@@ -1,6 +1,7 @@
 "use client";
 
 import type { EnrichmentField } from "@reef/core";
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import type { FieldSuggestionEntry } from "../lib/inlineEnrichment";
 import { ArtifactMetadata } from "./ArtifactMetadata";
@@ -25,6 +26,7 @@ export function InlineFieldSuggestionPresenter({
   onAccept,
   onDismiss,
 }: InlineFieldSuggestionPresenterProps) {
+  const t = useTranslations("ai");
   return (
     <div
       data-testid="field-suggestion"
@@ -42,7 +44,7 @@ export function InlineFieldSuggestionPresenter({
             data-testid={`field-suggestion-needs-review-${field}`}
             className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
           >
-            Review
+            {t("review")}
           </span>
         )}
       </div>
@@ -70,13 +72,13 @@ export function InlineFieldSuggestionPresenter({
         actions={[
           {
             id: "dismiss",
-            label: "Dismiss",
+            label: t("dismiss"),
             onClick: onDismiss,
             testId: `field-suggestion-dismiss-${field}`,
           },
           {
             id: "approve",
-            label: "Apply",
+            label: t("apply"),
             onClick: onAccept,
             testId: `field-suggestion-accept-${field}`,
           },

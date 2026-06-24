@@ -76,6 +76,8 @@ export function ActivityDraftCard({
   const severityLabels = useSeverityLabels();
   const fieldNames = useFieldNameLabels();
   const t = useTranslations("activity");
+  const tAi = useTranslations("ai");
+  const common = useTranslations("common");
   const { draft } = item;
   const create = draft.proposal.create;
   const fields = create.fields;
@@ -230,7 +232,7 @@ export function ActivityDraftCard({
       data-testid="activity-item-ai_draft"
       className="rounded-md border border-ai-border bg-ai-subtle px-4 py-3"
     >
-      <ActivityCardHeader badge="AI Draft" timestamp={item.timestamp}>
+      <ActivityCardHeader badge={tAi("badgeDraft")} timestamp={item.timestamp}>
         {!isEditing && (
           <span className="text-sm font-medium text-foreground">
             {fields.title}
@@ -421,12 +423,12 @@ export function ActivityDraftCard({
             actions={[
               {
                 id: "save",
-                label: "Save",
+                label: common("save"),
                 busy: isSaving,
                 onClick: handleSave,
                 testId: "draft-save",
               },
-              { id: "cancel", label: "Cancel", onClick: handleCancel },
+              { id: "cancel", label: common("cancel"), onClick: handleCancel },
             ]}
           />
         ) : (
@@ -434,20 +436,20 @@ export function ActivityDraftCard({
             actions={[
               {
                 id: "approve",
-                label: "Approve",
+                label: tAi("approve"),
                 busy: isApproving,
-                busyLabel: "Approving...",
+                busyLabel: tAi("approving"),
                 onClick: () => onApprove?.(draft),
               },
               {
                 id: "edit",
-                label: "Edit",
+                label: common("edit"),
                 onClick: () => setIsEditing(true),
                 testId: "draft-edit",
               },
               {
                 id: "dismiss",
-                label: "Dismiss",
+                label: tAi("dismiss"),
                 onClick: () => onDismiss?.(draft.id),
               },
             ]}

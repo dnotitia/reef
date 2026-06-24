@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Check, Pencil, RefreshCcw, Save, Square, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export type ReviewActionId =
   | "approve"
@@ -46,13 +47,13 @@ const variantByAction = {
   save: "default",
 } as const satisfies Record<ReviewActionId, "default" | "outline" | "ghost">;
 
-const busyLabelByAction = {
-  approve: "Approving...",
-  dismiss: "Dismissing...",
-  edit: "Editing...",
-  retry: "Retrying...",
-  cancel: "Cancelling...",
-  save: "Saving...",
+const busyLabelKeyByAction = {
+  approve: "approving",
+  dismiss: "dismissing",
+  edit: "editing",
+  retry: "retrying",
+  cancel: "cancelling",
+  save: "saving",
 } satisfies Record<ReviewActionId, string>;
 
 export function ReviewActions({
@@ -60,6 +61,10 @@ export function ReviewActions({
   compact = false,
   className,
 }: ReviewActionsProps) {
+  // The busy-fallback label key is built from the action id at runtime, so the
+  // typed namespace translator can't carry it — cast to a plain key→string
+  // lookup (the `i18n/fieldLabels` pattern).
+  const t = useTranslations("ai") as unknown as (key: string) => string;
   if (actions.length === 0) return null;
 
   return (
@@ -70,7 +75,7 @@ export function ReviewActions({
       {actions.map((action) => {
         const Icon = iconByAction[action.id];
         const label = action.busy
-          ? (action.busyLabel ?? busyLabelByAction[action.id])
+          ? (action.busyLabel ?? t(busyLabelKeyByAction[action.id]))
           : action.label;
         return (
           <Button

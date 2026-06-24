@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Loader2, Sparkles, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export interface EnrichmentReviewBarProps {
   pending: number;
@@ -20,11 +21,12 @@ export interface EnrichmentReviewBarProps {
 }
 
 function CloseButton({ onClose }: { onClose: () => void }) {
+  const t = useTranslations("ai");
   return (
     <button
       type="button"
       onClick={onClose}
-      aria-label="Dismiss enrichment notice"
+      aria-label={t("dismissNotice")}
       data-testid="enrichment-review-close"
       className="ml-auto shrink-0 text-muted-foreground hover:text-foreground"
     >
@@ -50,6 +52,7 @@ export function EnrichmentReviewBar({
   onRetry,
   onClose,
 }: EnrichmentReviewBarProps) {
+  const t = useTranslations("ai");
   const base =
     "sticky top-0 z-10 -mx-1 mb-1 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border border-ai-border bg-ai-subtle/60 px-3 py-2 backdrop-blur";
 
@@ -58,7 +61,7 @@ export function EnrichmentReviewBar({
       <div className={base} data-testid="enrichment-review-loading">
         <Loader2 className="h-4 w-4 animate-spin text-ai-subtle-foreground" />
         <span className="text-xs text-ai-subtle-foreground">
-          Analyzing fields…
+          {t("analyzingFields")}
         </span>
       </div>
     );
@@ -81,7 +84,7 @@ export function EnrichmentReviewBar({
               className="mt-1 h-7 px-2 text-xs"
               onClick={onRetry}
             >
-              Try again
+              {t("tryAgain")}
             </Button>
           )}
         </div>
@@ -95,7 +98,7 @@ export function EnrichmentReviewBar({
       <div className={base} data-testid="enrichment-review-empty">
         <Sparkles className="h-4 w-4 text-ai-subtle-foreground" />
         <span className="text-xs text-muted-foreground">
-          No additional suggestions.
+          {t("noSuggestions")}
         </span>
         {onClose && <CloseButton onClose={onClose} />}
       </div>
@@ -109,8 +112,13 @@ export function EnrichmentReviewBar({
         aria-hidden="true"
       />
       <span className="text-xs text-ai-subtle-foreground">
-        <span className="font-mono font-semibold">{pending}</span> to review ·{" "}
-        <span className="font-mono font-semibold">{accepted}</span> applied
+        {t.rich("reviewStatus", {
+          pending,
+          accepted,
+          mono: (chunks) => (
+            <span className="font-mono font-semibold">{chunks}</span>
+          ),
+        })}
       </span>
       <div className="ml-auto flex shrink-0 items-center gap-2">
         <Button
@@ -122,7 +130,7 @@ export function EnrichmentReviewBar({
           disabled={pending === 0}
           data-testid="enrichment-dismiss-all"
         >
-          Dismiss all
+          {t("dismissAll")}
         </Button>
         <Button
           type="button"
@@ -132,7 +140,7 @@ export function EnrichmentReviewBar({
           disabled={pending === 0}
           data-testid="enrichment-accept-all"
         >
-          Apply all ({pending})
+          {t("applyAll", { count: pending })}
         </Button>
       </div>
     </div>

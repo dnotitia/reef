@@ -41,6 +41,8 @@ export function StatusChangeCard({
 }) {
   const statusLabels = useStatusLabels();
   const t = useTranslations("activity");
+  const tAi = useTranslations("ai");
+  const common = useTranslations("common");
   const { statusChange } = item;
   const proposedStatus = statusChange.proposal.update.patch.status ?? "done";
   const [isEditing, setIsEditing] = useState(false);
@@ -69,7 +71,7 @@ export function StatusChangeCard({
       className="rounded-md border border-ai-border bg-ai-subtle px-4 py-3"
     >
       <ActivityCardHeader
-        badge="AI Status Change"
+        badge={tAi("badgeStatusChange")}
         timestamp={item.timestamp}
         issueId={item.issueId}
         issueTitle={item.issueTitle}
@@ -135,12 +137,12 @@ export function StatusChangeCard({
             actions={[
               {
                 id: "save",
-                label: "Save",
+                label: common("save"),
                 busy: isSaving,
                 onClick: handleSave,
                 testId: "status-change-save",
               },
-              { id: "cancel", label: "Cancel", onClick: handleCancel },
+              { id: "cancel", label: common("cancel"), onClick: handleCancel },
             ]}
           />
         ) : (
@@ -148,20 +150,20 @@ export function StatusChangeCard({
             actions={[
               {
                 id: "approve",
-                label: "Approve",
+                label: tAi("approve"),
                 busy: isApproving,
-                busyLabel: "Updating...",
+                busyLabel: tAi("updating"),
                 onClick: () => onApprove?.(statusChange),
               },
               {
                 id: "edit",
-                label: "Edit",
+                label: common("edit"),
                 onClick: () => setIsEditing(true),
                 testId: "status-change-edit",
               },
               {
                 id: "dismiss",
-                label: "Dismiss",
+                label: tAi("dismiss"),
                 onClick: () => onDismiss?.(statusChange.id),
               },
             ]}

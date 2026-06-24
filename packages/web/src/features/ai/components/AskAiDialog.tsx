@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { MessageSquarePlus, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useMemo } from "react";
 import { useAskAiStore } from "../stores/useAskAiStore";
 import { ChatSurface } from "./ChatSurface";
@@ -37,6 +38,8 @@ interface AskAiDialogProps {
  * when deployment AI config is missing, the FAB hides and the dialog does not opens.
  */
 export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
+  const t = useTranslations("ai");
+  const common = useTranslations("common");
   const isOpen = useAskAiStore((s) => s.isOpen);
   const close = useAskAiStore((s) => s.close);
   const markSeen = useAskAiStore((s) => s.markSeen);
@@ -82,7 +85,7 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
     <div
       // biome-ignore lint/a11y/useSemanticElements: native <dialog> would imply modal semantics + Escape-to-close handled by the platform — we want non-modal floating behavior with our own ESC handler so the panel does not traps the page underneath.
       role="dialog"
-      aria-label="Ask AI"
+      aria-label={t("title")}
       aria-modal="false"
       aria-hidden={!isOpen}
       data-testid="ask-ai-dialog"
@@ -101,7 +104,7 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
           className="font-display text-sm font-semibold text-foreground"
           style={{ letterSpacing: "-0.01em" }}
         >
-          Ask AI
+          {t("title")}
         </h2>
         <div className="flex items-center gap-0.5">
           <Button
@@ -109,8 +112,8 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
             size="icon"
             className="h-7 w-7"
             onClick={handleClearChat}
-            aria-label="New chat"
-            title="New chat"
+            aria-label={t("newChat")}
+            title={t("newChat")}
             data-testid="ask-ai-new-chat"
           >
             <MessageSquarePlus className="h-3.5 w-3.5" />
@@ -120,8 +123,8 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
             size="icon"
             className="h-7 w-7"
             onClick={close}
-            aria-label="Close"
-            title="Close (Esc)"
+            aria-label={common("close")}
+            title={t("closeEsc")}
             data-testid="ask-ai-close"
           >
             <X className="h-3.5 w-3.5" />
@@ -134,8 +137,10 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
           data-testid="ai-unavailable-banner"
           className="px-4 py-3 text-sm text-muted-foreground"
         >
-          <p className="font-semibold text-foreground">AI unavailable</p>
-          <p>AI is not configured for this deployment.</p>
+          <p className="font-semibold text-foreground">
+            {t("unavailableTitle")}
+          </p>
+          <p>{t("unavailableBody")}</p>
         </div>
       ) : (
         <ChatSurface
@@ -146,11 +151,10 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
           error={error}
           emptyState={
             <p className="pt-8 text-center text-sm text-muted-foreground">
-              Ask about your codebase — file locations, references, how
-              something works.
+              {t("emptyState")}
             </p>
           }
-          composerPlaceholder="Ask about your project..."
+          composerPlaceholder={t("composerPlaceholder")}
           composerDisabled={!isAvailable}
           inputTestId="ask-ai-input"
           submitTestId="ask-ai-send"

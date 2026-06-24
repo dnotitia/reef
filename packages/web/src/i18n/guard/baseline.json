@@ -60,35 +60,6 @@
   "components/fields/fieldValue.tsx": [
     "None"
   ],
-  "features/ai/components/AskAiDialog.tsx": [
-    "AI is not configured for this deployment.",
-    "AI unavailable",
-    "Ask AI",
-    "Ask about your codebase — file locations, references, how something works.",
-    "Close",
-    "Close (Esc)",
-    "New chat"
-  ],
-  "features/ai/components/AskAiFab.tsx": [
-    "Ask AI (",
-    "Unread messages"
-  ],
-  "features/ai/components/EnrichmentReviewBar.tsx": [
-    "Analyzing fields…",
-    "Apply all (",
-    "Dismiss all",
-    "Dismiss enrichment notice",
-    "No additional suggestions.",
-    "Try again",
-    "applied",
-    "to review ·"
-  ],
-  "features/ai/review/InlineFieldSuggestionPresenter.tsx": [
-    "Review"
-  ],
-  "features/ai/review/RunStatusIndicator.tsx": [
-    "artifact"
-  ],
   "features/auth/components/LoginForm.tsx": [
     "Password",
     "Username"
@@ -112,34 +83,6 @@
     "Search workspaces",
     "Search workspaces…",
     "Workspace"
-  ],
-  "features/my-work/components/MyWorkPage.tsx": [
-    "Go to the board →",
-    "Issues assigned to you show up here, prioritized for what to do next.",
-    "My Work",
-    "No open work is assigned to you right now.",
-    "Nothing is assigned to you yet",
-    "Retry",
-    "Sign in to see the work assigned to you.",
-    "We couldn't find your session",
-    "You're all caught up"
-  ],
-  "features/my-work/components/MyWorkPageSkeleton.tsx": [
-    "Loading…",
-    "My Work"
-  ],
-  "features/my-work/components/MyWorkQueue.tsx": [
-    "Group the queue",
-    "What to do next"
-  ],
-  "features/my-work/components/MyWorkSummary.tsx": [
-    "Due soon",
-    "In progress",
-    "Open work by stage",
-    "Overdue",
-    "Sprint ·",
-    "done",
-    "left"
   ],
   "features/network/components/OfflineBanner.tsx": [
     "You're offline — viewing cached data. Changes will sync when you reconnect."
@@ -174,31 +117,6 @@
   "features/shortcuts/components/KeyboardShortcutsDialog.tsx": [
     "Keyboard shortcuts",
     "Speed up everyday actions with these shortcuts."
-  ],
-  "features/timeline/components/TimelineBar.tsx": [
-    "&gt;",
-    "&lt;"
-  ],
-  "features/timeline/components/TimelineBody.tsx": [
-    "Clear filters",
-    "Failed to load some issues. Displaying cached data if available.",
-    "Retry"
-  ],
-  "features/timeline/components/TimelineControls.tsx": [
-    "Go to today",
-    "Next quarter",
-    "Previous quarter",
-    "Today"
-  ],
-  "features/timeline/components/TimelineGrid.tsx": [
-    "Issue",
-    "Issues without a start date or due date.",
-    "No scheduled issues in this quarter.",
-    "Scheduled",
-    "Scroll to today",
-    "Today",
-    "Unscheduled",
-    "scheduled"
   ],
   "features/ui/components/SidebarFooterShortcuts.tsx": [
     "Keyboard shortcuts",
