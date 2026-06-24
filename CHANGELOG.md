@@ -14,6 +14,15 @@ explicitly in the entries below.
 
 ### Added
 
+- **Choose the interface language (English or Korean).** Settings > Preferences
+  now has a Language switcher next to Appearance. The choice applies immediately,
+  is remembered per device (stored in IndexedDB and mirrored to a `NEXT_LOCALE`
+  cookie), and is used to render the correct language — and `<html lang>` — from
+  the first server paint on the next visit; a first visit with no saved choice
+  follows the browser's `Accept-Language`, falling back to English. This ships
+  the i18n runtime (next-intl, cookie-based, no URL locale routing) that later
+  work builds on; only the new Language section itself is translated so far
+  (REEF-291).
 - **Tune when completed issues leave the default views.** Workspace admins can
   now set separate "Hide completed after N days" and "Hide canceled after N
   days" windows from Settings > Workspace > General. The values are stored in

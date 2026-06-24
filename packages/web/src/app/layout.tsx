@@ -1,6 +1,8 @@
 import { Toaster } from "@/components/ui/sonner";
 import { QueryProvider } from "@/providers/QueryProvider";
 import type { Metadata } from "next";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale } from "next-intl/server";
 import { Geist_Mono, Inter } from "next/font/google";
 import { headers } from "next/headers";
 import "./globals.css";
@@ -41,22 +43,33 @@ export default async function RootLayout({
   // opt-in (e.g. `export const dynamic = "force-dynamic"`).
   await headers();
 
+  // The active UI locale, resolved per request from the detection chain
+  // (NEXT_LOCALE cookie → Accept-Language → en) by `i18n/request.ts`. Reading it
+  // here lets `<html lang>` match the first server paint, and the same value
+  // feeds NextIntlClientProvider's messages (REEF-291).
+  const locale = await getLocale();
+
   // suppressHydrationWarning on <html>: `useTheme` adds/removes `.dark` on
   // documentElement before React reconciles, so the server-rendered class
   // attribute differs from the client one for any non-light user. Without
   // this, every dark-mode user sees a hydration warning on every load.
+  // (`lang` is server-resolved from the cookie, so it does not itself mismatch.)
   // A no-flash inline boot script is not possible under the current CSP
   // ('strict-dynamic' + nonce) without re-introducing the mismatch; a
   // server-side theme cookie is the path forward.
   return (
     <html
-      lang="en"
+      lang={locale}
       className={`${inter.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
-        <QueryProvider>{children}</QueryProvider>
-        <Toaster />
+        {/* No-prop provider inherits locale + messages + formats from
+            `getRequestConfig` (next-intl v4), serializing them to the client. */}
+        <NextIntlClientProvider>
+          <QueryProvider>{children}</QueryProvider>
+          <Toaster />
+        </NextIntlClientProvider>
       </body>
     </html>
   );

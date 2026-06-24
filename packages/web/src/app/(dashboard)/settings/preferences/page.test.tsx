@@ -5,6 +5,13 @@ vi.mock("@/features/preferences/components/PreferencesSection", () => ({
   PreferencesSection: () => <section>Preferences</section>,
 }));
 
+// LanguageSection consumes next-intl (useTranslations) + the locale store; this
+// page-layout test only cares about the group's structure, so stub it like
+// PreferencesSection. Its own behavior is covered in LanguageSection.test.tsx.
+vi.mock("@/features/preferences/components/LanguageSection", () => ({
+  LanguageSection: () => <section>Language</section>,
+}));
+
 import PreferencesPage from "./page";
 
 describe("PreferencesPage layout", () => {

@@ -1,5 +1,6 @@
 "use client";
 
+import { LanguageSection } from "@/features/preferences/components/LanguageSection";
 import { PreferencesSection } from "@/features/preferences/components/PreferencesSection";
 import { SettingsGroup } from "@/features/settings/components/SettingsGroup";
 
@@ -22,10 +23,11 @@ export default function PreferencesPage() {
       description="Stored in this browser only - for you."
       testId="settings-group-personal"
     >
-      {/* Appearance owns its own section heading + description, so it is
+      {/* Each preference owns its own section heading + description, so they are
           rendered directly here - no wrapper heading, which would duplicate
-          "Appearance" (REEF-151). */}
+          "Appearance" (REEF-151). SettingsGroup stacks them with spacing. */}
       <PreferencesSection />
+      <LanguageSection />
     </SettingsGroup>
   );
 }
