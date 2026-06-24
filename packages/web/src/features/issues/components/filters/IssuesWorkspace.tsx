@@ -1,9 +1,5 @@
 "use client";
 
-import {
-  STATUS_OPTIONS,
-  WORKFLOW_STATUS_OPTIONS,
-} from "@/components/ui/status-icon";
 import { KanbanBoard } from "@/features/board/components/KanbanBoard";
 import { BacklogView } from "@/features/issues/components/backlog/BacklogView";
 import { IssueFilterToolbar } from "@/features/issues/components/filters/IssueFilterToolbar";
@@ -17,6 +13,7 @@ import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { TimelineBody } from "@/features/timeline/components/TimelineBody";
 import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageHeader } from "@/features/ui/components/PageHeader";
+import { STATUS_OPTIONS, WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { useSearchParams } from "next/navigation";
 
 /**

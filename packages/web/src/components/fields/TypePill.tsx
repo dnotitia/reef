@@ -1,7 +1,5 @@
-import {
-  ISSUE_TYPE_COLORS,
-  ISSUE_TYPE_LABELS,
-} from "@/components/fields/fieldKit";
+import { ISSUE_TYPE_COLORS } from "@/components/fields/fieldKit";
+import { useIssueTypeLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { IssueType } from "@reef/core";
 import {
@@ -22,8 +20,8 @@ import {
  * tuned per surface. The `badge` variant is the chrome-less form (glyph + label,
  * no border/background) for dropdown option rows, so the type option reads
  * identically to the `StatusBadge` / `PriorityBadge` / `SeverityBadge` leaves
- * sitting beside it. Label lookup + color classes live in one place
- * (`ISSUE_TYPE_LABELS` / `ISSUE_TYPE_COLORS`, default "task").
+ * sitting beside it. The label is locale-resolved via `useIssueTypeLabels()`
+ * (REEF-292); the color classes live in `ISSUE_TYPE_COLORS` (default "task").
  */
 export type TypePillVariant =
   | "kanban"
@@ -88,6 +86,7 @@ export function TypePill({
   className,
   labelClassName,
 }: TypePillProps) {
+  const issueTypeLabels = useIssueTypeLabels();
   const resolved = type ?? "task";
   const Icon = TYPE_ICON[resolved];
   return (
@@ -101,7 +100,7 @@ export function TypePill({
         )}
         aria-hidden="true"
       />
-      <span className={labelClassName}>{ISSUE_TYPE_LABELS[resolved]}</span>
+      <span className={labelClassName}>{issueTypeLabels[resolved]}</span>
     </span>
   );
 }

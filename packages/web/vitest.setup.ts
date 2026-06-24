@@ -1,8 +1,48 @@
 import * as matchers from "@testing-library/jest-dom/matchers";
 import { cleanup } from "@testing-library/react";
-import { afterEach, expect } from "vitest";
+import { afterEach, expect, vi } from "vitest";
 
 expect.extend(matchers);
+
+// Field labels are locale-resolved through next-intl (REEF-292). For the broad
+// component suite we resolve them to the en base directly — the same English
+// strings these tests already assert — so a leaf rendering a status/priority
+// label does not need a NextIntlClientProvider wrapper in every test. The real
+// locale-aware path (en/ko + missing-key fallback) is covered by the dedicated
+// `src/i18n/fieldLabels.test.tsx` (which `vi.unmock`s this) and the hermetic
+// `i18n-locale` Playwright spec. The en maps come straight from the core
+// catalog, so this stays in sync with the source of truth automatically; add a
+// line here when a new field-label hook is added to `@/i18n/fieldLabels`.
+vi.mock("@/i18n/fieldLabels", async () => {
+  const { ISSUE_FIELD_MESSAGES_EN } =
+    await vi.importActual<typeof import("@reef/core/fields")>(
+      "@reef/core/fields",
+    );
+  const { PLANNING_FIELD_MESSAGES_EN } = await vi.importActual<
+    typeof import("@reef/core/fields/planning")
+  >("@reef/core/fields/planning");
+  const f = ISSUE_FIELD_MESSAGES_EN;
+  const p = PLANNING_FIELD_MESSAGES_EN;
+  return {
+    useStatusLabels: () => f.status,
+    usePriorityLabels: () => f.priority,
+    useIssueTypeLabels: () => f.issueType,
+    useSeverityLabels: () => f.severity,
+    useClosedReasonLabels: () => f.closedReason,
+    useClosedReasonHints: () => f.closedReasonHint,
+    useDueLabels: () => f.due,
+    useDependencyLabels: () => f.dependency,
+    useSortFieldLabels: () => f.sortField,
+    useDirectionLabel:
+      () => (field: keyof typeof f.sortDirection, order: "asc" | "desc") =>
+        f.sortDirection[field][order],
+    usePlanningKindLabels: () => p.kind,
+    usePlanningKindSingularLabels: () => p.kindSingular,
+    useSprintStatusLabels: () => p.sprintStatus,
+    useMilestoneStatusLabels: () => p.milestoneStatus,
+    useReleaseStatusLabels: () => p.releaseStatus,
+  };
+});
 
 // jsdom does not implement ResizeObserver, but cmdk (and any other library
 // using Radix-style virtualization or measuring) calls `new ResizeObserver`

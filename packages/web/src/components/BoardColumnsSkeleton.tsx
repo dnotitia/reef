@@ -1,6 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { WORKFLOW_STATUS_OPTIONS } from "@/components/ui/status-icon";
 import { cn } from "@/lib/utils";
+import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 
 /**
  * Placeholder for the board's workflow-status columns. Shared by the live

@@ -1,6 +1,6 @@
 "use client";
 
-import { STATUS_LABELS } from "@/components/ui/status-icon";
+import { useStatusLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import { type IssueType, type Status, isResolvedStatus } from "@reef/core";
 import type {
@@ -160,6 +160,7 @@ export function StatusFunnel({
   rows: ReadonlyArray<StatusCount>;
   measure?: ReportMeasure;
 }) {
+  const statusLabels = useStatusLabels();
   // Completion / WIP are ratios of the *active measure* so the funnel header
   // stays internally consistent when points-weighted (rows already hold both,
   // and done+closed counts equal the old kpis.done — REEF-188).
@@ -175,7 +176,7 @@ export function StatusFunnel({
   const wip = total > 0 ? Math.round((wipTotal / total) * 100) : 0;
   const segments: Segment[] = rows.map((r) => ({
     key: r.status,
-    label: STATUS_LABELS[r.status],
+    label: statusLabels[r.status],
     value: value(r),
     color: STATUS_COLOR[r.status],
   }));

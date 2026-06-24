@@ -1,10 +1,10 @@
 "use client";
 
-import { STATUS_LABELS } from "@/components/fields/fieldKit";
 import { StatusIcon } from "@/components/ui/status-icon";
 import { buildOpenIssueHref } from "@/features/issues/lib/issueHref";
 import { MyWorkRow } from "@/features/my-work/components/MyWorkRow";
 import { type MyWorkItem, groupByStatus } from "@/features/my-work/lib/myWork";
+import { useStatusLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { Status } from "@reef/core";
 import { useSearchParams } from "next/navigation";
@@ -114,13 +114,14 @@ export function MyWorkQueue({ items, mode, onModeChange }: MyWorkQueueProps) {
 }
 
 function GroupHeader({ status, count }: { status: Status; count: number }) {
+  const statusLabels = useStatusLabels();
   return (
     <h3
       data-testid={`my-work-group-header-${status}`}
       className="flex items-center gap-2 border-t border-border-subtle bg-surface-subtle px-3 py-1.5 text-xs font-semibold text-foreground/90 first:border-t-0"
     >
       <StatusIcon status={status} size={13} decorative />
-      {STATUS_LABELS[status]}
+      {statusLabels[status]}
       <span className="font-mono text-[11px] font-normal tabular-nums text-muted-foreground">
         {count}
       </span>

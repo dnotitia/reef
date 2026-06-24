@@ -14,6 +14,17 @@ explicitly in the entries below.
 
 ### Added
 
+- **Issue field labels now follow the interface language.** Status, priority,
+  type, severity, close-reason (and its hints), the board/list sort field and
+  direction labels, the due/dependency filter facets, and the planning
+  sprint/milestone/release labels render in the selected language (English or
+  Korean) everywhere they appear — board columns, list, detail, filters, the
+  activity timeline, reports, and the planning page. The framework-agnostic
+  `core` package owns the message keys (the enum values) and the English base
+  catalog as pure data; `web` resolves the active locale through next-intl and
+  falls back to English for any label a locale has not translated yet. The
+  remaining hardcoded interface strings and date/number formatting are localized
+  by later work (REEF-292).
 - **Choose the interface language (English or Korean).** Settings > Preferences
   now has a Language switcher next to Appearance. The choice applies immediately,
   is remembered per device (stored in IndexedDB and mirrored to a `NEXT_LOCALE`

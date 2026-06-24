@@ -7,13 +7,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  STATUS_LABELS,
-  StatusBadge,
-  WORKFLOW_STATUS_OPTIONS,
-} from "@/components/ui/status-icon";
+import { StatusBadge } from "@/components/ui/status-icon";
 import { ArtifactMetadata, ReviewActions } from "@/features/ai/review";
+import { useStatusLabels } from "@/i18n/fieldLabels";
 import type { ActivityStatusChangeSuggestion, Status } from "@reef/core";
+import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { useState } from "react";
 import { githubActivityUrl } from "../lib/activityLinks";
 import type { ActivityFeedItem } from "../types";
@@ -40,6 +38,7 @@ export function StatusChangeCard({
   onSaveTarget?: (statusChangeId: string, toStatus: Status) => Promise<void>;
   isApproving: boolean;
 }) {
+  const statusLabels = useStatusLabels();
   const { statusChange } = item;
   const proposedStatus = statusChange.proposal.update.patch.status ?? "done";
   const [isEditing, setIsEditing] = useState(false);
@@ -96,7 +95,7 @@ export function StatusChangeCard({
               <SelectContent>
                 {STATUS_CHANGE_TARGETS.map((status) => (
                   <SelectItem key={status} value={status}>
-                    {STATUS_LABELS[status]}
+                    {statusLabels[status]}
                   </SelectItem>
                 ))}
               </SelectContent>

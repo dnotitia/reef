@@ -1,18 +1,30 @@
+import { ISSUE_FIELD_MESSAGES_EN } from "@reef/core/fields";
+import { PLANNING_FIELD_MESSAGES_EN } from "@reef/core/fields/planning";
 import { BASE_LOCALE, type Locale } from "./locales";
 import en from "./messages/en.json";
 import ko from "./messages/ko.json";
 
 /**
- * The message catalog shape, inferred from the base (en) catalog so the base
- * is the single structural source of truth. Other locales may be a subset —
- * any key they omit falls back to en at merge time (ADR-0001, AC3).
- *
- * For S1 the catalogs are a scaffold (just the Settings language section). S2
- * migrates the ~190 web string files and S2 also merges a core-owned en catalog
- * for the ~60 field-registry labels; the merge seam below is where that core
- * catalog will compose in.
+ * The core-owned en base catalog for the ~60 field-registry labels (ADR-0001 /
+ * REEF-292). `core` exports the message keys (the enum values) plus this en base
+ * as pure data and never resolves locales; this is the merge seam REEF-291 left
+ * open. Issue-field groups sit at `fields.*`; planning groups nest under
+ * `fields.planning.*`. ko translations live in `ko.json` under the same shape
+ * and fall back to these strings per key (AC3).
  */
-export type Messages = typeof en;
+const FIELD_MESSAGES_EN = {
+  ...ISSUE_FIELD_MESSAGES_EN,
+  planning: PLANNING_FIELD_MESSAGES_EN,
+};
+
+/**
+ * The full en base catalog: the web string files merged with the core field
+ * catalog. The structural single source of truth — every other locale is a
+ * subset and any key it omits falls back to en at merge time (ADR-0001, AC3).
+ */
+const EN_BASE = { ...en, fields: FIELD_MESSAGES_EN };
+
+export type Messages = typeof EN_BASE;
 
 type DeepPartial<T> = {
   [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K];
@@ -21,9 +33,13 @@ type DeepPartial<T> = {
 /**
  * Per-locale catalogs. `en` is the full base; every other locale is a partial
  * over it. `satisfies` keeps each catalog structurally compatible with the base
- * without forcing a translated locale to be exhaustive.
+ * without forcing a translated locale to be exhaustive — this is also the
+ * compile-time check that every `fields.*` key ko declares is a real core key.
  */
-const CATALOGS = { en, ko } satisfies Record<Locale, DeepPartial<Messages>>;
+const CATALOGS = { en: EN_BASE, ko } satisfies Record<
+  Locale,
+  DeepPartial<Messages>
+>;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -57,6 +73,6 @@ export function deepMerge<T>(base: T, override: DeepPartial<T>): T {
  * keys fall back to English.
  */
 export function loadMessages(locale: Locale): Messages {
-  if (locale === BASE_LOCALE) return en;
-  return deepMerge(en, CATALOGS[locale]);
+  if (locale === BASE_LOCALE) return EN_BASE;
+  return deepMerge(EN_BASE, CATALOGS[locale]);
 }

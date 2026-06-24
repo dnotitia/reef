@@ -10,10 +10,13 @@ import { StatusIcon } from "@/components/ui/status-icon";
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { useIssueFlash } from "@/features/issues/stores/useFlashStore";
 import {
-  PLANNING_KIND_SINGULAR,
   type PlanningKind,
   findPlanningName,
 } from "@/features/planning/lib/planningItems";
+import {
+  usePlanningKindSingularLabels,
+  usePriorityLabels,
+} from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
@@ -74,6 +77,7 @@ function PlanningContextStrip({
 }: {
   items: readonly PlanningContextItem[];
 }) {
+  const planningKindSingular = usePlanningKindSingularLabels();
   if (items.length === 0) return null;
 
   return (
@@ -82,7 +86,7 @@ function PlanningContextStrip({
       data-testid="kanban-planning-context"
     >
       {items.map((item) => {
-        const label = PLANNING_KIND_SINGULAR[item.kind];
+        const label = planningKindSingular[item.kind];
         return (
           <span
             key={item.kind}
@@ -113,6 +117,7 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
     ref,
   ) {
     const currentLogin = useCurrentUserLogin();
+    const priorityLabels = usePriorityLabels();
     const [nowMs] = useState(() => Date.now());
     const dueTime = issue.due_date ? new Date(issue.due_date).getTime() : null;
     const isOverdue =
@@ -184,7 +189,9 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
             {issue.priority && (
               <span className="inline-flex items-center gap-1 shrink-0">
                 <PriorityDot priority={issue.priority as Priority} size={7} />
-                <span className="text-foreground/75">{issue.priority}</span>
+                <span className="text-foreground/75">
+                  {priorityLabels[issue.priority as Priority]}
+                </span>
               </span>
             )}
             {(issue.start_date || issue.due_date || issue.assigned_to) && (

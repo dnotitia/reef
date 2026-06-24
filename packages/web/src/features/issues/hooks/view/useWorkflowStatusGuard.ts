@@ -1,7 +1,7 @@
 "use client";
 
-import { WORKFLOW_STATUS_OPTIONS } from "@/components/ui/status-icon";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
+import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { useEffect } from "react";
 
 const WORKFLOW_STATUS_SET: ReadonlySet<string> = new Set(

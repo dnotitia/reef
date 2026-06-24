@@ -1,7 +1,5 @@
-import {
-  DEPENDENCY_COLORS,
-  DEPENDENCY_LABELS,
-} from "@/components/fields/fieldKit";
+import { DEPENDENCY_COLORS } from "@/components/fields/fieldKit";
+import { useDependencyLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { DependencyFacet } from "@reef/core/fields";
 import { Ban, type LucideIcon, Split } from "lucide-react";
@@ -16,8 +14,8 @@ import { Ban, type LucideIcon, Split } from "lucide-react";
  * `Split` glyph (fans out to others) for blocking. Mirrors how `SeverityBadge` /
  * `StatusBadge` split the bare glyph from the labelled badge, so the Dependency
  * option reads identically to the other facet leaves sitting beside it in a
- * filter dropdown. Label + color live in one place (`DEPENDENCY_LABELS` /
- * `DEPENDENCY_COLORS`).
+ * filter dropdown. The label is locale-resolved via `useDependencyLabels()`
+ * (REEF-292); the color class lives in `DEPENDENCY_COLORS`.
  */
 const DEPENDENCY_ICON: Record<DependencyFacet, LucideIcon> = {
   blocked: Ban,
@@ -46,6 +44,7 @@ export function DependencyIcon({
   className,
   decorative = false,
 }: DependencyIconProps) {
+  const dependencyLabels = useDependencyLabels();
   const Icon = DEPENDENCY_ICON[dependency];
   return (
     <Icon
@@ -56,7 +55,7 @@ export function DependencyIcon({
       )}
       role={decorative ? undefined : "img"}
       aria-label={
-        decorative ? undefined : `Dependency: ${DEPENDENCY_LABELS[dependency]}`
+        decorative ? undefined : `Dependency: ${dependencyLabels[dependency]}`
       }
       aria-hidden={decorative ? true : undefined}
     />
@@ -72,6 +71,7 @@ export function DependencyBadge({
   dependency,
   className,
 }: DependencyBadgeProps) {
+  const dependencyLabels = useDependencyLabels();
   return (
     <span
       className={cn(
@@ -80,7 +80,7 @@ export function DependencyBadge({
       )}
     >
       <DependencyIcon dependency={dependency} decorative />
-      <span>{DEPENDENCY_LABELS[dependency]}</span>
+      <span>{dependencyLabels[dependency]}</span>
     </span>
   );
 }

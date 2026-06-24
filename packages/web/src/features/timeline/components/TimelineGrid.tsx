@@ -1,12 +1,10 @@
 "use client";
 
-import {
-  STATUS_LABELS,
-  StatusIcon,
-  WORKFLOW_STATUS_OPTIONS,
-} from "@/components/ui/status-icon";
+import { StatusIcon } from "@/components/ui/status-icon";
+import { useStatusLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { IssueListItem } from "@reef/core";
+import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   type CSSProperties,
@@ -101,6 +99,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
     { range, today, items, unscheduledIssues, onIssueClick },
     ref,
   ) {
+    const statusLabels = useStatusLabels();
     const scrollRef = useRef<HTMLDivElement>(null);
     const leftShadowRef = useRef<HTMLDivElement>(null);
     const rightShadowRef = useRef<HTMLDivElement>(null);
@@ -279,7 +278,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                 groupedItems.map((group) => (
                   <section
                     key={group.status}
-                    aria-label={STATUS_LABELS[group.status]}
+                    aria-label={statusLabels[group.status]}
                   >
                     <div
                       className="grid h-8 border-b border-border-subtle bg-surface-subtle"
@@ -290,7 +289,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                         style={{ gridColumn: 1 }}
                       >
                         <StatusIcon status={group.status} size={13} />
-                        {STATUS_LABELS[group.status]}
+                        {statusLabels[group.status]}
                       </div>
                       <div
                         className="flex items-center px-3 text-[11px] text-muted-foreground"
@@ -332,7 +331,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                     <div key={group.status}>
                       <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-foreground">
                         <StatusIcon status={group.status} size={12} />
-                        {STATUS_LABELS[group.status]}
+                        {statusLabels[group.status]}
                         <span className="text-muted-foreground">
                           {group.issues.length}
                         </span>

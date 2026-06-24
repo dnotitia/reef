@@ -1,5 +1,3 @@
-import { PRIORITY_OPTIONS } from "@/components/ui/priority-dot";
-import { STATUS_OPTIONS } from "@/components/ui/status-icon";
 import type {
   IssueListItem,
   IssueType,
@@ -7,12 +5,8 @@ import type {
   Severity,
   Status,
 } from "@reef/core";
-import {
-  ISSUE_TYPE_LABELS,
-  PRIORITY_LABELS,
-  SEVERITY_LABELS,
-  STATUS_LABELS,
-} from "@reef/core/fields";
+import { PRIORITY_OPTIONS } from "@reef/core/fields";
+import { STATUS_OPTIONS } from "@reef/core/fields";
 import {
   DEFAULT_REPORT_FILTERS,
   ISSUE_TYPE_OPTIONS,
@@ -20,6 +14,20 @@ import {
   SEVERITY_OPTIONS,
   matchesFilters,
 } from "./aggregateModel";
+
+/**
+ * Locale-resolved value labels for the enum-backed pivot axes (REEF-292). The
+ * pure pivot does not resolve locales itself; the caller (a component) passes
+ * the active-locale maps from `@/i18n/fieldLabels`. The dynamic axes
+ * (assignee/label) and the "None"/"Other" sentinels are pivot-local UI copy
+ * (web S3 scope), not field-registry labels, so they stay as-is.
+ */
+export interface PivotValueLabels {
+  status: Record<Status, string>;
+  type: Record<IssueType, string>;
+  priority: Record<Priority, string>;
+  severity: Record<Severity, string>;
+}
 
 /**
  * Count-based 2-D pivot (crosstab) over the report population (REEF-189).
@@ -94,51 +102,55 @@ const fixedAxis = <T extends string>(
   return extra ? [...base, extra] : base;
 };
 
-const PIVOT_FIELDS: Record<PivotFieldKey, PivotField> = {
-  status: {
-    valuesFor: (i) => [i.status],
-    fixed: fixedAxis(STATUS_OPTIONS, STATUS_LABELS),
-    labelFor: (k) => STATUS_LABELS[k as Status] ?? k,
-  },
-  type: {
-    // Mirror the distribution cards: a missing issue_type reads as "task" so the
-    // pivot population matches the active-issue count (aggregate.ts).
-    valuesFor: (i) => [i.issue_type ?? "task"],
-    fixed: fixedAxis(ISSUE_TYPE_OPTIONS, ISSUE_TYPE_LABELS),
-    labelFor: (k) => ISSUE_TYPE_LABELS[k as IssueType] ?? k,
-  },
-  priority: {
-    valuesFor: (i) => [i.priority ?? NONE_KEY],
-    fixed: fixedAxis(PRIORITY_OPTIONS, PRIORITY_LABELS, {
-      key: NONE_KEY,
-      label: "None",
-    }),
-    labelFor: (k) =>
-      k === NONE_KEY ? "None" : (PRIORITY_LABELS[k as Priority] ?? k),
-  },
-  severity: {
-    valuesFor: (i) => [i.severity ?? NONE_KEY],
-    fixed: fixedAxis(SEVERITY_OPTIONS, SEVERITY_LABELS, {
-      key: NONE_KEY,
-      label: "None",
-    }),
-    labelFor: (k) =>
-      k === NONE_KEY ? "None" : (SEVERITY_LABELS[k as Severity] ?? k),
-  },
-  assignee: {
-    valuesFor: (i) => [i.assigned_to?.trim() || "Unassigned"],
-    fixed: null,
-    labelFor: (k) => k,
-  },
-  label: {
-    valuesFor: (i) => {
-      const names = (i.labels ?? []).map((l) => l.trim()).filter(Boolean);
-      return names.length > 0 ? names : ["Unlabeled"];
+function buildPivotFields(
+  labels: PivotValueLabels,
+): Record<PivotFieldKey, PivotField> {
+  return {
+    status: {
+      valuesFor: (i) => [i.status],
+      fixed: fixedAxis(STATUS_OPTIONS, labels.status),
+      labelFor: (k) => labels.status[k as Status] ?? k,
     },
-    fixed: null,
-    labelFor: (k) => k,
-  },
-};
+    type: {
+      // Mirror the distribution cards: a missing issue_type reads as "task" so
+      // the pivot population matches the active-issue count (aggregate.ts).
+      valuesFor: (i) => [i.issue_type ?? "task"],
+      fixed: fixedAxis(ISSUE_TYPE_OPTIONS, labels.type),
+      labelFor: (k) => labels.type[k as IssueType] ?? k,
+    },
+    priority: {
+      valuesFor: (i) => [i.priority ?? NONE_KEY],
+      fixed: fixedAxis(PRIORITY_OPTIONS, labels.priority, {
+        key: NONE_KEY,
+        label: "None",
+      }),
+      labelFor: (k) =>
+        k === NONE_KEY ? "None" : (labels.priority[k as Priority] ?? k),
+    },
+    severity: {
+      valuesFor: (i) => [i.severity ?? NONE_KEY],
+      fixed: fixedAxis(SEVERITY_OPTIONS, labels.severity, {
+        key: NONE_KEY,
+        label: "None",
+      }),
+      labelFor: (k) =>
+        k === NONE_KEY ? "None" : (labels.severity[k as Severity] ?? k),
+    },
+    assignee: {
+      valuesFor: (i) => [i.assigned_to?.trim() || "Unassigned"],
+      fixed: null,
+      labelFor: (k) => k,
+    },
+    label: {
+      valuesFor: (i) => {
+        const names = (i.labels ?? []).map((l) => l.trim()).filter(Boolean);
+        return names.length > 0 ? names : ["Unlabeled"];
+      },
+      fixed: null,
+      labelFor: (k) => k,
+    },
+  };
+}
 
 export interface PivotOptions {
   /** Population filter — defaults to the report baseline, exactly as the
@@ -222,6 +234,7 @@ export function computePivot(
   issues: ReadonlyArray<IssueListItem>,
   rowField: PivotFieldKey,
   colField: PivotFieldKey,
+  labels: PivotValueLabels,
   options: PivotOptions = {},
 ): PivotResult {
   const {
@@ -229,8 +242,9 @@ export function computePivot(
     rowLimit = 12,
     colLimit = 8,
   } = options;
-  const rowF = PIVOT_FIELDS[rowField];
-  const colF = PIVOT_FIELDS[colField];
+  const fields = buildPivotFields(labels);
+  const rowF = fields[rowField];
+  const colF = fields[colField];
 
   // Single pass over the in-scope population (the distribution-card set).
   const counts = new Map<string, Map<string, number>>();

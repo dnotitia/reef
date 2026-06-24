@@ -1,5 +1,5 @@
-import { WORKFLOW_STATUS_OPTIONS } from "@/components/ui/status-icon";
 import { PLANNING_ITEM_PANEL_CLASS } from "@/features/planning/components/PlanningItemCombobox";
+import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";

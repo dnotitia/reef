@@ -1,4 +1,3 @@
-import { PRIORITY_OPTIONS } from "@/components/ui/priority-dot";
 import {
   isActive,
   matchesSharedFacets,
@@ -12,6 +11,7 @@ import {
   type Status,
   isResolvedStatus,
 } from "@reef/core";
+import { PRIORITY_OPTIONS } from "@reef/core/fields";
 
 /** O(1) membership for the active lifecycle statuses (open/in_progress/
  *  in_review). Excludes `backlog` (uncommitted) and resolved states, so health

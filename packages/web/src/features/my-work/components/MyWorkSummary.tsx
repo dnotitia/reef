@@ -1,10 +1,10 @@
 "use client";
 
-import { STATUS_LABELS } from "@/components/fields/fieldKit";
 import type {
   MyWorkSprint,
   MyWorkSummary as MyWorkSummaryData,
 } from "@/features/my-work/lib/myWork";
+import { useStatusLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { Status } from "@reef/core";
 
@@ -127,6 +127,7 @@ function StageBar({
   byStatus: MyWorkSummaryData["byStatus"];
   total: number;
 }) {
+  const statusLabels = useStatusLabels();
   const denom = total || 1;
   return (
     <div
@@ -150,7 +151,7 @@ function StageBar({
                 width: `${(segment.count / denom) * 100}%`,
                 backgroundColor: STATUS_SEGMENT[segment.status],
               }}
-              title={`${STATUS_LABELS[segment.status]}: ${segment.count}`}
+              title={`${statusLabels[segment.status]}: ${segment.count}`}
             />
           ))}
       </div>
@@ -169,7 +170,7 @@ function StageBar({
               }}
             />
             <span className="text-foreground/80">
-              {STATUS_LABELS[segment.status]}
+              {statusLabels[segment.status]}
             </span>
             <span className="font-mono tabular-nums">{segment.count}</span>
           </li>

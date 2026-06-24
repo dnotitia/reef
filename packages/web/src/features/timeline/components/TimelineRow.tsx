@@ -1,6 +1,7 @@
 "use client";
 
-import { STATUS_LABELS, StatusIcon } from "@/components/ui/status-icon";
+import { StatusIcon } from "@/components/ui/status-icon";
+import { useStatusLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { CSSProperties } from "react";
 import type { CalendarDay, TimelineItem } from "../lib/timelineLayout";
@@ -26,6 +27,7 @@ export function TimelineRow({
   gridStyle,
   onIssueClick,
 }: TimelineRowProps) {
+  const statusLabels = useStatusLabels();
   return (
     <div
       data-testid="timeline-row"
@@ -58,7 +60,7 @@ export function TimelineRow({
             @{item.issue.assigned_to}
           </span>
         )}
-        <span className="sr-only">{STATUS_LABELS[item.issue.status]}</span>
+        <span className="sr-only">{statusLabels[item.issue.status]}</span>
       </button>
       {days.map((day, index) => (
         <div

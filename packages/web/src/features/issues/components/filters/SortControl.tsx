@@ -9,18 +9,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
+import { useDirectionLabel, useSortFieldLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_ISSUE_SORT_FIELD,
   DEFAULT_ISSUE_SORT_ORDER,
   USER_SORT_FIELDS,
 } from "@reef/core";
-import {
-  SORT_FIELD_LABELS,
-  type UserSortField,
-  directionLabel,
-  naturalSortOrder,
-} from "@reef/core/fields";
+import { type UserSortField, naturalSortOrder } from "@reef/core/fields";
 import {
   ArrowDown,
   ArrowUp,
@@ -74,6 +70,12 @@ export function SortControl({ supportsManualOrder = false }: SortControlProps) {
   const setSortOrder = useIssueStore((s) => s.setSortOrder);
   const clearSort = useIssueStore((s) => s.clearSort);
 
+  // Locale-resolved labels (REEF-292): the column names and the natural-language
+  // direction copy. `directionLabel` keeps the same call shape it had as a core
+  // function, so the render below is unchanged.
+  const sortFieldLabels = useSortFieldLabels();
+  const directionLabel = useDirectionLabel();
+
   // Derived during render — no effect, no mirrored state (you-might-not-need-an-effect).
   const isDefault = !sortField;
   // On the backlog the pristine (no explicit sort) state IS the manual rank
@@ -123,7 +125,7 @@ export function SortControl({ supportsManualOrder = false }: SortControlProps) {
           aria-label={
             manualActive
               ? "Order issues: Manual order"
-              : `Sort issues by ${SORT_FIELD_LABELS[effectiveField]}, ${directionLabel(
+              : `Sort issues by ${sortFieldLabels[effectiveField]}, ${directionLabel(
                   effectiveField,
                   effectiveOrder,
                 )}`
@@ -137,7 +139,7 @@ export function SortControl({ supportsManualOrder = false }: SortControlProps) {
           <span className="font-medium">
             {manualActive
               ? MANUAL_ORDER_LABEL
-              : SORT_FIELD_LABELS[effectiveField]}
+              : sortFieldLabels[effectiveField]}
           </span>
           {!manualActive && (
             <span className="text-muted-foreground">
@@ -188,7 +190,7 @@ export function SortControl({ supportsManualOrder = false }: SortControlProps) {
                   )}
                   aria-hidden="true"
                 />
-                {SORT_FIELD_LABELS[field]}
+                {sortFieldLabels[field]}
               </span>
               <span className="text-[11px] text-muted-foreground">
                 {directionLabel(

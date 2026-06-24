@@ -1,14 +1,26 @@
 // @vitest-environment node
 
 import type { IssueMetadata } from "@reef/core";
+import { ISSUE_FIELD_MESSAGES_EN } from "@reef/core/fields";
 import { describe, expect, it } from "vitest";
 import type { ReportFilters } from "./aggregate";
 import {
   PIVOT_FIELD_KEYS,
   type PivotResult,
+  type PivotValueLabels,
   computePivot,
   pivotCell,
 } from "./pivot";
+
+// The enum-axis value labels the pivot bakes into its result are locale-resolved
+// at the call site (REEF-292); the tests assert the en strings, so feed the en
+// base catalog directly.
+const LABELS: PivotValueLabels = {
+  status: ISSUE_FIELD_MESSAGES_EN.status,
+  type: ISSUE_FIELD_MESSAGES_EN.issueType,
+  priority: ISSUE_FIELD_MESSAGES_EN.priority,
+  severity: ISSUE_FIELD_MESSAGES_EN.severity,
+};
 
 function makeIssue(overrides: Partial<IssueMetadata>): IssueMetadata {
   return {
@@ -66,7 +78,7 @@ describe("computePivot — count crosstab (AC1, AC3)", () => {
   ];
 
   it("buckets counts at the row/column intersection", () => {
-    const r = computePivot(issues, "type", "status");
+    const r = computePivot(issues, "type", "status", LABELS);
     expect(pivotCell(r, "story", "todo")).toBe(1);
     expect(pivotCell(r, "story", "done")).toBe(1);
     expect(pivotCell(r, "task", "in_progress")).toBe(1);
@@ -75,7 +87,7 @@ describe("computePivot — count crosstab (AC1, AC3)", () => {
   });
 
   it("keeps fixed-enum order but drops fully-empty rows/columns", () => {
-    const r = computePivot(issues, "type", "status");
+    const r = computePivot(issues, "type", "status", LABELS);
     // canonical type order is epic,story,task,bug,... — epic/spike/chore unused.
     expect(r.rows.map((a) => a.key)).toEqual(["story", "task", "bug"]);
     expect(r.rows.map((a) => a.label)).toEqual(["Story", "Task", "Bug"]);
@@ -85,14 +97,14 @@ describe("computePivot — count crosstab (AC1, AC3)", () => {
   });
 
   it("reports a genuine zero for a pair that never co-occurred (empty cell)", () => {
-    const r = computePivot(issues, "type", "status");
+    const r = computePivot(issues, "type", "status", LABELS);
     // story has todo + done but no in_progress.
     expect(pivotCell(r, "story", "in_progress")).toBe(0);
     expect(r.cells.get("story")?.has("in_progress")).toBe(false);
   });
 
   it("computes consistent row/column/grand totals", () => {
-    const r = computePivot(issues, "type", "status");
+    const r = computePivot(issues, "type", "status", LABELS);
     expect(r.rowTotals.get("story")).toBe(2);
     expect(r.colTotals.get("todo")).toBe(2);
     expect(r.grandTotal).toBe(4);
@@ -109,6 +121,7 @@ describe("computePivot — missing values become a None bucket", () => {
       ],
       "priority",
       "status",
+      LABELS,
     );
     const labels = r.rows.map((a) => a.label);
     expect(labels).toContain("Critical");
@@ -135,7 +148,9 @@ describe("computePivot — dynamic axis ranking + Other fold", () => {
   ];
 
   it("ranks discovered buckets by count and folds the tail into Other", () => {
-    const r = computePivot(issues, "assignee", "status", { rowLimit: 3 });
+    const r = computePivot(issues, "assignee", "status", LABELS, {
+      rowLimit: 3,
+    });
     expect(r.rows.map((a) => a.label)).toEqual([
       "alice",
       "bob",
@@ -150,7 +165,7 @@ describe("computePivot — dynamic axis ranking + Other fold", () => {
   });
 
   it("does not fold when the bucket count is within the cap", () => {
-    const r = computePivot(issues, "assignee", "status");
+    const r = computePivot(issues, "assignee", "status", LABELS);
     expect(r.rowsFolded).toBe(0);
     expect(r.rows.some((a) => a.label === "Other")).toBe(false);
   });
@@ -167,7 +182,7 @@ describe("computePivot — multi-valued label axis", () => {
   ];
 
   it("counts each label and an Unlabeled bucket, with occurrence totals", () => {
-    const r = computePivot(issues, "label", "status");
+    const r = computePivot(issues, "label", "status", LABELS);
     expect(r.rows.map((a) => a.label).sort()).toEqual([
       "Unlabeled",
       "bug",
@@ -195,7 +210,7 @@ describe("computePivot — population scope", () => {
       }),
     ];
     // Default scope ("active") drops archived issues, like the other cards.
-    const r = computePivot(issues, "status", "type");
+    const r = computePivot(issues, "status", "type", LABELS);
     expect(r.grandTotal).toBe(1);
 
     const allScope: ReportFilters = {
@@ -204,14 +219,15 @@ describe("computePivot — population scope", () => {
       measure: "count",
     };
     expect(
-      computePivot(issues, "status", "type", { filters: allScope }).grandTotal,
+      computePivot(issues, "status", "type", LABELS, { filters: allScope })
+        .grandTotal,
     ).toBe(2);
   });
 });
 
 describe("pivotCell", () => {
   it("returns 0 for an unknown pair", () => {
-    const r = computePivot([makeIssue({ id: "R1" })], "status", "type");
+    const r = computePivot([makeIssue({ id: "R1" })], "status", "type", LABELS);
     expect(pivotCell(r, "nonexistent", "task")).toBe(0);
   });
 });

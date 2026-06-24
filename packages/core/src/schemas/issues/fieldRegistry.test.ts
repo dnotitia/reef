@@ -1,20 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
-  CLOSED_REASON_HINTS,
-  CLOSED_REASON_LABELS,
   CLOSED_REASON_OPTIONS,
-  ISSUE_TYPE_LABELS,
+  ISSUE_FIELD_MESSAGES_EN,
   ISSUE_TYPE_OPTIONS,
   NO_SELECTION,
-  PRIORITY_LABELS,
   PRIORITY_OPTIONS,
-  SEVERITY_LABELS,
   SEVERITY_OPTIONS,
-  SORT_FIELD_LABELS,
-  STATUS_LABELS,
   STATUS_OPTIONS,
   WORKFLOW_STATUS_OPTIONS,
-  directionLabel,
   naturalSortOrder,
 } from "./fieldRegistry";
 import {
@@ -35,8 +28,8 @@ describe("fieldRegistry", () => {
   describe("backlog status (REEF-109)", () => {
     it("labels open as 'Todo' and adds a 'Backlog' label", () => {
       // The `open` enum key is unchanged; just its display label became "Todo".
-      expect(STATUS_LABELS.todo).toBe("Todo");
-      expect(STATUS_LABELS.backlog).toBe("Backlog");
+      expect(ISSUE_FIELD_MESSAGES_EN.status.todo).toBe("Todo");
+      expect(ISSUE_FIELD_MESSAGES_EN.status.backlog).toBe("Backlog");
     });
 
     it("derives WORKFLOW_STATUS_OPTIONS as STATUS_OPTIONS minus backlog", () => {
@@ -48,36 +41,39 @@ describe("fieldRegistry", () => {
     });
   });
 
+  // The enum value is the i18n message key (REEF-292): the en base catalog must
+  // carry exactly one non-empty label per enum member so a locale lookup never
+  // hits a hole, and the option array must mirror the schema enum order.
   const cases = [
     {
       name: "status",
       values: StatusEnum.options,
       options: STATUS_OPTIONS,
-      labels: STATUS_LABELS,
+      labels: ISSUE_FIELD_MESSAGES_EN.status,
     },
     {
       name: "priority",
       values: PriorityEnum.options,
       options: PRIORITY_OPTIONS,
-      labels: PRIORITY_LABELS,
+      labels: ISSUE_FIELD_MESSAGES_EN.priority,
     },
     {
       name: "issue_type",
       values: IssueTypeEnum.options,
       options: ISSUE_TYPE_OPTIONS,
-      labels: ISSUE_TYPE_LABELS,
+      labels: ISSUE_FIELD_MESSAGES_EN.issueType,
     },
     {
       name: "severity",
       values: SeverityEnum.options,
       options: SEVERITY_OPTIONS,
-      labels: SEVERITY_LABELS,
+      labels: ISSUE_FIELD_MESSAGES_EN.severity,
     },
     {
       name: "closed_reason",
       values: ClosedReasonEnum.options,
       options: CLOSED_REASON_OPTIONS,
-      labels: CLOSED_REASON_LABELS,
+      labels: ISSUE_FIELD_MESSAGES_EN.closedReason,
     },
   ] as const;
 
@@ -99,25 +95,29 @@ describe("fieldRegistry", () => {
   }
 
   it("has a hint for every closed reason", () => {
-    expect(Object.keys(CLOSED_REASON_HINTS).sort()).toEqual(
-      [...ClosedReasonEnum.options].sort(),
-    );
+    expect(
+      Object.keys(ISSUE_FIELD_MESSAGES_EN.closedReasonHint).sort(),
+    ).toEqual([...ClosedReasonEnum.options].sort());
   });
 
   describe("sort metadata (REEF-059)", () => {
     it("has a non-empty label for every user sort field and no extras", () => {
-      expect(Object.keys(SORT_FIELD_LABELS).sort()).toEqual(
+      expect(Object.keys(ISSUE_FIELD_MESSAGES_EN.sortField).sort()).toEqual(
         [...USER_SORT_FIELDS].sort(),
       );
       for (const field of USER_SORT_FIELDS) {
-        expect(SORT_FIELD_LABELS[field].length).toBeGreaterThan(0);
+        expect(ISSUE_FIELD_MESSAGES_EN.sortField[field].length).toBeGreaterThan(
+          0,
+        );
       }
     });
 
-    it("returns a distinct, non-empty direction label per order for every field", () => {
+    it("has a distinct, non-empty direction label per order for every field", () => {
+      expect(Object.keys(ISSUE_FIELD_MESSAGES_EN.sortDirection).sort()).toEqual(
+        [...USER_SORT_FIELDS].sort(),
+      );
       for (const field of USER_SORT_FIELDS) {
-        const asc = directionLabel(field, "asc");
-        const desc = directionLabel(field, "desc");
+        const { asc, desc } = ISSUE_FIELD_MESSAGES_EN.sortDirection[field];
         expect(asc.length).toBeGreaterThan(0);
         expect(desc.length).toBeGreaterThan(0);
         expect(asc).not.toBe(desc);
@@ -125,10 +125,16 @@ describe("fieldRegistry", () => {
     });
 
     it("reads direction labels as the user's intent", () => {
-      expect(directionLabel("priority", "desc")).toBe("High → Low");
-      expect(directionLabel("due_date", "asc")).toBe("Soonest");
-      expect(directionLabel("title", "asc")).toBe("A → Z");
-      expect(directionLabel("estimate_points", "desc")).toBe("Most");
+      expect(ISSUE_FIELD_MESSAGES_EN.sortDirection.priority.desc).toBe(
+        "High → Low",
+      );
+      expect(ISSUE_FIELD_MESSAGES_EN.sortDirection.due_date.asc).toBe(
+        "Soonest",
+      );
+      expect(ISSUE_FIELD_MESSAGES_EN.sortDirection.title.asc).toBe("A → Z");
+      expect(ISSUE_FIELD_MESSAGES_EN.sortDirection.estimate_points.desc).toBe(
+        "Most",
+      );
     });
 
     it("picks a forward-reading natural order for dates and titles, strongest-first otherwise", () => {

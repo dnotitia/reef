@@ -10,13 +10,23 @@ import type { ComboboxOption } from "@/components/ui/combobox";
 import { CBX_TRIGGER_ACTIVE } from "@/components/ui/comboboxChrome";
 import { LabelChipInput } from "@/components/ui/label-chip-input";
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
-import { PRIORITY_OPTIONS, PriorityBadge } from "@/components/ui/priority-dot";
-import { STATUS_OPTIONS, StatusBadge } from "@/components/ui/status-icon";
+import { PriorityBadge } from "@/components/ui/priority-dot";
+import { StatusBadge } from "@/components/ui/status-icon";
 import { PlanningItemCombobox } from "@/features/planning/components/PlanningItemCombobox";
 import { PlanningItemMultiCombobox } from "@/features/planning/components/PlanningItemMultiCombobox";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import {
+  useDependencyLabels,
+  useDueLabels,
+  useIssueTypeLabels,
+  usePriorityLabels,
+  useSeverityLabels,
+  useStatusLabels,
+} from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { Status } from "@reef/core";
+import { PRIORITY_OPTIONS } from "@reef/core/fields";
+import { STATUS_OPTIONS } from "@reef/core/fields";
 import { X } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { formatLabelFilter, parseLabelFilter } from "../../lib/issueListUtils";
@@ -197,6 +207,16 @@ export function FilterBar({
   const clearFiltersOnly = useIssueStore((state) => state.clearFiltersOnly);
   const { vault } = useActiveVault();
 
+  // Locale-resolved labels for the single-selection chip summary (REEF-292).
+  // The dropdown rows already render localized badge content; these make the
+  // closed trigger read "Status (할 일)" instead of the raw "Status (todo)".
+  const statusLabels = useStatusLabels();
+  const issueTypeLabels = useIssueTypeLabels();
+  const priorityLabels = usePriorityLabels();
+  const severityLabels = useSeverityLabels();
+  const dueLabels = useDueLabels();
+  const dependencyLabels = useDependencyLabels();
+
   const labelValues = useMemo(
     () => parseLabelFilter(filter.label),
     [filter.label],
@@ -234,6 +254,7 @@ export function FilterBar({
             setFilter({ status: toggleFacet(filter.status, value, checked) })
           }
           options={statusFacetOptions}
+          summarizeValue={(s) => statusLabels[s as keyof typeof statusLabels]}
           active={Boolean(filter.status?.length)}
           ariaLabel="Status"
           triggerTestId="status-dropdown-trigger"
@@ -251,6 +272,9 @@ export function FilterBar({
           })
         }
         options={TYPE_FACET_OPTIONS}
+        summarizeValue={(t) =>
+          issueTypeLabels[t as keyof typeof issueTypeLabels]
+        }
         active={Boolean(filter.issueType?.length)}
         ariaLabel="Type"
         triggerTestId="type-dropdown-trigger"
@@ -265,6 +289,7 @@ export function FilterBar({
           setFilter({ priority: toggleFacet(filter.priority, value, checked) })
         }
         options={PRIORITY_FACET_OPTIONS}
+        summarizeValue={(p) => priorityLabels[p as keyof typeof priorityLabels]}
         active={Boolean(filter.priority?.length)}
         ariaLabel="Priority"
         triggerTestId="priority-dropdown-trigger"
@@ -279,6 +304,7 @@ export function FilterBar({
           setFilter({ severity: toggleFacet(filter.severity, value, checked) })
         }
         options={SEVERITY_FACET_OPTIONS}
+        summarizeValue={(s) => severityLabels[s as keyof typeof severityLabels]}
         active={Boolean(filter.severity?.length)}
         ariaLabel="Severity"
         triggerTestId="severity-dropdown-trigger"
@@ -296,6 +322,7 @@ export function FilterBar({
             setFilter({ due: toggleFacet(filter.due, value, checked) })
           }
           options={DUE_FACET_OPTIONS}
+          summarizeValue={(d) => dueLabels[d as keyof typeof dueLabels]}
           active={Boolean(filter.due?.length)}
           ariaLabel="Due"
           triggerTestId="due-dropdown-trigger"
@@ -317,6 +344,9 @@ export function FilterBar({
           })
         }
         options={DEPENDENCY_FACET_OPTIONS}
+        summarizeValue={(d) =>
+          dependencyLabels[d as keyof typeof dependencyLabels]
+        }
         active={Boolean(filter.dependencyFilter?.length)}
         ariaLabel="Dependency"
         triggerTestId="dependency-dropdown-trigger"

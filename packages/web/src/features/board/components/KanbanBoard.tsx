@@ -2,10 +2,6 @@
 
 import { BoardColumnsSkeleton } from "@/components/BoardColumnsSkeleton";
 import {
-  STATUS_OPTIONS,
-  WORKFLOW_STATUS_OPTIONS,
-} from "@/components/ui/status-icon";
-import {
   kanbanToastId,
   notifyRetryableError,
 } from "@/components/ui/toastFeedback";
@@ -44,6 +40,7 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import type { ClosedReason, IssueListItem, Status } from "@reef/core";
+import { STATUS_OPTIONS, WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useBoardStore } from "../stores/useBoardStore";

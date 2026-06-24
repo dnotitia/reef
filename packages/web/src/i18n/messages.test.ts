@@ -57,13 +57,23 @@ describe("deepMerge — missing-key fallback to base (AC3)", () => {
 });
 
 describe("loadMessages", () => {
-  it("returns the en catalog unchanged for the base locale", () => {
-    expect(loadMessages("en")).toEqual(en);
+  it("returns the en base (web strings + core field catalog) for the base locale", () => {
+    const base = loadMessages("en");
+    // The web string files are carried through unchanged...
+    expect(base.settings).toEqual(en.settings);
+    // ...and the core-owned field catalog is composed into `fields` (the
+    // REEF-291 merge seam), issue groups flat and planning groups nested.
+    expect(base.fields.status.todo).toBe("Todo");
+    expect(base.fields.sortDirection.priority.desc).toBe("High → Low");
+    expect(base.fields.planning.sprintStatus.active).toBe("Active");
   });
 
   it("overlays ko over the en base so present keys are translated", () => {
     const ko = loadMessages("ko");
     expect(ko.settings.preferences.language.heading).toBe("언어");
+    // Core field labels resolve through the same overlay (AC1).
+    expect(ko.fields.status.todo).toBe("할 일");
+    expect(ko.fields.planning.releaseStatus.released).toBe("릴리스됨");
   });
 
   it("a key absent from ko falls back to the en value", () => {
@@ -82,7 +92,11 @@ describe("loadMessages", () => {
 
 describe("catalog parity (REEF-293 AC2 — missing-key check)", () => {
   it("every ko key exists in the en base (no orphan translations)", () => {
-    const enKeys = new Set(leafKeyPaths(en as CatalogNode));
+    // The en base is the COMPOSED catalog, not raw en.json: REEF-292's core
+    // field labels (`fields.*`) live in `@reef/core` and are merged in at load
+    // time, while their ko translations live in ko.json. Compare against the
+    // merged base so those ko `fields.*` keys are not flagged as orphans.
+    const enKeys = new Set(leafKeyPaths(loadMessages("en") as CatalogNode));
     const orphans = leafKeyPaths(ko as CatalogNode).filter(
       (keyPath) => !enKeys.has(keyPath),
     );
