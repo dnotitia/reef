@@ -6,6 +6,7 @@ import { useUpdateComment } from "@/features/issues/hooks/mutations/useUpdateCom
 import { useActivity } from "@/features/issues/hooks/queries/useActivity";
 import { useComments } from "@/features/issues/hooks/queries/useComments";
 import type { ActivityEvent, Comment, IssueMetadata } from "@reef/core";
+import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CommentCard } from "../comments/CommentCard";
@@ -42,6 +43,7 @@ export function ActivityTimeline({
   vault,
   issue,
 }: ActivityTimelineProps) {
+  const t = useTranslations("toasts");
   const currentLogin = useCurrentUserLogin();
   const { data: comments = NO_COMMENTS, isError: commentsError } = useComments(
     issueId,
@@ -65,9 +67,7 @@ export function ActivityTimeline({
       const created = await createComment.mutateAsync({ issueId, vault, body });
       setFlashId(created.id);
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Couldn't add comment. Try again.",
-      );
+      toast.error(err instanceof Error ? err.message : t("commentAddError"));
       throw err; // keep the composer's text for a retry
     }
   }
@@ -76,11 +76,7 @@ export function ActivityTimeline({
     try {
       await updateComment.mutateAsync({ issueId, vault, commentId, body });
     } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : "Couldn't save the edit. Try again.",
-      );
+      toast.error(err instanceof Error ? err.message : t("commentEditError"));
       throw err; // keep the card in edit mode
     }
   }

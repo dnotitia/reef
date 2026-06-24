@@ -77,6 +77,28 @@ function useLabelRecord<K extends string>(
   }, [t, keys]);
 }
 
+/**
+ * Enrichment-card empty-state placeholders ("None", "Not set"), resolved at
+ * render from the `enrichment` web namespace (REEF-299). Co-located with the
+ * field-label hooks so the broad component suite resolves them to the en base
+ * through the same `vitest.setup` mock, without a provider in every test.
+ */
+export const ENRICHMENT_EMPTY_KEYS = [
+  "empty",
+  "unassigned",
+  "none",
+  "notSet",
+  "noPriority",
+  "noSeverity",
+] as const;
+
+export type EnrichmentEmptyKey = (typeof ENRICHMENT_EMPTY_KEYS)[number];
+
+export const useEnrichmentEmptyLabels = (): Record<
+  EnrichmentEmptyKey,
+  string
+> => useLabelRecord("enrichment", ENRICHMENT_EMPTY_KEYS);
+
 export const useStatusLabels = (): Record<Status, string> =>
   useLabelRecord("fields.status", STATUS_OPTIONS);
 

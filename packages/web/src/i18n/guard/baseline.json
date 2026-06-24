@@ -120,14 +120,6 @@
     "applied",
     "to review ·"
   ],
-  "features/ai/lib/enrichmentFieldDescriptors.tsx": [
-    "Empty",
-    "No priority",
-    "No severity",
-    "None",
-    "Not set",
-    "Unassigned"
-  ],
   "features/ai/review/InlineFieldSuggestionPresenter.tsx": ["Review"],
   "features/ai/review/RunStatusIndicator.tsx": ["artifact"],
   "features/auth/components/LoginForm.tsx": ["Password", "Username"],
@@ -547,11 +539,6 @@
     "Issues created, closed, and net change over time",
     "Net increase"
   ],
-  "features/search/components/GlobalSearchDialog.tsx": [
-    "Quickly jump to an issue by id or title.",
-    "Search issues",
-    "Search issues by ID or title…"
-  ],
   "features/settings/components/ActiveWorkspaceSection.tsx": [
     "Active Workspace",
     "New workspace…",
@@ -650,9 +637,6 @@
     "Workspace settings sections"
   ],
   "features/settings/components/members/AddMemberRow.tsx": ["Add a member"],
-  "features/settings/components/members/DirectorySearchCombobox.tsx": [
-    "Search directory…"
-  ],
   "features/settings/components/members/MemberRow.tsx": ["You"],
   "features/settings/components/members/MembersSection.tsx": [
     "Couldn&apos;t load members:",

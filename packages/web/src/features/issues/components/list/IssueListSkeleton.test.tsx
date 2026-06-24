@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { IssueListSkeleton } from "./IssueListSkeleton";
-import { COLUMN_LABELS } from "./issueListColumns";
+import { COLUMN_KEYS } from "./issueListColumns";
 
 afterEach(cleanup);
 
@@ -39,10 +39,10 @@ describe("IssueListSkeleton", () => {
     );
     const row = screen.getByTestId("skeleton-row");
     const cells = row.querySelectorAll("td");
-    // The skeleton's column count is derived from COLUMN_LABELS, the same
+    // The skeleton's column count is derived from COLUMN_KEYS, the same
     // source IssueListTable's header uses, so the two do not drift (the bug
     // was a hard-coded 8 against a 13-column header).
-    expect(cells).toHaveLength(COLUMN_LABELS.length);
+    expect(cells).toHaveLength(COLUMN_KEYS.length);
     expect(cells.length).toBe(13);
   });
 });

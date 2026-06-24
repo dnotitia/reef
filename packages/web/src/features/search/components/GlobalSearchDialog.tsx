@@ -19,6 +19,7 @@ import {
 import { isActive, searchIssues } from "@/features/issues/lib/issueListUtils";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -70,6 +71,7 @@ export function GlobalSearchDialog() {
   const close = useGlobalSearchStore((s) => s.close);
   const { vault } = useActiveVault();
   const router = useRouter();
+  const t = useTranslations("search");
 
   // The live value drives the input + match highlighting; the debounced value
   // drives the server query so a request isn't fired on every keystroke.
@@ -246,14 +248,14 @@ export function GlobalSearchDialog() {
   const showResults = !isError && results.length > 0;
   let statusMessage = "";
   if (isError) {
-    statusMessage = "Search is unavailable right now. Try again in a moment.";
+    statusMessage = t("unavailable");
   } else if (
     results.length === 0 &&
     (isLoading || isFetching || debouncePending)
   ) {
-    statusMessage = "Searching…";
+    statusMessage = t("searching");
   } else if (results.length === 0) {
-    statusMessage = isSearching ? "No matching issues." : "No issues yet.";
+    statusMessage = isSearching ? t("noMatches") : t("empty");
   }
 
   return (
@@ -264,21 +266,21 @@ export function GlobalSearchDialog() {
       // the input's `aria-labelledby` to its own (otherwise empty) label element,
       // which shadows a caller `aria-label`, so the name flows through here.
       // `shouldFilter={false}` keeps the server's result order.
-      commandProps={{ shouldFilter: false, label: "Search issues" }}
+      commandProps={{ shouldFilter: false, label: t("title") }}
       // The palette owns its input row, so suppress the inherited top-right close
       // X that would otherwise overlap it. Esc-to-close is unaffected.
       showCloseButton={false}
     >
       {/* Radix Dialog requires an accessible name + description. Hide both
           visually so the palette still reads as a single-purpose search box. */}
-      <DialogTitle className="sr-only">Search issues</DialogTitle>
+      <DialogTitle className="sr-only">{t("title")}</DialogTitle>
       <DialogDescription className="sr-only">
-        Quickly jump to an issue by id or title.
+        {t("description")}
       </DialogDescription>
       {/* cmdk's CommandInput already hardcodes autoComplete/autoCorrect off and
           spellCheck false, so no extra props are needed for those. */}
       <CommandInput
-        placeholder="Search issues by ID or title…"
+        placeholder={t("placeholder")}
         value={query}
         onValueChange={setQuery}
         data-testid="global-search-input"
@@ -290,7 +292,9 @@ export function GlobalSearchDialog() {
         aria-busy={isSearching && !resultsAreCurrent}
       >
         {showResults ? (
-          <CommandGroup heading={isSearching ? "Matches" : "Recent Issues"}>
+          <CommandGroup
+            heading={isSearching ? t("headingMatches") : t("headingRecent")}
+          >
             {results.map((issue) => (
               <CommandItem
                 key={issue.id}

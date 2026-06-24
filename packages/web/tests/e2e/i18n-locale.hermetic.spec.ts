@@ -127,7 +127,6 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
   }) => {
     await openExistingWorkspace(page);
 
-    // Switch the interface to Korean through the real settings control.
     await page.goto("/settings/preferences");
     await page.getByTestId("locale-option-ko").click();
     await expect(page.locator("html")).toHaveAttribute("lang", "ko");
@@ -247,6 +246,41 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     await page.goto("/issues/REEF-99999");
     await expect(page.getByTestId("issue-detail-error")).toContainText(
       "이슈를 찾을 수 없습니다.",
+    );
+  });
+
+  test("renders the issue-list column headers in the active locale (REEF-299)", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    // The list view's column headers are hoisted into a `.ts` data structure the
+    // hardcoded-string guard never scanned, so they stayed English even with a
+    // locale selected. They now resolve through the shared core `fields.name`
+    // catalog (extended with the list/enrichment field names in REEF-299).
+    await page.goto("/issues?view=list");
+    await expect(
+      page.getByRole("columnheader", { name: "Title" }),
+    ).toBeVisible();
+
+    await page.goto("/settings/preferences");
+    await page.getByTestId("locale-option-ko").click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+
+    // Same headers, now Korean — the data-structure copy follows the locale end
+    // to end (REEF-299, AC1/AC2).
+    await page.goto("/issues?view=list");
+    await expect(
+      page.getByRole("columnheader", { name: "제목" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("columnheader", { name: "우선순위" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("columnheader", { name: "담당자" }),
+    ).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "Title" })).toHaveCount(
+      0,
     );
   });
 });

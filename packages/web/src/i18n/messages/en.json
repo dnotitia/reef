@@ -43,5 +43,77 @@
     "missingVault": "Missing or invalid `vault` parameter.",
     "invalidIssueId": "Invalid issue id. Expected format: PREFIX-NUMBER.",
     "backend": "Workspace backend error."
+  },
+  "enrichment": {
+    "empty": "Empty",
+    "unassigned": "Unassigned",
+    "none": "None",
+    "notSet": "Not set",
+    "noPriority": "No priority",
+    "noSeverity": "No severity"
+  },
+  "search": {
+    "title": "Search issues",
+    "description": "Quickly jump to an issue by id or title.",
+    "placeholder": "Search issues by ID or title…",
+    "headingMatches": "Matches",
+    "headingRecent": "Recent Issues",
+    "unavailable": "Search is unavailable right now. Try again in a moment.",
+    "searching": "Searching…",
+    "noMatches": "No matching issues.",
+    "empty": "No issues yet."
+  },
+  "directorySearch": {
+    "searchPlaceholder": "Search users…",
+    "placeholder": "Search directory…",
+    "alreadyMember": "Already a member",
+    "noMatches": "No matching users.",
+    "error": "Couldn't search the directory.",
+    "addMember": "Add a member"
+  },
+  "reports": {
+    "riskPriorityNone": "None",
+    "aging": {
+      "fresh": "<1w",
+      "recent": "1-2w",
+      "stale": "2-4w",
+      "stalled": ">4w"
+    }
+  },
+  "toasts": {
+    "templatesSeeded": "Seeded default templates.",
+    "templatesSeedError": "Failed to seed default templates.",
+    "templateCreated": "Template \"{label}\" created.",
+    "templateSaved": "Template \"{label}\" saved.",
+    "templateSaveError": "Failed to save template.",
+    "templateDeleted": "Template \"{label}\" deleted.",
+    "templateDeleteError": "Failed to delete template.",
+    "skillUpdated": "Workspace instructions updated.",
+    "noNewActivity": "No new activity since the last scan.",
+    "scanError": "Failed to scan for new activity.",
+    "scanDrafts": "{count, plural, one {# draft} other {# drafts}}",
+    "scanStatusChanges": "{count, plural, one {# status change} other {# status changes}}",
+    "scanSummary": "{parts} from recent activity",
+    "issueCreated": "Issue {id} created",
+    "issueAddedToBacklog": "Issue {id} added to the backlog",
+    "issueAddedToBacklogDescription": "It won't appear on the default board until you move it to Todo.",
+    "issueCreatedWithDocFailures": "Issue {id} created, but {count, plural, one {# linked document} other {# linked documents}} couldn't be attached — add {count, plural, one {it} other {them}} from the issue.",
+    "issueDeleted": "{id} deleted",
+    "deleteIssueError": "Failed to delete issue.",
+    "archiveStateError": "Failed to change archive state.",
+    "undoError": "Failed to undo.",
+    "commentAddError": "Couldn't add comment. Try again.",
+    "commentEditError": "Couldn't save the edit. Try again.",
+    "issueCreatedFromDraft": "Issue {id} created from draft",
+    "draftApproved": "Draft suggestion approved",
+    "approveDraftError": "Failed to approve draft.",
+    "issueMoved": "{id} moved to {status}",
+    "issueMovedFallbackStatus": "the new status",
+    "statusChangeError": "Failed to update issue status.",
+    "planningCreated": "{kind} created.",
+    "planningSaved": "{kind} saved.",
+    "planningSaveError": "Save failed.",
+    "planningDeleted": "{kind} deleted.",
+    "planningDeleteError": "Delete failed."
   }
 }

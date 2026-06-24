@@ -35,6 +35,16 @@ explicitly in the entries below.
   falls back to English for any label a locale has not translated yet. The
   remaining hardcoded interface strings and date/number formatting are localized
   by later work (REEF-292).
+- **More interface strings follow the language — toasts, table headers, and
+  search.** With Korean selected, the success/error toast notifications across
+  templates, workspace instructions, the activity scan, issue create/delete/move,
+  and planning create/save/delete now render in Korean, as do the issue-list
+  column headers, the AI enrichment field labels and empty states, the ⌘K search
+  and add-member directory status messages, and the reports risk-map priority and
+  age labels. These all lived in places the original hardcoded-string guard could
+  not see (data structures and `toast()` arguments); the guard now also flags a
+  new hardcoded English string added to a `toast(...)` call, so the gap cannot
+  silently reopen (REEF-299).
 - **Choose the interface language (English or Korean).** Settings > Preferences
   now has a Language switcher next to Appearance. The choice applies immediately,
   is remembered per device (stored in IndexedDB and mirrored to a `NEXT_LOCALE`
@@ -152,13 +162,6 @@ explicitly in the entries below.
   matches what the server first painted; only the language varies. The AI/LLM
   date context is intentionally left in fixed `en-US`. Numeric integer
   formatting is unchanged (identical across English and Korean) (REEF-294).
-- **The Activity feed's "last scanned" time now follows the interface
-  language.** The `Scanned 5m ago` label on the activity refresh control was the
-  last relative timestamp still hardcoded in English; with Korean selected it now
-  reads `Scanned 5분 전` like the comment and timeline timestamps, because it now
-  shares the same locale-aware formatter instead of its own English-only copy. A
-  timestamp older than a week shows a localized calendar date rather than an
-  ever-growing `Nd ago` count (REEF-300).
 - **Removed browser GitHub PAT setup and storage.** Settings > Preferences and
   onboarding no longer collect monitored-repo Personal Access Tokens, the web
   client no longer attaches GitHub `Authorization` headers, and Dexie v11 drops

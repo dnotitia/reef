@@ -12,6 +12,7 @@ import {
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
 import type { ClosedReason, IssueUpdatePatch } from "@reef/core";
+import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { toast } from "sonner";
 import { buildStatusPatch } from "../../lib/statusPatch";
@@ -104,6 +105,7 @@ function IssueDetailLoaded({
   allIssues: ReturnType<typeof useIssueList>["data"];
   relations: ReturnType<typeof useIssueRelations>["data"];
 }) {
+  const t = useTranslations("toasts");
   const updateMutation = useUpdateIssue();
   const archiveMutation = useArchiveIssue();
   const deleteMutation = useDeleteIssue();
@@ -227,7 +229,7 @@ function IssueDetailLoaded({
               .archive({ id: issueId, vault })
               .catch((err: unknown) =>
                 toast.error(
-                  err instanceof Error ? err.message : "Failed to undo.",
+                  err instanceof Error ? err.message : t("undoError"),
                 ),
               ),
         });
@@ -244,28 +246,24 @@ function IssueDetailLoaded({
               .unarchive({ id: issueId, vault })
               .catch((err: unknown) =>
                 toast.error(
-                  err instanceof Error ? err.message : "Failed to undo.",
+                  err instanceof Error ? err.message : t("undoError"),
                 ),
               ),
         });
       }
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to change archive state.",
-      );
+      toast.error(err instanceof Error ? err.message : t("archiveStateError"));
     }
   }
 
   async function handleDelete() {
     try {
       await deleteMutation.mutateAsync({ id: issueId, vault });
-      toast.success(`${issueId} deleted`);
+      toast.success(t("issueDeleted", { id: issueId }));
       setConfirmDeleteOpen(false);
       onClose();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to delete issue.",
-      );
+      toast.error(err instanceof Error ? err.message : t("deleteIssueError"));
     }
   }
 

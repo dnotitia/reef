@@ -1,7 +1,7 @@
 "use client";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import { toast } from "sonner";
 import { formatTimestampMonthDay } from "../../issues/lib/dateHelpers";
@@ -23,6 +23,7 @@ const WRITER_ROLES = new Set(["writer", "admin", "owner"]);
  */
 export function WorkspaceSkillSection() {
   const locale = useLocale();
+  const t = useTranslations("toasts");
   const { vault } = useActiveVault();
   const vaultsQuery = useVaults();
   const status = useWorkspaceSkillStatus(vault);
@@ -118,7 +119,7 @@ export function WorkspaceSkillSection() {
                       // A single non-reversible success → plain toast.success per
                       // toastFeedback's convention; the failure path keeps its
                       // inline role="alert" below, so it is not doubled here.
-                      toast.success("Workspace instructions updated.");
+                      toast.success(t("skillUpdated"));
                     },
                   })
                 }

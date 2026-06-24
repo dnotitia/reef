@@ -39,15 +39,26 @@ all differ from your training data. Read the relevant guide in
   (`src/i18n/next-intl.d.ts`) types `t(...)` against the en catalog, so a missing
   or misspelled key fails `pnpm -r run typecheck`. `src/i18n/messages.test.ts`
   also asserts ko ⊆ en and non-empty leaves.
-- A new hardcoded user-facing **JSX** literal (text node or a user-facing
-  attribute such as `aria-label`/`title`/`placeholder`) fails the i18n guard in
-  `pnpm -r run test` (`src/i18n/guard/`). Route it through `useTranslations`, or —
-  for a genuinely non-localized literal like a brand name — add an `i18n-exempt`
-  line comment. The guard is a one-way ratchet against `baseline.json`: it only
-  shrinks. After migrating strings, prune resolved entries with
-  `pnpm --filter @reef/web i18n:baseline`. The guard is JSX-only by design;
-  strings hoisted into data structures (rendered via `{expr}`) and toast
-  arguments are not auto-caught, so route those through the catalog by review.
+- A new hardcoded user-facing literal fails the i18n guard in `pnpm -r run test`
+  (`src/i18n/guard/`) when it lands in one of the two scanned shapes: a **JSX**
+  text node / user-facing attribute (`aria-label`/`title`/`placeholder`/…), or
+  the **message argument of a `toast(...)` / `toast.*()` call** (REEF-299, the
+  first arg only). Route it through `useTranslations`, or — for a genuinely
+  non-localized literal like a brand name — add an `i18n-exempt` line comment.
+  The guard is a one-way ratchet against `baseline.json`: it only shrinks. After
+  migrating strings, prune resolved entries with
+  `pnpm --filter @reef/web i18n:baseline`.
+- The guard cannot catch every non-JSX leak, and deliberately does not try (a
+  literal-vs-key heuristic over arbitrary `.ts` would fire on enum values, keys,
+  and config — too noisy). When you add or edit one of these, route the copy
+  through the catalog by **review checklist**, because the guard will stay green
+  regardless:
+  - copy hoisted into `.ts` data structures rendered via `{expr}` — column-header
+    and field-name label arrays (`COLUMN_KEYS` → `fieldNames`,
+    `enrichmentFieldDescriptors` `labelKey`), local label maps in a chart/report;
+  - a toast `description`/options string (the guard only reads the first arg);
+  - a string built by a helper and then handed to `toast` (localize in the
+    helper or pass `t`).
 - Unit tests that render a migrated component wrap it in `IntlTestProvider` from
   `@/i18n/i18n.testSupport` (pass `locale="ko"` to assert the translated surface).
 - Scope split (epic REEF-178): this is the **web chrome** catalog (S3). core

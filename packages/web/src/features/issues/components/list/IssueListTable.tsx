@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/table";
 import { IssueListRow } from "@/features/issues/components/list/IssueListRow";
 import { IssueListSkeleton } from "@/features/issues/components/list/IssueListSkeleton";
-import { COLUMN_LABELS } from "@/features/issues/components/list/issueListColumns";
+import { COLUMN_KEYS } from "@/features/issues/components/list/issueListColumns";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
 import { useResolvedAutoHideWindows } from "@/features/issues/hooks/useResolvedAutoHideWindows";
@@ -24,6 +24,7 @@ import {
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { PageBody } from "@/features/ui/components/PageBody";
+import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { DURATION_BASE, EASE_SIGNATURE } from "@/lib/motionTokens";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
 import { useMemo } from "react";
@@ -45,6 +46,7 @@ export function IssueListTable({ vault }: IssueListTableProps) {
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
   const openIssue = useOpenIssue();
+  const columnLabels = useFieldNameLabels();
   // FLIP the rows into place when the sort/filter projection reorders them,
   // instead of swapping content under fixed positions. Honors
   // prefers-reduced-motion by default.
@@ -112,8 +114,10 @@ export function IssueListTable({ vault }: IssueListTableProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              {COLUMN_LABELS.map((col) => (
-                <TableHead key={col}>{col}</TableHead>
+              {COLUMN_KEYS.map((key) => (
+                <TableHead key={key ?? "actions"}>
+                  {key ? columnLabels[key] : ""}
+                </TableHead>
               ))}
             </TableRow>
           </TableHeader>
@@ -161,8 +165,10 @@ export function IssueListTable({ vault }: IssueListTableProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              {COLUMN_LABELS.map((col) => (
-                <TableHead key={col}>{col}</TableHead>
+              {COLUMN_KEYS.map((key) => (
+                <TableHead key={key ?? "actions"}>
+                  {key ? columnLabels[key] : ""}
+                </TableHead>
               ))}
             </TableRow>
           </TableHeader>
