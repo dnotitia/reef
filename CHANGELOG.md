@@ -14,6 +14,20 @@ explicitly in the entries below.
 
 ### Added
 
+- **The rest of the screen now follows the interface language.** With Korean
+  selected, the body copy across every surface renders in the selected language,
+  not just the sidebar chrome and field labels: the issue board/list/detail/
+  create/filter screens, settings, reports, the activity feed, planning, My Work,
+  the timeline, the AI dialogs, onboarding, and sign-in. Buttons, section
+  headings, empty and error states, placeholders, the markdown-editor toolbar,
+  and the keyboard-shortcut help all localize, so a Korean PM no longer reads an
+  English heading or button sitting above an already-translated value
+  (the "half-translated screen" the work set out to remove). The timeline's
+  month-year header now formats its month names locale-aware as well. A one-way
+  build guard tracks the migration, and every hardcoded interface string it
+  covers is now routed through the message catalog with a Korean translation
+  (REEF-298, completing epic REEF-178; brand names and example/format
+  placeholders such as `reef`, `REEF`, and `https://example.com` stay verbatim).
 - **Issue field *names* now follow the interface language.** The header words
   that label a field — Assignee, Requester, Reporter, Priority, Severity, Labels,
   Due, the Sprint/Milestone/Release planning fields, Type, Status, the dependency

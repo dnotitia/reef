@@ -279,9 +279,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
 
     // The persistent sidebar account control is auth-area chrome migrated in
     // REEF-307; its accessible name now resolves from the ko catalog.
-    await expect(
-      page.getByRole("button", { name: "계정 메뉴" }),
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "계정 메뉴" })).toBeVisible();
 
     // The shared MarkdownEditor toolbar (components/) localizes too — on the
     // issue detail surface the Bold control's accessible name is Korean.
@@ -315,9 +313,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     // the old hardcoded English month abbreviations through Intl), so a Korean
     // timeline reads "2026년 6월" instead of "Jun 2026".
     await page.goto("/issues?view=timeline");
-    await expect(
-      page.getByText(/\d{4}년 \d{1,2}월/).first(),
-    ).toBeVisible();
+    await expect(page.getByText(/\d{4}년 \d{1,2}월/).first()).toBeVisible();
     await expect(page.getByText(/^Jun \d{4}$/)).toHaveCount(0);
   });
 
@@ -342,9 +338,9 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     await expect(
       page.getByRole("button", { name: "상태 변경" }).first(),
     ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "AI Drafts" }),
-    ).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "AI Drafts" })).toHaveCount(
+      0,
+    );
 
     // The planning page's kind toggle follows the locale too (REEF-305).
     await page.goto("/planning");
