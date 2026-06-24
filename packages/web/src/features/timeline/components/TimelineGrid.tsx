@@ -109,6 +109,10 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
     const monthYearFormat = new Intl.DateTimeFormat(locale, {
       year: "numeric",
       month: "short",
+      // Format the UTC-midnight calendar date in UTC — a local time zone west of
+      // UTC would otherwise roll Date.UTC(y, m, 1) back to the previous month and
+      // mislabel the span (the same UTC convention the app's intl config uses).
+      timeZone: "UTC",
     });
     const formatMonthYear = (month: number, year: number): string =>
       monthYearFormat.format(new Date(Date.UTC(year, month - 1, 1)));
