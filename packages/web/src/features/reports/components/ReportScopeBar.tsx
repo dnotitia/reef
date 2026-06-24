@@ -12,24 +12,8 @@ import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { useTranslations } from "next-intl";
 import { useMemo } from "react";
-import {
-  DEFAULT_REPORT_FILTERS,
-  PERIOD_LABELS,
-  type ReportFilters,
-} from "../lib/aggregate";
-
-// Reports controls. Hoisted so the option array keeps a stable identity
-// across renders (Period does not change). Labels read from the shared
-// PERIOD_LABELS so the control and the Throughput card name the window
-// identically (REEF-185). The Scope and Measure option labels are localized,
-// so they are built inside the component (memoized on the stable translator).
-const PERIOD_OPTIONS: ReadonlyArray<{
-  value: ReportFilters["period"];
-  label: string;
-}> = (["4w", "12w", "quarter", "all"] as const).map((value) => ({
-  value,
-  label: PERIOD_LABELS[value],
-}));
+import { DEFAULT_REPORT_FILTERS, type ReportFilters } from "../lib/aggregate";
+import { useReportPeriodLabels } from "../lib/useReportPeriodLabels";
 
 /**
  * Reports scope bar. Period and scope are reports; the remaining facets
@@ -48,8 +32,24 @@ export function ReportScopeBar({
   const { vault } = useActiveVault();
   const fieldNames = useFieldNameLabels();
   const t = useTranslations("reports.page");
+  const periodLabels = useReportPeriodLabels();
   const patch = (next: Partial<ReportFilters>) =>
     onChange({ ...filters, ...next });
+
+  // Period option labels follow the active locale (REEF-304), so they are built
+  // here — memoized on the stable label record — rather than hoisted to module
+  // scope. The control and the Throughput-card window subtitle read the same
+  // localized labels so they name the window identically (REEF-185).
+  const periodOptions = useMemo<
+    ReadonlyArray<{ value: ReportFilters["period"]; label: string }>
+  >(
+    () =>
+      (["4w", "12w", "quarter", "all"] as const).map((value) => ({
+        value,
+        label: periodLabels[value],
+      })),
+    [periodLabels],
+  );
 
   const labelValues = useMemo(
     () => parseLabelFilter(filters.label),
@@ -89,7 +89,7 @@ export function ReportScopeBar({
       <ScopeSelect
         label={t("period")}
         value={filters.period}
-        options={PERIOD_OPTIONS}
+        options={periodOptions}
         active={filters.period !== DEFAULT_REPORT_FILTERS.period}
         onChange={(period) =>
           patch({ period: period as ReportFilters["period"] })

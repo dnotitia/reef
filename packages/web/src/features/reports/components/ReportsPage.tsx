@@ -12,7 +12,6 @@ import { useTranslations } from "next-intl";
 import { useCallback, useMemo, useState } from "react";
 import {
   DEFAULT_REPORT_FILTERS,
-  PERIOD_LABELS,
   type ReportFilters,
   computeAggregates,
 } from "../lib/aggregate";
@@ -21,6 +20,7 @@ import {
   DEFAULT_FORECAST_HORIZON_WEEKS,
   computeForecast,
 } from "../lib/monteCarlo";
+import { useReportPeriodLabels } from "../lib/useReportPeriodLabels";
 import { ForecastCard } from "./ForecastCard";
 import { HealthRollup } from "./HealthRollup";
 import { PivotCard } from "./PivotCard";
@@ -50,6 +50,7 @@ export function ReportsPage() {
   const t = useTranslations("reports.page");
   const nav = useTranslations("nav");
   const c = useTranslations("common");
+  const periodLabels = useReportPeriodLabels();
   const severityLabels = useSeverityLabels();
   const issueTypeLabels = useIssueTypeLabels();
   const { vault, isLoading: vaultLoading } = useActiveVault();
@@ -244,11 +245,11 @@ export function ReportsPage() {
                     subtitle={
                       pointsMode
                         ? t("throughputSubtitlePoints", {
-                            period: PERIOD_LABELS[filters.period],
+                            period: periodLabels[filters.period],
                             net: formatSigned(netValue),
                           })
                         : t("throughputSubtitleCount", {
-                            period: PERIOD_LABELS[filters.period],
+                            period: periodLabels[filters.period],
                             net: formatSigned(netValue),
                           })
                     }
@@ -266,7 +267,7 @@ export function ReportsPage() {
                 <ForecastCard
                   forecast={forecast}
                   now={nowMs}
-                  periodLabel={PERIOD_LABELS[filters.period]}
+                  periodLabel={periodLabels[filters.period]}
                 />
 
                 {/* Custom crosstab — the one card that answers an ad-hoc cross

@@ -319,6 +319,12 @@
       "anyMilestone": "Any milestone",
       "anyRelease": "Any release",
       "anyAssignee": "Any assignee"
+    },
+    "period": {
+      "4w": "Last 4 weeks",
+      "12w": "Last 12 weeks",
+      "quarter": "Quarter",
+      "all": "All time"
     }
   },
   "toasts": {

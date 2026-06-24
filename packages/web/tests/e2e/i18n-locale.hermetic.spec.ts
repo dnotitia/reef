@@ -103,7 +103,10 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
 
     // Switch the interface to Korean through the real settings control.
     await page.goto("/settings/preferences");
-    await page.getByTestId("locale-option-ko").click();
+    await page
+      .getByRole("region", { name: "Language" })
+      .getByTestId("locale-option-ko")
+      .click();
     await expect(page.locator("html")).toHaveAttribute("lang", "ko");
 
     // The same status columns now render their Korean labels — the core key →
@@ -138,7 +141,10 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     await openExistingWorkspace(page);
 
     await page.goto("/settings/preferences");
-    await page.getByTestId("locale-option-ko").click();
+    await page
+      .getByRole("region", { name: "Language" })
+      .getByTestId("locale-option-ko")
+      .click();
     await expect(page.locator("html")).toHaveAttribute("lang", "ko");
 
     // The issue detail rail's field-NAME headers now render in Korean — the word
@@ -265,7 +271,10 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     await openExistingWorkspace(page);
 
     await page.goto("/settings/preferences");
-    await page.getByTestId("locale-option-ko").click();
+    await page
+      .getByRole("region", { name: "Language" })
+      .getByTestId("locale-option-ko")
+      .click();
     await expect(page.locator("html")).toHaveAttribute("lang", "ko");
 
     // The reports page's breakdown card titles are web-chrome copy migrated in
@@ -292,7 +301,10 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     await openExistingWorkspace(page);
 
     await page.goto("/settings/preferences");
-    await page.getByTestId("locale-option-ko").click();
+    await page
+      .getByRole("region", { name: "Language" })
+      .getByTestId("locale-option-ko")
+      .click();
     await expect(page.locator("html")).toHaveAttribute("lang", "ko");
 
     // The preferences page's Appearance section is web-chrome copy migrated in
@@ -330,7 +342,10 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     await openExistingWorkspace(page);
 
     await page.goto("/settings/preferences");
-    await page.getByTestId("locale-option-ko").click();
+    await page
+      .getByRole("region", { name: "Language" })
+      .getByTestId("locale-option-ko")
+      .click();
     await expect(page.locator("html")).toHaveAttribute("lang", "ko");
 
     // The issue detail surface's section headers are web-chrome copy migrated in
@@ -345,9 +360,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     await expect(sidebar.getByText("세부 정보", { exact: true })).toBeVisible();
     await expect(sidebar.getByText("사람", { exact: true })).toBeVisible();
     await expect(sidebar.getByText("플래닝", { exact: true })).toBeVisible();
-    await expect(
-      page.getByText("관계", { exact: true }).first(),
-    ).toBeVisible();
+    await expect(page.getByText("관계", { exact: true }).first()).toBeVisible();
     // No half-translated English section header lingers on the migrated surface.
     await expect(sidebar.getByText("Details", { exact: true })).toHaveCount(0);
     await expect(sidebar.getByText("People", { exact: true })).toHaveCount(0);
@@ -374,7 +387,10 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     ).toBeVisible();
 
     await page.goto("/settings/preferences");
-    await page.getByTestId("locale-option-ko").click();
+    await page
+      .getByRole("region", { name: "Language" })
+      .getByTestId("locale-option-ko")
+      .click();
     await expect(page.locator("html")).toHaveAttribute("lang", "ko");
 
     // Same headers, now Korean — the data-structure copy follows the locale end

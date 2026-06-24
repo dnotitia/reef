@@ -358,6 +358,12 @@
       "anyMilestone": "모든 마일스톤",
       "anyRelease": "모든 릴리스",
       "anyAssignee": "모든 담당자"
+    },
+    "period": {
+      "4w": "최근 4주",
+      "12w": "최근 12주",
+      "quarter": "분기",
+      "all": "전체 기간"
     }
   },
   "toasts": {
