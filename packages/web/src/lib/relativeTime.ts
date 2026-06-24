@@ -3,10 +3,18 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
 /**
- * Per-locale `Intl.RelativeTimeFormat` cache (REEF-294). `numeric: "auto"` gives
- * the locale's own words (`now` / `지금`, `yesterday` / `어제`) and `narrow`
- * keeps the compact unit suffix (`30m ago`) the comment header relies on, so the
- * relative label follows the app's active locale without a string catalog.
+ * Shared compact relative/absolute time formatting (REEF-294). Locale-aware via
+ * `Intl.RelativeTimeFormat` / `Intl.DateTimeFormat`: callers pass the active
+ * next-intl locale (`useLocale()`) so the rendered phrase follows the app's
+ * selected language without a separate string catalog.
+ *
+ * Minute-resolution: `now` / `5m ago` / `3h ago` / `2d ago` (and their locale
+ * equivalents `지금` / `5분 전` / `3시간 전` / `그저께`), falling back to a
+ * localized calendar date past a week. This is the compact granularity the
+ * comment header, the issue activity timeline, and the GitHub-scan activity
+ * feed all share — it is intentionally distinct from the day-resolution
+ * `features/issues/lib/formatRelativeTime.ts` used by issue list/detail rows,
+ * which collapses anything under a day to the locale's "today".
  */
 const relativeFormatters = new Map<string, Intl.RelativeTimeFormat>();
 
@@ -69,11 +77,11 @@ function absoluteFormatter(locale: string): Intl.DateTimeFormat {
 }
 
 /**
- * Compact relative timestamp for a comment header (`now`, `5m ago`, `3h ago`,
- * `2d ago` / `지금`, `5분 전`, `3시간 전`, `그저께`), falling back to a localized
- * calendar date past a week. Locale-aware (REEF-294) and clock-injected
- * (`nowMs`) so it is deterministic under test; the rendered value is paired with
- * an absolute `title` for precision.
+ * Compact relative timestamp (`now`, `5m ago`, `3h ago`, `2d ago` / `지금`,
+ * `5분 전`, `3시간 전`, `그저께`), falling back to a localized calendar date past
+ * a week. Locale-aware (REEF-294) and clock-injected (`nowMs`) so it is
+ * deterministic under test; the rendered value is paired with an absolute
+ * `title` for precision. Returns "" for an unparseable value.
  */
 export function formatRelativeTime(
   iso: string,

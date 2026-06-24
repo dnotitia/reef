@@ -1,7 +1,6 @@
 import { getRequestConfig } from "next-intl/server";
 import { cookies, headers } from "next/headers";
 import { resolveLocale } from "./detectLocale";
-import { formats } from "./formats";
 import { LOCALE_COOKIE } from "./locales";
 import { loadMessages } from "./messages";
 
@@ -31,7 +30,6 @@ export default getRequestConfig(async () => {
   return {
     locale,
     messages: loadMessages(locale),
-    formats,
     timeZone: "UTC",
   };
 });

@@ -11,6 +11,7 @@ import {
   usePriorityLabels,
   useStatusLabels,
 } from "@/i18n/fieldLabels";
+import { formatAbsoluteTime, formatRelativeTime } from "@/lib/relativeTime";
 import type {
   ClosedReason,
   ImplementationRef,
@@ -38,10 +39,6 @@ import {
 } from "lucide-react";
 import { useLocale } from "next-intl";
 import { type ReactNode, memo, useState } from "react";
-import {
-  formatAbsoluteTime,
-  formatRelativeTime,
-} from "../comments/commentTime";
 import type { TimelineSystemEvent } from "./timelineModel";
 
 const DELIVERY_ICON = {

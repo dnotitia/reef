@@ -1,9 +1,11 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { formatRelativeTime } from "@/lib/relativeTime";
 import { getLastScanAt } from "@/lib/storage/lastScan";
 import { cn } from "@/lib/utils";
 import { Loader2, RefreshCw } from "lucide-react";
+import { useLocale } from "next-intl";
 import { useEffect, useState } from "react";
 
 interface ActivityRefreshButtonProps {
@@ -20,20 +22,6 @@ interface ActivityRefreshButtonProps {
   scanTick?: number;
 }
 
-function formatRelative(iso: string | undefined, now: number): string | null {
-  if (!iso) return null;
-  const then = Date.parse(iso);
-  if (Number.isNaN(then)) return null;
-  const diff = Math.max(0, now - then);
-  const minutes = Math.floor(diff / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
-
 /**
  * Manual refresh control for the Activity feed's auto-detection scan.
  *
@@ -48,6 +36,7 @@ export function ActivityRefreshButton({
   isScanning,
   scanTick = 0,
 }: ActivityRefreshButtonProps) {
+  const locale = useLocale();
   const [lastScan, setLastScan] = useState<string | undefined>(undefined);
   // Re-render every minute so "5m ago" doesn't stay frozen on a long-lived tab.
   const [now, setNow] = useState(() => Date.now());
@@ -70,7 +59,7 @@ export function ActivityRefreshButton({
     return () => clearInterval(interval);
   }, []);
 
-  const relative = formatRelative(lastScan, now);
+  const relative = lastScan ? formatRelativeTime(lastScan, now, locale) : null;
 
   return (
     <div className="flex items-center gap-2">

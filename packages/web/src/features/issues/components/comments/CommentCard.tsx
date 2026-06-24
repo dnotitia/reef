@@ -2,13 +2,13 @@
 
 import { PersonAvatar, personToneFor } from "@/components/fields/PersonAvatar";
 import { Button } from "@/components/ui/button";
+import { formatAbsoluteTime, formatRelativeTime } from "@/lib/relativeTime";
 import { cn } from "@/lib/utils";
 import type { Comment } from "@reef/core";
 import { Pencil } from "lucide-react";
 import { useLocale } from "next-intl";
 import { type KeyboardEvent, useState } from "react";
 import { Streamdown } from "streamdown";
-import { formatAbsoluteTime, formatRelativeTime } from "./commentTime";
 
 interface CommentCardProps {
   comment: Comment;
