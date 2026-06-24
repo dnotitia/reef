@@ -49,8 +49,8 @@ export function ForecastCard({
 
   const targetDate = weekDate(now, horizonWeeks, locale);
   const subtitle = insufficient
-    ? `Open work · ${periodLabel}`
-    : `Open work · ${remaining} remaining`;
+    ? t("openWorkPeriod", { period: periodLabel })
+    : t("openWorkRemaining", { remaining });
 
   return (
     <Card title={t("deliveryForecast")} subtitle={subtitle}>
@@ -58,7 +58,7 @@ export function ForecastCard({
         <RowEmpty label={t("noOpenWork")} />
       ) : insufficient ? (
         <RowEmpty
-          label={`No completions in ${periodLabel.toLowerCase()} — not enough history to forecast.`}
+          label={t("noCompletions", { period: periodLabel.toLowerCase() })}
         />
       ) : (
         <div className="flex flex-col gap-3">
@@ -72,16 +72,20 @@ export function ForecastCard({
           )}
           <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
             <ForecastColumn
-              heading="When done"
-              caption={`all ${remaining} open`}
+              heading={t("whenDone")}
+              caption={t("allOpen", { remaining })}
             >
               {forecast.completion.map((row) => (
                 <CompletionRow key={row.confidence} row={row} now={now} />
               ))}
             </ForecastColumn>
             <ForecastColumn
-              heading={targetDate ? `By ${targetDate}` : "By date"}
-              caption={`${horizonWeeks}w out`}
+              heading={
+                targetDate
+                  ? t("byDateHeading", { date: targetDate })
+                  : t("byDateNoDate")
+              }
+              caption={t("weeksOut", { weeks: horizonWeeks })}
             >
               {forecast.byDate.map((row) => (
                 <CountRow key={row.confidence} row={row} />

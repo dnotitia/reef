@@ -262,7 +262,40 @@
       "created": "Created",
       "closed": "Closed",
       "netIncrease": "Net increase",
-      "netChangeOverTime": "Issues created, closed, and net change over time"
+      "netChangeOverTime": "Issues created, closed, and net change over time",
+      "openWorkPeriod": "Open work · {period}",
+      "openWorkRemaining": "Open work · {remaining} remaining",
+      "noCompletions": "No completions in {period} — not enough history to forecast.",
+      "whenDone": "When done",
+      "allOpen": "all {remaining} open",
+      "byDateHeading": "By {date}",
+      "byDateNoDate": "By date",
+      "weeksOut": "{weeks}w out",
+      "flagOffTrack": "{count} off track",
+      "flagAtRisk": "{count} at risk",
+      "rag": {
+        "on_track": "On track",
+        "at_risk": "At risk",
+        "off_track": "Off track"
+      },
+      "dimension": {
+        "milestone": {
+          "one": "Milestone",
+          "many": "Milestones"
+        },
+        "sprint": {
+          "one": "Sprint",
+          "many": "Sprints"
+        },
+        "release": {
+          "one": "Release",
+          "many": "Releases"
+        },
+        "parent": {
+          "one": "Parent",
+          "many": "Parents"
+        }
+      }
     },
     "page": {
       "snapshot": "Snapshot",

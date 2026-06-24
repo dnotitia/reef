@@ -301,7 +301,40 @@
       "created": "생성",
       "closed": "완료",
       "netIncrease": "순증가",
-      "netChangeOverTime": "시간에 따른 이슈 생성, 완료 및 순변화"
+      "netChangeOverTime": "시간에 따른 이슈 생성, 완료 및 순변화",
+      "openWorkPeriod": "진행 중 작업 · {period}",
+      "openWorkRemaining": "진행 중 작업 · 남은 {remaining}건",
+      "noCompletions": "{period} 동안 완료된 작업이 없어 예측할 이력이 부족합니다.",
+      "whenDone": "완료 시점",
+      "allOpen": "열린 작업 {remaining}건",
+      "byDateHeading": "{date}까지",
+      "byDateNoDate": "날짜별",
+      "weeksOut": "{weeks}주 후",
+      "flagOffTrack": "위험 {count}개",
+      "flagAtRisk": "주의 {count}개",
+      "rag": {
+        "on_track": "정상",
+        "at_risk": "주의",
+        "off_track": "위험"
+      },
+      "dimension": {
+        "milestone": {
+          "one": "마일스톤",
+          "many": "마일스톤"
+        },
+        "sprint": {
+          "one": "스프린트",
+          "many": "스프린트"
+        },
+        "release": {
+          "one": "릴리스",
+          "many": "릴리스"
+        },
+        "parent": {
+          "one": "상위 이슈",
+          "many": "상위 이슈"
+        }
+      }
     },
     "page": {
       "snapshot": "스냅샷",

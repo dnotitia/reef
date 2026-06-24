@@ -29,23 +29,44 @@ import {
  * parent ranked side by side, worst-first (REEF-187).
  */
 
-/** RAG → token + label. Mirrors the `STATUS_COLOR` convention (a TS record
- *  pointing at existing CSS tokens) rather than minting new globals — On track
- *  reuses the done green, At risk the medium-priority amber, Off track the
- *  destructive red. */
-const RAG_META: Record<RagLevel, { label: string; color: string }> = {
-  on_track: { label: "On track", color: "var(--status-done)" },
-  at_risk: { label: "At risk", color: "var(--priority-medium)" },
-  off_track: { label: "Off track", color: "var(--destructive)" },
+/** RAG → CSS token. Mirrors the `STATUS_COLOR` convention (a TS record pointing
+ *  at existing CSS tokens) rather than minting new globals — On track reuses the
+ *  done green, At risk the medium-priority amber, Off track the destructive red.
+ *  The verdict *labels* are locale-aware and resolved from `reports.cards.rag.*`
+ *  at render (REEF-304), not hardcoded here. */
+const RAG_COLOR: Record<RagLevel, string> = {
+  on_track: "var(--status-done)",
+  at_risk: "var(--priority-medium)",
+  off_track: "var(--destructive)",
 };
 
-const DIMENSION_LABEL: Record<RollupDimension, { one: string; many: string }> =
-  {
-    milestone: { one: "Milestone", many: "Milestones" },
-    sprint: { one: "Sprint", many: "Sprints" },
-    release: { one: "Release", many: "Releases" },
-    parent: { one: "Parent", many: "Parents" },
-  };
+/** Dimension display labels keyed `{dim}.{one|many}`, resolved at render from the
+ *  locale catalog (REEF-304) so the rollup header, toggle, and empty state read
+ *  Korean instead of an interpolated English noun. */
+const DIMENSION_KEYS = ["milestone", "sprint", "release", "parent"] as const;
+
+function useDimensionLabels(): Record<
+  RollupDimension,
+  { one: string; many: string }
+> {
+  // The `{dim}.{one|many}` keys are built at runtime, so the typed namespace
+  // translator can't carry them — cast to a plain key→string lookup (the same
+  // pattern `i18n/fieldLabels` uses for its enum-keyed records). Each leaf is a
+  // string, and the concrete keys are exercised by the reports render.
+  const t = useTranslations("reports.cards") as unknown as (
+    key: string,
+  ) => string;
+  return useMemo(() => {
+    const out = {} as Record<RollupDimension, { one: string; many: string }>;
+    for (const dim of DIMENSION_KEYS) {
+      out[dim] = {
+        one: t(`dimension.${dim}.one`),
+        many: t(`dimension.${dim}.many`),
+      };
+    }
+    return out;
+  }, [t]);
+}
 
 const AXIS_KEY: Record<RollupDimension, keyof ReportFilters> = {
   milestone: "milestone_id",
@@ -91,6 +112,7 @@ export function HealthRollup({
   const [dimension, setDimension] = useState<RollupDimension>("milestone");
   const [showShipped, setShowShipped] = useState(false);
   const t = useTranslations("reports.cards");
+  const dimensionLabel = useDimensionLabels();
 
   const activeDim = availableDims.includes(dimension)
     ? dimension
@@ -115,10 +137,10 @@ export function HealthRollup({
     (r) => r.verdict?.level === "at_risk",
   ).length;
   const flags = [
-    offTrack > 0 ? `${offTrack} off track` : null,
-    atRisk > 0 ? `${atRisk} at risk` : null,
+    offTrack > 0 ? t("flagOffTrack", { count: offTrack }) : null,
+    atRisk > 0 ? t("flagAtRisk", { count: atRisk }) : null,
   ].filter(Boolean);
-  const label = DIMENSION_LABEL[activeDim];
+  const label = dimensionLabel[activeDim];
   const activeId = filters[AXIS_KEY[activeDim]];
 
   return (
@@ -194,6 +216,7 @@ function DimensionToggle({
   onSelect: (dim: RollupDimension) => void;
 }) {
   const t = useTranslations("reports.cards");
+  const dimensionLabel = useDimensionLabels();
   return (
     // biome-ignore lint/a11y/useSemanticElements: a header toggle group is not a form <fieldset>; role="group" + aria-label is the right semantics here (matches ViewSwitcher).
     <div
@@ -218,7 +241,7 @@ function DimensionToggle({
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
-            {DIMENSION_LABEL[dim].many}
+            {dimensionLabel[dim].many}
           </button>
         );
       })}
@@ -235,7 +258,17 @@ const HealthRow = memo(function HealthRow({
   active: boolean;
   onDrill: (dimension: RollupDimension, id: string) => void;
 }) {
-  const meta = row.verdict ? RAG_META[row.verdict.level] : null;
+  // Verdict label is locale-aware (`reports.cards.rag.*`); the color stays a
+  // local CSS-token lookup. Cast for the runtime-built `rag.{level}` key.
+  const t = useTranslations("reports.cards") as unknown as (
+    key: string,
+  ) => string;
+  const meta = row.verdict
+    ? {
+        label: t(`rag.${row.verdict.level}`),
+        color: RAG_COLOR[row.verdict.level],
+      }
+    : null;
   const rail = meta?.color ?? "var(--border-subtle)";
   const empty = useEnrichmentEmptyLabels();
 
