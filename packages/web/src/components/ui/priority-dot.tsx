@@ -1,8 +1,5 @@
-import {
-  PRIORITY_COLORS,
-  PRIORITY_LABELS,
-  PRIORITY_OPTIONS,
-} from "@/components/fields/fieldKit";
+import { PRIORITY_COLORS, PRIORITY_OPTIONS } from "@/components/fields/fieldKit";
+import { usePriorityLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { Priority } from "@reef/core";
 
@@ -24,12 +21,15 @@ export function PriorityDot({
   className,
   decorative = false,
 }: PriorityDotProps) {
+  const priorityLabels = usePriorityLabels();
   return (
     <span
       role={decorative ? undefined : "img"}
-      aria-label={decorative ? undefined : `Priority: ${PRIORITY_LABELS[priority]}`}
+      aria-label={
+        decorative ? undefined : `Priority: ${priorityLabels[priority]}`
+      }
       aria-hidden={decorative ? true : undefined}
-      title={decorative ? undefined : PRIORITY_LABELS[priority]}
+      title={decorative ? undefined : priorityLabels[priority]}
       className={cn(
         "inline-block shrink-0 rounded-full",
         PRIORITY_COLORS[priority],
@@ -47,6 +47,7 @@ interface PriorityBadgeProps {
 }
 
 export function PriorityBadge({ priority, size, className }: PriorityBadgeProps) {
+  const priorityLabels = usePriorityLabels();
   return (
     <span
       className={cn(
@@ -55,9 +56,9 @@ export function PriorityBadge({ priority, size, className }: PriorityBadgeProps)
       )}
     >
       <PriorityDot priority={priority} size={size} decorative />
-      <span>{PRIORITY_LABELS[priority]}</span>
+      <span>{priorityLabels[priority]}</span>
     </span>
   );
 }
 
-export { PRIORITY_LABELS, PRIORITY_OPTIONS };
+export { PRIORITY_OPTIONS };

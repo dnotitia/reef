@@ -13,6 +13,10 @@ import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { PageHeader } from "@/features/ui/components/PageHeader";
+import {
+  usePlanningKindLabels,
+  usePlanningKindSingularLabels,
+} from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import { Plus } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -26,10 +30,6 @@ import {
   usePlanningCatalog,
   useUpdatePlanningItem,
 } from "../hooks/usePlanningCatalog";
-import {
-  PLANNING_KIND_LABELS,
-  PLANNING_KIND_SINGULAR,
-} from "../lib/planningItems";
 import { PlanningDeleteDialog } from "./PlanningDeleteDialog";
 import { PlanningEditorDialog } from "./PlanningEditorDialog";
 import { PlanningTable } from "./PlanningTable";
@@ -76,6 +76,11 @@ export function PlanningPage() {
 
   const catalog = catalogQuery.data;
   const issues = issueQuery.data ?? [];
+
+  // Kind copy resolves in the active locale (REEF-292); captured here so the
+  // toast handlers and the kind tabs below all read the same maps.
+  const planningKindLabels = usePlanningKindLabels();
+  const planningKindSingular = usePlanningKindSingularLabels();
 
   const selectKind = useCallback(
     (kind: PlanningKind) => {
@@ -128,11 +133,11 @@ export function PlanningPage() {
     try {
       if (editor.mode === "create") {
         await createMutation.mutateAsync({ kind: editor.kind, item: input });
-        toast.success(`${PLANNING_KIND_SINGULAR[editor.kind]} created.`);
+        toast.success(`${planningKindSingular[editor.kind]} created.`);
       } else {
         const item = { ...input, id: String(editor.item.id) } as PlanningItem;
         await updateMutation.mutateAsync({ kind: editor.kind, item });
-        toast.success(`${PLANNING_KIND_SINGULAR[editor.kind]} saved.`);
+        toast.success(`${planningKindSingular[editor.kind]} saved.`);
       }
       closeEditor();
     } catch (err) {
@@ -150,7 +155,7 @@ export function PlanningPage() {
         kind: target.kind,
         id: target.item.id,
       });
-      toast.success(`${PLANNING_KIND_SINGULAR[target.kind]} deleted.`);
+      toast.success(`${planningKindSingular[target.kind]} deleted.`);
       setDeleteTarget(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Delete failed.");
@@ -180,7 +185,7 @@ export function PlanningPage() {
             className="gap-1.5"
           >
             <Plus aria-hidden="true" className="h-3.5 w-3.5" />
-            New {PLANNING_KIND_SINGULAR[activeKind].toLowerCase()}
+            New {planningKindSingular[activeKind].toLowerCase()}
           </Button>
         }
       />
@@ -207,7 +212,7 @@ export function PlanningPage() {
                 onClick={() => selectKind(kind)}
               >
                 <PlanningKindIcon kind={kind} decorative size={14} />
-                {PLANNING_KIND_LABELS[kind]}
+                {planningKindLabels[kind]}
               </button>
             );
           })}
@@ -252,8 +257,8 @@ export function PlanningPage() {
         target={deleteTarget?.item ?? null}
         kindSingular={
           deleteTarget
-            ? PLANNING_KIND_SINGULAR[deleteTarget.kind]
-            : PLANNING_KIND_SINGULAR[activeKind]
+            ? planningKindSingular[deleteTarget.kind]
+            : planningKindSingular[activeKind]
         }
         isDeleting={deleteMutation.isPending}
         onCancel={() => setDeleteTarget(null)}

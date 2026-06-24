@@ -71,4 +71,45 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
       "true",
     );
   });
+
+  test("renders core field labels in the active locale on the board (REEF-292)", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    // Baseline: the board status columns render their English labels (the
+    // workflow statuses are always present regardless of the issue set).
+    await page.goto("/issues?view=board");
+    await expect(
+      page.locator('[data-testid="kanban-board"]').first(),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 3, name: "Todo" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 3, name: "In Progress" }),
+    ).toBeVisible();
+
+    // Switch the interface to Korean through the real settings control.
+    await page.goto("/settings/preferences");
+    await page.getByTestId("locale-option-ko").click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+
+    // The same status columns now render their Korean labels — the core key →
+    // active-locale string lookup (REEF-292) resolving end to end through the
+    // merged next-intl catalog (AC1), not a separate English map.
+    await page.goto("/issues?view=board");
+    await expect(
+      page.locator('[data-testid="kanban-board"]').first(),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 3, name: "할 일" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 3, name: "진행 중" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 3, name: "Todo" }),
+    ).toHaveCount(0);
+  });
 });

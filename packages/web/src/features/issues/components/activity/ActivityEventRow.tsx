@@ -2,20 +2,24 @@
 
 import { DateDisplay } from "@/components/fields/DateDisplay";
 import { PlanningKindIcon } from "@/components/fields/PlanningKindIcon";
-import { PRIORITY_LABELS, STATUS_LABELS } from "@/components/fields/fieldKit";
 import { StatusIcon } from "@/components/ui/status-icon";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { findPlanningName } from "@/features/planning/lib/planningItems";
+import {
+  useClosedReasonLabels,
+  usePlanningKindSingularLabels,
+  usePriorityLabels,
+  useStatusLabels,
+} from "@/i18n/fieldLabels";
 import type {
+  ClosedReason,
   ImplementationRef,
   PlanningLinkField,
+  Priority,
   RelationField,
+  Status,
 } from "@reef/core";
-import { CLOSED_REASON_LABELS } from "@reef/core/fields";
-import {
-  PLANNING_KIND_SINGULAR,
-  type PlanningKind,
-} from "@reef/core/fields/planning";
+import type { PlanningKind } from "@reef/core/fields/planning";
 import {
   Archive,
   ArchiveRestore,
@@ -64,6 +68,18 @@ type PlanningNameResolver = (
   field: PlanningLinkField,
   id: string | null,
 ) => string | null;
+
+/**
+ * Active-locale label maps for the enum values an event line names (REEF-292).
+ * `lineFor` is pure, so the component resolves these via the field-label hooks
+ * and threads them in rather than reading module-level English maps.
+ */
+interface EventLabels {
+  status: Record<Status, string>;
+  priority: Record<Priority, string>;
+  closedReason: Record<ClosedReason, string>;
+  planningKindSingular: Record<PlanningKind, string>;
+}
 
 /** A short, human label for a delivery ref ("PR #25", "commit a1b2c3d"). */
 function deliveryLabel(ref: ImplementationRef): string {
@@ -242,6 +258,7 @@ function glyphFor(event: TimelineSystemEvent): ReactNode {
 function lineFor(
   event: TimelineSystemEvent,
   resolvePlanning: PlanningNameResolver,
+  labels: EventLabels,
 ): ReactNode {
   switch (event.kind) {
     case "created":
@@ -256,12 +273,12 @@ function lineFor(
       return event.from ? (
         <>
           {event.actor ? <Actor name={event.actor} /> : "Status"} moved{" "}
-          {STATUS_LABELS[event.from]} → {STATUS_LABELS[event.to]}
+          {labels.status[event.from]} → {labels.status[event.to]}
         </>
       ) : (
         <>
           {event.actor ? <Actor name={event.actor} /> : "Status"} set to{" "}
-          {STATUS_LABELS[event.to]}
+          {labels.status[event.to]}
         </>
       );
     case "closed":
@@ -277,7 +294,7 @@ function lineFor(
           {event.reason ? (
             <span className="text-muted-foreground">
               {" "}
-              · {CLOSED_REASON_LABELS[event.reason]}
+              · {labels.closedReason[event.reason]}
             </span>
           ) : null}
         </>
@@ -339,14 +356,14 @@ function lineFor(
           event.actor,
           "changed priority",
           <>
-            {PRIORITY_LABELS[from]} → {PRIORITY_LABELS[to]}
+            {labels.priority[from]} → {labels.priority[to]}
           </>,
         );
       if (to)
         return sentence(
           event.actor,
           "set priority to",
-          valueToken(PRIORITY_LABELS[to]),
+          valueToken(labels.priority[to]),
         );
       if (from) return sentence(event.actor, "cleared priority");
       return sentence(event.actor, "changed priority");
@@ -356,7 +373,7 @@ function lineFor(
       // Lowercase kind word ("sprint"/"milestone"/"release") names the dimension
       // in text (a11y), reinforced by the shape glyph. A raw id is not shown —
       // an unresolved name simply drops the token (AC3).
-      const word = PLANNING_KIND_SINGULAR[kind].toLowerCase();
+      const word = labels.planningKindSingular[kind].toLowerCase();
       const fromName = resolvePlanning(event.field, event.from);
       const toName = resolvePlanning(event.field, event.to);
       if (event.from == null && event.to != null)
@@ -514,6 +531,18 @@ export const ActivityEventRow = memo(function ActivityEventRow({
   const resolvePlanning: PlanningNameResolver = (field, id) =>
     findPlanningName(planningCatalog, PLANNING_FIELD_KIND[field], id);
 
+  // Active-locale labels for the enum values the line may name (REEF-292).
+  const status = useStatusLabels();
+  const priority = usePriorityLabels();
+  const closedReason = useClosedReasonLabels();
+  const planningKindSingular = usePlanningKindSingularLabels();
+  const labels: EventLabels = {
+    status,
+    priority,
+    closedReason,
+    planningKindSingular,
+  };
+
   return (
     <div className="flex items-center gap-3" data-testid="activity-event">
       {/* 20px node box matches the comment avatar's footprint, so the glyph
@@ -522,7 +551,9 @@ export const ActivityEventRow = memo(function ActivityEventRow({
         {glyphFor(event)}
       </span>
       <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
-        <span className="min-w-0">{lineFor(event, resolvePlanning)}</span>
+        <span className="min-w-0">
+          {lineFor(event, resolvePlanning, labels)}
+        </span>
         <time
           dateTime={event.at}
           title={formatAbsoluteTime(event.at)}

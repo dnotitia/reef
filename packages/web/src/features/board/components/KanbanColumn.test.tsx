@@ -1,7 +1,8 @@
 import type { IssueListItem } from "@reef/core";
+import { ISSUE_FIELD_MESSAGES_EN } from "@reef/core/fields";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { KanbanColumn, STATUS_LABELS } from "./KanbanColumn";
+import { KanbanColumn } from "./KanbanColumn";
 
 afterEach(() => {
   cleanup();
@@ -72,7 +73,9 @@ describe("KanbanColumn", () => {
   it("renders column title matching status label", () => {
     renderColumn({ status: "todo", issues: [] });
     expect(
-      screen.getByRole("heading", { name: STATUS_LABELS.todo }),
+      screen.getByRole("heading", {
+        name: ISSUE_FIELD_MESSAGES_EN.status.todo,
+      }),
     ).toBeDefined();
   });
 

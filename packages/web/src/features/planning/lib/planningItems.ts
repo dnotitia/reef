@@ -6,14 +6,13 @@ import type {
   Sprint,
 } from "@reef/core";
 
-// Kind keys and labels are canonical in `@reef/core/fields/planning` (single
-// source shared with the `PlanningKindIcon` glyph leaf). Re-exported here so the
-// many existing planning consumers keep their import path unchanged.
-export {
-  PLANNING_KIND_LABELS,
-  PLANNING_KIND_SINGULAR,
-  type PlanningKind,
-} from "@reef/core/fields/planning";
+// Kind keys are canonical in `@reef/core/fields/planning` (single source shared
+// with the `PlanningKindIcon` glyph leaf). The kind type is re-exported so the
+// many existing planning consumers keep their import path unchanged. Human kind
+// labels are locale-resolved through `@/i18n/fieldLabels`
+// (`usePlanningKindLabels` / `usePlanningKindSingularLabels`), not re-exported
+// as English literals (REEF-292).
+export type { PlanningKind } from "@reef/core/fields/planning";
 import type { PlanningKind } from "@reef/core/fields/planning";
 
 export type PlanningItem = Sprint | Milestone | Release;

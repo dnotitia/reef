@@ -1,6 +1,7 @@
 "use client";
 
-import { STATUS_LABELS, StatusIcon } from "@/components/ui/status-icon";
+import { StatusIcon } from "@/components/ui/status-icon";
+import { useStatusLabels } from "@/i18n/fieldLabels";
 import { DURATION_BASE, EASE_SIGNATURE } from "@/lib/motionTokens";
 import { cn } from "@/lib/utils";
 import { useDroppable } from "@dnd-kit/core";
@@ -8,8 +9,6 @@ import { useAutoAnimate } from "@formkit/auto-animate/react";
 import type { IssueListItem, PlanningCatalog, Status } from "@reef/core";
 import { memo } from "react";
 import { KanbanCard } from "./KanbanCard";
-
-export { STATUS_LABELS };
 
 const EMPTY_BLOCKED_IDS: ReadonlySet<string> = new Set();
 
@@ -35,6 +34,7 @@ export const KanbanColumn = memo(function KanbanColumn({
   planningCatalog,
   onIssueClick,
 }: KanbanColumnProps) {
+  const statusLabels = useStatusLabels();
   const { setNodeRef, isOver } = useDroppable({ id: status });
   // Layout transition: when a card joins/leaves this column (status change) or
   // the filtered/sorted set shifts, auto-animate FLIPs it into place instead
@@ -59,7 +59,7 @@ export const KanbanColumn = memo(function KanbanColumn({
       <div className="mb-2 flex shrink-0 items-center gap-2 px-1.5 py-1">
         <StatusIcon status={status} size={12} />
         <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/80">
-          {STATUS_LABELS[status]}
+          {statusLabels[status]}
         </h3>
         <span className="ml-auto font-mono text-[11px] tabular-nums text-muted-foreground">
           {issues.length}

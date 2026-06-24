@@ -13,6 +13,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  usePlanningKindLabels,
+  usePlanningKindSingularLabels,
+} from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type {
   IssueListItem,
@@ -24,12 +28,7 @@ import type {
 import { ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { Fragment, useMemo } from "react";
 import type { PlanningItem, PlanningKind } from "../hooks/usePlanningCatalog";
-import {
-  PLANNING_KIND_LABELS,
-  PLANNING_KIND_SINGULAR,
-  countIssuesByPlanningId,
-  itemsForKind,
-} from "../lib/planningItems";
+import { countIssuesByPlanningId, itemsForKind } from "../lib/planningItems";
 
 const MARKDOWN_TOKENS = /[#>*_`~]+|\[([^\]]*)\]\([^)]*\)/g;
 const NOOP = () => {};
@@ -68,6 +67,8 @@ export function PlanningTable({
   onRequestDelete: (kind: PlanningKind, item: PlanningItem) => void;
   deletingId?: string;
 }) {
+  const planningKindLabels = usePlanningKindLabels();
+  const planningKindSingular = usePlanningKindSingularLabels();
   const items = itemsForKind(catalog, kind);
   const countById = useMemo(
     () => countIssuesByPlanningId(issues, kind),
@@ -88,11 +89,11 @@ export function PlanningTable({
     return (
       <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-md border border-dashed border-border bg-surface-subtle px-6 py-10">
         <p className="text-sm text-muted-foreground">
-          No {PLANNING_KIND_LABELS[kind].toLowerCase()} yet.
+          No {planningKindLabels[kind].toLowerCase()} yet.
         </p>
         <Button type="button" size="sm" onClick={onCreate} className="gap-1.5">
           <Plus aria-hidden="true" className="h-3.5 w-3.5" />
-          New {PLANNING_KIND_SINGULAR[kind].toLowerCase()}
+          New {planningKindSingular[kind].toLowerCase()}
         </Button>
       </div>
     );

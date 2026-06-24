@@ -1,6 +1,12 @@
 "use client";
 
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
+import {
+  useIssueTypeLabels,
+  usePriorityLabels,
+  useSeverityLabels,
+  useStatusLabels,
+} from "@/i18n/fieldLabels";
 import type { IssueListItem } from "@reef/core";
 import { useMemo, useState } from "react";
 import type { ReportFilters } from "../lib/aggregate";
@@ -8,6 +14,7 @@ import {
   PIVOT_FIELD_KEYS,
   PIVOT_FIELD_LABELS,
   type PivotFieldKey,
+  type PivotValueLabels,
   computePivot,
 } from "../lib/pivot";
 import { PivotMatrix } from "./ReportCharts";
@@ -31,9 +38,25 @@ export function PivotCard({
   const [rowField, setRowField] = useState<PivotFieldKey>("assignee");
   const [colField, setColField] = useState<PivotFieldKey>("status");
 
+  // The enum-axis value labels resolve in the active locale (REEF-292); each
+  // hook is memoized per locale, so this bundle is a stable `computePivot` dep.
+  const statusLabels = useStatusLabels();
+  const issueTypeLabels = useIssueTypeLabels();
+  const priorityLabels = usePriorityLabels();
+  const severityLabels = useSeverityLabels();
+  const labels: PivotValueLabels = useMemo(
+    () => ({
+      status: statusLabels,
+      type: issueTypeLabels,
+      priority: priorityLabels,
+      severity: severityLabels,
+    }),
+    [statusLabels, issueTypeLabels, priorityLabels, severityLabels],
+  );
+
   const result = useMemo(
-    () => computePivot(issues, rowField, colField, { filters }),
-    [issues, rowField, colField, filters],
+    () => computePivot(issues, rowField, colField, labels, { filters }),
+    [issues, rowField, colField, labels, filters],
   );
 
   // Disclose any dynamic-axis cap instead of silently truncating it away.

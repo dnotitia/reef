@@ -1,8 +1,6 @@
+import { usePlanningKindSingularLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
-import {
-  PLANNING_KIND_SINGULAR,
-  type PlanningKind,
-} from "@reef/core/fields/planning";
+import type { PlanningKind } from "@reef/core/fields/planning";
 import { IterationCw, type LucideIcon, Milestone, Package } from "lucide-react";
 
 /**
@@ -46,11 +44,12 @@ export function PlanningKindIcon({
   decorative = false,
   className,
 }: PlanningKindIconProps) {
+  const planningKindSingular = usePlanningKindSingularLabels();
   const Icon = PLANNING_KIND_ICON[kind];
   return (
     <Icon
       role={decorative ? undefined : "img"}
-      aria-label={decorative ? undefined : PLANNING_KIND_SINGULAR[kind]}
+      aria-label={decorative ? undefined : planningKindSingular[kind]}
       aria-hidden={decorative ? true : undefined}
       width={size}
       height={size}

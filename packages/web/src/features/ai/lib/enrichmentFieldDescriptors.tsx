@@ -1,8 +1,4 @@
-import {
-  ISSUE_TYPE_LABELS,
-  NO_SELECTION,
-  SEVERITY_LABELS,
-} from "@/components/fields/fieldKit";
+import { NO_SELECTION } from "@/components/fields/fieldKit";
 import {
   ExternalRefs,
   LabelChips,
@@ -12,6 +8,7 @@ import {
 } from "@/components/fields/fieldValue";
 import { PriorityBadge } from "@/components/ui/priority-dot";
 import type { PrioritySelection } from "@/features/issues/lib/issueDraftForm";
+import { useIssueTypeLabels, useSeverityLabels } from "@/i18n/fieldLabels";
 import type {
   EnrichmentField,
   EnrichmentSuggestion,
@@ -20,6 +17,21 @@ import type {
   Severity,
 } from "@reef/core";
 import type { ReactNode } from "react";
+
+/**
+ * The descriptor map is a module-level constant, so it can not call the label
+ * hooks directly. These leaves resolve the active-locale label at render time
+ * (REEF-292) while keeping the descriptor entries declarative — the leaf is
+ * rendered inside the descriptor's returned JSX, so its hook runs in the
+ * enrichment card's React tree.
+ */
+function IssueTypeLabelText({ value }: { value: IssueType }) {
+  return <>{useIssueTypeLabels()[value]}</>;
+}
+
+function SeverityLabelText({ value }: { value: Severity }) {
+  return <>{useSeverityLabels()[value]}</>;
+}
 
 /**
  * Live snapshot of the New Issue form plus its setters. The descriptor map
@@ -127,10 +139,14 @@ export const FIELD_DESCRIPTORS: FieldDescriptorMap = {
   issue_type: {
     label: "Type",
     formatCurrent: (f) => (
-      <PlainValue>{ISSUE_TYPE_LABELS[f.values.issueType]}</PlainValue>
+      <PlainValue>
+        <IssueTypeLabelText value={f.values.issueType} />
+      </PlainValue>
     ),
     formatSuggested: (s) => (
-      <PlainValue>{ISSUE_TYPE_LABELS[s.value]}</PlainValue>
+      <PlainValue>
+        <IssueTypeLabelText value={s.value} />
+      </PlainValue>
     ),
     apply: (f, s) => f.setIssueType(s.value),
   },
@@ -248,11 +264,17 @@ export const FIELD_DESCRIPTORS: FieldDescriptorMap = {
     label: "Severity",
     formatCurrent: (f) =>
       f.values.severity ? (
-        <PlainValue>{SEVERITY_LABELS[f.values.severity]}</PlainValue>
+        <PlainValue>
+          <SeverityLabelText value={f.values.severity} />
+        </PlainValue>
       ) : (
         <Muted>No severity</Muted>
       ),
-    formatSuggested: (s) => <PlainValue>{SEVERITY_LABELS[s.value]}</PlainValue>,
+    formatSuggested: (s) => (
+      <PlainValue>
+        <SeverityLabelText value={s.value} />
+      </PlainValue>
+    ),
     apply: (f, s) => f.setSeverity(s.value),
   },
   parent_id: {

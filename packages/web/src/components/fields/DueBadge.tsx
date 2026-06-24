@@ -1,4 +1,5 @@
-import { DUE_COLORS, DUE_LABELS } from "@/components/fields/fieldKit";
+import { DUE_COLORS } from "@/components/fields/fieldKit";
+import { useDueLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { DueFacet } from "@reef/core/fields";
 import { CalendarClock, CalendarX, type LucideIcon } from "lucide-react";
@@ -12,7 +13,8 @@ import { CalendarClock, CalendarX, type LucideIcon } from "lucide-react";
  * calendar-with-clock for the approaching one. Mirrors how `SeverityBadge` /
  * `StatusBadge` split the bare glyph from the labelled badge, so the Due option
  * reads identically to the other facet leaves sitting beside it in a filter
- * dropdown. Label + color live in one place (`DUE_LABELS` / `DUE_COLORS`).
+ * dropdown. The label is locale-resolved via `useDueLabels()` (REEF-292); the
+ * color class lives in `DUE_COLORS`.
  */
 const DUE_ICON: Record<DueFacet, LucideIcon> = {
   overdue: CalendarX,
@@ -37,12 +39,13 @@ interface DueIconProps {
  * dropdown items), so it renders identically on every surface.
  */
 export function DueIcon({ due, className, decorative = false }: DueIconProps) {
+  const dueLabels = useDueLabels();
   const Icon = DUE_ICON[due];
   return (
     <Icon
       className={cn("size-3.5 shrink-0", DUE_COLORS[due], className)}
       role={decorative ? undefined : "img"}
-      aria-label={decorative ? undefined : `Due: ${DUE_LABELS[due]}`}
+      aria-label={decorative ? undefined : `Due: ${dueLabels[due]}`}
       aria-hidden={decorative ? true : undefined}
     />
   );
@@ -54,6 +57,7 @@ interface DueBadgeProps {
 }
 
 export function DueBadge({ due, className }: DueBadgeProps) {
+  const dueLabels = useDueLabels();
   return (
     <span
       className={cn(
@@ -62,7 +66,7 @@ export function DueBadge({ due, className }: DueBadgeProps) {
       )}
     >
       <DueIcon due={due} decorative />
-      <span>{DUE_LABELS[due]}</span>
+      <span>{dueLabels[due]}</span>
     </span>
   );
 }

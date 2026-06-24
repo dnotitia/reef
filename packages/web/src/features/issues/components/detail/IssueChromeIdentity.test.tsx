@@ -1,6 +1,6 @@
-import { STATUS_LABELS } from "@/components/fields/fieldKit";
 import { useIssueNavStack } from "@/features/issues/stores/useIssueNavStack";
 import type { IssueListItem } from "@reef/core";
+import { ISSUE_FIELD_MESSAGES_EN } from "@reef/core/fields";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
@@ -92,7 +92,9 @@ describe("IssueChromeIdentity", () => {
       expect(screen.getByText("REEF-111")).toBeInTheDocument();
       // The current status glyph is a labelled (non-decorative) icon.
       expect(
-        screen.getByRole("img", { name: STATUS_LABELS.in_progress }),
+        screen.getByRole("img", {
+          name: ISSUE_FIELD_MESSAGES_EN.status.in_progress,
+        }),
       ).toBeInTheDocument();
       // The type pill renders its label.
       expect(screen.getByText("Story")).toBeInTheDocument();

@@ -14,10 +14,10 @@ import { IssueRelationInput } from "@/features/issues/components/relations/Issue
 import { IssueFormSection } from "@/features/issues/components/shared/IssueFormSection";
 import {
   NO_SELECTION,
-  SEVERITY_LABELS,
   SEVERITY_OPTIONS,
 } from "@/features/issues/lib/metadataOptions";
 import { PlanningItemCombobox } from "@/features/planning/components/PlanningItemCombobox";
+import { useSeverityLabels } from "@/i18n/fieldLabels";
 import type { IssueListItem, Severity } from "@reef/core";
 import type { ComponentProps, Dispatch, SetStateAction } from "react";
 
@@ -90,6 +90,7 @@ export function ActivityDraftEditMetadataFields({
   setBlocks: Dispatch<SetStateAction<string[]>>;
   setRelatedTo: Dispatch<SetStateAction<string[]>>;
 }) {
+  const severityLabels = useSeverityLabels();
   return (
     <div className="grid gap-4">
       <IssueFormSection title="People">
@@ -214,7 +215,7 @@ export function ActivityDraftEditMetadataFields({
                 <SelectItem value={NO_SELECTION}>No severity</SelectItem>
                 {SEVERITY_OPTIONS.map((s) => (
                   <SelectItem key={s} value={s}>
-                    {SEVERITY_LABELS[s]}
+                    {severityLabels[s]}
                   </SelectItem>
                 ))}
               </SelectContent>

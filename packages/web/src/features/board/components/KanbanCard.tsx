@@ -10,10 +10,10 @@ import { StatusIcon } from "@/components/ui/status-icon";
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { useIssueFlash } from "@/features/issues/stores/useFlashStore";
 import {
-  PLANNING_KIND_SINGULAR,
   type PlanningKind,
   findPlanningName,
 } from "@/features/planning/lib/planningItems";
+import { usePlanningKindSingularLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
@@ -74,6 +74,7 @@ function PlanningContextStrip({
 }: {
   items: readonly PlanningContextItem[];
 }) {
+  const planningKindSingular = usePlanningKindSingularLabels();
   if (items.length === 0) return null;
 
   return (
@@ -82,7 +83,7 @@ function PlanningContextStrip({
       data-testid="kanban-planning-context"
     >
       {items.map((item) => {
-        const label = PLANNING_KIND_SINGULAR[item.kind];
+        const label = planningKindSingular[item.kind];
         return (
           <span
             key={item.kind}

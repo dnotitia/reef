@@ -13,13 +13,10 @@ import { IssueDraftFields } from "@/features/issues/components/create/IssueDraft
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
 import type { PrioritySelection } from "@/features/issues/lib/issueDraftForm";
-import {
-  ISSUE_TYPE_LABELS,
-  ISSUE_TYPE_OPTIONS,
-  SEVERITY_LABELS,
-} from "@/features/issues/lib/metadataOptions";
+import { ISSUE_TYPE_OPTIONS } from "@/features/issues/lib/metadataOptions";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { findPlanningName } from "@/features/planning/lib/planningItems";
+import { useIssueTypeLabels, useSeverityLabels } from "@/i18n/fieldLabels";
 import type {
   ActivityDraftSuggestion,
   IssueCreateInput,
@@ -70,6 +67,8 @@ export function ActivityDraftCard({
   vault?: string;
   isApproving: boolean;
 }) {
+  const issueTypeLabels = useIssueTypeLabels();
+  const severityLabels = useSeverityLabels();
   const { draft } = item;
   const create = draft.proposal.create;
   const fields = create.fields;
@@ -253,7 +252,7 @@ export function ActivityDraftCard({
             <TypePill type={fields.issue_type} variant="activity" />
             {fields.severity && (
               <span className="rounded-full bg-background/70 px-2 py-0.5">
-                {SEVERITY_LABELS[fields.severity]}
+                {severityLabels[fields.severity]}
               </span>
             )}
             {fields.start_date && (
@@ -359,7 +358,7 @@ export function ActivityDraftCard({
                   <SelectContent>
                     {ISSUE_TYPE_OPTIONS.map((type) => (
                       <SelectItem key={type} value={type}>
-                        {ISSUE_TYPE_LABELS[type]}
+                        {issueTypeLabels[type]}
                       </SelectItem>
                     ))}
                   </SelectContent>

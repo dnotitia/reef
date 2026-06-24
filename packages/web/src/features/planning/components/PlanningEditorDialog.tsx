@@ -20,11 +20,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { usePlanningKindSingularLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { Milestone, Release, Sprint } from "@reef/core";
 import { useEffect, useId, useRef } from "react";
 import type { PlanningItem, PlanningKind } from "../hooks/usePlanningCatalog";
-import { PLANNING_KIND_SINGULAR } from "../lib/planningItems";
 import { type EditorState, emptyItem, formatDate } from "./planningPageUtils";
 
 const FIELD_LABEL_CLASS = "text-xs font-medium text-muted-foreground";
@@ -56,6 +56,7 @@ export function PlanningEditorDialog({
   onSave: () => void;
   isSaving: boolean;
 }) {
+  const planningKindSingular = usePlanningKindSingularLabels();
   const kind = editor?.kind ?? "sprints";
   const item = editor?.item ?? emptyItem(kind);
   const nameInputId = useId();
@@ -67,8 +68,8 @@ export function PlanningEditorDialog({
   const formLevelError = nameError ? null : formError;
   const title =
     editor?.mode === "edit"
-      ? `Edit ${PLANNING_KIND_SINGULAR[kind]}`
-      : `New ${PLANNING_KIND_SINGULAR[kind]}`;
+      ? `Edit ${planningKindSingular[kind]}`
+      : `New ${planningKindSingular[kind]}`;
 
   useEffect(() => {
     if (nameError) {
@@ -98,8 +99,8 @@ export function PlanningEditorDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
             {editor?.mode === "edit"
-              ? `Update this ${PLANNING_KIND_SINGULAR[kind].toLowerCase()}.`
-              : `Add a new ${PLANNING_KIND_SINGULAR[kind].toLowerCase()} to the workspace.`}
+              ? `Update this ${planningKindSingular[kind].toLowerCase()}.`
+              : `Add a new ${planningKindSingular[kind].toLowerCase()} to the workspace.`}
           </DialogDescription>
         </DialogHeader>
 

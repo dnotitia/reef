@@ -10,12 +10,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { ClosedReason } from "@reef/core";
 import {
-  CLOSED_REASON_HINTS,
-  CLOSED_REASON_LABELS,
-  CLOSED_REASON_OPTIONS,
-} from "@reef/core/fields";
+  useClosedReasonHints,
+  useClosedReasonLabels,
+} from "@/i18n/fieldLabels";
+import type { ClosedReason } from "@reef/core";
+import { CLOSED_REASON_OPTIONS } from "@reef/core/fields";
 import { useState } from "react";
 
 interface CloseIssueDialogProps {
@@ -56,6 +56,8 @@ function CloseIssueDialogContent({
 > &
   Pick<CloseIssueDialogProps, "disabled">) {
   const [reason, setReason] = useState<ClosedReason>("completed");
+  const closedReasonLabels = useClosedReasonLabels();
+  const closedReasonHints = useClosedReasonHints();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -82,14 +84,12 @@ function CloseIssueDialogContent({
             // The dropdown options carry a second hint line; the trigger value
             // slot is single-line, so the selected value renders the label
             // alone via `renderValue` (REEF-272).
-            renderValue={(option) => (
-              <span>{CLOSED_REASON_LABELS[option]}</span>
-            )}
+            renderValue={(option) => <span>{closedReasonLabels[option]}</span>}
             renderItem={(option) => (
               <span className="flex min-w-0 flex-col">
-                <span>{CLOSED_REASON_LABELS[option]}</span>
+                <span>{closedReasonLabels[option]}</span>
                 <span className="truncate text-[11px] font-normal text-muted-foreground">
-                  {CLOSED_REASON_HINTS[option]}
+                  {closedReasonHints[option]}
                 </span>
               </span>
             )}

@@ -2,10 +2,10 @@
 
 import { PlanningStatusBadge } from "@/components/fields/PlanningStatusBadge";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
+import { usePlanningKindSingularLabels } from "@/i18n/fieldLabels";
 import { useMemo } from "react";
 import { usePlanningCatalog } from "../hooks/usePlanningCatalog";
 import {
-  PLANNING_KIND_SINGULAR,
   type PlanningKind,
   isAssignablePlanningItem,
   itemsForKind,
@@ -44,9 +44,9 @@ export function PlanningItemCombobox({
   value,
   onChange,
   id,
-  label = PLANNING_KIND_SINGULAR[kind],
-  placeholder = `Select ${PLANNING_KIND_SINGULAR[kind].toLowerCase()}`,
-  emptyLabel = `No ${PLANNING_KIND_SINGULAR[kind].toLowerCase()}`,
+  label,
+  placeholder,
+  emptyLabel,
   disabled,
   assignableOnly = false,
   className,
@@ -54,6 +54,13 @@ export function PlanningItemCombobox({
   testId,
   active,
 }: PlanningItemComboboxProps) {
+  // Kind copy resolves in the active locale (REEF-292); the optional props still
+  // override it. Hooks can not run in default-parameter position, so the
+  // fallbacks are computed in the body.
+  const singular = usePlanningKindSingularLabels()[kind];
+  const resolvedLabel = label ?? singular;
+  const resolvedPlaceholder = placeholder ?? `Select ${singular.toLowerCase()}`;
+  const resolvedEmptyLabel = emptyLabel ?? `No ${singular.toLowerCase()}`;
   const { data: catalog, isPending } = usePlanningCatalog(vault);
   const items = itemsForKind(catalog, kind);
   const selected = items.find((item) => item.id === value);
@@ -92,15 +99,17 @@ export function PlanningItemCombobox({
       onChange={(v) => onChange(v ?? "")}
       options={options}
       loading={isPending}
-      placeholder={placeholder}
+      placeholder={resolvedPlaceholder}
       renderValue={() => (
         <span className="truncate">{selected?.name ?? value}</span>
       )}
-      noneOption={{ label: emptyLabel }}
+      noneOption={{ label: resolvedEmptyLabel }}
       emptyState="No planning items."
       disabled={disabled || !vault}
       active={active}
-      ariaLabel={value ? `${label}: ${selected?.name ?? value}` : label}
+      ariaLabel={
+        value ? `${resolvedLabel}: ${selected?.name ?? value}` : resolvedLabel
+      }
       contentClassName={panelClassName}
     />
   );

@@ -3,13 +3,10 @@
 import { PlanningStatusBadge } from "@/components/fields/PlanningStatusBadge";
 import type { ComboboxOption } from "@/components/ui/combobox";
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
+import { usePlanningKindSingularLabels } from "@/i18n/fieldLabels";
 import { useMemo } from "react";
 import { usePlanningCatalog } from "../hooks/usePlanningCatalog";
-import {
-  PLANNING_KIND_SINGULAR,
-  type PlanningKind,
-  itemsForKind,
-} from "../lib/planningItems";
+import { type PlanningKind, itemsForKind } from "../lib/planningItems";
 import { PLANNING_ITEM_PANEL_CLASS } from "./PlanningItemCombobox";
 
 interface PlanningItemMultiComboboxProps {
@@ -40,13 +37,16 @@ export function PlanningItemMultiCombobox({
   vault,
   values,
   onToggle,
-  label = PLANNING_KIND_SINGULAR[kind],
+  label,
   active,
   triggerTestId,
   contentTestId,
   className,
   panelClassName = PLANNING_ITEM_PANEL_CLASS,
 }: PlanningItemMultiComboboxProps) {
+  // Kind copy resolves in the active locale (REEF-292); `label` still overrides.
+  const singular = usePlanningKindSingularLabels()[kind];
+  const resolvedLabel = label ?? singular;
   const { data: catalog, isPending } = usePlanningCatalog(vault);
   const items = useMemo(() => itemsForKind(catalog, kind), [catalog, kind]);
 
@@ -79,7 +79,7 @@ export function PlanningItemMultiCombobox({
 
   return (
     <MultiSelectCombobox<string>
-      label={label}
+      label={resolvedLabel}
       values={values}
       onToggle={onToggle}
       options={options}
@@ -87,7 +87,7 @@ export function PlanningItemMultiCombobox({
       emptyState="No planning items."
       active={active}
       disabled={!vault}
-      ariaLabel={label}
+      ariaLabel={resolvedLabel}
       triggerTestId={triggerTestId}
       contentTestId={contentTestId}
       className={className}

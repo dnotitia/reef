@@ -1,6 +1,6 @@
 "use client";
 
-import { STATUS_LABELS } from "@/components/fields/fieldKit";
+import { useStatusLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import { ChevronRight } from "lucide-react";
 import { useState } from "react";
@@ -31,6 +31,7 @@ export function CollapsedEventsRow({
   events: SystemEntry[];
   vault: string;
 }) {
+  const statusLabels = useStatusLabels();
   const [expanded, setExpanded] = useState(false);
   const from = fromStatus(events[0]);
   const to = toStatus(events[events.length - 1]);
@@ -60,7 +61,7 @@ export function CollapsedEventsRow({
           {!expanded && from && to ? (
             <span className="text-muted-foreground">
               {" "}
-              · {STATUS_LABELS[from]} → {STATUS_LABELS[to]}
+              · {statusLabels[from]} → {statusLabels[to]}
             </span>
           ) : null}
         </span>

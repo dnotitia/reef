@@ -1,9 +1,9 @@
 import {
   STATUS_COLORS,
-  STATUS_LABELS,
   STATUS_OPTIONS,
   WORKFLOW_STATUS_OPTIONS,
 } from "@/components/fields/fieldKit";
+import { useStatusLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { Status } from "@reef/core";
 
@@ -25,10 +25,11 @@ export function StatusIcon({
   decorative = false,
   ...props
 }: StatusIconProps) {
+  const statusLabels = useStatusLabels();
   return (
     <svg
       role={decorative ? undefined : "img"}
-      aria-label={decorative ? undefined : STATUS_LABELS[status]}
+      aria-label={decorative ? undefined : statusLabels[status]}
       aria-hidden={decorative ? true : undefined}
       viewBox="0 0 14 14"
       width={size}
@@ -36,7 +37,7 @@ export function StatusIcon({
       className={cn("inline-block shrink-0", STATUS_COLORS[status], className)}
       {...props}
     >
-      {decorative ? null : <title>{STATUS_LABELS[status]}</title>}
+      {decorative ? null : <title>{statusLabels[status]}</title>}
       {status === "backlog" && (
         // Faint dotted outline: round-capped zero-length dashes render as dots,
         // distinct from in_review's longer dashes and lighter than `todo`'s
@@ -122,6 +123,7 @@ interface StatusBadgeProps {
 }
 
 export function StatusBadge({ status, size, className }: StatusBadgeProps) {
+  const statusLabels = useStatusLabels();
   return (
     <span
       className={cn(
@@ -130,9 +132,9 @@ export function StatusBadge({ status, size, className }: StatusBadgeProps) {
       )}
     >
       <StatusIcon status={status} size={size} decorative />
-      <span>{STATUS_LABELS[status]}</span>
+      <span>{statusLabels[status]}</span>
     </span>
   );
 }
 
-export { STATUS_LABELS, STATUS_OPTIONS, WORKFLOW_STATUS_OPTIONS };
+export { STATUS_OPTIONS, WORKFLOW_STATUS_OPTIONS };

@@ -1,27 +1,23 @@
 /**
- * fieldKit — web-side field metadata. Re-exports the framework-agnostic field
- * data from `@reef/core` (labels, options, the no-selection sentinel) and owns
- * the web presentation concern that should not live in core: Tailwind color
- * classes. Decision #1 of REEF-018 — enum/label/option data in core, color
- * classes in web.
+ * fieldKit — web-side field metadata. Re-exports the framework-agnostic option
+ * data and the no-selection sentinel from `@reef/core` and owns the web
+ * presentation concern that should not live in core: Tailwind color classes.
+ * Decision #1 of REEF-018 — enum/option data in core, color classes in web.
  *
- * This is a plain data module (no React); import it directly. The leaf
- * components in this directory consume it.
+ * Human LABELS are no longer re-exported here: since REEF-292 they are
+ * locale-resolved at render time through `@/i18n/fieldLabels` (e.g.
+ * `useStatusLabels()`), not read as English literals. This stays a plain data
+ * module (no React); import it directly. The leaf components in this directory
+ * consume it.
  */
 import type { IssueType, Priority, Severity, Status } from "@reef/core";
 import type { DependencyFacet, DueFacet } from "@reef/core/fields";
 
 export {
-  STATUS_LABELS,
   STATUS_OPTIONS,
   WORKFLOW_STATUS_OPTIONS,
-  PRIORITY_LABELS,
   PRIORITY_OPTIONS,
-  ISSUE_TYPE_LABELS,
-  SEVERITY_LABELS,
-  DUE_LABELS,
   DUE_OPTIONS,
-  DEPENDENCY_LABELS,
   DEPENDENCY_OPTIONS,
   NO_SELECTION,
   type DueFacet,

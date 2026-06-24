@@ -35,5 +35,102 @@
         "description": "이 기기에서 reef 인터페이스가 사용할 언어를 선택하세요. 선택은 기기별로 유지됩니다."
       }
     }
+  },
+  "fields": {
+    "status": {
+      "backlog": "백로그",
+      "todo": "할 일",
+      "in_progress": "진행 중",
+      "in_review": "검토 중",
+      "done": "완료",
+      "closed": "닫힘"
+    },
+    "priority": {
+      "critical": "긴급",
+      "high": "높음",
+      "medium": "보통",
+      "low": "낮음"
+    },
+    "issueType": {
+      "epic": "에픽",
+      "story": "스토리",
+      "task": "작업",
+      "bug": "버그",
+      "spike": "스파이크",
+      "chore": "잡무"
+    },
+    "severity": {
+      "blocker": "블로커",
+      "critical": "치명적",
+      "major": "주요",
+      "minor": "경미",
+      "trivial": "사소"
+    },
+    "closedReason": {
+      "completed": "완료됨",
+      "duplicate": "중복",
+      "wont_fix": "수정 안 함",
+      "invalid": "유효하지 않음",
+      "stale": "오래됨"
+    },
+    "closedReasonHint": {
+      "completed": "작업이 완료되어 승인되었습니다.",
+      "duplicate": "다른 이슈가 이미 이 작업을 추적하고 있습니다.",
+      "wont_fix": "팀이 진행하지 않기로 결정했습니다.",
+      "invalid": "작성된 내용만으로는 처리할 수 없는 이슈입니다.",
+      "stale": "더 이상 유효하지 않은 이슈입니다."
+    },
+    "due": {
+      "overdue": "기한 초과",
+      "due_soon": "기한 임박"
+    },
+    "dependency": {
+      "blocked": "차단됨",
+      "blocking": "차단 중"
+    },
+    "sortField": {
+      "priority": "우선순위",
+      "due_date": "기한",
+      "start_date": "시작일",
+      "updated_at": "수정일",
+      "created_at": "생성일",
+      "estimate_points": "포인트",
+      "title": "제목"
+    },
+    "sortDirection": {
+      "priority": { "desc": "높음 → 낮음", "asc": "낮음 → 높음" },
+      "due_date": { "desc": "늦은 순", "asc": "빠른 순" },
+      "start_date": { "desc": "늦은 순", "asc": "이른 순" },
+      "created_at": { "desc": "최신순", "asc": "오래된 순" },
+      "updated_at": { "desc": "최신순", "asc": "오래된 순" },
+      "estimate_points": { "desc": "많은 순", "asc": "적은 순" },
+      "title": { "desc": "ㅎ → ㄱ", "asc": "ㄱ → ㅎ" }
+    },
+    "planning": {
+      "kind": {
+        "sprints": "스프린트",
+        "milestones": "마일스톤",
+        "releases": "릴리스"
+      },
+      "kindSingular": {
+        "sprints": "스프린트",
+        "milestones": "마일스톤",
+        "releases": "릴리스"
+      },
+      "sprintStatus": {
+        "planned": "예정",
+        "active": "진행 중",
+        "closed": "종료"
+      },
+      "milestoneStatus": {
+        "open": "열림",
+        "closed": "닫힘"
+      },
+      "releaseStatus": {
+        "planned": "예정",
+        "in_progress": "진행 중",
+        "released": "릴리스됨"
+      }
+    }
   }
 }

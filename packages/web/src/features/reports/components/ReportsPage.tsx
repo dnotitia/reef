@@ -6,8 +6,8 @@ import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageHeader } from "@/features/ui/components/PageHeader";
+import { useSeverityLabels } from "@/i18n/fieldLabels";
 import { ACTIVE_STATUSES, type Status } from "@reef/core";
-import { SEVERITY_LABELS } from "@reef/core/fields";
 import { useCallback, useMemo, useState } from "react";
 import {
   DEFAULT_REPORT_FILTERS,
@@ -47,6 +47,7 @@ import {
 const ACTIVE_STATUS_SET = new Set<Status>(ACTIVE_STATUSES);
 
 export function ReportsPage() {
+  const severityLabels = useSeverityLabels();
   const { vault, isLoading: vaultLoading } = useActiveVault();
   const issuesQuery = useIssueList(vault);
   const planningQuery = usePlanningCatalog(vault);
@@ -315,7 +316,7 @@ export function ReportsPage() {
                     <RankedBarList
                       rows={agg.bySeverity.map((b) => ({
                         key: b.severity,
-                        label: SEVERITY_LABELS[b.severity],
+                        label: severityLabels[b.severity],
                         value: pointsMode ? b.points : b.count,
                       }))}
                     />

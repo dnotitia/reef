@@ -1,11 +1,10 @@
-// Field option/label data now lives in the core field registry (single source
-// of truth). Re-exported here for older import support with existing import
-// sites; prefer importing from `@reef/core` or `@/components/fields/fieldKit`.
+// Field option data lives in the core field registry (single source of truth).
+// Re-exported here for older import support with existing import sites; prefer
+// importing from `@reef/core` or `@/components/fields/fieldKit`. Human labels are
+// locale-resolved through `@/i18n/fieldLabels` (REEF-292), not re-exported here.
 export {
   ISSUE_TYPE_OPTIONS,
-  ISSUE_TYPE_LABELS,
   SEVERITY_OPTIONS,
-  SEVERITY_LABELS,
   NO_SELECTION,
 } from "@reef/core/fields";
 
