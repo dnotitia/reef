@@ -27,6 +27,33 @@ all differ from your training data. Read the relevant guide in
   state-owner consequences. Read it before visible UX/layout work and update it
   when those contracts change.
 
+## Internationalization (i18n)
+
+- User-facing web copy goes through the message catalog, never a hardcoded JSX
+  literal. In a component, `const t = useTranslations("namespace")` and render
+  `{t("key")}`; embedded elements (a link inside a sentence) use `t.rich` so each
+  locale owns word order. The catalog lives at `src/i18n/messages/{en,ko}.json`
+  as nested namespaces — `en` is the structural source of truth and `ko` is a
+  partial over it, so any key ko omits falls back to en (REEF-291 / REEF-293).
+- Keys are type-checked: the `next-intl` `AppConfig` augmentation
+  (`src/i18n/next-intl.d.ts`) types `t(...)` against the en catalog, so a missing
+  or misspelled key fails `pnpm -r run typecheck`. `src/i18n/messages.test.ts`
+  also asserts ko ⊆ en and non-empty leaves.
+- A new hardcoded user-facing **JSX** literal (text node or a user-facing
+  attribute such as `aria-label`/`title`/`placeholder`) fails the i18n guard in
+  `pnpm -r run test` (`src/i18n/guard/`). Route it through `useTranslations`, or —
+  for a genuinely non-localized literal like a brand name — add an `i18n-exempt`
+  line comment. The guard is a one-way ratchet against `baseline.json`: it only
+  shrinks. After migrating strings, prune resolved entries with
+  `pnpm --filter @reef/web i18n:baseline`. The guard is JSX-only by design;
+  strings hoisted into data structures (rendered via `{expr}`) and toast
+  arguments are not auto-caught, so route those through the catalog by review.
+- Unit tests that render a migrated component wrap it in `IntlTestProvider` from
+  `@/i18n/i18n.testSupport` (pass `locale="ko"` to assert the translated surface).
+- Scope split (epic REEF-178): this is the **web chrome** catalog (S3). core
+  field-registry labels are S2 (REEF-292) and date/number/relative-time formats
+  are S4 (REEF-294) — keep those out of this catalog.
+
 ## Subtree Rules
 
 - Source-wide rules, proxy/CSP logging, and browser runtime verification live in

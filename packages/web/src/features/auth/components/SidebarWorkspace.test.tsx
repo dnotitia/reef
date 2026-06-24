@@ -42,6 +42,7 @@ vi.mock("@/features/settings/hooks/useActiveVault", async (orig) => {
 });
 
 import { useViewStore } from "@/features/ui/stores/useViewStore";
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { apiFetch } from "@/lib/apiClient";
 import { getActiveVault, setActiveVault } from "@/lib/storage/config";
 import { db } from "@/lib/storage/db";
@@ -53,7 +54,11 @@ function wrap(ui: ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <IntlTestProvider>{ui}</IntlTestProvider>
+    </QueryClientProvider>
+  );
 }
 
 function vaultsResponse(

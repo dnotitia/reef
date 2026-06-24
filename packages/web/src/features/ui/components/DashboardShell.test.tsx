@@ -1,4 +1,5 @@
 import { useShortcutsStore } from "@/features/shortcuts/stores/useShortcutsStore";
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -99,7 +100,11 @@ function wrap(ui: ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <IntlTestProvider>{ui}</IntlTestProvider>
+    </QueryClientProvider>
+  );
 }
 
 describe("DashboardShell", () => {

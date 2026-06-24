@@ -1,3 +1,4 @@
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import type { IssueListItem } from "@reef/core";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -112,7 +113,11 @@ describe("MyWorkPage", () => {
   });
 
   it("scopes the fetch to the signed-in user — no manual picker (AC1)", () => {
-    render(<MyWorkPage />);
+    render(
+      <IntlTestProvider>
+        <MyWorkPage />
+      </IntlTestProvider>,
+    );
     // The assignee facet is now a multi-select array (REEF-267); My Work sends a
     // one-element array and relies on the server's exact match. It also opts out
     // of placeholder reuse so an account switch does not show the previous login's
@@ -126,13 +131,21 @@ describe("MyWorkPage", () => {
 
   it("shows the shared pick-workspace notice when no vault is active (AC7)", () => {
     mockUseActiveVault.mockReturnValue({ vault: "", isLoading: false });
-    render(<MyWorkPage />);
+    render(
+      <IntlTestProvider>
+        <MyWorkPage />
+      </IntlTestProvider>,
+    );
     expect(screen.getByTestId("empty-workspace-notice")).toBeInTheDocument();
   });
 
   it("shows the no-session notice when logged out (AC7)", () => {
     mockUseCurrentUser.mockReturnValue({ data: null, isPending: false });
-    render(<MyWorkPage />);
+    render(
+      <IntlTestProvider>
+        <MyWorkPage />
+      </IntlTestProvider>,
+    );
     expect(screen.getByTestId("my-work-no-session")).toBeInTheDocument();
     // A logged-out visit should not fan out a whole-vault fetch (blank vault,
     // no query); placeholder reuse is opted out as for every My Work fetch.
@@ -143,7 +156,11 @@ describe("MyWorkPage", () => {
 
   it("shows the empty state with a client-side board link when nothing is assigned (AC7, REEF-262)", () => {
     mockUseIssueList.mockReturnValue(issueListResult([]));
-    render(<MyWorkPage />);
+    render(
+      <IntlTestProvider>
+        <MyWorkPage />
+      </IntlTestProvider>,
+    );
     expect(screen.getByTestId("my-work-empty")).toBeInTheDocument();
     const cta = screen.getByRole("link", { name: /Go to the board/ });
     expect(cta).toHaveAttribute("href", "/issues?view=board");
@@ -154,7 +171,11 @@ describe("MyWorkPage", () => {
     mockUseIssueList.mockReturnValue(
       issueListResult([makeIssue({ id: "REEF-1", status: "done" })]),
     );
-    render(<MyWorkPage />);
+    render(
+      <IntlTestProvider>
+        <MyWorkPage />
+      </IntlTestProvider>,
+    );
     expect(screen.getByTestId("my-work-caught-up")).toBeInTheDocument();
     const cta = screen.getByRole("link", { name: /Go to the board/ });
     expect(cta).toHaveAttribute("href", "/issues?view=board");
@@ -163,7 +184,11 @@ describe("MyWorkPage", () => {
 
   it("renders a skeleton while identity/workspace resolve", () => {
     mockUseActiveVault.mockReturnValue({ vault: "", isLoading: true });
-    render(<MyWorkPage />);
+    render(
+      <IntlTestProvider>
+        <MyWorkPage />
+      </IntlTestProvider>,
+    );
     expect(screen.getByTestId("my-work-skeleton")).toBeInTheDocument();
   });
 
@@ -192,7 +217,11 @@ describe("MyWorkPage", () => {
     });
 
     it("renders the summary strip and the focus-ordered queue (AC2-4, AC6)", () => {
-      render(<MyWorkPage />);
+      render(
+        <IntlTestProvider>
+          <MyWorkPage />
+        </IntlTestProvider>,
+      );
       expect(screen.getByTestId("my-work-summary")).toBeInTheDocument();
       // WIP=1, overdue=1, due-soon=1 surfaced as tiles.
       expect(screen.getByTestId("my-work-tile-wip")).toHaveTextContent("1");
@@ -209,13 +238,21 @@ describe("MyWorkPage", () => {
 
     it("opens an issue via an href that carries the current query (REEF-222)", () => {
       mockUseSearchParams.mockReturnValue(new URLSearchParams("group=status"));
-      render(<MyWorkPage />);
+      render(
+        <IntlTestProvider>
+          <MyWorkPage />
+        </IntlTestProvider>,
+      );
       const row = screen.getByTestId("my-work-row-REEF-1");
       expect(row).toHaveAttribute("href", "/issues/REEF-1?group=status");
     });
 
     it("groups by status and writes the mode to the URL", () => {
-      render(<MyWorkPage />);
+      render(
+        <IntlTestProvider>
+          <MyWorkPage />
+        </IntlTestProvider>,
+      );
       fireEvent.click(screen.getByTestId("my-work-group-status"));
       expect(mockReplace).toHaveBeenCalledWith("/my-work?group=status", {
         scroll: false,

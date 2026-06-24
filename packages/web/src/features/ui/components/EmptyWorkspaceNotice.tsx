@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 
 /**
@@ -19,17 +20,23 @@ import Link from "next/link";
  * `<a>`, keeping it consistent with the in-app navigation REEF-262 unifies.
  */
 export function EmptyWorkspaceNotice() {
+  const t = useTranslations("emptyState.workspace");
   return (
     <div
       data-testid="empty-workspace-notice"
       className="flex flex-1 items-center justify-center px-6 py-12"
     >
+      {/* `t.rich` keeps the Settings link embedded in the sentence while letting
+          each locale own word order — ko moves the link to the front (REEF-293,
+          epic UX: copy length/order varies without breaking layout). */}
       <p className="text-sm text-muted-foreground">
-        Pick a workspace in{" "}
-        <Link href="/settings" className="text-brand underline">
-          Settings
-        </Link>{" "}
-        to get started.
+        {t.rich("prompt", {
+          link: (chunks) => (
+            <Link href="/settings" className="text-brand underline">
+              {chunks}
+            </Link>
+          ),
+        })}
       </p>
     </div>
   );
