@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   addMonths,
   buildMonthGrid,
+  formatDisplayDate,
   formatMonthYear,
   formatTimestampMonthDay,
   isValidIsoDate,
@@ -11,6 +12,7 @@ import {
   parseIsoDate,
   shiftDays,
   shiftMonths,
+  weekdayLabels,
   ymdToIso,
 } from "./dateHelpers";
 
@@ -89,8 +91,44 @@ describe("shiftDays / shiftMonths", () => {
 });
 
 describe("formatMonthYear", () => {
-  it("renders an English month name and year", () => {
-    expect(formatMonthYear(2026, 5)).toBe("June 2026");
+  it("renders a worded month and year in the active locale", () => {
+    expect(formatMonthYear(2026, 5, "en")).toBe("June 2026");
+    expect(formatMonthYear(2026, 5, "ko")).toBe("2026년 6월");
+  });
+});
+
+describe("weekdayLabels", () => {
+  it("returns Monday-first short weekday names in the active locale", () => {
+    expect(weekdayLabels("en")).toEqual([
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun",
+    ]);
+    expect(weekdayLabels("ko")).toEqual([
+      "월",
+      "화",
+      "수",
+      "목",
+      "금",
+      "토",
+      "일",
+    ]);
+  });
+});
+
+describe("formatDisplayDate", () => {
+  it("formats a YYYY-MM-DD day in the active locale", () => {
+    expect(formatDisplayDate("2026-06-01", "en")).toBe("Jun 1, 2026");
+    expect(formatDisplayDate("2026-06-01", "ko")).toBe("2026년 6월 1일");
+  });
+
+  it("returns the input unchanged when it is not a valid date", () => {
+    expect(formatDisplayDate("", "en")).toBe("");
+    expect(formatDisplayDate("not-a-date", "ko")).toBe("not-a-date");
   });
 });
 
@@ -120,18 +158,27 @@ describe("localTodayIso", () => {
 });
 
 describe("formatTimestampMonthDay", () => {
-  it("renders a fixed en-US month/day regardless of the system locale", () => {
-    // consistently English worded month, does not the locale-driven `6월 11일`.
-    expect(formatTimestampMonthDay("2026-06-11T00:00:00.000Z")).toBe("Jun 11");
+  it("renders the month/day in the active locale (app locale, not system)", () => {
+    // The worded month follows the app's active locale — `Jun 11` for en,
+    // `6월 11일` for ko (REEF-294, aligning REEF-225 which pinned this away from
+    // the *uncontrolled* system locale onto the *controlled* app locale).
+    expect(formatTimestampMonthDay("2026-06-11T00:00:00.000Z", "en")).toBe(
+      "Jun 11",
+    );
+    expect(formatTimestampMonthDay("2026-06-11T00:00:00.000Z", "ko")).toBe(
+      "6월 11일",
+    );
   });
 
   it("pins the calendar day to UTC, not the viewer's offset", () => {
     // Late-UTC instant should still read as Jun 11, not roll to the local day.
-    expect(formatTimestampMonthDay("2026-06-11T23:30:00.000Z")).toBe("Jun 11");
+    expect(formatTimestampMonthDay("2026-06-11T23:30:00.000Z", "en")).toBe(
+      "Jun 11",
+    );
   });
 
   it("returns null for nullish or unparseable input so the label is omitted", () => {
-    expect(formatTimestampMonthDay(null)).toBeNull();
-    expect(formatTimestampMonthDay("not-a-date")).toBeNull();
+    expect(formatTimestampMonthDay(null, "en")).toBeNull();
+    expect(formatTimestampMonthDay("not-a-date", "ko")).toBeNull();
   });
 });

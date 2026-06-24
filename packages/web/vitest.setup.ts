@@ -44,6 +44,19 @@ vi.mock("@/i18n/fieldLabels", async () => {
   };
 });
 
+// The app mounts a single `NextIntlClientProvider` at the root, so locale-aware
+// formatters (`useLocale()` for date / relative-time rendering, REEF-294) always
+// have a provider in production. Unit tests render components in isolation
+// without that root, so default `useLocale()` to the base locale (`en`) here
+// rather than re-mounting the provider in every test. Everything else in
+// next-intl stays real; a test that needs a specific locale still wraps in
+// `NextIntlClientProvider`. Locale-formatting behavior itself is covered by the
+// pure dateHelpers / relative-time unit tests and the hermetic i18n E2E spec.
+vi.mock("next-intl", async (importActual) => {
+  const actual = await importActual<typeof import("next-intl")>();
+  return { ...actual, useLocale: () => "en" };
+});
+
 // jsdom does not implement ResizeObserver, but cmdk (and any other library
 // using Radix-style virtualization or measuring) calls `new ResizeObserver`
 // at mount. A no-op shim is sufficient — tests don't depend on layout

@@ -14,32 +14,6 @@
 /** Hoisted once — recompiling per call would be wasteful (js-hoist-regexp). */
 const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-const MONTH_NAMES = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-] as const;
-
-/** Monday-first weekday headers, matching the work-week calendar convention. */
-export const WEEKDAY_LABELS = [
-  "Mo",
-  "Tu",
-  "We",
-  "Th",
-  "Fr",
-  "Sa",
-  "Su",
-] as const;
-
 /** A calendar day with `month` 0-based (JS `Date` semantics). */
 export interface Ymd {
   year: number;
@@ -127,59 +101,110 @@ export function shiftMonths(ymd: Ymd, delta: number): Ymd {
   return { year, month, day: Math.min(ymd.day, lastDay) };
 }
 
-export function formatMonthYear(year: number, month: number): string {
-  return `${MONTH_NAMES[month]} ${year}`;
+/**
+ * Cache of `Intl.DateTimeFormat` instances keyed by locale + shape. Building a
+ * formatter per call is wasteful, so each pair is constructed once and reused.
+ *
+ * The time zone is always UTC (REEF-294 / ADR-0001): the per-viewer axis we vary
+ * is the *locale*, never the zone. A per-viewer zone would shift the rendered
+ * calendar day and reintroduce the SSR/client hydration mismatch this convention
+ * exists to prevent. Callers pass the active next-intl locale (`useLocale()`), so
+ * server and client resolve the same string and render identically.
+ */
+const dateTimeFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function dateTimeFormatter(
+  locale: string,
+  shape: string,
+  options: Intl.DateTimeFormatOptions,
+): Intl.DateTimeFormat {
+  const cacheKey = `${locale}:${shape}`;
+  let formatter = dateTimeFormatters.get(cacheKey);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, {
+      ...options,
+      timeZone: "UTC",
+    });
+    dateTimeFormatters.set(cacheKey, formatter);
+  }
+  return formatter;
 }
 
 /**
- * Hoisted formatter — constructing `Intl.DateTimeFormat` per call is wasteful.
- * A fixed `en-US` locale plus a UTC time zone keep the rendered day identical
- * across server and client (hydration-safe) and stop the viewer's offset from
- * shifting the calendar day.
+ * The calendar header label (`June 2026` / `2026년 6월`) for a 0-based month, in
+ * the active locale. Replaces the former hardcoded English `MONTH_NAMES` table.
  */
-const DISPLAY_DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
-  year: "numeric",
-  month: "short",
-  day: "numeric",
-  timeZone: "UTC",
-});
+export function formatMonthYear(
+  year: number,
+  month: number,
+  locale: string,
+): string {
+  return dateTimeFormatter(locale, "month-year", {
+    year: "numeric",
+    month: "long",
+  }).format(Date.UTC(year, month, 1));
+}
+
+// 2024-01-01 is a Monday — the anchor for deriving Monday-first weekday names.
+const MONDAY_ANCHOR_UTC = Date.UTC(2024, 0, 1);
+const DAY_MS = 86_400_000;
+const weekdayLabelCache = new Map<string, readonly string[]>();
 
 /**
- * Format a `YYYY-MM-DD` string as a short, readable date (`Jun 1, 2026`) via
- * `Intl.DateTimeFormat` rather than surfacing the raw ISO. A worded month is
- * both clearer and shorter than `2026-06-01`, so it no longer clips in the
- * narrow planning columns. Returns the input unchanged when it is not a valid
- * date, so empty/partial values pass through safely.
+ * Monday-first short weekday headers (`Mon … Sun` / `월 … 일`) in the active
+ * locale, replacing the former hardcoded English `WEEKDAY_LABELS` table. Derived
+ * from a known Monday so the Monday-first order is stable regardless of the
+ * locale's own first-day-of-week.
  */
-export function formatDisplayDate(iso: string): string {
+export function weekdayLabels(locale: string): readonly string[] {
+  let labels = weekdayLabelCache.get(locale);
+  if (!labels) {
+    const formatter = dateTimeFormatter(locale, "weekday", {
+      weekday: "short",
+    });
+    labels = Array.from({ length: 7 }, (_, i) =>
+      formatter.format(MONDAY_ANCHOR_UTC + i * DAY_MS),
+    );
+    weekdayLabelCache.set(locale, labels);
+  }
+  return labels;
+}
+
+/**
+ * Format a `YYYY-MM-DD` string as a short, readable date (`Jun 1, 2026` /
+ * `2026년 6월 1일`) in the active locale, rather than surfacing the raw ISO. A
+ * worded month is both clearer and shorter than `2026-06-01`, so it no longer
+ * clips in the narrow planning columns. Returns the input unchanged when it is
+ * not a valid date, so empty/partial values pass through safely.
+ */
+export function formatDisplayDate(iso: string, locale: string): string {
   const ymd = parseIsoDate(iso);
   if (!ymd) return iso;
-  return DISPLAY_DATE_FORMAT.format(Date.UTC(ymd.year, ymd.month, ymd.day));
+  return dateTimeFormatter(locale, "display-date", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(Date.UTC(ymd.year, ymd.month, ymd.day));
 }
 
 /**
- * Month/day variant of the display formatter (e.g. `Jun 11`) — the same fixed
- * `en-US` + UTC contract as `formatDisplayDate`, for surfaces that show a day
- * without the year. Hoisted; per-call construction would be wasteful.
+ * Format an ISO-8601 timestamp as a short month/day (`Jun 11` / `6월 11일`) in
+ * the active locale. Unlike `formatDisplayDate`, this takes a full timestamp
+ * (not a `YYYY-MM-DD` day) because the input is a wall-clock instant such as a
+ * last-synced marker. Returns `null` for nullish or unparseable input so callers
+ * can omit the label.
  */
-const SHORT_MONTH_DAY_FORMAT = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  timeZone: "UTC",
-});
-
-/**
- * Format an ISO-8601 timestamp as a short month/day (`Jun 11`) in the app's
- * fixed `en-US` + UTC convention, independent of the viewer's system locale.
- * Unlike `formatDisplayDate`, this takes a full timestamp (not a `YYYY-MM-DD`
- * day) because the input is a wall-clock instant such as a last-synced marker.
- * Returns `null` for nullish or unparseable input so callers can omit the label.
- */
-export function formatTimestampMonthDay(iso: string | null): string | null {
+export function formatTimestampMonthDay(
+  iso: string | null,
+  locale: string,
+): string | null {
   if (!iso) return null;
   const ms = Date.parse(iso);
   if (Number.isNaN(ms)) return null;
-  return SHORT_MONTH_DAY_FORMAT.format(ms);
+  return dateTimeFormatter(locale, "month-day", {
+    month: "short",
+    day: "numeric",
+  }).format(ms);
 }
 
 export interface CalendarDay {

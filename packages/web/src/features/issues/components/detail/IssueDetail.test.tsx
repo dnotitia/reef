@@ -50,6 +50,7 @@ vi.mock("next/link", () => ({
 import { apiFetch } from "@/lib/apiClient";
 import type { IssueMetadata } from "@reef/core";
 import { toast } from "sonner";
+import { formatAbsoluteTime } from "../../lib/formatRelativeTime";
 import { IssueDetail } from "./IssueDetail";
 
 const mockApiFetch = vi.mocked(apiFetch);
@@ -170,10 +171,11 @@ describe("IssueDetail", () => {
     await screen.findByDisplayValue("Sample title");
     const edited = await screen.findByTestId("issue-updated-at");
     expect(edited).toHaveTextContent(/Edited/);
-    // Absolute timestamp is preserved on hover for precision.
+    // Absolute timestamp is preserved on hover for precision — now the active
+    // locale's UTC-pinned format (REEF-294), not the viewer's system locale.
     expect(edited).toHaveAttribute(
       "title",
-      expect.stringContaining(new Date(SAMPLE.updated_at).toLocaleString()),
+      expect.stringContaining(formatAbsoluteTime(SAMPLE.updated_at, "en")),
     );
   });
 

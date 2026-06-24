@@ -122,6 +122,15 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Dates, times, and relative timestamps follow the interface language.**
+  Calendar month and weekday headers, due/target/synced dates, the Monte Carlo
+  forecast labels, comment and activity "5m ago" / "2d ago" timestamps, and the
+  hover tooltips now render in the selected language (e.g. `Jun 1, 2026` /
+  `2026년 6월 1일`, `2d ago` / `그저께`) instead of always English. The calendar
+  day stays pinned to UTC so the rendered date is identical for every viewer and
+  matches what the server first painted; only the language varies. The AI/LLM
+  date context is intentionally left in fixed `en-US`. Numeric integer
+  formatting is unchanged (identical across English and Korean) (REEF-294).
 - **Removed browser GitHub PAT setup and storage.** Settings > Preferences and
   onboarding no longer collect monitored-repo Personal Access Tokens, the web
   client no longer attaches GitHub `Authorization` headers, and Dexie v11 drops

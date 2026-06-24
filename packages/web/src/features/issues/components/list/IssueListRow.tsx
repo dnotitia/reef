@@ -13,6 +13,7 @@ import { useIssueFlash } from "@/features/issues/stores/useFlashStore";
 import { findPlanningName } from "@/features/planning/lib/planningItems";
 import { cn } from "@/lib/utils";
 import type { IssueListItem, PlanningCatalog } from "@reef/core";
+import { useLocale } from "next-intl";
 import { memo } from "react";
 import {
   type IssueRelationLike,
@@ -56,6 +57,7 @@ export const IssueListRow = memo(function IssueListRow({
     : 0;
   const isFlashing = useIssueFlash(issue.id);
   const currentLogin = useCurrentUserLogin();
+  const locale = useLocale();
   return (
     <TableRow
       className={cn(
@@ -135,7 +137,7 @@ export const IssueListRow = memo(function IssueListRow({
 
       {/* Updated */}
       <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-        {formatRelativeTime(issue.updated_at)}
+        {formatRelativeTime(issue.updated_at, locale)}
       </TableCell>
 
       {/* Blocked indicator */}

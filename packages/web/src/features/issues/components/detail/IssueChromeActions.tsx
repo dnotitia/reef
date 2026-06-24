@@ -8,8 +8,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Archive, ArchiveRestore, MoreHorizontal, Trash2 } from "lucide-react";
+import { useLocale } from "next-intl";
 import { createPortal } from "react-dom";
-import { formatRelativeTime } from "../../lib/formatRelativeTime";
+import {
+  formatAbsoluteTime,
+  formatRelativeTime,
+} from "../../lib/formatRelativeTime";
 import { useIssueChromeSlot } from "./IssueChromeSlot";
 import { IssueSaveStatus, type SaveStatus } from "./IssueSaveStatus";
 
@@ -46,6 +50,7 @@ export function IssueChromeActions({
   onDeleteRequested: () => void;
 }) {
   const slot = useIssueChromeSlot();
+  const locale = useLocale();
 
   const content = (
     <>
@@ -61,9 +66,9 @@ export function IssueChromeActions({
         <span
           data-testid="issue-updated-at"
           className="whitespace-nowrap text-[11px] text-muted-foreground tabular-nums"
-          title={`Last edited ${new Date(updatedAt).toLocaleString()}`}
+          title={`Last edited ${formatAbsoluteTime(updatedAt, locale)}`}
         >
-          Edited {formatRelativeTime(updatedAt)}
+          Edited {formatRelativeTime(updatedAt, locale)}
         </span>
       ) : null}
       <DropdownMenu>

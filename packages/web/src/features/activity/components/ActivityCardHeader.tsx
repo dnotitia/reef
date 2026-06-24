@@ -1,16 +1,30 @@
 "use client";
 
+import { useLocale } from "next-intl";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-function formatTimestamp(iso: string): string {
+/**
+ * Per-locale activity timestamp formatter (REEF-294). UTC-pinned (ADR-0001) so
+ * the rendered instant is identical across server and client and follows the
+ * app's active locale rather than the viewer's uncontrolled system locale.
+ */
+const timestampFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function formatTimestamp(iso: string, locale: string): string {
   try {
-    return new Date(iso).toLocaleString(undefined, {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
+    let formatter = timestampFormatters.get(locale);
+    if (!formatter) {
+      formatter = new Intl.DateTimeFormat(locale, {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: "UTC",
+      });
+      timestampFormatters.set(locale, formatter);
+    }
+    return formatter.format(new Date(iso));
   } catch {
     return iso;
   }
@@ -47,6 +61,7 @@ export function ActivityCardHeader({
   issueTitle?: string;
   children: ReactNode;
 }) {
+  const locale = useLocale();
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0 flex-1">
@@ -69,7 +84,7 @@ export function ActivityCardHeader({
         {children}
       </div>
       <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-        {formatTimestamp(timestamp)}
+        {formatTimestamp(timestamp, locale)}
       </span>
     </div>
   );

@@ -36,6 +36,7 @@ import {
   Type,
   UserRound,
 } from "lucide-react";
+import { useLocale } from "next-intl";
 import { type ReactNode, memo, useState } from "react";
 import {
   formatAbsoluteTime,
@@ -525,6 +526,7 @@ export const ActivityEventRow = memo(function ActivityEventRow({
   vault: string;
 }) {
   const [nowMs] = useState(() => Date.now());
+  const locale = useLocale();
   // Resolve planning ids to names the same way board/list/draft surfaces do
   // (REEF-233). Cached per vault, so every row sharing the query pays once.
   const { data: planningCatalog } = usePlanningCatalog(vault);
@@ -556,10 +558,10 @@ export const ActivityEventRow = memo(function ActivityEventRow({
         </span>
         <time
           dateTime={event.at}
-          title={formatAbsoluteTime(event.at)}
+          title={formatAbsoluteTime(event.at, locale)}
           className="shrink-0 text-[11px] text-muted-foreground tabular-nums"
         >
-          {formatRelativeTime(event.at, nowMs)}
+          {formatRelativeTime(event.at, nowMs, locale)}
         </time>
       </div>
     </div>

@@ -1,17 +1,18 @@
 "use client";
 
 import {
-  WEEKDAY_LABELS,
   addMonths,
   buildMonthGrid,
   formatMonthYear,
   parseIsoDate,
   shiftDays,
   shiftMonths,
+  weekdayLabels,
   ymdToIso,
 } from "@/features/issues/lib/dateHelpers";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useLocale } from "next-intl";
 import {
   type KeyboardEvent,
   memo,
@@ -53,6 +54,7 @@ function CalendarComponent({
   onSelect,
   className,
 }: CalendarProps) {
+  const locale = useLocale();
   const [view, setView] = useState(() => initialView(selected, today));
   const [focusedIso, setFocusedIso] = useState(() => selected || today);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -143,7 +145,7 @@ function CalendarComponent({
           aria-live="polite"
           className="text-[13px] font-medium text-foreground"
         >
-          {formatMonthYear(view.year, view.month)}
+          {formatMonthYear(view.year, view.month, locale)}
         </span>
         <button
           type="button"
@@ -156,7 +158,7 @@ function CalendarComponent({
       </div>
 
       <div className="grid grid-cols-7 gap-0.5" aria-hidden>
-        {WEEKDAY_LABELS.map((w) => (
+        {weekdayLabels(locale).map((w) => (
           <div
             key={w}
             className="flex h-6 items-center justify-center text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
