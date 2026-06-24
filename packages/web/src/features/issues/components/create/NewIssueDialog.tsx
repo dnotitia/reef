@@ -22,6 +22,7 @@ import {
   useProjectConfig,
 } from "@/features/settings/hooks/useProjectConfig";
 import { useViewStore } from "@/features/ui/stores/useViewStore";
+import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { DEFAULT_CONFIG } from "@reef/core";
 import type { IssueType, ReferenceSuggestion, Template } from "@reef/core";
 import { useQueryClient } from "@tanstack/react-query";
@@ -57,6 +58,9 @@ export function NewIssueDialog() {
   const { vault } = useActiveVault();
   const router = useRouter();
   const t = useTranslations("toasts");
+  const tc = useTranslations("issues.create");
+  const common = useTranslations("common");
+  const fieldNames = useFieldNameLabels();
   const createMutation = useCreateIssue();
   const queryClient = useQueryClient();
   // Display prefix; the submit handler re-fetches the canonical value
@@ -273,19 +277,17 @@ export function NewIssueDialog() {
     setSubmitError(null);
 
     if (!vault) {
-      setSubmitError(
-        "Configure a workspace in Settings before creating issues.",
-      );
+      setSubmitError(tc("workspaceRequired"));
       return;
     }
     if (!title.trim()) {
-      setSubmitError("Title is required.");
+      setSubmitError(tc("titleRequired"));
       // Move focus to the first invalid field so the inline error is actionable.
       titleInputRef.current?.focus();
       return;
     }
     if (estimatePoints.trim() && Number.isNaN(Number(estimatePoints.trim()))) {
-      setSubmitError("Estimate must be a number.");
+      setSubmitError(tc("estimateNaN"));
       return;
     }
 
@@ -298,8 +300,8 @@ export function NewIssueDialog() {
     } catch (err) {
       const message =
         err instanceof Error
-          ? `Couldn't load project config: ${err.message}`
-          : "Couldn't load project config.";
+          ? tc("configLoadErrorDetail", { message: err.message })
+          : tc("configLoadError");
       setSubmitError(message);
       return;
     }
@@ -334,8 +336,7 @@ export function NewIssueDialog() {
       }
       router.push(`/issues/${issue.id}`);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to create issue.";
+      const message = err instanceof Error ? err.message : tc("createError");
       setSubmitError(message);
     }
   }
@@ -435,16 +436,16 @@ export function NewIssueDialog() {
         <DialogHeader>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <DialogTitle>New Issue</DialogTitle>
+              <DialogTitle>{tc("heading")}</DialogTitle>
               <DialogDescription>
-                {vault ? (
-                  <>
-                    Create an issue in{" "}
-                    <span className="font-mono">{vault}</span>.
-                  </>
-                ) : (
-                  <>Configure a workspace in Settings first.</>
-                )}
+                {vault
+                  ? tc.rich("createIn", {
+                      vault,
+                      mono: (chunks) => (
+                        <span className="font-mono">{chunks}</span>
+                      ),
+                    })
+                  : tc("configureFirst")}
               </DialogDescription>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -462,7 +463,9 @@ export function NewIssueDialog() {
                 data-testid="enrich-trigger"
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                {enrichMutation.isPending ? "Enriching…" : "Enrich with AI"}
+                {enrichMutation.isPending
+                  ? tc("enriching")
+                  : tc("enrichWithAi")}
               </Button>
             </div>
           </div>
@@ -509,7 +512,10 @@ export function NewIssueDialog() {
             primaryField={
               // A row-shaped Type so split Details reads as a property list
               // (REEF-167), matching the issue detail rail.
-              <IssueFieldRow label="Type" labelId="new-issue-type-label">
+              <IssueFieldRow
+                label={fieldNames.type}
+                labelId="new-issue-type-label"
+              >
                 {renderEnrichable(
                   "issue_type",
                   <EnumSelectField
@@ -519,7 +525,7 @@ export function NewIssueDialog() {
                     renderItem={(type) => (
                       <TypePill type={type} variant="badge" />
                     )}
-                    placeholder="Type"
+                    placeholder={fieldNames.type}
                     ariaLabelledby="new-issue-type-label"
                     disabled={isSubmitting}
                   />,
@@ -560,7 +566,7 @@ export function NewIssueDialog() {
             disabled={isSubmitting}
             data-testid="new-issue-cancel"
           >
-            Cancel
+            {common("cancel")}
           </Button>
           <Button
             size="sm"
@@ -568,7 +574,7 @@ export function NewIssueDialog() {
             disabled={isSubmitting || noVault}
             data-testid="new-issue-submit"
           >
-            {isSubmitting ? "Creating…" : "Create issue"}
+            {isSubmitting ? tc("creating") : tc("submit")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -2,8 +2,10 @@
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAiAvailable } from "@/features/settings/hooks/useAiAvailable";
+import { useTranslations } from "next-intl";
 
 export function AiConfigurationStatus() {
+  const t = useTranslations("settings.config");
   const { isAvailable, isLoading, model, provider } = useAiAvailable();
   const providerLabel = provider === "openrouter" ? "OpenRouter" : provider;
 
@@ -16,11 +18,8 @@ export function AiConfigurationStatus() {
   if (!isAvailable) {
     return (
       <div className="rounded-md border border-status-in-progress/40 bg-status-in-progress/5 px-3 py-2 text-sm text-muted-foreground">
-        <p className="font-medium text-foreground">AI is not configured.</p>
-        <p>
-          This deployment needs an OpenRouter API key before AI features are
-          available.
-        </p>
+        <p className="font-medium text-foreground">{t("ai.notConfigured")}</p>
+        <p>{t("ai.notConfiguredHelp")}</p>
       </div>
     );
   }

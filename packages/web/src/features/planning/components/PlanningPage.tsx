@@ -83,6 +83,8 @@ export function PlanningPage() {
   const planningKindLabels = usePlanningKindLabels();
   const planningKindSingular = usePlanningKindSingularLabels();
   const t = useTranslations("toasts");
+  const tp = useTranslations("planning");
+  const nav = useTranslations("nav");
 
   const selectKind = useCallback(
     (kind: PlanningKind) => {
@@ -127,7 +129,7 @@ export function PlanningPage() {
     if (!editor || !vault) return;
     const input = buildPlanningInput(editor.kind, editor.item);
     if (!input.name.trim()) {
-      setFormError("Name is required.");
+      setFormError(tp("nameRequired"));
       return;
     }
 
@@ -176,7 +178,7 @@ export function PlanningPage() {
   if (!vault && !vaultLoading) {
     return (
       <div className="flex h-full flex-col">
-        <PageHeader title="Planning" />
+        <PageHeader title={nav("planning")} />
         <EmptyWorkspaceNotice />
       </div>
     );
@@ -185,7 +187,7 @@ export function PlanningPage() {
   return (
     <div className="flex h-full flex-col">
       <PageHeader
-        title="Planning"
+        title={nav("planning")}
         description={vault || undefined}
         actions={
           <Button
@@ -196,7 +198,9 @@ export function PlanningPage() {
             className="gap-1.5"
           >
             <Plus aria-hidden="true" className="h-3.5 w-3.5" />
-            New {planningKindSingular[activeKind].toLowerCase()}
+            {tp("newKind", {
+              kind: planningKindSingular[activeKind].toLowerCase(),
+            })}
           </Button>
         }
       />
@@ -204,7 +208,7 @@ export function PlanningPage() {
         {/* biome-ignore lint/a11y/useSemanticElements: a header toggle group is not a form <fieldset>; role="group" + aria-label matches ViewSwitcher. */}
         <div
           role="group"
-          aria-label="Planning kind"
+          aria-label={tp("planningKind")}
           className={cn("mb-4", SEGMENTED_CONTROL_TRACK)}
         >
           {PLANNING_KINDS.map((kind) => {

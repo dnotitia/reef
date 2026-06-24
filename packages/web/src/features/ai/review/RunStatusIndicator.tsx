@@ -2,6 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 import type { AgentRunState } from "../runtime/types";
 import { type ReviewAction, ReviewActions } from "./ReviewActions";
 
@@ -12,13 +13,13 @@ export interface RunStatusIndicatorProps {
   className?: string;
 }
 
-const phaseLabel = {
-  idle: "Ready",
-  running: "Running",
-  completed: "Completed",
-  empty: "No result",
-  error: "Needs attention",
-  cancelled: "Cancelled",
+const phaseLabelKey = {
+  idle: "phaseIdle",
+  running: "phaseRunning",
+  completed: "phaseCompleted",
+  empty: "phaseEmpty",
+  error: "phaseError",
+  cancelled: "phaseCancelled",
 } satisfies Record<AgentRunState["phase"], string>;
 
 const phaseClass = {
@@ -37,16 +38,24 @@ export function RunStatusIndicator({
   onCancel,
   className,
 }: RunStatusIndicatorProps) {
+  // The phase label key is built from the run phase at runtime, so the typed
+  // namespace translator can't carry it — cast to a plain lookup (the
+  // `i18n/fieldLabels` pattern); `artifactCount` is a normal interpolated key.
+  const t = useTranslations("ai") as unknown as (
+    key: string,
+    values?: Record<string, string | number>,
+  ) => string;
+  const common = useTranslations("common");
   const actions: ReviewAction[] = [];
   if (state.phase === "running" && onCancel) {
-    actions.push({ id: "cancel", label: "Cancel", onClick: onCancel });
+    actions.push({ id: "cancel", label: common("cancel"), onClick: onCancel });
   }
   if (
     state.phase === "error" &&
     onRetry &&
     state.error?.recoverable !== false
   ) {
-    actions.push({ id: "retry", label: "Retry", onClick: onRetry });
+    actions.push({ id: "retry", label: common("retry"), onClick: onRetry });
   }
 
   return (
@@ -61,12 +70,11 @@ export function RunStatusIndicator({
         <Badge
           className={cn("px-2 py-0.5 text-[11px]", phaseClass[state.phase])}
         >
-          {phaseLabel[state.phase]}
+          {t(phaseLabelKey[state.phase])}
         </Badge>
         {state.artifact_ids.length > 0 && (
           <span className="text-[11px] text-muted-foreground">
-            {state.artifact_ids.length} artifact
-            {state.artifact_ids.length === 1 ? "" : "s"}
+            {t("artifactCount", { count: state.artifact_ids.length })}
           </span>
         )}
         {state.error && (

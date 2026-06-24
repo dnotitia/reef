@@ -9,6 +9,7 @@ import {
 } from "@/features/issues/lib/dependencyUtils";
 import { cn } from "@/lib/utils";
 import { type IssueListItem, type Status, isResolvedStatus } from "@reef/core";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { memo, useMemo } from "react";
 import { IssueFormSection } from "../shared/IssueFormSection";
@@ -63,6 +64,7 @@ export const IssueChildren = memo(function IssueChildren({
   allIssues,
   relationGraph,
 }: IssueChildrenProps) {
+  const t = useTranslations("issues.relations");
   const children = useMemo(() => {
     const mine = allIssues.filter((issue) => issue.parent_id === issueId);
     // Remaining first (lifecycle order), resolved last; stable id tiebreaker.
@@ -97,7 +99,7 @@ export const IssueChildren = memo(function IssueChildren({
   ).length;
 
   return (
-    <IssueFormSection title="Sub-issues">
+    <IssueFormSection title={t("subIssues")}>
       <div className="flex min-w-0 flex-col gap-2" data-testid="issue-children">
         <div className="flex items-center gap-3">
           {/* Animate transform (not width) so the bar fill stays off the layout
@@ -109,7 +111,7 @@ export const IssueChildren = memo(function IssueChildren({
             aria-valuenow={doneCount}
             aria-valuemin={0}
             aria-valuemax={total}
-            aria-label={`${doneCount} of ${total} sub-issues done`}
+            aria-label={t("progressLabel", { done: doneCount, total })}
           >
             <div
               className="h-full origin-left rounded-full bg-brand transition-transform duration-300 motion-reduce:transition-none"
@@ -117,11 +119,11 @@ export const IssueChildren = memo(function IssueChildren({
             />
           </div>
           <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-            {doneCount} of {total} done
+            {t("progressCount", { done: doneCount, total })}
           </span>
         </div>
 
-        <ul aria-label="Sub-issues" className="flex flex-col gap-0.5">
+        <ul aria-label={t("subIssues")} className="flex flex-col gap-0.5">
           {children.map((child) => {
             const resolved = isResolvedStatus(child.status);
             return (

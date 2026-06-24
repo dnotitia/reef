@@ -10,7 +10,10 @@ import { LabelChipInput } from "@/components/ui/label-chip-input";
 import { PriorityBadge } from "@/components/ui/priority-dot";
 import { StatusBadge } from "@/components/ui/status-icon";
 import { PlanningItemCombobox } from "@/features/planning/components/PlanningItemCombobox";
-import { useFieldNameLabels } from "@/i18n/fieldLabels";
+import {
+  useEnrichmentEmptyLabels,
+  useFieldNameLabels,
+} from "@/i18n/fieldLabels";
 import type {
   IssueMetadata,
   IssueType,
@@ -21,6 +24,7 @@ import type {
 } from "@reef/core";
 import { PRIORITY_OPTIONS } from "@reef/core/fields";
 import { STATUS_OPTIONS } from "@reef/core/fields";
+import { useTranslations } from "next-intl";
 import {
   ISSUE_TYPE_OPTIONS,
   NO_SELECTION,
@@ -133,6 +137,10 @@ export function IssueDetailSidebar({
   onClosedStatusRequested,
 }: IssueDetailSidebarProps) {
   const fieldNames = useFieldNameLabels();
+  const empty = useEnrichmentEmptyLabels();
+  const s = useTranslations("sections");
+  const c = useTranslations("common");
+  const t = useTranslations("issues.detailSidebar");
   return (
     // Property-list rail (REEF-149): every scalar field is one `IssueFieldRow`
     // (fixed label + full-width value) instead of `grid-cols-2` half-cells, so
@@ -143,7 +151,7 @@ export function IssueDetailSidebar({
       data-testid="issue-detail-sidebar"
       className="flex min-w-0 flex-col gap-4 border-t border-border-subtle pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0"
     >
-      <IssueFormSection title="Details">
+      <IssueFormSection title={s("details")}>
         <IssueFieldRow label={fieldNames.type} labelId="issue-type-label">
           <EnumSelectField
             value={issueType}
@@ -198,8 +206,8 @@ export function IssueDetailSidebar({
             }}
             options={PRIORITY_OPTIONS}
             renderItem={renderPriorityOption}
-            placeholder="No priority"
-            noneOption={{ value: NO_SELECTION, label: "No priority" }}
+            placeholder={empty.noPriority}
+            noneOption={{ value: NO_SELECTION, label: empty.noPriority }}
             testId="issue-priority-select"
             ariaLabelledby="issue-priority-label"
           />
@@ -222,8 +230,8 @@ export function IssueDetailSidebar({
             }}
             options={SEVERITY_OPTIONS}
             renderItem={renderSeverityOption}
-            placeholder="No severity"
-            noneOption={{ value: NO_SELECTION, label: "No severity" }}
+            placeholder={empty.noSeverity}
+            noneOption={{ value: NO_SELECTION, label: empty.noSeverity }}
             testId="issue-severity-select"
             ariaLabelledby="issue-severity-label"
           />
@@ -248,13 +256,13 @@ export function IssueDetailSidebar({
                 commit({ labels: next });
               }
             }}
-            placeholder="Add a label and press Enter…"
+            placeholder={c("addLabelPlaceholder")}
             data-testid="issue-labels-input"
           />
         </div>
       </IssueFormSection>
 
-      <IssueFormSection title="People">
+      <IssueFormSection title={s("people")}>
         <IssueFieldRow label={fieldNames.assignee} htmlFor="issue-assignee">
           <AssigneeCombobox
             id="issue-assignee"
@@ -267,7 +275,7 @@ export function IssueDetailSidebar({
             }}
             vault={vault}
             label={fieldNames.assignee}
-            emptyLabel="Unassigned"
+            emptyLabel={empty.unassigned}
           />
         </IssueFieldRow>
 
@@ -283,7 +291,7 @@ export function IssueDetailSidebar({
             }}
             vault={vault}
             label={fieldNames.requester}
-            emptyLabel="No requester"
+            emptyLabel={t("noRequester")}
           />
         </IssueFieldRow>
 
@@ -299,16 +307,16 @@ export function IssueDetailSidebar({
             }}
             vault={vault}
             label={fieldNames.reporter}
-            emptyLabel="No reporter"
+            emptyLabel={t("noReporter")}
           />
         </IssueFieldRow>
       </IssueFormSection>
 
-      <IssueFormSection title="Planning">
-        <IssueFieldRow label="Start" htmlFor="issue-start-date">
+      <IssueFormSection title={s("planning")}>
+        <IssueFieldRow label={fieldNames.start} htmlFor="issue-start-date">
           <DatePickerField
             id="issue-start-date"
-            label="Start"
+            label={fieldNames.start}
             value={startDate}
             onChange={(next) => {
               setStartDate(next);
@@ -375,7 +383,7 @@ export function IssueDetailSidebar({
           />
         </IssueFieldRow>
 
-        <IssueFieldRow label="Points" htmlFor="issue-estimate">
+        <IssueFieldRow label={fieldNames.points} htmlFor="issue-estimate">
           <Input
             id="issue-estimate"
             type="number"

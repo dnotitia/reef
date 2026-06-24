@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { RepoListItem } from "@/features/settings/hooks/useRepos";
 import type { MonitoredRepo } from "@reef/core";
 import { ChevronDown, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { type ReactNode, useMemo, useState } from "react";
 
 interface MonitoredRepoSelectorProps {
@@ -63,11 +64,13 @@ export function MonitoredRepoSelector({
   isLoading,
   isError,
   disabled = false,
-  errorMessage = "Connect GitHub first to load repositories.",
+  errorMessage,
   testIdPrefix = "monitored-repos",
 }: MonitoredRepoSelectorProps) {
+  const t = useTranslations("settings.misc");
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const resolvedErrorMessage = errorMessage ?? t("connectGithubFirst");
 
   const filteredRepos = useMemo(
     () =>
@@ -83,7 +86,7 @@ export function MonitoredRepoSelector({
         className="text-sm text-muted-foreground"
         data-testid={`${testIdPrefix}-load-error`}
       >
-        {errorMessage}
+        {resolvedErrorMessage}
       </p>
     );
   }
@@ -101,14 +104,14 @@ export function MonitoredRepoSelector({
           className="inline-flex h-8 w-64 items-center justify-between rounded-md border border-border bg-elevated px-2.5 text-[13px] text-foreground transition-colors duration-150 hover:bg-surface-hover disabled:opacity-50"
           aria-label={
             selectedRepos.size > 0
-              ? `${selectedRepos.size} repo(s) selected`
-              : "Select monitored repositories"
+              ? t("reposSelected", { count: selectedRepos.size })
+              : t("selectMonitoredRepos")
           }
         >
           <span className="truncate">
             {selectedRepos.size > 0
-              ? `${selectedRepos.size} repo(s) selected`
-              : "Select repositories…"}
+              ? t("reposSelected", { count: selectedRepos.size })
+              : t("selectReposPlaceholder")}
           </span>
           <ChevronDown
             aria-hidden
@@ -119,8 +122,8 @@ export function MonitoredRepoSelector({
           <input
             type="text"
             className="mb-2 w-full rounded-md border border-border bg-elevated px-2 py-1 text-[13px] text-foreground outline-none transition-colors focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/30"
-            placeholder="Search repositories…"
-            aria-label="Search repositories"
+            placeholder={t("searchReposPlaceholder")}
+            aria-label={t("searchReposLabel")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             data-testid={`${testIdPrefix}-search`}
@@ -128,7 +131,7 @@ export function MonitoredRepoSelector({
           <ul className="max-h-48 overflow-y-auto">
             {filteredRepos.length === 0 && (
               <li className="px-2 py-1.5 text-sm text-muted-foreground">
-                No repositories found.
+                {t("noReposFound")}
               </li>
             )}
             {filteredRepos.map((repo) => {
@@ -171,7 +174,7 @@ export function MonitoredRepoSelector({
                 type="button"
                 disabled={disabled}
                 className="text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-muted-foreground"
-                aria-label={`Remove ${repo}`}
+                aria-label={t("removeRepo", { repo })}
                 onClick={() => onToggle(repo)}
               >
                 <X aria-hidden className="h-3 w-3" />

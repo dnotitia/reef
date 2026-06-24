@@ -1,3 +1,4 @@
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -16,9 +17,13 @@ import LoginPage from "./page";
 describe("LoginPage", () => {
   it("renders a PM-friendly SSO error without backend details", async () => {
     render(
-      await LoginPage({
-        searchParams: Promise.resolve({ sso_error: "exchange_failed" }),
-      }),
+      <IntlTestProvider>
+        {
+          await LoginPage({
+            searchParams: Promise.resolve({ sso_error: "exchange_failed" }),
+          })
+        }
+      </IntlTestProvider>,
     );
 
     expect(screen.getByRole("alert")).toHaveTextContent(
@@ -29,9 +34,13 @@ describe("LoginPage", () => {
 
   it("keeps the older session-ended message", async () => {
     render(
-      await LoginPage({
-        searchParams: Promise.resolve({ error: "expired" }),
-      }),
+      <IntlTestProvider>
+        {
+          await LoginPage({
+            searchParams: Promise.resolve({ error: "expired" }),
+          })
+        }
+      </IntlTestProvider>,
     );
 
     expect(screen.getByRole("alert")).toHaveTextContent(
@@ -41,11 +50,15 @@ describe("LoginPage", () => {
 
   it("passes a safe redirect target into the login panel", async () => {
     render(
-      await LoginPage({
-        searchParams: Promise.resolve({
-          redirect: "/issues?status=open",
-        }),
-      }),
+      <IntlTestProvider>
+        {
+          await LoginPage({
+            searchParams: Promise.resolve({
+              redirect: "/issues?status=open",
+            }),
+          })
+        }
+      </IntlTestProvider>,
     );
 
     expect(screen.getByTestId("login-panel")).toHaveTextContent(

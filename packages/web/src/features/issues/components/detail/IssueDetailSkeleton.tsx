@@ -1,4 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTranslations } from "next-intl";
 import type { CSSProperties } from "react";
 
 /** Rail keys give the mapped rows stable React keys without index-as-key. */
@@ -121,6 +122,7 @@ function RailSectionSkeleton({
  * `secondary` tone while value placeholders keep the default `primary` tone.
  */
 export function IssueDetailSkeleton() {
+  const c = useTranslations("common");
   // Sweep positions are assigned in DOM (reading) order. The main canvas spends
   // HEADER_SKELETONS..(HEADER_SKELETONS + MAIN_SKELETONS - 1); the rail begins
   // after it. Each rail row spends two indices, so the offsets below are derived
@@ -140,7 +142,7 @@ export function IssueDetailSkeleton() {
     >
       {/* screen-reader loading announcement (REEF-281), sibling to the decorative
           panel so it is not under aria-hidden. */}
-      <output className="sr-only">Loading…</output>
+      <output className="sr-only">{c("loading")}</output>
       {/* The mirrored panel is all placeholder bars — decorative, so aria-hidden
           keeps assistive tech from walking the empty canvas/rail DOM. */}
       <div className="flex flex-col gap-5" aria-hidden="true">

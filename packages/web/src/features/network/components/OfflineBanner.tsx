@@ -1,10 +1,12 @@
 "use client";
 
 import { WifiOff } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
 
 export function OfflineBanner() {
   const online = useOnlineStatus();
+  const t = useTranslations("misc");
 
   if (online) return null;
 
@@ -17,10 +19,7 @@ export function OfflineBanner() {
       className="flex w-full items-center justify-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-[12px] text-amber-700 dark:text-amber-200"
     >
       <WifiOff className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-      <span>
-        You're offline — viewing cached data. Changes will sync when you
-        reconnect.
-      </span>
+      <span>{t("offlineBanner")}</span>
     </div>
   );
 }

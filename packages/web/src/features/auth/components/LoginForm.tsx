@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { reconcileAkbAccount } from "@/lib/akb/accountReconcile";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CURRENT_USER_QUERY_KEY } from "../hooks/useCurrentUser";
@@ -16,6 +17,7 @@ export interface LoginFormProps {
 export function LoginForm({ redirectTo = "/" }: LoginFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const t = useTranslations("auth.form");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,9 +57,9 @@ export function LoginForm({ redirectTo = "/" }: LoginFormProps) {
       }
 
       const detail = (await res.json().catch(() => ({}))) as { error?: string };
-      setError(detail.error ?? "Sign-in failed. Please try again.");
+      setError(detail.error ?? t("signInFailed"));
     } catch {
-      setError("Could not reach reef. Check your connection and try again.");
+      setError(t("networkError"));
     } finally {
       setIsSubmitting(false);
     }
@@ -71,7 +73,7 @@ export function LoginForm({ redirectTo = "/" }: LoginFormProps) {
     >
       <div className="flex flex-col gap-1 text-sm">
         <label htmlFor="login-username" className="text-muted-foreground">
-          Username
+          {t("username")}
         </label>
         <Input
           id="login-username"
@@ -87,7 +89,7 @@ export function LoginForm({ redirectTo = "/" }: LoginFormProps) {
       </div>
       <div className="flex flex-col gap-1 text-sm">
         <label htmlFor="login-password" className="text-muted-foreground">
-          Password
+          {t("password")}
         </label>
         <Input
           id="login-password"
@@ -114,7 +116,7 @@ export function LoginForm({ redirectTo = "/" }: LoginFormProps) {
         disabled={isSubmitting || !username || !password}
         data-testid="login-submit"
       >
-        {isSubmitting ? "Signing in…" : "Sign in"}
+        {isSubmitting ? t("signingIn") : t("signIn")}
       </Button>
     </form>
   );

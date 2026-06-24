@@ -17,8 +17,13 @@ import {
   SEVERITY_OPTIONS,
 } from "@/features/issues/lib/metadataOptions";
 import { PlanningItemCombobox } from "@/features/planning/components/PlanningItemCombobox";
-import { useFieldNameLabels, useSeverityLabels } from "@/i18n/fieldLabels";
+import {
+  useEnrichmentEmptyLabels,
+  useFieldNameLabels,
+  useSeverityLabels,
+} from "@/i18n/fieldLabels";
 import type { IssueListItem, Severity } from "@reef/core";
+import { useTranslations } from "next-intl";
 import type { ComponentProps, Dispatch, SetStateAction } from "react";
 
 const FIELD_LABEL_CLASS = "text-xs font-medium text-muted-foreground";
@@ -92,9 +97,12 @@ export function ActivityDraftEditMetadataFields({
 }) {
   const severityLabels = useSeverityLabels();
   const fieldNames = useFieldNameLabels();
+  const empty = useEnrichmentEmptyLabels();
+  const sections = useTranslations("sections");
+  const t = useTranslations("activity");
   return (
     <div className="grid gap-4">
-      <IssueFormSection title="People">
+      <IssueFormSection title={sections("people")}>
         <div className="grid gap-3 md:grid-cols-3">
           <div className="flex flex-col gap-1">
             <label
@@ -109,7 +117,7 @@ export function ActivityDraftEditMetadataFields({
               onChange={setAssignee}
               vault={vault ?? ""}
               label={fieldNames.assignee}
-              emptyLabel="Unassigned"
+              emptyLabel={empty.unassigned}
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -125,7 +133,7 @@ export function ActivityDraftEditMetadataFields({
               onChange={setRequester}
               vault={vault ?? ""}
               label={fieldNames.requester}
-              emptyLabel="No requester"
+              emptyLabel={t("noRequester")}
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -141,24 +149,24 @@ export function ActivityDraftEditMetadataFields({
               onChange={setReporter}
               vault={vault ?? ""}
               label={fieldNames.reporter}
-              emptyLabel="No reporter"
+              emptyLabel={t("noReporter")}
             />
           </div>
         </div>
       </IssueFormSection>
 
-      <IssueFormSection title="Planning">
+      <IssueFormSection title={sections("planning")}>
         <div className="grid gap-3 md:grid-cols-6">
           <div className="flex flex-col gap-1 md:col-span-3">
             <label
               className={FIELD_LABEL_CLASS}
               htmlFor={`draft-edit-start-date-${draftId}`}
             >
-              Start date
+              {fieldNames.start}
             </label>
             <DatePickerField
               id={`draft-edit-start-date-${draftId}`}
-              label="Start date"
+              label={fieldNames.start}
               value={startDate}
               onChange={setStartDate}
             />
@@ -168,11 +176,11 @@ export function ActivityDraftEditMetadataFields({
               className={FIELD_LABEL_CLASS}
               htmlFor={`draft-edit-due-date-${draftId}`}
             >
-              Due date
+              {fieldNames.due}
             </label>
             <DatePickerField
               id={`draft-edit-due-date-${draftId}`}
-              label="Due date"
+              label={fieldNames.due}
               align="end"
               value={dueDate}
               onChange={setDueDate}
@@ -183,7 +191,7 @@ export function ActivityDraftEditMetadataFields({
               className={FIELD_LABEL_CLASS}
               htmlFor={`draft-edit-estimate-${draftId}`}
             >
-              Estimate
+              {fieldNames.points}
             </label>
             <Input
               id={`draft-edit-estimate-${draftId}`}
@@ -210,10 +218,10 @@ export function ActivityDraftEditMetadataFields({
               <SelectTrigger
                 aria-labelledby={`draft-edit-severity-label-${draftId}`}
               >
-                <SelectValue placeholder="No severity" />
+                <SelectValue placeholder={empty.noSeverity} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NO_SELECTION}>No severity</SelectItem>
+                <SelectItem value={NO_SELECTION}>{empty.noSeverity}</SelectItem>
                 {SEVERITY_OPTIONS.map((s) => (
                   <SelectItem key={s} value={s}>
                     {severityLabels[s]}
@@ -276,7 +284,7 @@ export function ActivityDraftEditMetadataFields({
         </div>
       </IssueFormSection>
 
-      <IssueFormSection title="Relationships">
+      <IssueFormSection title={sections("relationships")}>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <IssueRelationInput
             id={`draft-edit-parent-${draftId}`}
@@ -289,7 +297,7 @@ export function ActivityDraftEditMetadataFields({
           />
           <IssueRelationInput
             id={`draft-edit-depends-on-${draftId}`}
-            label="Depends on"
+            label={fieldNames.dependsOn}
             value={dependsOn}
             allIssues={allIssues}
             relationGraph={relations}
@@ -297,7 +305,7 @@ export function ActivityDraftEditMetadataFields({
           />
           <IssueRelationInput
             id={`draft-edit-blocks-${draftId}`}
-            label="Blocks"
+            label={fieldNames.blocks}
             value={blocks}
             allIssues={allIssues}
             relationGraph={relations}
@@ -305,7 +313,7 @@ export function ActivityDraftEditMetadataFields({
           />
           <IssueRelationInput
             id={`draft-edit-related-to-${draftId}`}
-            label="Related"
+            label={fieldNames.related}
             value={relatedTo}
             allIssues={allIssues}
             relationGraph={relations}

@@ -13,21 +13,6 @@ export const DAY_WIDTH = 22;
  */
 const TODAY_ANCHOR_RATIO = 0.38;
 
-const MONTH_LABELS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-] as const;
-
 const PRIORITY_RANK: Record<string, number> = {
   critical: 4,
   high: 3,
@@ -63,12 +48,14 @@ export interface TimelineItem {
   startsBeforeRange: boolean;
   endsAfterRange: boolean;
   isOverdue: boolean;
-  title: string;
 }
 
 export interface TimelineMonthSpan {
   key: string;
-  label: string;
+  /** 1-based calendar month; the grid header formats it locale-aware (REEF-294
+   *  date formatting) rather than carrying a hardcoded English abbreviation. */
+  month: number;
+  year: number;
   startIndex: number;
   endIndex: number;
 }
@@ -220,7 +207,8 @@ export function getMonthSpans(range: TimelineRange): TimelineMonthSpan[] {
 
     spans.push({
       key: `${day.year}-${day.month}`,
-      label: `${MONTH_LABELS[day.month - 1]} ${day.year}`,
+      month: day.month,
+      year: day.year,
       startIndex: index,
       endIndex: index,
     });
@@ -288,7 +276,6 @@ export function getTimelineItem(
       due != null &&
       compareCalendarDays(due, today) < 0 &&
       !isResolvedStatus(issue.status),
-    title: `${issue.id} ${issue.title} · start ${formatCalendarDay(start)} · due ${formatCalendarDay(due)}`,
   };
 }
 

@@ -2,7 +2,7 @@
 
 import { formatTimestampMonthDay } from "@/features/issues/lib/dateHelpers";
 import { cn } from "@/lib/utils";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useId } from "react";
 import type { NetThroughputWeek, ReportMeasure } from "../lib/aggregate";
 
@@ -17,6 +17,7 @@ export function NetThroughputChart({
 }) {
   const gradId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const locale = useLocale();
+  const t = useTranslations("reports.cards");
   // Localize the week tick from the point's ISO start (REEF-294), rather than
   // the aggregate's fixed-English `label`, so the axis matches the active locale.
   const tickLabel = (iso: string) => formatTimestampMonthDay(iso, locale) ?? "";
@@ -59,7 +60,7 @@ export function NetThroughputChart({
         viewBox={`0 0 ${W} ${H}`}
         className="h-auto w-full"
         role="img"
-        aria-label="Issues created, closed, and net change over time"
+        aria-label={t("netChangeOverTime")}
       >
         <defs>
           <linearGradient id={`${gradId}-created`} x1="0" y1="0" x2="0" y2="1">
@@ -123,9 +124,13 @@ export function NetThroughputChart({
         ))}
       </svg>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-        <LegendLine color="var(--brand)" label="Created" />
-        <LegendLine color="var(--status-done)" label="Closed" dashed />
-        <LegendLine color="var(--priority-high)" label="Net increase" block />
+        <LegendLine color="var(--brand)" label={t("created")} />
+        <LegendLine color="var(--status-done)" label={t("closed")} dashed />
+        <LegendLine
+          color="var(--priority-high)"
+          label={t("netIncrease")}
+          block
+        />
       </div>
     </div>
   );

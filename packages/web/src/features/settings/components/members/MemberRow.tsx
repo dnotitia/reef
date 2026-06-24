@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { VaultMember } from "@reef/core";
 import { Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { memo } from "react";
 import { useGrantMember } from "../../hooks/useGrantMember";
 import { type ManageableRole, RoleSelect } from "./RoleSelect";
@@ -48,6 +49,7 @@ export const MemberRow = memo(function MemberRow({
   // an admin remove or re-role their own row in that window (autoreview P2).
   const manageable = canManage && currentLogin !== null && !isOwner && !isSelf;
   const grant = useGrantMember(vault);
+  const t = useTranslations("settings.members");
   const displayName = member.display_name?.trim() || member.username;
 
   return (
@@ -66,7 +68,7 @@ export const MemberRow = memo(function MemberRow({
         />
         {isSelf ? (
           <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-            You
+            {t("you")}
           </span>
         ) : null}
       </span>
@@ -97,7 +99,7 @@ export const MemberRow = memo(function MemberRow({
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label={`Remove ${displayName}`}
+            aria-label={t("removeMemberLabel", { name: displayName })}
             data-testid={`member-remove-${member.username}`}
             onClick={() => onRequestRemove(member)}
           >

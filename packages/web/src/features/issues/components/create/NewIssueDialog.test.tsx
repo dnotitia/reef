@@ -93,8 +93,8 @@ describe("NewIssueDialog", () => {
     expect(await screen.findByText("New Issue")).toBeInTheDocument();
     expect(screen.getByLabelText("Type")).toBeInTheDocument();
     expect(screen.getByLabelText("Requester")).toBeInTheDocument();
-    expect(screen.getByLabelText("Start date")).toBeInTheDocument();
-    expect(screen.getByLabelText("Due date")).toBeInTheDocument();
+    expect(screen.getByLabelText("Start")).toBeInTheDocument();
+    expect(screen.getByLabelText("Due")).toBeInTheDocument();
     expect(screen.getByLabelText("Parent")).toBeInTheDocument();
     expect(screen.getByLabelText("Blocks")).toBeInTheDocument();
     expect(screen.getByText("External references")).toBeInTheDocument();
@@ -124,13 +124,7 @@ describe("NewIssueDialog", () => {
     // Details + People + Planning fields are each one property row (fixed label
     // + full-width value), matching the issue detail rail — not `grid-cols-2`
     // half-cells. Probe a representative field from each group.
-    for (const label of [
-      "Type",
-      "Priority",
-      "Assignee",
-      "Start date",
-      "Severity",
-    ]) {
+    for (const label of ["Type", "Priority", "Assignee", "Start", "Severity"]) {
       expect(
         screen.getByLabelText(label).closest('[data-slot="issue-field-row"]'),
         `${label} should sit in an IssueFieldRow`,

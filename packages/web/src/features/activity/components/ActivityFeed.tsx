@@ -59,6 +59,7 @@ export function ActivityFeed({ vault }: ActivityFeedProps) {
 }
 
 export function ActivityFeedSkeleton() {
+  const common = useTranslations("common");
   // Mirrors the loaded feed's chrome so it does not jump on hydration (REEF-258):
   // the filter-pill row + Refresh control over the scan-target line, then the
   // cards. The pill/refresh/scan rows were missing entirely, so the whole feed
@@ -72,7 +73,7 @@ export function ActivityFeedSkeleton() {
     // (REEF-281). The decorative chrome carries the original `space-y-4` so the
     // screen-reader sibling does not pick up a stacking margin.
     <div data-testid="activity-feed">
-      <output className="sr-only">Loading…</output>
+      <output className="sr-only">{common("loading")}</output>
       <div className="space-y-4" aria-hidden="true">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -125,6 +126,8 @@ function ActivityFeedContent({
   const router = useRouter();
   const queryClient = useQueryClient();
   const t = useTranslations("toasts");
+  const ta = useTranslations("activity");
+  const nav = useTranslations("nav");
   const statusLabels = useStatusLabels();
 
   const [summaryDismissed, setSummaryDismissed] = useState(false);
@@ -334,12 +337,12 @@ function ActivityFeedContent({
     <div data-testid="activity-feed" className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <fieldset className="flex items-center gap-2 border-0 p-0 m-0">
-          <legend className="sr-only">Filter activity</legend>
+          <legend className="sr-only">{ta("filterActivity")}</legend>
           {(
             [
-              { value: "all", label: "All" },
-              { value: "ai_draft", label: "AI Drafts" },
-              { value: "ai_status_change", label: "Status Changes" },
+              { value: "all", label: ta("filterAll") },
+              { value: "ai_draft", label: ta("filterAiDrafts") },
+              { value: "ai_status_change", label: ta("filterStatusChanges") },
             ] as const
           ).map(({ value, label }) => (
             <button
@@ -372,18 +375,20 @@ function ActivityFeedContent({
           className="text-xs text-muted-foreground"
           data-testid="activity-scan-target-empty"
         >
-          Add a monitored repository in{" "}
-          <Link href="/settings" className="text-brand underline">
-            Settings
-          </Link>{" "}
-          to scan for activity.
+          {ta.rich("addMonitoredRepo", {
+            settingsLink: () => (
+              <Link href="/settings" className="text-brand underline">
+                {nav("settings")}
+              </Link>
+            ),
+          })}
         </p>
       ) : (
         <div
           className="flex items-center gap-2 text-xs text-muted-foreground"
           data-testid="activity-scan-target"
         >
-          <span>Scanning</span>
+          <span>{ta("scanning")}</span>
           {monitoredRepos.length === 1 ? (
             <span
               className="font-mono text-foreground/90"
@@ -393,7 +398,7 @@ function ActivityFeedContent({
             </span>
           ) : (
             <select
-              aria-label="Monitored repository to scan"
+              aria-label={ta("monitoredRepoToScan")}
               data-testid="activity-scan-target-select"
               value={scanRepo}
               onChange={(e) => void setScanRepo(e.target.value)}
@@ -429,7 +434,7 @@ function ActivityFeedContent({
 
       {filteredItems.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">
-          No AI drafts or status changes to review
+          {ta("emptyFeed")}
         </p>
       ) : (
         <ul className="space-y-3">

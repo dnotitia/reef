@@ -20,9 +20,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { usePlanningKindSingularLabels } from "@/i18n/fieldLabels";
+import {
+  useFieldNameLabels,
+  usePlanningKindSingularLabels,
+} from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { Milestone, Release, Sprint } from "@reef/core";
+import { useTranslations } from "next-intl";
 import { useEffect, useId, useRef } from "react";
 import type { PlanningItem, PlanningKind } from "../hooks/usePlanningCatalog";
 import { type EditorState, emptyItem, formatDate } from "./planningPageUtils";
@@ -33,12 +37,6 @@ const STATUS_OPTIONS_BY_KIND: Record<PlanningKind, readonly string[]> = {
   sprints: SPRINT_STATUS_OPTIONS,
   milestones: MILESTONE_STATUS_OPTIONS,
   releases: RELEASE_STATUS_OPTIONS,
-};
-
-const NOTES_PLACEHOLDER: Record<PlanningKind, string> = {
-  sprints: "Describe the sprint goal…",
-  milestones: "What this milestone represents…",
-  releases: "Release notes · changes · upgrade notes…",
 };
 
 export function PlanningEditorDialog({
@@ -57,6 +55,10 @@ export function PlanningEditorDialog({
   isSaving: boolean;
 }) {
   const planningKindSingular = usePlanningKindSingularLabels();
+  const fieldNames = useFieldNameLabels();
+  const t = useTranslations("planning");
+  const common = useTranslations("common");
+  const sections = useTranslations("sections");
   const kind = editor?.kind ?? "sprints";
   const item = editor?.item ?? emptyItem(kind);
   const nameInputId = useId();
@@ -68,8 +70,8 @@ export function PlanningEditorDialog({
   const formLevelError = nameError ? null : formError;
   const title =
     editor?.mode === "edit"
-      ? `Edit ${planningKindSingular[kind]}`
-      : `New ${planningKindSingular[kind]}`;
+      ? t("editKind", { kind: planningKindSingular[kind] })
+      : t("newKind", { kind: planningKindSingular[kind] });
 
   useEffect(() => {
     if (nameError) {
@@ -99,8 +101,12 @@ export function PlanningEditorDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
             {editor?.mode === "edit"
-              ? `Update this ${planningKindSingular[kind].toLowerCase()}.`
-              : `Add a new ${planningKindSingular[kind].toLowerCase()} to the workspace.`}
+              ? t("editDescription", {
+                  kind: planningKindSingular[kind].toLowerCase(),
+                })
+              : t("createDescription", {
+                  kind: planningKindSingular[kind].toLowerCase(),
+                })}
           </DialogDescription>
         </DialogHeader>
 
@@ -112,12 +118,12 @@ export function PlanningEditorDialog({
             onSave();
           }}
         >
-          <FormSection title="Details">
+          <FormSection title={sections("details")}>
             <label
               htmlFor={nameInputId}
               className={cn("flex flex-col gap-1", FIELD_LABEL_CLASS)}
             >
-              Name
+              {t("name")}
               <Input
                 id={nameInputId}
                 ref={nameInputRef}
@@ -151,7 +157,7 @@ export function PlanningEditorDialog({
                 htmlFor={capacityInputId}
                 className={cn("flex flex-col gap-1", FIELD_LABEL_CLASS)}
               >
-                Capacity
+                {t("capacity")}
                 <Input
                   id={capacityInputId}
                   name="capacity_points"
@@ -173,11 +179,11 @@ export function PlanningEditorDialog({
             )}
           </FormSection>
 
-          <FormSection title="Schedule">
+          <FormSection title={t("schedule")}>
             {kind === "sprints" && (
               <div className="grid gap-3 sm:grid-cols-2">
                 <DateField
-                  label="Start"
+                  label={fieldNames.start}
                   value={(item as Partial<Sprint>).start_date}
                   disabled={isSaving}
                   onChange={(value) =>
@@ -185,7 +191,7 @@ export function PlanningEditorDialog({
                   }
                 />
                 <DateField
-                  label="End"
+                  label={t("end")}
                   align="end"
                   value={(item as Partial<Sprint>).end_date}
                   disabled={isSaving}
@@ -197,7 +203,7 @@ export function PlanningEditorDialog({
             )}
             {kind === "milestones" && (
               <DateField
-                label="Target"
+                label={t("target")}
                 value={(item as Partial<Milestone>).target_date}
                 disabled={isSaving}
                 onChange={(value) =>
@@ -208,7 +214,7 @@ export function PlanningEditorDialog({
             {kind === "releases" && (
               <div className="grid gap-3 sm:grid-cols-2">
                 <DateField
-                  label="Target"
+                  label={t("target")}
                   value={(item as Partial<Release>).target_date}
                   disabled={isSaving}
                   onChange={(value) =>
@@ -216,7 +222,7 @@ export function PlanningEditorDialog({
                   }
                 />
                 <DateField
-                  label="Released"
+                  label={t("released")}
                   align="end"
                   value={(item as Partial<Release>).released_at}
                   disabled={isSaving}
@@ -228,13 +234,13 @@ export function PlanningEditorDialog({
             )}
           </FormSection>
 
-          <FormSection title="Notes">
+          <FormSection title={t("notes")}>
             {kind === "sprints" && (
               <MarkdownField
-                label="Goal"
+                label={t("goal")}
                 value={(item as Partial<Sprint>).goal}
                 disabled={isSaving}
-                placeholder={NOTES_PLACEHOLDER.sprints}
+                placeholder={t("notesPlaceholder.sprints")}
                 onChange={(value) =>
                   onChange({ goal: value } as Partial<PlanningItem>)
                 }
@@ -242,10 +248,10 @@ export function PlanningEditorDialog({
             )}
             {kind === "milestones" && (
               <MarkdownField
-                label="Description"
+                label={fieldNames.description}
                 value={(item as Partial<Milestone>).description}
                 disabled={isSaving}
-                placeholder={NOTES_PLACEHOLDER.milestones}
+                placeholder={t("notesPlaceholder.milestones")}
                 onChange={(value) =>
                   onChange({ description: value } as Partial<PlanningItem>)
                 }
@@ -253,10 +259,10 @@ export function PlanningEditorDialog({
             )}
             {kind === "releases" && (
               <MarkdownField
-                label="Notes"
+                label={t("notes")}
                 value={(item as Partial<Release>).notes}
                 disabled={isSaving}
-                placeholder={NOTES_PLACEHOLDER.releases}
+                placeholder={t("notesPlaceholder.releases")}
                 onChange={(value) =>
                   onChange({ notes: value } as Partial<PlanningItem>)
                 }
@@ -280,14 +286,14 @@ export function PlanningEditorDialog({
               onClick={onClose}
               disabled={isSaving}
             >
-              Cancel
+              {common("cancel")}
             </Button>
             <Button
               type="submit"
               data-testid="planning-save"
               disabled={isSaving}
             >
-              {isSaving ? "Saving…" : "Save"}
+              {isSaving ? t("saving") : common("save")}
             </Button>
           </DialogFooter>
         </form>
@@ -308,12 +314,13 @@ function StatusField({
   disabled?: boolean;
 }) {
   const labelId = useId();
+  const fieldNames = useFieldNameLabels();
   const options = STATUS_OPTIONS_BY_KIND[kind];
 
   return (
     <div className="flex flex-col gap-1">
       <span id={labelId} className={FIELD_LABEL_CLASS}>
-        Status
+        {fieldNames.status}
       </span>
       <EnumSelectField
         value={String(value ?? options[0])}

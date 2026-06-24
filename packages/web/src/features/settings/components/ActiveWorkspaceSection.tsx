@@ -8,6 +8,7 @@ import {
 import { useVaults } from "@/features/settings/hooks/useVaults";
 import { useViewStore } from "@/features/ui/stores/useViewStore";
 import { Plus } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useCallback, useMemo, useState } from "react";
 import { VaultPickerInput } from "./VaultPickerInput";
 
@@ -25,6 +26,7 @@ import { VaultPickerInput } from "./VaultPickerInput";
  * moved.
  */
 export function ActiveWorkspaceSection() {
+  const t = useTranslations("settings.config");
   const vaultsQuery = useVaults();
   // just vaults that already carry a reef config are valid active workspaces:
   // reef reads/writes issues in the active vault, and Settings has no path to
@@ -78,12 +80,10 @@ export function ActiveWorkspaceSection() {
           id="active-workspace-heading"
           className="font-display text-[15px] font-semibold text-foreground"
         >
-          Active Workspace
+          {t("activeWorkspace.heading")}
         </h2>
         <p className="text-xs text-muted-foreground">
-          The akb workspace reef reads and writes issues in. This choice is
-          personal — it&apos;s stored on your device and only changes your own
-          view. It scopes the workspace settings below.
+          {t("activeWorkspace.description")}
         </p>
       </div>
 
@@ -108,7 +108,7 @@ export function ActiveWorkspaceSection() {
           data-testid="active-workspace-create"
         >
           <Plus aria-hidden="true" className="size-3.5 shrink-0" />
-          New workspace…
+          {t("activeWorkspace.newWorkspace")}
         </Button>
       </div>
 

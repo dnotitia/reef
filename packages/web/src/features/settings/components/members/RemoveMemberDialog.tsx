@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { VaultMember } from "@reef/core";
+import { useTranslations } from "next-intl";
 
 interface RemoveMemberDialogProps {
   /** The member pending removal, or null when the dialog is closed. */
@@ -33,6 +34,8 @@ export function RemoveMemberDialog({
   onConfirm,
   onClose,
 }: RemoveMemberDialogProps) {
+  const t = useTranslations("settings.members");
+  const c = useTranslations("common");
   const name = member ? member.display_name?.trim() || member.username : "";
 
   return (
@@ -49,12 +52,9 @@ export function RemoveMemberDialog({
       >
         <DialogHeader>
           <DialogTitle>
-            Remove {name} from {vault}?
+            {t("removeConfirm", { name, workspace: vault })}
           </DialogTitle>
-          <DialogDescription>
-            They&apos;ll lose access to this workspace&apos;s issues. You can
-            add them back anytime.
-          </DialogDescription>
+          <DialogDescription>{t("removeDescription")}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button
@@ -63,7 +63,7 @@ export function RemoveMemberDialog({
             onClick={onClose}
             disabled={isPending}
           >
-            Cancel
+            {c("cancel")}
           </Button>
           <Button
             variant="destructive"
@@ -72,7 +72,7 @@ export function RemoveMemberDialog({
             disabled={isPending}
             data-testid="remove-member-confirm"
           >
-            {isPending ? "Removing…" : "Remove"}
+            {isPending ? t("removing") : c("remove")}
           </Button>
         </DialogFooter>
       </DialogContent>

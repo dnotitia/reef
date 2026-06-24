@@ -16,7 +16,11 @@ import type { PrioritySelection } from "@/features/issues/lib/issueDraftForm";
 import { ISSUE_TYPE_OPTIONS } from "@/features/issues/lib/metadataOptions";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { findPlanningName } from "@/features/planning/lib/planningItems";
-import { useIssueTypeLabels, useSeverityLabels } from "@/i18n/fieldLabels";
+import {
+  useFieldNameLabels,
+  useIssueTypeLabels,
+  useSeverityLabels,
+} from "@/i18n/fieldLabels";
 import type {
   ActivityDraftSuggestion,
   IssueCreateInput,
@@ -24,6 +28,7 @@ import type {
   Severity,
 } from "@reef/core";
 import { NO_SELECTION } from "@reef/core/fields";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useState } from "react";
 import {
@@ -69,6 +74,10 @@ export function ActivityDraftCard({
 }) {
   const issueTypeLabels = useIssueTypeLabels();
   const severityLabels = useSeverityLabels();
+  const fieldNames = useFieldNameLabels();
+  const t = useTranslations("activity");
+  const tAi = useTranslations("ai");
+  const common = useTranslations("common");
   const { draft } = item;
   const create = draft.proposal.create;
   const fields = create.fields;
@@ -127,19 +136,23 @@ export function ActivityDraftCard({
   );
   const relationLinks = [
     ...uniqueIssueIds([fields.parent_id]).map((id) => ({
-      label: "parent",
+      kind: "parent",
+      label: t("relParent"),
       id,
     })),
     ...uniqueIssueIds(fields.depends_on ?? []).map((id) => ({
-      label: "depends",
+      kind: "depends",
+      label: t("relDepends"),
       id,
     })),
     ...uniqueIssueIds(fields.blocks ?? []).map((id) => ({
-      label: "blocks",
+      kind: "blocks",
+      label: t("relBlocks"),
       id,
     })),
     ...uniqueIssueIds(fields.related_to ?? []).map((id) => ({
-      label: "related",
+      kind: "related",
+      label: t("relRelated"),
       id,
     })),
   ];
@@ -219,7 +232,7 @@ export function ActivityDraftCard({
       data-testid="activity-item-ai_draft"
       className="rounded-md border border-ai-border bg-ai-subtle px-4 py-3"
     >
-      <ActivityCardHeader badge="AI Draft" timestamp={item.timestamp}>
+      <ActivityCardHeader badge={tAi("badgeDraft")} timestamp={item.timestamp}>
         {!isEditing && (
           <span className="text-sm font-medium text-foreground">
             {fields.title}
@@ -257,27 +270,27 @@ export function ActivityDraftCard({
             )}
             {fields.start_date && (
               <span className="rounded-full bg-background/70 px-2 py-0.5">
-                start {fields.start_date.slice(0, 10)}
+                {t("chipStart", { date: fields.start_date.slice(0, 10) })}
               </span>
             )}
             {fields.due_date && (
               <span className="rounded-full bg-background/70 px-2 py-0.5">
-                due {fields.due_date.slice(0, 10)}
+                {t("chipDue", { date: fields.due_date.slice(0, 10) })}
               </span>
             )}
             {sprintName && (
               <span className="rounded-full bg-background/70 px-2 py-0.5">
-                sprint {sprintName}
+                {t("chipSprint", { name: sprintName })}
               </span>
             )}
             {milestoneName && (
               <span className="rounded-full bg-background/70 px-2 py-0.5">
-                milestone {milestoneName}
+                {t("chipMilestone", { name: milestoneName })}
               </span>
             )}
             {releaseName && (
               <span className="rounded-full bg-background/70 px-2 py-0.5">
-                release {releaseName}
+                {t("chipRelease", { name: releaseName })}
               </span>
             )}
             {fields.implementation_refs &&
@@ -307,9 +320,9 @@ export function ActivityDraftCard({
                   </span>
                 );
               })}
-            {relationLinks.map(({ label, id }) => (
+            {relationLinks.map(({ kind, label, id }) => (
               <Link
-                key={`${label}:${id}`}
+                key={`${kind}:${id}`}
                 href={`/issues/${id}`}
                 className={LINK_CHIP_CLASS}
               >
@@ -337,14 +350,13 @@ export function ActivityDraftCard({
             priorityTestId="draft-edit-priority"
             labelsTestId="draft-edit-labels"
             bodyTestId="draft-edit-description"
-            bodyPlaceholder="Describe the issue…"
             primaryField={
               <div className="flex flex-col gap-1">
                 <span
                   id={`draft-edit-type-label-${draft.id}`}
                   className={FIELD_LABEL_CLASS}
                 >
-                  Type
+                  {fieldNames.type}
                 </span>
                 <Select
                   value={issueType}
@@ -353,7 +365,7 @@ export function ActivityDraftCard({
                   <SelectTrigger
                     aria-labelledby={`draft-edit-type-label-${draft.id}`}
                   >
-                    <SelectValue placeholder="Type" />
+                    <SelectValue placeholder={fieldNames.type} />
                   </SelectTrigger>
                   <SelectContent>
                     {ISSUE_TYPE_OPTIONS.map((type) => (
@@ -411,12 +423,12 @@ export function ActivityDraftCard({
             actions={[
               {
                 id: "save",
-                label: "Save",
+                label: common("save"),
                 busy: isSaving,
                 onClick: handleSave,
                 testId: "draft-save",
               },
-              { id: "cancel", label: "Cancel", onClick: handleCancel },
+              { id: "cancel", label: common("cancel"), onClick: handleCancel },
             ]}
           />
         ) : (
@@ -424,20 +436,20 @@ export function ActivityDraftCard({
             actions={[
               {
                 id: "approve",
-                label: "Approve",
+                label: tAi("approve"),
                 busy: isApproving,
-                busyLabel: "Approving...",
+                busyLabel: tAi("approving"),
                 onClick: () => onApprove?.(draft),
               },
               {
                 id: "edit",
-                label: "Edit",
+                label: common("edit"),
                 onClick: () => setIsEditing(true),
                 testId: "draft-edit",
               },
               {
                 id: "dismiss",
-                label: "Dismiss",
+                label: tAi("dismiss"),
                 onClick: () => onDismiss?.(draft.id),
               },
             ]}

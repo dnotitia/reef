@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import type { IssueListItem } from "@reef/core";
 import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 import {
   type CSSProperties,
   forwardRef,
@@ -100,6 +101,21 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
     ref,
   ) {
     const statusLabels = useStatusLabels();
+    const t = useTranslations("timeline");
+    const locale = useLocale();
+    // Locale-aware month-year header (REEF-294 date formatting) — replaces the
+    // old hardcoded English month abbreviations so a Korean timeline reads
+    // "2026년 6월" instead of "Jun 2026".
+    const monthYearFormat = new Intl.DateTimeFormat(locale, {
+      year: "numeric",
+      month: "short",
+      // Format the UTC-midnight calendar date in UTC — a local time zone west of
+      // UTC would otherwise roll Date.UTC(y, m, 1) back to the previous month and
+      // mislabel the span (the same UTC convention the app's intl config uses).
+      timeZone: "UTC",
+    });
+    const formatMonthYear = (month: number, year: number): string =>
+      monthYearFormat.format(new Date(Date.UTC(year, month - 1, 1)));
     const scrollRef = useRef<HTMLDivElement>(null);
     const leftShadowRef = useRef<HTMLDivElement>(null);
     const rightShadowRef = useRef<HTMLDivElement>(null);
@@ -228,7 +244,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                       gridColumn: `${span.startIndex + 2} / ${span.endIndex + 3}`,
                     }}
                   >
-                    {span.label}
+                    {formatMonthYear(span.month, span.year)}
                   </div>
                 ))}
               </div>
@@ -237,7 +253,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                   className="sticky left-0 z-40 flex items-center border-r border-border-subtle bg-background px-3 text-[11px] text-muted-foreground"
                   style={{ gridColumn: 1 }}
                 >
-                  Issue
+                  {t("issue")}
                 </div>
                 {days.map((day, index) => (
                   <div
@@ -265,13 +281,13 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                     className="sticky left-0 z-20 flex items-center border-r border-border-subtle bg-background px-3 text-xs text-muted-foreground"
                     style={{ gridColumn: 1 }}
                   >
-                    Scheduled
+                    {t("scheduled")}
                   </div>
                   <div
                     className="flex items-center px-4 text-sm text-muted-foreground"
                     style={{ gridColumn: `2 / ${days.length + 2}` }}
                   >
-                    No scheduled issues in this quarter.
+                    {t("noScheduled")}
                   </div>
                 </div>
               ) : (
@@ -295,7 +311,7 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                         className="flex items-center px-3 text-[11px] text-muted-foreground"
                         style={{ gridColumn: `2 / ${days.length + 2}` }}
                       >
-                        {group.items.length} scheduled
+                        {t("scheduledCount", { count: group.items.length })}
                       </div>
                     </div>
                     {group.items.map((item) => (
@@ -316,14 +332,14 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
               <section
                 data-testid="timeline-unscheduled"
                 className="border-t border-border bg-background px-3 py-4"
-                aria-label="Unscheduled"
+                aria-label={t("unscheduled")}
               >
                 <div className="sticky left-3 z-20 mb-3 max-w-[760px]">
                   <h2 className="text-xs font-semibold uppercase tracking-normal text-muted-foreground">
-                    Unscheduled
+                    {t("unscheduled")}
                   </h2>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Issues without a start date or due date.
+                    {t("unscheduledHint")}
                   </p>
                 </div>
                 <div className="sticky left-3 z-20 flex max-w-[760px] flex-col gap-3">
@@ -342,7 +358,11 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
                             key={issue.id}
                             type="button"
                             onClick={() => onIssueClick(issue.id)}
-                            title={`${buildIssueTitle(issue)} · start ${formatCalendarDay(null)} · due ${formatCalendarDay(null)}`}
+                            title={t("unscheduledItemTooltip", {
+                              title: buildIssueTitle(issue),
+                              start: formatCalendarDay(null),
+                              due: formatCalendarDay(null),
+                            })}
                             className="min-w-0 rounded-md border border-border bg-elevated px-2.5 py-2 text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
                           >
                             <span className="block truncate font-mono text-[11px] text-muted-foreground">
@@ -381,14 +401,14 @@ export const TimelineGrid = forwardRef<TimelineGridHandle, TimelineGridProps>(
           type="button"
           data-off=""
           onClick={scrollToToday}
-          aria-label="Scroll to today"
+          aria-label={t("scrollToToday")}
           className="group absolute top-2 z-[3] hidden items-center gap-1 rounded-full border border-brand/40 bg-elevated px-2.5 py-1 text-[11px] font-medium text-foreground shadow-sm transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 data-[off=left]:left-3 data-[off=left]:flex data-[off=right]:right-3 data-[off=right]:flex"
         >
           <ChevronLeft
             aria-hidden="true"
             className="hidden h-3 w-3 text-brand group-data-[off=left]:block"
           />
-          Today
+          {t("today")}
           <ChevronRight
             aria-hidden="true"
             className="hidden h-3 w-3 text-brand group-data-[off=right]:block"

@@ -18,29 +18,38 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     await openExistingWorkspace(page);
     await page.goto("/settings/preferences");
 
+    // Scope the language-section testid lookups to the VISIBLE region via its
+    // accessible role/name. Next dev's warm-navigation transition can leave a
+    // second, `hidden` copy of the settings subtree in the DOM (a dev-only
+    // artifact, REEF-258), which a raw `getByTestId` would match alongside the
+    // real one and trip strict mode. `getByRole("region")` queries the
+    // accessibility tree, so the hidden duplicate is excluded.
+    const langSection = page.getByRole("region", { name: "Language" });
+
     // AC1 — first paint (no locale cookie) is English: <html lang> and the
     // server-rendered language section heading are both en.
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
-    await expect(page.getByTestId("language-section")).toBeVisible();
+    await expect(langSection).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Language", level: 3 }),
     ).toBeVisible();
-    await expect(page.getByTestId("locale-option-en")).toHaveAttribute(
+    await expect(langSection.getByTestId("locale-option-en")).toHaveAttribute(
       "aria-checked",
       "true",
     );
 
     // AC2 — switching to ko flips the UI immediately: <html lang> updates and the
     // heading re-renders from the ko catalog (proving the provider switched, AC3).
-    await page.getByTestId("locale-option-ko").click();
+    await langSection.getByTestId("locale-option-ko").click();
     await expect(page.locator("html")).toHaveAttribute("lang", "ko");
     await expect(
       page.getByRole("heading", { name: "언어", level: 3 }),
     ).toBeVisible();
-    await expect(page.getByTestId("locale-option-ko")).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
+    await expect(
+      page
+        .getByRole("region", { name: "언어" })
+        .getByTestId("locale-option-ko"),
+    ).toHaveAttribute("aria-checked", "true");
 
     // REEF-293 AC1 — the chrome follows the locale, not just the language
     // section: the persistent sidebar nav re-renders from the ko catalog
@@ -67,10 +76,11 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     await expect(
       page.getByRole("heading", { name: "언어", level: 3 }),
     ).toBeVisible();
-    await expect(page.getByTestId("locale-option-ko")).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
+    await expect(
+      page
+        .getByRole("region", { name: "언어" })
+        .getByTestId("locale-option-ko"),
+    ).toHaveAttribute("aria-checked", "true");
   });
 
   test("renders core field labels in the active locale on the board (REEF-292)", async ({
@@ -93,7 +103,10 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
 
     // Switch the interface to Korean through the real settings control.
     await page.goto("/settings/preferences");
-    await page.getByTestId("locale-option-ko").click();
+    await page
+      .getByRole("region", { name: "Language" })
+      .getByTestId("locale-option-ko")
+      .click();
     await expect(page.locator("html")).toHaveAttribute("lang", "ko");
 
     // The same status columns now render their Korean labels — the core key →
@@ -128,7 +141,10 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     await openExistingWorkspace(page);
 
     await page.goto("/settings/preferences");
-    await page.getByTestId("locale-option-ko").click();
+    await page
+      .getByRole("region", { name: "Language" })
+      .getByTestId("locale-option-ko")
+      .click();
     await expect(page.locator("html")).toHaveAttribute("lang", "ko");
 
     // The issue detail rail's field-NAME headers now render in Korean — the word
@@ -249,6 +265,197 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     );
   });
 
+  test("renders migrated onboarding/auth/shared-component body strings in the active locale (REEF-307)", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    await page.goto("/settings/preferences");
+    await page
+      .getByRole("region", { name: "Language" })
+      .getByTestId("locale-option-ko")
+      .click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+
+    // The persistent sidebar account control is auth-area chrome migrated in
+    // REEF-307; its accessible name now resolves from the ko catalog.
+    await expect(page.getByRole("button", { name: "계정 메뉴" })).toBeVisible();
+
+    // The shared MarkdownEditor toolbar (components/) localizes too — on the
+    // issue detail surface the Bold control's accessible name is Korean.
+    await page.goto("/issues/REEF-002");
+    await expect(page.getByTestId("issue-detail-sidebar")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "굵게" }).first(),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Bold" })).toHaveCount(0);
+  });
+
+  test("renders migrated my-work + timeline body strings in the active locale (REEF-306)", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    await page.goto("/settings/preferences");
+    await page
+      .getByRole("region", { name: "Language" })
+      .getByTestId("locale-option-ko")
+      .click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+
+    // The My Work page header is web-chrome copy migrated in REEF-306.
+    await page.goto("/my-work");
+    await expect(
+      page.getByRole("heading", { name: "내 작업" }).first(),
+    ).toBeVisible();
+
+    // The timeline's month-year header now formats locale-aware (REEF-306 routes
+    // the old hardcoded English month abbreviations through Intl), so a Korean
+    // timeline reads "2026년 6월" instead of "Jun 2026".
+    await page.goto("/issues?view=timeline");
+    await expect(page.getByText(/\d{4}년 \d{1,2}월/).first()).toBeVisible();
+    await expect(page.getByText(/^Jun \d{4}$/)).toHaveCount(0);
+  });
+
+  test("renders migrated activity + planning body strings in the active locale (REEF-305)", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    await page.goto("/settings/preferences");
+    await page
+      .getByRole("region", { name: "Language" })
+      .getByTestId("locale-option-ko")
+      .click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+
+    // The activity feed's filter controls are web-chrome copy migrated in
+    // REEF-305; they render regardless of the draft set, now from the ko catalog.
+    await page.goto("/activity");
+    await expect(
+      page.getByRole("button", { name: "AI 초안" }).first(),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "상태 변경" }).first(),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "AI Drafts" })).toHaveCount(
+      0,
+    );
+
+    // The planning page's kind toggle follows the locale too (REEF-305).
+    await page.goto("/planning");
+    await expect(
+      page.getByRole("group", { name: "플래닝 종류" }),
+    ).toBeVisible();
+  });
+
+  test("renders migrated reports-area body strings in the active locale (REEF-304)", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    await page.goto("/settings/preferences");
+    await page
+      .getByRole("region", { name: "Language" })
+      .getByTestId("locale-option-ko")
+      .click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+
+    // The reports page's breakdown card titles are web-chrome copy migrated in
+    // REEF-304 — they now resolve from the ko catalog. "Top assignees" is a
+    // stable always-present card heading on the populated reports surface.
+    await page.goto("/reports");
+    await expect(
+      page.getByText("주요 담당자", { exact: true }).first(),
+    ).toBeVisible();
+    await expect(page.getByText("Top assignees", { exact: true })).toHaveCount(
+      0,
+    );
+
+    // Capture the localized reports surface as the REEF-304 visual proof.
+    await page.screenshot({
+      path: "test-results/reef-304-reports-ko.png",
+      fullPage: true,
+    });
+  });
+
+  test("renders migrated settings-area body strings in the active locale (REEF-303)", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    await page.goto("/settings/preferences");
+    await page
+      .getByRole("region", { name: "Language" })
+      .getByTestId("locale-option-ko")
+      .click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+
+    // The preferences page's Appearance section is web-chrome copy migrated in
+    // REEF-303 — it now renders from the ko catalog beside the already-localized
+    // Language section.
+    await expect(
+      page.getByRole("heading", { name: "화면 표시", level: 3 }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Appearance", level: 3 }),
+    ).toHaveCount(0);
+
+    // The workspace settings route's section sub-headings (Project / Templates /
+    // Authoring Language / Completed Issues) follow the locale too — the App
+    // Router server page resolves its copy through next-intl (REEF-303).
+    await page.goto("/settings/workspace");
+    for (const koHeading of [
+      "프로젝트", // Project
+      "템플릿", // Templates
+      "작성 언어", // Authoring Language
+      "완료된 이슈", // Completed Issues
+    ]) {
+      await expect(
+        page.getByRole("heading", { name: koHeading, level: 3 }).first(),
+      ).toBeVisible();
+    }
+    await expect(
+      page.getByRole("heading", { name: "Project", level: 3 }),
+    ).toHaveCount(0);
+  });
+
+  test("renders migrated issue-area body strings in the active locale (REEF-302)", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    await page.goto("/settings/preferences");
+    await page
+      .getByRole("region", { name: "Language" })
+      .getByTestId("locale-option-ko")
+      .click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+
+    // The issue detail surface's section headers are web-chrome copy migrated in
+    // REEF-302 (the shared `sections.*` namespace). Before this work they stayed
+    // English ("Details"/"People"/"Planning"/"Relationships") above already
+    // localized field rows — the half-translated screen REEF-298 calls out. They
+    // now resolve from the merged ko catalog end to end. REEF-002 always renders
+    // the full property rail + relationships section.
+    await page.goto("/issues/REEF-002");
+    const sidebar = page.getByTestId("issue-detail-sidebar");
+    await expect(sidebar).toBeVisible();
+    await expect(sidebar.getByText("세부 정보", { exact: true })).toBeVisible();
+    await expect(sidebar.getByText("사람", { exact: true })).toBeVisible();
+    await expect(sidebar.getByText("플래닝", { exact: true })).toBeVisible();
+    await expect(page.getByText("관계", { exact: true }).first()).toBeVisible();
+    // No half-translated English section header lingers on the migrated surface.
+    await expect(sidebar.getByText("Details", { exact: true })).toHaveCount(0);
+    await expect(sidebar.getByText("People", { exact: true })).toHaveCount(0);
+
+    // Capture the localized issue body as the REEF-302 visual proof.
+    await page.screenshot({
+      path: "test-results/reef-302-issue-body-ko.png",
+      fullPage: true,
+    });
+  });
+
   test("renders the issue-list column headers in the active locale (REEF-299)", async ({
     page,
   }) => {
@@ -264,7 +471,10 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     ).toBeVisible();
 
     await page.goto("/settings/preferences");
-    await page.getByTestId("locale-option-ko").click();
+    await page
+      .getByRole("region", { name: "Language" })
+      .getByTestId("locale-option-ko")
+      .click();
     await expect(page.locator("html")).toHaveAttribute("lang", "ko");
 
     // Same headers, now Korean — the data-structure copy follows the locale end

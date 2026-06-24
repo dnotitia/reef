@@ -8,17 +8,29 @@ import {
 } from "@/components/segmentedControl";
 import { cn } from "@/lib/utils";
 import { Building2, Server, SlidersHorizontal } from "lucide-react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const SETTINGS_TABS = [
-  { href: "/settings/workspace", label: "Workspace", icon: Building2 },
+  {
+    href: "/settings/workspace",
+    id: "workspace",
+    labelKey: "tabWorkspace",
+    icon: Building2,
+  },
   {
     href: "/settings/preferences",
-    label: "Preferences",
+    id: "preferences",
+    labelKey: "tabPreferences",
     icon: SlidersHorizontal,
   },
-  { href: "/settings/deployment", label: "Deployment", icon: Server },
+  {
+    href: "/settings/deployment",
+    id: "deployment",
+    labelKey: "tabDeployment",
+    icon: Server,
+  },
 ] as const;
 
 /**
@@ -36,14 +48,15 @@ const SETTINGS_TABS = [
  */
 export function SettingsTabs() {
   const pathname = usePathname();
+  const t = useTranslations("settings.misc");
 
   return (
     <nav
-      aria-label="Settings sections"
+      aria-label={t("settingsSections")}
       data-testid="settings-tabs"
       className={cn(SEGMENTED_CONTROL_TRACK, "self-start")}
     >
-      {SETTINGS_TABS.map(({ href, label, icon: Icon }) => {
+      {SETTINGS_TABS.map(({ href, id, labelKey, icon: Icon }) => {
         // A tab owns its segment, so it stays active on nested routes too
         // (e.g. /settings/workspace/members keeps Workspace active).
         const isActive = pathname === href || pathname.startsWith(`${href}/`);
@@ -52,7 +65,7 @@ export function SettingsTabs() {
             key={href}
             href={href}
             aria-current={isActive ? "page" : undefined}
-            data-testid={`settings-tab-${label.toLowerCase()}`}
+            data-testid={`settings-tab-${id}`}
             className={cn(
               SEGMENTED_CONTROL_ITEM,
               isActive
@@ -61,7 +74,7 @@ export function SettingsTabs() {
             )}
           >
             <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            <span>{label}</span>
+            <span>{t(labelKey)}</span>
           </Link>
         );
       })}

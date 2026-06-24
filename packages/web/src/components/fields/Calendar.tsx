@@ -12,7 +12,7 @@ import {
 } from "@/features/issues/lib/dateHelpers";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   type KeyboardEvent,
   memo,
@@ -55,6 +55,7 @@ function CalendarComponent({
   className,
 }: CalendarProps) {
   const locale = useLocale();
+  const t = useTranslations("components.calendar");
   const [view, setView] = useState(() => initialView(selected, today));
   const [focusedIso, setFocusedIso] = useState(() => selected || today);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -136,7 +137,7 @@ function CalendarComponent({
         <button
           type="button"
           onClick={goPrev}
-          aria-label="Previous month"
+          aria-label={t("previousMonth")}
           className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground"
         >
           <ChevronLeft className="h-4 w-4" aria-hidden />
@@ -150,7 +151,7 @@ function CalendarComponent({
         <button
           type="button"
           onClick={goNext}
-          aria-label="Next month"
+          aria-label={t("nextMonth")}
           className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground"
         >
           <ChevronRight className="h-4 w-4" aria-hidden />

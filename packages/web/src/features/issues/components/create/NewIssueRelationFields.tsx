@@ -2,6 +2,7 @@
 
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import type { EnrichmentField, ExternalRef, IssueListItem } from "@reef/core";
+import { useTranslations } from "next-intl";
 import type { ComponentProps, ReactNode } from "react";
 import { IssueRefsEditor } from "../refs/IssueRefsEditor";
 import { IssueRelationInput } from "../relations/IssueRelationInput";
@@ -59,9 +60,10 @@ export function NewIssueRelationFields({
   renderFieldLabel: RenderFieldLabel;
 }) {
   const fieldNames = useFieldNameLabels();
+  const sections = useTranslations("sections");
   return (
     <>
-      <IssueFormSection title="Relationships">
+      <IssueFormSection title={sections("relationships")}>
         <div className="grid gap-3 md:grid-cols-2">
           <div className="flex flex-col gap-1">
             {renderFieldLabel(
@@ -88,13 +90,13 @@ export function NewIssueRelationFields({
             {renderFieldLabel(
               "depends_on",
               "new-issue-depends-on",
-              "Depends on",
+              fieldNames.dependsOn,
             )}
             {renderEnrichable(
               "depends_on",
               <IssueRelationInput
                 id="new-issue-depends-on"
-                label="Depends on"
+                label={fieldNames.dependsOn}
                 hideLabel
                 value={dependsOn}
                 allIssues={existingIssues}
@@ -105,12 +107,12 @@ export function NewIssueRelationFields({
             )}
           </div>
           <div className="flex flex-col gap-1">
-            {renderFieldLabel("blocks", "new-issue-blocks", "Blocks")}
+            {renderFieldLabel("blocks", "new-issue-blocks", fieldNames.blocks)}
             {renderEnrichable(
               "blocks",
               <IssueRelationInput
                 id="new-issue-blocks"
-                label="Blocks"
+                label={fieldNames.blocks}
                 hideLabel
                 value={blocks}
                 allIssues={existingIssues}
@@ -121,12 +123,16 @@ export function NewIssueRelationFields({
             )}
           </div>
           <div className="flex flex-col gap-1">
-            {renderFieldLabel("related_to", "new-issue-related-to", "Related")}
+            {renderFieldLabel(
+              "related_to",
+              "new-issue-related-to",
+              fieldNames.related,
+            )}
             {renderEnrichable(
               "related_to",
               <IssueRelationInput
                 id="new-issue-related-to"
-                label="Related"
+                label={fieldNames.related}
                 hideLabel
                 value={relatedTo}
                 allIssues={existingIssues}

@@ -79,7 +79,7 @@ describe("classifyHealth — thresholds (REEF-191 AC3)", () => {
   it("is off track when the target date has passed with work open", () => {
     const v = classifyHealth({ ...base, targetPassed: true, completion: 0.4 });
     expect(v.level).toBe("off_track");
-    expect(v.reason).toMatch(/past target/);
+    expect(v.reason).toEqual({ code: "pastTarget" });
   });
 
   it("is off track with overdue work past the mid-point", () => {
@@ -97,7 +97,7 @@ describe("classifyHealth — thresholds (REEF-191 AC3)", () => {
   it("is at risk with early overdue work (before the mid-point)", () => {
     const v = classifyHealth({ ...base, overdue: 1, elapsedFraction: 0.2 });
     expect(v.level).toBe("at_risk");
-    expect(v.reason).toBe("1 overdue");
+    expect(v.reason).toEqual({ code: "overdue", count: 1 });
   });
 
   it("is at risk when blocked", () => {
@@ -113,7 +113,7 @@ describe("classifyHealth — thresholds (REEF-191 AC3)", () => {
   it("is at risk when the backlog is growing (net > 0)", () => {
     const v = classifyHealth({ ...base, net: 4 });
     expect(v.level).toBe("at_risk");
-    expect(v.reason).toBe("backlog +4");
+    expect(v.reason).toEqual({ code: "backlogOver", count: 4 });
   });
 
   it("ignores pace when there is no time anchor", () => {
@@ -202,7 +202,10 @@ describe("computeHealthRollup — grouping & sort", () => {
       },
     );
     expect(rows[0].shipped).toBe(true);
-    expect(rows[0].verdict).toEqual({ level: "on_track", reason: "shipped" });
+    expect(rows[0].verdict).toEqual({
+      level: "on_track",
+      reason: { code: "shipped" },
+    });
   });
 
   it("ignores its own axis filter but applies the other facets", () => {
@@ -341,7 +344,10 @@ describe("computeHealthRollup — parent axis (REEF-187)", () => {
       { dimension: "parent", now: NOW, catalog: catalog({}) },
     );
     expect(rows[0].shipped).toBe(true);
-    expect(rows[0].verdict).toEqual({ level: "on_track", reason: "shipped" });
+    expect(rows[0].verdict).toEqual({
+      level: "on_track",
+      reason: { code: "shipped" },
+    });
   });
 
   it("ranks parents worst-first and anchors the deadline on the parent due_date", () => {

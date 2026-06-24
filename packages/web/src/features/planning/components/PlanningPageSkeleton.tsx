@@ -1,6 +1,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { PageHeader } from "@/features/ui/components/PageHeader";
+import { useTranslations } from "next-intl";
 
 /**
  * Full-page Planning skeleton — page chrome (header + compact body) around the
@@ -11,13 +12,15 @@ import { PageHeader } from "@/features/ui/components/PageHeader";
  * skeleton for the catalog fetch once the page has mounted.
  */
 export function PlanningPageSkeleton() {
+  const nav = useTranslations("nav");
+  const common = useTranslations("common");
   return (
     <div className="flex h-full flex-col" data-testid="planning-skeleton">
-      <PageHeader title="Planning" />
+      <PageHeader title={nav("planning")} />
       <PageBody pad="compact">
         {/* screen-reader loading announcement (REEF-281), sibling to the decorative
             body; PageHeader's h1 stays a real heading. */}
-        <output className="sr-only">Loading…</output>
+        <output className="sr-only">{common("loading")}</output>
         <div aria-hidden="true">
           {/* Kind toggle group placeholder (Sprints / Milestones / Releases). */}
           <div className="mb-4 inline-flex gap-1 rounded-md border border-border-subtle bg-elevated p-0.5">

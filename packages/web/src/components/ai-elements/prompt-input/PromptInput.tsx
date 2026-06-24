@@ -3,6 +3,7 @@
 import { InputGroup, InputGroupAddon } from "@/components/ui/input-group";
 import { cn } from "@/lib/utils";
 import { nanoid } from "nanoid";
+import { useTranslations } from "next-intl";
 import type {
   ChangeEventHandler,
   ComponentProps,
@@ -59,6 +60,7 @@ export const PromptInput = ({
   children,
   ...props
 }: PromptInputProps) => {
+  const t = useTranslations("components.promptInput");
   const controller = useOptionalPromptInputController();
   const usingProvider = !!controller;
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -413,12 +415,12 @@ export const PromptInput = ({
     <>
       <input
         accept={accept}
-        aria-label="Upload files"
+        aria-label={t("uploadFiles")}
         className="hidden"
         multiple={multiple}
         onChange={handleChange}
         ref={inputRef}
-        title="Upload files"
+        title={t("uploadFiles")}
         type="file"
       />
       <form

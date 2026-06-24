@@ -5,6 +5,7 @@ import { normalizeSafeRedirect } from "@/lib/akb/safeRedirect";
 import { cn } from "@/lib/utils";
 import { AkbAuthConfigSchema } from "@reef/core";
 import { Building2, KeyRound, ShieldCheck } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
 
 export interface LoginPanelProps {
@@ -16,6 +17,7 @@ type SsoState = "loading" | "enabled" | "disabled";
 export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
   const safeRedirect = normalizeSafeRedirect(redirectTo);
   const [ssoState, setSsoState] = useState<SsoState>("loading");
+  const t = useTranslations("auth.panel");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -66,9 +68,11 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
         </div>
         <div className="min-w-0">
           <p className="font-medium text-foreground text-sm">
-            Workspace identity
+            {t("workspaceIdentity")}
           </p>
-          <p className="text-muted-foreground text-xs">akb-platform access</p>
+          <p className="text-muted-foreground text-xs">
+            {t("akbPlatformAccess")}
+          </p>
         </div>
       </div>
 
@@ -93,11 +97,11 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
               )}
             >
               <KeyRound className="size-4" aria-hidden="true" />
-              Continue with workspace SSO
+              {t("continueWithSso")}
             </a>
             <div className="flex items-center justify-center gap-1.5 text-muted-foreground text-xs">
               <ShieldCheck className="size-3.5" aria-hidden="true" />
-              <span>Use your akb-platform identity.</span>
+              <span>{t("useAkbIdentity")}</span>
             </div>
           </div>
         )}
@@ -106,7 +110,7 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
       {ssoEnabled && (
         <div className="my-4 flex items-center gap-3 text-muted-foreground text-xs">
           <div className="h-px flex-1 bg-border" />
-          <span>or use password</span>
+          <span>{t("orUsePassword")}</span>
           <div className="h-px flex-1 bg-border" />
         </div>
       )}

@@ -47,6 +47,8 @@ interface IssueDetailProps {
  * in-flight / saved / failed state. akb is LWW, so per-field writes are safe.
  */
 export function IssueDetail({ issueId, vault, onClose }: IssueDetailProps) {
+  const t = useTranslations("issues.detail");
+  const c = useTranslations("common");
   const { data, isPending, isError, error, refetch } = useIssue(issueId, vault);
   // Whole-vault list, the relation inputs' option source. The parent breadcrumb
   // that also reads it now lives in the sheet's persistent chrome bar (REEF-286),
@@ -67,10 +69,10 @@ export function IssueDetail({ issueId, vault, onClose }: IssueDetailProps) {
     return (
       <div data-testid="issue-detail-error" className="p-6 flex flex-col gap-4">
         <p className="text-sm text-destructive">
-          {error instanceof Error ? error.message : "Failed to load issue."}
+          {error instanceof Error ? error.message : t("loadError")}
         </p>
         <Button variant="outline" size="sm" onClick={() => void refetch()}>
-          Retry
+          {c("retry")}
         </Button>
       </div>
     );
@@ -106,6 +108,7 @@ function IssueDetailLoaded({
   relations: ReturnType<typeof useIssueRelations>["data"];
 }) {
   const t = useTranslations("toasts");
+  const dt = useTranslations("issues.detail");
   const updateMutation = useUpdateIssue();
   const archiveMutation = useArchiveIssue();
   const deleteMutation = useDeleteIssue();
@@ -223,7 +226,7 @@ function IssueDetailLoaded({
         // Symmetric inverse → offer Undo back to archived.
         notifyUndoableSuccess({
           id: archiveToastId,
-          message: `${issueId} unarchived`,
+          message: dt("unarchived", { id: issueId }),
           onUndo: () =>
             void archiveMutation
               .archive({ id: issueId, vault })
@@ -240,7 +243,7 @@ function IssueDetailLoaded({
         // badge in the header already signals the new state.
         notifyUndoableSuccess({
           id: archiveToastId,
-          message: `${issueId} archived`,
+          message: dt("archived", { id: issueId }),
           onUndo: () =>
             void archiveMutation
               .unarchive({ id: issueId, vault })

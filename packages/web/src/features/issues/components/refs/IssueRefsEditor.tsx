@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import type { ExternalRef, ImplementationRef } from "@reef/core";
 import {
   Check,
@@ -20,6 +21,7 @@ import {
   Plus,
   X,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { ISSUE_SECTION_HEADER_CLASS } from "../shared/IssueFormSection";
 
@@ -43,28 +45,11 @@ const EXTERNAL_REF_TYPES: ExternalRef["type"][] = [
   "other",
 ];
 
-const EXTERNAL_REF_TYPE_LABELS: Record<ExternalRef["type"], string> = {
-  github_issue: "GitHub issue",
-  linear: "Linear",
-  slack: "Slack",
-  url: "URL",
-  other: "Other",
-};
-
 const IMPLEMENTATION_REF_TYPES: ImplementationRef["type"][] = [
   "pull_request",
   "commit",
   "branch",
 ];
-
-const IMPLEMENTATION_REF_TYPE_LABELS: Record<
-  ImplementationRef["type"],
-  string
-> = {
-  pull_request: "Pull request",
-  commit: "Commit",
-  branch: "Branch",
-};
 
 // Shared trailing-action shell: the controls stay in the DOM (so they keep
 // keyboard focus and screen-reader access) but just reveal on hover/focus,
@@ -105,6 +90,7 @@ function CopyButton({
   label: string;
   disabled?: boolean;
 }) {
+  const t = useTranslations("issues.refs");
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -128,7 +114,9 @@ function CopyButton({
   return (
     <button
       type="button"
-      aria-label={copied ? `${label} copied` : `Copy ${label}`}
+      aria-label={
+        copied ? t("copiedLabel", { label }) : t("copyLabel", { label })
+      }
       disabled={disabled}
       onClick={handleCopy}
       className="text-muted-foreground hover:text-foreground disabled:opacity-50"
@@ -153,6 +141,7 @@ function DeliveryActivityRow({
   disabled: boolean;
   onRemove: () => void;
 }) {
+  const t = useTranslations("issues.refs");
   const safeUrl = refItem.url && isSafeWebUrl(refItem.url) ? refItem.url : null;
   // Display just: short commit SHAs follow the git convention; other types keep
   // the full ref and rely on CSS truncation so a meaningful branch/PR name is
@@ -194,11 +183,15 @@ function DeliveryActivityRow({
         </span>
       )}
       <div className={ROW_ACTIONS_CLASS}>
-        <CopyButton value={refItem.ref} label="reference" disabled={disabled} />
+        <CopyButton
+          value={refItem.ref}
+          label={t("reference")}
+          disabled={disabled}
+        />
         {canEdit && (
           <button
             type="button"
-            aria-label="Remove delivery activity"
+            aria-label={t("removeDeliveryActivity")}
             disabled={disabled}
             onClick={onRemove}
             className="text-muted-foreground hover:text-foreground disabled:opacity-50"
@@ -213,13 +206,16 @@ function DeliveryActivityRow({
 
 function ExternalRefRow({
   refItem,
+  typeLabel,
   disabled,
   onRemove,
 }: {
   refItem: ExternalRef;
+  typeLabel: string;
   disabled: boolean;
   onRemove: () => void;
 }) {
+  const t = useTranslations("issues.refs");
   const safeUrl =
     refItem.url && isSafeWebUrl(refItem.url)
       ? refItem.url
@@ -232,9 +228,7 @@ function ExternalRefRow({
   return (
     <div className="group flex min-w-0 items-center gap-2 rounded-md bg-surface-subtle px-2 py-1 text-xs">
       <Link2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-      <span className="shrink-0 text-muted-foreground">
-        {EXTERNAL_REF_TYPE_LABELS[refItem.type]}
-      </span>
+      <span className="shrink-0 text-muted-foreground">{typeLabel}</span>
       {safeUrl ? (
         <a
           href={safeUrl}
@@ -252,11 +246,15 @@ function ExternalRefRow({
       )}
       <div className={ROW_ACTIONS_CLASS}>
         {copyValue && (
-          <CopyButton value={copyValue} label="reference" disabled={disabled} />
+          <CopyButton
+            value={copyValue}
+            label={t("reference")}
+            disabled={disabled}
+          />
         )}
         <button
           type="button"
-          aria-label="Remove external reference"
+          aria-label={t("removeExternalReference")}
           disabled={disabled}
           onClick={onRemove}
           className="text-muted-foreground hover:text-foreground disabled:opacity-50"
@@ -276,6 +274,21 @@ export function IssueRefsEditor({
   disabled = false,
   idPrefix = "issue-refs",
 }: IssueRefsEditorProps) {
+  const t = useTranslations("issues.refs");
+  const fieldNames = useFieldNameLabels();
+  const externalTypeLabels: Record<ExternalRef["type"], string> = {
+    github_issue: t("typeGithubIssue"),
+    // Brand names render verbatim in every locale.
+    linear: "Linear",
+    slack: "Slack",
+    url: t("url"),
+    other: t("typeOther"),
+  };
+  const implementationTypeLabels: Record<ImplementationRef["type"], string> = {
+    pull_request: t("typePullRequest"),
+    commit: t("typeCommit"),
+    branch: t("typeBranch"),
+  };
   const [externalType, setExternalType] = useState<ExternalRef["type"]>("url");
   const [externalLabel, setExternalLabel] = useState("");
   const [externalRef, setExternalRef] = useState("");
@@ -339,12 +352,12 @@ export function IssueRefsEditor({
 
   return (
     <section className="flex min-w-0 flex-col gap-4">
-      <h3 className={ISSUE_SECTION_HEADER_CLASS}>Delivery links</h3>
+      <h3 className={ISSUE_SECTION_HEADER_CLASS}>{t("deliveryLinks")}</h3>
 
       {showImplementationSection && (
         <div className="grid min-w-0 gap-2">
           <h4 className="text-xs font-semibold text-foreground">
-            Delivery activity
+            {t("deliveryActivity")}
           </h4>
 
           {implementationRefs.length > 0 && (
@@ -369,7 +382,7 @@ export function IssueRefsEditor({
                     id={`${idPrefix}-implementation-type-label`}
                     className="text-xs font-medium text-muted-foreground"
                   >
-                    Activity kind
+                    {t("activityKind")}
                   </span>
                   <Select
                     value={implementationType}
@@ -381,12 +394,12 @@ export function IssueRefsEditor({
                     <SelectTrigger
                       aria-labelledby={`${idPrefix}-implementation-type-label`}
                     >
-                      <SelectValue placeholder="Kind" />
+                      <SelectValue placeholder={t("kind")} />
                     </SelectTrigger>
                     <SelectContent>
                       {IMPLEMENTATION_REF_TYPES.map((option) => (
                         <SelectItem key={option} value={option}>
-                          {IMPLEMENTATION_REF_TYPE_LABELS[option]}
+                          {implementationTypeLabels[option]}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -397,13 +410,13 @@ export function IssueRefsEditor({
                     className="text-xs font-medium text-muted-foreground"
                     htmlFor={`${idPrefix}-implementation-ref`}
                   >
-                    Activity reference
+                    {t("activityReference")}
                   </label>
                   <Input
                     id={`${idPrefix}-implementation-ref`}
                     value={implementationRef}
                     disabled={disabled}
-                    placeholder="PR number, commit, or branch"
+                    placeholder={t("activityRefPlaceholder")}
                     onChange={(e) => setImplementationRef(e.target.value)}
                   />
                 </div>
@@ -414,13 +427,13 @@ export function IssueRefsEditor({
                     className="text-xs font-medium text-muted-foreground"
                     htmlFor={`${idPrefix}-implementation-url`}
                   >
-                    URL
+                    {t("url")}
                   </label>
                   <Input
                     id={`${idPrefix}-implementation-url`}
                     value={implementationUrl}
                     disabled={disabled}
-                    placeholder="Optional URL"
+                    placeholder={t("optionalUrl")}
                     onChange={(e) => setImplementationUrl(e.target.value)}
                   />
                 </div>
@@ -429,13 +442,13 @@ export function IssueRefsEditor({
                     className="text-xs font-medium text-muted-foreground"
                     htmlFor={`${idPrefix}-implementation-title`}
                   >
-                    Activity title
+                    {t("activityTitle")}
                   </label>
                   <Input
                     id={`${idPrefix}-implementation-title`}
                     value={implementationTitle}
                     disabled={disabled}
-                    placeholder="Optional title"
+                    placeholder={t("optionalTitle")}
                     onChange={(e) => setImplementationTitle(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
@@ -454,7 +467,7 @@ export function IssueRefsEditor({
                 onClick={addImplementationRef}
               >
                 <Plus className="h-3.5 w-3.5" />
-                Add activity
+                {t("addActivity")}
               </Button>
             </div>
           )}
@@ -463,7 +476,7 @@ export function IssueRefsEditor({
 
       <div className="grid min-w-0 gap-2">
         <h4 className="text-xs font-semibold text-foreground">
-          External references
+          {t("externalReferences")}
         </h4>
 
         {externalRefs.length > 0 && (
@@ -472,6 +485,7 @@ export function IssueRefsEditor({
               <ExternalRefRow
                 key={`${ref.type}:${ref.ref ?? ref.url ?? index}`}
                 refItem={ref}
+                typeLabel={externalTypeLabels[ref.type]}
                 disabled={disabled}
                 onRemove={() => removeExternalRef(index)}
               />
@@ -485,7 +499,7 @@ export function IssueRefsEditor({
               id={`${idPrefix}-external-type-label`}
               className="text-xs font-medium text-muted-foreground"
             >
-              Reference kind
+              {t("referenceKind")}
             </span>
             <Select
               value={externalType}
@@ -497,12 +511,12 @@ export function IssueRefsEditor({
               <SelectTrigger
                 aria-labelledby={`${idPrefix}-external-type-label`}
               >
-                <SelectValue placeholder="Kind" />
+                <SelectValue placeholder={t("kind")} />
               </SelectTrigger>
               <SelectContent>
                 {EXTERNAL_REF_TYPES.map((option) => (
                   <SelectItem key={option} value={option}>
-                    {EXTERNAL_REF_TYPE_LABELS[option]}
+                    {externalTypeLabels[option]}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -513,13 +527,13 @@ export function IssueRefsEditor({
               className="text-xs font-medium text-muted-foreground"
               htmlFor={`${idPrefix}-external-ref`}
             >
-              External reference
+              {t("externalReference")}
             </label>
             <Input
               id={`${idPrefix}-external-ref`}
               value={externalRef}
               disabled={disabled}
-              placeholder="URL or reference"
+              placeholder={t("urlOrReference")}
               onChange={(e) => setExternalRef(e.target.value)}
             />
           </div>
@@ -529,13 +543,13 @@ export function IssueRefsEditor({
             className="text-xs font-medium text-muted-foreground"
             htmlFor={`${idPrefix}-external-label`}
           >
-            Title
+            {fieldNames.title}
           </label>
           <Input
             id={`${idPrefix}-external-label`}
             value={externalLabel}
             disabled={disabled}
-            placeholder="Optional label"
+            placeholder={t("optionalLabel")}
             onChange={(e) => setExternalLabel(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -553,7 +567,7 @@ export function IssueRefsEditor({
           onClick={addExternalRef}
         >
           <Plus className="h-3.5 w-3.5" />
-          Add reference
+          {t("addReference")}
         </Button>
       </div>
     </section>

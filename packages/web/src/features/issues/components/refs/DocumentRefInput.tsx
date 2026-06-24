@@ -4,6 +4,7 @@ import { DocumentOptionRow } from "@/components/fields/DocumentOptionRow";
 import { useVaultDocumentSearch } from "@/features/issues/hooks/queries/useVaultDocumentSearch";
 import { cn } from "@/lib/utils";
 import { Loader2, Search } from "lucide-react";
+import { useTranslations } from "next-intl";
 import {
   type KeyboardEvent,
   useCallback,
@@ -47,6 +48,7 @@ export function DocumentRefInput({
   disabled = false,
   pending = false,
 }: DocumentRefInputProps) {
+  const t = useTranslations("issues.refs");
   const listId = useId();
   const [draft, setDraft] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -171,7 +173,7 @@ export function DocumentRefInput({
             aria-expanded={showPanel}
             aria-controls={showPanel ? listId : undefined}
             aria-autocomplete="list"
-            aria-label="Search documents to link"
+            aria-label={t("searchDocumentsToLink")}
             value={draft}
             onChange={(event) => {
               setDraft(event.target.value);
@@ -180,7 +182,7 @@ export function DocumentRefInput({
             }}
             onFocus={() => setOpen(true)}
             onKeyDown={handleKeyDown}
-            placeholder="Type to search documents…"
+            placeholder={t("typeToSearchDocuments")}
             disabled={disabled}
             autoComplete="off"
             spellCheck={false}
@@ -217,11 +219,11 @@ export function DocumentRefInput({
             >
               {isError ? (
                 <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-                  Search is unavailable right now.
+                  {t("searchUnavailable")}
                 </p>
               ) : options.length === 0 ? (
                 <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-                  {isFetching ? "Searching…" : "No documents match."}
+                  {isFetching ? t("searching") : t("noDocumentsMatch")}
                 </p>
               ) : (
                 <div
@@ -257,7 +259,7 @@ export function DocumentRefInput({
 
       <span aria-live="polite" className="sr-only">
         {showPanel && !isError
-          ? `${options.length} matching ${options.length === 1 ? "document" : "documents"}`
+          ? t("matchingCount", { count: options.length })
           : ""}
       </span>
     </div>

@@ -20,6 +20,7 @@ import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { PageHeader } from "@/features/ui/components/PageHeader";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
@@ -38,9 +39,10 @@ function Shell({
   description?: ReactNode;
   children: ReactNode;
 }) {
+  const nav = useTranslations("nav");
   return (
     <div className="flex h-full flex-col">
-      <PageHeader title="My Work" description={description} />
+      <PageHeader title={nav("myWork")} description={description} />
       <PageBody width="wide" className="flex flex-col gap-6">
         {children}
       </PageBody>
@@ -133,6 +135,10 @@ export function MyWorkPage() {
   // sprint → 3) instead of reflowing on hydration (REEF-258).
   const hasSprint = Boolean(currentSprint);
 
+  const t = useTranslations("myWork");
+  const c = useTranslations("common");
+  const nav = useTranslations("nav");
+
   if (vaultLoading || meLoading) {
     return (
       <Shell>
@@ -149,7 +155,7 @@ export function MyWorkPage() {
     // cards.
     return (
       <div className="flex h-full flex-col">
-        <PageHeader title="My Work" />
+        <PageHeader title={nav("myWork")} />
         <EmptyWorkspaceNotice />
       </div>
     );
@@ -160,10 +166,10 @@ export function MyWorkPage() {
       <Shell>
         <CenteredNotice testId="my-work-no-session">
           <p className="text-sm font-medium text-foreground">
-            We couldn't find your session
+            {t("noSessionTitle")}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Sign in to see the work assigned to you.
+            {t("noSessionDescription")}
           </p>
         </CenteredNotice>
       </Shell>
@@ -188,14 +194,14 @@ export function MyWorkPage() {
           <p className="text-sm text-destructive">
             {issuesQuery.error instanceof Error
               ? issuesQuery.error.message
-              : "Failed to load your work."}
+              : t("loadError")}
           </p>
           <Button
             variant="outline"
             size="sm"
             onClick={() => void issuesQuery.refetch()}
           >
-            Retry
+            {c("retry")}
           </Button>
         </div>
       </Shell>
@@ -207,17 +213,16 @@ export function MyWorkPage() {
       <Shell>
         <CenteredNotice testId="my-work-empty">
           <p className="text-sm font-medium text-foreground">
-            Nothing is assigned to you yet
+            {t("emptyTitle")}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Issues assigned to you show up here, prioritized for what to do
-            next.
+            {t("emptyDescription")}
           </p>
           <Link
             href="/issues?view=board"
             className="mt-3 inline-block text-[13px] font-medium text-brand hover:underline"
           >
-            Go to the board →
+            {t("goToBoard")}
           </Link>
         </CenteredNotice>
       </Shell>
@@ -229,16 +234,16 @@ export function MyWorkPage() {
       <Shell description={`@${login}`}>
         <CenteredNotice testId="my-work-caught-up">
           <p className="text-sm font-medium text-foreground">
-            You're all caught up
+            {t("caughtUpTitle")}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            No open work is assigned to you right now.
+            {t("caughtUpDescription")}
           </p>
           <Link
             href="/issues?view=board"
             className="mt-3 inline-block text-[13px] font-medium text-brand hover:underline"
           >
-            Go to the board →
+            {t("goToBoard")}
           </Link>
         </CenteredNotice>
       </Shell>
@@ -252,7 +257,7 @@ export function MyWorkPage() {
           {/* The login is an identifier; the count label is prose, so it
               stays translatable (REEF-260). */}
           <span translate="no">@{login}</span>
-          {` · ${myWork.summary.open} open`}
+          {t("openSummary", { count: myWork.summary.open })}
         </>
       }
     >

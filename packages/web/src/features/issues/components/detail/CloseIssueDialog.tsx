@@ -16,6 +16,7 @@ import {
 } from "@/i18n/fieldLabels";
 import type { ClosedReason } from "@reef/core";
 import { CLOSED_REASON_OPTIONS } from "@reef/core/fields";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 interface CloseIssueDialogProps {
@@ -58,15 +59,17 @@ function CloseIssueDialogContent({
   const [reason, setReason] = useState<ClosedReason>("completed");
   const closedReasonLabels = useClosedReasonLabels();
   const closedReasonHints = useClosedReasonHints();
+  const t = useTranslations("issues.detailDialogs");
+  const c = useTranslations("common");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent data-testid="close-issue-dialog" className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Close {issueId}</DialogTitle>
-          <DialogDescription>
-            Pick the reason that should be recorded with this closure.
-          </DialogDescription>
+          <DialogTitle>
+            {c("close")} {issueId}
+          </DialogTitle>
+          <DialogDescription>{t("closeReasonDescription")}</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-1">
@@ -74,7 +77,7 @@ function CloseIssueDialogContent({
             htmlFor="closed-reason"
             className="text-xs font-medium text-muted-foreground"
           >
-            Close reason
+            {t("closeReason")}
           </label>
           <EnumSelectField
             value={reason}
@@ -106,7 +109,7 @@ function CloseIssueDialogContent({
             disabled={disabled}
             onClick={() => onOpenChange(false)}
           >
-            Keep open
+            {t("keepOpen")}
           </Button>
           <Button
             type="button"
@@ -115,7 +118,7 @@ function CloseIssueDialogContent({
             data-testid="close-issue-confirm"
             onClick={() => onConfirm(reason)}
           >
-            Close issue
+            {t("closeIssue")}
           </Button>
         </DialogFooter>
       </DialogContent>

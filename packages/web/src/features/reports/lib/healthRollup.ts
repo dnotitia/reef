@@ -75,11 +75,32 @@ export interface HealthInput {
   targetPassed: boolean;
 }
 
+/** The dominant driving signal behind a verdict, as a stable code (+ optional
+ *  count) the UI localizes at render (REEF-304) — not display text — so the
+ *  caption follows the active locale instead of leaking English into a Korean
+ *  report. */
+export type VerdictReasonCode =
+  | "pastTarget"
+  | "overduePastMidpoint"
+  | "wellBehind"
+  | "overdue"
+  | "blocked"
+  | "behindSchedule"
+  | "backlogOver"
+  | "onTrack"
+  | "shipped";
+
+export interface VerdictReason {
+  code: VerdictReasonCode;
+  /** Interpolated count for the count-bearing codes (overdue / blocked / etc.). */
+  count?: number;
+}
+
 export interface HealthVerdict {
   level: RagLevel;
   /** The dominant driving signal, surfaced as a caption so the verdict is
    *  auditable rather than a black box. */
-  reason: string;
+  reason: VerdictReason;
 }
 
 export interface HealthRollupRow {
@@ -115,30 +136,33 @@ export function classifyHealth(input: HealthInput): HealthVerdict {
 
   // Off track — a missed deadline, or far enough behind that catch-up is unlikely.
   if (targetPassed) {
-    return { level: "off_track", reason: "past target, incomplete" };
+    return { level: "off_track", reason: { code: "pastTarget" } };
   }
   if (overdue > 0 && elapsedFraction != null && elapsedFraction >= 0.5) {
-    return { level: "off_track", reason: `${overdue} overdue, past mid-point` };
+    return {
+      level: "off_track",
+      reason: { code: "overduePastMidpoint", count: overdue },
+    };
   }
   if (paceDeficit >= 0.25) {
-    return { level: "off_track", reason: "well behind schedule" };
+    return { level: "off_track", reason: { code: "wellBehind" } };
   }
 
   // At risk — a real warning signal, but still recoverable.
   if (overdue > 0) {
-    return { level: "at_risk", reason: `${overdue} overdue` };
+    return { level: "at_risk", reason: { code: "overdue", count: overdue } };
   }
   if (blocked > 0) {
-    return { level: "at_risk", reason: `${blocked} blocked` };
+    return { level: "at_risk", reason: { code: "blocked", count: blocked } };
   }
   if (paceDeficit >= 0.1) {
-    return { level: "at_risk", reason: "behind schedule" };
+    return { level: "at_risk", reason: { code: "behindSchedule" } };
   }
   if (net > 0) {
-    return { level: "at_risk", reason: `backlog +${net}` };
+    return { level: "at_risk", reason: { code: "backlogOver", count: net } };
   }
 
-  return { level: "on_track", reason: "on track" };
+  return { level: "on_track", reason: { code: "onTrack" } };
 }
 
 export interface HealthRollupOptions {
@@ -371,7 +395,7 @@ export function computeHealthRollup(
       } else if (shipped) {
         // Finished work is on track by definition; a closed/released item should
         // not read as off track.
-        verdict = { level: "on_track", reason: "shipped" };
+        verdict = { level: "on_track", reason: { code: "shipped" } };
       } else {
         // Timeline anchor: explicit start (sprint) else earliest linked issue.
         const startMs = item.startDate

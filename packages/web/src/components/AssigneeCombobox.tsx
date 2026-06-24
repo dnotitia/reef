@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { useUserSearch } from "@/features/issues/hooks/queries/useUserSearch";
 import { useHydrated } from "@/lib/useHydrated";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 interface AssigneeComboboxProps {
@@ -67,6 +68,7 @@ export function AssigneeCombobox({
   panelClassName,
   align = "end",
 }: AssigneeComboboxProps) {
+  const t = useTranslations("components.assignee");
   // rawQuery tracks the live input; debouncedQuery is what the server actually
   // resolved. While they differ (the 300ms debounce window), the visible options
   // belong to the previous query, so the control reports loading to suppress a
@@ -113,7 +115,7 @@ export function AssigneeCombobox({
         aria-label={label}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Vault member"
+        placeholder={t("vaultMember")}
         disabled={disabled}
         data-testid="assignee-combobox-fallback"
       />
@@ -148,7 +150,7 @@ export function AssigneeCombobox({
           </>
         ),
       }}
-      emptyState="No vault members found."
+      emptyState={t("noMembers")}
       disabled={disabled || !vault}
       active={active}
       ariaLabel={value ? `${label}: ${value}` : label}

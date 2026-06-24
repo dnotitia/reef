@@ -6,6 +6,7 @@ import {
   useSetActiveVault,
 } from "@/features/settings/hooks/useActiveVault";
 import { useVaults } from "@/features/settings/hooks/useVaults";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { CreateWorkspaceForm } from "./CreateWorkspaceForm";
@@ -22,6 +23,7 @@ import { CreateWorkspaceForm } from "./CreateWorkspaceForm";
  * unavailable if the server lacks OpenRouter settings.
  */
 export function OnboardingPanel() {
+  const t = useTranslations("onboarding");
   const router = useRouter();
   const vaultsQuery = useVaults();
   const { vault: activeVault, isLoading: activeVaultLoading } =
@@ -44,9 +46,9 @@ export function OnboardingPanel() {
     >
       <section className="flex flex-col gap-4 rounded-md border border-border bg-elevated p-5">
         <div className="flex flex-col gap-1">
-          <h2 className="text-xl font-semibold">Create a project workspace</h2>
+          <h2 className="text-xl font-semibold">{t("createWorkspaceTitle")}</h2>
           <p className="text-sm text-muted-foreground">
-            Start with a new akb vault and a reef project prefix.
+            {t("createWorkspaceSubtitle")}
           </p>
         </div>
 
@@ -58,18 +60,18 @@ export function OnboardingPanel() {
         data-testid="onboarding-existing-section"
       >
         <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-foreground">
-          Use an existing reef workspace
+          {t("existingWorkspace")}
         </summary>
         <div className="flex flex-col gap-3 border-t border-border px-4 py-3">
           <p className="text-sm text-muted-foreground">
-            Pick an akb vault that already has a reef config document.
+            {t("existingWorkspaceHint")}
           </p>
           {reefVaults.length === 0 && !isLoading && !vaultsQuery.isError ? (
             <div
               className="text-sm text-muted-foreground"
               data-testid="onboarding-empty-state"
             >
-              No existing reef workspaces found.
+              {t("existingWorkspaceEmpty")}
             </div>
           ) : (
             <VaultPickerInput
@@ -78,7 +80,7 @@ export function OnboardingPanel() {
               onChange={(next) => void setActiveVault.mutateAsync(next)}
               isLoading={isLoading}
               isError={vaultsQuery.isError}
-              placeholder="Select a reef workspace..."
+              placeholder={t("existingWorkspacePlaceholder")}
             />
           )}
           <button
@@ -88,7 +90,7 @@ export function OnboardingPanel() {
             data-testid="onboarding-continue-btn"
             className="w-fit rounded-md bg-foreground px-5 py-2 text-sm font-medium text-background transition-colors duration-150 hover:bg-foreground/90 disabled:opacity-50"
           >
-            Continue to workspace
+            {t("continueToWorkspace")}
           </button>
         </div>
       </details>

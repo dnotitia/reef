@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { TimelineRange } from "../lib/timelineLayout";
 
 interface TimelineControlsProps {
@@ -18,6 +19,7 @@ export function TimelineControls({
   onNext,
   onToday,
 }: TimelineControlsProps) {
+  const t = useTranslations("timeline");
   return (
     <div className="flex items-center gap-2">
       <span className="hidden text-xs font-medium text-muted-foreground tabular-nums sm:inline">
@@ -29,8 +31,8 @@ export function TimelineControls({
           variant="outline"
           size="icon-sm"
           onClick={onPrevious}
-          aria-label="Previous quarter"
-          title="Previous quarter"
+          aria-label={t("previousQuarter")}
+          title={t("previousQuarter")}
         >
           <ChevronLeft className="h-3.5 w-3.5" />
         </Button>
@@ -39,18 +41,18 @@ export function TimelineControls({
           variant="outline"
           size="sm"
           onClick={onToday}
-          aria-label="Go to today"
+          aria-label={t("goToToday")}
         >
           <CalendarDays className="h-3.5 w-3.5" />
-          Today
+          {t("today")}
         </Button>
         <Button
           type="button"
           variant="outline"
           size="icon-sm"
           onClick={onNext}
-          aria-label="Next quarter"
-          title="Next quarter"
+          aria-label={t("nextQuarter")}
+          title={t("nextQuarter")}
         >
           <ChevronRight className="h-3.5 w-3.5" />
         </Button>

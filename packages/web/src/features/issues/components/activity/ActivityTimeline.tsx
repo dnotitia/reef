@@ -44,6 +44,8 @@ export function ActivityTimeline({
   issue,
 }: ActivityTimelineProps) {
   const t = useTranslations("toasts");
+  const nav = useTranslations("nav");
+  const ta = useTranslations("issues.activity");
   const currentLogin = useCurrentUserLogin();
   const { data: comments = NO_COMMENTS, isError: commentsError } = useComments(
     issueId,
@@ -83,7 +85,7 @@ export function ActivityTimeline({
 
   return (
     <section className="flex min-w-0 flex-col gap-3">
-      <h3 className={ISSUE_SECTION_HEADER_CLASS}>Activity</h3>
+      <h3 className={ISSUE_SECTION_HEADER_CLASS}>{nav("activity")}</h3>
 
       <div className="flex min-w-0 flex-col gap-4">
         {timeline.map((entry) => {
@@ -131,9 +133,7 @@ export function ActivityTimeline({
         aria-live="polite"
         className="text-xs text-destructive empty:hidden"
       >
-        {commentsError || activityError
-          ? "Couldn't load the full activity. Try again."
-          : null}
+        {commentsError || activityError ? ta("loadError") : null}
       </output>
     </section>
   );

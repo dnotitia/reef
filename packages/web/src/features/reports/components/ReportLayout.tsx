@@ -3,6 +3,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { PageHeader } from "@/features/ui/components/PageHeader";
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 
 export function PageShell({
@@ -14,9 +15,10 @@ export function PageShell({
   description?: string;
   children: ReactNode;
 }) {
+  const nav = useTranslations("nav");
   return (
     <div className="flex h-full flex-col">
-      <PageHeader title="Reports" description={description} />
+      <PageHeader title={nav("reports")} description={description} />
       <PageBody width="wide" className="flex flex-col gap-6">
         {children}
       </PageBody>
@@ -119,12 +121,14 @@ function ReportCardSkeleton({ bodyHeight }: { bodyHeight: string }) {
  * the band headers pixel-identical across the skeleton↔loaded swap.
  */
 export function ReportsSkeleton() {
+  const t = useTranslations("reports.page");
+  const c = useTranslations("common");
   return (
     <div className="flex flex-col gap-6">
       {/* screen-reader loading announcement (REEF-281). The wrapping PageShell owns
           the page header; the section band headings below stay real headings,
           so the placeholder clusters take aria-hidden. */}
-      <output className="sr-only">Loading…</output>
+      <output className="sr-only">{c("loading")}</output>
       {/* Scope bar — same auto-fit control grid as ReportScopeBar (8 controls). */}
       <div
         className="grid w-full grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-2 rounded-lg border border-border-subtle bg-surface-subtle p-2"
@@ -136,7 +140,7 @@ export function ReportsSkeleton() {
       </div>
 
       <div className="flex flex-col gap-10">
-        <ReportSection label="Snapshot">
+        <ReportSection label={t("snapshot")}>
           <div className="flex flex-col gap-4" aria-hidden="true">
             {/* KPI grid — lg:grid-cols-5 × 8 tiles (matches HealthSummary). */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -155,7 +159,7 @@ export function ReportsSkeleton() {
           </div>
         </ReportSection>
 
-        <ReportSection label="Flow & forecast">
+        <ReportSection label={t("flowForecast")}>
           <div className="flex flex-col gap-6" aria-hidden="true">
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <ReportCardSkeleton bodyHeight="h-40" />
@@ -167,7 +171,7 @@ export function ReportsSkeleton() {
           </div>
         </ReportSection>
 
-        <ReportSection label="Breakdown">
+        <ReportSection label={t("breakdown")}>
           <div
             className="grid grid-cols-1 gap-6 lg:grid-cols-2"
             aria-hidden="true"

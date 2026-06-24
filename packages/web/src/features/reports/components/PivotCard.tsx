@@ -2,17 +2,18 @@
 
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import {
+  useFieldNameLabels,
   useIssueTypeLabels,
   usePriorityLabels,
   useSeverityLabels,
   useStatusLabels,
 } from "@/i18n/fieldLabels";
 import type { IssueListItem } from "@reef/core";
+import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import type { ReportFilters } from "../lib/aggregate";
 import {
   PIVOT_FIELD_KEYS,
-  PIVOT_FIELD_LABELS,
   type PivotFieldKey,
   type PivotValueLabels,
   computePivot,
@@ -37,6 +38,23 @@ export function PivotCard({
 }) {
   const [rowField, setRowField] = useState<PivotFieldKey>("assignee");
   const [colField, setColField] = useState<PivotFieldKey>("status");
+  const t = useTranslations("reports.cards");
+
+  // Pivot axis FIELD names follow the locale (REEF-304). Every pivot field is a
+  // core field-registry name, so resolve them through the shared field-name
+  // catalog instead of the hardcoded English `PIVOT_FIELD_LABELS` map.
+  const fieldNames = useFieldNameLabels();
+  const fieldLabels = useMemo<Record<PivotFieldKey, string>>(
+    () => ({
+      status: fieldNames.status,
+      type: fieldNames.type,
+      priority: fieldNames.priority,
+      severity: fieldNames.severity,
+      assignee: fieldNames.assignee,
+      label: fieldNames.labels,
+    }),
+    [fieldNames],
+  );
 
   // The enum-axis value labels resolve in the active locale (REEF-292); each
   // hook is memoized per locale, so this bundle is a stable `computePivot` dep.
@@ -59,26 +77,43 @@ export function PivotCard({
     [issues, rowField, colField, labels, filters],
   );
 
-  // Disclose any dynamic-axis cap instead of silently truncating it away.
-  const folded: string[] = [];
+  // Disclose any dynamic-axis cap instead of silently truncating it away. Each
+  // note is a localized "{n} {field} values"; the two are joined with a locale
+  // conjunction so the Korean sentence stays whole (REEF-304).
+  const foldedParts: string[] = [];
   if (result.rowsFolded > 0) {
-    folded.push(foldNote(result.rowsFolded, PIVOT_FIELD_LABELS[rowField]));
+    foldedParts.push(
+      t("foldValues", {
+        count: result.rowsFolded,
+        field: fieldLabels[rowField].toLowerCase(),
+      }),
+    );
   }
   if (result.colsFolded > 0) {
-    folded.push(foldNote(result.colsFolded, PIVOT_FIELD_LABELS[colField]));
+    foldedParts.push(
+      t("foldValues", {
+        count: result.colsFolded,
+        field: fieldLabels[colField].toLowerCase(),
+      }),
+    );
   }
+  const foldedText =
+    foldedParts.length === 2
+      ? t("foldedAnd", { a: foldedParts[0], b: foldedParts[1] })
+      : (foldedParts[0] ?? "");
 
   return (
-    <Card title="Pivot" subtitle="In scope · issue count">
+    <Card title={t("pivot")} subtitle={t("pivotSubtitle")}>
       <div
         data-testid="pivot-controls"
         className="flex flex-wrap items-center gap-2"
       >
         <FieldPicker
-          label="Rows"
+          label={t("rows")}
           value={rowField}
           exclude={colField}
           onChange={setRowField}
+          fieldLabels={fieldLabels}
           testId="pivot-row-field"
         />
         <span
@@ -88,26 +123,22 @@ export function PivotCard({
           ×
         </span>
         <FieldPicker
-          label="Columns"
+          label={t("columns")}
           value={colField}
           exclude={rowField}
           onChange={setColField}
+          fieldLabels={fieldLabels}
           testId="pivot-col-field"
         />
       </div>
       <PivotMatrix result={result} />
-      {folded.length > 0 && (
+      {foldedText && (
         <p className="text-[11px] text-muted-foreground">
-          Top buckets shown; {folded.join(" and ")} folded into an Other bucket.
+          {t("foldedNote", { folded: foldedText })}
         </p>
       )}
     </Card>
   );
-}
-
-function foldNote(count: number, fieldLabel: string): string {
-  const noun = fieldLabel.toLowerCase();
-  return `${count} ${noun} value${count === 1 ? "" : "s"}`;
 }
 
 function FieldPicker({
@@ -115,6 +146,7 @@ function FieldPicker({
   value,
   exclude,
   onChange,
+  fieldLabels,
   testId,
 }: {
   label: string;
@@ -123,21 +155,24 @@ function FieldPicker({
    *  is not the same field. */
   exclude: PivotFieldKey;
   onChange: (value: PivotFieldKey) => void;
+  /** Locale-resolved field-name labels, keyed by pivot field (REEF-304). */
+  fieldLabels: Record<PivotFieldKey, string>;
   testId: string;
 }) {
+  const t = useTranslations("reports.cards");
   const options: ComboboxOption<PivotFieldKey>[] = PIVOT_FIELD_KEYS.filter(
     (key) => key !== exclude,
   ).map((key) => ({
     value: key,
-    label: PIVOT_FIELD_LABELS[key],
-    content: PIVOT_FIELD_LABELS[key],
+    label: fieldLabels[key],
+    content: fieldLabels[key],
     testId: `${testId}-option-${key}`,
   }));
   return (
     <div className="flex items-center gap-1.5">
       <span className="text-[11px] text-muted-foreground">{label}</span>
       <Combobox<PivotFieldKey>
-        ariaLabel={`${label} field`}
+        ariaLabel={t("fieldPickerAria", { label })}
         value={value}
         onChange={(next) => {
           if (next) onChange(next);

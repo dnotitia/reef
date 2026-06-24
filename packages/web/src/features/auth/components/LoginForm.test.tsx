@@ -1,3 +1,4 @@
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -26,7 +27,11 @@ function makeQueryClient() {
 function renderWithQueryClient(ui: ReactElement) {
   const queryClient = makeQueryClient();
   const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-  render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+  render(
+    <QueryClientProvider client={queryClient}>
+      <IntlTestProvider>{ui}</IntlTestProvider>
+    </QueryClientProvider>,
+  );
   return { invalidateSpy, queryClient };
 }
 

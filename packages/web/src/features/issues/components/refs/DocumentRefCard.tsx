@@ -9,6 +9,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { AkbDocumentReference } from "@reef/core";
 import { Check, Copy, ExternalLink, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 
 // Deployment-managed akb web base; absent → the card hides "open" and offers
@@ -35,6 +36,7 @@ export function DocumentRefCard({
   onRemove,
   disabled = false,
 }: DocumentRefCardProps) {
+  const t = useTranslations("issues.refs");
   const title = reference.title ?? akbDocumentSlugTitle(reference.uri);
   const breadcrumb = akbDocumentBreadcrumb(reference.uri);
   const openUrl = buildAkbDocumentUrl(AKB_WEB_BASE, reference.uri);
@@ -81,7 +83,7 @@ export function DocumentRefCard({
             href={openUrl}
             target="_blank"
             rel="noreferrer"
-            aria-label="Open document in akb"
+            aria-label={t("openInAkb")}
             className="text-muted-foreground hover:text-foreground"
           >
             <ExternalLink className="size-3.5" />
@@ -89,7 +91,7 @@ export function DocumentRefCard({
         ) : null}
         <button
           type="button"
-          aria-label={copied ? "akb URI copied" : "Copy akb URI"}
+          aria-label={copied ? t("akbUriCopied") : t("copyAkbUri")}
           onClick={handleCopy}
           className="text-muted-foreground hover:text-foreground"
         >
@@ -102,7 +104,7 @@ export function DocumentRefCard({
         {onRemove ? (
           <button
             type="button"
-            aria-label="Remove linked document"
+            aria-label={t("removeLinkedDocument")}
             disabled={disabled}
             onClick={onRemove}
             className="text-muted-foreground hover:text-foreground disabled:opacity-50"

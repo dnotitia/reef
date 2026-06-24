@@ -6,7 +6,9 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useEnrichmentEmptyLabels } from "@/i18n/fieldLabels";
 import type { EnrichedVaultSummary } from "@reef/core";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 interface VaultPickerInputProps {
@@ -46,10 +48,13 @@ export function VaultPickerInput({
   isError,
   allowNone = false,
   testIdPrefix = "active-vault",
-  placeholder = "Select workspace…",
+  placeholder,
 }: VaultPickerInputProps) {
+  const t = useTranslations("settings.misc");
+  const empty = useEnrichmentEmptyLabels();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const resolvedPlaceholder = placeholder ?? t("selectWorkspacePlaceholder");
 
   if (isLoading) {
     return <Skeleton className="h-9 w-64" />;
@@ -62,7 +67,7 @@ export function VaultPickerInput({
         className="text-xs text-destructive"
         data-testid="vault-picker-load-error"
       >
-        Couldn&apos;t load your workspaces. Try signing out and back in.
+        {t("workspacesLoadError")}
       </p>
     );
   }
@@ -82,9 +87,11 @@ export function VaultPickerInput({
       <PopoverTrigger
         data-testid={`${testIdPrefix}-trigger`}
         className="inline-flex h-8 w-64 items-center justify-between rounded-md border border-border bg-elevated px-2.5 text-[13px] text-foreground transition-colors duration-150 hover:bg-surface-hover"
-        aria-label={value ? `Active workspace: ${value}` : placeholder}
+        aria-label={
+          value ? t("activeWorkspace", { value }) : resolvedPlaceholder
+        }
       >
-        <span className="truncate">{value || placeholder}</span>
+        <span className="truncate">{value || resolvedPlaceholder}</span>
         <span
           aria-hidden
           className="ml-2 shrink-0 text-xs text-muted-foreground"
@@ -96,8 +103,8 @@ export function VaultPickerInput({
         <input
           type="text"
           className="mb-2 w-full rounded-md border border-border bg-elevated px-2 py-1 text-[13px] text-foreground outline-none transition-colors focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/30"
-          placeholder="Search workspaces…"
-          aria-label="Search workspaces"
+          placeholder={t("searchWorkspacesPlaceholder")}
+          aria-label={t("searchWorkspacesLabel")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           data-testid={`${testIdPrefix}-search`}
@@ -110,13 +117,13 @@ export function VaultPickerInput({
                 className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 onClick={() => handleSelect("")}
               >
-                None
+                {empty.none}
               </button>
             </li>
           )}
           {filtered.length === 0 && (
             <li className="px-2 py-1.5 text-sm text-muted-foreground">
-              No workspaces found.
+              {t("noWorkspacesFound")}
             </li>
           )}
           {filtered.map((v) => (

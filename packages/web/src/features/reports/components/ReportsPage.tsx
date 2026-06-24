@@ -6,12 +6,12 @@ import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageHeader } from "@/features/ui/components/PageHeader";
-import { useSeverityLabels } from "@/i18n/fieldLabels";
+import { useIssueTypeLabels, useSeverityLabels } from "@/i18n/fieldLabels";
 import { ACTIVE_STATUSES, type Status } from "@reef/core";
+import { useTranslations } from "next-intl";
 import { useCallback, useMemo, useState } from "react";
 import {
   DEFAULT_REPORT_FILTERS,
-  PERIOD_LABELS,
   type ReportFilters,
   computeAggregates,
 } from "../lib/aggregate";
@@ -20,6 +20,7 @@ import {
   DEFAULT_FORECAST_HORIZON_WEEKS,
   computeForecast,
 } from "../lib/monteCarlo";
+import { useReportPeriodLabels } from "../lib/useReportPeriodLabels";
 import { ForecastCard } from "./ForecastCard";
 import { HealthRollup } from "./HealthRollup";
 import { PivotCard } from "./PivotCard";
@@ -38,7 +39,6 @@ import {
   NamedRows,
   RowEmpty,
   StatusFunnel,
-  TYPE_META,
   formatSigned,
 } from "./ReportSummarySections";
 
@@ -47,7 +47,12 @@ import {
 const ACTIVE_STATUS_SET = new Set<Status>(ACTIVE_STATUSES);
 
 export function ReportsPage() {
+  const t = useTranslations("reports.page");
+  const nav = useTranslations("nav");
+  const c = useTranslations("common");
+  const periodLabels = useReportPeriodLabels();
   const severityLabels = useSeverityLabels();
+  const issueTypeLabels = useIssueTypeLabels();
   const { vault, isLoading: vaultLoading } = useActiveVault();
   const issuesQuery = useIssueList(vault);
   const planningQuery = usePlanningCatalog(vault);
@@ -122,7 +127,7 @@ export function ReportsPage() {
     // section-level empty/error states that do carry a vault.
     return (
       <div className="flex h-full flex-col">
-        <PageHeader title="Reports" />
+        <PageHeader title={nav("reports")} />
         <EmptyWorkspaceNotice />
       </div>
     );
@@ -146,14 +151,14 @@ export function ReportsPage() {
           <p className="text-sm text-destructive">
             {issuesQuery.error instanceof Error
               ? issuesQuery.error.message
-              : "Failed to load issues."}
+              : t("failedToLoad")}
           </p>
           <Button
             variant="outline"
             size="sm"
             onClick={() => void issuesQuery.refetch()}
           >
-            Retry
+            {c("retry")}
           </Button>
         </div>
       </PageShell>
@@ -164,9 +169,7 @@ export function ReportsPage() {
     return (
       <PageShell description={vault || undefined}>
         <EmptyState>
-          <p className="text-sm text-muted-foreground">
-            No active issues yet. Create one to start building reports.
-          </p>
+          <p className="text-sm text-muted-foreground">{t("noActiveIssues")}</p>
         </EmptyState>
       </PageShell>
     );
@@ -180,8 +183,7 @@ export function ReportsPage() {
         {agg.filteredTotal === 0 ? (
           <EmptyState>
             <p className="text-sm text-muted-foreground">
-              No matching report data. Adjust the report scope to widen the
-              view.
+              {t("noMatchingData")}
             </p>
             {/* A parent drill empties the page without leaving a scope-bar
                 control to undo it (unlike the planning axes), and the rollup row
@@ -199,7 +201,7 @@ export function ReportsPage() {
                   }))
                 }
               >
-                Clear parent filter
+                {t("clearParentFilter")}
                 {parentScopeName ? `: ${parentScopeName}` : ""}
               </Button>
             )}
@@ -211,7 +213,7 @@ export function ReportsPage() {
           // apart (gap-10) than the cards within a section (gap-6) so the
           // grouping reads from rhythm as well as from the labels.
           <div className="flex flex-col gap-10">
-            <ReportSection label="Snapshot">
+            <ReportSection label={t("snapshot")}>
               <div className="flex flex-col gap-4">
                 <HealthSummary agg={agg} />
 
@@ -231,21 +233,26 @@ export function ReportsPage() {
               </div>
             </ReportSection>
 
-            <ReportSection label="Flow & forecast">
+            <ReportSection label={t("flowForecast")}>
               <div className="flex flex-col gap-6">
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                  <Card
-                    title="Risk map"
-                    subtitle="Open work · priority × last update"
-                  >
+                  <Card title={t("riskMap")} subtitle={t("riskMapSubtitle")}>
                     <RiskMatrix buckets={agg.riskMatrix} />
                   </Card>
 
                   <Card
-                    title="Throughput"
-                    subtitle={`${PERIOD_LABELS[filters.period]} · ${formatSigned(
-                      netValue,
-                    )} ${pointsMode ? "pts net" : "net"}`}
+                    title={t("throughput")}
+                    subtitle={
+                      pointsMode
+                        ? t("throughputSubtitlePoints", {
+                            period: periodLabels[filters.period],
+                            net: formatSigned(netValue),
+                          })
+                        : t("throughputSubtitleCount", {
+                            period: periodLabels[filters.period],
+                            net: formatSigned(netValue),
+                          })
+                    }
                   >
                     <NetThroughputChart
                       points={agg.netThroughput}
@@ -260,7 +267,7 @@ export function ReportsPage() {
                 <ForecastCard
                   forecast={forecast}
                   now={nowMs}
-                  periodLabel={PERIOD_LABELS[filters.period]}
+                  periodLabel={periodLabels[filters.period]}
                 />
 
                 {/* Custom crosstab — the one card that answers an ad-hoc cross
@@ -271,14 +278,14 @@ export function ReportsPage() {
               </div>
             </ReportSection>
 
-            <ReportSection label="Breakdown">
+            <ReportSection label={t("breakdown")}>
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 <Card
-                  title="Workflow"
+                  title={t("workflow")}
                   subtitle={
                     pointsMode
-                      ? `Story points · ${agg.total} in scope`
-                      : `${agg.total} in scope`
+                      ? t("workflowSubtitlePoints", { total: agg.total })
+                      : t("workflowSubtitleCount", { total: agg.total })
                   }
                 >
                   <StatusFunnel rows={agg.byStatus} measure={filters.measure} />
@@ -287,13 +294,13 @@ export function ReportsPage() {
                 <DeadlineCard agg={agg} />
 
                 <Card
-                  title="By type"
-                  subtitle={pointsMode ? "Story points · in scope" : "In scope"}
+                  title={t("byType")}
+                  subtitle={pointsMode ? t("storyPointsInScope") : t("inScope")}
                 >
                   <RankedBarList
                     rows={agg.byType.map((b) => ({
                       key: b.type,
-                      label: TYPE_META[b.type].label,
+                      label: issueTypeLabels[b.type],
                       value: pointsMode ? b.points : b.count,
                     }))}
                   />
@@ -308,9 +315,9 @@ export function ReportsPage() {
                     a colored bar would re-encode that identity. */}
                 {agg.bySeverity.length > 0 && (
                   <Card
-                    title="By severity"
+                    title={t("bySeverity")}
                     subtitle={
-                      pointsMode ? "Story points · in scope" : "In scope"
+                      pointsMode ? t("storyPointsInScope") : t("inScope")
                     }
                   >
                     <RankedBarList
@@ -324,9 +331,11 @@ export function ReportsPage() {
                 )}
 
                 <Card
-                  title="Top assignees"
+                  title={t("topAssignees")}
                   subtitle={
-                    pointsMode ? "Story points · top 5" : "In scope, top 5"
+                    pointsMode
+                      ? t("topAssigneesSubtitlePoints")
+                      : t("topAssigneesSubtitleCount")
                   }
                 >
                   {agg.topAssignees.length === 0 ? (
@@ -340,9 +349,11 @@ export function ReportsPage() {
                 </Card>
 
                 <Card
-                  title="Top labels"
+                  title={t("topLabels")}
                   subtitle={
-                    pointsMode ? "Story points · top 8" : "In scope, top 8"
+                    pointsMode
+                      ? t("topLabelsSubtitlePoints")
+                      : t("topLabelsSubtitleCount")
                   }
                 >
                   {agg.topLabels.length === 0 ? (

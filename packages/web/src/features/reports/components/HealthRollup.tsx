@@ -1,9 +1,10 @@
 "use client";
 
 import { formatDisplayDate } from "@/features/issues/lib/dateHelpers";
+import { useEnrichmentEmptyLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { IssueListItem, PlanningCatalog } from "@reef/core";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { memo, useMemo, useState } from "react";
 import type { ReportFilters } from "../lib/aggregate";
 import { DAY_MS } from "../lib/aggregateModel";
@@ -12,9 +13,13 @@ import {
   ROLLUP_DIMENSIONS,
   type RagLevel,
   type RollupDimension,
+  type VerdictReason,
   computeHealthRollup,
   distinctParentIds,
 } from "../lib/healthRollup";
+
+/** A loose translator for the runtime-built `reason.{code}` / day-count keys. */
+type LooseT = (key: string, values?: Record<string, string | number>) => string;
 
 /**
  * Portfolio health rollup (REEF-191, parent axis REEF-187). A worst-first
@@ -28,23 +33,44 @@ import {
  * parent ranked side by side, worst-first (REEF-187).
  */
 
-/** RAG → token + label. Mirrors the `STATUS_COLOR` / `TYPE_META` convention
- *  (a TS record pointing at existing CSS tokens) rather than minting new
- *  globals — On track reuses the done green, At risk the medium-priority amber,
- *  Off track the destructive red. */
-const RAG_META: Record<RagLevel, { label: string; color: string }> = {
-  on_track: { label: "On track", color: "var(--status-done)" },
-  at_risk: { label: "At risk", color: "var(--priority-medium)" },
-  off_track: { label: "Off track", color: "var(--destructive)" },
+/** RAG → CSS token. Mirrors the `STATUS_COLOR` convention (a TS record pointing
+ *  at existing CSS tokens) rather than minting new globals — On track reuses the
+ *  done green, At risk the medium-priority amber, Off track the destructive red.
+ *  The verdict *labels* are locale-aware and resolved from `reports.cards.rag.*`
+ *  at render (REEF-304), not hardcoded here. */
+const RAG_COLOR: Record<RagLevel, string> = {
+  on_track: "var(--status-done)",
+  at_risk: "var(--priority-medium)",
+  off_track: "var(--destructive)",
 };
 
-const DIMENSION_LABEL: Record<RollupDimension, { one: string; many: string }> =
-  {
-    milestone: { one: "Milestone", many: "Milestones" },
-    sprint: { one: "Sprint", many: "Sprints" },
-    release: { one: "Release", many: "Releases" },
-    parent: { one: "Parent", many: "Parents" },
-  };
+/** Dimension display labels keyed `{dim}.{one|many}`, resolved at render from the
+ *  locale catalog (REEF-304) so the rollup header, toggle, and empty state read
+ *  Korean instead of an interpolated English noun. */
+const DIMENSION_KEYS = ["milestone", "sprint", "release", "parent"] as const;
+
+function useDimensionLabels(): Record<
+  RollupDimension,
+  { one: string; many: string }
+> {
+  // The `{dim}.{one|many}` keys are built at runtime, so the typed namespace
+  // translator can't carry them — cast to a plain key→string lookup (the same
+  // pattern `i18n/fieldLabels` uses for its enum-keyed records). Each leaf is a
+  // string, and the concrete keys are exercised by the reports render.
+  const t = useTranslations("reports.cards") as unknown as (
+    key: string,
+  ) => string;
+  return useMemo(() => {
+    const out = {} as Record<RollupDimension, { one: string; many: string }>;
+    for (const dim of DIMENSION_KEYS) {
+      out[dim] = {
+        one: t(`dimension.${dim}.one`),
+        many: t(`dimension.${dim}.many`),
+      };
+    }
+    return out;
+  }, [t]);
+}
 
 const AXIS_KEY: Record<RollupDimension, keyof ReportFilters> = {
   milestone: "milestone_id",
@@ -89,6 +115,8 @@ export function HealthRollup({
   );
   const [dimension, setDimension] = useState<RollupDimension>("milestone");
   const [showShipped, setShowShipped] = useState(false);
+  const t = useTranslations("reports.cards");
+  const dimensionLabel = useDimensionLabels();
 
   const activeDim = availableDims.includes(dimension)
     ? dimension
@@ -113,10 +141,10 @@ export function HealthRollup({
     (r) => r.verdict?.level === "at_risk",
   ).length;
   const flags = [
-    offTrack > 0 ? `${offTrack} off track` : null,
-    atRisk > 0 ? `${atRisk} at risk` : null,
+    offTrack > 0 ? t("flagOffTrack", { count: offTrack }) : null,
+    atRisk > 0 ? t("flagAtRisk", { count: atRisk }) : null,
   ].filter(Boolean);
-  const label = DIMENSION_LABEL[activeDim];
+  const label = dimensionLabel[activeDim];
   const activeId = filters[AXIS_KEY[activeDim]];
 
   return (
@@ -127,7 +155,7 @@ export function HealthRollup({
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-baseline gap-2">
           <h3 className="text-sm font-semibold text-foreground">
-            Portfolio health
+            {t("portfolioHealth")}
           </h3>
           <span className="text-[11px] text-muted-foreground">
             {visibleRows.length}{" "}
@@ -149,7 +177,7 @@ export function HealthRollup({
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              Show shipped
+              {t("showShipped")}
             </button>
           )}
           {availableDims.length > 1 && (
@@ -164,7 +192,7 @@ export function HealthRollup({
 
       {visibleRows.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          No {label.many.toLowerCase()} to show.
+          {t("noneToShow", { dimension: label.many.toLowerCase() })}
         </p>
       ) : (
         <ul className="flex flex-col gap-1.5">
@@ -191,11 +219,13 @@ function DimensionToggle({
   active: RollupDimension;
   onSelect: (dim: RollupDimension) => void;
 }) {
+  const t = useTranslations("reports.cards");
+  const dimensionLabel = useDimensionLabels();
   return (
     // biome-ignore lint/a11y/useSemanticElements: a header toggle group is not a form <fieldset>; role="group" + aria-label is the right semantics here (matches ViewSwitcher).
     <div
       role="group"
-      aria-label="Rollup dimension"
+      aria-label={t("rollupDimension")}
       data-testid="health-rollup-dimension"
       className="inline-flex items-center gap-0.5 rounded-md border border-border-subtle bg-elevated p-0.5"
     >
@@ -215,7 +245,7 @@ function DimensionToggle({
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
-            {DIMENSION_LABEL[dim].many}
+            {dimensionLabel[dim].many}
           </button>
         );
       })}
@@ -232,8 +262,19 @@ const HealthRow = memo(function HealthRow({
   active: boolean;
   onDrill: (dimension: RollupDimension, id: string) => void;
 }) {
-  const meta = row.verdict ? RAG_META[row.verdict.level] : null;
+  // Verdict label is locale-aware (`reports.cards.rag.*`); the color stays a
+  // local CSS-token lookup. Cast for the runtime-built `rag.{level}` key.
+  const t = useTranslations("reports.cards") as unknown as (
+    key: string,
+  ) => string;
+  const meta = row.verdict
+    ? {
+        label: t(`rag.${row.verdict.level}`),
+        color: RAG_COLOR[row.verdict.level],
+      }
+    : null;
   const rail = meta?.color ?? "var(--border-subtle)";
+  const empty = useEnrichmentEmptyLabels();
 
   return (
     <li>
@@ -272,7 +313,7 @@ const HealthRow = memo(function HealthRow({
               </span>
             ) : (
               <span className="shrink-0 text-[11px] text-muted-foreground">
-                Empty
+                {empty.empty}
               </span>
             )}
           </div>
@@ -291,31 +332,44 @@ const HealthRow = memo(function HealthRow({
   );
 });
 
+/** Localize a structured verdict reason (REEF-304). The `reason.{code}` key is
+ *  built at runtime, so the caller passes a loose translator. */
+function reasonText(t: LooseT, reason: VerdictReason): string {
+  return t(
+    `reason.${reason.code}`,
+    reason.count != null ? { count: reason.count } : undefined,
+  );
+}
+
 function Subline({ row }: { row: HealthRollupRow }) {
   const locale = useLocale();
+  // Loose translator for the runtime-built reason/day-count keys (the day count
+  // stays a number — only the surrounding words localize; date formatting itself
+  // is REEF-294's dateHelpers).
+  const t = useTranslations("reports.cards") as unknown as LooseT;
   const parts: string[] = [];
   if (row.shipped) {
-    parts.push("Shipped");
+    parts.push(t("sublineShipped"));
   } else if (row.targetDate) {
-    parts.push(
-      `${formatDisplayDate(row.targetDate.slice(0, 10), locale)} · ${deadlineNote(row.targetDate)}`,
-    );
+    const note = deadlineNote(t, row.targetDate);
+    const date = formatDisplayDate(row.targetDate.slice(0, 10), locale);
+    parts.push(note ? `${date} · ${note}` : date);
   } else if (row.verdict) {
-    parts.push("No target date");
+    parts.push(t("sublineNoTarget"));
   }
   if (row.verdict && row.verdict.level !== "on_track") {
-    parts.push(row.verdict.reason);
+    parts.push(reasonText(t, row.verdict.reason));
   }
-  if (!row.verdict) parts.push("No issues yet");
+  if (!row.verdict) parts.push(t("sublineNoIssues"));
   return <>{parts.join(" · ")}</>;
 }
 
-function deadlineNote(targetDate: string): string {
+function deadlineNote(t: LooseT, targetDate: string): string {
   const days = Math.round((Date.parse(targetDate) - Date.now()) / DAY_MS);
   if (Number.isNaN(days)) return "";
-  if (days === 0) return "due today";
-  if (days > 0) return `${days}d left`;
-  return `${-days}d overdue`;
+  if (days === 0) return t("dueToday");
+  if (days > 0) return t("daysLeft", { days });
+  return t("daysOverdue", { days: -days });
 }
 
 function CompletionBar({ value }: { value: number }) {

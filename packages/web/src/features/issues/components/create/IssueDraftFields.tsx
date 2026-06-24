@@ -5,9 +5,13 @@ import { EnumSelectField } from "@/components/fields/EnumSelectField";
 import { Input } from "@/components/ui/input";
 import { LabelChipInput } from "@/components/ui/label-chip-input";
 import { PriorityBadge } from "@/components/ui/priority-dot";
-import { useFieldNameLabels } from "@/i18n/fieldLabels";
+import {
+  useEnrichmentEmptyLabels,
+  useFieldNameLabels,
+} from "@/i18n/fieldLabels";
 import { PRIORITY_OPTIONS } from "@reef/core/fields";
 import { NO_SELECTION } from "@reef/core/fields";
+import { useTranslations } from "next-intl";
 import { type ReactNode, type Ref, useId } from "react";
 import type { PrioritySelection } from "../../lib/issueDraftForm";
 import { IssueFieldRow } from "../shared/IssueFieldRow";
@@ -99,11 +103,20 @@ export function IssueDraftFields({
   priorityTestId,
   labelsTestId,
   bodyTestId,
-  titlePlaceholder = "Issue title",
-  bodyPlaceholder = "Describe the issue…",
+  titlePlaceholder,
+  bodyPlaceholder,
 }: IssueDraftFieldsProps) {
   const priorityLabelId = useId();
   const fieldNames = useFieldNameLabels();
+  const emptyLabels = useEnrichmentEmptyLabels();
+  const sections = useTranslations("sections");
+  const common = useTranslations("common");
+  const t = useTranslations("issues.create");
+  // Fall back to the catalog defaults when a caller doesn't supply its own
+  // placeholder (the create dialog uses these; ActivityDraftCard passes its own).
+  const resolvedTitlePlaceholder = titlePlaceholder ?? t("titlePlaceholder");
+  const resolvedBodyPlaceholder =
+    bodyPlaceholder ?? t("descriptionPlaceholder");
   const wrap = (field: DraftFieldKey, control: ReactNode): ReactNode =>
     renderField ? renderField(field, control) : control;
   const fieldGridClass =
@@ -120,7 +133,7 @@ export function IssueDraftFields({
           className="text-xs font-medium text-muted-foreground"
           htmlFor={titleId}
         >
-          Title
+          {fieldNames.title}
         </label>
         {titleAction}
       </div>
@@ -132,7 +145,7 @@ export function IssueDraftFields({
           data-testid={titleTestId}
           value={title}
           onChange={(e) => onTitleChange(e.target.value)}
-          placeholder={titlePlaceholder}
+          placeholder={resolvedTitlePlaceholder}
           autoFocus
           disabled={disabled}
         />,
@@ -149,8 +162,8 @@ export function IssueDraftFields({
       onValueChange={(value) => onPriorityChange(value as PrioritySelection)}
       options={PRIORITY_OPTIONS}
       renderItem={(p) => <PriorityBadge priority={p} />}
-      placeholder="No priority"
-      noneOption={{ value: NO_SELECTION, label: "No priority" }}
+      placeholder={emptyLabels.noPriority}
+      noneOption={{ value: NO_SELECTION, label: emptyLabels.noPriority }}
       testId={priorityTestId}
       ariaLabelledby={priorityLabelId}
       disabled={disabled}
@@ -190,7 +203,7 @@ export function IssueDraftFields({
           data-testid={labelsTestId}
           value={labels}
           onChange={onLabelsChange}
-          placeholder="Add a label and press Enter…"
+          placeholder={common("addLabelPlaceholder")}
           disabled={disabled}
         />,
       )}
@@ -198,16 +211,16 @@ export function IssueDraftFields({
   );
 
   const descriptionField = (
-    <IssueFormSection title="Description" action={descriptionAction}>
+    <IssueFormSection title={fieldNames.description} action={descriptionAction}>
       <div data-testid={bodyTestId}>
         {wrap(
           "content",
           <MarkdownEditor
             value={body}
             onChange={onBodyChange}
-            placeholder={bodyPlaceholder}
+            placeholder={resolvedBodyPlaceholder}
             readOnly={disabled}
-            ariaLabel="Issue description"
+            ariaLabel={t("descriptionAriaLabel")}
           />,
         )}
       </div>
@@ -234,7 +247,7 @@ export function IssueDraftFields({
               mirrors the issue detail rail instead of a `grid-cols-2` half-grid.
               Labels stays stacked — its chip input wraps to multiple lines, so
               full width reads better than a fixed-gutter row. */}
-          <IssueFormSection title="Details">
+          <IssueFormSection title={sections("details")}>
             {primaryField}
             <IssueFieldRow
               label={fieldNames.priority}
@@ -253,7 +266,7 @@ export function IssueDraftFields({
 
   return (
     <div className="flex flex-col gap-4">
-      <IssueFormSection title="Details">
+      <IssueFormSection title={sections("details")}>
         {titleField}
         {inlineFields}
         {labelsField}

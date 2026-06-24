@@ -18,7 +18,10 @@ import {
   useIssueTemplates,
   useUpsertIssueTemplate,
 } from "@/features/settings/hooks/useIssueTemplates";
-import { useFieldNameLabels } from "@/i18n/fieldLabels";
+import {
+  useEnrichmentEmptyLabels,
+  useFieldNameLabels,
+} from "@/i18n/fieldLabels";
 import {
   type Priority,
   TEMPLATE_NAME_PATTERN,
@@ -56,8 +59,11 @@ function emptyDraft(): Template {
  */
 export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
   const t = useTranslations("toasts");
+  const tt = useTranslations("settings.templates");
+  const c = useTranslations("common");
   const { vault, isLoading: vaultLoading } = useActiveVault();
   const fieldNames = useFieldNameLabels();
+  const empty = useEnrichmentEmptyLabels();
   const query = useIssueTemplates(vault);
   const upsert = useUpsertIssueTemplate(vault);
   const remove = useDeleteIssueTemplate(vault);
@@ -127,18 +133,16 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
     };
 
     if (!TEMPLATE_NAME_PATTERN.test(draft.name)) {
-      setError("Name must be lowercase letters, digits, and hyphens only.");
+      setError(tt("nameInvalid"));
       return;
     }
     if (draft.label.trim().length === 0) {
-      setError("Label is required.");
+      setError(tt("labelRequired"));
       return;
     }
     if (editor.originalName === null) {
       if (templates.some((t) => t.name === draft.name)) {
-        setError(
-          `A template named "${draft.name}" already exists. Edit it or pick a different name.`,
-        );
+        setError(tt("nameTaken", { name: draft.name }));
         return;
       }
     }
@@ -159,11 +163,7 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
   }
 
   async function confirmDelete(template: Template) {
-    if (
-      !window.confirm(
-        `Delete template "${template.label}"? This removes it from the shared workspace.`,
-      )
-    ) {
+    if (!window.confirm(tt("deleteConfirm", { label: template.label }))) {
       return;
     }
     try {
@@ -194,9 +194,8 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
           {canEdit ? (
             <>
               <p className="text-sm text-muted-foreground">
-                No templates yet. Click <strong>New template</strong> to add
-                one, or start with the six defaults (Epic, Story, Task, Bug,
-                Spike, Chore).
+                {tt("emptyPromptPrefix")} <strong>{tt("newTemplate")}</strong>{" "}
+                {tt("emptyPromptSuffix")}
               </p>
               <Button
                 type="button"
@@ -207,12 +206,12 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
                 data-testid="templates-seed-defaults"
                 className="w-fit"
               >
-                {seeding ? "Seeding…" : "Seed default templates"}
+                {seeding ? tt("seeding") : tt("seedDefaults")}
               </Button>
             </>
           ) : (
             <p className="text-sm text-muted-foreground">
-              No issue templates in this workspace yet.
+              {tt("emptyReadOnly")}
             </p>
           )}
         </div>
@@ -249,7 +248,7 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
                   disabled={saving || deleting}
                   data-testid={`templates-edit-${template.name}`}
                 >
-                  Edit
+                  {c("edit")}
                 </Button>
                 <Button
                   type="button"
@@ -259,7 +258,7 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
                   disabled={saving || deleting}
                   data-testid={`templates-delete-${template.name}`}
                 >
-                  Delete
+                  {c("delete")}
                 </Button>
               </div>
             ) : (
@@ -270,7 +269,7 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
                 onClick={() => startEdit(template)}
                 data-testid={`templates-view-${template.name}`}
               >
-                View
+                {c("view")}
               </Button>
             )}
           </li>
@@ -285,7 +284,7 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
         className="text-sm text-muted-foreground"
         data-testid="templates-section-no-vault"
       >
-        Choose a workspace above before defining issue templates.
+        {tt("noVault")}
       </p>
     );
   }
@@ -297,7 +296,7 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
         className="text-sm text-destructive"
         data-testid="templates-section-load-error"
       >
-        Couldn't load templates: {query.error.message}
+        {tt("loadError")} {query.error.message}
       </p>
     );
   }
@@ -305,9 +304,7 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
   return (
     <div className="flex flex-col gap-3" data-testid="templates-section">
       <div className="flex items-start justify-between gap-2">
-        <p className="text-xs text-muted-foreground">
-          Issue templates are shared with everyone using this workspace.
-        </p>
+        <p className="text-xs text-muted-foreground">{tt("shared")}</p>
         {editor === null && canEdit && (
           <Button
             type="button"
@@ -316,7 +313,7 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
             disabled={saving || deleting}
             data-testid="templates-new-button"
           >
-            New template
+            {tt("newTemplate")}
           </Button>
         )}
       </div>
@@ -330,32 +327,34 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
         >
           <p className="text-sm font-medium text-foreground">
             {!canEdit
-              ? "Template details"
+              ? tt("templateDetails")
               : editor.originalName === null
-                ? "New template"
-                : "Edit template"}
+                ? tt("newTemplate")
+                : tt("editTemplate")}
           </p>
 
           <section className="grid gap-3">
-            <h3 className="text-xs font-semibold text-foreground">Basics</h3>
+            <h3 className="text-xs font-semibold text-foreground">
+              {tt("basics")}
+            </h3>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="flex flex-col gap-1 text-xs">
                 <label
                   htmlFor="templates-name"
                   className="text-muted-foreground"
                 >
-                  Name <span className="text-destructive">*</span>
+                  {tt("name")} <span className="text-destructive">*</span>
                 </label>
                 <Input
                   id="templates-name"
                   data-testid="templates-name-input"
                   value={editor.draft.name}
                   onChange={(e) => updateDraft("name", e.target.value)}
-                  placeholder="bug-report"
+                  placeholder="bug-report" // i18n-exempt: example slug token
                   disabled={editor.originalName !== null || editDisabled}
                 />
                 <span className="text-muted-foreground/70">
-                  Lowercase letters, digits, and hyphens.
+                  {tt("nameHint")}
                 </span>
               </div>
 
@@ -364,14 +363,14 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
                   htmlFor="templates-label"
                   className="text-muted-foreground"
                 >
-                  Label <span className="text-destructive">*</span>
+                  {tt("label")} <span className="text-destructive">*</span>
                 </label>
                 <Input
                   id="templates-label"
                   data-testid="templates-label-input"
                   value={editor.draft.label}
                   onChange={(e) => updateDraft("label", e.target.value)}
-                  placeholder="Bug report"
+                  placeholder="Bug report" // i18n-exempt: example seed label
                   disabled={editDisabled}
                 />
               </div>
@@ -381,14 +380,14 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
                   htmlFor="templates-description"
                   className="text-muted-foreground"
                 >
-                  Description
+                  {fieldNames.description}
                 </label>
                 <Input
                   id="templates-description"
                   data-testid="templates-description-input"
                   value={editor.draft.description}
                   onChange={(e) => updateDraft("description", e.target.value)}
-                  placeholder="One-line hint shown under the label."
+                  placeholder={tt("descriptionHint")}
                   disabled={editDisabled}
                 />
               </div>
@@ -396,14 +395,16 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
           </section>
 
           <section className="grid gap-3">
-            <h3 className="text-xs font-semibold text-foreground">Defaults</h3>
+            <h3 className="text-xs font-semibold text-foreground">
+              {tt("defaults")}
+            </h3>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="flex flex-col gap-1 text-xs">
                 <label
                   htmlFor="templates-title-prefix"
                   className="text-muted-foreground"
                 >
-                  Title prefix
+                  {tt("titlePrefix")}
                 </label>
                 <Input
                   id="templates-title-prefix"
@@ -415,7 +416,7 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
                       e.target.value.length > 0 ? e.target.value : undefined,
                     )
                   }
-                  placeholder="Bug: "
+                  placeholder="Bug: " // i18n-exempt: example seed title prefix
                   disabled={editDisabled}
                 />
               </div>
@@ -441,10 +442,12 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
                     data-testid="templates-priority-trigger"
                     aria-labelledby="templates-priority-label"
                   >
-                    <SelectValue placeholder="No priority" />
+                    <SelectValue placeholder={empty.noPriority} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={NO_SELECTION}>No priority</SelectItem>
+                    <SelectItem value={NO_SELECTION}>
+                      {empty.noPriority}
+                    </SelectItem>
                     {PRIORITY_OPTIONS.map((p) => (
                       <SelectItem key={p} value={p}>
                         {p}
@@ -459,14 +462,14 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
                   htmlFor="templates-labels"
                   className="text-muted-foreground"
                 >
-                  Default labels
+                  {tt("defaultLabels")}
                 </label>
                 <LabelChipInput
                   id="templates-labels"
                   data-testid="templates-labels-input"
                   value={defaultLabels}
                   onChange={setDefaultLabels}
-                  placeholder="Add a label and press Enter…"
+                  placeholder={c("addLabelPlaceholder")}
                   disabled={editDisabled}
                 />
               </div>
@@ -475,13 +478,13 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
 
           <section className="flex flex-col gap-1 text-xs">
             <span id="templates-body-label" className="text-muted-foreground">
-              Body
+              {tt("body")}
             </span>
             <div aria-labelledby="templates-body-label">
               <MarkdownEditor
                 value={editor.draft.body}
                 onChange={(v) => updateDraft("body", v)}
-                placeholder="## Steps to reproduce..."
+                placeholder="## Steps to reproduce..." // i18n-exempt: example body scaffold
                 readOnly={editDisabled}
               />
             </div>
@@ -506,7 +509,7 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
               disabled={saving}
               data-testid="templates-editor-cancel"
             >
-              {canEdit ? "Cancel" : "Close"}
+              {canEdit ? c("cancel") : c("close")}
             </Button>
             {canEdit && (
               <Button
@@ -516,7 +519,7 @@ export function TemplatesSection({ canEdit = true }: { canEdit?: boolean }) {
                 disabled={saving}
                 data-testid="templates-editor-save"
               >
-                {saving ? "Saving…" : "Save"}
+                {saving ? tt("saving") : c("save")}
               </Button>
             )}
           </div>

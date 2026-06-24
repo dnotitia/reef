@@ -10,6 +10,7 @@ import {
 } from "@/features/settings/hooks/useProjectConfig";
 import { DEFAULT_CONFIG, PROJECT_PREFIX_PATTERN } from "@reef/core";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { ReadOnlyValue } from "./ReadOnlyValue";
 
@@ -19,6 +20,7 @@ import { ReadOnlyValue } from "./ReadOnlyValue";
  * see the current prefix read instead of the editable input.
  */
 export function ProjectSection({ canEdit = true }: { canEdit?: boolean }) {
+  const t = useTranslations("settings.config");
   const { vault: activeVault, isLoading: vaultLoading } = useActiveVault();
   const configQuery = useProjectConfig(activeVault);
   const updateConfig = useUpdateProjectConfig(activeVault);
@@ -36,7 +38,7 @@ export function ProjectSection({ canEdit = true }: { canEdit?: boolean }) {
         className="text-sm text-muted-foreground"
         data-testid="project-section-no-vault"
       >
-        Choose a workspace above before configuring the project prefix.
+        {t("project.noVault")}
       </p>
     );
   }
@@ -50,7 +52,7 @@ export function ProjectSection({ canEdit = true }: { canEdit?: boolean }) {
         className="text-sm text-destructive"
         data-testid="project-section-load-error"
       >
-        Couldn't load workspace config: {configQuery.error.message}
+        {t("loadError")} {configQuery.error.message}
       </p>
     );
   }
@@ -62,12 +64,14 @@ export function ProjectSection({ canEdit = true }: { canEdit?: boolean }) {
           id="project-prefix-label"
           className="text-sm font-medium text-foreground/90"
         >
-          Project Prefix
+          {t("project.label")}
         </p>
         <p className="text-xs text-muted-foreground">
-          Used to generate issue IDs like {serverPrefix}-001. Stored in the
-          vault's <code>_reef/config</code> document so the whole team shares
-          one prefix.
+          {t.rich("project.description", {
+            prefix: serverPrefix,
+            // `_reef/config` is a vault document path (code identifier), verbatim.
+            code: () => <code>_reef/config</code>, // i18n-exempt
+          })}
         </p>
       </div>
 
@@ -154,7 +158,7 @@ function ProjectPrefixEditor({
               void handleSave();
             }
           }}
-          placeholder="REEF"
+          placeholder={/* i18n-exempt: example project prefix (brand) */ "REEF"}
           className="w-32 uppercase"
           disabled={saving}
           autoComplete="off"

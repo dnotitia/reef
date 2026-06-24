@@ -25,6 +25,7 @@ import {
   SquareCode,
   Strikethrough,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 
 /**
@@ -200,6 +201,8 @@ export function MarkdownEditor({
   ariaLabel,
   onBlur,
 }: MarkdownEditorProps) {
+  const t = useTranslations("markdownEditor");
+  const c = useTranslations("common");
   const [sourceMode, setSourceMode] = useState(false);
   const [linkEditorOpen, setLinkEditorOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
@@ -380,28 +383,28 @@ export function MarkdownEditor({
             <div className="flex items-center gap-0.5">
               <ToolbarButton
                 icon={Bold}
-                label="Bold"
+                label={t("bold")}
                 isActive={active.bold}
                 disabled={sourceMode}
                 onClick={() => editor?.chain().focus().toggleBold().run()}
               />
               <ToolbarButton
                 icon={Italic}
-                label="Italic"
+                label={t("italic")}
                 isActive={active.italic}
                 disabled={sourceMode}
                 onClick={() => editor?.chain().focus().toggleItalic().run()}
               />
               <ToolbarButton
                 icon={Strikethrough}
-                label="Strikethrough"
+                label={t("strikethrough")}
                 isActive={active.strike}
                 disabled={sourceMode}
                 onClick={() => editor?.chain().focus().toggleStrike().run()}
               />
               <ToolbarButton
                 icon={Code}
-                label="Inline Code"
+                label={t("inlineCode")}
                 isActive={active.code}
                 disabled={sourceMode}
                 onClick={() => editor?.chain().focus().toggleCode().run()}
@@ -414,7 +417,7 @@ export function MarkdownEditor({
             <div className="flex items-center gap-0.5">
               <ToolbarButton
                 icon={Heading1}
-                label="Heading 1"
+                label={t("heading1")}
                 isActive={active.h1}
                 disabled={sourceMode}
                 onClick={() =>
@@ -423,7 +426,7 @@ export function MarkdownEditor({
               />
               <ToolbarButton
                 icon={Heading2}
-                label="Heading 2"
+                label={t("heading2")}
                 isActive={active.h2}
                 disabled={sourceMode}
                 onClick={() =>
@@ -432,7 +435,7 @@ export function MarkdownEditor({
               />
               <ToolbarButton
                 icon={Heading3}
-                label="Heading 3"
+                label={t("heading3")}
                 isActive={active.h3}
                 disabled={sourceMode}
                 onClick={() =>
@@ -447,14 +450,14 @@ export function MarkdownEditor({
             <div className="flex items-center gap-0.5">
               <ToolbarButton
                 icon={List}
-                label="Bullet List"
+                label={t("bulletList")}
                 isActive={active.bulletList}
                 disabled={sourceMode}
                 onClick={() => editor?.chain().focus().toggleBulletList().run()}
               />
               <ToolbarButton
                 icon={ListOrdered}
-                label="Numbered List"
+                label={t("numberedList")}
                 isActive={active.orderedList}
                 disabled={sourceMode}
                 onClick={() =>
@@ -469,21 +472,21 @@ export function MarkdownEditor({
             <div className="flex items-center gap-0.5">
               <ToolbarButton
                 icon={Quote}
-                label="Quote"
+                label={t("quote")}
                 isActive={active.blockquote}
                 disabled={sourceMode}
                 onClick={() => editor?.chain().focus().toggleBlockquote().run()}
               />
               <ToolbarButton
                 icon={SquareCode}
-                label="Code Block"
+                label={t("codeBlock")}
                 isActive={active.codeBlock}
                 disabled={sourceMode}
                 onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
               />
               <ToolbarButton
                 icon={Minus}
-                label="Divider"
+                label={t("divider")}
                 disabled={sourceMode}
                 onClick={() =>
                   editor?.chain().focus().setHorizontalRule().run()
@@ -497,7 +500,7 @@ export function MarkdownEditor({
             <div className="flex items-center gap-0.5">
               <ToolbarButton
                 icon={LinkIcon}
-                label="Link"
+                label={t("link")}
                 isActive={active.link || linkEditorOpen}
                 disabled={sourceMode}
                 onClick={() =>
@@ -516,9 +519,9 @@ export function MarkdownEditor({
               aria-pressed={sourceMode}
               onClick={toggleSourceMode}
               className="h-7 px-2 text-xs font-mono"
-              title="Toggle source mode"
+              title={t("toggleSourceMode")}
             >
-              Source
+              {t("source")}
             </Button>
           </div>
         </div>
@@ -544,8 +547,8 @@ export function MarkdownEditor({
                 closeLinkEditor();
               }
             }}
-            placeholder="https://example.com"
-            aria-label="Link URL"
+            placeholder="https://example.com" // i18n-exempt: example URL placeholder
+            aria-label={t("linkUrl")}
             data-testid="markdown-link-input"
             type="url"
             inputMode="url"
@@ -564,7 +567,7 @@ export function MarkdownEditor({
             onClick={applyLink}
             className="h-7 px-2 text-xs"
           >
-            Apply
+            {t("apply")}
           </Button>
           {active.link && (
             <Button
@@ -574,7 +577,7 @@ export function MarkdownEditor({
               onClick={removeLink}
               className="h-7 px-2 text-xs"
             >
-              Remove
+              {c("remove")}
             </Button>
           )}
           <Button
@@ -584,7 +587,7 @@ export function MarkdownEditor({
             onClick={closeLinkEditor}
             className="h-7 px-2 text-xs text-muted-foreground"
           >
-            Cancel
+            {c("cancel")}
           </Button>
         </div>
       )}

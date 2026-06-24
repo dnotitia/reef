@@ -29,6 +29,7 @@ import type { Status } from "@reef/core";
 import { PRIORITY_OPTIONS } from "@reef/core/fields";
 import { STATUS_OPTIONS } from "@reef/core/fields";
 import { X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useCallback, useMemo } from "react";
 import { formatLabelFilter, parseLabelFilter } from "../../lib/issueListUtils";
 import {
@@ -220,6 +221,10 @@ export function FilterBar({
   // Field-NAME labels for the facet triggers' aria/label text (REEF-301), so the
   // facet name localizes alongside its already-localized value summary.
   const fieldNames = useFieldNameLabels();
+  // Localized bar copy (REEF-298): the active-filter count, the milestone
+  // empty-state label, and the shared "Clear filters" action.
+  const t = useTranslations("issues.filters");
+  const c = useTranslations("common");
 
   const labelValues = useMemo(
     () => parseLabelFilter(filter.label),
@@ -430,7 +435,7 @@ export function FilterBar({
           onChange={(id) => setFilter({ milestone_id: id || undefined })}
           label={fieldNames.milestone}
           placeholder={fieldNames.milestone}
-          emptyLabel="Any milestone"
+          emptyLabel={t("anyMilestone")}
           active={Boolean(filter.milestone_id)}
           className={FILTER_FIELD_CLASS}
         />
@@ -499,7 +504,7 @@ export function FilterBar({
               className="inline-block h-1.5 w-1.5 rounded-full bg-brand"
               aria-hidden="true"
             />
-            {activeCount} filter{activeCount !== 1 ? "s" : ""}
+            {t("activeCount", { count: activeCount })}
           </span>
           <button
             type="button"
@@ -510,7 +515,7 @@ export function FilterBar({
             data-testid="clear-filters-button"
           >
             <X className="h-3 w-3" />
-            Clear filters
+            {c("clearFilters")}
           </button>
         </div>
       )}

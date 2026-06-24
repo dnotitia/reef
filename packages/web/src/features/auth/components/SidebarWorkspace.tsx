@@ -75,6 +75,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
   );
   const router = useRouter();
   const t = useTranslations("workspace");
+  const tw = useTranslations("auth.switcher");
 
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -91,7 +92,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
     [reefVaults, search],
   );
 
-  const label = activeVault || "Select workspace";
+  const label = activeVault || tw("selectWorkspace");
 
   async function handleSelect(next: string) {
     setOpen(false);
@@ -134,7 +135,9 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
         <PopoverTrigger
           data-testid="sidebar-workspace-trigger"
           aria-label={
-            activeVault ? `Workspace: ${activeVault}` : "Select a workspace"
+            activeVault
+              ? tw("workspaceAria", { name: activeVault })
+              : tw("selectWorkspaceAria")
           }
           title={collapsed ? label : undefined}
           className={cn(
@@ -160,7 +163,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
                     {label}
                   </span>
                   <span className="truncate text-[11px] leading-tight text-muted-foreground">
-                    Workspace
+                    {tw("workspace")}
                   </span>
                 </>
               )}
@@ -184,11 +187,11 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
           <input
             type="text"
             className="mb-2 w-full rounded-md border border-border bg-elevated px-2 py-1 text-[13px] text-foreground outline-none transition-colors focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/30"
-            placeholder="Search workspaces…"
+            placeholder={tw("searchPlaceholder")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             data-testid="workspace-switcher-search"
-            aria-label="Search workspaces"
+            aria-label={tw("searchLabel")}
             autoComplete="off"
             spellCheck={false}
           />
@@ -200,7 +203,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
                 className="px-2 py-1.5 text-[13px] text-destructive"
                 data-testid="workspace-switcher-error"
               >
-                Couldn&apos;t load your workspaces.
+                {tw("loadError")}
               </li>
             ) : vaultsQuery.isPending ? (
               // Don't claim "no workspaces" before the list has loaded — a cold
@@ -209,7 +212,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
                 className="px-2 py-1.5 text-[13px] text-muted-foreground"
                 data-testid="workspace-switcher-loading"
               >
-                Loading workspaces…
+                {tw("loading")}
               </li>
             ) : filtered.length === 0 ? (
               <li
@@ -217,8 +220,8 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
                 data-testid="workspace-switcher-empty"
               >
                 {reefVaults.length === 0
-                  ? "No reef workspaces yet."
-                  : "No workspaces found."}
+                  ? tw("noReefWorkspaces")
+                  : tw("noWorkspacesFound")}
               </li>
             ) : (
               filtered.map((v) => {
@@ -271,7 +274,7 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
             className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-[13px] text-foreground transition-colors hover:bg-surface-hover"
           >
             <Plus aria-hidden="true" className="size-3.5 shrink-0" />
-            <span>New workspace</span>
+            <span>{tw("newWorkspace")}</span>
           </button>
         </PopoverContent>
       </Popover>

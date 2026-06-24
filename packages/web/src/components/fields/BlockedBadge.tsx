@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Ban } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 /**
  * Shared "blocked" indicator. Three surfaces render it differently:
@@ -25,9 +26,10 @@ export function BlockedBadge({
   count,
   className,
 }: BlockedBadgeProps) {
+  const t = useTranslations("components.blockedBadge");
   if (variant === "compact") {
     const n = count ?? 0;
-    const label = `Blocked by ${n} ${n === 1 ? "issue" : "issues"}`;
+    const label = t("blockedBy", { count: n });
     return (
       <span
         role="img"
@@ -54,13 +56,13 @@ export function BlockedBadge({
           "inline-flex items-center gap-1 rounded-sm bg-destructive/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive",
           className,
         )}
-        title="Blocked"
+        title={t("blocked")}
       >
         <span
           className="inline-block h-1 w-1 rounded-full bg-destructive"
           aria-hidden="true"
         />
-        Blocked
+        {t("blocked")}
       </span>
     );
   }
@@ -75,7 +77,7 @@ export function BlockedBadge({
         className="inline-block h-1.5 w-1.5 rounded-full bg-destructive"
         aria-hidden="true"
       />
-      Blocked ({count})
+      {t("blockedCount", { count: count ?? 0 })}
     </span>
   );
 }

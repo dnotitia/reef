@@ -41,6 +41,7 @@ import {
 } from "@dnd-kit/core";
 import type { ClosedReason, IssueListItem, Status } from "@reef/core";
 import { STATUS_OPTIONS, WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
+import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useBoardStore } from "../stores/useBoardStore";
@@ -76,6 +77,7 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
   // The board has no backlog column; keep a stray backlog status filter from
   // blanking it (REEF-109).
   useWorkflowStatusGuard();
+  const t = useTranslations("board");
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
   // Server-side narrows the transfer (facets + free-text search); the client
@@ -185,8 +187,8 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
           title:
             err instanceof Error && err.message
               ? err.message
-              : "Couldn't update issue",
-          description: "The board was reverted. Retry to move it again.",
+              : t("updateErrorTitle"),
+          description: t("updateErrorDescription"),
           onRetry: () => runStatusUpdate(input),
         });
       },
@@ -245,7 +247,7 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
     <div data-testid="kanban-board" className="flex h-full min-h-0 flex-col">
       {isError && (
         <div className="mx-6 mt-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-          Failed to load some issues. Displaying cached data if available.
+          {t("loadError")}
         </div>
       )}
       <DndContext

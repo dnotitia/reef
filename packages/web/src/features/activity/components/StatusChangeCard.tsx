@@ -12,6 +12,7 @@ import { ArtifactMetadata, ReviewActions } from "@/features/ai/review";
 import { useStatusLabels } from "@/i18n/fieldLabels";
 import type { ActivityStatusChangeSuggestion, Status } from "@reef/core";
 import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { githubActivityUrl } from "../lib/activityLinks";
 import type { ActivityFeedItem } from "../types";
@@ -39,6 +40,9 @@ export function StatusChangeCard({
   isApproving: boolean;
 }) {
   const statusLabels = useStatusLabels();
+  const t = useTranslations("activity");
+  const tAi = useTranslations("ai");
+  const common = useTranslations("common");
   const { statusChange } = item;
   const proposedStatus = statusChange.proposal.update.patch.status ?? "done";
   const [isEditing, setIsEditing] = useState(false);
@@ -67,7 +71,7 @@ export function StatusChangeCard({
       className="rounded-md border border-ai-border bg-ai-subtle px-4 py-3"
     >
       <ActivityCardHeader
-        badge="AI Status Change"
+        badge={tAi("badgeStatusChange")}
         timestamp={item.timestamp}
         issueId={item.issueId}
         issueTitle={item.issueTitle}
@@ -86,7 +90,7 @@ export function StatusChangeCard({
               onValueChange={(value) => setToStatus(value as Status)}
             >
               <SelectTrigger
-                aria-label="Target status"
+                aria-label={t("targetStatus")}
                 data-testid="status-change-target"
                 className="h-7 w-40"
               >
@@ -133,12 +137,12 @@ export function StatusChangeCard({
             actions={[
               {
                 id: "save",
-                label: "Save",
+                label: common("save"),
                 busy: isSaving,
                 onClick: handleSave,
                 testId: "status-change-save",
               },
-              { id: "cancel", label: "Cancel", onClick: handleCancel },
+              { id: "cancel", label: common("cancel"), onClick: handleCancel },
             ]}
           />
         ) : (
@@ -146,20 +150,20 @@ export function StatusChangeCard({
             actions={[
               {
                 id: "approve",
-                label: "Approve",
+                label: tAi("approve"),
                 busy: isApproving,
-                busyLabel: "Updating...",
+                busyLabel: tAi("updating"),
                 onClick: () => onApprove?.(statusChange),
               },
               {
                 id: "edit",
-                label: "Edit",
+                label: common("edit"),
                 onClick: () => setIsEditing(true),
                 testId: "status-change-edit",
               },
               {
                 id: "dismiss",
-                label: "Dismiss",
+                label: tAi("dismiss"),
                 onClick: () => onDismiss?.(statusChange.id),
               },
             ]}

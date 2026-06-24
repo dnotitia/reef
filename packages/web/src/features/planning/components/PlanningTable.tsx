@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  useFieldNameLabels,
   usePlanningKindLabels,
   usePlanningKindSingularLabels,
 } from "@/i18n/fieldLabels";
@@ -26,6 +27,7 @@ import type {
   Sprint,
 } from "@reef/core";
 import { ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Fragment, useMemo } from "react";
 import type { PlanningItem, PlanningKind } from "../hooks/usePlanningCatalog";
 import { countIssuesByPlanningId, itemsForKind } from "../lib/planningItems";
@@ -69,6 +71,9 @@ export function PlanningTable({
 }) {
   const planningKindLabels = usePlanningKindLabels();
   const planningKindSingular = usePlanningKindSingularLabels();
+  const fieldNames = useFieldNameLabels();
+  const t = useTranslations("planning");
+  const sections = useTranslations("sections");
   const items = itemsForKind(catalog, kind);
   const countById = useMemo(
     () => countIssuesByPlanningId(issues, kind),
@@ -89,11 +94,11 @@ export function PlanningTable({
     return (
       <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-md border border-dashed border-border bg-surface-subtle px-6 py-10">
         <p className="text-sm text-muted-foreground">
-          No {planningKindLabels[kind].toLowerCase()} yet.
+          {t("emptyKind", { kind: planningKindLabels[kind].toLowerCase() })}
         </p>
         <Button type="button" size="sm" onClick={onCreate} className="gap-1.5">
           <Plus aria-hidden="true" className="h-3.5 w-3.5" />
-          New {planningKindSingular[kind].toLowerCase()}
+          {t("newKind", { kind: planningKindSingular[kind].toLowerCase() })}
         </Button>
       </div>
     );
@@ -103,11 +108,11 @@ export function PlanningTable({
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Name</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead>Dates</TableHead>
-          <TableHead>Issues</TableHead>
-          <TableHead>Details</TableHead>
+          <TableHead>{t("name")}</TableHead>
+          <TableHead>{fieldNames.status}</TableHead>
+          <TableHead>{t("dates")}</TableHead>
+          <TableHead>{t("issues")}</TableHead>
+          <TableHead>{sections("details")}</TableHead>
           <TableHead />
         </TableRow>
       </TableHeader>
@@ -136,7 +141,11 @@ export function PlanningTable({
                       }
                       aria-expanded={isExpanded}
                       aria-controls={panelId}
-                      aria-label={`${isExpanded ? "Collapse" : "Expand"} ${item.name} details`}
+                      aria-label={
+                        isExpanded
+                          ? t("collapseDetails", { name: item.name })
+                          : t("expandDetails", { name: item.name })
+                      }
                       className="group/disclosure flex w-full min-w-0 items-center gap-1.5 rounded text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <span className="flex h-5 w-5 shrink-0 items-center justify-center text-muted-foreground transition-colors group-hover/disclosure:text-foreground">
@@ -176,7 +185,7 @@ export function PlanningTable({
                       size="sm"
                       variant="ghost"
                       onClick={() => onEdit(kind, item)}
-                      aria-label={`Edit ${item.name}`}
+                      aria-label={t("editItem", { name: item.name })}
                     >
                       <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
                     </Button>
@@ -186,12 +195,8 @@ export function PlanningTable({
                       variant="ghost"
                       onClick={() => onRequestDelete(kind, item)}
                       disabled={count > 0 || isDeleting}
-                      title={
-                        count > 0
-                          ? "Remove linked issues before deleting"
-                          : undefined
-                      }
-                      aria-label={`Delete ${item.name}`}
+                      title={count > 0 ? t("removeLinkedFirst") : undefined}
+                      aria-label={t("deleteItem", { name: item.name })}
                     >
                       <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
                     </Button>
@@ -209,7 +214,7 @@ export function PlanningTable({
                         value={body}
                         onChange={NOOP}
                         readOnly
-                        ariaLabel={`${item.name} details`}
+                        ariaLabel={t("itemDetails", { name: item.name })}
                       />
                     </div>
                   </TableCell>
@@ -230,6 +235,7 @@ function PlanningDates({
   kind: PlanningKind;
   item: PlanningItem;
 }) {
+  const t = useTranslations("planning");
   if (kind === "sprints") {
     const sprint = item as Sprint;
     if (!sprint.start_date && !sprint.end_date) return <>—</>;
@@ -248,14 +254,14 @@ function PlanningDates({
   if (release.released_at) {
     return (
       <span>
-        Released <DateDisplay date={release.released_at} />
+        {t("released")} <DateDisplay date={release.released_at} />
       </span>
     );
   }
   if (release.target_date) {
     return (
       <span>
-        Target <DateDisplay date={release.target_date} />
+        {t("target")} <DateDisplay date={release.target_date} />
       </span>
     );
   }

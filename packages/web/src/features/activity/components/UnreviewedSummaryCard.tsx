@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 interface UnreviewedSummaryCardProps {
   draftCount: number;
   statusChangeCount: number;
@@ -16,20 +18,18 @@ export function UnreviewedSummaryCard({
   statusChangeCount,
   onDismiss,
 }: UnreviewedSummaryCardProps) {
+  const t = useTranslations("activity");
+
   if (draftCount === 0 && statusChangeCount === 0) {
     return null;
   }
 
   const parts: string[] = [];
   if (draftCount > 0) {
-    parts.push(`${draftCount} new AI ${draftCount === 1 ? "draft" : "drafts"}`);
+    parts.push(t("newDraftsPart", { count: draftCount }));
   }
   if (statusChangeCount > 0) {
-    parts.push(
-      `${statusChangeCount} status ${
-        statusChangeCount === 1 ? "change" : "changes"
-      }`,
-    );
+    parts.push(t("statusChangesPart", { count: statusChangeCount }));
   }
 
   return (
@@ -38,7 +38,7 @@ export function UnreviewedSummaryCard({
       className="rounded-md border border-brand/30 bg-brand/5 px-4 py-3 flex items-center justify-between gap-4"
     >
       <p className="text-sm text-foreground">
-        <span className="font-semibold">Since you were last here:</span>{" "}
+        <span className="font-semibold">{t("summaryLabel")}</span>{" "}
         {parts.join(", ")}.
       </p>
       <button
@@ -46,7 +46,7 @@ export function UnreviewedSummaryCard({
         onClick={onDismiss}
         className="shrink-0 rounded-md bg-brand px-3 py-1 text-xs font-medium text-brand-foreground transition-colors duration-150 hover:opacity-90"
       >
-        Got it
+        {t("gotIt")}
       </button>
     </div>
   );

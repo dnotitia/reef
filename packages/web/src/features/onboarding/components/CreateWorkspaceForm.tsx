@@ -15,6 +15,7 @@ import {
 import { useSetActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useGithubAppAvailable } from "@/features/settings/hooks/useGithubAppAvailable";
 import { useRepos } from "@/features/settings/hooks/useRepos";
+import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
 import {
   AUTHORING_LANGUAGES,
@@ -25,6 +26,7 @@ import {
   PROJECT_PREFIX_PATTERN,
 } from "@reef/core";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { type SyntheticEvent, useState } from "react";
 import { z } from "zod";
@@ -70,6 +72,9 @@ export function CreateWorkspaceForm({
   onCreated,
   onCancel,
 }: CreateWorkspaceFormProps) {
+  const t = useTranslations("onboarding");
+  const c = useTranslations("common");
+  const fieldNames = useFieldNameLabels();
   const router = useRouter();
   const queryClient = useQueryClient();
   // Deployment credential gate: repo listing is disabled without a configured
@@ -111,13 +116,11 @@ export function CreateWorkspaceForm({
     const trimmedPrefix = projectPrefix.trim().toUpperCase();
 
     if (!CREATE_VAULT_NAME_PATTERN.test(trimmedName)) {
-      setCreateError(
-        "Workspace name must use lowercase letters, digits, and hyphens only.",
-      );
+      setCreateError(t("nameError"));
       return;
     }
     if (!PROJECT_PREFIX_PATTERN.test(trimmedPrefix)) {
-      setCreateError("Project prefix must use uppercase letters only.");
+      setCreateError(t("prefixError"));
       return;
     }
 
@@ -130,9 +133,7 @@ export function CreateWorkspaceForm({
       );
     } catch (err) {
       setCreateError(
-        err instanceof Error
-          ? err.message
-          : "Could not resolve selected repositories.",
+        err instanceof Error ? err.message : t("reposResolveError"),
       );
       return;
     }
@@ -166,8 +167,7 @@ export function CreateWorkspaceForm({
       router.push("/issues");
       onCreated?.(created.name);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to create workspace.";
+      const message = err instanceof Error ? err.message : t("createFailed");
       setCreateError(message);
     } finally {
       setCreating(false);
@@ -184,13 +184,13 @@ export function CreateWorkspaceForm({
       <div className="grid gap-4 sm:grid-cols-[1fr_10rem]">
         <label htmlFor={nameId} className="flex flex-col gap-1">
           <span className="text-sm font-medium text-foreground/90">
-            Workspace name
+            {t("workspaceName")}
           </span>
           <Input
             id={nameId}
             value={vaultName}
             onChange={(e) => setVaultName(e.target.value.trim().toLowerCase())}
-            placeholder="reef-acme"
+            placeholder={/* i18n-exempt: example vault name */ "reef-acme"}
             data-testid={nameId}
             className="font-mono"
             autoComplete="off"
@@ -199,7 +199,7 @@ export function CreateWorkspaceForm({
 
         <label htmlFor={prefixId} className="flex flex-col gap-1">
           <span className="text-sm font-medium text-foreground/90">
-            Issue prefix
+            {t("issuePrefix")}
           </span>
           <Input
             id={prefixId}
@@ -207,7 +207,7 @@ export function CreateWorkspaceForm({
             onChange={(e) =>
               setProjectPrefix(e.target.value.trim().toUpperCase())
             }
-            placeholder="REEF"
+            placeholder={/* i18n-exempt: example issue prefix (brand) */ "REEF"}
             data-testid={prefixId}
             className="font-mono uppercase"
             autoComplete="off"
@@ -217,16 +217,16 @@ export function CreateWorkspaceForm({
 
       <label htmlFor={descriptionId} className="flex flex-col gap-1">
         <span className="text-sm font-medium text-foreground/90">
-          Description
+          {fieldNames.description}
           <span className="ml-1 text-xs font-normal text-muted-foreground">
-            (optional)
+            {t("optional")}
           </span>
         </span>
         <Input
           id={descriptionId}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="What this workspace is for"
+          placeholder={t("descriptionPlaceholder")}
           data-testid={descriptionId}
         />
       </label>
@@ -237,14 +237,13 @@ export function CreateWorkspaceForm({
           and the narrower dialog (REEF-160). */}
       <div className="flex flex-col gap-1">
         <p className="text-sm font-medium text-foreground/90">
-          Default authoring language
+          {t("authoringLanguage")}
           <span className="ml-1 text-xs font-normal text-muted-foreground">
-            (optional)
+            {t("optional")}
           </span>
         </p>
         <p className="text-xs text-muted-foreground">
-          The language AI writes new content in. Leave unset to let AI follow
-          each request; you can change it later in Settings.
+          {t("authoringLanguageHint")}
         </p>
         <Select
           value={authoringLanguage ?? NONE_VALUE}
@@ -257,12 +256,14 @@ export function CreateWorkspaceForm({
           <SelectTrigger
             className="mt-1 w-56"
             data-testid={languageId}
-            aria-label="Default authoring language"
+            aria-label={t("authoringLanguage")}
           >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={NONE_VALUE}>Not set (no default)</SelectItem>
+            <SelectItem value={NONE_VALUE}>
+              {t("authoringLanguageNone")}
+            </SelectItem>
             {AUTHORING_LANGUAGES.map((lang) => (
               <SelectItem key={lang.code} value={lang.code}>
                 {lang.label}
@@ -274,9 +275,9 @@ export function CreateWorkspaceForm({
 
       <div className="flex flex-col gap-1">
         <p className="text-sm font-medium text-foreground/90">
-          Monitored repositories
+          {t("monitoredRepos")}
           <span className="ml-1 text-xs font-normal text-muted-foreground">
-            (optional)
+            {t("optional")}
           </span>
         </p>
         <MonitoredRepoSelector
@@ -287,7 +288,7 @@ export function CreateWorkspaceForm({
             credentialLoading || (canListRepos && reposQuery.isPending)
           }
           isError={!canListRepos || (reposQuery.isError && !reposQuery.data)}
-          errorMessage="GitHub App is not configured for this deployment. You can skip monitored repositories."
+          errorMessage={t("monitoredReposError")}
           testIdPrefix={`${idPrefix}-monitored-repos`}
         />
       </div>
@@ -309,7 +310,7 @@ export function CreateWorkspaceForm({
           data-testid={`${idPrefix}-create-btn`}
           className="w-fit rounded-md bg-foreground px-6 py-2 text-sm font-medium text-background transition-colors duration-150 hover:bg-foreground/90 disabled:opacity-50"
         >
-          {creating ? "Creating..." : "Create workspace"}
+          {creating ? t("creating") : t("createButton")}
         </button>
         {onCancel && (
           <button
@@ -319,7 +320,7 @@ export function CreateWorkspaceForm({
             data-testid={`${idPrefix}-cancel-btn`}
             className="w-fit rounded-md px-4 py-2 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground disabled:opacity-50"
           >
-            Cancel
+            {c("cancel")}
           </button>
         )}
       </div>

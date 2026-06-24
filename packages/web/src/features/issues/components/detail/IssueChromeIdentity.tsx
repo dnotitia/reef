@@ -7,6 +7,7 @@ import { useIssueDrill } from "@/features/issues/hooks/view/useIssueDrill";
 import { cn } from "@/lib/utils";
 import type { IssueListItem, IssueType, Status } from "@reef/core";
 import { Archive } from "lucide-react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useMemo } from "react";
 
@@ -49,6 +50,8 @@ export function IssueChromeIdentity({
    *  (REEF-283). */
   allIssuesPending: boolean;
 }) {
+  const t = useTranslations("issues.detailDialogs");
+
   // Resolve the parent from the already-loaded list (no network request); a set
   // parent_id that is absent from the list still renders by id (REEF-266).
   const parent = useMemo(
@@ -79,18 +82,21 @@ export function IssueChromeIdentity({
           title truncates; the current-issue cluster stays fully visible. */}
       {parentId ? (
         <nav
-          aria-label="Issue hierarchy"
+          aria-label={t("issueHierarchy")}
           className="flex min-w-0 items-center gap-2"
         >
           <Link
             {...getDrillProps(parentId)}
             data-testid="issue-parent-breadcrumb"
             data-issue-id={parentId}
-            title="Go to parent issue"
+            title={t("goToParent")}
             aria-label={
               parent?.title
-                ? `Parent issue ${parentId}: ${parent.title}`
-                : `Parent issue ${parentId}`
+                ? t("parentIssueWithTitle", {
+                    id: parentId,
+                    title: parent.title,
+                  })
+                : t("parentIssue", { id: parentId })
             }
             className={cn(
               // `-ml-1.5` offsets the px-1.5 so the crumb's leading text sits at
@@ -159,7 +165,7 @@ export function IssueChromeIdentity({
           className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground"
         >
           <Archive className="h-3 w-3" />
-          Archived
+          {t("archived")}
         </span>
       )}
     </div>

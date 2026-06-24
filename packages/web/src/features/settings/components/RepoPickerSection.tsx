@@ -13,6 +13,7 @@ import {
   useRepos,
 } from "@/features/settings/hooks/useRepos";
 import type { MonitoredRepo } from "@reef/core";
+import { useTranslations } from "next-intl";
 import { useCallback, useMemo, useState } from "react";
 import {
   MonitoredRepoSelector,
@@ -127,6 +128,7 @@ function RepoPickerSectionContent({
   serverMonitoredList,
   updateConfig,
 }: RepoPickerSectionContentProps) {
+  const t = useTranslations("settings.config");
   const [selectedMonitoredRepos, setSelectedMonitoredRepos] = useState<
     Set<string>
   >(() => new Set(serverMonitoredList.map((r) => `${r.owner}/${r.name}`)));
@@ -194,12 +196,13 @@ function RepoPickerSectionContent({
     <div className="flex flex-col gap-4" data-testid="repo-picker-section">
       <div className="flex flex-col gap-1">
         <p className="text-sm font-medium text-foreground/90">
-          Monitored Code Repositories
+          {t("repos.heading")}
         </p>
         <p className="text-xs text-muted-foreground">
-          GitHub repos reef watches for activity (PRs, commits). Stored in the
-          active workspace's <code>monitored_repos</code> table — shared with
-          your whole team.
+          {t.rich("repos.description", {
+            // `monitored_repos` is a vault table name (code identifier), verbatim.
+            code: () => <code>monitored_repos</code>, // i18n-exempt
+          })}
         </p>
 
         {canEdit ? (
@@ -241,7 +244,7 @@ function RepoPickerSectionContent({
             className="text-sm text-muted-foreground"
             data-testid="monitored-repos-readonly-empty"
           >
-            No repositories are being monitored.
+            {t("repos.empty")}
           </p>
         )}
 
@@ -251,7 +254,7 @@ function RepoPickerSectionContent({
             className="text-xs text-destructive"
             data-testid="repo-picker-load-error"
           >
-            Couldn't load workspace config: {configError.message}
+            {t("loadError")} {configError.message}
           </p>
         )}
       </div>

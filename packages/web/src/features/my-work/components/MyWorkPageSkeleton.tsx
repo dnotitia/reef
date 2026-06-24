@@ -2,6 +2,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { PageHeader } from "@/features/ui/components/PageHeader";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 const STAGE_LEGEND_KEYS = ["s0", "s1", "s2", "s3", "s4", "s5"] as const;
 const QUEUE_ROW_KEYS = ["r0", "r1", "r2", "r3", "r4", "r5"] as const;
@@ -22,6 +23,7 @@ const QUEUE_ROW_KEYS = ["r0", "r1", "r2", "r3", "r4", "r5"] as const;
  * a sprint tile, `sm:grid-cols-3` without — instead of a hard-coded four.
  */
 export function MyWorkSkeleton({ hasSprint = false }: { hasSprint?: boolean }) {
+  const c = useTranslations("common");
   const tileKeys = hasSprint
     ? ["wip", "due", "overdue", "sprint"]
     : ["wip", "due", "overdue"];
@@ -31,7 +33,7 @@ export function MyWorkSkeleton({ hasSprint = false }: { hasSprint?: boolean }) {
           body-level leaf so the full-page MyWorkPageSkeleton (and MyWorkPage's
           in-flight branches) inherit exactly one — not a doubled notification.
           Sibling to the decorative body, so it is not under aria-hidden. */}
-      <output className="sr-only">Loading…</output>
+      <output className="sr-only">{c("loading")}</output>
       {/* The placeholder body is decorative — aria-hidden so assistive tech does
           not walk the empty stat/queue DOM. */}
       <div className="flex flex-col gap-6" aria-hidden="true">
@@ -101,9 +103,10 @@ export function MyWorkSkeleton({ hasSprint = false }: { hasSprint?: boolean }) {
  * to {@link MyWorkSkeleton} once the planning catalog is in.
  */
 export function MyWorkPageSkeleton() {
+  const nav = useTranslations("nav");
   return (
     <div className="flex h-full flex-col">
-      <PageHeader title="My Work" />
+      <PageHeader title={nav("myWork")} />
       <PageBody width="wide" className="flex flex-col gap-6">
         <MyWorkSkeleton />
       </PageBody>

@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 /**
  * Shared close affordance for the issue detail sheet (REEF-111).
@@ -20,11 +21,12 @@ export function IssueDetailCloseButton({
   onClose: () => void;
   className?: string;
 }) {
+  const c = useTranslations("common");
   return (
     <button
       type="button"
       data-testid="issue-close"
-      aria-label="Close"
+      aria-label={c("close")}
       onClick={onClose}
       className={cn(
         "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",

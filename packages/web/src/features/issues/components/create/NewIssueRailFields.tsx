@@ -6,8 +6,12 @@ import { EnumSelectField } from "@/components/fields/EnumSelectField";
 import { SeverityBadge } from "@/components/fields/SeverityBadge";
 import { Input } from "@/components/ui/input";
 import { PlanningItemCombobox } from "@/features/planning/components/PlanningItemCombobox";
-import { useFieldNameLabels } from "@/i18n/fieldLabels";
+import {
+  useEnrichmentEmptyLabels,
+  useFieldNameLabels,
+} from "@/i18n/fieldLabels";
 import type { EnrichmentField, Severity } from "@reef/core";
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { NO_SELECTION, SEVERITY_OPTIONS } from "../../lib/metadataOptions";
 import { IssueFieldRow } from "../shared/IssueFieldRow";
@@ -84,6 +88,9 @@ export function NewIssueRailFields({
   renderFieldLabel: RenderFieldLabel;
 }) {
   const fieldNames = useFieldNameLabels();
+  const emptyLabels = useEnrichmentEmptyLabels();
+  const sections = useTranslations("sections");
+  const t = useTranslations("issues.create");
   return (
     <>
       {/* People / Planning as property rows (REEF-167): a fixed label and a
@@ -91,7 +98,7 @@ export function NewIssueRailFields({
           `renderFieldLabel` (an enrichment-aware `<label htmlFor>` ↔ `<span>`)
           via `IssueFieldRow`'s `labelSlot`, so the row owns the fixed gutter
           while the create dialog keeps its AI-suggestion label behavior. */}
-      <IssueFormSection title="People">
+      <IssueFormSection title={sections("people")}>
         <IssueFieldRow
           labelSlot={renderFieldLabel(
             "assigned_to",
@@ -107,7 +114,7 @@ export function NewIssueRailFields({
               onChange={setAssignee}
               vault={vault}
               label={fieldNames.assignee}
-              emptyLabel="Unassigned"
+              emptyLabel={emptyLabels.unassigned}
               disabled={isSubmitting}
             />,
           )}
@@ -127,7 +134,7 @@ export function NewIssueRailFields({
               onChange={setRequester}
               vault={vault}
               label={fieldNames.requester}
-              emptyLabel="No requester"
+              emptyLabel={t("noRequester")}
               disabled={isSubmitting}
             />,
           )}
@@ -147,26 +154,26 @@ export function NewIssueRailFields({
               onChange={setReporter}
               vault={vault}
               label={fieldNames.reporter}
-              emptyLabel="No reporter"
+              emptyLabel={t("noReporter")}
               disabled={isSubmitting}
             />,
           )}
         </IssueFieldRow>
       </IssueFormSection>
 
-      <IssueFormSection title="Planning">
+      <IssueFormSection title={sections("planning")}>
         <IssueFieldRow
           labelSlot={renderFieldLabel(
             "start_date",
             "new-issue-start-date",
-            "Start date",
+            fieldNames.start,
           )}
         >
           {renderEnrichable(
             "start_date",
             <DatePickerField
               id="new-issue-start-date"
-              label="Start date"
+              label={fieldNames.start}
               value={startDate}
               onChange={setStartDate}
               disabled={isSubmitting}
@@ -177,14 +184,14 @@ export function NewIssueRailFields({
           labelSlot={renderFieldLabel(
             "due_date",
             "new-issue-due-date",
-            "Due date",
+            fieldNames.due,
           )}
         >
           {renderEnrichable(
             "due_date",
             <DatePickerField
               id="new-issue-due-date"
-              label="Due date"
+              label={fieldNames.due}
               align="end"
               value={dueDate}
               onChange={setDueDate}
@@ -256,7 +263,7 @@ export function NewIssueRailFields({
           labelSlot={renderFieldLabel(
             "estimate_points",
             "new-issue-estimate",
-            "Estimate",
+            fieldNames.points,
           )}
         >
           {renderEnrichable(
@@ -286,8 +293,11 @@ export function NewIssueRailFields({
               }
               options={SEVERITY_OPTIONS}
               renderItem={(s) => <SeverityBadge severity={s} />}
-              placeholder="No severity"
-              noneOption={{ value: NO_SELECTION, label: "No severity" }}
+              placeholder={emptyLabels.noSeverity}
+              noneOption={{
+                value: NO_SELECTION,
+                label: emptyLabels.noSeverity,
+              }}
               ariaLabelledby="new-issue-severity-label"
               disabled={isSubmitting}
             />,

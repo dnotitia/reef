@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Archive, ArchiveRestore, MoreHorizontal, Trash2 } from "lucide-react";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { createPortal } from "react-dom";
 import {
   formatAbsoluteTime,
@@ -51,6 +51,7 @@ export function IssueChromeActions({
 }) {
   const slot = useIssueChromeSlot();
   const locale = useLocale();
+  const t = useTranslations("issues.detailDialogs");
 
   const content = (
     <>
@@ -66,16 +67,18 @@ export function IssueChromeActions({
         <span
           data-testid="issue-updated-at"
           className="whitespace-nowrap text-[11px] text-muted-foreground tabular-nums"
-          title={`Last edited ${formatAbsoluteTime(updatedAt, locale)}`}
+          title={t("lastEdited", {
+            time: formatAbsoluteTime(updatedAt, locale),
+          })}
         >
-          Edited {formatRelativeTime(updatedAt, locale)}
+          {t("edited", { time: formatRelativeTime(updatedAt, locale) })}
         </span>
       ) : null}
       <DropdownMenu>
         <DropdownMenuTrigger
           type="button"
           data-testid="issue-more-trigger"
-          aria-label="Issue actions"
+          aria-label={t("issueActions")}
           className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
         >
           <MoreHorizontal className="h-4 w-4" />
@@ -91,12 +94,12 @@ export function IssueChromeActions({
             {isArchived ? (
               <>
                 <ArchiveRestore className="mr-2 h-4 w-4" />
-                Unarchive
+                {t("unarchive")}
               </>
             ) : (
               <>
                 <Archive className="mr-2 h-4 w-4" />
-                Archive
+                {t("archive")}
               </>
             )}
           </DropdownMenuItem>
@@ -110,7 +113,7 @@ export function IssueChromeActions({
             className="text-destructive focus:bg-destructive/10 focus:text-destructive"
           >
             <Trash2 className="mr-2 h-4 w-4" />
-            Delete…
+            {t("deleteEllipsis")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

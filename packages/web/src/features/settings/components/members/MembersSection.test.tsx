@@ -44,6 +44,7 @@ vi.mock("./RoleSelect", () => ({
   MANAGEABLE_ROLES: ["reader", "writer", "admin"],
 }));
 
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { MembersSection } from "./MembersSection";
 
 const ROSTER = [
@@ -68,7 +69,9 @@ describe("MembersSection (REEF-179)", () => {
   it("AC1: lists every member with @login and role", () => {
     rosterLoaded();
     mockUseCurrentUserLogin.mockReturnValue("dana");
-    render(<MembersSection vault="reef-acme" canManage={true} />);
+    render(<MembersSection vault="reef-acme" canManage={true} />, {
+      wrapper: IntlTestProvider,
+    });
 
     for (const u of ["alice", "dana", "sam", "min"]) {
       expect(screen.getByTestId(`member-row-${u}`)).toBeInTheDocument();
@@ -80,7 +83,9 @@ describe("MembersSection (REEF-179)", () => {
   it("AC3/AC5 (admin): other members are manageable; owner and self are read-only", () => {
     rosterLoaded();
     mockUseCurrentUserLogin.mockReturnValue("dana"); // the admin is signed in
-    render(<MembersSection vault="reef-acme" canManage={true} />);
+    render(<MembersSection vault="reef-acme" canManage={true} />, {
+      wrapper: IntlTestProvider,
+    });
 
     // sam (writer, not self) → editable role + remove
     const sam = within(screen.getByTestId("member-row-sam"));
@@ -104,7 +109,9 @@ describe("MembersSection (REEF-179)", () => {
   it("AC5 (reader): no add form, no controls — roster is read-only", () => {
     rosterLoaded();
     mockUseCurrentUserLogin.mockReturnValue("min");
-    render(<MembersSection vault="reef-acme" canManage={false} />);
+    render(<MembersSection vault="reef-acme" canManage={false} />, {
+      wrapper: IntlTestProvider,
+    });
 
     expect(screen.queryByTestId("add-member-row")).toBeNull();
     expect(screen.queryByTestId("role-select-trigger")).toBeNull();
@@ -115,7 +122,9 @@ describe("MembersSection (REEF-179)", () => {
   it("keeps every row read-only until the signed-in identity resolves (no self-management window)", () => {
     rosterLoaded();
     mockUseCurrentUserLogin.mockReturnValue(null); // /auth/me not resolved yet
-    render(<MembersSection vault="reef-acme" canManage={true} />);
+    render(<MembersSection vault="reef-acme" canManage={true} />, {
+      wrapper: IntlTestProvider,
+    });
 
     // Admin can already manage per the role query, but with self unknown no
     // member row exposes a role control or remove button. (Scope to the row —
@@ -131,7 +140,9 @@ describe("MembersSection (REEF-179)", () => {
   it("AC4: removing a member opens a confirm dialog and revokes on confirm", () => {
     rosterLoaded();
     mockUseCurrentUserLogin.mockReturnValue("dana");
-    render(<MembersSection vault="reef-acme" canManage={true} />);
+    render(<MembersSection vault="reef-acme" canManage={true} />, {
+      wrapper: IntlTestProvider,
+    });
 
     fireEvent.click(screen.getByTestId("member-remove-sam"));
     expect(screen.getByTestId("remove-member-dialog")).toBeInTheDocument();
@@ -148,7 +159,9 @@ describe("MembersSection (REEF-179)", () => {
       error: null,
     });
     mockUseCurrentUserLogin.mockReturnValue(null);
-    render(<MembersSection vault="reef-acme" canManage={true} />);
+    render(<MembersSection vault="reef-acme" canManage={true} />, {
+      wrapper: IntlTestProvider,
+    });
     expect(screen.getByTestId("members-loading")).toBeInTheDocument();
   });
 
@@ -160,7 +173,9 @@ describe("MembersSection (REEF-179)", () => {
       error: new Error("boom"),
     });
     mockUseCurrentUserLogin.mockReturnValue(null);
-    render(<MembersSection vault="reef-acme" canManage={true} />);
+    render(<MembersSection vault="reef-acme" canManage={true} />, {
+      wrapper: IntlTestProvider,
+    });
     expect(screen.getByTestId("members-error")).toHaveTextContent("boom");
   });
 });

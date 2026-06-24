@@ -16,6 +16,7 @@ import {
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import type { IssueListItem } from "@reef/core";
 import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
+import { useTranslations } from "next-intl";
 import { useMemo, useRef, useState } from "react";
 import {
   calendarDayFromDate,
@@ -77,6 +78,8 @@ interface TimelineBodyProps {
  * sub-toolbar since they are timeline-specific.
  */
 export function TimelineBody({ vault }: TimelineBodyProps) {
+  const t = useTranslations("timeline");
+  const c = useTranslations("common");
   // The timeline groups by workflow status just; keep a stray backlog status
   // filter from blanking it (REEF-109).
   useWorkflowStatusGuard();
@@ -192,23 +195,21 @@ export function TimelineBody({ vault }: TimelineBodyProps) {
           <>
             {isError && (
               <div className="mx-6 mt-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                Failed to load some issues. Displaying cached data if available.{" "}
+                {t("loadError")}{" "}
                 <Button
                   type="button"
                   variant="link"
                   className="h-auto px-0 text-destructive"
                   onClick={() => refetch()}
                 >
-                  Retry
+                  {c("retry")}
                 </Button>
               </div>
             )}
             {visibleIssues.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 px-6 py-12">
                 <p className="text-sm text-muted-foreground">
-                  {activeFilters
-                    ? "No issues match your filters."
-                    : "Your timeline is empty. Add start or due dates to begin planning."}
+                  {activeFilters ? t("noMatch") : t("empty")}
                 </p>
                 {activeFilters && (
                   <Button
@@ -216,7 +217,7 @@ export function TimelineBody({ vault }: TimelineBodyProps) {
                     variant="outline"
                     onClick={clearFilters}
                   >
-                    Clear filters
+                    {c("clearFilters")}
                   </Button>
                 )}
               </div>

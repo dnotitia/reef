@@ -10,6 +10,7 @@ import {
 } from "@/features/settings/hooks/useProjectConfig";
 import { DEFAULT_CONFIG } from "@reef/core";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { ReadOnlyValue } from "./ReadOnlyValue";
 
@@ -42,6 +43,7 @@ export function ResolvedAutoHideSection({
 }: {
   canEdit?: boolean;
 }) {
+  const t = useTranslations("settings.config");
   const { vault: activeVault, isLoading: vaultLoading } = useActiveVault();
   const configQuery = useProjectConfig(activeVault);
   const updateConfig = useUpdateProjectConfig(activeVault);
@@ -62,7 +64,7 @@ export function ResolvedAutoHideSection({
         className="text-sm text-muted-foreground"
         data-testid="resolved-auto-hide-no-vault"
       >
-        Choose a workspace above before configuring completed issue visibility.
+        {t("resolvedAutoHide.noVault")}
       </p>
     );
   }
@@ -74,7 +76,7 @@ export function ResolvedAutoHideSection({
         className="text-sm text-destructive"
         data-testid="resolved-auto-hide-load-error"
       >
-        Couldn't load workspace config: {configQuery.error.message}
+        {t("loadError")} {configQuery.error.message}
       </p>
     );
   }
@@ -86,10 +88,10 @@ export function ResolvedAutoHideSection({
     >
       <div className="flex flex-col gap-1">
         <p className="text-sm font-medium text-foreground/90">
-          Completed issues
+          {t("resolvedAutoHide.label")}
         </p>
         <p className="text-xs text-muted-foreground">
-          Controls when resolved issues leave the default board and list.
+          {t("resolvedAutoHide.description")}
         </p>
       </div>
 
@@ -119,7 +121,7 @@ export function ResolvedAutoHideSection({
         <div className="grid gap-2 sm:grid-cols-2">
           <div className="flex flex-col gap-1">
             <p className="text-xs font-medium text-muted-foreground">
-              Hide completed after N days
+              {t("resolvedAutoHide.hideCompletedLabel")}
             </p>
             <ReadOnlyValue
               value={daysLabel(completedDays)}
@@ -128,7 +130,7 @@ export function ResolvedAutoHideSection({
           </div>
           <div className="flex flex-col gap-1">
             <p className="text-xs font-medium text-muted-foreground">
-              Hide canceled after N days
+              {t("resolvedAutoHide.hideCanceledLabel")}
             </p>
             <ReadOnlyValue
               value={daysLabel(canceledDays)}
@@ -154,6 +156,7 @@ function ResolvedAutoHideEditor({
   saving: boolean;
   onSave: (days: ParsedDays) => Promise<void>;
 }) {
+  const t = useTranslations("settings.config");
   const [completedDraft, setCompletedDraft] = useState(String(completedDays));
   const [canceledDraft, setCanceledDraft] = useState(String(canceledDays));
   const [error, setError] = useState<string | null>(null);
@@ -207,7 +210,7 @@ function ResolvedAutoHideEditor({
           htmlFor="resolved-auto-hide-completed-input"
           className="flex flex-col gap-1 text-xs font-medium text-muted-foreground"
         >
-          Hide completed after N days
+          {t("resolvedAutoHide.hideCompletedLabel")}
           <Input
             id="resolved-auto-hide-completed-input"
             data-testid="resolved-auto-hide-completed-input"
@@ -235,7 +238,7 @@ function ResolvedAutoHideEditor({
           htmlFor="resolved-auto-hide-canceled-input"
           className="flex flex-col gap-1 text-xs font-medium text-muted-foreground"
         >
-          Hide canceled after N days
+          {t("resolvedAutoHide.hideCanceledLabel")}
           <Input
             id="resolved-auto-hide-canceled-input"
             data-testid="resolved-auto-hide-canceled-input"
