@@ -20,6 +20,26 @@
       "skillUpdate": "워크스페이스 안내 업데이트 사용 가능"
     }
   },
+  "common": {
+    "cancel": "취소",
+    "save": "저장",
+    "delete": "삭제",
+    "remove": "제거",
+    "add": "추가",
+    "edit": "편집",
+    "view": "보기",
+    "close": "닫기",
+    "retry": "다시 시도",
+    "clearFilters": "필터 지우기",
+    "loading": "불러오는 중…",
+    "addLabelPlaceholder": "라벨을 입력하고 Enter를 누르세요…"
+  },
+  "sections": {
+    "details": "세부 정보",
+    "people": "사람",
+    "planning": "플래닝",
+    "relationships": "관계"
+  },
   "emptyState": {
     "workspace": {
       "prompt": "<link>설정</link>에서 워크스페이스를 선택해 시작하세요."
@@ -217,13 +237,34 @@
       "title": "제목"
     },
     "sortDirection": {
-      "priority": { "desc": "높음 → 낮음", "asc": "낮음 → 높음" },
-      "due_date": { "desc": "늦은 순", "asc": "빠른 순" },
-      "start_date": { "desc": "늦은 순", "asc": "이른 순" },
-      "created_at": { "desc": "최신순", "asc": "오래된 순" },
-      "updated_at": { "desc": "최신순", "asc": "오래된 순" },
-      "estimate_points": { "desc": "많은 순", "asc": "적은 순" },
-      "title": { "desc": "ㅎ → ㄱ", "asc": "ㄱ → ㅎ" }
+      "priority": {
+        "desc": "높음 → 낮음",
+        "asc": "낮음 → 높음"
+      },
+      "due_date": {
+        "desc": "늦은 순",
+        "asc": "빠른 순"
+      },
+      "start_date": {
+        "desc": "늦은 순",
+        "asc": "이른 순"
+      },
+      "created_at": {
+        "desc": "최신순",
+        "asc": "오래된 순"
+      },
+      "updated_at": {
+        "desc": "최신순",
+        "asc": "오래된 순"
+      },
+      "estimate_points": {
+        "desc": "많은 순",
+        "asc": "적은 순"
+      },
+      "title": {
+        "desc": "ㅎ → ㄱ",
+        "asc": "ㄱ → ㅎ"
+      }
     },
     "planning": {
       "kind": {
@@ -276,6 +317,37 @@
       "blocks": "차단 대상",
       "related": "관련",
       "externalRefs": "외부 참조"
+    }
+  },
+  "issues": {
+    "backlog": {
+      "loadError": "백로그를 불러오지 못했습니다.",
+      "noMatches": "필터와 일치하는 백로그 이슈가 없습니다.",
+      "emptyTitle": "백로그가 비어 있습니다",
+      "emptyDescription": "새 이슈는 할 일에 추가됩니다. 나중으로 미룰 작업을 여기로 보내 활성 보드에서 빼두세요.",
+      "goToBoard": "보드로 이동 →",
+      "unrankedDivider": "순위 미지정 · 최신순",
+      "reorderHintDrag": "드래그하여 순서 변경",
+      "reorderHintSwitchToManual": "순서를 바꾸려면 수동 정렬로 전환하세요",
+      "reorderHintHideArchived": "순서를 바꾸려면 보관 항목을 숨기세요",
+      "updateErrorTitle": "이슈를 업데이트하지 못했습니다",
+      "updateErrorDescription": "백로그가 되돌려졌습니다. 다시 이동하려면 재시도하세요.",
+      "reorderErrorTitle": "백로그 순서를 바꾸지 못했습니다",
+      "reorderErrorDescription": "순서가 되돌려졌습니다. 다시 이동하려면 재시도하세요."
+    },
+    "detailSidebar": {
+      "noRequester": "요청자 없음",
+      "noReporter": "보고자 없음"
+    },
+    "sort": {
+      "sortBy": "정렬 기준",
+      "drag": "드래그",
+      "resetToDefault": "기본값으로 재설정",
+      "toggleDirection": "정렬 방향 전환",
+      "manualOrder": "수동 정렬",
+      "orderAria": "이슈 순서: {label}",
+      "sortAria": "{field} 기준으로 이슈 정렬, {direction}",
+      "directionTitle": "방향: {direction}"
     }
   }
 }

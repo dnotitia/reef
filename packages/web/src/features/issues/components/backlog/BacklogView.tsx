@@ -31,6 +31,7 @@ import {
 import { buildStatusPatch } from "@/features/issues/lib/statusPatch";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { PageBody } from "@/features/ui/components/PageBody";
+import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { DURATION_BASE, EASE_SIGNATURE } from "@/lib/motionTokens";
 import {
   DndContext,
@@ -53,7 +54,9 @@ import {
   type Status,
   backlogRankSortKey,
 } from "@reef/core";
+import type { FieldNameKey } from "@reef/core/fields";
 import { CircleDashed } from "lucide-react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Fragment, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -62,16 +65,18 @@ const EMPTY_ISSUES: IssueListItem[] = [];
 
 // Slim triage column set — board/list planning columns (sprint/milestone/
 // release/start/due) are noise here (REEF-109). A leading grip column carries
-// the drag handle in manual-order mode (REEF-129).
+// the drag handle in manual-order mode (REEF-129). These are field-name keys;
+// the header text is locale-resolved at render from the shared `fieldNames`
+// catalog (REEF-298), and each entry is checked against `FieldNameKey`.
 const BACKLOG_COLUMNS = [
-  "Type",
-  "ID",
-  "Title",
-  "Status",
-  "Priority",
-  "Assignee",
-  "Updated",
-] as const;
+  "type",
+  "id",
+  "title",
+  "status",
+  "priority",
+  "assignee",
+  "updated",
+] as const satisfies readonly FieldNameKey[];
 
 // Grip + the visible columns; the divider row spans all of them.
 const BACKLOG_COL_COUNT = BACKLOG_COLUMNS.length + 1;
@@ -112,6 +117,8 @@ interface BacklogViewProps {
  * disables reordering until manual order is restored.
  */
 export function BacklogView({ vault }: BacklogViewProps) {
+  const t = useTranslations("issues.backlog");
+  const c = useTranslations("common");
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
   const openIssue = useOpenIssue();
@@ -296,8 +303,8 @@ export function BacklogView({ vault }: BacklogViewProps) {
           title:
             err instanceof Error && err.message
               ? err.message
-              : "Couldn't update issue",
-          description: "The backlog was reverted. Retry to move it again.",
+              : t("updateErrorTitle"),
+          description: t("updateErrorDescription"),
           onRetry: () => runStatusUpdate(input),
         });
       },
@@ -317,8 +324,8 @@ export function BacklogView({ vault }: BacklogViewProps) {
           title:
             err instanceof Error && err.message
               ? err.message
-              : "Couldn't reorder the backlog",
-          description: "The order was reverted. Retry to move it again.",
+              : t("reorderErrorTitle"),
+          description: t("reorderErrorDescription"),
           onRetry: () => runReorder(input),
         });
       },
@@ -374,13 +381,13 @@ export function BacklogView({ vault }: BacklogViewProps) {
   // second sort label either: the header SortControl owns the order vocabulary,
   // including the word "Manual order" (REEF-169).
   const reorderHint = !isManualOrder
-    ? "Switch to Manual order to reorder"
+    ? t("reorderHintSwitchToManual")
     : canReorder
-      ? "Drag to reorder"
+      ? t("reorderHintDrag")
       : filter.showArchived
-        ? "Hide archived to reorder"
+        ? t("reorderHintHideArchived")
         : // Transient (placeholder / in-flight reorder): keep the affordance.
-          "Drag to reorder";
+          t("reorderHintDrag");
 
   return (
     <PageBody pad="compact">
@@ -405,15 +412,13 @@ export function BacklogView({ vault }: BacklogViewProps) {
         </Table>
       ) : isError ? (
         <div className="flex flex-col items-center justify-center gap-3 py-12">
-          <p className="text-sm text-muted-foreground">
-            Failed to load the backlog.
-          </p>
+          <p className="text-sm text-muted-foreground">{t("loadError")}</p>
           <button
             type="button"
             className="rounded-md border border-border bg-elevated px-3 py-1.5 text-[13px] font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
             onClick={() => refetch()}
           >
-            Retry
+            {c("retry")}
           </button>
         </div>
       ) : count === 0 ? (
@@ -468,13 +473,14 @@ export function BacklogView({ vault }: BacklogViewProps) {
 }
 
 function BacklogTableHeader() {
+  const columnLabels = useFieldNameLabels();
   return (
     <TableHeader>
       <TableRow>
         {/* Grip column. */}
         <TableHead className="w-7" />
-        {BACKLOG_COLUMNS.map((label) => (
-          <TableHead key={label}>{label}</TableHead>
+        {BACKLOG_COLUMNS.map((key) => (
+          <TableHead key={key}>{columnLabels[key]}</TableHead>
         ))}
       </TableRow>
     </TableHeader>
@@ -484,6 +490,7 @@ function BacklogTableHeader() {
 // The boundary between the manually-ordered rows and the unranked tail. A quiet
 // affordance: it appears once at least one row has been manually ordered.
 function BacklogUnrankedDivider() {
+  const t = useTranslations("issues.backlog");
   return (
     <tr data-testid="backlog-unranked-divider">
       <td colSpan={BACKLOG_COL_COUNT} className="px-3 py-1">
@@ -491,7 +498,7 @@ function BacklogUnrankedDivider() {
           <span className="h-px flex-1 bg-border-subtle" />
           <span className="inline-flex items-center gap-1 whitespace-nowrap">
             <CircleDashed className="h-3 w-3" aria-hidden="true" />
-            Unranked · newest first
+            {t("unrankedDivider")}
           </span>
           <span className="h-px flex-1 bg-border-subtle" />
         </div>
@@ -503,20 +510,20 @@ function BacklogUnrankedDivider() {
 // Zero results because the triage filters/search hid the backlog — distinct from
 // a genuinely empty backlog, matching the list/timeline no-matches affordance.
 function BacklogNoMatches() {
+  const t = useTranslations("issues.backlog");
+  const c = useTranslations("common");
   return (
     <div
       className="flex flex-col items-center justify-center gap-3 py-12"
       data-testid="backlog-no-matches"
     >
-      <p className="text-sm text-muted-foreground">
-        No backlog issues match your filters.
-      </p>
+      <p className="text-sm text-muted-foreground">{t("noMatches")}</p>
       <button
         type="button"
         className="rounded-md border border-border bg-elevated px-3 py-1.5 text-[13px] font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
         onClick={() => useIssueStore.getState().clearFilter()}
       >
-        Clear filters
+        {c("clearFilters")}
       </button>
     </div>
   );
@@ -545,6 +552,7 @@ function BacklogSkeleton() {
 }
 
 function BacklogEmptyState() {
+  const t = useTranslations("issues.backlog");
   return (
     <div
       className="flex flex-col items-center justify-center gap-3 py-16 text-center"
@@ -556,19 +564,14 @@ function BacklogEmptyState() {
         aria-hidden="true"
       />
       <div className="space-y-1">
-        <p className="text-sm font-medium text-foreground">
-          Your backlog is empty
-        </p>
-        <p className="text-sm text-muted-foreground">
-          New issues arrive in Todo. Send work you want to defer here to keep it
-          out of the active board.
-        </p>
+        <p className="text-sm font-medium text-foreground">{t("emptyTitle")}</p>
+        <p className="text-sm text-muted-foreground">{t("emptyDescription")}</p>
       </div>
       <Link
         href="/issues?view=board"
         className="text-[13px] font-medium text-brand hover:underline"
       >
-        Go to the board →
+        {t("goToBoard")}
       </Link>
     </div>
   );

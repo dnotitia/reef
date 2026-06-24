@@ -26,14 +26,10 @@ import {
   ListOrdered,
   RotateCcw,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 // Module-level: a stable reference, does not recreated per render.
 const SORT_OPTIONS = USER_SORT_FIELDS;
-
-// The backlog manual (rank) order. This control is the single source of
-// truth for the words "Manual order" — the backlog body no longer restates it
-// (REEF-169).
-const MANUAL_ORDER_LABEL = "Manual order";
 
 interface SortControlProps {
   /**
@@ -75,6 +71,11 @@ export function SortControl({ supportsManualOrder = false }: SortControlProps) {
   // function, so the render below is unchanged.
   const sortFieldLabels = useSortFieldLabels();
   const directionLabel = useDirectionLabel();
+
+  // This control is the single source of truth for the words "Manual order" —
+  // the backlog body no longer restates it (REEF-169).
+  const t = useTranslations("issues.sort");
+  const manualOrderLabel = t("manualOrder");
 
   // Derived during render — no effect, no mirrored state (you-might-not-need-an-effect).
   const isDefault = !sortField;
@@ -124,11 +125,11 @@ export function SortControl({ supportsManualOrder = false }: SortControlProps) {
           data-testid="sort-control-trigger"
           aria-label={
             manualActive
-              ? "Order issues: Manual order"
-              : `Sort issues by ${sortFieldLabels[effectiveField]}, ${directionLabel(
-                  effectiveField,
-                  effectiveOrder,
-                )}`
+              ? t("orderAria", { label: manualOrderLabel })
+              : t("sortAria", {
+                  field: sortFieldLabels[effectiveField],
+                  direction: directionLabel(effectiveField, effectiveOrder),
+                })
           }
         >
           {manualActive ? (
@@ -137,9 +138,7 @@ export function SortControl({ supportsManualOrder = false }: SortControlProps) {
             <ArrowUpDown className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           )}
           <span className="font-medium">
-            {manualActive
-              ? MANUAL_ORDER_LABEL
-              : sortFieldLabels[effectiveField]}
+            {manualActive ? manualOrderLabel : sortFieldLabels[effectiveField]}
           </span>
           {!manualActive && (
             <span className="text-muted-foreground">
@@ -152,7 +151,7 @@ export function SortControl({ supportsManualOrder = false }: SortControlProps) {
           />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" data-testid="sort-control-content">
-          <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+          <DropdownMenuLabel>{t("sortBy")}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           {supportsManualOrder && (
             <DropdownMenuItem
@@ -168,9 +167,11 @@ export function SortControl({ supportsManualOrder = false }: SortControlProps) {
                   )}
                   aria-hidden="true"
                 />
-                {MANUAL_ORDER_LABEL}
+                {manualOrderLabel}
               </span>
-              <span className="text-[11px] text-muted-foreground">Drag</span>
+              <span className="text-[11px] text-muted-foreground">
+                {t("drag")}
+              </span>
             </DropdownMenuItem>
           )}
           {SORT_OPTIONS.map((field) => (
@@ -213,7 +214,7 @@ export function SortControl({ supportsManualOrder = false }: SortControlProps) {
                 className="gap-2 text-muted-foreground"
               >
                 <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-                Reset to default
+                {t("resetToDefault")}
               </DropdownMenuItem>
             </>
           ) : null}
@@ -227,8 +228,10 @@ export function SortControl({ supportsManualOrder = false }: SortControlProps) {
           onClick={toggleDirection}
           className="inline-flex h-full items-center rounded-r-md border-l border-border-subtle px-2 text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground"
           data-testid="sort-direction-toggle"
-          title={`Direction: ${directionLabel(effectiveField, effectiveOrder)}`}
-          aria-label="Toggle sort direction"
+          title={t("directionTitle", {
+            direction: directionLabel(effectiveField, effectiveOrder),
+          })}
+          aria-label={t("toggleDirection")}
         >
           {effectiveOrder === "desc" ? (
             <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />

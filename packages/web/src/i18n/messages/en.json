@@ -20,6 +20,26 @@
       "skillUpdate": "Workspace instructions update available"
     }
   },
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "remove": "Remove",
+    "add": "Add",
+    "edit": "Edit",
+    "view": "View",
+    "close": "Close",
+    "retry": "Retry",
+    "clearFilters": "Clear filters",
+    "loading": "Loading…",
+    "addLabelPlaceholder": "Add a label and press Enter…"
+  },
+  "sections": {
+    "details": "Details",
+    "people": "People",
+    "planning": "Planning",
+    "relationships": "Relationships"
+  },
   "emptyState": {
     "workspace": {
       "prompt": "Pick a workspace in <link>Settings</link> to get started."
@@ -115,5 +135,36 @@
     "planningSaveError": "Save failed.",
     "planningDeleted": "{kind} deleted.",
     "planningDeleteError": "Delete failed."
+  },
+  "issues": {
+    "backlog": {
+      "loadError": "Failed to load the backlog.",
+      "noMatches": "No backlog issues match your filters.",
+      "emptyTitle": "Your backlog is empty",
+      "emptyDescription": "New issues arrive in Todo. Send work you want to defer here to keep it out of the active board.",
+      "goToBoard": "Go to the board →",
+      "unrankedDivider": "Unranked · newest first",
+      "reorderHintDrag": "Drag to reorder",
+      "reorderHintSwitchToManual": "Switch to Manual order to reorder",
+      "reorderHintHideArchived": "Hide archived to reorder",
+      "updateErrorTitle": "Couldn't update issue",
+      "updateErrorDescription": "The backlog was reverted. Retry to move it again.",
+      "reorderErrorTitle": "Couldn't reorder the backlog",
+      "reorderErrorDescription": "The order was reverted. Retry to move it again."
+    },
+    "detailSidebar": {
+      "noRequester": "No requester",
+      "noReporter": "No reporter"
+    },
+    "sort": {
+      "sortBy": "Sort by",
+      "drag": "Drag",
+      "resetToDefault": "Reset to default",
+      "toggleDirection": "Toggle sort direction",
+      "manualOrder": "Manual order",
+      "orderAria": "Order issues: {label}",
+      "sortAria": "Sort issues by {field}, {direction}",
+      "directionTitle": "Direction: {direction}"
+    }
   }
 }
