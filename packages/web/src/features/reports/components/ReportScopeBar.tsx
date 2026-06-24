@@ -10,6 +10,7 @@ import {
 import { PlanningItemCombobox } from "@/features/planning/components/PlanningItemCombobox";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
+import { useTranslations } from "next-intl";
 import { useMemo } from "react";
 import {
   DEFAULT_REPORT_FILTERS,
@@ -17,10 +18,11 @@ import {
   type ReportFilters,
 } from "../lib/aggregate";
 
-// Reports controls. Hoisted so the option arrays keep a stable identity
-// across renders (Period/Scope does not change). Labels read from the shared
+// Reports controls. Hoisted so the option array keeps a stable identity
+// across renders (Period does not change). Labels read from the shared
 // PERIOD_LABELS so the control and the Throughput card name the window
-// identically (REEF-185).
+// identically (REEF-185). The Scope and Measure option labels are localized,
+// so they are built inside the component (memoized on the stable translator).
 const PERIOD_OPTIONS: ReadonlyArray<{
   value: ReportFilters["period"];
   label: string;
@@ -28,26 +30,6 @@ const PERIOD_OPTIONS: ReadonlyArray<{
   value,
   label: PERIOD_LABELS[value],
 }));
-
-const SCOPE_OPTIONS: ReadonlyArray<{
-  value: ReportFilters["scope"];
-  label: string;
-}> = [
-  { value: "active", label: "Active work" },
-  { value: "all", label: "All issues" },
-  { value: "completed", label: "Completed" },
-];
-
-// Measure weights the load/throughput distributions by issue count (default)
-// or summed story points (REEF-188). It rides alongside Period/Scope as a
-// report control, not a population facet.
-const MEASURE_OPTIONS: ReadonlyArray<{
-  value: ReportFilters["measure"];
-  label: string;
-}> = [
-  { value: "count", label: "Issue count" },
-  { value: "points", label: "Story points" },
-];
 
 /**
  * Reports scope bar. Period and scope are reports; the remaining facets
@@ -65,6 +47,7 @@ export function ReportScopeBar({
 }) {
   const { vault } = useActiveVault();
   const fieldNames = useFieldNameLabels();
+  const t = useTranslations("reports.page");
   const patch = (next: Partial<ReportFilters>) =>
     onChange({ ...filters, ...next });
 
@@ -73,13 +56,38 @@ export function ReportScopeBar({
     [filters.label],
   );
 
+  // Scope and Measure carry localized labels, so they are built here (memoized
+  // on the stable translator) rather than hoisted to module scope. Measure
+  // weights the load/throughput distributions by issue count (default) or summed
+  // story points (REEF-188); it rides alongside Period/Scope as a report
+  // control, not a population facet.
+  const scopeOptions = useMemo<
+    ReadonlyArray<{ value: ReportFilters["scope"]; label: string }>
+  >(
+    () => [
+      { value: "active", label: t("scopeActive") },
+      { value: "all", label: t("scopeAll") },
+      { value: "completed", label: t("scopeCompleted") },
+    ],
+    [t],
+  );
+  const measureOptions = useMemo<
+    ReadonlyArray<{ value: ReportFilters["measure"]; label: string }>
+  >(
+    () => [
+      { value: "count", label: t("measureCount") },
+      { value: "points", label: t("measurePoints") },
+    ],
+    [t],
+  );
+
   return (
     <div
       data-testid="report-scope-bar"
       className="grid w-full grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-2 rounded-lg border border-border-subtle bg-surface-subtle p-2"
     >
       <ScopeSelect
-        label="Period"
+        label={t("period")}
         value={filters.period}
         options={PERIOD_OPTIONS}
         active={filters.period !== DEFAULT_REPORT_FILTERS.period}
@@ -88,16 +96,16 @@ export function ReportScopeBar({
         }
       />
       <ScopeSelect
-        label="Scope"
+        label={t("scope")}
         value={filters.scope}
-        options={SCOPE_OPTIONS}
+        options={scopeOptions}
         active={filters.scope !== DEFAULT_REPORT_FILTERS.scope}
         onChange={(scope) => patch({ scope: scope as ReportFilters["scope"] })}
       />
       <ScopeSelect
-        label="Measure"
+        label={t("measure")}
         value={filters.measure}
-        options={MEASURE_OPTIONS}
+        options={measureOptions}
         active={filters.measure !== DEFAULT_REPORT_FILTERS.measure}
         onChange={(measure) =>
           patch({ measure: measure as ReportFilters["measure"] })
@@ -111,7 +119,7 @@ export function ReportScopeBar({
           onChange={(id) => patch({ sprint_id: id || undefined })}
           label={fieldNames.sprint}
           placeholder={fieldNames.sprint}
-          emptyLabel="Any sprint"
+          emptyLabel={t("anySprint")}
           testId="report-sprint-input"
           active={Boolean(filters.sprint_id)}
         />
@@ -124,7 +132,7 @@ export function ReportScopeBar({
           onChange={(id) => patch({ milestone_id: id || undefined })}
           label={fieldNames.milestone}
           placeholder={fieldNames.milestone}
-          emptyLabel="Any milestone"
+          emptyLabel={t("anyMilestone")}
           testId="report-milestone-input"
           active={Boolean(filters.milestone_id)}
         />
@@ -137,7 +145,7 @@ export function ReportScopeBar({
           onChange={(id) => patch({ release_id: id || undefined })}
           label={fieldNames.release}
           placeholder={fieldNames.release}
-          emptyLabel="Any release"
+          emptyLabel={t("anyRelease")}
           testId="report-release-input"
           active={Boolean(filters.release_id)}
         />
@@ -149,7 +157,7 @@ export function ReportScopeBar({
           vault={vault}
           label={fieldNames.assignee}
           placeholder={fieldNames.assignee}
-          emptyLabel="Any assignee"
+          emptyLabel={t("anyAssignee")}
           active={Boolean(filters.assignee)}
         />
       </div>

@@ -1,9 +1,10 @@
 "use client";
 
 import { formatDisplayDate } from "@/features/issues/lib/dateHelpers";
+import { useEnrichmentEmptyLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { IssueListItem, PlanningCatalog } from "@reef/core";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { memo, useMemo, useState } from "react";
 import type { ReportFilters } from "../lib/aggregate";
 import { DAY_MS } from "../lib/aggregateModel";
@@ -28,10 +29,10 @@ import {
  * parent ranked side by side, worst-first (REEF-187).
  */
 
-/** RAG → token + label. Mirrors the `STATUS_COLOR` / `TYPE_META` convention
- *  (a TS record pointing at existing CSS tokens) rather than minting new
- *  globals — On track reuses the done green, At risk the medium-priority amber,
- *  Off track the destructive red. */
+/** RAG → token + label. Mirrors the `STATUS_COLOR` convention (a TS record
+ *  pointing at existing CSS tokens) rather than minting new globals — On track
+ *  reuses the done green, At risk the medium-priority amber, Off track the
+ *  destructive red. */
 const RAG_META: Record<RagLevel, { label: string; color: string }> = {
   on_track: { label: "On track", color: "var(--status-done)" },
   at_risk: { label: "At risk", color: "var(--priority-medium)" },
@@ -89,6 +90,7 @@ export function HealthRollup({
   );
   const [dimension, setDimension] = useState<RollupDimension>("milestone");
   const [showShipped, setShowShipped] = useState(false);
+  const t = useTranslations("reports.cards");
 
   const activeDim = availableDims.includes(dimension)
     ? dimension
@@ -127,7 +129,7 @@ export function HealthRollup({
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-baseline gap-2">
           <h3 className="text-sm font-semibold text-foreground">
-            Portfolio health
+            {t("portfolioHealth")}
           </h3>
           <span className="text-[11px] text-muted-foreground">
             {visibleRows.length}{" "}
@@ -149,7 +151,7 @@ export function HealthRollup({
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              Show shipped
+              {t("showShipped")}
             </button>
           )}
           {availableDims.length > 1 && (
@@ -164,7 +166,7 @@ export function HealthRollup({
 
       {visibleRows.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          No {label.many.toLowerCase()} to show.
+          {t("noneToShow", { dimension: label.many.toLowerCase() })}
         </p>
       ) : (
         <ul className="flex flex-col gap-1.5">
@@ -191,11 +193,12 @@ function DimensionToggle({
   active: RollupDimension;
   onSelect: (dim: RollupDimension) => void;
 }) {
+  const t = useTranslations("reports.cards");
   return (
     // biome-ignore lint/a11y/useSemanticElements: a header toggle group is not a form <fieldset>; role="group" + aria-label is the right semantics here (matches ViewSwitcher).
     <div
       role="group"
-      aria-label="Rollup dimension"
+      aria-label={t("rollupDimension")}
       data-testid="health-rollup-dimension"
       className="inline-flex items-center gap-0.5 rounded-md border border-border-subtle bg-elevated p-0.5"
     >
@@ -234,6 +237,7 @@ const HealthRow = memo(function HealthRow({
 }) {
   const meta = row.verdict ? RAG_META[row.verdict.level] : null;
   const rail = meta?.color ?? "var(--border-subtle)";
+  const empty = useEnrichmentEmptyLabels();
 
   return (
     <li>
@@ -272,7 +276,7 @@ const HealthRow = memo(function HealthRow({
               </span>
             ) : (
               <span className="shrink-0 text-[11px] text-muted-foreground">
-                Empty
+                {empty.empty}
               </span>
             )}
           </div>

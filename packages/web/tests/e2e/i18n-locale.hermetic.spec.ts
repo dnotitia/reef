@@ -18,29 +18,38 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     await openExistingWorkspace(page);
     await page.goto("/settings/preferences");
 
+    // Scope the language-section testid lookups to the VISIBLE region via its
+    // accessible role/name. Next dev's warm-navigation transition can leave a
+    // second, `hidden` copy of the settings subtree in the DOM (a dev-only
+    // artifact, REEF-258), which a raw `getByTestId` would match alongside the
+    // real one and trip strict mode. `getByRole("region")` queries the
+    // accessibility tree, so the hidden duplicate is excluded.
+    const langSection = page.getByRole("region", { name: "Language" });
+
     // AC1 — first paint (no locale cookie) is English: <html lang> and the
     // server-rendered language section heading are both en.
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
-    await expect(page.getByTestId("language-section")).toBeVisible();
+    await expect(langSection).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Language", level: 3 }),
     ).toBeVisible();
-    await expect(page.getByTestId("locale-option-en")).toHaveAttribute(
+    await expect(langSection.getByTestId("locale-option-en")).toHaveAttribute(
       "aria-checked",
       "true",
     );
 
     // AC2 — switching to ko flips the UI immediately: <html lang> updates and the
     // heading re-renders from the ko catalog (proving the provider switched, AC3).
-    await page.getByTestId("locale-option-ko").click();
+    await langSection.getByTestId("locale-option-ko").click();
     await expect(page.locator("html")).toHaveAttribute("lang", "ko");
     await expect(
       page.getByRole("heading", { name: "언어", level: 3 }),
     ).toBeVisible();
-    await expect(page.getByTestId("locale-option-ko")).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
+    await expect(
+      page
+        .getByRole("region", { name: "언어" })
+        .getByTestId("locale-option-ko"),
+    ).toHaveAttribute("aria-checked", "true");
 
     // REEF-293 AC1 — the chrome follows the locale, not just the language
     // section: the persistent sidebar nav re-renders from the ko catalog
@@ -67,10 +76,11 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     await expect(
       page.getByRole("heading", { name: "언어", level: 3 }),
     ).toBeVisible();
-    await expect(page.getByTestId("locale-option-ko")).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
+    await expect(
+      page
+        .getByRole("region", { name: "언어" })
+        .getByTestId("locale-option-ko"),
+    ).toHaveAttribute("aria-checked", "true");
   });
 
   test("renders core field labels in the active locale on the board (REEF-292)", async ({
@@ -247,6 +257,33 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     await expect(page.getByTestId("issue-detail-error")).toContainText(
       "이슈를 찾을 수 없습니다.",
     );
+  });
+
+  test("renders migrated reports-area body strings in the active locale (REEF-304)", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    await page.goto("/settings/preferences");
+    await page.getByTestId("locale-option-ko").click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+
+    // The reports page's breakdown card titles are web-chrome copy migrated in
+    // REEF-304 — they now resolve from the ko catalog. "Top assignees" is a
+    // stable always-present card heading on the populated reports surface.
+    await page.goto("/reports");
+    await expect(
+      page.getByText("주요 담당자", { exact: true }).first(),
+    ).toBeVisible();
+    await expect(page.getByText("Top assignees", { exact: true })).toHaveCount(
+      0,
+    );
+
+    // Capture the localized reports surface as the REEF-304 visual proof.
+    await page.screenshot({
+      path: "test-results/reef-304-reports-ko.png",
+      fullPage: true,
+    });
   });
 
   test("renders migrated settings-area body strings in the active locale (REEF-303)", async ({

@@ -1,8 +1,9 @@
 "use client";
 
-import { useStatusLabels } from "@/i18n/fieldLabels";
+import { useEnrichmentEmptyLabels, useStatusLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
-import { type IssueType, type Status, isResolvedStatus } from "@reef/core";
+import { type Status, isResolvedStatus } from "@reef/core";
+import { useTranslations } from "next-intl";
 import type {
   NamedCount,
   ReportAggregates,
@@ -22,22 +23,9 @@ const STATUS_COLOR: Record<Status, string> = {
   closed: "var(--status-closed)",
 };
 
-// By type carries labels: its bars are the same neutral brand value-bars as
-// By severity / Top assignees / Top labels, so the four breakdown cards read as
-// one idiom. A per-type fill would re-encode the identity the row label
-// already names (the REEF-186 argument for neutral severity bars), and it leaked
-// brand / priority / status tokens into a card that means none of them
-// (REEF-248).
-export const TYPE_META: Record<IssueType, { label: string }> = {
-  epic: { label: "Epic" },
-  story: { label: "Story" },
-  task: { label: "Task" },
-  bug: { label: "Bug" },
-  spike: { label: "Spike" },
-  chore: { label: "Chore" },
-};
-
 export function HealthSummary({ agg }: { agg: ReportAggregates }) {
+  const t = useTranslations("reports.page");
+  const empty = useEnrichmentEmptyLabels();
   const { kpis, total, riskSummary } = agg;
   // Completion %, net throughput, and the in-review count each live in a single
   // home elsewhere (the Workflow "Completion" header, the Throughput card
@@ -52,50 +40,50 @@ export function HealthSummary({ agg }: { agg: ReportAggregates }) {
   }> = [
     {
       key: "at-risk",
-      label: "At risk",
+      label: t("atRisk"),
       value: riskSummary.atRisk,
       tone: riskSummary.atRisk > 0 ? "danger" : "default",
-      hint: `${riskSummary.critical} critical`,
+      hint: t("criticalHint", { count: riskSummary.critical }),
     },
     {
       key: "overdue",
-      label: "Overdue",
+      label: t("overdue"),
       value: riskSummary.overdue,
       tone: riskSummary.overdue > 0 ? "danger" : "default",
     },
     {
       key: "stale",
-      label: "Stale",
+      label: t("stale"),
       value: riskSummary.stale,
       tone: riskSummary.stale > 0 ? "warn" : "default",
     },
     {
       key: "blocked",
-      label: "Blocked",
+      label: t("blocked"),
       value: riskSummary.blocked,
       tone: riskSummary.blocked > 0 ? "warn" : "default",
     },
     {
       key: "active",
-      label: "Active",
+      label: t("active"),
       value: total,
       tone: "quiet",
     },
     {
       key: "in-progress",
-      label: "In progress",
+      label: t("inProgress"),
       value: kpis.inProgress,
       tone: "quiet",
     },
     {
       key: "done",
-      label: "Done",
+      label: t("done"),
       value: kpis.done,
       tone: "quiet",
     },
     {
       key: "unassigned",
-      label: "Unassigned",
+      label: empty.unassigned,
       value: kpis.unassigned,
       tone: "quiet",
     },
@@ -160,6 +148,7 @@ export function StatusFunnel({
   rows: ReadonlyArray<StatusCount>;
   measure?: ReportMeasure;
 }) {
+  const t = useTranslations("reports.page");
   const statusLabels = useStatusLabels();
   // Completion / WIP are ratios of the *active measure* so the funnel header
   // stays internally consistent when points-weighted (rows already hold both,
@@ -184,7 +173,7 @@ export function StatusFunnel({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between">
-        <span className="text-xs text-muted-foreground">Completion</span>
+        <span className="text-xs text-muted-foreground">{t("completion")}</span>
         <span className="font-mono text-sm font-semibold tabular-nums text-foreground">
           {completion}%
         </span>
@@ -193,21 +182,22 @@ export function StatusFunnel({
       {/* In-review count is already in the funnel legend above; the
           distinct WIP ratio earns a supplementary metric line (REEF-192). */}
       <div className="text-xs text-muted-foreground">
-        <MetricLine label="WIP" value={`${wip}%`} />
+        <MetricLine label={t("wip")} value={`${wip}%`} />
       </div>
     </div>
   );
 }
 
 export function DeadlineCard({ agg }: { agg: ReportAggregates }) {
+  const t = useTranslations("reports.page");
   const { dueHealth } = agg;
   const withDates =
     dueHealth.overdue + dueHealth.dueThisWeek + dueHealth.upcoming;
 
   if (withDates === 0) {
     return (
-      <Card title="Deadlines">
-        <RowEmpty label="No due dates set on open work." />
+      <Card title={t("deadlines")}>
+        <RowEmpty label={t("noDueDates")} />
       </Card>
     );
   }
@@ -219,19 +209,19 @@ export function DeadlineCard({ agg }: { agg: ReportAggregates }) {
   const segments: Segment[] = [
     {
       key: "overdue",
-      label: "Overdue",
+      label: t("overdue"),
       value: dueHealth.overdue,
       color: "var(--due-overdue)",
     },
     {
       key: "this-week",
-      label: "This week",
+      label: t("thisWeek"),
       value: dueHealth.dueThisWeek,
       color: "var(--due-soon)",
     },
     {
       key: "upcoming",
-      label: "Upcoming",
+      label: t("upcoming"),
       value: dueHealth.upcoming,
       color: "var(--status-open)",
     },
@@ -239,14 +229,14 @@ export function DeadlineCard({ agg }: { agg: ReportAggregates }) {
 
   return (
     <Card
-      title="Deadlines"
+      title={t("deadlines")}
       // Name the population ("Open work") like the Risk map card so the two
       // open-work cards do not read as the in-scope total, and keep the undated
       // count as the trailing detail (REEF-185).
       subtitle={
         dueHealth.noDueDate > 0
-          ? `Open work · ${dueHealth.noDueDate} undated`
-          : "Open work"
+          ? t("deadlinesSubtitleUndated", { count: dueHealth.noDueDate })
+          : t("openWork")
       }
     >
       {/* The SegmentedBar legend already labels Overdue/This week/Upcoming with
@@ -258,10 +248,9 @@ export function DeadlineCard({ agg }: { agg: ReportAggregates }) {
 }
 
 export function RowEmpty({ label }: { label?: string }) {
+  const t = useTranslations("reports.page");
   return (
-    <p className="text-xs text-muted-foreground">
-      {label ?? "No data in this category."}
-    </p>
+    <p className="text-xs text-muted-foreground">{label ?? t("noData")}</p>
   );
 }
 

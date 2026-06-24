@@ -8,6 +8,7 @@ import {
   useStatusLabels,
 } from "@/i18n/fieldLabels";
 import type { IssueListItem } from "@reef/core";
+import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import type { ReportFilters } from "../lib/aggregate";
 import {
@@ -37,6 +38,7 @@ export function PivotCard({
 }) {
   const [rowField, setRowField] = useState<PivotFieldKey>("assignee");
   const [colField, setColField] = useState<PivotFieldKey>("status");
+  const t = useTranslations("reports.cards");
 
   // The enum-axis value labels resolve in the active locale (REEF-292); each
   // hook is memoized per locale, so this bundle is a stable `computePivot` dep.
@@ -69,13 +71,13 @@ export function PivotCard({
   }
 
   return (
-    <Card title="Pivot" subtitle="In scope · issue count">
+    <Card title={t("pivot")} subtitle="In scope · issue count">
       <div
         data-testid="pivot-controls"
         className="flex flex-wrap items-center gap-2"
       >
         <FieldPicker
-          label="Rows"
+          label={t("rows")}
           value={rowField}
           exclude={colField}
           onChange={setRowField}
@@ -88,7 +90,7 @@ export function PivotCard({
           ×
         </span>
         <FieldPicker
-          label="Columns"
+          label={t("columns")}
           value={colField}
           exclude={rowField}
           onChange={setColField}
@@ -98,7 +100,7 @@ export function PivotCard({
       <PivotMatrix result={result} />
       {folded.length > 0 && (
         <p className="text-[11px] text-muted-foreground">
-          Top buckets shown; {folded.join(" and ")} folded into an Other bucket.
+          {t("foldedNote", { folded: folded.join(" and ") })}
         </p>
       )}
     </Card>

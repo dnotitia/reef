@@ -194,6 +194,7 @@ export function RiskMatrix({
   // `fieldLabels.ts` — the `aging.{bucket}` key is built at runtime.
   const priorityLabels = usePriorityLabels();
   const t = useTranslations("reports") as unknown as (key: string) => string;
+  const tCards = useTranslations("reports.cards");
   const priorityLabel = (priority: RiskPriority): string =>
     priority === "none" ? t("riskPriorityNone") : priorityLabels[priority];
   const agingLabel = (aging: AgingBucketKey): string => t(`aging.${aging}`);
@@ -206,10 +207,7 @@ export function RiskMatrix({
   return (
     <div className="overflow-x-auto">
       <table className="w-full table-fixed border-separate [border-spacing:6px]">
-        <caption className="sr-only">
-          Open-work issue count by priority (rows) and time since last update
-          (columns).
-        </caption>
+        <caption className="sr-only">{tCards("riskCaption")}</caption>
         <colgroup>
           <col className="w-[76px]" />
           {AGING_BUCKETS.map((aging) => (
@@ -270,10 +268,11 @@ export function RiskMatrix({
 
 export function PivotMatrix({ result }: { result: PivotResult }) {
   const { rows, cols, max } = result;
+  const t = useTranslations("reports.cards");
   if (rows.length === 0 || cols.length === 0) {
     return (
       <p className="text-xs text-muted-foreground">
-        No data to cross-tabulate.
+        {t("noDataToCrossTabulate")}
       </p>
     );
   }
@@ -281,8 +280,10 @@ export function PivotMatrix({ result }: { result: PivotResult }) {
     <div className="overflow-x-auto">
       <table className="w-full min-w-[480px] table-fixed border-separate [border-spacing:6px]">
         <caption className="sr-only">
-          Issue count by {result.rowField} (rows) and {result.colField}
-          (columns).
+          {t("issueCountByCaption", {
+            row: result.rowField,
+            col: result.colField,
+          })}
         </caption>
         <colgroup>
           <col className="w-[120px]" />
@@ -308,7 +309,7 @@ export function PivotMatrix({ result }: { result: PivotResult }) {
               scope="col"
               className="px-1 pb-0.5 text-center align-bottom text-[11px] font-semibold text-foreground"
             >
-              Total
+              {t("total")}
             </th>
           </tr>
         </thead>
@@ -327,7 +328,7 @@ export function PivotMatrix({ result }: { result: PivotResult }) {
               scope="row"
               className="truncate text-left text-xs font-semibold text-foreground"
             >
-              Total
+              {t("total")}
             </th>
             {cols.map((c) => (
               <td

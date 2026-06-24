@@ -2,7 +2,7 @@
 
 import { formatTimestampMonthDay } from "@/features/issues/lib/dateHelpers";
 import { cn } from "@/lib/utils";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { WEEK_MS } from "../lib/aggregate";
 import type {
   CompletionForecast,
@@ -45,6 +45,7 @@ export function ForecastCard({
 }) {
   const { remaining, horizonWeeks, insufficient, lowConfidence } = forecast;
   const locale = useLocale();
+  const t = useTranslations("reports.cards");
 
   const targetDate = weekDate(now, horizonWeeks, locale);
   const subtitle = insufficient
@@ -52,9 +53,9 @@ export function ForecastCard({
     : `Open work · ${remaining} remaining`;
 
   return (
-    <Card title="Delivery forecast" subtitle={subtitle}>
+    <Card title={t("deliveryForecast")} subtitle={subtitle}>
       {remaining === 0 ? (
-        <RowEmpty label="No open work in scope — nothing left to forecast." />
+        <RowEmpty label={t("noOpenWork")} />
       ) : insufficient ? (
         <RowEmpty
           label={`No completions in ${periodLabel.toLowerCase()} — not enough history to forecast.`}
@@ -66,7 +67,7 @@ export function ForecastCard({
               data-testid="forecast-low-confidence"
               className="text-[11px] text-priority-high"
             >
-              Thin sample — treat these as rough.
+              {t("thinSample")}
             </p>
           )}
           <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
@@ -147,6 +148,7 @@ function CompletionRow({
   now: number;
 }) {
   const locale = useLocale();
+  const t = useTranslations("reports.cards");
   // A capped trial did not reach the target within the hard week ceiling, so
   // there is no honest date — show it as a floor instead of a false promise.
   if (row.capped) {
@@ -156,7 +158,8 @@ function CompletionRow({
         testId={`forecast-completion-${row.confidence}`}
         value={
           <span className="font-mono tabular-nums text-muted-foreground">
-            &gt;{MAX_FORECAST_WEEKS}w
+            {/* i18n-exempt: ">" is a comparison glyph, not copy */}&gt;
+            {MAX_FORECAST_WEEKS}w
           </span>
         }
       />
@@ -169,7 +172,11 @@ function CompletionRow({
       testId={`forecast-completion-${row.confidence}`}
       value={
         <>
-          {date && <span className="text-foreground">by {date}</span>}
+          {date && (
+            <span className="text-foreground">
+              {t("completionByDate", { date })}
+            </span>
+          )}
           <span
             className={cn(
               "font-mono tabular-nums text-muted-foreground",
