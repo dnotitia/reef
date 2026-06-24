@@ -51,7 +51,11 @@ export async function getAgentArtifactReviewContext(
   vault: string,
 ): Promise<{ context: AgentArtifactReviewContext } | { response: Response }> {
   const adapterResult = getAkbAdapter(request);
-  if ("response" in adapterResult) return adapterResult;
+  if ("response" in adapterResult) {
+    // `getAkbAdapter` defers its localized 401 as a Promise; this helper is
+    // async, so settle it to a `Response` for the shared `{ response }` shape.
+    return { response: await adapterResult.response };
+  }
   const actorResult = await getAkbCurrentActor(request);
   if ("response" in actorResult) return actorResult;
   return {
@@ -76,7 +80,7 @@ export async function reefAgentErrorResponse(
   details?: Record<string, unknown>,
 ): Promise<Response | null> {
   if (!(err instanceof ReefError)) return null;
-  const res = respondWithError(err, { resourceKind: "workspace" });
+  const res = await respondWithError(err, { resourceKind: "workspace" });
   const body = (await res.json()) as { error: string };
   return jsonAgentError(body.error, res.status, code, details);
 }

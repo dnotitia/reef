@@ -11,7 +11,7 @@ import {
   it,
   vi,
 } from "vitest";
-import { GitHubApiError, translateError } from "../../errors";
+import { GitHubApiError, describeError } from "../../errors";
 import { createGitHubAdapter } from "../github";
 import { createGitHubAppInstallationTokenProvider } from "./appAuth";
 
@@ -278,7 +278,7 @@ describe("createGitHubAppInstallationTokenProvider", () => {
     },
   );
 
-  it("collapses an unexpected upstream status to a 502 PM-facing response via translateError (AC3)", async () => {
+  it("collapses an unexpected upstream status to a 502 PM-facing status via describeError (AC3)", async () => {
     server.use(
       http.post(TOKEN_ENDPOINT, () =>
         HttpResponse.json({ message: "boom" }, { status: 500 }),
@@ -291,9 +291,9 @@ describe("createGitHubAppInstallationTokenProvider", () => {
     const error = await provider().catch((err: unknown) => err);
 
     expect(error).toBeInstanceOf(GitHubApiError);
-    // The upstream status is preserved on the error; translateError is where a
+    // The upstream status is preserved on the error; describeError is where a
     // non-pass-through status collapses to a PM-facing 502.
-    expect(translateError(error).status).toBe(502);
+    expect(describeError(error).status).toBe(502);
   });
 
   it("maps a local signing failure (malformed private key) to a credential-free GitHubApiError (AC3)", async () => {

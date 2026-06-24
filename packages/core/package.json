@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./status": "./src/models/status.ts",
+    "./errors": "./src/errors/index.ts",
     "./fields": "./src/schemas/issues/fieldRegistry.ts",
     "./fields/planning": "./src/schemas/planning/fieldRegistry.ts"
   },

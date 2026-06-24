@@ -10,7 +10,9 @@ import type { AkbAdapter } from "@reef/core";
 export function getIssueRouteReadContext(
   request: Request,
   id: string,
-): { id: string; vault: string; adapter: AkbAdapter } | { response: Response } {
+):
+  | { id: string; vault: string; adapter: AkbAdapter }
+  | { response: Promise<Response> } {
   if (!isValidIssueIdPathParam(id)) {
     return { response: invalidIssueIdResponse() };
   }

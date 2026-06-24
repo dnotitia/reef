@@ -1,9 +1,10 @@
+import { localizeError } from "@/lib/api/errorLocalization";
 import {
   type GitHubCredentialSource,
   resolveGitHubAdapter,
 } from "@/lib/github/resolveGitHubAdapter";
 import { logger } from "@/lib/logging/logger";
-import { type GitHubAdapter, translateError } from "@reef/core";
+import type { GitHubAdapter } from "@reef/core";
 
 /** The shared repo-list result shape, derived so no extra core type export is needed. */
 type RepoListResult = Awaited<
@@ -89,10 +90,10 @@ function buildReposResponse(result: RepoListResult): Response {
   });
 }
 
-function handleReposError(err: unknown): Response {
+function handleReposError(err: unknown): Promise<Response> {
   const status = getErrorStatus(err);
   logger.error({ err, status }, "list_repos failed");
-  return translateError(err);
+  return localizeError(err);
 }
 
 function getErrorStatus(err: unknown): number | undefined {

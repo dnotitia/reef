@@ -52,6 +52,16 @@ explicitly in the entries below.
   batch of the larger string migration: the rest of the UI follows in later
   changes, guarded so newly added English text can't silently slip back in
   (REEF-293).
+- **Server and AI error messages now follow the interface language.** With Korean
+  selected, the PM-facing errors raised by workspace, GitHub, and AI operations —
+  not found, save conflict, sign-in required, the AI service being unavailable,
+  invalid request, and the rest — render in Korean in their toast or dialog
+  instead of English. The framework-agnostic `core` package now carries a stable
+  error code (never message text) for each failure, and `web` resolves the active
+  locale at its error boundary and translates that code, falling back to English
+  for any message a locale has not translated yet. The remaining English error
+  strings in the agent-artifact review flow are localized by later work
+  (REEF-297).
 - **Tune when completed issues leave the default views.** Workspace admins can
   now set separate "Hide completed after N days" and "Hide canceled after N
   days" windows from Settings > Workspace > General. The values are stored in

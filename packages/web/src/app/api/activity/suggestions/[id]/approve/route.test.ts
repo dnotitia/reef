@@ -30,7 +30,7 @@ vi.mock("@reef/core", async (importOriginal) => {
   const original = await importOriginal<typeof import("@reef/core")>();
   return {
     ...original,
-    // ActivitySuggestionError stays the real class so core translateError's
+    // ActivitySuggestionError stays the real class so core describeError's
     // instanceof check matches what this test throws.
     approveActivitySuggestion: mockApproveActivitySuggestion,
   };

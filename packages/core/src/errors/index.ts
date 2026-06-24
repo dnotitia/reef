@@ -8,38 +8,143 @@
  *  - call `super(<user-facing message>)` so `error.message` equals `toUserMessage()`
  *  - set `this.name` to their class name
  *  - implement `toUserMessage()` using PM vocabulary just (no Git/LLM/Octokit terms)
+ *
+ * i18n contract (ADR-0001 / REEF-297): `core` is the framework-agnostic boundary
+ * and does not know the request locale, so it never resolves a localized string.
+ * Each error carries a STABLE CODE (`describeError`) into a key in the en base
+ * catalog (`ERROR_MESSAGES_EN`); `web` resolves the active locale at its boundary
+ * and translates that code, falling back to en for any key a locale omits. The
+ * English `message` / `toUserMessage()` stays derived from the same en base, so it
+ * remains the single English source for logs, spans, and non-localized callers.
  */
 export abstract class ReefError extends Error {
   abstract toUserMessage(): string;
+}
+
+// ─── Error code → catalog key ──────────────────────────────────────────────────
+
+/**
+ * A stable error code is a dot path into `ERROR_MESSAGES_EN` (and the matching
+ * `errors.*` next-intl namespace web composes from it). It is locale-free: `web`
+ * resolves it against the active locale. Kept as a `string` rather than a union
+ * so the dynamic `github.${apiCode(status)}` style codes stay ergonomic; the
+ * catalog shape below is the structural source of truth for which codes exist.
+ */
+export type ErrorCode = string;
+
+/**
+ * The en base catalog for every user-facing reef error message, keyed by the
+ * stable error code (ADR-0001 / REEF-297). `core` exports this as pure data and
+ * never resolves locales; `web` composes it into the next-intl `errors`
+ * namespace, resolves the active locale (en/ko), and falls back to these strings
+ * for any key a locale omits (AC3). `{resource}` / `{field}` are ICU placeholders
+ * substituted at render time — by next-intl in `web`, by `resolveEnMessage` here.
+ *
+ * Distinct codes may share an English string (e.g. the akb and GitHub conflict
+ * copy) on purpose: they are different origins that a locale may word
+ * differently, so they stay separate keys.
+ */
+export const ERROR_MESSAGES_EN = {
+  auth: "Authentication failed. Please sign in again.",
+  conflict: "Save conflict occurred — please refresh and try again.",
+  unknown: "An unexpected error occurred.",
+  llm: {
+    unavailable:
+      "AI service is unavailable. Please try again or check your LLM configuration.",
+  },
+  notFound: {
+    item: "The requested {resource} could not be found.",
+    issue: "Issue not found.",
+    template: "Template not found.",
+    config: "Workspace not found. Check the selected vault.",
+    workspace: "Workspace not found. Check the selected vault.",
+  },
+  schema: {
+    invalid: "Invalid data: {field} could not be validated.",
+    issue: "The issue could not be loaded because the document is malformed.",
+    template:
+      "The template could not be saved because some fields were invalid.",
+    config:
+      "The project config could not be saved because some fields were invalid.",
+    workspace: "The workspace document is malformed.",
+  },
+  github: {
+    auth: "GitHub authentication failed. Please ask an operator to check the GitHub App installation.",
+    notFound: "The requested item could not be found.",
+    conflict: "Save conflict occurred — please refresh and try again.",
+    unknown:
+      "An error occurred while communicating with GitHub. Please try again.",
+  },
+  akb: {
+    auth: "Authentication failed. Please sign in again.",
+    notFound: "The requested item could not be found.",
+    conflict: "Save conflict occurred — please refresh and try again.",
+    unknown:
+      "An error occurred while communicating with the workspace backend. Please try again.",
+  },
+  activitySuggestion: {
+    dismissed: "This suggestion has already been dismissed.",
+    prefixRequired: "Project prefix is required to approve a draft.",
+    statusMissing: "Status-change suggestion is missing patch.status.",
+    closedTarget:
+      "Closing an issue requires a reason. Close it from the issue's close dialog instead.",
+    stale:
+      "This suggestion is out of date — the issue's status has already changed. Dismiss it and rescan.",
+  },
+};
+
+/**
+ * Resolve an error code to its English string with `{param}` substitution.
+ *
+ * Pure and locale-free: this is how a `core` error keeps `error.message` /
+ * `toUserMessage()` English (the single English source) without depending on
+ * next-intl. `web` resolves the SAME code against the active locale instead.
+ */
+function resolveEnMessage(
+  code: ErrorCode,
+  params?: Record<string, string>,
+): string {
+  let node: unknown = ERROR_MESSAGES_EN;
+  for (const segment of code.split(".")) {
+    node = (node as Record<string, unknown> | undefined)?.[segment];
+  }
+  let message = typeof node === "string" ? node : ERROR_MESSAGES_EN.unknown;
+  if (params) {
+    for (const [key, value] of Object.entries(params)) {
+      message = message.split(`{${key}}`).join(value);
+    }
+  }
+  return message;
 }
 
 // ─── Resource-curated copy ─────────────────────────────────────────────────────
 
 /**
  * The akb-backed resources a Route Handler can tag onto a NotFound /
- * SchemaValidation error so `toUserMessage()` produces resource-specific copy.
+ * SchemaValidation error so the resolved message is resource-specific.
  *
  * This is the curated label that drives user-facing wording — distinct from the
  * free-form `context.resource` diagnostic noun (e.g. "issue REEF-001") that the
- * akb adapters set, which is LOG and is does not interpolated into user copy
- * when a `resourceKind` is present.
+ * akb adapters set, which is LOG and is not interpolated into user copy when a
+ * `resourceKind` is present.
  */
 export type AkbResourceLabel = "issue" | "template" | "config" | "workspace";
 
-const NOT_FOUND_LABELS: Record<AkbResourceLabel, string> = {
-  issue: "Issue not found.",
-  template: "Template not found.",
-  config: "Workspace not found. Check the selected vault.",
-  workspace: "Workspace not found. Check the selected vault.",
-};
+// ─── Error descriptor ──────────────────────────────────────────────────────────
 
-const SCHEMA_LABELS: Record<AkbResourceLabel, string> = {
-  issue: "The issue could not be loaded because the document is malformed.",
-  template: "The template could not be saved because some fields were invalid.",
-  config:
-    "The project config could not be saved because some fields were invalid.",
-  workspace: "The workspace document is malformed.",
-};
+/**
+ * The locale-free description of an error: a stable catalog `code`, the HTTP
+ * `status`, optional ICU `params`, and optional caller-controlled `details`.
+ * This is the AC4 seam — `core` hands `web` a code + status, `web` localizes.
+ */
+export interface ErrorDescriptor {
+  code: ErrorCode;
+  status: number;
+  /** ICU interpolation values for `{resource}` / `{field}` placeholder codes. */
+  params?: Record<string, string>;
+  /** Caller-controlled validation strings safe to surface (clientValidated). */
+  details?: string[];
+}
 
 // ─── Concrete Error Classes ────────────────────────────────────────────────────
 
@@ -61,18 +166,24 @@ export interface SchemaValidationErrorContext {
   clientValidated?: boolean;
 }
 
-function buildSchemaValidationMessage(
-  context: SchemaValidationErrorContext,
-): string {
-  if (context.resourceKind) return SCHEMA_LABELS[context.resourceKind];
-  return `Invalid data: ${context.field ?? "one or more fields"} could not be validated.`;
+/** Code + params for a schema-validation error, shared by the ctor and describeError. */
+function schemaValidationCode(context: SchemaValidationErrorContext): {
+  code: ErrorCode;
+  params?: Record<string, string>;
+} {
+  if (context.resourceKind) return { code: `schema.${context.resourceKind}` };
+  return {
+    code: "schema.invalid",
+    params: { field: context.field ?? "one or more fields" },
+  };
 }
 
 export class SchemaValidationError extends ReefError {
   readonly context: SchemaValidationErrorContext;
 
   constructor(context: SchemaValidationErrorContext = {}) {
-    super(buildSchemaValidationMessage(context));
+    const { code, params } = schemaValidationCode(context);
+    super(resolveEnMessage(code, params));
     this.name = "SchemaValidationError";
     this.context = context;
   }
@@ -82,35 +193,16 @@ export class SchemaValidationError extends ReefError {
   }
 }
 
-interface ApiErrorMessages {
-  auth: string;
-  notFound: string;
-  conflict: string;
-  unknown: string;
+/**
+ * Map an upstream API status to the `{auth,notFound,conflict,unknown}` message
+ * sub-key shared by the GitHub and akb error namespaces.
+ */
+function apiCode(status: number): "auth" | "notFound" | "conflict" | "unknown" {
+  if (status === 401 || status === 403) return "auth";
+  if (status === 404) return "notFound";
+  if (status === 409) return "conflict";
+  return "unknown";
 }
-
-function buildApiMessage(status: number, m: ApiErrorMessages): string {
-  if (status === 401 || status === 403) return m.auth;
-  if (status === 404) return m.notFound;
-  if (status === 409) return m.conflict;
-  return m.unknown;
-}
-
-const GITHUB_MESSAGES: ApiErrorMessages = {
-  auth: "GitHub authentication failed. Please ask an operator to check the GitHub App installation.",
-  notFound: "The requested item could not be found.",
-  conflict: "Save conflict occurred — please refresh and try again.",
-  unknown:
-    "An error occurred while communicating with GitHub. Please try again.",
-};
-
-const AKB_MESSAGES: ApiErrorMessages = {
-  auth: "Authentication failed. Please sign in again.",
-  notFound: "The requested item could not be found.",
-  conflict: "Save conflict occurred — please refresh and try again.",
-  unknown:
-    "An error occurred while communicating with the workspace backend. Please try again.",
-};
 
 export interface GitHubApiErrorContext {
   status: number;
@@ -122,7 +214,7 @@ export class GitHubApiError extends ReefError {
   readonly context: GitHubApiErrorContext;
 
   constructor(context: GitHubApiErrorContext) {
-    super(buildApiMessage(context.status, GITHUB_MESSAGES));
+    super(resolveEnMessage(`github.${apiCode(context.status)}`));
     this.name = "GitHubApiError";
     this.status = context.status;
     this.context = context;
@@ -143,7 +235,7 @@ export class AkbApiError extends ReefError {
   readonly context: AkbApiErrorContext;
 
   constructor(context: AkbApiErrorContext) {
-    super(buildApiMessage(context.status, AKB_MESSAGES));
+    super(resolveEnMessage(`akb.${apiCode(context.status)}`));
     this.name = "AkbApiError";
     this.status = context.status;
     this.context = context;
@@ -158,14 +250,11 @@ export interface LlmErrorContext {
   message: string;
 }
 
-const LLM_UNAVAILABLE_MESSAGE =
-  "AI service is unavailable. Please try again or check your LLM configuration.";
-
 export class LlmError extends ReefError {
   readonly context: LlmErrorContext;
 
   constructor(context: LlmErrorContext) {
-    super(LLM_UNAVAILABLE_MESSAGE);
+    super(resolveEnMessage("llm.unavailable"));
     this.name = "LlmError";
     this.context = context;
   }
@@ -184,14 +273,11 @@ export interface ConflictErrorContext {
   path?: string;
 }
 
-const CONFLICT_MESSAGE =
-  "Save conflict occurred — please refresh and try again.";
-
 export class ConflictError extends ReefError {
   readonly context: ConflictErrorContext;
 
   constructor(context: ConflictErrorContext = {}) {
-    super(CONFLICT_MESSAGE);
+    super(resolveEnMessage("conflict"));
     this.name = "ConflictError";
     this.context = context;
   }
@@ -211,13 +297,11 @@ export interface AuthErrorContext {
 // string ("Your session has expired…") would misdirect a GitHub App auth
 // failure, so the shared message stays neutral. The cookie-missing akb path
 // keeps its more specific copy via the separate `authErrorResponse()` web helper.
-const AUTH_MESSAGE = "Authentication failed. Please sign in again.";
-
 export class AuthError extends ReefError {
   readonly context: AuthErrorContext;
 
   constructor(context: AuthErrorContext = {}) {
-    super(AUTH_MESSAGE);
+    super(resolveEnMessage("auth"));
     this.name = "AuthError";
     this.context = context;
   }
@@ -230,23 +314,31 @@ export class AuthError extends ReefError {
 export interface NotFoundErrorContext {
   /**
    * Free-form diagnostic noun (e.g. "issue REEF-001") set by the akb adapters.
-   * LOG: it is does not interpolated into user copy when `resourceKind` is set.
+   * LOG: it is not interpolated into user copy when `resourceKind` is set.
    */
   resource?: string;
   /** Curated label that drives resource-specific copy (see AkbResourceLabel). */
   resourceKind?: AkbResourceLabel;
 }
 
-function buildNotFoundMessage(context: NotFoundErrorContext): string {
-  if (context.resourceKind) return NOT_FOUND_LABELS[context.resourceKind];
-  return `The requested ${context.resource ?? "item"} could not be found.`;
+/** Code + params for a not-found error, shared by the ctor and describeError. */
+function notFoundCode(context: NotFoundErrorContext): {
+  code: ErrorCode;
+  params?: Record<string, string>;
+} {
+  if (context.resourceKind) return { code: `notFound.${context.resourceKind}` };
+  return {
+    code: "notFound.item",
+    params: { resource: context.resource ?? "item" },
+  };
 }
 
 export class NotFoundError extends ReefError {
   readonly context: NotFoundErrorContext;
 
   constructor(context: NotFoundErrorContext = {}) {
-    super(buildNotFoundMessage(context));
+    const { code, params } = notFoundCode(context);
+    super(resolveEnMessage(code, params));
     this.name = "NotFoundError";
     this.context = context;
   }
@@ -258,9 +350,9 @@ export class NotFoundError extends ReefError {
 
 /**
  * The distinct ways approving an activity-inbox suggestion can be rejected,
- * each with its canonical PM-facing message and HTTP status. Carried on the
+ * each with its canonical PM-facing message code and HTTP status. Carried on the
  * error so a thin Route Handler can translate without re-deriving the status
- * or message from the failure site.
+ * or code from the failure site.
  */
 export type ActivitySuggestionErrorReason =
   | "dismissed"
@@ -271,30 +363,13 @@ export type ActivitySuggestionErrorReason =
 
 const ACTIVITY_SUGGESTION_ERROR_SPECS: Record<
   ActivitySuggestionErrorReason,
-  { status: number; message: string }
+  { status: number; code: ErrorCode }
 > = {
-  dismissed: {
-    status: 409,
-    message: "This suggestion has already been dismissed.",
-  },
-  prefix_required: {
-    status: 400,
-    message: "Project prefix is required to approve a draft.",
-  },
-  status_missing: {
-    status: 400,
-    message: "Status-change suggestion is missing patch.status.",
-  },
-  closed_target: {
-    status: 400,
-    message:
-      "Closing an issue requires a reason. Close it from the issue's close dialog instead.",
-  },
-  stale: {
-    status: 409,
-    message:
-      "This suggestion is out of date — the issue's status has already changed. Dismiss it and rescan.",
-  },
+  dismissed: { status: 409, code: "activitySuggestion.dismissed" },
+  prefix_required: { status: 400, code: "activitySuggestion.prefixRequired" },
+  status_missing: { status: 400, code: "activitySuggestion.statusMissing" },
+  closed_target: { status: 400, code: "activitySuggestion.closedTarget" },
+  stale: { status: 409, code: "activitySuggestion.stale" },
 };
 
 export class ActivitySuggestionError extends ReefError {
@@ -302,7 +377,7 @@ export class ActivitySuggestionError extends ReefError {
   readonly httpStatus: number;
 
   constructor(reason: ActivitySuggestionErrorReason) {
-    super(ACTIVITY_SUGGESTION_ERROR_SPECS[reason].message);
+    super(resolveEnMessage(ACTIVITY_SUGGESTION_ERROR_SPECS[reason].code));
     this.name = "ActivitySuggestionError";
     this.reason = reason;
     this.httpStatus = ACTIVITY_SUGGESTION_ERROR_SPECS[reason].status;
@@ -313,66 +388,7 @@ export class ActivitySuggestionError extends ReefError {
   }
 }
 
-// ─── Route Handler Helper ──────────────────────────────────────────────────────
-
-const UNKNOWN_ERROR_MESSAGE = "An unexpected error occurred.";
-
-/**
- * Pure mapping function: translates a caught error into the appropriate HTTP Response.
- *
- * Contract:
- *  - should not log (callers own OTel span emission)
- *  - should not throw
- *
- * Uses the global Web API `Response` (available in Node.js 18+ and every browser),
- * which keeps `packages/core` framework-agnostic — no `next/server` import.
- */
-export function translateError(err: unknown): Response {
-  if (err instanceof ActivitySuggestionError) {
-    return Response.json(
-      { error: err.toUserMessage() },
-      { status: err.httpStatus },
-    );
-  }
-  if (err instanceof ConflictError) {
-    return Response.json({ error: err.toUserMessage() }, { status: 409 });
-  }
-  if (err instanceof AuthError) {
-    return Response.json({ error: err.toUserMessage() }, { status: 401 });
-  }
-  if (err instanceof NotFoundError) {
-    return Response.json({ error: err.toUserMessage() }, { status: 404 });
-  }
-  if (err instanceof SchemaValidationError) {
-    // Surface `details` for caller-controlled local validation; akb-origin
-    // `issues` carry raw FastAPI/Postgres text and should not reach the body.
-    const body: { error: string; details?: string[] } = {
-      error: err.toUserMessage(),
-    };
-    if (err.context.clientValidated && err.context.issues) {
-      body.details = err.context.issues;
-    }
-    return Response.json(body, { status: 422 });
-  }
-  if (err instanceof GitHubApiError) {
-    return Response.json(
-      { error: err.toUserMessage() },
-      {
-        status: resolveApiHttpStatus(err.status, GITHUB_PASS_THROUGH_STATUSES),
-      },
-    );
-  }
-  if (err instanceof AkbApiError) {
-    return Response.json(
-      { error: err.toUserMessage() },
-      { status: resolveApiHttpStatus(err.status, AKB_PASS_THROUGH_STATUSES) },
-    );
-  }
-  if (err instanceof LlmError) {
-    return Response.json({ error: err.toUserMessage() }, { status: 503 });
-  }
-  return Response.json({ error: UNKNOWN_ERROR_MESSAGE }, { status: 500 });
-}
+// ─── Error description (the AC4 web-localization seam) ──────────────────────────
 
 const GITHUB_PASS_THROUGH_STATUSES = new Set([401, 403, 404, 409]);
 const AKB_PASS_THROUGH_STATUSES = new Set([401, 403, 404, 409, 422]);
@@ -382,4 +398,57 @@ function resolveApiHttpStatus(
   passThrough: ReadonlySet<number>,
 ): number {
   return passThrough.has(status) ? status : 502;
+}
+
+/**
+ * Pure mapping: describe any caught error as a locale-free `{ code, status }`
+ * (plus optional ICU `params` / `details`). This is the framework-agnostic half
+ * of error translation — `web` resolves the active locale and turns the code
+ * into a localized Response at its boundary (ADR-0001 / REEF-297 AC2+AC4).
+ *
+ * Contract:
+ *  - pure (no logging — callers own OTel span emission)
+ *  - total (never throws; an unrecognized error maps to `unknown` / 500)
+ *  - carries NO message text — only a stable code the locale resolves
+ */
+export function describeError(err: unknown): ErrorDescriptor {
+  if (err instanceof ActivitySuggestionError) {
+    return {
+      code: ACTIVITY_SUGGESTION_ERROR_SPECS[err.reason].code,
+      status: err.httpStatus,
+    };
+  }
+  if (err instanceof ConflictError) return { code: "conflict", status: 409 };
+  if (err instanceof AuthError) return { code: "auth", status: 401 };
+  if (err instanceof NotFoundError) {
+    return { ...notFoundCode(err.context), status: 404 };
+  }
+  if (err instanceof SchemaValidationError) {
+    const descriptor: ErrorDescriptor = {
+      ...schemaValidationCode(err.context),
+      status: 422,
+    };
+    // Surface `details` for caller-controlled local validation; akb-origin
+    // `issues` carry raw FastAPI/Postgres text and stay log-only.
+    if (err.context.clientValidated && err.context.issues) {
+      descriptor.details = err.context.issues;
+    }
+    return descriptor;
+  }
+  if (err instanceof GitHubApiError) {
+    return {
+      code: `github.${apiCode(err.status)}`,
+      status: resolveApiHttpStatus(err.status, GITHUB_PASS_THROUGH_STATUSES),
+    };
+  }
+  if (err instanceof AkbApiError) {
+    return {
+      code: `akb.${apiCode(err.status)}`,
+      status: resolveApiHttpStatus(err.status, AKB_PASS_THROUGH_STATUSES),
+    };
+  }
+  if (err instanceof LlmError) {
+    return { code: "llm.unavailable", status: 503 };
+  }
+  return { code: "unknown", status: 500 };
 }

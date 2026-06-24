@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import {
+  REEF_E2E_VAULT,
   openExistingWorkspace,
   readIndexedDbConfig,
   resetFixture,
@@ -177,5 +178,75 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     await sidebar.screenshot({
       path: "test-results/reef-301-field-names-ko.png",
     });
+  });
+
+  test("server error messages localize at the Route Handler boundary (REEF-297)", async ({
+    page,
+    request,
+  }) => {
+    type ErrorBody = { error: string };
+
+    // (A) A web-boundary validation error (invalid issue id) is resolved before
+    // any backend call, so it is fully deterministic. The SAME real route returns
+    // en by default and Korean when the NEXT_LOCALE cookie is set — proving the
+    // boundary reads the request locale from next/headers and localizes (AC1).
+    const enInvalidId = await request.get(
+      `/api/issues/not-a-valid-id?vault=${REEF_E2E_VAULT}`,
+    );
+    expect(enInvalidId.status()).toBe(400);
+    expect(((await enInvalidId.json()) as ErrorBody).error).toBe(
+      "Invalid issue id. Expected format: PREFIX-NUMBER.",
+    );
+
+    const koInvalidId = await request.get(
+      `/api/issues/not-a-valid-id?vault=${REEF_E2E_VAULT}`,
+      { headers: { cookie: "NEXT_LOCALE=ko" } },
+    );
+    expect(koInvalidId.status()).toBe(400);
+    expect(((await koInvalidId.json()) as ErrorBody).error).toBe(
+      "잘못된 이슈 ID입니다. 형식: PREFIX-NUMBER.",
+    );
+
+    // (B) An unauthenticated request to an akb-backed route surfaces the localized
+    // session error through the real handler (en vs ko).
+    const enAuth = await request.get(`/api/issues?vault=${REEF_E2E_VAULT}`);
+    expect(enAuth.status()).toBe(401);
+    expect(((await enAuth.json()) as ErrorBody).error).toBe(
+      "Your session has expired. Please sign in again.",
+    );
+
+    const koAuth = await request.get(`/api/issues?vault=${REEF_E2E_VAULT}`, {
+      headers: { cookie: "NEXT_LOCALE=ko" },
+    });
+    expect(koAuth.status()).toBe(401);
+    expect(((await koAuth.json()) as ErrorBody).error).toBe(
+      "세션이 만료되었습니다. 다시 로그인해 주세요.",
+    );
+
+    // (C) A CORE ReefError (NotFound) → describeError → web-localized copy
+    // (AC2 + AC4): a logged-in request for a well-formed but non-existent issue
+    // 404s as a core NotFoundError, and the boundary resolves its stable
+    // `notFound.issue` code to Korean — core never built the message text.
+    await openExistingWorkspace(page);
+    await page
+      .context()
+      .addCookies([
+        { name: "NEXT_LOCALE", value: "ko", url: new URL(page.url()).origin },
+      ]);
+    const koNotFound = await page.request.get(
+      `/api/issues/REEF-99999?vault=${REEF_E2E_VAULT}`,
+    );
+    expect(koNotFound.status()).toBe(404);
+    expect(((await koNotFound.json()) as ErrorBody).error).toBe(
+      "이슈를 찾을 수 없습니다.",
+    );
+
+    // The same localized copy reaches the actual UI surface: the detail page for
+    // a non-existent issue renders the server error verbatim (the client toast /
+    // error state is a pass-through of `body.error`), so a Korean PM sees Korean.
+    await page.goto("/issues/REEF-99999");
+    await expect(page.getByTestId("issue-detail-error")).toContainText(
+      "이슈를 찾을 수 없습니다.",
+    );
   });
 });

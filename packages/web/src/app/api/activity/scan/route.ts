@@ -1,3 +1,4 @@
+import { localizeError } from "@/lib/api/errorLocalization";
 import { VaultNameSchema, getAkbAdapter } from "@/lib/api/requestHelpers";
 import { resolveScanGitHubAdapter } from "@/lib/github/resolveScanGitHubAdapter";
 import {
@@ -8,7 +9,6 @@ import { logger } from "@/lib/logging/logger";
 import {
   createLlmAdapter,
   scanAndPersistActivitySuggestions,
-  translateError,
 } from "@reef/core";
 import { z } from "zod";
 
@@ -77,7 +77,7 @@ export async function POST(request: Request): Promise<Response> {
   }
   if (github.kind === "github_error") {
     logger.error({ err: github.error, owner, repo }, "scan_activity failed");
-    return translateError(github.error);
+    return localizeError(github.error);
   }
 
   let llmConfig: ReturnType<typeof getRequiredServerLlmConfig>;
@@ -133,6 +133,6 @@ export async function POST(request: Request): Promise<Response> {
     // Discriminate typed ReefError subclasses (GitHubApiError/AuthError/
     // NotFoundError → 401/404, AkbApiError → 502, …) instead of collapsing
     // everything to 500 and leaking raw err.message. (REEF-051)
-    return translateError(err);
+    return localizeError(err);
   }
 }

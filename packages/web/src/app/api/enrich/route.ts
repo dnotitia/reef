@@ -1,3 +1,4 @@
+import { localizeError } from "@/lib/api/errorLocalization";
 import { getAkbAdapter } from "@/lib/api/requestHelpers";
 import { resolveGroundingGitHubAdapter } from "@/lib/github/resolveGroundingGitHubAdapter";
 import { logger } from "@/lib/logging/logger";
@@ -13,7 +14,6 @@ import {
   akbReadAuthoringLanguage,
   createLlmAdapter,
   enrichIssue,
-  translateError,
 } from "@reef/core";
 import {
   ServerLlmConfigError,
@@ -155,7 +155,7 @@ export async function POST(request: Request): Promise<Response> {
         { err, issueId: body.issueId },
         "enrich_issue workspace not found",
       );
-      return jsonError(err.toUserMessage(), 404);
+      return localizeError(err);
     }
     if (err instanceof AkbApiError) {
       // Canonical policy (REEF-054): pass-through {401,403,404,409,422} else 502.
@@ -164,7 +164,7 @@ export async function POST(request: Request): Promise<Response> {
         { err, issueId: body.issueId, status: err.status },
         "enrich_issue workspace backend failed",
       );
-      return translateError(err);
+      return localizeError(err);
     }
     if (err instanceof SchemaValidationError) {
       // Canonical policy (REEF-054): SchemaValidationError -> 422 (was 400).
@@ -172,7 +172,7 @@ export async function POST(request: Request): Promise<Response> {
         { err, issueId: body.issueId },
         "enrich_issue invalid request context",
       );
-      return translateError(err);
+      return localizeError(err);
     }
     logger.error(
       { err, issueId: body.issueId },

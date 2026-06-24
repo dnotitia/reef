@@ -16,9 +16,9 @@ import {
   VaultNameSchema,
   akbGetCurrentActor,
   createAkbAdapter,
-  translateError,
 } from "@reef/core";
 import type { z } from "zod";
+import { localizeError, localizedErrorResponse } from "./errorLocalization";
 
 export const VAULT_NAME_RE = VAULT_NAME_PATTERN;
 
@@ -128,57 +128,45 @@ export function parseIssueListQueryParams(
 }
 
 // ─── 4xx helpers ─────────────────────────────────────────────────────────────
+//
+// These web-owned boundary errors resolve their copy from the `errors.*` catalog
+// at the request locale (REEF-297). They return a Promise because locale
+// detection reads `next/headers`; a Route Handler returning `helper()` from its
+// async body flattens the Promise, so call sites are unchanged.
 
-function authErrorResponse(): Response {
-  return Response.json(
-    { error: "Your session has expired. Please sign in again." },
-    { status: 401 },
-  );
+function authErrorResponse(): Promise<Response> {
+  return localizedErrorResponse("sessionExpired", 401);
 }
 
-function githubAuthErrorResponse(): Response {
-  return Response.json(
-    { error: "Reconnect GitHub in Settings to continue." },
-    { status: 401 },
-  );
+export function invalidJsonBodyResponse(): Promise<Response> {
+  return localizedErrorResponse("invalidJsonBody", 400);
 }
 
-export function invalidJsonBodyResponse(): Response {
-  return Response.json({ error: "Invalid JSON body." }, { status: 400 });
+export function invalidBodyResponse(zodError: z.ZodError): Promise<Response> {
+  return localizedErrorResponse("invalidBody", 400, {
+    details: zodError.flatten(),
+  });
 }
 
-export function invalidBodyResponse(zodError: z.ZodError): Response {
-  return Response.json(
-    { error: "Invalid request body.", details: zodError.flatten() },
-    { status: 400 },
-  );
+export function missingVaultParamResponse(): Promise<Response> {
+  return localizedErrorResponse("missingVault", 400);
 }
 
-export function missingVaultParamResponse(): Response {
-  return Response.json(
-    { error: "Missing or invalid `vault` parameter." },
-    { status: 400 },
-  );
-}
-
-export function invalidIssueIdResponse(): Response {
-  return Response.json(
-    { error: "Invalid issue id. Expected format: PREFIX-NUMBER." },
-    { status: 400 },
-  );
+export function invalidIssueIdResponse(): Promise<Response> {
+  return localizedErrorResponse("invalidIssueId", 400);
 }
 
 // ─── akb error translation ───────────────────────────────────────────────────
 
 /** 502 for an unreachable/misconfigured workspace backend (non-ReefError path). */
-function backendErrorResponse(): Response {
-  return Response.json({ error: "Workspace backend error." }, { status: 502 });
+function backendErrorResponse(): Promise<Response> {
+  return localizedErrorResponse("backend", 502);
 }
 
 /**
- * Forcibly tag a NotFound/Schema error with a curated `resourceKind` so core
- * `translateError` produces resource-specific copy (e.g. "Issue not found.").
- * Overwrites any free-form `resource` the adapter set — the akb adapters throw
+ * Forcibly tag a NotFound/Schema error with a curated `resourceKind` so the
+ * resolved message is resource-specific (e.g. "Issue not found."). Overwrites any
+ * free-form `resource` the adapter set — the akb adapters throw
  * `NotFoundError({ resource: "issue REEF-001" })`, so re-tagging is mandatory to
  * keep curated copy. Non-NotFound/Schema errors pass through unchanged.
  */
@@ -193,9 +181,13 @@ function withResource(err: unknown, resourceKind: AkbResourceLabel): unknown {
 }
 
 /**
- * Single entry point for Route Handler error translation. Delegates to the
- * canonical core `translateError` (total: consistently a Response, does not null/throws),
- * optionally overlaying resource-specific copy via `withResource`.
+ * Single entry point for Route Handler error translation. `core` describes the
+ * error as a locale-free `{ code, status }` (`describeError`); this delegates to
+ * the web `localizeError` boundary, which resolves the active locale and returns
+ * the PM-facing copy in that language (REEF-297), optionally overlaying
+ * resource-specific copy via `withResource`. Returns a Promise (locale detection
+ * reads `next/headers`); a Route Handler `return respondWithError(...)` flattens
+ * it, so call sites are unchanged.
  *
  * should not log — callers own observability and should call `logger.error(...)`
  * from the redacting logger immediately before calling this.
@@ -203,8 +195,8 @@ function withResource(err: unknown, resourceKind: AkbResourceLabel): unknown {
 export function respondWithError(
   err: unknown,
   ctx?: { resourceKind?: AkbResourceLabel },
-): Response {
-  return translateError(
+): Promise<Response> {
+  return localizeError(
     ctx?.resourceKind ? withResource(err, ctx.resourceKind) : err,
   );
 }
@@ -219,11 +211,14 @@ export function respondWithError(
  */
 export function getAkbAdapter(
   request: Request,
-): { adapter: AkbAdapter } | { response: Response } {
+): { adapter: AkbAdapter } | { response: Promise<Response> } {
   let jwt: string;
   try {
     jwt = extractAkbSession(request);
   } catch {
+    // The localized response is a Promise (locale detection is async). This
+    // helper stays sync; every consumer either `return`s `.response` (the async
+    // Route Handler flattens it) or ignores it, so the deferral is invisible.
     return { response: authErrorResponse() };
   }
   return { adapter: createAkbAdapter({ baseUrl: getAkbBackendUrl(), jwt }) };
@@ -247,18 +242,21 @@ export function getAkbAdapter(
 export async function getAkbCurrentActor(
   request: Request,
 ): Promise<{ actor: string } | { response: Response }> {
+  // This helper is already async, so it awaits the localized error responses to
+  // a settled `Response` — the GitHub credential resolvers read `.status` off
+  // this `response` arm, so it must not be a Promise.
   let jwt: string;
   try {
     jwt = extractAkbSession(request);
   } catch {
-    return { response: authErrorResponse() };
+    return { response: await authErrorResponse() };
   }
 
   let backendUrl: string;
   try {
     backendUrl = getAkbBackendUrl();
   } catch {
-    return { response: backendErrorResponse() };
+    return { response: await backendErrorResponse() };
   }
 
   let actor: string | null;
@@ -268,11 +266,13 @@ export async function getAkbCurrentActor(
       jwt,
     }));
   } catch (err) {
-    if (err instanceof AuthError) return { response: authErrorResponse() };
-    return { response: backendErrorResponse() };
+    if (err instanceof AuthError) {
+      return { response: await authErrorResponse() };
+    }
+    return { response: await backendErrorResponse() };
   }
 
-  if (!actor) return { response: backendErrorResponse() };
+  if (!actor) return { response: await backendErrorResponse() };
   return { actor };
 }
 

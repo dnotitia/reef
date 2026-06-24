@@ -35,5 +35,13 @@
         "description": "Choose the language reef's interface uses on this device. The selection persists per device."
       }
     }
+  },
+  "errors": {
+    "sessionExpired": "Your session has expired. Please sign in again.",
+    "invalidJsonBody": "Invalid JSON body.",
+    "invalidBody": "Invalid request body.",
+    "missingVault": "Missing or invalid `vault` parameter.",
+    "invalidIssueId": "Invalid issue id. Expected format: PREFIX-NUMBER.",
+    "backend": "Workspace backend error."
   }
 }
