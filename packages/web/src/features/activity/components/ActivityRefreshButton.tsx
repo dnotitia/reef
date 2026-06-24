@@ -5,7 +5,7 @@ import { formatRelativeTime } from "@/lib/relativeTime";
 import { getLastScanAt } from "@/lib/storage/lastScan";
 import { cn } from "@/lib/utils";
 import { Loader2, RefreshCw } from "lucide-react";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 interface ActivityRefreshButtonProps {
@@ -37,6 +37,7 @@ export function ActivityRefreshButton({
   scanTick = 0,
 }: ActivityRefreshButtonProps) {
   const locale = useLocale();
+  const t = useTranslations("activity");
   const [lastScan, setLastScan] = useState<string | undefined>(undefined);
   // Re-render every minute so "5m ago" doesn't stay frozen on a long-lived tab.
   const [now, setNow] = useState(() => Date.now());
@@ -68,7 +69,7 @@ export function ActivityRefreshButton({
           data-testid="activity-last-scan"
           className="text-xs text-muted-foreground tabular-nums"
         >
-          Scanned {relative}
+          {t("scanned", { time: relative })}
         </span>
       )}
       <Button
@@ -77,8 +78,8 @@ export function ActivityRefreshButton({
         onClick={onRefresh}
         disabled={isScanning || !repo}
         data-testid="activity-refresh"
-        aria-label="Scan for new activity"
-        title="Scan for new activity"
+        aria-label={t("scanForNewActivity")}
+        title={t("scanForNewActivity")}
         className="h-7 gap-1.5 px-2 text-xs"
       >
         {isScanning ? (
@@ -86,7 +87,7 @@ export function ActivityRefreshButton({
         ) : (
           <RefreshCw className={cn("h-3.5 w-3.5")} />
         )}
-        <span>Refresh</span>
+        <span>{t("refresh")}</span>
       </Button>
     </div>
   );

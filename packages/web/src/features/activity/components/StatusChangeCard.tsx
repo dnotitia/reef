@@ -12,6 +12,7 @@ import { ArtifactMetadata, ReviewActions } from "@/features/ai/review";
 import { useStatusLabels } from "@/i18n/fieldLabels";
 import type { ActivityStatusChangeSuggestion, Status } from "@reef/core";
 import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { githubActivityUrl } from "../lib/activityLinks";
 import type { ActivityFeedItem } from "../types";
@@ -39,6 +40,7 @@ export function StatusChangeCard({
   isApproving: boolean;
 }) {
   const statusLabels = useStatusLabels();
+  const t = useTranslations("activity");
   const { statusChange } = item;
   const proposedStatus = statusChange.proposal.update.patch.status ?? "done";
   const [isEditing, setIsEditing] = useState(false);
@@ -86,7 +88,7 @@ export function StatusChangeCard({
               onValueChange={(value) => setToStatus(value as Status)}
             >
               <SelectTrigger
-                aria-label="Target status"
+                aria-label={t("targetStatus")}
                 data-testid="status-change-target"
                 className="h-7 w-40"
               >

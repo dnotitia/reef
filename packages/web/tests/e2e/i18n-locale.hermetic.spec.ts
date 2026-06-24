@@ -265,6 +265,38 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     );
   });
 
+  test("renders migrated activity + planning body strings in the active locale (REEF-305)", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    await page.goto("/settings/preferences");
+    await page
+      .getByRole("region", { name: "Language" })
+      .getByTestId("locale-option-ko")
+      .click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+
+    // The activity feed's filter controls are web-chrome copy migrated in
+    // REEF-305; they render regardless of the draft set, now from the ko catalog.
+    await page.goto("/activity");
+    await expect(
+      page.getByRole("button", { name: "AI 초안" }).first(),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "상태 변경" }).first(),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "AI Drafts" }),
+    ).toHaveCount(0);
+
+    // The planning page's kind toggle follows the locale too (REEF-305).
+    await page.goto("/planning");
+    await expect(
+      page.getByRole("group", { name: "플래닝 종류" }),
+    ).toBeVisible();
+  });
+
   test("renders migrated reports-area body strings in the active locale (REEF-304)", async ({
     page,
   }) => {

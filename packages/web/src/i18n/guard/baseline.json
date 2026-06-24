@@ -1,10 +1,4 @@
 {
-  "app/(dashboard)/activity/loading.tsx": [
-    "Activity"
-  ],
-  "app/(dashboard)/activity/page.tsx": [
-    "Activity"
-  ],
   "app/login/page.tsx": [
     "Sign in with your workspace account to continue.",
     "reef"
@@ -65,48 +59,6 @@
   ],
   "components/fields/fieldValue.tsx": [
     "None"
-  ],
-  "features/activity/components/ActivityDraftCard.tsx": [
-    "Type",
-    "due",
-    "milestone",
-    "release",
-    "sprint",
-    "start"
-  ],
-  "features/activity/components/ActivityDraftEditMetadataFields.tsx": [
-    "Blocks",
-    "Depends on",
-    "Due date",
-    "Estimate",
-    "No severity",
-    "People",
-    "Planning",
-    "Related",
-    "Relationships",
-    "Start date"
-  ],
-  "features/activity/components/ActivityFeed.tsx": [
-    "Add a monitored repository in",
-    "Filter activity",
-    "Loading…",
-    "Monitored repository to scan",
-    "No AI drafts or status changes to review",
-    "Scanning",
-    "Settings",
-    "to scan for activity."
-  ],
-  "features/activity/components/ActivityRefreshButton.tsx": [
-    "Refresh",
-    "Scan for new activity",
-    "Scanned"
-  ],
-  "features/activity/components/StatusChangeCard.tsx": [
-    "Target status"
-  ],
-  "features/activity/components/UnreviewedSummaryCard.tsx": [
-    "Got it",
-    "Since you were last here:"
   ],
   "features/ai/components/AskAiDialog.tsx": [
     "AI is not configured for this deployment.",
@@ -218,48 +170,6 @@
     "Select a reef workspace...",
     "Start with a new akb vault and a reef project prefix.",
     "Use an existing reef workspace"
-  ],
-  "features/planning/components/PlanningDeleteDialog.tsx": [
-    "Cancel",
-    "Delete",
-    "This permanently removes the",
-    "from the workspace. It can’t be undone."
-  ],
-  "features/planning/components/PlanningEditorDialog.tsx": [
-    "Cancel",
-    "Capacity",
-    "Description",
-    "Details",
-    "End",
-    "Goal",
-    "Name",
-    "Notes",
-    "Released",
-    "Schedule",
-    "Start",
-    "Status",
-    "Target"
-  ],
-  "features/planning/components/PlanningPage.tsx": [
-    "New",
-    "Planning",
-    "Planning kind"
-  ],
-  "features/planning/components/PlanningPageSkeleton.tsx": [
-    "Loading…",
-    "Planning"
-  ],
-  "features/planning/components/PlanningTable.tsx": [
-    "Dates",
-    "Details",
-    "Issues",
-    "Name",
-    "New",
-    "No",
-    "Released",
-    "Status",
-    "Target",
-    "yet."
   ],
   "features/shortcuts/components/KeyboardShortcutsDialog.tsx": [
     "Keyboard shortcuts",

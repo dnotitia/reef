@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useTranslations } from "next-intl";
 import type { PlanningItem } from "../hooks/usePlanningCatalog";
 
 export function PlanningDeleteDialog({
@@ -24,6 +25,8 @@ export function PlanningDeleteDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const t = useTranslations("planning");
+  const common = useTranslations("common");
   const noun = kindSingular.toLowerCase();
   return (
     <Dialog
@@ -44,12 +47,12 @@ export function PlanningDeleteDialog({
       >
         <DialogHeader>
           <DialogTitle>
-            Delete {noun}
-            {target ? ` “${target.name}”` : ""}?
+            {target
+              ? t("deleteTitle", { noun, name: target.name })
+              : t("deleteTitleNoName", { noun })}
           </DialogTitle>
           <DialogDescription>
-            This permanently removes the {noun} from the workspace. It can’t be
-            undone.
+            {t("deleteDescription", { noun })}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -61,7 +64,7 @@ export function PlanningDeleteDialog({
             disabled={isDeleting}
             data-testid="planning-delete-cancel"
           >
-            Cancel
+            {common("cancel")}
           </Button>
           <Button
             type="button"
@@ -71,7 +74,7 @@ export function PlanningDeleteDialog({
             disabled={isDeleting}
             data-testid="planning-delete-confirm-btn"
           >
-            {isDeleting ? "Deleting…" : "Delete"}
+            {isDeleting ? t("deleting") : common("delete")}
           </Button>
         </DialogFooter>
       </DialogContent>
