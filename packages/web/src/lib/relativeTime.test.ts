@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { formatAbsoluteTime, formatRelativeTime } from "./commentTime";
+import { formatAbsoluteTime, formatRelativeTime } from "./relativeTime";
 
 const NOW = Date.parse("2026-06-18T12:00:00.000Z");
 

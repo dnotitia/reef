@@ -132,6 +132,13 @@ explicitly in the entries below.
   matches what the server first painted; only the language varies. The AI/LLM
   date context is intentionally left in fixed `en-US`. Numeric integer
   formatting is unchanged (identical across English and Korean) (REEF-294).
+- **The Activity feed's "last scanned" time now follows the interface
+  language.** The `Scanned 5m ago` label on the activity refresh control was the
+  last relative timestamp still hardcoded in English; with Korean selected it now
+  reads `Scanned 5분 전` like the comment and timeline timestamps, because it now
+  shares the same locale-aware formatter instead of its own English-only copy. A
+  timestamp older than a week shows a localized calendar date rather than an
+  ever-growing `Nd ago` count (REEF-300).
 - **Removed browser GitHub PAT setup and storage.** Settings > Preferences and
   onboarding no longer collect monitored-repo Personal Access Tokens, the web
   client no longer attaches GitHub `Authorization` headers, and Dexie v11 drops
