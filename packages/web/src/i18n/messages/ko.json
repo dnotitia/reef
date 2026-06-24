@@ -338,7 +338,24 @@
       "pivotSubtitle": "범위 내 · 이슈 수",
       "fieldPickerAria": "{label} 필드",
       "foldValues": "{field} 값 {count}개",
-      "foldedAnd": "{a} 및 {b}"
+      "foldedAnd": "{a} 및 {b}",
+      "sublineShipped": "출고됨",
+      "sublineNoTarget": "목표일 없음",
+      "sublineNoIssues": "아직 이슈 없음",
+      "dueToday": "오늘 마감",
+      "daysLeft": "{days}일 남음",
+      "daysOverdue": "{days}일 초과",
+      "reason": {
+        "pastTarget": "목표일 지남, 미완료",
+        "overduePastMidpoint": "기한 초과 {count}건, 중간 지점 지남",
+        "wellBehind": "일정 크게 지연",
+        "overdue": "기한 초과 {count}건",
+        "blocked": "차단 {count}건",
+        "behindSchedule": "일정 지연",
+        "backlogOver": "백로그 +{count}",
+        "onTrack": "정상 진행",
+        "shipped": "출고됨"
+      }
     },
     "page": {
       "snapshot": "스냅샷",

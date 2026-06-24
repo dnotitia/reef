@@ -299,7 +299,24 @@
       "pivotSubtitle": "In scope · issue count",
       "fieldPickerAria": "{label} field",
       "foldValues": "{count, plural, one {# {field} value} other {# {field} values}}",
-      "foldedAnd": "{a} and {b}"
+      "foldedAnd": "{a} and {b}",
+      "sublineShipped": "Shipped",
+      "sublineNoTarget": "No target date",
+      "sublineNoIssues": "No issues yet",
+      "dueToday": "due today",
+      "daysLeft": "{days}d left",
+      "daysOverdue": "{days}d overdue",
+      "reason": {
+        "pastTarget": "past target, incomplete",
+        "overduePastMidpoint": "{count} overdue, past mid-point",
+        "wellBehind": "well behind schedule",
+        "overdue": "{count} overdue",
+        "blocked": "{count} blocked",
+        "behindSchedule": "behind schedule",
+        "backlogOver": "backlog +{count}",
+        "onTrack": "on track",
+        "shipped": "shipped"
+      }
     },
     "page": {
       "snapshot": "Snapshot",

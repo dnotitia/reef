@@ -13,9 +13,13 @@ import {
   ROLLUP_DIMENSIONS,
   type RagLevel,
   type RollupDimension,
+  type VerdictReason,
   computeHealthRollup,
   distinctParentIds,
 } from "../lib/healthRollup";
+
+/** A loose translator for the runtime-built `reason.{code}` / day-count keys. */
+type LooseT = (key: string, values?: Record<string, string | number>) => string;
 
 /**
  * Portfolio health rollup (REEF-191, parent axis REEF-187). A worst-first
@@ -328,31 +332,44 @@ const HealthRow = memo(function HealthRow({
   );
 });
 
+/** Localize a structured verdict reason (REEF-304). The `reason.{code}` key is
+ *  built at runtime, so the caller passes a loose translator. */
+function reasonText(t: LooseT, reason: VerdictReason): string {
+  return t(
+    `reason.${reason.code}`,
+    reason.count != null ? { count: reason.count } : undefined,
+  );
+}
+
 function Subline({ row }: { row: HealthRollupRow }) {
   const locale = useLocale();
+  // Loose translator for the runtime-built reason/day-count keys (the day count
+  // stays a number — only the surrounding words localize; date formatting itself
+  // is REEF-294's dateHelpers).
+  const t = useTranslations("reports.cards") as unknown as LooseT;
   const parts: string[] = [];
   if (row.shipped) {
-    parts.push("Shipped");
+    parts.push(t("sublineShipped"));
   } else if (row.targetDate) {
-    parts.push(
-      `${formatDisplayDate(row.targetDate.slice(0, 10), locale)} · ${deadlineNote(row.targetDate)}`,
-    );
+    const note = deadlineNote(t, row.targetDate);
+    const date = formatDisplayDate(row.targetDate.slice(0, 10), locale);
+    parts.push(note ? `${date} · ${note}` : date);
   } else if (row.verdict) {
-    parts.push("No target date");
+    parts.push(t("sublineNoTarget"));
   }
   if (row.verdict && row.verdict.level !== "on_track") {
-    parts.push(row.verdict.reason);
+    parts.push(reasonText(t, row.verdict.reason));
   }
-  if (!row.verdict) parts.push("No issues yet");
+  if (!row.verdict) parts.push(t("sublineNoIssues"));
   return <>{parts.join(" · ")}</>;
 }
 
-function deadlineNote(targetDate: string): string {
+function deadlineNote(t: LooseT, targetDate: string): string {
   const days = Math.round((Date.parse(targetDate) - Date.now()) / DAY_MS);
   if (Number.isNaN(days)) return "";
-  if (days === 0) return "due today";
-  if (days > 0) return `${days}d left`;
-  return `${-days}d overdue`;
+  if (days === 0) return t("dueToday");
+  if (days > 0) return t("daysLeft", { days });
+  return t("daysOverdue", { days: -days });
 }
 
 function CompletionBar({ value }: { value: number }) {
