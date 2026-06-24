@@ -793,5 +793,142 @@
     "scrollToToday": "Scroll to today",
     "unscheduledItemTooltip": "{title} · start {start} · due {due}",
     "scheduledItemTooltip": "{id} {title} · start {start} · due {due}"
+  },
+  "auth": {
+    "login": {
+      "intro": "Sign in with your workspace account to continue.",
+      "ssoError": "SSO could not complete. Try again or use password.",
+      "sessionEnded": "Your previous session has ended. Please sign in again."
+    },
+    "sso": {
+      "finishing": "Finishing sign-in..."
+    },
+    "form": {
+      "username": "Username",
+      "password": "Password",
+      "signIn": "Sign in",
+      "signingIn": "Signing in…",
+      "signInFailed": "Sign-in failed. Please try again.",
+      "networkError": "Could not reach reef. Check your connection and try again."
+    },
+    "panel": {
+      "workspaceIdentity": "Workspace identity",
+      "akbPlatformAccess": "akb-platform access",
+      "continueWithSso": "Continue with workspace SSO",
+      "useAkbIdentity": "Use your akb-platform identity.",
+      "orUsePassword": "or use password"
+    },
+    "account": {
+      "menuLabel": "Account menu",
+      "theme": "Theme",
+      "whatsNew": "What's new",
+      "signOut": "Sign out",
+      "signingOut": "Signing out…",
+      "signOutError": "Couldn't sign out. Check your connection and try again."
+    },
+    "switcher": {
+      "workspace": "Workspace",
+      "newWorkspace": "New workspace",
+      "searchPlaceholder": "Search workspaces…",
+      "searchLabel": "Search workspaces",
+      "loading": "Loading workspaces…",
+      "loadError": "Couldn't load your workspaces.",
+      "selectWorkspace": "Select workspace",
+      "selectWorkspaceAria": "Select a workspace",
+      "workspaceAria": "Workspace: {name}",
+      "noReefWorkspaces": "No reef workspaces yet.",
+      "noWorkspacesFound": "No workspaces found."
+    }
+  },
+  "components": {
+    "assignee": {
+      "vaultMember": "Vault member",
+      "noMembers": "No vault members found."
+    },
+    "promptInput": {
+      "uploadFiles": "Upload files"
+    },
+    "blockedBadge": {
+      "blocked": "Blocked",
+      "blockedCount": "Blocked ({count})",
+      "blockedBy": "Blocked by {count, plural, one {# issue} other {# issues}}"
+    },
+    "calendar": {
+      "previousMonth": "Previous month",
+      "nextMonth": "Next month"
+    },
+    "datePicker": {
+      "today": "Today",
+      "clear": "Clear",
+      "isoFormat": "YYYY-MM-DD"
+    },
+    "issueOption": {
+      "selected": "Selected"
+    }
+  },
+  "markdownEditor": {
+    "bold": "Bold",
+    "italic": "Italic",
+    "strikethrough": "Strikethrough",
+    "inlineCode": "Inline Code",
+    "heading1": "Heading 1",
+    "heading2": "Heading 2",
+    "heading3": "Heading 3",
+    "bulletList": "Bullet List",
+    "numberedList": "Numbered List",
+    "quote": "Quote",
+    "codeBlock": "Code Block",
+    "divider": "Divider",
+    "link": "Link",
+    "linkUrl": "Link URL",
+    "source": "Source",
+    "toggleSourceMode": "Toggle source mode",
+    "apply": "Apply"
+  },
+  "misc": {
+    "offlineBanner": "You're offline — viewing cached data. Changes will sync when you reconnect.",
+    "keyboardShortcuts": "Keyboard shortcuts",
+    "keyboardShortcutsTitle": "Keyboard shortcuts ({keychord})",
+    "shortcutsDescription": "Speed up everyday actions with these shortcuts.",
+    "shortcutGroups": {
+      "navigation": "Navigation",
+      "issues": "Issues",
+      "ai": "AI",
+      "misc": "Misc"
+    },
+    "shortcutActions": {
+      "openGlobalSearch": "Open global search",
+      "showKeyboardShortcuts": "Show keyboard shortcuts",
+      "newIssue": "New issue",
+      "toggleAskAi": "Toggle Ask AI",
+      "closeDialogClearSearch": "Close dialog / clear search"
+    }
+  },
+  "onboarding": {
+    "pageSubtitle": "Create a project workspace or pick an existing one.",
+    "newWorkspaceTitle": "New workspace",
+    "newWorkspaceDescription": "Create a new akb vault and a reef project prefix.",
+    "createWorkspaceTitle": "Create a project workspace",
+    "createWorkspaceSubtitle": "Start with a new akb vault and a reef project prefix.",
+    "existingWorkspace": "Use an existing reef workspace",
+    "existingWorkspaceHint": "Pick an akb vault that already has a reef config document.",
+    "existingWorkspaceEmpty": "No existing reef workspaces found.",
+    "existingWorkspacePlaceholder": "Select a reef workspace...",
+    "continueToWorkspace": "Continue to workspace",
+    "workspaceName": "Workspace name",
+    "issuePrefix": "Issue prefix",
+    "optional": "(optional)",
+    "descriptionPlaceholder": "What this workspace is for",
+    "authoringLanguage": "Default authoring language",
+    "authoringLanguageNone": "Not set (no default)",
+    "authoringLanguageHint": "The language AI writes new content in. Leave unset to let AI follow each request; you can change it later in Settings.",
+    "monitoredRepos": "Monitored repositories",
+    "monitoredReposError": "GitHub App is not configured for this deployment. You can skip monitored repositories.",
+    "createButton": "Create workspace",
+    "creating": "Creating...",
+    "nameError": "Workspace name must use lowercase letters, digits, and hyphens only.",
+    "prefixError": "Project prefix must use uppercase letters only.",
+    "reposResolveError": "Could not resolve selected repositories.",
+    "createFailed": "Failed to create workspace."
   }
 }

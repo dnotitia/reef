@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useTranslations } from "next-intl";
 import { Fragment } from "react";
 import { SHORTCUT_GROUPS, formatKey, isMacLike } from "../lib/shortcuts";
 import { useShortcutsStore } from "../stores/useShortcutsStore";
@@ -24,6 +25,7 @@ export function KeyboardShortcutsDialog() {
   const isOpen = useShortcutsStore((s) => s.isOpen);
   const close = useShortcutsStore((s) => s.close);
   const mac = isMacLike();
+  const t = useTranslations("misc");
 
   return (
     <Dialog open={isOpen} onOpenChange={(next) => !next && close()}>
@@ -32,33 +34,33 @@ export function KeyboardShortcutsDialog() {
         className="max-w-md"
       >
         <DialogHeader>
-          <DialogTitle>Keyboard shortcuts</DialogTitle>
-          <DialogDescription>
-            Speed up everyday actions with these shortcuts.
-          </DialogDescription>
+          <DialogTitle>{t("keyboardShortcuts")}</DialogTitle>
+          <DialogDescription>{t("shortcutsDescription")}</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4 text-sm">
           {SHORTCUT_GROUPS.map((group) => (
-            <section key={group.title}>
+            <section key={group.titleKey}>
               <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {group.title}
+                {t(`shortcutGroups.${group.titleKey}`)}
               </h3>
               <ul className="flex flex-col gap-1">
                 {group.shortcuts.map((sc) => (
                   <li
-                    key={sc.label}
+                    key={sc.labelKey}
                     className="flex items-center justify-between gap-3"
                     data-testid="shortcut-row"
-                    data-shortcut-label={sc.label}
+                    data-shortcut-label={sc.labelKey}
                   >
-                    <span className="text-foreground/90">{sc.label}</span>
+                    <span className="text-foreground/90">
+                      {t(`shortcutActions.${sc.labelKey}`)}
+                    </span>
                     <span className="flex items-center gap-1">
                       {sc.keys.map((key, i) => (
                         // Combine the shortcut label with the token + slot
                         // so each row's key sequence is stable even when two
                         // shortcuts share a modifier ("mod" appears in many).
-                        <Fragment key={`${sc.label}:${i}:${key}`}>
+                        <Fragment key={`${sc.labelKey}:${i}:${key}`}>
                           {i > 0 && (
                             <span
                               aria-hidden="true"

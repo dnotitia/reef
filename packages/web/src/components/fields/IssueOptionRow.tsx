@@ -6,6 +6,7 @@ import { StatusIcon } from "@/components/ui/status-icon";
 import { cn } from "@/lib/utils";
 import type { IssueListItem } from "@reef/core";
 import { Check } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 /**
  * Shared option row for issue dropdowns (REEF-032).
@@ -55,6 +56,7 @@ export function IssueOptionRow({
   selected = false,
   className,
 }: IssueOptionRowProps) {
+  const t = useTranslations("components.issueOption");
   return (
     <div
       className={cn(
@@ -99,7 +101,7 @@ export function IssueOptionRow({
         {selected ? (
           <Check
             className="size-3.5 shrink-0 text-brand"
-            aria-label="Selected"
+            aria-label={t("selected")}
           />
         ) : null}
       </span>

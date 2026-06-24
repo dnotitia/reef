@@ -1,5 +1,6 @@
 import { BoardColumnsSkeleton } from "@/components/BoardColumnsSkeleton";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTranslations } from "next-intl";
 
 /**
  * First-paint shell shown while the root route resolves its session/workspace
@@ -13,12 +14,13 @@ import { Skeleton } from "@/components/ui/skeleton";
  * (REEF-097 AC2)
  */
 export function AppShellSkeleton() {
+  const c = useTranslations("common");
   return (
     <div
       className="flex h-screen overflow-hidden bg-background"
       data-testid="app-shell-skeleton"
     >
-      <output className="sr-only">Loading…</output>
+      <output className="sr-only">{c("loading")}</output>
 
       {/* Decorative shell — sidebar rail + board column frame. */}
       <div className="flex flex-1 overflow-hidden" aria-hidden="true">

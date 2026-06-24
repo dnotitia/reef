@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useViewStore } from "@/features/ui/stores/useViewStore";
+import { useTranslations } from "next-intl";
 import { CreateWorkspaceForm } from "./CreateWorkspaceForm";
 
 /**
@@ -22,6 +23,7 @@ import { CreateWorkspaceForm } from "./CreateWorkspaceForm";
  * dialog needs to close itself.
  */
 export function CreateWorkspaceDialog() {
+  const t = useTranslations("onboarding");
   const open = useViewStore((s) => s.createWorkspaceDialogOpen);
   const closeDialog = useViewStore((s) => s.closeCreateWorkspaceDialog);
 
@@ -32,10 +34,8 @@ export function CreateWorkspaceDialog() {
         className="max-w-lg gap-5"
       >
         <DialogHeader>
-          <DialogTitle>New workspace</DialogTitle>
-          <DialogDescription>
-            Create a new akb vault and a reef project prefix.
-          </DialogDescription>
+          <DialogTitle>{t("newWorkspaceTitle")}</DialogTitle>
+          <DialogDescription>{t("newWorkspaceDescription")}</DialogDescription>
         </DialogHeader>
 
         <CreateWorkspaceForm

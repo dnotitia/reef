@@ -265,6 +265,34 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     );
   });
 
+  test("renders migrated onboarding/auth/shared-component body strings in the active locale (REEF-307)", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    await page.goto("/settings/preferences");
+    await page
+      .getByRole("region", { name: "Language" })
+      .getByTestId("locale-option-ko")
+      .click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+
+    // The persistent sidebar account control is auth-area chrome migrated in
+    // REEF-307; its accessible name now resolves from the ko catalog.
+    await expect(
+      page.getByRole("button", { name: "계정 메뉴" }),
+    ).toBeVisible();
+
+    // The shared MarkdownEditor toolbar (components/) localizes too — on the
+    // issue detail surface the Bold control's accessible name is Korean.
+    await page.goto("/issues/REEF-002");
+    await expect(page.getByTestId("issue-detail-sidebar")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "굵게" }).first(),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Bold" })).toHaveCount(0);
+  });
+
   test("renders migrated my-work + timeline body strings in the active locale (REEF-306)", async ({
     page,
   }) => {

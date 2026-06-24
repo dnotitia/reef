@@ -1,6 +1,17 @@
+/** Stable catalog key under `misc.shortcutGroups.*` (locale owns the wording). */
+export type ShortcutGroupKey = "navigation" | "issues" | "ai" | "misc";
+
+/** Stable catalog key under `misc.shortcutActions.*` (locale owns the wording). */
+export type ShortcutActionKey =
+  | "openGlobalSearch"
+  | "showKeyboardShortcuts"
+  | "newIssue"
+  | "toggleAskAi"
+  | "closeDialogClearSearch";
+
 export interface Shortcut {
-  /** Short, action-style label ("New issue", "Toggle Ask AI"). */
-  label: string;
+  /** Catalog key for the short, action-style label (resolved at render). */
+  labelKey: ShortcutActionKey;
   /** Symbolic key parts in display order. Modifier slots use the magic
    *  strings "mod" (⌘ on macOS, Ctrl elsewhere) and "shift"; literal keys
    *  (e.g. "K") are passed through unchanged. */
@@ -8,29 +19,30 @@ export interface Shortcut {
 }
 
 export interface ShortcutGroup {
-  title: string;
+  /** Catalog key for the group heading (resolved at render). */
+  titleKey: ShortcutGroupKey;
   shortcuts: ReadonlyArray<Shortcut>;
 }
 
 export const SHORTCUT_GROUPS: ReadonlyArray<ShortcutGroup> = [
   {
-    title: "Navigation",
+    titleKey: "navigation",
     shortcuts: [
-      { label: "Open global search", keys: ["mod", "K"] },
-      { label: "Show keyboard shortcuts", keys: ["mod", "?"] },
+      { labelKey: "openGlobalSearch", keys: ["mod", "K"] },
+      { labelKey: "showKeyboardShortcuts", keys: ["mod", "?"] },
     ],
   },
   {
-    title: "Issues",
-    shortcuts: [{ label: "New issue", keys: ["mod", "N"] }],
+    titleKey: "issues",
+    shortcuts: [{ labelKey: "newIssue", keys: ["mod", "N"] }],
   },
   {
-    title: "AI",
-    shortcuts: [{ label: "Toggle Ask AI", keys: ["mod", "shift", "A"] }],
+    titleKey: "ai",
+    shortcuts: [{ labelKey: "toggleAskAi", keys: ["mod", "shift", "A"] }],
   },
   {
-    title: "Misc",
-    shortcuts: [{ label: "Close dialog / clear search", keys: ["Esc"] }],
+    titleKey: "misc",
+    shortcuts: [{ labelKey: "closeDialogClearSearch", keys: ["Esc"] }],
   },
 ];
 

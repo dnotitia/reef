@@ -30,14 +30,14 @@ describe("formatKey", () => {
 describe("SHORTCUT_GROUPS", () => {
   it("declares the shortcuts the shell binds", () => {
     const flat = SHORTCUT_GROUPS.flatMap((g) =>
-      g.shortcuts.map((s) => s.label),
+      g.shortcuts.map((s) => s.labelKey),
     );
     expect(flat).toEqual(
       expect.arrayContaining([
-        "Open global search",
-        "Show keyboard shortcuts",
-        "New issue",
-        "Toggle Ask AI",
+        "openGlobalSearch",
+        "showKeyboardShortcuts",
+        "newIssue",
+        "toggleAskAi",
       ]),
     );
   });

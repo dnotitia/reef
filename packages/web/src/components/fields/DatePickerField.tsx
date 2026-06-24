@@ -18,7 +18,7 @@ import {
 } from "@/lib/panelPlacement";
 import { cn } from "@/lib/utils";
 import { Calendar as CalendarIcon, X } from "lucide-react";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   type FocusEvent,
   type KeyboardEvent,
@@ -69,6 +69,7 @@ export function DatePickerField({
   const [panelAlign, setPanelAlign] =
     useState<DatePickerFieldProps["align"]>(align);
   const locale = useLocale();
+  const t = useTranslations("components.datePicker");
   const normalized = dateInputValue(value);
   // Readable, locale-formatted trigger label (e.g. `Jun 1, 2026`); the panel's
   // text input keeps raw `YYYY-MM-DD` for direct typing.
@@ -270,7 +271,7 @@ export function DatePickerField({
             type="text"
             inputMode="numeric"
             aria-label={`${label} (YYYY-MM-DD)`}
-            placeholder="YYYY-MM-DD"
+            placeholder={t("isoFormat")}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={handleDraftKeyDown}
@@ -292,7 +293,7 @@ export function DatePickerField({
               className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] font-medium text-brand transition-colors duration-150 hover:bg-surface-hover"
             >
               <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-hidden />
-              Today
+              {t("today")}
             </button>
             {normalized ? (
               <button
@@ -300,7 +301,7 @@ export function DatePickerField({
                 onClick={handleClear}
                 className="rounded-md px-2 py-1 text-[12px] text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground"
               >
-                Clear
+                {t("clear")}
               </button>
             ) : null}
           </div>

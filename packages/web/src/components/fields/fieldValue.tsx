@@ -1,3 +1,4 @@
+import { useEnrichmentEmptyLabels } from "@/i18n/fieldLabels";
 import type { ExternalRef } from "@reef/core";
 import type { ReactNode } from "react";
 
@@ -21,7 +22,8 @@ export function PlainValue({ children }: { children: ReactNode }) {
 }
 
 export function LabelChips({ labels }: { labels: readonly string[] }) {
-  if (labels.length === 0) return <Muted>None</Muted>;
+  const empty = useEnrichmentEmptyLabels();
+  if (labels.length === 0) return <Muted>{empty.none}</Muted>;
   return (
     <span className="flex min-w-0 flex-wrap items-center gap-1">
       {labels.map((label) => (
@@ -37,7 +39,8 @@ export function LabelChips({ labels }: { labels: readonly string[] }) {
 }
 
 export function RelationIds({ ids }: { ids: readonly string[] }) {
-  if (ids.length === 0) return <Muted>None</Muted>;
+  const empty = useEnrichmentEmptyLabels();
+  if (ids.length === 0) return <Muted>{empty.none}</Muted>;
   return (
     <span className="min-w-0 break-words font-mono text-[11px] text-muted-foreground">
       {ids.join(", ")}
@@ -46,7 +49,8 @@ export function RelationIds({ ids }: { ids: readonly string[] }) {
 }
 
 export function ExternalRefs({ refs }: { refs: readonly ExternalRef[] }) {
-  if (refs.length === 0) return <Muted>None</Muted>;
+  const empty = useEnrichmentEmptyLabels();
+  if (refs.length === 0) return <Muted>{empty.none}</Muted>;
   return (
     <span className="flex min-w-0 flex-col gap-0.5">
       {refs.map((ref, index) => (

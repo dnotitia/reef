@@ -1,3 +1,4 @@
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import type { AkbMeProfile } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
@@ -55,7 +56,11 @@ function wrap(ui: ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false } },
   });
-  return <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <IntlTestProvider>{ui}</IntlTestProvider>
+    </QueryClientProvider>
+  );
 }
 
 beforeEach(() => {

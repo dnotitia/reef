@@ -3,6 +3,7 @@
 import { useShortcutsStore } from "@/features/shortcuts/stores/useShortcutsStore";
 import { cn } from "@/lib/utils";
 import { Keyboard } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 interface SidebarFooterShortcutsProps {
   readonly collapsed: boolean;
@@ -17,6 +18,7 @@ export function SidebarFooterShortcuts({
   collapsed,
 }: SidebarFooterShortcutsProps) {
   const toggleShortcuts = useShortcutsStore((state) => state.toggle);
+  const t = useTranslations("misc");
 
   return (
     <div
@@ -29,8 +31,8 @@ export function SidebarFooterShortcuts({
       <button
         type="button"
         onClick={toggleShortcuts}
-        aria-label="Keyboard shortcuts"
-        title="Keyboard shortcuts (⌘?)"
+        aria-label={t("keyboardShortcuts")}
+        title={t("keyboardShortcutsTitle", { keychord: "⌘?" })}
         data-testid="sidebar-shortcuts-trigger"
         className={cn(
           "inline-flex shrink-0 items-center rounded-md text-muted-foreground/80 transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
@@ -44,7 +46,9 @@ export function SidebarFooterShortcuts({
             aria-hidden="true"
             className={cn("shrink-0", collapsed ? "size-4" : "size-3.5")}
           />
-          {!collapsed && <span className="truncate">Keyboard shortcuts</span>}
+          {!collapsed && (
+            <span className="truncate">{t("keyboardShortcuts")}</span>
+          )}
         </span>
         {!collapsed && (
           <span

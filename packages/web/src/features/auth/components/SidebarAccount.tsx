@@ -13,6 +13,7 @@ import { AccountThemeToggle } from "@/features/preferences/components/AccountThe
 import { cn } from "@/lib/utils";
 import { useMutation } from "@tanstack/react-query";
 import { ChevronsUpDown, ExternalLink, LogOut } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { signOutOfWorkspace } from "../signOut.actions";
@@ -44,6 +45,7 @@ function releaseVersionLabel(appVersion: string): string {
  */
 export function SidebarAccount({ appVersion, collapsed }: SidebarAccountProps) {
   const router = useRouter();
+  const t = useTranslations("auth.account");
   const { data: profile, isLoading } = useCurrentUser();
   const identity = deriveIdentity(profile);
   const releaseVersion = releaseVersionLabel(appVersion);
@@ -70,7 +72,7 @@ export function SidebarAccount({ appVersion, collapsed }: SidebarAccountProps) {
             Popover root is already w-full (REEF-168). */}
       <DropdownMenu className="w-full">
         <DropdownMenuTrigger
-          aria-label="Account menu"
+          aria-label={t("menuLabel")}
           title={collapsed ? identity.name : undefined}
           className={cn(
             "w-full gap-2 rounded-md text-left [touch-action:manipulation] transition-colors hover:bg-surface-hover aria-expanded:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
@@ -137,7 +139,7 @@ export function SidebarAccount({ appVersion, collapsed }: SidebarAccountProps) {
               here for fast access; the shared cursor (useThemeStore) keeps it
               in lockstep with Settings → Appearance. The buttons live inside
               the menu so selecting one does not dismiss it (AC4). */}
-          <DropdownMenuLabel>Theme</DropdownMenuLabel>
+          <DropdownMenuLabel>{t("theme")}</DropdownMenuLabel>
           <AccountThemeToggle />
 
           <DropdownMenuSeparator />
@@ -164,16 +166,14 @@ export function SidebarAccount({ appVersion, collapsed }: SidebarAccountProps) {
             ) : (
               <LogOut className="size-3.5" aria-hidden="true" />
             )}
-            <span>{signOut.isPending ? "Signing out…" : "Sign out"}</span>
+            <span>{signOut.isPending ? t("signingOut") : t("signOut")}</span>
           </button>
 
           <p
             aria-live="polite"
             className="px-2 text-[11px] text-destructive empty:hidden"
           >
-            {signOut.isError
-              ? "Couldn't sign out. Check your connection and try again."
-              : null}
+            {signOut.isError ? t("signOutError") : null}
           </p>
 
           <DropdownMenuSeparator />
@@ -186,7 +186,7 @@ export function SidebarAccount({ appVersion, collapsed }: SidebarAccountProps) {
             data-testid="account-release-notes"
             className="flex items-center justify-between gap-3 rounded-sm px-2 py-1.5 text-[13px] text-foreground outline-none transition-colors duration-150 hover:bg-surface-hover focus-visible:bg-surface-hover"
           >
-            <span>What's new</span>
+            <span>{t("whatsNew")}</span>
             <span className="flex items-center gap-1 font-mono text-[11px] tabular-nums text-muted-foreground">
               <span data-testid="account-version">{releaseVersion}</span>
               <ExternalLink aria-hidden="true" className="size-3" />

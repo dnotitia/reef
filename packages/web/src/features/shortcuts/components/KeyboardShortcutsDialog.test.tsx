@@ -33,10 +33,10 @@ describe("KeyboardShortcutsDialog", () => {
     const labels = rows.map((el) => el.getAttribute("data-shortcut-label"));
     expect(labels).toEqual(
       expect.arrayContaining([
-        "Open global search",
-        "Show keyboard shortcuts",
-        "New issue",
-        "Toggle Ask AI",
+        "openGlobalSearch",
+        "showKeyboardShortcuts",
+        "newIssue",
+        "toggleAskAi",
       ]),
     );
   });

@@ -5,6 +5,7 @@ import { CURRENT_USER_QUERY_KEY } from "@/features/auth/hooks/useCurrentUser";
 import { reconcileAkbAccount } from "@/lib/akb/accountReconcile";
 import { normalizeSafeRedirect } from "@/lib/akb/safeRedirect";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 
@@ -55,11 +56,12 @@ export function SsoCompleteClient() {
 }
 
 export function SsoCompletionStatus() {
+  const t = useTranslations("auth.sso");
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-5 bg-background p-8 text-center">
       <ReefMark className="size-11" decorative />
       <div className="size-5 animate-spin rounded-full border-2 border-muted border-t-foreground" />
-      <p className="text-sm text-muted-foreground">Finishing sign-in...</p>
+      <p className="text-sm text-muted-foreground">{t("finishing")}</p>
     </main>
   );
 }
