@@ -249,6 +249,41 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     );
   });
 
+  test("renders migrated issue-area body strings in the active locale (REEF-302)", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    await page.goto("/settings/preferences");
+    await page.getByTestId("locale-option-ko").click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+
+    // The issue detail surface's section headers are web-chrome copy migrated in
+    // REEF-302 (the shared `sections.*` namespace). Before this work they stayed
+    // English ("Details"/"People"/"Planning"/"Relationships") above already
+    // localized field rows — the half-translated screen REEF-298 calls out. They
+    // now resolve from the merged ko catalog end to end. REEF-002 always renders
+    // the full property rail + relationships section.
+    await page.goto("/issues/REEF-002");
+    const sidebar = page.getByTestId("issue-detail-sidebar");
+    await expect(sidebar).toBeVisible();
+    await expect(sidebar.getByText("세부 정보", { exact: true })).toBeVisible();
+    await expect(sidebar.getByText("사람", { exact: true })).toBeVisible();
+    await expect(sidebar.getByText("플래닝", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("관계", { exact: true }).first(),
+    ).toBeVisible();
+    // No half-translated English section header lingers on the migrated surface.
+    await expect(sidebar.getByText("Details", { exact: true })).toHaveCount(0);
+    await expect(sidebar.getByText("People", { exact: true })).toHaveCount(0);
+
+    // Capture the localized issue body as the REEF-302 visual proof.
+    await page.screenshot({
+      path: "test-results/reef-302-issue-body-ko.png",
+      fullPage: true,
+    });
+  });
+
   test("renders the issue-list column headers in the active locale (REEF-299)", async ({
     page,
   }) => {
