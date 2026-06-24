@@ -54,7 +54,20 @@ vi.mock("@/i18n/fieldLabels", async () => {
 // pure dateHelpers / relative-time unit tests and the hermetic i18n E2E spec.
 vi.mock("next-intl", async (importActual) => {
   const actual = await importActual<typeof import("next-intl")>();
-  return { ...actual, useLocale: () => "en" };
+  return {
+    ...actual,
+    // Use the provider's locale when a test wraps the tree (e.g. REEF-293's
+    // `IntlTestProvider locale="ko"`); fall back to the base locale for bare
+    // renders that have no provider, so locale-aware date/relative-time
+    // components don't throw "No intl context found".
+    useLocale: () => {
+      try {
+        return actual.useLocale();
+      } catch {
+        return "en";
+      }
+    },
+  };
 });
 
 // jsdom does not implement ResizeObserver, but cmdk (and any other library
