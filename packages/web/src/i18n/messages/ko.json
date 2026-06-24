@@ -334,7 +334,11 @@
           "one": "상위 이슈",
           "many": "상위 이슈"
         }
-      }
+      },
+      "pivotSubtitle": "범위 내 · 이슈 수",
+      "fieldPickerAria": "{label} 필드",
+      "foldValues": "{field} 값 {count}개",
+      "foldedAnd": "{a} 및 {b}"
     },
     "page": {
       "snapshot": "스냅샷",

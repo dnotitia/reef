@@ -295,7 +295,11 @@
           "one": "Parent",
           "many": "Parents"
         }
-      }
+      },
+      "pivotSubtitle": "In scope · issue count",
+      "fieldPickerAria": "{label} field",
+      "foldValues": "{count, plural, one {# {field} value} other {# {field} values}}",
+      "foldedAnd": "{a} and {b}"
     },
     "page": {
       "snapshot": "Snapshot",
