@@ -1,5 +1,3 @@
-import { PRIORITY_OPTIONS } from "@/components/ui/priority-dot";
-import { STATUS_OPTIONS } from "@/components/ui/status-icon";
 import type {
   IssueListItem,
   IssueType,
@@ -7,6 +5,8 @@ import type {
   Severity,
   Status,
 } from "@reef/core";
+import { PRIORITY_OPTIONS } from "@reef/core/fields";
+import { STATUS_OPTIONS } from "@reef/core/fields";
 import {
   DEFAULT_REPORT_FILTERS,
   ISSUE_TYPE_OPTIONS,

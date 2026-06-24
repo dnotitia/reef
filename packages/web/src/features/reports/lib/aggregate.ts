@@ -1,5 +1,3 @@
-import { PRIORITY_OPTIONS } from "@/components/ui/priority-dot";
-import { STATUS_OPTIONS } from "@/components/ui/status-icon";
 import {
   indexIssuesById,
   unresolvedBlockerCountIn,
@@ -13,6 +11,8 @@ import {
   type Status,
   isResolvedStatus,
 } from "@reef/core";
+import { PRIORITY_OPTIONS } from "@reef/core/fields";
+import { STATUS_OPTIONS } from "@reef/core/fields";
 import {
   AGING_BUCKETS,
   type AggregateOptions,

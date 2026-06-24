@@ -1,12 +1,10 @@
 "use client";
 
-import {
-  StatusIcon,
-  WORKFLOW_STATUS_OPTIONS,
-} from "@/components/ui/status-icon";
+import { StatusIcon } from "@/components/ui/status-icon";
 import { useStatusLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { IssueListItem } from "@reef/core";
+import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   type CSSProperties,

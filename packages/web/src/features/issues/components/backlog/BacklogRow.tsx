@@ -5,7 +5,7 @@ import { personToneFor } from "@/components/fields/PersonAvatar";
 import { PersonChip } from "@/components/fields/PersonChip";
 import { TypePill } from "@/components/fields/TypePill";
 import { PriorityBadge } from "@/components/ui/priority-dot";
-import { STATUS_OPTIONS, StatusBadge } from "@/components/ui/status-icon";
+import { StatusBadge } from "@/components/ui/status-icon";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { formatRelativeTime } from "@/features/issues/lib/formatRelativeTime";
@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { IssueListItem, Status } from "@reef/core";
+import { STATUS_OPTIONS } from "@reef/core/fields";
 import { GripVertical } from "lucide-react";
 
 // Hoisted so it is not re-created per render (the status picker renders one per

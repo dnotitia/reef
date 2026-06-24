@@ -7,8 +7,8 @@ import { SeverityBadge } from "@/components/fields/SeverityBadge";
 import { TypePill } from "@/components/fields/TypePill";
 import { Input } from "@/components/ui/input";
 import { LabelChipInput } from "@/components/ui/label-chip-input";
-import { PRIORITY_OPTIONS, PriorityBadge } from "@/components/ui/priority-dot";
-import { STATUS_OPTIONS, StatusBadge } from "@/components/ui/status-icon";
+import { PriorityBadge } from "@/components/ui/priority-dot";
+import { StatusBadge } from "@/components/ui/status-icon";
 import { PlanningItemCombobox } from "@/features/planning/components/PlanningItemCombobox";
 import type {
   IssueMetadata,
@@ -18,6 +18,8 @@ import type {
   Severity,
   Status,
 } from "@reef/core";
+import { PRIORITY_OPTIONS } from "@reef/core/fields";
+import { STATUS_OPTIONS } from "@reef/core/fields";
 import {
   ISSUE_TYPE_OPTIONS,
   NO_SELECTION,

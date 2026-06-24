@@ -1,4 +1,4 @@
-import { PRIORITY_COLORS, PRIORITY_OPTIONS } from "@/components/fields/fieldKit";
+import { PRIORITY_COLORS } from "@/components/fields/fieldKit";
 import { usePriorityLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { Priority } from "@reef/core";
@@ -60,5 +60,3 @@ export function PriorityBadge({ priority, size, className }: PriorityBadgeProps)
     </span>
   );
 }
-
-export { PRIORITY_OPTIONS };

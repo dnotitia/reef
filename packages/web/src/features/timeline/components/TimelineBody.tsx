@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { WORKFLOW_STATUS_OPTIONS } from "@/components/ui/status-icon";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
 import { useResolvedAutoHideWindows } from "@/features/issues/hooks/useResolvedAutoHideWindows";
@@ -16,6 +15,7 @@ import {
 } from "@/features/issues/lib/issueListUtils";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import type { IssueListItem } from "@reef/core";
+import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { useMemo, useRef, useState } from "react";
 import {
   calendarDayFromDate,
