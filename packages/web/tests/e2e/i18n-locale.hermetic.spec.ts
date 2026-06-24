@@ -249,6 +249,44 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     );
   });
 
+  test("renders migrated settings-area body strings in the active locale (REEF-303)", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    await page.goto("/settings/preferences");
+    await page.getByTestId("locale-option-ko").click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+
+    // The preferences page's Appearance section is web-chrome copy migrated in
+    // REEF-303 — it now renders from the ko catalog beside the already-localized
+    // Language section.
+    await expect(
+      page.getByRole("heading", { name: "화면 표시", level: 3 }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Appearance", level: 3 }),
+    ).toHaveCount(0);
+
+    // The workspace settings route's section sub-headings (Project / Templates /
+    // Authoring Language / Completed Issues) follow the locale too — the App
+    // Router server page resolves its copy through next-intl (REEF-303).
+    await page.goto("/settings/workspace");
+    for (const koHeading of [
+      "프로젝트", // Project
+      "템플릿", // Templates
+      "작성 언어", // Authoring Language
+      "완료된 이슈", // Completed Issues
+    ]) {
+      await expect(
+        page.getByRole("heading", { name: koHeading, level: 3 }).first(),
+      ).toBeVisible();
+    }
+    await expect(
+      page.getByRole("heading", { name: "Project", level: 3 }),
+    ).toHaveCount(0);
+  });
+
   test("renders migrated issue-area body strings in the active locale (REEF-302)", async ({
     page,
   }) => {
