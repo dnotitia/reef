@@ -39,9 +39,11 @@ upgrade to the most recent release before reporting, and report against it.
 ## Scope notes
 
 - Per-user secrets are intentionally kept out of server storage: the AKB
-  session is an httpOnly cookie decoded read-only per request, and the GitHub
-  PAT lives only in browser IndexedDB. Reports that demonstrate a leak of these
-  credentials (to logs, LLM prompts, the URL, or another user) are in scope.
+  session is an httpOnly cookie decoded read-only per request, and GitHub access
+  is deployment-managed through a server-side GitHub App (with an optional
+  `REEF_GITHUB_PAT` fallback for local and CI) rather than a browser-stored
+  token. Reports that demonstrate a leak of these credentials (to logs, LLM
+  prompts, the URL, or another user) are in scope.
 - LLM configuration (`OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`,
   `REEF_LLM_MODEL`) is deployment-managed server state and must never be
   exposed to clients or included in prompts.
