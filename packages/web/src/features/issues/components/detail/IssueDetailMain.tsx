@@ -2,6 +2,7 @@
 
 import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { Input } from "@/components/ui/input";
+import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import type {
   ExternalRef,
   ImplementationRef,
@@ -79,6 +80,7 @@ export function IssueDetailMain({
   commitBody: (value: string) => void;
   commit: (patch: IssueUpdatePatch) => void;
 }) {
+  const fieldNames = useFieldNameLabels();
   return (
     <main className="flex min-w-0 flex-col gap-4 overflow-x-clip [overflow-clip-margin:3px]">
       {/* overflow-x-clip stops long bodies/refs from widening the column; the
@@ -128,7 +130,7 @@ export function IssueDetailMain({
         <div className="grid gap-3 md:grid-cols-2">
           <IssueRelationInput
             id="issue-parent"
-            label="Parent"
+            label={fieldNames.parent}
             value={parentId ? [parentId] : []}
             allIssues={allIssues}
             relationGraph={relations}

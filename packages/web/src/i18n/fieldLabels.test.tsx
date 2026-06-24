@@ -12,6 +12,7 @@ vi.unmock("@/i18n/fieldLabels");
 import {
   useClosedReasonHints,
   useDirectionLabel,
+  useFieldNameLabels,
   usePriorityLabels,
   useSprintStatusLabels,
   useStatusLabels,
@@ -66,6 +67,21 @@ describe("field label hooks (REEF-292)", () => {
       wrapper: withLocale("ko"),
     });
     expect(ko.result.current("priority", "desc")).toBe("높음 → 낮음");
+  });
+
+  it("resolves field-name labels against the en base and the active locale (REEF-301)", () => {
+    const en = renderHook(() => useFieldNameLabels(), {
+      wrapper: withLocale("en"),
+    });
+    expect(en.result.current.assignee).toBe("Assignee");
+    expect(en.result.current.parent).toBe("Parent");
+
+    const ko = renderHook(() => useFieldNameLabels(), {
+      wrapper: withLocale("ko"),
+    });
+    expect(ko.result.current.assignee).toBe("담당자");
+    expect(ko.result.current.priority).toBe("우선순위");
+    expect(ko.result.current.parent).toBe("상위 이슈");
   });
 
   it("resolves closed-reason hints and planning labels in the active locale", () => {

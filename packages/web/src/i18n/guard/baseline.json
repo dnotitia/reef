@@ -69,23 +69,15 @@
     "start"
   ],
   "features/activity/components/ActivityDraftEditMetadataFields.tsx": [
-    "Assignee",
     "Blocks",
     "Depends on",
     "Due date",
     "Estimate",
-    "Milestone",
     "No severity",
-    "Parent",
     "People",
     "Planning",
     "Related",
     "Relationships",
-    "Release",
-    "Reporter",
-    "Requester",
-    "Severity",
-    "Sprint",
     "Start date"
   ],
   "features/activity/components/ActivityFeed.tsx": [
@@ -211,9 +203,7 @@
     "Add a label and press Enter…",
     "Description",
     "Details",
-    "Labels",
     "No priority",
-    "Priority",
     "Title"
   ],
   "features/issues/components/create/NewIssueDialog.tsx": [
@@ -224,20 +214,15 @@
     "Type"
   ],
   "features/issues/components/create/NewIssueRailFields.tsx": [
-    "Assignee",
     "Due date",
     "No severity",
     "People",
     "Planning",
-    "Reporter",
-    "Requester",
-    "Severity",
     "Start date"
   ],
   "features/issues/components/create/NewIssueRelationFields.tsx": [
     "Blocks",
     "Depends on",
-    "Parent",
     "Related",
     "Relationships"
   ],
@@ -276,7 +261,6 @@
     "Describe the issue…",
     "Description",
     "Issue title",
-    "Parent",
     "Related",
     "Relationships",
     "Title"
@@ -290,25 +274,13 @@
   ],
   "features/issues/components/detail/IssueDetailSidebar.tsx": [
     "Add a label and press Enter…",
-    "Assignee",
     "Details",
-    "Due",
-    "Labels",
-    "Milestone",
     "No priority",
     "No severity",
     "People",
     "Planning",
     "Points",
-    "Priority",
-    "Release",
-    "Reporter",
-    "Requester",
-    "Severity",
-    "Sprint",
-    "Start",
-    "Status",
-    "Type"
+    "Start"
   ],
   "features/issues/components/detail/IssueDetailSkeleton.tsx": ["Loading…"],
   "features/issues/components/detail/IssueDrillBackBar.tsx": [
@@ -326,19 +298,7 @@
     "Show completed"
   ],
   "features/issues/components/filters/FilterBar.tsx": [
-    "Assignee",
     "Clear filters",
-    "Dependency",
-    "Due",
-    "Labels",
-    "Milestone",
-    "Priority",
-    "Release",
-    "Requester",
-    "Severity",
-    "Sprint",
-    "Status",
-    "Type",
     "filter"
   ],
   "features/issues/components/filters/IssuesWorkspace.tsx": ["Issues"],
@@ -554,14 +514,9 @@
     "Snapshot"
   ],
   "features/reports/components/ReportScopeBar.tsx": [
-    "Assignee",
-    "Labels",
     "Measure",
-    "Milestone",
     "Period",
-    "Release",
-    "Scope",
-    "Sprint"
+    "Scope"
   ],
   "features/reports/components/ReportSummarySections.tsx": [
     "Completion",
@@ -668,7 +623,6 @@
     "No priority",
     "No templates yet. Click",
     "One-line hint shown under the label.",
-    "Priority",
     "Title prefix",
     "View",
     "bug-report",

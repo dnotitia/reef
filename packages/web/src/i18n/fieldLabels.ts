@@ -31,6 +31,8 @@ import {
   DUE_OPTIONS,
   type DependencyFacet,
   type DueFacet,
+  FIELD_NAME_KEYS,
+  type FieldNameKey,
   ISSUE_TYPE_OPTIONS,
   PRIORITY_OPTIONS,
   SEVERITY_OPTIONS,
@@ -86,6 +88,16 @@ export const useIssueTypeLabels = (): Record<IssueType, string> =>
 
 export const useSeverityLabels = (): Record<Severity, string> =>
   useLabelRecord("fields.severity", SEVERITY_OPTIONS);
+
+/**
+ * Field-NAME labels keyed by field id ("assignee" → "Assignee"/"담당자"),
+ * distinct from the field-VALUE hooks above. One shared source for the header
+ * words the issue rail, filter bar, report scope bar, create dialog, and
+ * activity draft editor render, so a field's name is localized alongside its
+ * already-localized values (REEF-301 / REEF-298 AC2/AC4).
+ */
+export const useFieldNameLabels = (): Record<FieldNameKey, string> =>
+  useLabelRecord("fields.name", FIELD_NAME_KEYS);
 
 export const useClosedReasonLabels = (): Record<ClosedReason, string> =>
   useLabelRecord("fields.closedReason", CLOSED_REASON_OPTIONS);

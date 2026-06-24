@@ -10,6 +10,7 @@ import { LabelChipInput } from "@/components/ui/label-chip-input";
 import { PriorityBadge } from "@/components/ui/priority-dot";
 import { StatusBadge } from "@/components/ui/status-icon";
 import { PlanningItemCombobox } from "@/features/planning/components/PlanningItemCombobox";
+import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import type {
   IssueMetadata,
   IssueType,
@@ -131,6 +132,7 @@ export function IssueDetailSidebar({
   commitSelectionField,
   onClosedStatusRequested,
 }: IssueDetailSidebarProps) {
+  const fieldNames = useFieldNameLabels();
   return (
     // Property-list rail (REEF-149): every scalar field is one `IssueFieldRow`
     // (fixed label + full-width value) instead of `grid-cols-2` half-cells, so
@@ -142,7 +144,7 @@ export function IssueDetailSidebar({
       className="flex min-w-0 flex-col gap-4 border-t border-border-subtle pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0"
     >
       <IssueFormSection title="Details">
-        <IssueFieldRow label="Type" labelId="issue-type-label">
+        <IssueFieldRow label={fieldNames.type} labelId="issue-type-label">
           <EnumSelectField
             value={issueType}
             onValueChange={(val) => {
@@ -152,13 +154,13 @@ export function IssueDetailSidebar({
             }}
             options={ISSUE_TYPE_OPTIONS}
             renderItem={renderTypeOption}
-            placeholder="Type"
+            placeholder={fieldNames.type}
             testId="issue-type-select"
             ariaLabelledby="issue-type-label"
           />
         </IssueFieldRow>
 
-        <IssueFieldRow label="Status" labelId="issue-status-label">
+        <IssueFieldRow label={fieldNames.status} labelId="issue-status-label">
           <EnumSelectField
             value={status}
             onValueChange={(val) => {
@@ -175,13 +177,16 @@ export function IssueDetailSidebar({
             }}
             options={STATUS_OPTIONS}
             renderItem={renderStatusOption}
-            placeholder="Status"
+            placeholder={fieldNames.status}
             testId="issue-status-select"
             ariaLabelledby="issue-status-label"
           />
         </IssueFieldRow>
 
-        <IssueFieldRow label="Priority" labelId="issue-priority-label">
+        <IssueFieldRow
+          label={fieldNames.priority}
+          labelId="issue-priority-label"
+        >
           <EnumSelectField
             value={priority || NO_SELECTION}
             onValueChange={(val) => {
@@ -200,7 +205,10 @@ export function IssueDetailSidebar({
           />
         </IssueFieldRow>
 
-        <IssueFieldRow label="Severity" labelId="issue-severity-label">
+        <IssueFieldRow
+          label={fieldNames.severity}
+          labelId="issue-severity-label"
+        >
           <EnumSelectField
             value={severity || NO_SELECTION}
             onValueChange={(val) => {
@@ -229,7 +237,7 @@ export function IssueDetailSidebar({
             className="text-xs font-medium text-muted-foreground"
             htmlFor="issue-labels"
           >
-            Labels
+            {fieldNames.labels}
           </label>
           <LabelChipInput
             id="issue-labels"
@@ -247,7 +255,7 @@ export function IssueDetailSidebar({
       </IssueFormSection>
 
       <IssueFormSection title="People">
-        <IssueFieldRow label="Assignee" htmlFor="issue-assignee">
+        <IssueFieldRow label={fieldNames.assignee} htmlFor="issue-assignee">
           <AssigneeCombobox
             id="issue-assignee"
             value={assignee}
@@ -258,12 +266,12 @@ export function IssueDetailSidebar({
               }
             }}
             vault={vault}
-            label="Assignee"
+            label={fieldNames.assignee}
             emptyLabel="Unassigned"
           />
         </IssueFieldRow>
 
-        <IssueFieldRow label="Requester" htmlFor="issue-requester">
+        <IssueFieldRow label={fieldNames.requester} htmlFor="issue-requester">
           <AssigneeCombobox
             id="issue-requester"
             value={requester}
@@ -274,12 +282,12 @@ export function IssueDetailSidebar({
               }
             }}
             vault={vault}
-            label="Requester"
+            label={fieldNames.requester}
             emptyLabel="No requester"
           />
         </IssueFieldRow>
 
-        <IssueFieldRow label="Reporter" htmlFor="issue-reporter">
+        <IssueFieldRow label={fieldNames.reporter} htmlFor="issue-reporter">
           <AssigneeCombobox
             id="issue-reporter"
             value={reporter}
@@ -290,7 +298,7 @@ export function IssueDetailSidebar({
               }
             }}
             vault={vault}
-            label="Reporter"
+            label={fieldNames.reporter}
             emptyLabel="No reporter"
           />
         </IssueFieldRow>
@@ -309,10 +317,10 @@ export function IssueDetailSidebar({
           />
         </IssueFieldRow>
 
-        <IssueFieldRow label="Due" htmlFor="issue-due-date">
+        <IssueFieldRow label={fieldNames.due} htmlFor="issue-due-date">
           <DatePickerField
             id="issue-due-date"
-            label="Due"
+            label={fieldNames.due}
             align="end"
             value={dueDate}
             onChange={(next) => {
@@ -322,7 +330,7 @@ export function IssueDetailSidebar({
           />
         </IssueFieldRow>
 
-        <IssueFieldRow label="Sprint" htmlFor="issue-sprint">
+        <IssueFieldRow label={fieldNames.sprint} htmlFor="issue-sprint">
           <PlanningItemCombobox
             kind="sprints"
             id="issue-sprint"
@@ -336,7 +344,7 @@ export function IssueDetailSidebar({
           />
         </IssueFieldRow>
 
-        <IssueFieldRow label="Milestone" htmlFor="issue-milestone">
+        <IssueFieldRow label={fieldNames.milestone} htmlFor="issue-milestone">
           <PlanningItemCombobox
             kind="milestones"
             id="issue-milestone"
@@ -350,7 +358,10 @@ export function IssueDetailSidebar({
           />
         </IssueFieldRow>
 
-        <IssueFieldRow label="Release" htmlFor="issue-target-release">
+        <IssueFieldRow
+          label={fieldNames.release}
+          htmlFor="issue-target-release"
+        >
           <PlanningItemCombobox
             kind="releases"
             id="issue-target-release"

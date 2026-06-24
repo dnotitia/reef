@@ -6,6 +6,7 @@ import { EnumSelectField } from "@/components/fields/EnumSelectField";
 import { SeverityBadge } from "@/components/fields/SeverityBadge";
 import { Input } from "@/components/ui/input";
 import { PlanningItemCombobox } from "@/features/planning/components/PlanningItemCombobox";
+import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import type { EnrichmentField, Severity } from "@reef/core";
 import type { ReactNode } from "react";
 import { NO_SELECTION, SEVERITY_OPTIONS } from "../../lib/metadataOptions";
@@ -82,6 +83,7 @@ export function NewIssueRailFields({
   renderEnrichable: RenderEnrichable;
   renderFieldLabel: RenderFieldLabel;
 }) {
+  const fieldNames = useFieldNameLabels();
   return (
     <>
       {/* People / Planning as property rows (REEF-167): a fixed label and a
@@ -94,7 +96,7 @@ export function NewIssueRailFields({
           labelSlot={renderFieldLabel(
             "assigned_to",
             "new-issue-assignee",
-            "Assignee",
+            fieldNames.assignee,
           )}
         >
           {renderEnrichable(
@@ -104,7 +106,7 @@ export function NewIssueRailFields({
               value={assignee}
               onChange={setAssignee}
               vault={vault}
-              label="Assignee"
+              label={fieldNames.assignee}
               emptyLabel="Unassigned"
               disabled={isSubmitting}
             />,
@@ -114,7 +116,7 @@ export function NewIssueRailFields({
           labelSlot={renderFieldLabel(
             "requester",
             "new-issue-requester",
-            "Requester",
+            fieldNames.requester,
           )}
         >
           {renderEnrichable(
@@ -124,7 +126,7 @@ export function NewIssueRailFields({
               value={requester}
               onChange={setRequester}
               vault={vault}
-              label="Requester"
+              label={fieldNames.requester}
               emptyLabel="No requester"
               disabled={isSubmitting}
             />,
@@ -134,7 +136,7 @@ export function NewIssueRailFields({
           labelSlot={renderFieldLabel(
             "reporter",
             "new-issue-reporter",
-            "Reporter",
+            fieldNames.reporter,
           )}
         >
           {renderEnrichable(
@@ -144,7 +146,7 @@ export function NewIssueRailFields({
               value={reporter}
               onChange={setReporter}
               vault={vault}
-              label="Reporter"
+              label={fieldNames.reporter}
               emptyLabel="No reporter"
               disabled={isSubmitting}
             />,
@@ -194,7 +196,7 @@ export function NewIssueRailFields({
           labelSlot={renderFieldLabel(
             "sprint_id",
             "new-issue-sprint",
-            "Sprint",
+            fieldNames.sprint,
           )}
         >
           {renderEnrichable(
@@ -214,7 +216,7 @@ export function NewIssueRailFields({
           labelSlot={renderFieldLabel(
             "milestone_id",
             "new-issue-milestone",
-            "Milestone",
+            fieldNames.milestone,
           )}
         >
           {renderEnrichable(
@@ -234,7 +236,7 @@ export function NewIssueRailFields({
           labelSlot={renderFieldLabel(
             "release_id",
             "new-issue-target-release",
-            "Release",
+            fieldNames.release,
           )}
         >
           {renderEnrichable(
@@ -271,7 +273,10 @@ export function NewIssueRailFields({
             />,
           )}
         </IssueFieldRow>
-        <IssueFieldRow label="Severity" labelId="new-issue-severity-label">
+        <IssueFieldRow
+          label={fieldNames.severity}
+          labelId="new-issue-severity-label"
+        >
           {renderEnrichable(
             "severity",
             <EnumSelectField

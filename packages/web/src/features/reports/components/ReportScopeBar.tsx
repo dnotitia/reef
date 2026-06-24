@@ -9,6 +9,7 @@ import {
 } from "@/features/issues/lib/issueListUtils";
 import { PlanningItemCombobox } from "@/features/planning/components/PlanningItemCombobox";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { useMemo } from "react";
 import {
   DEFAULT_REPORT_FILTERS,
@@ -63,6 +64,7 @@ export function ReportScopeBar({
   onChange: (filters: ReportFilters) => void;
 }) {
   const { vault } = useActiveVault();
+  const fieldNames = useFieldNameLabels();
   const patch = (next: Partial<ReportFilters>) =>
     onChange({ ...filters, ...next });
 
@@ -107,8 +109,8 @@ export function ReportScopeBar({
           vault={vault}
           value={filters.sprint_id ?? ""}
           onChange={(id) => patch({ sprint_id: id || undefined })}
-          label="Sprint"
-          placeholder="Sprint"
+          label={fieldNames.sprint}
+          placeholder={fieldNames.sprint}
           emptyLabel="Any sprint"
           testId="report-sprint-input"
           active={Boolean(filters.sprint_id)}
@@ -120,8 +122,8 @@ export function ReportScopeBar({
           vault={vault}
           value={filters.milestone_id ?? ""}
           onChange={(id) => patch({ milestone_id: id || undefined })}
-          label="Milestone"
-          placeholder="Milestone"
+          label={fieldNames.milestone}
+          placeholder={fieldNames.milestone}
           emptyLabel="Any milestone"
           testId="report-milestone-input"
           active={Boolean(filters.milestone_id)}
@@ -133,8 +135,8 @@ export function ReportScopeBar({
           vault={vault}
           value={filters.release_id ?? ""}
           onChange={(id) => patch({ release_id: id || undefined })}
-          label="Release"
-          placeholder="Release"
+          label={fieldNames.release}
+          placeholder={fieldNames.release}
           emptyLabel="Any release"
           testId="report-release-input"
           active={Boolean(filters.release_id)}
@@ -145,8 +147,8 @@ export function ReportScopeBar({
           value={filters.assignee ?? ""}
           onChange={(login) => patch({ assignee: login || undefined })}
           vault={vault}
-          label="Assignee"
-          placeholder="Assignee"
+          label={fieldNames.assignee}
+          placeholder={fieldNames.assignee}
           emptyLabel="Any assignee"
           active={Boolean(filters.assignee)}
         />
@@ -155,7 +157,7 @@ export function ReportScopeBar({
         <LabelChipInput
           value={labelValues}
           onChange={(labels) => patch({ label: formatLabelFilter(labels) })}
-          placeholder="Labels"
+          placeholder={fieldNames.labels}
           data-testid="report-label-input"
         />
       </div>
