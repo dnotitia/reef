@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
-  openExistingWorkspace,
   REEF_E2E_VAULT,
+  openExistingWorkspace,
   resetFixture,
 } from "./harness/fixture";
 
