@@ -111,5 +111,13 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     await expect(
       page.getByRole("heading", { level: 3, name: "Todo" }),
     ).toHaveCount(0);
+
+    // The single-selection filter chip summary localizes too (REEF-292): picking
+    // one status shows its Korean label in the closed trigger, not the raw enum.
+    await page.getByTestId("status-dropdown-trigger").click();
+    await page.getByTestId("status-option-in_progress").click();
+    await expect(page.getByTestId("status-dropdown-trigger")).toContainText(
+      "진행 중",
+    );
   });
 });
