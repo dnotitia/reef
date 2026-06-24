@@ -99,12 +99,14 @@ describe("KanbanCard", () => {
 
   it("renders priority badge when priority is present", () => {
     render(<KanbanCard issue={mockIssue({ priority: "high" })} />);
-    expect(screen.getByText("high")).toBeDefined();
+    // The card shows the locale-resolved priority label (REEF-292), not the raw
+    // enum value; tests resolve to the en base via the global fieldLabels mock.
+    expect(screen.getByText("High")).toBeDefined();
   });
 
   it("omits priority badge when priority is undefined", () => {
     render(<KanbanCard issue={mockIssue({ priority: undefined })} />);
-    expect(screen.queryByText("high")).toBeNull();
+    expect(screen.queryByText("High")).toBeNull();
     expect(screen.queryByText("medium")).toBeNull();
   });
 

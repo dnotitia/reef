@@ -13,7 +13,10 @@ import {
   type PlanningKind,
   findPlanningName,
 } from "@/features/planning/lib/planningItems";
-import { usePlanningKindSingularLabels } from "@/i18n/fieldLabels";
+import {
+  usePlanningKindSingularLabels,
+  usePriorityLabels,
+} from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
@@ -114,6 +117,7 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
     ref,
   ) {
     const currentLogin = useCurrentUserLogin();
+    const priorityLabels = usePriorityLabels();
     const [nowMs] = useState(() => Date.now());
     const dueTime = issue.due_date ? new Date(issue.due_date).getTime() : null;
     const isOverdue =
@@ -185,7 +189,9 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
             {issue.priority && (
               <span className="inline-flex items-center gap-1 shrink-0">
                 <PriorityDot priority={issue.priority as Priority} size={7} />
-                <span className="text-foreground/75">{issue.priority}</span>
+                <span className="text-foreground/75">
+                  {priorityLabels[issue.priority as Priority]}
+                </span>
               </span>
             )}
             {(issue.start_date || issue.due_date || issue.assigned_to) && (
