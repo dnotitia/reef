@@ -36,8 +36,9 @@ them.
 - **Project state can follow real work.** reef reads commits, pull requests,
   branches, and code search results from monitored GitHub repositories to
   identify work that moved forward or was never tracked.
-- **Credentials stay at the edges.** The AKB session is an httpOnly cookie, the
-  GitHub PAT stays in browser IndexedDB, and GitHub access is read-only.
+- **Credentials stay out of browser storage.** The AKB session is an httpOnly
+  cookie, and GitHub access is read-only through a deployment-managed GitHub App
+  rather than a browser-stored token.
 
 ## Try reef locally
 
