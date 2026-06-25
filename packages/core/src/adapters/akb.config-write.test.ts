@@ -85,7 +85,7 @@ describe("writeConfig (tables)", () => {
     expect(sqls[6]).toContain(`INSERT INTO ${REEF_SETTINGS_TABLE}`);
     expect(sqls[6]).toContain("'stale_hide_canceled_days'");
     expect(sqls[6]).toContain(`'3'::json`);
-    // ai_scanning_enabled always written (boolean has a definite value).
+    // ai_scanning_enabled is stored as an explicit boolean row.
     expect(sqls[7]).toContain(`DELETE FROM ${REEF_SETTINGS_TABLE}`);
     expect(sqls[7]).toContain("'ai_scanning_enabled'");
     expect(sqls[8]).toContain(`INSERT INTO ${REEF_SETTINGS_TABLE}`);

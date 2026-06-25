@@ -64,14 +64,12 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   // REEF-313: the workspace AI-scanning kill switch is enforced inside the core
-  // `scanAndPersistActivitySuggestions` funnel — the single point every caller
-  // (this manual route, the agent run, and any future worker) shares — so a
-  // disabled workspace never reads repo activity, calls the LLM, or writes a
-  // suggestion regardless of entry point. This thin route deliberately does not
-  // re-read config to short-circuit before adapter resolution; reef's own UI
-  // already hides the manual scan affordance when scanning is off, so the only
-  // way here is a direct/stale client, which the core gate turns into a clean
-  // no-op.
+  // `scanAndPersistActivitySuggestions` funnel shared by this manual route, the
+  // agent run, and scheduled workers. A disabled workspace exits before repo
+  // activity reads, LLM calls, or suggestion writes. This thin route does not
+  // re-read config before adapter resolution; reef's UI hides the manual scan
+  // affordance when scanning is off, and direct/stale clients receive the core
+  // gate's clean no-op.
   const github = await resolveScanGitHubAdapter(request);
   if (github.kind === "session_invalid") {
     return github.response;

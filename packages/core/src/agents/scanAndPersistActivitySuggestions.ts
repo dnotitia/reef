@@ -84,12 +84,11 @@ export async function scanAndPersistActivitySuggestions(
   const { config } = await akbReadConfig({ adapter: akbAdapter, vault });
   if (isAborted?.()) return { ...empty, status: "aborted" };
 
-  // REEF-313: workspace AI-scanning kill switch (default off) is the FIRST gate,
-  // so a disabled workspace is always a clean no-op — even for a repo it does
-  // not monitor, and in the default state where it has configured no monitored
-  // repos at all. The same single funnel covers manual scans, agent runs, and
-  // any future worker. Return an empty completed result before any GitHub or LLM
-  // I/O; a disabled scan is a normal no-op, not an error.
+  // REEF-313: workspace AI-scanning kill switch (default off) is the first gate,
+  // so a disabled workspace exits as a clean no-op before repo allowlist checks.
+  // The same funnel covers manual scans, agent runs, and scheduled workers.
+  // Return an empty completed result before GitHub or LLM I/O; a disabled scan is
+  // a normal no-op, not an error.
   if (!config.ai_scanning_enabled) {
     return { ...empty, status: "completed" };
   }

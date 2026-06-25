@@ -18,13 +18,13 @@ export type AkbAuthConfigResult =
  * The single akb-call site shared by the public `GET /api/auth/akb/config`
  * route and the `/login` server component's SSO-first auto-redirect decision
  * (REEF-312). The akb wire schema and fetch live in core (`akbGetAuthConfig`);
- * `web` only consumes that result, so both surfaces stay consistent and neither
+ * `web` consumes that result, so both surfaces stay consistent and neither
  * re-implements the akb config fetch inline.
  *
- * Never throws for an expected backend problem: a missing `AKB_BACKEND_URL` or a
- * rejected upstream request resolves to `{ ok: false }` so the login page can
- * fail safe (show the panel) rather than redirect into a broken SSO flow. An
- * unexpected (non-`AkbApiError`) error still propagates.
+ * Expected backend problems, such as a missing `AKB_BACKEND_URL` or a rejected
+ * upstream request, resolve to `{ ok: false }` so the login page can fail safe
+ * (show the panel) rather than redirect into a broken SSO flow. Unexpected
+ * non-`AkbApiError` failures still propagate.
  */
 export async function loadAkbAuthConfig(): Promise<AkbAuthConfigResult> {
   let backendUrl: string;

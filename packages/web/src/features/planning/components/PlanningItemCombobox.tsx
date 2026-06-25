@@ -58,8 +58,8 @@ export function PlanningItemCombobox({
   // Kind copy resolves in the active locale (REEF-292); the optional props still
   // override it. Hooks can not run in default-parameter position, so the
   // fallbacks are computed in the body. The "Select/No {kind}" wrappers are
-  // catalog-owned so each locale keeps word order (REEF-309) — never assemble an
-  // English prefix around the localized kind word.
+  // catalog-owned so each locale keeps word order (REEF-309), instead of
+  // assembling an English prefix around the localized kind word.
   const t = useTranslations("components.planningItem");
   const singular = usePlanningKindSingularLabels()[kind];
   const resolvedLabel = label ?? singular;

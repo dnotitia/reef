@@ -322,9 +322,8 @@ export async function writeConfig(params: WriteConfigParams): Promise<void> {
     );
 
     // (4) Replace the ai_scanning_enabled row (REEF-313). Unlike
-    // authoring_language, a boolean always has a definite value, so the row is
-    // always written (DELETE + INSERT) rather than treating one state as the
-    // absence of the row.
+    // authoring_language, this boolean setting is represented by an explicit
+    // DELETE + INSERT row update instead of using row absence for one state.
     span.setAttribute("ai_scanning_enabled", config.ai_scanning_enabled);
     await runSql(
       adapter,

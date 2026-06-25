@@ -291,8 +291,8 @@ describe("scanAndPersistActivitySuggestions", () => {
   });
 
   it("no-ops when the workspace AI-scanning switch is off, even for a monitored repo (REEF-313)", async () => {
-    // octo/cat IS monitored, but the kill switch is off: the scan must no-op
-    // without any GitHub read, LLM call, or akb write.
+    // octo/cat is monitored, but the kill switch is off: the scan exits before
+    // any GitHub read, LLM call, or akb write.
     mockReadConfig.mockResolvedValueOnce(
       monitoredConfig([{ owner: "octo", name: "cat" }], false),
     );

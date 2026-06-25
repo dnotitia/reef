@@ -60,7 +60,7 @@ export default async function LoginPage({
  * SSO-first auto-redirect decision (REEF-312).
  *
  * Returns the same-origin `/api/auth/akb/sso/start` path to redirect to, or
- * null to render the panel. It fires only on a *clean* entry into `/login`:
+ * null to render the panel. It fires for a *clean* entry into `/login`:
  *
  * - The deployment opted in (`REEF_SSO_AUTO_REDIRECT`); default is the panel.
  * - No SSO/session error is present (`?sso_error=` / `?error=`). This is the
