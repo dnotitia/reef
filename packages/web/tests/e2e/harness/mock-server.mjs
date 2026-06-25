@@ -28,6 +28,43 @@ const server = createServer(async (req, res) => {
         issue_list_failure: state.issueListFailure,
       });
     }
+    if (url.pathname === "/__e2e/keycloak" && req.method === "POST") {
+      const body = await readJson(req);
+      state.keycloakEnabled = body?.enabled === true;
+      return json(res, 200, {
+        ok: true,
+        keycloak_enabled: state.keycloakEnabled,
+      });
+    }
+    // akb's Keycloak login start. reef-web calls this server-side to begin the
+    // hand-off (REEF-312). It is mounted at the bare path, not under /akb,
+    // because core resolves the akb-reported login_url ("/api/v1/auth/keycloak/
+    // login") against the backend ORIGIN — an absolute path drops the /akb mount
+    // prefix this fixture uses (a real akb backend has no path prefix). Mirrors
+    // akb's contract: a 3xx with an absolute Location, which reef forwards to the
+    // browser. Points back at this fixture's authorize page below.
+    if (
+      url.pathname === "/api/v1/auth/keycloak/login" &&
+      req.method === "GET"
+    ) {
+      if (!state.keycloakEnabled) {
+        return json(res, 404, { error: "keycloak_disabled" });
+      }
+      res.writeHead(302, {
+        Location: `http://${req.headers.host}/keycloak/authorize`,
+        "Cache-Control": "no-store",
+      });
+      return res.end();
+    }
+    // Fixture stand-in for the external Keycloak authorize page, so the SSO-first
+    // auto-redirect can be exercised end to end: the login start above bounces
+    // the browser here.
+    if (url.pathname === "/keycloak/authorize") {
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      return res.end(
+        '<!doctype html><html><body><main data-testid="fixture-keycloak-authorize"><h1>Keycloak Sign-In (fixture)</h1></main></body></html>',
+      );
+    }
     if (url.pathname === "/__e2e/state") {
       return json(res, 200, publicState());
     }
@@ -90,6 +127,7 @@ function makeState(scenario) {
     loginToken: token,
     vaults: new Map(),
     issueListFailure: false,
+    keycloakEnabled: false,
     commitSeq: 0,
     planningSeq: 10,
     githubRepos: [
@@ -633,7 +671,9 @@ async function handleAkb(req, res, url) {
 
   if (path === "/api/v1/auth/config" && req.method === "GET") {
     return json(res, 200, {
-      keycloak: { enabled: false, login_url: null },
+      keycloak: state.keycloakEnabled
+        ? { enabled: true, login_url: "/api/v1/auth/keycloak/login" }
+        : { enabled: false, login_url: null },
     });
   }
 

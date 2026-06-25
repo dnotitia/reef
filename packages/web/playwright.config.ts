@@ -19,6 +19,11 @@ function buildWebServerEnv(): Record<string, string> {
       process.env.REEF_GITHUB_APP_INSTALLATION_ID ?? "789",
     REEF_GITHUB_APP_PRIVATE_KEY:
       process.env.REEF_GITHUB_APP_PRIVATE_KEY ?? E2E_GITHUB_APP_PRIVATE_KEY,
+    // SSO-first login (REEF-312). On under test so the auto-redirect path is
+    // exercised; the fixture keeps Keycloak DISABLED by default (so this is a
+    // no-op and existing specs render today's panel), and the SSO-first spec
+    // opts in per test via the /__e2e/keycloak toggle.
+    REEF_SSO_AUTO_REDIRECT: process.env.REEF_SSO_AUTO_REDIRECT ?? "1",
   };
 }
 
