@@ -134,6 +134,12 @@ export const StaleHideDaysSchema = z
  *   stale_hide_completed_days / stale_hide_canceled_days — workspace-level
  *                        auto-hide windows for resolved issues (REEF-278).
  *                        Missing or stale values fall back to 28 / 7.
+ *   ai_scanning_enabled — workspace AI-activity-scanning kill switch (REEF-313).
+ *                        A stored `reef_settings` boolean; `false` (the default
+ *                        when the row is missing) means the workspace performs no
+ *                        AI activity scanning. Default-off because a scan writes
+ *                        AI suggestions into the team-shared activity inbox, so a
+ *                        workspace opts in explicitly.
  */
 export const ConfigSchema = z.object({
   project_prefix: z
@@ -148,6 +154,7 @@ export const ConfigSchema = z.object({
   stale_hide_canceled_days: StaleHideDaysSchema.default(
     DEFAULT_STALE_HIDE_CANCELED_DAYS,
   ),
+  ai_scanning_enabled: z.boolean().default(false),
 });
 
 export const CreateVaultRequestSchema = z.object({
@@ -192,4 +199,5 @@ export const DEFAULT_CONFIG: Config = {
   authoring_language: null,
   stale_hide_completed_days: DEFAULT_STALE_HIDE_COMPLETED_DAYS,
   stale_hide_canceled_days: DEFAULT_STALE_HIDE_CANCELED_DAYS,
+  ai_scanning_enabled: false,
 };

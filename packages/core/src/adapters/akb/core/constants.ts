@@ -69,6 +69,13 @@ export const REEF_SETTINGS_STALE_HIDE_COMPLETED_DAYS_KEY =
   "stale_hide_completed_days";
 export const REEF_SETTINGS_STALE_HIDE_CANCELED_DAYS_KEY =
   "stale_hide_canceled_days";
+/**
+ * `reef_settings` key holding the workspace AI-activity-scanning kill switch
+ * (REEF-313). Value is a JSON boolean. A vault with no row reads as `false`
+ * (the first-run default) — scanning stays off until a workspace admin turns it
+ * on, because a scan writes AI suggestions into the team-shared activity inbox.
+ */
+export const REEF_SETTINGS_AI_SCANNING_ENABLED_KEY = "ai_scanning_enabled";
 
 /**
  * Closed set of every table name reef writes SQL against. Used as the input

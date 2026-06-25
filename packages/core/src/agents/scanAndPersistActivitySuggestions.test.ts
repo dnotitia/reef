@@ -40,11 +40,13 @@ import { scanAndPersistActivitySuggestions } from "./scanAndPersistActivitySugge
 
 /**
  * Default config read result: `octo/cat` (the repo the existing tests scan) is
- * monitored, so the REEF-289 boundary check passes and the existing behavior is
- * exercised. Cases that test the boundary override this per-test.
+ * monitored and AI scanning is enabled, so the REEF-289 boundary check and the
+ * REEF-313 kill switch both pass and the existing scan behavior is exercised.
+ * Cases that test the boundary or the kill switch override these per-test.
  */
 function monitoredConfig(
   repos: { owner: string; name: string }[] = [{ owner: "octo", name: "cat" }],
+  aiScanningEnabled = true,
 ) {
   return {
     config: {
@@ -58,6 +60,7 @@ function monitoredConfig(
       authoring_language: null,
       stale_hide_completed_days: 14,
       stale_hide_canceled_days: 14,
+      ai_scanning_enabled: aiScanningEnabled,
     },
     exists: true,
   };
@@ -284,6 +287,34 @@ describe("scanAndPersistActivitySuggestions", () => {
     // No GitHub read and no akb write happen for an unmonitored repo.
     expect(mockScanActivity).not.toHaveBeenCalled();
     expect(mockEnsureReefTables).not.toHaveBeenCalled();
+    expect(mockWriteActivitySuggestion).not.toHaveBeenCalled();
+  });
+
+  it("does not scan when the workspace AI-scanning switch is off (REEF-313)", async () => {
+    // octo/cat IS monitored, but the kill switch is off: the scan must no-op
+    // without any GitHub read, LLM call, or akb write.
+    mockReadConfig.mockResolvedValueOnce(
+      monitoredConfig([{ owner: "octo", name: "cat" }], false),
+    );
+
+    const result = await scanAndPersistActivitySuggestions({
+      adapter: githubAdapter,
+      akbAdapter,
+      vault: "reef-test",
+      llmAdapter,
+      owner: "octo",
+      repo: "cat",
+      projectPrefix: "REEF",
+    });
+
+    expect(result.status).toBe("completed");
+    expect(result.addedDrafts).toBe(0);
+    expect(result.addedStatusChanges).toBe(0);
+    expect(result.persistedSuggestions).toEqual([]);
+    // No GitHub scan, no table provisioning, no akb write happen when disabled.
+    expect(mockScanActivity).not.toHaveBeenCalled();
+    expect(mockEnsureReefTables).not.toHaveBeenCalled();
+    expect(mockListActivitySuggestions).not.toHaveBeenCalled();
     expect(mockWriteActivitySuggestion).not.toHaveBeenCalled();
   });
 

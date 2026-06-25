@@ -25,6 +25,7 @@ import {
 //   DELETE authoring_language, [INSERT authoring_language when set],
 //   DELETE stale_hide_completed_days, INSERT stale_hide_completed_days,
 //   DELETE stale_hide_canceled_days, INSERT stale_hide_canceled_days,
+//   DELETE ai_scanning_enabled, INSERT ai_scanning_enabled,
 //   DELETE monitored_repos, [INSERT monitored_repos when non-empty].
 
 describe("writeConfig (tables)", () => {
@@ -41,6 +42,8 @@ describe("writeConfig (tables)", () => {
       { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT stale_hide_completed_days
       { body: makeSqlMutationResponse("DELETE 0") }, // DELETE stale_hide_canceled_days
       { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT stale_hide_canceled_days
+      { body: makeSqlMutationResponse("DELETE 0") }, // DELETE ai_scanning_enabled
+      { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT ai_scanning_enabled
       { body: makeSqlMutationResponse("DELETE 0") }, // DELETE monitored_repos
     ]);
     const adapter = makeAdapter();
@@ -53,9 +56,10 @@ describe("writeConfig (tables)", () => {
         authoring_language: null,
         stale_hide_completed_days: 14,
         stale_hide_canceled_days: 3,
+        ai_scanning_enabled: false,
       },
     });
-    expect(calls).toHaveLength(9);
+    expect(calls).toHaveLength(11);
     expect(calls[0]?.url).toBe("https://akb.test/api/v1/tables/reef-sample");
     const sqls = calls
       .slice(1)
@@ -81,7 +85,13 @@ describe("writeConfig (tables)", () => {
     expect(sqls[6]).toContain(`INSERT INTO ${REEF_SETTINGS_TABLE}`);
     expect(sqls[6]).toContain("'stale_hide_canceled_days'");
     expect(sqls[6]).toContain(`'3'::json`);
-    expect(sqls[7]).toBe(`DELETE FROM ${MONITORED_REPOS_TABLE}`);
+    // ai_scanning_enabled always written (boolean has a definite value).
+    expect(sqls[7]).toContain(`DELETE FROM ${REEF_SETTINGS_TABLE}`);
+    expect(sqls[7]).toContain("'ai_scanning_enabled'");
+    expect(sqls[8]).toContain(`INSERT INTO ${REEF_SETTINGS_TABLE}`);
+    expect(sqls[8]).toContain("'ai_scanning_enabled'");
+    expect(sqls[8]).toContain(`'false'::json`);
+    expect(sqls[9]).toBe(`DELETE FROM ${MONITORED_REPOS_TABLE}`);
   });
 
   it("emits DELETE + INSERT for a configured authoring_language (REEF-136)", async () => {
@@ -95,6 +105,8 @@ describe("writeConfig (tables)", () => {
       { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT stale_hide_completed_days
       { body: makeSqlMutationResponse("DELETE 0") }, // DELETE stale_hide_canceled_days
       { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT stale_hide_canceled_days
+      { body: makeSqlMutationResponse("DELETE 0") }, // DELETE ai_scanning_enabled
+      { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT ai_scanning_enabled
       { body: makeSqlMutationResponse("DELETE 0") }, // DELETE monitored_repos
     ]);
     const adapter = makeAdapter();
@@ -107,9 +119,10 @@ describe("writeConfig (tables)", () => {
         authoring_language: "ko",
         stale_hide_completed_days: 28,
         stale_hide_canceled_days: 7,
+        ai_scanning_enabled: true,
       },
     });
-    expect(calls).toHaveLength(10);
+    expect(calls).toHaveLength(12);
     const sqls = calls
       .slice(1)
       .map((c) => JSON.parse(c.init?.body as string).sql as string);
@@ -119,7 +132,12 @@ describe("writeConfig (tables)", () => {
     expect(sqls[3]).toContain("(key, value)");
     expect(sqls[3]).toContain("'authoring_language'");
     expect(sqls[3]).toContain(`'"ko"'::json`);
-    expect(sqls[8]).toBe(`DELETE FROM ${MONITORED_REPOS_TABLE}`);
+    // ai_scanning_enabled enabled → INSERT carries the JSON boolean `true`.
+    // (authoring_language is also set here, so its INSERT shifts these by one.)
+    expect(sqls[9]).toContain(`INSERT INTO ${REEF_SETTINGS_TABLE}`);
+    expect(sqls[9]).toContain("'ai_scanning_enabled'");
+    expect(sqls[9]).toContain(`'true'::json`);
+    expect(sqls[10]).toBe(`DELETE FROM ${MONITORED_REPOS_TABLE}`);
   });
 
   it("creates missing tables on first write (lazy provisioning)", async () => {
@@ -143,6 +161,8 @@ describe("writeConfig (tables)", () => {
       { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT stale_hide_completed_days
       { body: makeSqlMutationResponse("DELETE 0") }, // DELETE stale_hide_canceled_days
       { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT stale_hide_canceled_days
+      { body: makeSqlMutationResponse("DELETE 0") }, // DELETE ai_scanning_enabled
+      { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT ai_scanning_enabled
       { body: makeSqlMutationResponse("DELETE 0") }, // DELETE monitored_repos
     ]);
     const adapter = makeAdapter();
@@ -155,9 +175,10 @@ describe("writeConfig (tables)", () => {
         authoring_language: null,
         stale_hide_completed_days: 28,
         stale_hide_canceled_days: 7,
+        ai_scanning_enabled: false,
       },
     });
-    expect(calls).toHaveLength(20);
+    expect(calls).toHaveLength(22);
     expect(calls[0]?.url).toBe("https://akb.test/api/v1/tables/reef-sample");
     const createNames = calls
       .slice(1, 11)
@@ -177,6 +198,8 @@ describe("writeConfig (tables)", () => {
       { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT stale_hide_completed_days
       { body: makeSqlMutationResponse("DELETE 0") }, // DELETE stale_hide_canceled_days
       { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT stale_hide_canceled_days
+      { body: makeSqlMutationResponse("DELETE 0") }, // DELETE ai_scanning_enabled
+      { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT ai_scanning_enabled
       { body: makeSqlMutationResponse("DELETE 2") }, // DELETE monitored_repos
       { body: makeSqlMutationResponse("INSERT 0 2") }, // INSERT monitored_repos
     ]);
@@ -193,10 +216,11 @@ describe("writeConfig (tables)", () => {
         authoring_language: null,
         stale_hide_completed_days: 28,
         stale_hide_canceled_days: 7,
+        ai_scanning_enabled: true,
       },
     });
-    expect(calls).toHaveLength(10);
-    const insertRepos = JSON.parse(calls[9]?.init?.body as string)
+    expect(calls).toHaveLength(12);
+    const insertRepos = JSON.parse(calls[11]?.init?.body as string)
       .sql as string;
     expect(insertRepos).toContain(`INSERT INTO ${MONITORED_REPOS_TABLE}`);
     expect(insertRepos).toContain("(1, 'octo', 'cat', 'kitty')");
@@ -215,6 +239,8 @@ describe("writeConfig (tables)", () => {
       { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT stale_hide_completed_days
       { body: makeSqlMutationResponse("DELETE 0") }, // DELETE stale_hide_canceled_days
       { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT stale_hide_canceled_days
+      { body: makeSqlMutationResponse("DELETE 0") }, // DELETE ai_scanning_enabled
+      { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT ai_scanning_enabled
       { body: makeSqlMutationResponse("DELETE 0") }, // DELETE monitored_repos
       { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT monitored_repos
     ]);
@@ -235,9 +261,10 @@ describe("writeConfig (tables)", () => {
         authoring_language: null,
         stale_hide_completed_days: 28,
         stale_hide_canceled_days: 7,
+        ai_scanning_enabled: false,
       },
     });
-    const insertRepos = JSON.parse(calls[9]?.init?.body as string)
+    const insertRepos = JSON.parse(calls[11]?.init?.body as string)
       .sql as string;
     expect(insertRepos).toContain(
       "(42, 'octo', 'cat', '''; DROP TABLE reef_settings; --')",
@@ -257,6 +284,8 @@ describe("writeConfig (tables)", () => {
       { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT stale_hide_completed_days
       { body: makeSqlMutationResponse("DELETE 0") }, // DELETE stale_hide_canceled_days
       { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT stale_hide_canceled_days
+      { body: makeSqlMutationResponse("DELETE 0") }, // DELETE ai_scanning_enabled
+      { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT ai_scanning_enabled
       { body: makeSqlMutationResponse("DELETE 0") }, // DELETE monitored_repos
     ]);
     const adapter = makeAdapter();
@@ -277,6 +306,7 @@ describe("writeConfig (tables)", () => {
           authoring_language: null,
           stale_hide_completed_days: 28,
           stale_hide_canceled_days: 7,
+          ai_scanning_enabled: false,
         },
       }),
     ).rejects.toBeInstanceOf(SchemaValidationError);
