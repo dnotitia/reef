@@ -40,33 +40,16 @@ import { type IssueFilter, useIssueStore } from "../../stores/useIssueStore";
 import { DisplayOptionsFilter } from "./DisplayOptionsFilter";
 
 /**
- * The Assignee/Requester filters are now multi-select chip triggers (REEF-267),
- * so their closed trigger is the auto-width "(N)" facet chip like every other
- * facet — but their open dropdown still needs room to show a long display name
- * and its `@login` together, which a narrow panel truncates. Floor the *opened*
- * panel at a readable width and cap it to the viewport so it can not be
- * excessively clipped when the filter bar wraps onto multiple rows (REEF-134/269).
- *
- * The panel can still overflow whichever edge it grows toward when the trigger
- * lands at the far end of a wrapped row — true of every non-portaled combobox
- * here. Eliminating that entirely needs collision-aware positioning in the
- * shared Combobox/popover primitive, which is intentionally simple (REEF-073/092)
- * and out of scope; `max-w-[90vw]` bounds the worst case in the meantime.
+ * Assignee/Requester multi-selects use chip triggers, but their dropdown needs
+ * enough width for display name + `@login`. Keep the opened panel readable and
+ * viewport-bounded while the shared combobox remains non-portaled (REEF-134/269).
  */
 export const USER_FILTER_PANEL_CLASS = "min-w-[17rem] max-w-[90vw]";
 
 /**
- * Shared width policy for the bar's remaining "value field" comboboxes —
- * Milestone and Labels. One token so they size identically: hug the selected
- * value (`w-fit`), floored at `9rem` so an empty field still reads as a field,
- * and capped at `16rem` so a long value truncates instead of pushing the bar
- * wide (REEF-269).
- *
- * REEF-267 moved Assignee / Requester / Sprint / Release off this value-field
- * vocabulary onto the auto-width multi-select chip (alongside Status / Type /
- * Priority / Severity / Due / Dependency, all via `CBX_TRIGGER_CHIP`); Milestone
- * stays a single-select value field because it was deliberately left
- * single-cardinality (REEF-267 Scope).
+ * Shared width policy for Milestone and Labels: hug the selected value, keep an
+ * empty field readable, and cap long values before they push the bar wide
+ * (REEF-269). Multi-select facets use chip triggers instead.
  */
 export const FILTER_FIELD_CLASS = "w-fit min-w-[9rem] max-w-[16rem]";
 
@@ -79,11 +62,8 @@ export const FILTER_FIELD_CLASS = "w-fit min-w-[9rem] max-w-[16rem]";
 export const PLANNING_FILTER_WRAPPER_CLASS = "relative inline-block max-w-full";
 
 /**
- * Static multi-select facet option lists. Hoisted to module scope so the badge
- * elements aren't re-created on every render; the just dynamic facet is Status,
- * whose offered values depend on the `statusOptions` prop (board/timeline pass
- * the workflow set), so it is built inside the component. Each option's
- * `testId` preserves the `{facet}-option-{value}` contract the filter tests use.
+ * Static multi-select facet options. Status remains dynamic because board and
+ * timeline pass a reduced workflow set through `statusOptions`.
  */
 const TYPE_FACET_OPTIONS: ComboboxOption<
   (typeof ISSUE_TYPE_OPTIONS)[number]
@@ -176,26 +156,14 @@ function countActiveFilters(
 
 interface FilterBarProps {
   /**
-   * Render the backlog view's reduced facet set. The backlog is pinned to the
-   * `backlog` status, so a Status facet is meaningless there (REEF-109); and an
-   * item that is in a sprint or release is by definition committed (so a backlog
-   * row does not matches one → an consistently-empty result), while the backlog view
-   * discards its Due column and a due date on an uncommitted item is
-   * contradictory — so the Sprint, Release, and Due facets are dropped too
-   * (REEF-177). Milestone and the remaining triage facets (type/priority/
-   * severity/dependency/assignee/requester/labels) stay: a milestone is a
-   * long-horizon theme that legitimately groups unscheduled backlog work, and
-   * the rest are real triage axes. The backlog query neutralizes the dropped
-   * facets' stored values to match (`BacklogView`), so a value carried over from
-   * list/board does not silently filter here.
+   * Render the backlog view's reduced facet set. Backlog pins status and drops
+   * Sprint, Release, and Due (REEF-109/177); Milestone and triage facets stay.
+   * `BacklogView` neutralizes dropped stored values to match this surface.
    */
   backlogScope?: boolean;
   /**
-   * The status values offered in the Status facet. Defaults to every status.
-   * Board and timeline pass `WORKFLOW_STATUS_OPTIONS` so they does not offer
-   * `backlog` — a status those views group away, which would otherwise filter to
-   * an empty board with an active facet (REEF-109). The list can render backlog
-   * rows, so it keeps the full set.
+   * Status values offered in the Status facet. Board and timeline pass workflow
+   * statuses; list keeps the full set including backlog (REEF-109).
    */
   statusOptions?: readonly Status[];
 }

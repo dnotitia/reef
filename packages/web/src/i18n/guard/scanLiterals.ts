@@ -12,7 +12,7 @@ import ts from "typescript";
  * - A small set of **user-facing attributes** whose value is a static string
  *   literal (`aria-label="Collapse sidebar"`, `title`, `placeholder`, `alt`).
  * - The **message argument** of a `toast(...)` / `toast.success(...)` call — the
- *   first argument only, where the user-facing copy lives. Options like `id` /
+ *   first argument, where the user-facing copy lives. Options like `id` /
  *   `className` (2nd arg) are deliberately out of reach so the scan stays free of
  *   false positives (REEF-299, AC4); a toast `description` option is migrated by
  *   review, not auto-caught.
@@ -42,7 +42,7 @@ const USER_FACING_ATTRS = new Set([
   "label",
 ]);
 
-/** Directories / suffixes the guard never scans. */
+/** Directories / suffixes skipped by the guard. */
 const SKIP_DIR_SEGMENTS = ["components/ui", "i18n"];
 const SKIP_SUFFIXES = [
   ".test.tsx",
@@ -110,7 +110,7 @@ export function scanSource(relFile: string, source: string): Violation[] {
     ts.ScriptTarget.Latest,
     /* setParentNodes */ true,
     // Parse `.ts` as TS so generics/assertions aren't misread as JSX; `.tsx`
-    // as TSX. A `.ts` file has no JSX nodes, so only the toast scan fires there.
+    // as TSX. A `.ts` file has no JSX nodes, so the toast scan handles it.
     relFile.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
   const lines = source.split("\n");
@@ -166,7 +166,7 @@ export function scanSource(relFile: string, source: string): Violation[] {
 
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node) && isToastCallee(node.expression)) {
-      // Only the message (first arg); options like `id`/`className` are exempt.
+      // Message argument; options like `id`/`className` are exempt.
       const message = node.arguments[0];
       if (message) collectToastLiterals(message);
     }
@@ -200,7 +200,7 @@ export function scanSource(relFile: string, source: string): Violation[] {
 }
 
 function shouldSkip(relPath: string): boolean {
-  // `.tsx` carries the JSX scan; `.ts` is scanned for the toast pattern only
+  // `.tsx` carries the JSX scan; `.ts` is scanned for the toast pattern
   // (REEF-299). `.d.ts` declarations have neither, so skip them.
   if (!relPath.endsWith(".ts") && !relPath.endsWith(".tsx")) return true;
   if (relPath.endsWith(".d.ts")) return true;
@@ -213,18 +213,28 @@ function shouldSkip(relPath: string): boolean {
   );
 }
 
+function shouldSkipDirectory(relPath: string): boolean {
+  return SKIP_DIR_SEGMENTS.some(
+    (segment) =>
+      relPath === segment ||
+      relPath.startsWith(`${segment}/`) ||
+      relPath.includes(`/${segment}/`),
+  );
+}
+
 /** Recursively collect scannable `.ts` / `.tsx` files under `rootDir`. */
-export function collectFiles(rootDir: string): string[] {
+function collectFiles(rootDir: string): string[] {
   const out: string[] = [];
   const walk = (dir: string): void => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const abs = path.join(dir, entry.name);
+      const rel = path.relative(rootDir, abs).split(path.sep).join("/");
       if (entry.isDirectory()) {
         if (entry.name === "node_modules") continue;
+        if (shouldSkipDirectory(rel)) continue;
         walk(abs);
         continue;
       }
-      const rel = path.relative(rootDir, abs).split(path.sep).join("/");
       if (!shouldSkip(rel)) out.push(abs);
     }
   };

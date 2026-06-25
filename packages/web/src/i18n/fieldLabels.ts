@@ -8,13 +8,13 @@
  * the familiar `Record<Enum, string>` shape the field leaves and surfaces
  * already consume, so a call site swaps `STATUS_LABELS[status]` for
  * `useStatusLabels()[status]` and keeps its logic. Missing locale keys fall back
- * to the en base at message-merge time (`i18n/messages.ts`), so a lookup never
- * returns a hole (AC1, AC3).
+ * to the en base at message-merge time (`i18n/messages.ts`), so a lookup does not
+ * returns an empty slot (AC1, AC3).
  *
  * Each returned map is memoized on the active translator, so it is referentially
  * stable across renders for one locale — safe to pass as a `useMemo` dependency
  * (e.g. the reports pivot) without forcing a recompute every render. The field
- * leaves that consume these are only ever rendered inside client trees, so the
+ * leaves that consume these are rendered inside client trees, so the
  * `"use client"` boundary here costs nothing.
  */
 import type {
@@ -63,8 +63,8 @@ function useLabelRecord<K extends string>(
   keys: readonly K[],
 ): Record<K, string> {
   // This generic helper resolves any field namespace, so the runtime `namespace`
-  // string can't carry next-intl's typed `NamespaceKeys` (the REEF-293 AppConfig
-  // augmentation) — `as never` satisfies the namespace parameter. Each field
+  // string does not carry next-intl's typed `NamespaceKeys` (the REEF-293
+  // AppConfig augmentation) — the cast satisfies the namespace parameter. Each field
   // label is a plain string leaf, so the result is narrowed to a key→string
   // lookup; the concrete namespaces are exercised by `fieldLabels.test.tsx`.
   const t = useTranslations(namespace as never) as unknown as (

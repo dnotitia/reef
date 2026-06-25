@@ -244,7 +244,7 @@ export async function getAkbCurrentActor(
 ): Promise<{ actor: string } | { response: Response }> {
   // This helper is already async, so it awaits the localized error responses to
   // a settled `Response` — the GitHub credential resolvers read `.status` off
-  // this `response` arm, so it must not be a Promise.
+  // this `response` arm, so it needs to be settled.
   let jwt: string;
   try {
     jwt = extractAkbSession(request);

@@ -78,7 +78,7 @@ describe("loadMessages", () => {
 
   it("a key absent from ko falls back to the en value", () => {
     const ko = loadMessages("ko") as Record<string, unknown>;
-    // Synthesize a base-only key and confirm the merge would retain it: every
+    // Synthesize a base-locale key and confirm the merge would retain it: each
     // en key is present in the merged ko output (no holes reach the provider).
     const merged = deepMerge(
       { ...en, baseOnly: "english-only" },

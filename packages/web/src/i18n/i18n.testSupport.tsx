@@ -4,7 +4,7 @@ import type { Locale } from "./locales";
 import { loadMessages } from "./messages";
 
 /**
- * Test-only intl wrapper (REEF-293). Components migrated to `useTranslations`
+ * Intl wrapper for tests (REEF-293). Components migrated to `useTranslations`
  * throw "No intl context found" when rendered bare, so unit tests render them
  * inside this provider. It mirrors the production request config — the same
  * `loadMessages` deep-merge (so ko inherits the en fallback, AC3) and UTC time
@@ -14,8 +14,8 @@ import { loadMessages } from "./messages";
  * passing unchanged after a component is migrated; pass `locale="ko"` to assert
  * the translated surface.
  *
- * Named `*.testSupport.tsx` so it is excluded from the production graph (only
- * tests import it) and from the i18n hardcoded-string guard.
+ * Named `*.testSupport.tsx` so it is excluded from the production graph (test
+ * imports) and from the i18n hardcoded-string guard.
  */
 export function IntlTestProvider({
   locale = "en",

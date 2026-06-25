@@ -18,7 +18,7 @@ import { loadMessages } from "./messages";
  * from `getLocale()` in the root layout) matches it.
  *
  * Time zone is pinned to UTC: ADR-0001 keeps dates TZ-stable across viewers to
- * avoid hydration mismatches; only the locale varies per viewer.
+ * avoid hydration mismatches; locale varies per viewer.
  */
 export default getRequestConfig(async () => {
   const [cookieStore, headerStore] = await Promise.all([cookies(), headers()]);

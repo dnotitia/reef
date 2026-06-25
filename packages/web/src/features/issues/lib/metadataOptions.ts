@@ -1,4 +1,4 @@
-// Field option data lives in the core field registry (single source of truth).
+// Field option data lives in the core field registry.
 // Re-exported here for older import support with existing import sites; prefer
 // importing from `@reef/core` or `@/components/fields/fieldKit`. Human labels are
 // locale-resolved through `@/i18n/fieldLabels` (REEF-292), not re-exported here.

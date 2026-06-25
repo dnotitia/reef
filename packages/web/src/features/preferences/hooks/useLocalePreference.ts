@@ -8,8 +8,8 @@ import { useLocaleStore } from "../stores/useLocaleStore";
 interface UseLocalePreferenceReturn {
   /**
    * The locale to show as selected: the user's persisted choice when present,
-   * otherwise the server-detected active locale. Never null — the active locale
-   * is always resolved by the provider, so the switcher highlights the right
+   * otherwise the server-detected active locale. Non-null because the provider
+   * resolves the active locale, so the switcher highlights the right
    * option from first paint without a hydration gap.
    */
   locale: Locale;

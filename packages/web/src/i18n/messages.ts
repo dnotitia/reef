@@ -8,7 +8,7 @@ import ko from "./messages/ko.json";
 /**
  * The core-owned en base catalog for the ~60 field-registry labels (ADR-0001 /
  * REEF-292). `core` exports the message keys (the enum values) plus this en base
- * as pure data and never resolves locales; this is the merge seam REEF-291 left
+ * as pure data; this is the merge seam REEF-291 left
  * open. Issue-field groups sit at `fields.*`; planning groups nest under
  * `fields.planning.*`. ko translations live in `ko.json` under the same shape
  * and fall back to these strings per key (AC3).
@@ -30,8 +30,8 @@ const ERROR_MESSAGES_BASE = { ...ERROR_MESSAGES_EN, ...en.errors };
 
 /**
  * The full en base catalog: the web string files merged with the core field and
- * error catalogs. The structural single source of truth — every other locale is
- * a subset and any key it omits falls back to en at merge time (ADR-0001, AC3).
+ * error catalogs. Other locales are subsets; omitted keys fall back to en at
+ * merge time (ADR-0001, AC3).
  */
 const EN_BASE = {
   ...en,
@@ -62,9 +62,8 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 
 /**
  * Recursively overlay `override` onto `base`. A key present in `override` wins;
- * a key present only in `base` is retained — this is the "missing key falls back
- * to base (en)" guarantee, applied once at load time so the next-intl provider
- * never sees a hole.
+ * a key present in `base` is retained — this is the "missing key falls back to
+ * base (en)" guarantee, applied once at load time before next-intl sees it.
  */
 export function deepMerge<T>(base: T, override: DeepPartial<T>): T {
   if (!isPlainObject(base) || !isPlainObject(override)) {

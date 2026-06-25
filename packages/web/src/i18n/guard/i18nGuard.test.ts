@@ -10,16 +10,15 @@ import { scanTree } from "./scanLiterals";
  *
  * `scanLiterals` reports every user-facing English literal still living in JSX
  * or in a `toast(...)` message. This test pins that set to a committed baseline
- * and enforces a one-way ratchet:
+ * and enforces a shrinking ratchet:
  *
  *   - A literal in the code but NOT in the baseline → a NEW hardcoded string was
  *     added. Fails. Route it through `useTranslations` (or, for a genuine
  *     non-string like a brand name, add an `i18n-exempt` line comment).
  *   - A literal in the baseline but NOT in the code → it was migrated. Fails so
- *     the baseline must shrink; run `pnpm --filter @reef/web i18n:baseline` to
- *     prune it. The baseline can only ever get smaller — the prune command
- *     refuses to add new entries, so the only way the guarded count grows is a
- *     hand-edit a reviewer sees in the diff.
+ *     the baseline needs to shrink; run `pnpm --filter @reef/web i18n:baseline`
+ *     to prune it. The prune command refuses to add new entries, so growth comes
+ *     from a hand-edit a reviewer sees in the diff.
  *
  * The guard covers JSX (text nodes + a small set of user-facing attributes) and
  * the message argument of `toast.*()` calls (REEF-299). It deliberately does NOT
@@ -56,7 +55,7 @@ function diff(a: Baseline, b: Baseline): Array<{ file: string; text: string }> {
   return out;
 }
 
-/** Keep only baseline entries that are still present in the code (prune only). */
+/** Keep baseline entries that are still present in the code (prune path). */
 function intersect(baseline: Baseline, current: Baseline): Baseline {
   const out: Baseline = {};
   for (const file of Object.keys(baseline).sort()) {
@@ -92,7 +91,7 @@ describe("i18n hardcoded-string guard", () => {
     const added = diff(current, baseline);
     const resolved = diff(baseline, current);
 
-    // Messages are only surfaced on failure, so they can always interpolate the
+    // Messages are surfaced on failure, so they can interpolate the
     // offending entries (empty when the lists are empty).
     expect(
       added,

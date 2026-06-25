@@ -7,7 +7,7 @@ import { scanSource } from "./scanLiterals";
  * the committed baseline) lives in `i18nGuard.test.ts`; here we pin the two
  * behaviors REEF-299 added — toast-message detection (AC3) and the boundaries
  * that keep it free of false positives (AC4) — plus the original JSX behavior so
- * it can't silently regress.
+ * it has regression coverage.
  */
 
 const texts = (file: string, src: string): string[] =>
@@ -51,7 +51,7 @@ describe("scanSource — toast (REEF-299, AC3)", () => {
 
   it("is invisible once the message is routed through t()", () => {
     expect(texts("a.tsx", 'toast.success(t("saved"));')).toEqual([]);
-    // The translation key (an argument to t()) must never be flagged.
+    // The translation key (an argument to t()) is not flagged.
     expect(texts("a.tsx", 'toast.error(t("err", { id: issue.id }));')).toEqual(
       [],
     );

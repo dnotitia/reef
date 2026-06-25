@@ -75,7 +75,7 @@ interface DashboardShellProps {
 
 // `labelKey` resolves through the `nav` catalog at render (REEF-293); `testId`
 // is the stable English slug for `data-testid` / e2e locators so the markup
-// anchor never shifts with the active locale.
+// anchor stays stable across active locales.
 const navLinks: ReadonlyArray<{
   href: string;
   labelKey:
@@ -382,7 +382,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                   data-testid="sidebar-brand-name"
                   style={{ letterSpacing: "-0.01em" }}
                 >
-                  reef{/* i18n-exempt: brand name, never localized */}
+                  reef{/* i18n-exempt: brand name */}
                 </span>
               </div>
               <button

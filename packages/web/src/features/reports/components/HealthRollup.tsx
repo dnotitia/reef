@@ -54,7 +54,7 @@ function useDimensionLabels(): Record<
   { one: string; many: string }
 > {
   // The `{dim}.{one|many}` keys are built at runtime, so the typed namespace
-  // translator can't carry them — cast to a plain key→string lookup (the same
+  // translator does not carry them — cast to a plain key→string lookup (the same
   // pattern `i18n/fieldLabels` uses for its enum-keyed records). Each leaf is a
   // string, and the concrete keys are exercised by the reports render.
   const t = useTranslations("reports.cards") as unknown as (
@@ -344,7 +344,7 @@ function reasonText(t: LooseT, reason: VerdictReason): string {
 function Subline({ row }: { row: HealthRollupRow }) {
   const locale = useLocale();
   // Loose translator for the runtime-built reason/day-count keys (the day count
-  // stays a number — only the surrounding words localize; date formatting itself
+  // stays a number; the surrounding words localize while date formatting itself
   // is REEF-294's dateHelpers).
   const t = useTranslations("reports.cards") as unknown as LooseT;
   const parts: string[] = [];

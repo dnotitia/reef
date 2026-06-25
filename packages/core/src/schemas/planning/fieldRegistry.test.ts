@@ -12,8 +12,8 @@ import {
 } from "./fieldRegistry";
 
 describe("planning fieldRegistry", () => {
-  // The enum value is the i18n message key (REEF-292): the en base catalog must
-  // carry one non-empty label per enum member, and the option array mirrors the
+  // The enum value is the i18n message key (REEF-292): the en base catalog
+  // carries one non-empty label per enum member, and the option array mirrors the
   // schema enum order.
   const cases = [
     {

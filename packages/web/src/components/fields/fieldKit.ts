@@ -14,9 +14,6 @@ import type { IssueType, Priority, Severity, Status } from "@reef/core";
 import type { DependencyFacet, DueFacet } from "@reef/core/fields";
 
 export {
-  STATUS_OPTIONS,
-  WORKFLOW_STATUS_OPTIONS,
-  PRIORITY_OPTIONS,
   DUE_OPTIONS,
   DEPENDENCY_OPTIONS,
   NO_SELECTION,

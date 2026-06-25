@@ -1,5 +1,5 @@
 /**
- * Field registry — the single canonical source for issue-field DISPLAY METADATA
+ * Field registry — canonical issue-field DISPLAY METADATA
  * (option ordering, the no-selection sentinel, and the en base label catalog),
  * derived from the enums in `metadata.ts`.
  *
@@ -12,7 +12,7 @@
  * values) plus the en BASE catalog (`ISSUE_FIELD_MESSAGES_EN`) as pure data.
  * web composes that base into the next-intl `fields` namespace, resolves the
  * active locale (en/ko), and falls back to this base for any key a locale omits.
- * core does not resolve locales and never imports next-intl.
+ * core leaves locale resolution to web and does not import next-intl.
  *
  * Exhaustiveness is enforced at compile time: each catalog group `satisfies`
  * `Record<Enum, string>`, so adding an enum member without a label is a type

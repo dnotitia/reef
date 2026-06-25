@@ -6,7 +6,7 @@ import { applyLocale } from "../lib/locale";
 interface LocaleState {
   /**
    * The persisted locale *choice*. `null` until the initial Dexie read resolves
-   * AND when the user has never picked one — in the latter case the server
+   * and when the user has not picked one — in the latter case the server
    * detection chain (cookie → Accept-Language → en) governs the active locale,
    * so `useLocalePreference` reads next-intl's active locale as the fallback
    * display value.
@@ -24,10 +24,10 @@ interface LocaleState {
 
 /**
  * Canonical store for the persisted UI locale *choice*, mirroring `useThemeStore`
- * (REEF-291 / ADR-0001). IndexedDB is the persistence source of truth; this is
+ * (REEF-291 / ADR-0001). IndexedDB is the persistence owner; this is
  * its shared in-memory reflection so every control stays in sync.
  *
- * It tracks the persisted choice only — the *active* locale (what the server
+ * It tracks the persisted choice; the *active* locale (what the server
  * actually rendered, including a detected-but-unpersisted locale) is owned by
  * next-intl's provider. `useLocalePreference` composes the two: persisted choice
  * if present, else the active detected locale.
@@ -42,7 +42,7 @@ export const useLocaleStore = create<LocaleState>((set, get) => ({
     try {
       const stored = await getLocale();
       // A control may set the locale before this async read resolves; that
-      // choice is authoritative and already applied, so only adopt the stored
+      // choice is authoritative and already applied, so adopt the stored
       // value when nothing was selected during hydration. Re-applying restores
       // the `<html lang>` + cookie mirror in case the cookie was cleared/expired
       // — IndexedDB is canonical (ADR-0001).

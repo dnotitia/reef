@@ -33,7 +33,7 @@ export function TimelineBar({ item, onClick }: TimelineBarProps) {
   const t = useTranslations("timeline");
   const isMarker = item.kind === "deadline" || item.kind === "start";
   // Localized bar label/tooltip (REEF-306). The date keys stay locale-neutral
-  // (REEF-294 owns date display); only the start/due words follow the locale.
+  // (REEF-294 owns date display); the start/due words follow the locale.
   const label = t("scheduledItemTooltip", {
     id: item.issue.id,
     title: item.issue.title,

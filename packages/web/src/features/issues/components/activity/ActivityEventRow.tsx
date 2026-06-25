@@ -253,7 +253,7 @@ function lineFor(
   // The actor renders identically on every line — an emphasized, un-translated
   // login token. next-intl injects rich nodes through self-closing tag functions
   // (`<actor/>`), not plain values, so build it once as a tag. The `hasActor`
-  // select drops the tag on the subject-led system phrasing (where it is never
+  // select drops the tag on the subject-led system phrasing (where it is not
   // invoked), so a null actor safely returns null.
   const anActor = event.actor;
   const hasActor = anActor ? "true" : "false";

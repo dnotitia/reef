@@ -59,16 +59,6 @@ export const PIVOT_FIELD_KEYS: readonly PivotFieldKey[] = [
   "label",
 ] as const;
 
-/** Picker labels for the row/column field selectors. */
-export const PIVOT_FIELD_LABELS: Record<PivotFieldKey, string> = {
-  status: "Status",
-  type: "Type",
-  priority: "Priority",
-  severity: "Severity",
-  assignee: "Assignee",
-  label: "Label",
-};
-
 /** Sentinel keys kept out of the `string` value space so a real assignee or
  *  label literally named "None"/"Other" doesn't collide with a bucket. */
 const NONE_KEY = "\0none";
