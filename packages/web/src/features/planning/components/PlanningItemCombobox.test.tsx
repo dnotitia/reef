@@ -1,3 +1,4 @@
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import type { PlanningCatalog } from "@reef/core";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -101,6 +102,26 @@ describe("PlanningItemCombobox", () => {
     const listbox = screen.getByRole("listbox");
     expect(listbox.textContent).toContain("Sprint 4");
     expect(listbox.querySelector(SPRINT_GLYPH)).toBeNull();
+  });
+
+  it("localizes the placeholder wrapper in ko without an English prefix (REEF-309)", () => {
+    render(
+      <IntlTestProvider locale="ko">
+        <PlanningItemCombobox
+          kind="sprints"
+          vault="v"
+          value=""
+          onChange={() => {}}
+          testId="sprint-combo"
+        />
+      </IntlTestProvider>,
+    );
+
+    // The "{kind} 선택" wrapper is catalog-owned; the old assembled
+    // `Select ${singular}` leaked "Select 스프린트" in ko.
+    const trigger = screen.getByTestId("sprint-combo");
+    expect(trigger.textContent).toContain("선택");
+    expect(trigger.textContent).not.toContain("Select");
   });
 
   it("opens planning lists with a readable panel width floor", () => {

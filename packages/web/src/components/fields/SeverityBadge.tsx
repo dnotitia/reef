@@ -10,6 +10,7 @@ import {
   OctagonAlert,
   TriangleAlert,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 /**
  * Shared severity leaf. severity is ORDINAL (blocker > critical > major > minor
@@ -51,13 +52,16 @@ export function SeverityIcon({
   decorative = false,
 }: SeverityIconProps) {
   const severityLabels = useSeverityLabels();
+  const t = useTranslations("components.severityBadge");
   const Icon = SEVERITY_ICON[severity];
   return (
     <Icon
       className={cn("size-3.5 shrink-0", SEVERITY_COLORS[severity], className)}
       role={decorative ? undefined : "img"}
       aria-label={
-        decorative ? undefined : `Severity: ${severityLabels[severity]}`
+        decorative
+          ? undefined
+          : t("ariaLabel", { value: severityLabels[severity] })
       }
       aria-hidden={decorative ? true : undefined}
     />

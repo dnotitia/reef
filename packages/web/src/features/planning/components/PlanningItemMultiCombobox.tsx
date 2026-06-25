@@ -4,6 +4,7 @@ import { PlanningStatusBadge } from "@/components/fields/PlanningStatusBadge";
 import type { ComboboxOption } from "@/components/ui/combobox";
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
 import { usePlanningKindSingularLabels } from "@/i18n/fieldLabels";
+import { useTranslations } from "next-intl";
 import { useMemo } from "react";
 import { usePlanningCatalog } from "../hooks/usePlanningCatalog";
 import { type PlanningKind, itemsForKind } from "../lib/planningItems";
@@ -44,6 +45,7 @@ export function PlanningItemMultiCombobox({
   className,
   panelClassName = PLANNING_ITEM_PANEL_CLASS,
 }: PlanningItemMultiComboboxProps) {
+  const t = useTranslations("components.planningItem");
   // Kind copy resolves in the active locale (REEF-292); `label` still overrides.
   const singular = usePlanningKindSingularLabels()[kind];
   const resolvedLabel = label ?? singular;
@@ -84,7 +86,7 @@ export function PlanningItemMultiCombobox({
       onToggle={onToggle}
       options={options}
       loading={isPending}
-      emptyState="No planning items."
+      emptyState={t("empty")}
       active={active}
       disabled={!vault}
       ariaLabel={resolvedLabel}

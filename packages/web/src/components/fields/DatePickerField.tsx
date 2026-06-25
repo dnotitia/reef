@@ -57,8 +57,8 @@ export function DatePickerField({
   value,
   onChange,
   id,
-  label = "Date",
-  placeholder = "Set date",
+  label,
+  placeholder,
   disabled,
   align = "start",
   className,
@@ -70,6 +70,10 @@ export function DatePickerField({
     useState<DatePickerFieldProps["align"]>(align);
   const locale = useLocale();
   const t = useTranslations("components.datePicker");
+  // Hooks can not run in default-parameter position, so the locale-resolved
+  // fallbacks for the optional copy props are computed in the body.
+  const resolvedLabel = label ?? t("label");
+  const resolvedPlaceholder = placeholder ?? t("placeholder");
   const normalized = dateInputValue(value);
   // Readable, locale-formatted trigger label (e.g. `Jun 1, 2026`); the panel's
   // text input keeps raw `YYYY-MM-DD` for direct typing.
@@ -231,7 +235,9 @@ export function DatePickerField({
           ref={triggerRef}
           id={id}
           disabled={disabled}
-          aria-label={normalized ? `${label}: ${displayValue}` : label}
+          aria-label={
+            normalized ? `${resolvedLabel}: ${displayValue}` : resolvedLabel
+          }
           data-testid="date-picker-trigger"
           className="flex h-8 w-full min-w-0 items-center gap-2 rounded-md border border-border bg-elevated pl-2.5 pr-8 text-left text-[13px] text-foreground transition-colors duration-150 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
@@ -243,7 +249,7 @@ export function DatePickerField({
             <span className="flex-1 truncate tabular-nums">{displayValue}</span>
           ) : (
             <span className="flex-1 truncate text-muted-foreground">
-              {placeholder}
+              {resolvedPlaceholder}
             </span>
           )}
         </PopoverTrigger>
@@ -252,7 +258,7 @@ export function DatePickerField({
           <button
             type="button"
             onClick={handleClear}
-            aria-label={`Clear ${label}`}
+            aria-label={t("clearField", { field: resolvedLabel })}
             data-testid="date-picker-clear"
             className="absolute right-1 top-1/2 -translate-y-1/2 rounded-sm p-1 text-muted-foreground opacity-0 transition-opacity duration-150 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
           >
@@ -270,7 +276,7 @@ export function DatePickerField({
           <input
             type="text"
             inputMode="numeric"
-            aria-label={`${label} (YYYY-MM-DD)`}
+            aria-label={`${resolvedLabel} (YYYY-MM-DD)`}
             placeholder={t("isoFormat")}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}

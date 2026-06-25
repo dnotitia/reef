@@ -142,10 +142,7 @@ describe("AssigneeCombobox", () => {
     ).toBeInTheDocument();
     // Type a new query and press Enter before the 300ms debounce fires: the
     // visible options are still the previous result, so nothing should commit.
-    await user.type(
-      screen.getByPlaceholderText("Search members..."),
-      "z{Enter}",
-    );
+    await user.type(screen.getByPlaceholderText("Search members…"), "z{Enter}");
     expect(onChange).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,5 @@
 import { localTodayIso } from "@/features/issues/lib/dateHelpers";
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import {
   cleanup,
   fireEvent,
@@ -23,6 +24,31 @@ describe("DatePickerField", () => {
     // Theming comes from design tokens, not hard-coded colors → dark mode works.
     expect(trigger.className).toContain("bg-elevated");
     expect(screen.queryByTestId("date-picker-clear")).not.toBeInTheDocument();
+  });
+
+  it("localizes the empty placeholder in ko (REEF-309)", () => {
+    render(
+      <IntlTestProvider locale="ko">
+        <DatePickerField value="" onChange={vi.fn()} />
+      </IntlTestProvider>,
+    );
+    const trigger = screen.getByTestId("date-picker-trigger");
+    // Catalog-owned placeholder, never the assembled English "Set date".
+    expect(trigger).toHaveTextContent("날짜 지정");
+    expect(trigger).not.toHaveTextContent("Set date");
+  });
+
+  it("localizes the clear-control aria-label in ko (REEF-309)", () => {
+    render(
+      <IntlTestProvider locale="ko">
+        <DatePickerField value="2026-06-25" onChange={vi.fn()} label="마감일" />
+      </IntlTestProvider>,
+    );
+    // aria-label keys off the catalog's "{field} 지우기", never "Clear …".
+    expect(screen.getByTestId("date-picker-clear")).toHaveAttribute(
+      "aria-label",
+      "마감일 지우기",
+    );
   });
 
   it("renders the value and an accessible label when set", () => {

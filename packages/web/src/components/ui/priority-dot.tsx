@@ -2,6 +2,7 @@ import { PRIORITY_COLORS } from "@/components/fields/fieldKit";
 import { usePriorityLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { Priority } from "@reef/core";
+import { useTranslations } from "next-intl";
 
 interface PriorityDotProps {
   priority: Priority;
@@ -22,11 +23,14 @@ export function PriorityDot({
   decorative = false,
 }: PriorityDotProps) {
   const priorityLabels = usePriorityLabels();
+  const t = useTranslations("components.priorityDot");
   return (
     <span
       role={decorative ? undefined : "img"}
       aria-label={
-        decorative ? undefined : `Priority: ${priorityLabels[priority]}`
+        decorative
+          ? undefined
+          : t("ariaLabel", { value: priorityLabels[priority] })
       }
       aria-hidden={decorative ? true : undefined}
       title={decorative ? undefined : priorityLabels[priority]}

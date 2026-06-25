@@ -5,6 +5,7 @@ import type { ComboboxOption } from "@/components/ui/combobox";
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { useUserSearch } from "@/features/issues/hooks/queries/useUserSearch";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 interface MultiAssigneeComboboxProps {
@@ -17,7 +18,7 @@ interface MultiAssigneeComboboxProps {
   /** Field name used for the trigger label and accessible name (Assignee /
    *  Requester). */
   label?: string;
-  /** Search-input placeholder. Default: "Search members…". */
+  /** Search-input placeholder; defaults to `components.assignee.searchPlaceholder`. */
   placeholder?: string;
   /** Filter affordance — paints the brand ring when set. */
   active?: boolean;
@@ -45,14 +46,19 @@ export function MultiAssigneeCombobox({
   values,
   onToggle,
   vault,
-  label = "Assignee",
-  placeholder = "Search members…",
+  label,
+  placeholder,
   active,
   triggerTestId,
   contentTestId,
   panelClassName,
   align = "start",
 }: MultiAssigneeComboboxProps) {
+  const t = useTranslations("components.assignee");
+  // Hooks can not run in default-parameter position, so the optional copy props
+  // fall back to the locale-resolved catalog here in the body.
+  const resolvedLabel = label ?? t("label");
+  const resolvedPlaceholder = placeholder ?? t("searchPlaceholder");
   // rawQuery tracks the live input; debouncedQuery is what the server resolved.
   // While they differ the visible options belong to the previous query, so the
   // control reports loading (mirrors AssigneeCombobox).
@@ -86,18 +92,18 @@ export function MultiAssigneeCombobox({
 
   return (
     <MultiSelectCombobox<string>
-      label={label}
+      label={resolvedLabel}
       values={values}
       onToggle={onToggle}
       options={options}
       searchable
       onQueryChange={handleQueryChange}
-      searchPlaceholder={placeholder}
+      searchPlaceholder={resolvedPlaceholder}
       loading={isPending || rawQuery !== debouncedQuery}
-      emptyState="No vault members found."
+      emptyState={t("noMembers")}
       active={active}
       disabled={!vault}
-      ariaLabel={label}
+      ariaLabel={resolvedLabel}
       triggerTestId={triggerTestId}
       contentTestId={contentTestId}
       contentClassName={panelClassName}
