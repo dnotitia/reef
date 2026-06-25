@@ -38,6 +38,16 @@ explicitly in the entries below.
   value. The framework-agnostic `core` package owns the English base catalog for
   these field names as pure data and `web` resolves the active locale, the same
   split as the existing field-value labels (REEF-301).
+- **The remaining field and picker placeholders now follow the interface
+  language.** A handful of shared issue-screen controls still showed English with
+  Korean selected because their copy lived where the build guard cannot see it —
+  component default values and strings assembled in code around an
+  already-translated word. The date picker's "Set date" placeholder, the
+  sprint/milestone/release picker's "Select …"/"No …" wrappers (which read
+  "Select 스프린트" in Korean), the member search box, and the combobox
+  loading/no-results states now localize, as do the priority, severity,
+  label-remove, and date-clear accessible labels (REEF-309, a follow-up to
+  REEF-299 under epic REEF-178).
 - **Issue field labels now follow the interface language.** Status, priority,
   type, severity, close-reason (and its hints), the board/list sort field and
   direction labels, the due/dependency filter facets, and the planning
