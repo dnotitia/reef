@@ -87,6 +87,16 @@ export async function setIssueListFailure(
   expect(response.ok()).toBeTruthy();
 }
 
+export async function setKeycloakEnabled(
+  request: APIRequestContext,
+  enabled: boolean,
+): Promise<void> {
+  const response = await request.post(`${E2E_MOCK_URL}/__e2e/keycloak`, {
+    data: { enabled },
+  });
+  expect(response.ok()).toBeTruthy();
+}
+
 export async function signInAsAlice(page: Page): Promise<void> {
   await page.goto("/login");
   await waitForPasswordLogin(page);

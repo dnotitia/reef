@@ -14,6 +14,19 @@ explicitly in the entries below.
 
 ### Added
 
+- **SSO-first login: skip the button when SSO is the way in.** Deployments where
+  workspace SSO is the primary identity can opt into sending visitors straight to
+  Keycloak on `/login` — no "Continue with workspace SSO" click first — by setting
+  the server-only `REEF_SSO_AUTO_REDIRECT=1`. The decision is made server-side so
+  there is no panel flash before the bounce, and the original post-login
+  destination is preserved. It only fires when akb actually reports Keycloak
+  enabled (a safe no-op otherwise), never on an SSO/session error (`?sso_error=` /
+  `?error=`, so a failed SSO can't loop), and never when the password escape hatch
+  is requested (`/login?password=1` or `?prompt=login`), which keeps password
+  sign-in reachable if SSO is down. The default is unchanged: deployments that do
+  not set the variable still get today's button-first panel (REEF-312, epic
+  REEF-084). Operational note: `REEF_SSO_AUTO_REDIRECT` is a new optional
+  deploy-time environment variable.
 - **The rest of the screen now follows the interface language.** With Korean
   selected, the body copy across every surface renders in the selected language,
   not just the sidebar chrome and field labels: the issue board/list/detail/

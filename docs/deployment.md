@@ -185,6 +185,7 @@ the `reef-web-config` ConfigMap plus the `reef-web-secret` Secret).
 | --- | --- | --- |
 | `AKB_BACKEND_URL` | yes | Base URL of the akb backend reef-web calls server-side. In-cluster this is a Service DNS name (`http://<service>.<namespace>.svc.cluster.local:8000`). |
 | `REEF_PUBLIC_ORIGIN` | yes for SSO | reef-web's canonical external origin — bare `scheme://host[:port]`, no path. Sent to akb as the absolute SSO callback base so reef and akb's own frontend can share a tenant Keycloak. Must match the ingress/public host. `https` except for localhost dev. |
+| `REEF_SSO_AUTO_REDIRECT` | no | SSO-first login (REEF-312). `1`/`true` redirects `/login` straight to akb/Keycloak with no button click, for deployments where SSO is the primary identity. No-op unless akb reports Keycloak enabled; skipped on `?sso_error=`/`?error=` (loop guard) and the `?password=1`/`?prompt=login` password escape hatch. Unset/`0` keeps the button-first panel. |
 | `OPENROUTER_API_KEY` | yes for AI | OpenRouter API key for reef-web's AI routes. Keep it in a Secret; never inline it in manifests or commit it. |
 | `OPENROUTER_BASE_URL` | no | OpenRouter API base. Defaults to `https://openrouter.ai/api/v1`. |
 | `REEF_LLM_MODEL` | no | Model id passed to OpenRouter (e.g. `deepseek/deepseek-v4-flash`). |

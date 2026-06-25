@@ -1,9 +1,17 @@
 import { ReefMark } from "@/components/ui/reef-mark";
 import { LoginPanel } from "@/features/auth/components/LoginPanel";
-import { normalizeSafeRedirect } from "@/lib/akb/safeRedirect";
+import { loadAkbAuthConfig } from "@/lib/akb/loadAkbAuthConfig";
+import {
+  buildPathWithParams,
+  normalizeSafeRedirect,
+} from "@/lib/akb/safeRedirect";
+import { ssoAutoRedirectEnabled } from "@/lib/akb/ssoAutoRedirect";
 import { useTranslations } from "next-intl";
+import { redirect } from "next/navigation";
 
 type LoginErrorKind = "sso" | "legacy" | null;
+
+type LoginSearchParams = { [key: string]: string | string[] | undefined };
 
 /**
  * /login — akb username / password sign-in.
@@ -12,14 +20,16 @@ type LoginErrorKind = "sso" | "legacy" | null;
  * is retired). We still read it so older bookmarks carrying ?error= land
  * on a sensible message.
  *
- * The page is async (it awaits `searchParams`), so it delegates instead of calling the
+ * SSO-first deployments (REEF-312) may opt into skipping the panel entirely:
+ * see {@link resolveSsoAutoRedirect}. When that does not fire, the page is async
+ * (it awaits `searchParams`), so it delegates instead of calling the
  * `useTranslations` hook directly. It resolves the error *kind* and delegates
  * the localized rendering to the non-async {@link LoginView} server component.
  */
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+  searchParams: Promise<LoginSearchParams>;
 }) {
   const params = await searchParams;
   const legacyError = typeof params.error === "string" ? params.error : null;
@@ -34,7 +44,59 @@ export default async function LoginPage({
       ? "legacy"
       : null;
 
+  const ssoStartPath = await resolveSsoAutoRedirect({
+    errorKind,
+    params,
+    redirectTo,
+  });
+  if (ssoStartPath) {
+    redirect(ssoStartPath);
+  }
+
   return <LoginView errorKind={errorKind} redirectTo={redirectTo} />;
+}
+
+/**
+ * SSO-first auto-redirect decision (REEF-312).
+ *
+ * Returns the same-origin `/api/auth/akb/sso/start` path to redirect to, or
+ * null to render the panel. It fires only on a *clean* entry into `/login`:
+ *
+ * - The deployment opted in (`REEF_SSO_AUTO_REDIRECT`); default is the panel.
+ * - No SSO/session error is present (`?sso_error=` / `?error=`). This is the
+ *   loop guard: an SSO failure returns here, so auto-redirecting again would
+ *   bounce the user between reef and Keycloak forever.
+ * - No password escape hatch (`?password=1` / `?prompt=login`, AC3) so password
+ *   sign-in stays reachable when akb SSO is misconfigured or down.
+ * - akb actually reports Keycloak enabled with a login URL. An unreachable or
+ *   non-SSO backend falls back to the panel rather than a broken redirect.
+ *
+ * The original `?redirect=` destination is preserved into the SSO start so the
+ * post-login landing is unchanged (AC4). A server-side redirect (vs the client
+ * `LoginPanel` probe) means no panel flash before the bounce.
+ */
+async function resolveSsoAutoRedirect({
+  errorKind,
+  params,
+  redirectTo,
+}: {
+  errorKind: LoginErrorKind;
+  params: LoginSearchParams;
+  redirectTo: string;
+}): Promise<string | null> {
+  if (!ssoAutoRedirectEnabled()) return null;
+  if (errorKind !== null) return null;
+  if (params.password === "1" || params.prompt === "login") return null;
+
+  const result = await loadAkbAuthConfig();
+  if (!result.ok) return null;
+  if (!result.config.keycloak.enabled || !result.config.keycloak.login_url) {
+    return null;
+  }
+
+  return buildPathWithParams("/api/auth/akb/sso/start", {
+    redirect: redirectTo,
+  });
 }
 
 function LoginView({
