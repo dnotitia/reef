@@ -101,6 +101,15 @@
         "description": "Controls when resolved issues leave the default board and list.",
         "hideCompletedLabel": "Hide completed after N days",
         "hideCanceledLabel": "Hide canceled after N days"
+      },
+      "activityScanning": {
+        "label": "AI activity scanning",
+        "description": "When on, reef scans your monitored repositories and proposes issue drafts and status changes in the activity inbox. Off by default.",
+        "toggleLabel": "Toggle AI activity scanning",
+        "on": "On",
+        "off": "Off",
+        "noVault": "Choose a workspace above before configuring AI activity scanning.",
+        "saveError": "Couldn't save the AI scanning setting."
       }
     },
     "members": {
@@ -172,6 +181,7 @@
         "title": "General",
         "description": "Shared with everyone in the selected workspace. Members with write access can change these; readers see them read-only.",
         "monitoredRepositories": "Monitored Repositories",
+        "activityScanning": "Activity scanning",
         "project": "Project",
         "authoringLanguage": "Authoring Language",
         "completedIssues": "Completed Issues",
@@ -676,6 +686,7 @@
     "filterAiDrafts": "AI Drafts",
     "filterStatusChanges": "Status Changes",
     "addMonitoredRepo": "Add a monitored repository in <settingsLink></settingsLink> to scan for activity.",
+    "scanningOff": "AI activity scanning is off. Turn it on in <settingsLink></settingsLink>.",
     "scanning": "Scanning",
     "monitoredRepoToScan": "Monitored repository to scan",
     "emptyFeed": "No AI drafts or status changes to review",

@@ -47,6 +47,8 @@ const ConfigPatchSchema = z
     authoring_language: AuthoringLanguageSchema.nullable().optional(),
     stale_hide_completed_days: StaleHideDaysSchema.optional(),
     stale_hide_canceled_days: StaleHideDaysSchema.optional(),
+    // REEF-313: workspace AI-activity-scanning kill switch.
+    ai_scanning_enabled: z.boolean().optional(),
   })
   .refine((p) => Object.keys(p).length > 0, "patch must not be empty");
 

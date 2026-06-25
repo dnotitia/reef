@@ -117,6 +117,11 @@ function ActivityFeedContent({
   } = useActivityRepo(vault);
   const isLoading = feedLoading || scanRepoLoading;
   const projectConfigQuery = useProjectConfig(vault);
+  // REEF-313: when the workspace AI-scanning switch is off, hide the manual
+  // scan affordance (the on-mount auto-trigger in DashboardShell is gated too)
+  // and show a short off-state note instead of the scan target.
+  const aiScanningEnabled =
+    projectConfigQuery.data?.config.ai_scanning_enabled ?? false;
   const activityTypeFilter = useActivityStore(
     (state) => state.activityTypeFilter,
   );
@@ -360,17 +365,32 @@ function ActivityFeedContent({
             </button>
           ))}
         </fieldset>
-        <ActivityRefreshButton
-          repo={scanRepo}
-          onRefresh={() =>
-            scan.mutate({ vault, repo: scanRepo, source: "manual" })
-          }
-          isScanning={scan.isPending}
-          scanTick={scanTick}
-        />
+        {aiScanningEnabled && (
+          <ActivityRefreshButton
+            repo={scanRepo}
+            onRefresh={() =>
+              scan.mutate({ vault, repo: scanRepo, source: "manual" })
+            }
+            isScanning={scan.isPending}
+            scanTick={scanTick}
+          />
+        )}
       </div>
 
-      {monitoredRepos.length === 0 ? (
+      {!aiScanningEnabled ? (
+        <p
+          className="text-xs text-muted-foreground"
+          data-testid="activity-scanning-off"
+        >
+          {ta.rich("scanningOff", {
+            settingsLink: () => (
+              <Link href="/settings" className="text-brand underline">
+                {nav("settings")}
+              </Link>
+            ),
+          })}
+        </p>
+      ) : monitoredRepos.length === 0 ? (
         <p
           className="text-xs text-muted-foreground"
           data-testid="activity-scan-target-empty"

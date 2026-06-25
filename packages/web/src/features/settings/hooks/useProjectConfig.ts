@@ -27,6 +27,8 @@ export interface ConfigPatch {
   authoring_language?: AuthoringLanguage | null;
   stale_hide_completed_days?: number;
   stale_hide_canceled_days?: number;
+  /** Workspace AI-activity-scanning kill switch (REEF-313). */
+  ai_scanning_enabled?: boolean;
 }
 
 const STALE_TIME_MS = 60_000;

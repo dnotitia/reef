@@ -276,8 +276,52 @@ describe("readConfig (tables)", () => {
     expect(firstSql).toContain("'authoring_language'");
     expect(firstSql).toContain("'stale_hide_completed_days'");
     expect(firstSql).toContain("'stale_hide_canceled_days'");
+    expect(firstSql).toContain("'ai_scanning_enabled'");
     const secondSql = JSON.parse(calls[1]?.init?.body as string).sql as string;
     expect(secondSql).toContain(`FROM ${MONITORED_REPOS_TABLE}`);
+  });
+
+  it("reads the ai_scanning_enabled switch and defaults it to false (REEF-313)", async () => {
+    setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [
+            { key: "project_prefix", value: '"ACME"' },
+            { key: "ai_scanning_enabled", value: "true" },
+          ],
+          ["key", "value"],
+        ),
+      },
+      {
+        body: makeSqlQueryResponse(
+          [],
+          ["github_id", "owner", "name", "description"],
+        ),
+      },
+    ]);
+    const adapter = makeAdapter();
+    const result = await readConfig({ adapter, vault: "reef-sample" });
+    expect(result.config.ai_scanning_enabled).toBe(true);
+  });
+
+  it("leaves ai_scanning_enabled false when its row is absent (REEF-313)", async () => {
+    setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [{ key: "project_prefix", value: '"ACME"' }],
+          ["key", "value"],
+        ),
+      },
+      {
+        body: makeSqlQueryResponse(
+          [],
+          ["github_id", "owner", "name", "description"],
+        ),
+      },
+    ]);
+    const adapter = makeAdapter();
+    const result = await readConfig({ adapter, vault: "reef-sample" });
+    expect(result.config.ai_scanning_enabled).toBe(false);
   });
 });
 

@@ -17,6 +17,7 @@ import type {
   PendingStatusChange,
 } from "../schemas/activity/pendingDraft";
 import type { ActivitySuggestion } from "../schemas/activity/suggestion";
+import type { Config } from "../schemas/workspace/config";
 import type { AgentRunEvent } from "./framework/events";
 import { scanActivity } from "./scanActivity";
 import { type RepoRef, assertRepoAllowed } from "./tools/repo/allowlist";
@@ -77,11 +78,28 @@ export async function scanAndPersistActivitySuggestions(
   const empty = emptyResult();
   if (isAborted?.()) return { ...empty, status: "aborted" };
 
-  // Boundary check FIRST (REEF-289): reject a scan of any repo this vault does
-  // not monitor before any GitHub read or akb write happens. Manual scan,
-  // agent-run, and any future worker all funnel through this one path, so the
-  // guard lives here rather than in each thin route.
-  await assertScanRepoMonitored({ akbAdapter, vault, owner, repo });
+  // Read the team-shared config once — it both gates the scan (REEF-313 kill
+  // switch) and supplies the monitored-repo allowlist (REEF-289). Fail closed:
+  // a config-read failure propagates rather than scanning unbounded.
+  const { config } = await akbReadConfig({ adapter: akbAdapter, vault });
+  if (isAborted?.()) return { ...empty, status: "aborted" };
+
+  // REEF-313: workspace AI-scanning kill switch (default off) is the FIRST gate,
+  // so a disabled workspace is always a clean no-op — even for a repo it does
+  // not monitor, and in the default state where it has configured no monitored
+  // repos at all. The same single funnel covers manual scans, agent runs, and
+  // any future worker. Return an empty completed result before any GitHub or LLM
+  // I/O; a disabled scan is a normal no-op, not an error.
+  if (!config.ai_scanning_enabled) {
+    return { ...empty, status: "completed" };
+  }
+  if (isAborted?.()) return { ...empty, status: "aborted" };
+
+  // Boundary check (REEF-289): once scanning is on, reject a scan of any repo
+  // this vault does not monitor before any GitHub read or akb write happens.
+  // Manual scan, agent-run, and any future worker all funnel through this one
+  // path, so the guard lives here rather than in each thin route.
+  assertRepoMonitored(config, owner, repo);
   if (isAborted?.()) return { ...empty, status: "aborted" };
 
   await akbEnsureReefTables({ adapter: akbAdapter, vault });
@@ -164,7 +182,8 @@ export async function scanAndPersistActivitySuggestions(
 
 /**
  * Reject a scan whose requested `owner`/`repo` is not one of the active vault's
- * `monitored_repos` (REEF-289).
+ * `monitored_repos` (REEF-289). Pure check over the already-read config; the
+ * single config read in the caller owns the fail-closed-on-read-failure path.
  *
  * Since REEF-240 the scan runs on a server-managed GitHub App installation token
  * that can read every repository the App is installed on — far beyond what this
@@ -175,24 +194,16 @@ export async function scanAndPersistActivitySuggestions(
  * (`assertRepoAllowed`, REEF-243) and issue enrichment
  * (`resolveVerifiedRepoContext`) already apply.
  *
- * Fail closed: a config-read failure or an empty `monitored_repos` rejects the
- * scan rather than letting it proceed unbounded — a security boundary should not
- * fail open. Throws `SchemaValidationError` for an unmonitored repo, which the
- * route translates to a PM-facing 422 (and the agent run surfaces as a
- * structured error).
+ * Fail closed: an empty `monitored_repos` rejects the scan rather than letting
+ * it proceed unbounded — a security boundary should not fail open. Throws
+ * `SchemaValidationError` for an unmonitored repo, which the route translates to
+ * a PM-facing 422 (and the agent run surfaces as a structured error).
  */
-async function assertScanRepoMonitored({
-  akbAdapter,
-  vault,
-  owner,
-  repo,
-}: {
-  akbAdapter: AkbAdapter;
-  vault: string;
-  owner: string;
-  repo: string;
-}): Promise<void> {
-  const { config } = await akbReadConfig({ adapter: akbAdapter, vault });
+function assertRepoMonitored(
+  config: Config,
+  owner: string,
+  repo: string,
+): void {
   const allowedRepos: RepoRef[] = config.monitored_repos.map((monitored) => ({
     owner: monitored.owner,
     repo: monitored.name,

@@ -18,8 +18,15 @@ vi.mock("@/lib/storage/lastScan", () => ({
   shouldAutoScan: vi.fn().mockResolvedValue(true),
 }));
 
+// useScanAutoTrigger reads the workspace AI-scanning switch (REEF-313) through
+// useProjectConfig; default it to enabled so the existing auto-trigger cases
+// fire, and flip it per-test for the disabled gate.
+const projectConfigState = vi.hoisted(() => ({
+  current: { data: { config: { ai_scanning_enabled: true } } },
+}));
 vi.mock("@/features/settings/hooks/useProjectConfig", () => ({
   ensureProjectConfig: vi.fn(),
+  useProjectConfig: () => projectConfigState.current,
 }));
 
 vi.mock("@/features/settings/hooks/useAiAvailable", () => ({
@@ -85,6 +92,9 @@ const SCAN_RESPONSE = {
 beforeEach(() => {
   vi.clearAllMocks();
   appState.current = { isAvailable: true, isLoading: false, appId: "123456" };
+  projectConfigState.current = {
+    data: { config: { ai_scanning_enabled: true } },
+  };
   mockGetLastScanAt.mockResolvedValue(undefined);
   mockShouldAutoScan.mockResolvedValue(true);
   mockEnsureProjectConfig.mockResolvedValue({
@@ -282,6 +292,20 @@ describe("useScanAutoTrigger", () => {
     // repo + AI + cooldown all green, but the deployment has no GitHub App:
     // the scan route would 503, so the auto-trigger should stay silent.
     appState.current = { isAvailable: false, isLoading: false, appId: null };
+    const mutate = vi.fn();
+    renderHook(() => useScanAutoTrigger("reef-acme", "octo/cat", mutate));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(mutate).not.toHaveBeenCalled();
+    expect(mockShouldAutoScan).not.toHaveBeenCalled();
+  });
+
+  it("does not fire when the workspace AI-scanning switch is off (REEF-313)", async () => {
+    // repo + AI + GitHub App + cooldown all green, but the workspace switch is
+    // off: the scan would no-op server-side, so the trigger stays silent and
+    // never even checks the cooldown.
+    projectConfigState.current = {
+      data: { config: { ai_scanning_enabled: false } },
+    };
     const mutate = vi.fn();
     renderHook(() => useScanAutoTrigger("reef-acme", "octo/cat", mutate));
     await new Promise((r) => setTimeout(r, 10));
