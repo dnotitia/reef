@@ -195,6 +195,44 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     });
   });
 
+  test("renders issue-detail field and picker placeholders in ko (REEF-309)", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    await page.goto("/settings/preferences");
+    await page
+      .getByRole("region", { name: "Language" })
+      .getByTestId("locale-option-ko")
+      .click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+
+    // REEF-003 (Gamma) has empty start/due dates and no sprint, so its date
+    // pickers and sprint combobox render their *placeholders* — the copy that
+    // used to leak English ("Set date") or an assembled half-translation
+    // ("Select 스프린트") past the i18n guard because it lived in component
+    // defaults / code-assembled strings (REEF-309).
+    await page.goto("/issues/REEF-003");
+    const sidebar = page.getByTestId("issue-detail-sidebar");
+    await expect(sidebar).toBeVisible();
+
+    // AC1 — the empty date trigger reads the catalog placeholder, not "Set date".
+    const dateTrigger = sidebar.getByTestId("date-picker-trigger").first();
+    await expect(dateTrigger).toContainText("날짜 지정");
+    await expect(dateTrigger).not.toContainText("Set date");
+
+    // AC2 — the sprint picker reads "스프린트 선택" (the catalog wraps the
+    // already-localized kind word), never the old assembled "Select 스프린트".
+    const sprintTrigger = sidebar.locator("#issue-sprint");
+    await expect(sprintTrigger).toContainText("스프린트 선택");
+    await expect(sprintTrigger).not.toContainText("Select");
+
+    // Visual proof of the localized placeholders for the PR handoff.
+    await sidebar.screenshot({
+      path: "test-results/reef-309-placeholders-ko.png",
+    });
+  });
+
   test("server error messages localize at the Route Handler boundary (REEF-297)", async ({
     page,
     request,
