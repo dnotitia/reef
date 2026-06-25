@@ -72,7 +72,7 @@ export function SortControl({ supportsManualOrder = false }: SortControlProps) {
   const sortFieldLabels = useSortFieldLabels();
   const directionLabel = useDirectionLabel();
 
-  // This control is the single source of truth for the words "Manual order" —
+  // This control owns the words "Manual order" —
   // the backlog body no longer restates it (REEF-169).
   const t = useTranslations("issues.sort");
   const manualOrderLabel = t("manualOrder");

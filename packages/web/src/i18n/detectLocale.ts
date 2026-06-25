@@ -7,7 +7,7 @@ import { BASE_LOCALE, type Locale, isLocale } from "./locales";
  * Kept as a pure function (no `next/headers`) so the chain itself is unit
  * testable; `request.ts` reads the cookie + header and delegates here.
  *
- * 1. An explicit persisted choice (the `NEXT_LOCALE` cookie) always wins.
+ * 1. An explicit persisted choice (the `NEXT_LOCALE` cookie) takes priority.
  * 2. Otherwise the browser's `Accept-Language` is matched against the supported
  *    locales by descending quality, comparing on the primary subtag so
  *    `ko-KR` matches `ko`.

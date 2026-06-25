@@ -189,7 +189,7 @@ export function RiskMatrix({
   buckets: ReadonlyArray<RiskBucket>;
 }) {
   // Reuse the core priority value labels (REEF-292) so the risk rows stay in
-  // sync with the rest of the app; only the extra "none" row and the aging
+  // sync with the rest of the app; the extra "none" row and the aging
   // column labels are web-catalog copy (REEF-299). The cast mirrors
   // `fieldLabels.ts` — the `aging.{bucket}` key is built at runtime.
   const priorityLabels = usePriorityLabels();

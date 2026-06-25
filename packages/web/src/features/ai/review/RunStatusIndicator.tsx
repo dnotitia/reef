@@ -39,7 +39,7 @@ export function RunStatusIndicator({
   className,
 }: RunStatusIndicatorProps) {
   // The phase label key is built from the run phase at runtime, so the typed
-  // namespace translator can't carry it — cast to a plain lookup (the
+  // namespace translator does not carry it — cast to a plain lookup (the
   // `i18n/fieldLabels` pattern); `artifactCount` is a normal interpolated key.
   const t = useTranslations("ai") as unknown as (
     key: string,

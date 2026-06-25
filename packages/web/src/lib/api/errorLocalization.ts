@@ -8,9 +8,9 @@
  * any key a locale omits (AC3, via the catalog merge in `i18n/messages.ts`).
  *
  * The response body shape is unchanged (`{ error, details? }`), so the client
- * `throwHttpError` → toast/dialog path is untouched; only the `error` value is
+ * `throwHttpError` → toast/dialog path is untouched; the `error` value is
  * localized. Locale is read from the request-scoped cookie + `Accept-Language`
- * through `next/headers`, so callers do not thread `request` — and outside a
+ * through `next/headers`, so callers avoid threading `request` — and outside a
  * request scope (a unit test calling a handler directly) detection falls back to
  * en, keeping existing English-asserting route tests green.
  */
@@ -24,10 +24,10 @@ import { cookies, headers } from "next/headers";
 /**
  * Resolve the active locale for a Route Handler response, following ADR-0001's
  * detection chain (cookie → Accept-Language → en) off the request-scoped
- * `next/headers`, so callers do not thread `request`. Outside a request scope
+ * `next/headers`. Outside a request scope
  * (a unit test that calls a handler directly) `next/headers` throws and we fall
  * back to the base locale, so existing English-asserting route tests stay green.
- * This is the one server-only seam; the chain itself lives in the pure
+ * This is the server seam; the chain itself lives in the pure
  * `resolveLocale` (`i18n/detectLocale`), shared with the SSR request config.
  */
 async function detectServerLocale(): Promise<Locale> {

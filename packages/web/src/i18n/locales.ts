@@ -1,13 +1,13 @@
 /**
- * Locale registry — the single source of truth for which UI locales reef
- * supports and how they are transported.
+ * Locale registry for which UI locales reef supports and how they are
+ * transported.
  *
- * Pure data only (no React, no next-intl, no DOM), so it is importable from
+ * Pure data (no React, no next-intl, no DOM), so it is importable from
  * every layer that needs it: the server request config (`request.ts`), the
  * client persistence store, the Settings switcher, and unit tests alike. Adding
- * a locale here (plus its catalog) is the one place the supported set grows.
+ * a locale here (plus its catalog) grows the supported set.
  *
- * Scope (REEF-291 / ADR-0001): `en` and `ko` only. `en` is the base locale —
+ * Scope (REEF-291 / ADR-0001): `en` and `ko`. `en` is the base locale —
  * the detection fallback and the catalog every other locale falls back to for
  * missing keys.
  */

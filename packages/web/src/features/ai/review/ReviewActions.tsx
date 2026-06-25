@@ -62,7 +62,7 @@ export function ReviewActions({
   className,
 }: ReviewActionsProps) {
   // The busy-fallback label key is built from the action id at runtime, so the
-  // typed namespace translator can't carry it — cast to a plain key→string
+  // typed namespace translator does not carry it — cast to a plain key→string
   // lookup (the `i18n/fieldLabels` pattern).
   const t = useTranslations("ai") as unknown as (key: string) => string;
   if (actions.length === 0) return null;

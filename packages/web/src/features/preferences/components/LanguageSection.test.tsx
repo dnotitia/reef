@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Drive the locale preference directly so the component test is isolated from
 // the store / next-intl provider locale (the active locale is the provider's;
-// here we only assert the switcher's render + click contract).
+// here we assert the switcher's render + click contract).
 const setLocaleMock = vi.fn(async () => {});
 const localeRef = { current: "en" as Locale };
 vi.mock("../hooks/useLocalePreference", () => ({

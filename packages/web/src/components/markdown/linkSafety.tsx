@@ -108,8 +108,8 @@ function LinkSafetyDialog({
 
 /**
  * Shared Streamdown `linkSafety` config. Both markdown surfaces (AI chat and
- * issue comments) pass this so link confirmation looks and behaves identically
- * and never nests a modal inside a paragraph.
+ * issue comments) pass this so link confirmation looks and behaves consistently
+ * and keeps the modal outside paragraph content.
  */
 export const linkSafetyConfig: LinkSafetyConfig = {
   enabled: true,

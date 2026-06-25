@@ -12,7 +12,7 @@ type LoginErrorKind = "sso" | "legacy" | null;
  * is retired). We still read it so older bookmarks carrying ?error= land
  * on a sensible message.
  *
- * The page is async (it awaits `searchParams`), so it cannot call the
+ * The page is async (it awaits `searchParams`), so it delegates instead of calling the
  * `useTranslations` hook directly. It resolves the error *kind* and delegates
  * the localized rendering to the non-async {@link LoginView} server component.
  */
@@ -58,7 +58,7 @@ function LoginView({
         <div className="flex flex-col items-center gap-3 pb-1">
           <ReefMark className="size-11" decorative />
           <h1 className="font-display font-semibold text-3xl text-foreground">
-            reef{/* i18n-exempt: brand name, never localized */}
+            reef{/* i18n-exempt: brand name */}
           </h1>
         </div>
         <p className="text-sm text-muted-foreground">{t("intro")}</p>

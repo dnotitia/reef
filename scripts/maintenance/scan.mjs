@@ -90,6 +90,7 @@ const SLOW_TEST_SUPPRESSIONS = new Set([
   "NewIssueDialog confirms discard when only an uncommitted child draft has content",
   "buildLoggerOptions — dev pretty vs prod JSON, redaction, error allowlist preserves the upstream status of a typed reef API error, not its detail (REEF-271)",
   "IssueDetail requests /api/issues/{id}?vault={vault} on mount",
+  "i18n hardcoded-string guard matches the committed baseline (no new hardcoded JSX strings)",
 ]);
 
 const LARGE_FILE_ROOTS = [

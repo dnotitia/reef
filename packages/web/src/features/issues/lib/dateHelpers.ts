@@ -105,8 +105,8 @@ export function shiftMonths(ymd: Ymd, delta: number): Ymd {
  * Cache of `Intl.DateTimeFormat` instances keyed by locale + shape. Building a
  * formatter per call is wasteful, so each pair is constructed once and reused.
  *
- * The time zone is always UTC (REEF-294 / ADR-0001): the per-viewer axis we vary
- * is the *locale*, never the zone. A per-viewer zone would shift the rendered
+ * The time zone is fixed at UTC (REEF-294 / ADR-0001): the per-viewer axis we vary
+ * is the *locale*, not the zone. A per-viewer zone would shift the rendered
  * calendar day and reintroduce the SSR/client hydration mismatch this convention
  * exists to prevent. Callers pass the active next-intl locale (`useLocale()`), so
  * server and client resolve the same string and render identically.

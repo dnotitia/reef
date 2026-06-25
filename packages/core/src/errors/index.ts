@@ -10,7 +10,7 @@
  *  - implement `toUserMessage()` using PM vocabulary just (no Git/LLM/Octokit terms)
  *
  * i18n contract (ADR-0001 / REEF-297): `core` is the framework-agnostic boundary
- * and does not know the request locale, so it never resolves a localized string.
+ * and does not know the request locale, so it leaves localization to `web`.
  * Each error carries a STABLE CODE (`describeError`) into a key in the en base
  * catalog (`ERROR_MESSAGES_EN`); `web` resolves the active locale at its boundary
  * and translates that code, falling back to en for any key a locale omits. The
@@ -28,14 +28,14 @@ export abstract class ReefError extends Error {
  * `errors.*` next-intl namespace web composes from it). It is locale-free: `web`
  * resolves it against the active locale. Kept as a `string` rather than a union
  * so the dynamic `github.${apiCode(status)}` style codes stay ergonomic; the
- * catalog shape below is the structural source of truth for which codes exist.
+ * catalog shape below defines which codes exist.
  */
 export type ErrorCode = string;
 
 /**
- * The en base catalog for every user-facing reef error message, keyed by the
- * stable error code (ADR-0001 / REEF-297). `core` exports this as pure data and
- * never resolves locales; `web` composes it into the next-intl `errors`
+ * The en base catalog for reef error messages, keyed by the stable error code
+ * (ADR-0001 / REEF-297). `core` exports this as pure data; `web` composes it
+ * into the next-intl `errors`
  * namespace, resolves the active locale (en/ko), and falls back to these strings
  * for any key a locale omits (AC3). `{resource}` / `{field}` are ICU placeholders
  * substituted at render time — by next-intl in `web`, by `resolveEnMessage` here.
@@ -408,8 +408,8 @@ function resolveApiHttpStatus(
  *
  * Contract:
  *  - pure (no logging — callers own OTel span emission)
- *  - total (never throws; an unrecognized error maps to `unknown` / 500)
- *  - carries NO message text — only a stable code the locale resolves
+ *  - total: unrecognized errors map to `unknown` / 500
+ *  - carries no message text, just a stable code the locale resolves
  */
 export function describeError(err: unknown): ErrorDescriptor {
   if (err instanceof ActivitySuggestionError) {
@@ -429,7 +429,7 @@ export function describeError(err: unknown): ErrorDescriptor {
       status: 422,
     };
     // Surface `details` for caller-controlled local validation; akb-origin
-    // `issues` carry raw FastAPI/Postgres text and stay log-only.
+    // `issues` carry raw FastAPI/Postgres text and stay in diagnostics.
     if (err.context.clientValidated && err.context.issues) {
       descriptor.details = err.context.issues;
     }

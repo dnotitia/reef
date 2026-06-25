@@ -157,7 +157,6 @@ export {
   NotFoundError,
   ActivitySuggestionError,
   describeError,
-  ERROR_MESSAGES_EN,
   type ActivitySuggestionErrorReason,
   type AkbResourceLabel,
   type ErrorCode,

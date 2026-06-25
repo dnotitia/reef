@@ -50,7 +50,7 @@ describe("linkSafetyConfig", () => {
 
     const urlNode = screen.getByText(URL);
     expect(urlNode).toBeInTheDocument();
-    // URLs must not be mangled by browser translation (same convention as ids).
+    // URLs are protected from browser translation, following the id convention.
     expect(urlNode).toHaveAttribute("translate", "no");
   });
 
