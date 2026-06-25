@@ -3,6 +3,7 @@
 import { PlanningStatusBadge } from "@/components/fields/PlanningStatusBadge";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { usePlanningKindSingularLabels } from "@/i18n/fieldLabels";
+import { useTranslations } from "next-intl";
 import { useMemo } from "react";
 import { usePlanningCatalog } from "../hooks/usePlanningCatalog";
 import {
@@ -56,11 +57,14 @@ export function PlanningItemCombobox({
 }: PlanningItemComboboxProps) {
   // Kind copy resolves in the active locale (REEF-292); the optional props still
   // override it. Hooks can not run in default-parameter position, so the
-  // fallbacks are computed in the body.
+  // fallbacks are computed in the body. The "Select/No {kind}" wrappers are
+  // catalog-owned so each locale keeps word order (REEF-309) — never assemble an
+  // English prefix around the localized kind word.
+  const t = useTranslations("components.planningItem");
   const singular = usePlanningKindSingularLabels()[kind];
   const resolvedLabel = label ?? singular;
-  const resolvedPlaceholder = placeholder ?? `Select ${singular.toLowerCase()}`;
-  const resolvedEmptyLabel = emptyLabel ?? `No ${singular.toLowerCase()}`;
+  const resolvedPlaceholder = placeholder ?? t("select", { kind: singular });
+  const resolvedEmptyLabel = emptyLabel ?? t("none", { kind: singular });
   const { data: catalog, isPending } = usePlanningCatalog(vault);
   const items = itemsForKind(catalog, kind);
   const selected = items.find((item) => item.id === value);
@@ -104,7 +108,7 @@ export function PlanningItemCombobox({
         <span className="truncate">{selected?.name ?? value}</span>
       )}
       noneOption={{ label: resolvedEmptyLabel }}
-      emptyState="No planning items."
+      emptyState={t("empty")}
       disabled={disabled || !vault}
       active={active}
       ariaLabel={

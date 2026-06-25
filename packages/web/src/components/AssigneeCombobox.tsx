@@ -21,9 +21,9 @@ interface AssigneeComboboxProps {
   id?: string;
   /** Field name used for accessible labels when reused for requester/reporter. */
   label?: string;
-  /** Default: "Search members..." */
+  /** Search-input placeholder; defaults to `components.assignee.searchPlaceholder`. */
   placeholder?: string;
-  /** Default: "Unassigned" */
+  /** Empty/none row label; defaults to `components.assignee.unassigned`. */
   emptyLabel?: string;
   disabled?: boolean;
   /** Filter affordance — paints the brand ring when set (filter surfaces just). */
@@ -60,15 +60,20 @@ export function AssigneeCombobox({
   onChange,
   vault,
   id,
-  label = "Assignee",
-  placeholder = "Search members...",
-  emptyLabel = "Unassigned",
+  label,
+  placeholder,
+  emptyLabel,
   disabled,
   active,
   panelClassName,
   align = "end",
 }: AssigneeComboboxProps) {
   const t = useTranslations("components.assignee");
+  // Hooks can not run in default-parameter position, so the optional copy props
+  // fall back to the locale-resolved catalog here in the body.
+  const resolvedLabel = label ?? t("label");
+  const resolvedPlaceholder = placeholder ?? t("searchPlaceholder");
+  const resolvedEmptyLabel = emptyLabel ?? t("unassigned");
   // rawQuery tracks the live input; debouncedQuery is what the server actually
   // resolved. While they differ (the 300ms debounce window), the visible options
   // belong to the previous query, so the control reports loading to suppress a
@@ -112,7 +117,7 @@ export function AssigneeCombobox({
     return (
       <Input
         id={id}
-        aria-label={label}
+        aria-label={resolvedLabel}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={t("vaultMember")}
@@ -132,8 +137,8 @@ export function AssigneeCombobox({
       loading={isPending || rawQuery !== debouncedQuery}
       searchable
       onQueryChange={handleQueryChange}
-      searchPlaceholder={placeholder}
-      placeholder={placeholder}
+      searchPlaceholder={resolvedPlaceholder}
+      placeholder={resolvedPlaceholder}
       renderValue={(login) => (
         <PersonChip
           identityKey={login}
@@ -146,14 +151,14 @@ export function AssigneeCombobox({
         label: (
           <>
             <PersonAvatar identityKey={null} size="sm" decorative />
-            {emptyLabel}
+            {resolvedEmptyLabel}
           </>
         ),
       }}
       emptyState={t("noMembers")}
       disabled={disabled || !vault}
       active={active}
-      ariaLabel={value ? `${label}: ${value}` : label}
+      ariaLabel={value ? `${resolvedLabel}: ${value}` : resolvedLabel}
       align={align}
       contentClassName={panelClassName}
     />

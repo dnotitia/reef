@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useId, useRef, useState } from "react";
 
 interface LabelChipInputProps {
@@ -18,7 +19,7 @@ export function LabelChipInput({
   value,
   onChange,
   id,
-  placeholder = "Add a label…",
+  placeholder,
   disabled = false,
   className,
   "data-testid": testId,
@@ -27,6 +28,8 @@ export function LabelChipInput({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const generatedId = useId();
   const inputId = id ?? generatedId;
+  const t = useTranslations("components.labelInput");
+  const resolvedPlaceholder = placeholder ?? t("placeholder");
 
   function addLabels(parts: string[]) {
     if (parts.length === 0) return;
@@ -103,7 +106,7 @@ export function LabelChipInput({
             }}
             disabled={disabled}
             className="-mr-0.5 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground disabled:cursor-not-allowed"
-            aria-label={`Remove label ${label}`}
+            aria-label={t("removeLabel", { label })}
           >
             <X className="h-2.5 w-2.5" />
           </button>
@@ -118,7 +121,7 @@ export function LabelChipInput({
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
         onBlur={commitDraft}
-        placeholder={value.length === 0 ? placeholder : undefined}
+        placeholder={value.length === 0 ? resolvedPlaceholder : undefined}
         disabled={disabled}
         // Labels are free-form tokens, not prose: suppress the browser's
         // spellcheck underline and autofill suggestions so the field reads as a

@@ -851,7 +851,10 @@
   "components": {
     "assignee": {
       "vaultMember": "Vault member",
-      "noMembers": "No vault members found."
+      "noMembers": "No vault members found.",
+      "label": "Assignee",
+      "searchPlaceholder": "Search members…",
+      "unassigned": "Unassigned"
     },
     "promptInput": {
       "uploadFiles": "Upload files"
@@ -868,7 +871,31 @@
     "datePicker": {
       "today": "Today",
       "clear": "Clear",
-      "isoFormat": "YYYY-MM-DD"
+      "isoFormat": "YYYY-MM-DD",
+      "label": "Date",
+      "placeholder": "Set date",
+      "clearField": "Clear {field}"
+    },
+    "combobox": {
+      "searchPlaceholder": "Search…",
+      "loading": "Loading…",
+      "noResults": "No results.",
+      "resultCount": "{count, plural, one {# result} other {# results}}"
+    },
+    "labelInput": {
+      "placeholder": "Add a label…",
+      "removeLabel": "Remove label {label}"
+    },
+    "priorityDot": {
+      "ariaLabel": "Priority: {value}"
+    },
+    "severityBadge": {
+      "ariaLabel": "Severity: {value}"
+    },
+    "planningItem": {
+      "select": "Select {kind}",
+      "none": "No {kind}",
+      "empty": "No planning items."
     },
     "issueOption": {
       "selected": "Selected"

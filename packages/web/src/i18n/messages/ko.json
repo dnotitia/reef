@@ -1034,7 +1034,10 @@
   "components": {
     "assignee": {
       "vaultMember": "볼트 멤버",
-      "noMembers": "볼트 멤버를 찾을 수 없습니다."
+      "noMembers": "볼트 멤버를 찾을 수 없습니다.",
+      "label": "담당자",
+      "searchPlaceholder": "멤버 검색…",
+      "unassigned": "미지정"
     },
     "promptInput": {
       "uploadFiles": "파일 업로드"
@@ -1051,7 +1054,31 @@
     "datePicker": {
       "today": "오늘",
       "clear": "지우기",
-      "isoFormat": "YYYY-MM-DD"
+      "isoFormat": "YYYY-MM-DD",
+      "label": "날짜",
+      "placeholder": "날짜 지정",
+      "clearField": "{field} 지우기"
+    },
+    "combobox": {
+      "searchPlaceholder": "검색…",
+      "loading": "불러오는 중…",
+      "noResults": "결과 없음.",
+      "resultCount": "{count, plural, other {결과 #개}}"
+    },
+    "labelInput": {
+      "placeholder": "라벨 추가…",
+      "removeLabel": "라벨 {label} 제거"
+    },
+    "priorityDot": {
+      "ariaLabel": "우선순위: {value}"
+    },
+    "severityBadge": {
+      "ariaLabel": "심각도: {value}"
+    },
+    "planningItem": {
+      "select": "{kind} 선택",
+      "none": "{kind} 없음",
+      "empty": "플래닝 항목 없음."
     },
     "issueOption": {
       "selected": "선택됨"

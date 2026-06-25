@@ -41,6 +41,7 @@ import {
 import { scrollOptionIntoView } from "@/lib/scrollOptionIntoView";
 import { cn } from "@/lib/utils";
 import { Check, ChevronDown } from "lucide-react";
+import { useTranslations } from "next-intl";
 import {
   type KeyboardEvent,
   type ReactNode,
@@ -140,7 +141,7 @@ export function MultiSelectCombobox<T extends string>({
   loading,
   searchable,
   onQueryChange,
-  searchPlaceholder = "Search…",
+  searchPlaceholder,
   emptyState,
   ariaLabel,
   triggerTestId,
@@ -151,6 +152,8 @@ export function MultiSelectCombobox<T extends string>({
   optionClassName,
   summarizeValue,
 }: MultiSelectComboboxProps<T>) {
+  const t = useTranslations("components.combobox");
+  const resolvedSearchPlaceholder = searchPlaceholder ?? t("searchPlaceholder");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -444,7 +447,7 @@ export function MultiSelectCombobox<T extends string>({
               autoComplete="off"
               spellCheck={false}
               value={query}
-              placeholder={searchPlaceholder}
+              placeholder={resolvedSearchPlaceholder}
               onChange={(e) => {
                 setQuery(e.target.value);
                 setActiveIndex(0);
@@ -498,9 +501,9 @@ export function MultiSelectCombobox<T extends string>({
                 </button>
               );
             })}
-            {loading && <p className={CBX_EMPTY}>Loading…</p>}
+            {loading && <p className={CBX_EMPTY}>{t("loading")}</p>}
             {showEmptyState && (
-              <p className={CBX_EMPTY}>{emptyState ?? "No results."}</p>
+              <p className={CBX_EMPTY}>{emptyState ?? t("noResults")}</p>
             )}
           </div>
         </div>
