@@ -84,22 +84,23 @@ export async function scanAndPersistActivitySuggestions(
   const { config } = await akbReadConfig({ adapter: akbAdapter, vault });
   if (isAborted?.()) return { ...empty, status: "aborted" };
 
-  // Boundary check FIRST (REEF-289): reject a scan of any repo this vault does
-  // not monitor before any GitHub read or akb write happens. Manual scan,
-  // agent-run, and any future worker all funnel through this one path, so the
-  // guard lives here rather than in each thin route.
-  assertRepoMonitored(config, owner, repo);
-  if (isAborted?.()) return { ...empty, status: "aborted" };
-
-  // REEF-313: workspace AI-scanning kill switch (default off). When the
-  // workspace has not turned scanning on, the scan is a no-op. The same single
-  // funnel the boundary check relies on means this one gate covers manual
-  // scans, agent runs, and any future worker. Return an empty completed result
-  // before any GitHub or LLM I/O — a disabled scan is a normal no-op, not an
-  // error.
+  // REEF-313: workspace AI-scanning kill switch (default off) is the FIRST gate,
+  // so a disabled workspace is always a clean no-op — even for a repo it does
+  // not monitor, and in the default state where it has configured no monitored
+  // repos at all. The same single funnel covers manual scans, agent runs, and
+  // any future worker. Return an empty completed result before any GitHub or LLM
+  // I/O; a disabled scan is a normal no-op, not an error.
   if (!config.ai_scanning_enabled) {
     return { ...empty, status: "completed" };
   }
+  if (isAborted?.()) return { ...empty, status: "aborted" };
+
+  // Boundary check (REEF-289): once scanning is on, reject a scan of any repo
+  // this vault does not monitor before any GitHub read or akb write happens.
+  // Manual scan, agent-run, and any future worker all funnel through this one
+  // path, so the guard lives here rather than in each thin route.
+  assertRepoMonitored(config, owner, repo);
+  if (isAborted?.()) return { ...empty, status: "aborted" };
 
   await akbEnsureReefTables({ adapter: akbAdapter, vault });
   if (isAborted?.()) return { ...empty, status: "aborted" };

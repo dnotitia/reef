@@ -290,7 +290,7 @@ describe("scanAndPersistActivitySuggestions", () => {
     expect(mockWriteActivitySuggestion).not.toHaveBeenCalled();
   });
 
-  it("does not scan when the workspace AI-scanning switch is off (REEF-313)", async () => {
+  it("no-ops when the workspace AI-scanning switch is off, even for a monitored repo (REEF-313)", async () => {
     // octo/cat IS monitored, but the kill switch is off: the scan must no-op
     // without any GitHub read, LLM call, or akb write.
     mockReadConfig.mockResolvedValueOnce(
@@ -316,6 +316,29 @@ describe("scanAndPersistActivitySuggestions", () => {
     expect(mockEnsureReefTables).not.toHaveBeenCalled();
     expect(mockListActivitySuggestions).not.toHaveBeenCalled();
     expect(mockWriteActivitySuggestion).not.toHaveBeenCalled();
+  });
+
+  it("no-ops (does not throw) when disabled and the repo is not monitored — the default state (REEF-313)", async () => {
+    // The kill switch is checked BEFORE the monitored-repo boundary, so a
+    // disabled workspace is a clean no-op even with no monitored repos (the
+    // default-off, nothing-configured state) rather than a 422 unmonitored-repo
+    // rejection. The boundary still fires when scanning is on (cases above).
+    mockReadConfig.mockResolvedValueOnce(monitoredConfig([], false));
+
+    const result = await scanAndPersistActivitySuggestions({
+      adapter: githubAdapter,
+      akbAdapter,
+      vault: "reef-test",
+      llmAdapter,
+      owner: "octo",
+      repo: "cat",
+      projectPrefix: "REEF",
+    });
+
+    expect(result.status).toBe("completed");
+    expect(result.addedDrafts).toBe(0);
+    expect(mockScanActivity).not.toHaveBeenCalled();
+    expect(mockEnsureReefTables).not.toHaveBeenCalled();
   });
 
   it("rejects when the vault monitors no repos", async () => {

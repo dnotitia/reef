@@ -227,7 +227,13 @@ function configuredVault(name) {
       "reef_milestones",
       "reef_releases",
     ]),
-    settings: new Map([["project_prefix", "REEF"]]),
+    // ai_scanning_enabled defaults off (REEF-313); the hermetic "configured"
+    // workspace turns it on so the scan affordances (manual Refresh, auto-scan)
+    // behave like a workspace that has opted into AI activity scanning.
+    settings: new Map([
+      ["project_prefix", "REEF"],
+      ["ai_scanning_enabled", true],
+    ]),
     monitoredRepos: [],
     issues,
     documents: new Map(),
