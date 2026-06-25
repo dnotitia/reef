@@ -4,6 +4,9 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/features/settings/components/RepoPickerSection", () => ({
   RepoPickerSection: () => <section>Repo picker</section>,
 }));
+vi.mock("@/features/settings/components/ActivityScanningSection", () => ({
+  ActivityScanningSection: () => <section>Activity scanning</section>,
+}));
 vi.mock("@/features/settings/components/ProjectSection", () => ({
   ProjectSection: () => <section>Project section</section>,
 }));
@@ -48,6 +51,9 @@ describe("Workspace › General settings page (REEF-183)", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Monitored Repositories", level: 3 }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Activity scanning", level: 3 }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Project", level: 3 }),

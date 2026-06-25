@@ -2,7 +2,10 @@
 
 import { useAiAvailable } from "@/features/settings/hooks/useAiAvailable";
 import { useGithubAppAvailable } from "@/features/settings/hooks/useGithubAppAvailable";
-import { ensureProjectConfig } from "@/features/settings/hooks/useProjectConfig";
+import {
+  ensureProjectConfig,
+  useProjectConfig,
+} from "@/features/settings/hooks/useProjectConfig";
 import { apiFetch } from "@/lib/apiClient";
 import {
   getLastScanAt,
@@ -151,9 +154,10 @@ export function useScanActivity(options?: {
 
 /**
  * Fires the auto on-mount scan run, gated by AI availability, GitHub App
- * availability, and cooldown. `{vault}::{repo}` keyed ref prevents React 19
- * StrictMode double-invocation and re-fires when workspace switches even if
- * both vaults monitor the same GitHub repo.
+ * availability, the workspace AI-scanning switch (REEF-313), and cooldown.
+ * `{vault}::{repo}` keyed ref prevents React 19 StrictMode double-invocation and
+ * re-fires when workspace switches even if both vaults monitor the same GitHub
+ * repo.
  */
 export function useScanAutoTrigger(
   vault: string,
@@ -162,10 +166,22 @@ export function useScanAutoTrigger(
 ): void {
   const { isAvailable } = useAiAvailable();
   const { isAvailable: githubAppAvailable } = useGithubAppAvailable();
+  // REEF-313: never auto-scan when the workspace switch is off. Require an
+  // explicit `true` so a still-loading config (data undefined) keeps scanning
+  // off rather than firing optimistically against the default.
+  const configQuery = useProjectConfig(vault);
+  const scanningEnabled = configQuery.data?.config.ai_scanning_enabled === true;
   const firedFor = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!vault || !repo || !isAvailable || !githubAppAvailable) return;
+    if (
+      !vault ||
+      !repo ||
+      !isAvailable ||
+      !githubAppAvailable ||
+      !scanningEnabled
+    )
+      return;
     const triggerKey = `${vault}::${repo}`;
     if (firedFor.current === triggerKey) return;
     firedFor.current = triggerKey;
@@ -175,5 +191,5 @@ export function useScanAutoTrigger(
       if (!shouldRun) return;
       mutate({ vault, repo, source: "auto" });
     })();
-  }, [vault, repo, isAvailable, githubAppAvailable, mutate]);
+  }, [vault, repo, isAvailable, githubAppAvailable, scanningEnabled, mutate]);
 }

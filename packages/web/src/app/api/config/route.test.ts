@@ -41,6 +41,7 @@ const BASE_CONFIG: Config = {
   authoring_language: null,
   stale_hide_completed_days: 28,
   stale_hide_canceled_days: 7,
+  ai_scanning_enabled: false,
 };
 
 beforeEach(() => {
@@ -247,6 +248,37 @@ describe("PATCH /api/config", () => {
     const body = await res.json();
     expect(body.config.project_prefix).toBe(BASE_CONFIG.project_prefix);
     expect(body.config.monitored_repos).toEqual([]);
+  });
+
+  it("merges the ai_scanning_enabled switch into existing config (REEF-313)", async () => {
+    mockAkbReadConfig.mockResolvedValueOnce({
+      config: BASE_CONFIG,
+      exists: true,
+    });
+    mockAkbWriteConfig.mockResolvedValueOnce({
+      path: "_reef/config.md",
+      commit_hash: "c1",
+    });
+
+    const req = new Request("http://localhost/api/config", {
+      method: "PATCH",
+      headers: authedHeaders(),
+      body: JSON.stringify({
+        vault: "reef-acme",
+        patch: { ai_scanning_enabled: true },
+      }),
+    });
+    const res = await PATCH(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.config.ai_scanning_enabled).toBe(true);
+    // Other fields are preserved through the merge.
+    expect(body.config.project_prefix).toBe(BASE_CONFIG.project_prefix);
+    expect(mockAkbWriteConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: expect.objectContaining({ ai_scanning_enabled: true }),
+      }),
+    );
   });
 
   it("translates AuthError to 401", async () => {

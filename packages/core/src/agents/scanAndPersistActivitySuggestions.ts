@@ -198,7 +198,11 @@ export async function scanAndPersistActivitySuggestions(
  * `SchemaValidationError` for an unmonitored repo, which the route translates to
  * a PM-facing 422 (and the agent run surfaces as a structured error).
  */
-function assertRepoMonitored(config: Config, owner: string, repo: string): void {
+function assertRepoMonitored(
+  config: Config,
+  owner: string,
+  repo: string,
+): void {
   const allowedRepos: RepoRef[] = config.monitored_repos.map((monitored) => ({
     owner: monitored.owner,
     repo: monitored.name,

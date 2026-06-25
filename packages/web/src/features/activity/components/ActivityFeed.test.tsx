@@ -57,6 +57,23 @@ vi.mock("../hooks/useScanActivity", () => ({
   useScanActivity: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
+// The feed gates its manual scan affordance on the workspace AI-scanning switch
+// (REEF-313). Default it on so the existing scan-target/refresh assertions hold;
+// a test flips it off to exercise the off state.
+const { projectConfigState } = vi.hoisted(() => ({
+  projectConfigState: { aiScanningEnabled: true },
+}));
+vi.mock("@/features/settings/hooks/useProjectConfig", () => ({
+  useProjectConfig: () => ({
+    data: {
+      config: {
+        project_prefix: "REEF",
+        ai_scanning_enabled: projectConfigState.aiScanningEnabled,
+      },
+    },
+  }),
+}));
+
 vi.mock("../hooks/useLastVisitAt", () => ({
   useLastVisitAt: () => ({
     lastVisitAt: null,
@@ -95,6 +112,7 @@ describe("ActivityFeed", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     activityRepoState.monitoredRepos = ["octo/cat"];
+    projectConfigState.aiScanningEnabled = true;
   });
 
   it("renders without crashing with a vault prop", () => {
@@ -123,5 +141,18 @@ describe("ActivityFeed", () => {
     const link = screen.getByRole("link", { name: "Settings" });
     expect(link).toHaveAttribute("href", "/settings");
     expect(link).toHaveAttribute("data-next-link", "true");
+  });
+
+  it("hides the manual scan affordance and shows an off note when AI scanning is disabled (REEF-313)", () => {
+    projectConfigState.aiScanningEnabled = false;
+    render(wrap(<ActivityFeed vault="reef-acme" />));
+    expect(screen.getByTestId("activity-scanning-off")).toBeInTheDocument();
+    // The manual refresh button and the scan-target line are both suppressed.
+    expect(screen.queryByTestId("activity-refresh")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("activity-scan-target"),
+    ).not.toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Settings" });
+    expect(link).toHaveAttribute("href", "/settings");
   });
 });

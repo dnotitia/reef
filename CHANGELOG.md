@@ -27,6 +27,18 @@ explicitly in the entries below.
   not set the variable still get today's button-first panel (REEF-312, epic
   REEF-084). Operational note: `REEF_SSO_AUTO_REDIRECT` is a new optional
   deploy-time environment variable.
+- **A workspace switch to turn AI activity scanning on or off.** Settings ›
+  Workspace › General now has an *Activity scanning* toggle that controls whether
+  reef scans the workspace's monitored repositories and proposes issue drafts and
+  status changes in the activity inbox. It is a team-shared, admin-managed setting
+  (writers can change it; readers see it read-only) stored alongside the other
+  workspace settings, not a per-person browser preference — so one toggle governs
+  scanning for everyone. **Scanning is now off by default**: a workspace performs
+  no AI activity scanning until an admin turns it on, because a scan writes
+  suggestions into the shared inbox. While it is off, the manual *Refresh* control
+  on the Activity feed is hidden and the on-mount auto-scan does not run; the
+  single server-side scan path no-ops for manual scans, agent runs, and any future
+  worker alike (REEF-313).
 - **The rest of the screen now follows the interface language.** With Korean
   selected, the body copy across every surface renders in the selected language,
   not just the sidebar chrome and field labels: the issue board/list/detail/

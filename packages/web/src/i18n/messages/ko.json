@@ -101,6 +101,15 @@
         "description": "해결된 이슈가 기본 보드와 목록에서 사라지는 시점을 제어합니다.",
         "hideCompletedLabel": "완료 후 N일이 지나면 숨기기",
         "hideCanceledLabel": "취소 후 N일이 지나면 숨기기"
+      },
+      "activityScanning": {
+        "label": "AI 활동 스캐닝",
+        "description": "켜면 reef가 모니터링 저장소를 스캔해 이슈 초안과 상태 변경 제안을 활동 인박스에 올립니다. 기본값은 꺼짐입니다.",
+        "toggleLabel": "AI 활동 스캐닝 켜기/끄기",
+        "on": "켜짐",
+        "off": "꺼짐",
+        "noVault": "AI 활동 스캐닝을 구성하기 전에 위에서 워크스페이스를 선택하세요.",
+        "saveError": "AI 스캐닝 설정을 저장하지 못했습니다."
       }
     },
     "members": {
@@ -172,6 +181,7 @@
         "title": "일반",
         "description": "선택한 워크스페이스의 모든 멤버와 공유됩니다. 쓰기 권한이 있는 멤버는 이 항목을 변경할 수 있고, 읽기 권한 멤버에게는 읽기 전용으로 표시됩니다.",
         "monitoredRepositories": "모니터링 저장소",
+        "activityScanning": "활동 스캐닝",
         "project": "프로젝트",
         "authoringLanguage": "작성 언어",
         "completedIssues": "완료된 이슈",
@@ -859,6 +869,7 @@
     "filterAiDrafts": "AI 초안",
     "filterStatusChanges": "상태 변경",
     "addMonitoredRepo": "활동을 스캔하려면 <settingsLink></settingsLink>에서 모니터링 저장소를 추가하세요.",
+    "scanningOff": "AI 활동 스캐닝이 꺼져 있습니다. <settingsLink></settingsLink>에서 켜세요.",
     "scanning": "스캔 중",
     "monitoredRepoToScan": "스캔할 모니터링 저장소",
     "emptyFeed": "검토할 AI 초안이나 상태 변경이 없습니다",

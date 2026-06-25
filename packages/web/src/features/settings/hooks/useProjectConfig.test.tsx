@@ -38,6 +38,7 @@ describe("useUpdateProjectConfig", () => {
       authoring_language: null,
       stale_hide_completed_days: 14,
       stale_hide_canceled_days: 3,
+      ai_scanning_enabled: false,
     };
     mockApiFetch.mockResolvedValue(
       new Response(JSON.stringify({ config }), { status: 200 }),
