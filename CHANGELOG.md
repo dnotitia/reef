@@ -254,6 +254,18 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **A single malformed delivery/external ref no longer hides an entire issue.**
+  The read path validated every `reef_issues` row against the issue schema and
+  silently skipped any row that failed, so one `implementation_refs` or
+  `external_refs` entry written in a shape the ref schema rejects — a delivery
+  ref keyed by `name`/`sha`/`number` with no required `ref`, or an unknown
+  `type` such as `evidence` — dropped the whole issue from the board, list,
+  search, and its parent's sub-issue list, with no error surfaced to the PM.
+  These two fields live in the ad-hoc row `meta` JSON that an external writer
+  (a code-activity scan, a sibling automation) can fill, so they are now
+  sanitized per entry: the entries that validate are kept, the invalid ones are
+  dropped, and the drop is recorded as a backend warning. Core issue fields stay
+  strictly validated, so a genuinely corrupt row still fails loudly.
 - **Activity scans can no longer read a repository the workspace does not
   monitor.** The manual **Scan** action and agent-run activity scans now verify
   the requested owner/repo against the workspace's monitored repositories before

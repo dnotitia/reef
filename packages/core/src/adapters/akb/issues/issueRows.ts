@@ -1,7 +1,10 @@
-import { ZodError } from "zod";
+import { ZodError, type z } from "zod";
 import { SchemaValidationError } from "../../../errors";
 import { RANK_STEP } from "../../../models/backlogRank";
+import { observe } from "../../../observability";
 import {
+  ExternalRefSchema,
+  ImplementationRefSchema,
   type IssueMetadata,
   IssueMetadataSchema,
 } from "../../../schemas/issues/metadata";
@@ -107,13 +110,66 @@ export function quoteOptionalText(
 }
 
 /**
+ * Validate a `meta`-sourced array of refined ref objects (`implementation_refs`
+ * / `external_refs`), keeping the entries that parse and dropping the ones that
+ * do not. These two fields live in the ad-hoc `meta` JSON, which an external
+ * writer (a code-activity scan, a sibling dev automation) can fill with a shape
+ * the ref schema rejects — a `branch` entry keyed by `name` with no required
+ * `ref`, or an unknown `type` like `evidence`. Validating the whole issue
+ * against `IssueMetadataSchema` would then throw, and every `rowToIssue` caller
+ * (`listIssues`, `readIssue`, relations, search) would drop the ENTIRE issue
+ * from the board, list, search, and the parent's children — invisibly, on an
+ * internal trace. That blast radius is far too large for one malformed optional
+ * ref, so degrade gracefully: keep the valid entries, drop the bad ones, and
+ * report the count. A non-array (a bare string/object where an array belongs)
+ * counts as one drop so the caller can still flag it.
+ */
+function sanitizeMetaRefs<S extends z.ZodTypeAny>(
+  raw: unknown,
+  schema: S,
+): { refs: z.infer<S>[] | undefined; dropped: number } {
+  if (raw == null) return { refs: undefined, dropped: 0 };
+  if (!Array.isArray(raw)) return { refs: undefined, dropped: 1 };
+  const refs: z.infer<S>[] = [];
+  let dropped = 0;
+  for (const entry of raw) {
+    const parsed = schema.safeParse(entry);
+    if (parsed.success) {
+      refs.push(parsed.data);
+    } else {
+      dropped += 1;
+    }
+  }
+  return { refs: refs.length > 0 ? refs : undefined, dropped };
+}
+
+/**
  * Map a `reef_issues` row back into reef issue metadata. Timestamps come from akb's
  * auto-managed row columns (`created_at`/`updated_at`); the semantic actors
  * come from `meta`. Validated through `IssueMetadataSchema` so a malformed row
- * fails loudly at the boundary.
+ * fails loudly at the boundary — except the ad-hoc `meta` ref arrays, which are
+ * sanitized per-entry first (see `sanitizeMetaRefs`) so one bad delivery/external
+ * ref degrades to a dropped ref instead of an invisible issue.
  */
 export function rowToIssue(row: Record<string, unknown>): IssueMetadata {
   const meta = (decodeSettingsValue(row.meta) ?? {}) as Partial<IssueRowMeta>;
+  const implementationRefs = sanitizeMetaRefs(
+    meta.implementation_refs,
+    ImplementationRefSchema,
+  );
+  const externalRefs = sanitizeMetaRefs(meta.external_refs, ExternalRefSchema);
+  if (implementationRefs.dropped > 0 || externalRefs.dropped > 0) {
+    observe(
+      undefined,
+      {
+        reef_id: typeof row.reef_id === "string" ? row.reef_id : undefined,
+        dropped_implementation_refs: implementationRefs.dropped || undefined,
+        dropped_external_refs: externalRefs.dropped || undefined,
+      },
+      "akb.row_to_issue.dropped_invalid_meta_refs",
+      { level: "warn" },
+    );
+  }
   const candidate: Record<string, unknown> = {
     id: row.reef_id,
     title: row.title,
@@ -149,9 +205,9 @@ export function rowToIssue(row: Record<string, unknown>): IssueMetadata {
     ...(meta.last_status_change != null && {
       last_status_change: meta.last_status_change,
     }),
-    ...(meta.external_refs != null && { external_refs: meta.external_refs }),
-    ...(meta.implementation_refs != null && {
-      implementation_refs: meta.implementation_refs,
+    ...(externalRefs.refs != null && { external_refs: externalRefs.refs }),
+    ...(implementationRefs.refs != null && {
+      implementation_refs: implementationRefs.refs,
     }),
     ...(meta.watchers != null && { watchers: meta.watchers }),
     ...(meta.reviewers != null && { reviewers: meta.reviewers }),
