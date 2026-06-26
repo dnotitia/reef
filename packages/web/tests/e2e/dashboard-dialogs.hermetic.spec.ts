@@ -88,7 +88,7 @@ test.describe("Hermetic dashboard surfaces and global dialogs", () => {
       page.locator('[data-testid="account-release-notes"]'),
     ).toHaveAttribute(
       "href",
-      "https://github.com/dnotitia/reef/releases/tag/v0.5.0",
+      "https://github.com/dnotitia/reef/releases/tag/v0.6.0",
     );
     await page.keyboard.press("Escape");
 
