@@ -1,9 +1,5 @@
 import { logger } from "@/lib/logging/logger";
-import {
-  AgentArtifactSchema,
-  AgentErrorSchema,
-  AgentRunEventSchema,
-} from "@reef/core";
+import { AgentArtifactSchema, AgentRunEventSchema } from "@reef/core";
 import type { AgentRunEvent } from "@reef/core";
 
 const EVENT_STREAM_HEADERS = {
@@ -362,24 +358,4 @@ export async function drainResponseBody(
   } finally {
     reader.releaseLock();
   }
-}
-
-export function jsonAgentError(
-  message: string,
-  status: number,
-  code: string,
-  details: Record<string, unknown> = {},
-): Response {
-  return Response.json(
-    {
-      error: message,
-      runtime_error: AgentErrorSchema.parse({
-        code,
-        message,
-        recoverable: status >= 500,
-        details,
-      }),
-    },
-    { status },
-  );
 }

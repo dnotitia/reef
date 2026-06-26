@@ -1,3 +1,4 @@
+import { localizedErrorResponse } from "@/lib/api/errorLocalization";
 import {
   VaultNameSchema,
   getAkbAdapter,
@@ -27,7 +28,7 @@ export async function POST(
   const { id } = await params;
   const idResult = SuggestionIdSchema.safeParse(id);
   if (!idResult.success) {
-    return Response.json({ error: "Invalid suggestion id." }, { status: 400 });
+    return localizedErrorResponse("invalidSuggestionId", 400);
   }
 
   let rawBody: unknown;

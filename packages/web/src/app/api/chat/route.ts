@@ -1,3 +1,4 @@
+import { localizedErrorResponse } from "@/lib/api/errorLocalization";
 import { agentLoopStepsTotal, toolCallsTotal } from "@/lib/metrics";
 import { ChatRequestBodySchema } from "@/lib/schemas/llmConfig";
 import { SpanStatusCode, trace } from "@opentelemetry/api";
@@ -18,11 +19,6 @@ import {
 import { logger } from "../../../lib/logging/logger";
 
 const tracer = trace.getTracer("reef-web");
-
-const UNAVAILABLE_MESSAGE =
-  "AI service is unavailable for this deployment. Please contact an administrator.";
-const BAD_VAULT_MESSAGE = "X-Reef-Vault header is missing or invalid";
-const BAD_BODY_MESSAGE = "Request body is missing or invalid";
 
 /**
  * POST /api/chat — multi-step agent loop endpoint.
@@ -53,9 +49,9 @@ export async function POST(request: Request): Promise<Response> {
     config = getRequiredServerLlmConfig();
   } catch (err) {
     if (err instanceof ServerLlmConfigError) {
-      return jsonError(UNAVAILABLE_MESSAGE, 503);
+      return localizedErrorResponse("aiUnavailableDeployment", 503);
     }
-    return jsonError(UNAVAILABLE_MESSAGE, 503);
+    return localizedErrorResponse("aiUnavailableDeployment", 503);
   }
 
   let vault: string;
@@ -63,9 +59,9 @@ export async function POST(request: Request): Promise<Response> {
     vault = extractVault(request);
   } catch (err) {
     if (err instanceof AuthError) {
-      return jsonError(BAD_VAULT_MESSAGE, 401);
+      return localizedErrorResponse("vaultHeaderInvalid", 401);
     }
-    return jsonError(BAD_VAULT_MESSAGE, 400);
+    return localizedErrorResponse("vaultHeaderInvalid", 400);
   }
 
   const akbResult = getAkbAdapter(request);
@@ -77,11 +73,11 @@ export async function POST(request: Request): Promise<Response> {
     const rawBody: unknown = await request.json();
     const bodyResult = ChatRequestBodySchema.safeParse(rawBody);
     if (!bodyResult.success) {
-      return jsonError(BAD_BODY_MESSAGE, 400);
+      return localizedErrorResponse("requestBodyInvalid", 400);
     }
     body = { messages: bodyResult.data.messages as UIMessage[] };
   } catch {
-    return jsonError(BAD_BODY_MESSAGE, 400);
+    return localizedErrorResponse("requestBodyInvalid", 400);
   }
 
   const llmAdapter = createLlmAdapter({
@@ -159,8 +155,4 @@ export async function POST(request: Request): Promise<Response> {
     closeSpan(false, error.message);
     throw err;
   }
-}
-
-function jsonError(message: string, status: number): Response {
-  return Response.json({ error: message }, { status });
 }

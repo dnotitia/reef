@@ -17,7 +17,7 @@
 import { resolveLocale } from "@/i18n/detectLocale";
 import { BASE_LOCALE, LOCALE_COOKIE, type Locale } from "@/i18n/locales";
 import { type Messages, loadMessages } from "@/i18n/messages";
-import { describeError } from "@reef/core";
+import { AgentErrorSchema, describeError } from "@reef/core";
 import { createTranslator } from "next-intl";
 import { cookies, headers } from "next/headers";
 
@@ -47,8 +47,15 @@ async function detectServerLocale(): Promise<Locale> {
 
 /** A dynamic `errors.*` resolver: the runtime key is a dot path (core code or
  *  web-boundary key), so the typed next-intl translator is narrowed to a plain
- *  `(key, params?) => string` like `i18n/fieldLabels` does for its namespaces. */
-type ErrorTranslator = (key: string, params?: Record<string, string>) => string;
+ *  `(key, params?) => string` like `i18n/fieldLabels` does for its namespaces.
+ *  `has` is the next-intl key-presence probe, kept so the agent path can fall
+ *  back to a literal when a stable error code has no catalog entry. */
+type ErrorTranslator = ((
+  key: string,
+  params?: Record<string, string>,
+) => string) & {
+  has: (key: string) => boolean;
+};
 
 function errorsTranslator(locale: Locale): ErrorTranslator {
   const messages: Messages = loadMessages(locale);
@@ -88,4 +95,57 @@ export async function localizedErrorResponse(
   };
   if (options?.details !== undefined) body.details = options.details;
   return Response.json(body, { status });
+}
+
+/**
+ * Build the agent streaming error envelope from an already-resolved message
+ * (REEF-308). The agent routes (`agents/runs`, `agents/artifacts`) return
+ * `{ error, runtime_error: { code, message, recoverable, details } }`, with
+ * `recoverable` derived from the HTTP status (>=500). This is the single
+ * envelope builder, shared by `localizedAgentError` and the already-localized
+ * `ReefError` agent path (`reefAgentErrorResponse`); it replaces the
+ * per-route `jsonAgentError` duplicates.
+ */
+export function agentErrorEnvelope(
+  message: string,
+  status: number,
+  code: string,
+  details: Record<string, unknown> = {},
+): Response {
+  return Response.json(
+    {
+      error: message,
+      runtime_error: AgentErrorSchema.parse({
+        code,
+        message,
+        recoverable: status >= 500,
+        details,
+      }),
+    },
+    { status },
+  );
+}
+
+/**
+ * Localize an agent streaming error into the request locale (REEF-308). The
+ * agent envelopes and `AgentArtifactCommandError` carry a stable snake_case
+ * `code`; this boundary resolves the PM-facing message from an `errors.*` key
+ * for the active locale (falling back to en per key via the catalog merge, AC3)
+ * and keeps the `code`/`recoverable` contract unchanged — both `error` and
+ * `runtime_error.message` carry the localized text (AC2). `fallback` (the
+ * caller's English default) is used only when the catalog has no entry for
+ * `key`, so an unmapped future code still ships a message rather than a raw key
+ * path.
+ */
+export async function localizedAgentError(
+  key: string,
+  status: number,
+  code: string,
+  details: Record<string, unknown> = {},
+  fallback?: string,
+): Promise<Response> {
+  const locale = await detectServerLocale();
+  const t = errorsTranslator(locale);
+  const message = fallback !== undefined && !t.has(key) ? fallback : t(key);
+  return agentErrorEnvelope(message, status, code, details);
 }

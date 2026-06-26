@@ -1,4 +1,5 @@
 import { extractVault } from "@/lib/akb/extractVault";
+import { localizedAgentError } from "@/lib/api/errorLocalization";
 import { getAkbAdapter } from "@/lib/api/requestHelpers";
 import { resolveGroundingGitHubAdapter } from "@/lib/github/resolveGroundingGitHubAdapter";
 import { resolveScanGitHubAdapter } from "@/lib/github/resolveScanGitHubAdapter";
@@ -24,20 +25,7 @@ import {
   createChatRunEventBridge,
   createTopLevelRunEmitter,
   drainResponseBody,
-  jsonAgentError,
 } from "./stream";
-
-const BAD_BODY_MESSAGE = "Agent run request is missing or invalid.";
-const BAD_AKB_AUTH_MESSAGE = "Workspace session is missing or invalid.";
-const BAD_AKB_BACKEND_MESSAGE =
-  "Workspace backend is unavailable. Please try again.";
-const BAD_GITHUB_APP_UNCONFIGURED_MESSAGE =
-  "GitHub App is not configured for this deployment.";
-const BAD_GITHUB_CREDENTIAL_MESSAGE =
-  "GitHub App credentials are unavailable. Check the deployment GitHub App configuration.";
-const BAD_VAULT_MESSAGE = "X-Reef-Vault header is missing or invalid.";
-const UNAVAILABLE_MESSAGE =
-  "AI service is unavailable for this deployment. Please contact an administrator.";
 
 /**
  * POST /api/agents/runs — unified agent runtime entrypoint.
@@ -52,20 +40,31 @@ export async function POST(request: Request): Promise<Response> {
   try {
     rawBody = await request.json();
   } catch {
-    return jsonAgentError(BAD_BODY_MESSAGE, 400, "invalid_json_body");
+    return localizedAgentError(
+      "agent.runRequestInvalid",
+      400,
+      "invalid_json_body",
+    );
   }
 
   const parsed = AgentRunRequestSchema.safeParse(rawBody);
   if (!parsed.success) {
-    return jsonAgentError(BAD_BODY_MESSAGE, 400, "invalid_agent_run_request", {
-      validation: parsed.error.flatten(),
-    });
+    return localizedAgentError(
+      "agent.runRequestInvalid",
+      400,
+      "invalid_agent_run_request",
+      { validation: parsed.error.flatten() },
+    );
   }
   const runRequest = parsed.data;
 
   const akb = getAkbAdapter(request);
   if ("response" in akb) {
-    return jsonAgentError(BAD_AKB_AUTH_MESSAGE, 401, "workspace_auth_required");
+    return localizedAgentError(
+      "agent.workspaceAuthRequired",
+      401,
+      "workspace_auth_required",
+    );
   }
 
   let llmConfig: ReturnType<typeof getRequiredServerLlmConfig>;
@@ -78,7 +77,11 @@ export async function POST(request: Request): Promise<Response> {
         "agent_run_llm_config_unexpected_error",
       );
     }
-    return jsonAgentError(UNAVAILABLE_MESSAGE, 503, "llm_unavailable");
+    return localizedAgentError(
+      "aiUnavailableDeployment",
+      503,
+      "llm_unavailable",
+    );
   }
 
   const llmAdapter = createLlmAdapter({
@@ -93,7 +96,11 @@ export async function POST(request: Request): Promise<Response> {
       vault = extractVault(request);
     } catch (err) {
       if (err instanceof AuthError) {
-        return jsonAgentError(BAD_VAULT_MESSAGE, 401, "vault_required");
+        return localizedAgentError(
+          "agent.vaultRequired",
+          401,
+          "vault_required",
+        );
       }
       throw err;
     }
@@ -200,16 +207,20 @@ export async function POST(request: Request): Promise<Response> {
     // flattening a backend outage into a non-recoverable auth error.
     const status = github.response.status;
     return status === 401
-      ? jsonAgentError(BAD_AKB_AUTH_MESSAGE, 401, "workspace_auth_required")
-      : jsonAgentError(
-          BAD_AKB_BACKEND_MESSAGE,
+      ? localizedAgentError(
+          "agent.workspaceAuthRequired",
+          401,
+          "workspace_auth_required",
+        )
+      : localizedAgentError(
+          "agent.workspaceUnavailable",
           status,
           "workspace_unavailable",
         );
   }
   if (github.kind === "github_app_unconfigured") {
-    return jsonAgentError(
-      BAD_GITHUB_APP_UNCONFIGURED_MESSAGE,
+    return localizedAgentError(
+      "githubAppUnconfigured",
       503,
       "github_unavailable",
     );
@@ -223,8 +234,8 @@ export async function POST(request: Request): Promise<Response> {
     // mapping the GitHub mint failure through the same status ladder as the
     // manual scan route (describeError) so a revoked/rate-limited App is
     // reported with the right status and recoverable flag.
-    return jsonAgentError(
-      BAD_GITHUB_CREDENTIAL_MESSAGE,
+    return localizedAgentError(
+      "agent.githubCredentialUnavailable",
       describeError(github.error).status,
       "github_unavailable",
     );

@@ -1,11 +1,11 @@
 import { approveAgentArtifact } from "@/lib/api/agentArtifactReview";
+import { localizedAgentError } from "@/lib/api/errorLocalization";
 import { logger } from "@/lib/logging/logger";
 import { AgentArtifactCommandRequestSchema } from "@reef/core";
 import {
   agentArtifactCommandErrorResponse,
   artifactIdMismatchResponse,
   getAgentArtifactReviewContext,
-  jsonAgentError,
   readJsonOrEmpty,
   reefAgentErrorResponse,
   validateAgentArtifactId,
@@ -23,13 +23,13 @@ export async function POST(
   try {
     rawBody = await readJsonOrEmpty(request);
   } catch {
-    return jsonAgentError("Invalid JSON body.", 400, "invalid_json_body");
+    return localizedAgentError("invalidJsonBody", 400, "invalid_json_body");
   }
 
   const parsed = AgentArtifactCommandRequestSchema.safeParse(rawBody);
   if (!parsed.success) {
-    return jsonAgentError(
-      "Artifact approval request is missing or invalid.",
+    return localizedAgentError(
+      "agent.artifactApprovalRequestInvalid",
       400,
       "invalid_artifact_command_request",
       { validation: parsed.error.flatten() },
@@ -38,8 +38,8 @@ export async function POST(
 
   const { artifact, prefix, vault } = parsed.data;
   if (!artifact) {
-    return jsonAgentError(
-      "Artifact approval requires an artifact payload.",
+    return localizedAgentError(
+      "agent.artifactApprovalMissingArtifact",
       400,
       "missing_artifact",
       { artifact_id: id },
@@ -52,8 +52,8 @@ export async function POST(
     });
   }
   if (!vault) {
-    return jsonAgentError(
-      "Artifact approval requires a vault.",
+    return localizedAgentError(
+      "agent.artifactApprovalMissingVault",
       400,
       "missing_vault",
       { artifact_id: id },
@@ -80,6 +80,10 @@ export async function POST(
       "approve_agent_artifact_failed",
     );
     if (reefError) return reefError;
-    return jsonAgentError("Unexpected error.", 500, "unexpected_error");
+    return localizedAgentError(
+      "agent.unexpectedError",
+      500,
+      "unexpected_error",
+    );
   }
 }

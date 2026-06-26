@@ -3,19 +3,27 @@ import {
   type AgentArtifactReviewContext,
 } from "@/lib/api/agentArtifactReview";
 import {
+  agentErrorEnvelope,
+  localizedAgentError,
+} from "@/lib/api/errorLocalization";
+import {
   getAkbAdapter,
   getAkbCurrentActor,
   respondWithError,
 } from "@/lib/api/requestHelpers";
-import { AgentErrorSchema, ReefError } from "@reef/core";
+import { ReefError } from "@reef/core";
 import { z } from "zod";
 
 const AgentArtifactIdSchema = z.string().min(1).max(200);
 
-export function validateAgentArtifactId(id: string): Response | null {
+export function validateAgentArtifactId(id: string): Promise<Response> | null {
   const idResult = AgentArtifactIdSchema.safeParse(id);
   if (idResult.success) return null;
-  return jsonAgentError("Invalid artifact id.", 400, "invalid_artifact_id");
+  return localizedAgentError(
+    "agent.invalidArtifactId",
+    400,
+    "invalid_artifact_id",
+  );
 }
 
 export async function readJsonBody(request: Request): Promise<unknown> {
@@ -34,9 +42,9 @@ export function artifactIdMismatchResponse({
 }: {
   pathArtifactId: string;
   bodyArtifactId: string;
-}): Response {
-  return jsonAgentError(
-    "Artifact id does not match the request path.",
+}): Promise<Response> {
+  return localizedAgentError(
+    "agent.artifactIdMismatch",
     400,
     "artifact_id_mismatch",
     {
@@ -67,11 +75,32 @@ export async function getAgentArtifactReviewContext(
   };
 }
 
+/**
+ * Map a stable snake_case agent error code to its `errors.agent.*` catalog key
+ * (REEF-308). `AgentArtifactCommandError` carries the code as its contract; the
+ * web boundary resolves the PM-facing message by code, so the catalog leaf is
+ * the camelCase form of the code under the `agent` namespace.
+ */
+function agentErrorKeyFromCode(code: string): string {
+  const camel = code.replace(/_([a-z0-9])/g, (_match, char: string) =>
+    char.toUpperCase(),
+  );
+  return `agent.${camel}`;
+}
+
 export function agentArtifactCommandErrorResponse(
   err: unknown,
-): Response | null {
+): Promise<Response> | null {
   if (!(err instanceof AgentArtifactCommandError)) return null;
-  return jsonAgentError(err.message, err.status, err.code, err.details);
+  // Resolve the localized message from the stable `code` (AC3), falling back to
+  // the error's carried English message for any code not yet in the catalog.
+  return localizedAgentError(
+    agentErrorKeyFromCode(err.code),
+    err.status,
+    err.code,
+    err.details,
+    err.message,
+  );
 }
 
 export async function reefAgentErrorResponse(
@@ -80,27 +109,9 @@ export async function reefAgentErrorResponse(
   details?: Record<string, unknown>,
 ): Promise<Response | null> {
   if (!(err instanceof ReefError)) return null;
+  // `respondWithError` already localizes the `ReefError`; lift its message into
+  // the agent envelope under the caller's runtime code.
   const res = await respondWithError(err, { resourceKind: "workspace" });
   const body = (await res.json()) as { error: string };
-  return jsonAgentError(body.error, res.status, code, details);
-}
-
-export function jsonAgentError(
-  message: string,
-  status: number,
-  code: string,
-  details: Record<string, unknown> = {},
-): Response {
-  return Response.json(
-    {
-      error: message,
-      runtime_error: AgentErrorSchema.parse({
-        code,
-        message,
-        recoverable: status >= 500,
-        details,
-      }),
-    },
-    { status },
-  );
+  return agentErrorEnvelope(body.error, res.status, code, details);
 }

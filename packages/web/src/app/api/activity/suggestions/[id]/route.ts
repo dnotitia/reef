@@ -1,3 +1,4 @@
+import { localizedErrorResponse } from "@/lib/api/errorLocalization";
 import {
   VaultNameSchema,
   getAkbAdapter,
@@ -50,7 +51,7 @@ export async function PATCH(
   const { id } = await params;
   const idResult = SuggestionIdSchema.safeParse(id);
   if (!idResult.success) {
-    return Response.json({ error: "Invalid suggestion id." }, { status: 400 });
+    return localizedErrorResponse("invalidSuggestionId", 400);
   }
 
   let rawBody: unknown;
@@ -72,43 +73,24 @@ export async function PATCH(
     await akbEnsureReefTables({ adapter, vault });
     const current = await akbReadActivitySuggestion({ adapter, vault, id });
     if (current.suggestion.status !== "pending") {
-      return Response.json(
-        { error: "This suggestion has already been reviewed." },
-        { status: 409 },
-      );
+      return localizedErrorResponse("suggestionAlreadyReviewed", 409);
     }
     if (
       current.suggestion.kind === "draft" &&
       (!create || update !== undefined || rationale !== undefined)
     ) {
-      return Response.json(
-        {
-          error: "Draft suggestions require a create proposal update.",
-        },
-        { status: 400 },
-      );
+      return localizedErrorResponse("suggestionDraftRequiresCreate", 400);
     }
     if (
       current.suggestion.kind === "status_change" &&
       ((!update && rationale === undefined) || create !== undefined)
     ) {
-      return Response.json(
-        {
-          error:
-            "Status-change suggestions require an update proposal or rationale update.",
-        },
-        { status: 400 },
-      );
+      return localizedErrorResponse("suggestionStatusRequiresUpdate", 400);
     }
 
     if (current.suggestion.kind === "draft") {
       if (!create) {
-        return Response.json(
-          {
-            error: "Draft suggestions require a create proposal update.",
-          },
-          { status: 400 },
-        );
+        return localizedErrorResponse("suggestionDraftRequiresCreate", 400);
       }
       const result = await akbUpdateActivitySuggestion({
         adapter,
@@ -122,23 +104,13 @@ export async function PATCH(
     const currentStatus = current.suggestion.proposal.update.patch.status;
     const nextStatus = update?.patch.status ?? currentStatus;
     if (!nextStatus) {
-      return Response.json(
-        {
-          error: "Status-change suggestion is missing patch.status.",
-        },
-        { status: 400 },
-      );
+      return localizedErrorResponse("activitySuggestion.statusMissing", 400);
     }
     if (
       update &&
       update.issue_id !== current.suggestion.proposal.update.issue_id
     ) {
-      return Response.json(
-        {
-          error: "Status-change suggestions cannot retarget the issue.",
-        },
-        { status: 400 },
-      );
+      return localizedErrorResponse("suggestionCannotRetarget", 400);
     }
     const result = await akbUpdateActivitySuggestion({
       adapter,

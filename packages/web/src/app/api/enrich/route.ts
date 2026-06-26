@@ -1,4 +1,7 @@
-import { localizeError } from "@/lib/api/errorLocalization";
+import {
+  localizeError,
+  localizedErrorResponse,
+} from "@/lib/api/errorLocalization";
 import { getAkbAdapter } from "@/lib/api/requestHelpers";
 import { resolveGroundingGitHubAdapter } from "@/lib/github/resolveGroundingGitHubAdapter";
 import { logger } from "@/lib/logging/logger";
@@ -20,12 +23,6 @@ import {
   getRequiredServerLlmConfig,
 } from "../../../lib/llm/serverConfig";
 
-const BAD_AKB_AUTH_MESSAGE = "Workspace session is missing or invalid";
-const BAD_BODY_MESSAGE = "Request body is missing or invalid";
-const UNAVAILABLE_MESSAGE =
-  "AI enrichment is unavailable. You can still save the issue without it.";
-const DEPLOYMENT_UNAVAILABLE_MESSAGE =
-  "AI service is unavailable for this deployment. You can still save the issue without it.";
 const ENRICHMENT_OUTPUT_LOG_KEYS = [
   "known_issue_count",
   "template_count",
@@ -60,9 +57,9 @@ export async function POST(request: Request): Promise<Response> {
     config = getRequiredServerLlmConfig();
   } catch (err) {
     if (err instanceof ServerLlmConfigError) {
-      return jsonError(DEPLOYMENT_UNAVAILABLE_MESSAGE, 503);
+      return localizedErrorResponse("enrichDeploymentUnavailable", 503);
     }
-    return jsonError(DEPLOYMENT_UNAVAILABLE_MESSAGE, 503);
+    return localizedErrorResponse("enrichDeploymentUnavailable", 503);
   }
 
   let body: ReturnType<typeof EnrichmentRequestSchema.parse>;
@@ -70,11 +67,11 @@ export async function POST(request: Request): Promise<Response> {
     const raw: unknown = await request.json();
     const parsed = EnrichmentRequestSchema.safeParse(raw);
     if (!parsed.success) {
-      return jsonError(BAD_BODY_MESSAGE, 400);
+      return localizedErrorResponse("requestBodyInvalid", 400);
     }
     body = parsed.data;
   } catch {
-    return jsonError(BAD_BODY_MESSAGE, 400);
+    return localizedErrorResponse("requestBodyInvalid", 400);
   }
 
   const adapter = createLlmAdapter({
@@ -85,7 +82,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const akbAdapterResult = getAkbAdapter(request);
   if ("response" in akbAdapterResult) {
-    return jsonError(BAD_AKB_AUTH_MESSAGE, 401);
+    return localizedErrorResponse("workspaceSessionInvalid", 401);
   }
 
   // Code grounding just matters when the request carries a monitored repo.
@@ -141,14 +138,14 @@ export async function POST(request: Request): Promise<Response> {
         { err, issueId: body.issueId, detail: err.context.message },
         "enrich_issue failed",
       );
-      return jsonError(UNAVAILABLE_MESSAGE, 503);
+      return localizedErrorResponse("enrichUnavailable", 503);
     }
     if (err instanceof AuthError) {
       logger.error(
         { err, issueId: body.issueId },
         "enrich_issue workspace auth failed",
       );
-      return jsonError(BAD_AKB_AUTH_MESSAGE, 401);
+      return localizedErrorResponse("workspaceSessionInvalid", 401);
     }
     if (err instanceof NotFoundError) {
       logger.error(
@@ -178,12 +175,8 @@ export async function POST(request: Request): Promise<Response> {
       { err, issueId: body.issueId },
       "enrich_issue unexpected error",
     );
-    return jsonError("Internal error during enrichment.", 500);
+    return localizedErrorResponse("enrichInternalError", 500);
   }
-}
-
-function jsonError(message: string, status: number): Response {
-  return Response.json({ error: message }, { status });
 }
 
 function logEnrichmentEvent(event: AgentRunEvent): void {

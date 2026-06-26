@@ -1,5 +1,13 @@
-import { localizeError } from "@/lib/api/errorLocalization";
-import { VaultNameSchema, getAkbAdapter } from "@/lib/api/requestHelpers";
+import {
+  localizeError,
+  localizedErrorResponse,
+} from "@/lib/api/errorLocalization";
+import {
+  VaultNameSchema,
+  getAkbAdapter,
+  invalidBodyResponse,
+  invalidJsonBodyResponse,
+} from "@/lib/api/requestHelpers";
 import { resolveScanGitHubAdapter } from "@/lib/github/resolveScanGitHubAdapter";
 import {
   ServerLlmConfigError,
@@ -46,15 +54,12 @@ export async function POST(request: Request): Promise<Response> {
   try {
     rawBody = await request.json();
   } catch {
-    return Response.json({ error: "Invalid JSON body." }, { status: 400 });
+    return invalidJsonBodyResponse();
   }
 
   const parsed = ScanActivityRequestSchema.safeParse(rawBody);
   if (!parsed.success) {
-    return Response.json(
-      { error: "Invalid request body.", details: parsed.error.flatten() },
-      { status: 400 },
-    );
+    return invalidBodyResponse(parsed.error);
   }
   const { owner, repo, vault, since, projectPrefix } = parsed.data;
 
@@ -77,12 +82,7 @@ export async function POST(request: Request): Promise<Response> {
     return github.response;
   }
   if (github.kind === "github_app_unconfigured") {
-    return Response.json(
-      {
-        error: "GitHub App is not configured for this deployment.",
-      },
-      { status: 503 },
-    );
+    return localizedErrorResponse("githubAppUnconfigured", 503);
   }
   if (github.kind === "github_error") {
     logger.error({ err: github.error, owner, repo }, "scan_activity failed");

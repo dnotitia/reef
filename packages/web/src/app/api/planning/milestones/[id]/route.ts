@@ -1,3 +1,4 @@
+import { localizedErrorResponse } from "@/lib/api/errorLocalization";
 import {
   getAkbAdapter,
   invalidBodyResponse,
@@ -13,8 +14,8 @@ import {
 } from "@reef/core";
 import { UpdateMilestoneRequestSchema } from "../../schemas";
 
-function invalidPlanningIdResponse(): Response {
-  return Response.json({ error: "Invalid milestone id." }, { status: 400 });
+function invalidPlanningIdResponse(): Promise<Response> {
+  return localizedErrorResponse("invalidMilestoneId", 400);
 }
 
 export async function PUT(

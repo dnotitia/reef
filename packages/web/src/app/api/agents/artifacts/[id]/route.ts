@@ -2,13 +2,13 @@ import {
   editAgentArtifact,
   isActivitySuggestionBackedArtifact,
 } from "@/lib/api/agentArtifactReview";
+import { localizedAgentError } from "@/lib/api/errorLocalization";
 import { logger } from "@/lib/logging/logger";
 import { AgentArtifactEditRequestSchema } from "@reef/core";
 import {
   agentArtifactCommandErrorResponse,
   artifactIdMismatchResponse,
   getAgentArtifactReviewContext,
-  jsonAgentError,
   readJsonBody,
   reefAgentErrorResponse,
   validateAgentArtifactId,
@@ -26,13 +26,13 @@ export async function PATCH(
   try {
     rawBody = await readJsonBody(request);
   } catch {
-    return jsonAgentError("Invalid JSON body.", 400, "invalid_json_body");
+    return localizedAgentError("invalidJsonBody", 400, "invalid_json_body");
   }
 
   const parsed = AgentArtifactEditRequestSchema.safeParse(rawBody);
   if (!parsed.success) {
-    return jsonAgentError(
-      "Artifact edit request is missing or invalid.",
+    return localizedAgentError(
+      "agent.artifactEditRequestInvalid",
       400,
       "invalid_artifact_edit_request",
       { validation: parsed.error.flatten() },
@@ -48,8 +48,8 @@ export async function PATCH(
     !parsed.data.vault &&
     isActivitySuggestionBackedArtifact(parsed.data.artifact)
   ) {
-    return jsonAgentError(
-      "Artifact edit requires a vault for persisted activity suggestions.",
+    return localizedAgentError(
+      "agent.artifactEditMissingVault",
       400,
       "missing_vault",
       { artifact_id: id },
@@ -90,8 +90,8 @@ export async function PATCH(
     if (reefError) return reefError;
     // A bad patch fails AgentArtifactSchema.parse() with a ZodError → the typed
     // client-facing 400. No-internals: does not echo the raw error message.
-    return jsonAgentError(
-      "Artifact edit produced an invalid artifact.",
+    return localizedAgentError(
+      "agent.artifactEditInvalid",
       400,
       "invalid_artifact_edit",
       { artifact_id: id },

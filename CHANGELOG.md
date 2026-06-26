@@ -121,6 +121,17 @@ explicitly in the entries below.
   for any message a locale has not translated yet. The remaining English error
   strings in the agent-artifact review flow are localized by later work
   (REEF-297).
+- **The last inline server error strings now follow the interface language.**
+  Building on the error-localization boundary above, the messages a Route Handler
+  still raised directly now render in Korean too when Korean is selected: the
+  deployment-config and validation replies ("GitHub App is not configured for this
+  deployment", the various "Invalid … id" / "Invalid suggestion status" checks, the
+  activity-suggestion review guards), the AI chat / enrichment / agent-run
+  availability, session, and request errors, and the agent-artifact review flow
+  (approve, edit, dismiss). The streaming agent error envelope keeps its stable
+  machine `code` unchanged and carries the localized message alongside it, and any
+  message a locale has not translated yet still falls back to English (REEF-308,
+  completing server-error localization under epic REEF-178).
 - **Tune when completed issues leave the default views.** Workspace admins can
   now set separate "Hide completed after N days" and "Hide canceled after N
   days" windows from Settings > Workspace > General. The values are stored in
