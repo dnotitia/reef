@@ -12,6 +12,8 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.6.0 - 2026-06-26
+
 ### Added
 
 - **SSO-first login: skip the button when SSO is the way in.** Deployments where
@@ -138,6 +140,13 @@ explicitly in the entries below.
   `reef_settings`, default to 28 / 7 when unset or invalid, and the Board, List,
   Backlog, and Timeline views re-evaluate resolved issue visibility after the
   setting is saved (REEF-278).
+- **Long-resolved issues drop out of the default views, with a one-click
+  reveal.** Completed and canceled issues older than the configured windows are
+  now hidden from the Board, List, Backlog, and Timeline by default so the active
+  work stays in front. A consolidated **Display** popover on the issue toolbar
+  gathers the reveal controls — *Show completed* and *Show archived* — and the
+  choice is URL-synced (`?stale=1`) so a revealed view survives a refresh or a
+  shared link, replacing the lone "Show archived" chip (REEF-275).
 - **Pick monitored repositories without a personal access token.** When a
   deployment configures a GitHub App, the repository picker in Settings (and the
   new-workspace form) now lists and saves monitored repos through the
@@ -287,6 +296,27 @@ explicitly in the entries below.
   this rich data lives on the traces; set `REEF_RESPONSE_LOG=1` (and optionally
   `REEF_SLOW_REQUEST_MS`) to also surface it on stdout where there is no trace
   backend. Credentials are never logged (REEF-271).
+- **The segmented toggles look and behave alike, and show keyboard focus.** The
+  issue view switcher (Board / List / Timeline / Backlog), the Settings tabs, and
+  the Planning kind toggle now share one size, spacing, and focus style. The view
+  switcher, which previously gave keyboard users no visible focus indicator, now
+  shows the same focus ring as the others, and the Planning toggle is no longer a
+  larger outlier (REEF-261).
+- **Relation chips in the create and draft forms finish their accessibility.**
+  The plain relation chips in the create dialog and activity-draft editor now
+  show a keyboard focus ring on their remove `X` (matching the detail panel's
+  chips), hide that decorative `X` from screen readers while the button keeps its
+  "Remove {id}" name, and mark the chip id so machine translation leaves the reef
+  id intact. The chips stay non-navigating and look exactly the same (REEF-282).
+- **Internal navigation no longer does a full page reload.** The My Work and
+  Backlog "Go to the board" links and the issue-detail and activity-feed
+  **Settings** links now client-navigate through Next's router instead of a hard
+  document load, so moving between these surfaces keeps the warm IndexedDB and
+  query cache and feels instant (REEF-262).
+- **One shared empty state when no workspace is selected.** The "pick a
+  workspace" prompt on the issues, My Work, planning, reports, and activity
+  surfaces now renders one shared `EmptyWorkspaceNotice` with the same copy,
+  link, and framing, instead of five slightly different empties (REEF-259).
 
 ### Fixed
 
@@ -356,10 +386,13 @@ explicitly in the entries below.
   Falls back gracefully where cross-tab messaging is unavailable, and single-tab
   sign-out is unchanged (REEF-106).
 - **Navigate up to the parent issue.** The issue detail now shows a clickable
-  breadcrumb above the id line — the parent's id and title — so you can jump to
-  the parent in one click, mirroring how the Sub-issues list already navigates
-  down to children. The `Parent` field under Relationships stays edit-only for
-  reassigning, and the breadcrumb is hidden for top-level issues (REEF-266).
+  breadcrumb above the id line — the parent's status icon and title — so you can
+  jump to the parent in one click, mirroring how the Sub-issues list already
+  navigates down to children. The crumb reads by status glyph and title (the raw
+  id stays in the link target, off screen); a parent missing from the loaded list
+  falls back to its id so the link stays usable. The `Parent` field under
+  Relationships stays edit-only for reassigning, and the breadcrumb is hidden for
+  top-level issues (REEF-266, REEF-279).
 - **The Close issue reason picker no longer looks broken.** When you close an
   issue, the selected close reason now reads as one clean line on the picker —
   left-aligned with the dropdown's option labels — instead of the squished,
@@ -384,37 +417,66 @@ explicitly in the entries below.
   animating when you ask for reduced motion; and code identifiers — logins and
   PR/commit/branch references — are no longer mangled by automatic page
   translation. Wording, layout, and behavior are otherwise unchanged (REEF-287).
+- **Route and content skeletons no longer shift the layout on load.** The
+  loading skeletons for the issues toolbar and list, the issue detail, Reports,
+  My Work, and the activity feed now match the real content's dimensions, so the
+  first paint no longer jumps when the data hydrates (cumulative layout shift is
+  gone on those surfaces). This is separate from the screen-reader skeleton work
+  above; only the measurements changed (REEF-258).
+- **Clicking a link in an AI answer or comment no longer breaks the page.** The
+  link-safety confirmation shown before opening an external link from a
+  Streamdown-rendered AI response or issue comment now renders through a portaled
+  dialog instead of inside the paragraph text, fixing a React hydration error
+  that could blank the surrounding content. The confirmation copy is localized
+  (English and Korean) (#104).
 
-### Changed
+### Security
 
-- **Loading skeletons are quieter for screen readers.** While a page, panel, or
-  feed is loading, assistive technology now hears a single "Loading…" status
-  instead of walking through the empty placeholder bars — the decorative skeleton
-  trees are hidden from the accessibility tree and a sibling status region
-  carries the announcement. Real page and section headings stay readable, and
-  nothing changes visually (REEF-281).
-- **Reports names its workspace, like every other page.** The Reports header now
-  shows the active workspace as a subtitle, matching the Issues, Planning, and
-  Activity headers so the page's vault scope is visible at a glance. Page-header
-  subtitles (the workspace name, or `@login` on My Work) are now marked as
-  identifiers so machine translation leaves them untouched (REEF-260).
-- **Click a planning row's name to open its details.** On the Planning list
-  (sprints, milestones, releases), clicking a row's name now expands and
-  collapses its detail body, not just the small chevron — the chevron and name
-  are one larger, keyboard-accessible toggle instead of two controls for the same
-  panel. Rows with no detail stay plain text with no toggle (REEF-264).
-- **The segmented toggles look and behave alike, and show keyboard focus.** The
-  issue view switcher (Board / List / Timeline / Backlog), the Settings tabs, and
-  the Planning kind toggle now share one size, spacing, and focus style. The view
-  switcher, which previously gave keyboard users no visible focus indicator, now
-  shows the same focus ring as the others, and the Planning toggle is no longer a
-  larger outlier (REEF-261).
-- **Relation chips in the create and draft forms finish their accessibility.**
-  The plain relation chips in the create dialog and activity-draft editor now
-  show a keyboard focus ring on their remove `X` (matching the detail panel's
-  chips), hide that decorative `X` from screen readers while the button keeps its
-  "Remove {id}" name, and mark the chip id so machine translation leaves the reef
-  id intact. The chips stay non-navigating and look exactly the same (REEF-282).
+- **Bumped dompurify to 3.4.11 to resolve GHSA-cmwh-pvxp-8882.** The transitive
+  dompurify dependency (pulled in through mermaid/streamdown for AI-rendered
+  markdown) is pinned via a workspace override to 3.4.11, clearing a published
+  advisory about `ALLOWED_ATTR` prototype pollution. No user action required (#40).
+
+### Migration
+
+- The Reef vault skill / runbook documents were updated (now version 14) to add
+  the assignee, priority, planning-link, title, labels, due-date, estimate,
+  parent, relation, archive, and delivery-ref activity event types to the issue
+  timeline. New vaults install the current documents at creation; existing vaults
+  should rerun vault skill installation (offered from Settings > Workspace) before
+  relying on generic AKB agents for the expanded activity log (REEF-276, REEF-277).
+- Dexie schema `version(11)` drops the legacy browser `credentials` store as part
+  of removing the browser GitHub PAT flow. Stale browser-stored GitHub tokens
+  become unreadable on first load after upgrade; no user action is required
+  (REEF-244).
+
+### Operational
+
+- **Server-managed GitHub grounding replaces the browser GitHub PAT.**
+  Monitored-repo listing, the activity scan, and Ask AI / enrich / agent-run code
+  grounding now read GitHub through a deployment-managed GitHub App. Configure it
+  with `REEF_GITHUB_APP_ID`, `REEF_GITHUB_APP_INSTALLATION_ID`, and
+  `REEF_GITHUB_APP_PRIVATE_KEY` (the private key is provided by the Kubernetes
+  `reef-web-secret`); `REEF_GITHUB_PAT` is an optional read-only fallback for
+  local/CI only and never overrides a configured App. A deployment with neither
+  surfaces GitHub-specific features as unavailable rather than failing. These are
+  deployment-managed secrets — never per-user and never logged (REEF-238,
+  REEF-239, REEF-240, REEF-243, REEF-290).
+- **AI activity scanning is now off by default.** A workspace performs no AI
+  activity scanning until an admin enables it from Settings > Workspace > General,
+  because a scan writes suggestions into the shared activity inbox. Existing
+  workspaces start in the off state after upgrade (REEF-313).
+- **Optional SSO-first login.** Set `REEF_SSO_AUTO_REDIRECT=1` to send visitors
+  on `/login` straight to workspace SSO (Keycloak) when akb reports it enabled,
+  skipping the button-first panel. It is a safe no-op when SSO is not enabled,
+  never fires on an SSO/session error, and always leaves the password escape hatch
+  (`/login?password=1`) reachable. Unset keeps today's button-first login
+  (REEF-312).
+- **Optional stdout logging knobs for trace-less deployments.**
+  `REEF_RESPONSE_LOG=1` surfaces the per-request access line and backend
+  observability lines on stdout where there is no trace backend, and
+  `REEF_SLOW_REQUEST_MS` (default 1000) sets the threshold at which a slow request
+  is logged at WARN. Credentials are never logged (REEF-271).
 
 ## v0.5.0 - 2026-06-19
 
