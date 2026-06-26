@@ -1,3 +1,4 @@
+import { localizedErrorResponse } from "@/lib/api/errorLocalization";
 import {
   getAkbAdapter,
   getAkbCurrentActor,
@@ -20,8 +21,8 @@ import {
 const COMMENT_ID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function invalidCommentIdResponse(): Response {
-  return Response.json({ error: "Invalid comment id." }, { status: 400 });
+function invalidCommentIdResponse(): Promise<Response> {
+  return localizedErrorResponse("invalidCommentId", 400);
 }
 
 /**

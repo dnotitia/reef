@@ -1,3 +1,4 @@
+import { localizedErrorResponse } from "@/lib/api/errorLocalization";
 import {
   getAkbAdapter,
   invalidBodyResponse,
@@ -13,8 +14,8 @@ import {
 } from "@reef/core";
 import { UpdateReleaseRequestSchema } from "../../schemas";
 
-function invalidPlanningIdResponse(): Response {
-  return Response.json({ error: "Invalid release id." }, { status: 400 });
+function invalidPlanningIdResponse(): Promise<Response> {
+  return localizedErrorResponse("invalidReleaseId", 400);
 }
 
 export async function PUT(

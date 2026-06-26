@@ -19,12 +19,37 @@ vi.mock("next/headers", () => ({
   headers: () => Promise.resolve({ get: () => null }),
 }));
 
-import { localizeError, localizedErrorResponse } from "./errorLocalization";
+import {
+  agentErrorEnvelope,
+  localizeError,
+  localizedAgentError,
+  localizedErrorResponse,
+} from "./errorLocalization";
 
 async function bodyOf(
   res: Response,
 ): Promise<{ error: string; details?: unknown }> {
   return (await res.json()) as { error: string; details?: unknown };
+}
+
+async function agentBodyOf(res: Response): Promise<{
+  error: string;
+  runtime_error: {
+    code: string;
+    message: string;
+    recoverable: boolean;
+    details?: Record<string, unknown>;
+  };
+}> {
+  return (await res.json()) as {
+    error: string;
+    runtime_error: {
+      code: string;
+      message: string;
+      recoverable: boolean;
+      details?: Record<string, unknown>;
+    };
+  };
 }
 
 beforeEach(() => {
@@ -84,5 +109,93 @@ describe("localizedErrorResponse — web-boundary keys (AC1)", () => {
     const body = await bodyOf(res);
     expect(body.error).toBe("Invalid request body.");
     expect(body.details).toEqual({ fieldErrors: { title: ["required"] } });
+  });
+
+  it("localizes a REEF-308 inline deployment/validation key (AC1)", async () => {
+    cookieLocale.current = "ko";
+    const unconfigured = await localizedErrorResponse(
+      "githubAppUnconfigured",
+      503,
+    );
+    expect(unconfigured.status).toBe(503);
+    expect((await bodyOf(unconfigured)).error).toBe(
+      "이 배포에는 GitHub App이 설정되어 있지 않습니다.",
+    );
+    const invalidId = await localizedErrorResponse("invalidSuggestionId", 400);
+    expect((await bodyOf(invalidId)).error).toBe("잘못된 제안 ID입니다.");
+  });
+});
+
+describe("localizedAgentError — agent streaming envelope (REEF-308 AC2)", () => {
+  it("localizes the message in both error and runtime_error.message, keeping the code", async () => {
+    cookieLocale.current = "ko";
+    const res = await localizedAgentError(
+      "agent.runRequestInvalid",
+      400,
+      "invalid_json_body",
+    );
+    expect(res.status).toBe(400);
+    const body = await agentBodyOf(res);
+    expect(body.error).toBe("에이전트 실행 요청이 없거나 올바르지 않습니다.");
+    expect(body.runtime_error.code).toBe("invalid_json_body");
+    expect(body.runtime_error.message).toBe(
+      "에이전트 실행 요청이 없거나 올바르지 않습니다.",
+    );
+    // recoverable stays status-derived (<500 → false), unchanged by i18n.
+    expect(body.runtime_error.recoverable).toBe(false);
+  });
+
+  it("marks 5xx envelopes recoverable and resolves a shared flat key", async () => {
+    cookieLocale.current = "ko";
+    const res = await localizedAgentError(
+      "aiUnavailableDeployment",
+      503,
+      "llm_unavailable",
+    );
+    const body = await agentBodyOf(res);
+    expect(body.error).toBe(
+      "이 배포에서는 AI 서비스를 사용할 수 없습니다. 관리자에게 문의해 주세요.",
+    );
+    expect(body.runtime_error.recoverable).toBe(true);
+  });
+
+  it("falls back to en for the envelope when no locale is set (AC3)", async () => {
+    const res = await localizedAgentError(
+      "agent.runRequestInvalid",
+      400,
+      "invalid_agent_run_request",
+    );
+    expect((await agentBodyOf(res)).error).toBe(
+      "Agent run request is missing or invalid.",
+    );
+  });
+
+  it("falls back to the carried literal when the catalog has no key (AC3/AC4)", async () => {
+    cookieLocale.current = "ko";
+    const res = await localizedAgentError(
+      "agent.someUnmappedFutureCode",
+      400,
+      "some_unmapped_future_code",
+      {},
+      "Carried English fallback.",
+    );
+    const body = await agentBodyOf(res);
+    expect(body.error).toBe("Carried English fallback.");
+    expect(body.runtime_error.code).toBe("some_unmapped_future_code");
+  });
+});
+
+describe("agentErrorEnvelope — shape + status-derived recoverable", () => {
+  it("builds the { error, runtime_error } envelope from a literal message", async () => {
+    const res = agentErrorEnvelope("boom", 500, "unexpected_error", { a: 1 });
+    expect(res.status).toBe(500);
+    const body = await agentBodyOf(res);
+    expect(body.error).toBe("boom");
+    expect(body.runtime_error).toMatchObject({
+      code: "unexpected_error",
+      message: "boom",
+      recoverable: true,
+      details: { a: 1 },
+    });
   });
 });

@@ -1,3 +1,4 @@
+import { localizedErrorResponse } from "@/lib/api/errorLocalization";
 import {
   getAkbAdapter,
   missingVaultParamResponse,
@@ -20,10 +21,7 @@ export async function GET(request: Request): Promise<Response> {
     ? ActivitySuggestionStatusSchema.safeParse(statusParam)
     : null;
   if (statusParam && (!status || !status.success)) {
-    return Response.json(
-      { error: "Invalid suggestion status." },
-      { status: 400 },
-    );
+    return localizedErrorResponse("invalidSuggestionStatus", 400);
   }
 
   const adapterResult = getAkbAdapter(request);

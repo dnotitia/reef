@@ -1,4 +1,7 @@
-import { localizeError } from "@/lib/api/errorLocalization";
+import {
+  localizeError,
+  localizedErrorResponse,
+} from "@/lib/api/errorLocalization";
 import {
   type GitHubCredentialSource,
   resolveGitHubAdapter,
@@ -44,12 +47,7 @@ export async function GET(request: Request): Promise<Response> {
       // caller does not reads the installation/server-PAT repo list.
       return resolved.response;
     case "no_credential":
-      return Response.json(
-        {
-          error: "GitHub App is not configured for this deployment.",
-        },
-        { status: 503 },
-      );
+      return localizedErrorResponse("githubAppUnconfigured", 503);
     case "github_app_error":
       return handleReposError(resolved.error);
     case "adapter":
