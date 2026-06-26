@@ -33,7 +33,7 @@ describe("DatePickerField", () => {
       </IntlTestProvider>,
     );
     const trigger = screen.getByTestId("date-picker-trigger");
-    // Catalog-owned placeholder, never the assembled English "Set date".
+    // Catalog-owned placeholder instead of the assembled English "Set date".
     expect(trigger).toHaveTextContent("날짜 지정");
     expect(trigger).not.toHaveTextContent("Set date");
   });
@@ -44,7 +44,7 @@ describe("DatePickerField", () => {
         <DatePickerField value="2026-06-25" onChange={vi.fn()} label="마감일" />
       </IntlTestProvider>,
     );
-    // aria-label keys off the catalog's "{field} 지우기", never "Clear …".
+    // aria-label keys off the catalog's "{field} 지우기" copy.
     expect(screen.getByTestId("date-picker-clear")).toHaveAttribute(
       "aria-label",
       "마감일 지우기",

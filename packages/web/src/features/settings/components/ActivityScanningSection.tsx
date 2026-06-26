@@ -15,8 +15,8 @@ import { ReadOnlyValue } from "./ReadOnlyValue";
 /**
  * Workspace AI-activity-scanning kill switch (REEF-313). A team-shared setting
  * persisted in akb `reef_settings`, so it sits with the other admin-managed
- * workspace settings and gates the scan for everyone — not a per-user browser
- * preference. Non-admin viewers see the current state read-only.
+ * workspace settings and gates team scans, not a per-user browser
+ * preference. Non-admin viewers see the current state as static text.
  */
 export function ActivityScanningSection({
   canEdit = true,

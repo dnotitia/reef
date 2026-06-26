@@ -301,8 +301,8 @@ describe("useScanAutoTrigger", () => {
 
   it("does not fire when the workspace AI-scanning switch is off (REEF-313)", async () => {
     // repo + AI + GitHub App + cooldown all green, but the workspace switch is
-    // off: the scan would no-op server-side, so the trigger stays silent and
-    // never even checks the cooldown.
+    // off: the scan would no-op server-side, so the trigger stays silent before
+    // checking the cooldown.
     projectConfigState.current = {
       data: { config: { ai_scanning_enabled: false } },
     };

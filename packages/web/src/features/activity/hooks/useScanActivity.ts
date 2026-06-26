@@ -166,7 +166,7 @@ export function useScanAutoTrigger(
 ): void {
   const { isAvailable } = useAiAvailable();
   const { isAvailable: githubAppAvailable } = useGithubAppAvailable();
-  // REEF-313: never auto-scan when the workspace switch is off. Require an
+  // REEF-313: auto-scan requires the workspace switch to be on. Require an
   // explicit `true` so a still-loading config (data undefined) keeps scanning
   // off rather than firing optimistically against the default.
   const configQuery = useProjectConfig(vault);
