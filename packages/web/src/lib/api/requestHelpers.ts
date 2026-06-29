@@ -15,6 +15,7 @@ import {
   VAULT_NAME_PATTERN,
   VaultNameSchema,
   akbGetCurrentActor,
+  akbListVaults,
   createAkbAdapter,
 } from "@reef/core";
 import type { z } from "zod";
@@ -287,4 +288,33 @@ export async function resolveOptionalActor(
 ): Promise<string | null> {
   const result = await getAkbCurrentActor(request);
   return "response" in result ? null : result.actor;
+}
+
+/**
+ * Enforce the owner-only policy for destructive workspace-lifecycle actions
+ * (REEF-322 delete / detach). akb's own floor for deleting a vault or dropping a
+ * table is *admin*, but reef restricts these to the workspace owner — so the
+ * server must verify the caller's role rather than trusting the client-side
+ * Danger Zone gate (a non-owner admin could otherwise call the route directly).
+ * The caller's per-vault role comes from the same `my/vaults` projection the UI
+ * gate reads. Returns `{ owner: true }` to proceed, or `{ response }` (403, or a
+ * translated upstream error) to return as-is.
+ */
+export async function requireVaultOwner(
+  adapter: AkbAdapter,
+  vault: string,
+): Promise<{ owner: true } | { response: Response }> {
+  let role: string | null;
+  try {
+    const { vaults } = await akbListVaults({ adapter });
+    role = vaults.find((v) => v.name === vault)?.role ?? null;
+  } catch (err) {
+    return {
+      response: await respondWithError(err, { resourceKind: "workspace" }),
+    };
+  }
+  if (role === "owner") return { owner: true };
+  return {
+    response: await localizedErrorResponse("workspaceOwnerRequired", 403),
+  };
 }

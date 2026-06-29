@@ -730,6 +730,15 @@ async function handleAkb(req, res, url) {
     });
   }
 
+  const vaultDeleteMatch = path.match(/^\/api\/v1\/vaults\/([^/]+)$/);
+  if (vaultDeleteMatch && req.method === "DELETE") {
+    // Full vault delete (REEF-322): drop the whole entry, as akb cascades
+    // documents, tables, files, and git. Idempotent — a missing vault is a no-op
+    // 200, mirroring a teardown re-run.
+    state.vaults.delete(decodeURIComponent(vaultDeleteMatch[1]));
+    return json(res, 200, { deleted: true });
+  }
+
   const membersMatch = path.match(/^\/api\/v1\/vaults\/([^/]+)\/members$/);
   if (membersMatch && req.method === "GET") {
     const vault = getVault(decodeURIComponent(membersMatch[1]), res);
@@ -753,6 +762,16 @@ async function handleAkb(req, res, url) {
     const body = await readJson(req);
     if (typeof body?.name === "string") vault.tables.add(body.name);
     return json(res, 200, { ok: true });
+  }
+
+  const tableDeleteMatch = path.match(/^\/api\/v1\/tables\/([^/]+)\/([^/]+)$/);
+  if (tableDeleteMatch && req.method === "DELETE") {
+    // Drop a single table (REEF-322 detach). The `/sql` sub-route is POST, so it
+    // never collides with this DELETE. Idempotent on a missing table.
+    const vault = getVault(decodeURIComponent(tableDeleteMatch[1]), res);
+    if (!vault) return;
+    vault.tables.delete(decodeURIComponent(tableDeleteMatch[2]));
+    return json(res, 200, { deleted: true });
   }
 
   const sqlMatch = path.match(/^\/api\/v1\/tables\/([^/]+)\/sql$/);
@@ -799,6 +818,22 @@ async function handleAkb(req, res, url) {
       vault.documents.delete(docPath);
       return json(res, 200, { ok: true });
     }
+  }
+
+  const collectionDeleteMatch = path.match(
+    /^\/api\/v1\/collections\/([^/]+)\/(.+)$/,
+  );
+  if (collectionDeleteMatch && req.method === "DELETE") {
+    // Recursive collection delete (REEF-322 detach): remove every document under
+    // the collection path. reef always passes recursive=true, so the fixture
+    // always cascades. Idempotent — deleting an empty prefix is a no-op 200.
+    const vault = getVault(decodeURIComponent(collectionDeleteMatch[1]), res);
+    if (!vault) return;
+    const prefix = `${decodeURIComponent(collectionDeleteMatch[2])}/`;
+    for (const docPath of [...vault.documents.keys()]) {
+      if (docPath.startsWith(prefix)) vault.documents.delete(docPath);
+    }
+    return json(res, 200, { deleted: true });
   }
 
   if (path === "/api/v1/relations" && req.method === "GET") {

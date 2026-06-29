@@ -37,6 +37,7 @@ export {
   type VaultSummary,
   type EnrichedVaultSummary,
 } from "./workspace/vaults";
+export { deleteVault, detachReef } from "./workspace/workspaceDeletion";
 export {
   readIssue,
   writeIssue,

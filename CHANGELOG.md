@@ -12,6 +12,22 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Added
+
+- **Delete a workspace from Settings.** The workspace owner now has a "Danger
+  zone" at the foot of Settings › Workspace with two ways to clear out a
+  workspace that was created by mistake or is no longer used. **Remove reef**
+  deletes reef's issues, planning, activity, comments, and templates while
+  leaving the underlying akb vault and any non-reef documents untouched — useful
+  when reef was added to a vault your team still uses for other things; you can
+  set reef up there again later. **Delete workspace** permanently removes the
+  entire vault, including every document, file, and its history, and asks you to
+  type the workspace name to confirm because it cannot be undone. Both actions
+  are visible only to the workspace owner; after either one, reef switches you to
+  another workspace you can access, or to onboarding if none remain. The action,
+  who ran it, and the target workspace are written to the server audit log before
+  it runs (REEF-322, epic REEF-001).
+
 ### Changed
 
 - **The workspace you're viewing now lives in the URL.** Every in-app screen is
