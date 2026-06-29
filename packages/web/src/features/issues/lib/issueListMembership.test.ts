@@ -173,6 +173,15 @@ describe("listMembershipInvalidationPredicate", () => {
     );
   });
 
+  it("refetches an updated_at-sorted variant on any edit (server-stamped)", () => {
+    // `updated_at` is bumped by the server on every edit, so an updated_at-sorted
+    // list reorders even when the changed field is neither its facet nor sort.
+    const predicate = listMembershipInvalidationPredicate(["status"]);
+    expect(
+      predicate(key({ assigned_to: ["alice"], sort_field: "updated_at" })),
+    ).toBe(true);
+  });
+
   it("refetches active variants but not widened ones on archive/restore", () => {
     const predicate = listMembershipInvalidationPredicate(["archived_at"]);
     // An active variant omits `archived`, so it filters `archived_at IS NULL`

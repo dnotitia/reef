@@ -128,8 +128,10 @@ function variantHasFreeText(variant: IssueQueryParams | undefined): boolean {
  *   below),
  * - filters on a changed facet key (editing it can add or remove the issue from
  *   the facet), or
- * - sorts by a changed key (`sort_field` defaults to `priority`, so a priority
- *   edit reorders every sorted variant).
+ * - sorts by a changed key, or by the server-stamped `updated_at` that every
+ *   successful edit bumps (`sort_field` defaults to `priority`; a priority edit
+ *   reorders priority-sorted variants, and an `updated_at`-sorted variant
+ *   reorders on any edit).
  *
  * `archived_at` is special: an active variant filters `archived_at IS NULL`
  * implicitly — `buildIssueQuery` omits the `archived` facet from the key and only
@@ -160,6 +162,10 @@ export function listMembershipInvalidationPredicate(
     if (variant.default_view === "true") return true;
     if (archivedChanged && variant.archived !== "true") return true;
     if (explicitFacets.some((facet) => facet in variant)) return true;
+    // Every successful edit bumps the server-stamped `updated_at`, so a variant
+    // sorted by it reorders on any edit; otherwise a variant reorders only when
+    // sorted by a changed key (`sort_field` defaults to `priority`).
+    if (variant.sort_field === "updated_at") return true;
     return changedKeys.some((key) => variant.sort_field === key);
   };
 }
