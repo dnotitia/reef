@@ -1,35 +1,18 @@
 import { NotFoundError } from "../../../errors";
 import {
   ACTIVITY_INBOX_COLLECTION,
-  ISSUES_COLLECTION,
   REEF_SETTINGS_TABLE,
   REEF_TABLE_NAMES,
 } from "../core/constants";
 import { deleteCollection, deleteDocument } from "../core/documents";
+import type { AkbAdapter } from "../core/http";
+import { issuePathFor } from "../core/paths";
+import { isMissingTableError } from "../core/sql";
 import { dropAkbTable } from "../core/tables";
 import { withSpan } from "../core/tracing";
 import type { DeleteVaultParams, DetachReefParams } from "../core/types";
-
-/**
- * akb collections that hold ONLY reef-owned documents, so the whole collection
- * is safe to delete recursively:
- *  - `issues`               — issue documents (the `reef_issues` projection)
- *  - `_reef/activity-inbox` — AI activity-inbox documents (reef-private `_reef/`)
- *  - `overview/reef`        — the vault-skill runbook sub-collection
- *
- * The root vault-skill document at `overview/vault-skill.md` is handled
- * separately: `overview/` is a generic akb collection that may also hold the
- * team's own documents, so detach removes only that one reef doc by id, never
- * the whole `overview/` collection.
- */
-const REEF_DOCUMENT_COLLECTIONS: readonly string[] = [
-  ISSUES_COLLECTION,
-  ACTIVITY_INBOX_COLLECTION,
-  "overview/reef",
-];
-
-/** The one reef-owned document living in the shared `overview/` collection. */
-const REEF_ROOT_SKILL_DOC = "overview/vault-skill.md";
+import { listIssues } from "../issues/issues";
+import { buildReefVaultSkillDocuments } from "../vaultSkill/documents";
 
 /**
  * Run a teardown step, treating "already gone" (404 → NotFoundError) as success
@@ -41,6 +24,28 @@ async function ignoreMissing(step: Promise<void>): Promise<void> {
     await step;
   } catch (err) {
     if (err instanceof NotFoundError) return;
+    throw err;
+  }
+}
+
+/**
+ * The akb-relative paths of reef's own issue documents, addressed by their
+ * deterministic id→path mapping. Detach deletes these specific documents rather
+ * than recursively deleting the `issues/` collection, whose name is not
+ * reef-private and could also hold the team's own documents in a brownfield
+ * vault — recursively deleting it would destroy non-reef content the feature
+ * promises to keep (REEF-322). A missing `reef_issues` table (a retry after the
+ * drop) yields no paths.
+ */
+async function reefIssueDocumentPaths(
+  adapter: AkbAdapter,
+  vault: string,
+): Promise<string[]> {
+  try {
+    const { issues } = await listIssues({ adapter, vault });
+    return issues.map((issue) => issuePathFor(issue.id));
+  } catch (err) {
+    if (isMissingTableError(err)) return [];
     throw err;
   }
 }
@@ -65,23 +70,40 @@ export async function deleteVault(params: DeleteVaultParams): Promise<void> {
 
 /**
  * Remove the reef layer from a vault while leaving the akb vault and any
- * non-reef content intact (REEF-322 detach). Deletes reef's document
- * collections and the root vault-skill doc, then drops every reef table —
- * `reef_settings` LAST, so `has_reef_config` only flips to false once the rest
- * of the teardown has already succeeded. Every step is idempotent (a 404 means
- * already gone), so a failed run is safe to retry. The acting user is recorded
- * on the span for the audit trail (AC5).
+ * non-reef content intact (REEF-322 detach).
+ *
+ * Documents are deleted by reef ownership, never by recursively clearing a
+ * collection that could also hold the team's own content:
+ *  - issue documents — by their deterministic id→path (only reef's docs in the
+ *    shared-name `issues/` collection);
+ *  - vault-skill documents — by the exact paths reef installed;
+ *  - the AI activity inbox — recursively, because it lives under reef's private
+ *    `_reef/` namespace, which never holds non-reef documents.
+ *
+ * Then every reef table is dropped, `reef_settings` LAST so `has_reef_config`
+ * only flips to false once the rest of the teardown has already succeeded. Every
+ * step is idempotent (a 404 / missing table means already gone), so a failed run
+ * is safe to retry. The acting user is recorded on the span for the audit trail
+ * (AC5).
  */
 export async function detachReef(params: DetachReefParams): Promise<void> {
   const { adapter, vault, actor } = params;
   return withSpan("akb.detach_reef", { vault, actor }, async () => {
-    // 1. reef document collections + the single root vault-skill doc.
+    // 1. reef-owned documents (issue docs by id, vault-skill docs by exact path).
+    const skillPaths = buildReefVaultSkillDocuments(vault).map(
+      (doc) => doc.path,
+    );
+    const issuePaths = await reefIssueDocumentPaths(adapter, vault);
     await Promise.all(
-      REEF_DOCUMENT_COLLECTIONS.map((collection) =>
-        ignoreMissing(deleteCollection(adapter, vault, collection, true)),
+      [...skillPaths, ...issuePaths].map((path) =>
+        ignoreMissing(deleteDocument(adapter, vault, path)),
       ),
     );
-    await ignoreMissing(deleteDocument(adapter, vault, REEF_ROOT_SKILL_DOC));
+    // The activity inbox is reef-private (`_reef/`), so the whole collection is
+    // safe to sweep recursively.
+    await ignoreMissing(
+      deleteCollection(adapter, vault, ACTIVITY_INBOX_COLLECTION, true),
+    );
 
     // 2. reef tables, settings last (see doc comment).
     const nonSettings = REEF_TABLE_NAMES.filter(
