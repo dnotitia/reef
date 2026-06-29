@@ -64,6 +64,37 @@
     }
   },
   "settings": {
+    "dangerZone": {
+      "title": "Danger zone",
+      "detach": {
+        "label": "Remove reef from this workspace",
+        "blurb": "Deletes all reef issues, planning, activity, comments, and templates. The akb vault and any documents that aren't part of reef stay untouched.",
+        "button": "Remove reef",
+        "confirmTitle": "Remove reef from {workspace}?",
+        "confirmDescription": "This deletes reef's issues, planning, activity, comments, and templates from this workspace. You can set reef up here again later.",
+        "staysHeading": "Stays in the vault",
+        "stays1": "The akb vault itself",
+        "stays2": "Any documents and files that aren't part of reef",
+        "pending": "Removing…",
+        "success": "Removed reef from {workspace}.",
+        "failed": "Couldn't remove reef from the workspace."
+      },
+      "delete": {
+        "label": "Delete this workspace",
+        "blurb": "Permanently deletes the entire vault — every document, file, and its history, including content that isn't part of reef. This can't be undone.",
+        "button": "Delete workspace",
+        "confirmTitle": "Delete {workspace}?",
+        "confirmDescription": "This permanently deletes the entire vault, including documents and files that aren't part of reef. It can't be undone.",
+        "removesHeading": "This removes",
+        "removes1": "All reef issues, sprints, milestones, and releases",
+        "removes2": "Monitored repositories and workspace settings",
+        "removes3": "Every akb document, file, and the vault's history",
+        "confirmPrompt": "Type {workspace} to confirm",
+        "pending": "Deleting…",
+        "success": "Deleted workspace {workspace}.",
+        "failed": "Couldn't delete the workspace."
+      }
+    },
     "preferences": {
       "language": {
         "heading": "Language",

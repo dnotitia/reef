@@ -64,6 +64,37 @@
     }
   },
   "settings": {
+    "dangerZone": {
+      "title": "위험 구역",
+      "detach": {
+        "label": "이 워크스페이스에서 reef 제거",
+        "blurb": "reef의 모든 이슈·플래닝·활동·코멘트·템플릿을 삭제합니다. akb 볼트와 reef와 무관한 문서는 그대로 유지됩니다.",
+        "button": "reef 제거",
+        "confirmTitle": "{workspace}에서 reef를 제거할까요?",
+        "confirmDescription": "이 워크스페이스에서 reef의 이슈·플래닝·활동·코멘트·템플릿을 삭제합니다. 나중에 여기에 reef를 다시 설정할 수 있습니다.",
+        "staysHeading": "볼트에 남는 것",
+        "stays1": "akb 볼트 자체",
+        "stays2": "reef와 무관한 문서 및 파일",
+        "pending": "제거 중…",
+        "success": "{workspace}에서 reef를 제거했습니다.",
+        "failed": "워크스페이스에서 reef를 제거하지 못했습니다."
+      },
+      "delete": {
+        "label": "이 워크스페이스 삭제",
+        "blurb": "볼트 전체를 영구 삭제합니다 — 모든 문서·파일·히스토리는 물론 reef와 무관한 콘텐츠까지 포함됩니다. 되돌릴 수 없습니다.",
+        "button": "워크스페이스 삭제",
+        "confirmTitle": "{workspace}을(를) 삭제할까요?",
+        "confirmDescription": "reef와 무관한 문서·파일을 포함해 볼트 전체를 영구 삭제합니다. 되돌릴 수 없습니다.",
+        "removesHeading": "삭제 대상",
+        "removes1": "모든 reef 이슈·스프린트·마일스톤·릴리스",
+        "removes2": "모니터링 저장소 및 워크스페이스 설정",
+        "removes3": "모든 akb 문서·파일과 볼트 히스토리",
+        "confirmPrompt": "확인하려면 {workspace}을(를) 입력하세요",
+        "pending": "삭제 중…",
+        "success": "워크스페이스 {workspace}을(를) 삭제했습니다.",
+        "failed": "워크스페이스를 삭제하지 못했습니다."
+      }
+    },
     "preferences": {
       "language": {
         "heading": "언어",

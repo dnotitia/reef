@@ -2,6 +2,7 @@
 
 import { ActivityScanningSection } from "@/features/settings/components/ActivityScanningSection";
 import { AuthoringLanguageSection } from "@/features/settings/components/AuthoringLanguageSection";
+import { DangerZoneSection } from "@/features/settings/components/DangerZoneSection";
 import { ProjectSection } from "@/features/settings/components/ProjectSection";
 import { RepoPickerSection } from "@/features/settings/components/RepoPickerSection";
 import { ResolvedAutoHideSection } from "@/features/settings/components/ResolvedAutoHideSection";
@@ -105,6 +106,10 @@ export default function WorkspaceGeneralPage() {
         </h3>
         <WorkspaceSkillSection />
       </section>
+
+      {/* Danger zone — owner-only workspace lifecycle (delete / detach). Renders
+          itself null for non-owners, so it sits at the foot of the group. */}
+      <DangerZoneSection vault={vault} />
     </SettingsGroup>
   );
 }
