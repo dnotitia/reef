@@ -2,7 +2,13 @@ import { SchemaValidationError } from "../../../errors";
 import { RANK_NULL_SORT_SENTINEL } from "../../../models/backlogRank";
 import { ACTIVE_STATUSES } from "../../../models/status";
 import type { IssueListQuery } from "../../../schemas/issues/requests";
-import { quoteIdent, quoteNumberOrNull, quoteText } from "../core/sql";
+import { REEF_ISSUES_TABLE, REEF_SPRINTS_TABLE } from "../core/constants";
+import {
+  quoteIdent,
+  quoteNumberOrNull,
+  quoteText,
+  tableRef,
+} from "../core/sql";
 
 // ─── Issue list query builders (filter / sort / counts) ─────────────────────
 
@@ -345,28 +351,84 @@ export function defaultViewStatusFloor(): string {
 }
 
 /**
- * The default-view WHERE ladder for the issue list's first landing: the
- * status-window floor, narrowed to the actor's issues (My Issues) when an actor
- * is known, else to the active sprint when one exists, else the floor alone.
- * Pure — the caller resolves the actor (from the session) and the active-sprint
- * id (from planning) first. Values are escaped via `quoteText`.
+ * The active-sprint id as an uncorrelated scalar subquery, mirroring the old
+ * `getActiveSprint` deterministic pick: the lone `active` sprint, or — when
+ * several are active — the most recent `start_date` (NULLs last), then the
+ * highest `id`. Embedded in the default-view WHERE (REEF-324) so the landing
+ * list resolves "current sprint" inside the single list query instead of a
+ * separate planning round-trip. `reef_sprints.start_date` is a TEXT column, so
+ * its lexical `DESC` sort equals chronological for ISO dates — the exact
+ * ordering the JS tie-break used; `DESC NULLS LAST` keeps an undated sprint at
+ * the tail (the JS path coalesced a null date to `""`, which sorted last).
+ *
+ * Unlike the JS path this cannot skip a schema-malformed sprint row: a malformed
+ * top-sorted active sprint would have its id used as the fallback scope. That
+ * diverges only when ≥2 sprints are active AND the most-recent one is malformed
+ * — a negligible, data-degraded edge — and never fails the query (the resilience
+ * property is preserved; only which sprint is picked could differ).
+ */
+function activeSprintIdSubquery(): string {
+  return `(SELECT "id" FROM ${tableRef(
+    REEF_SPRINTS_TABLE,
+  )} WHERE "status" = ${quoteText(
+    "active",
+    "active sprint status",
+  )} ORDER BY "start_date" DESC NULLS LAST, "id" DESC LIMIT 1)`;
+}
+
+/**
+ * The default-view WHERE for the issue list's first landing, folded into a
+ * SINGLE self-contained predicate so the landing query needs no separate
+ * active-sprint or "does this actor have any issue?" probe round-trips
+ * (REEF-324) — the old path cost three akb calls (active sprint + My-Issues
+ * probe + the list itself):
+ *
+ *   - the status-window floor (active, non-archived) always applies;
+ *   - when an actor is known, the view narrows to My Issues *iff* the actor has
+ *     any active issue, decided in-statement by an `EXISTS` subquery; with none
+ *     it falls back to the active sprint (or the floor alone);
+ *   - when no actor is known, it floors to the active sprint (or the floor).
+ *
+ * The caller resolves the actor (web cookie decode / akb actor); the active
+ * sprint and the My-Issues test are SQL subqueries here rather than prior
+ * round-trips. The active-sprint subquery returning NULL (no active sprint)
+ * degrades to the floor alone, matching the old `getActiveSprint`→null behavior.
+ * Every value is escaped via `quoteText`.
+ *
+ * `withActiveSprint: false` drops the active-sprint fold entirely (no
+ * `reef_sprints` reference). `listIssues` uses it to retry on a vault that has
+ * `reef_issues` but not `reef_sprints` — a pre-planning vault where embedding the
+ * sprint subquery would fail the whole query on the missing relation — so the
+ * view still degrades to the floor / My Issues instead of a blank board, the same
+ * resilience the old separate `getActiveSprint` call had.
+ *
+ * The `EXISTS` test does not reference the keyset cursor the caller appends, so
+ * the resolved scope stays consistent across paginated pages — the up-front
+ * scope invariant that kept page 2 from landing on an empty My-Issues set.
  */
 export function buildDefaultViewWhere(params: {
   actor: string | null;
-  sprintId: string | null;
+  withActiveSprint?: boolean;
 }): string {
   const floor = defaultViewStatusFloor();
-  if (params.actor) {
-    return `${floor} AND "assigned_to" = ${quoteText(
-      params.actor,
-      "default view actor",
-    )}`;
+  // The sprint arm: the active sprint when one exists, else the floor alone.
+  // Dropped to a no-op (`TRUE` / omitted) when the sprint table is unavailable.
+  const sprintFallback =
+    params.withActiveSprint === false
+      ? null
+      : (() => {
+          const sub = activeSprintIdSubquery();
+          return `(${sub} IS NULL OR "sprint_id" = ${sub})`;
+        })();
+  if (!params.actor) {
+    return sprintFallback ? `${floor} AND ${sprintFallback}` : floor;
   }
-  if (params.sprintId) {
-    return `${floor} AND "sprint_id" = ${quoteText(
-      params.sprintId,
-      "default view sprint",
-    )}`;
-  }
-  return floor;
+  const actorEq = `"assigned_to" = ${quoteText(params.actor, "default view actor")}`;
+  const hasMine = `EXISTS (SELECT 1 FROM ${tableRef(
+    REEF_ISSUES_TABLE,
+  )} WHERE ${floor} AND ${actorEq})`;
+  // No sprint table → the no-My-Issues arm is just the floor (`TRUE` under the
+  // outer floor), i.e. My Issues when the actor has any, else the floor.
+  const elseArm = sprintFallback ?? "TRUE";
+  return `${floor} AND ((${hasMine} AND ${actorEq}) OR (NOT ${hasMine} AND ${elseArm}))`;
 }

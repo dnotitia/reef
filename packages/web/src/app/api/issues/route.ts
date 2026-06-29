@@ -137,9 +137,10 @@ export async function GET(request: Request): Promise<Response> {
 
   // Explicit filters take precedence over the default landing view — the
   // default view applies when no narrowing facet is present. It needs the
-  // current actor (My Issues), derived read from the session cookie;
-  // failure to resolve it is non-fatal — the view degrades to the
-  // active-sprint / status-window floor rather than erroring.
+  // current actor (My Issues), decoded straight from the session-cookie JWT
+  // claims with no akb round-trip in the common case (REEF-324; `/auth/me` is a
+  // fallback for older tokens). failure to resolve it is non-fatal — the view
+  // degrades to the active-sprint / status-window floor rather than erroring.
   const defaultViewActive = !!query?.default_view && !hasAnyFilter(query);
   const actor = defaultViewActive
     ? ((await resolveOptionalActor(request)) ?? undefined)

@@ -19,7 +19,6 @@ import {
   REEF_SPRINTS_TABLE,
   ensureReefTables,
   isMissingTableError,
-  quoteText,
   withSpan,
 } from "../core/shared";
 import type {
@@ -76,52 +75,6 @@ export async function listPlanningCatalog(
       }
       throw err;
     }
-  });
-}
-
-/**
- * The vault's current active sprint, or null. Filters `status = 'active'` and
- * picks deterministically (most recent start_date first, then id desc),
- * tolerating 0, 1, or many rows and skipping malformed ones. A does not-onboarded
- * vault (no `reef_sprints` table) resolves to null.
- */
-export async function getActiveSprint(
-  adapter: AkbAdapter,
-  vault: string,
-): Promise<Sprint | null> {
-  return withSpan("akb.get_active_sprint", { vault }, async (span) => {
-    let rows: Record<string, unknown>[];
-    try {
-      rows = await selectPlanningRows(
-        adapter,
-        vault,
-        REEF_SPRINTS_TABLE,
-        `status = ${quoteText("active", "sprint status")}`,
-      );
-    } catch (err) {
-      if (isMissingTableError(err)) {
-        span.setAttribute("table_exists", false);
-        return null;
-      }
-      throw err;
-    }
-    const sprints: Sprint[] = [];
-    for (const row of rows) {
-      try {
-        sprints.push(rowToSprint(row));
-      } catch {
-        // Skip a malformed sprint row rather than failing the default view.
-      }
-    }
-    span.setAttribute("active_sprint_count", sprints.length);
-    if (sprints.length === 0) return null;
-    sprints.sort((a, b) => {
-      const sa = a.start_date ?? "";
-      const sb = b.start_date ?? "";
-      if (sa !== sb) return sa < sb ? 1 : -1;
-      return a.id < b.id ? 1 : -1;
-    });
-    return sprints[0];
   });
 }
 

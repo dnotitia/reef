@@ -59,6 +59,17 @@ explicitly in the entries below.
   background `/api/issues` requests, reducing server and akb load on busy boards.
   No behavior or data change (REEF-323).
 
+- **The landing issue list loads faster.** Opening reef on your default issue
+  view (the "My Issues" landing, before you apply any filter) used to fan out
+  four sequential calls to the workspace backend — resolve who you are, find the
+  active sprint, probe whether you have any issues, then fetch the list — and
+  each hop added round-trip latency. reef now reads your identity from the
+  session you already hold and folds the sprint and "do I have any issues?"
+  lookups into the single list query, so the same landing typically makes one
+  backend call (two for older sessions). Same issues, same My-Issues /
+  active-sprint fallback ordering, same pagination — just a quicker first paint
+  and less backend load. No behavior or data change (REEF-324).
+
 ## v0.6.0 - 2026-06-26
 
 ### Added

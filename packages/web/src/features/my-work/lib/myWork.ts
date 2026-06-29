@@ -122,8 +122,9 @@ export interface MyWork {
 /**
  * The vault's current sprint: the lone `active` sprint, or — if several are
  * active — the most recent `start_date`, then the highest `id`. Mirrors the
- * server `getActiveSprint` tie-break so the page and the board agree on "current
- * sprint".
+ * server default-view active-sprint tie-break (the `activeSprintIdSubquery`
+ * folded into the issue-list query, REEF-324) so the page and the board agree on
+ * "current sprint".
  */
 export function selectCurrentSprint(sprints: readonly Sprint[]): Sprint | null {
   let current: Sprint | null = null;

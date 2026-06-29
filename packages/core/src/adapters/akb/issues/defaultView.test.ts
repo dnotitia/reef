@@ -12,13 +12,15 @@ import {
   defaultViewStatusFloor,
   encodeCursor,
 } from "../core/shared";
-import { getActiveSprint } from "../planning/planning";
 import { listIssues } from "./issues";
 
 mockOpenTelemetry();
 
 const FLOOR = `"archived_at" IS NULL AND "status" IN ('todo', 'in_progress', 'in_review')`;
-const SPRINT_ID = "11111111-1111-4111-8111-111111111111";
+// The active-sprint pick, folded into the default-view query as a scalar
+// subquery (REEF-324) instead of a separate `getActiveSprint` round-trip.
+const SPRINT_SUBQ = `(SELECT "id" FROM reef_sprints WHERE "status" = 'active' ORDER BY "start_date" DESC NULLS LAST, "id" DESC LIMIT 1)`;
+const SPRINT_FALLBACK = `(${SPRINT_SUBQ} IS NULL OR "sprint_id" = ${SPRINT_SUBQ})`;
 
 const ISSUE: IssueMetadata = {
   id: "REEF-001",
@@ -31,104 +33,57 @@ const ISSUE: IssueMetadata = {
   assigned_to: "alice",
 };
 
-function sprintRow(
-  over: Record<string, unknown> = {},
-): Record<string, unknown> {
-  return {
-    id: SPRINT_ID,
-    name: "Sprint 1",
-    status: "active",
-    start_date: "2026-05-01",
-    end_date: "2026-05-14",
-    goal: "",
-    ...over,
-  };
-}
-
-function tableQuery(rows: Record<string, unknown>[]): unknown {
-  return {
-    kind: "table_query",
-    columns: rows.length ? Object.keys(rows[0]) : [],
-    items: rows,
-    total: rows.length,
-  };
-}
-
 function sqlOf(call: { init: RequestInit | undefined }): string {
   return JSON.parse(String(call.init?.body)).sql as string;
 }
 
 describe("buildDefaultViewWhere", () => {
-  it("floors to active, non-archived issues with no actor or sprint", () => {
+  it("floors to active issues + the active sprint with no actor", () => {
     expect(defaultViewStatusFloor()).toBe(FLOOR);
-    expect(buildDefaultViewWhere({ actor: null, sprintId: null })).toBe(FLOOR);
-  });
-
-  it("narrows to My Issues when an actor is present", () => {
-    expect(buildDefaultViewWhere({ actor: "alice", sprintId: SPRINT_ID })).toBe(
-      `${FLOOR} AND "assigned_to" = 'alice'`,
+    expect(buildDefaultViewWhere({ actor: null })).toBe(
+      `${FLOOR} AND ${SPRINT_FALLBACK}`,
     );
   });
 
-  it("narrows to the active sprint when there is no actor", () => {
-    expect(buildDefaultViewWhere({ actor: null, sprintId: SPRINT_ID })).toBe(
-      `${FLOOR} AND "sprint_id" = '${SPRINT_ID}'`,
+  it("folds the My-Issues existence test and the sprint fallback into one predicate for an actor", () => {
+    const actorEq = `"assigned_to" = 'alice'`;
+    const hasMine = `EXISTS (SELECT 1 FROM reef_issues WHERE ${FLOOR} AND ${actorEq})`;
+    expect(buildDefaultViewWhere({ actor: "alice" })).toBe(
+      `${FLOOR} AND ((${hasMine} AND ${actorEq}) OR (NOT ${hasMine} AND ${SPRINT_FALLBACK}))`,
     );
   });
 
   it("escapes the actor value (injection-safe)", () => {
-    expect(buildDefaultViewWhere({ actor: "a'b", sprintId: null })).toBe(
-      `${FLOOR} AND "assigned_to" = 'a''b'`,
+    const where = buildDefaultViewWhere({ actor: "a'b" });
+    expect(where).toContain(`"assigned_to" = 'a''b'`);
+  });
+
+  it("drops the active-sprint fold (no reef_sprints reference) when withActiveSprint is false", () => {
+    const noActor = buildDefaultViewWhere({
+      actor: null,
+      withActiveSprint: false,
+    });
+    expect(noActor).toBe(FLOOR);
+    expect(noActor).not.toContain("reef_sprints");
+
+    const actorEq = `"assigned_to" = 'alice'`;
+    const hasMine = `EXISTS (SELECT 1 FROM reef_issues WHERE ${FLOOR} AND ${actorEq})`;
+    const withActor = buildDefaultViewWhere({
+      actor: "alice",
+      withActiveSprint: false,
+    });
+    expect(withActor).toBe(
+      `${FLOOR} AND ((${hasMine} AND ${actorEq}) OR (NOT ${hasMine} AND TRUE))`,
     );
-  });
-});
-
-describe("getActiveSprint", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("returns the active sprint, picking the most recently started", async () => {
-    setupFetch([
-      {
-        body: tableQuery([
-          sprintRow({
-            id: "00000000-0000-4000-8000-000000000000",
-            start_date: "2026-01-01",
-            end_date: "2026-01-14",
-          }),
-          sprintRow({ id: SPRINT_ID, start_date: "2026-05-01" }),
-        ]),
-      },
-    ]);
-    const sprint = await getActiveSprint(makeTestAkbAdapter(), "reef-acme");
-    expect(sprint?.id).toBe(SPRINT_ID);
-  });
-
-  it("returns null for a never-onboarded vault (missing table)", async () => {
-    setupFetch([
-      {
-        body: { error: 'relation "vt_reef-acme__reef_sprints" does not exist' },
-      },
-    ]);
-    const sprint = await getActiveSprint(makeTestAkbAdapter(), "reef-acme");
-    expect(sprint).toBeNull();
-  });
-
-  it("returns null when there are no active sprints", async () => {
-    setupFetch([{ body: tableQuery([]) }]);
-    const sprint = await getActiveSprint(makeTestAkbAdapter(), "reef-acme");
-    expect(sprint).toBeNull();
+    expect(withActor).not.toContain("reef_sprints");
   });
 });
 
 describe("listIssues default_view", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("applies the My-Issues predicate when the actor has active issues", async () => {
-    const { calls } = setupFetch([
-      { body: tableQuery([sprintRow()]) }, // getActiveSprint
-      { body: makeIssueQueryResponse([ISSUE]) }, // My-Issues existence check
-      { body: makeIssueQueryResponse([ISSUE]) }, // main fetch
-    ]);
+  it("issues a single combined query for an actor (no sprint / probe round-trips)", async () => {
+    const { calls } = setupFetch([{ body: makeIssueQueryResponse([ISSUE]) }]);
     const query = IssueListQuerySchema.parse({ default_view: true });
     const res = await listIssues({
       adapter: makeTestAkbAdapter(),
@@ -137,55 +92,35 @@ describe("listIssues default_view", () => {
       actor: "alice",
     });
     expect(res.issues).toHaveLength(1);
-    expect(calls).toHaveLength(3);
-    expect(sqlOf(calls[1])).toContain("LIMIT 1");
-    expect(sqlOf(calls[2])).toContain(`"assigned_to" = 'alice'`);
+    // Folded: the old path cost 3 calls (active sprint + My-Issues probe + list).
+    expect(calls).toHaveLength(1);
+    const sql = sqlOf(calls[0]);
+    expect(sql).toContain(`"assigned_to" = 'alice'`);
+    expect(sql).toContain("EXISTS (SELECT 1 FROM reef_issues");
+    expect(sql).toContain(SPRINT_SUBQ);
   });
 
-  it("falls back to the sprint/floor view when My Issues is empty", async () => {
-    const { calls } = setupFetch([
-      { body: tableQuery([sprintRow()]) },
-      { body: makeIssueQueryResponse([]) },
-      { body: makeIssueQueryResponse([]) },
-    ]);
-    const query = IssueListQuerySchema.parse({ default_view: true });
-    await listIssues({
-      adapter: makeTestAkbAdapter(),
-      vault: "reef-acme",
-      query,
-      actor: "alice",
-    });
-    expect(calls).toHaveLength(3);
-    expect(sqlOf(calls[1])).toContain(`"assigned_to" = 'alice'`);
-    expect(sqlOf(calls[2])).toContain(`"sprint_id" = '${SPRINT_ID}'`);
-    expect(sqlOf(calls[2])).not.toContain("assigned_to");
-  });
-
-  it("uses the active sprint when no actor is resolved", async () => {
-    const { calls } = setupFetch([
-      { body: tableQuery([sprintRow()]) },
-      { body: makeIssueQueryResponse([]) },
-    ]);
+  it("floors to the active sprint in one query when no actor is resolved", async () => {
+    const { calls } = setupFetch([{ body: makeIssueQueryResponse([]) }]);
     const query = IssueListQuerySchema.parse({ default_view: true });
     await listIssues({
       adapter: makeTestAkbAdapter(),
       vault: "reef-acme",
       query,
     });
-    expect(calls).toHaveLength(2);
-    expect(sqlOf(calls[1])).toContain(`"sprint_id" = '${SPRINT_ID}'`);
+    expect(calls).toHaveLength(1);
+    const sql = sqlOf(calls[0]);
+    expect(sql).toContain(SPRINT_SUBQ);
+    expect(sql).not.toContain("assigned_to");
+    expect(sql).not.toContain("EXISTS");
   });
 
-  it("keeps the resolved scope consistent on cursor pages when My Issues is empty", async () => {
+  it("keeps the resolved scope and the keyset together in one query on cursor pages", async () => {
     const cursor = encodeCursor(
       { created_at: "2026-05-02T00:00:00.000Z", reef_id: "REEF-050" },
       "created_at",
     );
-    const { calls } = setupFetch([
-      { body: tableQuery([sprintRow()]) }, // getActiveSprint
-      { body: makeIssueQueryResponse([]) }, // My-Issues existence check (empty)
-      { body: makeIssueQueryResponse([]) }, // main page-2 fetch
-    ]);
+    const { calls } = setupFetch([{ body: makeIssueQueryResponse([]) }]);
     const query = IssueListQuerySchema.parse({
       default_view: true,
       limit: 50,
@@ -198,12 +133,14 @@ describe("listIssues default_view", () => {
       query,
       actor: "alice",
     });
-    // Page 2 should query the fallback (sprint) scope + keyset, not empty My Issues.
-    expect(sqlOf(calls[2])).toContain(`"sprint_id" = '${SPRINT_ID}'`);
-    expect(sqlOf(calls[2])).not.toContain("assigned_to");
-    expect(sqlOf(calls[2])).toContain(
-      `"created_at" < '2026-05-02T00:00:00.000Z'`,
-    );
+    // The combined default-view scope AND the keyset predicate land in the same
+    // statement — page 2 keeps the up-front scope (My-Issues existence test),
+    // never an empty My-Issues set.
+    expect(calls).toHaveLength(1);
+    const sql = sqlOf(calls[0]);
+    expect(sql).toContain("EXISTS (SELECT 1 FROM reef_issues");
+    expect(sql).toContain(SPRINT_SUBQ);
+    expect(sql).toContain(`"created_at" < '2026-05-02T00:00:00.000Z'`);
   });
 
   it("lets explicit filters override default_view", async () => {
@@ -218,10 +155,62 @@ describe("listIssues default_view", () => {
       query,
       actor: "alice",
     });
-    // No getActiveSprint call (default-view branch skipped) and the WHERE is the
-    // explicit facet, not the My-Issues / sprint default view.
+    // The default-view branch is skipped, so the WHERE is the explicit facet and
+    // there is no folded sprint/EXISTS subquery.
     expect(calls).toHaveLength(1);
-    expect(sqlOf(calls[0])).toContain(`"status" IN ('done')`);
-    expect(sqlOf(calls[0])).not.toContain("assigned_to");
+    const sql = sqlOf(calls[0]);
+    expect(sql).toContain(`"status" IN ('done')`);
+    expect(sql).not.toContain("assigned_to");
+    expect(sql).not.toContain("EXISTS");
+  });
+
+  it("falls back to a sprint-free query when reef_sprints is missing (pre-planning vault)", async () => {
+    const { calls } = setupFetch([
+      // The folded query fails on the missing sprint table…
+      {
+        body: {
+          error: 'relation "vt_reef-acme__reef_sprints" does not exist',
+        },
+      },
+      // …and the sprint-free retry returns the floor / My-Issues rows.
+      { body: makeIssueQueryResponse([ISSUE]) },
+    ]);
+    const query = IssueListQuerySchema.parse({ default_view: true });
+    const res = await listIssues({
+      adapter: makeTestAkbAdapter(),
+      vault: "reef-acme",
+      query,
+      actor: "alice",
+    });
+    expect(res.issues).toHaveLength(1);
+    expect(calls).toHaveLength(2);
+    // The retry carries no reef_sprints reference but keeps the My-Issues fold.
+    const retrySql = sqlOf(calls[1]);
+    expect(retrySql).not.toContain("reef_sprints");
+    expect(retrySql).toContain("EXISTS (SELECT 1 FROM reef_issues");
+    expect(retrySql).toContain(`"assigned_to" = 'alice'`);
+  });
+
+  it("returns an empty list for a never-onboarded vault (missing table)", async () => {
+    // The folded query and its sprint-free retry both hit the missing reef_issues
+    // table, so the view collapses to an empty board.
+    const { calls } = setupFetch([
+      {
+        body: { error: 'relation "vt_reef-acme__reef_issues" does not exist' },
+      },
+      {
+        body: { error: 'relation "vt_reef-acme__reef_issues" does not exist' },
+      },
+    ]);
+    const query = IssueListQuerySchema.parse({ default_view: true });
+    const res = await listIssues({
+      adapter: makeTestAkbAdapter(),
+      vault: "reef-acme",
+      query,
+      actor: "alice",
+    });
+    expect(res.issues).toEqual([]);
+    expect(res.next_cursor).toBeNull();
+    expect(calls).toHaveLength(2);
   });
 });

@@ -25,6 +25,7 @@ import {
   buildSsoStartCookie,
   decodeJwtExp,
   decodeSessionActor,
+  decodeSessionUsername,
   isJwtExpired,
   parseCookieHeader,
 } from "./sessionCookie";
@@ -224,6 +225,29 @@ describe("decodeSessionActor", () => {
         `h.${Buffer.from("not-json").toString("base64url")}.s`,
       ),
     ).toBeNull();
+  });
+});
+
+describe("decodeSessionUsername", () => {
+  it("returns the username claim", () => {
+    expect(decodeSessionUsername(makeJwt({ username: "  alice  " }))).toBe(
+      "alice",
+    );
+  });
+
+  it("ignores preferred_username and sub (only username matches assigned_to)", () => {
+    expect(
+      decodeSessionUsername(
+        makeJwt({ preferred_username: "alice-kc", sub: "uuid-1" }),
+      ),
+    ).toBeNull();
+    expect(decodeSessionUsername(makeJwt({ sub: "uuid-2" }))).toBeNull();
+  });
+
+  it("returns null for an empty/non-string username or a malformed token", () => {
+    expect(decodeSessionUsername(makeJwt({ username: "" }))).toBeNull();
+    expect(decodeSessionUsername(makeJwt({ username: 42 }))).toBeNull();
+    expect(decodeSessionUsername("only-one-segment")).toBeNull();
   });
 });
 

@@ -241,23 +241,14 @@ export function isJwtExpired(
 const ACTOR_CLAIMS = ["username", "preferred_username", "sub"] as const;
 
 /**
- * Read a display/audit actor identifier from a session JWT's claims WITHOUT
- * verifying the signature (akb re-validates every forwarded request). Returns
- * the first non-empty `username` / `preferred_username` / `sub` claim, or null
- * when the token is malformed or carries none.
- *
- * Used by `proxy.ts` to stamp the request log line with the akb username so an
- * error can be tied to a user (REEF-271). It returns just a public identity
- * claim — not the raw token — so the result is safe to log; the JWT itself
- * stays out of every sink. Mirrors core's private `getCurrentActor` claim order
- * (auth.ts).
- *
- * Decoded with the Web `atob` + URL-safe base64 normalization rather than Node's
- * `Buffer`, so it is runtime-agnostic — the proxy defaults to the Node runtime in
- * Next.js 16, but keeping this off Node-just globals removes any edge-runtime
- * doubt and matches core's deliberate framework-agnostic `decodeJwtActor`.
+ * Parse a session JWT's payload claims WITHOUT verifying the signature (akb
+ * re-validates every forwarded request). Returns the decoded claim object, or
+ * null when the token is malformed. Decoded with the Web `atob` + URL-safe
+ * base64 normalization rather than Node's `Buffer`, so it is runtime-agnostic —
+ * the proxy defaults to the Node runtime in Next.js 16, but keeping this off
+ * Node-only globals removes any edge-runtime doubt.
  */
-export function decodeSessionActor(jwt: string): string | null {
+function decodeJwtClaims(jwt: string): Record<string, unknown> | null {
   const segments = jwt.split(".");
   if (segments.length < 2) return null;
   try {
@@ -265,20 +256,59 @@ export function decodeSessionActor(jwt: string): string | null {
     const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
     const binary = atob(padded); // Web API global — Node 18+ and edge alike
     const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
-    const payload = JSON.parse(new TextDecoder().decode(bytes)) as Record<
+    return JSON.parse(new TextDecoder().decode(bytes)) as Record<
       string,
       unknown
     >;
-    for (const claim of ACTOR_CLAIMS) {
-      const value = payload[claim];
-      if (typeof value === "string" && value.trim().length > 0) {
-        return value.trim();
-      }
-    }
-    return null;
   } catch {
     return null;
   }
+}
+
+/** First non-empty string claim (trimmed) from `claims` in `keys` order, else null. */
+function firstClaimString(
+  claims: Record<string, unknown>,
+  keys: readonly string[],
+): string | null {
+  for (const key of keys) {
+    const value = claims[key];
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
+/**
+ * Read a display/audit actor identifier from a session JWT's claims. Returns the
+ * first non-empty `username` / `preferred_username` / `sub` claim, or null when
+ * the token is malformed or carries none.
+ *
+ * Used by `proxy.ts` to stamp the request log line with the akb username so an
+ * error can be tied to a user (REEF-271). It returns just a public identity
+ * claim — not the raw token — so the result is safe to log; the JWT itself stays
+ * out of every sink. This is a best-effort, spoofable LOG hint: it deliberately
+ * also accepts `preferred_username` / `sub`, which need NOT equal the akb
+ * username. For a functional scope decision use {@link decodeSessionUsername}.
+ */
+export function decodeSessionActor(jwt: string): string | null {
+  const claims = decodeJwtClaims(jwt);
+  return claims ? firstClaimString(claims, ACTOR_CLAIMS) : null;
+}
+
+/**
+ * Read ONLY the akb `username` claim from a session JWT (no signature
+ * verification). The `username` claim is the akb-native username — the same
+ * value `/auth/me` returns and that `reef_issues.assigned_to` stores — so it is
+ * safe to drive a functional scope decision (the default-view My-Issues filter,
+ * REEF-324), unlike the looser {@link decodeSessionActor}, which also accepts
+ * `preferred_username` (an SSO display name) or `sub` (an opaque UUID) that need
+ * not equal the akb username. Returns null when the token carries no `username`
+ * claim, so the caller falls back to the canonical `/auth/me` actor.
+ */
+export function decodeSessionUsername(jwt: string): string | null {
+  const claims = decodeJwtClaims(jwt);
+  return claims ? firstClaimString(claims, ["username"]) : null;
 }
 
 const COOKIE_PAIR = /^([^=]+)=(.*)$/;
