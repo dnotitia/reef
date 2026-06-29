@@ -391,10 +391,16 @@ function activeSprintIdSubquery(): string {
  *
  * The caller resolves the actor (web cookie decode / akb actor); the active
  * sprint and the My-Issues test are SQL subqueries here rather than prior
- * round-trips. The active-sprint subquery returning NULL (no active sprint, or a
- * never-onboarded vault whose missing table makes the whole query a
- * missing-relation the list catches) degrades to the floor alone, matching the
- * old `getActiveSprint`→null behavior. Every value is escaped via `quoteText`.
+ * round-trips. The active-sprint subquery returning NULL (no active sprint)
+ * degrades to the floor alone, matching the old `getActiveSprint`→null behavior.
+ * Every value is escaped via `quoteText`.
+ *
+ * `withActiveSprint: false` drops the active-sprint fold entirely (no
+ * `reef_sprints` reference). `listIssues` uses it to retry on a vault that has
+ * `reef_issues` but not `reef_sprints` — a pre-planning vault where embedding the
+ * sprint subquery would fail the whole query on the missing relation — so the
+ * view still degrades to the floor / My Issues instead of a blank board, the same
+ * resilience the old separate `getActiveSprint` call had.
  *
  * The `EXISTS` test does not reference the keyset cursor the caller appends, so
  * the resolved scope stays consistent across paginated pages — the up-front
@@ -402,16 +408,27 @@ function activeSprintIdSubquery(): string {
  */
 export function buildDefaultViewWhere(params: {
   actor: string | null;
+  withActiveSprint?: boolean;
 }): string {
   const floor = defaultViewStatusFloor();
-  const sprintSubquery = activeSprintIdSubquery();
-  const sprintFallback = `(${sprintSubquery} IS NULL OR "sprint_id" = ${sprintSubquery})`;
+  // The sprint arm: the active sprint when one exists, else the floor alone.
+  // Dropped to a no-op (`TRUE` / omitted) when the sprint table is unavailable.
+  const sprintFallback =
+    params.withActiveSprint === false
+      ? null
+      : (() => {
+          const sub = activeSprintIdSubquery();
+          return `(${sub} IS NULL OR "sprint_id" = ${sub})`;
+        })();
   if (!params.actor) {
-    return `${floor} AND ${sprintFallback}`;
+    return sprintFallback ? `${floor} AND ${sprintFallback}` : floor;
   }
   const actorEq = `"assigned_to" = ${quoteText(params.actor, "default view actor")}`;
   const hasMine = `EXISTS (SELECT 1 FROM ${tableRef(
     REEF_ISSUES_TABLE,
   )} WHERE ${floor} AND ${actorEq})`;
-  return `${floor} AND ((${hasMine} AND ${actorEq}) OR (NOT ${hasMine} AND ${sprintFallback}))`;
+  // No sprint table → the no-My-Issues arm is just the floor (`TRUE` under the
+  // outer floor), i.e. My Issues when the actor has any, else the floor.
+  const elseArm = sprintFallback ?? "TRUE";
+  return `${floor} AND ((${hasMine} AND ${actorEq}) OR (NOT ${hasMine} AND ${elseArm}))`;
 }

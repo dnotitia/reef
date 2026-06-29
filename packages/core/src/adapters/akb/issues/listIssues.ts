@@ -42,7 +42,8 @@ export async function listIssues(
     // a separate active-sprint or existence-probe akb round-trip. The resolved
     // scope stays up-front-consistent across cursor pages because the `EXISTS`
     // test does not depend on the keyset appended below.
-    if (query?.default_view && !hasAnyFilter(query)) {
+    const defaultViewActive = !!query?.default_view && !hasAnyFilter(query);
+    if (defaultViewActive) {
       baseWhere = buildDefaultViewWhere({ actor: actor ?? null });
       span.setAttribute("default_view", true);
     } else if (query) {
@@ -70,11 +71,38 @@ export async function listIssues(
         fetchLimit,
       );
     } catch (err) {
-      if (isMissingTableError(err)) {
+      if (!isMissingTableError(err)) throw err;
+      // The folded default view embeds a `reef_sprints` subquery. A vault that
+      // has `reef_issues` but not `reef_sprints` (a pre-planning vault) fails the
+      // whole query on the missing relation; retry once without the sprint fold
+      // so the view degrades to the floor / My Issues — the resilience the old
+      // separate `getActiveSprint` call had — instead of a blank board. A
+      // genuinely never-onboarded vault (`reef_issues` also missing) fails the
+      // retry too and yields the empty result below.
+      if (!defaultViewActive) {
         span.setAttribute("table_exists", false);
         return { issues: [], next_cursor: null };
       }
-      throw err;
+      try {
+        rawRows = await selectIssueRows(
+          adapter,
+          vault,
+          combine(
+            buildDefaultViewWhere({
+              actor: actor ?? null,
+              withActiveSprint: false,
+            }),
+          ),
+          orderBy,
+          fetchLimit,
+        );
+      } catch (retryErr) {
+        if (isMissingTableError(retryErr)) {
+          span.setAttribute("table_exists", false);
+          return { issues: [], next_cursor: null };
+        }
+        throw retryErr;
+      }
     }
 
     // Fetched `limit + 1` as a sentinel: a full extra row means there is a next

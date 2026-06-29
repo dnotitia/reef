@@ -57,6 +57,26 @@ describe("buildDefaultViewWhere", () => {
     const where = buildDefaultViewWhere({ actor: "a'b" });
     expect(where).toContain(`"assigned_to" = 'a''b'`);
   });
+
+  it("drops the active-sprint fold (no reef_sprints reference) when withActiveSprint is false", () => {
+    const noActor = buildDefaultViewWhere({
+      actor: null,
+      withActiveSprint: false,
+    });
+    expect(noActor).toBe(FLOOR);
+    expect(noActor).not.toContain("reef_sprints");
+
+    const actorEq = `"assigned_to" = 'alice'`;
+    const hasMine = `EXISTS (SELECT 1 FROM reef_issues WHERE ${FLOOR} AND ${actorEq})`;
+    const withActor = buildDefaultViewWhere({
+      actor: "alice",
+      withActiveSprint: false,
+    });
+    expect(withActor).toBe(
+      `${FLOOR} AND ((${hasMine} AND ${actorEq}) OR (NOT ${hasMine} AND TRUE))`,
+    );
+    expect(withActor).not.toContain("reef_sprints");
+  });
 });
 
 describe("listIssues default_view", () => {
@@ -144,8 +164,40 @@ describe("listIssues default_view", () => {
     expect(sql).not.toContain("EXISTS");
   });
 
-  it("returns an empty list for a never-onboarded vault (missing table)", async () => {
+  it("falls back to a sprint-free query when reef_sprints is missing (pre-planning vault)", async () => {
     const { calls } = setupFetch([
+      // The folded query fails on the missing sprint table…
+      {
+        body: {
+          error: 'relation "vt_reef-acme__reef_sprints" does not exist',
+        },
+      },
+      // …and the sprint-free retry returns the floor / My-Issues rows.
+      { body: makeIssueQueryResponse([ISSUE]) },
+    ]);
+    const query = IssueListQuerySchema.parse({ default_view: true });
+    const res = await listIssues({
+      adapter: makeTestAkbAdapter(),
+      vault: "reef-acme",
+      query,
+      actor: "alice",
+    });
+    expect(res.issues).toHaveLength(1);
+    expect(calls).toHaveLength(2);
+    // The retry carries no reef_sprints reference but keeps the My-Issues fold.
+    const retrySql = sqlOf(calls[1]);
+    expect(retrySql).not.toContain("reef_sprints");
+    expect(retrySql).toContain("EXISTS (SELECT 1 FROM reef_issues");
+    expect(retrySql).toContain(`"assigned_to" = 'alice'`);
+  });
+
+  it("returns an empty list for a never-onboarded vault (missing table)", async () => {
+    // The folded query and its sprint-free retry both hit the missing reef_issues
+    // table, so the view collapses to an empty board.
+    const { calls } = setupFetch([
+      {
+        body: { error: 'relation "vt_reef-acme__reef_issues" does not exist' },
+      },
       {
         body: { error: 'relation "vt_reef-acme__reef_issues" does not exist' },
       },
@@ -159,6 +211,6 @@ describe("listIssues default_view", () => {
     });
     expect(res.issues).toEqual([]);
     expect(res.next_cursor).toBeNull();
-    expect(calls).toHaveLength(1);
+    expect(calls).toHaveLength(2);
   });
 });
