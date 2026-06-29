@@ -173,14 +173,22 @@ describe("listMembershipInvalidationPredicate", () => {
     );
   });
 
-  it("maps archived_at to the archived facet", () => {
+  it("refetches active variants but not widened ones on archive/restore", () => {
     const predicate = listMembershipInvalidationPredicate(["archived_at"]);
-    expect(predicate(key({ archived: "true", sort_field: "created_at" }))).toBe(
+    // An active variant omits `archived`, so it filters `archived_at IS NULL`
+    // server-side: a restore adds (an archive removes) the row, which the
+    // in-place patch cannot do → refetch.
+    expect(predicate(key({ status: ["todo"], sort_field: "created_at" }))).toBe(
       true,
     );
-    expect(predicate(key({ status: ["todo"], sort_field: "created_at" }))).toBe(
+    // A widened variant (`archived: "true"`) shows both scopes, so archive /
+    // restore leaves its membership unchanged → no refetch.
+    expect(predicate(key({ archived: "true", sort_field: "created_at" }))).toBe(
       false,
     );
+    // The bare full list sends no `archived` param → every issue regardless of
+    // archived state → membership unchanged.
+    expect(predicate(key())).toBe(false);
   });
 
   it("always refetches a free-text (q) variant", () => {
