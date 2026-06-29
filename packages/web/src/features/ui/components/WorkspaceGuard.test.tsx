@@ -81,7 +81,7 @@ describe("WorkspaceGuard (REEF-315)", () => {
     expect(notFoundMock).toHaveBeenCalled();
   });
 
-  it("renders the shell optimistically while the vault list is loading (no member is held back)", () => {
+  it("renders the shell optimistically while the vault list is loading, without persisting the unconfirmed vault", () => {
     vaultsRef.current = { isPending: true, isSuccess: false, isError: false };
     render(
       <WorkspaceGuard appVersion="1.0.0">
@@ -92,9 +92,12 @@ describe("WorkspaceGuard (REEF-315)", () => {
     expect(
       screen.queryByTestId("workspace-access-denied"),
     ).not.toBeInTheDocument();
+    // Membership is unconfirmed → do not poison the "last viewed" default yet.
+    expect(syncMock).toHaveBeenCalledWith("");
+    expect(syncMock).not.toHaveBeenCalledWith("reef-acme");
   });
 
-  it("shows the access-denied surface for a non-member, never a silent fallback", () => {
+  it("shows the access-denied surface for a non-member and does not persist the denied vault", () => {
     vaultsRef.current = {
       isPending: false,
       isSuccess: true,
@@ -110,6 +113,9 @@ describe("WorkspaceGuard (REEF-315)", () => {
       "reef-acme",
     );
     expect(screen.queryByTestId("dashboard-shell")).not.toBeInTheDocument();
+    // A denied deep link must never overwrite the browser default (autoreview).
+    expect(syncMock).toHaveBeenCalledWith("");
+    expect(syncMock).not.toHaveBeenCalledWith("reef-acme");
   });
 
   it("degrades open (renders the shell) when the vault list fails to load", () => {
