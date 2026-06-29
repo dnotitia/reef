@@ -8,9 +8,9 @@ import { notFound, redirect } from "next/navigation";
  * settings hit (bookmark, old link, sidebar nav) lands on a real tab page. The
  * redirect runs server-side, so there is no client flash of an empty shell.
  *
- * This server redirect runs before the client `WorkspaceGuard`, so it must apply
+ * This server redirect runs before the client `WorkspaceGuard`, so it applies
  * the same malformed-vault 404 itself — otherwise `withVault` would return a
- * bare path for an invalid segment and redirect into the legacy shim instead of
+ * bare path for an invalid segment and redirect into the flat-route shim instead of
  * the promised hard 404 (REEF-315 AC5).
  */
 export default async function SettingsPage({

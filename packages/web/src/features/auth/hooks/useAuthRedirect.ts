@@ -9,9 +9,9 @@ import { useEffect } from "react";
 /**
  * `root` — RootPage at `/`: redirect to the Dexie default workspace's
  *   `/workspace/{vault}/issues` when fully onboarded (REEF-315).
- * `workspace` — workspace layout guard: session-only gate. The vault now lives
+ * `workspace` — workspace layout guard: session-scoped gate. The vault now lives
  *   in the URL, so membership (not a Dexie pointer) is validated downstream by
- *   `WorkspaceGuard`; an empty Dexie pointer must NOT bounce a member who
+ *   `WorkspaceGuard`; an empty Dexie pointer should not bounce a member who
  *   followed a shared `/workspace/{vault}/...` link to `/onboarding`.
  * `onboarding` — `/onboarding` page: session check; vault is being picked here.
  */

@@ -11,7 +11,7 @@ import { resolveOptionalActor } from "./requestHelpers";
 
 /**
  * REEF-324: the default-view read path resolves its scope actor straight from
- * the session-cookie JWT claims, paying an akb `/auth/me` round-trip only when
+ * the session-cookie JWT claims, paying an akb `/auth/me` round-trip when
  * the token carries no public-identifier claim. These tests pin both branches.
  */
 
@@ -51,7 +51,7 @@ describe("resolveOptionalActor", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    // exp only — no username claim to decode.
+    // exp claim — no username claim to decode.
     const jwt = makeJwt({ exp: FUTURE_EXP });
     const actor = await resolveOptionalActor(requestWithSession(jwt));
 
@@ -61,7 +61,7 @@ describe("resolveOptionalActor", () => {
 
   it("ignores a sub/preferred_username-only token and resolves the canonical /auth/me actor", async () => {
     // A `sub` (opaque UUID) or SSO `preferred_username` need NOT equal the akb
-    // username stored in `assigned_to`, so the fast path must NOT use them —
+    // username stored in `assigned_to`, so the fast path should not use them —
     // it defers to /auth/me, whose `username` is the value the My-Issues filter
     // needs (REEF-324).
     vi.stubEnv("AKB_BACKEND_URL", "https://akb.test");

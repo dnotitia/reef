@@ -72,16 +72,16 @@ export async function deleteVault(params: DeleteVaultParams): Promise<void> {
  * Remove the reef layer from a vault while leaving the akb vault and any
  * non-reef content intact (REEF-322 detach).
  *
- * Documents are deleted by reef ownership, never by recursively clearing a
+ * Documents are deleted by reef ownership rather than by recursively clearing a
  * collection that could also hold the team's own content:
- *  - issue documents — by their deterministic id→path (only reef's docs in the
+ *  - issue documents — by their deterministic id→path (reef's docs in the
  *    shared-name `issues/` collection);
  *  - vault-skill documents — by the exact paths reef installed;
  *  - the AI activity inbox — recursively, because it lives under reef's private
- *    `_reef/` namespace, which never holds non-reef documents.
+ *    `_reef/` namespace, which does not hold non-reef documents.
  *
  * Then every reef table is dropped, `reef_settings` LAST so `has_reef_config`
- * only flips to false once the rest of the teardown has already succeeded. Every
+ * flips to false once the rest of the teardown has already succeeded. Every
  * step is idempotent (a 404 / missing table means already gone), so a failed run
  * is safe to retry. The acting user is recorded on the span for the audit trail
  * (AC5).

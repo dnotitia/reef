@@ -118,7 +118,7 @@ describe("detachReef", () => {
     // 8 vault-skill docs + 2 issue docs.
     expect(docDeletes).toHaveLength(10);
 
-    // Only the reef-private `_reef/` namespace is swept by collection (recursive).
+    // The reef-private `_reef/` namespace is swept by collection (recursive).
     expect(collectionDeletes).toEqual([
       "/api/v1/collections/reef-sample/_reef/activity-inbox",
     ]);

@@ -100,7 +100,7 @@ describe("useActiveVault", () => {
     });
 
     // The URL is known synchronously, so the URL vault wins immediately and is
-    // never "loading".
+    // the hook is not in a loading state.
     expect(result.current.vault).toBe("reef-url");
     expect(result.current.isLoading).toBe(false);
   });

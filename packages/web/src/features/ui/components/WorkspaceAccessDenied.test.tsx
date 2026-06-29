@@ -29,7 +29,7 @@ describe("WorkspaceAccessDenied (REEF-315 AC5)", () => {
     expect(
       screen.queryByTestId("access-denied-workspace-raw"),
     ).not.toBeInTheDocument();
-    // No silent fallback: the onboarding CTA only appears when there are no
+    // No silent fallback: the onboarding CTA appears when there are no
     // reef workspaces to switch to.
     expect(
       screen.queryByTestId("access-denied-onboarding"),

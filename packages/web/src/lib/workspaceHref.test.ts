@@ -30,7 +30,7 @@ describe("withVault (REEF-315)", () => {
   });
 
   it("returns the bare path for a malformed vault name", () => {
-    // Uppercase / illegal chars never name a real akb vault, so never build a
+    // Uppercase / illegal chars do not name a real akb vault, so skip building a
     // bogus /workspace/{bad}/… URL.
     expect(withVault("Bad_Vault", "/issues")).toBe("/issues");
     expect(withVault("has space", "/issues")).toBe("/issues");

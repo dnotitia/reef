@@ -36,7 +36,7 @@ export async function DELETE(
   if ("response" in adapterResult) return adapterResult.response;
   const { adapter } = adapterResult;
 
-  // Owner-only — reef restricts full delete to the workspace owner even though
+  // Owner-scoped — reef restricts full delete to the workspace owner even though
   // akb would let an admin through (REEF-322). Enforced server-side, not just in
   // the Danger Zone UI gate.
   const ownerResult = await requireVaultOwner(adapter, vault);

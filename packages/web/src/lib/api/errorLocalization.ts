@@ -133,7 +133,7 @@ export function agentErrorEnvelope(
  * for the active locale (falling back to en per key via the catalog merge, AC3)
  * and keeps the `code`/`recoverable` contract unchanged — both `error` and
  * `runtime_error.message` carry the localized text (AC2). `fallback` (the
- * caller's English default) is used only when the catalog has no entry for
+ * caller's English default) is used when the catalog has no entry for
  * `key`, so an unmapped future code still ships a message rather than a raw key
  * path.
  */

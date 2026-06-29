@@ -145,8 +145,8 @@ describe("ActiveWorkspaceSection", () => {
     await waitFor(() =>
       expect(setActiveVault).toHaveBeenCalledWith("reef-beta"),
     );
-    // The active vault is the URL segment now, so the picker must navigate to
-    // the selected workspace's settings tab rather than only writing Dexie.
+    // The active vault is the URL segment now, so the picker should navigate to
+    // the selected workspace's settings tab rather than writing Dexie alone.
     await waitFor(() =>
       expect(routerPush).toHaveBeenCalledWith(
         "/workspace/reef-beta/settings/workspace",

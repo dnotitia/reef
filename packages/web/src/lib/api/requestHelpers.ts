@@ -286,13 +286,13 @@ export async function getAkbCurrentActor(
  *
  * Fast path (REEF-324): decode the actor from the session cookie's akb
  * `username` claim so the default-view landing pays NO akb `/auth/me` round-trip
- * in the common case. Only the `username` claim is used — it is the akb-native
+ * in the common case. The `username` claim is used — it is the akb-native
  * username, the same value `/auth/me` returns and that `assigned_to` stores, so
  * the fast-path actor equals the canonical actor `getAkbCurrentActor` would
  * resolve. (`preferred_username` / `sub` are deliberately NOT used here: an SSO
  * display name or an opaque UUID need not match `assigned_to`, which would
- * mis-scope the My-Issues view.) This is sound because the read-path actor only
- * *scopes* the landing list — it is never an authorization decision; the data
+ * mis-scope the My-Issues view.) This is sound because the read-path actor
+ * *scopes* the landing list — it is not an authorization decision; the data
  * query still forwards the real bearer token to akb, which re-validates it. The
  * signature is not verified.
  *
@@ -317,10 +317,10 @@ export async function resolveOptionalActor(
 }
 
 /**
- * Enforce the owner-only policy for destructive workspace-lifecycle actions
+ * Enforce the owner-scoped policy for destructive workspace-lifecycle actions
  * (REEF-322 delete / detach). akb's own floor for deleting a vault or dropping a
  * table is *admin*, but reef restricts these to the workspace owner — so the
- * server must verify the caller's role rather than trusting the client-side
+ * server verifies the caller's role rather than trusting the client-side
  * Danger Zone gate (a non-owner admin could otherwise call the route directly).
  * The caller's per-vault role comes from the same `my/vaults` projection the UI
  * gate reads. Returns `{ owner: true }` to proceed, or `{ response }` (403, or a

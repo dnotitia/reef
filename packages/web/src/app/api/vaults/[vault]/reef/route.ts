@@ -34,9 +34,9 @@ export async function DELETE(
   if ("response" in adapterResult) return adapterResult.response;
   const { adapter } = adapterResult;
 
-  // Owner-only — dropping reef tables is an akb admin-floor operation, but reef
+  // Owner-scoped — dropping reef tables is an akb admin-floor operation, but reef
   // restricts detach to the workspace owner (REEF-322). Enforced server-side so
-  // a non-owner admin cannot bypass the Danger Zone UI gate via a direct call.
+  // a non-owner admin is blocked from bypassing the Danger Zone UI gate via a direct call.
   const ownerResult = await requireVaultOwner(adapter, vault);
   if ("response" in ownerResult) return ownerResult.response;
 

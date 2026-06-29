@@ -64,10 +64,12 @@ const SLOW_TEST_SUPPRESSIONS = new Set([
   "useIssueFilterPersistence scopes saves per vault",
   "IssueDetail keeps detail auto-save active after React StrictMode effect replay",
   "IssueDetail commits implementation refs from delivery activity edits",
+  "IssueDetail commits blocks relationships from the detail panel",
   "useIssueFilterPersistence ignores searchQuery and selectedIssueId changes (filter object unchanged)",
   "useIssueFilterPersistence does not wipe the saved slot when the store is empty at mount",
   "IssueDetail keeps an earlier field's failure surfaced when a later, unrelated field saves",
   "NewIssueDialog confirms before discarding a dirty draft, then closes on confirm",
+  "NewIssueDialog lets the user add external references while creating an issue",
   "agent artifact edit routes defines the edit command contract",
   "agent artifact dismiss routes defines the dismiss command contract",
   "useIssueFilterPersistence coalesces rapid changes into a single debounced write of the latest value",
@@ -90,6 +92,7 @@ const SLOW_TEST_SUPPRESSIONS = new Set([
   "NewIssueDialog confirms discard when only an uncommitted child draft has content",
   "buildLoggerOptions — dev pretty vs prod JSON, redaction, error allowlist preserves the upstream status of a typed reef API error, not its detail (REEF-271)",
   "IssueDetail requests /api/issues/{id}?vault={vault} on mount",
+  "IssueDetail asks for a close reason before closing from the detail panel",
   "i18n hardcoded-string guard matches the committed baseline (no new hardcoded JSX strings)",
 ]);
 

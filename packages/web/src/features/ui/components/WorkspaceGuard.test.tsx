@@ -113,7 +113,7 @@ describe("WorkspaceGuard (REEF-315)", () => {
       "reef-acme",
     );
     expect(screen.queryByTestId("dashboard-shell")).not.toBeInTheDocument();
-    // A denied deep link must never overwrite the browser default (autoreview).
+    // A denied deep link should leave the browser default (autoreview).
     expect(syncMock).toHaveBeenCalledWith("");
     expect(syncMock).not.toHaveBeenCalledWith("reef-acme");
   });

@@ -154,7 +154,7 @@ describe("apiClient.fetch — X-Reef-Vault (REEF-315)", () => {
 
   it("respects a caller-provided X-Reef-Vault over the Dexie default (tab-local context)", async () => {
     // Two tabs share the Dexie pointer; the URL-scoped caller (chat transport)
-    // sets its own workspace and the shared default must not clobber it.
+    // sets its own workspace and the shared default should not clobber it.
     await setConfigValue("vault", "reef-dexie");
 
     await apiClient.fetch("/api/chat", {
