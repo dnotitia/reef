@@ -22,6 +22,9 @@ vi.mock("@/features/settings/components/TemplatesSection", () => ({
 vi.mock("@/features/settings/components/WorkspaceSkillSection", () => ({
   WorkspaceSkillSection: () => <section>Workspace skill</section>,
 }));
+vi.mock("@/features/settings/components/DangerZoneSection", () => ({
+  DangerZoneSection: () => <section>Danger zone</section>,
+}));
 vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   useActiveVault: () => ({ vault: "reef-acme", isLoading: false }),
 }));

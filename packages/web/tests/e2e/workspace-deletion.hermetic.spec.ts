@@ -32,9 +32,9 @@ test.describe("Hermetic workspace deletion danger zone (REEF-322)", () => {
     const before = await readFixtureState(request);
     const reefBefore = before.vaults.find((v) => v.name === "reef-e2e");
     expect(reefBefore?.tables).toContain("reef_settings");
-    expect(reefBefore?.documents.some((d) => d.path.startsWith("issues/"))).toBe(
-      true,
-    );
+    expect(
+      reefBefore?.documents.some((d) => d.path.startsWith("issues/")),
+    ).toBe(true);
 
     // Detach is a one-step confirm (no typing gate).
     await main.getByTestId("danger-zone-detach").click();
@@ -51,9 +51,9 @@ test.describe("Hermetic workspace deletion danger zone (REEF-322)", () => {
     expect(reefAfter).toBeDefined();
     expect(reefAfter?.tables).not.toContain("reef_settings");
     expect(reefAfter?.tables).not.toContain("reef_issues");
-    expect(
-      reefAfter?.documents.some((d) => d.path.startsWith("issues/")),
-    ).toBe(false);
+    expect(reefAfter?.documents.some((d) => d.path.startsWith("issues/"))).toBe(
+      false,
+    );
   });
 
   test("delete requires typing the name, removes the whole vault, and redirects", async ({
