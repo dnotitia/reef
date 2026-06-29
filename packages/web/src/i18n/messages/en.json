@@ -262,6 +262,7 @@
     "missingVault": "Missing or invalid `vault` parameter.",
     "invalidIssueId": "Invalid issue id. Expected format: PREFIX-NUMBER.",
     "backend": "Workspace backend error.",
+    "workspaceOwnerRequired": "Only the workspace owner can do that.",
     "githubAppUnconfigured": "GitHub App is not configured for this deployment.",
     "invalidSuggestionId": "Invalid suggestion id.",
     "invalidSuggestionStatus": "Invalid suggestion status.",

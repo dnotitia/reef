@@ -301,6 +301,7 @@
     "missingVault": "`vault` 매개변수가 없거나 올바르지 않습니다.",
     "invalidIssueId": "잘못된 이슈 ID입니다. 형식: PREFIX-NUMBER.",
     "backend": "워크스페이스 백엔드 오류입니다.",
+    "workspaceOwnerRequired": "워크스페이스 소유자만 할 수 있습니다.",
     "githubAppUnconfigured": "이 배포에는 GitHub App이 설정되어 있지 않습니다.",
     "invalidSuggestionId": "잘못된 제안 ID입니다.",
     "invalidSuggestionStatus": "잘못된 제안 상태입니다.",

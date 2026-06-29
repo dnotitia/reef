@@ -3,6 +3,7 @@ import {
   getAkbAdapter,
   getAkbCurrentActor,
   missingVaultParamResponse,
+  requireVaultOwner,
   respondWithError,
 } from "@/lib/api/requestHelpers";
 import { logger } from "@/lib/logging/logger";
@@ -32,6 +33,12 @@ export async function DELETE(
   const adapterResult = getAkbAdapter(request);
   if ("response" in adapterResult) return adapterResult.response;
   const { adapter } = adapterResult;
+
+  // Owner-only — dropping reef tables is an akb admin-floor operation, but reef
+  // restricts detach to the workspace owner (REEF-322). Enforced server-side so
+  // a non-owner admin cannot bypass the Danger Zone UI gate via a direct call.
+  const ownerResult = await requireVaultOwner(adapter, vault);
+  if ("response" in ownerResult) return ownerResult.response;
 
   logger.warn(
     { vault, actor, op: "workspace.detach" },

@@ -5,12 +5,17 @@ vi.mock("@/lib/logging/logger", () => ({
   logger: { warn: vi.fn(), error: vi.fn() },
 }));
 
-const { mockDetachReef, mockGetCurrentActor, mockCreateAkbAdapter } =
-  vi.hoisted(() => ({
-    mockDetachReef: vi.fn(),
-    mockGetCurrentActor: vi.fn(),
-    mockCreateAkbAdapter: vi.fn(),
-  }));
+const {
+  mockDetachReef,
+  mockGetCurrentActor,
+  mockCreateAkbAdapter,
+  mockListVaults,
+} = vi.hoisted(() => ({
+  mockDetachReef: vi.fn(),
+  mockGetCurrentActor: vi.fn(),
+  mockCreateAkbAdapter: vi.fn(),
+  mockListVaults: vi.fn(),
+}));
 
 vi.mock("@reef/core", async () => {
   const actual =
@@ -19,6 +24,7 @@ vi.mock("@reef/core", async () => {
     ...actual,
     akbDetachReef: mockDetachReef,
     akbGetCurrentActor: mockGetCurrentActor,
+    akbListVaults: mockListVaults,
     createAkbAdapter: mockCreateAkbAdapter,
   };
 });
@@ -41,6 +47,10 @@ beforeEach(() => {
   vi.stubEnv("AKB_BACKEND_URL", "http://akb.test");
   mockCreateAkbAdapter.mockReturnValue({ request: vi.fn() });
   mockGetCurrentActor.mockResolvedValue({ actor: "alice" });
+  // Default: the caller owns the vault (owner-only gate passes).
+  mockListVaults.mockResolvedValue({
+    vaults: [{ name: "reef-acme", role: "owner" }],
+  });
 });
 
 afterEach(() => {
@@ -90,5 +100,20 @@ describe("DELETE /api/vaults/[vault]/reef", () => {
     });
     const res = await DELETE(req, ctx());
     expect(res.status).toBe(401);
+  });
+
+  it("rejects a non-owner (admin) with 403 and never calls detach", async () => {
+    // Server-enforces owner-only even though dropping reef tables is an akb
+    // admin-floor operation (REEF-322).
+    mockListVaults.mockResolvedValueOnce({
+      vaults: [{ name: "reef-acme", role: "admin" }],
+    });
+    const req = new Request("http://localhost/api/vaults/reef-acme/reef", {
+      method: "DELETE",
+      headers: authedHeaders(),
+    });
+    const res = await DELETE(req, ctx());
+    expect(res.status).toBe(403);
+    expect(mockDetachReef).not.toHaveBeenCalled();
   });
 });
