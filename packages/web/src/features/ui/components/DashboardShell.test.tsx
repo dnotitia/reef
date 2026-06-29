@@ -73,7 +73,7 @@ const {
   skillStatusState,
 } = vi.hoisted(() => ({
   navigationState: {
-    pathname: "/issues",
+    pathname: "/workspace/reef-acme/issues",
   },
   unreadInboxState: {
     count: 0,
@@ -110,7 +110,7 @@ function wrap(ui: ReactNode) {
 describe("DashboardShell", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    navigationState.pathname = "/issues";
+    navigationState.pathname = "/workspace/reef-acme/issues";
     unreadInboxState.count = 0;
     myWorkAttentionState.attention = 0;
     myWorkAttentionState.overdue = 0;
@@ -238,7 +238,7 @@ describe("DashboardShell", () => {
   });
 
   it("hides the My Work badge while on /my-work (the page owns the count) (REEF-204)", () => {
-    navigationState.pathname = "/my-work";
+    navigationState.pathname = "/workspace/reef-acme/my-work";
     myWorkAttentionState.attention = 2;
     myWorkAttentionState.overdue = 1;
     myWorkAttentionState.dueSoon = 1;
@@ -417,7 +417,7 @@ describe("DashboardShell", () => {
   });
 
   it("hides the Settings skill-update dot while on /settings — the page owns the drift (REEF-257)", () => {
-    navigationState.pathname = "/settings/workspace";
+    navigationState.pathname = "/workspace/reef-acme/settings/workspace";
     skillStatusState.data = { up_to_date: false };
     render(
       wrap(
@@ -474,7 +474,7 @@ describe("DashboardShell", () => {
   });
 
   it("keeps Issues active on the /issues/[id] detail route", () => {
-    navigationState.pathname = "/issues/REEF-001";
+    navigationState.pathname = "/workspace/reef-acme/issues/REEF-001";
     render(
       wrap(
         <DashboardShell appVersion="0.0.0">
@@ -490,7 +490,7 @@ describe("DashboardShell", () => {
   });
 
   it("keeps Settings active across the scope tabs (/settings/workspace) (REEF-183)", () => {
-    navigationState.pathname = "/settings/workspace";
+    navigationState.pathname = "/workspace/reef-acme/settings/workspace";
     render(
       wrap(
         <DashboardShell appVersion="0.0.0">

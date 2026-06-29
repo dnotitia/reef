@@ -18,10 +18,13 @@ export const apiClient = {
     const headers = new Headers(init?.headers);
 
     // X-Reef-Vault — read by the chat Route Handler which does not accept a
-    // `?vault=` querystring (the AI SDK transport owns the URL). Validated
-    // here so a stale/typo'd Dexie entry doesn't reach the server. Identifier
-    // just — not redacted by the logging middleware.
-    if (vault && VAULT_NAME_RE.test(vault)) {
+    // `?vault=` querystring (the AI SDK transport owns the URL). Validated here
+    // so a stale/typo'd Dexie entry doesn't reach the server. Identifier just —
+    // not redacted by the logging middleware. The Dexie value is only a
+    // fallback: a caller that already knows the workspace from the URL `[vault]`
+    // segment sets the header explicitly for tab-local request context, and the
+    // shared Dexie pointer must not clobber it (REEF-315 — tab independence).
+    if (!headers.has(VAULT_HEADER) && vault && VAULT_NAME_RE.test(vault)) {
       headers.set(VAULT_HEADER, vault);
     }
 

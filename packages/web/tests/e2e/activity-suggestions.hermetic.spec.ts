@@ -44,7 +44,7 @@ test.describe("Hermetic activity suggestion workflows", () => {
     request,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/activity");
+    await page.goto("/workspace/reef-e2e/activity");
 
     const draftCard = page
       .locator('[data-testid="activity-item-ai_draft"]')
@@ -106,7 +106,7 @@ test.describe("Hermetic activity suggestion workflows", () => {
     request,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/activity");
+    await page.goto("/workspace/reef-e2e/activity");
 
     const draftCard = page
       .locator('[data-testid="activity-item-ai_draft"]')
@@ -134,7 +134,7 @@ test.describe("Hermetic activity suggestion workflows", () => {
     request,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/activity");
+    await page.goto("/workspace/reef-e2e/activity");
 
     const statusCard = page
       .locator('[data-testid="activity-item-ai_status_change"]')
@@ -183,7 +183,7 @@ test.describe("Hermetic activity suggestion workflows", () => {
     request,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/activity");
+    await page.goto("/workspace/reef-e2e/activity");
 
     const statusCard = page
       .locator('[data-testid="activity-item-ai_status_change"]')

@@ -19,7 +19,7 @@ const { mockPush, mockReplace, mockUseActiveVault, navigationState } =
     mockReplace: vi.fn(),
     mockUseActiveVault: vi.fn(),
     navigationState: {
-      pathname: "/issues",
+      pathname: "/workspace/reef-acme/issues",
       searchParams: new URLSearchParams(),
     },
   }));
@@ -72,7 +72,7 @@ function wrap(ui: ReactNode) {
 describe("IssuesWorkspace", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
-    navigationState.pathname = "/issues";
+    navigationState.pathname = "/workspace/reef-acme/issues";
     navigationState.searchParams = new URLSearchParams();
     mockUseActiveVault.mockReturnValue({
       vault: "reef-acme",
@@ -179,9 +179,12 @@ describe("IssuesWorkspace", () => {
     render(wrap(<IssuesWorkspace />));
 
     await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith("/issues?status=todo", {
-        scroll: false,
-      });
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/workspace/reef-acme/issues?status=todo",
+        {
+          scroll: false,
+        },
+      );
     });
     expect(mockPush).not.toHaveBeenCalled();
   });

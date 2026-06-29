@@ -1,5 +1,7 @@
 "use client";
 
+import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import { withVault } from "@/lib/workspaceHref";
 import { useLocale } from "next-intl";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -66,6 +68,7 @@ export function ActivityCardHeader({
   children: ReactNode;
 }) {
   const locale = useLocale();
+  const { vault } = useActiveVault();
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0 flex-1">
@@ -73,7 +76,7 @@ export function ActivityCardHeader({
           <ActivityTypeBadge>{badge}</ActivityTypeBadge>
           {issueId && (
             <Link
-              href={`/issues/${issueId}`}
+              href={withVault(vault, `/issues/${issueId}`)}
               className="shrink-0 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:underline"
             >
               {issueId}

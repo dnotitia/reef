@@ -15,7 +15,7 @@ test.describe("Hermetic issue activity timeline (REEF-277)", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/issues/REEF-001");
+    await page.goto("/workspace/reef-e2e/issues/REEF-001");
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
 
     // The seeded reef_activity rows render as their own one-line entries.
@@ -67,7 +67,7 @@ test.describe("Hermetic issue activity timeline (REEF-277)", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/issues/REEF-001");
+    await page.goto("/workspace/reef-e2e/issues/REEF-001");
     await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
       "Initial issue Alpha",
     );

@@ -22,6 +22,7 @@ const { mockPush, navigationState } = vi.hoisted(() => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush, refresh: vi.fn() }),
   useSearchParams: () => navigationState.searchParams,
+  useParams: () => ({ vault: "reef-acme" }),
 }));
 
 const mockApiFetch = vi.mocked(apiFetch);
@@ -213,7 +214,9 @@ describe("TimelineBody", () => {
     });
     await user.click(issueButtons[0]);
 
-    expect(mockPush).toHaveBeenCalledWith("/issues/REEF-100");
+    expect(mockPush).toHaveBeenCalledWith(
+      "/workspace/reef-acme/issues/REEF-100",
+    );
   });
 
   it("preserves the current ?view= when opening an issue (REEF-222)", async () => {
@@ -226,7 +229,9 @@ describe("TimelineBody", () => {
     });
     await user.click(issueButtons[0]);
 
-    expect(mockPush).toHaveBeenCalledWith("/issues/REEF-100?view=timeline");
+    expect(mockPush).toHaveBeenCalledWith(
+      "/workspace/reef-acme/issues/REEF-100?view=timeline",
+    );
   });
 
   it("scrolls back to today when Today is clicked in the current quarter (REEF-078)", async () => {

@@ -21,6 +21,7 @@ const { mockPush, navigationState } = vi.hoisted(() => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush, refresh: vi.fn() }),
   useSearchParams: () => navigationState.searchParams,
+  useParams: () => ({ vault: "reef-acme" }),
 }));
 
 // `data-next-link` marks anchors routed through Next `Link`; a raw `<a>` lacks
@@ -160,7 +161,9 @@ describe("BacklogView", () => {
     render(wrap(<BacklogView vault="reef-acme" />));
 
     await user.click(await screen.findByText("Deferred idea"));
-    expect(mockPush).toHaveBeenCalledWith("/issues/REEF-1?view=backlog");
+    expect(mockPush).toHaveBeenCalledWith(
+      "/workspace/reef-acme/issues/REEF-1?view=backlog",
+    );
   });
 
   it("renders the empty state with a client-side board link when the backlog has no issues (REEF-262)", async () => {
@@ -169,7 +172,10 @@ describe("BacklogView", () => {
 
     expect(await screen.findByTestId("backlog-empty")).toBeInTheDocument();
     const cta = screen.getByRole("link", { name: /Go to the board/ });
-    expect(cta).toHaveAttribute("href", "/issues?view=board");
+    expect(cta).toHaveAttribute(
+      "href",
+      "/workspace/reef-acme/issues?view=board",
+    );
     expect(cta).toHaveAttribute("data-next-link", "true");
   });
 

@@ -14,7 +14,7 @@ test.describe("Hermetic My Work flow", () => {
 
   test("renders the auto-scoped summary and focus queue", async ({ page }) => {
     await openExistingWorkspace(page);
-    await page.goto("/my-work");
+    await page.goto("/workspace/reef-e2e/my-work");
 
     // Summary strip (no scope picker — auto-scoped to the signed-in user).
     await expect(page.getByTestId("my-work-summary")).toBeVisible();
@@ -31,7 +31,7 @@ test.describe("Hermetic My Work flow", () => {
 
   test("groups by status and writes the mode to the URL", async ({ page }) => {
     await openExistingWorkspace(page);
-    await page.goto("/my-work");
+    await page.goto("/workspace/reef-e2e/my-work");
     await expect(page.getByTestId("my-work-queue")).toBeVisible();
 
     await page.getByTestId("my-work-group-status").click();
@@ -48,7 +48,7 @@ test.describe("Hermetic My Work flow", () => {
 
   test("opens an issue from the queue", async ({ page }) => {
     await openExistingWorkspace(page);
-    await page.goto("/my-work");
+    await page.goto("/workspace/reef-e2e/my-work");
 
     const firstRow = page.locator('[data-testid^="my-work-row-"]').first();
     await expect(firstRow).toBeVisible();

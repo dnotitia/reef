@@ -139,7 +139,7 @@ describe("ActivityFeed", () => {
       screen.getByTestId("activity-scan-target-empty"),
     ).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "Settings" });
-    expect(link).toHaveAttribute("href", "/settings");
+    expect(link).toHaveAttribute("href", "/workspace/reef-acme/settings");
     expect(link).toHaveAttribute("data-next-link", "true");
   });
 
@@ -153,6 +153,6 @@ describe("ActivityFeed", () => {
       screen.queryByTestId("activity-scan-target"),
     ).not.toBeInTheDocument();
     const link = screen.getByRole("link", { name: "Settings" });
-    expect(link).toHaveAttribute("href", "/settings");
+    expect(link).toHaveAttribute("href", "/workspace/reef-acme/settings");
   });
 });

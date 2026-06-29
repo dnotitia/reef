@@ -4,6 +4,7 @@ import { StatusIcon } from "@/components/ui/status-icon";
 import { buildOpenIssueHref } from "@/features/issues/lib/issueHref";
 import { MyWorkRow } from "@/features/my-work/components/MyWorkRow";
 import { type MyWorkItem, groupByStatus } from "@/features/my-work/lib/myWork";
+import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useStatusLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import type { Status } from "@reef/core";
@@ -37,9 +38,10 @@ interface MyWorkQueueProps {
 export function MyWorkQueue({ items, mode, onModeChange }: MyWorkQueueProps) {
   const t = useTranslations("myWork");
   const searchParams = useSearchParams();
+  const { vault } = useActiveVault();
   const hrefFor = useCallback(
-    (id: string) => buildOpenIssueHref(id, searchParams),
-    [searchParams],
+    (id: string) => buildOpenIssueHref(vault, id, searchParams),
+    [searchParams, vault],
   );
   const groups = useMemo(
     () => (mode === "status" ? groupByStatus(items) : null),

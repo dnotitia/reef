@@ -2,6 +2,7 @@
 
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { getPersistedIssueFilter } from "@/lib/storage/config";
+import { withVault } from "@/lib/workspaceHref";
 import { StatusEnum, USER_SORT_FIELDS } from "@reef/core";
 import { type UserSortField, naturalSortOrder } from "@reef/core/fields";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -9,14 +10,16 @@ import { type RefObject, useEffect, useRef } from "react";
 import { type IssueFilter, useIssueStore } from "../../stores/useIssueStore";
 
 /**
- * The list/board workspace is scoped to `/issues`. That workspace also
- * mounts as the backdrop behind `/issues/[id]` (detail slide-over on hard nav,
- * or the intercepting-route modal on soft nav), where `usePathname()` reports
- * the detail URL. Filter-to-URL mirroring is confined to the list route, or
- * it would push the filter query onto the detail URL and fight `router.back()`
- * when the sheet is closed.
+ * The list/board workspace is scoped to the vault's issues list
+ * (`/workspace/{vault}/issues`). That workspace also mounts as the backdrop
+ * behind `.../issues/[id]` (detail slide-over on hard nav, or the
+ * intercepting-route modal on soft nav), where `usePathname()` reports the
+ * detail URL. Filter-to-URL mirroring is confined to the list route, or it
+ * would push the filter query onto the detail URL and fight `router.back()`
+ * when the sheet is closed. The vault-scoped path is computed in the hook
+ * (REEF-315).
  */
-const ISSUES_LIST_PATH = "/issues";
+const ISSUES_LIST_BASE = "/issues";
 
 const ISSUE_QUERY_KEYS = [
   "status",
@@ -370,10 +373,10 @@ export function useIssueUrlSync(): { skipNextSave: RefObject<boolean> } {
       return;
     }
     // Mirror the filter onto the list route. While a detail sheet is open
-    // the workspace is the backdrop and `pathname` is `/issues/[id]`;
+    // the workspace is the backdrop and `pathname` is `.../issues/[id]`;
     // writing the filter query there pollutes history and bounces `router.back()`
     // straight back to the detail URL, keeping the sheet open.
-    if (pathname !== ISSUES_LIST_PATH) return;
+    if (pathname !== withVault(vault, ISSUES_LIST_BASE)) return;
 
     const currentParams = searchParams.toString();
     const paramString = buildIssueSearchParams(
@@ -400,7 +403,7 @@ export function useIssueUrlSync(): { skipNextSave: RefObject<boolean> } {
         router.push(href, { scroll: false });
       }
     }
-  }, [filter, pathname, router, searchParams, searchQuery]);
+  }, [filter, pathname, router, searchParams, searchQuery, vault]);
 
   return { skipNextSave };
 }

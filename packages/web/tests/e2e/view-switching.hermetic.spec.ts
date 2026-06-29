@@ -40,7 +40,7 @@ test.describe("Hermetic issue view switching", () => {
   }) => {
     await openExistingWorkspace(page);
 
-    await page.goto("/issues");
+    await page.goto("/workspace/reef-e2e/issues");
     await expect(
       page.locator('[data-testid="kanban-board"]').first(),
     ).toBeVisible({ timeout: 15_000 });
@@ -88,7 +88,7 @@ test.describe("Hermetic issue view switching", () => {
   }) => {
     await openExistingWorkspace(page);
 
-    await page.goto("/issues");
+    await page.goto("/workspace/reef-e2e/issues");
     await expect(
       page.locator('[data-testid="kanban-board"]').first(),
     ).toBeVisible({ timeout: 15_000 });

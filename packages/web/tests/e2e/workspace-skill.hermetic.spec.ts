@@ -39,7 +39,7 @@ test.describe("Hermetic workspace skill update workflow", () => {
         ?.content,
     ).toBe("OUTDATED MANUAL SKILL CONTENT");
 
-    await page.goto("/settings/workspace");
+    await page.goto("/workspace/reef-e2e/settings/workspace");
     await expect(
       page.getByText("Newer AI instructions are available."),
     ).toBeVisible();
@@ -86,7 +86,7 @@ test.describe("Hermetic workspace skill update workflow", () => {
     // Checked off the settings route (where the active state would hide it
     // regardless) — the vault is now stamped current, so even a fresh load
     // resolves up_to_date and the badge stays dark.
-    await page.goto("/issues");
+    await page.goto("/workspace/reef-e2e/issues");
     await expect(page.getByTestId("workspace-skill-badge")).toHaveCount(0);
   });
 });

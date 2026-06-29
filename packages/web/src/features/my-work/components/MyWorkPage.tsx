@@ -20,6 +20,7 @@ import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { PageHeader } from "@/features/ui/components/PageHeader";
+import { withVault } from "@/lib/workspaceHref";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -124,9 +125,11 @@ export function MyWorkPage() {
       if (next === "priority") params.delete("group");
       else params.set("group", next);
       const qs = params.toString();
-      router.replace(qs ? `/my-work?${qs}` : "/my-work", { scroll: false });
+      router.replace(withVault(vault, qs ? `/my-work?${qs}` : "/my-work"), {
+        scroll: false,
+      });
     },
-    [router, searchParams],
+    [router, searchParams, vault],
   );
 
   // The planning catalog is an independent query, so the current sprint can be
@@ -219,7 +222,7 @@ export function MyWorkPage() {
             {t("emptyDescription")}
           </p>
           <Link
-            href="/issues?view=board"
+            href={withVault(vault, "/issues?view=board")}
             className="mt-3 inline-block text-[13px] font-medium text-brand hover:underline"
           >
             {t("goToBoard")}
@@ -240,7 +243,7 @@ export function MyWorkPage() {
             {t("caughtUpDescription")}
           </p>
           <Link
-            href="/issues?view=board"
+            href={withVault(vault, "/issues?view=board")}
             className="mt-3 inline-block text-[13px] font-medium text-brand hover:underline"
           >
             {t("goToBoard")}

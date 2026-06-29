@@ -1,6 +1,13 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// The notice now resolves the active vault (REEF-315) via useActiveVault, which
+// calls useQuery. This is the "no workspace selected" surface, so resolve it to
+// the empty vault — withVault("", "/settings") stays the bare "/settings" link.
+vi.mock("@/features/settings/hooks/useActiveVault", () => ({
+  useActiveVault: () => ({ vault: "", isLoading: false, refetch: vi.fn() }),
+}));
 
 import { EmptyWorkspaceNotice } from "./EmptyWorkspaceNotice";
 

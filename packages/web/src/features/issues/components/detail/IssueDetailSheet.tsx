@@ -10,6 +10,7 @@ import { useIssue } from "@/features/issues/hooks/queries/useIssue";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueSheetDismiss } from "@/features/issues/hooks/view/useIssueSheetDismiss";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import { withVault } from "@/lib/workspaceHref";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useState } from "react";
@@ -93,7 +94,10 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
           {t.rich("noVaultPrompt", {
             settings: nav("settings"),
             link: (chunks) => (
-              <Link href="/settings" className="text-brand underline">
+              <Link
+                href={withVault(vault, "/settings")}
+                className="text-brand underline"
+              >
                 {chunks}
               </Link>
             ),

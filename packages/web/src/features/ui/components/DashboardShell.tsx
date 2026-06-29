@@ -31,6 +31,7 @@ import { KeyboardShortcutsDialog } from "@/features/shortcuts/components/Keyboar
 import { useShortcutsStore } from "@/features/shortcuts/stores/useShortcutsStore";
 import { useViewStore } from "@/features/ui/stores/useViewStore";
 import { cn } from "@/lib/utils";
+import { withVault } from "@/lib/workspaceHref";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   BarChart3,
@@ -418,12 +419,16 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
           <ul className="flex flex-col gap-0.5">
             {navLinks.map(({ href, labelKey, testId, icon: Icon }) => {
               const label = t(labelKey);
+              // The nav targets are vault-scoped (`/workspace/{vault}/issues`)
+              // so the active workspace stays in the URL (REEF-315). Badge
+              // resolution still keys off the stable base `href`.
+              const fullHref = withVault(vault, href);
               // A nav link owns its whole section: it stays active on an exact
               // match or any nested route under it — /issues/[id] keeps Issues
               // active while the detail slide-over is open, and /settings/<tab>
               // keeps Settings active across the scope tabs (REEF-183).
               const isActive =
-                pathname === href || pathname.startsWith(`${href}/`);
+                pathname === fullHref || pathname.startsWith(`${fullHref}/`);
               const badge = navBadgeFor(href, isActive);
               return (
                 <li key={href} className="relative">
@@ -435,7 +440,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                     />
                   )}
                   <Link
-                    href={href}
+                    href={fullHref}
                     title={sidebarCollapsed ? label : undefined}
                     className={cn(
                       "flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",

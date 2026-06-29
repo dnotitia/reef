@@ -29,6 +29,18 @@ vi.mock("next/link", () => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mockReplace, push: vi.fn(), back: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
+  useParams: () => ({ vault: "reef-test" }),
+}));
+
+// useIssueDrill resolves the active vault (REEF-315) via useActiveVault, which
+// calls useQuery; this component renders without a QueryClient, so resolve the
+// hook to a fixed vault that scopes the drill hrefs.
+vi.mock("@/features/settings/hooks/useActiveVault", () => ({
+  useActiveVault: () => ({
+    vault: "reef-test",
+    isLoading: false,
+    refetch: vi.fn(),
+  }),
 }));
 
 afterEach(() => {
@@ -120,7 +132,10 @@ describe("IssueChromeIdentity", () => {
       expect(nav).toBeInTheDocument();
 
       const link = screen.getByTestId("issue-parent-breadcrumb");
-      expect(link).toHaveAttribute("href", "/issues/REEF-182");
+      expect(link).toHaveAttribute(
+        "href",
+        "/workspace/reef-test/issues/REEF-182",
+      );
       expect(link).toHaveAttribute("data-issue-id", "REEF-182");
       expect(link).toHaveTextContent("Reports & analytics epic");
       expect(link.textContent).not.toContain("REEF-182");
@@ -138,7 +153,9 @@ describe("IssueChromeIdentity", () => {
 
       expect(useIssueNavStack.getState().trail).toEqual(["REEF-111"]);
       expect(useIssueNavStack.getState().currentId).toBe(PARENT_ID);
-      expect(mockReplace).toHaveBeenCalledWith("/issues/REEF-182");
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/workspace/reef-test/issues/REEF-182",
+      );
     });
 
     it("names the parent relationship for hover and assistive tech", () => {
@@ -179,7 +196,10 @@ describe("IssueChromeIdentity", () => {
       setup({ parentId: PARENT_ID, allIssues: [] });
 
       const link = screen.getByTestId("issue-parent-breadcrumb");
-      expect(link).toHaveAttribute("href", "/issues/REEF-182");
+      expect(link).toHaveAttribute(
+        "href",
+        "/workspace/reef-test/issues/REEF-182",
+      );
       // No resolved parent → no status glyph, so the link degrades to the id
       // alone, staying navigable and not empty (REEF-279 AC4).
       expect(link.querySelector("svg")).toBeNull();
@@ -190,7 +210,10 @@ describe("IssueChromeIdentity", () => {
       setup({ parentId: PARENT_ID, allIssues: [], allIssuesPending: true });
 
       const link = screen.getByTestId("issue-parent-breadcrumb");
-      expect(link).toHaveAttribute("href", "/issues/REEF-182");
+      expect(link).toHaveAttribute(
+        "href",
+        "/workspace/reef-test/issues/REEF-182",
+      );
       expect(link).toHaveAttribute("data-issue-id", "REEF-182");
       expect(
         screen.getByTestId("issue-parent-breadcrumb-loading"),

@@ -187,7 +187,9 @@ describe("PlanningPage", () => {
     expect(mockPush).toHaveBeenCalledTimes(1);
     const [url, opts] = mockPush.mock.calls[0];
     const params = new URLSearchParams((url as string).split("?")[1]);
-    expect((url as string).startsWith("/planning?")).toBe(true);
+    expect((url as string).startsWith("/workspace/reef-acme/planning?")).toBe(
+      true,
+    );
     expect(params.get("kind")).toBe("releases");
     expect(params.get("foo")).toBe("1");
     expect(params.has("detail")).toBe(false);
@@ -409,7 +411,7 @@ describe("PlanningPage", () => {
     await user.click(expand);
     expect(mockReplace).toHaveBeenCalledTimes(1);
     const [url, opts] = mockReplace.mock.calls[0];
-    expect(url).toBe("/planning");
+    expect(url).toBe("/workspace/reef-acme/planning");
     expect(opts).toEqual({ scroll: false });
   });
 
@@ -425,7 +427,9 @@ describe("PlanningPage", () => {
     expect(mockReplace).toHaveBeenCalledTimes(1);
     const [url, opts] = mockReplace.mock.calls[0];
     const params = new URLSearchParams((url as string).split("?")[1]);
-    expect((url as string).startsWith("/planning?")).toBe(true);
+    expect((url as string).startsWith("/workspace/reef-acme/planning?")).toBe(
+      true,
+    );
     expect(params.get("detail")).toBe(SPRINT_ID);
     expect(opts).toEqual({ scroll: false });
   });

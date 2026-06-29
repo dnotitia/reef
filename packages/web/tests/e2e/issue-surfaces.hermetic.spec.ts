@@ -29,7 +29,7 @@ test.describe("Hermetic issue route surfaces", () => {
   }) => {
     await openExistingWorkspace(page);
 
-    await page.goto("/issues?view=board");
+    await page.goto("/workspace/reef-e2e/issues?view=board");
     await expect(page.locator('[data-testid="kanban-board"]')).toBeVisible();
     await expect(
       page.locator('[data-testid="kanban-card"]').first(),
@@ -71,7 +71,7 @@ test.describe("Hermetic issue route surfaces", () => {
     // (count 0 renders nothing). Drop the persisted snapshot at document-start so
     // the board entry fetches the unread count fresh against the now-set marker.
     await clearPersistedQueryCacheOnLoad(page);
-    await page.goto("/issues?view=board");
+    await page.goto("/workspace/reef-e2e/issues?view=board");
     await expect(page.locator('[data-testid="kanban-board"]')).toBeVisible();
     await expect(page.locator('[data-testid="kanban-card"]')).toHaveCount(11);
     await expect(
@@ -94,7 +94,7 @@ test.describe("Hermetic issue route surfaces", () => {
   }) => {
     await openExistingWorkspace(page);
 
-    await page.goto("/issues?view=list");
+    await page.goto("/workspace/reef-e2e/issues?view=list");
     await page.getByText("Initial issue Alpha").click();
 
     await page.waitForURL(/\/issues\/REEF-001\?view=list/, {
@@ -127,7 +127,7 @@ test.describe("Hermetic issue route surfaces", () => {
   }) => {
     await openExistingWorkspace(page);
 
-    await page.goto("/issues/REEF-002");
+    await page.goto("/workspace/reef-e2e/issues/REEF-002");
 
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
     await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
@@ -143,7 +143,7 @@ test.describe("Hermetic issue route surfaces", () => {
     request,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/issues?view=list");
+    await page.goto("/workspace/reef-e2e/issues?view=list");
 
     await page.locator('[data-testid="new-issue-trigger"]').click();
     await expect(

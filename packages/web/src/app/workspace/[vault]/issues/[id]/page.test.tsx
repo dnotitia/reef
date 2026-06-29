@@ -36,14 +36,19 @@ vi.mock("react", async (importOriginal) => {
 import IssuePage from "./page";
 
 function makeParams(id: string) {
-  return { id };
+  return { id, vault: "reef-acme" };
 }
 
 describe("IssuePage (base route — hard navigation deep link)", () => {
   it("renders the IssuesWorkspace backdrop and, after mount, the IssueDetailSheet", () => {
     render(
       <IssuePage
-        params={makeParams("REEF-001") as unknown as Promise<{ id: string }>}
+        params={
+          makeParams("REEF-001") as unknown as Promise<{
+            id: string;
+            vault: string;
+          }>
+        }
       />,
     );
     expect(screen.getByTestId("issues-workspace-backdrop")).toBeInTheDocument();
@@ -61,7 +66,12 @@ describe("IssuePage (base route — hard navigation deep link)", () => {
   it("omits the IssueDetailSheet from server-rendered output (deferred to post-mount)", () => {
     const html = renderToString(
       <IssuePage
-        params={makeParams("REEF-001") as unknown as Promise<{ id: string }>}
+        params={
+          makeParams("REEF-001") as unknown as Promise<{
+            id: string;
+            vault: string;
+          }>
+        }
       />,
     );
     expect(html).toContain("issues-workspace-backdrop");
@@ -71,7 +81,12 @@ describe("IssuePage (base route — hard navigation deep link)", () => {
   it("forwards the id from params to the sheet", () => {
     render(
       <IssuePage
-        params={makeParams("REEF-042") as unknown as Promise<{ id: string }>}
+        params={
+          makeParams("REEF-042") as unknown as Promise<{
+            id: string;
+            vault: string;
+          }>
+        }
       />,
     );
     expect(screen.getByTestId("issue-detail-sheet")).toHaveAttribute(
@@ -80,16 +95,21 @@ describe("IssuePage (base route — hard navigation deep link)", () => {
     );
   });
 
-  it("closes by pushing /issues — never relies on history.back()", () => {
+  it("closes by pushing the vault-scoped issues list — never relies on history.back()", () => {
     mockBack.mockClear();
     mockPush.mockClear();
     render(
       <IssuePage
-        params={makeParams("REEF-001") as unknown as Promise<{ id: string }>}
+        params={
+          makeParams("REEF-001") as unknown as Promise<{
+            id: string;
+            vault: string;
+          }>
+        }
       />,
     );
     screen.getByTestId("mock-close").click();
-    expect(mockPush).toHaveBeenCalledWith("/issues");
+    expect(mockPush).toHaveBeenCalledWith("/workspace/reef-acme/issues");
     expect(mockBack).not.toHaveBeenCalled();
   });
 });

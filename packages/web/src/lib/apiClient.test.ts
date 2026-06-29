@@ -125,3 +125,46 @@ describe("apiClient.fetch — deployment-managed LLM", () => {
     expect(headers.get("Content-Type")).toBe("application/json");
   });
 });
+
+describe("apiClient.fetch — X-Reef-Vault (REEF-315)", () => {
+  beforeEach(async () => {
+    vi.stubGlobal("fetch", mockFetch);
+    await db.config.clear();
+    mockFetch.mockReset();
+    mockFetch.mockResolvedValue(mockResponse());
+  });
+
+  afterEach(async () => {
+    await db.config.clear();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("attaches the Dexie default vault when the caller provides none", async () => {
+    await setConfigValue("vault", "reef-dexie");
+
+    await apiClient.fetch("/api/chat");
+
+    const [, init] = (mockFetch as Mock).mock.calls[0] as [
+      RequestInfo | URL,
+      RequestInit,
+    ];
+    expect(new Headers(init.headers).get("X-Reef-Vault")).toBe("reef-dexie");
+  });
+
+  it("respects a caller-provided X-Reef-Vault over the Dexie default (tab-local context)", async () => {
+    // Two tabs share the Dexie pointer; the URL-scoped caller (chat transport)
+    // sets its own workspace and the shared default must not clobber it.
+    await setConfigValue("vault", "reef-dexie");
+
+    await apiClient.fetch("/api/chat", {
+      headers: { "X-Reef-Vault": "reef-url" },
+    });
+
+    const [, init] = (mockFetch as Mock).mock.calls[0] as [
+      RequestInfo | URL,
+      RequestInit,
+    ];
+    expect(new Headers(init.headers).get("X-Reef-Vault")).toBe("reef-url");
+  });
+});

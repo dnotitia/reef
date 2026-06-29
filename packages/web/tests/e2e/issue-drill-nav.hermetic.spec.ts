@@ -20,7 +20,7 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
 
   async function openRootFromList(page: import("@playwright/test").Page) {
     await openExistingWorkspace(page);
-    await page.goto("/issues?view=list");
+    await page.goto("/workspace/reef-e2e/issues?view=list");
     await page.getByText("Triage GitHub activity into draft issues").click();
     await page.waitForURL(new RegExp(`/issues/${ROOT}`), { timeout: 10_000 });
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
@@ -134,7 +134,7 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
     // renders a navigable chip — the relation-link kind REEF-284 folds into the
     // same in-place drill model as the breadcrumb and sub-issues.
     await openExistingWorkspace(page);
-    await page.goto("/issues?view=list");
+    await page.goto("/workspace/reef-e2e/issues?view=list");
     await page.getByText("Stream grounded Ask AI answers from core").click();
     await page.waitForURL(/\/issues\/REEF-105/, { timeout: 10_000 });
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
@@ -211,7 +211,7 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
 
     // Land directly on the leaf: its parent breadcrumb still resolves, but there
     // is no drill trail, so Back is absent and Close exits to the list.
-    await page.goto(`/issues/${LEAF}`);
+    await page.goto(`/workspace/reef-e2e/issues/${LEAF}`);
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
     await expect(page.locator(breadcrumb)).toHaveAttribute(
       "data-issue-id",

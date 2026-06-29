@@ -38,7 +38,7 @@ test.describe("Hermetic settings workflows", () => {
     await clearPersistedQueryCacheOnLoad(page);
     await openExistingWorkspace(page);
 
-    await page.goto("/settings/preferences");
+    await page.goto("/workspace/reef-e2e/settings/preferences");
     await expect(
       page.getByRole("main").locator('[data-testid="settings-group-personal"]'),
     ).toBeVisible();
@@ -47,7 +47,7 @@ test.describe("Hermetic settings workflows", () => {
     );
     await expect(page.locator('[data-testid="disconnect-btn"]')).toHaveCount(0);
 
-    await page.goto("/settings/workspace");
+    await page.goto("/workspace/reef-e2e/settings/workspace");
     const main = page.getByRole("main");
     await expect(
       main.locator('[data-testid="settings-group-workspace"]'),
@@ -73,7 +73,7 @@ test.describe("Hermetic settings workflows", () => {
       })
       .toContain("octo/reef");
 
-    await page.goto("/activity");
+    await page.goto("/workspace/reef-e2e/activity");
     await expect(
       page.locator('[data-testid="activity-scan-target-single"]'),
     ).toHaveText("octo/reef");
@@ -88,7 +88,7 @@ test.describe("Hermetic settings workflows", () => {
     request,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/settings/workspace");
+    await page.goto("/workspace/reef-e2e/settings/workspace");
     const main = page.getByRole("main");
 
     await main.locator('[data-testid="project-prefix-input"]').fill("QA");
@@ -128,7 +128,7 @@ test.describe("Hermetic settings workflows", () => {
     request,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/settings/workspace");
+    await page.goto("/workspace/reef-e2e/settings/workspace");
     const main = page.getByRole("main");
 
     await expect(
@@ -184,7 +184,7 @@ test.describe("Hermetic settings workflows", () => {
     request,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/settings/workspace");
+    await page.goto("/workspace/reef-e2e/settings/workspace");
     const main = page.getByRole("main");
 
     // A workspace with no templates shows the seed-defaults call to action.
@@ -223,19 +223,19 @@ test.describe("Hermetic settings workflows", () => {
     await openExistingWorkspace(page);
     const main = page.getByRole("main");
 
-    await page.goto("/settings");
+    await page.goto("/workspace/reef-e2e/settings");
     await page.waitForURL(/\/settings\/workspace$/, { timeout: 10_000 });
     await expect(
       main.locator('[data-testid="settings-group-workspace"]'),
     ).toBeVisible();
 
-    await page.goto("/settings/workspace/members");
+    await page.goto("/workspace/reef-e2e/settings/workspace/members");
     await expect(
       main.locator('[data-testid="settings-group-members"]'),
     ).toBeVisible();
     await expect(main.locator('[data-testid="members-section"]')).toBeVisible();
 
-    await page.goto("/settings/deployment");
+    await page.goto("/workspace/reef-e2e/settings/deployment");
     await expect(
       main.locator('[data-testid="settings-group-deployment"]'),
     ).toBeVisible();
@@ -246,7 +246,7 @@ test.describe("Hermetic settings workflows", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/settings/preferences");
+    await page.goto("/workspace/reef-e2e/settings/preferences");
 
     await expect(
       page.getByRole("main").locator('[data-testid="settings-group-personal"]'),

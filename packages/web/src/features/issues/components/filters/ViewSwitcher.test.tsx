@@ -14,6 +14,18 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
   usePathname: () => navigationState.pathname,
   useSearchParams: () => navigationState.searchParams,
+  useParams: () => ({ vault: "reef-acme" }),
+}));
+
+// ViewSwitcher reads the active vault (REEF-315) via useActiveVault, which calls
+// useQuery; this test renders without a QueryClient, so resolve it to a fixed
+// vault that scopes the pushed `?view=` URL.
+vi.mock("@/features/settings/hooks/useActiveVault", () => ({
+  useActiveVault: () => ({
+    vault: "reef-acme",
+    isLoading: false,
+    refetch: vi.fn(),
+  }),
 }));
 
 import { ViewSwitcher } from "./ViewSwitcher";
@@ -54,7 +66,9 @@ describe("ViewSwitcher", () => {
     expect(mockPush).toHaveBeenCalledTimes(1);
     const [url, opts] = mockPush.mock.calls[0];
     const params = new URLSearchParams((url as string).split("?")[1]);
-    expect((url as string).startsWith("/issues?")).toBe(true);
+    expect((url as string).startsWith("/workspace/reef-acme/issues?")).toBe(
+      true,
+    );
     expect(params.get("view")).toBe("timeline");
     expect(params.get("status")).toBe("todo");
     expect(params.get("q")).toBe("auth");

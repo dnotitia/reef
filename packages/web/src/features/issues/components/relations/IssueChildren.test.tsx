@@ -28,6 +28,18 @@ vi.mock("next/link", () => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mockReplace, push: vi.fn(), back: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
+  useParams: () => ({ vault: "reef-test" }),
+}));
+
+// useIssueDrill resolves the active vault (REEF-315) via useActiveVault, which
+// calls useQuery; this component renders without a QueryClient, so resolve it to
+// a fixed vault that scopes the drill hrefs.
+vi.mock("@/features/settings/hooks/useActiveVault", () => ({
+  useActiveVault: () => ({
+    vault: "reef-test",
+    isLoading: false,
+    refetch: vi.fn(),
+  }),
 }));
 
 afterEach(() => {
@@ -127,7 +139,9 @@ describe("IssueChildren", () => {
     const openLink = screen
       .getAllByRole("link")
       .find((a) => a.getAttribute("data-issue-id") === "REEF-101");
-    expect(openLink?.getAttribute("href")).toBe("/issues/REEF-101");
+    expect(openLink?.getAttribute("href")).toBe(
+      "/workspace/reef-test/issues/REEF-101",
+    );
   });
 
   it("drills into a child in place: records the hop and replaces (REEF-270)", async () => {
@@ -145,7 +159,9 @@ describe("IssueChildren", () => {
     expect(useIssueNavStack.getState().currentId).toBe("REEF-101");
     // The hop swaps content with replace (flat history), not a pushed entry.
     expect(mockReplace).toHaveBeenCalledTimes(1);
-    expect(mockReplace).toHaveBeenCalledWith("/issues/REEF-101");
+    expect(mockReplace).toHaveBeenCalledWith(
+      "/workspace/reef-test/issues/REEF-101",
+    );
   });
 
   it("lets a modifier click open a fresh tab instead of drilling (REEF-270)", () => {

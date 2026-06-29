@@ -7,8 +7,10 @@ import {
 } from "@/features/settings/hooks/useActiveVault";
 import { useVaults } from "@/features/settings/hooks/useVaults";
 import { useViewStore } from "@/features/ui/stores/useViewStore";
+import { withVault } from "@/lib/workspaceHref";
 import { Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { VaultPickerInput } from "./VaultPickerInput";
 
@@ -44,6 +46,7 @@ export function ActiveWorkspaceSection() {
   const { vault: activeVault, isLoading: activeVaultLoading } =
     useActiveVault();
   const setActiveVaultMutation = useSetActiveVault();
+  const router = useRouter();
   // Shared trigger for the globally-mounted CreateWorkspaceDialog (REEF-146);
   // the sidebar switcher flips the same flag (REEF-147).
   const openCreateWorkspaceDialog = useViewStore(
@@ -54,15 +57,24 @@ export function ActiveWorkspaceSection() {
 
   const handleVaultSelect = useCallback(
     async (next: string) => {
+      if (next === activeVault) return;
       setSaveMessage("");
+      // Persist the new default, then NAVIGATE: the active workspace is now the
+      // URL `[vault]` segment (REEF-315), so writing Dexie alone would leave the
+      // page (and the picker) scoped to the old URL vault and snap back. Routing
+      // to the same settings tab under the selected vault re-scopes every
+      // surface; picking "none" returns to onboarding.
       try {
         await setActiveVaultMutation.mutateAsync(next);
-        setSaveMessage("Workspace saved.");
       } catch {
         setSaveMessage("Failed to save workspace.");
+        return;
       }
+      router.push(
+        next ? withVault(next, "/settings/workspace") : "/onboarding",
+      );
     },
-    [setActiveVaultMutation],
+    [setActiveVaultMutation, activeVault, router],
   );
 
   return (

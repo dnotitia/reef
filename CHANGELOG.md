@@ -12,6 +12,29 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Changed
+
+- **The workspace you're viewing now lives in the URL.** Every in-app screen is
+  now addressed as `/workspace/{workspace}/…` (for example
+  `/workspace/reef-acme/issues` or `/workspace/reef-acme/issues/REEF-101`)
+  instead of the old flat `/issues`, `/planning`, `/settings/…` paths. Three
+  things this fixes: a link you paste into Slack or email opens in the workspace
+  you meant — not whatever the recipient happened to have selected; two browser
+  tabs can show two different workspaces at once without fighting over a single
+  shared pointer; and switching workspaces deep-links straight to that
+  workspace's board. The previously-selected workspace is remembered as your
+  per-browser default, so opening reef at the root still drops you on your last
+  workspace. **Old links keep working**: a bookmarked or shared `/issues/REEF-101`
+  (any old flat path) redirects to its `/workspace/{default}/…` equivalent,
+  preserving the query string; if you have no remembered workspace yet it sends
+  you to onboarding. Opening a `/workspace/{workspace}/…` link for a workspace you
+  are not a member of shows an explicit "no access" screen with your own
+  workspaces to switch to, rather than silently falling back (REEF-315, epic
+  REEF-001). Operational note: this is a client-side route change only — the BFF
+  still receives the workspace via the existing `?vault=` / `X-Reef-Vault` /
+  request-body channels, so there is no API, session-cookie, or persistence
+  change.
+
 ## v0.6.0 - 2026-06-26
 
 ### Added

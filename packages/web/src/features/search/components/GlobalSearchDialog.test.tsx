@@ -178,7 +178,9 @@ describe("GlobalSearchDialog", () => {
     const [firstItem] = screen.getAllByTestId("global-search-item");
     expect(firstItem).toBeDefined();
     await user.click(firstItem as HTMLElement);
-    expect(pushMock).toHaveBeenCalledWith("/issues/REEF-001");
+    expect(pushMock).toHaveBeenCalledWith(
+      "/workspace/reef-acme/issues/REEF-001",
+    );
     expect(useGlobalSearchStore.getState().isOpen).toBe(false);
   });
 
@@ -457,7 +459,9 @@ describe("GlobalSearchDialog", () => {
     const [firstItem] = screen.getAllByTestId("global-search-item");
     const anchor = firstItem?.querySelector("a");
     expect(anchor).not.toBeNull();
-    expect(anchor?.getAttribute("href")).toBe("/issues/REEF-001");
+    expect(anchor?.getAttribute("href")).toBe(
+      "/workspace/reef-acme/issues/REEF-001",
+    );
     // It is not a tab stop — cmdk drives selection from the input.
     expect(anchor?.getAttribute("tabindex")).toBe("-1");
   });

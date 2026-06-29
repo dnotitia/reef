@@ -17,6 +17,11 @@ const activeVault = vi.hoisted(() => ({
 }));
 
 const setActiveVault = vi.hoisted(() => vi.fn());
+const routerPush = vi.hoisted(() => vi.fn());
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: routerPush }),
+}));
 
 vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   useActiveVault: () => ({
@@ -121,7 +126,7 @@ describe("ActiveWorkspaceSection", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("persists the picked workspace and reports it saved", async () => {
+  it("persists the picked workspace and routes to it under the new vault (REEF-315)", async () => {
     mockApiFetch.mockImplementation(async (url) => {
       const u = String(url);
       if (u.startsWith("/api/vaults")) {
@@ -140,9 +145,13 @@ describe("ActiveWorkspaceSection", () => {
     await waitFor(() =>
       expect(setActiveVault).toHaveBeenCalledWith("reef-beta"),
     );
-    expect(
-      await screen.findByTestId("active-workspace-save-message"),
-    ).toHaveTextContent("Workspace saved.");
+    // The active vault is the URL segment now, so the picker must navigate to
+    // the selected workspace's settings tab rather than only writing Dexie.
+    await waitFor(() =>
+      expect(routerPush).toHaveBeenCalledWith(
+        "/workspace/reef-beta/settings/workspace",
+      ),
+    );
   });
 
   it("opens the create-workspace dialog from the New workspace button (REEF-147)", async () => {

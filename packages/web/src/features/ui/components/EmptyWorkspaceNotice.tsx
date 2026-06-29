@@ -1,3 +1,7 @@
+"use client";
+
+import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import { withVault } from "@/lib/workspaceHref";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 
@@ -21,6 +25,7 @@ import Link from "next/link";
  */
 export function EmptyWorkspaceNotice() {
   const t = useTranslations("emptyState.workspace");
+  const { vault } = useActiveVault();
   return (
     <div
       data-testid="empty-workspace-notice"
@@ -32,7 +37,10 @@ export function EmptyWorkspaceNotice() {
       <p className="text-sm text-muted-foreground">
         {t.rich("prompt", {
           link: (chunks) => (
-            <Link href="/settings" className="text-brand underline">
+            <Link
+              href={withVault(vault, "/settings")}
+              className="text-brand underline"
+            >
               {chunks}
             </Link>
           ),

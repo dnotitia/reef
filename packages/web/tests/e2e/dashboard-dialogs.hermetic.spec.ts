@@ -12,14 +12,14 @@ test.describe("Hermetic dashboard surfaces and global dialogs", () => {
   }) => {
     await openExistingWorkspace(page);
 
-    await page.goto("/reports");
+    await page.goto("/workspace/reef-e2e/reports");
     await expect(page.locator('[data-testid="reports-page"]')).toBeVisible();
     await expect(
       page.locator('[data-testid="report-scope-bar"]'),
     ).toBeVisible();
     await expect(page.getByText("Workflow")).toBeVisible();
 
-    await page.goto("/activity");
+    await page.goto("/workspace/reef-e2e/activity");
     await expect(page.locator('[data-testid="activity-feed"]')).toBeVisible();
     await expect(
       page.locator('[data-testid="activity-scan-target-empty"]'),
@@ -33,7 +33,7 @@ test.describe("Hermetic dashboard surfaces and global dialogs", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/issues?view=list");
+    await page.goto("/workspace/reef-e2e/issues?view=list");
 
     await expect(
       page.locator('[data-testid="issue-list-row"]').first(),

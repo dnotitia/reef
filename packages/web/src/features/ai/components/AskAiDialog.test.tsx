@@ -33,6 +33,18 @@ vi.mock("@/lib/apiClient", () => ({
   apiFetch: vi.fn(),
 }));
 
+// AskAiDialog reads the active vault for the chat transport's X-Reef-Vault
+// header (REEF-315). Stub it so the test does not load the real hook's module
+// graph (which pulls @reef/core's agent tools through the entity store and would
+// trip the partial `ai` mock above).
+vi.mock("@/features/settings/hooks/useActiveVault", () => ({
+  useActiveVault: () => ({
+    vault: "reef-acme",
+    isLoading: false,
+    refetch: () => Promise.resolve(),
+  }),
+}));
+
 // AskAiDialog now delegates its conversation+composer area to ChatSurface.
 // Stub the component to expose a single testid and reflect its key props back
 // out as attributes — that keeps these tests focused on AskAiDialog's own

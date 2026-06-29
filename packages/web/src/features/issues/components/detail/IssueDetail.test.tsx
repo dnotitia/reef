@@ -33,6 +33,7 @@ vi.mock("sonner", () => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn(), back: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
+  useParams: () => ({ vault: "reef-acme" }),
 }));
 
 vi.mock("next/link", () => ({

@@ -25,6 +25,7 @@ vi.mock("@/features/issues/hooks/mutations/useReorderBacklog", () => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
+  useParams: () => ({ vault: "reef-acme" }),
 }));
 
 import { BacklogView } from "./BacklogView";

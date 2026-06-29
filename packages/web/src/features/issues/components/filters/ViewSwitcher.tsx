@@ -6,7 +6,9 @@ import {
   SEGMENTED_CONTROL_ITEM_INACTIVE,
   SEGMENTED_CONTROL_TRACK,
 } from "@/components/segmentedControl";
+import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { cn } from "@/lib/utils";
+import { withVault } from "@/lib/workspaceHref";
 import { CircleDashed, Columns3, GanttChart, List } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -50,6 +52,7 @@ interface ViewSwitcherProps {
 export function ViewSwitcher({ activeView }: ViewSwitcherProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { vault } = useActiveVault();
   const [isPending, startTransition] = useTransition();
   const t = useTranslations("issues.filters");
   const viewLabels: Record<IssueViewMode, string> = {
@@ -68,10 +71,12 @@ export function ViewSwitcher({ activeView }: ViewSwitcherProps) {
       // next one render concurrently instead of a synchronous, fallback-flashing
       // swap. The `?view=` URL still updates so deep links / back-forward work.
       startTransition(() => {
-        router.push(`/issues?${next.toString()}`, { scroll: false });
+        router.push(withVault(vault, `/issues?${next.toString()}`), {
+          scroll: false,
+        });
       });
     },
-    [activeView, router, searchParams],
+    [activeView, router, searchParams, vault],
   );
 
   return (

@@ -52,7 +52,7 @@ describe("useAuthRedirect", () => {
     renderHook(() => useAuthRedirect("root"));
 
     await waitFor(() => {
-      expect(replace).toHaveBeenCalledWith("/issues");
+      expect(replace).toHaveBeenCalledWith("/workspace/reef-acme/issues");
     });
   });
 
