@@ -6,6 +6,7 @@
 
 import { getAkbBackendUrl } from "@/lib/akb/akbBackendUrl";
 import { extractAkbSession } from "@/lib/akb/extractAkbSession";
+import { decodeSessionActor } from "@/lib/akb/sessionCookie";
 import {
   type AkbAdapter,
   type AkbResourceLabel,
@@ -282,10 +283,32 @@ export async function getAkbCurrentActor(
  * Returns the akb username, or `null` when the session is expired/unreachable —
  * callers degrade gracefully rather than failing the request. does not persists or
  * logs the identity.
+ *
+ * Fast path (REEF-324): decode the actor straight from the session cookie's JWT
+ * claims (`username` / `preferred_username` / `sub`, the same claim order
+ * `proxy.ts` logs from) so the default-view landing pays NO akb `/auth/me`
+ * round-trip in the common case. This is sound because the read-path actor only
+ * *scopes* the landing list to My Issues — it is never an authorization decision;
+ * the data query still forwards the real bearer token to akb, which re-validates
+ * it. A best-effort, spoofable claim is therefore acceptable here exactly as it
+ * is for the request log. The signature is not verified.
+ *
+ * Fallback: an older akb token that omits a public-identifier claim resolves via
+ * `/auth/me` (one round-trip), the same path the write actor uses — so the
+ * behavior is unchanged for those tokens, just no longer paid on every landing.
  */
 export async function resolveOptionalActor(
   request: Request,
 ): Promise<string | null> {
+  let jwt: string;
+  try {
+    jwt = extractAkbSession(request);
+  } catch {
+    // Missing or expired cookie — degrade to no actor (caller floors the view).
+    return null;
+  }
+  const claimActor = decodeSessionActor(jwt);
+  if (claimActor) return claimActor;
   const result = await getAkbCurrentActor(request);
   return "response" in result ? null : result.actor;
 }

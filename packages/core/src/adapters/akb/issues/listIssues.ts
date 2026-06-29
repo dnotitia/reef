@@ -13,7 +13,6 @@ import {
   withSpan,
 } from "../core/shared";
 import type { ListIssuesParams, ListIssuesResult } from "../core/types";
-import { getActiveSprint } from "../planning/planning";
 
 export async function listIssues(
   params: ListIssuesParams,
@@ -37,30 +36,14 @@ export async function listIssues(
 
     let baseWhere: string | undefined;
     // Explicit facets take precedence over the default landing view — just fall
-    // into the default view when the request carries no narrowing filter.
+    // into the default view when the request carries no narrowing filter. The
+    // active-sprint pick and the My-Issues existence test are folded into this
+    // single list query as subqueries (REEF-324), so the landing no longer pays
+    // a separate active-sprint or existence-probe akb round-trip. The resolved
+    // scope stays up-front-consistent across cursor pages because the `EXISTS`
+    // test does not depend on the keyset appended below.
     if (query?.default_view && !hasAnyFilter(query)) {
-      const activeSprint = await getActiveSprint(adapter, vault);
-      const sprintId = activeSprint?.id ?? null;
-      if (actor) {
-        // Resolve the scope up front so it stays consistent across paginated
-        // pages: My Issues when the actor has any active issue, otherwise the
-        // sprint / status-window floor so a new user does not lands on a blank
-        // board. (A post-hoc empty-page fallback would break cursor pages.)
-        const myIssuesWhere = buildDefaultViewWhere({ actor, sprintId });
-        let hasMine = false;
-        try {
-          hasMine =
-            (await selectIssueRows(adapter, vault, myIssuesWhere, undefined, 1))
-              .length > 0;
-        } catch (err) {
-          if (!isMissingTableError(err)) throw err;
-        }
-        baseWhere = hasMine
-          ? myIssuesWhere
-          : buildDefaultViewWhere({ actor: null, sprintId });
-      } else {
-        baseWhere = buildDefaultViewWhere({ actor: null, sprintId });
-      }
+      baseWhere = buildDefaultViewWhere({ actor: actor ?? null });
       span.setAttribute("default_view", true);
     } else if (query) {
       baseWhere = buildIssueWhere(query);
