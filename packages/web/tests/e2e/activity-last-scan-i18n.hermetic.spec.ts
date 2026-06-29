@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
+  clearPersistedQueryCacheOnLoad,
   openExistingWorkspace,
   resetFixture,
 } from "./harness/fixture";
@@ -20,6 +21,17 @@ import {
 test.describe("Activity last-scan label i18n (REEF-300)", () => {
   test.beforeEach(async ({ page, request }) => {
     await resetFixture(request, "configured");
+
+    // Drop the persisted React Query snapshot on every navigation so the
+    // `/activity` mount below re-reads `['config', vault]` fresh and sees the
+    // monitored repo seeded below. Without this, openExistingWorkspace's earlier
+    // config fetch (empty monitored_repos) stays cached within the 60s staleTime,
+    // so the refresh control never resolves a repo and stays `disabled` — a flaky
+    // 30s `activity-refresh` click timeout that only surfaces in the full suite.
+    // Mirrors the settings.hermetic / settings-activity-scanning guard (REEF-220
+    // staleTime race); REEF-296.
+    await clearPersistedQueryCacheOnLoad(page);
+
     // Real login + select reef-e2e as the active workspace, landing on /issues
     // (the activity page renders an empty-workspace notice without one).
     await openExistingWorkspace(page);
