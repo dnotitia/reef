@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush, replace: vi.fn() }),
+  useParams: () => ({}),
 }));
 
 vi.mock("@/lib/apiClient", async () => {
@@ -138,7 +139,9 @@ describe("OnboardingPanel", () => {
     );
     await user.click(screen.getByTestId("greenfield-create-btn"));
 
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/issues"));
+    await waitFor(() =>
+      expect(mockPush).toHaveBeenCalledWith("/workspace/reef-new/issues"),
+    );
     expect(await getActiveVault()).toBe("reef-new");
 
     const call = postVaultCall();
@@ -181,7 +184,9 @@ describe("OnboardingPanel", () => {
     );
     await user.click(screen.getByTestId("greenfield-create-btn"));
 
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/issues"));
+    await waitFor(() =>
+      expect(mockPush).toHaveBeenCalledWith("/workspace/reef-new/issues"),
+    );
     const call = postVaultCall();
     expect(JSON.parse(String(call?.[1]?.body)).monitored_repos).toEqual([
       { github_id: 111, owner: "octo", name: "cat" },
@@ -214,7 +219,7 @@ describe("OnboardingPanel", () => {
     await user.click(screen.getByTestId("active-vault-option-reef-acme"));
     await user.click(await screen.findByTestId("onboarding-continue-btn"));
 
-    expect(mockPush).toHaveBeenCalledWith("/issues");
+    expect(mockPush).toHaveBeenCalledWith("/workspace/reef-acme/issues");
   });
 
   it("shows an empty existing-workspace state when no vault has reef config", async () => {

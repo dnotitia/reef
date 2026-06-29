@@ -54,7 +54,14 @@
     }
   },
   "workspace": {
-    "switchError": "워크스페이스를 전환하지 못했습니다. 다시 시도해 주세요."
+    "switchError": "워크스페이스를 전환하지 못했습니다. 다시 시도해 주세요.",
+    "accessDenied": {
+      "title": "이 워크스페이스에 접근할 수 없습니다",
+      "body": "\"{vault}\" 워크스페이스의 멤버가 아니거나 더 이상 존재하지 않습니다. 대신 내 워크스페이스 중 하나를 열어 주세요.",
+      "switchHeading": "내 워크스페이스",
+      "empty": "아직 reef 워크스페이스가 없습니다.",
+      "onboardingCta": "워크스페이스 설정하기"
+    }
   },
   "settings": {
     "preferences": {

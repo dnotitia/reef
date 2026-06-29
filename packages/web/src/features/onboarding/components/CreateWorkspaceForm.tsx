@@ -17,6 +17,7 @@ import { useGithubAppAvailable } from "@/features/settings/hooks/useGithubAppAva
 import { useRepos } from "@/features/settings/hooks/useRepos";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
+import { withVault } from "@/lib/workspaceHref";
 import {
   AUTHORING_LANGUAGES,
   type AuthoringLanguage,
@@ -164,7 +165,7 @@ export function CreateWorkspaceForm({
         config: created.config,
       });
       await queryClient.invalidateQueries({ queryKey: ["vaults"] });
-      router.push("/issues");
+      router.push(withVault(created.name, "/issues"));
       onCreated?.(created.name);
     } catch (err) {
       const message = err instanceof Error ? err.message : t("createFailed");

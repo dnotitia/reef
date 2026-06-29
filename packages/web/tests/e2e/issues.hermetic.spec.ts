@@ -64,7 +64,7 @@ test.describe("Hermetic issue list flow", () => {
   }) => {
     await openExistingWorkspace(page);
 
-    await page.goto("/issues?view=list");
+    await page.goto("/workspace/reef-e2e/issues?view=list");
     const rows = page.locator('[data-testid="issue-list-row"]');
     await expect(rows.first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText("Initial issue Alpha")).toBeVisible();
@@ -85,7 +85,7 @@ test.describe("Hermetic issue list flow", () => {
   }) => {
     await openExistingWorkspace(page);
 
-    await page.goto("/issues?view=list");
+    await page.goto("/workspace/reef-e2e/issues?view=list");
     await expect(
       page.locator('[data-testid="issue-list-row"]').first(),
     ).toBeVisible({ timeout: 15_000 });
@@ -116,7 +116,7 @@ test.describe("Hermetic issue list flow", () => {
         url.searchParams.getAll("status").includes("todo")
       );
     });
-    await restored.goto("/issues?view=list");
+    await restored.goto("/workspace/reef-e2e/issues?view=list");
 
     await restored.waitForURL(/status=todo/, { timeout: 10_000 });
     await expect(restored.getByText("Initial issue Alpha")).toBeVisible();
@@ -130,7 +130,7 @@ test.describe("Hermetic issue list flow", () => {
   }) => {
     await openExistingWorkspace(page);
 
-    await page.goto("/issues?view=list");
+    await page.goto("/workspace/reef-e2e/issues?view=list");
     await expect(
       page.locator('[data-testid="issue-list-row"]').first(),
     ).toBeVisible({ timeout: 15_000 });
@@ -148,7 +148,9 @@ test.describe("Hermetic issue list flow", () => {
     const urlFiltered = await context.newPage();
     await clearPersistedQueryCacheOnLoad(urlFiltered);
     const issueRequests = collectIssueListRequests(urlFiltered);
-    await urlFiltered.goto("/issues?view=list&status=in_progress");
+    await urlFiltered.goto(
+      "/workspace/reef-e2e/issues?view=list&status=in_progress",
+    );
 
     await expect(urlFiltered.getByText("Initial issue Beta")).toBeVisible();
     await expect(urlFiltered.getByText("Initial issue Alpha")).toBeHidden();
@@ -165,7 +167,7 @@ test.describe("Hermetic issue list flow", () => {
     await signInAndSelectExistingWorkspace(page);
     await setIssueListFailure(request, true);
 
-    await page.goto("/issues?view=list");
+    await page.goto("/workspace/reef-e2e/issues?view=list");
     await expect(page.getByText("Failed to load issues.")).toBeVisible({
       timeout: 20_000,
     });

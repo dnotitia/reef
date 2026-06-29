@@ -25,7 +25,7 @@ test.describe("Hermetic planning workflow", () => {
     request,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/planning");
+    await page.goto("/workspace/reef-e2e/planning");
 
     await expect(page.getByRole("heading", { name: "Planning" })).toBeVisible();
     await expect(page.getByText("Sprint Alpha")).toBeVisible();
@@ -78,7 +78,7 @@ test.describe("Hermetic planning workflow", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/planning");
+    await page.goto("/workspace/reef-e2e/planning");
     await expect(page.getByText("Sprint Alpha")).toBeVisible();
 
     // The expanded detail panel is absent while collapsed.

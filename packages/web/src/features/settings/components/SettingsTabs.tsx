@@ -6,7 +6,9 @@ import {
   SEGMENTED_CONTROL_ITEM_INACTIVE,
   SEGMENTED_CONTROL_TRACK,
 } from "@/components/segmentedControl";
+import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { cn } from "@/lib/utils";
+import { withVault } from "@/lib/workspaceHref";
 import { Building2, Server, SlidersHorizontal } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -48,6 +50,7 @@ const SETTINGS_TABS = [
  */
 export function SettingsTabs() {
   const pathname = usePathname();
+  const { vault } = useActiveVault();
   const t = useTranslations("settings.misc");
 
   return (
@@ -57,13 +60,16 @@ export function SettingsTabs() {
       className={cn(SEGMENTED_CONTROL_TRACK, "self-start")}
     >
       {SETTINGS_TABS.map(({ href, id, labelKey, icon: Icon }) => {
-        // A tab owns its segment, so it stays active on nested routes too
-        // (e.g. /settings/workspace/members keeps Workspace active).
-        const isActive = pathname === href || pathname.startsWith(`${href}/`);
+        // Targets are vault-scoped (REEF-315). A tab owns its segment, so it
+        // stays active on nested routes too (e.g. .../workspace/members keeps
+        // Workspace active).
+        const fullHref = withVault(vault, href);
+        const isActive =
+          pathname === fullHref || pathname.startsWith(`${fullHref}/`);
         return (
           <Link
             key={href}
-            href={href}
+            href={fullHref}
             aria-current={isActive ? "page" : undefined}
             data-testid={`settings-tab-${id}`}
             className={cn(

@@ -18,6 +18,7 @@ import {
   usePlanningKindSingularLabels,
 } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
+import { withVault } from "@/lib/workspaceHref";
 import { Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -55,9 +56,9 @@ function readPlanningKind(value: string | null): PlanningKind {
     : DEFAULT_PLANNING_KIND;
 }
 
-function planningHref(params: URLSearchParams): string {
+function planningHref(vault: string, params: URLSearchParams): string {
   const query = params.toString();
-  return query ? `/planning?${query}` : "/planning";
+  return withVault(vault, query ? `/planning?${query}` : "/planning");
 }
 
 export function PlanningPage() {
@@ -92,9 +93,9 @@ export function PlanningPage() {
       const next = new URLSearchParams(searchParams);
       next.set("kind", kind);
       next.delete("detail");
-      router.push(planningHref(next), { scroll: false });
+      router.push(planningHref(vault, next), { scroll: false });
     },
-    [activeKind, router, searchParams],
+    [activeKind, router, searchParams, vault],
   );
 
   const setExpandedId = useCallback(
@@ -105,9 +106,9 @@ export function PlanningPage() {
       } else {
         next.delete("detail");
       }
-      router.replace(planningHref(next), { scroll: false });
+      router.replace(planningHref(vault, next), { scroll: false });
     },
-    [router, searchParams],
+    [router, searchParams, vault],
   );
 
   function startCreate(kind: PlanningKind) {

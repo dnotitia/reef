@@ -15,6 +15,7 @@ const { mockPush, navState, activeVaultMock } = vi.hoisted(() => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush, replace: vi.fn() }),
   usePathname: () => navState.pathname,
+  useParams: () => ({ vault: "reef-acme" }),
 }));
 
 vi.mock("@/lib/apiClient", async () => {
@@ -214,7 +215,9 @@ describe("SidebarWorkspace", () => {
       await screen.findByTestId("workspace-switcher-option-reef-beta"),
     );
 
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/issues"));
+    await waitFor(() =>
+      expect(mockPush).toHaveBeenCalledWith("/workspace/reef-beta/issues"),
+    );
   });
 
   it("does not navigate when re-picking the already-active workspace", async () => {

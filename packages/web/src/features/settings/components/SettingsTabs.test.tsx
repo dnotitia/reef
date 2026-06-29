@@ -1,31 +1,45 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const navigationState = vi.hoisted(() => ({ pathname: "/settings/workspace" }));
+const navigationState = vi.hoisted(() => ({
+  pathname: "/workspace/reef-test/settings/workspace",
+}));
 vi.mock("next/navigation", () => ({
   usePathname: () => navigationState.pathname,
+  useParams: () => ({ vault: "reef-test" }),
+}));
+
+// SettingsTabs scopes its hrefs to the active vault (REEF-315) via
+// useActiveVault, which calls useQuery; this test renders without a QueryClient,
+// so resolve it to a fixed vault.
+vi.mock("@/features/settings/hooks/useActiveVault", () => ({
+  useActiveVault: () => ({
+    vault: "reef-test",
+    isLoading: false,
+    refetch: vi.fn(),
+  }),
 }));
 
 import { SettingsTabs } from "./SettingsTabs";
 
 describe("SettingsTabs (REEF-183)", () => {
   beforeEach(() => {
-    navigationState.pathname = "/settings/workspace";
+    navigationState.pathname = "/workspace/reef-test/settings/workspace";
   });
 
   it("renders one addressable link per scope tab (AC1)", () => {
     render(<SettingsTabs />);
     expect(screen.getByRole("link", { name: "Workspace" })).toHaveAttribute(
       "href",
-      "/settings/workspace",
+      "/workspace/reef-test/settings/workspace",
     );
     expect(screen.getByRole("link", { name: "Preferences" })).toHaveAttribute(
       "href",
-      "/settings/preferences",
+      "/workspace/reef-test/settings/preferences",
     );
     expect(screen.getByRole("link", { name: "Deployment" })).toHaveAttribute(
       "href",
-      "/settings/deployment",
+      "/workspace/reef-test/settings/deployment",
     );
   });
 
@@ -56,7 +70,8 @@ describe("SettingsTabs (REEF-183)", () => {
   });
 
   it("keeps the Workspace tab active on its nested members route", () => {
-    navigationState.pathname = "/settings/workspace/members";
+    navigationState.pathname =
+      "/workspace/reef-test/settings/workspace/members";
     render(<SettingsTabs />);
     expect(screen.getByRole("link", { name: "Workspace" })).toHaveAttribute(
       "aria-current",
@@ -68,7 +83,7 @@ describe("SettingsTabs (REEF-183)", () => {
   });
 
   it("activates the Preferences tab on its own route", () => {
-    navigationState.pathname = "/settings/preferences";
+    navigationState.pathname = "/workspace/reef-test/settings/preferences";
     render(<SettingsTabs />);
     expect(screen.getByRole("link", { name: "Preferences" })).toHaveAttribute(
       "aria-current",

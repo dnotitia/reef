@@ -14,6 +14,18 @@ const { mockReplace } = vi.hoisted(() => ({ mockReplace: vi.fn() }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mockReplace, push: vi.fn(), back: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
+  useParams: () => ({ vault: "reef-test" }),
+}));
+
+// Navigable chips' drill hook reads the active vault (REEF-315) via
+// useActiveVault, which calls useQuery; this component renders without a
+// QueryClient, so resolve it to a fixed vault that scopes the chip hrefs.
+vi.mock("@/features/settings/hooks/useActiveVault", () => ({
+  useActiveVault: () => ({
+    vault: "reef-test",
+    isLoading: false,
+    refetch: vi.fn(),
+  }),
 }));
 
 vi.mock("next/link", () => ({
@@ -172,7 +184,10 @@ describe("IssueRelationInput", () => {
       );
 
       const link = screen.getByRole("link");
-      expect(link).toHaveAttribute("href", "/issues/REEF-001");
+      expect(link).toHaveAttribute(
+        "href",
+        "/workspace/reef-test/issues/REEF-001",
+      );
       // Self-describing: the id AND the title render inside the link, matching
       // the Sub-issues row (not the old id fallback chip).
       expect(link).toHaveTextContent("REEF-001");
@@ -202,7 +217,9 @@ describe("IssueRelationInput", () => {
       // (not push) so the browser history stays flat.
       expect(useIssueNavStack.getState().trail).toEqual(["REEF-002"]);
       expect(useIssueNavStack.getState().currentId).toBe("REEF-001");
-      expect(mockReplace).toHaveBeenCalledWith("/issues/REEF-001");
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/workspace/reef-test/issues/REEF-001",
+      );
     });
 
     it("keeps the remove X as a separate hit target that does not navigate", async () => {
@@ -244,7 +261,10 @@ describe("IssueRelationInput", () => {
       );
 
       const link = screen.getByRole("link");
-      expect(link).toHaveAttribute("href", "/issues/REEF-999");
+      expect(link).toHaveAttribute(
+        "href",
+        "/workspace/reef-test/issues/REEF-999",
+      );
       expect(link).toHaveTextContent("REEF-999");
     });
 

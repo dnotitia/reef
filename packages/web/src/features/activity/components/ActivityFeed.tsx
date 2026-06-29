@@ -3,6 +3,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjectConfig } from "@/features/settings/hooks/useProjectConfig";
 import { useStatusLabels } from "@/i18n/fieldLabels";
+import { withVault } from "@/lib/workspaceHref";
 import type {
   ActivityDraftSuggestion,
   ActivityStatusChangeSuggestion,
@@ -237,7 +238,7 @@ function ActivityFeedContent({
           ? t("issueCreatedFromDraft", { id: issueId })
           : t("draftApproved"),
       );
-      if (issueId) router.push(`/issues/${issueId}`);
+      if (issueId) router.push(withVault(vault, `/issues/${issueId}`));
     } catch (err) {
       const message =
         err instanceof Error ? err.message : t("approveDraftError");
@@ -384,7 +385,10 @@ function ActivityFeedContent({
         >
           {ta.rich("scanningOff", {
             settingsLink: () => (
-              <Link href="/settings" className="text-brand underline">
+              <Link
+                href={withVault(vault, "/settings")}
+                className="text-brand underline"
+              >
                 {nav("settings")}
               </Link>
             ),
@@ -397,7 +401,10 @@ function ActivityFeedContent({
         >
           {ta.rich("addMonitoredRepo", {
             settingsLink: () => (
-              <Link href="/settings" className="text-brand underline">
+              <Link
+                href={withVault(vault, "/settings")}
+                className="text-brand underline"
+              >
                 {nav("settings")}
               </Link>
             ),

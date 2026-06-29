@@ -14,6 +14,7 @@ import {
 import { useVaults } from "@/features/settings/hooks/useVaults";
 import { useViewStore } from "@/features/ui/stores/useViewStore";
 import { cn } from "@/lib/utils";
+import { withVault } from "@/lib/workspaceHref";
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
@@ -115,9 +116,11 @@ export function SidebarWorkspace({ collapsed }: SidebarWorkspaceProps) {
     // e.g. the issue-detail form (re-syncs on issue id, not vault) or the
     // activity feed (removed/dismissed/edit state keyed by deterministic ids
     // that collide across workspaces on the same repo). Navigate to the new
-    // workspace's board so every such page unmounts and resets; this mirrors
-    // the create flow. Query-driven surfaces simply refetch under it.
-    router.push("/issues");
+    // workspace's board (now a distinct `/workspace/{next}/issues` URL, so the
+    // whole subtree remounts) and the URL→Dexie sync records it as the new
+    // "last viewed" default (REEF-315 AC6). Query-driven surfaces refetch under
+    // the rekeyed vault.
+    router.push(withVault(next, "/issues"));
   }
 
   function handleNewWorkspace() {

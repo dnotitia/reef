@@ -1,5 +1,6 @@
 "use client";
 
+import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type MouseEvent, useCallback } from "react";
 import { buildOpenIssueHref } from "../../lib/issueHref";
@@ -25,11 +26,12 @@ import { useIssueNavStack } from "../../stores/useIssueNavStack";
 export function useIssueDrill(fromIssueId: string) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { vault } = useActiveVault();
   const drill = useIssueNavStack((state) => state.drill);
 
   return useCallback(
     (targetId: string) => {
-      const href = buildOpenIssueHref(targetId, searchParams);
+      const href = buildOpenIssueHref(vault, targetId, searchParams);
       return {
         href,
         onClick: (event: MouseEvent<HTMLAnchorElement>) => {
@@ -51,6 +53,6 @@ export function useIssueDrill(fromIssueId: string) {
         },
       };
     },
-    [router, searchParams, drill, fromIssueId],
+    [router, searchParams, vault, drill, fromIssueId],
   );
 }

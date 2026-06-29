@@ -19,6 +19,7 @@ import {
 import { isActive, searchIssues } from "@/features/issues/lib/issueListUtils";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { cn } from "@/lib/utils";
+import { withVault } from "@/lib/workspaceHref";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -207,7 +208,7 @@ export function GlobalSearchDialog() {
     close();
     setQuery("");
     setDebouncedQuery("");
-    router.push(`/issues/${encodeURIComponent(id)}`);
+    router.push(withVault(vault, `/issues/${encodeURIComponent(id)}`));
   }
 
   // Result rows are real anchors (`<Link href="/issues/{id}">`) so Cmd/Ctrl,
@@ -308,7 +309,10 @@ export function GlobalSearchDialog() {
                     drives selection from the input via aria-activedescendant),
                     and `handleRowClick` preserves the keyboard/SPA path. */}
                 <Link
-                  href={`/issues/${encodeURIComponent(issue.id)}`}
+                  href={withVault(
+                    vault,
+                    `/issues/${encodeURIComponent(issue.id)}`,
+                  )}
                   tabIndex={-1}
                   onClick={(e) => handleRowClick(e, issue.id)}
                   className="flex min-w-0 flex-1"

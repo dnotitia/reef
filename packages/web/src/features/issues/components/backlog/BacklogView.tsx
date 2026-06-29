@@ -33,6 +33,7 @@ import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { DURATION_BASE, EASE_SIGNATURE } from "@/lib/motionTokens";
+import { withVault } from "@/lib/workspaceHref";
 import {
   DndContext,
   type DragEndEvent,
@@ -425,7 +426,7 @@ export function BacklogView({ vault }: BacklogViewProps) {
         filtersActive ? (
           <BacklogNoMatches />
         ) : (
-          <BacklogEmptyState />
+          <BacklogEmptyState vault={vault} />
         )
       ) : (
         <DndContext
@@ -551,7 +552,7 @@ function BacklogSkeleton() {
   );
 }
 
-function BacklogEmptyState() {
+function BacklogEmptyState({ vault }: { vault: string }) {
   const t = useTranslations("issues.backlog");
   return (
     <div
@@ -568,7 +569,7 @@ function BacklogEmptyState() {
         <p className="text-sm text-muted-foreground">{t("emptyDescription")}</p>
       </div>
       <Link
-        href="/issues?view=board"
+        href={withVault(vault, "/issues?view=board")}
         className="text-[13px] font-medium text-brand hover:underline"
       >
         {t("goToBoard")}

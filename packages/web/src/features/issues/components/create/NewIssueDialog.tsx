@@ -23,6 +23,7 @@ import {
 } from "@/features/settings/hooks/useProjectConfig";
 import { useViewStore } from "@/features/ui/stores/useViewStore";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
+import { withVault } from "@/lib/workspaceHref";
 import { DEFAULT_CONFIG } from "@reef/core";
 import type { IssueType, ReferenceSuggestion, Template } from "@reef/core";
 import { useQueryClient } from "@tanstack/react-query";
@@ -334,7 +335,7 @@ export function NewIssueDialog() {
       } else {
         toast.success(t("issueCreated", { id: issue.id }));
       }
-      router.push(`/issues/${issue.id}`);
+      router.push(withVault(vault, `/issues/${issue.id}`));
     } catch (err) {
       const message = err instanceof Error ? err.message : tc("createError");
       setSubmitError(message);

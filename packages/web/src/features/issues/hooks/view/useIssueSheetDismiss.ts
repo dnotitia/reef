@@ -1,5 +1,6 @@
 "use client";
 
+import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect } from "react";
 import { buildOpenIssueHref } from "../../lib/issueHref";
@@ -11,8 +12,8 @@ interface UseIssueSheetDismissArgs {
   /**
    * Exit the sheet to its entry view — the list/board the user came from. The
    * soft-nav intercepting route passes `router.back()` (one step, since drill
-   * hops are flat `replace`s); the deep-link base route passes
-   * `router.push("/issues")`.
+   * hops are flat `replace`s); the deep-link base route passes a push to the
+   * vault-scoped issues list.
    */
   onExit: () => void;
 }
@@ -41,6 +42,7 @@ export function useIssueSheetDismiss({
   // static-prerender CSR bailout. The sibling `useOpenIssue` reads the query the
   // same way in this route family.
   const searchParams = useSearchParams();
+  const { vault } = useActiveVault();
   const trail = useIssueNavStack((state) => state.trail);
   const currentId = useIssueNavStack((state) => state.currentId);
   const back = useIssueNavStack((state) => state.back);
@@ -70,9 +72,9 @@ export function useIssueSheetDismiss({
   const goBack = useCallback(() => {
     const previous = back();
     if (previous) {
-      router.replace(buildOpenIssueHref(previous, searchParams));
+      router.replace(buildOpenIssueHref(vault, previous, searchParams));
     }
-  }, [back, router, searchParams]);
+  }, [back, router, searchParams, vault]);
 
   const exit = useCallback(() => {
     clear();

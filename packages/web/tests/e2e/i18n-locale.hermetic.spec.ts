@@ -16,7 +16,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/settings/preferences");
+    await page.goto("/workspace/reef-e2e/settings/preferences");
 
     // Scope the language-section testid lookups to the VISIBLE region via its
     // accessible role/name. Next dev's warm-navigation transition can leave a
@@ -90,7 +90,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
 
     // Baseline: the board status columns render their English labels (the
     // workflow statuses are always present regardless of the issue set).
-    await page.goto("/issues?view=board");
+    await page.goto("/workspace/reef-e2e/issues?view=board");
     await expect(
       page.locator('[data-testid="kanban-board"]').first(),
     ).toBeVisible();
@@ -102,7 +102,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     ).toBeVisible();
 
     // Switch the interface to Korean through the real settings control.
-    await page.goto("/settings/preferences");
+    await page.goto("/workspace/reef-e2e/settings/preferences");
     await page
       .getByRole("region", { name: "Language" })
       .getByTestId("locale-option-ko")
@@ -112,7 +112,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     // The same status columns now render their Korean labels — the core key →
     // active-locale string lookup (REEF-292) resolving end to end through the
     // merged next-intl catalog (AC1), not a separate English map.
-    await page.goto("/issues?view=board");
+    await page.goto("/workspace/reef-e2e/issues?view=board");
     await expect(
       page.locator('[data-testid="kanban-board"]').first(),
     ).toBeVisible();
@@ -140,7 +140,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
   }) => {
     await openExistingWorkspace(page);
 
-    await page.goto("/settings/preferences");
+    await page.goto("/workspace/reef-e2e/settings/preferences");
     await page
       .getByRole("region", { name: "Language" })
       .getByTestId("locale-option-ko")
@@ -152,7 +152,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     // (REEF-301). Before this work these stayed English ("Assignee", "Priority")
     // sitting above an already-localized value (the half-translated header the
     // story calls out, AC2). REEF-002 always renders the full property rail.
-    await page.goto("/issues/REEF-002");
+    await page.goto("/workspace/reef-e2e/issues/REEF-002");
     const sidebar = page.getByTestId("issue-detail-sidebar");
     await expect(sidebar).toBeVisible();
     for (const koLabel of [
@@ -176,7 +176,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     // status facet trigger reads the Korean field name from the same catalog
     // (REEF-301). The board renders a single filter bar (the list view renders a
     // responsive pair), so assert there.
-    await page.goto("/issues?view=board");
+    await page.goto("/workspace/reef-e2e/issues?view=board");
     await expect(
       page.locator('[data-testid="kanban-board"]').first(),
     ).toBeVisible();
@@ -188,7 +188,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     );
 
     // Capture the localized rail as the REEF-301 visual proof.
-    await page.goto("/issues/REEF-002");
+    await page.goto("/workspace/reef-e2e/issues/REEF-002");
     await expect(sidebar).toBeVisible();
     await sidebar.screenshot({
       path: "test-results/reef-301-field-names-ko.png",
@@ -200,7 +200,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
   }) => {
     await openExistingWorkspace(page);
 
-    await page.goto("/settings/preferences");
+    await page.goto("/workspace/reef-e2e/settings/preferences");
     await page
       .getByRole("region", { name: "Language" })
       .getByTestId("locale-option-ko")
@@ -212,7 +212,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     // used to leak English ("Set date") or an assembled half-translation
     // ("Select 스프린트") past the i18n guard because it lived in component
     // defaults / code-assembled strings (REEF-309).
-    await page.goto("/issues/REEF-003");
+    await page.goto("/workspace/reef-e2e/issues/REEF-003");
     const sidebar = page.getByTestId("issue-detail-sidebar");
     await expect(sidebar).toBeVisible();
 
@@ -297,7 +297,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     // The same localized copy reaches the actual UI surface: the detail page for
     // a non-existent issue renders the server error verbatim (the client toast /
     // error state is a pass-through of `body.error`), so a Korean PM sees Korean.
-    await page.goto("/issues/REEF-99999");
+    await page.goto("/workspace/reef-e2e/issues/REEF-99999");
     await expect(page.getByTestId("issue-detail-error")).toContainText(
       "이슈를 찾을 수 없습니다.",
     );
@@ -308,7 +308,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
   }) => {
     await openExistingWorkspace(page);
 
-    await page.goto("/settings/preferences");
+    await page.goto("/workspace/reef-e2e/settings/preferences");
     await page
       .getByRole("region", { name: "Language" })
       .getByTestId("locale-option-ko")
@@ -321,7 +321,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
 
     // The shared MarkdownEditor toolbar (components/) localizes too — on the
     // issue detail surface the Bold control's accessible name is Korean.
-    await page.goto("/issues/REEF-002");
+    await page.goto("/workspace/reef-e2e/issues/REEF-002");
     await expect(page.getByTestId("issue-detail-sidebar")).toBeVisible();
     await expect(
       page.getByRole("button", { name: "굵게" }).first(),
@@ -334,7 +334,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
   }) => {
     await openExistingWorkspace(page);
 
-    await page.goto("/settings/preferences");
+    await page.goto("/workspace/reef-e2e/settings/preferences");
     await page
       .getByRole("region", { name: "Language" })
       .getByTestId("locale-option-ko")
@@ -342,7 +342,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     await expect(page.locator("html")).toHaveAttribute("lang", "ko");
 
     // The My Work page header is web-chrome copy migrated in REEF-306.
-    await page.goto("/my-work");
+    await page.goto("/workspace/reef-e2e/my-work");
     await expect(
       page.getByRole("heading", { name: "내 작업" }).first(),
     ).toBeVisible();
@@ -350,7 +350,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     // The timeline's month-year header now formats locale-aware (REEF-306 routes
     // the old hardcoded English month abbreviations through Intl), so a Korean
     // timeline reads "2026년 6월" instead of "Jun 2026".
-    await page.goto("/issues?view=timeline");
+    await page.goto("/workspace/reef-e2e/issues?view=timeline");
     await expect(page.getByText(/\d{4}년 \d{1,2}월/).first()).toBeVisible();
     await expect(page.getByText(/^Jun \d{4}$/)).toHaveCount(0);
   });
@@ -360,7 +360,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
   }) => {
     await openExistingWorkspace(page);
 
-    await page.goto("/settings/preferences");
+    await page.goto("/workspace/reef-e2e/settings/preferences");
     await page
       .getByRole("region", { name: "Language" })
       .getByTestId("locale-option-ko")
@@ -369,7 +369,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
 
     // The activity feed's filter controls are web-chrome copy migrated in
     // REEF-305; they render regardless of the draft set, now from the ko catalog.
-    await page.goto("/activity");
+    await page.goto("/workspace/reef-e2e/activity");
     await expect(
       page.getByRole("button", { name: "AI 초안" }).first(),
     ).toBeVisible();
@@ -381,7 +381,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     );
 
     // The planning page's kind toggle follows the locale too (REEF-305).
-    await page.goto("/planning");
+    await page.goto("/workspace/reef-e2e/planning");
     await expect(
       page.getByRole("group", { name: "플래닝 종류" }),
     ).toBeVisible();
@@ -392,7 +392,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
   }) => {
     await openExistingWorkspace(page);
 
-    await page.goto("/settings/preferences");
+    await page.goto("/workspace/reef-e2e/settings/preferences");
     await page
       .getByRole("region", { name: "Language" })
       .getByTestId("locale-option-ko")
@@ -402,7 +402,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     // The reports page's breakdown card titles are web-chrome copy migrated in
     // REEF-304 — they now resolve from the ko catalog. "Top assignees" is a
     // stable always-present card heading on the populated reports surface.
-    await page.goto("/reports");
+    await page.goto("/workspace/reef-e2e/reports");
     await expect(
       page.getByText("주요 담당자", { exact: true }).first(),
     ).toBeVisible();
@@ -422,7 +422,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
   }) => {
     await openExistingWorkspace(page);
 
-    await page.goto("/settings/preferences");
+    await page.goto("/workspace/reef-e2e/settings/preferences");
     await page
       .getByRole("region", { name: "Language" })
       .getByTestId("locale-option-ko")
@@ -442,7 +442,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     // The workspace settings route's section sub-headings (Project / Templates /
     // Authoring Language / Completed Issues) follow the locale too — the App
     // Router server page resolves its copy through next-intl (REEF-303).
-    await page.goto("/settings/workspace");
+    await page.goto("/workspace/reef-e2e/settings/workspace");
     for (const koHeading of [
       "프로젝트", // Project
       "템플릿", // Templates
@@ -463,7 +463,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
   }) => {
     await openExistingWorkspace(page);
 
-    await page.goto("/settings/preferences");
+    await page.goto("/workspace/reef-e2e/settings/preferences");
     await page
       .getByRole("region", { name: "Language" })
       .getByTestId("locale-option-ko")
@@ -476,7 +476,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     // localized field rows — the half-translated screen REEF-298 calls out. They
     // now resolve from the merged ko catalog end to end. REEF-002 always renders
     // the full property rail + relationships section.
-    await page.goto("/issues/REEF-002");
+    await page.goto("/workspace/reef-e2e/issues/REEF-002");
     const sidebar = page.getByTestId("issue-detail-sidebar");
     await expect(sidebar).toBeVisible();
     await expect(sidebar.getByText("세부 정보", { exact: true })).toBeVisible();
@@ -503,12 +503,12 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     // hardcoded-string guard never scanned, so they stayed English even with a
     // locale selected. They now resolve through the shared core `fields.name`
     // catalog (extended with the list/enrichment field names in REEF-299).
-    await page.goto("/issues?view=list");
+    await page.goto("/workspace/reef-e2e/issues?view=list");
     await expect(
       page.getByRole("columnheader", { name: "Title" }),
     ).toBeVisible();
 
-    await page.goto("/settings/preferences");
+    await page.goto("/workspace/reef-e2e/settings/preferences");
     await page
       .getByRole("region", { name: "Language" })
       .getByTestId("locale-option-ko")
@@ -517,7 +517,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
 
     // Same headers, now Korean — the data-structure copy follows the locale end
     // to end (REEF-299, AC1/AC2).
-    await page.goto("/issues?view=list");
+    await page.goto("/workspace/reef-e2e/issues?view=list");
     await expect(
       page.getByRole("columnheader", { name: "제목" }),
     ).toBeVisible();

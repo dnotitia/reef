@@ -30,7 +30,12 @@ describe("IssuePage (deep-link backdrop fallback)", () => {
   it("paints the workspace skeleton behind the sheet while suspended (REEF-255)", () => {
     render(
       <IssuePage
-        params={{ id: "REEF-1" } as unknown as Promise<{ id: string }>}
+        params={
+          { id: "REEF-1", vault: "reef-acme" } as unknown as Promise<{
+            id: string;
+            vault: string;
+          }>
+        }
       />,
     );
 

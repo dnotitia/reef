@@ -53,6 +53,16 @@ vi.mock("@/features/issues/hooks/queries/useIssueList", () => ({
 vi.mock("@/features/issues/hooks/queries/useIssueRelations", () => ({
   useIssueRelations: () => ({ data: undefined }),
 }));
+// ActivityCardHeader now reads the active vault (REEF-315) via useActiveVault,
+// which calls useQuery — resolve it to a fixed value so the card renders without
+// a QueryClient, matching the `vault` prop the card is given below.
+vi.mock("@/features/settings/hooks/useActiveVault", () => ({
+  useActiveVault: () => ({
+    vault: "reef-test",
+    isLoading: false,
+    refetch: vi.fn(),
+  }),
+}));
 
 import { ActivityDraftCard } from "./ActivityDraftCard";
 

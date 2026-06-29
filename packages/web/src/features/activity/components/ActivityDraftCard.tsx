@@ -21,6 +21,7 @@ import {
   useIssueTypeLabels,
   useSeverityLabels,
 } from "@/i18n/fieldLabels";
+import { withVault } from "@/lib/workspaceHref";
 import type {
   ActivityDraftSuggestion,
   IssueCreateInput,
@@ -323,7 +324,7 @@ export function ActivityDraftCard({
             {relationLinks.map(({ kind, label, id }) => (
               <Link
                 key={`${kind}:${id}`}
-                href={`/issues/${id}`}
+                href={withVault(vault ?? "", `/issues/${id}`)}
                 className={LINK_CHIP_CLASS}
               >
                 {label} <span className="font-mono">{id}</span>

@@ -8,6 +8,18 @@ const { mockReplace } = vi.hoisted(() => ({ mockReplace: vi.fn() }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mockReplace, push: vi.fn(), back: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
+  useParams: () => ({ vault: "reef-test" }),
+}));
+
+// goBack builds its target with the active vault (REEF-315) via useActiveVault,
+// which calls useQuery; this hook test has no QueryClient, so resolve it to a
+// fixed vault that scopes the back href.
+vi.mock("@/features/settings/hooks/useActiveVault", () => ({
+  useActiveVault: () => ({
+    vault: "reef-test",
+    isLoading: false,
+    refetch: vi.fn(),
+  }),
 }));
 
 afterEach(() => {
@@ -63,7 +75,9 @@ describe("useIssueSheetDismiss (REEF-270)", () => {
 
     act(() => result.current.dismissViaEsc());
 
-    expect(mockReplace).toHaveBeenCalledWith("/issues/REEF-A");
+    expect(mockReplace).toHaveBeenCalledWith(
+      "/workspace/reef-test/issues/REEF-A",
+    );
     expect(useIssueNavStack.getState().trail).toEqual([]);
     expect(onExit).not.toHaveBeenCalled();
   });

@@ -8,8 +8,10 @@ vi.mock("next/navigation", () => ({
 import SettingsPage from "./page";
 
 describe("SettingsPage section root (REEF-183)", () => {
-  it("redirects a bare /settings hit to the default Workspace tab", () => {
-    SettingsPage();
-    expect(redirect).toHaveBeenCalledWith("/settings/workspace");
+  it("redirects a bare settings hit to the vault-scoped Workspace tab", async () => {
+    await SettingsPage({ params: Promise.resolve({ vault: "reef-acme" }) });
+    expect(redirect).toHaveBeenCalledWith(
+      "/workspace/reef-acme/settings/workspace",
+    );
   });
 });

@@ -1,6 +1,8 @@
 "use client";
 
+import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { cn } from "@/lib/utils";
+import { withVault } from "@/lib/workspaceHref";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -26,6 +28,7 @@ const WORKSPACE_SUB_TABS = [
  */
 export function WorkspaceSubNav() {
   const pathname = usePathname();
+  const { vault } = useActiveVault();
   const t = useTranslations("settings.misc");
 
   return (
@@ -35,17 +38,18 @@ export function WorkspaceSubNav() {
       className="flex items-center gap-4 border-b border-border-subtle"
     >
       {WORKSPACE_SUB_TABS.map(({ href, id, labelKey }) => {
-        // General is the index route, so it matches exactly; Members owns its
-        // own nested segment. Without the exact check, General would also light
-        // up on /settings/workspace/members.
+        // Targets are vault-scoped (REEF-315). General is the index route, so it
+        // matches exactly; Members owns its own nested segment. Without the
+        // exact check, General would also light up on .../workspace/members.
+        const fullHref = withVault(vault, href);
         const isActive =
           href === "/settings/workspace"
-            ? pathname === href
-            : pathname === href || pathname.startsWith(`${href}/`);
+            ? pathname === fullHref
+            : pathname === fullHref || pathname.startsWith(`${fullHref}/`);
         return (
           <Link
             key={href}
-            href={href}
+            href={fullHref}
             aria-current={isActive ? "page" : undefined}
             data-testid={`workspace-subnav-${id}`}
             className={cn(

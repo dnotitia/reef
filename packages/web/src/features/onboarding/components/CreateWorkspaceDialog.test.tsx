@@ -95,7 +95,9 @@ describe("CreateWorkspaceDialog", () => {
     );
     await user.click(screen.getByTestId("create-workspace-create-btn"));
 
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/issues"));
+    await waitFor(() =>
+      expect(mockPush).toHaveBeenCalledWith("/workspace/reef-new/issues"),
+    );
     await waitFor(() =>
       expect(useViewStore.getState().createWorkspaceDialogOpen).toBe(false),
     );

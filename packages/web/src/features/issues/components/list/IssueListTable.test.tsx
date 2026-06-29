@@ -21,6 +21,7 @@ const { mockPush, navigationState } = vi.hoisted(() => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush, refresh: vi.fn() }),
   useSearchParams: () => navigationState.searchParams,
+  useParams: () => ({ vault: "reef-acme" }),
 }));
 
 import { IssueListTable } from "./IssueListTable";
@@ -91,7 +92,7 @@ describe("IssueListTable", () => {
     render(wrap(<IssueListTable vault="reef-acme" />));
 
     await user.click(await screen.findByText("First task"));
-    expect(mockPush).toHaveBeenCalledWith("/issues/REEF-1");
+    expect(mockPush).toHaveBeenCalledWith("/workspace/reef-acme/issues/REEF-1");
   });
 
   it("preserves the current ?view= and filters when opening an issue (REEF-222)", async () => {
@@ -101,7 +102,7 @@ describe("IssueListTable", () => {
 
     await user.click(await screen.findByText("First task"));
     expect(mockPush).toHaveBeenCalledWith(
-      "/issues/REEF-1?view=list&status=todo",
+      "/workspace/reef-acme/issues/REEF-1?view=list&status=todo",
     );
   });
 

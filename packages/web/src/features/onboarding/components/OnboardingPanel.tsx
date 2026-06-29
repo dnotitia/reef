@@ -6,6 +6,7 @@ import {
   useSetActiveVault,
 } from "@/features/settings/hooks/useActiveVault";
 import { useVaults } from "@/features/settings/hooks/useVaults";
+import { withVault } from "@/lib/workspaceHref";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
@@ -86,7 +87,7 @@ export function OnboardingPanel() {
           <button
             type="button"
             disabled={!canContinueExisting}
-            onClick={() => router.push("/issues")}
+            onClick={() => router.push(withVault(activeVault, "/issues"))}
             data-testid="onboarding-continue-btn"
             className="w-fit rounded-md bg-foreground px-5 py-2 text-sm font-medium text-background transition-colors duration-150 hover:bg-foreground/90 disabled:opacity-50"
           >

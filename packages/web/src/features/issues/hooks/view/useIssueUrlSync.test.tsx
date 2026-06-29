@@ -12,7 +12,7 @@ import { useIssueUrlSync } from "./useIssueUrlSync";
 const { mockPush, mockReplace, navigationState, vaultState } = vi.hoisted(
   () => {
     const navigationState = {
-      pathname: "/issues",
+      pathname: "/workspace/reef-acme/issues",
       searchParams: new URLSearchParams(),
     };
     // Model the browser: a push/replace updates the query that the next
@@ -67,7 +67,7 @@ describe("useIssueUrlSync", () => {
   beforeEach(async () => {
     mockPush.mockClear();
     mockReplace.mockClear();
-    navigationState.pathname = "/issues";
+    navigationState.pathname = "/workspace/reef-acme/issues";
     navigationState.searchParams = new URLSearchParams();
     vaultState.value = "reef-acme";
     useIssueStore.setState({
@@ -252,7 +252,7 @@ describe("useIssueUrlSync", () => {
 
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith(
-        "/issues?assignee=alice&assignee=bob&sprint_id=s1",
+        "/workspace/reef-acme/issues?assignee=alice&assignee=bob&sprint_id=s1",
         { scroll: false },
       );
     });
@@ -269,7 +269,7 @@ describe("useIssueUrlSync", () => {
 
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith(
-        "/issues?status=todo&priority=high&q=auth",
+        "/workspace/reef-acme/issues?status=todo&priority=high&q=auth",
         { scroll: false },
       );
     });
@@ -284,14 +284,17 @@ describe("useIssueUrlSync", () => {
     fireEvent.click(screen.getByRole("button", { name: "Set status" }));
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/issues?status=todo", {
-        scroll: false,
-      });
+      expect(mockPush).toHaveBeenCalledWith(
+        "/workspace/reef-acme/issues?status=todo",
+        {
+          scroll: false,
+        },
+      );
     });
   });
 
   it("does not mirror filters onto the URL while a detail sheet is open", async () => {
-    navigationState.pathname = "/issues/REEF-001";
+    navigationState.pathname = "/workspace/reef-acme/issues/REEF-001";
     navigationState.searchParams = new URLSearchParams();
     useIssueStore.setState({
       filter: { assignee: ["jylkim"] },
@@ -324,7 +327,7 @@ describe("useIssueUrlSync", () => {
     });
     const pushedUrl = mockPush.mock.calls[0][0] as string;
     const pushed = new URLSearchParams(pushedUrl.split("?")[1]);
-    expect(pushedUrl.startsWith("/issues?")).toBe(true);
+    expect(pushedUrl.startsWith("/workspace/reef-acme/issues?")).toBe(true);
     expect(pushed.get("view")).toBe("list");
     expect(pushed.get("status")).toBe("todo");
   });
@@ -348,7 +351,7 @@ describe("useIssueUrlSync", () => {
     // replace (hydration), not push, so no bare /issues history entry stacks.
     await waitFor(() => {
       expect(mockReplace).toHaveBeenCalledWith(
-        "/issues?status=in_review&sort=due_date&order=asc",
+        "/workspace/reef-acme/issues?status=in_review&sort=due_date&order=asc",
         { scroll: false },
       );
     });
@@ -386,6 +389,9 @@ describe("useIssueUrlSync", () => {
     });
 
     vaultState.value = "reef-zen";
+    // A vault switch navigates the URL to the new workspace (REEF-315); the hook
+    // derives the vault from that same path, so move the pathname in step.
+    navigationState.pathname = "/workspace/reef-zen/issues";
     rerender(<Harness />);
 
     await waitFor(() => {
@@ -413,6 +419,9 @@ describe("useIssueUrlSync", () => {
     });
 
     vaultState.value = "reef-zen";
+    // A vault switch navigates the URL to the new workspace (REEF-315); the hook
+    // derives the vault from that same path, so move the pathname in step.
+    navigationState.pathname = "/workspace/reef-zen/issues";
     rerender(<Harness />);
 
     // zen has no saved filter → the store empties AND the stale acme URL is
@@ -432,14 +441,20 @@ describe("useIssueUrlSync", () => {
 
     const { rerender } = render(<Harness />);
     await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith("/issues?status=todo", {
-        scroll: false,
-      });
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/workspace/reef-acme/issues?status=todo",
+        {
+          scroll: false,
+        },
+      );
     });
     mockReplace.mockClear();
     mockPush.mockClear();
 
     vaultState.value = "reef-zen";
+    // A vault switch navigates the URL to the new workspace (REEF-315); the hook
+    // derives the vault from that same path, so move the pathname in step.
+    navigationState.pathname = "/workspace/reef-zen/issues";
     rerender(<Harness />);
 
     // The new vault's saved filter is restored; the stale-URL clear should not
@@ -449,9 +464,12 @@ describe("useIssueUrlSync", () => {
       expect(useIssueStore.getState().filter.priority).toEqual(["low"]);
     });
     await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith("/issues?priority=low", {
-        scroll: false,
-      });
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/workspace/reef-zen/issues?priority=low",
+        {
+          scroll: false,
+        },
+      );
     });
     // The whole switch — clearing acme's stale params and applying zen's filter —
     // goes through replace (hydration), not push, so no spurious history entry
@@ -506,9 +524,12 @@ describe("useIssueUrlSync", () => {
     render(<Harness />);
 
     await waitFor(() => expect(mockReplace).toHaveBeenCalledTimes(1));
-    expect(mockReplace).toHaveBeenCalledWith("/issues?status=todo", {
-      scroll: false,
-    });
+    expect(mockReplace).toHaveBeenCalledWith(
+      "/workspace/reef-acme/issues?status=todo",
+      {
+        scroll: false,
+      },
+    );
     expect(mockPush).not.toHaveBeenCalled();
   });
 

@@ -34,6 +34,7 @@ vi.mock("@/lib/apiClient", async () => {
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
+  useParams: () => ({ vault: "reef-acme" }),
 }));
 
 vi.mock("@dnd-kit/core", () => ({

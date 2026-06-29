@@ -57,7 +57,7 @@ test.describe("Route skeleton layout stability (REEF-258)", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/reports");
+    await page.goto("/workspace/reef-e2e/reports");
     await expect(page.getByTestId("reports-page")).toBeVisible();
     expect(await cumulativeLayoutShift(page)).toBeLessThan(CLS_BUDGET);
   });
@@ -66,7 +66,7 @@ test.describe("Route skeleton layout stability (REEF-258)", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/my-work");
+    await page.goto("/workspace/reef-e2e/my-work");
     await expect(page.getByTestId("my-work-summary")).toBeVisible();
     expect(await cumulativeLayoutShift(page)).toBeLessThan(CLS_BUDGET);
   });
@@ -75,7 +75,7 @@ test.describe("Route skeleton layout stability (REEF-258)", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/settings/workspace");
+    await page.goto("/workspace/reef-e2e/settings/workspace");
     await expect(
       page.getByRole("main").getByTestId("settings-group-workspace"),
     ).toBeVisible();
@@ -86,7 +86,7 @@ test.describe("Route skeleton layout stability (REEF-258)", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/issues?view=list");
+    await page.goto("/workspace/reef-e2e/issues?view=list");
     await expect(
       page.locator('[data-testid="issue-list-row"]').first(),
     ).toBeVisible();
@@ -97,7 +97,7 @@ test.describe("Route skeleton layout stability (REEF-258)", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/issues?view=board");
+    await page.goto("/workspace/reef-e2e/issues?view=board");
     await expect(page.getByTestId("kanban-board")).toBeVisible();
     expect(await cumulativeLayoutShift(page)).toBeLessThan(CLS_BUDGET);
   });
@@ -106,7 +106,7 @@ test.describe("Route skeleton layout stability (REEF-258)", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/issues?view=timeline");
+    await page.goto("/workspace/reef-e2e/issues?view=timeline");
     await expect(page.getByTestId("timeline-grid")).toBeVisible();
     expect(await cumulativeLayoutShift(page)).toBeLessThan(CLS_BUDGET);
   });
@@ -115,7 +115,7 @@ test.describe("Route skeleton layout stability (REEF-258)", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/issues?view=backlog");
+    await page.goto("/workspace/reef-e2e/issues?view=backlog");
     await expect(page.getByTestId("backlog-header")).toBeVisible();
     expect(await cumulativeLayoutShift(page)).toBeLessThan(CLS_BUDGET);
   });

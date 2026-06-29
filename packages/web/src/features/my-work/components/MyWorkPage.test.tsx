@@ -163,7 +163,10 @@ describe("MyWorkPage", () => {
     );
     expect(screen.getByTestId("my-work-empty")).toBeInTheDocument();
     const cta = screen.getByRole("link", { name: /Go to the board/ });
-    expect(cta).toHaveAttribute("href", "/issues?view=board");
+    expect(cta).toHaveAttribute(
+      "href",
+      "/workspace/reef-acme/issues?view=board",
+    );
     expect(cta).toHaveAttribute("data-next-link", "true");
   });
 
@@ -178,7 +181,10 @@ describe("MyWorkPage", () => {
     );
     expect(screen.getByTestId("my-work-caught-up")).toBeInTheDocument();
     const cta = screen.getByRole("link", { name: /Go to the board/ });
-    expect(cta).toHaveAttribute("href", "/issues?view=board");
+    expect(cta).toHaveAttribute(
+      "href",
+      "/workspace/reef-acme/issues?view=board",
+    );
     expect(cta).toHaveAttribute("data-next-link", "true");
   });
 
@@ -244,7 +250,10 @@ describe("MyWorkPage", () => {
         </IntlTestProvider>,
       );
       const row = screen.getByTestId("my-work-row-REEF-1");
-      expect(row).toHaveAttribute("href", "/issues/REEF-1?group=status");
+      expect(row).toHaveAttribute(
+        "href",
+        "/workspace/reef-acme/issues/REEF-1?group=status",
+      );
     });
 
     it("groups by status and writes the mode to the URL", () => {
@@ -254,9 +263,12 @@ describe("MyWorkPage", () => {
         </IntlTestProvider>,
       );
       fireEvent.click(screen.getByTestId("my-work-group-status"));
-      expect(mockReplace).toHaveBeenCalledWith("/my-work?group=status", {
-        scroll: false,
-      });
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/workspace/reef-acme/my-work?group=status",
+        {
+          scroll: false,
+        },
+      );
     });
   });
 });

@@ -61,9 +61,11 @@ test.describe("Hermetic auth flow", () => {
     await signInAsAlice(page);
     await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
 
-    await page.goto("/login/sso-complete?next=/reports");
+    await page.goto("/login/sso-complete?next=/workspace/reef-e2e/reports");
 
-    await page.waitForURL(/\/reports$/, { timeout: 10_000 });
+    await page.waitForURL(/\/workspace\/reef-e2e\/reports$/, {
+      timeout: 10_000,
+    });
   });
 
   test("returns SSO completion failures to login with an error flag", async ({

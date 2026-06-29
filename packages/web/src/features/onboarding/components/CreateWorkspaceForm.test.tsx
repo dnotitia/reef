@@ -132,7 +132,9 @@ describe("CreateWorkspaceForm", () => {
     );
     await user.click(screen.getByTestId("create-workspace-create-btn"));
 
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/issues"));
+    await waitFor(() =>
+      expect(mockPush).toHaveBeenCalledWith("/workspace/reef-new/issues"),
+    );
     expect(await getActiveVault()).toBe("reef-new");
     expect(onCreated).toHaveBeenCalledWith("reef-new");
 

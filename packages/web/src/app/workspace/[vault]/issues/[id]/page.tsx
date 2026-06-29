@@ -4,30 +4,31 @@ import { IssueDetailSheet } from "@/features/issues/components/detail/IssueDetai
 import { IssuesWorkspace } from "@/features/issues/components/filters/IssuesWorkspace";
 import { IssuesWorkspaceSkeleton } from "@/features/issues/components/filters/IssuesWorkspaceSkeleton";
 import { useHydrated } from "@/lib/useHydrated";
+import { withVault } from "@/lib/workspaceHref";
 import { useRouter } from "next/navigation";
 import { Suspense, use } from "react";
 
 interface IssuePageProps {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string; vault: string }>;
 }
 
 /**
- * Base route for /issues/[id] — reached on hard navigation
+ * Base route for /workspace/[vault]/issues/[id] — reached on hard navigation
  * (refresh, paste-into-address-bar, deep link from Slack/email).
  *
- * Soft navigation from /issues (any view) or /activity is intercepted by
- * `(dashboard)/@modal/(.)issues/[id]/page.tsx` instead, so this file just
+ * Soft navigation from the issues list (any view) or /activity is intercepted
+ * by the sibling `@modal/(.)issues/[id]/page.tsx` instead, so this file just
  * runs when the URL was hit cold.
  *
  * UX: the IssuesWorkspace fills the layout slot as a backdrop and the
  * IssueDetailSheet slide-over sits on top. On a cold hit there is no `?view=`,
  * so the workspace defaults to the Board view. A cold hit starts a depth-0
- * drill trail (REEF-270), so exiting pushes the user to /issues — we don't rely
- * on history.back() here because the tab may have started directly at this URL
- * with no prior entry.
+ * drill trail (REEF-270), so exiting pushes the user to the vault's issues list
+ * — we don't rely on history.back() here because the tab may have started
+ * directly at this URL with no prior entry.
  */
 export default function IssuePage({ params }: IssuePageProps) {
-  const { id } = use(params);
+  const { id, vault } = use(params);
   const router = useRouter();
 
   // The IssueDetailSheet is a modal Radix Dialog rendered open. On this cold-hit
@@ -47,7 +48,10 @@ export default function IssuePage({ params }: IssuePageProps) {
         <IssuesWorkspace />
       </Suspense>
       {mounted && (
-        <IssueDetailSheet issueId={id} onClose={() => router.push("/issues")} />
+        <IssueDetailSheet
+          issueId={id}
+          onClose={() => router.push(withVault(vault, "/issues"))}
+        />
       )}
     </>
   );
