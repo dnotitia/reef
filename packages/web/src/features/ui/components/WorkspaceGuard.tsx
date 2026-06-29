@@ -1,6 +1,5 @@
 "use client";
 
-import { AppShellSkeleton } from "@/components/AppShellSkeleton";
 import { useAuthRedirect } from "@/features/auth/hooks/useAuthRedirect";
 import { useSyncActiveVaultFromUrl } from "@/features/settings/hooks/useActiveVault";
 import { useVaults } from "@/features/settings/hooks/useVaults";
@@ -39,16 +38,14 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
   // order is stable across renders.
   if (!VAULT_NAME_RE.test(vault)) notFound();
 
-  // Membership gate (AC5) — no silent fallback. Hold the app-shell skeleton
-  // until the vault list resolves rather than mounting DashboardShell, which
-  // would fire vault-scoped fetches against a possibly-forbidden vault and
-  // flash a member/non-member surface. A definitive non-member sees the
-  // access-denied surface; a vaults-list error degrades open (the page's own
-  // queries surface their errors) so a transient fetch failure does not lock a
-  // real member out.
-  if (vaultsQuery.isPending) {
-    return <AppShellSkeleton />;
-  }
+  // Membership gate (AC5) — no silent fallback, but render the shell
+  // optimistically. The common case is a member, and gating every page load on
+  // the vault-list fetch would serialize the whole workspace behind it (and is
+  // unneeded once the list is cached). Only a DEFINITIVE non-member replaces the
+  // shell with the explicit access-denied surface; while the list is still
+  // loading, or if it errors, the shell renders and the page's own queries own
+  // their loading/error states — a real member is never held back, and a
+  // non-member still lands on access-denied once the list resolves.
   if (
     vaultsQuery.isSuccess &&
     !vaultsQuery.data.some((v) => v.name === vault)

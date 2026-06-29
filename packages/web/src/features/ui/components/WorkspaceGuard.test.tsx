@@ -38,9 +38,6 @@ vi.mock("./DashboardShell", () => ({
     <div data-testid="dashboard-shell">{children}</div>
   ),
 }));
-vi.mock("@/components/AppShellSkeleton", () => ({
-  AppShellSkeleton: () => <div data-testid="app-shell-skeleton" />,
-}));
 vi.mock("./WorkspaceAccessDenied", () => ({
   WorkspaceAccessDenied: ({ vault }: { vault: string }) => (
     <div data-testid="workspace-access-denied">{vault}</div>
@@ -84,15 +81,17 @@ describe("WorkspaceGuard (REEF-315)", () => {
     expect(notFoundMock).toHaveBeenCalled();
   });
 
-  it("holds the app-shell skeleton while the vault list is loading (no member/non-member flash)", () => {
+  it("renders the shell optimistically while the vault list is loading (no member is held back)", () => {
     vaultsRef.current = { isPending: true, isSuccess: false, isError: false };
     render(
       <WorkspaceGuard appVersion="1.0.0">
         <span data-testid="page" />
       </WorkspaceGuard>,
     );
-    expect(screen.getByTestId("app-shell-skeleton")).toBeInTheDocument();
-    expect(screen.queryByTestId("dashboard-shell")).not.toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-shell")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("workspace-access-denied"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the access-denied surface for a non-member, never a silent fallback", () => {
