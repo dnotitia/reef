@@ -40,7 +40,7 @@ describe("resolveOptionalActor", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("falls back to /auth/me when the token carries no actor claim", async () => {
+  it("falls back to /auth/me when the token carries no username claim", async () => {
     vi.stubEnv("AKB_BACKEND_URL", "https://akb.test");
     const fetchMock = vi.fn(
       async () =>
@@ -51,11 +51,37 @@ describe("resolveOptionalActor", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    // exp only — no username / preferred_username / sub claim to decode.
+    // exp only — no username claim to decode.
     const jwt = makeJwt({ exp: FUTURE_EXP });
     const actor = await resolveOptionalActor(requestWithSession(jwt));
 
     expect(actor).toBe("bob");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores a sub/preferred_username-only token and resolves the canonical /auth/me actor", async () => {
+    // A `sub` (opaque UUID) or SSO `preferred_username` need NOT equal the akb
+    // username stored in `assigned_to`, so the fast path must NOT use them —
+    // it defers to /auth/me, whose `username` is the value the My-Issues filter
+    // needs (REEF-324).
+    vi.stubEnv("AKB_BACKEND_URL", "https://akb.test");
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ username: "alice" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const jwt = makeJwt({
+      exp: FUTURE_EXP,
+      sub: "8b1c-uuid",
+      preferred_username: "alice-kc",
+    });
+    const actor = await resolveOptionalActor(requestWithSession(jwt));
+
+    expect(actor).toBe("alice");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
