@@ -32,8 +32,14 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
   // Session-only gate; membership is validated below against the vault list.
   useAuthRedirect("workspace");
   const vaultsQuery = useVaults();
+  // A usable reef workspace is one the user can access AND that already carries
+  // a reef config — the same `has_reef_config` bar the sidebar switcher and
+  // onboarding use. A bare AKB vault the user merely belongs to is a dead end
+  // (no issues/config surfaces), so treat it as not-a-workspace rather than
+  // rendering an uninitialized board and persisting it as the default.
   const isMember =
-    vaultsQuery.isSuccess && vaultsQuery.data.some((v) => v.name === vault);
+    vaultsQuery.isSuccess &&
+    vaultsQuery.data.some((v) => v.name === vault && v.has_reef_config);
   // One-way URL→Dexie sync: remember this vault as the "last viewed" default —
   // but only for a CONFIRMED member. Persisting before the membership check let
   // a well-formed but denied deep link (`/workspace/someone-else/...`) overwrite

@@ -118,6 +118,23 @@ describe("WorkspaceGuard (REEF-315)", () => {
     expect(syncMock).not.toHaveBeenCalledWith("reef-acme");
   });
 
+  it("treats a bare AKB vault (member but no reef config) as not-a-workspace", () => {
+    vaultsRef.current = {
+      isPending: false,
+      isSuccess: true,
+      isError: false,
+      data: [{ name: "reef-acme", has_reef_config: false }],
+    };
+    render(
+      <WorkspaceGuard appVersion="1.0.0">
+        <span data-testid="page" />
+      </WorkspaceGuard>,
+    );
+    expect(screen.getByTestId("workspace-access-denied")).toBeInTheDocument();
+    expect(syncMock).toHaveBeenCalledWith("");
+    expect(syncMock).not.toHaveBeenCalledWith("reef-acme");
+  });
+
   it("degrades open (renders the shell) when the vault list fails to load", () => {
     vaultsRef.current = { isPending: false, isSuccess: false, isError: true };
     render(
