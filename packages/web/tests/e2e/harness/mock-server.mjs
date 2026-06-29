@@ -936,7 +936,7 @@ function handleSql(vault, sql) {
       return { error: "e2e forced issue list failure" };
     }
     const rows = applyLimit(
-      sortIssueRows(filterIssueRows(vault.issues, normalized), lower),
+      sortIssueRows(filterIssueRows(vault.issues, normalized, vault), lower),
       normalized,
     );
     return tableQuery(Object.keys(vault.issues[0] ?? {}), rows);
@@ -1244,7 +1244,55 @@ function sortIssueRows(rows, lowerSql) {
   return out;
 }
 
-function filterIssueRows(rows, sql) {
+/**
+ * Emulate akb's evaluation of the folded default-view landing query (REEF-324),
+ * which packs the active-sprint pick and the My-Issues existence test into one
+ * `SELECT * FROM reef_issues`. The naive per-column matchers in
+ * `filterIssueRows` would otherwise be fooled by the `status = 'active'` inside
+ * the active-sprint subquery (a sprint status, never an issue status) and treat
+ * the actor in the EXISTS probe as a plain filter, so this branch resolves the
+ * scope the way Postgres would: floor → My Issues iff the actor has any active
+ * issue, else the active sprint, else the floor alone.
+ */
+function defaultViewRows(rows, sql, vault) {
+  const inMatch = sql.match(/"?status"?\s+IN\s+\(([^)]*)\)/i);
+  const floorStatuses = inMatch ? sqlValues(inMatch[1]) : [];
+  const floorRows = rows.filter(
+    (row) => row.archived_at == null && floorStatuses.includes(row.status),
+  );
+  // The actor appears (identically) in the EXISTS probe and the My-Issues arm;
+  // the no-actor fold carries no `assigned_to` clause at all.
+  const actor = matchSqlString(sql, /"assigned_to"\s*=\s*'([^']+)'/i);
+  if (actor && floorRows.some((row) => row.assigned_to === actor)) {
+    return floorRows.filter((row) => row.assigned_to === actor);
+  }
+  const sprintId = activeSprintId(vault);
+  return sprintId
+    ? floorRows.filter((row) => row.sprint_id === sprintId)
+    : floorRows;
+}
+
+/** The active sprint's id, mirroring core's `activeSprintIdSubquery` tie-break. */
+function activeSprintId(vault) {
+  const active = (vault.sprints ?? []).filter((s) => s.status === "active");
+  if (active.length === 0) return null;
+  active.sort((a, b) => {
+    const sa = a.start_date ?? "";
+    const sb = b.start_date ?? "";
+    if (sa !== sb) return sa < sb ? 1 : -1;
+    return a.id < b.id ? 1 : -1;
+  });
+  return active[0].id;
+}
+
+function filterIssueRows(rows, sql, vault) {
+  // REEF-324: the default-view landing folds the active-sprint pick and the
+  // My-Issues existence test into a single statement — recognized by the
+  // embedded active-sprint subquery — so evaluate it directly rather than
+  // letting the per-column matchers below mis-read its subqueries.
+  if (/SELECT "id" FROM reef_sprints WHERE "status" = 'active'/i.test(sql)) {
+    return defaultViewRows(rows, sql, vault);
+  }
   let out = [...rows];
   const reefId = matchSqlString(sql, /"?reef_id"?\s*=\s*'([^']+)'/i);
   if (reefId) out = out.filter((row) => row.reef_id === reefId);
