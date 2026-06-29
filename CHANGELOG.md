@@ -35,6 +35,14 @@ explicitly in the entries below.
   request-body channels, so there is no API, session-cookie, or persistence
   change.
 
+- **Editing an issue re-requests fewer list views.** When you change a field on
+  an issue (status, priority, assignee, sprint, …), reef now refetches only the
+  saved list/board views that field can actually affect, instead of every open
+  list view. The edit still appears immediately everywhere — the change is
+  written into every cached view in place — so this only trims redundant
+  background `/api/issues` requests, reducing server and akb load on busy boards.
+  No behavior or data change (REEF-323).
+
 ## v0.6.0 - 2026-06-26
 
 ### Added

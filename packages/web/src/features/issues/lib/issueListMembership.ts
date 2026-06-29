@@ -30,8 +30,19 @@ const LIST_MEMBERSHIP_KEYS = [
   "archived_at",
 ] as const satisfies readonly (keyof IssueUpdatePatch)[];
 
+/**
+ * The list-membership keys actually present in `patch`. Drives both the boolean
+ * gate below and the narrowed invalidation predicate (REEF-323), which refetches
+ * only the variants these keys can affect rather than every list variant.
+ */
+export function changedListMembershipKeys(
+  patch: IssueUpdatePatch,
+): (keyof IssueUpdatePatch)[] {
+  return LIST_MEMBERSHIP_KEYS.filter((key) => key in patch);
+}
+
 export function patchAffectsListMembership(patch: IssueUpdatePatch): boolean {
-  return LIST_MEMBERSHIP_KEYS.some((key) => key in patch);
+  return changedListMembershipKeys(patch).length > 0;
 }
 
 /**
@@ -93,6 +104,68 @@ export function patchAffectsActivityTimeline(patch: IssueUpdatePatch): boolean {
 export function listQueryHasFreeText(query: {
   queryKey: readonly unknown[];
 }): boolean {
-  const params = query.queryKey[3] as IssueQueryParams | undefined;
-  return typeof params?.q === "string" && params.q.length > 0;
+  return variantHasFreeText(query.queryKey[3] as IssueQueryParams | undefined);
+}
+
+/** A non-empty free-text `q` on a serialized list-query fragment. */
+function variantHasFreeText(variant: IssueQueryParams | undefined): boolean {
+  return typeof variant?.q === "string" && variant.q.length > 0;
+}
+
+/**
+ * Build an `invalidateQueries` predicate that refetches only the list variants
+ * an edit to `changedKeys` can actually change, instead of every
+ * `['issues','list',vault]` variant (REEF-323). It strictly narrows the old
+ * blanket refetch — a variant is refetched only when it:
+ *
+ * - carries a free-text `q` (a content edit can shift its server-side match set
+ *   unpredictably — the same rationale as `listQueryHasFreeText`),
+ * - is a `default_view` landing variant (scoped by active sprint / open statuses
+ *   / my-issues, so a status/sprint/assignee change can move rows in or out;
+ *   defensive — the current client does not send this facet, but the server
+ *   honors it and REEF-324 may wire it),
+ * - is an active-scoped variant and `archived_at` changed (archive/restore — see
+ *   below),
+ * - filters on a changed facet key (editing it can add or remove the issue from
+ *   the facet), or
+ * - sorts by a changed key, or by the server-stamped `updated_at` that every
+ *   successful edit bumps (`sort_field` defaults to `priority`; a priority edit
+ *   reorders priority-sorted variants, and an `updated_at`-sorted variant
+ *   reorders on any edit).
+ *
+ * `archived_at` is special: an active variant filters `archived_at IS NULL`
+ * implicitly — `buildIssueQuery` omits the `archived` facet from the key and only
+ * sets `archived: "true"` to *widen* to both scopes — so a restore adds (and an
+ * archive removes) the row from every active variant, which the in-place patch
+ * cannot do. So an `archived_at` change refetches every active variant
+ * (`archived !== "true"`); a widened variant shows both scopes and is unchanged.
+ * Matching on the absent `archived` facet would be backwards, so it is handled
+ * here rather than via the explicit-facet check.
+ *
+ * The bare full list (`['issues','list',vault]`, no query fragment) is never
+ * refetched: it sends no `archived` param, so the server returns every issue in
+ * akb natural order — no field edit (archive included) changes its membership or
+ * order, and the in-place `setQueriesData` patch keeps it correct.
+ */
+export function listMembershipInvalidationPredicate(
+  changedKeys: readonly (keyof IssueUpdatePatch)[],
+): (query: { queryKey: readonly unknown[] }) => boolean {
+  const archivedChanged = changedKeys.includes("archived_at");
+  // Every membership key except `archived_at` surfaces as an explicit facet
+  // whose presence on the key means the variant filters on it; `archived_at` is
+  // handled separately above because its active scope is implicit (absent key).
+  const explicitFacets = changedKeys.filter((key) => key !== "archived_at");
+  return ({ queryKey }) => {
+    const variant = queryKey[3] as IssueQueryParams | undefined;
+    if (!variant) return false;
+    if (variantHasFreeText(variant)) return true;
+    if (variant.default_view === "true") return true;
+    if (archivedChanged && variant.archived !== "true") return true;
+    if (explicitFacets.some((facet) => facet in variant)) return true;
+    // Every successful edit bumps the server-stamped `updated_at`, so a variant
+    // sorted by it reorders on any edit; otherwise a variant reorders only when
+    // sorted by a changed key (`sort_field` defaults to `priority`).
+    if (variant.sort_field === "updated_at") return true;
+    return changedKeys.some((key) => variant.sort_field === key);
+  };
 }

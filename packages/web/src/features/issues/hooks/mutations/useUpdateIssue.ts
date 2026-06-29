@@ -12,9 +12,10 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import {
+  changedListMembershipKeys,
+  listMembershipInvalidationPredicate,
   listQueryHasFreeText,
   patchAffectsActivityTimeline,
-  patchAffectsListMembership,
   patchAffectsRelationGraph,
 } from "../../lib/issueListMembership";
 import { toListItem } from "../../lib/toListItem";
@@ -181,11 +182,16 @@ export function useUpdateIssue() {
       // Avoid blanket invalidation (REEF-098). A non-membership edit (title,
       // dates, labels, ...) needs no re-request: the in-place patch above is the
       // server truth. Refetch the projections an edit can invalidate.
-      if (patchAffectsListMembership(patch)) {
+      const changedMembershipKeys = changedListMembershipKeys(patch);
+      if (changedMembershipKeys.length > 0) {
         // A server facet or the sort field changed → the issue may move, leave,
-        // or enter a filtered/sorted list; refetch every variant to reconcile.
+        // or enter a filtered/sorted list. Refetch only the variants those keys
+        // can actually affect (REEF-323), not every list variant: e.g. a
+        // priority edit reorders priority-sorted variants but leaves an
+        // assignee-filtered variant patched in place.
         void queryClient.invalidateQueries({
           queryKey: ["issues", "list", vault],
+          predicate: listMembershipInvalidationPredicate(changedMembershipKeys),
         });
       } else {
         // A free-text (`q`) search matches title/assignee/etc., so a content

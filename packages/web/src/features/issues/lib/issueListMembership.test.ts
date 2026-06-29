@@ -2,6 +2,8 @@
 import type { IssueUpdatePatch } from "@reef/core";
 import { describe, expect, it } from "vitest";
 import {
+  changedListMembershipKeys,
+  listMembershipInvalidationPredicate,
   listQueryHasFreeText,
   patchAffectsActivityTimeline,
   patchAffectsListMembership,
@@ -106,5 +108,107 @@ describe("listQueryHasFreeText", () => {
     expect(
       listQueryHasFreeText({ queryKey: ["issues", "list", "v", { q: "" }] }),
     ).toBe(false);
+  });
+});
+
+describe("changedListMembershipKeys", () => {
+  it("returns only the membership keys present in the patch", () => {
+    expect(changedListMembershipKeys({ status: "done", title: "x" })).toEqual([
+      "status",
+    ]);
+    expect(
+      changedListMembershipKeys({ priority: "high", assigned_to: "alice" }),
+    ).toEqual(["priority", "assigned_to"]);
+  });
+
+  it("is empty for a purely non-membership patch", () => {
+    expect(changedListMembershipKeys({ title: "x", labels: ["ui"] })).toEqual(
+      [],
+    );
+    expect(changedListMembershipKeys({})).toEqual([]);
+  });
+
+  it("stays in lockstep with the patchAffectsListMembership gate", () => {
+    expect(changedListMembershipKeys({ sprint_id: "s" }).length > 0).toBe(
+      patchAffectsListMembership({ sprint_id: "s" }),
+    );
+    expect(changedListMembershipKeys({ title: "x" }).length > 0).toBe(
+      patchAffectsListMembership({ title: "x" }),
+    );
+  });
+});
+
+describe("listMembershipInvalidationPredicate", () => {
+  const key = (params?: Record<string, unknown>) => ({
+    queryKey: params
+      ? (["issues", "list", "v", params] as const)
+      : (["issues", "list", "v"] as const),
+  });
+
+  it("never refetches the bare full list (no query fragment)", () => {
+    const predicate = listMembershipInvalidationPredicate(["status"]);
+    expect(predicate(key())).toBe(false);
+  });
+
+  it("refetches a variant that filters on a changed key", () => {
+    const predicate = listMembershipInvalidationPredicate(["status"]);
+    expect(predicate(key({ status: ["todo"], sort_field: "created_at" }))).toBe(
+      true,
+    );
+  });
+
+  it("skips a variant whose facets do not include any changed key", () => {
+    // priority edit; this variant filters by assignee and sorts by created_at,
+    // so it neither gains/loses the issue nor reorders — stays patched in place.
+    const predicate = listMembershipInvalidationPredicate(["assigned_to"]);
+    expect(predicate(key({ status: ["todo"], sort_field: "created_at" }))).toBe(
+      false,
+    );
+  });
+
+  it("refetches every sorted variant on a priority edit (default sort)", () => {
+    const predicate = listMembershipInvalidationPredicate(["priority"]);
+    expect(predicate(key({ status: ["todo"], sort_field: "priority" }))).toBe(
+      true,
+    );
+  });
+
+  it("refetches an updated_at-sorted variant on any edit (server-stamped)", () => {
+    // `updated_at` is bumped by the server on every edit, so an updated_at-sorted
+    // list reorders even when the changed field is neither its facet nor sort.
+    const predicate = listMembershipInvalidationPredicate(["status"]);
+    expect(
+      predicate(key({ assigned_to: ["alice"], sort_field: "updated_at" })),
+    ).toBe(true);
+  });
+
+  it("refetches active variants but not widened ones on archive/restore", () => {
+    const predicate = listMembershipInvalidationPredicate(["archived_at"]);
+    // An active variant omits `archived`, so it filters `archived_at IS NULL`
+    // server-side: a restore adds (an archive removes) the row, which the
+    // in-place patch cannot do → refetch.
+    expect(predicate(key({ status: ["todo"], sort_field: "created_at" }))).toBe(
+      true,
+    );
+    // A widened variant (`archived: "true"`) shows both scopes, so archive /
+    // restore leaves its membership unchanged → no refetch.
+    expect(predicate(key({ archived: "true", sort_field: "created_at" }))).toBe(
+      false,
+    );
+    // The bare full list sends no `archived` param → every issue regardless of
+    // archived state → membership unchanged.
+    expect(predicate(key())).toBe(false);
+  });
+
+  it("always refetches a free-text (q) variant", () => {
+    const predicate = listMembershipInvalidationPredicate(["assigned_to"]);
+    expect(predicate(key({ q: "login", sort_field: "created_at" }))).toBe(true);
+  });
+
+  it("defensively refetches a default_view variant", () => {
+    const predicate = listMembershipInvalidationPredicate(["status"]);
+    expect(
+      predicate(key({ default_view: "true", sort_field: "priority" })),
+    ).toBe(true);
   });
 });
