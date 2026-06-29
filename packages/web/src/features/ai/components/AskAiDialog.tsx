@@ -1,7 +1,9 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useAiAvailable } from "@/features/settings/hooks/useAiAvailable";
+import { VAULT_HEADER } from "@/lib/akb/headers";
 import { apiFetch } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
 import { useChat } from "@ai-sdk/react";
@@ -44,10 +46,21 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
   const close = useAskAiStore((s) => s.close);
   const markSeen = useAskAiStore((s) => s.markSeen);
   const { isAvailable, isLoading: aiLoading } = useAiAvailable();
+  // The chat Route Handler reads the workspace from `X-Reef-Vault`, not a
+  // `?vault=` query. Source it from the URL `[vault]` segment (via useActiveVault)
+  // so two tabs on different workspaces send chat to their own workspace rather
+  // than sharing the Dexie pointer (REEF-315 — tab independence). apiFetch keeps
+  // the Dexie value only as a fallback when this is empty.
+  const { vault } = useActiveVault();
 
   const transport = useMemo(
-    () => new DefaultChatTransport({ api: "/api/chat", fetch: apiFetch }),
-    [],
+    () =>
+      new DefaultChatTransport({
+        api: "/api/chat",
+        fetch: apiFetch,
+        headers: vault ? { [VAULT_HEADER]: vault } : undefined,
+      }),
+    [vault],
   );
   const { messages, sendMessage, status, error, setMessages, stop } = useChat({
     transport,
