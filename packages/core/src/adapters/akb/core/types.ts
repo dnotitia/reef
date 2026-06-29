@@ -390,3 +390,17 @@ export interface CreateVaultResult {
   template: string | null;
   public_access: string | null;
 }
+
+export interface DeleteVaultParams {
+  adapter: AkbAdapter;
+  vault: string;
+  /** Acting user — recorded on the audit span before the irreversible delete. */
+  actor: string;
+}
+
+export interface DetachReefParams {
+  adapter: AkbAdapter;
+  vault: string;
+  /** Acting user — recorded on the audit span for the detach. */
+  actor: string;
+}

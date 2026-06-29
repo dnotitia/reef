@@ -69,6 +69,48 @@ export async function deleteDocumentQuietly(
   }
 }
 
+/**
+ * Delete a document by its akb-relative path via
+ * `DELETE /api/v1/documents/{vault}/{path}` (writer role). Unlike
+ * `deleteDocumentQuietly`, errors propagate so a teardown caller can react.
+ * The `path` is forwarded verbatim — it carries slashes (e.g.
+ * `overview/vault-skill.md`) that akb's `{doc_id:path}` route segment preserves.
+ */
+export async function deleteDocument(
+  adapter: AkbAdapter,
+  vault: string,
+  path: string,
+): Promise<void> {
+  await adapter.request(
+    `/api/v1/documents/${encodeURIComponent(vault)}/${path}`,
+    { method: "DELETE", resource: `document ${path}` },
+  );
+}
+
+/**
+ * Delete a collection and, when `recursive`, every document, file, and
+ * sub-collection beneath it via `DELETE /api/v1/collections/{vault}/{path}`
+ * (writer role). akb returns 409 for a non-empty collection unless `recursive`
+ * is set, so reef passes `recursive: true` when sweeping its own collections.
+ * The `path` keeps its slashes (akb's `{path:path}` route segment preserves
+ * them).
+ */
+export async function deleteCollection(
+  adapter: AkbAdapter,
+  vault: string,
+  path: string,
+  recursive = true,
+): Promise<void> {
+  await adapter.request(
+    `/api/v1/collections/${encodeURIComponent(vault)}/${path}`,
+    {
+      method: "DELETE",
+      query: { recursive: recursive ? "true" : undefined },
+      resource: `collection ${path}`,
+    },
+  );
+}
+
 /** An issue's akb document body is plain markdown — reef fields live in the
  * `reef_issues` row, not a fenced head (unlike templates). */
 export function buildPutRequestBody(

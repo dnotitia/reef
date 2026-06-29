@@ -298,6 +298,24 @@ async function createAkbTable(
   });
 }
 
+/**
+ * Drop a single dynamic table from a vault via
+ * `DELETE /api/v1/tables/{vault}/{table}` (akb requires admin role — the same
+ * floor as deleting the vault). akb has no SQL DDL endpoint, so this REST route
+ * is the only way to drop a table. A missing table surfaces as `NotFoundError`;
+ * teardown callers treat that as already-done.
+ */
+export async function dropAkbTable(
+  adapter: AkbAdapter,
+  vault: string,
+  table: string,
+): Promise<void> {
+  await adapter.request(
+    `/api/v1/tables/${encodeURIComponent(vault)}/${encodeURIComponent(table)}`,
+    { method: "DELETE", resource: `table ${table}` },
+  );
+}
+
 function tableMap(tables: AkbTableSummary[]): Map<string, AkbTableSummary> {
   return new Map(tables.map((table) => [table.name, table]));
 }
