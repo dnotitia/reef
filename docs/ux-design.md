@@ -30,7 +30,10 @@ is shaped around a strict state-owner split:
   affordances derive from its per-query `isPending` / `isError`; there is no
   global loading flag.
 - **Dexie (IndexedDB)** holds per-user persisted browser state with no akb home
-  — the active vault pointer, theme preference, UI locale (mirrored to a
+  — the *last viewed workspace* default (since REEF-315 the active workspace is
+  the `/workspace/[vault]` URL segment, source of truth; Dexie is only the
+  per-browser fallback the root redirector and the `(legacy)` flat-link shim use
+  to choose a workspace), theme preference, UI locale (mirrored to a
   non-httpOnly `NEXT_LOCALE` cookie so SSR can resolve it on the first request),
   per-vault issue filters, the currently selected activity-scan repo, last
   visit/scan markers, and the previously signed-in akb user id used for account
@@ -301,8 +304,13 @@ can also be changed from the detail panel's status select).
 
 ### Issues Workspace — Board / List / Timeline / Backlog
 
-`/issues` is one workspace with four peer renderings switched via `?view=` and
-a ViewSwitcher in the page header. Board, List, and Timeline render the active
+`/workspace/{vault}/issues` is one workspace with four peer renderings switched
+via `?view=` and a ViewSwitcher in the page header. Every dashboard surface is
+vault-scoped under `/workspace/{vault}/…` (REEF-315): a malformed vault segment
+404s, a well-formed vault the signed-in user cannot access shows an explicit
+access-denied surface (with their own workspaces to switch to), and old flat
+links (`/issues`, `/settings/…`) redirect through the `(legacy)` shim to the
+remembered workspace's equivalent path. Board, List, and Timeline render the active
 workflow collection; Backlog is a dedicated triage lens over the `backlog`
 status. They share one route, one header, one Zustand filter scope, and one
 filter toolbar, with the backlog view hiding facets that are pinned or
@@ -338,10 +346,10 @@ Settings" empty state.
 
 ### Issue Detail Slide-Over
 
-Opening an issue routes to `/issues/[id]`, intercepted by a parallel route
-(`@modal/(.)issues/[id]`) so it renders as a right-side Sheet over the board
-without a full navigation; a hard navigation or deep link renders the same
-panel through the base route. The chrome is identical either way.
+Opening an issue routes to `/workspace/{vault}/issues/[id]`, intercepted by a
+parallel route (`@modal/(.)issues/[id]`) so it renders as a right-side Sheet over
+the board without a full navigation; a hard navigation or deep link renders the
+same panel through the base route. The chrome is identical either way.
 
 Editing is **inline auto-save**: there is no Save button and no
 dirty state. Local state mirrors the loaded issue for responsive typing, and
