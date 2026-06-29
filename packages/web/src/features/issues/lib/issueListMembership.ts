@@ -30,8 +30,19 @@ const LIST_MEMBERSHIP_KEYS = [
   "archived_at",
 ] as const satisfies readonly (keyof IssueUpdatePatch)[];
 
+/**
+ * The list-membership keys actually present in `patch`. Drives both the boolean
+ * gate below and the narrowed invalidation predicate (REEF-323), which refetches
+ * only the variants these keys can affect rather than every list variant.
+ */
+export function changedListMembershipKeys(
+  patch: IssueUpdatePatch,
+): (keyof IssueUpdatePatch)[] {
+  return LIST_MEMBERSHIP_KEYS.filter((key) => key in patch);
+}
+
 export function patchAffectsListMembership(patch: IssueUpdatePatch): boolean {
-  return LIST_MEMBERSHIP_KEYS.some((key) => key in patch);
+  return changedListMembershipKeys(patch).length > 0;
 }
 
 /**
@@ -93,6 +104,54 @@ export function patchAffectsActivityTimeline(patch: IssueUpdatePatch): boolean {
 export function listQueryHasFreeText(query: {
   queryKey: readonly unknown[];
 }): boolean {
-  const params = query.queryKey[3] as IssueQueryParams | undefined;
-  return typeof params?.q === "string" && params.q.length > 0;
+  return variantHasFreeText(query.queryKey[3] as IssueQueryParams | undefined);
+}
+
+/** A non-empty free-text `q` on a serialized list-query fragment. */
+function variantHasFreeText(variant: IssueQueryParams | undefined): boolean {
+  return typeof variant?.q === "string" && variant.q.length > 0;
+}
+
+/**
+ * The wire facet key a membership patch key surfaces as in a list query
+ * (see `buildIssueQuery`). Identity for all but `archived_at`, which the query
+ * serializes as the `archived` facet.
+ */
+function membershipFacetKey(key: keyof IssueUpdatePatch): string {
+  return key === "archived_at" ? "archived" : key;
+}
+
+/**
+ * Build an `invalidateQueries` predicate that refetches only the list variants
+ * an edit to `changedKeys` can actually change, instead of every
+ * `['issues','list',vault]` variant (REEF-323). It strictly narrows the old
+ * blanket refetch — a variant is refetched only when it:
+ *
+ * - carries a free-text `q` (a content edit can shift its server-side match set
+ *   unpredictably — the same rationale as `listQueryHasFreeText`),
+ * - is a `default_view` landing variant (scoped by active sprint / open statuses
+ *   / my-issues, so a status/sprint/assignee change can move rows in or out;
+ *   defensive — the current client does not send this facet, but the server
+ *   honors it and REEF-324 may wire it),
+ * - filters on a changed key (editing it can add or remove the issue from the
+ *   facet), or
+ * - sorts by a changed key (`sort_field` defaults to `priority`, so a priority
+ *   edit reorders every sorted variant).
+ *
+ * The bare full list (`['issues','list',vault]`, no query fragment) is never
+ * refetched: it holds every issue in akb natural order, so no field edit changes
+ * its membership or order — the in-place `setQueriesData` patch keeps it correct.
+ */
+export function listMembershipInvalidationPredicate(
+  changedKeys: readonly (keyof IssueUpdatePatch)[],
+): (query: { queryKey: readonly unknown[] }) => boolean {
+  const facetKeys = changedKeys.map(membershipFacetKey);
+  return ({ queryKey }) => {
+    const variant = queryKey[3] as IssueQueryParams | undefined;
+    if (!variant) return false;
+    if (variantHasFreeText(variant)) return true;
+    if (variant.default_view === "true") return true;
+    if (facetKeys.some((facet) => facet in variant)) return true;
+    return changedKeys.some((key) => variant.sort_field === key);
+  };
 }

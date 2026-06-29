@@ -168,10 +168,34 @@ describe("useUpdateIssue", () => {
     });
 
     // `status` is both a server facet and a relation-graph field, so both
-    // projections refetch to reconcile membership/order and blocker state.
-    expect(invalidateSpy).toHaveBeenCalledWith({
+    // projections refetch to reconcile membership/order and blocker state. The
+    // list refetch is now narrowed to a predicate (REEF-323) instead of a
+    // blanket key match.
+    const listCall = invalidateSpy.mock.calls.find(
+      (call) => call[0]?.queryKey?.[1] === "list",
+    );
+    expect(listCall?.[0]).toMatchObject({
       queryKey: ["issues", "list", "reef-acme"],
+      predicate: expect.any(Function),
     });
+    // The narrowed predicate skips the bare full list but refetches a
+    // status-filtered variant (the changed facet).
+    const listPredicate = listCall?.[0]?.predicate as unknown as
+      | ((q: { queryKey: readonly unknown[] }) => boolean)
+      | undefined;
+    expect(listPredicate?.({ queryKey: ["issues", "list", "reef-acme"] })).toBe(
+      false,
+    );
+    expect(
+      listPredicate?.({
+        queryKey: [
+          "issues",
+          "list",
+          "reef-acme",
+          { status: ["todo"], sort_field: "created_at" },
+        ],
+      }),
+    ).toBe(true);
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["issues", "relations", "reef-acme"],
     });
