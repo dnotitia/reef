@@ -185,7 +185,7 @@ export function useUpdateIssue() {
       const changedMembershipKeys = changedListMembershipKeys(patch);
       if (changedMembershipKeys.length > 0) {
         // A server facet or the sort field changed → the issue may move, leave,
-        // or enter a filtered/sorted list. Refetch only the variants those keys
+        // or enter a filtered/sorted list. Refetch the variants those keys
         // can actually affect (REEF-323), not every list variant: e.g. a
         // priority edit reorders priority-sorted variants but leaves an
         // assignee-filtered variant patched in place.

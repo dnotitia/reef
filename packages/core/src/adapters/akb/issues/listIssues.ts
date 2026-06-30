@@ -77,7 +77,7 @@ export async function listIssues(
       // whole query on the missing relation; retry once without the sprint fold
       // so the view degrades to the floor / My Issues — the resilience the old
       // separate `getActiveSprint` call had — instead of a blank board. A
-      // genuinely never-onboarded vault (`reef_issues` also missing) fails the
+      // genuinely does not-onboarded vault (`reef_issues` also missing) fails the
       // retry too and yields the empty result below.
       if (!defaultViewActive) {
         span.setAttribute("table_exists", false);

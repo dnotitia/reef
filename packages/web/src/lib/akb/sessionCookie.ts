@@ -246,7 +246,7 @@ const ACTOR_CLAIMS = ["username", "preferred_username", "sub"] as const;
  * null when the token is malformed. Decoded with the Web `atob` + URL-safe
  * base64 normalization rather than Node's `Buffer`, so it is runtime-agnostic —
  * the proxy defaults to the Node runtime in Next.js 16, but keeping this off
- * Node-only globals removes any edge-runtime doubt.
+ * Node-specific globals removes any edge-runtime doubt.
  */
 function decodeJwtClaims(jwt: string): Record<string, unknown> | null {
   const segments = jwt.split(".");
@@ -297,7 +297,7 @@ export function decodeSessionActor(jwt: string): string | null {
 }
 
 /**
- * Read ONLY the akb `username` claim from a session JWT (no signature
+ * Read the akb `username` claim from a session JWT (no signature
  * verification). The `username` claim is the akb-native username — the same
  * value `/auth/me` returns and that `reef_issues.assigned_to` stores — so it is
  * safe to drive a functional scope decision (the default-view My-Issues filter,

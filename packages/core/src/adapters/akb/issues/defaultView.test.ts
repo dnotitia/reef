@@ -135,7 +135,7 @@ describe("listIssues default_view", () => {
     });
     // The combined default-view scope AND the keyset predicate land in the same
     // statement — page 2 keeps the up-front scope (My-Issues existence test),
-    // never an empty My-Issues set.
+    // not an empty My-Issues set.
     expect(calls).toHaveLength(1);
     const sql = sqlOf(calls[0]);
     expect(sql).toContain("EXISTS (SELECT 1 FROM reef_issues");

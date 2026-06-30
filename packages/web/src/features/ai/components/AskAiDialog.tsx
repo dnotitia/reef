@@ -50,7 +50,7 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
   // `?vault=` query. Source it from the URL `[vault]` segment (via useActiveVault)
   // so two tabs on different workspaces send chat to their own workspace rather
   // than sharing the Dexie pointer (REEF-315 — tab independence). apiFetch keeps
-  // the Dexie value only as a fallback when this is empty.
+  // the Dexie value as a fallback when this is empty.
   const { vault } = useActiveVault();
 
   const transport = useMemo(

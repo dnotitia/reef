@@ -186,7 +186,7 @@ describe("listMembershipInvalidationPredicate", () => {
     const predicate = listMembershipInvalidationPredicate(["archived_at"]);
     // An active variant omits `archived`, so it filters `archived_at IS NULL`
     // server-side: a restore adds (an archive removes) the row, which the
-    // in-place patch cannot do → refetch.
+    // in-place patch does not do → refetch.
     expect(predicate(key({ status: ["todo"], sort_field: "created_at" }))).toBe(
       true,
     );

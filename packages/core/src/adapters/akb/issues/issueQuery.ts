@@ -361,11 +361,11 @@ export function defaultViewStatusFloor(): string {
  * ordering the JS tie-break used; `DESC NULLS LAST` keeps an undated sprint at
  * the tail (the JS path coalesced a null date to `""`, which sorted last).
  *
- * Unlike the JS path this cannot skip a schema-malformed sprint row: a malformed
+ * Unlike the JS path this does not skip a schema-malformed sprint row: a malformed
  * top-sorted active sprint would have its id used as the fallback scope. That
- * diverges only when ≥2 sprints are active AND the most-recent one is malformed
- * — a negligible, data-degraded edge — and never fails the query (the resilience
- * property is preserved; only which sprint is picked could differ).
+ * diverges in the edge where ≥2 sprints are active AND the most-recent one is malformed
+ * — a negligible, data-degraded edge — and does not fail the query (the resilience
+ * property is preserved; which sprint is picked could differ).
  */
 function activeSprintIdSubquery(): string {
   return `(SELECT "id" FROM ${tableRef(
@@ -383,7 +383,7 @@ function activeSprintIdSubquery(): string {
  * (REEF-324) — the old path cost three akb calls (active sprint + My-Issues
  * probe + the list itself):
  *
- *   - the status-window floor (active, non-archived) always applies;
+ *   - the status-window floor (active, non-archived) consistently applies;
  *   - when an actor is known, the view narrows to My Issues *iff* the actor has
  *     any active issue, decided in-statement by an `EXISTS` subquery; with none
  *     it falls back to the active sprint (or the floor alone);

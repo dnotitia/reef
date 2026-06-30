@@ -33,7 +33,7 @@ const LIST_MEMBERSHIP_KEYS = [
 /**
  * The list-membership keys actually present in `patch`. Drives both the boolean
  * gate below and the narrowed invalidation predicate (REEF-323), which refetches
- * only the variants these keys can affect rather than every list variant.
+ * just the variants these keys can affect rather than every list variant.
  */
 export function changedListMembershipKeys(
   patch: IssueUpdatePatch,
@@ -113,10 +113,10 @@ function variantHasFreeText(variant: IssueQueryParams | undefined): boolean {
 }
 
 /**
- * Build an `invalidateQueries` predicate that refetches only the list variants
+ * Build an `invalidateQueries` predicate that refetches just the list variants
  * an edit to `changedKeys` can actually change, instead of every
  * `['issues','list',vault]` variant (REEF-323). It strictly narrows the old
- * blanket refetch — a variant is refetched only when it:
+ * blanket refetch — a variant is refetched when it:
  *
  * - carries a free-text `q` (a content edit can shift its server-side match set
  *   unpredictably — the same rationale as `listQueryHasFreeText`),
@@ -134,15 +134,15 @@ function variantHasFreeText(variant: IssueQueryParams | undefined): boolean {
  *   reorders on any edit).
  *
  * `archived_at` is special: an active variant filters `archived_at IS NULL`
- * implicitly — `buildIssueQuery` omits the `archived` facet from the key and only
+ * implicitly — `buildIssueQuery` omits the `archived` facet from the key and just
  * sets `archived: "true"` to *widen* to both scopes — so a restore adds (and an
  * archive removes) the row from every active variant, which the in-place patch
- * cannot do. So an `archived_at` change refetches every active variant
+ * does not do. So an `archived_at` change refetches every active variant
  * (`archived !== "true"`); a widened variant shows both scopes and is unchanged.
- * Matching on the absent `archived` facet would be backwards, so it is handled
+ * Matching on the absent `archived` facet would invert the decision, so it is handled
  * here rather than via the explicit-facet check.
  *
- * The bare full list (`['issues','list',vault]`, no query fragment) is never
+ * The bare full list (`['issues','list',vault]`, no query fragment) is does not
  * refetched: it sends no `archived` param, so the server returns every issue in
  * akb natural order — no field edit (archive included) changes its membership or
  * order, and the in-place `setQueriesData` patch keeps it correct.
@@ -163,7 +163,7 @@ export function listMembershipInvalidationPredicate(
     if (archivedChanged && variant.archived !== "true") return true;
     if (explicitFacets.some((facet) => facet in variant)) return true;
     // Every successful edit bumps the server-stamped `updated_at`, so a variant
-    // sorted by it reorders on any edit; otherwise a variant reorders only when
+    // sorted by it reorders on any edit; otherwise a variant reorders when
     // sorted by a changed key (`sort_field` defaults to `priority`).
     if (variant.sort_field === "updated_at") return true;
     return changedKeys.some((key) => variant.sort_field === key);

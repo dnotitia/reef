@@ -1,4 +1,6 @@
+import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
 import { vi } from "vitest";
+import { VALID_JWT } from "./jwt";
 
 type RouteSpanMock = {
   setAttribute: () => void;
@@ -6,6 +8,17 @@ type RouteSpanMock = {
   setStatus: () => void;
   end: () => void;
 };
+
+type VitestMock = {
+  mockResolvedValue: (value: unknown) => void;
+  mockReturnValue: (value: unknown) => void;
+};
+
+export interface OwnedVaultRouteMocks {
+  readonly mockCreateAkbAdapter: VitestMock;
+  readonly mockGetCurrentActor: VitestMock;
+  readonly mockListVaults: VitestMock;
+}
 
 export function mockRouteTelemetry(): void {
   vi.mock("@/lib/telemetry", () => ({
@@ -25,6 +38,28 @@ export function mockRouteTelemetry(): void {
 
 export function mockRouteLogger(): void {
   vi.mock("@/lib/logging/logger", () => ({
-    logger: { error: vi.fn() },
+    logger: { error: vi.fn(), warn: vi.fn() },
   }));
+}
+
+export function authedHeaders(): Record<string, string> {
+  return { cookie: `${SESSION_COOKIE}=${VALID_JWT}` };
+}
+
+export function vaultRouteContext(vault = "reef-acme") {
+  return { params: Promise.resolve({ vault }) };
+}
+
+export function stubOwnedVaultRoute({
+  mockCreateAkbAdapter,
+  mockGetCurrentActor,
+  mockListVaults,
+}: OwnedVaultRouteMocks): void {
+  vi.clearAllMocks();
+  vi.stubEnv("AKB_BACKEND_URL", "http://akb.test");
+  mockCreateAkbAdapter.mockReturnValue({ request: vi.fn() });
+  mockGetCurrentActor.mockResolvedValue({ actor: "alice" });
+  mockListVaults.mockResolvedValue({
+    vaults: [{ name: "reef-acme", role: "owner" }],
+  });
 }

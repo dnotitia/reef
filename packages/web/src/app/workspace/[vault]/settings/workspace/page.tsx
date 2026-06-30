@@ -107,7 +107,7 @@ export default function WorkspaceGeneralPage() {
         <WorkspaceSkillSection />
       </section>
 
-      {/* Danger zone — owner-only workspace lifecycle (delete / detach). Renders
+      {/* Danger zone — owner-scoped workspace lifecycle (delete / detach). Renders
           itself null for non-owners, so it sits at the foot of the group. */}
       <DangerZoneSection vault={vault} />
     </SettingsGroup>

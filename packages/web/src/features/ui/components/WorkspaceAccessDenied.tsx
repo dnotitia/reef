@@ -8,16 +8,16 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 
 interface WorkspaceAccessDeniedProps {
-  /** The vault from the URL the signed-in user cannot access. */
+  /** The vault from the URL the signed-in user is blocked from accessing. */
   vault: string;
   /** The vaults the user CAN access, from `useVaults()`. */
   vaults: EnrichedVaultSummary[];
 }
 
 /**
- * Explicit "you can't see this workspace" surface (REEF-315 AC5). A
+ * Explicit "access denied for this workspace" surface (REEF-315 AC5). A
  * `/workspace/{vault}/...` URL whose `vault` is a well-formed name the
- * signed-in user is not a member of must NOT silently fall back to their own
+ * signed-in user is not a member of should not silently fall back to their own
  * workspace — that would open someone else's deep link in the wrong context.
  * Instead we name the problem and offer the user's own reef workspaces as the
  * way out (the same `has_reef_config` set the sidebar switcher lists), or a

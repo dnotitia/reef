@@ -18,13 +18,13 @@ export interface ActiveVaultState {
   refetch: () => Promise<unknown>;
 }
 
-export const ACTIVE_VAULT_QUERY_KEY = ["active-vault"] as const;
+const ACTIVE_VAULT_QUERY_KEY = ["active-vault"] as const;
 
 /**
- * Resolves the active workspace (akb vault). The URL is the source of truth:
+ * Resolves the active workspace (akb vault). The URL is the canonical source:
  * the `/workspace/[vault]` path segment wins, and Dexie is demoted to the
  * "last viewed workspace" default for surfaces outside that segment — the root
- * redirector, the onboarding flow, and the `(legacy)` shim (REEF-315).
+ * redirector, the onboarding flow, and the `(flat-route)` shim (REEF-315).
  *
  * Reading the vault from `useParams()` resolves it identically on the server
  * and the first client render (both see the URL), so a vault-scoped page no
@@ -46,7 +46,7 @@ export function useActiveVault(): ActiveVaultState {
     retry: false,
   });
 
-  // Hydration gate for the Dexie fallback only. The server has no Dexie and no
+  // Hydration gate for the Dexie fallback. The server has no Dexie and no
   // persisted query cache, so it consistently renders vault="" / loading.
   // PersistQueryClientProvider restores the cached vault into `query.data`
   // synchronously, so reading it on the first client render would surface
@@ -61,7 +61,7 @@ export function useActiveVault(): ActiveVaultState {
 
   return {
     vault: urlVault || dexieVault,
-    // A URL vault is known synchronously, so it is never "loading". Otherwise
+    // A URL vault is known synchronously, so it is not in a loading state. Otherwise
     // use isPending (not isLoading) so consumers stay "loading" during
     // PersistQueryClientProvider's restoration window. While isRestoring is
     // true, useQuery reports fetchStatus: 'idle' (gated subscription), which
@@ -77,7 +77,7 @@ export function useActiveVault(): ActiveVaultState {
  * One-way URL→Dexie sync (REEF-315). Mounted once at the workspace layout, it
  * persists the URL's vault as the per-browser "last viewed workspace" default
  * and primes the active-vault query cache so segment-less Dexie-fallback
- * readers (root redirect, legacy shim) stay consistent. It deliberately does
+ * readers (root redirect, flat-route shim) stay consistent. It deliberately does
  * NOT invalidate vault-scoped queries: the URL change already remounts the
  * subtree and rekeys every `[..., vault]` query, so a refetch happens without
  * the broad cache bust that the explicit switcher (`useSetActiveVault`) needs.

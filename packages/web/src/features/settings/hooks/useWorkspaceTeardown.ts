@@ -12,7 +12,7 @@ import { useVaults } from "./useVaults";
 
 /**
  * The two destructive workspace-lifecycle actions in Settings › Workspace
- * (REEF-322): permanently delete the whole akb vault, or remove only the reef
+ * (REEF-322): permanently delete the whole akb vault, or remove just the reef
  * layer (detach) and leave the vault and its non-reef content intact. Both end
  * the same way — the active vault is no longer a usable reef workspace — so they
  * share one success path: invalidate the vault list, switch the active vault to
