@@ -4,6 +4,7 @@ import {
   normalizeIssueQuery,
 } from "@/features/issues/lib/buildIssueQuery";
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
+import { useHydrated } from "@/lib/useHydrated";
 import type { IssueListItem } from "@reef/core";
 import { useQuery } from "@tanstack/react-query";
 
@@ -34,7 +35,8 @@ export function useIssueList(
   },
 ) {
   const keepPreviousData = options?.keepPreviousData ?? true;
-  return useQuery({
+  const hydrated = useHydrated();
+  const result = useQuery({
     queryKey: query
       ? (["issues", "list", vault, normalizeIssueQuery(query)] as const)
       : issueListKey(vault),
@@ -61,4 +63,33 @@ export function useIssueList(
     },
     enabled: !!vault,
   });
+
+  // Hydration gate. The server renders the pending skeleton because it has no
+  // persisted query cache; PersistQueryClientProvider rehydrates that cache into
+  // `result` on the client. Surfacing the restored rows on the first (hydration)
+  // client render would mismatch the server's skeleton and cascade through every
+  // isPending-branching issue view (board / list / backlog / timeline / reports
+  // / my-work) plus the data-readers that key off the same query (parent
+  // breadcrumb, sidebar attention badge). Hold the SSR-shaped pending result for
+  // the hydration render, then reveal the cache on the post-mount render. This
+  // mirrors the useActiveVault hydration gate; REEF-315 dropped the incidental
+  // vault="" gate that used to cover this before the URL supplied the vault
+  // synchronously on the first client render. `enabled` alone cannot do this — a
+  // disabled query still returns whatever the persister already restored.
+  if (!hydrated) {
+    return {
+      ...result,
+      data: undefined,
+      error: null,
+      isPending: true,
+      isLoading: false,
+      isLoadingError: false,
+      isRefetchError: false,
+      isSuccess: false,
+      isError: false,
+      status: "pending",
+      fetchStatus: "idle",
+    } as typeof result;
+  }
+  return result;
 }

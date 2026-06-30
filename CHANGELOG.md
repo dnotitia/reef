@@ -70,6 +70,17 @@ explicitly in the entries below.
   active-sprint fallback ordering, same pagination — just a quicker first paint
   and less backend load. No behavior or data change (REEF-324).
 
+### Fixed
+
+- **No more board flicker / console error when reopening a workspace.** After
+  the move to workspace URLs, hard-reloading or deep-linking an issues view
+  (board, list, timeline, backlog, reports, My Work) could momentarily render
+  the cached issues against the server's loading skeleton, which the browser
+  reported as a hydration mismatch and recovered from by re-rendering. The cached
+  view is now revealed one beat after the page mounts so the first paint matches
+  what the server sent — the recoverable error and its flash are gone, and a warm
+  cache still paints almost instantly (REEF-327, regression from REEF-315).
+
 ## v0.6.0 - 2026-06-26
 
 ### Added
