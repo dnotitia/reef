@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -304,28 +304,28 @@ describe("ActivityItemCard", () => {
         screen.getByTestId("mock-markdown-editor"),
       );
 
-      await user.clear(screen.getByTestId("draft-edit-title"));
-      await user.type(screen.getByTestId("draft-edit-title"), "Updated draft");
-      await user.clear(screen.getByTestId("draft-edit-labels"));
-      await user.type(
-        screen.getByTestId("draft-edit-labels"),
-        " bug, feature ,, ",
-      );
-      await user.type(screen.getByLabelText("Assignee"), "alice");
-      await user.type(
-        screen.getByTestId("draft-edit-sprint"),
-        "11111111-1111-4111-8111-111111111111",
-      );
-      await user.type(
-        screen.getByTestId("draft-edit-milestone"),
-        "22222222-2222-4222-8222-222222222222",
-      );
-      await user.type(
-        screen.getByTestId("draft-edit-release"),
-        "33333333-3333-4333-8333-333333333333",
-      );
-      await user.clear(screen.getByTestId("mock-markdown-editor"));
-      await user.type(screen.getByTestId("mock-markdown-editor"), "# Heading");
+      fireEvent.change(screen.getByTestId("draft-edit-title"), {
+        target: { value: "Updated draft" },
+      });
+      fireEvent.change(screen.getByTestId("draft-edit-labels"), {
+        target: { value: " bug, feature ,, " },
+      });
+      fireEvent.blur(screen.getByTestId("draft-edit-labels"));
+      fireEvent.change(screen.getByLabelText("Assignee"), {
+        target: { value: "alice" },
+      });
+      fireEvent.change(screen.getByTestId("draft-edit-sprint"), {
+        target: { value: "11111111-1111-4111-8111-111111111111" },
+      });
+      fireEvent.change(screen.getByTestId("draft-edit-milestone"), {
+        target: { value: "22222222-2222-4222-8222-222222222222" },
+      });
+      fireEvent.change(screen.getByTestId("draft-edit-release"), {
+        target: { value: "33333333-3333-4333-8333-333333333333" },
+      });
+      fireEvent.change(screen.getByTestId("mock-markdown-editor"), {
+        target: { value: "# Heading" },
+      });
       await user.click(screen.getByTestId("draft-save"));
 
       expect(onSave).toHaveBeenCalledWith("reef-draft-0000000000000001", {
