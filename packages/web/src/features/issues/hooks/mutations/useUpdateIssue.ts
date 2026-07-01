@@ -12,9 +12,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import {
-  changedListMembershipKeys,
-  listMembershipInvalidationPredicate,
-  listQueryHasFreeText,
+  listInvalidationPredicate,
   patchAffectsActivityTimeline,
   patchAffectsRelationGraph,
 } from "../../lib/issueListMembership";
@@ -179,29 +177,19 @@ export function useUpdateIssue() {
         (current) => current?.map((issue) => (issue.id === id ? item : issue)),
       );
 
-      // Avoid blanket invalidation (REEF-098). A non-membership edit (title,
-      // dates, labels, ...) needs no re-request: the in-place patch above is the
-      // server truth. Refetch the projections an edit can invalidate.
-      const changedMembershipKeys = changedListMembershipKeys(patch);
-      if (changedMembershipKeys.length > 0) {
-        // A server facet or the sort field changed → the issue may move, leave,
-        // or enter a filtered/sorted list. Refetch the variants those keys
-        // can actually affect (REEF-323), not every list variant: e.g. a
-        // priority edit reorders priority-sorted variants but leaves an
-        // assignee-filtered variant patched in place.
-        void queryClient.invalidateQueries({
-          queryKey: ["issues", "list", vault],
-          predicate: listMembershipInvalidationPredicate(changedMembershipKeys),
-        });
-      } else {
-        // A free-text (`q`) search matches title/assignee/etc., so a content
-        // edit can change its membership unpredictably: refetch the active
-        // q-filtered variants; plain/facet lists stay patched.
-        void queryClient.invalidateQueries({
-          queryKey: ["issues", "list", vault],
-          predicate: listQueryHasFreeText,
-        });
-      }
+      // Avoid blanket invalidation (REEF-098). The in-place patch above is the
+      // server truth for every variant's values; a refetch is needed only where
+      // an edit changes *which* list the issue is in, *where* it sorts, or a
+      // free-text match set. One order-aware predicate handles both a membership
+      // edit and a non-membership content edit (REEF-323/REEF-325): e.g. a
+      // priority edit reorders priority-sorted variants, and a title/due-date
+      // edit reorders `updated_at`-sorted variants (every edit restamps
+      // `updated_at`) and variants sorted by the edited field — while an
+      // unrelated assignee-filtered variant stays patched in place.
+      void queryClient.invalidateQueries({
+        queryKey: ["issues", "list", vault],
+        predicate: listInvalidationPredicate(patch),
+      });
       if (patchAffectsRelationGraph(patch)) {
         void queryClient.invalidateQueries({
           queryKey: ["issues", "relations", vault],

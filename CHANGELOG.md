@@ -72,6 +72,17 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Sorted issue lists stay in true order after any edit.** A saved list sorted
+  by "Recently updated" (or by due date, title, or estimate) now refreshes from
+  the server after you edit an issue's title, labels, due date, estimate, parent,
+  or relations — previously only status/priority-class edits refreshed those
+  views, so the saved ordering of those lists could drift out of sync with the
+  server (most visibly while several people edit the same board at once) until the
+  next reload. Your own edit still appears instantly, and the fix folds the two
+  refetch paths into one order-aware rule, so a single edit only re-requests the
+  views it can actually reorder — not every open list (REEF-325, follow-up to
+  REEF-323, epic REEF-002).
+
 - **No more board flicker / console error when reopening a workspace.** After
   the move to workspace URLs, hard-reloading or deep-linking an issues view
   (board, list, timeline, backlog, reports, My Work) could momentarily render

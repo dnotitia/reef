@@ -5,6 +5,20 @@ const HOST = process.env.REEF_E2E_MOCK_HOST ?? "127.0.0.1";
 const NOW = "2026-06-15T00:00:00.000Z";
 const REEF_VAULT = "reef-e2e";
 
+// A monotonically-advancing "edit clock". Each issue-row UPDATE stamps an
+// `updated_at` strictly later than the seeded `NOW`, mirroring real akb, which
+// stamps now() at edit time — always after the fixture's seed timestamp. A
+// single static NOW instead ties every row's `updated_at`, collapsing the
+// "recently updated" order so an edit never visibly re-sorts the list — hiding
+// exactly the sort-staleness fix REEF-325 covers. Deterministic (a pure
+// function of an incrementing counter), so runs stay reproducible.
+const NOW_MS = Date.parse(NOW);
+let editTick = 0;
+function nextEditTimestamp() {
+  editTick += 1;
+  return new Date(NOW_MS + editTick * 1000).toISOString();
+}
+
 let state = makeState("configured");
 
 const server = createServer(async (req, res) => {
@@ -973,7 +987,7 @@ function handleSql(vault, sql) {
       );
       const row = vault.issues.find((issue) => issue.reef_id === id);
       if (row) {
-        Object.assign(row, update.values, { updated_at: NOW });
+        Object.assign(row, update.values, { updated_at: nextEditTimestamp() });
         if (
           row.status === "backlog" &&
           (row.rank == null || String(row.rank).includes("select coalesce"))
