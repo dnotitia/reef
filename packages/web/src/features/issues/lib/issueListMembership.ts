@@ -95,43 +95,45 @@ export function patchAffectsActivityTimeline(patch: IssueUpdatePatch): boolean {
 }
 
 /**
- * Whether a list query carries a free-text (`q`) facet. `q` matches the issue's
- * id/title/assignee/etc. server-side, so a content edit can change its result
- * set in ways the client does not predict — those variants refetch even for an
- * otherwise non-membership edit. The plain (`['issues','list',vault]`) and
- * facet variants have no `q` and stay patched in place.
+ * A non-empty free-text `q` on a serialized list-query fragment. `q` matches the
+ * issue's id/title/assignee/etc. server-side, so a content edit can change its
+ * result set in ways the client does not predict — those variants refetch on any
+ * edit. The plain (`['issues','list',vault]`) and facet variants have no `q` and
+ * stay patched in place.
  */
-export function listQueryHasFreeText(query: {
-  queryKey: readonly unknown[];
-}): boolean {
-  return variantHasFreeText(query.queryKey[3] as IssueQueryParams | undefined);
-}
-
-/** A non-empty free-text `q` on a serialized list-query fragment. */
 function variantHasFreeText(variant: IssueQueryParams | undefined): boolean {
   return typeof variant?.q === "string" && variant.q.length > 0;
 }
 
 /**
- * Build an `invalidateQueries` predicate that refetches just the list variants
- * an edit to `changedKeys` can actually change, instead of every
- * `['issues','list',vault]` variant (REEF-323). It strictly narrows the old
- * blanket refetch — a variant is refetched when it:
+ * Build an `invalidateQueries` predicate that refetches just the list variants a
+ * single issue `patch` can actually change — membership, order, or free-text
+ * match — instead of every `['issues','list',vault]` variant (REEF-098/REEF-323).
+ *
+ * One patch-based predicate covers BOTH a membership edit (a server facet or the
+ * sort field) and a non-membership content edit (title / dates / estimate /
+ * labels / relations). The two `onSuccess` branches were folded into this: they
+ * shared the same order-and-membership logic and only diverged by which keys they
+ * inspected, so a non-membership edit used to refetch q variants only and left
+ * sort-order stale (REEF-325). A variant is refetched when it:
  *
  * - carries a free-text `q` (a content edit can shift its server-side match set
- *   unpredictably — the same rationale as `listQueryHasFreeText`),
- * - is a `default_view` landing variant (scoped by active sprint / open statuses
- *   / my-issues, so a status/sprint/assignee change can move rows in or out;
+ *   unpredictably — see `variantHasFreeText`),
+ * - is a `default_view` landing variant AND a membership key changed (its scope
+ *   is active sprint / open statuses / my-issues, so only a status/sprint/
+ *   assignee-class edit moves rows in or out — a pure content edit cannot;
  *   defensive — the current client does not send this facet, but the server
- *   honors it and REEF-324 may wire it),
+ *   honors it and REEF-324 wired it),
  * - is an active-scoped variant and `archived_at` changed (archive/restore — see
  *   below),
  * - filters on a changed facet key (editing it can add or remove the issue from
  *   the facet), or
  * - sorts by a changed key, or by the server-stamped `updated_at` that every
- *   successful edit bumps (`sort_field` defaults to `priority`; a priority edit
- *   reorders priority-sorted variants, and an `updated_at`-sorted variant
- *   reorders on any edit).
+ *   successful edit bumps. This is the REEF-325 fix: a title / due-date /
+ *   estimate edit reorders an `updated_at`-sorted list (every edit restamps it)
+ *   and a variant sorted by the edited field itself (`due_date` / `title` /
+ *   `estimate_points` / `start_date`), which the old non-membership branch left
+ *   stale until the 60s stale window. `sort_field` defaults to `priority`.
  *
  * `archived_at` is special: an active variant filters `archived_at IS NULL`
  * implicitly — `buildIssueQuery` omits the `archived` facet from the key and just
@@ -142,29 +144,38 @@ function variantHasFreeText(variant: IssueQueryParams | undefined): boolean {
  * Matching on the absent `archived` facet would invert the decision, so it is handled
  * here rather than via the explicit-facet check.
  *
- * The bare full list (`['issues','list',vault]`, no query fragment) is does not
+ * The bare full list (`['issues','list',vault]`, no query fragment) is never
  * refetched: it sends no `archived` param, so the server returns every issue in
  * akb natural order — no field edit (archive included) changes its membership or
  * order, and the in-place `setQueriesData` patch keeps it correct.
  */
-export function listMembershipInvalidationPredicate(
-  changedKeys: readonly (keyof IssueUpdatePatch)[],
+export function listInvalidationPredicate(
+  patch: IssueUpdatePatch,
 ): (query: { queryKey: readonly unknown[] }) => boolean {
-  const archivedChanged = changedKeys.includes("archived_at");
+  // Every edited key drives the sort-order check below (a variant sorted by any
+  // of them reorders); the membership subset drives the facet / default_view /
+  // archived membership checks.
+  const changedKeys = Object.keys(patch) as (keyof IssueUpdatePatch)[];
+  const membershipKeys = changedListMembershipKeys(patch);
+  const archivedChanged = membershipKeys.includes("archived_at");
   // Every membership key except `archived_at` surfaces as an explicit facet
   // whose presence on the key means the variant filters on it; `archived_at` is
   // handled separately above because its active scope is implicit (absent key).
-  const explicitFacets = changedKeys.filter((key) => key !== "archived_at");
+  const explicitFacets = membershipKeys.filter((key) => key !== "archived_at");
   return ({ queryKey }) => {
     const variant = queryKey[3] as IssueQueryParams | undefined;
     if (!variant) return false;
     if (variantHasFreeText(variant)) return true;
-    if (variant.default_view === "true") return true;
+    // A pure content/order edit cannot change default_view membership, so gate
+    // this on an actual membership-key change.
+    if (membershipKeys.length > 0 && variant.default_view === "true")
+      return true;
     if (archivedChanged && variant.archived !== "true") return true;
     if (explicitFacets.some((facet) => facet in variant)) return true;
     // Every successful edit bumps the server-stamped `updated_at`, so a variant
     // sorted by it reorders on any edit; otherwise a variant reorders when
-    // sorted by a changed key (`sort_field` defaults to `priority`).
+    // sorted by a changed key (membership `priority`, or a content field like
+    // `due_date` / `title` / `estimate_points` / `start_date`).
     if (variant.sort_field === "updated_at") return true;
     return changedKeys.some((key) => variant.sort_field === key);
   };

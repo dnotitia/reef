@@ -252,6 +252,66 @@ describe("useUpdateIssue", () => {
     });
   });
 
+  it("refetches order-sensitive list variants on a non-membership edit (REEF-325)", async () => {
+    mockApiFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          issue: { ...UPDATED, title: "Renamed" },
+          content: "",
+        }),
+        { status: 200 },
+      ),
+    );
+    const queryClient = makeTestQueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderUseUpdateIssue(queryClient);
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        id: "REEF-001",
+        vault: "reef-acme",
+        patch: { title: "Renamed" },
+      });
+    });
+
+    // One order-aware predicate now covers non-membership edits too (REEF-325):
+    // a title edit reorders an `updated_at`-sorted variant (every edit restamps
+    // `updated_at` server-side) and a title-sorted variant, while an unrelated
+    // created_at-sorted facet variant stays patched in place.
+    const listCall = invalidateSpy.mock.calls.find(
+      (call) => call[0]?.queryKey?.[1] === "list",
+    );
+    const predicate = listCall?.[0]?.predicate as unknown as
+      | ((q: { queryKey: readonly unknown[] }) => boolean)
+      | undefined;
+    expect(
+      predicate?.({
+        queryKey: ["issues", "list", "reef-acme", { sort_field: "updated_at" }],
+      }),
+    ).toBe(true);
+    expect(
+      predicate?.({
+        queryKey: ["issues", "list", "reef-acme", { sort_field: "title" }],
+      }),
+    ).toBe(true);
+    expect(
+      predicate?.({
+        queryKey: [
+          "issues",
+          "list",
+          "reef-acme",
+          { status: ["todo"], sort_field: "created_at" },
+        ],
+      }),
+    ).toBe(false);
+    // The bare full list is still never refetched — the in-place patch is the
+    // server truth for it (REEF-098).
+    expect(predicate?.({ queryKey: ["issues", "list", "reef-acme"] })).toBe(
+      false,
+    );
+  });
+
   it("does not refetch the activity timeline on an edit that logs no event", async () => {
     mockApiFetch.mockResolvedValue(
       new Response(
