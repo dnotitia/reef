@@ -64,7 +64,9 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325)", () => {
 
     // Before the edit: REEF-001 sits below REEF-002 (updated_at tie → id desc).
     await expect.poll(() => indexOf("REEF-001")).toBeGreaterThanOrEqual(0);
-    expect(await indexOf("REEF-001")).toBeGreaterThan(await indexOf("REEF-002"));
+    expect(await indexOf("REEF-001")).toBeGreaterThan(
+      await indexOf("REEF-002"),
+    );
 
     // Open REEF-001 in the detail modal and rename it. The server restamps its
     // updated_at on the PATCH, and REEF-325 makes the edit refetch the
