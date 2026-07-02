@@ -111,8 +111,8 @@ Line up the two meta objects and find the key whose value differs in type or sha
 
 external_refs is for PM-facing external references. Each item has:
 
-- type: github_issue, linear, slack, url, or other. For akb documents, use the
-  first-class references relation flow, not external_refs.
+- type: github_issue, linear, slack, jira, confluence, url, or other. For akb
+  documents, use the first-class references relation flow, not external_refs.
 - ref or url: the actual external reference; at least one is required
 - label: optional display title shown in the UI as "Title"
 

@@ -20,6 +20,13 @@ explicitly in the entries below.
   always points straight at the issue — even when you opened it from the board or
   list — and opens the issue directly for anyone who follows it (REEF-328, epic
   REEF-002).
+- **Link Jira issues and Confluence pages to an issue.** The "External
+  references" picker now offers **Jira** and **Confluence** alongside GitHub,
+  Linear, Slack, and generic links, so you can attach a Jira issue key or a
+  Confluence page URL directly while creating or editing an issue. Existing
+  references are unchanged, and the workspace AI playbook is updated to match, so
+  existing workspaces will see an "update available" prompt in Settings ›
+  Workspace. (REEF-329)
 
 ## v0.6.1 - 2026-07-02
 

@@ -40,13 +40,16 @@ export const ClosedReasonEnum = z.enum([
 
 // `document` was removed in REEF-083: akb document references are now modelled
 // as akb-native `references` relation edges (see schemas/issues/references.ts),
-// not opaque external_refs strings. Non-akb references (github/linear/slack/url)
-// stay here. older rows that still carry `{ type: "document" }` are folded into
-// `other` on read by `ExternalRefSchema` below.
+// not opaque external_refs strings. Non-akb references
+// (github/linear/slack/jira/confluence/url) stay here. older rows that still
+// carry `{ type: "document" }` are folded into `other` on read by
+// `ExternalRefSchema` below.
 export const ExternalRefTypeEnum = z.enum([
   "github_issue",
   "linear",
   "slack",
+  "jira",
+  "confluence",
   "url",
   "other",
 ]);

@@ -109,7 +109,7 @@ The reef_issues.meta json column is the home for Reef semantic actors (author, l
 Reef issue delivery links are split into two fields:
 
 - implementation_refs: delivery activity such as pull requests, commits, and branches. Types are pull_request, commit, and branch.
-- external_refs: PM-facing external references such as GitHub issues, Linear tickets, Slack threads, generic URLs, or other links. Types are github_issue, linear, slack, url, and other. For akb documents, use first-class references relation edges, not external_refs.
+- external_refs: PM-facing external references such as GitHub issues, Linear tickets, Slack threads, Jira issues, Confluence pages, generic URLs, or other links. Types are github_issue, linear, slack, jira, confluence, url, and other. For akb documents, use first-class references relation edges, not external_refs.
 
 In the Reef UI, implementation_refs appear under "Delivery activity" and external_refs appear under "External references". external_refs can be added while creating or editing an issue. implementation_refs are normally recorded from GitHub activity scans, but may also be added manually while editing an issue. Both live in the reef_issues.meta JSON.
 `;
