@@ -74,7 +74,7 @@ export function useIssueList(
   // the hydration render, then reveal the cache on the post-mount render. This
   // mirrors the useActiveVault hydration gate; REEF-315 dropped the incidental
   // vault="" gate that used to cover this before the URL supplied the vault
-  // synchronously on the first client render. `enabled` alone cannot do this — a
+  // synchronously on the first client render. `enabled` alone misses this case: a
   // disabled query still returns whatever the persister already restored.
   if (!hydrated) {
     return {

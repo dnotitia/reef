@@ -66,8 +66,8 @@ describe("IssueRefsEditor", () => {
     );
   });
 
-  // REEF-329: jira/confluence are first-class external-ref kinds. jsdom cannot
-  // reliably open the Radix Select popover, so the dropdown-option coverage is
+  // REEF-329: jira/confluence are first-class external-ref kinds. jsdom is
+  // unreliable with the Radix Select popover, so dropdown-option coverage is
   // the live-proof e2e; here we assert the label map resolves the new brand
   // kinds (the `Record<ExternalRef["type"], string>` map already forces this at
   // type-check time, this pins it at runtime too).

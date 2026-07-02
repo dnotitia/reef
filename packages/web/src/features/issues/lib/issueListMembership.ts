@@ -110,18 +110,19 @@ function variantHasFreeText(variant: IssueQueryParams | undefined): boolean {
  * single issue `patch` can actually change — membership, order, or free-text
  * match — instead of every `['issues','list',vault]` variant (REEF-098/REEF-323).
  *
- * One patch-based predicate covers BOTH a membership edit (a server facet or the
+ * One patch-based predicate covers both a membership edit (a server facet or the
  * sort field) and a non-membership content edit (title / dates / estimate /
  * labels / relations). The two `onSuccess` branches were folded into this: they
- * shared the same order-and-membership logic and only diverged by which keys they
- * inspected, so a non-membership edit used to refetch q variants only and left
+ * shared the same order-and-membership logic and differed by which keys they
+ * inspected, so a non-membership edit used to refetch free-text variants and left
  * sort-order stale (REEF-325). A variant is refetched when it:
  *
  * - carries a free-text `q` (a content edit can shift its server-side match set
  *   unpredictably — see `variantHasFreeText`),
- * - is a `default_view` landing variant AND a membership key changed (its scope
- *   is active sprint / open statuses / my-issues, so only a status/sprint/
- *   assignee-class edit moves rows in or out — a pure content edit cannot;
+ * - is a `default_view` landing variant and a membership key changed (its scope
+ *   is active sprint / open statuses / my-issues, so a status/sprint/
+ *   assignee-class edit moves rows in or out; a pure content edit leaves it
+ *   unchanged;
  *   defensive — the current client does not send this facet, but the server
  *   honors it and REEF-324 wired it),
  * - is an active-scoped variant and `archived_at` changed (archive/restore — see
@@ -144,8 +145,8 @@ function variantHasFreeText(variant: IssueQueryParams | undefined): boolean {
  * Matching on the absent `archived` facet would invert the decision, so it is handled
  * here rather than via the explicit-facet check.
  *
- * The bare full list (`['issues','list',vault]`, no query fragment) is never
- * refetched: it sends no `archived` param, so the server returns every issue in
+ * The bare full list (`['issues','list',vault]`, no query fragment) stays
+ * patched in place: it sends no `archived` param, so the server returns every issue in
  * akb natural order — no field edit (archive included) changes its membership or
  * order, and the in-place `setQueriesData` patch keeps it correct.
  */
@@ -166,7 +167,7 @@ export function listInvalidationPredicate(
     const variant = queryKey[3] as IssueQueryParams | undefined;
     if (!variant) return false;
     if (variantHasFreeText(variant)) return true;
-    // A pure content/order edit cannot change default_view membership, so gate
+    // A pure content/order edit leaves default_view membership unchanged, so gate
     // this on an actual membership-key change.
     if (membershipKeys.length > 0 && variant.default_view === "true")
       return true;

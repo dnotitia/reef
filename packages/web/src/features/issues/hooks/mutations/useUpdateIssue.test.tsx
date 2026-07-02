@@ -305,8 +305,8 @@ describe("useUpdateIssue", () => {
         ],
       }),
     ).toBe(false);
-    // The bare full list is still never refetched — the in-place patch is the
-    // server truth for it (REEF-098).
+    // The bare full list stays patched in place; the mutation response supplies
+    // its server-backed values (REEF-098).
     expect(predicate?.({ queryKey: ["issues", "list", "reef-acme"] })).toBe(
       false,
     );

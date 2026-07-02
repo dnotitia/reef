@@ -177,8 +177,8 @@ export function useUpdateIssue() {
         (current) => current?.map((issue) => (issue.id === id ? item : issue)),
       );
 
-      // Avoid blanket invalidation (REEF-098). The in-place patch above is the
-      // server truth for every variant's values; a refetch is needed only where
+      // Avoid blanket invalidation (REEF-098). The in-place patch above supplies
+      // server-backed values for list variants; a refetch is reserved for where
       // an edit changes *which* list the issue is in, *where* it sorts, or a
       // free-text match set. One order-aware predicate handles both a membership
       // edit and a non-membership content edit (REEF-323/REEF-325): e.g. a
