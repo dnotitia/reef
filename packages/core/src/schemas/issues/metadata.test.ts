@@ -124,6 +124,34 @@ describe("ExternalRefSchema document → references migration (REEF-083)", () =>
   });
 });
 
+describe("ExternalRefSchema jira/confluence kinds (REEF-329)", () => {
+  it("offers jira and confluence as fresh external_ref kinds", () => {
+    expect(ExternalRefTypeEnum.options).toContain("jira");
+    expect(ExternalRefTypeEnum.options).toContain("confluence");
+  });
+
+  it("parses a jira reference by issue key + url", () => {
+    const parsed = ExternalRefSchema.parse({
+      type: "jira",
+      ref: "PROJ-42",
+      url: "https://acme.atlassian.net/browse/PROJ-42",
+      label: "PROJ-42",
+    });
+    expect(parsed.type).toBe("jira");
+    expect(parsed.ref).toBe("PROJ-42");
+  });
+
+  it("parses a confluence reference by page url", () => {
+    const parsed = ExternalRefSchema.parse({
+      type: "confluence",
+      url: "https://acme.atlassian.net/wiki/spaces/ENG/pages/123/Spec",
+      label: "Spec page",
+    });
+    expect(parsed.type).toBe("confluence");
+    expect(parsed.label).toBe("Spec page");
+  });
+});
+
 describe("IssueCreateInputSchema rank ownership (REEF-129)", () => {
   it("rejects a caller-supplied rank so manual order stays reorder-owned", () => {
     expect(

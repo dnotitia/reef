@@ -66,6 +66,37 @@ describe("IssueRefsEditor", () => {
     );
   });
 
+  // REEF-329: jira/confluence are first-class external-ref kinds. jsdom cannot
+  // reliably open the Radix Select popover, so the dropdown-option coverage is
+  // the live-proof e2e; here we assert the label map resolves the new brand
+  // kinds (the `Record<ExternalRef["type"], string>` map already forces this at
+  // type-check time, this pins it at runtime too).
+  it("labels jira and confluence external references with their brand names (REEF-329)", () => {
+    render(
+      <IssueRefsEditor
+        externalRefs={[
+          {
+            type: "jira",
+            ref: "PROJ-42",
+            url: "https://acme.atlassian.net/browse/PROJ-42",
+            label: "PROJ-42",
+          },
+          {
+            type: "confluence",
+            ref: "https://acme.atlassian.net/wiki/spaces/ENG/pages/1/Spec",
+            url: "https://acme.atlassian.net/wiki/spaces/ENG/pages/1/Spec",
+            label: "Design doc",
+          },
+        ]}
+        implementationRefs={[]}
+        onExternalRefsChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Jira")).toBeInTheDocument();
+    expect(screen.getByText("Confluence")).toBeInTheDocument();
+  });
+
   it("does not render unsafe external reference URLs as links", () => {
     render(
       <IssueRefsEditor

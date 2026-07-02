@@ -41,6 +41,8 @@ const EXTERNAL_REF_TYPES: ExternalRef["type"][] = [
   "github_issue",
   "linear",
   "slack",
+  "jira",
+  "confluence",
   "url",
   "other",
 ];
@@ -281,6 +283,8 @@ export function IssueRefsEditor({
     // Brand names render verbatim in every locale.
     linear: "Linear",
     slack: "Slack",
+    jira: "Jira",
+    confluence: "Confluence",
     url: t("url"),
     other: t("typeOther"),
   };
