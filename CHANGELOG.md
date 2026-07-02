@@ -12,6 +12,8 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.6.1 - 2026-07-02
+
 ### Added
 
 - **Delete a workspace from Settings.** The workspace owner now has a "Danger
