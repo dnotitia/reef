@@ -180,4 +180,35 @@ test.describe("Hermetic issue route surfaces", () => {
       })
       .not.toContain("REEF-004");
   });
+
+  test("copies the canonical issue deep link from the detail actions menu", async ({
+    page,
+  }) => {
+    await page
+      .context()
+      .grantPermissions(["clipboard-read", "clipboard-write"]);
+    await openExistingWorkspace(page);
+
+    // Open from the list so the address bar is the intercept route
+    // (/issues/REEF-001?view=list), not this issue's own deep link — the copied
+    // link must still be the clean canonical URL, not the address-bar value.
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+    await page.getByText("Initial issue Alpha").click();
+    await page.waitForURL(/\/issues\/REEF-001\?view=list/, { timeout: 10_000 });
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+
+    await page.locator('[data-testid="issue-more-trigger"]').click();
+    await page.locator('[data-testid="issue-copy-link"]').click();
+
+    // A success toast confirms the copy (locale-agnostic: assert the toast
+    // surface, not its text).
+    await expect(page.locator("[data-sonner-toast]")).toBeVisible();
+
+    // The copied value is the clean canonical deep link — vault + id, with no
+    // ?view=list riding along from the intercept URL in the address bar.
+    const origin = new URL(page.url()).origin;
+    await expect
+      .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toBe(`${origin}/workspace/reef-e2e/issues/REEF-001`);
+  });
 });

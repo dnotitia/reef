@@ -7,7 +7,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Archive, ArchiveRestore, MoreHorizontal, Trash2 } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  Link2,
+  MoreHorizontal,
+  Trash2,
+} from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { createPortal } from "react-dom";
 import {
@@ -37,6 +43,7 @@ export function IssueChromeActions({
   isArchived,
   isArchivePending,
   isDeletePending,
+  onCopyLink,
   onArchiveToggle,
   onDeleteRequested,
 }: {
@@ -46,6 +53,7 @@ export function IssueChromeActions({
   isArchived: boolean;
   isArchivePending: boolean;
   isDeletePending: boolean;
+  onCopyLink: () => void;
   onArchiveToggle: () => void;
   onDeleteRequested: () => void;
 }) {
@@ -84,6 +92,19 @@ export function IssueChromeActions({
           <MoreHorizontal className="h-4 w-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
+          {/* Copy link sits at the top as the one neutral, non-mutating action —
+              a wayfinding affordance above the state-change (archive) and
+              destructive (delete) items, matching the reference overflow-menu
+              pattern rather than crowding the width-constrained bar with a
+              standing button. */}
+          <DropdownMenuItem
+            data-testid="issue-copy-link"
+            onSelect={() => onCopyLink()}
+          >
+            <Link2 className="mr-2 h-4 w-4" />
+            {t("copyLink")}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             data-testid="issue-archive-toggle"
             onSelect={() => {

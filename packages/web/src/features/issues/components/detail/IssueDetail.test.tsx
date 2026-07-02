@@ -57,6 +57,7 @@ import { IssueDetail } from "./IssueDetail";
 const mockApiFetch = vi.mocked(apiFetch);
 const mockToastDismiss = vi.mocked(toast.dismiss);
 const mockToastError = vi.mocked(toast.error);
+const mockToastSuccess = vi.mocked(toast.success);
 
 const SAMPLE: IssueMetadata = {
   id: "REEF-001",
@@ -161,6 +162,59 @@ describe("IssueDetail", () => {
       ),
     );
     expect(await screen.findByDisplayValue("Sample title")).toBeInTheDocument();
+  });
+
+  it("copies the canonical deep link from the actions menu and toasts success", async () => {
+    // userEvent.setup() installs its own navigator.clipboard stub, so define
+    // ours afterwards to win. jsdom has no clipboard by default (not a secure
+    // context), which is exactly why the handler guards it.
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    render(
+      wrap(
+        <IssueDetail issueId="REEF-001" vault="reef-acme" onClose={() => {}} />,
+      ),
+    );
+    await screen.findByDisplayValue("Sample title");
+
+    await user.click(screen.getByTestId("issue-more-trigger"));
+    await user.click(await screen.findByTestId("issue-copy-link"));
+
+    // Rebuilt from vault + id (not window.location), and free of the ephemeral
+    // ?view= query — the clean shareable deep link the base route resolves.
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(
+        `${window.location.origin}/workspace/reef-acme/issues/REEF-001`,
+      ),
+    );
+    expect(mockToastSuccess).toHaveBeenCalledTimes(1);
+    expect(mockToastError).not.toHaveBeenCalled();
+  });
+
+  it("surfaces an error toast when the clipboard is unavailable", async () => {
+    const user = userEvent.setup();
+    // Simulate an insecure context / no Clipboard API — the guard should keep
+    // the copy from throwing and surface an error toast instead.
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: undefined,
+    });
+    render(
+      wrap(
+        <IssueDetail issueId="REEF-001" vault="reef-acme" onClose={() => {}} />,
+      ),
+    );
+    await screen.findByDisplayValue("Sample title");
+
+    await user.click(screen.getByTestId("issue-more-trigger"));
+    await user.click(await screen.findByTestId("issue-copy-link"));
+
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledTimes(1));
+    expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
   it("shows the last-edited relative time in the header", async () => {

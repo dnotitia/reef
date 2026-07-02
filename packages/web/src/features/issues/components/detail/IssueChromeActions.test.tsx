@@ -16,6 +16,7 @@ function makeProps(overrides: Partial<ActionsProps> = {}): ActionsProps {
     isArchived: false,
     isArchivePending: false,
     isDeletePending: false,
+    onCopyLink: vi.fn(),
     onArchiveToggle: vi.fn(),
     onDeleteRequested: vi.fn(),
     ...overrides,
@@ -70,6 +71,16 @@ describe("IssueChromeActions", () => {
     );
     await user.click(screen.getByTestId("issue-save-retry"));
     expect(onRetryLastCommit).toHaveBeenCalledTimes(1);
+  });
+
+  it("invokes copy-link from the top of the menu", async () => {
+    const user = userEvent.setup();
+    const onCopyLink = vi.fn();
+    render(<IssueChromeActions {...makeProps({ onCopyLink })} />);
+
+    await user.click(screen.getByTestId("issue-more-trigger"));
+    await user.click(await screen.findByTestId("issue-copy-link"));
+    expect(onCopyLink).toHaveBeenCalledTimes(1);
   });
 
   it("invokes archive and delete from the menu", async () => {
