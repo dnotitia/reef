@@ -15,6 +15,7 @@ import type { ClosedReason, IssueUpdatePatch } from "@reef/core";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { toast } from "sonner";
+import { buildOpenIssueHref } from "../../lib/issueHref";
 import { buildStatusPatch } from "../../lib/statusPatch";
 import { CloseIssueDialog } from "./CloseIssueDialog";
 import { DeleteIssueDialog } from "./DeleteIssueDialog";
@@ -270,6 +271,29 @@ function IssueDetailLoaded({
     }
   }
 
+  async function handleCopyLink() {
+    const clipboard = navigator.clipboard;
+    if (!clipboard) {
+      toast.error(t("copyLinkError"));
+      return;
+    }
+    // The canonical shareable deep link, rebuilt from vault + id rather than
+    // read from window.location: opened from the list/board the address bar is
+    // the intercept route (/issues/{id}?view=…), not this issue's own deep link,
+    // and we do not want the ephemeral view query riding along in a shared URL.
+    const url = `${window.location.origin}${buildOpenIssueHref(
+      vault,
+      issueId,
+      new URLSearchParams(),
+    )}`;
+    try {
+      await clipboard.writeText(url);
+      toast.success(t("linkCopied"));
+    } catch {
+      toast.error(t("copyLinkError"));
+    }
+  }
+
   return (
     <div data-testid="issue-detail" className="flex flex-col gap-5 p-6">
       {/* Identity (status · id · type · parent breadcrumb) now lives in the
@@ -284,6 +308,7 @@ function IssueDetailLoaded({
         isArchived={isArchived}
         isArchivePending={archiveMutation.isPending}
         isDeletePending={deleteMutation.isPending}
+        onCopyLink={() => void handleCopyLink()}
         onArchiveToggle={() => void handleArchiveToggle()}
         onDeleteRequested={() => setConfirmDeleteOpen(true)}
       />

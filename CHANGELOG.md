@@ -12,6 +12,15 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Added
+
+- **Copy a link to an issue.** The issue detail actions menu (⋮) now has a **Copy
+  link** item at the top that puts a shareable link to the issue on your
+  clipboard, so you can paste it into Slack, a doc, or an email. The copied link
+  always points straight at the issue — even when you opened it from the board or
+  list — and opens the issue directly for anyone who follows it (REEF-328, epic
+  REEF-002).
+
 ## v0.6.1 - 2026-07-02
 
 ### Added
