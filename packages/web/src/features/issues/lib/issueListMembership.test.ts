@@ -179,9 +179,9 @@ describe("listInvalidationPredicate", () => {
 
   describe("non-membership edits reorder sorted variants (REEF-325)", () => {
     it("refetches an updated_at-sorted variant on any edit (server-stamped)", () => {
-      // Every successful edit bumps the server-stamped `updated_at`, so a
+      // A successful edit bumps the server-stamped `updated_at`, so a
       // "recently updated" list reorders after a title/date/estimate edit — the
-      // gap the old non-membership branch (q-only) left stale.
+      // gap the old non-membership branch for free-text variants left stale.
       const predicate = listInvalidationPredicate({ title: "Renamed" });
       expect(predicate(key({ sort_field: "updated_at" }))).toBe(true);
     });
@@ -206,8 +206,8 @@ describe("listInvalidationPredicate", () => {
     });
 
     it("does not refetch a default_view variant on a pure content edit", () => {
-      // default_view scope (active sprint / open statuses / my-issues) cannot
-      // change from a title edit, so it is not refetched — unlike a membership
+      // default_view scope (active sprint / open statuses / my-issues) is
+      // unaffected by a title edit, so it is not refetched — unlike a membership
       // edit above.
       const predicate = listInvalidationPredicate({ title: "Renamed" });
       expect(
