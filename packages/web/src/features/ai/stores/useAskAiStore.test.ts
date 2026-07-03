@@ -5,7 +5,11 @@ import { useAskAiStore } from "./useAskAiStore";
 
 describe("useAskAiStore", () => {
   beforeEach(() => {
-    useAskAiStore.setState({ isOpen: false, seenMessageCount: 0 });
+    useAskAiStore.setState({
+      isOpen: false,
+      seenMessageCount: 0,
+      issueContext: null,
+    });
   });
 
   it("starts closed with zero seen messages", () => {
@@ -33,5 +37,25 @@ describe("useAskAiStore", () => {
     expect(useAskAiStore.getState().seenMessageCount).toBe(5);
     useAskAiStore.getState().markSeen(7);
     expect(useAskAiStore.getState().seenMessageCount).toBe(7);
+  });
+
+  it("starts with no issue context", () => {
+    expect(useAskAiStore.getState().issueContext).toBeNull();
+  });
+
+  it("setIssueContext() sets and clears the grounded issue", () => {
+    useAskAiStore.getState().setIssueContext("REEF-360");
+    expect(useAskAiStore.getState().issueContext).toEqual({
+      reefId: "REEF-360",
+    });
+    useAskAiStore.getState().setIssueContext(null);
+    expect(useAskAiStore.getState().issueContext).toBeNull();
+  });
+
+  it("openWithIssue() opens the panel grounded on the issue", () => {
+    useAskAiStore.getState().openWithIssue("REEF-360");
+    const state = useAskAiStore.getState();
+    expect(state.isOpen).toBe(true);
+    expect(state.issueContext).toEqual({ reefId: "REEF-360" });
   });
 });

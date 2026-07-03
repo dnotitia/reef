@@ -24,6 +24,11 @@ vi.mock("ai", () => ({
   DefaultChatTransport: class {},
 }));
 
+// AskAiDialog reads the current route (REEF-360) via next/navigation.
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/reef-acme/issues",
+}));
+
 const useAiAvailableMock = vi.fn();
 vi.mock("@/features/settings/hooks/useAiAvailable", () => ({
   useAiAvailable: () => useAiAvailableMock(),
@@ -55,12 +60,14 @@ vi.mock("./ChatSurface", () => ({
     emptyState,
     composerPlaceholder,
     composerDisabled,
+    contextChip,
     inputTestId,
     submitTestId,
   }: {
     emptyState?: ReactNode;
     composerPlaceholder?: string;
     composerDisabled?: boolean;
+    contextChip?: ReactNode;
     inputTestId?: string;
     submitTestId?: string;
   }) => (
@@ -72,6 +79,7 @@ vi.mock("./ChatSurface", () => ({
       data-submit-testid={submitTestId ?? ""}
     >
       <div data-testid="chat-surface-empty">{emptyState}</div>
+      <div data-testid="chat-surface-context">{contextChip}</div>
     </div>
   ),
 }));
@@ -94,7 +102,11 @@ function setUseChatReturn(overrides: Partial<Record<string, unknown>> = {}) {
 describe("AskAiDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useAskAiStore.setState({ isOpen: true, seenMessageCount: 0 });
+    useAskAiStore.setState({
+      isOpen: true,
+      seenMessageCount: 0,
+      issueContext: null,
+    });
     setUseChatReturn();
     useAiAvailableMock.mockReturnValue({
       isAvailable: true,
@@ -196,5 +208,32 @@ describe("AskAiDialog", () => {
     expect(screen.getByTestId("chat-surface-empty")).toHaveTextContent(
       "Ask about your codebase",
     );
+  });
+
+  it("shows no context chip when there is no grounded issue", () => {
+    render(<AskAiDialog />);
+    expect(screen.queryByTestId("ask-ai-context-chip")).toBeNull();
+  });
+
+  it("renders the issue context chip when the store has a grounded issue (REEF-360)", () => {
+    useAskAiStore.setState({
+      isOpen: true,
+      seenMessageCount: 0,
+      issueContext: { reefId: "REEF-360" },
+    });
+    render(<AskAiDialog />);
+    const chip = screen.getByTestId("ask-ai-context-chip");
+    expect(chip).toHaveTextContent("REEF-360");
+  });
+
+  it("removing the context chip clears the grounded issue (context-free)", () => {
+    useAskAiStore.setState({
+      isOpen: true,
+      seenMessageCount: 0,
+      issueContext: { reefId: "REEF-360" },
+    });
+    render(<AskAiDialog />);
+    fireEvent.click(screen.getByTestId("ask-ai-context-remove"));
+    expect(useAskAiStore.getState().issueContext).toBeNull();
   });
 });

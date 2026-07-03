@@ -14,6 +14,16 @@ explicitly in the entries below.
 
 ### Added
 
+- **Ask AI now knows your workspace and the issue you're looking at.** The Ask AI
+  chat is grounded in the current project state: it sees a summary of your
+  workspace (the active sprint and how many issues are open, by status) and — when
+  you have an issue open — that issue's fields and description. A new **Ask AI
+  about this issue** item in the issue detail actions menu (⋮) opens the chat
+  focused on that issue, shown as a removable chip above the message box; clear the
+  chip to ask a general question instead. Answers to "what's next on this issue?"
+  now refer to the issue's real status, assignee, and body rather than guessing.
+  Credentials and internal identifiers are never included in what the assistant
+  sees or in logs. (REEF-360, epic REEF-337)
 - **Copy a link to an issue.** The issue detail actions menu (⋮) now has a **Copy
   link** item at the top that puts a shareable link to the issue on your
   clipboard, so you can paste it into Slack, a doc, or an email. The copied link

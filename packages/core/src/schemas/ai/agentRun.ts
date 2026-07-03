@@ -45,11 +45,22 @@ const AgentUIMessageSchema = CompatibleUIMessageSchema.extend({
   id: z.string().min(1),
 });
 
+// Optional chat-grounding hints the client sends alongside the messages
+// (REEF-360). `route` is the app path the PM is on; `reefId` is the issue whose
+// sheet is open. Both are tolerant: absent → null. `reefId` is not regex-gated
+// here — core re-validates its shape before it reaches the akb read path, which
+// is the security boundary for the id (mirrors the `read_issue` tool contract).
+const ChatGroundingFieldsSchema = {
+  route: z.string().nullable().optional(),
+  reefId: z.string().nullable().optional(),
+};
+
 export const WorkspaceChatRequestBodySchema = z
   .object({
     messages: z
       .array(CompatibleUIMessageSchema)
       .min(1, "messages must contain at least one message"),
+    ...ChatGroundingFieldsSchema,
   })
   .passthrough()
   .transform((body) => ({
@@ -64,6 +75,7 @@ export const WorkspaceChatAgentInputSchema = z
     messages: z
       .array(AgentUIMessageSchema)
       .min(1, "messages must contain at least one message"),
+    ...ChatGroundingFieldsSchema,
   })
   .passthrough();
 export type WorkspaceChatAgentInput = z.infer<

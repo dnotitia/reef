@@ -6,14 +6,25 @@ import {
   createAgentUIStreamResponse,
   stepCountIs,
 } from "ai";
-import { type AkbAdapter, readConfig } from "../adapters/akb";
+import {
+  type AkbAdapter,
+  getWorkspaceSummary,
+  readConfig,
+  readIssue,
+} from "../adapters/akb";
 import type { GitHubAdapter } from "../adapters/github";
 import type { LlmAdapter } from "../adapters/llm";
+import {
+  type ChatIssueContext,
+  ChatIssueContextIssueSchema,
+  type WorkspaceSummary,
+} from "../schemas/ai/chatGrounding";
 import { type AgentRunEvent, AgentRunEventSchema } from "./framework/events";
 import {
   type AgentTaskRegistryEntry,
   getAgentRegistryEntry,
 } from "./framework/registry";
+import { buildWorkspaceChatSystemPrompt } from "./prompts/workspaceChat";
 import type { RepoRef } from "./tools/repo";
 import {
   createRepoReadToolset,
@@ -50,6 +61,18 @@ export interface CreateWorkspaceChatAgentResponseParams
   llmAdapter: LlmAdapter;
   /** Validated AI SDK UI messages from the BFF boundary. */
   messages: UIMessage[];
+  /**
+   * The app route the user is chatting from (e.g. "/reef-e2e/issues"), when the
+   * client sends it. Grounds the assistant in where the PM is (REEF-360 AC2).
+   */
+  route?: string | null;
+  /**
+   * The reef id of the issue the user is looking at, when an issue sheet is
+   * open. When set, that issue is prefetched (row fields + body) into the
+   * system context; a prefetch failure degrades silently to no issue context
+   * (REEF-360 AC2 / AC4).
+   */
+  currentIssueId?: string | null;
   onStepFinish?: (summary: WorkspaceChatStepSummary) => void;
   onFinish?: () => void;
   onError?: (error: unknown) => string;
@@ -104,6 +127,8 @@ export async function createWorkspaceChatAgentResponse(
 ): Promise<Response> {
   const taskConfig = getWorkspaceChatTaskConfig();
   const allowedRepos = await resolveMonitoredRepos(params);
+  const hasRepoTools =
+    Boolean(params.githubAdapter) && (allowedRepos?.length ?? 0) > 0;
   const tools = createChatAgentTools({ ...params, allowedRepos });
   type WorkspaceChatToolset = typeof tools;
   type WorkspaceChatUIMessage = UIMessage<
@@ -113,6 +138,20 @@ export async function createWorkspaceChatAgentResponse(
   >;
   const uiMessages = params.messages as unknown as WorkspaceChatUIMessage[];
 
+  // Assemble the credential-safe grounding system prompt (REEF-360). Both the
+  // workspace summary and the current-issue prefetch are best-effort: a failure
+  // degrades to less context, never a failed chat (AC4).
+  const [summary, issueContext] = await Promise.all([
+    resolveWorkspaceSummary(params),
+    resolveIssueContext(params),
+  ]);
+  const instructions = buildWorkspaceChatSystemPrompt({
+    summary,
+    route: params.route ?? null,
+    issueContext,
+    hasRepoTools,
+  });
+
   const lifecycle = createWorkspaceChatLifecycle(taskConfig, params);
   lifecycle.emitStarted();
 
@@ -120,11 +159,17 @@ export async function createWorkspaceChatAgentResponse(
     let stepCounter = 0;
     const agent = new ToolLoopAgent({
       model: params.llmAdapter.model(),
+      instructions,
       tools,
       stopWhen: stepCountIs(taskConfig.maxSteps ?? 10),
       experimental_telemetry: {
         isEnabled: true,
         functionId: taskConfig.functionId,
+        // Never record the assembled prompt or conversation into telemetry
+        // spans — the grounding prompt carries workspace context and the
+        // observability contract forbids prompt text in spans (AC5).
+        recordInputs: false,
+        recordOutputs: false,
       },
       onStepFinish: (stepResult) => {
         const toolNames = stepResult.toolCalls.flatMap((toolCall) =>
@@ -197,6 +242,49 @@ async function resolveMonitoredRepos({
     }));
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * Resolve the compact workspace summary for grounding. Best-effort: on any read
+ * failure, degrade to a vault-only summary so chat still names the workspace
+ * rather than failing (REEF-360 AC1 / AC4).
+ */
+async function resolveWorkspaceSummary(
+  params: CreateWorkspaceChatAgentResponseParams,
+): Promise<WorkspaceSummary> {
+  const { adapter, vault } = params;
+  try {
+    return await getWorkspaceSummary({ adapter, vault });
+  } catch {
+    return { vault, activeSprint: null, openIssueCount: 0, statusCounts: [] };
+  }
+}
+
+/**
+ * Prefetch the current issue (row fields + body) into chat context via the same
+ * read path `read_issue` uses (REEF-360 AC2). Best-effort: no id, or a 404 /
+ * permission / any read failure, degrades silently to no issue context so the
+ * chat still works (AC4). The result is narrowed to the PM-facing field subset
+ * the `read_issue` tool already exposes.
+ */
+/** Issue id shape guard — the security boundary before the akb read URL. */
+const CHAT_ISSUE_ID_REGEX = /^[A-Z]+-\d+$/;
+
+async function resolveIssueContext(
+  params: CreateWorkspaceChatAgentResponseParams,
+): Promise<ChatIssueContext | null> {
+  const id = params.currentIssueId?.trim();
+  if (!id || !CHAT_ISSUE_ID_REGEX.test(id)) return null;
+  try {
+    const { issue, content } = await readIssue({
+      adapter: params.adapter,
+      vault: params.vault,
+      id,
+    });
+    return { issue: ChatIssueContextIssueSchema.parse(issue), body: content };
+  } catch {
+    return null;
   }
 }
 

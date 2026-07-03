@@ -68,14 +68,24 @@ export async function POST(request: Request): Promise<Response> {
   if ("response" in akbResult) return akbResult.response;
   const akbAdapter = akbResult.adapter;
 
-  let body: { messages: UIMessage[] };
+  let body: {
+    messages: UIMessage[];
+    route: string | null;
+    reefId: string | null;
+  };
   try {
     const rawBody: unknown = await request.json();
     const bodyResult = ChatRequestBodySchema.safeParse(rawBody);
     if (!bodyResult.success) {
       return localizedErrorResponse("requestBodyInvalid", 400);
     }
-    body = { messages: bodyResult.data.messages as UIMessage[] };
+    body = {
+      messages: bodyResult.data.messages as UIMessage[],
+      // Grounding hints: the route the PM is on and the open issue's id, when
+      // sent. Core assembles them into the chat system prompt (REEF-360).
+      route: bodyResult.data.route ?? null,
+      reefId: bodyResult.data.reefId ?? null,
+    };
   } catch {
     return localizedErrorResponse("requestBodyInvalid", 400);
   }
@@ -130,6 +140,8 @@ export async function POST(request: Request): Promise<Response> {
       vault,
       llmAdapter,
       messages: body.messages,
+      route: body.route,
+      currentIssueId: body.reefId,
       onStepFinish: ({ stepIndex, finishReason, toolNames }) => {
         span.setAttribute(`step.${stepIndex}.finish_reason`, finishReason);
         if (toolNames.length > 0) {

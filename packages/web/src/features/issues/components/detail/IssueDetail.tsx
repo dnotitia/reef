@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { notifyUndoableSuccess } from "@/components/ui/toastFeedback";
+import { useAskAiStore } from "@/features/ai/stores/useAskAiStore";
 import { useArchiveIssue } from "@/features/issues/hooks/mutations/useArchiveIssue";
 import { useDeleteIssue } from "@/features/issues/hooks/mutations/useDeleteIssue";
 import { useUpdateIssue } from "@/features/issues/hooks/mutations/useUpdateIssue";
@@ -134,6 +135,17 @@ function IssueDetailLoaded({
   const handledConflictRef = useRef(conflictCount);
   const issue = data.issue;
   const isArchived = issue.archived_at != null;
+
+  // While this issue's detail is open, ground the Ask AI chat on it (REEF-360
+  // AC2): the panel and its context chip pick up this issue automatically.
+  // Keyed on issueId so removing the chip sticks until a different issue opens;
+  // cleared on unmount so a later context-free chat is not silently grounded.
+  const setAskAiIssueContext = useAskAiStore((s) => s.setIssueContext);
+  const openAskAiWithIssue = useAskAiStore((s) => s.openWithIssue);
+  useEffect(() => {
+    setAskAiIssueContext(issueId);
+    return () => setAskAiIssueContext(null);
+  }, [issueId, setAskAiIssueContext]);
 
   useEffect(() => {
     // A save conflict (REEF-227): discard the rejected local edits and re-derive
@@ -309,6 +321,7 @@ function IssueDetailLoaded({
         isArchivePending={archiveMutation.isPending}
         isDeletePending={deleteMutation.isPending}
         onCopyLink={() => void handleCopyLink()}
+        onAskAi={() => openAskAiWithIssue(issueId)}
         onArchiveToggle={() => void handleArchiveToggle()}
         onDeleteRequested={() => setConfirmDeleteOpen(true)}
       />

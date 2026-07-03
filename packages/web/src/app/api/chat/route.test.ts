@@ -256,5 +256,27 @@ describe("POST /api/chat", () => {
       await POST(makeRequest({ vault: null }));
       expect(mockCreateWorkspaceChatAgentResponse).not.toHaveBeenCalled();
     });
+
+    it("forwards route and reefId grounding hints to core (REEF-360)", async () => {
+      await POST(
+        makeRequest({
+          body: {
+            ...VALID_BODY,
+            route: "/reef-acme/issues",
+            reefId: "REEF-042",
+          },
+        }),
+      );
+      const call = mockCreateWorkspaceChatAgentResponse.mock.calls[0]?.[0];
+      expect(call?.route).toBe("/reef-acme/issues");
+      expect(call?.currentIssueId).toBe("REEF-042");
+    });
+
+    it("passes null grounding hints when the client omits them", async () => {
+      await POST(makeRequest());
+      const call = mockCreateWorkspaceChatAgentResponse.mock.calls[0]?.[0];
+      expect(call?.route).toBeNull();
+      expect(call?.currentIssueId).toBeNull();
+    });
   });
 });

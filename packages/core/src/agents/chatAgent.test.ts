@@ -14,6 +14,8 @@ const {
   createAgentUIStreamResponseMock,
   stepCountIsMock,
   readConfigMock,
+  getWorkspaceSummaryMock,
+  readIssueMock,
 } = vi.hoisted(() => ({
   ToolLoopAgentMock: vi.fn(function ToolLoopAgentMock(
     this: { settings?: unknown },
@@ -24,6 +26,8 @@ const {
   createAgentUIStreamResponseMock: vi.fn(),
   stepCountIsMock: vi.fn((steps: number) => ({ steps })),
   readConfigMock: vi.fn(),
+  getWorkspaceSummaryMock: vi.fn(),
+  readIssueMock: vi.fn(),
 }));
 
 vi.mock("ai", async (importOriginal) => {
@@ -37,10 +41,17 @@ vi.mock("ai", async (importOriginal) => {
 });
 
 // The chat agent reads monitored_repos to scope the unbound repo tools
-// (REEF-243); mock the config read so tool assembly is deterministic.
+// (REEF-243) and now assembles a grounding system prompt from a workspace
+// summary + optional issue prefetch (REEF-360); mock those reads so prompt
+// assembly is deterministic.
 vi.mock("../adapters/akb", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../adapters/akb")>();
-  return { ...actual, readConfig: readConfigMock };
+  return {
+    ...actual,
+    readConfig: readConfigMock,
+    getWorkspaceSummary: getWorkspaceSummaryMock,
+    readIssue: readIssueMock,
+  };
 });
 
 const message = {
@@ -68,7 +79,13 @@ const createParams = (
 
 const getAgentSettings = () =>
   ToolLoopAgentMock.mock.calls[0]?.[0] as {
-    experimental_telemetry: { isEnabled: boolean; functionId: string };
+    instructions: string;
+    experimental_telemetry: {
+      isEnabled: boolean;
+      functionId: string;
+      recordInputs?: boolean;
+      recordOutputs?: boolean;
+    };
     onFinish: () => void;
     onStepFinish: (stepResult: {
       finishReason: string;
@@ -89,6 +106,13 @@ describe("workspace chat agent task", () => {
       },
       exists: true,
     });
+    // Default grounding summary so assembled `instructions` are deterministic.
+    getWorkspaceSummaryMock.mockResolvedValue({
+      vault: "reef-test",
+      activeSprint: { name: "Sprint 6", goal: "Ship chat grounding" },
+      openIssueCount: 7,
+      statusCounts: [{ status: "todo", count: 7 }],
+    });
   });
 
   it("declares chat.workspace streaming config in the registry", () => {
@@ -108,9 +132,13 @@ describe("workspace chat agent task", () => {
 
     expect(stepCountIsMock).toHaveBeenCalledWith(10);
     const settings = getAgentSettings();
+    // Telemetry stays enabled for durations/tool counts, but never records the
+    // grounding prompt or conversation into spans (AC5).
     expect(settings.experimental_telemetry).toEqual({
       isEnabled: true,
       functionId: "reef.agent.chat.workspace",
+      recordInputs: false,
+      recordOutputs: false,
     });
     expect(Object.keys(settings.tools).sort()).toEqual([
       "dev_read_file",
@@ -128,6 +156,78 @@ describe("workspace chat agent task", () => {
         originalMessages: params.messages,
       }),
     );
+  });
+
+  it("injects the workspace grounding summary as agent instructions (AC1)", async () => {
+    await createWorkspaceChatAgentResponse(createParams());
+
+    const { instructions } = getAgentSettings();
+    expect(instructions).toContain("## Workspace state");
+    expect(instructions).toContain("reef-test");
+    expect(instructions).toContain("Sprint 6");
+    expect(instructions).toContain("Open issues (not done/closed): 7");
+    // Chat output must be Markdown, never the projectState JSON contract.
+    expect(instructions).toContain("Markdown");
+    expect(instructions).not.toContain("referenced_issue_ids");
+    // With no current issue, there is no issue section and no prefetch.
+    expect(instructions).not.toContain("## Current issue");
+    expect(readIssueMock).not.toHaveBeenCalled();
+  });
+
+  it("prefetches the current issue into instructions when currentIssueId is set (AC2)", async () => {
+    readIssueMock.mockResolvedValue({
+      issue: {
+        id: "REEF-360",
+        title: "Context-aware chat grounding",
+        status: "in_progress",
+        issue_type: "story",
+        priority: "high",
+        assigned_to: "alice",
+        created_at: "2026-07-01T00:00:00.000Z",
+        created_by: "younglo",
+        updated_at: "2026-07-02T00:00:00.000Z",
+        updated_by: "younglo",
+      },
+      path: "issues/reef-360.md",
+      commit_hash: null,
+      content: "## User Story\nGround the chat in this issue.",
+    });
+
+    await createWorkspaceChatAgentResponse({
+      ...createParams(),
+      currentIssueId: "REEF-360",
+    });
+
+    expect(readIssueMock).toHaveBeenCalledWith(
+      expect.objectContaining({ vault: "reef-test", id: "REEF-360" }),
+    );
+    const { instructions } = getAgentSettings();
+    expect(instructions).toContain("## Current issue");
+    expect(instructions).toContain("REEF-360");
+    expect(instructions).toContain("Ground the chat in this issue.");
+  });
+
+  it("degrades to no issue context when the prefetch fails (AC4)", async () => {
+    readIssueMock.mockRejectedValueOnce(new Error("not found"));
+
+    const response = await createWorkspaceChatAgentResponse({
+      ...createParams(),
+      currentIssueId: "REEF-999",
+    });
+
+    // Chat still assembles; the issue section is simply absent.
+    expect(response).toBeInstanceOf(Response);
+    expect(getAgentSettings().instructions).not.toContain("## Current issue");
+  });
+
+  it("ignores a malformed currentIssueId without hitting the read path (AC2 guard)", async () => {
+    await createWorkspaceChatAgentResponse({
+      ...createParams(),
+      currentIssueId: "../etc/passwd",
+    });
+
+    expect(readIssueMock).not.toHaveBeenCalled();
+    expect(getAgentSettings().instructions).not.toContain("## Current issue");
   });
 
   it("omits repo tools when GitHub grounding is unavailable", async () => {

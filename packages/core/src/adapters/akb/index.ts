@@ -85,6 +85,10 @@ export {
   listTemplates,
 } from "./workspace/templates";
 export {
+  getWorkspaceSummary,
+  type GetWorkspaceSummaryParams,
+} from "./workspace/workspaceSummary";
+export {
   listPlanningCatalog,
   createSprint,
   updateSprint,
