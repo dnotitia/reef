@@ -131,6 +131,22 @@ export function createTopLevelRunEmitter(
   };
 }
 
+/**
+ * Handlers the UI-message-stream parser calls for each part it recognizes.
+ * The bridge maps these to agent-run SSE events; the parser stays a pure
+ * tokenizer over the AI-SDK UI-message stream.
+ */
+interface UiMessageStreamHandlers {
+  onTextDelta: (delta: string) => void;
+  onToolInput: (part: {
+    toolCallId: string;
+    toolName: string;
+    input: unknown;
+  }) => void;
+  onToolOutput: (part: { toolCallId: string; output: unknown }) => void;
+  onToolError: (part: { toolCallId: string; errorText: string }) => void;
+}
+
 export function createChatRunEventBridge(
   writeEvent: (event: AgentRunEvent) => void,
 ) {
@@ -138,6 +154,10 @@ export function createChatRunEventBridge(
   let taskId = "chat.workspace";
   let seq = 0;
   let terminalEvent: AgentRunEvent | null = null;
+  // Tool names arrive on `tool-input-available`; `tool-output-available` and
+  // `tool-output-error` carry only the call id, so remember the name here to
+  // pair the completion/error frame with its tool.
+  const toolNames = new Map<string, string>();
 
   const rewriteEvent = (event: AgentRunEvent): AgentRunEvent =>
     AgentRunEventSchema.parse({
@@ -146,9 +166,8 @@ export function createChatRunEventBridge(
       seq: seq++,
     });
 
-  const emitModelDelta = (delta: string) => {
+  const emitBridgeEvent = (event: Record<string, unknown>) => {
     if (!runId) return;
-    if (!delta) return;
     writeEvent(
       AgentRunEventSchema.parse({
         event_id: `${runId}:${seq}`,
@@ -156,17 +175,59 @@ export function createChatRunEventBridge(
         task_id: taskId,
         seq: seq++,
         created_at: new Date().toISOString(),
-        type: "model.delta",
-        delta,
-        channel: "text",
-        metadata: {
-          source_format: "ai-sdk-ui-message-stream",
-        },
+        metadata: { source_format: "ai-sdk-ui-message-stream" },
+        ...event,
       }),
     );
   };
 
-  const uiMessageParser = createUiMessageTextDeltaParser(emitModelDelta);
+  const emitModelDelta = (delta: string) => {
+    if (!delta) return;
+    emitBridgeEvent({ type: "model.delta", delta, channel: "text" });
+  };
+
+  // Tool inputs/outputs are surfaced to the PM as transparency steps
+  // (REEF-361 AC2). The agent-run tool payloads are `Metadata` records, so wrap
+  // any non-object value rather than letting schema validation reject the frame.
+  const asMetadata = (value: unknown): Record<string, unknown> =>
+    isRecord(value) ? value : value === undefined ? {} : { value };
+
+  const uiMessageParser = createUiMessageStreamParser({
+    onTextDelta: emitModelDelta,
+    onToolInput: ({ toolCallId, toolName, input }) => {
+      toolNames.set(toolCallId, toolName);
+      emitBridgeEvent({
+        type: "tool.called",
+        tool: { tool_call_id: toolCallId, tool_name: toolName },
+        input: asMetadata(input),
+      });
+    },
+    onToolOutput: ({ toolCallId, output }) => {
+      emitBridgeEvent({
+        type: "tool.completed",
+        tool: {
+          tool_call_id: toolCallId,
+          tool_name: toolNames.get(toolCallId) ?? "tool",
+        },
+        output: asMetadata(output),
+      });
+    },
+    onToolError: ({ toolCallId, errorText }) => {
+      emitBridgeEvent({
+        type: "tool.error",
+        tool: {
+          tool_call_id: toolCallId,
+          tool_name: toolNames.get(toolCallId) ?? "tool",
+        },
+        error: {
+          code: "chat_tool_error",
+          message: errorText || "Tool call failed.",
+          recoverable: false,
+          details: {},
+        },
+      });
+    },
+  });
 
   return {
     onLifecycleEvent: (event: AgentRunEvent) => {
@@ -188,7 +249,7 @@ export function createChatRunEventBridge(
   };
 }
 
-function createUiMessageTextDeltaParser(onTextDelta: (delta: string) => void) {
+function createUiMessageStreamParser(handlers: UiMessageStreamHandlers) {
   let buffer = "";
 
   const processBufferedFrames = () => {
@@ -197,7 +258,7 @@ function createUiMessageTextDeltaParser(onTextDelta: (delta: string) => void) {
     while (separatorIndex >= 0) {
       const frame = buffer.slice(0, separatorIndex);
       buffer = buffer.slice(separatorIndex + 2);
-      processUiMessageFrame(frame, onTextDelta);
+      processUiMessageFrame(frame, handlers);
       separatorIndex = buffer.indexOf("\n\n");
     }
   };
@@ -209,7 +270,7 @@ function createUiMessageTextDeltaParser(onTextDelta: (delta: string) => void) {
     },
     flush: () => {
       processBufferedFrames();
-      if (buffer.trim()) processUiMessageFrame(buffer, onTextDelta);
+      if (buffer.trim()) processUiMessageFrame(buffer, handlers);
       buffer = "";
     },
   };
@@ -217,18 +278,15 @@ function createUiMessageTextDeltaParser(onTextDelta: (delta: string) => void) {
 
 function processUiMessageFrame(
   frame: string,
-  onTextDelta: (delta: string) => void,
+  handlers: UiMessageStreamHandlers,
 ) {
   for (const line of frame.split("\n")) {
     if (!line.startsWith("data:")) continue;
-    emitUiMessageTextDelta(line.slice("data:".length).trimStart(), onTextDelta);
+    handleUiMessagePart(line.slice("data:".length).trimStart(), handlers);
   }
 }
 
-function emitUiMessageTextDelta(
-  payload: string,
-  onTextDelta: (delta: string) => void,
-) {
+function handleUiMessagePart(payload: string, handlers: UiMessageStreamHandlers) {
   const trimmedPayload = payload.trim();
   if (!trimmedPayload || trimmedPayload === "[DONE]") return;
 
@@ -238,13 +296,43 @@ function emitUiMessageTextDelta(
   } catch {
     return;
   }
+  if (!isRecord(parsed)) return;
 
-  if (
-    isRecord(parsed) &&
-    parsed.type === "text-delta" &&
-    typeof parsed.delta === "string"
-  ) {
-    onTextDelta(parsed.delta);
+  switch (parsed.type) {
+    case "text-delta":
+      if (typeof parsed.delta === "string") handlers.onTextDelta(parsed.delta);
+      return;
+    case "tool-input-available":
+      if (
+        typeof parsed.toolCallId === "string" &&
+        typeof parsed.toolName === "string"
+      ) {
+        handlers.onToolInput({
+          toolCallId: parsed.toolCallId,
+          toolName: parsed.toolName,
+          input: parsed.input,
+        });
+      }
+      return;
+    case "tool-output-available":
+      if (typeof parsed.toolCallId === "string") {
+        handlers.onToolOutput({
+          toolCallId: parsed.toolCallId,
+          output: parsed.output,
+        });
+      }
+      return;
+    case "tool-output-error":
+      if (typeof parsed.toolCallId === "string") {
+        handlers.onToolError({
+          toolCallId: parsed.toolCallId,
+          errorText:
+            typeof parsed.errorText === "string" ? parsed.errorText : "",
+        });
+      }
+      return;
+    default:
+      return;
   }
 }
 
