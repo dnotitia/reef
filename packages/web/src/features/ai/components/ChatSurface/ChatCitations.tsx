@@ -7,13 +7,10 @@ import {
   akbDocumentSlugTitle,
   buildAkbDocumentUrl,
 } from "@/lib/akb/documentUri";
+import { useAkbWebUrl } from "@/providers/AkbWebUrlProvider";
 import { Check, Copy, ExternalLink } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
-
-// Deployment-managed akb web base (inlined at build time). Absent → the card
-// hides "open" and offers copy only, matching DocumentRefCard.
-const AKB_WEB_BASE = process.env.NEXT_PUBLIC_AKB_WEB_URL ?? null;
 
 /**
  * The documents an assistant answer cited via `search_documents`, rendered as a
@@ -49,9 +46,12 @@ export function ChatCitations({
 
 function ChatCitationCard({ citation }: { citation: ChatDocumentCitation }) {
   const t = useTranslations("issues.refs");
+  // Deployment-managed akb web base, provided at runtime (REEF-368); absent → the
+  // card hides "open" and offers copy only.
+  const akbWebBase = useAkbWebUrl();
   const title = citation.title ?? akbDocumentSlugTitle(citation.uri);
   const breadcrumb = akbDocumentBreadcrumb(citation.uri);
-  const openUrl = buildAkbDocumentUrl(AKB_WEB_BASE, citation.uri);
+  const openUrl = buildAkbDocumentUrl(akbWebBase, citation.uri);
 
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
