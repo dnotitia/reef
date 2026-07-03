@@ -7,8 +7,9 @@ interface SearchProgressBarProps {
    */
   active: boolean;
   /**
-   * Extra classes on the hairline container — e.g. to move it to a panel's top
-   * edge (`top-0 bottom-auto`) instead of the default bottom edge.
+   * Extra classes on the hairline container. The wired surfaces pin it to the
+   * results' top edge with `top-0 bottom-auto` (or `sticky top-0` inside a
+   * scrolling list); with no override it sits at the bottom edge.
    */
   className?: string;
 }
@@ -24,7 +25,9 @@ interface SearchProgressBarProps {
  *
  * Teal only — the AI / chat surfaces own the purple streaming track and must
  * not use this (globals.css keeps teal↔purple separate). Place it inside a
- * `relative` container; it pins to the bottom edge by default.
+ * positioned container; the wired surfaces pin it to the results' top edge
+ * (`top-0 bottom-auto`, or `sticky top-0` inside a scrolling list) so the
+ * indicator reads the same across every search surface (REEF-369).
  */
 function SearchProgressBar({ active, className }: SearchProgressBarProps) {
   if (!active) return null;

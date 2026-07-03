@@ -515,13 +515,6 @@ export function Combobox<T extends string>({
             contentClassName,
           )}
         >
-          {/* In-flight hairline at the panel's top edge. Only async consumers
-              pass `loading` (searchable + onQueryChange), so client-filter
-              comboboxes never flash it — REEF-369 AC4. */}
-          <SearchProgressBar
-            active={!!loading}
-            className="top-0 bottom-auto rounded-t-md"
-          />
           {searchable && (
             <input
               ref={searchRef}
@@ -551,8 +544,17 @@ export function Combobox<T extends string>({
             role="listbox"
             aria-label={ariaLabel}
             aria-labelledby={ariaLabelledby}
-            className={CBX_LIST}
+            className={cn(CBX_LIST, "relative")}
           >
+            {/* Hairline pinned to the option list's top edge — between the
+                search input and the results — the shared placement across every
+                async search surface (REEF-369). Only async consumers pass
+                `loading` (searchable + onQueryChange), so client-filter
+                comboboxes never flash it (AC4). */}
+            <SearchProgressBar
+              active={!!loading}
+              className="sticky top-0 bottom-auto"
+            />
             {rows.map((row, index) => {
                 const selected = row.value === value;
                 const isActive = index === clampedActive;

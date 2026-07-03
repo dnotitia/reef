@@ -189,9 +189,6 @@ export function DocumentRefInput({
             spellCheck={false}
             className={INPUT_CLASS}
           />
-          {/* In-flight hairline replaces the old right-edge Loader2 (REEF-369);
-              the panel's t("searching") + aria-live below keep the SR signal. */}
-          <SearchProgressBar active={isFetching || pending} />
         </div>
 
         {showPanel &&
@@ -215,6 +212,14 @@ export function DocumentRefInput({
                 "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95",
               )}
             >
+              {/* In-flight hairline at the results panel's top edge — the shared
+                  placement across search surfaces (REEF-369). Replaces the old
+                  right-edge Loader2; the panel text + aria-live keep the SR
+                  signal, so the old spinner isn't needed. */}
+              <SearchProgressBar
+                active={isFetching || pending}
+                className="top-0 bottom-auto"
+              />
               {isError ? (
                 <p className="px-2 py-6 text-center text-sm text-muted-foreground">
                   {t("searchUnavailable")}
