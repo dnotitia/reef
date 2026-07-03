@@ -290,7 +290,13 @@ export function GlobalSearchDialog() {
           onValueChange={setQuery}
           data-testid="global-search-input"
         />
-        <SearchProgressBar active={isFetching || debouncePending} />
+        {/* `exactIdPending` covers the second server request (`useExactIssue`
+            by-id probe) a complete id triggers: during it the list query has
+            already settled but selection is still blocked, so without it the
+            bar would read as idle mid-load. */}
+        <SearchProgressBar
+          active={isFetching || debouncePending || exactIdPending}
+        />
       </div>
       {/* `overscroll-contain` keeps scroll chaining from leaking to the page
           behind the modal once the list reaches its top/bottom. */}
