@@ -145,6 +145,7 @@ describe("workspace chat agent task", () => {
       "list_assignees",
       "read_issue",
       "search_code",
+      "search_documents",
       "search_issues",
     ]);
 
@@ -239,6 +240,7 @@ describe("workspace chat agent task", () => {
     expect(Object.keys(getAgentSettings().tools).sort()).toEqual([
       "list_assignees",
       "read_issue",
+      "search_documents",
       "search_issues",
     ]);
     // No GitHub grounding → the monitored-repo read is skipped entirely.
@@ -258,6 +260,7 @@ describe("workspace chat agent task", () => {
     expect(Object.keys(getAgentSettings().tools).sort()).toEqual([
       "list_assignees",
       "read_issue",
+      "search_documents",
       "search_issues",
     ]);
   });
@@ -272,6 +275,7 @@ describe("workspace chat agent task", () => {
     expect(Object.keys(getAgentSettings().tools).sort()).toEqual([
       "list_assignees",
       "read_issue",
+      "search_documents",
       "search_issues",
     ]);
   });

@@ -56,6 +56,10 @@ export function createWorkspaceReadToolset({
 }: WorkspaceReadToolsetParams) {
   return {
     search_issues: createSearchIssuesTool({ adapter, vault }),
+    // `search_documents` lets the chat ground answers in akb workspace docs and
+    // return citations the client renders as document cards (REEF-361 AC4). It is
+    // read-only, so it stays inside the read toolset alongside the issue tools.
+    search_documents: createSearchDocumentsTool({ adapter, vault }),
     read_issue: createReadIssueTool({ adapter, vault }),
     ...(includeAssignees
       ? { list_assignees: createListAssigneesTool({ adapter, vault }) }

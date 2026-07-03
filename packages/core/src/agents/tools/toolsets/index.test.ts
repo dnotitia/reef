@@ -23,7 +23,7 @@ describe("agent toolsets", () => {
           includeAssignees: false,
         }),
       ).sort(),
-    ).toEqual(["read_issue", "search_issues"]);
+    ).toEqual(["read_issue", "search_documents", "search_issues"]);
 
     expect(
       Object.keys(
@@ -32,7 +32,12 @@ describe("agent toolsets", () => {
           vault: "reef-test",
         }),
       ).sort(),
-    ).toEqual(["list_assignees", "read_issue", "search_issues"]);
+    ).toEqual([
+      "list_assignees",
+      "read_issue",
+      "search_documents",
+      "search_issues",
+    ]);
   });
 
   it("builds repoRead as allowlist-scoped unbound or closure-bound to the selected repo", () => {
