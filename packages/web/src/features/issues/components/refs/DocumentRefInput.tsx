@@ -3,6 +3,10 @@
 import { DocumentOptionRow } from "@/components/fields/DocumentOptionRow";
 import { SearchProgressBar } from "@/components/ui/SearchProgressBar";
 import { useVaultDocumentSearch } from "@/features/issues/hooks/queries/useVaultDocumentSearch";
+import {
+  SEARCH_DEBOUNCE_COLD,
+  useDebouncedQuery,
+} from "@/lib/useDebouncedQuery";
 import { cn } from "@/lib/utils";
 import { Search } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -20,8 +24,6 @@ import { createPortal } from "react-dom";
 /** Mirrors the shared `<Input>` chrome, with room for a leading search glyph. */
 const INPUT_CLASS =
   "flex h-8 w-full min-w-0 rounded-md border border-border bg-elevated pl-8 pr-8 py-1 text-[13px] text-foreground transition-colors duration-150 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/30 disabled:cursor-not-allowed disabled:opacity-50";
-
-const DEBOUNCE_MS = 250;
 
 interface DocumentRefInputProps {
   vault: string;
@@ -51,8 +53,16 @@ export function DocumentRefInput({
 }: DocumentRefInputProps) {
   const t = useTranslations("issues.refs");
   const listId = useId();
-  const [draft, setDraft] = useState("");
-  const [debounced, setDebounced] = useState("");
+  // Shared cold-tier debounce (REEF-370): `draft` is the live input; `debounced`
+  // is the trimmed settled query that actually hits the network (the hook debounces
+  // the raw value, so trim here to preserve the previous trimmed-query behavior).
+  const {
+    raw: draft,
+    debounced: rawDebounced,
+    onChange: handleDraftChange,
+    reset,
+  } = useDebouncedQuery(SEARCH_DEBOUNCE_COLD);
+  const debounced = rawDebounced.trim();
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -64,12 +74,6 @@ export function DocumentRefInput({
     left: number;
     width: number;
   } | null>(null);
-
-  // Debounce the query that actually hits the network; typing stays responsive.
-  useEffect(() => {
-    const handle = setTimeout(() => setDebounced(draft.trim()), DEBOUNCE_MS);
-    return () => clearTimeout(handle);
-  }, [draft]);
 
   const {
     data: hits = [],
@@ -132,8 +136,7 @@ export function DocumentRefInput({
 
   function selectHit(uri: string) {
     onAdd(uri);
-    setDraft("");
-    setDebounced("");
+    reset("");
     setActiveIndex(0);
     setOpen(false);
   }
@@ -177,7 +180,7 @@ export function DocumentRefInput({
             aria-label={t("searchDocumentsToLink")}
             value={draft}
             onChange={(event) => {
-              setDraft(event.target.value);
+              handleDraftChange(event.target.value);
               setActiveIndex(0);
               setOpen(true);
             }}

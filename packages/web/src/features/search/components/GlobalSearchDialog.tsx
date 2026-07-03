@@ -19,12 +19,16 @@ import {
 } from "@/features/issues/lib/dependencyUtils";
 import { isActive, searchIssues } from "@/features/issues/lib/issueListUtils";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import {
+  SEARCH_DEBOUNCE_WARM,
+  useDebouncedQuery,
+} from "@/lib/useDebouncedQuery";
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useExactIssue } from "../hooks/useExactIssue";
 import { useGlobalSearchStore } from "../stores/useGlobalSearchStore";
 
@@ -45,8 +49,6 @@ const SEARCH_LIMIT = 20;
  * exact-id lookup below, so a half-typed prefix avoids the extra fetch.
  */
 const CANONICAL_ID = /^[a-z]+-\d{3,}$/i;
-/** Debounce before issuing a server query, matching the issues-list SearchBar. */
-const SEARCH_DEBOUNCE_MS = 150;
 
 /**
  * ⌘K global search palette.
@@ -76,16 +78,16 @@ export function GlobalSearchDialog() {
   const t = useTranslations("search");
 
   // The live value drives the input + match highlighting; the debounced value
-  // drives the server query so a request isn't fired on every keystroke.
-  const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
-  useEffect(() => {
-    const timer = setTimeout(
-      () => setDebouncedQuery(query),
-      SEARCH_DEBOUNCE_MS,
-    );
-    return () => clearTimeout(timer);
-  }, [query]);
+  // drives the server query so a request isn't fired on every keystroke. The
+  // shared warm-tier debounce (REEF-370) replaces the previous inline 150ms
+  // timer; `reset` clears both values instantly on select/close so a stale query
+  // never lingers a debounce window past the palette closing.
+  const {
+    raw: query,
+    debounced: debouncedQuery,
+    onChange: setQuery,
+    reset: resetQuery,
+  } = useDebouncedQuery(SEARCH_DEBOUNCE_WARM);
 
   const liveTrimmed = query.trim();
   const debouncedTrimmed = debouncedQuery.trim();
@@ -207,8 +209,7 @@ export function GlobalSearchDialog() {
     // the wrong issue. Resolves within the debounce + a server round-trip.
     if (!resultsAreCurrent) return;
     close();
-    setQuery("");
-    setDebouncedQuery("");
+    resetQuery();
     router.push(withVault(vault, `/issues/${encodeURIComponent(id)}`));
   }
 
@@ -236,8 +237,7 @@ export function GlobalSearchDialog() {
   function handleOpenChange(open: boolean) {
     if (!open) {
       close();
-      setQuery("");
-      setDebouncedQuery("");
+      resetQuery();
     }
   }
 

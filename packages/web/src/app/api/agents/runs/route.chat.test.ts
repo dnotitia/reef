@@ -8,6 +8,7 @@ import {
   cleanupAgentRunsRouteMocks,
   enrichmentRunBody,
   makeRequest,
+  makeUiMessageStreamResponse,
   message,
   mockCreateGitHubAdapter,
   mockCreateWorkspaceChatAgentResponse,
@@ -15,6 +16,7 @@ import {
   mockGetAkbCurrentActor,
   parseSseEvents,
   resetAgentRunsRouteMocks,
+  runCompleted,
   runError,
   runStarted,
   setServerAppConfig,
@@ -49,6 +51,81 @@ describe("POST /api/agents/runs chat streaming", () => {
         messages: [message],
       }),
     );
+  });
+
+  it("sets the SSE no-buffering streaming headers (REEF-361 AC5)", async () => {
+    const res = await POST(makeRequest(chatRunBody));
+    expect(res.headers.get("content-type")).toContain("text/event-stream");
+    // The reverse-proxy contract that keeps chat streaming: nginx/K8s must not
+    // buffer the response.
+    expect(res.headers.get("x-accel-buffering")).toBe("no");
+    expect(res.headers.get("cache-control")).toBe("no-cache, no-transform");
+  });
+
+  it("bridges tool calls into tool.called/tool.completed frames (REEF-361 AC2)", async () => {
+    mockCreateWorkspaceChatAgentResponse.mockImplementationOnce(
+      async (params: { onEvent?: (event: AgentRunEvent) => void }) => {
+        params.onEvent?.(runStarted("chat.workspace"));
+        params.onEvent?.(runCompleted("chat.workspace"));
+        return makeUiMessageStreamResponse([
+          'data: {"type":"tool-input-available","toolCallId":"call-1","toolName":"search_issues","input":{"query":"login"}}\n\n',
+          'data: {"type":"tool-output-available","toolCallId":"call-1","output":{"issues":[{"id":"REEF-1"},{"id":"REEF-2"}]}}\n\n',
+          'data: {"type":"text-delta","id":"t","delta":"Found 2 issues."}\n\n',
+          "data: [DONE]\n\n",
+        ]);
+      },
+    );
+
+    const res = await POST(makeRequest(chatRunBody));
+    const events = parseSseEvents(await res.text());
+
+    expect(events.map((event) => event.type)).toEqual([
+      "run.started",
+      "tool.called",
+      "tool.completed",
+      "model.delta",
+      "run.completed",
+    ]);
+
+    const called = events.find((event) => event.type === "tool.called");
+    const completed = events.find((event) => event.type === "tool.completed");
+    if (
+      called?.type !== "tool.called" ||
+      completed?.type !== "tool.completed"
+    ) {
+      throw new Error("expected tool frames");
+    }
+    expect(called.tool).toEqual({
+      tool_call_id: "call-1",
+      tool_name: "search_issues",
+    });
+    expect(called.input).toEqual({ query: "login" });
+    // tool-output-available carries no name; the bridge pairs it from the call.
+    expect(completed.tool.tool_name).toBe("search_issues");
+    expect(completed.output).toEqual({
+      issues: [{ id: "REEF-1" }, { id: "REEF-2" }],
+    });
+  });
+
+  it("bridges a tool failure into a tool.error frame (REEF-361 AC2)", async () => {
+    mockCreateWorkspaceChatAgentResponse.mockImplementationOnce(
+      async (params: { onEvent?: (event: AgentRunEvent) => void }) => {
+        params.onEvent?.(runStarted("chat.workspace"));
+        params.onEvent?.(runCompleted("chat.workspace"));
+        return makeUiMessageStreamResponse([
+          'data: {"type":"tool-input-available","toolCallId":"call-9","toolName":"read_issue","input":{"id":"REEF-404"}}\n\n',
+          'data: {"type":"tool-output-error","toolCallId":"call-9","errorText":"Issue not found"}\n\n',
+          "data: [DONE]\n\n",
+        ]);
+      },
+    );
+
+    const res = await POST(makeRequest(chatRunBody));
+    const events = parseSseEvents(await res.text());
+    const errored = events.find((event) => event.type === "tool.error");
+    if (errored?.type !== "tool.error") throw new Error("expected tool.error");
+    expect(errored.tool.tool_name).toBe("read_issue");
+    expect(errored.error.message).toBe("Issue not found");
   });
 
   it("streams chat.workspace AKB-only when the GitHub App is not configured", async () => {

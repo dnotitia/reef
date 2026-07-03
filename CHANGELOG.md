@@ -23,6 +23,14 @@ explicitly in the entries below.
   and the AI chat keeps its own purple streaming style. Under reduced motion the
   line holds still instead of sweeping, and screen-reader "Searching…"
   announcements are unchanged. (REEF-369)
+- **Ask AI shows its work.** When the assistant searches your issues or documents
+  to answer, the chat now shows each step as it happens ("Searching issues…" →
+  "Searched issues · 3 results"), collapsed into a foldable trace you can expand to
+  see which tool ran and what it looked for — so you can tell a grounded answer
+  from a guess. Issue ids in the answer (like REEF-142) become links to the issue
+  when it's one you have loaded, and documents the assistant cited show up as
+  "Sources" cards you can open or copy. Streaming, stop, ⌘⇧A, and Esc work exactly
+  as before. (REEF-361, epic REEF-337)
 - **Ask AI now knows your workspace and the issue you're looking at.** The Ask AI
   chat is grounded in the current project state: it sees a summary of your
   workspace (the active sprint and how many issues are open, by status) and — when

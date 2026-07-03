@@ -834,7 +834,7 @@
     "unavailableTitle": "AI unavailable",
     "unavailableBody": "AI is not configured for this deployment.",
     "emptyState": "Ask about your codebase — file locations, references, how something works.",
-    "composerPlaceholder": "Ask about your project...",
+    "composerPlaceholder": "Ask about your project…",
     "issueContextChipLabel": "Grounded on issue {id}",
     "removeIssueContext": "Remove issue context",
     "fabLabel": "Ask AI ({shortcut})",
@@ -865,7 +865,54 @@
     "phaseEmpty": "No result",
     "phaseError": "Needs attention",
     "phaseCancelled": "Cancelled",
-    "artifactCount": "{count, plural, one {# artifact} other {# artifacts}}"
+    "artifactCount": "{count, plural, one {# artifact} other {# artifacts}}",
+    "chatThinking": "Thinking…",
+    "chatSources": {
+      "heading": "Sources"
+    },
+    "chatSteps": {
+      "header": "Steps",
+      "working": "Working…",
+      "stepCount": "{count, plural, one {# step} other {# steps}}",
+      "results": "{count, plural, one {# result} other {# results}}",
+      "detailTool": "Tool",
+      "detailArgs": "Arguments",
+      "detailError": "Error",
+      "tool": {
+        "searchIssues": {
+          "running": "Searching issues…",
+          "done": "Searched issues"
+        },
+        "searchDocuments": {
+          "running": "Searching documents…",
+          "done": "Searched documents"
+        },
+        "readIssue": {
+          "running": "Reading issue…",
+          "done": "Read issue"
+        },
+        "readTemplate": {
+          "running": "Reading template…",
+          "done": "Read template"
+        },
+        "listAssignees": {
+          "running": "Listing assignees…",
+          "done": "Listed assignees"
+        },
+        "searchCode": {
+          "running": "Searching code…",
+          "done": "Searched code"
+        },
+        "devReadFile": {
+          "running": "Reading file…",
+          "done": "Read file"
+        },
+        "generic": {
+          "running": "Working…",
+          "done": "Ran tool"
+        }
+      }
+    }
   },
   "myWork": {
     "goToBoard": "Go to the board →",

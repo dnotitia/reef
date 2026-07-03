@@ -1,24 +1,25 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { useKnownIssueIds } from "@/features/issues/stores/issueEntityStore";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useAiAvailable } from "@/features/settings/hooks/useAiAvailable";
 import { VAULT_HEADER } from "@/lib/akb/headers";
 import { apiFetch } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
-import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
 import { FileText, MessageSquarePlus, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo } from "react";
+import { useWorkspaceChat } from "../hooks/useWorkspaceChat";
+import type { AgentRunFetch } from "../runtime/types";
 import { useAskAiStore } from "../stores/useAskAiStore";
 import { ChatSurface } from "./ChatSurface";
 
 interface AskAiDialogProps {
   /**
    * Reports the current message count up so AskAiFab can show an unread dot.
-   * Decoupled from the store so the FAB doesn't need to know about useChat.
+   * Decoupled from the store so the FAB doesn't need to know about the chat hook.
    */
   onMessageCountChange?: (count: number) => void;
 }
@@ -26,19 +27,19 @@ interface AskAiDialogProps {
 /**
  * Floating Ask AI panel mounted globally by DashboardShell.
  *
- * Scope (Motivation 1): the PM queries their codebase with code as the source
- * of truth. The chat agent loop runs the grounding tools (`search_code`,
- * `dev_read_file`); issue authoring lives in the enrichment pipeline
- * (Motivation 2), not here.
+ * The chat runs on the agent-run kit (`/api/agents/runs`, `chat.workspace`) via
+ * `useWorkspaceChat`, which surfaces tool-call transparency, issue deep links,
+ * and document citations (REEF-361). Grounding hints (current route + open
+ * issue) ride along with each message (REEF-360).
  *
- * Stays mounted at all times so useChat history survives panel close/open —
+ * Stays mounted at all times so the conversation survives panel close/open —
  * visibility is toggled via opacity + pointer-events rather than conditional
- * render. The component still no-ops most of its work when closed.
+ * render.
  *
  * Credentials are picked up automatically by `apiFetch` (Authorization from
- * IndexedDB; deployment-managed LLM config server-side) so the dialog does not
- * has to read them itself. AI unavailability is handled at the FAB level —
- * when deployment AI config is missing, the FAB hides and the dialog does not opens.
+ * IndexedDB; deployment-managed LLM config server-side). AI unavailability is
+ * handled at the FAB level — when deployment AI config is missing, the FAB hides
+ * and the dialog does not open.
  */
 export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
   const t = useTranslations("ai");
@@ -51,49 +52,35 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
   const { isAvailable, isLoading: aiLoading } = useAiAvailable();
   // The route the PM is on — grounds the chat in where they are (REEF-360 AC2).
   const pathname = usePathname();
-  // The chat Route Handler reads the workspace from `X-Reef-Vault`, not a
-  // `?vault=` query. Source it from the URL `[vault]` segment (via useActiveVault)
-  // so two tabs on different workspaces send chat to their own workspace rather
-  // than sharing the Dexie pointer (REEF-315 — tab independence). apiFetch keeps
-  // the Dexie value as a fallback when this is empty.
+  // The chat run reads the workspace from `X-Reef-Vault`. Source it from the URL
+  // `[vault]` segment (via useActiveVault) so two tabs on different workspaces
+  // send chat to their own workspace rather than sharing the Dexie pointer
+  // (REEF-315). apiFetch keeps the Dexie value as a fallback when this is empty.
   const { vault } = useActiveVault();
+  const knownIssueIds = useKnownIssueIds(vault);
 
-  // Latest grounding hints (route + open issue) read at send time. Held in a
-  // ref so the transport stays stable across route/context changes rather than
-  // being rebuilt on every navigation — `prepareSendMessagesRequest` reads the
-  // current values when a message is actually sent (REEF-360 AC2).
-  const groundingRef = useRef<{ route: string | null; reefId: string | null }>({
-    route: pathname ?? null,
-    reefId: issueContext?.reefId ?? null,
-  });
-  groundingRef.current = {
-    route: pathname ?? null,
-    reefId: issueContext?.reefId ?? null,
-  };
-
-  const transport = useMemo(
-    () =>
-      new DefaultChatTransport({
-        api: "/api/chat",
-        fetch: apiFetch,
-        headers: vault ? { [VAULT_HEADER]: vault } : undefined,
-        prepareSendMessagesRequest: ({ messages, body, headers }) => ({
-          body: {
-            ...body,
-            messages,
-            route: groundingRef.current.route,
-            reefId: groundingRef.current.reefId,
-          },
-          headers,
-        }),
+  // Vault-aware fetch: pins the workspace header so the run targets this tab's
+  // vault, not the shared Dexie pointer.
+  const chatFetch = useMemo<AgentRunFetch>(
+    () => (input, init) =>
+      apiFetch(input, {
+        ...init,
+        headers: {
+          ...((init?.headers as Record<string, string> | undefined) ?? {}),
+          ...(vault ? { [VAULT_HEADER]: vault } : {}),
+        },
       }),
     [vault],
   );
-  const { messages, sendMessage, status, error, setMessages, stop } = useChat({
-    transport,
-  });
 
-  // ESC closes the panel — just registers when open to avoid trapping the
+  const { messages, sendMessage, status, stop, clear, messageCount } =
+    useWorkspaceChat({
+      fetch: chatFetch,
+      route: pathname ?? null,
+      reefId: issueContext?.reefId ?? null,
+    });
+
+  // ESC closes the panel — only registers when open so it does not trap the
   // keystroke for other dialogs.
   useEffect(() => {
     if (!isOpen) return;
@@ -109,21 +96,17 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
 
   // Mark messages as seen each time the panel opens.
   useEffect(() => {
-    if (isOpen) markSeen(messages.length);
-  }, [isOpen, messages.length, markSeen]);
+    if (isOpen) markSeen(messageCount);
+  }, [isOpen, messageCount, markSeen]);
 
   // Surface message count to FAB for the unread dot.
   useEffect(() => {
-    onMessageCountChange?.(messages.length);
-  }, [messages.length, onMessageCountChange]);
-
-  function handleClearChat() {
-    setMessages([]);
-  }
+    onMessageCountChange?.(messageCount);
+  }, [messageCount, onMessageCountChange]);
 
   return (
     <div
-      // biome-ignore lint/a11y/useSemanticElements: native <dialog> would imply modal semantics + Escape-to-close handled by the platform — we want non-modal floating behavior with our own ESC handler so the panel does not traps the page underneath.
+      // biome-ignore lint/a11y/useSemanticElements: native <dialog> would imply modal semantics + Escape-to-close handled by the platform — we want non-modal floating behavior with our own ESC handler so the panel does not trap the page underneath.
       role="dialog"
       aria-label={t("title")}
       aria-modal="false"
@@ -151,7 +134,7 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
             variant="ghost"
             size="icon"
             className="h-7 w-7"
-            onClick={handleClearChat}
+            onClick={clear}
             aria-label={t("newChat")}
             title={t("newChat")}
             data-testid="ask-ai-new-chat"
@@ -188,7 +171,8 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
           sendMessage={sendMessage}
           status={status}
           stop={stop}
-          error={error}
+          vault={vault}
+          knownIssueIds={knownIssueIds}
           emptyState={
             <p className="pt-8 text-center text-sm text-muted-foreground">
               {t("emptyState")}
