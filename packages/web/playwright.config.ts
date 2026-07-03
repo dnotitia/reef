@@ -8,6 +8,10 @@ import { defineConfig, devices } from "@playwright/test";
 function buildWebServerEnv(): Record<string, string> {
   return {
     AKB_BACKEND_URL: process.env.AKB_BACKEND_URL ?? `${E2E_MOCK_URL}/akb`,
+    // Server-read akb web base (REEF-368) so linked-document backlinks render in
+    // the hermetic runtime; the backlink spec asserts the open-link href built
+    // from this value, proving the runtime server-read path end to end.
+    AKB_WEB_URL: process.env.AKB_WEB_URL ?? "https://akb.e2e.test",
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ?? "e2e-openrouter-key",
     OPENROUTER_BASE_URL:
       process.env.OPENROUTER_BASE_URL ?? `${E2E_MOCK_URL}/openrouter/v1`,

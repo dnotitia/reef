@@ -13,6 +13,13 @@ data:
   # runs alongside akb's own frontend. Bare origin only (no path/query/fragment),
   # https for non-loopback; must match the ingress host (ingress.yaml).
   REEF_PUBLIC_ORIGIN: "https://reef.example.com"
+  # akb web app base (REEF-083 / REEF-368). reef-web has no in-app document
+  # viewer, so a linked akb document's "open" action points at akb's own
+  # frontend at this origin. Read on the SERVER at runtime, so setting it here is
+  # enough — no image rebuild. Optional: leave unset and the linked-document card
+  # hides its open action and offers copy only. The legacy `NEXT_PUBLIC_AKB_WEB_URL`
+  # key is still honored for back-compat.
+  # AKB_WEB_URL: "https://akb.example.com"
   # Production mode enables the Secure cookie flag and the strict
   # (no unsafe-eval) CSP. Must be `production` in-cluster.
   NODE_ENV: "production"

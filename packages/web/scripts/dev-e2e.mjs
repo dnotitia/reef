@@ -127,6 +127,9 @@ try {
     ["exec", "next", "dev", "--turbopack", "-p", WEB_PORT],
     {
       AKB_BACKEND_URL: process.env.AKB_BACKEND_URL ?? `${MOCK_URL}/akb`,
+      // Server-read akb web base (REEF-368) so linked-document backlinks render
+      // when browsing the hermetic runtime locally.
+      AKB_WEB_URL: process.env.AKB_WEB_URL ?? "https://akb.e2e.test",
       OPENROUTER_API_KEY:
         process.env.OPENROUTER_API_KEY ?? "e2e-openrouter-key",
       OPENROUTER_BASE_URL:

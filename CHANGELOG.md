@@ -47,6 +47,18 @@ explicitly in the entries below.
   still being provisioned (before reef's tables exist) keep falling back to their
   defaults cleanly instead of surfacing an error. No action is required. (REEF-363)
 
+### Fixed
+
+- **The "open in akb" link on a linked document now works in deployed
+  environments.** A linked akb document's open action pointed at the akb web app
+  using a build-time value, so in a container image built without the akb web URL
+  the link silently disappeared even though the URL was set in the deployment
+  config. reef now reads the akb web base on the server at request time, so the
+  same image links out correctly from the deployment config alone — no rebuild
+  needed. Operationally: the setting is now the server-side `AKB_WEB_URL`; the
+  older `NEXT_PUBLIC_AKB_WEB_URL` is still honored, so existing deployments keep
+  working and can rename at their convenience. (REEF-368)
+
 ## v0.6.1 - 2026-07-02
 
 ### Added

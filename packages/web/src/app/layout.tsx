@@ -1,4 +1,6 @@
 import { Toaster } from "@/components/ui/sonner";
+import { getAkbWebUrl } from "@/lib/akb/akbWebUrl";
+import { AkbWebUrlProvider } from "@/providers/AkbWebUrlProvider";
 import { QueryProvider } from "@/providers/QueryProvider";
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
@@ -49,6 +51,14 @@ export default async function RootLayout({
   // feeds NextIntlClientProvider's messages (REEF-291).
   const locale = await getLocale();
 
+  // Deployment's akb web base, read on the server at request time (REEF-368).
+  // Passed to the client via AkbWebUrlProvider so linked-document backlinks are
+  // driven by the runtime ConfigMap, not a build-time `NEXT_PUBLIC_*` inline
+  // that silently vanishes when the image was built without the var. The
+  // `await headers()` above already makes this render dynamic (per-request), so
+  // the value is never frozen at build time.
+  const akbWebUrl = getAkbWebUrl();
+
   // suppressHydrationWarning on <html>: `useTheme` adds/removes `.dark` on
   // documentElement before React reconciles, so the server-rendered class
   // attribute differs from the client one for any non-light user. Without
@@ -67,7 +77,9 @@ export default async function RootLayout({
         {/* No-prop provider inherits locale + messages + formats from
             `getRequestConfig` (next-intl v4), serializing them to the client. */}
         <NextIntlClientProvider>
-          <QueryProvider>{children}</QueryProvider>
+          <AkbWebUrlProvider value={akbWebUrl}>
+            <QueryProvider>{children}</QueryProvider>
+          </AkbWebUrlProvider>
           <Toaster />
         </NextIntlClientProvider>
       </body>

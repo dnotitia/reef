@@ -37,9 +37,10 @@ export function akbDocumentSlugTitle(uri: string): string {
 
 /**
  * The akb web URL to open a document in a new tab, or null when no akb web base
- * is configured (`NEXT_PUBLIC_AKB_WEB_URL`) — the card then hides its open
- * action and just offers copy. reef-web has no in-app document viewer, so this
- * is the one outward link; the base is deployment-managed, does not per-user.
+ * is configured (`AKB_WEB_URL`, read on the server at runtime — see
+ * `getAkbWebUrl`) — the card then hides its open action and just offers copy.
+ * reef-web has no in-app document viewer, so this is the one outward link; the
+ * base is deployment-managed, not per-user.
  *
  * akb's frontend routes a document as `/vault/:name/doc/:id`, where `:id` is the
  * URL-encoded vault-relative path (e.g. `overview%2Fspec.md`). The shape should
