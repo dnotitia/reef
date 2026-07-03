@@ -53,6 +53,15 @@ describe("POST /api/agents/runs chat streaming", () => {
     );
   });
 
+  it("sets the SSE no-buffering streaming headers (REEF-361 AC5)", async () => {
+    const res = await POST(makeRequest(chatRunBody));
+    expect(res.headers.get("content-type")).toContain("text/event-stream");
+    // The reverse-proxy contract that keeps chat streaming: nginx/K8s must not
+    // buffer the response.
+    expect(res.headers.get("x-accel-buffering")).toBe("no");
+    expect(res.headers.get("cache-control")).toBe("no-cache, no-transform");
+  });
+
   it("bridges tool calls into tool.called/tool.completed frames (REEF-361 AC2)", async () => {
     mockCreateWorkspaceChatAgentResponse.mockImplementationOnce(
       async (params: { onEvent?: (event: AgentRunEvent) => void }) => {
