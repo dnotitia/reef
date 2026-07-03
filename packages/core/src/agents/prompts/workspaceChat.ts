@@ -22,6 +22,18 @@ export const CHAT_ISSUE_CONTEXT_BODY_CHAR_LIMIT = 6000;
 const ISSUE_BODY_START = "<<<ISSUE_BODY";
 const ISSUE_BODY_END = "ISSUE_BODY>>>";
 
+/**
+ * Collapse control characters (newlines, tabs, etc.) in a user-authored single-
+ * line field to spaces so a crafted value — an issue title, label, sprint goal,
+ * relationship id — cannot break out of its line and forge a new section heading
+ * or instruction inside the system prompt. The issue body is the one legitimately
+ * multi-line field and is separately fenced; everything else is inline data.
+ */
+function sanitizeInline(value: string): string {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally stripping control chars from untrusted grounding fields.
+  return value.replace(/[\u0000-\u001f\u007f]+/g, " ").trim();
+}
+
 export interface WorkspaceChatSystemPromptOptions {
   /** Compact workspace summary (vault, active sprint, open counts). */
   summary: WorkspaceSummary;
@@ -113,22 +125,24 @@ function renderWorkspaceState(
   route?: string | null,
 ): string {
   const lines: string[] = ["## Workspace state"];
-  lines.push(`- Workspace: ${summary.vault}`);
+  lines.push(`- Workspace: ${sanitizeInline(summary.vault)}`);
   if (route) {
-    lines.push(`- The PM is currently viewing: ${route}`);
+    lines.push(`- The PM is currently viewing: ${sanitizeInline(route)}`);
   }
   if (summary.activeSprint) {
     const goal = summary.activeSprint.goal
-      ? ` — ${summary.activeSprint.goal}`
+      ? ` — ${sanitizeInline(summary.activeSprint.goal)}`
       : "";
-    lines.push(`- Active sprint: ${summary.activeSprint.name}${goal}`);
+    lines.push(
+      `- Active sprint: ${sanitizeInline(summary.activeSprint.name)}${goal}`,
+    );
   } else {
     lines.push("- Active sprint: none");
   }
   lines.push(`- Open issues (not done/closed): ${summary.openIssueCount}`);
   if (summary.statusCounts.length > 0) {
     const breakdown = summary.statusCounts
-      .map((entry) => `${entry.status}: ${entry.count}`)
+      .map((entry) => `${sanitizeInline(entry.status)}: ${entry.count}`)
       .join(", ");
     lines.push(`- By status: ${breakdown}`);
   }
@@ -143,23 +157,27 @@ function renderIssueContext(context: ChatIssueContext): string {
       "they say otherwise.",
   );
 
+  // Every interpolated field here is user-authored workspace content, so each is
+  // sanitized to a single line — only the body (fenced below) may span lines.
+  const list = (ids: string[] | undefined): string =>
+    (ids ?? []).map(sanitizeInline).join(", ");
   const fields = [
-    `id: ${issue.id}`,
-    `title: ${issue.title}`,
-    `status: ${issue.status}`,
-    `type: ${issue.issue_type ?? "task"}`,
-    issue.priority ? `priority: ${issue.priority}` : "",
-    `assignee: ${issue.assigned_to ?? "unassigned"}`,
-    issue.requester ? `requester: ${issue.requester}` : "",
-    issue.severity ? `severity: ${issue.severity}` : "",
+    `id: ${sanitizeInline(issue.id)}`,
+    `title: ${sanitizeInline(issue.title)}`,
+    `status: ${sanitizeInline(issue.status)}`,
+    `type: ${sanitizeInline(issue.issue_type ?? "task")}`,
+    issue.priority ? `priority: ${sanitizeInline(issue.priority)}` : "",
+    `assignee: ${sanitizeInline(issue.assigned_to ?? "unassigned")}`,
+    issue.requester ? `requester: ${sanitizeInline(issue.requester)}` : "",
+    issue.severity ? `severity: ${sanitizeInline(issue.severity)}` : "",
     issue.estimate_points != null ? `estimate: ${issue.estimate_points}` : "",
-    issue.start_date ? `start: ${issue.start_date}` : "",
-    issue.due_date ? `due: ${issue.due_date}` : "",
-    issue.parent_id ? `parent: ${issue.parent_id}` : "",
-    `labels: [${(issue.labels ?? []).join(", ")}]`,
-    `depends_on: [${(issue.depends_on ?? []).join(", ")}]`,
-    `blocks: [${(issue.blocks ?? []).join(", ")}]`,
-    `related_to: [${(issue.related_to ?? []).join(", ")}]`,
+    issue.start_date ? `start: ${sanitizeInline(issue.start_date)}` : "",
+    issue.due_date ? `due: ${sanitizeInline(issue.due_date)}` : "",
+    issue.parent_id ? `parent: ${sanitizeInline(issue.parent_id)}` : "",
+    `labels: [${list(issue.labels)}]`,
+    `depends_on: [${list(issue.depends_on)}]`,
+    `blocks: [${list(issue.blocks)}]`,
+    `related_to: [${list(issue.related_to)}]`,
   ].filter(Boolean);
   lines.push(fields.join(" | "));
 
