@@ -51,7 +51,9 @@ test.describe("Search progress hairline (REEF-369)", () => {
     // The hairline is wired into IssueListTable (and BacklogView); switch to the
     // List view so it is mounted, then let the initial load settle.
     await page.locator('[data-testid="view-switcher-list"]').click();
-    await expect(page.locator('[data-testid="issue-list-row"]').first()).toBeVisible();
+    await expect(
+      page.locator('[data-testid="issue-list-row"]').first(),
+    ).toBeVisible();
     await delaySearchResponses(page);
 
     await page.locator('[data-testid="search-input"]').fill("blocker");
