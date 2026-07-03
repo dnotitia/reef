@@ -44,6 +44,24 @@ export function makeSqlRuntimeErrorResponse(table: string): {
   };
 }
 
+// akb's REST `_raise_service_error` envelope (REEF-363): a `/sql` runtime error
+// such as a missing relation now returns HTTP 400 with an object
+// `detail: { message, code }` instead of the legacy HTTP 200 `{ error }` body.
+// Kept alongside `makeSqlRuntimeErrorResponse` so degrade paths are covered
+// against both the old and new akb error shapes.
+export function makeSqlRuntimeError400Response(
+  table: string,
+  code = "undefined_table",
+): {
+  status: number;
+  body: unknown;
+} {
+  return {
+    status: 400,
+    body: { detail: { message: `relation "${table}" does not exist`, code } },
+  };
+}
+
 export function makeListTablesResponse(names: string[]): unknown {
   return {
     kind: "table",

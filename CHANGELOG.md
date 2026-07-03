@@ -38,6 +38,15 @@ explicitly in the entries below.
   existing workspaces will see an "update available" prompt in Settings ›
   Workspace. (REEF-329)
 
+### Changed
+
+- **Forward-compatible with akb's newer API error format.** reef now reads
+  akb's structured `{ message, code }` error envelope in addition to the older
+  error shape. This is a compatibility change with no user-visible effect on the
+  current akb version: when the akb backend is upgraded, workspaces that are
+  still being provisioned (before reef's tables exist) keep falling back to their
+  defaults cleanly instead of surfacing an error. No action is required. (REEF-363)
+
 ## v0.6.1 - 2026-07-02
 
 ### Added
