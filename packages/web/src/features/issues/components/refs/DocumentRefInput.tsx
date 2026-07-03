@@ -1,13 +1,14 @@
 "use client";
 
 import { DocumentOptionRow } from "@/components/fields/DocumentOptionRow";
+import { SearchProgressBar } from "@/components/ui/SearchProgressBar";
 import { useVaultDocumentSearch } from "@/features/issues/hooks/queries/useVaultDocumentSearch";
 import {
   SEARCH_DEBOUNCE_COLD,
   useDebouncedQuery,
 } from "@/lib/useDebouncedQuery";
 import { cn } from "@/lib/utils";
-import { Loader2, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   type KeyboardEvent,
@@ -191,12 +192,6 @@ export function DocumentRefInput({
             spellCheck={false}
             className={INPUT_CLASS}
           />
-          {isFetching || pending ? (
-            <Loader2
-              className="absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 animate-spin text-muted-foreground"
-              aria-hidden="true"
-            />
-          ) : null}
         </div>
 
         {showPanel &&
@@ -220,6 +215,14 @@ export function DocumentRefInput({
                 "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95",
               )}
             >
+              {/* In-flight hairline at the results panel's top edge — the shared
+                  placement across search surfaces (REEF-369). Replaces the old
+                  right-edge Loader2; the panel text + aria-live keep the SR
+                  signal, so the old spinner isn't needed. */}
+              <SearchProgressBar
+                active={isFetching || pending}
+                className="top-0 bottom-auto"
+              />
               {isError ? (
                 <p className="px-2 py-6 text-center text-sm text-muted-foreground">
                   {t("searchUnavailable")}

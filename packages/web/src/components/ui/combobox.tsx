@@ -58,6 +58,7 @@ import {
   CBX_TRIGGER_BUTTON,
   CBX_TRIGGER_FIELD,
 } from "./comboboxChrome";
+import { SearchProgressBar } from "./SearchProgressBar";
 import { useOverlayOpenRegistration } from "./overlayDismiss";
 
 export interface ComboboxOption<T extends string> {
@@ -543,8 +544,17 @@ export function Combobox<T extends string>({
             role="listbox"
             aria-label={ariaLabel}
             aria-labelledby={ariaLabelledby}
-            className={CBX_LIST}
+            className={cn(CBX_LIST, "relative")}
           >
+            {/* Hairline pinned to the option list's top edge — between the
+                search input and the results — the shared placement across every
+                async search surface (REEF-369). Only async consumers pass
+                `loading` (searchable + onQueryChange), so client-filter
+                comboboxes never flash it (AC4). */}
+            <SearchProgressBar
+              active={!!loading}
+              className="sticky top-0 bottom-auto"
+            />
             {rows.map((row, index) => {
                 const selected = row.value === value;
                 const isActive = index === clampedActive;

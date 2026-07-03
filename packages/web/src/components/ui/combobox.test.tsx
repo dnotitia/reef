@@ -112,6 +112,31 @@ describe("Combobox", () => {
     expect(onChange).toHaveBeenCalledWith(null);
   });
 
+  it("shows the search progress hairline while loading, and not when idle (REEF-369)", async () => {
+    const user = userEvent.setup();
+    const base = {
+      value: null,
+      onChange: () => {},
+      searchable: true,
+      onQueryChange: () => {},
+      ariaLabel: "Fruit",
+      placeholder: "Pick a fruit",
+      noneOption: { label: "Any fruit" },
+    } as const;
+    const { rerender } = render(
+      <Combobox<string> {...base} options={[]} loading />,
+    );
+    await user.click(screen.getByLabelText("Fruit"));
+    // Async search in flight → the shared hairline shows at the panel's edge.
+    expect(screen.getByTestId("search-progress-bar")).toBeInTheDocument();
+
+    // Idle (no `loading`, e.g. a client-filter consumer) → it renders nothing,
+    // even with the panel open. This is REEF-369 AC4's "no flash on instant
+    // filters" at the primitive boundary.
+    rerender(<Combobox<string> {...base} options={FRUITS} />);
+    expect(screen.queryByTestId("search-progress-bar")).toBeNull();
+  });
+
   it("commits the active option on Space instead of closing the menu", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

@@ -70,6 +70,7 @@ import {
   CBX_TRIGGER_CHIP_ACTIVE,
   CBX_TRIGGER_CHIP_INACTIVE,
 } from "./comboboxChrome";
+import { SearchProgressBar } from "./SearchProgressBar";
 import { useOverlayOpenRegistration } from "./overlayDismiss";
 
 interface MultiSelectComboboxProps<T extends string> {
@@ -463,8 +464,16 @@ export function MultiSelectCombobox<T extends string>({
             id={listId}
             role="menu"
             aria-label={ariaLabel ?? label}
-            className={CBX_LIST}
+            className={cn(CBX_LIST, "relative")}
           >
+            {/* Hairline pinned to the option list's top edge — between the
+                search input and the results — the shared placement across every
+                async search surface (REEF-369). Only async consumers pass
+                `loading`, so client-filter comboboxes never flash it (AC4). */}
+            <SearchProgressBar
+              active={!!loading}
+              className="sticky top-0 bottom-auto"
+            />
             {rows.map((option, index) => {
               const selected = values?.includes(option.value) ?? false;
               const isActive = index === clampedActive;

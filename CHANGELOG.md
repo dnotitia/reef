@@ -14,6 +14,15 @@ explicitly in the entries below.
 
 ### Added
 
+- **A consistent loading line across search.** Every search that fetches from the
+  server — ⌘K quick search, the issue list and backlog, and the Assignee /
+  Requester and document-link pickers — now shows the same thin teal progress line
+  along the input's edge while results load, instead of a different indicator (or
+  none) per surface. The one-off spinner in the document-link picker is replaced by
+  this shared line. Instant, in-place dropdown filters intentionally stay quiet,
+  and the AI chat keeps its own purple streaming style. Under reduced motion the
+  line holds still instead of sweeping, and screen-reader "Searching…"
+  announcements are unchanged. (REEF-369)
 - **Ask AI shows its work.** When the assistant searches your issues or documents
   to answer, the chat now shows each step as it happens ("Searching issues…" →
   "Searched issues · 3 results"), collapsed into a foldable trace you can expand to
