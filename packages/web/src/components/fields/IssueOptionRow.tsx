@@ -57,6 +57,11 @@ export function IssueOptionRow({
   className,
 }: IssueOptionRowProps) {
   const t = useTranslations("components.issueOption");
+  // `task` is the default issue type (TypePill resolves a null type to it) and
+  // the bulk of most boards, so its labeled pill is the least informative weight
+  // in a dense row. Render it as a bare glyph instead (REEF-373); distinct types
+  // keep the labeled chip.
+  const isDefaultType = (issue.issue_type ?? "task") === "task";
   return (
     <div
       className={cn(
@@ -108,12 +113,19 @@ export function IssueOptionRow({
       <TypePill
         type={issue.issue_type}
         variant="list"
-        // Below ~16rem of row width the title has no room for both the type label
-        // and a blocked marker; fold to a glyph-form type there. `screen-reader` (not
-        // `hidden`) so the type name stays in the a11y tree — the glyph is
-        // aria-hidden, so display:none would drop the type for screen readers
-        // (REEF-285).
-        labelClassName="@max-[16rem]:sr-only"
+        // A default `task` reads as a bare glyph — chip chrome (border, fill,
+        // padding) stripped and the label `sr-only` — so the most common type
+        // sits like the status icon and priority dot beside it instead of a pill
+        // dominating a content-dense relation row at its natural width (REEF-373).
+        // Distinct types (epic, bug, story, …) keep the labeled chip since their
+        // name carries signal, and below ~16rem their label still folds to a
+        // glyph (REEF-285). `sr-only` (not `hidden`) keeps the type name in the
+        // a11y tree either way — the glyph itself is aria-hidden, so display:none
+        // would drop the type for screen readers.
+        className={
+          isDefaultType ? "border-0 bg-transparent px-0 py-0" : undefined
+        }
+        labelClassName={isDefaultType ? "sr-only" : "@max-[16rem]:sr-only"}
       />
       {/* Priority consistently reserves its column so the dot lines up whether or not
           a sibling row carries one. */}
