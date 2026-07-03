@@ -5,11 +5,7 @@ import {
   ConversationContent,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
-import {
-  Message,
-  MessageContent,
-  MessageResponse,
-} from "@/components/ai-elements/message";
+import { Message, MessageContent } from "@/components/ai-elements/message";
 import {
   PromptInput,
   PromptInputBody,
@@ -18,65 +14,57 @@ import {
   PromptInputSubmit,
   PromptInputTextarea,
 } from "@/components/ai-elements/prompt-input";
-import { getMessageText } from "@/lib/uiMessage";
+import type { ChatAssistantTurn, ChatTurn } from "@/features/ai/chat/chatTypes";
+import type { ChatStatus } from "@/features/ai/hooks/useWorkspaceChat";
 import { cn } from "@/lib/utils";
-import type { UIMessage } from "ai";
-import type { ReactNode } from "react";
-
-// Same status values returned by the current useChat hook. Keep this narrow so
-// ChatSurface depends on the states it renders.
-type ChatStatus = "submitted" | "streaming" | "ready" | "error";
+import { useTranslations } from "next-intl";
+import { type ReactNode, useMemo } from "react";
+import { ChatCitations } from "./ChatCitations";
+import { ChatMarkdown } from "./ChatMarkdown";
+import { ToolStepTrace } from "./ToolStepTrace";
 
 export interface ChatSurfaceProps {
-  /** Output of `useChat()` — caller owns the chat session and transport. */
-  messages: UIMessage[];
+  /** Structured conversation turns from `useWorkspaceChat`. */
+  messages: ChatTurn[];
   sendMessage: (input: { text: string }) => void | Promise<void>;
   status: ChatStatus;
   /** Aborts an in-flight stream — wired to the submit button while busy. */
   stop?: () => void;
-  error?: Error | null;
+
+  /** Active workspace, used to build vault-scoped issue deep links. */
+  vault: string;
+  /** Issue ids already loaded — the answer deep-links these (AC3). */
+  knownIssueIds: ReadonlySet<string>;
 
   /** Rendered when `messages` is empty. */
   emptyState?: ReactNode;
 
   composerPlaceholder?: string;
-  /**
-   * Rendered just above the composer input — used for the current-issue context
-   * chip (REEF-360). Kept a slot so ChatSurface stays presentational.
-   */
+  /** Rendered just above the composer input — the current-issue context chip. */
   contextChip?: ReactNode;
-  /**
-   * Forces the composer disabled regardless of `status`. Used by callers that
-   * need to suppress input for reasons orthogonal to streaming (e.g. AI is
-   * unavailable in this deployment).
-   */
+  /** Forces the composer disabled regardless of `status` (e.g. AI unavailable). */
   composerDisabled?: boolean;
 
-  /** Forwarded to PromptInputTextarea so callers preserve existing testids. */
   inputTestId?: string;
-  /** Forwarded to PromptInputSubmit so callers preserve existing testids. */
   submitTestId?: string;
 
   className?: string;
 }
 
 /**
- * Presentational chat shell: a `Conversation` of `Message`s plus a
+ * Presentational chat shell: a `Conversation` of structured turns plus a
  * `PromptInput` composer. Owns no chat state — the caller supplies the
- * `useChat()` result and binds whatever transport / store / credentials it
- * needs.
- *
- * Caller is responsible for the surrounding chrome (dialog frame, header,
- * close button, AI-unavailable banner). That keeps ChatSurface reusable
- * across surfaces with different layouts (the floating Ask AI panel, future
- * side-panel surfaces, etc.).
+ * `useWorkspaceChat()` result. Assistant turns render the tool-call trace
+ * (transparency), the Markdown answer with reef-mention deep links, and the
+ * document citations (REEF-361).
  */
 export function ChatSurface({
   messages,
   sendMessage,
   status,
   stop,
-  error,
+  vault,
+  knownIssueIds,
   emptyState,
   composerPlaceholder,
   contextChip,
@@ -98,26 +86,24 @@ export function ChatSurface({
       <Conversation className="min-h-0 flex-1">
         <ConversationContent className="px-3 py-3">
           {messages.length === 0 && emptyState}
-          {messages.map((m) => (
-            <Message key={m.id} from={m.role}>
-              <MessageContent>
-                {m.role === "assistant" ? (
-                  // Wrap MessageResponse so E2E selectors can target the
-                  // assistant turn — Streamdown does not forward arbitrary
-                  // attributes onto its root.
-                  <div data-testid="assistant-message">
-                    <MessageResponse>{getMessageText(m)}</MessageResponse>
-                  </div>
-                ) : (
-                  <span data-testid="user-message">{getMessageText(m)}</span>
-                )}
-              </MessageContent>
-            </Message>
-          ))}
-          {error && (
-            <div role="alert" className="text-xs text-destructive">
-              {error.message}
-            </div>
+          {messages.map((m) =>
+            m.role === "assistant" ? (
+              <Message key={m.id} from="assistant">
+                <MessageContent>
+                  <AssistantTurn
+                    turn={m}
+                    vault={vault}
+                    knownIssueIds={knownIssueIds}
+                  />
+                </MessageContent>
+              </Message>
+            ) : (
+              <Message key={m.id} from="user">
+                <MessageContent>
+                  <span data-testid="user-message">{m.text}</span>
+                </MessageContent>
+              </Message>
+            ),
           )}
         </ConversationContent>
         <ConversationScrollButton />
@@ -143,6 +129,64 @@ export function ChatSurface({
           />
         </PromptInputFooter>
       </PromptInput>
+    </div>
+  );
+}
+
+function AssistantTurn({
+  turn,
+  vault,
+  knownIssueIds,
+}: {
+  turn: ChatAssistantTurn;
+  vault: string;
+  knownIssueIds: ReadonlySet<string>;
+}) {
+  const t = useTranslations("ai");
+
+  // The answer deep-links the loaded issue list plus the issues this turn's own
+  // tools proved real (AC3).
+  const mentionIds = useMemo(() => {
+    if (turn.referencedIssueIds.length === 0) return knownIssueIds;
+    const merged = new Set(knownIssueIds);
+    for (const id of turn.referencedIssueIds) merged.add(id);
+    return merged;
+  }, [knownIssueIds, turn.referencedIssueIds]);
+
+  const isThinking =
+    turn.streaming && !turn.text && turn.toolSteps.length === 0;
+
+  return (
+    <div data-testid="assistant-message" className="flex flex-col gap-2.5">
+      <ToolStepTrace steps={turn.toolSteps} streaming={turn.streaming} />
+
+      {isThinking && (
+        <p
+          className="flex items-center gap-2 text-xs text-muted-foreground"
+          aria-live="polite"
+        >
+          <span className="size-1.5 animate-pulse rounded-full bg-ai-subtle-foreground" />
+          {t("chatThinking")}
+        </p>
+      )}
+
+      {turn.text && (
+        <ChatMarkdown
+          vault={vault}
+          knownIssueIds={mentionIds}
+          isAnimating={turn.streaming}
+        >
+          {turn.text}
+        </ChatMarkdown>
+      )}
+
+      {turn.errorMessage && (
+        <p role="alert" className="text-xs text-destructive">
+          {turn.errorMessage}
+        </p>
+      )}
+
+      <ChatCitations citations={turn.citations} />
     </div>
   );
 }

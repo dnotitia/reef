@@ -2,6 +2,7 @@
 
 import type { IssueListItem } from "@reef/core";
 import { Store, useSelector } from "@tanstack/react-store";
+import { useMemo } from "react";
 
 /**
  * Normalized client entity store for issue list items (REEF-098).
@@ -134,4 +135,17 @@ export function useIssueEntity(
   id: string,
 ): IssueListItem | undefined {
   return useSelector(issueEntityStore, (state) => state.byVault[vault]?.[id]);
+}
+
+/**
+ * The set of issue ids currently loaded for a vault — the "loaded issue list"
+ * an autolinker checks a `REEF-\d+` token against before turning it into a deep
+ * link (REEF-361 AC3). Reads only what is already normalized; it never triggers
+ * a fetch, so mentioning it from the always-mounted chat panel is free. The
+ * selector returns the vault's record ref (stable across unrelated updates), so
+ * the derived Set is memoized against that ref rather than rebuilt each render.
+ */
+export function useKnownIssueIds(vault: string): ReadonlySet<string> {
+  const byId = useSelector(issueEntityStore, (state) => state.byVault[vault]);
+  return useMemo(() => new Set(Object.keys(byId ?? {})), [byId]);
 }

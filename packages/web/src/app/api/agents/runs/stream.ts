@@ -286,7 +286,10 @@ function processUiMessageFrame(
   }
 }
 
-function handleUiMessagePart(payload: string, handlers: UiMessageStreamHandlers) {
+function handleUiMessagePart(
+  payload: string,
+  handlers: UiMessageStreamHandlers,
+) {
   const trimmedPayload = payload.trim();
   if (!trimmedPayload || trimmedPayload === "[DONE]") return;
 

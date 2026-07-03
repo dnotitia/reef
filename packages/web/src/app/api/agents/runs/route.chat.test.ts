@@ -80,7 +80,10 @@ describe("POST /api/agents/runs chat streaming", () => {
 
     const called = events.find((event) => event.type === "tool.called");
     const completed = events.find((event) => event.type === "tool.completed");
-    if (called?.type !== "tool.called" || completed?.type !== "tool.completed") {
+    if (
+      called?.type !== "tool.called" ||
+      completed?.type !== "tool.completed"
+    ) {
       throw new Error("expected tool frames");
     }
     expect(called.tool).toEqual({

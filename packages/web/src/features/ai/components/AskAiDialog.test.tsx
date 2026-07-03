@@ -13,17 +13,6 @@ function render(ui: ReactElement, options?: Omit<RenderOptions, "wrapper">) {
 
 // ─── Module mocks ────────────────────────────────────────────────────────────
 
-const useChatMock = vi.fn();
-vi.mock("@ai-sdk/react", () => ({
-  useChat: (...args: unknown[]) => useChatMock(...args),
-}));
-
-// `ai` is imported by AskAiDialog for DefaultChatTransport; stub so the
-// component module imports cleanly under jsdom.
-vi.mock("ai", () => ({
-  DefaultChatTransport: class {},
-}));
-
 // AskAiDialog reads the current route (REEF-360) via next/navigation.
 vi.mock("next/navigation", () => ({
   usePathname: () => "/reef-acme/issues",
@@ -38,10 +27,8 @@ vi.mock("@/lib/apiClient", () => ({
   apiFetch: vi.fn(),
 }));
 
-// AskAiDialog reads the active vault for the chat transport's X-Reef-Vault
-// header (REEF-315). Stub it so the test does not load the real hook's module
-// graph (which pulls @reef/core's agent tools through the entity store and would
-// trip the partial `ai` mock above).
+// AskAiDialog reads the active vault for the chat run's X-Reef-Vault header
+// (REEF-315).
 vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   useActiveVault: () => ({
     vault: "reef-acme",
@@ -50,11 +37,15 @@ vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   }),
 }));
 
+// The conversation controller (REEF-361). Mock it so these tests stay focused
+// on AskAiDialog's own responsibilities (store wiring, close/clear handlers,
+// message count callback) rather than the agent-run stack.
+const useWorkspaceChatMock = vi.fn();
+vi.mock("../hooks/useWorkspaceChat", () => ({
+  useWorkspaceChat: (...args: unknown[]) => useWorkspaceChatMock(...args),
+}));
+
 // AskAiDialog now delegates its conversation+composer area to ChatSurface.
-// Stub the component to expose a single testid and reflect its key props back
-// out as attributes — that keeps these tests focused on AskAiDialog's own
-// responsibilities (store wiring, close handlers, message count callback)
-// without depending on ai-elements internals (covered in ChatSurface.test.tsx).
 vi.mock("./ChatSurface", () => ({
   ChatSurface: ({
     emptyState,
@@ -87,14 +78,14 @@ vi.mock("./ChatSurface", () => ({
 import { useAskAiStore } from "../stores/useAskAiStore";
 import { AskAiDialog } from "./AskAiDialog";
 
-function setUseChatReturn(overrides: Partial<Record<string, unknown>> = {}) {
-  useChatMock.mockReturnValue({
+function setChatReturn(overrides: Partial<Record<string, unknown>> = {}) {
+  useWorkspaceChatMock.mockReturnValue({
     messages: [],
     sendMessage: vi.fn(),
-    setMessages: vi.fn(),
     stop: vi.fn(),
+    clear: vi.fn(),
     status: "ready",
-    error: undefined,
+    messageCount: 0,
     ...overrides,
   });
 }
@@ -107,7 +98,7 @@ describe("AskAiDialog", () => {
       seenMessageCount: 0,
       issueContext: null,
     });
-    setUseChatReturn();
+    setChatReturn();
     useAiAvailableMock.mockReturnValue({
       isAvailable: true,
       isLoading: false,
@@ -137,12 +128,12 @@ describe("AskAiDialog", () => {
     expect(useAskAiStore.getState().isOpen).toBe(false);
   });
 
-  it("clears messages when the new-chat button is pressed", () => {
-    const setMessages = vi.fn();
-    setUseChatReturn({ setMessages });
+  it("clears the conversation when the new-chat button is pressed", () => {
+    const clear = vi.fn();
+    setChatReturn({ clear });
     render(<AskAiDialog />);
     fireEvent.click(screen.getByTestId("ask-ai-new-chat"));
-    expect(setMessages).toHaveBeenCalledWith([]);
+    expect(clear).toHaveBeenCalledTimes(1);
   });
 
   it("shows the AI-unavailable banner when deployment AI config is missing", () => {
@@ -165,32 +156,14 @@ describe("AskAiDialog", () => {
   });
 
   it("forwards message count up via onMessageCountChange", () => {
-    setUseChatReturn({
-      messages: [
-        { id: "1", role: "user", parts: [{ type: "text", text: "hi" }] },
-        {
-          id: "2",
-          role: "assistant",
-          parts: [{ type: "text", text: "hello" }],
-        },
-      ],
-    });
+    setChatReturn({ messageCount: 2 });
     const onMessageCountChange = vi.fn();
     render(<AskAiDialog onMessageCountChange={onMessageCountChange} />);
     expect(onMessageCountChange).toHaveBeenCalledWith(2);
   });
 
   it("syncs seenMessageCount when the panel opens", () => {
-    setUseChatReturn({
-      messages: [
-        { id: "1", role: "user", parts: [{ type: "text", text: "hi" }] },
-        {
-          id: "2",
-          role: "assistant",
-          parts: [{ type: "text", text: "hello" }],
-        },
-      ],
-    });
+    setChatReturn({ messageCount: 2 });
     useAskAiStore.setState({ isOpen: true, seenMessageCount: 0 });
     render(<AskAiDialog />);
     expect(useAskAiStore.getState().seenMessageCount).toBe(2);

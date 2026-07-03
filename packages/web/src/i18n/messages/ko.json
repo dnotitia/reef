@@ -1048,7 +1048,54 @@
     "phaseEmpty": "결과 없음",
     "phaseError": "확인 필요",
     "phaseCancelled": "취소됨",
-    "artifactCount": "{count, plural, other {아티팩트 #개}}"
+    "artifactCount": "{count, plural, other {아티팩트 #개}}",
+    "chatThinking": "생각하는 중…",
+    "chatSources": {
+      "heading": "출처"
+    },
+    "chatSteps": {
+      "header": "단계",
+      "working": "작업 중…",
+      "stepCount": "{count, plural, other {단계 #개}}",
+      "results": "{count, plural, other {결과 #건}}",
+      "detailTool": "도구",
+      "detailArgs": "인자",
+      "detailError": "오류",
+      "tool": {
+        "searchIssues": {
+          "running": "이슈 검색 중…",
+          "done": "이슈 검색함"
+        },
+        "searchDocuments": {
+          "running": "문서 검색 중…",
+          "done": "문서 검색함"
+        },
+        "readIssue": {
+          "running": "이슈 읽는 중…",
+          "done": "이슈 읽음"
+        },
+        "readTemplate": {
+          "running": "템플릿 읽는 중…",
+          "done": "템플릿 읽음"
+        },
+        "listAssignees": {
+          "running": "담당자 조회 중…",
+          "done": "담당자 조회함"
+        },
+        "searchCode": {
+          "running": "코드 검색 중…",
+          "done": "코드 검색함"
+        },
+        "devReadFile": {
+          "running": "파일 읽는 중…",
+          "done": "파일 읽음"
+        },
+        "generic": {
+          "running": "작업 중…",
+          "done": "도구 실행함"
+        }
+      }
+    }
   },
   "myWork": {
     "goToBoard": "보드로 가기 →",
