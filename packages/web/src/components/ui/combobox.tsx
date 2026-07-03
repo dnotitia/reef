@@ -58,6 +58,7 @@ import {
   CBX_TRIGGER_BUTTON,
   CBX_TRIGGER_FIELD,
 } from "./comboboxChrome";
+import { SearchProgressBar } from "./SearchProgressBar";
 import { useOverlayOpenRegistration } from "./overlayDismiss";
 
 export interface ComboboxOption<T extends string> {
@@ -514,6 +515,13 @@ export function Combobox<T extends string>({
             contentClassName,
           )}
         >
+          {/* In-flight hairline at the panel's top edge. Only async consumers
+              pass `loading` (searchable + onQueryChange), so client-filter
+              comboboxes never flash it — REEF-369 AC4. */}
+          <SearchProgressBar
+            active={!!loading}
+            className="top-0 bottom-auto rounded-t-md"
+          />
           {searchable && (
             <input
               ref={searchRef}

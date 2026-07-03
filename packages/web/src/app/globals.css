@@ -506,6 +506,35 @@ hr {
   animation: reef-flash-row var(--duration-slow) var(--ease-signature);
 }
 
+/* Indeterminate search progress — a thin brand (teal) hairline that sweeps
+ * along an async search surface's input/panel edge while a request is in
+ * flight (REEF-369). A dim brand track hosts a brighter band that travels
+ * across it. Decorative only: the surface's own text / aria-live owns the
+ * screen-reader signal. Teal, never the AI purple track. Transform-only — no
+ * layout. Under reduced motion the sweep stops and a static brand bar remains
+ * (below) so the in-flight state is still legible without movement. */
+@keyframes reef-search-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+.reef-search-progress {
+  background-color: color-mix(in oklab, var(--brand) 18%, transparent);
+}
+
+.reef-search-progress::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: var(--brand);
+  animation: reef-search-progress 1.1s var(--ease-signature) infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .reef-shimmer,
   .reef-flash-card::after,
@@ -516,5 +545,12 @@ hr {
    * nothing moves or freezes mid-highlight (REEF-250 AC3). */
   .reef-shimmer {
     background-image: none;
+  }
+  /* Stop the sweep but keep a static brand bar so an in-flight search stays
+   * legible without motion (REEF-369). */
+  .reef-search-progress::after {
+    animation: none;
+    width: 100%;
+    background: color-mix(in oklab, var(--brand) 55%, transparent);
   }
 }

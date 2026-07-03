@@ -1,6 +1,7 @@
 "use client";
 
 import { IssueOptionRow } from "@/components/fields/IssueOptionRow";
+import { SearchProgressBar } from "@/components/ui/SearchProgressBar";
 import {
   CommandDialog,
   CommandGroup,
@@ -280,12 +281,17 @@ export function GlobalSearchDialog() {
       </DialogDescription>
       {/* cmdk's CommandInput already hardcodes autoComplete/autoCorrect off and
           spellCheck false, so no extra props are needed for those. */}
-      <CommandInput
-        placeholder={t("placeholder")}
-        value={query}
-        onValueChange={setQuery}
-        data-testid="global-search-input"
-      />
+      {/* Wrap so the in-flight hairline pins to the input's bottom edge. The
+          persistent role="status" region below still owns the SR signal. */}
+      <div className="relative">
+        <CommandInput
+          placeholder={t("placeholder")}
+          value={query}
+          onValueChange={setQuery}
+          data-testid="global-search-input"
+        />
+        <SearchProgressBar active={isFetching || debouncePending} />
+      </div>
       {/* `overscroll-contain` keeps scroll chaining from leaking to the page
           behind the modal once the list reaches its top/bottom. */}
       <CommandList

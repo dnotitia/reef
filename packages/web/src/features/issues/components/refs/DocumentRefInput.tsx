@@ -1,9 +1,10 @@
 "use client";
 
 import { DocumentOptionRow } from "@/components/fields/DocumentOptionRow";
+import { SearchProgressBar } from "@/components/ui/SearchProgressBar";
 import { useVaultDocumentSearch } from "@/features/issues/hooks/queries/useVaultDocumentSearch";
 import { cn } from "@/lib/utils";
-import { Loader2, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   type KeyboardEvent,
@@ -188,12 +189,9 @@ export function DocumentRefInput({
             spellCheck={false}
             className={INPUT_CLASS}
           />
-          {isFetching || pending ? (
-            <Loader2
-              className="absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 animate-spin text-muted-foreground"
-              aria-hidden="true"
-            />
-          ) : null}
+          {/* In-flight hairline replaces the old right-edge Loader2 (REEF-369);
+              the panel's t("searching") + aria-live below keep the SR signal. */}
+          <SearchProgressBar active={isFetching || pending} />
         </div>
 
         {showPanel &&

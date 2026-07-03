@@ -1,5 +1,6 @@
 "use client";
 
+import { SearchProgressBar } from "@/components/ui/SearchProgressBar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -217,6 +218,7 @@ export function BacklogView({ vault }: BacklogViewProps) {
   const {
     data: issues,
     isPending,
+    isFetching,
     isError,
     isPlaceholderData,
     refetch,
@@ -392,6 +394,14 @@ export function BacklogView({ vault }: BacklogViewProps) {
 
   return (
     <PageBody pad="compact">
+      {/* Refetch hairline pinned to the list's top edge. The skeleton owns the
+          first-load signal, so this shows only on a refetch (REEF-369). */}
+      <div className="pointer-events-none sticky top-0 z-10 h-0 overflow-visible">
+        <SearchProgressBar
+          active={isFetching && !isPending}
+          className="top-0 bottom-auto"
+        />
+      </div>
       {/* Shown when rows are on screen — gated on having rows, not on a
           (now-removed) count display, so loading/empty/error states does not carry
           an orphan affordance row. */}
