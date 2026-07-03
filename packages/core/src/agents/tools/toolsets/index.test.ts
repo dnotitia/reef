@@ -23,13 +23,33 @@ describe("agent toolsets", () => {
           includeAssignees: false,
         }),
       ).sort(),
-    ).toEqual(["read_issue", "search_documents", "search_issues"]);
+    ).toEqual(["read_issue", "search_issues"]);
 
     expect(
       Object.keys(
         createWorkspaceReadToolset({
           adapter,
           vault: "reef-test",
+        }),
+      ).sort(),
+    ).toEqual(["list_assignees", "read_issue", "search_issues"]);
+  });
+
+  it("includes search_documents only when opted in (REEF-361)", () => {
+    const adapter = makeTestAkbAdapter();
+
+    // Default: no document search — keeps issue-only read-toolset consumers
+    // (e.g. the activity-scan semantic linker) unchanged.
+    expect(
+      Object.keys(createWorkspaceReadToolset({ adapter, vault: "reef-test" })),
+    ).not.toContain("search_documents");
+
+    expect(
+      Object.keys(
+        createWorkspaceReadToolset({
+          adapter,
+          vault: "reef-test",
+          includeDocuments: true,
         }),
       ).sort(),
     ).toEqual([
