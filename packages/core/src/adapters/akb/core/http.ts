@@ -138,6 +138,16 @@ async function extractErrorMessage(response: Response): Promise<string> {
     const msg = (detail[0] as { msg?: unknown }).msg;
     if (typeof msg === "string") return msg;
   }
+  // akb's REST `_raise_service_error` envelope surfaces a service error as an
+  // object `detail: { message, code }` (e.g. an `/sql` runtime error such as a
+  // missing relation, now returned as a 4xx instead of the older HTTP 200
+  // `{ error }` body). Extract `message` so downstream pattern-matchers — most
+  // importantly `isMissingTableError`, which powers the not-yet-provisioned
+  // table degrade paths — keep seeing the raw Postgres text (REEF-363).
+  if (detail && typeof detail === "object" && !Array.isArray(detail)) {
+    const message = (detail as { message?: unknown }).message;
+    if (typeof message === "string") return message;
+  }
   if (typeof body?.error === "string") return body.error;
   return response.statusText || "Unknown error";
 }

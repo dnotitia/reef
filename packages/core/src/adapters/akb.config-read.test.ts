@@ -4,6 +4,7 @@ import {
   REEF_SETTINGS_TABLE,
   makeAdapter,
   makeSqlQueryResponse,
+  makeSqlRuntimeError400Response,
   makeSqlRuntimeErrorResponse,
   readAuthoringLanguage,
   readConfig,
@@ -25,6 +26,22 @@ describe("readConfig (tables)", () => {
     expect(result.config.authoring_language).toBeNull();
     expect(result.config.stale_hide_completed_days).toBe(28);
     expect(result.config.stale_hide_canceled_days).toBe(7);
+    expect(result.exists).toBe(false);
+  });
+
+  it("returns DEFAULT_CONFIG when reef tables do not exist (HTTP 400 + detail envelope, akb REST — REEF-363)", async () => {
+    // akb's newer REST surface returns a missing-relation error as HTTP 400
+    // with an object `detail: { message, code }` instead of the legacy HTTP
+    // 200 `{ error }` body. The degrade to DEFAULT_CONFIG must survive that
+    // change, so `isMissingTableError` still has to recognize the new shape.
+    setupFetch([
+      makeSqlRuntimeError400Response(REEF_SETTINGS_TABLE),
+      makeSqlRuntimeError400Response(MONITORED_REPOS_TABLE),
+    ]);
+    const adapter = makeAdapter();
+    const result = await readConfig({ adapter, vault: "reef-sample" });
+    expect(result.config.project_prefix).toBe("REEF");
+    expect(result.config.monitored_repos).toEqual([]);
     expect(result.exists).toBe(false);
   });
 
