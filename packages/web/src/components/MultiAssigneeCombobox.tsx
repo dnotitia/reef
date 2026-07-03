@@ -5,8 +5,12 @@ import type { ComboboxOption } from "@/components/ui/combobox";
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { useUserSearch } from "@/features/issues/hooks/queries/useUserSearch";
+import {
+  SEARCH_DEBOUNCE_COLD,
+  useDebouncedQuery,
+} from "@/lib/useDebouncedQuery";
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 
 interface MultiAssigneeComboboxProps {
   /** Currently-selected logins (undefined when the facet is unset). */
@@ -59,24 +63,14 @@ export function MultiAssigneeCombobox({
   // fall back to the locale-resolved catalog here in the body.
   const resolvedLabel = label ?? t("label");
   const resolvedPlaceholder = placeholder ?? t("searchPlaceholder");
-  // rawQuery tracks the live input; debouncedQuery is what the server resolved.
-  // While they differ the visible options belong to the previous query, so the
-  // control reports loading (mirrors AssigneeCombobox).
-  const [rawQuery, setRawQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleQueryChange = useCallback((q: string) => {
-    setRawQuery(q);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setDebouncedQuery(q), 300);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
+  // `debouncedQuery` is what the server resolved; while `isDebouncing` the
+  // visible options belong to the previous query, so the control reports loading
+  // (mirrors AssigneeCombobox). Shared cold-tier debounce (REEF-370).
+  const {
+    debounced: debouncedQuery,
+    onChange: handleQueryChange,
+    isDebouncing,
+  } = useDebouncedQuery(SEARCH_DEBOUNCE_COLD);
 
   // isPending (not isLoading) — see useActiveVault for the rationale.
   const { data: users, isPending } = useUserSearch(debouncedQuery, vault);
@@ -99,7 +93,7 @@ export function MultiAssigneeCombobox({
       searchable
       onQueryChange={handleQueryChange}
       searchPlaceholder={resolvedPlaceholder}
-      loading={isPending || rawQuery !== debouncedQuery}
+      loading={isPending || isDebouncing}
       emptyState={t("noMembers")}
       active={active}
       disabled={!vault}

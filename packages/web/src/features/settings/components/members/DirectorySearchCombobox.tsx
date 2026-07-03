@@ -4,7 +4,10 @@ import { PersonAvatar, personToneFor } from "@/components/fields/PersonAvatar";
 import { PersonChip } from "@/components/fields/PersonChip";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { useDirectorySearch } from "@/features/settings/hooks/useDirectorySearch";
-import { useDebouncedQuery } from "@/lib/useDebouncedQuery";
+import {
+  SEARCH_DEBOUNCE_COLD,
+  useDebouncedQuery,
+} from "@/lib/useDebouncedQuery";
 import type { UserSearchResult } from "@reef/core";
 import { useTranslations } from "next-intl";
 import { useMemo } from "react";
@@ -36,7 +39,8 @@ export function DirectorySearchCombobox({
   disabled,
 }: DirectorySearchComboboxProps) {
   const t = useTranslations("directorySearch");
-  const { debounced, onChange, isDebouncing } = useDebouncedQuery();
+  const { debounced, onChange, isDebouncing } =
+    useDebouncedQuery(SEARCH_DEBOUNCE_COLD);
   const {
     data: users,
     isPending,
