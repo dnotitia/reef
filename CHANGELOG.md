@@ -63,6 +63,14 @@ explicitly in the entries below.
   current akb version: when the akb backend is upgraded, workspaces that are
   still being provisioned (before reef's tables exist) keep falling back to their
   defaults cleanly instead of surfacing an error. No action is required. (REEF-363)
+- **Related-issue rows are lighter to scan.** In the issue detail relationships
+  editor — and the issue pickers and sub-issue lists that share the same row — an
+  issue's type no longer takes a bordered pill when it is the default **Task**
+  type. The most common type now reads as a subtle icon, like the status and
+  priority markers beside it, so a related-issue row spends its width on the id
+  and title instead of a chip. Distinct types (Epic, Bug, Story, Spike, Chore)
+  still show their labeled chip so they stand out, and screen readers still
+  announce every issue's type. (REEF-373)
 
 ### Fixed
 
