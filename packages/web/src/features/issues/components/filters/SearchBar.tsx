@@ -1,45 +1,53 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
+import {
+  SEARCH_DEBOUNCE_WARM,
+  useDebouncedQuery,
+} from "@/lib/useDebouncedQuery";
 import { Search, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useIssueStore } from "../../stores/useIssueStore";
 
 export function SearchBar() {
   const t = useTranslations("issues.filters");
   const setSearchQuery = useIssueStore((state) => state.setSearchQuery);
 
-  const [localValue, setLocalValue] = useState(
-    () => useIssueStore.getState().searchQuery,
+  // The issue store is the search's data owner; the shared warm-tier debounce
+  // (REEF-370) replaces the previous inline 150ms timer. `initial` seeds the
+  // input from any persisted/restored query on mount.
+  const {
+    raw: localValue,
+    onChange: handleChange,
+    debounced,
+    reset,
+  } = useDebouncedQuery(
+    SEARCH_DEBOUNCE_WARM,
+    useIssueStore.getState().searchQuery,
   );
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Push the settled value into the store so the list query re-runs on it.
+  useEffect(() => {
+    setSearchQuery(debounced);
+  }, [debounced, setSearchQuery]);
+
+  // Reflect an external store change (a restored/persisted filter, or a clear
+  // from elsewhere) back into the input.
   useEffect(() => {
     return useIssueStore.subscribe((state, previousState) => {
       if (state.searchQuery !== previousState.searchQuery) {
-        setLocalValue(state.searchQuery);
+        reset(state.searchQuery);
       }
     });
-  }, []);
-
-  const handleChange = useCallback(
-    (value: string) => {
-      setLocalValue(value);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
-        setSearchQuery(value);
-      }, 150);
-    },
-    [setSearchQuery],
-  );
+  }, [reset]);
 
   const handleClear = useCallback(() => {
-    setLocalValue("");
+    reset("");
     setSearchQuery("");
     inputRef.current?.blur();
-  }, [setSearchQuery]);
+  }, [reset, setSearchQuery]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {

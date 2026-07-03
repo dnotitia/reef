@@ -7,9 +7,13 @@ import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { useUserSearch } from "@/features/issues/hooks/queries/useUserSearch";
+import {
+  SEARCH_DEBOUNCE_COLD,
+  useDebouncedQuery,
+} from "@/lib/useDebouncedQuery";
 import { useHydrated } from "@/lib/useHydrated";
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 
 interface AssigneeComboboxProps {
   /** Current assigned_to value (login string or "" for unassigned) */
@@ -74,26 +78,16 @@ export function AssigneeCombobox({
   const resolvedLabel = label ?? t("label");
   const resolvedPlaceholder = placeholder ?? t("searchPlaceholder");
   const resolvedEmptyLabel = emptyLabel ?? t("unassigned");
-  // rawQuery tracks the live input; debouncedQuery is what the server actually
-  // resolved. While they differ (the 300ms debounce window), the visible options
-  // belong to the previous query, so the control reports loading to suppress a
-  // stale keyboard commit.
-  const [rawQuery, setRawQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
+  // The live input drives `raw`; `debouncedQuery` is what the server actually
+  // resolved. While `isDebouncing` (the cold-tier debounce window), the visible
+  // options belong to the previous query, so the control reports loading to
+  // suppress a stale keyboard commit. Shared cold-tier debounce (REEF-370).
+  const {
+    debounced: debouncedQuery,
+    onChange: handleQueryChange,
+    isDebouncing,
+  } = useDebouncedQuery(SEARCH_DEBOUNCE_COLD);
   const mounted = useHydrated();
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleQueryChange = useCallback((q: string) => {
-    setRawQuery(q);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setDebouncedQuery(q), 300);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
 
   // isPending (not isLoading) — see useActiveVault for the rationale.
   const {
@@ -134,7 +128,7 @@ export function AssigneeCombobox({
       value={value || null}
       onChange={(v) => onChange(v ?? "")}
       options={options}
-      loading={isPending || rawQuery !== debouncedQuery}
+      loading={isPending || isDebouncing}
       searchable
       onQueryChange={handleQueryChange}
       searchPlaceholder={resolvedPlaceholder}
