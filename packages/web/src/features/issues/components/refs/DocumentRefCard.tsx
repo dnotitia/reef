@@ -7,15 +7,11 @@ import {
   buildAkbDocumentUrl,
 } from "@/lib/akb/documentUri";
 import { cn } from "@/lib/utils";
+import { useAkbWebUrl } from "@/providers/AkbWebUrlProvider";
 import type { AkbDocumentReference } from "@reef/core";
 import { Check, Copy, ExternalLink, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
-
-// Deployment-managed akb web base; absent → the card hides "open" and offers
-// copy just (reef-web has no in-app document viewer). NEXT_PUBLIC_ is inlined at
-// build time, so reading it at module scope is safe and stable.
-const AKB_WEB_BASE = process.env.NEXT_PUBLIC_AKB_WEB_URL ?? null;
 
 /**
  * A linked akb document, rendered as a card (REEF-083): document glyph · title,
@@ -37,9 +33,13 @@ export function DocumentRefCard({
   disabled = false,
 }: DocumentRefCardProps) {
   const t = useTranslations("issues.refs");
+  // Deployment-managed akb web base, read on the server at request time and
+  // provided at runtime (REEF-368); absent → the card hides "open" and offers
+  // copy only (reef-web has no in-app document viewer).
+  const akbWebBase = useAkbWebUrl();
   const title = reference.title ?? akbDocumentSlugTitle(reference.uri);
   const breadcrumb = akbDocumentBreadcrumb(reference.uri);
-  const openUrl = buildAkbDocumentUrl(AKB_WEB_BASE, reference.uri);
+  const openUrl = buildAkbDocumentUrl(akbWebBase, reference.uri);
 
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

@@ -851,10 +851,24 @@ async function handleAkb(req, res, url) {
   }
 
   if (path === "/api/v1/relations" && req.method === "GET") {
-    return json(res, 200, {
-      uri: url.searchParams.get("uri") ?? "",
-      relations: [],
-    });
+    const relUri = url.searchParams.get("uri") ?? "";
+    // REEF-368: give REEF-001 one outgoing `references` edge to an akb document
+    // so the linked-document backlink spec has a DocumentRefCard to render and
+    // can assert the open-link href built from the server-read AKB_WEB_URL.
+    const relations =
+      url.searchParams.get("type") === "references" &&
+      relUri.endsWith("/doc/reef-001.md")
+        ? [
+            {
+              relation: "references",
+              direction: "outgoing",
+              uri: "akb://reef-e2e/coll/docs/doc/spec-overview.md",
+              resource_type: "doc",
+              name: "Spec overview",
+            },
+          ]
+        : [];
+    return json(res, 200, { uri: relUri, relations });
   }
 
   if (path === "/api/v1/search" && req.method === "GET") {
