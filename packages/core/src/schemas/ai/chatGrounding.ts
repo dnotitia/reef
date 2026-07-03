@@ -6,18 +6,16 @@ import { IssueMetadataSchema } from "../issues/metadata";
  *
  * These describe the *credential-safe* project state that reef assembles into
  * the chat system prompt: a compact workspace summary plus, when the user is
- * looking at an issue, that issue's context. They deliberately carry only
+ * looking at an issue, that issue's context. They deliberately carry PM-facing
  * PM-facing values — no session tokens, no internal user uuids, no server
  * internals — so the assembled prompt honors the observability/security
  * contract (AGENTS.md "Security And Persistence" / AC1 + AC5).
  */
 
-/** One `status → count` bucket of the board. */
-export const WorkspaceStatusCountSchema = z.object({
+const WorkspaceStatusCountSchema = z.object({
   status: z.string(),
   count: z.number().int().nonnegative(),
 });
-export type WorkspaceStatusCount = z.infer<typeof WorkspaceStatusCountSchema>;
 
 /**
  * Compact workspace summary: the vault name, the active sprint (name + goal),
@@ -32,9 +30,9 @@ export const WorkspaceSummarySchema = z.object({
       goal: z.string().nullable(),
     })
     .nullable(),
-  /** Total issues in a non-terminal status (everything except done/closed). */
+  /** Total issues in a non-final status (everything except done/closed). */
   openIssueCount: z.number().int().nonnegative(),
-  /** Full board breakdown, terminal statuses included, for context. */
+  /** Full board breakdown, final statuses included, for context. */
   statusCounts: z.array(WorkspaceStatusCountSchema),
 });
 export type WorkspaceSummary = z.infer<typeof WorkspaceSummarySchema>;
@@ -42,7 +40,7 @@ export type WorkspaceSummary = z.infer<typeof WorkspaceSummarySchema>;
 /**
  * The PM-facing subset of a reef issue surfaced into chat context — the same
  * field set the `read_issue` tool already exposes to the model, so the prefetch
- * path never widens what the LLM can see about an issue.
+ * path keeps the LLM's issue view at that existing boundary.
  */
 export const ChatIssueContextIssueSchema = IssueMetadataSchema.pick({
   id: true,
@@ -66,7 +64,6 @@ export const ChatIssueContextIssueSchema = IssueMetadataSchema.pick({
   blocks: true,
   related_to: true,
 });
-export type ChatIssueContextIssue = z.infer<typeof ChatIssueContextIssueSchema>;
 
 /**
  * The prefetched current-issue context: the safe field subset above plus the

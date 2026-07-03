@@ -43,14 +43,3 @@ export type {
   SuggestLabelsOutput,
   SuggestPriorityOutput,
 } from "./tools";
-
-export {
-  WorkspaceStatusCountSchema,
-  WorkspaceSummarySchema,
-  ChatIssueContextIssueSchema,
-  ChatIssueContextSchema,
-  type WorkspaceStatusCount,
-  type WorkspaceSummary,
-  type ChatIssueContextIssue,
-  type ChatIssueContext,
-} from "./chatGrounding";

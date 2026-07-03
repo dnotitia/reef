@@ -81,7 +81,7 @@ export function GlobalSearchDialog() {
   // drives the server query so a request isn't fired on every keystroke. The
   // shared warm-tier debounce (REEF-370) replaces the previous inline 150ms
   // timer; `reset` clears both values instantly on select/close so a stale query
-  // never lingers a debounce window past the palette closing.
+  // does not linger a debounce window past the palette closing.
   const {
     raw: query,
     debounced: debouncedQuery,

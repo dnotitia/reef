@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 // Render `next/link` as a plain anchor so the in-app mention links do not need
-// an App Router context — the assertion only cares about the resolved href.
+// an App Router context — the assertion checks about the resolved href.
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => (
     <a href={href}>{children}</a>
@@ -32,7 +32,7 @@ describe("ChatMarkdown", () => {
     expect(link).toHaveTextContent("REEF-1");
     expect(link).toHaveAttribute("href", "/workspace/reef-e2e/issues/REEF-1");
 
-    // REEF-9 is not a known id, so it is present as prose but never linked.
+    // REEF-9 is not a known id, so it is present as prose but not linked.
     expect(screen.getByText(/REEF-9/)).toBeInTheDocument();
     const allLinks = Array.from(container.querySelectorAll("a"));
     expect(allLinks.some((a) => a.textContent?.includes("REEF-9"))).toBe(false);
@@ -40,7 +40,7 @@ describe("ChatMarkdown", () => {
 
   it("re-links a mention once its id becomes known mid-stream (AC3 streaming)", async () => {
     // REEF-77 is unique to this test so a leaked processor closure from another
-    // test cannot mark it known and mask the regression.
+    // test leaves it unmarked and mask the regression.
     const content = "Blocked by REEF-77 now.";
     const { container, rerender } = render(
       <ChatMarkdown vault="reef-e2e" knownIssueIds={new Set()}>
@@ -53,7 +53,7 @@ describe("ChatMarkdown", () => {
       0,
     );
 
-    // A tool completes mid-stream and proves REEF-77; the same answer text must
+    // A tool completes mid-stream and proves REEF-77; the same answer text should
     // now deep-link it rather than keeping a stale plain render.
     rerender(
       <ChatMarkdown vault="reef-e2e" knownIssueIds={new Set(["REEF-77"])}>

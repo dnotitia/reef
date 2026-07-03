@@ -140,7 +140,7 @@ export async function createWorkspaceChatAgentResponse(
 
   // Assemble the credential-safe grounding system prompt (REEF-360). Both the
   // workspace summary and the current-issue prefetch are best-effort: a failure
-  // degrades to less context, never a failed chat (AC4).
+  // degrades to less context, not a failed chat (AC4).
   const [summary, issueContext] = await Promise.all([
     resolveWorkspaceSummary(params),
     resolveIssueContext(params),
@@ -165,7 +165,7 @@ export async function createWorkspaceChatAgentResponse(
       experimental_telemetry: {
         isEnabled: true,
         functionId: taskConfig.functionId,
-        // Never record the assembled prompt or conversation into telemetry
+        // does not record the assembled prompt or conversation into telemetry
         // spans — the grounding prompt carries workspace context and the
         // observability contract forbids prompt text in spans (AC5).
         recordInputs: false,
@@ -247,9 +247,9 @@ async function resolveMonitoredRepos({
 }
 
 /**
- * Resolve the compact workspace summary for grounding. Best-effort: on any read
- * failure, degrade to a vault-only summary so chat still names the workspace
- * rather than failing (REEF-360 AC1 / AC4).
+ * Resolve the compact workspace summary for grounding. Best-effort: read
+ * failures degrade to a vault-scoped summary so chat can still name the
+ * workspace (REEF-360 AC1 / AC4).
  */
 async function resolveWorkspaceSummary(
   params: CreateWorkspaceChatAgentResponseParams,

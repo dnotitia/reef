@@ -80,7 +80,7 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
       reefId: issueContext?.reefId ?? null,
     });
 
-  // ESC closes the panel — only registers when open so it does not trap the
+  // ESC closes the panel — registers when open so it does not trap the
   // keystroke for other dialogs.
   useEffect(() => {
     if (!isOpen) return;

@@ -56,7 +56,7 @@ export default async function RootLayout({
   // driven by the runtime ConfigMap, not a build-time `NEXT_PUBLIC_*` inline
   // that silently vanishes when the image was built without the var. The
   // `await headers()` above already makes this render dynamic (per-request), so
-  // the value is never frozen at build time.
+  // the value is not frozen at build time.
   const akbWebUrl = getAkbWebUrl();
 
   // suppressHydrationWarning on <html>: `useTheme` adds/removes `.dark` on

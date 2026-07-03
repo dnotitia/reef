@@ -12,7 +12,7 @@ export interface ChatToolStep {
   /** The `snake_case` core tool name, e.g. `search_issues`. */
   toolName: string;
   status: "running" | "completed" | "error";
-  /** Summarized call arguments; never the full result payload. */
+  /** Summarized call arguments; not the full result payload. */
   input: Record<string, unknown> | null;
   output: Record<string, unknown> | null;
   errorMessage: string | null;

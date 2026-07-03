@@ -230,7 +230,9 @@ function ActivityFeedContent({
           : undefined);
 
       markRemoved(draft.id);
-      await refreshInbox();
+      void refreshInbox().catch((err) => {
+        console.error("Failed to refresh activity inbox:", err);
+      });
       void queryClient.invalidateQueries({ queryKey: UNREAD_INBOX_QUERY_KEY });
 
       toast.success(

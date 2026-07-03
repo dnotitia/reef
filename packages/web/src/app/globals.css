@@ -509,8 +509,8 @@ hr {
 /* Indeterminate search progress — a thin brand (teal) hairline that sweeps
  * along an async search surface's input/panel edge while a request is in
  * flight (REEF-369). A dim brand track hosts a brighter band that travels
- * across it. Decorative only: the surface's own text / aria-live owns the
- * screen-reader signal. Teal, never the AI purple track. Transform-only — no
+ * across it. Decorative: the surface's own text / aria-live owns the
+ * screen-reader signal. Teal, not the AI purple track. Transform-based — no
  * layout. Under reduced motion the sweep stops and a static brand bar remains
  * (below) so the in-flight state is still legible without movement. */
 @keyframes reef-search-progress {

@@ -23,12 +23,11 @@ const tracer = trace.getTracer("reef-web");
 /**
  * POST /api/chat — multi-step agent loop endpoint.
  *
- * @deprecated Superseded by `POST /api/agents/runs` (`task_id: "chat.workspace"`),
- * which runs the identical core chat agent but streams agent-run SSE events
- * (including tool-call transparency frames). The Ask AI client migrated off this
- * route in REEF-361; nothing in `web` calls it anymore. It is kept only so the
- * migration lands without deleting the legacy metrics/schema wiring in the same
- * change — removal is tracked as a follow-up. Do not add new callers.
+ * Bridge endpoint superseded by `POST /api/agents/runs`
+ * (`task_id: "chat.workspace"`), which runs the same core chat agent but streams
+ * agent-run SSE events (including tool-call transparency frames). The Ask AI
+ * client migrated off this route in REEF-361; `web` has no client caller. It
+ * remains until the metrics/schema wiring can be removed in a follow-up.
  *
  * Wires the read reef chat task via `chat.workspace`:
  *   • vault reads (`read_issue`, `search_issues`, `list_assignees`) — akb
@@ -47,8 +46,8 @@ const tracer = trace.getTracer("reef-web");
  * server state; both adapter instances fall out of scope when this handler
  * returns.
  *
- * Reverse-proxy deployment requirement: `proxy_buffering off;` is mandatory
- * for this route so SSE delivery is not buffered.
+ * Reverse-proxy deployment requirement: `proxy_buffering off;` keeps SSE
+ * delivery unbuffered for this route.
  */
 export async function POST(request: Request): Promise<Response> {
   let config: ReturnType<typeof getRequiredServerLlmConfig>;

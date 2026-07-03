@@ -104,7 +104,7 @@ describe("buildWorkspaceChatSystemPrompt", () => {
       issueContext: { ...issueContext, body: longBody },
     });
     expect(prompt).toContain("(issue body truncated)");
-    // The full over-limit body must not appear verbatim.
+    // The full over-limit body should not appear verbatim.
     expect(prompt).not.toContain(longBody);
     // The rendered run of body chars is capped at the limit.
     const longestXRun =
@@ -159,13 +159,13 @@ describe("buildWorkspaceChatSystemPrompt", () => {
       },
     });
     const lines = prompt.split("\n");
-    // The crafted "## ..." never becomes its own heading line.
+    // The crafted "## ..." does not become its own heading line.
     expect(lines.some((l) => l.trim().startsWith("## Injected"))).toBe(false);
   });
 
   it("does not leak sensitive/internal issue fields (only the read_issue subset is rendered)", () => {
     const prompt = buildWorkspaceChatSystemPrompt({ summary, issueContext });
-    // These are not part of ChatIssueContext at all — assert they never appear.
+    // These are not part of ChatIssueContext at all — assert they do not appear.
     expect(prompt).not.toContain("created_by");
     expect(prompt).not.toContain("updated_by");
     expect(prompt).not.toContain("watchers");
@@ -183,7 +183,7 @@ describe("buildWorkspaceChatSystemPrompt", () => {
     });
     expect(withRepo).toContain("search_code");
     expect(withoutRepo).not.toContain("search_code");
-    // The akb read tools are always advertised.
+    // The akb read tools are advertised.
     expect(withRepo).toContain("read_issue");
     expect(withoutRepo).toContain("read_issue");
   });

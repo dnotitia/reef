@@ -116,7 +116,7 @@ export function IssueListTable({ vault }: IssueListTableProps) {
   return (
     <PageBody pad="compact">
       {/* Refetch hairline pinned to the list's top edge. The skeleton owns the
-          first-load signal, so this shows only on a refetch (REEF-369). */}
+          first-load signal; this appears during refetches (REEF-369). */}
       <div className="pointer-events-none sticky top-0 z-10 h-0 overflow-visible">
         <SearchProgressBar
           active={isFetching && !isPending}

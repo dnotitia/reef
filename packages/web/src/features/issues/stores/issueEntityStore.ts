@@ -140,8 +140,8 @@ export function useIssueEntity(
 /**
  * The set of issue ids currently loaded for a vault — the "loaded issue list"
  * an autolinker checks a `REEF-\d+` token against before turning it into a deep
- * link (REEF-361 AC3). Reads only what is already normalized; it never triggers
- * a fetch, so mentioning it from the always-mounted chat panel is free. The
+ * link (REEF-361 AC3). Reads from normalized state without triggering a fetch,
+ * so the chat panel can consume it cheaply. The
  * selector returns the vault's record ref (stable across unrelated updates), so
  * the derived Set is memoized against that ref rather than rebuilt each render.
  */

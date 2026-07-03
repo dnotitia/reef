@@ -9,7 +9,7 @@ import {
   collectReferencedIssueIds,
   extractChatCitations,
 } from "@/lib/ai/chatToolSummary";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { isTerminalPhase } from "../runtime/reducer";
 import { chatWorkspaceRun } from "../runtime/taskRequests";
 import type {
@@ -70,7 +70,7 @@ function assistantTurnFrom(
     citations: extractChatCitations(toolSteps),
     referencedIssueIds: collectReferencedIssueIds(toolSteps),
     streaming,
-    // Cancellation (user stop) and empty runs are not failures — only surface a
+    // Cancellation (user stop) and empty runs are not failures — surface a
     // genuine error line.
     errorMessage:
       state.phase === "error" && state.error ? state.error.message : null,
@@ -90,8 +90,8 @@ function toRequestMessage(turn: ChatTurn) {
  * `useAgentRun` in a multi-turn conversation over the `chat.workspace`
  * agent-run task: each user message starts a run, the in-flight assistant turn
  * renders live from run state (streamed text + tool steps), and the finished
- * turn is committed to history when the run reaches a terminal phase — so a
- * cancelled or failed run still keeps whatever answer and steps had streamed.
+ * turn remains visible when the run reaches a final phase, so a cancelled or
+ * failed run still keeps whatever answer and steps had streamed.
  */
 export function useWorkspaceChat(
   options: UseWorkspaceChatOptions,
@@ -99,13 +99,8 @@ export function useWorkspaceChat(
   const agentRun = useAgentRun(options.fetch ? { fetch: options.fetch } : {});
 
   const [turns, setTurns] = useState<ChatTurn[]>([]);
-  const [runActive, setRunActive] = useState(false);
 
-  const turnsRef = useRef(turns);
-  turnsRef.current = turns;
-  const groundingRef = useRef({ route: options.route, reefId: options.reefId });
-  groundingRef.current = { route: options.route, reefId: options.reefId };
-  const assistantIdRef = useRef<string | null>(null);
+  const [assistantId, setAssistantId] = useState<string | null>(null);
   const idCounter = useRef(0);
   const nextId = useCallback(
     (prefix: string) => `${prefix}-${idCounter.current++}`,
@@ -113,31 +108,17 @@ export function useWorkspaceChat(
   );
 
   const runState = agentRun.state;
+  const runActive = assistantId !== null && !isTerminalPhase(runState.phase);
 
-  // The in-flight assistant turn, projected from live run state.
-  const liveTurn = useMemo<ChatAssistantTurn | null>(() => {
-    if (!runActive || !assistantIdRef.current) return null;
-    return assistantTurnFrom(assistantIdRef.current, runState, true);
-  }, [runActive, runState]);
+  const currentAssistantTurn = useMemo<ChatAssistantTurn | null>(() => {
+    if (!assistantId) return null;
+    return assistantTurnFrom(assistantId, runState, runActive);
+  }, [assistantId, runActive, runState]);
 
   const messages = useMemo<ChatTurn[]>(
-    () => (liveTurn ? [...turns, liveTurn] : turns),
-    [turns, liveTurn],
+    () => (currentAssistantTurn ? [...turns, currentAssistantTurn] : turns),
+    [turns, currentAssistantTurn],
   );
-
-  // Commit the finished assistant turn when the run terminates (completed,
-  // empty, error, or cancelled). Fires once per run: flipping runActive false
-  // stops the condition from re-triggering.
-  useEffect(() => {
-    if (!runActive) return;
-    if (!isTerminalPhase(runState.phase)) return;
-    const id = assistantIdRef.current;
-    if (!id) return;
-    const committed = assistantTurnFrom(id, runState, false);
-    assistantIdRef.current = null;
-    setRunActive(false);
-    setTurns((prev) => [...prev, committed]);
-  }, [runActive, runState]);
 
   const sendMessage = useCallback(
     ({ text }: { text: string }) => {
@@ -148,26 +129,24 @@ export function useWorkspaceChat(
         role: "user",
         text: trimmed,
       };
-      const history = [...turnsRef.current, userTurn];
+      const history = [...messages, userTurn];
       setTurns(history);
-      assistantIdRef.current = nextId("assistant");
-      setRunActive(true);
-      const { route, reefId } = groundingRef.current;
+      setAssistantId(nextId("assistant"));
       void agentRun
         .start(
           chatWorkspaceRun({
             messages: history.map(toRequestMessage),
-            route,
-            reefId,
+            route: options.route,
+            reefId: options.reefId,
           }),
         )
         .catch(() => {
-          // A terminal error / cancel is already reflected in run state; the
+          // A final error / cancel is already reflected in run state; the
           // commit effect records the (partial) assistant turn. Swallow so the
           // rejected start() promise does not surface as unhandled.
         });
     },
-    [agentRun, runActive, nextId],
+    [agentRun, messages, nextId, options.reefId, options.route, runActive],
   );
 
   const stop = useCallback(() => {
@@ -176,8 +155,7 @@ export function useWorkspaceChat(
 
   const clear = useCallback(() => {
     agentRun.cancel();
-    assistantIdRef.current = null;
-    setRunActive(false);
+    setAssistantId(null);
     setTurns([]);
   }, [agentRun]);
 

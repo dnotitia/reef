@@ -14,7 +14,6 @@ import {
   FileSearch,
   FileText,
   Loader2,
-  type LucideIcon,
   Search,
   Sparkles,
   Users,
@@ -22,18 +21,24 @@ import {
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
-const TOOL_ICONS: Record<string, LucideIcon> = {
-  search_issues: Search,
-  search_code: Search,
-  search_documents: FileSearch,
-  read_issue: FileText,
-  read_template: FileText,
-  list_assignees: Users,
-  dev_read_file: FileCode,
-};
-
-function toolIcon(toolName: string): LucideIcon {
-  return TOOL_ICONS[toolName] ?? Sparkles;
+function ToolIcon({ toolName }: { toolName: string }) {
+  const className = "size-3.5 text-muted-foreground";
+  switch (toolName) {
+    case "search_issues":
+    case "search_code":
+      return <Search aria-hidden="true" className={className} />;
+    case "search_documents":
+      return <FileSearch aria-hidden="true" className={className} />;
+    case "read_issue":
+    case "read_template":
+      return <FileText aria-hidden="true" className={className} />;
+    case "list_assignees":
+      return <Users aria-hidden="true" className={className} />;
+    case "dev_read_file":
+      return <FileCode aria-hidden="true" className={className} />;
+    default:
+      return <Sparkles aria-hidden="true" className={className} />;
+  }
 }
 
 /**
@@ -41,7 +46,7 @@ function toolIcon(toolName: string): LucideIcon {
  * streams, the active tool shows a live "Searching issues…" row; completed
  * tools collapse into "Searched issues · N results" rows that persist as history
  * once the answer settles. Expanding a completed row reveals the tool name,
- * summarized arguments, and result count — never the raw payload. Follows reef's
+ * summarized arguments, and result count, while omitting the raw payload. Follows reef's
  * disclosure idiom (CollapsedEventsRow) with the AI purple accent marking
  * machine work, distinct from the answer prose and from issue status colors.
  */
@@ -58,7 +63,7 @@ export function ToolStepTrace({
 
   if (steps.length === 0) return null;
 
-  // While streaming the steps are always shown (live progress); once settled
+  // While streaming the steps are shown (live progress); once settled
   // they collapse under the header disclosure.
   const showSteps = streaming || expanded;
 
@@ -125,14 +130,13 @@ function ToolStepRow({
   const labelKey = toolLabelKey(step.toolName);
   const count = toolResultCount(step);
   const args = summarizeToolInput(step);
-  const Icon = toolIcon(step.toolName);
   // Dynamic tool label key — the catalog carries a `.running`/`.done` pair for
   // each mapped tool plus a `generic` fallback.
   const label = t(
     `chatSteps.tool.${labelKey}.${step.status === "running" ? "running" : "done"}`,
   );
 
-  // A running step is a live indicator only — no disclosure, no result yet.
+  // A running step is a live indicator — no disclosure, no result yet.
   if (step.status === "running") {
     return (
       <li
@@ -166,10 +170,7 @@ function ToolStepRow({
               className="size-3.5 text-destructive"
             />
           ) : (
-            <Icon
-              aria-hidden="true"
-              className="size-3.5 text-muted-foreground"
-            />
+            <ToolIcon toolName={step.toolName} />
           )}
         </span>
         <span className="truncate text-xs text-foreground/90">{label}</span>

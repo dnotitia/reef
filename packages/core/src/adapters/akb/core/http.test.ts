@@ -62,7 +62,7 @@ describe("akb HTTP error translation (REEF-363)", () => {
     expect(err).toBeInstanceOf(AkbApiError);
     expect((err as AkbApiError).context.message).toContain("does not exist");
     // The load-bearing consequence: not-yet-provisioned table degrade paths
-    // still fire on akb's new 4xx error shape, not just the legacy 200 body.
+    // still fire on akb's new 4xx error shape, not just the older 200 body.
     expect(isMissingTableError(err)).toBe(true);
   });
 

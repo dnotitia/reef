@@ -40,8 +40,6 @@ export {
 } from "./projectState";
 export {
   buildWorkspaceChatSystemPrompt,
-  truncateForContext,
-  CHAT_ISSUE_CONTEXT_BODY_CHAR_LIMIT,
   type WorkspaceChatSystemPromptOptions,
 } from "./workspaceChat";
 

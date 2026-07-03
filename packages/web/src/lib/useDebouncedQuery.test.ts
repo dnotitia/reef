@@ -71,7 +71,7 @@ describe("useDebouncedQuery", () => {
     expect(result.current.raw).toBe("");
     expect(result.current.debounced).toBe("");
     expect(result.current.isDebouncing).toBe(false);
-    // The cancelled timer must not resurrect the pre-reset value a delay later.
+    // The cancelled timer should not resurrect the pre-reset value a delay later.
     act(() => vi.advanceTimersByTime(SEARCH_DEBOUNCE_COLD));
     expect(result.current.debounced).toBe("");
   });

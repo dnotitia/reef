@@ -8,8 +8,8 @@ import { REEF_ID_PATTERN } from "@/lib/markdown/remarkReefMentions";
  * Pure projections of chat tool state into the transparency surface (REEF-361
  * AC2/AC4): a stable i18n label key per tool, a one-line argument summary, a
  * result count, and the document citations / issue ids a turn's tools surfaced.
- * These never expose the full result payload — only the counts and the
- * caller-supplied query.
+ * These expose counts and the caller-supplied query while omitting the full
+ * result payload.
  */
 
 /** i18n key segments the `ai.chatSteps.tool.*` catalog carries a label pair for. */

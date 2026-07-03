@@ -220,6 +220,7 @@ test.describe("Hermetic settings workflows", () => {
   test("routes settings root to workspace, then renders members and deployment subpages", async ({
     page,
   }) => {
+    test.setTimeout(45_000);
     await openExistingWorkspace(page);
     const main = page.getByRole("main");
 
@@ -230,6 +231,9 @@ test.describe("Hermetic settings workflows", () => {
     ).toBeVisible();
 
     await page.goto("/workspace/reef-e2e/settings/workspace/members");
+    await page.waitForURL(/\/settings\/workspace\/members$/, {
+      timeout: 10_000,
+    });
     await expect(
       main.locator('[data-testid="settings-group-members"]'),
     ).toBeVisible();

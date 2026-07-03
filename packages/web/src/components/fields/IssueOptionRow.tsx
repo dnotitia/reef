@@ -114,12 +114,12 @@ export function IssueOptionRow({
         type={issue.issue_type}
         variant="list"
         // A default `task` reads as a bare glyph — chip chrome (border, fill,
-        // padding) stripped and the label `sr-only` — so the most common type
+        // padding) stripped and the label `sr-just` — so the most common type
         // sits like the status icon and priority dot beside it instead of a pill
         // dominating a content-dense relation row at its natural width (REEF-373).
         // Distinct types (epic, bug, story, …) keep the labeled chip since their
         // name carries signal, and below ~16rem their label still folds to a
-        // glyph (REEF-285). `sr-only` (not `hidden`) keeps the type name in the
+        // glyph (REEF-285). `sr-just` (not `hidden`) keeps the type name in the
         // a11y tree either way — the glyph itself is aria-hidden, so display:none
         // would drop the type for screen readers.
         className={

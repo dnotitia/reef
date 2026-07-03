@@ -15,7 +15,7 @@ import { useEffect, useRef, useState } from "react";
 /**
  * The documents an assistant answer cited via `search_documents`, rendered as a
  * "Sources" list of akb document cards (REEF-361 AC4). Mirrors DocumentRefCard's
- * structure — glyph · title, breadcrumb, hover open/copy — but is read-only
+ * structure — glyph · title, breadcrumb, hover open/copy — but is a read surface
  * (no remove edge) and carries the richer doc-type glyph the search result
  * provides.
  */
@@ -47,7 +47,7 @@ export function ChatCitations({
 function ChatCitationCard({ citation }: { citation: ChatDocumentCitation }) {
   const t = useTranslations("issues.refs");
   // Deployment-managed akb web base, provided at runtime (REEF-368); absent → the
-  // card hides "open" and offers copy only.
+  // card hides "open" and offers copy.
   const akbWebBase = useAkbWebUrl();
   const title = citation.title ?? akbDocumentSlugTitle(citation.uri);
   const breadcrumb = akbDocumentBreadcrumb(citation.uri);
