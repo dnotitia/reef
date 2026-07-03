@@ -101,7 +101,7 @@ test.describe("Hermetic dashboard surfaces and global dialogs", () => {
       return (
         response.ok() &&
         response.request().method() === "POST" &&
-        url.pathname === "/api/chat"
+        url.pathname === "/api/agents/runs"
       );
     });
     await page

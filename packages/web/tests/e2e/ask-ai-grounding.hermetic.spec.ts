@@ -4,15 +4,15 @@ import { openExistingWorkspace, resetFixture } from "./harness/fixture";
 /**
  * REEF-360 — context-aware chat grounding.
  *
- * Drives the real /api/chat route handler (only the upstream OpenRouter provider
- * is mocked in the fixture). The mock reply is a fixed "Mock OpenRouter
- * response." string, so this spec proves the *grounding wiring* end-to-end
- * rather than answer quality (that is unit/eval-covered):
+ * Drives the real /api/agents/runs route handler (chat.workspace task); only the
+ * upstream OpenRouter provider is mocked in the fixture. The mock reply is a
+ * fixed "Mock OpenRouter response." string, so this spec proves the *grounding
+ * wiring* end-to-end rather than answer quality (that is unit/eval-covered):
  *   - the issue-detail "Ask AI about this issue" affordance opens the panel with
  *     a context chip naming the issue (AC3);
- *   - the outgoing /api/chat request body carries `route` + `reefId` so core can
- *     ground on the current issue (AC2) — observed passively via waitForRequest,
- *     never a page.route mock (hermetic rule);
+ *   - the outgoing request body carries `input.route` + `input.reefId` so core
+ *     can ground on the current issue (AC2) — observed passively via
+ *     waitForRequest, never a page.route mock (hermetic rule);
  *   - removing the chip drops the grounding, sending a context-free request (AC3).
  */
 test.describe("Hermetic Ask AI context grounding (REEF-360)", () => {
@@ -39,10 +39,12 @@ test.describe("Hermetic Ask AI context grounding (REEF-360)", () => {
       page.locator('[data-testid="ask-ai-context-chip"]'),
     ).toContainText("REEF-001");
 
-    // AC2: the grounded request carries the current route + the issue id.
+    // AC2: the grounded request carries the current route + the issue id
+    // (agent-run body nests them under `input`).
     const groundedRequest = page.waitForRequest(
       (req) =>
-        req.method() === "POST" && new URL(req.url()).pathname === "/api/chat",
+        req.method() === "POST" &&
+        new URL(req.url()).pathname === "/api/agents/runs",
     );
     await page
       .locator('[data-testid="ask-ai-input"]')
@@ -50,8 +52,9 @@ test.describe("Hermetic Ask AI context grounding (REEF-360)", () => {
     await page.locator('[data-testid="ask-ai-send"]').click();
 
     const groundedBody = (await groundedRequest).postDataJSON();
-    expect(groundedBody.reefId).toBe("REEF-001");
-    expect(typeof groundedBody.route).toBe("string");
+    expect(groundedBody.task_id).toBe("chat.workspace");
+    expect(groundedBody.input.reefId).toBe("REEF-001");
+    expect(typeof groundedBody.input.route).toBe("string");
 
     await expect(
       page.locator('[data-testid="assistant-message"]').filter({
@@ -73,11 +76,12 @@ test.describe("Hermetic Ask AI context grounding (REEF-360)", () => {
 
     const contextFreeRequest = page.waitForRequest(
       (req) =>
-        req.method() === "POST" && new URL(req.url()).pathname === "/api/chat",
+        req.method() === "POST" &&
+        new URL(req.url()).pathname === "/api/agents/runs",
     );
     await page.locator('[data-testid="ask-ai-input"]').fill("And in general?");
     await page.locator('[data-testid="ask-ai-send"]').click();
     const contextFreeBody = (await contextFreeRequest).postDataJSON();
-    expect(contextFreeBody.reefId ?? null).toBeNull();
+    expect(contextFreeBody.input.reefId ?? null).toBeNull();
   });
 });

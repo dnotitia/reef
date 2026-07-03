@@ -218,7 +218,8 @@ function buildTools({
     ...(groundRepos && githubAdapter
       ? createRepoReadToolset({ githubAdapter, allowedRepos })
       : {}),
-    ...createWorkspaceReadToolset({ adapter, vault }),
+    // Chat opts into document search so answers can cite akb docs (REEF-361 AC4).
+    ...createWorkspaceReadToolset({ adapter, vault, includeDocuments: true }),
   };
 }
 

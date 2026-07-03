@@ -23,6 +23,13 @@ const tracer = trace.getTracer("reef-web");
 /**
  * POST /api/chat — multi-step agent loop endpoint.
  *
+ * @deprecated Superseded by `POST /api/agents/runs` (`task_id: "chat.workspace"`),
+ * which runs the identical core chat agent but streams agent-run SSE events
+ * (including tool-call transparency frames). The Ask AI client migrated off this
+ * route in REEF-361; nothing in `web` calls it anymore. It is kept only so the
+ * migration lands without deleting the legacy metrics/schema wiring in the same
+ * change — removal is tracked as a follow-up. Do not add new callers.
+ *
  * Wires the read reef chat task via `chat.workspace`:
  *   • vault reads (`read_issue`, `search_issues`, `list_assignees`) — akb
  *   • monitored-repo grounding (`search_code`, `dev_read_file`) — GitHub, via

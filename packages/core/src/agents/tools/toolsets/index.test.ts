@@ -35,6 +35,31 @@ describe("agent toolsets", () => {
     ).toEqual(["list_assignees", "read_issue", "search_issues"]);
   });
 
+  it("includes search_documents only when opted in (REEF-361)", () => {
+    const adapter = makeTestAkbAdapter();
+
+    // Default: no document search — keeps issue-only read-toolset consumers
+    // (e.g. the activity-scan semantic linker) unchanged.
+    expect(
+      Object.keys(createWorkspaceReadToolset({ adapter, vault: "reef-test" })),
+    ).not.toContain("search_documents");
+
+    expect(
+      Object.keys(
+        createWorkspaceReadToolset({
+          adapter,
+          vault: "reef-test",
+          includeDocuments: true,
+        }),
+      ).sort(),
+    ).toEqual([
+      "list_assignees",
+      "read_issue",
+      "search_documents",
+      "search_issues",
+    ]);
+  });
+
   it("builds repoRead as allowlist-scoped unbound or closure-bound to the selected repo", () => {
     const githubAdapter = createGitHubAdapter({ token: "test-token" });
 
