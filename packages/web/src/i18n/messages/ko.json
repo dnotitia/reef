@@ -1017,7 +1017,7 @@
     "unavailableTitle": "AI 사용 불가",
     "unavailableBody": "이 배포에는 AI가 구성되어 있지 않습니다.",
     "emptyState": "코드베이스에 대해 질문하세요 — 파일 위치, 참조, 작동 방식 등.",
-    "composerPlaceholder": "프로젝트에 대해 질문하세요...",
+    "composerPlaceholder": "프로젝트에 대해 질문하세요…",
     "issueContextChipLabel": "이슈 {id} 컨텍스트 사용 중",
     "removeIssueContext": "이슈 컨텍스트 제거",
     "fabLabel": "AI에게 질문하기 ({shortcut})",

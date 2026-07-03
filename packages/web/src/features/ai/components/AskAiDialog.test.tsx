@@ -176,7 +176,7 @@ describe("AskAiDialog", () => {
     expect(surface).toHaveAttribute("data-submit-testid", "ask-ai-send");
     expect(surface).toHaveAttribute(
       "data-composer-placeholder",
-      "Ask about your project...",
+      "Ask about your project…",
     );
     expect(screen.getByTestId("chat-surface-empty")).toHaveTextContent(
       "Ask about your codebase",

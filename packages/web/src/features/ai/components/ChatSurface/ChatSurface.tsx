@@ -118,6 +118,9 @@ export function ChatSurface({
           <PromptInputTextarea
             data-testid={inputTestId}
             placeholder={composerPlaceholder}
+            // A placeholder is not an accessible name; label the message input
+            // explicitly for screen readers.
+            aria-label={composerPlaceholder}
             disabled={composerDisabled || isBusy}
           />
         </PromptInputBody>

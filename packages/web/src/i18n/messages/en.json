@@ -834,7 +834,7 @@
     "unavailableTitle": "AI unavailable",
     "unavailableBody": "AI is not configured for this deployment.",
     "emptyState": "Ask about your codebase — file locations, references, how something works.",
-    "composerPlaceholder": "Ask about your project...",
+    "composerPlaceholder": "Ask about your project…",
     "issueContextChipLabel": "Grounded on issue {id}",
     "removeIssueContext": "Remove issue context",
     "fabLabel": "Ask AI ({shortcut})",
