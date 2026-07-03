@@ -136,16 +136,10 @@ function IssueDetailLoaded({
   const issue = data.issue;
   const isArchived = issue.archived_at != null;
 
-  // While this issue's detail is open, ground the Ask AI chat on it (REEF-360
-  // AC2): the panel and its context chip pick up this issue automatically.
-  // Keyed on issueId so removing the chip sticks until a different issue opens;
-  // cleared on unmount so a later context-free chat is not silently grounded.
-  const setAskAiIssueContext = useAskAiStore((s) => s.setIssueContext);
+  // "Ask AI about this issue" grounds the chat on this issue (REEF-360 AC3).
+  // Grounding is set only by this explicit affordance — not silently from the
+  // sheet being open — so the context chip always reflects a deliberate choice.
   const openAskAiWithIssue = useAskAiStore((s) => s.openWithIssue);
-  useEffect(() => {
-    setAskAiIssueContext(issueId);
-    return () => setAskAiIssueContext(null);
-  }, [issueId, setAskAiIssueContext]);
 
   useEffect(() => {
     // A save conflict (REEF-227): discard the rejected local edits and re-derive
@@ -321,7 +315,13 @@ function IssueDetailLoaded({
         isArchivePending={archiveMutation.isPending}
         isDeletePending={deleteMutation.isPending}
         onCopyLink={() => void handleCopyLink()}
-        onAskAi={() => openAskAiWithIssue(issueId)}
+        onAskAi={() => {
+          // Ground the chat on this issue, then close the full-height issue
+          // sheet so the floating Ask AI panel (bottom-right) is not occluded by
+          // it. The issue stays in the chat via the context chip + prefetch.
+          openAskAiWithIssue(issueId);
+          onClose();
+        }}
         onArchiveToggle={() => void handleArchiveToggle()}
         onDeleteRequested={() => setConfirmDeleteOpen(true)}
       />
