@@ -1,6 +1,6 @@
+import type { ChatAssistantTurn } from "@/features/ai/chat/chatTypes";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import type { ChatAssistantTurn } from "@/features/ai/chat/chatTypes";
 import { useWorkspaceChat } from "./useWorkspaceChat";
 
 // A frame carries an agent-run event; the client parses `data:` SSE lines.

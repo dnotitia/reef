@@ -1,6 +1,7 @@
 // @vitest-environment node
-import { describe, expect, it } from "vitest";
+
 import type { ChatToolStep } from "@/features/ai/chat/chatTypes";
+import { describe, expect, it } from "vitest";
 import {
   collectReferencedIssueIds,
   extractChatCitations,
@@ -66,9 +67,7 @@ describe("toolResultCount", () => {
 
   it("is null while a tool is still running", () => {
     expect(
-      toolResultCount(
-        step({ status: "running", output: { issues: [1] } }),
-      ),
+      toolResultCount(step({ status: "running", output: { issues: [1] } })),
     ).toBeNull();
   });
 });
@@ -93,7 +92,9 @@ describe("extractChatCitations", () => {
       step({
         toolCallId: "c2",
         toolName: "search_documents",
-        output: { documents: [{ uri: "akb://reef-e2e/doc/b.md", title: null }] },
+        output: {
+          documents: [{ uri: "akb://reef-e2e/doc/b.md", title: null }],
+        },
       }),
     ];
     const citations = extractChatCitations(steps);
