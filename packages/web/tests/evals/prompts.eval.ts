@@ -28,6 +28,7 @@ import {
   buildProjectStateUserPrompt,
   buildStatusRationaleSystemPrompt,
   buildStatusRationaleUserPrompt,
+  buildWorkspaceChatSystemPrompt,
 } from "@reef/core";
 
 import autoIssueCanned from "./fixtures/auto-issue-canned.json";
@@ -372,6 +373,69 @@ describe.concurrent("Prompt Builder Smoke Tests", () => {
       },
     ],
     task: async (input: string) => (input.length > 0 ? "non-empty" : "empty"),
+    scorers: [
+      ({ output, expected }) => ({
+        score: output === expected ? 1 : 0,
+      }),
+    ],
+    threshold: 1.0,
+  });
+
+  // REEF-360: the workspace chat grounding prompt must ground on the workspace
+  // summary + current issue AND stay Markdown-mode (never the projectState JSON
+  // contract). Deterministic assertion over the built prompt — no LLM needed.
+  describeEval("workspace-chat-system-prompt-grounding", {
+    skipIf: () => false,
+    data: async () => [
+      {
+        input: buildWorkspaceChatSystemPrompt({
+          summary: {
+            vault: "reef-e2e",
+            activeSprint: { name: "Sprint 6", goal: "Ship chat grounding" },
+            openIssueCount: 9,
+            statusCounts: [{ status: "todo", count: 9 }],
+          },
+          route: "/reef-e2e/issues",
+          issueContext: {
+            issue: {
+              id: "REEF-360",
+              title: "Context-aware chat grounding",
+              status: "in_progress",
+              issue_type: "story",
+              priority: "high",
+              assigned_to: "alice",
+              requester: null,
+              reporter: null,
+              start_date: null,
+              due_date: null,
+              milestone_id: null,
+              sprint_id: null,
+              release_id: null,
+              estimate_points: null,
+              severity: null,
+              parent_id: "REEF-337",
+              labels: ["story", "ai", "chat"],
+              depends_on: [],
+              blocks: [],
+              related_to: ["REEF-361"],
+            },
+            body: "## User Story\nGround the chat on this issue.",
+          },
+          hasRepoTools: true,
+        }),
+        expected: "grounded",
+      },
+    ],
+    task: async (input: string) => {
+      const grounds =
+        input.includes("reef-e2e") &&
+        input.includes("Sprint 6") &&
+        input.includes("REEF-360") &&
+        input.includes("Ground the chat on this issue.");
+      const isMarkdownMode =
+        input.includes("Markdown") && !input.includes("referenced_issue_ids");
+      return grounds && isMarkdownMode ? "grounded" : "ungrounded";
+    },
     scorers: [
       ({ output, expected }) => ({
         score: output === expected ? 1 : 0,

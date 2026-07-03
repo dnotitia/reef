@@ -132,6 +132,10 @@ export async function POST(request: Request): Promise<Response> {
             vault,
             llmAdapter,
             messages: runRequest.input.messages as UIMessage[],
+            // Same grounding seam as /api/chat (REEF-360 AC1): forward the
+            // route/issue hints when the caller supplies them.
+            route: runRequest.input.route,
+            currentIssueId: runRequest.input.reefId,
             onEvent: chatEvents.onLifecycleEvent,
             onError: (error) =>
               error instanceof Error ? error.message : "stream error",

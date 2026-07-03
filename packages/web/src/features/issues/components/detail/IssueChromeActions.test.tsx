@@ -17,6 +17,7 @@ function makeProps(overrides: Partial<ActionsProps> = {}): ActionsProps {
     isArchivePending: false,
     isDeletePending: false,
     onCopyLink: vi.fn(),
+    onAskAi: vi.fn(),
     onArchiveToggle: vi.fn(),
     onDeleteRequested: vi.fn(),
     ...overrides,
@@ -81,6 +82,16 @@ describe("IssueChromeActions", () => {
     await user.click(screen.getByTestId("issue-more-trigger"));
     await user.click(await screen.findByTestId("issue-copy-link"));
     expect(onCopyLink).toHaveBeenCalledTimes(1);
+  });
+
+  it("invokes 'Ask AI about this issue' from the menu (REEF-360)", async () => {
+    const user = userEvent.setup();
+    const onAskAi = vi.fn();
+    render(<IssueChromeActions {...makeProps({ onAskAi })} />);
+
+    await user.click(screen.getByTestId("issue-more-trigger"));
+    await user.click(await screen.findByTestId("issue-ask-ai"));
+    expect(onAskAi).toHaveBeenCalledTimes(1);
   });
 
   it("invokes archive and delete from the menu", async () => {

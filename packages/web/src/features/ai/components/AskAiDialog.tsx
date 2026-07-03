@@ -8,9 +8,10 @@ import { apiFetch } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { MessageSquarePlus, X } from "lucide-react";
+import { FileText, MessageSquarePlus, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect, useMemo } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useMemo, useRef } from "react";
 import { useAskAiStore } from "../stores/useAskAiStore";
 import { ChatSurface } from "./ChatSurface";
 
@@ -45,7 +46,11 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
   const isOpen = useAskAiStore((s) => s.isOpen);
   const close = useAskAiStore((s) => s.close);
   const markSeen = useAskAiStore((s) => s.markSeen);
+  const issueContext = useAskAiStore((s) => s.issueContext);
+  const setIssueContext = useAskAiStore((s) => s.setIssueContext);
   const { isAvailable, isLoading: aiLoading } = useAiAvailable();
+  // The route the PM is on — grounds the chat in where they are (REEF-360 AC2).
+  const pathname = usePathname();
   // The chat Route Handler reads the workspace from `X-Reef-Vault`, not a
   // `?vault=` query. Source it from the URL `[vault]` segment (via useActiveVault)
   // so two tabs on different workspaces send chat to their own workspace rather
@@ -53,12 +58,34 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
   // the Dexie value as a fallback when this is empty.
   const { vault } = useActiveVault();
 
+  // Latest grounding hints (route + open issue) read at send time. Held in a
+  // ref so the transport stays stable across route/context changes rather than
+  // being rebuilt on every navigation — `prepareSendMessagesRequest` reads the
+  // current values when a message is actually sent (REEF-360 AC2).
+  const groundingRef = useRef<{ route: string | null; reefId: string | null }>({
+    route: pathname ?? null,
+    reefId: issueContext?.reefId ?? null,
+  });
+  groundingRef.current = {
+    route: pathname ?? null,
+    reefId: issueContext?.reefId ?? null,
+  };
+
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
         api: "/api/chat",
         fetch: apiFetch,
         headers: vault ? { [VAULT_HEADER]: vault } : undefined,
+        prepareSendMessagesRequest: ({ messages, body, headers }) => ({
+          body: {
+            ...body,
+            messages,
+            route: groundingRef.current.route,
+            reefId: groundingRef.current.reefId,
+          },
+          headers,
+        }),
       }),
     [vault],
   );
@@ -171,6 +198,32 @@ export function AskAiDialog({ onMessageCountChange }: AskAiDialogProps) {
           composerDisabled={!isAvailable}
           inputTestId="ask-ai-input"
           submitTestId="ask-ai-send"
+          contextChip={
+            issueContext ? (
+              <div
+                data-testid="ask-ai-context-chip"
+                aria-label={t("issueContextChipLabel", {
+                  id: issueContext.reefId,
+                })}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2 py-1 text-xs text-muted-foreground"
+              >
+                <FileText className="h-3 w-3 shrink-0" aria-hidden="true" />
+                <span className="font-medium text-foreground" translate="no">
+                  {issueContext.reefId}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIssueContext(null)}
+                  aria-label={t("removeIssueContext")}
+                  title={t("removeIssueContext")}
+                  data-testid="ask-ai-context-remove"
+                  className="ml-0.5 rounded-sm text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ) : undefined
+          }
         />
       )}
     </div>

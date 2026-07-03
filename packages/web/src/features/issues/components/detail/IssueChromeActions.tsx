@@ -12,6 +12,7 @@ import {
   ArchiveRestore,
   Link2,
   MoreHorizontal,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -44,6 +45,7 @@ export function IssueChromeActions({
   isArchivePending,
   isDeletePending,
   onCopyLink,
+  onAskAi,
   onArchiveToggle,
   onDeleteRequested,
 }: {
@@ -54,6 +56,7 @@ export function IssueChromeActions({
   isArchivePending: boolean;
   isDeletePending: boolean;
   onCopyLink: () => void;
+  onAskAi: () => void;
   onArchiveToggle: () => void;
   onDeleteRequested: () => void;
 }) {
@@ -91,12 +94,19 @@ export function IssueChromeActions({
         >
           <MoreHorizontal className="h-4 w-4" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
-          {/* Copy link sits at the top as the one neutral, non-mutating action —
-              a wayfinding affordance above the state-change (archive) and
-              destructive (delete) items, matching the reference overflow-menu
-              pattern rather than crowding the width-constrained bar with a
-              standing button. */}
+        <DropdownMenuContent align="end" className="w-52">
+          {/* "Ask AI about this issue" and Copy link sit at the top as the
+              neutral, non-mutating wayfinding actions — above the state-change
+              (archive) and destructive (delete) items, matching the reference
+              overflow-menu pattern rather than crowding the width-constrained
+              bar with standing buttons. */}
+          <DropdownMenuItem
+            data-testid="issue-ask-ai"
+            onSelect={() => onAskAi()}
+          >
+            <Sparkles className="mr-2 h-4 w-4" />
+            {t("askAiAboutIssue")}
+          </DropdownMenuItem>
           <DropdownMenuItem
             data-testid="issue-copy-link"
             onSelect={() => onCopyLink()}

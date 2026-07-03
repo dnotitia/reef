@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { notifyUndoableSuccess } from "@/components/ui/toastFeedback";
+import { useAskAiStore } from "@/features/ai/stores/useAskAiStore";
 import { useArchiveIssue } from "@/features/issues/hooks/mutations/useArchiveIssue";
 import { useDeleteIssue } from "@/features/issues/hooks/mutations/useDeleteIssue";
 import { useUpdateIssue } from "@/features/issues/hooks/mutations/useUpdateIssue";
@@ -134,6 +135,11 @@ function IssueDetailLoaded({
   const handledConflictRef = useRef(conflictCount);
   const issue = data.issue;
   const isArchived = issue.archived_at != null;
+
+  // "Ask AI about this issue" grounds the chat on this issue (REEF-360 AC3).
+  // Grounding is set only by this explicit affordance — not silently from the
+  // sheet being open — so the context chip always reflects a deliberate choice.
+  const openAskAiWithIssue = useAskAiStore((s) => s.openWithIssue);
 
   useEffect(() => {
     // A save conflict (REEF-227): discard the rejected local edits and re-derive
@@ -309,6 +315,13 @@ function IssueDetailLoaded({
         isArchivePending={archiveMutation.isPending}
         isDeletePending={deleteMutation.isPending}
         onCopyLink={() => void handleCopyLink()}
+        onAskAi={() => {
+          // Ground the chat on this issue, then close the full-height issue
+          // sheet so the floating Ask AI panel (bottom-right) is not occluded by
+          // it. The issue stays in the chat via the context chip + prefetch.
+          openAskAiWithIssue(issueId);
+          onClose();
+        }}
         onArchiveToggle={() => void handleArchiveToggle()}
         onDeleteRequested={() => setConfirmDeleteOpen(true)}
       />

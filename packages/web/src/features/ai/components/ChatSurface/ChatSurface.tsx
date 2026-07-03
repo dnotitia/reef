@@ -41,6 +41,11 @@ export interface ChatSurfaceProps {
 
   composerPlaceholder?: string;
   /**
+   * Rendered just above the composer input — used for the current-issue context
+   * chip (REEF-360). Kept a slot so ChatSurface stays presentational.
+   */
+  contextChip?: ReactNode;
+  /**
    * Forces the composer disabled regardless of `status`. Used by callers that
    * need to suppress input for reasons orthogonal to streaming (e.g. AI is
    * unavailable in this deployment).
@@ -74,6 +79,7 @@ export function ChatSurface({
   error,
   emptyState,
   composerPlaceholder,
+  contextChip,
   composerDisabled,
   inputTestId,
   submitTestId,
@@ -121,6 +127,7 @@ export function ChatSurface({
         onSubmit={handleSubmit}
         className="border-t border-border-subtle"
       >
+        {contextChip && <div className="px-3 pt-2">{contextChip}</div>}
         <PromptInputBody className="px-3 py-2">
           <PromptInputTextarea
             data-testid={inputTestId}
