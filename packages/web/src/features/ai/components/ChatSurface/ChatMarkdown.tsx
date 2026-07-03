@@ -128,16 +128,36 @@ export const ChatMarkdown = memo(
     vault,
     className,
   }: ChatMarkdownProps) => {
+    // A serializable fingerprint of the deep-linkable set + vault. Recomputed
+    // only when the set identity changes (a tool completing mid-stream), not per
+    // streamed token.
+    const fingerprint = useMemo(
+      () => `${vault}:${[...knownIssueIds].sort().join(",")}`,
+      [knownIssueIds, vault],
+    );
+
     const remarkPlugins = useMemo<RemarkPlugins>(() => {
-      const options: ReefMentionOptions = {
+      const options: ReefMentionOptions & { cacheFingerprint: string } = {
         isKnown: (id) => knownIssueIds.has(id),
         hrefFor: (id) => withVault(vault, `/issues/${id}`),
+        // Streamdown keys its markdown-processor cache on
+        // `JSON.stringify(pluginSettings)`; the closures above serialize away, so
+        // renders with different known-id sets would otherwise share a processor
+        // frozen to the first set, and a mention proven mid-stream would stay
+        // plain text. The fingerprint makes the cache key differ so a fresh
+        // processor is built with the current set (REEF-361 AC3).
+        cacheFingerprint: fingerprint,
       };
       return [[remarkReefMentions, options]];
-    }, [knownIssueIds, vault]);
+    }, [knownIssueIds, vault, fingerprint]);
 
     return (
       <Streamdown
+        // Remount when the set changes so Streamdown actually re-parses the
+        // already-streamed text (its memo otherwise skips a re-render while the
+        // answer text is unchanged). Paired with `cacheFingerprint`, this rebuilds
+        // the processor against the new set instead of reusing the cached one.
+        key={fingerprint}
         className={cn(
           "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
           className,

@@ -38,6 +38,37 @@ describe("ChatMarkdown", () => {
     expect(allLinks.some((a) => a.textContent?.includes("REEF-9"))).toBe(false);
   });
 
+  it("re-links a mention once its id becomes known mid-stream (AC3 streaming)", async () => {
+    // REEF-77 is unique to this test so a leaked processor closure from another
+    // test cannot mark it known and mask the regression.
+    const content = "Blocked by REEF-77 now.";
+    const { container, rerender } = render(
+      <ChatMarkdown vault="reef-e2e" knownIssueIds={new Set()}>
+        {content}
+      </ChatMarkdown>,
+    );
+    await screen.findByText(/REEF-77/);
+    // Not yet proven → plain text.
+    expect(container.querySelectorAll('a[href^="/workspace/"]')).toHaveLength(
+      0,
+    );
+
+    // A tool completes mid-stream and proves REEF-77; the same answer text must
+    // now deep-link it rather than keeping a stale plain render.
+    rerender(
+      <ChatMarkdown vault="reef-e2e" knownIssueIds={new Set(["REEF-77"])}>
+        {content}
+      </ChatMarkdown>,
+    );
+    await waitFor(() => {
+      const link = container.querySelector(
+        'a[href="/workspace/reef-e2e/issues/REEF-77"]',
+      );
+      expect(link).not.toBeNull();
+      expect(link).toHaveTextContent("REEF-77");
+    });
+  });
+
   it("renders no in-app issue link when no ids are known", async () => {
     // Reference an id that no other test in this file marks known: Streamdown
     // keeps a module-level processor cache, so the `isKnown` closure from an
