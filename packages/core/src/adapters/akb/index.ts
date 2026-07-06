@@ -45,10 +45,12 @@ export {
   reorderBacklogIssues,
   deleteIssue,
   listIssues,
+  searchSimilarIssues,
   listIssueRelations,
   allocateNextIssueId,
   buildIssueMetadataFromCreateInput,
   writeMultipleIssues,
+  type SearchSimilarIssuesParams,
 } from "./issues/issues";
 export {
   listIssueReferences,

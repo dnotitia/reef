@@ -22,6 +22,13 @@ explicitly in the entries below.
   while text inputs, editors, search, comments, and IME composition keep
   shortcuts quiet. The keyboard shortcut dialog lists the new bindings in
   English and Korean. (REEF-344)
+- **Duplicate hints while drafting issues.** When you type a new issue title or
+  review an AI-generated draft, reef now searches the current workspace for
+  semantically similar issues and shows the top matches as status/id/title chips.
+  The hints appear after a short debounce, stay advisory only, can be dismissed
+  per issue or as a section, and never block creating or approving the draft.
+  Failed searches stay quiet so issue creation is not interrupted. (REEF-353,
+  epic REEF-334)
 - **A consistent loading line across search.** Every search that fetches from the
   server — ⌘K quick search, the issue list and backlog, and the Assignee /
   Requester and document-link pickers — now shows the same thin teal progress line

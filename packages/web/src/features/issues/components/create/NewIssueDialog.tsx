@@ -34,6 +34,7 @@ import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ISSUE_TYPE_OPTIONS, NO_SELECTION } from "../../lib/metadataOptions";
 import { IssueFieldRow } from "../shared/IssueFieldRow";
+import { SimilarIssuesSection } from "../shared/SimilarIssuesSection";
 import { DiscardDraftDialog } from "./DiscardDraftDialog";
 import { EnrichmentReferencesPanel } from "./EnrichmentReferencesPanel";
 import { IssueDraftFields } from "./IssueDraftFields";
@@ -495,6 +496,9 @@ export function NewIssueDialog() {
             titleInputRef={titleInputRef}
             title={title}
             onTitleChange={setTitle}
+            titleBelow={
+              <SimilarIssuesSection title={title} vault={vault ?? ""} />
+            }
             priority={priority}
             onPriorityChange={setPriority}
             labels={labels}
