@@ -137,8 +137,8 @@ function IssueDetailLoaded({
   const isArchived = issue.archived_at != null;
 
   // "Ask AI about this issue" grounds the chat on this issue (REEF-360 AC3).
-  // Grounding is set only by this explicit affordance — not silently from the
-  // sheet being open — so the context chip always reflects a deliberate choice.
+  // Grounding is set by this explicit affordance — not silently from the
+  // sheet being open — so the context chip reflects a deliberate choice.
   const openAskAiWithIssue = useAskAiStore((s) => s.openWithIssue);
 
   useEffect(() => {

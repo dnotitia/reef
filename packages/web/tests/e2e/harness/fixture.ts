@@ -12,6 +12,10 @@ export type FixtureScenario =
   | "skill_outdated";
 export const REEF_E2E_VAULT = "reef-e2e";
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export async function resetFixture(
   request: APIRequestContext,
   scenario: FixtureScenario,
@@ -127,9 +131,15 @@ export async function signInAndSelectExistingWorkspace(
   ).toBeEnabled();
 }
 
-export async function continueToWorkspace(page: Page): Promise<void> {
+export async function continueToWorkspace(
+  page: Page,
+  vault = REEF_E2E_VAULT,
+): Promise<void> {
   await page.locator('[data-testid="onboarding-continue-btn"]').click();
-  await page.waitForURL(/\/issues\/?$/, { timeout: 10_000 });
+  await expect(page).toHaveURL(
+    new RegExp(`/workspace/${escapeRegExp(vault)}/issues/?$`),
+    { timeout: 15_000 },
+  );
 }
 
 export async function openExistingWorkspace(
@@ -137,7 +147,7 @@ export async function openExistingWorkspace(
   vault = REEF_E2E_VAULT,
 ): Promise<void> {
   await signInAndSelectExistingWorkspace(page, vault);
-  await continueToWorkspace(page);
+  await continueToWorkspace(page, vault);
 }
 
 export async function waitForPasswordLogin(page: Page): Promise<void> {

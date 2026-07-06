@@ -914,15 +914,15 @@ describe("IssueDetail", () => {
     expect(screen.getByText("Delivery activity")).toBeInTheDocument();
     expect(screen.getByText("External references")).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText("Activity reference"), "123");
-    await user.type(
-      screen.getByLabelText("URL"),
-      "https://github.com/acme/app/pull/123",
-    );
-    await user.type(
-      screen.getByLabelText("Activity title"),
-      "Ship checkout flow",
-    );
+    fireEvent.change(screen.getByLabelText("Activity reference"), {
+      target: { value: "123" },
+    });
+    fireEvent.change(screen.getByLabelText("URL"), {
+      target: { value: "https://github.com/acme/app/pull/123" },
+    });
+    fireEvent.change(screen.getByLabelText("Activity title"), {
+      target: { value: "Ship checkout flow" },
+    });
     await user.click(screen.getByRole("button", { name: "Add activity" }));
 
     await waitFor(() => expect(patchCalls()).toHaveLength(1));

@@ -129,7 +129,7 @@ export const ChatMarkdown = memo(
     className,
   }: ChatMarkdownProps) => {
     // A serializable fingerprint of the deep-linkable set + vault. Recomputed
-    // only when the set identity changes (a tool completing mid-stream), not per
+    // when the set identity changes (a tool completing mid-stream), not per
     // streamed token.
     const fingerprint = useMemo(
       () => `${vault}:${[...knownIssueIds].sort().join(",")}`,

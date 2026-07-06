@@ -16,8 +16,9 @@ export const CHAT_ISSUE_CONTEXT_BODY_CHAR_LIMIT = 6000;
 /**
  * Delimiters that fence the untrusted issue body inside the system prompt so the
  * model can see exactly where user-authored content starts and ends. Any
- * occurrence of the end marker inside the body is neutralized before fencing so
- * a crafted description cannot spoof the boundary and escape the data block.
+ * occurrence of the end marker inside the body is neutralized before fencing to
+ * prevent a crafted description from spoofing the boundary and escaping the data
+ * block.
  */
 const ISSUE_BODY_START = "<<<ISSUE_BODY";
 const ISSUE_BODY_END = "ISSUE_BODY>>>";
@@ -25,9 +26,9 @@ const ISSUE_BODY_END = "ISSUE_BODY>>>";
 /**
  * Collapse control characters (newlines, tabs, etc.) in a user-authored single-
  * line field to spaces so a crafted value — an issue title, label, sprint goal,
- * relationship id — cannot break out of its line and forge a new section heading
- * or instruction inside the system prompt. The issue body is the one legitimately
- * multi-line field and is separately fenced; everything else is inline data.
+ * relationship id — stays on its line instead of forging a new section heading or
+ * instruction inside the system prompt. The issue body is the multi-line field
+ * and is separately fenced; the other fields are inline data.
  */
 function sanitizeInline(value: string): string {
   // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally stripping control chars from untrusted grounding fields.
@@ -60,7 +61,7 @@ export interface WorkspaceChatSystemPromptOptions {
  * workspace summary plus the current issue instead of the whole board.
  *
  * Pure and synchronous: it takes already-resolved, credential-safe data and
- * never reads I/O, so prompt assembly (context present/absent, truncation,
+ * performs no I/O, so prompt assembly (context present/absent, truncation,
  * absence of sensitive fields) is unit-tested in one place.
  */
 export function buildWorkspaceChatSystemPrompt(
@@ -158,7 +159,7 @@ function renderIssueContext(context: ChatIssueContext): string {
   );
 
   // Every interpolated field here is user-authored workspace content, so each is
-  // sanitized to a single line — only the body (fenced below) may span lines.
+  // sanitized to a single line — the fenced body (fenced below) may span lines.
   const list = (ids: string[] | undefined): string =>
     (ids ?? []).map(sanitizeInline).join(", ");
   const fields = [

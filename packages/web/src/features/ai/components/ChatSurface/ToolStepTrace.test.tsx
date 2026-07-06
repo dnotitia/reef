@@ -42,7 +42,7 @@ describe("ToolStepTrace", () => {
       />,
     );
     expect(screen.getByTestId("chat-tool-trace")).toBeInTheDocument();
-    // While streaming the step rows are always shown — the running step surfaces
+    // While streaming the step rows are shown — the running step surfaces
     // its live "Searching issues…" label with no disclosure of its own.
     expect(screen.getByText(/Searching issues/)).toBeInTheDocument();
   });
@@ -63,7 +63,7 @@ describe("ToolStepTrace", () => {
       />,
     );
 
-    // Settled → rows collapsed; only the header disclosure is present.
+    // Settled → rows collapsed; the header disclosure is present.
     expect(screen.queryByText("Searched issues")).not.toBeInTheDocument();
 
     // Expand the trace header to reveal the step history.
@@ -72,7 +72,7 @@ describe("ToolStepTrace", () => {
     expect(screen.getByText("3 results")).toBeInTheDocument();
 
     // The completed row is itself a disclosure; expanding it shows the tool name
-    // and the summarized argument — never the raw payload.
+    // and the summarized argument — not the raw payload.
     fireEvent.click(screen.getByRole("button", { name: /Searched issues/ }));
     expect(screen.getByText("search_issues")).toBeInTheDocument();
     expect(screen.getByText("login")).toBeInTheDocument();

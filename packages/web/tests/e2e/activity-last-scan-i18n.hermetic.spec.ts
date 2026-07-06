@@ -25,9 +25,9 @@ test.describe("Activity last-scan label i18n (REEF-300)", () => {
     // Drop the persisted React Query snapshot on every navigation so the
     // `/activity` mount below re-reads `['config', vault]` fresh and sees the
     // monitored repo seeded below. Without this, openExistingWorkspace's earlier
-    // config fetch (empty monitored_repos) stays cached within the 60s staleTime,
-    // so the refresh control never resolves a repo and stays `disabled` — a flaky
-    // 30s `activity-refresh` click timeout that only surfaces in the full suite.
+    // config fetch (no scan target) stays cached within the 60s staleTime, so
+    // the refresh control can stay hidden/disabled — a flaky 30s
+    // `activity-refresh` click timeout that only surfaces in the full suite.
     // Mirrors the settings.hermetic / settings-activity-scanning guard (REEF-220
     // staleTime race); REEF-296.
     await clearPersistedQueryCacheOnLoad(page);
@@ -36,12 +36,13 @@ test.describe("Activity last-scan label i18n (REEF-300)", () => {
     // (the activity page renders an empty-workspace notice without one).
     await openExistingWorkspace(page);
 
-    // Seed a single monitored repo so the scan control is active and targets a
+    // Seed the full scan precondition so the control is visible and targets a
     // repo the activity-scan boundary allows.
     const patch = await page.request.patch("/api/config", {
       data: {
         vault: REEF_E2E_VAULT,
         patch: {
+          ai_scanning_enabled: true,
           monitored_repos: [{ github_id: 1001, owner: "octo", name: "reef" }],
         },
       },

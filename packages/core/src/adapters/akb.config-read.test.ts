@@ -31,8 +31,8 @@ describe("readConfig (tables)", () => {
 
   it("returns DEFAULT_CONFIG when reef tables do not exist (HTTP 400 + detail envelope, akb REST — REEF-363)", async () => {
     // akb's newer REST surface returns a missing-relation error as HTTP 400
-    // with an object `detail: { message, code }` instead of the legacy HTTP
-    // 200 `{ error }` body. The degrade to DEFAULT_CONFIG must survive that
+    // with an object `detail: { message, code }` instead of the older HTTP
+    // 200 `{ error }` body. The degrade to DEFAULT_CONFIG should survive that
     // change, so `isMissingTableError` still has to recognize the new shape.
     setupFetch([
       makeSqlRuntimeError400Response(REEF_SETTINGS_TABLE),

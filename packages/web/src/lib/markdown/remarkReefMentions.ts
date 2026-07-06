@@ -1,14 +1,14 @@
 /**
- * A dependency-free remark plugin that turns `REEF-\d+` tokens into links, but
- * only for ids the caller recognizes — the "loaded issue list" rule (REEF-361
+ * A dependency-free remark plugin that turns `REEF-\d+` tokens into links for
+ * ids the caller recognizes — the "loaded issue list" rule (REEF-361
  * AC3). Unknown ids are left as plain text. It is surface-agnostic: the chat
  * renderer uses it now, and the editor autolink (REEF-348) can reuse the same
  * rule.
  *
  * Working on the mdast (not a raw-string pass) means code spans and fenced code
  * are skipped for free — their content lives in `inlineCode`/`code` nodes with a
- * `value`, never in the `text` nodes this walk rewrites — and existing links are
- * never nested. Each matched id becomes an mdast `link` carrying a
+ * `value`, outside the `text` nodes this walk rewrites — and existing links stay
+ * flat. Each matched id becomes an mdast `link` carrying a
  * `data-reef-id` hint the renderer keys on to open the issue in-app instead of
  * routing through the external-link confirmation.
  */
@@ -39,7 +39,7 @@ export function remarkReefMentions(options: ReefMentionOptions) {
   function transform(node: MdastNode): void {
     const children = node.children;
     if (!children) return;
-    // Never linkify inside an existing link — no nested anchors.
+    // Skip linkifying inside an existing link — no nested anchors.
     if (node.type === "link") return;
 
     const next: MdastNode[] = [];

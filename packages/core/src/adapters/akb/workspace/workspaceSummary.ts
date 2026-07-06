@@ -14,9 +14,9 @@ export interface GetWorkspaceSummaryParams {
 }
 
 /**
- * Terminal statuses excluded from the "open" count. Kept as literals (not the
- * StatusEnum import) so the summary stays a cheap read; keep in sync with
- * `StatusEnum` if a terminal status is ever added.
+ * Resolved statuses excluded from the "open" count. Kept as literals (not the
+ * StatusEnum import) so the summary stays a cheap read; update this set when
+ * `StatusEnum` gains another resolved status.
  */
 const TERMINAL_STATUSES = new Set(["done", "closed"]);
 
@@ -76,7 +76,7 @@ async function countIssuesByStatus(
       }))
       .filter((entry) => entry.status !== "");
   } catch (err) {
-    // A vault that has never onboarded reef has no reef_issues table yet — an
+    // A vault that has not onboarded reef has no reef_issues table yet — an
     // empty board, not an error.
     if (isMissingTableError(err)) return [];
     throw err;

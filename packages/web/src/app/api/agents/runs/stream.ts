@@ -155,7 +155,7 @@ export function createChatRunEventBridge(
   let seq = 0;
   let terminalEvent: AgentRunEvent | null = null;
   // Tool names arrive on `tool-input-available`; `tool-output-available` and
-  // `tool-output-error` carry only the call id, so remember the name here to
+  // `tool-output-error` carry the call id, so remember the name here to
   // pair the completion/error frame with its tool.
   const toolNames = new Map<string, string>();
 

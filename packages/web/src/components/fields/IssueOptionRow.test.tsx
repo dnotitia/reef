@@ -59,7 +59,7 @@ describe("IssueOptionRow", () => {
 
   it("renders a default task type as a bare glyph, not a chip (REEF-373)", () => {
     // `task` is the default, least-informative type, so it drops the pill chrome
-    // (border, fill, padding) and its label goes sr-only — a bare glyph that
+    // (border, fill, padding) and its label goes sr-just — a bare glyph that
     // reads like the status icon / priority dot instead of a pill dominating the
     // row. twMerge deletes the overridden chrome utilities from the class string.
     render(<IssueOptionRow issue={{ ...ISSUE, issue_type: "task" }} />);
@@ -69,14 +69,14 @@ describe("IssueOptionRow", () => {
     expect(pill.className).not.toContain("px-2");
     expect(pill.className).toContain("bg-transparent");
     expect(pill.className).toContain("px-0");
-    // The label is only visually hidden — the type name stays in the a11y tree,
+    // The label is visually hidden — the type name stays in the a11y tree,
     // since the glyph itself is aria-hidden (dropping it would lose the type).
     expect(typeLabel.className).toContain("sr-only");
     expect(typeLabel.className).not.toContain("@max-"); // hidden at all widths
   });
 
   it("keeps the labeled chip for a distinct (non-task) type (REEF-373)", () => {
-    // Distinct types earn a labeled pill because their name carries signal; only
+    // Distinct types earn a labeled pill because their name carries signal;
     // the width-driven <=16rem label fold from REEF-285 still applies to them.
     render(<IssueOptionRow issue={{ ...ISSUE, issue_type: "bug" }} />);
     const typeLabel = screen.getByText("Bug");

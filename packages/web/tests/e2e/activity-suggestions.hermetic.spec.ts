@@ -78,7 +78,10 @@ test.describe("Hermetic activity suggestion workflows", () => {
       .filter({ hasText: "Edited activity draft issue" })
       .getByRole("button", { name: "Approve" })
       .click();
-    await page.waitForURL(/\/issues\/REEF-004/, { timeout: 10_000 });
+    await expect(page).toHaveURL(
+      /\/workspace\/reef-e2e\/issues\/REEF-004\/?$/,
+      { timeout: 15_000 },
+    );
     await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
       "Edited activity draft issue",
     );

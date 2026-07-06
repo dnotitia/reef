@@ -132,7 +132,7 @@ describe("workspace chat agent task", () => {
 
     expect(stepCountIsMock).toHaveBeenCalledWith(10);
     const settings = getAgentSettings();
-    // Telemetry stays enabled for durations/tool counts, but never records the
+    // Telemetry stays enabled for durations/tool counts, but does not record the
     // grounding prompt or conversation into spans (AC5).
     expect(settings.experimental_telemetry).toEqual({
       isEnabled: true,
@@ -167,7 +167,7 @@ describe("workspace chat agent task", () => {
     expect(instructions).toContain("reef-test");
     expect(instructions).toContain("Sprint 6");
     expect(instructions).toContain("Open issues (not done/closed): 7");
-    // Chat output must be Markdown, never the projectState JSON contract.
+    // Chat output should be Markdown, not the projectState JSON contract.
     expect(instructions).toContain("Markdown");
     expect(instructions).not.toContain("referenced_issue_ids");
     // With no current issue, there is no issue section and no prefetch.

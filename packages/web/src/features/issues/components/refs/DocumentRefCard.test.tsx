@@ -4,12 +4,12 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { DocumentRefCard } from "./DocumentRefCard";
 
-// REEF-368: the "open in akb" backlink must be driven by the RUNTIME akb web
+// REEF-368: the "open in akb" backlink should be driven by the RUNTIME akb web
 // base handed down through AkbWebUrlProvider — the server reads it per request
 // and passes it to the client — not a build-time `NEXT_PUBLIC_*` inline that
 // silently vanished from a deployed bundle. These render the card with the base
 // provided (link shows, correct href) and absent (open action hidden, copy
-// only), which is exactly the contract the fix turns on.
+// available), which is exactly the contract the fix turns on.
 
 const REFERENCE = {
   uri: "akb://myvault/coll/docs/doc/spec.md",

@@ -35,7 +35,7 @@ export function DocumentRefCard({
   const t = useTranslations("issues.refs");
   // Deployment-managed akb web base, read on the server at request time and
   // provided at runtime (REEF-368); absent → the card hides "open" and offers
-  // copy only (reef-web has no in-app document viewer).
+  // copy (reef-web has no in-app document viewer).
   const akbWebBase = useAkbWebUrl();
   const title = reference.title ?? akbDocumentSlugTitle(reference.uri);
   const breadcrumb = akbDocumentBreadcrumb(reference.uri);
