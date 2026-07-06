@@ -643,6 +643,8 @@
       "noTemplates": "No templates defined yet. Add one in Settings → Templates.",
       "similar": {
         "heading": "Similar issues",
+        "checking": "Checking title…",
+        "topMatches": "Top {count} by similarity",
         "dismissSection": "Dismiss similar issues",
         "openIssue": "Open {id} in a new tab"
       }
