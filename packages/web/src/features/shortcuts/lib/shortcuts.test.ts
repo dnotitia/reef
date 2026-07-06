@@ -6,6 +6,8 @@ import {
   type ShortcutBinding,
   dispatchShortcut,
   formatKey,
+  formatShortcut,
+  getShortcutKeys,
   isEditableShortcutTarget,
   isInteractiveShortcutTarget,
   matchesShortcutKey,
@@ -40,6 +42,13 @@ describe("formatKey", () => {
   });
 });
 
+describe("formatShortcut", () => {
+  it("joins formatted key tokens in display order", () => {
+    expect(formatShortcut(["mod", "I"], true)).toBe("⌘+I");
+    expect(formatShortcut(["mod", "I"], false)).toBe("Ctrl+I");
+  });
+});
+
 describe("SHORTCUT_GROUPS", () => {
   it("declares the shortcuts the shell binds", () => {
     const flat = SHORTCUT_GROUPS.flatMap((g) =>
@@ -65,6 +74,21 @@ describe("SHORTCUT_GROUPS", () => {
         "toggleAskAi",
       ]),
     );
+  });
+
+  it("uses a browser-safe chord for the new issue action", () => {
+    const newIssue = SHORTCUT_GROUPS.flatMap((g) => g.shortcuts).find(
+      (s) => s.labelKey === "newIssue",
+    );
+    expect(newIssue?.keys).toEqual(["mod", "I"]);
+    expect(newIssue?.firefoxKeys).toEqual(["mod", "alt", "N"]);
+  });
+
+  it("keeps the Firefox fallback off the primary declaration by default", () => {
+    const newIssue = SHORTCUT_GROUPS.flatMap((g) => g.shortcuts).find(
+      (s) => s.labelKey === "newIssue",
+    );
+    expect(newIssue ? getShortcutKeys(newIssue) : []).toEqual(["mod", "I"]);
   });
 
   it("every shortcut declares at least one key", () => {

@@ -57,8 +57,22 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     const nav = page.getByRole("navigation", { name: "메인 내비게이션" });
     await expect(nav).toBeVisible();
     await expect(nav.getByRole("link", { name: "이슈" })).toBeVisible();
+    const newIssueShortcut = await page.evaluate(() => {
+      const nav = navigator as Navigator & {
+        userAgentData?: { platform?: string };
+      };
+      const probe = `${nav.userAgentData?.platform ?? ""} ${nav.userAgent} ${
+        nav.platform
+      }`;
+      if (/Firefox\//i.test(nav.userAgent)) {
+        return /Mac|iPhone|iPad/i.test(probe) ? "⌘+⌥+N" : "Ctrl+Alt+N";
+      }
+      return /Mac|iPhone|iPad/i.test(probe) ? "⌘+I" : "Ctrl+I";
+    });
     await expect(
-      page.getByRole("button", { name: "새 이슈 (Cmd+N)" }),
+      page.getByRole("button", {
+        name: `새 이슈 (${newIssueShortcut})`,
+      }),
     ).toBeVisible();
 
     // AC2 — persisted to both the Dexie config (canonical) and the readable

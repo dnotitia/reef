@@ -82,6 +82,12 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **The new issue keyboard shortcut no longer conflicts with the browser's new
+  window command.** The shortcut shown in the sidebar and keyboard-shortcuts
+  dialog now uses Cmd+I on macOS and Ctrl+I elsewhere, with a Firefox-safe
+  Cmd+Option+N / Ctrl+Alt+N fallback because Firefox reserves the Issue chord
+  for Page Info. The global handler opens the New Issue dialog only for the
+  advertised chord. (REEF-374)
 - **The "open in akb" link on a linked document now works in deployed
   environments.** A linked akb document's open action pointed at the akb web app
   using a build-time value, so in a container image built without the akb web URL

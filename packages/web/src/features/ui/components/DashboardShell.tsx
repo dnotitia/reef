@@ -38,6 +38,10 @@ import {
   type ShortcutBinding,
   type ShortcutScope,
   dispatchShortcut,
+  formatShortcut,
+  getNewIssueShortcutKeys,
+  isFirefoxLike,
+  isMacLike,
 } from "@/features/shortcuts/lib/shortcuts";
 import { useShortcutsStore } from "@/features/shortcuts/stores/useShortcutsStore";
 import { useViewStore } from "@/features/ui/stores/useViewStore";
@@ -188,6 +192,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   const [chatMounted, setChatMounted] = useState(
     () => useAskAiStore.getState().isOpen,
   );
+  const [macLike, setMacLike] = useState<boolean | null>(null);
   useEffect(() => {
     return useAskAiStore.subscribe((state) => {
       if (state.isOpen) {
@@ -195,6 +200,18 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
       }
     });
   }, []);
+
+  useEffect(() => {
+    setMacLike(isMacLike());
+  }, []);
+
+  const newIssueShortcut =
+    macLike === null
+      ? null
+      : formatShortcut(getNewIssueShortcutKeys(), macLike);
+  const newIssueLabel = newIssueShortcut
+    ? t("newIssueAriaLabel", { shortcut: newIssueShortcut })
+    : t("newIssue");
 
   // Auto-detection trigger lives at the shell so it fires regardless of which
   // page the user is on — Board / List / Settings all benefit. ActivityFeed
@@ -384,7 +401,9 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
       {
         labelKey: "newIssue",
         scope: "global",
-        keys: [{ key: "n", modKey: true }],
+        keys: isFirefoxLike()
+          ? [{ key: "n", code: "KeyN", primaryModKey: true, altKey: true }]
+          : [{ key: "i", code: "KeyI", primaryModKey: true }],
         allowInteractiveTarget: true,
         handler: openNewIssueDialog,
       },
@@ -584,8 +603,8 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
             size="sm"
             onClick={openNewIssueDialog}
             data-testid="new-issue-trigger"
-            aria-label={t("newIssueAriaLabel")}
-            title={t("newIssueTitle")}
+            aria-label={newIssueLabel}
+            title={newIssueLabel}
             className={cn("w-full", sidebarCollapsed && "px-0")}
           >
             <Plus className="h-3.5 w-3.5 shrink-0" />
@@ -702,7 +721,8 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
       </div>
 
       {/* Global new-issue dialog — single instance for the whole shell so any
-          trigger (sidebar button, ⌘N, future quick-add) shares state. */}
+          trigger (sidebar button, keyboard shortcut, future quick-add) shares
+          state. */}
       <NewIssueDialog />
 
       {/* Global create-workspace dialog (REEF-146) — single instance opened

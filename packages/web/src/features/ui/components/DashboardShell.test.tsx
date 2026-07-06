@@ -1,10 +1,10 @@
 import { useShortcutsStore } from "@/features/shortcuts/stores/useShortcutsStore";
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/apiClient", async () => {
   const actual =
@@ -109,6 +109,32 @@ function wrap(ui: ReactNode) {
 }
 
 describe("DashboardShell", () => {
+  const originalPlatform = Object.getOwnPropertyDescriptor(
+    window.navigator,
+    "platform",
+  );
+  const originalUserAgent = Object.getOwnPropertyDescriptor(
+    window.navigator,
+    "userAgent",
+  );
+
+  function mockNavigatorPlatform({
+    platform,
+    userAgent,
+  }: {
+    platform: string;
+    userAgent: string;
+  }) {
+    Object.defineProperty(window.navigator, "userAgent", {
+      value: userAgent,
+      configurable: true,
+    });
+    Object.defineProperty(window.navigator, "platform", {
+      value: platform,
+      configurable: true,
+    });
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
     navigationState.pathname = "/workspace/reef-acme/issues";
@@ -122,6 +148,15 @@ describe("DashboardShell", () => {
       newIssueDialogOpen: false,
     });
     useShortcutsStore.setState({ isOpen: false });
+  });
+
+  afterEach(() => {
+    if (originalPlatform) {
+      Object.defineProperty(window.navigator, "platform", originalPlatform);
+    }
+    if (originalUserAgent) {
+      Object.defineProperty(window.navigator, "userAgent", originalUserAgent);
+    }
   });
 
   it("renders the expanded sidebar brand lockup", () => {
@@ -327,6 +362,154 @@ describe("DashboardShell", () => {
     );
 
     expect(screen.getByTestId("keyboard-shortcuts-dialog")).toBeVisible();
+  });
+
+  it("opens the new issue dialog only on the browser-safe shortcut", () => {
+    mockNavigatorPlatform({
+      platform: "Win32",
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    });
+
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+
+    fireEvent.keyDown(window, { key: "N", ctrlKey: true });
+    expect(useViewStore.getState().newIssueDialogOpen).toBe(false);
+
+    fireEvent.keyDown(window, {
+      key: "I",
+      code: "KeyI",
+      ctrlKey: true,
+    });
+    expect(useViewStore.getState().newIssueDialogOpen).toBe(true);
+  });
+
+  it("labels the new issue shortcut with the active platform chord", async () => {
+    mockNavigatorPlatform({
+      platform: "Win32",
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    });
+
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "New issue (Ctrl+I)" }),
+    ).toHaveAttribute("title", "New issue (Ctrl+I)");
+  });
+
+  it("labels the Firefox new issue shortcut with the browser-safe fallback", async () => {
+    mockNavigatorPlatform({
+      platform: "Win32",
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:147.0) Firefox/147.0",
+    });
+
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "New issue (Ctrl+Alt+N)" }),
+    ).toHaveAttribute("title", "New issue (Ctrl+Alt+N)");
+  });
+
+  it("opens the new issue dialog on the advertised macOS issue shortcut", () => {
+    mockNavigatorPlatform({
+      platform: "MacIntel",
+      userAgent:
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+    });
+
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+
+    fireEvent.keyDown(window, {
+      key: "I",
+      code: "KeyI",
+      metaKey: true,
+    });
+    expect(useViewStore.getState().newIssueDialogOpen).toBe(true);
+  });
+
+  it("opens the new issue dialog on the advertised Firefox fallback", () => {
+    mockNavigatorPlatform({
+      platform: "Win32",
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:147.0) Firefox/147.0",
+    });
+
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+
+    fireEvent.keyDown(window, {
+      key: "I",
+      code: "KeyI",
+      ctrlKey: true,
+    });
+    expect(useViewStore.getState().newIssueDialogOpen).toBe(false);
+
+    fireEvent.keyDown(window, {
+      key: "N",
+      code: "KeyN",
+      ctrlKey: true,
+      altKey: true,
+    });
+    expect(useViewStore.getState().newIssueDialogOpen).toBe(true);
+  });
+
+  it("ignores unadvertised Control+I on macOS", () => {
+    mockNavigatorPlatform({
+      platform: "MacIntel",
+      userAgent:
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+    });
+
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+
+    fireEvent.keyDown(window, {
+      key: "I",
+      code: "KeyI",
+      ctrlKey: true,
+    });
+    expect(useViewStore.getState().newIssueDialogOpen).toBe(false);
+
+    fireEvent.keyDown(window, {
+      key: "I",
+      code: "KeyI",
+      metaKey: true,
+    });
+    expect(useViewStore.getState().newIssueDialogOpen).toBe(true);
   });
 
   it("keeps the collapsed shortcuts utility above the identity controls (REEF-170)", () => {
