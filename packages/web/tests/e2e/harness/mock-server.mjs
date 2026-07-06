@@ -4,6 +4,9 @@ const PORT = Number(process.env.REEF_E2E_MOCK_PORT ?? 7354);
 const HOST = process.env.REEF_E2E_MOCK_HOST ?? "127.0.0.1";
 const NOW = "2026-06-15T00:00:00.000Z";
 const REEF_VAULT = "reef-e2e";
+const TOOL_LOOP_E2E_PROMPT = "tool transparency e2e";
+const TOOL_LOOP_SEARCH_ISSUES_CALL_ID = "call_e2e_search_issues";
+const TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID = "call_e2e_search_documents";
 
 // A monotonically-advancing "edit clock". Each issue-row UPDATE stamps an
 // `updated_at` strictly later than the seeded `NOW`, mirroring real akb, which
@@ -364,6 +367,14 @@ function configuredVault(name) {
   seedIssueDocument(vault, "REEF-001", "Alpha description from fixture.");
   seedIssueDocument(vault, "REEF-002", "Beta description from fixture.");
   seedIssueDocument(vault, "REEF-003", "Gamma backlog description.");
+  seedReferenceDocument(vault, "docs/spec-overview.md", {
+    title: "Spec overview",
+    type: "reference",
+    summary: "Fixture document cited by Ask AI tool-loop coverage.",
+    content:
+      "Spec overview for the hermetic Ask AI tool transparency workflow.",
+    tags: ["docs", "ask-ai", "e2e"],
+  });
   return vault;
 }
 
@@ -872,7 +883,10 @@ async function handleAkb(req, res, url) {
   }
 
   if (path === "/api/v1/search" && req.method === "GET") {
-    return json(res, 200, { results: [] });
+    const vault = getVault(url.searchParams.get("vault") ?? REEF_VAULT, res);
+    if (!vault) return;
+    if (isToolLoopSearch(url)) await sleep(350);
+    return json(res, 200, { results: searchVaultDocuments(vault, url) });
   }
 
   return json(res, 404, { error: `unhandled akb mock route: ${path}` });
@@ -1435,62 +1449,19 @@ async function handleOpenRouter(req, res) {
     const body = await readJson(req);
     if (body?.stream === true) {
       const created = Math.floor(new Date(NOW).getTime() / 1000);
-      const chunks = [
-        {
-          type: "response.created",
-          response: {
-            id: "resp-e2e",
-            created_at: created,
-            model: "e2e/mock-model",
-            service_tier: null,
-          },
-        },
-        {
-          type: "response.output_item.added",
-          output_index: 0,
-          item: {
-            type: "message",
-            id: "msg-e2e",
-            phase: "final_answer",
-          },
-        },
-        {
-          type: "response.output_text.delta",
-          item_id: "msg-e2e",
-          delta: "Mock OpenRouter response.",
-        },
-        {
-          type: "response.output_item.done",
-          output_index: 0,
-          item: {
-            type: "message",
-            id: "msg-e2e",
-            phase: "final_answer",
-          },
-        },
-        {
-          type: "response.completed",
-          response: {
-            incomplete_details: null,
-            usage: {
-              input_tokens: 8,
-              output_tokens: 4,
-              input_tokens_details: { cached_tokens: 0 },
-              output_tokens_details: { reasoning_tokens: 0 },
-            },
-            service_tier: null,
-          },
-        },
-      ];
-      res.writeHead(200, {
-        "Content-Type": "text/event-stream; charset=utf-8",
-        "Cache-Control": "no-cache, no-transform",
-        Connection: "keep-alive",
-      });
-      for (const chunk of chunks) {
-        res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+      if (isToolLoopResultTurn(body)) {
+        await streamOpenRouterChunks(res, finalToolLoopChunks(created), {
+          delayBeforeTextDeltaMs: 250,
+        });
+        return;
       }
-      res.end("data: [DONE]\n\n");
+      if (isToolLoopPromptTurn(body)) {
+        await streamOpenRouterChunks(res, initialToolLoopChunks(created), {
+          delayAfterFunctionCallMs: 180,
+        });
+        return;
+      }
+      await streamOpenRouterChunks(res, basicTextChunks(created));
       return;
     }
     return json(res, 200, {
@@ -1511,6 +1482,229 @@ async function handleOpenRouter(req, res) {
     });
   }
   return json(res, 404, { error: "not_found" });
+}
+
+function basicTextChunks(created) {
+  return [
+    responseCreatedChunk("resp-e2e", created),
+    messageAddedChunk("msg-e2e"),
+    textDeltaChunk("msg-e2e", "Mock OpenRouter response."),
+    messageDoneChunk("msg-e2e"),
+    completedChunk({ inputTokens: 8, outputTokens: 4 }),
+  ];
+}
+
+function initialToolLoopChunks(created) {
+  return [
+    responseCreatedChunk("resp-e2e-tools", created),
+    ...functionCallChunks({
+      outputIndex: 0,
+      id: "fc-e2e-search-issues",
+      callId: TOOL_LOOP_SEARCH_ISSUES_CALL_ID,
+      name: "search_issues",
+      input: {
+        query: "Initial issue Alpha",
+        status: null,
+        assigned_to: null,
+        labels: null,
+        limit: 3,
+      },
+    }),
+    ...functionCallChunks({
+      outputIndex: 1,
+      id: "fc-e2e-search-documents",
+      callId: TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID,
+      name: "search_documents",
+      input: {
+        query: "Spec overview",
+        limit: 3,
+      },
+    }),
+    completedChunk({ inputTokens: 21, outputTokens: 16 }),
+  ];
+}
+
+function finalToolLoopChunks(created) {
+  const text =
+    "I found REEF-001 from the issue search and the Spec overview document as supporting context.";
+  return [
+    responseCreatedChunk("resp-e2e-tools-final", created),
+    messageAddedChunk("msg-e2e-tools-final"),
+    textDeltaChunk("msg-e2e-tools-final", text),
+    messageDoneChunk("msg-e2e-tools-final"),
+    completedChunk({ inputTokens: 34, outputTokens: 18 }),
+  ];
+}
+
+function responseCreatedChunk(id, created) {
+  return {
+    type: "response.created",
+    response: {
+      id,
+      created_at: created,
+      model: "e2e/mock-model",
+      service_tier: null,
+    },
+  };
+}
+
+function messageAddedChunk(id) {
+  return {
+    type: "response.output_item.added",
+    output_index: 0,
+    item: {
+      type: "message",
+      id,
+      phase: "final_answer",
+    },
+  };
+}
+
+function textDeltaChunk(itemId, delta) {
+  return {
+    type: "response.output_text.delta",
+    item_id: itemId,
+    delta,
+  };
+}
+
+function messageDoneChunk(id) {
+  return {
+    type: "response.output_item.done",
+    output_index: 0,
+    item: {
+      type: "message",
+      id,
+      phase: "final_answer",
+    },
+  };
+}
+
+function functionCallChunks({ outputIndex, id, callId, name, input }) {
+  const args = JSON.stringify(input);
+  return [
+    {
+      type: "response.output_item.added",
+      output_index: outputIndex,
+      item: {
+        type: "function_call",
+        id,
+        call_id: callId,
+        name,
+        arguments: "",
+        namespace: null,
+      },
+    },
+    {
+      type: "response.function_call_arguments.delta",
+      item_id: id,
+      output_index: outputIndex,
+      delta: args,
+    },
+    {
+      type: "response.output_item.done",
+      output_index: outputIndex,
+      item: {
+        type: "function_call",
+        id,
+        call_id: callId,
+        name,
+        arguments: args,
+        status: "completed",
+        namespace: null,
+      },
+    },
+  ];
+}
+
+function completedChunk({ inputTokens, outputTokens }) {
+  return {
+    type: "response.completed",
+    response: {
+      incomplete_details: null,
+      usage: {
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        input_tokens_details: { cached_tokens: 0 },
+        output_tokens_details: { reasoning_tokens: 0 },
+      },
+      service_tier: null,
+    },
+  };
+}
+
+async function streamOpenRouterChunks(
+  res,
+  chunks,
+  { delayAfterFunctionCallMs = 0, delayBeforeTextDeltaMs = 0 } = {},
+) {
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+  });
+  for (const chunk of chunks) {
+    if (
+      delayBeforeTextDeltaMs > 0 &&
+      chunk.type === "response.output_text.delta"
+    ) {
+      await sleep(delayBeforeTextDeltaMs);
+    }
+    res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+    if (
+      delayAfterFunctionCallMs > 0 &&
+      chunk.type === "response.output_item.done" &&
+      chunk.item?.type === "function_call"
+    ) {
+      await sleep(delayAfterFunctionCallMs);
+    }
+  }
+  res.end("data: [DONE]\n\n");
+}
+
+function isToolLoopPromptTurn(body) {
+  return collectStrings(body?.input).some((value) =>
+    value.toLowerCase().includes(TOOL_LOOP_E2E_PROMPT),
+  );
+}
+
+function isToolLoopResultTurn(body) {
+  return (
+    hasFunctionCallOutput(body?.input, TOOL_LOOP_SEARCH_ISSUES_CALL_ID) ||
+    hasFunctionCallOutput(body?.input, TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID)
+  );
+}
+
+function hasFunctionCallOutput(value, callId) {
+  if (Array.isArray(value)) {
+    return value.some((item) => hasFunctionCallOutput(item, callId));
+  }
+  if (!value || typeof value !== "object") return false;
+  if (value.type === "function_call_output" && value.call_id === callId) {
+    return true;
+  }
+  return Object.values(value).some((item) =>
+    hasFunctionCallOutput(item, callId),
+  );
+}
+
+function collectStrings(value, strings = []) {
+  if (typeof value === "string") {
+    strings.push(value);
+    return strings;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectStrings(item, strings);
+    return strings;
+  }
+  if (value && typeof value === "object") {
+    for (const item of Object.values(value)) collectStrings(item, strings);
+  }
+  return strings;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function handleGitHub(req, res, url) {
@@ -1615,6 +1809,87 @@ function seedIssueDocument(vault, id, content) {
     updated_at: NOW,
     current_commit: `e2e-seed-${slugify(id)}`,
   });
+}
+
+function seedReferenceDocument(
+  vault,
+  path,
+  { title, type, summary, content, tags },
+) {
+  vault.documents.set(path, {
+    uri: docUri(vault.name, path),
+    vault: vault.name,
+    path,
+    title,
+    type,
+    status: "active",
+    summary,
+    content,
+    tags,
+    created_at: NOW,
+    updated_at: NOW,
+    current_commit: `e2e-seed-${slugify(path)}`,
+  });
+}
+
+function searchVaultDocuments(vault, url) {
+  const collection = url.searchParams.get("collection");
+  const type = url.searchParams.get("type");
+  const query = (url.searchParams.get("q") ?? "").trim().toLowerCase();
+  const limit = Math.max(1, Number(url.searchParams.get("limit") ?? 10));
+
+  return [...vault.documents.values()]
+    .filter((doc) => {
+      if (collection && !doc.path.startsWith(`${collection}/`)) return false;
+      if (type && doc.type !== type) return false;
+      return true;
+    })
+    .map((doc) => ({
+      doc,
+      score: searchScore(doc, query),
+    }))
+    .filter(({ score }) => query.length === 0 || score > 0)
+    .sort((a, b) => b.score - a.score || a.doc.path.localeCompare(b.doc.path))
+    .slice(0, limit)
+    .map(({ doc, score }) => ({
+      uri: doc.uri,
+      vault: vault.name,
+      title: doc.title ?? null,
+      summary: doc.summary ?? null,
+      score,
+      matched_section: doc.summary ?? doc.content?.slice(0, 160) ?? null,
+      source_type: "document",
+      collection: doc.path.split("/").at(0) ?? null,
+      doc_type: doc.type ?? null,
+      tags: doc.tags ?? [],
+    }));
+}
+
+function isToolLoopSearch(url) {
+  const query = (url.searchParams.get("q") ?? "").toLowerCase();
+  return (
+    query.includes("initial issue alpha") || query.includes("spec overview")
+  );
+}
+
+function searchScore(doc, query) {
+  if (!query) return 1;
+  const haystack = [
+    doc.path,
+    doc.title,
+    doc.summary,
+    doc.content,
+    ...(doc.tags ?? []),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (haystack.includes(query)) return 1;
+  const terms = query.split(/\s+/).filter(Boolean);
+  return terms.reduce(
+    (score, term) => score + (haystack.includes(term) ? 1 / terms.length : 0),
+    0,
+  );
 }
 
 function seedActivitySuggestions(vault) {
