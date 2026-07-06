@@ -91,6 +91,7 @@ const {
 vi.mock("next/navigation", () => ({
   usePathname: () => navigationState.pathname,
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 import { useViewStore } from "../stores/useViewStore";

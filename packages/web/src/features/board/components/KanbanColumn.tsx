@@ -14,6 +14,7 @@ const EMPTY_BLOCKED_IDS: ReadonlySet<string> = new Set();
 
 export interface KanbanColumnProps {
   status: Status;
+  vault?: string;
   issues: IssueListItem[];
   /**
    * Blocked-issue ids precomputed once by the board (see `computeBlockedIds`).
@@ -29,6 +30,7 @@ export interface KanbanColumnProps {
 // clashing with the AI-purple semantics reserved for AI features.
 export const KanbanColumn = memo(function KanbanColumn({
   status,
+  vault,
   issues,
   blockedIds = EMPTY_BLOCKED_IDS,
   planningCatalog,
@@ -74,6 +76,7 @@ export const KanbanColumn = memo(function KanbanColumn({
         {issues.map((issue) => (
           <KanbanCard
             key={issue.id}
+            vault={vault}
             issue={issue}
             blocked={blockedIds.has(issue.id)}
             planningCatalog={planningCatalog}

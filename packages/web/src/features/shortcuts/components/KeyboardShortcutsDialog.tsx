@@ -56,24 +56,42 @@ export function KeyboardShortcutsDialog() {
                       {t(`shortcutActions.${sc.labelKey}`)}
                     </span>
                     <span className="flex items-center gap-1">
-                      {sc.keys.map((key, i) => (
-                        // Combine the shortcut label with the token + slot
-                        // so each row's key sequence is stable even when two
-                        // shortcuts share a modifier ("mod" appears in many).
-                        <Fragment key={`${sc.labelKey}:${i}:${key}`}>
-                          {i > 0 && (
-                            <span
-                              aria-hidden="true"
-                              className="text-[10px] text-muted-foreground"
-                            >
-                              +
-                            </span>
-                          )}
-                          <kbd className="inline-flex h-5 min-w-[20px] items-center justify-center rounded border border-border-subtle bg-surface-subtle px-1.5 font-mono text-[11px] font-medium text-foreground tabular-nums shadow-[0_1px_0_0_rgb(0_0_0_/_0.05)]">
-                            {formatKey(key, mac)}
-                          </kbd>
-                        </Fragment>
-                      ))}
+                      {[sc.keys, ...(sc.alternateKeys ?? [])].map(
+                        (sequence, sequenceIndex) => (
+                          <Fragment
+                            key={`${sc.labelKey}:sequence:${sequenceIndex}`}
+                          >
+                            {sequenceIndex > 0 && (
+                              <span
+                                aria-hidden="true"
+                                className="px-0.5 text-[10px] text-muted-foreground"
+                              >
+                                /
+                              </span>
+                            )}
+                            {sequence.map((key, i) => (
+                              // Combine the shortcut label with the token + slot
+                              // so each row's key sequence is stable even when two
+                              // shortcuts share a modifier ("mod" appears in many).
+                              <Fragment
+                                key={`${sc.labelKey}:${sequenceIndex}:${i}:${key}`}
+                              >
+                                {i > 0 && (
+                                  <span
+                                    aria-hidden="true"
+                                    className="text-[10px] text-muted-foreground"
+                                  >
+                                    +
+                                  </span>
+                                )}
+                                <kbd className="inline-flex h-5 min-w-[20px] items-center justify-center rounded border border-border-subtle bg-surface-subtle px-1.5 font-mono text-[11px] font-medium text-foreground tabular-nums shadow-[0_1px_0_0_rgb(0_0_0_/_0.05)]">
+                                  {formatKey(key, mac)}
+                                </kbd>
+                              </Fragment>
+                            ))}
+                          </Fragment>
+                        ),
+                      )}
                     </span>
                   </li>
                 ))}

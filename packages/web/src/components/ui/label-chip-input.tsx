@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 interface LabelChipInputProps {
   value: readonly string[];
@@ -12,6 +12,7 @@ interface LabelChipInputProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  autoFocus?: boolean;
   "data-testid"?: string;
 }
 
@@ -22,6 +23,7 @@ export function LabelChipInput({
   placeholder,
   disabled = false,
   className,
+  autoFocus = false,
   "data-testid": testId,
 }: LabelChipInputProps) {
   const [draft, setDraft] = useState("");
@@ -30,6 +32,10 @@ export function LabelChipInput({
   const inputId = id ?? generatedId;
   const t = useTranslations("components.labelInput");
   const resolvedPlaceholder = placeholder ?? t("placeholder");
+
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus();
+  }, [autoFocus]);
 
   function addLabels(parts: string[]) {
     if (parts.length === 0) return;

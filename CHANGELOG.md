@@ -14,6 +14,14 @@ explicitly in the entries below.
 
 ### Added
 
+- **Keyboard-first issue scanning.** The Issues list and board now support
+  roving keyboard focus with `j`/`k` or arrow keys, `Enter` opens the focused
+  issue, and single-key field edits (`s`, `a`, `p`, `l`) open the existing
+  status, assignee, priority, and label controls anchored to the focused row or
+  card. A new `g` chord jumps to Issues, My Work, Activity, Reports, or Backlog,
+  while text inputs, editors, search, comments, and IME composition keep
+  shortcuts quiet. The keyboard shortcut dialog lists the new bindings in
+  English and Korean. (REEF-344)
 - **A consistent loading line across search.** Every search that fetches from the
   server — ⌘K quick search, the issue list and backlog, and the Assignee /
   Requester and document-link pickers — now shows the same thin teal progress line

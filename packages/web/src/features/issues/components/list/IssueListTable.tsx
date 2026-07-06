@@ -22,6 +22,7 @@ import {
   searchIssues,
   sortIssues,
 } from "@/features/issues/lib/issueListUtils";
+import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { PageBody } from "@/features/ui/components/PageBody";
@@ -29,7 +30,7 @@ import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { DURATION_BASE, EASE_SIGNATURE } from "@/lib/motionTokens";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
 import { useTranslations } from "next-intl";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 const EMPTY_ISSUES: never[] = [];
 
@@ -96,6 +97,18 @@ export function IssueListTable({ vault }: IssueListTableProps) {
     );
     return sortIssues(depFiltered, filter.sortField, filter.sortOrder);
   }, [allIssues, filter, graph, searchQuery, staleWindowDays]);
+  const visibleIssueIds = useMemo(
+    () => sorted.map((issue) => issue.id),
+    [sorted],
+  );
+  useEffect(() => {
+    useIssueKeyboardStore
+      .getState()
+      .setVisibleIssueIds("list", visibleIssueIds);
+    return () => {
+      useIssueKeyboardStore.getState().setVisibleIssueIds("list", []);
+    };
+  }, [visibleIssueIds]);
 
   const hasActiveFilters = !!(
     filter.status?.length ||

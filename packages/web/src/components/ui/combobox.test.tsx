@@ -278,6 +278,26 @@ describe("Combobox", () => {
     expect(onChange).toHaveBeenCalledWith("apple");
   });
 
+  it("does not clear a missing value when opened through controlled state", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <Combobox<string>
+        value="kiwi"
+        onChange={onChange}
+        options={FRUITS}
+        open
+        ariaLabel="Fruit"
+        placeholder="Pick"
+        renderValue={(v) => <span>{v}</span>}
+        noneOption={{ label: "Any fruit" }}
+      />,
+    );
+
+    await user.keyboard("{Enter}");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("keeps the caller's id so an external <label htmlFor> associates", () => {
     render(
       <div>

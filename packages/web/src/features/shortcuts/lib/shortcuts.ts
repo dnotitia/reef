@@ -5,9 +5,30 @@ export type ShortcutGroupKey = "navigation" | "issues" | "ai" | "misc";
 export type ShortcutActionKey =
   | "openGlobalSearch"
   | "showKeyboardShortcuts"
+  | "goIssues"
+  | "goMyWork"
+  | "goActivity"
+  | "goReports"
+  | "goBacklog"
   | "newIssue"
+  | "focusNextIssue"
+  | "focusPreviousIssue"
+  | "openFocusedIssue"
+  | "editStatus"
+  | "editAssignee"
+  | "editPriority"
+  | "editLabels"
   | "toggleAskAi"
   | "closeDialogClearSearch";
+
+export type ShortcutScope = "global" | "list" | "board" | "detail";
+
+export interface ShortcutKeySpec {
+  key: string;
+  modKey?: boolean;
+  shiftKey?: boolean;
+  altKey?: boolean;
+}
 
 export interface Shortcut {
   /** Catalog key for the short, action-style label (resolved at render). */
@@ -16,6 +37,9 @@ export interface Shortcut {
    *  strings "mod" (⌘ on macOS, Ctrl elsewhere) and "shift"; literal keys
    *  (e.g. "K") are passed through unchanged. */
   keys: ReadonlyArray<string>;
+  /** Alternate physical bindings for the same action, rendered after a slash. */
+  alternateKeys?: ReadonlyArray<ReadonlyArray<string>>;
+  scope: ShortcutScope;
 }
 
 export interface ShortcutGroup {
@@ -28,23 +52,175 @@ export const SHORTCUT_GROUPS: ReadonlyArray<ShortcutGroup> = [
   {
     titleKey: "navigation",
     shortcuts: [
-      { labelKey: "openGlobalSearch", keys: ["mod", "K"] },
-      { labelKey: "showKeyboardShortcuts", keys: ["mod", "?"] },
+      { labelKey: "openGlobalSearch", keys: ["mod", "K"], scope: "global" },
+      {
+        labelKey: "showKeyboardShortcuts",
+        keys: ["mod", "?"],
+        scope: "global",
+      },
+      { labelKey: "goIssues", keys: ["G", "I"], scope: "global" },
+      { labelKey: "goMyWork", keys: ["G", "M"], scope: "global" },
+      { labelKey: "goActivity", keys: ["G", "A"], scope: "global" },
+      { labelKey: "goReports", keys: ["G", "R"], scope: "global" },
+      { labelKey: "goBacklog", keys: ["G", "B"], scope: "global" },
     ],
   },
   {
     titleKey: "issues",
-    shortcuts: [{ labelKey: "newIssue", keys: ["mod", "N"] }],
+    shortcuts: [
+      { labelKey: "newIssue", keys: ["mod", "N"], scope: "global" },
+      {
+        labelKey: "focusNextIssue",
+        keys: ["J"],
+        alternateKeys: [["arrowDown"]],
+        scope: "list",
+      },
+      {
+        labelKey: "focusPreviousIssue",
+        keys: ["K"],
+        alternateKeys: [["arrowUp"]],
+        scope: "list",
+      },
+      { labelKey: "openFocusedIssue", keys: ["enter"], scope: "list" },
+      { labelKey: "editStatus", keys: ["S"], scope: "list" },
+      { labelKey: "editAssignee", keys: ["A"], scope: "list" },
+      { labelKey: "editPriority", keys: ["P"], scope: "list" },
+      { labelKey: "editLabels", keys: ["L"], scope: "list" },
+    ],
   },
   {
     titleKey: "ai",
-    shortcuts: [{ labelKey: "toggleAskAi", keys: ["mod", "shift", "A"] }],
+    shortcuts: [
+      { labelKey: "toggleAskAi", keys: ["mod", "shift", "A"], scope: "global" },
+    ],
   },
   {
     titleKey: "misc",
-    shortcuts: [{ labelKey: "closeDialogClearSearch", keys: ["Esc"] }],
+    shortcuts: [
+      {
+        labelKey: "closeDialogClearSearch",
+        keys: ["Esc"],
+        scope: "global",
+      },
+    ],
   },
 ];
+
+export interface ShortcutBinding {
+  labelKey: ShortcutActionKey;
+  scope: ShortcutScope;
+  keys: ReadonlyArray<ShortcutKeySpec>;
+  /**
+   * Set for the second key in a chord. The dispatcher receives the active
+   * prefix from the shell; it stays pure and has no timers.
+   */
+  chordPrefix?: string;
+  allowEditableTarget?: boolean;
+  allowInteractiveTarget?: boolean;
+  handler: (event: KeyboardEvent) => void;
+}
+
+export interface ShortcutDispatchResult {
+  handled: boolean;
+  binding?: ShortcutBinding;
+}
+
+export function isEditableShortcutTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  for (let el: HTMLElement | null = target; el; el = el.parentElement) {
+    if (
+      el.isContentEditable ||
+      el.contentEditable === "true" ||
+      (el.hasAttribute("contenteditable") &&
+        el.getAttribute("contenteditable") !== "false")
+    ) {
+      return true;
+    }
+  }
+  return Boolean(target.closest('input, textarea, select, [role="textbox"]'));
+}
+
+export function isInteractiveShortcutTarget(
+  target: EventTarget | null,
+): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  for (let el: HTMLElement | null = target; el; el = el.parentElement) {
+    if (el.hasAttribute("data-shortcut-surface")) return false;
+    if (
+      el.matches(
+        [
+          "button",
+          "a[href]",
+          "input",
+          "select",
+          "textarea",
+          "summary",
+          '[role="button"]',
+          '[role="link"]',
+          '[role="checkbox"]',
+          '[role="combobox"]',
+          '[role="menuitem"]',
+          '[role="menuitemcheckbox"]',
+          '[role="menuitemradio"]',
+          '[role="option"]',
+          '[role="radio"]',
+          '[role="switch"]',
+          '[role="tab"]',
+          '[role="textbox"]',
+        ].join(", "),
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function normalizedKey(key: string): string {
+  if (key === "Esc") return "escape";
+  if (key === " ") return "space";
+  return key.toLowerCase();
+}
+
+export function matchesShortcutKey(
+  event: KeyboardEvent,
+  spec: ShortcutKeySpec,
+): boolean {
+  const modPressed = event.metaKey || event.ctrlKey;
+  const wantsMod = spec.modKey ?? false;
+  if (wantsMod !== modPressed) return false;
+  if ((spec.shiftKey ?? false) !== event.shiftKey) return false;
+  if ((spec.altKey ?? false) !== event.altKey) return false;
+  return normalizedKey(event.key) === normalizedKey(spec.key);
+}
+
+export function dispatchShortcut(
+  event: KeyboardEvent,
+  registry: ReadonlyArray<ShortcutBinding>,
+  activeScope: ShortcutScope,
+  chordPrefix: string | null = null,
+): ShortcutDispatchResult {
+  if (event.isComposing) return { handled: false };
+  if (event.defaultPrevented) return { handled: false };
+  const editableTarget = isEditableShortcutTarget(event.target);
+  const interactiveTarget = isInteractiveShortcutTarget(event.target);
+
+  for (const binding of registry) {
+    if ((binding.chordPrefix ?? null) !== chordPrefix) continue;
+    if (binding.scope !== "global" && binding.scope !== activeScope) continue;
+    if (!binding.allowEditableTarget && editableTarget) continue;
+    if (!binding.allowInteractiveTarget && interactiveTarget) continue;
+    if (!binding.keys.some((spec) => matchesShortcutKey(event, spec))) {
+      continue;
+    }
+
+    event.preventDefault();
+    binding.handler(event);
+    return { handled: true, binding };
+  }
+
+  return { handled: false };
+}
 
 /**
  * Render-time platform check. SSR-safe: `navigator` exists just on the
@@ -77,6 +253,10 @@ export function formatKey(token: string, mac: boolean): string {
       return mac ? "⌃" : "Ctrl";
     case "enter":
       return mac ? "⏎" : "Enter";
+    case "arrowUp":
+      return "↑";
+    case "arrowDown":
+      return "↓";
     default:
       return token;
   }

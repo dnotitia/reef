@@ -118,6 +118,8 @@ interface ComboboxProps<T extends string> {
   contentClassName?: string;
   /** Per-row layout override (e.g. two-line stacks). Defaults to a single line. */
   optionClassName?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 /** A rendered row: the optional "none" row carries `value: null`. */
@@ -155,10 +157,20 @@ export function Combobox<T extends string>({
   className,
   contentClassName,
   optionClassName,
+  open: controlledOpen,
+  onOpenChange,
 }: ComboboxProps<T>) {
   const t = useTranslations("components.combobox");
   const resolvedSearchPlaceholder = searchPlaceholder ?? t("searchPlaceholder");
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = useCallback(
+    (next: boolean) => {
+      if (controlledOpen === undefined) setInternalOpen(next);
+      onOpenChange?.(next);
+    },
+    [controlledOpen, onOpenChange],
+  );
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const [placement, setPlacement] = useState<PanelPlacement>({
@@ -250,22 +262,26 @@ export function Combobox<T extends string>({
     [options, value],
   );
 
-  const close = useCallback(() => {
-    setOpen(false);
-    setQuery("");
-    onQueryChange?.("");
-  }, [onQueryChange]);
-
-  const openPanel = useCallback(() => {
-    if (disabled) return;
-    setOpen(true);
+  const initializeActiveIndex = useCallback(() => {
     // Highlight the current selection. When a non-null value is missing from the
     // loaded option page (e.g. an assignee outside the capped result set), start
     // with NO active row so a bare Enter can't commit the clear row and wipe the
     // field — the user must navigate or search to change it.
     const idx = rows.findIndex((r) => r.value === value);
     setActiveIndex(idx >= 0 ? idx : value !== null ? -1 : 0);
-  }, [disabled, rows, value]);
+  }, [rows, value]);
+
+  const close = useCallback(() => {
+    setOpen(false);
+    setQuery("");
+    onQueryChange?.("");
+  }, [onQueryChange, setOpen]);
+
+  const openPanel = useCallback(() => {
+    if (disabled) return;
+    setOpen(true);
+    initializeActiveIndex();
+  }, [disabled, initializeActiveIndex, setOpen]);
 
   const commitRow = useCallback(
     (row: Row<T> | undefined) => {
@@ -293,6 +309,12 @@ export function Combobox<T extends string>({
   useEffect(() => {
     if (open && searchable) searchRef.current?.focus();
   }, [open, searchable]);
+
+  const wasOpenRef = useRef(false);
+  useLayoutEffect(() => {
+    if (open && !wasOpenRef.current) initializeActiveIndex();
+    wasOpenRef.current = open;
+  }, [initializeActiveIndex, open]);
 
   // Keep the active row in view as ↑/↓ moves past the capped-height list.
   // Scroll only the list (never `scrollIntoView`, which would drag the issue
