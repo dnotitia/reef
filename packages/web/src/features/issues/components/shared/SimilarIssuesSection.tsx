@@ -3,7 +3,7 @@
 import { StatusIcon } from "@/components/ui/status-icon";
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
-import { X } from "lucide-react";
+import { ExternalLink, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { useSimilarIssues } from "../../hooks/queries/useSimilarIssues";
@@ -20,22 +20,18 @@ export function SimilarIssuesSection({
   className,
 }: SimilarIssuesSectionProps) {
   const t = useTranslations("issues.create.similar");
-  const [dismissedIds, setDismissedIds] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
   const [sectionDismissed, setSectionDismissed] = useState(false);
   const { issues, isError, isSettling } = useSimilarIssues({ title, vault });
 
   if (sectionDismissed || isError || isSettling) return null;
 
-  const visibleIssues = issues.filter((issue) => !dismissedIds.has(issue.id));
-  if (visibleIssues.length === 0) return null;
+  if (issues.length === 0) return null;
 
   return (
     <section
       aria-label={t("heading")}
       data-testid="similar-issues-section"
-      className={cn("space-y-2", className)}
+      className={cn("space-y-1.5", className)}
     >
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-xs font-medium text-muted-foreground">
@@ -51,38 +47,30 @@ export function SimilarIssuesSection({
           <X className="size-3.5" />
         </button>
       </div>
-      <div className="flex flex-wrap gap-1.5">
-        {visibleIssues.map((issue) => (
-          <span
-            key={issue.id}
-            data-testid="similar-issue-chip"
-            className="inline-flex max-w-full items-center gap-1 rounded-full border border-border-subtle bg-background/80 px-2 py-1 text-xs text-foreground shadow-xs"
-          >
+      <ul className="divide-y divide-border-subtle">
+        {issues.map((issue) => (
+          <li key={issue.id}>
             <a
               href={withVault(vault, `/issues/${issue.id}`)}
               target="_blank"
               rel="noreferrer"
               title={t("openIssue", { id: issue.id })}
-              className="inline-flex min-w-0 items-center gap-1.5 hover:underline"
+              data-testid="similar-issue-row"
+              className="group flex min-h-8 min-w-0 items-center gap-2 py-1.5 text-xs text-foreground hover:text-foreground"
             >
               <StatusIcon status={issue.status} size={12} decorative />
-              <span className="shrink-0 font-mono">{issue.id}</span>
-              <span className="truncate">{issue.title}</span>
+              <span className="shrink-0 font-mono text-muted-foreground group-hover:text-foreground">
+                {issue.id}
+              </span>
+              <span className="min-w-0 flex-1 truncate">{issue.title}</span>
+              <ExternalLink
+                aria-hidden
+                className="size-3.5 shrink-0 text-muted-foreground opacity-70"
+              />
             </a>
-            <button
-              type="button"
-              aria-label={t("dismissIssue", { id: issue.id })}
-              title={t("dismissIssue", { id: issue.id })}
-              className="inline-flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-              onClick={() =>
-                setDismissedIds((prev) => new Set(prev).add(issue.id))
-              }
-            >
-              <X className="size-3" />
-            </button>
-          </span>
+          </li>
         ))}
-      </div>
+      </ul>
     </section>
   );
 }

@@ -644,7 +644,6 @@
       "similar": {
         "heading": "Similar issues",
         "dismissSection": "Dismiss similar issues",
-        "dismissIssue": "Dismiss {id}",
         "openIssue": "Open {id} in a new tab"
       }
     },

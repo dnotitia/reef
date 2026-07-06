@@ -40,6 +40,34 @@ function similarResponse() {
           issue_type: "bug",
           score: 0.032,
         },
+        {
+          id: "REEF-023",
+          title: "Duplicate issue review in activity drafts",
+          status: "in_progress",
+          issue_type: "story",
+          score: 0.031,
+        },
+        {
+          id: "REEF-024",
+          title: "Warn before filing duplicate backlog work",
+          status: "in_review",
+          issue_type: "task",
+          score: 0.03,
+        },
+        {
+          id: "REEF-025",
+          title: "Quiet failed similar issue searches",
+          status: "done",
+          issue_type: "task",
+          score: 0.029,
+        },
+        {
+          id: "REEF-026",
+          title: "Reuse duplicate hints in draft approvals",
+          status: "closed",
+          issue_type: "task",
+          score: 0.028,
+        },
       ],
     }),
     { status: 200, headers: { "content-type": "application/json" } },
@@ -52,7 +80,7 @@ afterEach(() => {
 });
 
 describe("SimilarIssuesSection", () => {
-  it("renders top similar issues as new-tab chips and supports dismiss", async () => {
+  it("renders the top five similar issues as new-tab rows and supports group dismiss", async () => {
     const user = userEvent.setup();
     apiFetchMock.mockResolvedValue(similarResponse());
 
@@ -67,15 +95,21 @@ describe("SimilarIssuesSection", () => {
 
     const section = await screen.findByTestId("similar-issues-section");
     expect(within(section).getByText("Similar issues")).toBeInTheDocument();
+    expect(within(section).getAllByTestId("similar-issue-row")).toHaveLength(5);
     const link = within(section).getByRole("link", {
       name: /REEF-022 AI draft duplicate detection misses old issues/,
     });
     expect(link).toHaveAttribute("target", "_blank");
+    expect(
+      within(section).queryByRole("button", { name: "Dismiss REEF-022" }),
+    ).not.toBeInTheDocument();
 
     await user.click(
-      within(section).getByRole("button", { name: "Dismiss REEF-022" }),
+      within(section).getByRole("button", { name: "Dismiss similar issues" }),
     );
-    expect(screen.queryByTestId("similar-issue-chip")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("similar-issues-section"),
+    ).not.toBeInTheDocument();
   });
 
   it("waits for 600ms and at least three title characters before fetching", async () => {
@@ -105,6 +139,11 @@ describe("SimilarIssuesSection", () => {
     expect(apiFetchMock).toHaveBeenCalledWith(
       "/api/issues/similar?vault=reef-test&q=abc&limit=5",
     );
+
+    rerender(wrap(<SimilarIssuesSection title="abc" vault="reef-test" />));
+    act(() => vi.advanceTimersByTime(600));
+    await flushMicrotasks();
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("hides quietly when the search request fails", async () => {

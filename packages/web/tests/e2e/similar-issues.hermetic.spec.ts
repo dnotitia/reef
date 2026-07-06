@@ -40,9 +40,9 @@ test.describe("Hermetic similar issue hints", () => {
 
     const section = page.locator('[data-testid="similar-issues-section"]');
     await expect(section).toBeVisible();
-    await expect(
-      section.locator('[data-testid="similar-issue-chip"]'),
-    ).toHaveText(/REEF-001.*Initial issue Alpha/);
+    const rows = section.locator('[data-testid="similar-issue-row"]');
+    await expect(rows).toHaveCount(3);
+    await expect(rows.first()).toHaveText(/REEF-001.*Initial issue Alpha/);
 
     const popupPromise = page.waitForEvent("popup");
     await section.getByRole("link", { name: /REEF-001/ }).click();
@@ -50,9 +50,11 @@ test.describe("Hermetic similar issue hints", () => {
     await expect(popup).toHaveURL(/\/workspace\/reef-e2e\/issues\/REEF-001$/);
     await popup.close();
 
-    await section.getByRole("button", { name: "Dismiss REEF-001" }).click();
+    await section
+      .getByRole("button", { name: "Dismiss similar issues" })
+      .click();
     await expect(
-      page.locator('[data-testid="similar-issue-chip"]'),
+      page.locator('[data-testid="similar-issues-section"]'),
     ).toHaveCount(0);
 
     await page.locator('[data-testid="new-issue-submit"]').click();

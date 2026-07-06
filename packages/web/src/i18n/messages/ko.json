@@ -827,7 +827,6 @@
       "similar": {
         "heading": "비슷한 이슈",
         "dismissSection": "비슷한 이슈 숨기기",
-        "dismissIssue": "{id} 숨기기",
         "openIssue": "{id} 새 탭에서 열기"
       }
     },
