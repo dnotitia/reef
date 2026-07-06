@@ -826,6 +826,8 @@
       "noTemplates": "아직 정의된 템플릿이 없습니다. 설정 → 템플릿에서 추가하세요.",
       "similar": {
         "heading": "비슷한 이슈",
+        "checking": "제목 확인 중…",
+        "topMatches": "유사도 상위 {count}개",
         "dismissSection": "비슷한 이슈 숨기기",
         "openIssue": "{id} 새 탭에서 열기"
       }

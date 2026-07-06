@@ -93,9 +93,12 @@ describe("SimilarIssuesSection", () => {
       ),
     );
 
-    const section = await screen.findByTestId("similar-issues-section");
+    expect(await screen.findAllByTestId("similar-issue-row")).toHaveLength(5);
+    const section = screen.getByTestId("similar-issues-section");
     expect(within(section).getByText("Similar issues")).toBeInTheDocument();
-    expect(within(section).getAllByTestId("similar-issue-row")).toHaveLength(5);
+    expect(
+      within(section).getByText("Top 5 by similarity"),
+    ).toBeInTheDocument();
     const link = within(section).getByRole("link", {
       name: /REEF-022 AI draft duplicate detection misses old issues/,
     });
@@ -128,8 +131,13 @@ describe("SimilarIssuesSection", () => {
     rerender(wrap(<SimilarIssuesSection title="ab" vault="reef-test" />));
     act(() => vi.advanceTimersByTime(600));
     expect(apiFetchMock).not.toHaveBeenCalled();
+    expect(
+      screen.queryByTestId("similar-issues-section"),
+    ).not.toBeInTheDocument();
 
     rerender(wrap(<SimilarIssuesSection title="abc" vault="reef-test" />));
+    await flushMicrotasks();
+    expect(screen.getByText("Checking title…")).toBeInTheDocument();
     act(() => vi.advanceTimersByTime(599));
     expect(apiFetchMock).not.toHaveBeenCalled();
 
@@ -146,6 +154,81 @@ describe("SimilarIssuesSection", () => {
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the checking state visible while the settled request is pending", async () => {
+    let resolveFetch: (response: Response) => void = () => {};
+    apiFetchMock.mockReturnValue(
+      new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      }),
+    );
+
+    render(
+      wrap(<SimilarIssuesSection title="duplicate issue" vault="reef-test" />),
+    );
+
+    await flushMicrotasks();
+    expect(screen.getByText("Checking title…")).toBeInTheDocument();
+    expect(screen.queryByTestId("similar-issue-row")).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveFetch(similarResponse());
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(await screen.findAllByTestId("similar-issue-row")).toHaveLength(5);
+    const section = screen.getByTestId("similar-issues-section");
+    expect(
+      within(section).getByText("Top 5 by similarity"),
+    ).toBeInTheDocument();
+  });
+
+  it("dismisses only the current query so a changed title checks again", async () => {
+    const user = userEvent.setup();
+    apiFetchMock.mockResolvedValue(similarResponse());
+
+    const { rerender } = render(
+      wrap(<SimilarIssuesSection title="duplicate issue" vault="reef-test" />),
+    );
+
+    const section = await screen.findByTestId("similar-issues-section");
+    await user.click(
+      within(section).getByRole("button", { name: "Dismiss similar issues" }),
+    );
+    expect(
+      screen.queryByTestId("similar-issues-section"),
+    ).not.toBeInTheDocument();
+
+    rerender(
+      wrap(
+        <SimilarIssuesSection
+          title="different duplicate issue"
+          vault="reef-test"
+        />,
+      ),
+    );
+
+    expect(await screen.findByText("Checking title…")).toBeInTheDocument();
+  });
+
+  it("hides stale results when the live title drops below the search threshold", async () => {
+    apiFetchMock.mockResolvedValue(similarResponse());
+
+    const { rerender } = render(
+      wrap(<SimilarIssuesSection title="duplicate issue" vault="reef-test" />),
+    );
+
+    expect(await screen.findAllByTestId("similar-issue-row")).toHaveLength(5);
+
+    rerender(wrap(<SimilarIssuesSection title="ab" vault="reef-test" />));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("similar-issues-section"),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
   it("hides quietly when the search request fails", async () => {
     apiFetchMock.mockResolvedValue(new Response("{}", { status: 500 }));
 
@@ -153,9 +236,10 @@ describe("SimilarIssuesSection", () => {
       wrap(<SimilarIssuesSection title="duplicate issue" vault="reef-test" />),
     );
 
-    await waitFor(() => expect(apiFetchMock).toHaveBeenCalled());
-    expect(
-      screen.queryByTestId("similar-issues-section"),
-    ).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("similar-issues-section"),
+      ).not.toBeInTheDocument(),
+    );
   });
 });

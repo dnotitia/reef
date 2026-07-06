@@ -24,6 +24,11 @@ export function useSimilarIssues({
   }, [query.onChange, title]);
 
   const trimmed = query.debounced.trim();
+  const liveTitle = query.raw.trim();
+  const canSearchLiveTitle =
+    !!vault && liveTitle.length >= MIN_SIMILAR_ISSUE_QUERY_LENGTH;
+  const canSearchSettledTitle =
+    !!vault && trimmed.length >= MIN_SIMILAR_ISSUE_QUERY_LENGTH;
   const result = useQuery({
     queryKey: ["issues", "similar", vault, trimmed] as const,
     queryFn: async (): Promise<SimilarIssue[]> => {
@@ -39,15 +44,20 @@ export function useSimilarIssues({
       const body = (await res.json()) as { issues: SimilarIssue[] };
       return body.issues;
     },
-    enabled: !!vault && trimmed.length >= MIN_SIMILAR_ISSUE_QUERY_LENGTH,
+    enabled: canSearchSettledTitle,
     retry: false,
     staleTime: 60_000,
   });
+  const isInitialFetch =
+    canSearchSettledTitle && result.isFetching && result.data == null;
 
   return {
     ...result,
     issues: result.data ?? [],
+    canSearchLiveTitle,
+    liveTitle,
     settledTitle: trimmed,
-    isSettling: query.raw.trim() !== trimmed,
+    isChecking: canSearchLiveTitle && (query.isDebouncing || isInitialFetch),
+    isSettling: query.isDebouncing,
   };
 }
