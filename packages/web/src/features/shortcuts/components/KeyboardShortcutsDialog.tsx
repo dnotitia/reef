@@ -9,7 +9,12 @@ import {
 } from "@/components/ui/dialog";
 import { useTranslations } from "next-intl";
 import { Fragment } from "react";
-import { SHORTCUT_GROUPS, formatKey, isMacLike } from "../lib/shortcuts";
+import {
+  SHORTCUT_GROUPS,
+  formatKey,
+  getShortcutKeys,
+  isMacLike,
+} from "../lib/shortcuts";
 import { useShortcutsStore } from "../stores/useShortcutsStore";
 
 /**
@@ -45,19 +50,23 @@ export function KeyboardShortcutsDialog() {
                 {t(`shortcutGroups.${group.titleKey}`)}
               </h3>
               <ul className="flex flex-col gap-1">
-                {group.shortcuts.map((sc) => (
-                  <li
-                    key={sc.labelKey}
-                    className="flex items-center justify-between gap-3"
-                    data-testid="shortcut-row"
-                    data-shortcut-label={sc.labelKey}
-                  >
-                    <span className="text-foreground/90">
-                      {t(`shortcutActions.${sc.labelKey}`)}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      {[sc.keys, ...(sc.alternateKeys ?? [])].map(
-                        (sequence, sequenceIndex) => (
+                {group.shortcuts.map((sc) => {
+                  const sequences = [
+                    getShortcutKeys(sc),
+                    ...(sc.alternateKeys ?? []),
+                  ];
+                  return (
+                    <li
+                      key={sc.labelKey}
+                      className="flex items-center justify-between gap-3"
+                      data-testid="shortcut-row"
+                      data-shortcut-label={sc.labelKey}
+                    >
+                      <span className="text-foreground/90">
+                        {t(`shortcutActions.${sc.labelKey}`)}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        {sequences.map((sequence, sequenceIndex) => (
                           <Fragment
                             key={`${sc.labelKey}:sequence:${sequenceIndex}`}
                           >
@@ -90,11 +99,11 @@ export function KeyboardShortcutsDialog() {
                               </Fragment>
                             ))}
                           </Fragment>
-                        ),
-                      )}
-                    </span>
-                  </li>
-                ))}
+                        ))}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           ))}

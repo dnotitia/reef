@@ -25,7 +25,9 @@ export type ShortcutScope = "global" | "list" | "board" | "detail";
 
 export interface ShortcutKeySpec {
   key: string;
+  code?: string;
   modKey?: boolean;
+  primaryModKey?: boolean;
   shiftKey?: boolean;
   altKey?: boolean;
 }
@@ -39,6 +41,8 @@ export interface Shortcut {
   keys: ReadonlyArray<string>;
   /** Alternate physical bindings for the same action, rendered after a slash. */
   alternateKeys?: ReadonlyArray<ReadonlyArray<string>>;
+  /** Browser-specific fallback when the primary chord is reserved by Firefox. */
+  firefoxKeys?: ReadonlyArray<string>;
   scope: ShortcutScope;
 }
 
@@ -68,7 +72,12 @@ export const SHORTCUT_GROUPS: ReadonlyArray<ShortcutGroup> = [
   {
     titleKey: "issues",
     shortcuts: [
-      { labelKey: "newIssue", keys: ["mod", "N"], scope: "global" },
+      {
+        labelKey: "newIssue",
+        keys: ["mod", "I"],
+        firefoxKeys: ["mod", "alt", "N"],
+        scope: "global",
+      },
       {
         labelKey: "focusNextIssue",
         keys: ["J"],
@@ -186,12 +195,27 @@ export function matchesShortcutKey(
   event: KeyboardEvent,
   spec: ShortcutKeySpec,
 ): boolean {
-  const modPressed = event.metaKey || event.ctrlKey;
+  if (spec.primaryModKey) {
+    const mac = isMacLike();
+    const primaryPressed = mac
+      ? event.metaKey && !event.ctrlKey
+      : event.ctrlKey && !event.metaKey;
+    if (!primaryPressed) return false;
+  }
   const wantsMod = spec.modKey ?? false;
-  if (wantsMod !== modPressed) return false;
+  if (wantsMod) {
+    const modPressed = event.metaKey || event.ctrlKey;
+    if (!modPressed) return false;
+  } else if (!spec.primaryModKey && (event.metaKey || event.ctrlKey)) {
+    return false;
+  }
   if ((spec.shiftKey ?? false) !== event.shiftKey) return false;
   if ((spec.altKey ?? false) !== event.altKey) return false;
-  return normalizedKey(event.key) === normalizedKey(spec.key);
+  return (
+    normalizedKey(event.key) === normalizedKey(spec.key) ||
+    (spec.code !== undefined &&
+      normalizedKey(event.code) === normalizedKey(spec.code))
+  );
 }
 
 export function dispatchShortcut(
@@ -240,6 +264,24 @@ export function isMacLike(): boolean {
   return /Mac|iPhone|iPad/i.test(probe);
 }
 
+export function isFirefoxLike(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /Firefox\//i.test(navigator.userAgent);
+}
+
+export function getShortcutKeys(shortcut: Shortcut): ReadonlyArray<string> {
+  return isFirefoxLike() && shortcut.firefoxKeys
+    ? shortcut.firefoxKeys
+    : shortcut.keys;
+}
+
+export function getNewIssueShortcutKeys(): ReadonlyArray<string> {
+  const newIssue = SHORTCUT_GROUPS.flatMap((group) => group.shortcuts).find(
+    (shortcut) => shortcut.labelKey === "newIssue",
+  );
+  return newIssue ? getShortcutKeys(newIssue) : ["mod", "I"];
+}
+
 /** Map a `keys` token to the symbol shown in the kbd badge. */
 export function formatKey(token: string, mac: boolean): string {
   switch (token) {
@@ -260,4 +302,11 @@ export function formatKey(token: string, mac: boolean): string {
     default:
       return token;
   }
+}
+
+export function formatShortcut(
+  keys: ReadonlyArray<string>,
+  mac: boolean,
+): string {
+  return keys.map((key) => formatKey(key, mac)).join("+");
 }

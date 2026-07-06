@@ -1,5 +1,20 @@
-import { expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 import { openExistingWorkspace, resetFixture } from "./harness/fixture";
+
+async function getNewIssueShortcutPress(page: Page) {
+  return page.evaluate(() => {
+    const nav = navigator as Navigator & {
+      userAgentData?: { platform?: string };
+    };
+    const probe = `${nav.userAgentData?.platform ?? ""} ${nav.userAgent} ${
+      nav.platform
+    }`;
+    if (/Firefox\//i.test(nav.userAgent)) {
+      return /Mac|iPhone|iPad/i.test(probe) ? "Meta+Alt+N" : "Control+Alt+N";
+    }
+    return /Mac|iPhone|iPad/i.test(probe) ? "Meta+I" : "Control+I";
+  });
+}
 
 test.describe("Hermetic dashboard surfaces and global dialogs", () => {
   test.beforeEach(async ({ context, request }) => {
@@ -30,6 +45,7 @@ test.describe("Hermetic dashboard surfaces and global dialogs", () => {
   });
 
   test("opens global search, shortcuts, Ask AI, and workspace dialogs from the dashboard shell", async ({
+    context,
     page,
   }) => {
     await openExistingWorkspace(page);
@@ -38,6 +54,20 @@ test.describe("Hermetic dashboard surfaces and global dialogs", () => {
     await expect(
       page.locator('[data-testid="issue-list-row"]').first(),
     ).toBeVisible();
+    const pagesBeforeNewIssueShortcut = context.pages().length;
+    const unexpectedPage = context
+      .waitForEvent("page", { timeout: 500 })
+      .then(() => true)
+      .catch(() => false);
+    await page.keyboard.press(await getNewIssueShortcutPress(page));
+    await expect(
+      page.locator('[data-testid="new-issue-dialog"]'),
+    ).toBeVisible();
+    expect(await unexpectedPage).toBe(false);
+    expect(context.pages()).toHaveLength(pagesBeforeNewIssueShortcut);
+    await page.locator('[data-testid="new-issue-cancel"]').click();
+    await expect(page.locator('[data-testid="new-issue-dialog"]')).toBeHidden();
+
     await page.keyboard.press("Control+K");
     await expect(
       page.locator('[data-testid="global-search-input"]'),
