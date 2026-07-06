@@ -73,6 +73,7 @@ vi.mock("@formkit/auto-animate/react", () => ({
   useAutoAnimate: () => [vi.fn()],
 }));
 
+import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { apiFetch } from "@/lib/apiClient";
 import type { IssueMetadata } from "@reef/core";
@@ -167,6 +168,13 @@ export function resetKanbanBoardMocks() {
     filter: {},
     searchQuery: "",
     selectedIssueId: null,
+  });
+  useIssueKeyboardStore.setState({
+    visibleIssueIds: { list: [], board: [] },
+    focusedIssueId: { list: null, board: null },
+    tabStopIssueId: { list: null, board: null },
+    focusRequest: null,
+    quickEditRequest: null,
   });
 }
 

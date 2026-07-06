@@ -48,6 +48,8 @@ interface AssigneeComboboxProps {
    * the left edge (REEF-134), matching the sibling planning filters.
    */
   align?: "start" | "end";
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -71,6 +73,8 @@ export function AssigneeCombobox({
   active,
   panelClassName,
   align = "end",
+  open,
+  onOpenChange,
 }: AssigneeComboboxProps) {
   const t = useTranslations("components.assignee");
   // Hooks can not run in default-parameter position, so the optional copy props
@@ -155,6 +159,8 @@ export function AssigneeCombobox({
       ariaLabel={value ? `${resolvedLabel}: ${value}` : resolvedLabel}
       align={align}
       contentClassName={panelClassName}
+      open={open}
+      onOpenChange={onOpenChange}
     />
   );
 }

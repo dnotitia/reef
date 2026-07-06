@@ -39,6 +39,10 @@ interface EnumSelectFieldProps<V extends string> {
   ariaLabelledby?: string;
   id?: string;
   disabled?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  triggerClassName?: string;
+  contentClassName?: string;
 }
 
 export function EnumSelectField<V extends string>({
@@ -53,6 +57,10 @@ export function EnumSelectField<V extends string>({
   ariaLabelledby,
   id,
   disabled,
+  open,
+  onOpenChange,
+  triggerClassName,
+  contentClassName,
 }: EnumSelectFieldProps<V>) {
   const renderTrigger = renderValue ?? renderItem;
   const selectedOption = options.find((option) => option === value);
@@ -66,16 +74,23 @@ export function EnumSelectField<V extends string>({
     selectedOption !== undefined || noneOption?.value === value;
 
   return (
-    <Select value={value} onValueChange={onValueChange} disabled={disabled}>
+    <Select
+      value={value}
+      onValueChange={onValueChange}
+      disabled={disabled}
+      open={open}
+      onOpenChange={onOpenChange}
+    >
       <SelectTrigger
         id={id}
         data-testid={testId}
         data-placeholder={hasSelectedValue ? undefined : ""}
         aria-labelledby={ariaLabelledby}
+        className={triggerClassName}
       >
         <span data-slot="select-value">{selectedContent}</span>
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className={contentClassName}>
         {noneOption && (
           <SelectItem value={noneOption.value}>{noneOption.label}</SelectItem>
         )}

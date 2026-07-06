@@ -24,6 +24,7 @@ import {
 } from "@/features/issues/lib/issueListUtils";
 import { buildStatusPatch } from "@/features/issues/lib/statusPatch";
 import { useFlashStore } from "@/features/issues/stores/useFlashStore";
+import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { DURATION_BASE, EASE_SIGNATURE } from "@/lib/motionTokens";
@@ -42,7 +43,7 @@ import {
 import type { ClosedReason, IssueListItem, Status } from "@reef/core";
 import { STATUS_OPTIONS, WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { useTranslations } from "next-intl";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useBoardStore } from "../stores/useBoardStore";
 import { KanbanCardPreview } from "./KanbanCard";
@@ -138,7 +139,6 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
     // column. An unset sort is a no-op here, leaving the server's default order.
     return sortIssues(depFiltered, filter.sortField, filter.sortOrder);
   }, [allIssues, filter, graph, searchQuery, staleWindowDays]);
-
   // The filtered list controls card visibility; the full `allIssues` list
   // still powers dependency lookups so hidden deps can resolve accurately.
   // Columns are the active workflow statuses just; `backlog` has no column, so
@@ -153,6 +153,21 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
     }
     return map;
   }, [visibleIssues]);
+  const renderedIssueIds = useMemo(
+    () =>
+      WORKFLOW_STATUS_OPTIONS.flatMap(
+        (status) => issuesByStatus.get(status)?.map((issue) => issue.id) ?? [],
+      ),
+    [issuesByStatus],
+  );
+  useEffect(() => {
+    useIssueKeyboardStore
+      .getState()
+      .setVisibleIssueIds("board", renderedIssueIds);
+    return () => {
+      useIssueKeyboardStore.getState().setVisibleIssueIds("board", []);
+    };
+  }, [renderedIssueIds]);
 
   const issueMap = useMemo<Map<string, IssueListItem>>(
     () => new Map(allIssues.map((i) => [i.id, i])),
@@ -262,6 +277,7 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
             <KanbanColumn
               key={status}
               status={status}
+              vault={vault}
               issues={issuesByStatus.get(status) ?? EMPTY_ISSUES}
               blockedIds={blockedIds}
               planningCatalog={planningCatalog}

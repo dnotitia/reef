@@ -1,3 +1,4 @@
+import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -40,6 +41,42 @@ describe("KanbanBoard filtering and rendering", () => {
     render(wrap(<KanbanBoard vault="reef-acme" />));
     expect(await screen.findByText("Open A")).toBeInTheDocument();
     expect(await screen.findByText("In progress B")).toBeInTheDocument();
+  });
+
+  it("registers only rendered workflow cards for board keyboard focus", async () => {
+    mockApiFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          issues: [
+            {
+              id: "REEF-000",
+              title: "Backlog hidden",
+              status: "backlog",
+              priority: "critical",
+              created_at: "2026-05-01T00:00:00.000Z",
+              created_by: "alice",
+              updated_at: "2026-05-01T00:00:00.000Z",
+              updated_by: "alice",
+            },
+            ISSUES[0],
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    render(wrap(<KanbanBoard vault="reef-acme" />));
+
+    expect(await screen.findByText("Open A")).toBeInTheDocument();
+    expect(screen.queryByText("Backlog hidden")).toBeNull();
+    await waitFor(() => {
+      expect(useIssueKeyboardStore.getState().visibleIssueIds.board).toEqual([
+        "REEF-001",
+      ]);
+    });
+    expect(useIssueKeyboardStore.getState().tabStopIssueId.board).toBe(
+      "REEF-001",
+    );
   });
 
   it("applies priority filters to board cards", async () => {

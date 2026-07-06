@@ -9,12 +9,14 @@ import { PriorityBadge } from "@/components/ui/priority-dot";
 import { StatusBadge } from "@/components/ui/status-icon";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
+import { IssueQuickEditAnchor } from "@/features/issues/components/quick-edit/IssueQuickEditAnchor";
 import { useIssueFlash } from "@/features/issues/stores/useFlashStore";
+import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import { findPlanningName } from "@/features/planning/lib/planningItems";
 import { cn } from "@/lib/utils";
 import type { IssueListItem, PlanningCatalog } from "@reef/core";
 import { useLocale } from "next-intl";
-import { memo } from "react";
+import { memo, useEffect, useRef } from "react";
 import {
   type IssueRelationLike,
   getUnresolvedBlockerCount,
@@ -56,21 +58,51 @@ export const IssueListRow = memo(function IssueListRow({
     ? getUnresolvedBlockerCount(issue, allIssues)
     : 0;
   const isFlashing = useIssueFlash(issue.id);
+  const focused = useIssueKeyboardStore(
+    (state) => state.focusedIssueId.list === issue.id,
+  );
+  const tabStopped = useIssueKeyboardStore(
+    (state) => state.tabStopIssueId.list === issue.id,
+  );
+  const focusRequest = useIssueKeyboardStore((state) => state.focusRequest);
+  const focusIssue = useIssueKeyboardStore((state) => state.focusIssue);
   const currentLogin = useCurrentUserLogin();
   const locale = useLocale();
+  const rowRef = useRef<HTMLTableRowElement | null>(null);
+
+  useEffect(() => {
+    if (
+      focusRequest?.scope !== "list" ||
+      focusRequest.issueId !== issue.id ||
+      !rowRef.current
+    ) {
+      return;
+    }
+    rowRef.current.focus({ preventScroll: true });
+    rowRef.current.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [focusRequest, issue.id]);
+
   return (
     <TableRow
+      ref={rowRef}
       className={cn(
-        "cursor-pointer transition-colors duration-150",
+        "cursor-pointer transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-inset",
         onClick && "hover:bg-surface-hover",
+        focused && "bg-surface-hover ring-2 ring-brand/30 ring-inset",
         isFlashing && "reef-flash-row",
       )}
+      tabIndex={focused || tabStopped ? 0 : -1}
+      aria-selected={focused || undefined}
+      onFocus={() => focusIssue("list", issue.id)}
       onClick={() => onClick?.(issue.id)}
       data-testid="issue-list-row"
+      data-shortcut-surface="issue-list-row"
+      data-keyboard-focused={focused ? "true" : undefined}
     >
       {/* ID */}
-      <TableCell className="font-mono text-xs text-muted-foreground w-24">
+      <TableCell className="relative w-24 font-mono text-xs text-muted-foreground">
         {issue.id}
+        <IssueQuickEditAnchor scope="list" issue={issue} vault={vault} />
       </TableCell>
 
       {/* Type */}

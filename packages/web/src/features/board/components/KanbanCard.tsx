@@ -8,7 +8,9 @@ import { TypePill } from "@/components/fields/TypePill";
 import { PriorityDot } from "@/components/ui/priority-dot";
 import { StatusIcon } from "@/components/ui/status-icon";
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
+import { IssueQuickEditAnchor } from "@/features/issues/components/quick-edit/IssueQuickEditAnchor";
 import { useIssueFlash } from "@/features/issues/stores/useFlashStore";
+import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import {
   type PlanningKind,
   findPlanningName,
@@ -29,13 +31,18 @@ import {
 import {
   type HTMLAttributes,
   type KeyboardEvent,
+  type ReactNode,
   forwardRef,
   memo,
+  useCallback,
+  useEffect,
+  useRef,
   useState,
 } from "react";
 
 interface KanbanCardProps {
   issue: IssueListItem;
+  vault?: string;
   /**
    * Whether this issue has at least one unresolved dependency. The board
    * precomputes the blocked-id set once and passes the resolved boolean down,
@@ -57,6 +64,7 @@ interface KanbanCardSurfaceProps extends HTMLAttributes<HTMLDivElement> {
   blocked?: boolean;
   planningCatalog?: PlanningCatalog;
   isDragging?: boolean;
+  quickEditAnchor?: ReactNode;
 }
 
 interface PlanningContextItem {
@@ -111,6 +119,7 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
       blocked = false,
       planningCatalog,
       isDragging = false,
+      quickEditAnchor,
       className,
       ...props
     },
@@ -158,7 +167,7 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
         ref={ref}
         data-testid="kanban-card"
         className={cn(
-          "group rounded-md border border-border bg-elevated px-3 py-2.5",
+          "group relative rounded-md border border-border bg-elevated px-3 py-2.5",
           "cursor-pointer select-none transition-colors duration-[var(--duration-base)] ease-[var(--ease-signature)]",
           "hover:border-border hover:bg-surface-hover",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
@@ -167,6 +176,7 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
         )}
         {...props}
       >
+        {quickEditAnchor}
         {/* Row 1 — header: status · id · type · (blocked, right) */}
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <StatusIcon status={issue.status} size={12} />
@@ -243,6 +253,7 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
 
 export const KanbanCard = memo(function KanbanCard({
   issue,
+  vault,
   blocked,
   planningCatalog,
   onClick,
@@ -256,6 +267,35 @@ export const KanbanCard = memo(function KanbanCard({
   // server-side. the flashing card re-renders; the hook auto-clears the
   // flag after the flash window so a later save can flash it again.
   const isFlashing = useIssueFlash(issue.id);
+  const focused = useIssueKeyboardStore(
+    (state) => state.focusedIssueId.board === issue.id,
+  );
+  const tabStopped = useIssueKeyboardStore(
+    (state) => state.tabStopIssueId.board === issue.id,
+  );
+  const focusRequest = useIssueKeyboardStore((state) => state.focusRequest);
+  const focusIssue = useIssueKeyboardStore((state) => state.focusIssue);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+
+  const setCardRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      cardRef.current = node;
+      setNodeRef(node);
+    },
+    [setNodeRef],
+  );
+
+  useEffect(() => {
+    if (
+      focusRequest?.scope !== "board" ||
+      focusRequest.issueId !== issue.id ||
+      !cardRef.current
+    ) {
+      return;
+    }
+    cardRef.current.focus({ preventScroll: true });
+    cardRef.current.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [focusRequest, issue.id]);
 
   const style = transform
     ? { transform: CSS.Translate.toString(transform) }
@@ -277,19 +317,31 @@ export const KanbanCard = memo(function KanbanCard({
 
   return (
     <KanbanCardSurface
-      ref={setNodeRef}
+      ref={setCardRef}
       style={style}
       {...listeners}
       {...attributes}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
-      className={isFlashing ? "reef-flash-card" : undefined}
+      onFocus={() => focusIssue("board", issue.id)}
+      className={cn(
+        focused && "ring-2 ring-brand/30",
+        isFlashing && "reef-flash-card",
+      )}
       role="button"
-      tabIndex={0}
+      tabIndex={focused || tabStopped ? 0 : -1}
+      aria-selected={focused || undefined}
+      data-shortcut-surface="issue-kanban-card"
+      data-keyboard-focused={focused ? "true" : undefined}
       issue={issue}
       blocked={blocked}
       planningCatalog={planningCatalog}
       isDragging={isDragging}
+      quickEditAnchor={
+        vault ? (
+          <IssueQuickEditAnchor scope="board" issue={issue} vault={vault} />
+        ) : undefined
+      }
     />
   );
 });

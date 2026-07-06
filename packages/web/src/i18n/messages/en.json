@@ -1087,7 +1087,19 @@
     "shortcutActions": {
       "openGlobalSearch": "Open global search",
       "showKeyboardShortcuts": "Show keyboard shortcuts",
+      "goIssues": "Go to Issues",
+      "goMyWork": "Go to My Work",
+      "goActivity": "Go to Activity",
+      "goReports": "Go to Reports",
+      "goBacklog": "Go to Backlog",
       "newIssue": "New issue",
+      "focusNextIssue": "Focus next issue",
+      "focusPreviousIssue": "Focus previous issue",
+      "openFocusedIssue": "Open focused issue",
+      "editStatus": "Edit status",
+      "editAssignee": "Edit assignee",
+      "editPriority": "Edit priority",
+      "editLabels": "Edit labels",
       "toggleAskAi": "Toggle Ask AI",
       "closeDialogClearSearch": "Close dialog / clear search"
     }

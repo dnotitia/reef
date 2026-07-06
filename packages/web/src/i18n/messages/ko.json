@@ -1270,7 +1270,19 @@
     "shortcutActions": {
       "openGlobalSearch": "전역 검색 열기",
       "showKeyboardShortcuts": "키보드 단축키 보기",
+      "goIssues": "이슈로 이동",
+      "goMyWork": "내 작업으로 이동",
+      "goActivity": "활동으로 이동",
+      "goReports": "리포트로 이동",
+      "goBacklog": "백로그로 이동",
       "newIssue": "새 이슈",
+      "focusNextIssue": "다음 이슈 포커스",
+      "focusPreviousIssue": "이전 이슈 포커스",
+      "openFocusedIssue": "포커스한 이슈 열기",
+      "editStatus": "상태 편집",
+      "editAssignee": "담당자 편집",
+      "editPriority": "우선순위 편집",
+      "editLabels": "라벨 편집",
       "toggleAskAi": "Ask AI 토글",
       "closeDialogClearSearch": "대화 상자 닫기 / 검색 지우기"
     }

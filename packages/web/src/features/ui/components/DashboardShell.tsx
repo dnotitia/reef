@@ -17,6 +17,12 @@ import { useAskAiStore } from "@/features/ai/stores/useAskAiStore";
 import { SidebarAccount } from "@/features/auth/components/SidebarAccount";
 import { SidebarWorkspace } from "@/features/auth/components/SidebarWorkspace";
 import { NewIssueDialog } from "@/features/issues/components/create/NewIssueDialog";
+import { buildOpenIssueHref } from "@/features/issues/lib/issueHref";
+import {
+  type IssueKeyboardScope,
+  type IssueQuickEditField,
+  useIssueKeyboardStore,
+} from "@/features/issues/stores/useIssueKeyboardStore";
 import { useMyWorkAttention } from "@/features/my-work/hooks/useMyWorkAttention";
 import { OfflineBanner } from "@/features/network/components/OfflineBanner";
 import { CreateWorkspaceDialog } from "@/features/onboarding/components/CreateWorkspaceDialog";
@@ -28,6 +34,11 @@ import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { useProjectConfig } from "@/features/settings/hooks/useProjectConfig";
 import { useWorkspaceSkillStatus } from "@/features/settings/hooks/useWorkspaceSkillStatus";
 import { KeyboardShortcutsDialog } from "@/features/shortcuts/components/KeyboardShortcutsDialog";
+import {
+  type ShortcutBinding,
+  type ShortcutScope,
+  dispatchShortcut,
+} from "@/features/shortcuts/lib/shortcuts";
 import { useShortcutsStore } from "@/features/shortcuts/stores/useShortcutsStore";
 import { useViewStore } from "@/features/ui/stores/useViewStore";
 import { cn } from "@/lib/utils";
@@ -47,8 +58,8 @@ import {
 import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SidebarFooterShortcuts } from "./SidebarFooterShortcuts";
 
 // The Ask AI panel pulls in the chat heavy deps (streamdown + its mermaid/
@@ -153,6 +164,10 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   const toggleAskAi = useAskAiStore((state) => state.toggle);
   const toggleGlobalSearch = useGlobalSearchStore((state) => state.toggle);
   const toggleShortcuts = useShortcutsStore((state) => state.toggle);
+  const moveIssueFocus = useIssueKeyboardStore((state) => state.moveFocus);
+  const requestQuickEdit = useIssueKeyboardStore(
+    (state) => state.requestQuickEdit,
+  );
   // Singleton theme side-effects (one-time hydrate + OS `system` listener).
   // The shell is consistently mounted, so this is the one place they run; every
   // theme control reads the shared store via useTheme (REEF-095).
@@ -163,6 +178,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   useLocaleSync();
   const t = useTranslations("nav");
   const pathname = usePathname();
+  const router = useRouter();
   // Keep the assistant message count in DashboardShell so the FAB can show
   // an unread dot without subscribing to useChat itself.
   const [askAiMessageCount, setAskAiMessageCount] = useState(0);
@@ -283,58 +299,221 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
     return null;
   }
 
-  // Global keyboard shortcuts.
-  //   ⌘N         → New Issue dialog (bypasses input-focus guard)
-  //   ⌘K         → Toggle global search palette (bypasses guard so users can
-  //                pop it open even while typing in an input)
-  //   ⌘?         → Toggle the keyboard-shortcuts cheat sheet. We accept both
-  //                `key === "?"` (US layout: Shift+/ resolves to "?") and
-  //                `key === "/" && shiftKey` (browsers that report the
-  //                un-shifted key). Either way the user gets the dialog.
-  //   ⌘⇧A        → Toggle Ask AI panel (skipped while a text field is focused
-  //                so users typing in inputs aren't hijacked)
-  useEffect(() => {
-    function isInTextField(target: EventTarget | null): boolean {
-      if (!(target instanceof HTMLElement)) return false;
-      return (
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable
-      );
+  const chordRef = useRef<{ prefix: string; timer: number | null } | null>(
+    null,
+  );
+
+  const clearChord = useCallback(() => {
+    if (chordRef.current?.timer) {
+      window.clearTimeout(chordRef.current.timer);
     }
+    chordRef.current = null;
+  }, []);
 
+  const startChord = useCallback(
+    (prefix: string) => {
+      clearChord();
+      chordRef.current = {
+        prefix,
+        timer: window.setTimeout(clearChord, 800),
+      };
+    },
+    [clearChord],
+  );
+
+  const navigateTo = useCallback(
+    (href: string) => {
+      clearChord();
+      router.push(withVault(vault, href));
+    },
+    [clearChord, router, vault],
+  );
+
+  const resolveShortcutScope = useCallback((): ShortcutScope => {
+    if (typeof window === "undefined") return "global";
+    const path = window.location.pathname;
+    if (!path.includes("/issues")) return "global";
+    if (/\/issues\/[^/]+/.test(path)) return "detail";
+    const view = new URLSearchParams(window.location.search).get("view");
+    if (view === "list") return "list";
+    if (view === "board" || view == null) return "board";
+    return "global";
+  }, []);
+
+  const openFocusedIssue = useCallback(
+    (scope: IssueKeyboardScope) => {
+      const issueId = useIssueKeyboardStore.getState().focusedIssueId[scope];
+      if (!issueId) return;
+      const query =
+        typeof window === "undefined"
+          ? new URLSearchParams()
+          : new URLSearchParams(window.location.search);
+      router.push(buildOpenIssueHref(vault, issueId, query));
+    },
+    [router, vault],
+  );
+
+  const editFocusedIssue = useCallback(
+    (scope: IssueKeyboardScope, field: IssueQuickEditField) => {
+      requestQuickEdit(scope, field);
+    },
+    [requestQuickEdit],
+  );
+
+  const shortcutRegistry = useMemo<ShortcutBinding[]>(
+    () => [
+      {
+        labelKey: "showKeyboardShortcuts",
+        scope: "global",
+        keys: [
+          { key: "?", modKey: true, shiftKey: true },
+          { key: "/", modKey: true, shiftKey: true },
+        ],
+        allowEditableTarget: true,
+        allowInteractiveTarget: true,
+        handler: toggleShortcuts,
+      },
+      {
+        labelKey: "openGlobalSearch",
+        scope: "global",
+        keys: [{ key: "k", modKey: true }],
+        allowEditableTarget: true,
+        allowInteractiveTarget: true,
+        handler: toggleGlobalSearch,
+      },
+      {
+        labelKey: "newIssue",
+        scope: "global",
+        keys: [{ key: "n", modKey: true }],
+        allowInteractiveTarget: true,
+        handler: openNewIssueDialog,
+      },
+      {
+        labelKey: "toggleAskAi",
+        scope: "global",
+        keys: [{ key: "a", modKey: true, shiftKey: true }],
+        allowInteractiveTarget: true,
+        handler: toggleAskAi,
+      },
+      {
+        labelKey: "goIssues",
+        scope: "global",
+        keys: [{ key: "g" }],
+        handler: () => startChord("g"),
+      },
+      {
+        labelKey: "goIssues",
+        scope: "global",
+        chordPrefix: "g",
+        keys: [{ key: "i" }],
+        handler: () => navigateTo("/issues"),
+      },
+      {
+        labelKey: "goMyWork",
+        scope: "global",
+        chordPrefix: "g",
+        keys: [{ key: "m" }],
+        handler: () => navigateTo("/my-work"),
+      },
+      {
+        labelKey: "goActivity",
+        scope: "global",
+        chordPrefix: "g",
+        keys: [{ key: "a" }],
+        handler: () => navigateTo("/activity"),
+      },
+      {
+        labelKey: "goReports",
+        scope: "global",
+        chordPrefix: "g",
+        keys: [{ key: "r" }],
+        handler: () => navigateTo("/reports"),
+      },
+      {
+        labelKey: "goBacklog",
+        scope: "global",
+        chordPrefix: "g",
+        keys: [{ key: "b" }],
+        handler: () => navigateTo("/issues?view=backlog"),
+      },
+      ...(["list", "board"] as const).flatMap<ShortcutBinding>((scope) => [
+        {
+          labelKey: "focusNextIssue" as const,
+          scope,
+          keys: [{ key: "j" }, { key: "ArrowDown" }],
+          handler: () => moveIssueFocus(scope, 1),
+        },
+        {
+          labelKey: "focusPreviousIssue" as const,
+          scope,
+          keys: [{ key: "k" }, { key: "ArrowUp" }],
+          handler: () => moveIssueFocus(scope, -1),
+        },
+        {
+          labelKey: "openFocusedIssue" as const,
+          scope,
+          keys: [{ key: "Enter" }],
+          handler: () => openFocusedIssue(scope),
+        },
+        {
+          labelKey: "editStatus" as const,
+          scope,
+          keys: [{ key: "s" }],
+          handler: () => editFocusedIssue(scope, "status"),
+        },
+        {
+          labelKey: "editAssignee" as const,
+          scope,
+          keys: [{ key: "a" }],
+          handler: () => editFocusedIssue(scope, "assignee"),
+        },
+        {
+          labelKey: "editPriority" as const,
+          scope,
+          keys: [{ key: "p" }],
+          handler: () => editFocusedIssue(scope, "priority"),
+        },
+        {
+          labelKey: "editLabels" as const,
+          scope,
+          keys: [{ key: "l" }],
+          handler: () => editFocusedIssue(scope, "labels"),
+        },
+      ]),
+    ],
+    [
+      editFocusedIssue,
+      moveIssueFocus,
+      navigateTo,
+      openFocusedIssue,
+      openNewIssueDialog,
+      startChord,
+      toggleAskAi,
+      toggleGlobalSearch,
+      toggleShortcuts,
+    ],
+  );
+
+  // Global shortcut dispatcher. Bindings are declared above with scope +
+  // key contracts; this stays the shell's single keydown listener.
+  useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      const cmd = e.metaKey || e.ctrlKey;
-      if (!cmd) return;
-
-      if (e.key === "?" || (e.key === "/" && e.shiftKey)) {
-        e.preventDefault();
-        toggleShortcuts();
-        return;
-      }
-
-      if ((e.key === "k" || e.key === "K") && !e.shiftKey) {
-        e.preventDefault();
-        toggleGlobalSearch();
-        return;
-      }
-
-      if ((e.key === "n" || e.key === "N") && !e.shiftKey) {
-        if (isInTextField(e.target)) return;
-        e.preventDefault();
-        openNewIssueDialog();
-        return;
-      }
-
-      if ((e.key === "a" || e.key === "A") && e.shiftKey) {
-        if (isInTextField(e.target)) return;
-        e.preventDefault();
-        toggleAskAi();
+      const result = dispatchShortcut(
+        e,
+        shortcutRegistry,
+        resolveShortcutScope(),
+        chordRef.current?.prefix ?? null,
+      );
+      if (!result.handled && chordRef.current) {
+        clearChord();
       }
     }
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [openNewIssueDialog, toggleAskAi, toggleGlobalSearch, toggleShortcuts]);
+    return () => {
+      clearChord();
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [clearChord, resolveShortcutScope, shortcutRegistry]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
