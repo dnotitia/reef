@@ -872,6 +872,37 @@ async function handleAkb(req, res, url) {
   }
 
   if (path === "/api/v1/search" && req.method === "GET") {
+    const vault = getVault(String(url.searchParams.get("vault") ?? ""), res);
+    if (!vault) return;
+    const collection = url.searchParams.get("collection");
+    const type = url.searchParams.get("type");
+    const query = String(url.searchParams.get("q") ?? "").toLowerCase();
+    if (
+      collection === "issues" &&
+      type === "task" &&
+      query.includes("initial issue alpha")
+    ) {
+      const issue = vault.issues.find((row) => row.reef_id === "REEF-001");
+      const document = vault.documents.get(issuePathFor("REEF-001"));
+      if (issue && document) {
+        return json(res, 200, {
+          results: [
+            {
+              uri: issue.document_uri,
+              vault: vault.name,
+              path: document.path,
+              title: document.title,
+              collection: "issues",
+              doc_type: document.type,
+              summary: issue.title,
+              tags: document.tags,
+              score: 0.25,
+              matched_section: `[title]\n${issue.title}`,
+            },
+          ],
+        });
+      }
+    }
     return json(res, 200, { results: [] });
   }
 

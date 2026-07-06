@@ -201,6 +201,11 @@ export const IssueSearchResultMetadataSchema = IssueMetadataSchema.pick(
   ISSUE_MODEL_CONTEXT_FIELD_MASK,
 );
 
+export const SimilarIssueSchema = IssueSearchResultMetadataSchema.extend({
+  matched_section: z.string().nullable().optional(),
+  score: z.number(),
+});
+
 export const IssueCreateFieldsSchema = IssueMetadataSchema.pick({
   title: true,
   issue_type: true,
@@ -314,6 +319,7 @@ export const IssueChangeProposalSchema = z.discriminatedUnion("operation", [
 export type IssueMetadata = z.infer<typeof IssueMetadataSchema>;
 export type IssueDocument = z.infer<typeof IssueDocumentSchema>;
 export type IssueListItem = z.infer<typeof IssueListItemSchema>;
+export type SimilarIssue = z.infer<typeof SimilarIssueSchema>;
 export type IssueCreateFields = z.infer<typeof IssueCreateFieldsSchema>;
 export type IssueCreateInput = z.infer<typeof IssueCreateInputSchema>;
 export type IssueUpdatePatch = z.infer<typeof IssueUpdatePatchSchema>;

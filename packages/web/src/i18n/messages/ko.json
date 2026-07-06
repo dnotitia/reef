@@ -823,7 +823,13 @@
       "descriptionPlaceholder": "이슈를 설명하세요…",
       "descriptionAriaLabel": "이슈 설명",
       "applyTemplate": "이슈 템플릿 적용",
-      "noTemplates": "아직 정의된 템플릿이 없습니다. 설정 → 템플릿에서 추가하세요."
+      "noTemplates": "아직 정의된 템플릿이 없습니다. 설정 → 템플릿에서 추가하세요.",
+      "similar": {
+        "heading": "비슷한 이슈",
+        "dismissSection": "비슷한 이슈 숨기기",
+        "dismissIssue": "{id} 숨기기",
+        "openIssue": "{id} 새 탭에서 열기"
+      }
     },
     "detailDialogs": {
       "closeReason": "종료 사유",

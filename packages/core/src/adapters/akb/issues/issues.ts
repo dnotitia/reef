@@ -44,6 +44,12 @@ import {
 export { buildIssueMetadataFromCreateInput } from "./createMetadata";
 export { allocateNextIssueId, listIssueRelations } from "./issueRelations";
 export { listIssues } from "./listIssues";
+export {
+  DEFAULT_SIMILAR_ISSUE_LIMIT,
+  DEFAULT_SIMILAR_ISSUE_MIN_SCORE,
+  searchSimilarIssues,
+  type SearchSimilarIssuesParams,
+} from "./similarIssues";
 
 export async function readIssue(
   params: ReadIssueParams,
