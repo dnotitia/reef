@@ -50,9 +50,7 @@ test.describe("Hermetic similar issue hints", () => {
     await expect(popup).toHaveURL(/\/workspace\/reef-e2e\/issues\/REEF-001$/);
     await popup.close();
 
-    await section
-      .getByRole("button", { name: "Dismiss similar issues" })
-      .click();
+    await section.getByRole("button", { name: "Hide similar issues" }).click();
     await expect(
       page.locator('[data-testid="similar-issues-section"]'),
     ).toHaveCount(0);

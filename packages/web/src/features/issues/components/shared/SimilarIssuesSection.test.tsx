@@ -108,7 +108,7 @@ describe("SimilarIssuesSection", () => {
     ).not.toBeInTheDocument();
 
     await user.click(
-      within(section).getByRole("button", { name: "Dismiss similar issues" }),
+      within(section).getByRole("button", { name: "Hide similar issues" }),
     );
     expect(
       screen.queryByTestId("similar-issues-section"),
@@ -183,6 +183,27 @@ describe("SimilarIssuesSection", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps the section visible with a settled no-match state", async () => {
+    apiFetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ issues: [] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    render(
+      wrap(<SimilarIssuesSection title="unique issue" vault="reef-test" />),
+    );
+
+    expect(await screen.findByText("Checking title…")).toBeInTheDocument();
+
+    const section = await screen.findByTestId("similar-issues-section");
+    await waitFor(() =>
+      expect(within(section).getByText("No close matches")).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId("similar-issue-row")).not.toBeInTheDocument();
+  });
+
   it("dismisses only the current query so a changed title checks again", async () => {
     const user = userEvent.setup();
     apiFetchMock.mockResolvedValue(similarResponse());
@@ -193,7 +214,7 @@ describe("SimilarIssuesSection", () => {
 
     const section = await screen.findByTestId("similar-issues-section");
     await user.click(
-      within(section).getByRole("button", { name: "Dismiss similar issues" }),
+      within(section).getByRole("button", { name: "Hide similar issues" }),
     );
     expect(
       screen.queryByTestId("similar-issues-section"),
@@ -229,17 +250,19 @@ describe("SimilarIssuesSection", () => {
     );
   });
 
-  it("hides quietly when the search request fails", async () => {
+  it("keeps the section visible with a non-blocking error state", async () => {
     apiFetchMock.mockResolvedValue(new Response("{}", { status: 500 }));
 
     render(
       wrap(<SimilarIssuesSection title="duplicate issue" vault="reef-test" />),
     );
 
+    expect(await screen.findByText("Checking title…")).toBeInTheDocument();
+
+    const section = await screen.findByTestId("similar-issues-section");
     await waitFor(() =>
-      expect(
-        screen.queryByTestId("similar-issues-section"),
-      ).not.toBeInTheDocument(),
+      expect(within(section).getByText("Couldn't check")).toBeInTheDocument(),
     );
+    expect(screen.queryByTestId("similar-issue-row")).not.toBeInTheDocument();
   });
 });

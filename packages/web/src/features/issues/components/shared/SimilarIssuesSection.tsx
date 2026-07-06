@@ -28,13 +28,15 @@ export function SimilarIssuesSection({
 
   if (!canSearchLiveTitle || dismissedQueries.has(liveTitle)) return null;
 
-  if (!isChecking && isError) return null;
-
-  if (!isChecking && issues.length === 0) return null;
-
+  const isUnavailable = !isChecking && isError;
+  const hasMatches = !isUnavailable && issues.length > 0;
   const statusLabel = isChecking
     ? t("checking")
-    : t("topMatches", { count: issues.length });
+    : isUnavailable
+      ? t("unavailable")
+      : hasMatches
+        ? t("topMatches", { count: issues.length })
+        : t("noMatches");
 
   return (
     <section
@@ -72,7 +74,7 @@ export function SimilarIssuesSection({
           <X aria-hidden className="size-3.5" />
         </button>
       </div>
-      {isChecking ? null : (
+      {!isChecking && hasMatches ? (
         <ul className="divide-y divide-border-subtle">
           {issues.map((issue) => (
             <li key={issue.id}>
@@ -97,7 +99,7 @@ export function SimilarIssuesSection({
             </li>
           ))}
         </ul>
-      )}
+      ) : null}
     </section>
   );
 }
