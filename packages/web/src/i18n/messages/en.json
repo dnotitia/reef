@@ -640,7 +640,12 @@
       "descriptionPlaceholder": "Describe the issue…",
       "descriptionAriaLabel": "Issue description",
       "applyTemplate": "Apply issue template",
-      "noTemplates": "No templates defined yet. Add one in Settings → Templates."
+      "noTemplates": "No templates defined yet. Add one in Settings → Templates.",
+      "similar": {
+        "heading": "Similar issues",
+        "dismissSection": "Dismiss similar issues",
+        "openIssue": "Open {id} in a new tab"
+      }
     },
     "detailDialogs": {
       "closeReason": "Close reason",

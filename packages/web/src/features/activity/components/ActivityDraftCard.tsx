@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/select";
 import { ArtifactMetadata, ReviewActions } from "@/features/ai/review";
 import { IssueDraftFields } from "@/features/issues/components/create/IssueDraftFields";
+import { SimilarIssuesSection } from "@/features/issues/components/shared/SimilarIssuesSection";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
 import type { PrioritySelection } from "@/features/issues/lib/issueDraftForm";
@@ -417,6 +418,12 @@ export function ActivityDraftCard({
           />
         </div>
       )}
+
+      <SimilarIssuesSection
+        title={title}
+        vault={vault ?? ""}
+        className="mt-3"
+      />
 
       <div className="mt-3 flex items-center gap-2">
         {isEditing ? (

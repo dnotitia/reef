@@ -40,6 +40,7 @@ interface IssueDraftFieldsProps {
   onBodyChange: (body: string) => void;
   disabled?: boolean;
   titleAction?: ReactNode;
+  titleBelow?: ReactNode;
   primaryField?: ReactNode;
   secondaryField?: ReactNode;
   /**
@@ -88,6 +89,7 @@ export function IssueDraftFields({
   onBodyChange,
   disabled = false,
   titleAction,
+  titleBelow,
   primaryField,
   secondaryField,
   layout = "stack",
@@ -150,6 +152,7 @@ export function IssueDraftFields({
           disabled={disabled}
         />,
       )}
+      {titleBelow}
     </div>
   );
 
