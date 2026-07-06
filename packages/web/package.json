@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:eval": "vitest run --config vitest.eval.ts",
     "test:e2e": "playwright test",
+    "test:e2e:sharded": "node scripts/e2e-shards.mjs",
     "reset:e2e": "node scripts/reset-e2e.mjs",
     "i18n:baseline": "I18N_BASELINE_UPDATE=prune vitest run src/i18n/guard/i18nGuard.test.ts",
     "i18n:baseline:seed": "I18N_BASELINE_UPDATE=seed vitest run src/i18n/guard/i18nGuard.test.ts"

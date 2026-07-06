@@ -35,6 +35,9 @@ const REEF_WEB_URL = process.env.REEF_WEB_URL ?? "http://localhost:7353";
 const E2E_MOCK_URL = process.env.REEF_E2E_MOCK_URL ?? "http://127.0.0.1:7354";
 const REEF_WEB_PORT = new URL(REEF_WEB_URL).port || "7353";
 const E2E_MOCK_PORT = new URL(E2E_MOCK_URL).port || "7354";
+const WEB_SERVER_COMMAND =
+  process.env.REEF_E2E_WEB_COMMAND?.replaceAll("{port}", REEF_WEB_PORT) ??
+  `pnpm --filter @reef/web exec next dev --turbopack -p ${REEF_WEB_PORT}`;
 const E2E_GITHUB_APP_PRIVATE_KEY = generateKeyPairSync("rsa", {
   modulusLength: 2048,
 })
@@ -70,7 +73,7 @@ export default defineConfig({
       env: { REEF_E2E_MOCK_PORT: E2E_MOCK_PORT },
     },
     {
-      command: `pnpm --filter @reef/web exec next dev --turbopack -p ${REEF_WEB_PORT}`,
+      command: WEB_SERVER_COMMAND,
       url: REEF_WEB_URL,
       reuseExistingServer: false,
       timeout: 120_000, // Next.js cold start can be slow

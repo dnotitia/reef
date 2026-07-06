@@ -139,6 +139,7 @@ Run from the repository root:
 pnpm --filter @reef/web run typecheck
 pnpm --filter @reef/web run test
 pnpm --filter @reef/web run test:e2e
+pnpm --filter @reef/web run test:e2e:sharded
 pnpm --filter @reef/web run dev:e2e
 pnpm --filter @reef/web run test:eval
 pnpm --filter @reef/web run build
@@ -168,6 +169,21 @@ Default specs must be named `*.hermetic.spec.ts`. They should sign in through
 the real login UI and `/api/auth/akb/login`, then reset fixture data with
 `/__e2e/reset` before each test. Legacy UI-only specs were removed after their
 useful flows were moved onto the hermetic fixture server.
+
+For a faster local full run, use:
+
+```bash
+pnpm --filter @reef/web run test:e2e:sharded
+```
+
+This builds reef-web once, then starts one isolated standalone server and
+fixture-server pair per shard, offsetting ports by 10 (`7353`/`7354`,
+`7363`/`7364`, ...), and passes `--shard` to Playwright. Override the shard
+count with `--shards N`, or pass Playwright filters after `--`, for example:
+
+```bash
+pnpm --filter @reef/web run test:e2e:sharded -- --grep "settings"
+```
 
 For browser runtime checks after UX or layout work, run:
 
