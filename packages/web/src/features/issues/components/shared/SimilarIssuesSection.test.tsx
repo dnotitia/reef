@@ -108,7 +108,7 @@ describe("SimilarIssuesSection", () => {
     ).not.toBeInTheDocument();
 
     await user.click(
-      within(section).getByRole("button", { name: "Dismiss similar issues" }),
+      within(section).getByRole("button", { name: "Hide similar issues" }),
     );
     expect(
       screen.queryByTestId("similar-issues-section"),
@@ -265,7 +265,7 @@ describe("SimilarIssuesSection", () => {
 
     const section = await screen.findByTestId("similar-issues-section");
     await user.click(
-      within(section).getByRole("button", { name: "Dismiss similar issues" }),
+      within(section).getByRole("button", { name: "Hide similar issues" }),
     );
     expect(
       screen.queryByTestId("similar-issues-section"),
