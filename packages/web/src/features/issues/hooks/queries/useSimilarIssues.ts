@@ -9,6 +9,18 @@ import { useEffect } from "react";
 export const SIMILAR_ISSUES_DEBOUNCE_MS = 600;
 const SIMILAR_ISSUES_LIMIT = 5;
 const MIN_SIMILAR_ISSUE_QUERY_LENGTH = 3;
+const MIN_CJK_SIMILAR_ISSUE_QUERY_LENGTH = 2;
+const CJK_QUERY_PATTERN =
+  /[\u1100-\u11ff\u3130-\u318f\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af\uf900-\ufaff]/u;
+
+function canSearchSimilarIssueTitle(title: string): boolean {
+  const visibleLength = Array.from(title).length;
+  return (
+    visibleLength >= MIN_SIMILAR_ISSUE_QUERY_LENGTH ||
+    (visibleLength >= MIN_CJK_SIMILAR_ISSUE_QUERY_LENGTH &&
+      CJK_QUERY_PATTERN.test(title))
+  );
+}
 
 export function useSimilarIssues({
   title,
@@ -25,10 +37,8 @@ export function useSimilarIssues({
 
   const trimmed = query.debounced.trim();
   const liveTitle = query.raw.trim();
-  const canSearchLiveTitle =
-    !!vault && liveTitle.length >= MIN_SIMILAR_ISSUE_QUERY_LENGTH;
-  const canSearchSettledTitle =
-    !!vault && trimmed.length >= MIN_SIMILAR_ISSUE_QUERY_LENGTH;
+  const canSearchLiveTitle = !!vault && canSearchSimilarIssueTitle(liveTitle);
+  const canSearchSettledTitle = !!vault && canSearchSimilarIssueTitle(trimmed);
   const result = useQuery({
     queryKey: ["issues", "similar", vault, trimmed] as const,
     queryFn: async (): Promise<SimilarIssue[]> => {

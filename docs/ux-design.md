@@ -93,11 +93,15 @@ applies them all at once. Nothing is committed to the issue until the human
 acts.
 
 Before enrichment, reef also gives a quiet duplicate hint while the title is
-being written: after a short debounce, semantically similar existing issues
-appear under the title as compact status/id/title rows. The hint is advisory,
-opens matches in a new tab for inspection, can be dismissed as a contextual
-group for the current writing session, and never blocks creating or approving an
-issue.
+being written: after a short debounce, the title line shows whether reef is
+checking, found compact status/id/title rows for semantically similar existing
+issues, found no close matches, or could not check. The checking state includes
+a compact brand-teal `SearchProgressBar` hairline, not a bespoke spinner or the
+AI purple treatment. Short CJK titles become eligible at two visible characters
+so Korean issue names such as "이슈" are not silently ignored. The hint is
+advisory, opens matches in a new tab for
+inspection, can be dismissed as a contextual group for the current writing
+session, and never blocks creating or approving an issue.
 
 The same human-in-the-loop pattern governs the second AI surface: the
 **Activity Hub**, where the agent's autonomously detected proposals —

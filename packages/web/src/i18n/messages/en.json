@@ -645,6 +645,8 @@
         "heading": "Similar issues",
         "checking": "Checking title…",
         "topMatches": "Top {count} by similarity",
+        "noMatches": "No close matches",
+        "unavailable": "Couldn't check",
         "dismissSection": "Dismiss similar issues",
         "openIssue": "Open {id} in a new tab"
       }
