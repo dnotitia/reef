@@ -1,5 +1,6 @@
 "use client";
 
+import { SearchProgressBar } from "@/components/ui/SearchProgressBar";
 import { StatusIcon } from "@/components/ui/status-icon";
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
@@ -28,13 +29,15 @@ export function SimilarIssuesSection({
 
   if (!canSearchLiveTitle || dismissedQueries.has(liveTitle)) return null;
 
-  if (!isChecking && isError) return null;
-
-  if (!isChecking && issues.length === 0) return null;
-
+  const isUnavailable = !isChecking && isError;
+  const hasMatches = !isUnavailable && issues.length > 0;
   const statusLabel = isChecking
     ? t("checking")
-    : t("topMatches", { count: issues.length });
+    : isUnavailable
+      ? t("unavailable")
+      : hasMatches
+        ? t("topMatches", { count: issues.length })
+        : t("noMatches");
 
   return (
     <section
@@ -42,15 +45,16 @@ export function SimilarIssuesSection({
       aria-busy={isChecking}
       aria-live="polite"
       data-testid="similar-issues-section"
-      className={cn("space-y-1.5", className)}
+      className={cn("relative space-y-1.5 overflow-hidden pt-1", className)}
     >
-      <div className="flex items-center justify-between gap-2">
+      <SearchProgressBar active={isChecking} className="top-0 bottom-auto" />
+      <div className="grid grid-cols-[minmax(0,1fr)_1.25rem] items-center gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <h3 className="text-xs font-medium text-muted-foreground">
+          <h3 className="shrink-0 text-xs font-medium text-muted-foreground">
             {t("heading")}
           </h3>
           <span
-            className="truncate text-muted-foreground/70 text-xs"
+            className="min-w-0 truncate text-muted-foreground/70 text-xs"
             data-testid="similar-issues-status"
           >
             {statusLabel}
@@ -72,7 +76,7 @@ export function SimilarIssuesSection({
           <X aria-hidden className="size-3.5" />
         </button>
       </div>
-      {isChecking ? null : (
+      {!isChecking && hasMatches ? (
         <ul className="divide-y divide-border-subtle">
           {issues.map((issue) => (
             <li key={issue.id}>
@@ -82,22 +86,24 @@ export function SimilarIssuesSection({
                 rel="noreferrer"
                 title={t("openIssue", { id: issue.id })}
                 data-testid="similar-issue-row"
-                className="group flex min-h-8 min-w-0 touch-manipulation items-center gap-2 rounded-sm py-1.5 text-foreground text-xs hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+                className="group grid min-h-8 min-w-0 touch-manipulation grid-cols-[minmax(0,1fr)_1.25rem] items-center gap-2 rounded-sm py-1.5 text-foreground text-xs hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
               >
-                <StatusIcon status={issue.status} size={12} />
-                <span className="shrink-0 font-mono text-muted-foreground group-hover:text-foreground">
-                  {issue.id}
+                <span className="flex min-w-0 items-center gap-2">
+                  <StatusIcon status={issue.status} size={12} />
+                  <span className="shrink-0 font-mono text-muted-foreground group-hover:text-foreground">
+                    {issue.id}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{issue.title}</span>
                 </span>
-                <span className="min-w-0 flex-1 truncate">{issue.title}</span>
                 <ExternalLink
                   aria-hidden
-                  className="size-3.5 shrink-0 text-muted-foreground opacity-70"
+                  className="size-3.5 justify-self-center text-muted-foreground opacity-70"
                 />
               </a>
             </li>
           ))}
         </ul>
-      )}
+      ) : null}
     </section>
   );
 }

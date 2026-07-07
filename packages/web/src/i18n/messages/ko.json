@@ -828,6 +828,8 @@
         "heading": "비슷한 이슈",
         "checking": "제목 확인 중…",
         "topMatches": "유사도 상위 {count}개",
+        "noMatches": "유사 이슈 없음",
+        "unavailable": "확인할 수 없음",
         "dismissSection": "비슷한 이슈 숨기기",
         "openIssue": "{id} 새 탭에서 열기"
       }
