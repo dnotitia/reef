@@ -140,6 +140,18 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
             dismissViaEsc();
           }}
           onInteractOutside={(event) => {
+            const target = event.detail.originalEvent.target;
+            // Nested dialogs portal outside the sheet; interacting with them
+            // should not count as dismissing the issue detail underneath.
+            if (
+              target instanceof Element &&
+              target.closest(
+                '[data-slot="dialog-content"], [data-slot="dialog-overlay"]',
+              )
+            ) {
+              event.preventDefault();
+              return;
+            }
             event.preventDefault();
             exit();
           }}

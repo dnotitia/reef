@@ -181,6 +181,83 @@ test.describe("Hermetic issue route surfaces", () => {
       .not.toContain("REEF-004");
   });
 
+  test("creates a sub-issue from Relationships with inherited defaults and optimistic child list update", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    const before = reefVault(await readFixtureState(request));
+    const parent = before.issues.find((issue) => issue.id === "REEF-001");
+    if (!parent) throw new Error("Missing parent issue REEF-001");
+
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+    await page.getByText("Initial issue Alpha").click();
+    await page.waitForURL(/\/issues\/REEF-001\?view=list/, {
+      timeout: 10_000,
+    });
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+    await expect(page.locator('[data-testid="issue-children"]')).toHaveCount(0);
+
+    await page.locator('[data-testid="add-sub-issue-trigger"]').click();
+    const dialog = page.locator('[data-testid="new-issue-dialog"]');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText("New sub-issue")).toBeVisible();
+    await expect(
+      dialog.locator('[data-testid="new-issue-parent-locked"]'),
+    ).toContainText("REEF-001");
+    await expect(
+      dialog.locator('[data-testid="new-issue-priority-select"]'),
+    ).toContainText("High");
+    await expect(dialog.getByLabel("Sprint: Sprint Alpha")).toBeVisible();
+    await expect(
+      dialog.getByLabel("Milestone: Coverage Complete"),
+    ).toBeVisible();
+
+    await dialog
+      .locator('[data-testid="new-issue-title-input"]')
+      .fill("Child from sub-issue E2E");
+    await dialog.locator('[data-testid="create-and-add-another"]').check();
+    await dialog.locator('[data-testid="new-issue-submit"]').click();
+
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        return reefVault(state).issues.find(
+          (issue) => issue.title === "Child from sub-issue E2E",
+        );
+      })
+      .toMatchObject({
+        id: "REEF-004",
+        status: "todo",
+        priority: parent.priority,
+        parent_id: "REEF-001",
+        sprint_id: parent.sprint_id,
+        milestone_id: parent.milestone_id,
+        labels: parent.labels,
+      });
+
+    await expect(dialog).toBeVisible();
+    await expect(
+      dialog.locator('[data-testid="new-issue-title-input"]'),
+    ).toHaveValue("");
+    await expect(
+      dialog.locator('[data-testid="new-issue-parent-locked"]'),
+    ).toContainText("REEF-001");
+    await expect(page).toHaveURL(
+      /\/workspace\/reef-e2e\/issues\/REEF-001\?view=list$/,
+    );
+
+    await dialog.locator('[data-testid="new-issue-cancel"]').click();
+    await page.locator('[data-testid="discard-draft-confirm-button"]').click();
+    await expect(dialog).toBeHidden();
+    await expect(page.locator('[data-testid="issue-children"]')).toContainText(
+      "Child from sub-issue E2E",
+    );
+    await expect(page.locator('[data-testid="issue-children"]')).toContainText(
+      "0 of 1 done",
+    );
+  });
+
   test("copies the canonical issue deep link from the detail actions menu", async ({
     page,
   }) => {

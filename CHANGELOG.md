@@ -14,6 +14,14 @@ explicitly in the entries below.
 
 ### Added
 
+- **Create sub-issues from the parent detail view.** Issue detail now offers
+  **Add sub-issue** from the Relationships section even when the issue has no
+  existing children. The new sub-issue dialog locks the parent, inherits the
+  parent's priority, sprint, milestone, and labels as editable defaults, opens
+  sprint-backed children as Todo instead of hidden backlog work, and supports
+  **Create & add another** so PMs can enter several child issues without
+  reselecting the same context. Newly created children appear in the parent's
+  child list immediately. (REEF-352, epic REEF-334)
 - **Keyboard-first issue scanning.** The Issues list and board now support
   roving keyboard focus with `j`/`k` or arrow keys, `Enter` opens the focused
   issue, and single-key field edits (`s`, `a`, `p`, `l`) open the existing

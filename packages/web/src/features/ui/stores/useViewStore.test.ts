@@ -9,6 +9,7 @@ describe("useViewStore", () => {
     useViewStore.setState({
       sidebarCollapsed: false,
       newIssueDialogOpen: false,
+      newIssueDialogContext: null,
     });
   });
 
@@ -47,11 +48,47 @@ describe("useViewStore", () => {
     expect(useViewStore.getState().newIssueDialogOpen).toBe(false);
     useViewStore.getState().openNewIssueDialog();
     expect(useViewStore.getState().newIssueDialogOpen).toBe(true);
+    expect(useViewStore.getState().newIssueDialogContext).toBeNull();
   });
 
-  it("closeNewIssueDialog flips newIssueDialogOpen to false", () => {
-    useViewStore.getState().openNewIssueDialog();
+  it("openNewIssueDialog stores optional create context", () => {
+    useViewStore.getState().openNewIssueDialog({
+      kind: "subIssue",
+      parent: { id: "REEF-1", title: "Parent issue" },
+      defaults: {
+        priority: "high",
+        sprintId: "sprint-1",
+        milestoneId: "m1",
+        labels: ["ui"],
+      },
+    });
+
+    expect(useViewStore.getState().newIssueDialogOpen).toBe(true);
+    expect(useViewStore.getState().newIssueDialogContext).toEqual({
+      kind: "subIssue",
+      parent: { id: "REEF-1", title: "Parent issue" },
+      defaults: {
+        priority: "high",
+        sprintId: "sprint-1",
+        milestoneId: "m1",
+        labels: ["ui"],
+      },
+    });
+  });
+
+  it("closeNewIssueDialog flips newIssueDialogOpen to false and clears context", () => {
+    useViewStore.getState().openNewIssueDialog({
+      kind: "subIssue",
+      parent: { id: "REEF-1", title: "Parent issue" },
+      defaults: {
+        priority: null,
+        sprintId: null,
+        milestoneId: null,
+        labels: [],
+      },
+    });
     useViewStore.getState().closeNewIssueDialog();
     expect(useViewStore.getState().newIssueDialogOpen).toBe(false);
+    expect(useViewStore.getState().newIssueDialogContext).toBeNull();
   });
 });
