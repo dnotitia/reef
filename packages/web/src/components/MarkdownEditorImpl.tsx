@@ -47,7 +47,8 @@ import { useEffect, useRef, useState } from "react";
  * lazy chunk swap does not shift the surrounding form. (REEF-220)
  */
 export const EDITOR_BODY_SIZING =
-  "min-h-[200px] max-h-[clamp(200px,48vh,560px)] overflow-y-auto";
+  "min-h-[200px] max-h-[clamp(200px,48vh,560px)] overflow-y-auto [scrollbar-gutter:stable]";
+export const EDITOR_BODY_FRAME_CLASS = "p-1";
 export const EDITOR_CONTENT_CLASS = "reef-markdown-editor";
 
 export interface MarkdownEditorProps {
@@ -592,24 +593,29 @@ export function MarkdownEditor({
         </div>
       )}
 
-      {/* Editor area */}
-      {sourceMode ? (
-        <textarea
-          value={value}
-          onChange={handleSourceChange}
-          readOnly={readOnly}
-          aria-label={ariaLabel}
-          // field-sizing-content auto-grows with the body where supported;
-          // resize-y blocks horizontal drag (no dialog/sheet width overflow) and
-          // stays a manual vertical fallback where field-sizing is unavailable,
-          // so the textarea is does not stuck at min-h on those browsers.
-          className={`w-full field-sizing-content resize-y ${EDITOR_BODY_SIZING} px-3 py-2 text-sm font-mono bg-transparent focus:outline-none`}
-          placeholder={placeholder}
-          data-testid="markdown-source-textarea"
-        />
-      ) : (
-        <EditorContent editor={editor} />
-      )}
+      <div
+        data-testid="markdown-editor-body-frame"
+        className={EDITOR_BODY_FRAME_CLASS}
+      >
+        {/* Editor area */}
+        {sourceMode ? (
+          <textarea
+            value={value}
+            onChange={handleSourceChange}
+            readOnly={readOnly}
+            aria-label={ariaLabel}
+            // field-sizing-content auto-grows with the body where supported;
+            // resize-y blocks horizontal drag (no dialog/sheet width overflow) and
+            // stays a manual vertical fallback where field-sizing is unavailable,
+            // so the textarea is does not stuck at min-h on those browsers.
+            className={`w-full field-sizing-content resize-y rounded-sm ${EDITOR_BODY_SIZING} bg-transparent px-3 py-2 text-sm font-mono focus:outline-none`}
+            placeholder={placeholder}
+            data-testid="markdown-source-textarea"
+          />
+        ) : (
+          <EditorContent editor={editor} />
+        )}
+      </div>
     </div>
   );
 }

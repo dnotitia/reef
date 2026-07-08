@@ -108,6 +108,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Long issue descriptions no longer shave the editor's focused corner.**
+  The issue description editor now keeps its scrollable body inset from the
+  focus border and reserves a stable scrollbar gutter, so long markdown bodies
+  can scroll without visually clipping the lower-right border. (REEF-378)
 - **The new issue keyboard shortcut no longer conflicts with the browser's new
   window command.** The shortcut shown in the sidebar and keyboard-shortcuts
   dialog now uses Cmd+I on macOS and Ctrl+I elsewhere, with a Firefox-safe

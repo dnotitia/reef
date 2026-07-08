@@ -21,6 +21,9 @@ describe("MarkdownEditor dynamic wrapper", () => {
     // Reserves the editor's 200px body floor so the surrounding form does not
     // shift when the lazy chunk arrives.
     expect(skeleton.querySelector("[class*='min-h-[200px]']")).not.toBeNull();
+    expect(
+      screen.getByTestId("markdown-editor-skeleton-body-frame"),
+    ).toHaveClass("p-1");
   });
 
   it("mounts the lazily-loaded editor once the chunk resolves", async () => {

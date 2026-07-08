@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useEditor } from "@tiptap/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  EDITOR_BODY_FRAME_CLASS,
   EDITOR_BODY_SIZING,
   EDITOR_CONTENT_CLASS,
   MarkdownEditor,
@@ -124,6 +125,27 @@ describe("MarkdownEditor", () => {
     expect(editor.className).toContain("focus-within:ring-2");
     expect(editor.className).toContain("focus-within:ring-inset");
     expect(editor.className).toContain("focus-within:ring-brand/30");
+  });
+
+  it("insets the scrollable body from the focus chrome (REEF-378)", () => {
+    render(<MarkdownEditor value="# Hello" onChange={vi.fn()} />);
+
+    const frame = screen.getByTestId("markdown-editor-body-frame");
+    expect(frame.className).toContain(EDITOR_BODY_FRAME_CLASS);
+    expect(frame).toContainElement(screen.getByTestId("editor-content"));
+
+    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
+      editorProps?: { attributes?: { class?: string } };
+    };
+    const className = opts.editorProps?.attributes?.class ?? "";
+    expect(className).toContain("[scrollbar-gutter:stable]");
+
+    act(() => {
+      fireEvent.click(screen.getByTitle("Toggle source mode"));
+    });
+    expect(screen.getByTestId("markdown-source-textarea").className).toContain(
+      "[scrollbar-gutter:stable]",
+    );
   });
 
   it("shows the editor content area", () => {

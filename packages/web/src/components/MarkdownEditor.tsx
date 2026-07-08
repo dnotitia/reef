@@ -23,8 +23,8 @@ import type { MarkdownEditorProps } from "./MarkdownEditorImpl";
 
 /**
  * Placeholder shown while the editor chunk loads. Mirrors the editor's outer
- * shell and reserves the 200px body floor (EDITOR_BODY_SIZING) plus a toolbar
- * strip, matching the editable surfaces that dominate the call sites. The
+ * shell and reserves the 200px body floor (EDITOR_BODY_SIZING), the inset body
+ * frame, and a toolbar strip, matching the editable surfaces that dominate the call sites. The
  * read-mode Planning table inline expand has no toolbar, so it over-reserves by
  * the toolbar height for a frame — an acceptable trade to keep
  * the primary authoring surfaces from shifting on load.
@@ -39,8 +39,10 @@ function MarkdownEditorSkeleton() {
       <div className="flex items-center gap-1 border-b border-border-subtle px-2 py-1">
         <Skeleton className="h-7 w-32" />
       </div>
-      <div className="min-h-[200px] px-3 py-2">
-        <Skeleton className="h-3 w-2/3" />
+      <div className="p-1" data-testid="markdown-editor-skeleton-body-frame">
+        <div className="min-h-[200px] px-3 py-2">
+          <Skeleton className="h-3 w-2/3" />
+        </div>
       </div>
     </div>
   );
