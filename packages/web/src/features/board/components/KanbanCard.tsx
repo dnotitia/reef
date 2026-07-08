@@ -170,7 +170,7 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
           "group relative rounded-md border border-border bg-elevated px-3 py-2.5",
           "cursor-pointer select-none transition-colors duration-[var(--duration-base)] ease-[var(--ease-signature)]",
           "hover:border-border hover:bg-surface-hover",
-          "focus-visible:outline-none focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/40",
+          "focus-visible:outline-none focus-visible:border-brand/60 focus-visible:bg-brand/5",
           isDragging && "opacity-50 cursor-grabbing shadow-md",
           className,
         )}
@@ -325,7 +325,7 @@ export const KanbanCard = memo(function KanbanCard({
       onKeyDown={handleKeyDown}
       onFocus={() => focusIssue("board", issue.id)}
       className={cn(
-        focused && "border-brand/60 bg-brand/5 ring-2 ring-inset ring-brand/30",
+        focused && "border-brand/60 bg-brand/5",
         isFlashing && "reef-flash-card",
       )}
       role="button"

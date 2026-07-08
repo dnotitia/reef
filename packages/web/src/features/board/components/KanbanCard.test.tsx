@@ -226,7 +226,7 @@ describe("KanbanCard", () => {
     expect(card.className).not.toContain("opacity-50");
   });
 
-  it("keeps keyboard focus chrome inset so column overflow cannot clip rounded card corners", () => {
+  it("keeps keyboard focus chrome to a single rounded brand border", () => {
     useIssueKeyboardStore.setState({
       focusedIssueId: { list: null, board: "reef-001" },
       tabStopIssueId: { list: null, board: "reef-001" },
@@ -236,11 +236,11 @@ describe("KanbanCard", () => {
 
     const card = screen.getByTestId("kanban-card");
     expect(card).toHaveAttribute("data-keyboard-focused", "true");
-    expect(card.className).toContain("focus-visible:ring-inset");
-    expect(card.className).toContain("focus-visible:border-brand");
-    expect(card.className).toContain("ring-inset");
-    expect(card.className).toContain("ring-brand/30");
+    expect(card.className).toContain("focus-visible:border-brand/60");
+    expect(card.className).toContain("border-brand/60");
     expect(card.className).toContain("bg-brand/5");
+    expect(card.className).not.toContain("ring-2");
+    expect(card.className).not.toContain("ring-inset");
     expect(card.className).not.toContain("ring-offset");
   });
 

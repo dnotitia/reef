@@ -82,13 +82,43 @@ export const IssueListRow = memo(function IssueListRow({
     rowRef.current.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [focusRequest, issue.id]);
 
+  useEffect(() => {
+    const row = rowRef.current;
+    const container = row?.closest('[data-slot="table-container"]');
+    if (!focused || !row || !(container instanceof HTMLElement)) {
+      return;
+    }
+
+    const syncFocusChrome = () => {
+      row.style.setProperty(
+        "--reef-list-focus-left",
+        `${container.scrollLeft}px`,
+      );
+      row.style.setProperty(
+        "--reef-list-focus-width",
+        `${container.clientWidth}px`,
+      );
+    };
+
+    syncFocusChrome();
+    container.addEventListener("scroll", syncFocusChrome, { passive: true });
+    window.addEventListener("resize", syncFocusChrome);
+
+    return () => {
+      container.removeEventListener("scroll", syncFocusChrome);
+      window.removeEventListener("resize", syncFocusChrome);
+      row.style.removeProperty("--reef-list-focus-left");
+      row.style.removeProperty("--reef-list-focus-width");
+    };
+  }, [focused]);
+
   return (
     <TableRow
       ref={rowRef}
       className={cn(
-        "cursor-pointer transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-inset",
+        "reef-issue-list-row cursor-pointer transition-colors duration-150 focus-visible:outline-none",
         onClick && "hover:bg-surface-hover",
-        focused && "bg-surface-hover ring-2 ring-brand/30 ring-inset",
+        focused && "bg-brand/5",
         isFlashing && "reef-flash-row",
       )}
       tabIndex={focused || tabStopped ? 0 : -1}
