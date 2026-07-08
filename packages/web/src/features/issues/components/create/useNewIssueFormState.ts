@@ -8,8 +8,17 @@ import type {
   Severity,
 } from "@reef/core";
 import { NO_SELECTION } from "@reef/core/fields";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { PrioritySelection } from "../../lib/issueDraftForm";
+
+export interface NewIssueFormDefaults {
+  issueType?: IssueType;
+  priority?: PrioritySelection | null;
+  milestoneId?: string | null;
+  sprintId?: string | null;
+  parentId?: string | null;
+  labels?: string[];
+}
 
 export function useNewIssueFormState() {
   const [title, setTitle] = useState("");
@@ -82,36 +91,38 @@ export function useNewIssueFormState() {
     setExternalRefs,
   };
 
-  function resetFields() {
+  const resetFields = useCallback((defaults: NewIssueFormDefaults = {}) => {
     setTitle("");
-    setIssueType("task");
-    setPriority(NO_SELECTION);
+    setIssueType(defaults.issueType ?? "task");
+    setPriority(defaults.priority ?? NO_SELECTION);
     setAssignee("");
     setRequester("");
     setReporter("");
     setStartDate("");
     setDueDate("");
-    setMilestoneId("");
-    setSprintId("");
+    setMilestoneId(defaults.milestoneId ?? "");
+    setSprintId(defaults.sprintId ?? "");
     setReleaseId("");
     setEstimatePoints("");
     setSeverity("");
-    setParentId("");
-    setLabels([]);
+    setParentId(defaults.parentId ?? "");
+    setLabels(defaults.labels ?? []);
     setDependsOn([]);
     setBlocks([]);
     setRelatedTo([]);
     setExternalRefs([]);
     setReferences([]);
     setBody("");
-  }
+  }, []);
 
   function buildCreateFields(input?: {
     fallbackTitle?: string;
+    status?: IssueCreateFields["status"];
   }): IssueCreateFields {
     return {
       title: title.trim() || input?.fallbackTitle || title.trim(),
       issue_type: issueType,
+      ...(input?.status ? { status: input.status } : {}),
       ...(priority !== NO_SELECTION ? { priority } : {}),
       ...(assignee.trim() ? { assigned_to: assignee.trim() } : {}),
       ...(requester.trim() ? { requester: requester.trim() } : {}),

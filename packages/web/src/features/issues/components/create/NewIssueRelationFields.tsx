@@ -35,6 +35,7 @@ export function NewIssueRelationFields({
   blocks,
   relatedTo,
   externalRefs,
+  lockedParent,
   setParentId,
   setDependsOn,
   setBlocks,
@@ -51,6 +52,7 @@ export function NewIssueRelationFields({
   blocks: string[];
   relatedTo: string[];
   externalRefs: ExternalRef[];
+  lockedParent?: Pick<IssueListItem, "id" | "title">;
   setParentId: (value: string) => void;
   setDependsOn: (value: string[]) => void;
   setBlocks: (value: string[]) => void;
@@ -61,6 +63,7 @@ export function NewIssueRelationFields({
 }) {
   const fieldNames = useFieldNameLabels();
   const sections = useTranslations("sections");
+  const t = useTranslations("issues.create");
   return (
     <>
       <IssueFormSection title={sections("relationships")}>
@@ -71,19 +74,35 @@ export function NewIssueRelationFields({
               "new-issue-parent",
               fieldNames.parent,
             )}
-            {renderEnrichable(
-              "parent_id",
-              <IssueRelationInput
+            {lockedParent ? (
+              <div
                 id="new-issue-parent"
-                label={fieldNames.parent}
-                hideLabel
-                value={parentId ? [parentId] : []}
-                allIssues={existingIssues}
-                relationGraph={relations}
-                onChange={(next) => setParentId(next[0] ?? "")}
-                disabled={isSubmitting}
-                maxItems={1}
-              />,
+                data-testid="new-issue-parent-locked"
+                className="flex h-8 min-w-0 items-center gap-2 rounded-md border border-border bg-surface px-2 text-xs text-foreground"
+              >
+                <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                  {lockedParent.id}
+                </span>
+                <span className="min-w-0 truncate">{lockedParent.title}</span>
+                <span className="ml-auto shrink-0 rounded-sm bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  {t("parentLocked")}
+                </span>
+              </div>
+            ) : (
+              renderEnrichable(
+                "parent_id",
+                <IssueRelationInput
+                  id="new-issue-parent"
+                  label={fieldNames.parent}
+                  hideLabel
+                  value={parentId ? [parentId] : []}
+                  allIssues={existingIssues}
+                  relationGraph={relations}
+                  onChange={(next) => setParentId(next[0] ?? "")}
+                  disabled={isSubmitting}
+                  maxItems={1}
+                />,
+              )
             )}
           </div>
           <div className="flex flex-col gap-1">

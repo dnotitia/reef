@@ -1,7 +1,8 @@
-// @vitest-environment jsdom
+import { useViewStore } from "@/features/ui/stores/useViewStore";
+import type { IssueMetadata } from "@reef/core";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Heavy / query-backed children aren't relevant to the clip-container contract.
 vi.mock("@/components/MarkdownEditor", () => ({ MarkdownEditor: () => null }));
@@ -18,6 +19,14 @@ vi.mock("../relations/IssueRelationInput", () => ({
 }));
 
 import { IssueDetailMain } from "./IssueDetailMain";
+
+beforeEach(() => {
+  useViewStore.setState({
+    sidebarCollapsed: false,
+    newIssueDialogOpen: false,
+    newIssueDialogContext: null,
+  });
+});
 
 function renderMain(
   overrides: Partial<Parameters<typeof IssueDetailMain>[0]> = {},
@@ -65,6 +74,41 @@ describe("IssueDetailMain autosave boundaries", () => {
     fireEvent.blur(input);
 
     expect(commitTitle).toHaveBeenCalledWith("Renamed title");
+  });
+});
+
+describe("IssueDetailMain sub-issue creation entry point", () => {
+  it("opens NewIssueDialog from Relationships with parent-derived defaults", () => {
+    renderMain({
+      issue: {
+        id: "REEF-352",
+        title: "Parent story",
+        status: "todo",
+        issue_type: "story",
+        priority: "high",
+        sprint_id: "sprint-6",
+        milestone_id: "pm-m6",
+        labels: ["authoring", "ux"],
+        created_at: "2026-07-07T00:00:00.000Z",
+        created_by: "alice",
+        updated_at: "2026-07-07T00:00:00.000Z",
+        updated_by: "alice",
+      } as IssueMetadata,
+    });
+
+    fireEvent.click(screen.getByTestId("add-sub-issue-trigger"));
+
+    expect(useViewStore.getState().newIssueDialogOpen).toBe(true);
+    expect(useViewStore.getState().newIssueDialogContext).toEqual({
+      kind: "subIssue",
+      parent: { id: "REEF-352", title: "Parent story" },
+      defaults: {
+        priority: "high",
+        sprintId: "sprint-6",
+        milestoneId: "pm-m6",
+        labels: ["authoring", "ux"],
+      },
+    });
   });
 });
 

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -32,23 +32,94 @@ vi.mock("next/navigation", () => ({
 }));
 
 const { mockViewStore } = vi.hoisted(() => ({
-  mockViewStore: { state: { newIssueDialogOpen: false } },
+  mockViewStore: {
+    state: {
+      newIssueDialogOpen: false,
+      newIssueDialogContext: null as unknown,
+    },
+  },
+}));
+
+const { mockEnrichmentState } = vi.hoisted(() => ({
+  mockEnrichmentState: {
+    exposeParentOverride: false,
+  },
 }));
 
 vi.mock("@/features/ui/stores/useViewStore", () => ({
   useViewStore: <T,>(
     selector: (s: {
       newIssueDialogOpen: boolean;
+      newIssueDialogContext: unknown;
       closeNewIssueDialog: () => void;
     }) => T,
   ): T =>
     selector({
       newIssueDialogOpen: mockViewStore.state.newIssueDialogOpen,
+      newIssueDialogContext: mockViewStore.state.newIssueDialogContext,
       closeNewIssueDialog: () => {
         mockViewStore.state.newIssueDialogOpen = false;
+        mockViewStore.state.newIssueDialogContext = null;
       },
     }),
 }));
+
+vi.mock("./useNewIssueEnrichment", async () => {
+  const React = await vi.importActual<typeof import("react")>("react");
+  return {
+    useNewIssueEnrichment: ({
+      formApi,
+    }: {
+      formApi: { setParentId: (value: string) => void };
+    }) => ({
+      enrichment: {
+        counts: { pending: 0, accepted: 0 },
+        dismissAll: vi.fn(),
+        reset: vi.fn(),
+      },
+      enrichMutation: {
+        error: null,
+        isPending: false,
+        isSuccess: false,
+        data: null,
+        mutate: vi.fn(),
+        reset: vi.fn(),
+      },
+      enrichError: undefined,
+      enrichIsEmpty: false,
+      showEnrichmentBar: false,
+      buildEnrichmentRequest: vi.fn(() => null),
+      handleAcceptAll: vi.fn(),
+      handleEnrichClick: vi.fn(),
+      renderEnrichable: (field: unknown, control: ReactNode) =>
+        React.createElement(
+          React.Fragment,
+          null,
+          mockEnrichmentState.exposeParentOverride && field === "title"
+            ? React.createElement(
+                "button",
+                {
+                  type: "button",
+                  "data-testid": "force-hidden-parent",
+                  onClick: () => formApi.setParentId("REEF-999"),
+                },
+                "Force hidden parent",
+              )
+            : null,
+          control,
+        ),
+      renderFieldLabel: (_field: unknown, htmlFor: string, text: string) =>
+        React.createElement(
+          "label",
+          {
+            className: "text-xs font-medium text-muted-foreground",
+            htmlFor,
+          },
+          text,
+        ),
+    }),
+  };
+});
 
 const { toastDefault, toastSuccess, toastError } = vi.hoisted(() => ({
   toastDefault: vi.fn(),
@@ -67,7 +138,102 @@ vi.mock("sonner", () => ({
   }),
 }));
 
+import { apiFetch } from "@/lib/apiClient";
+import { DEFAULT_CONFIG, type IssueMetadata } from "@reef/core";
 import { NewIssueDialog } from "./NewIssueDialog";
+
+const mockApiFetch = vi.mocked(apiFetch);
+
+const CREATED_SUB_ISSUE: IssueMetadata = {
+  id: "REEF-401",
+  title: "Child work",
+  status: "todo",
+  issue_type: "task",
+  priority: "high",
+  parent_id: "REEF-352",
+  sprint_id: "00000000-0000-4000-8000-000000000006",
+  milestone_id: "00000000-0000-4000-8000-0000000000a6",
+  labels: ["authoring", "ux"],
+  created_at: "2026-07-07T00:00:00.000Z",
+  created_by: "alice",
+  updated_at: "2026-07-07T00:00:00.000Z",
+  updated_by: "alice",
+};
+
+function installDefaultApiMocks() {
+  mockApiFetch.mockImplementation((url, init) => {
+    if (url === "/api/issues" && init?.method === "POST") {
+      return Promise.resolve(
+        new Response(JSON.stringify({ issue: CREATED_SUB_ISSUE }), {
+          status: 201,
+        }),
+      );
+    }
+    if (typeof url === "string" && url.startsWith("/api/config")) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ config: DEFAULT_CONFIG }), {
+          status: 200,
+        }),
+      );
+    }
+    if (typeof url === "string" && url.startsWith("/api/issues?")) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ issues: [] }), { status: 200 }),
+      );
+    }
+    if (typeof url === "string" && url.startsWith("/api/issues/relations")) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ relations: [] }), { status: 200 }),
+      );
+    }
+    if (typeof url === "string" && url.startsWith("/api/planning")) {
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            sprints: [
+              {
+                id: "00000000-0000-4000-8000-000000000006",
+                name: "Sprint 6",
+                status: "active",
+                start_date: null,
+                end_date: null,
+                goal: "",
+                meta: {},
+              },
+            ],
+            milestones: [
+              {
+                id: "00000000-0000-4000-8000-0000000000a6",
+                name: "PM-M6",
+                status: "open",
+                target_date: null,
+                meta: {},
+              },
+            ],
+            releases: [],
+          }),
+          { status: 200 },
+        ),
+      );
+    }
+    if (typeof url === "string" && url.startsWith("/api/templates")) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ templates: [] }), { status: 200 }),
+      );
+    }
+    if (typeof url === "string" && url.startsWith("/api/vault-members")) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ users: [] }), { status: 200 }),
+      );
+    }
+    if (typeof url === "string" && url.startsWith("/api/issues/similar")) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ issues: [] }), { status: 200 }),
+      );
+    }
+    return Promise.resolve(new Response(JSON.stringify({}), { status: 200 }));
+  });
+}
 
 function wrap(ui: ReactNode) {
   const queryClient = new QueryClient({
@@ -80,6 +246,9 @@ describe("NewIssueDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockViewStore.state.newIssueDialogOpen = false;
+    mockViewStore.state.newIssueDialogContext = null;
+    mockEnrichmentState.exposeParentOverride = false;
+    installDefaultApiMocks();
   });
 
   it("renders nothing visible when dialog is closed", () => {
@@ -114,6 +283,152 @@ describe("NewIssueDialog", () => {
         .compareDocumentPosition(screen.getByText("Planning")) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("creates a parent-locked sub-issue with inherited defaults and keeps adding", async () => {
+    const user = userEvent.setup();
+    mockViewStore.state.newIssueDialogOpen = true;
+    mockViewStore.state.newIssueDialogContext = {
+      kind: "subIssue",
+      parent: { id: "REEF-352", title: "Parent story" },
+      defaults: {
+        priority: "high",
+        sprintId: "00000000-0000-4000-8000-000000000006",
+        milestoneId: "00000000-0000-4000-8000-0000000000a6",
+        labels: ["authoring", "ux"],
+      },
+    };
+    render(wrap(<NewIssueDialog />));
+
+    expect(await screen.findByText("New sub-issue")).toBeInTheDocument();
+    expect(screen.getByTestId("new-issue-parent-locked")).toHaveTextContent(
+      "REEF-352",
+    );
+    expect(screen.getByTestId("new-issue-parent-locked")).toHaveTextContent(
+      "Parent story",
+    );
+    await user.type(screen.getByTestId("new-issue-title-input"), "Child work");
+    await user.click(screen.getByRole("button", { name: "Source" }));
+    await user.type(
+      screen.getByTestId("markdown-source-textarea"),
+      "Draft body",
+    );
+    await user.click(screen.getByTestId("create-and-add-another"));
+    await user.click(screen.getByTestId("new-issue-submit"));
+
+    await waitFor(() =>
+      expect(
+        mockApiFetch.mock.calls.some(
+          ([url, init]) => url === "/api/issues" && init?.method === "POST",
+        ),
+      ).toBe(true),
+    );
+    const postCall = mockApiFetch.mock.calls.find(
+      ([url, init]) => url === "/api/issues" && init?.method === "POST",
+    );
+    expect(JSON.parse(postCall?.[1]?.body as string)).toEqual({
+      vault: "reef-acme",
+      prefix: "REEF",
+      create: {
+        content: "Draft body",
+        fields: {
+          title: "Child work",
+          issue_type: "task",
+          status: "todo",
+          priority: "high",
+          sprint_id: "00000000-0000-4000-8000-000000000006",
+          milestone_id: "00000000-0000-4000-8000-0000000000a6",
+          parent_id: "REEF-352",
+          labels: ["authoring", "ux"],
+        },
+      },
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("new-issue-title-input")).toHaveValue(""),
+    );
+    expect(screen.getByTestId("markdown-source-textarea")).toHaveValue("");
+    expect(mockViewStore.state.newIssueDialogOpen).toBe(true);
+  });
+
+  it("forces the locked parent into the submit payload even if hidden state changes", async () => {
+    const user = userEvent.setup();
+    mockEnrichmentState.exposeParentOverride = true;
+    mockViewStore.state.newIssueDialogOpen = true;
+    mockViewStore.state.newIssueDialogContext = {
+      kind: "subIssue",
+      parent: { id: "REEF-352", title: "Parent story" },
+      defaults: {
+        priority: "high",
+        sprintId: "00000000-0000-4000-8000-000000000006",
+        milestoneId: null,
+        labels: [],
+      },
+    };
+    render(wrap(<NewIssueDialog />));
+
+    await screen.findByText("New sub-issue");
+    await user.click(screen.getByTestId("force-hidden-parent"));
+    await user.type(screen.getByTestId("new-issue-title-input"), "Guarded");
+    await user.click(screen.getByTestId("new-issue-submit"));
+
+    await waitFor(() =>
+      expect(
+        mockApiFetch.mock.calls.some(
+          ([url, init]) => url === "/api/issues" && init?.method === "POST",
+        ),
+      ).toBe(true),
+    );
+    const postCall = mockApiFetch.mock.calls.find(
+      ([url, init]) => url === "/api/issues" && init?.method === "POST",
+    );
+    const fields = JSON.parse(postCall?.[1]?.body as string).create.fields;
+    expect(fields.parent_id).toBe("REEF-352");
+  });
+
+  it("omits status when a sub-issue clears the inherited sprint", async () => {
+    const user = userEvent.setup();
+    mockViewStore.state.newIssueDialogOpen = true;
+    mockViewStore.state.newIssueDialogContext = {
+      kind: "subIssue",
+      parent: { id: "REEF-352", title: "Parent story" },
+      defaults: {
+        priority: "high",
+        sprintId: "00000000-0000-4000-8000-000000000006",
+        milestoneId: "00000000-0000-4000-8000-0000000000a6",
+        labels: ["authoring", "ux"],
+      },
+    };
+    render(wrap(<NewIssueDialog />));
+
+    await screen.findByText("New sub-issue");
+    await user.click(await screen.findByLabelText("Sprint: Sprint 6"));
+    await user.click(await screen.findByRole("option", { name: /No sprint/i }));
+    await user.type(
+      screen.getByTestId("new-issue-title-input"),
+      "Backlog child",
+    );
+    await user.click(screen.getByTestId("new-issue-submit"));
+
+    await waitFor(() =>
+      expect(
+        mockApiFetch.mock.calls.some(
+          ([url, init]) => url === "/api/issues" && init?.method === "POST",
+        ),
+      ).toBe(true),
+    );
+    const postCall = mockApiFetch.mock.calls.find(
+      ([url, init]) => url === "/api/issues" && init?.method === "POST",
+    );
+    const fields = JSON.parse(postCall?.[1]?.body as string).create.fields;
+    expect(fields).toMatchObject({
+      title: "Backlog child",
+      parent_id: "REEF-352",
+      priority: "high",
+      milestone_id: "00000000-0000-4000-8000-0000000000a6",
+      labels: ["authoring", "ux"],
+    });
+    expect(fields).not.toHaveProperty("sprint_id");
+    expect(fields).not.toHaveProperty("status");
   });
 
   it("lays out the rail metadata as property rows and keeps Labels stacked (REEF-167)", async () => {

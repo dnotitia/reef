@@ -13,7 +13,8 @@ vi.mock("@/lib/apiClient", async () => {
 });
 
 import { apiFetch } from "@/lib/apiClient";
-import type { IssueMetadata } from "@reef/core";
+import type { IssueListItem, IssueMetadata } from "@reef/core";
+import { getIssueEntity, purgeAll } from "../../stores/issueEntityStore";
 import { useCreateIssue } from "./useCreateIssue";
 
 const mockApiFetch = vi.mocked(apiFetch);
@@ -39,6 +40,7 @@ function makeWrapper(queryClient: QueryClient) {
 describe("useCreateIssue", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    purgeAll();
   });
 
   it("POSTs to /api/issues with vault + create input and returns issue", async () => {
@@ -100,6 +102,43 @@ describe("useCreateIssue", () => {
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ["issues", "list", "reef-acme"],
     });
+  });
+
+  it("optimistically upserts the created issue into the entity store and full list cache", async () => {
+    mockApiFetch.mockResolvedValue(
+      new Response(JSON.stringify({ issue: CREATED }), { status: 201 }),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    queryClient.setQueryData<IssueListItem[]>(
+      ["issues", "list", "reef-acme"],
+      [],
+    );
+
+    const { result } = renderHook(() => useCreateIssue(), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        vault: "reef-acme",
+        prefix: "REEF",
+        create: { fields: { title: "x" }, content: "" },
+      });
+    });
+
+    expect(getIssueEntity("reef-acme", "REEF-042")).toMatchObject({
+      id: "REEF-042",
+      title: "New",
+    });
+    expect(
+      queryClient.getQueryData<IssueListItem[]>([
+        "issues",
+        "list",
+        "reef-acme",
+      ]),
+    ).toEqual([expect.objectContaining({ id: "REEF-042", title: "New" })]);
   });
 
   it("surfaces error on 422 SchemaValidationError", async () => {

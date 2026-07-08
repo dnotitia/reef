@@ -165,6 +165,9 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   const sidebarCollapsed = useViewStore((state) => state.sidebarCollapsed);
   const toggleSidebar = useViewStore((state) => state.toggleSidebar);
   const openNewIssueDialog = useViewStore((state) => state.openNewIssueDialog);
+  const openBlankNewIssueDialog = useCallback(() => {
+    openNewIssueDialog();
+  }, [openNewIssueDialog]);
   const toggleAskAi = useAskAiStore((state) => state.toggle);
   const toggleGlobalSearch = useGlobalSearchStore((state) => state.toggle);
   const toggleShortcuts = useShortcutsStore((state) => state.toggle);
@@ -405,7 +408,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
           ? [{ key: "n", code: "KeyN", primaryModKey: true, altKey: true }]
           : [{ key: "i", code: "KeyI", primaryModKey: true }],
         allowInteractiveTarget: true,
-        handler: openNewIssueDialog,
+        handler: openBlankNewIssueDialog,
       },
       {
         labelKey: "toggleAskAi",
@@ -505,7 +508,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
       moveIssueFocus,
       navigateTo,
       openFocusedIssue,
-      openNewIssueDialog,
+      openBlankNewIssueDialog,
       startChord,
       toggleAskAi,
       toggleGlobalSearch,
@@ -601,7 +604,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
           <Button
             type="button"
             size="sm"
-            onClick={openNewIssueDialog}
+            onClick={openBlankNewIssueDialog}
             data-testid="new-issue-trigger"
             aria-label={newIssueLabel}
             title={newIssueLabel}

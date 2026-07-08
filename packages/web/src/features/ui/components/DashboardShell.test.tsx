@@ -146,6 +146,7 @@ describe("DashboardShell", () => {
     useViewStore.setState({
       sidebarCollapsed: false,
       newIssueDialogOpen: false,
+      newIssueDialogContext: null,
     });
     useShortcutsStore.setState({ isOpen: false });
   });

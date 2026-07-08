@@ -1,7 +1,9 @@
 "use client";
 
 import { MarkdownEditor } from "@/components/MarkdownEditor";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useViewStore } from "@/features/ui/stores/useViewStore";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import type {
   ExternalRef,
@@ -10,6 +12,7 @@ import type {
   IssueMetadata,
   IssueUpdatePatch,
 } from "@reef/core";
+import { Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ComponentProps } from "react";
 import { ActivityTimeline } from "../activity/ActivityTimeline";
@@ -83,7 +86,44 @@ export function IssueDetailMain({
 }) {
   const fieldNames = useFieldNameLabels();
   const t = useTranslations("issues.detail");
+  const tr = useTranslations("issues.relations");
   const s = useTranslations("sections");
+  const openNewIssueDialog = useViewStore((state) => state.openNewIssueDialog);
+
+  function handleAddSubIssue() {
+    if (!issue) return;
+    openNewIssueDialog({
+      kind: "subIssue",
+      parent: {
+        id: issue.id,
+        title: issue.title,
+      },
+      defaults: {
+        priority: issue.priority ?? null,
+        sprintId: issue.sprint_id ?? null,
+        milestoneId: issue.milestone_id ?? null,
+        labels: issue.labels ?? [],
+      },
+    });
+  }
+
+  const addSubIssueAction = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="group h-6 gap-1 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+      onClick={handleAddSubIssue}
+      disabled={!issue}
+      data-testid="add-sub-issue-trigger"
+    >
+      <span className="grid size-4 place-items-center rounded-sm bg-secondary text-muted-foreground transition-colors group-hover:text-foreground">
+        <Plus className="size-3" />
+      </span>
+      {tr("addSubIssue")}
+    </Button>
+  );
+
   return (
     <main className="flex min-w-0 flex-col gap-4 overflow-x-clip [overflow-clip-margin:3px]">
       {/* overflow-x-clip stops long bodies/refs from widening the column; the
@@ -129,7 +169,7 @@ export function IssueDetailMain({
         relationGraph={relations}
       />
 
-      <IssueFormSection title={s("relationships")}>
+      <IssueFormSection title={s("relationships")} action={addSubIssueAction}>
         <div className="grid gap-3 md:grid-cols-2">
           <IssueRelationInput
             id="issue-parent"

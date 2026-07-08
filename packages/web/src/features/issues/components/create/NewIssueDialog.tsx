@@ -21,7 +21,10 @@ import {
   ensureProjectConfig,
   useProjectConfig,
 } from "@/features/settings/hooks/useProjectConfig";
-import { useViewStore } from "@/features/ui/stores/useViewStore";
+import {
+  type NewIssueDialogContext,
+  useViewStore,
+} from "@/features/ui/stores/useViewStore";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { withVault } from "@/lib/workspaceHref";
 import { DEFAULT_CONFIG } from "@reef/core";
@@ -30,7 +33,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ISSUE_TYPE_OPTIONS, NO_SELECTION } from "../../lib/metadataOptions";
 import { IssueFieldRow } from "../shared/IssueFieldRow";
@@ -42,7 +45,10 @@ import { NewIssueRailFields } from "./NewIssueRailFields";
 import { NewIssueRelationFields } from "./NewIssueRelationFields";
 import { TemplatePicker } from "./TemplatePicker";
 import { useNewIssueEnrichment } from "./useNewIssueEnrichment";
-import { useNewIssueFormState } from "./useNewIssueFormState";
+import {
+  type NewIssueFormDefaults,
+  useNewIssueFormState,
+} from "./useNewIssueFormState";
 
 /**
  * Modal dialog for creating a new issue.
@@ -54,8 +60,21 @@ import { useNewIssueFormState } from "./useNewIssueFormState";
  * Open/close is owned by useViewStore so any toolbar button or keyboard
  * shortcut in the shell can trigger it.
  */
+function getSubIssueDefaults(
+  context: NewIssueDialogContext,
+): NewIssueFormDefaults {
+  return {
+    priority: context.defaults.priority,
+    sprintId: context.defaults.sprintId,
+    milestoneId: context.defaults.milestoneId,
+    parentId: context.parent.id,
+    labels: [...context.defaults.labels],
+  };
+}
+
 export function NewIssueDialog() {
   const open = useViewStore((s) => s.newIssueDialogOpen);
+  const dialogContext = useViewStore((s) => s.newIssueDialogContext);
   const closeDialog = useViewStore((s) => s.closeNewIssueDialog);
   const { vault } = useActiveVault();
   const router = useRouter();
@@ -119,6 +138,7 @@ export function NewIssueDialog() {
     buildCreateFields,
   } = useNewIssueFormState();
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [createAnother, setCreateAnother] = useState(false);
   // Discard-confirmation for an in-progress draft (REEF-075 / WIG warn-before-
   // unsaved). Shown when the dialog is dismissed while the form has content.
   const [discardOpen, setDiscardOpen] = useState(false);
@@ -136,6 +156,7 @@ export function NewIssueDialog() {
   // Focus target for the first invalid field on a failed submit (validation is
   // surfaced inline, not as a toast — see handleSubmit).
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const seededContextRef = useRef<typeof dialogContext | undefined>(undefined);
 
   // Local issue list still drives relation pickers; enrichment now fetches its
   // own AKB context server-side so the prompt sees a consistent workspace view.
@@ -180,6 +201,8 @@ export function NewIssueDialog() {
       ),
     [referenceCandidates, references, dismissedRefs],
   );
+  const subIssueContext =
+    dialogContext?.kind === "subIssue" ? dialogContext : null;
 
   function resetForm() {
     resetFields();
@@ -190,6 +213,23 @@ export function NewIssueDialog() {
     enrichMutation.reset();
     createMutation.reset();
   }
+
+  useEffect(() => {
+    if (!open) {
+      seededContextRef.current = undefined;
+      setCreateAnother(false);
+      return;
+    }
+    if (seededContextRef.current === dialogContext) return;
+    resetFields(
+      dialogContext?.kind === "subIssue"
+        ? getSubIssueDefaults(dialogContext)
+        : undefined,
+    );
+    setSubmitError(null);
+    setCreateAnother(false);
+    seededContextRef.current = dialogContext;
+  }, [dialogContext, open, resetFields]);
 
   function handleApplyTemplate(template: Template) {
     // Prefix the existing title when the user hasn't typed one yet —
@@ -293,7 +333,12 @@ export function NewIssueDialog() {
       return;
     }
 
-    const fields = buildCreateFields();
+    const fields = buildCreateFields({
+      status: subIssueContext && sprintId ? "todo" : undefined,
+    });
+    if (subIssueContext) {
+      fields.parent_id = subIssueContext.parent.id;
+    }
 
     let canonicalPrefix: string;
     try {
@@ -316,8 +361,6 @@ export function NewIssueDialog() {
           create: { fields, content: body },
           ...(references.length > 0 ? { references } : {}),
         });
-      closeDialog();
-      resetForm();
       const failedCount = failedReferences?.length ?? 0;
       if (failedCount > 0) {
         toast.warning(
@@ -336,6 +379,19 @@ export function NewIssueDialog() {
       } else {
         toast.success(t("issueCreated", { id: issue.id }));
       }
+      if (subIssueContext && createAnother) {
+        resetFields(getSubIssueDefaults(subIssueContext));
+        setSubmitError(null);
+        setDismissedRefs(new Set());
+        setReferenceCandidates([]);
+        enrichment.reset();
+        enrichMutation.reset();
+        createMutation.reset();
+        requestAnimationFrame(() => titleInputRef.current?.focus());
+        return;
+      }
+      closeDialog();
+      resetForm();
       router.push(withVault(vault, `/issues/${issue.id}`));
     } catch (err) {
       const message = err instanceof Error ? err.message : tc("createError");
@@ -391,6 +447,7 @@ export function NewIssueDialog() {
       setBlocks={setBlocks}
       setRelatedTo={setRelatedTo}
       setExternalRefs={setExternalRefs}
+      lockedParent={subIssueContext?.parent}
       renderEnrichable={renderEnrichable}
       renderFieldLabel={renderFieldLabel}
     />
@@ -438,15 +495,30 @@ export function NewIssueDialog() {
         <DialogHeader>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <DialogTitle>{tc("heading")}</DialogTitle>
+              <DialogTitle>
+                {subIssueContext ? tc("subIssueHeading") : tc("heading")}
+              </DialogTitle>
               <DialogDescription>
                 {vault
-                  ? tc.rich("createIn", {
-                      vault,
-                      mono: (chunks) => (
-                        <span className="font-mono">{chunks}</span>
-                      ),
-                    })
+                  ? subIssueContext
+                    ? tc.rich("createSubIssueIn", {
+                        vault,
+                        parent: `${subIssueContext.parent.id} ${subIssueContext.parent.title}`,
+                        mono: (chunks) => (
+                          <span className="font-mono">{chunks}</span>
+                        ),
+                        strong: (chunks) => (
+                          <span className="font-medium text-foreground">
+                            {chunks}
+                          </span>
+                        ),
+                      })
+                    : tc.rich("createIn", {
+                        vault,
+                        mono: (chunks) => (
+                          <span className="font-mono">{chunks}</span>
+                        ),
+                      })
                   : tc("configureFirst")}
               </DialogDescription>
             </div>
@@ -563,7 +635,20 @@ export function NewIssueDialog() {
           </p>
         ) : null}
 
-        <DialogFooter>
+        <DialogFooter className="items-center">
+          {subIssueContext ? (
+            <label className="mr-auto flex items-center gap-2 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                className="size-3.5 rounded border-border accent-brand"
+                checked={createAnother}
+                onChange={(event) => setCreateAnother(event.target.checked)}
+                disabled={isSubmitting}
+                data-testid="create-and-add-another"
+              />
+              {tc("createAndAddAnother")}
+            </label>
+          ) : null}
           <Button
             variant="outline"
             size="sm"
