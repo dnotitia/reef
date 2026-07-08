@@ -1171,9 +1171,9 @@
     },
     "panel": {
       "workspaceIdentity": "워크스페이스 ID",
-      "akbPlatformAccess": "akb-platform 액세스",
+      "akbPlatformAccess": "<akb>akb-platform</akb> 액세스",
       "continueWithSso": "워크스페이스 SSO로 계속하기",
-      "useAkbIdentity": "akb-platform ID를 사용하세요.",
+      "useAkbIdentity": "<akb>akb-platform</akb> ID를 사용하세요.",
       "orUsePassword": "또는 비밀번호 사용"
     },
     "account": {

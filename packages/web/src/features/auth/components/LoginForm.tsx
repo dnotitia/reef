@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { reconcileAkbAccount } from "@/lib/akb/accountReconcile";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -80,6 +81,7 @@ export function LoginForm({ redirectTo = "/" }: LoginFormProps) {
           type="text"
           name="username"
           autoComplete="username"
+          spellCheck={false}
           required
           value={username}
           onChange={(e) => setUsername(e.target.value)}
@@ -106,17 +108,21 @@ export function LoginForm({ redirectTo = "/" }: LoginFormProps) {
       {error && (
         <p
           role="alert"
+          aria-live="polite"
           className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
         >
           {error}
         </p>
       )}
-      <Button
-        type="submit"
-        disabled={isSubmitting || !username || !password}
-        data-testid="login-submit"
-      >
-        {isSubmitting ? t("signingIn") : t("signIn")}
+      <Button type="submit" disabled={isSubmitting} data-testid="login-submit">
+        {isSubmitting && (
+          <Spinner
+            aria-hidden="true"
+            className="size-3.5"
+            data-testid="login-submit-spinner"
+          />
+        )}
+        <span>{isSubmitting ? t("signingIn") : t("signIn")}</span>
       </Button>
     </form>
   );
