@@ -87,6 +87,9 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Development installs now use pnpm 11.10.0.** The workspace package-manager
+  pin, Docker build image setup, and pnpm build-script approvals now target pnpm
+  11 so local, CI, and container installs share the same package-manager line.
 - **Kanban card keyboard focus no longer clips at column edges.** Board cards
   now use an inset teal focus chrome with a subtle brand tint, so the focused
   card keeps matching rounded corners even when it sits at the top of a

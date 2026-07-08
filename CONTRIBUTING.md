@@ -7,7 +7,7 @@ checkout running and what to verify before opening a pull request.
 
 - **Node.js 22+** (the repo pins `node >= 22.13.0` via the root `engines`
   field).
-- **pnpm 10** (the root `packageManager` field pins the exact version; run
+- **pnpm 11** (the root `packageManager` field pins the exact version; run
   `corepack enable` to let your shell pick it up automatically).
 - A reachable AKB backend for anything beyond unit tests. The
   [README](README.md) describes a local AKB Docker Compose option.
