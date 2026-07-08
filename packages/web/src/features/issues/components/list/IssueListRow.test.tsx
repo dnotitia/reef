@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { purgeAll } from "../../stores/issueEntityStore";
+import { useIssueKeyboardStore } from "../../stores/useIssueKeyboardStore";
 import { IssueListRow } from "./IssueListRow";
 
 afterEach(() => {
@@ -13,6 +14,13 @@ afterEach(() => {
   // a previous test does not leak its entity into the next (these tests render from the
   // seed prop, with no vault normalized into the store).
   purgeAll();
+  useIssueKeyboardStore.setState({
+    visibleIssueIds: { list: [], board: [] },
+    focusedIssueId: { list: null, board: null },
+    tabStopIssueId: { list: null, board: null },
+    focusRequest: null,
+    quickEditRequest: null,
+  });
 });
 
 const base = {
@@ -143,5 +151,22 @@ describe("IssueListRow", () => {
     const row = screen.getAllByTestId("issue-list-row")[0];
     await user.click(row);
     expect(onClick).toHaveBeenCalledWith("REEF-001");
+  });
+
+  it("uses the rounded row focus chrome instead of inset tr rings", () => {
+    useIssueKeyboardStore.setState({
+      focusedIssueId: { list: "REEF-001", board: null },
+      tabStopIssueId: { list: "REEF-001", board: null },
+    });
+
+    renderRow();
+
+    const row = screen.getAllByTestId("issue-list-row")[0];
+    expect(row).toHaveAttribute("data-keyboard-focused", "true");
+    expect(row.className).toContain("reef-issue-list-row");
+    expect(row.className).toContain("bg-brand/5");
+    expect(row.className).toContain("focus-visible:outline-none");
+    expect(row.className).not.toContain("focus-visible:ring-2");
+    expect(row.className).not.toContain("ring-inset");
   });
 });

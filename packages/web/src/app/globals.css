@@ -506,6 +506,60 @@ hr {
   animation: reef-flash-row var(--duration-slow) var(--ease-signature);
 }
 
+/* Issue list row focus — draw one rounded row outline above table dividers.
+ * The adjacent cell dividers are muted while focused so the brand line does
+ * not stack with the normal row hairlines on the same edge. */
+.reef-issue-list-row {
+  --reef-list-focus-left: 0px;
+  --reef-list-focus-width: 100%;
+  --reef-issue-list-row-ring: color-mix(in oklab, var(--brand) 38%, transparent);
+  border-radius: 0.375rem;
+  position: relative;
+}
+
+.reef-issue-list-row > td:first-child {
+  position: relative;
+}
+
+.reef-issue-list-row > td {
+  transition-property: background-color, border-color;
+  transition-duration: var(--duration-base);
+  transition-timing-function: var(--ease-signature);
+}
+
+.reef-issue-list-row:focus-visible,
+.reef-issue-list-row[data-keyboard-focused="true"] {
+  background-color: color-mix(in oklab, var(--brand) 5%, transparent);
+  outline: none;
+  z-index: 1;
+}
+
+.reef-issue-list-row:focus-visible > td,
+.reef-issue-list-row[data-keyboard-focused="true"] > td {
+  border-block-color: transparent;
+}
+
+.reef-issue-list-row:has(+ .reef-issue-list-row:focus-visible) > td,
+.reef-issue-list-row:has(+ .reef-issue-list-row[data-keyboard-focused="true"])
+  > td {
+  border-bottom-color: transparent;
+}
+
+.reef-issue-list-row:focus-visible > td:first-child::after,
+.reef-issue-list-row[data-keyboard-focused="true"] > td:first-child::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: calc(var(--reef-list-focus-left) + 1px);
+  z-index: 1;
+  box-sizing: border-box;
+  width: calc(var(--reef-list-focus-width) - 2px);
+  height: 100%;
+  border: 1px solid var(--reef-issue-list-row-ring);
+  border-radius: 0.375rem;
+  pointer-events: none;
+}
+
 /* Indeterminate search progress — a thin brand (teal) hairline that sweeps
  * along an async search surface's input/panel edge while a request is in
  * flight (REEF-369). A dim brand track hosts a brighter band that travels
