@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { type IssueListItem, type Status, isResolvedStatus } from "@reef/core";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { memo, useMemo } from "react";
+import { type ReactNode, memo, useMemo } from "react";
 import { IssueFormSection } from "../shared/IssueFormSection";
 
 /** Lifecycle order for sorting remaining children
@@ -37,6 +37,8 @@ interface IssueChildrenProps {
    * miscounted as a blocker.
    */
   relationGraph?: readonly IssueRelationLike[];
+  /** Optional entry point for creating a child of the current issue. */
+  action?: ReactNode;
 }
 
 /**
@@ -52,8 +54,9 @@ interface IssueChildrenProps {
  *
  * Remaining work (open/in_progress/in_review) sorts to the top in lifecycle
  * order; resolved children (done/closed) sink to the bottom, dimmed, so a PM
- * scanning an epic sees what is left first. The whole section is hidden when the
- * issue has no children, so a leaf issue keeps its compact detail view.
+ * scanning an epic sees what is left first. The section still renders when the
+ * issue has no children so the child-list empty state and "add sub-issue" entry
+ * point stay together in the main canvas.
  *
  * Memoized: the detail panel re-renders on every title/body keystroke, but the
  * `allIssues` / `relationGraph` props are stable across those edits, so the
@@ -63,6 +66,7 @@ export const IssueChildren = memo(function IssueChildren({
   issueId,
   allIssues,
   relationGraph,
+  action,
 }: IssueChildrenProps) {
   const t = useTranslations("issues.relations");
   const children = useMemo(() => {
@@ -91,64 +95,76 @@ export const IssueChildren = memo(function IssueChildren({
   // the child and records the hop so Back returns to this parent.
   const getDrillProps = useIssueDrill(issueId);
 
-  if (children.length === 0) return null;
-
   const total = children.length;
   const doneCount = children.filter((child) =>
     isResolvedStatus(child.status),
   ).length;
 
   return (
-    <IssueFormSection title={t("subIssues")}>
+    <IssueFormSection title={t("subIssues")} action={action}>
       <div className="flex min-w-0 flex-col gap-2" data-testid="issue-children">
-        <div className="flex items-center gap-3">
-          {/* Animate transform (not width) so the bar fill stays off the layout
-              path; transform-origin left grows it from the start. */}
-          {/* biome-ignore lint/a11y/useFocusableInteractive: progressbar is a non-focusable ARIA range widget (a status indicator), not a keyboard tab stop. */}
-          <div
-            className="h-1 flex-1 overflow-hidden rounded-full bg-secondary"
-            role="progressbar"
-            aria-valuenow={doneCount}
-            aria-valuemin={0}
-            aria-valuemax={total}
-            aria-label={t("progressLabel", { done: doneCount, total })}
+        {total === 0 ? (
+          <p
+            data-testid="issue-children-empty"
+            className="rounded-md border border-dashed border-border-subtle bg-surface px-2 py-3 text-xs text-muted-foreground"
           >
-            <div
-              className="h-full origin-left rounded-full bg-brand transition-transform duration-300 motion-reduce:transition-none"
-              style={{ transform: `scaleX(${doneCount / total})` }}
-            />
-          </div>
-          <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-            {t("progressCount", { done: doneCount, total })}
-          </span>
-        </div>
+            {t("noSubIssues")}
+          </p>
+        ) : (
+          <>
+            <div className="flex items-center gap-3">
+              {/* Animate transform (not width) so the bar fill stays off the layout
+                  path; transform-origin left grows it from the start. */}
+              {/* biome-ignore lint/a11y/useFocusableInteractive: progressbar is a non-focusable ARIA range widget (a status indicator), not a keyboard tab stop. */}
+              <div
+                className="h-1 flex-1 overflow-hidden rounded-full bg-secondary"
+                role="progressbar"
+                aria-valuenow={doneCount}
+                aria-valuemin={0}
+                aria-valuemax={total}
+                aria-label={t("progressLabel", { done: doneCount, total })}
+              >
+                <div
+                  className="h-full origin-left rounded-full bg-brand transition-transform duration-300 motion-reduce:transition-none"
+                  style={{ transform: `scaleX(${doneCount / total})` }}
+                />
+              </div>
+              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                {t("progressCount", { done: doneCount, total })}
+              </span>
+            </div>
 
-        <ul aria-label={t("subIssues")} className="flex flex-col gap-0.5">
-          {children.map((child) => {
-            const resolved = isResolvedStatus(child.status);
-            return (
-              <li key={child.id}>
-                <Link
-                  {...getDrillProps(child.id)}
-                  data-issue-id={child.id}
-                  className={cn(
-                    // `min-w-0 flex-1` lets the IssueOptionRow grid inside truncate
-                    // instead of overflowing the column (REEF-285), matching the
-                    // navigable relation chip's Link.
-                    "flex min-w-0 flex-1 touch-manipulation items-center rounded-md px-1.5 py-1 transition-colors duration-150",
-                    "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
-                    resolved && "opacity-60 hover:opacity-100",
-                  )}
-                >
-                  <IssueOptionRow
-                    issue={child}
-                    blockerCount={unresolvedBlockerCountIn(child, blockedIndex)}
-                  />
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+            <ul aria-label={t("subIssues")} className="flex flex-col gap-0.5">
+              {children.map((child) => {
+                const resolved = isResolvedStatus(child.status);
+                return (
+                  <li key={child.id}>
+                    <Link
+                      {...getDrillProps(child.id)}
+                      data-issue-id={child.id}
+                      className={cn(
+                        // `min-w-0 flex-1` lets the IssueOptionRow grid inside truncate
+                        // instead of overflowing the column (REEF-285), matching the
+                        // navigable relation row's Link.
+                        "flex min-w-0 flex-1 touch-manipulation items-center rounded-md px-1.5 py-1 transition-colors duration-150",
+                        "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+                        resolved && "opacity-60 hover:opacity-100",
+                      )}
+                    >
+                      <IssueOptionRow
+                        issue={child}
+                        blockerCount={unresolvedBlockerCountIn(
+                          child,
+                          blockedIndex,
+                        )}
+                      />
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
       </div>
     </IssueFormSection>
   );

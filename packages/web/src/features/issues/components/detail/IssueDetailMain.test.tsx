@@ -1,6 +1,7 @@
 import { useViewStore } from "@/features/ui/stores/useViewStore";
 import type { IssueMetadata } from "@reef/core";
 import { fireEvent, render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -13,7 +14,11 @@ vi.mock("../refs/IssueRefsEditor", () => ({ IssueRefsEditor: () => null }));
 vi.mock("../activity/ActivityTimeline", () => ({
   ActivityTimeline: () => null,
 }));
-vi.mock("../relations/IssueChildren", () => ({ IssueChildren: () => null }));
+vi.mock("../relations/IssueChildren", () => ({
+  IssueChildren: ({ action }: { action?: ReactNode }) => (
+    <section aria-label="Sub-issues">{action}</section>
+  ),
+}));
 vi.mock("../relations/IssueRelationInput", () => ({
   IssueRelationInput: () => null,
 }));
@@ -78,7 +83,7 @@ describe("IssueDetailMain autosave boundaries", () => {
 });
 
 describe("IssueDetailMain sub-issue creation entry point", () => {
-  it("opens NewIssueDialog from Relationships with parent-derived defaults", () => {
+  it("opens NewIssueDialog from Sub-issues with parent-derived defaults", () => {
     renderMain({
       issue: {
         id: "REEF-352",
@@ -124,18 +129,10 @@ function renderMainElement(
       relations={[]}
       title=""
       body=""
-      parentId=""
-      dependsOn={[]}
-      blocks={[]}
-      relatedTo={[]}
       externalRefs={[]}
       implementationRefs={[]}
       setTitle={vi.fn()}
       setBody={vi.fn()}
-      setParentId={vi.fn()}
-      setDependsOn={vi.fn()}
-      setBlocks={vi.fn()}
-      setRelatedTo={vi.fn()}
       setExternalRefs={vi.fn()}
       setImplementationRefs={vi.fn()}
       commitTitle={vi.fn()}

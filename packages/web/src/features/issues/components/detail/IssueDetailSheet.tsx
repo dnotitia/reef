@@ -159,7 +159,7 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
           // and Planning dates / Relationship inputs stop truncating.
           // `overscroll-contain` keeps a scroll at the sheet's edge from chaining
           // to the page behind it (WIG).
-          className="w-[min(94vw,1080px)] sm:max-w-[1080px] overflow-y-auto overscroll-contain"
+          className="w-[min(94vw,1200px)] sm:max-w-[1200px] overflow-y-auto overscroll-contain"
         >
           {/* Visually-hidden title/description satisfy Radix Dialog a11y
               without duplicating the PM-facing identity rendered in the bar. */}

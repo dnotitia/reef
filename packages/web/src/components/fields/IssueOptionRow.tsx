@@ -12,8 +12,8 @@ import { useTranslations } from "next-intl";
  * Shared option row for issue dropdowns (REEF-032).
  *
  * Brings the kanban-card header rhythm — status icon · monospace id · title ·
- * type · priority — to the ⌘K palette, the relation combobox, the relation
- * chips, and the Sub-issues list so they all read like a compressed card
+ * type · priority — to the ⌘K palette, the relation combobox, selected relation
+ * rows, and the Sub-issues list so they all read like a compressed card
  * instead of a plain-text line.
  *
  * Laid out as a fixed-track CSS grid, not a flex row (REEF-285). status · id ·

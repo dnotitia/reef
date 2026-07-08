@@ -937,10 +937,12 @@
     "relations": {
       "subIssues": "하위 이슈",
       "addSubIssue": "하위 이슈 추가",
+      "noSubIssues": "아직 하위 이슈가 없습니다.",
       "progressLabel": "하위 이슈 {total}개 중 {done}개 완료",
       "progressCount": "{total}개 중 {done}개 완료",
       "idPlaceholder": "REEF-001 또는 제목…",
       "noMatches": "일치하는 이슈가 없습니다.",
+      "emptyRelation": "아직 연결된 이슈가 없습니다.",
       "useOption": "<mono>{id}</mono> 사용",
       "matchCount": "{count, plural, other {일치하는 이슈 #개}}",
       "clearField": "{field} 지우기",

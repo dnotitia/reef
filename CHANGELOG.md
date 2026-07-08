@@ -14,6 +14,13 @@ explicitly in the entries below.
 
 ### Added
 
+- **Issue detail now uses a details-first right rail.** The issue detail sheet
+  and new-issue dialog share a wider 400px property rail for Details, People,
+  Planning, Parent, and Relationships, while title, description, Sub-issues,
+  linked documents, references, and activity stay in the main authoring column.
+  Relationship targets now render as compact issue rows instead of id-only
+  chips, and creating an issue shows Parent / Relationships inputs without an
+  editable Sub-issues list before the issue exists. (REEF-375)
 - **Create sub-issues from the parent detail view.** Issue detail now offers
   **Add sub-issue** from the Relationships section even when the issue has no
   existing children. The new sub-issue dialog locks the parent, inherits the

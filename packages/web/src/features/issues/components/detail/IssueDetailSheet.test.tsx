@@ -248,9 +248,9 @@ describe("IssueDetailSheet", () => {
     });
   });
 
-  // REEF-149: the detail sheet uses a wider canvas (1080) so the rail's property
-  // rows get full width, and `overscroll-contain` stops a scroll at the sheet
-  // edge from chaining to the page behind it.
+  // REEF-375: the detail sheet uses a wider canvas (1200) so the 400px rail's
+  // property rows get full width, and `overscroll-contain` stops a scroll at the
+  // sheet edge from chaining to the page behind it.
   it("renders a widened, overscroll-contained canvas", () => {
     mockUseActiveVault.mockReturnValue({
       vault: "reef-acme",
@@ -261,7 +261,7 @@ describe("IssueDetailSheet", () => {
 
     const content = document.querySelector('[data-slot="sheet-content"]');
     expect(content).not.toBeNull();
-    expect(content?.className).toContain("1080");
+    expect(content?.className).toContain("1200");
     expect(content?.className).toContain("overscroll-contain");
   });
 });

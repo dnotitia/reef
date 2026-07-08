@@ -127,11 +127,11 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
     expect(order).toBeTruthy(); // Back precedes the breadcrumb in the DOM.
   });
 
-  test("drills through a Relationships chip in place, Back + Close share one chrome row (REEF-284)", async ({
+  test("drills through a relationship row in place, Back + Close share one chrome row (REEF-284)", async ({
     page,
   }) => {
     // REEF-105 depends on REEF-104 (fixture), so its Relationships "Depends on"
-    // renders a navigable chip — the relation-link kind REEF-284 folds into the
+    // renders a navigable row — the relation-link kind REEF-284 folds into the
     // same in-place drill model as the breadcrumb and sub-issues.
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/issues?view=list");
@@ -140,7 +140,7 @@ test.describe("Hermetic issue drill navigation (REEF-270)", () => {
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
     await expect(page.locator(drillBack)).toHaveCount(0);
 
-    // Click the depends-on chip → swap the panel to REEF-104 in place.
+    // Click the depends-on row → swap the panel to REEF-104 in place.
     await page.locator('a[data-issue-id="REEF-104"]').click();
     await page.waitForURL(/\/issues\/REEF-104(\?|$)/, { timeout: 10_000 });
     await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(

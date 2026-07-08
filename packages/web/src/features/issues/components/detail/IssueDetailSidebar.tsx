@@ -15,6 +15,7 @@ import {
   useFieldNameLabels,
 } from "@/i18n/fieldLabels";
 import type {
+  IssueListItem,
   IssueMetadata,
   IssueType,
   IssueUpdatePatch,
@@ -25,12 +26,14 @@ import type {
 import { PRIORITY_OPTIONS } from "@reef/core/fields";
 import { STATUS_OPTIONS } from "@reef/core/fields";
 import { useTranslations } from "next-intl";
+import type { ComponentProps } from "react";
 import {
   ISSUE_TYPE_OPTIONS,
   NO_SELECTION,
   SEVERITY_OPTIONS,
 } from "../../lib/metadataOptions";
 import { buildStatusPatch } from "../../lib/statusPatch";
+import { IssueRelationInput } from "../relations/IssueRelationInput";
 import { IssueFieldRow } from "../shared/IssueFieldRow";
 import { IssueFormSection } from "../shared/IssueFormSection";
 
@@ -58,7 +61,10 @@ type ValueSetter<T> = (value: T) => void;
 
 interface IssueDetailSidebarProps {
   vault: string;
+  issueId: string;
   issue: IssueMetadata | undefined;
+  allIssues: readonly IssueListItem[];
+  relations: ComponentProps<typeof IssueRelationInput>["relationGraph"];
   issueType: IssueType;
   status: Status;
   priority: Priority | "";
@@ -73,6 +79,10 @@ interface IssueDetailSidebarProps {
   milestoneId: string;
   releaseId: string;
   estimatePoints: string;
+  parentId: string;
+  dependsOn: string[];
+  blocks: string[];
+  relatedTo: string[];
   setIssueType: ValueSetter<IssueType>;
   setStatus: ValueSetter<Status>;
   setPriority: ValueSetter<Priority | "">;
@@ -87,6 +97,10 @@ interface IssueDetailSidebarProps {
   setMilestoneId: ValueSetter<string>;
   setReleaseId: ValueSetter<string>;
   setEstimatePoints: ValueSetter<string>;
+  setParentId: ValueSetter<string>;
+  setDependsOn: ValueSetter<string[]>;
+  setBlocks: ValueSetter<string[]>;
+  setRelatedTo: ValueSetter<string[]>;
   commit: (patch: IssueUpdatePatch) => void;
   commitTextField: CommitTextField;
   commitNumberField: CommitNumberField;
@@ -101,7 +115,10 @@ function sameStringArray(a: readonly string[], b: readonly string[]): boolean {
 
 export function IssueDetailSidebar({
   vault,
+  issueId,
   issue,
+  allIssues,
+  relations,
   issueType,
   status,
   priority,
@@ -116,6 +133,10 @@ export function IssueDetailSidebar({
   milestoneId,
   releaseId,
   estimatePoints,
+  parentId,
+  dependsOn,
+  blocks,
+  relatedTo,
   setIssueType,
   setStatus,
   setPriority,
@@ -130,6 +151,10 @@ export function IssueDetailSidebar({
   setMilestoneId,
   setReleaseId,
   setEstimatePoints,
+  setParentId,
+  setDependsOn,
+  setBlocks,
+  setRelatedTo,
   commit,
   commitTextField,
   commitNumberField,
@@ -400,6 +425,78 @@ export function IssueDetailSidebar({
             }
           />
         </IssueFieldRow>
+      </IssueFormSection>
+
+      <IssueFormSection title={fieldNames.parent}>
+        <IssueRelationInput
+          id="issue-parent"
+          label={fieldNames.parent}
+          hideLabel
+          value={parentId ? [parentId] : []}
+          allIssues={allIssues}
+          relationGraph={relations}
+          currentIssueId={issueId}
+          onChange={(next) => {
+            const nextParent = next[0] ?? "";
+            setParentId(nextParent);
+            if (nextParent !== (issue?.parent_id ?? "")) {
+              commit({
+                parent_id: nextParent || null,
+              } as IssueUpdatePatch);
+            }
+          }}
+          maxItems={1}
+        />
+      </IssueFormSection>
+
+      <IssueFormSection title={s("relationships")}>
+        <div className="flex flex-col gap-3">
+          <IssueRelationInput
+            id="issue-depends-on"
+            label={fieldNames.dependsOn}
+            value={dependsOn}
+            allIssues={allIssues}
+            relationGraph={relations}
+            currentIssueId={issueId}
+            navigable
+            onChange={(next) => {
+              setDependsOn(next);
+              if (!sameStringArray(next, issue?.depends_on ?? [])) {
+                commit({ depends_on: next });
+              }
+            }}
+          />
+          <IssueRelationInput
+            id="issue-blocks"
+            label={fieldNames.blocks}
+            value={blocks}
+            allIssues={allIssues}
+            relationGraph={relations}
+            currentIssueId={issueId}
+            navigable
+            onChange={(next) => {
+              setBlocks(next);
+              if (!sameStringArray(next, issue?.blocks ?? [])) {
+                commit({ blocks: next });
+              }
+            }}
+          />
+          <IssueRelationInput
+            id="issue-related-to"
+            label={fieldNames.related}
+            value={relatedTo}
+            allIssues={allIssues}
+            relationGraph={relations}
+            currentIssueId={issueId}
+            navigable
+            onChange={(next) => {
+              setRelatedTo(next);
+              if (!sameStringArray(next, issue?.related_to ?? [])) {
+                commit({ related_to: next });
+              }
+            }}
+          />
+        </div>
       </IssueFormSection>
     </aside>
   );

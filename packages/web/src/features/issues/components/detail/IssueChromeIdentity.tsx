@@ -76,7 +76,7 @@ export function IssueChromeIdentity({
     <div className="flex min-w-0 flex-1 items-center gap-2 text-xs">
       {/* Parent breadcrumb (REEF-266) — a click-through link up to the parent,
           placed before the current issue. This is *navigation*; the
-          Relationships `Parent` combobox stays *reassignment*, so the two do not
+          rail `Parent` combobox stays *reassignment*, so the two do not
           duplicate-encode the parent identity. Hidden for a top-level issue and
           before the issue loads (parentId arrives with the issue). The parent's
           title truncates; the current-issue cluster stays fully visible. */}

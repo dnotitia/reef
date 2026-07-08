@@ -19,13 +19,6 @@ import { ActivityTimeline } from "../activity/ActivityTimeline";
 import { IssueLinkedDocuments } from "../refs/IssueLinkedDocuments";
 import { IssueRefsEditor } from "../refs/IssueRefsEditor";
 import { IssueChildren } from "../relations/IssueChildren";
-import { IssueRelationInput } from "../relations/IssueRelationInput";
-import { IssueFormSection } from "../shared/IssueFormSection";
-
-/** Order-sensitive equality so a reorder still counts as a change. */
-function sameStringArray(a: readonly string[], b: readonly string[]): boolean {
-  return a.length === b.length && a.every((v, i) => v === b[i]);
-}
 
 function sameJson(a: unknown, b: unknown): boolean {
   return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
@@ -41,18 +34,10 @@ export function IssueDetailMain({
   relations,
   title,
   body,
-  parentId,
-  dependsOn,
-  blocks,
-  relatedTo,
   externalRefs,
   implementationRefs,
   setTitle,
   setBody,
-  setParentId,
-  setDependsOn,
-  setBlocks,
-  setRelatedTo,
   setExternalRefs,
   setImplementationRefs,
   commitTitle,
@@ -63,21 +48,13 @@ export function IssueDetailMain({
   vault: string;
   issue: IssueMetadata | undefined;
   allIssues: readonly IssueListItem[];
-  relations: ComponentProps<typeof IssueRelationInput>["relationGraph"];
+  relations: ComponentProps<typeof IssueChildren>["relationGraph"];
   title: string;
   body: string;
-  parentId: string;
-  dependsOn: string[];
-  blocks: string[];
-  relatedTo: string[];
   externalRefs: ExternalRef[];
   implementationRefs: ImplementationRef[];
   setTitle: ValueSetter<string>;
   setBody: ValueSetter<string>;
-  setParentId: ValueSetter<string>;
-  setDependsOn: ValueSetter<string[]>;
-  setBlocks: ValueSetter<string[]>;
-  setRelatedTo: ValueSetter<string[]>;
   setExternalRefs: ValueSetter<ExternalRef[]>;
   setImplementationRefs: ValueSetter<ImplementationRef[]>;
   commitTitle: (value: string) => void;
@@ -87,7 +64,6 @@ export function IssueDetailMain({
   const fieldNames = useFieldNameLabels();
   const t = useTranslations("issues.detail");
   const tr = useTranslations("issues.relations");
-  const s = useTranslations("sections");
   const openNewIssueDialog = useViewStore((state) => state.openNewIssueDialog);
 
   function handleAddSubIssue() {
@@ -167,75 +143,8 @@ export function IssueDetailMain({
         issueId={issueId}
         allIssues={allIssues}
         relationGraph={relations}
+        action={addSubIssueAction}
       />
-
-      <IssueFormSection title={s("relationships")} action={addSubIssueAction}>
-        <div className="grid gap-3 md:grid-cols-2">
-          <IssueRelationInput
-            id="issue-parent"
-            label={fieldNames.parent}
-            value={parentId ? [parentId] : []}
-            allIssues={allIssues}
-            relationGraph={relations}
-            currentIssueId={issueId}
-            onChange={(next) => {
-              const nextParent = next[0] ?? "";
-              setParentId(nextParent);
-              if (nextParent !== (issue?.parent_id ?? "")) {
-                commit({
-                  parent_id: nextParent || null,
-                } as IssueUpdatePatch);
-              }
-            }}
-            maxItems={1}
-          />
-          <IssueRelationInput
-            id="issue-depends-on"
-            label={fieldNames.dependsOn}
-            value={dependsOn}
-            allIssues={allIssues}
-            relationGraph={relations}
-            currentIssueId={issueId}
-            navigable
-            onChange={(next) => {
-              setDependsOn(next);
-              if (!sameStringArray(next, issue?.depends_on ?? [])) {
-                commit({ depends_on: next });
-              }
-            }}
-          />
-          <IssueRelationInput
-            id="issue-blocks"
-            label={fieldNames.blocks}
-            value={blocks}
-            allIssues={allIssues}
-            relationGraph={relations}
-            currentIssueId={issueId}
-            navigable
-            onChange={(next) => {
-              setBlocks(next);
-              if (!sameStringArray(next, issue?.blocks ?? [])) {
-                commit({ blocks: next });
-              }
-            }}
-          />
-          <IssueRelationInput
-            id="issue-related-to"
-            label={fieldNames.related}
-            value={relatedTo}
-            allIssues={allIssues}
-            relationGraph={relations}
-            currentIssueId={issueId}
-            navigable
-            onChange={(next) => {
-              setRelatedTo(next);
-              if (!sameStringArray(next, issue?.related_to ?? [])) {
-                commit({ related_to: next });
-              }
-            }}
-          />
-        </div>
-      </IssueFormSection>
 
       <IssueLinkedDocuments issueId={issueId} vault={vault} />
 

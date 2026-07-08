@@ -754,10 +754,12 @@
     "relations": {
       "subIssues": "Sub-issues",
       "addSubIssue": "Add sub-issue",
+      "noSubIssues": "No sub-issues yet.",
       "progressLabel": "{done} of {total} sub-issues done",
       "progressCount": "{done} of {total} done",
       "idPlaceholder": "REEF-001 or title…",
       "noMatches": "No matching issues.",
+      "emptyRelation": "No linked issues yet.",
       "useOption": "Use <mono>{id}</mono>",
       "matchCount": "{count, plural, one {# matching issue} other {# matching issues}}",
       "clearField": "Clear {field}",

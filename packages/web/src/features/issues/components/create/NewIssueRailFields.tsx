@@ -33,8 +33,8 @@ type RenderFieldLabel = (
  * is one property row — a fixed label and a full-width value (REEF-167) —
  * mirroring the issue detail sidebar so the same metadata reads the same on the
  * create and edit surfaces, and so long planning-item names get the whole rail
- * width instead of a `grid-cols-2` half-cell. Relationships and refs live in the
- * main column instead (see NewIssueRelationFields).
+ * width instead of a `grid-cols-2` half-cell. Parent / Relations are appended by
+ * `NewIssueRelationFields`; refs stay with the main authoring column.
  */
 export function NewIssueRailFields({
   vault,

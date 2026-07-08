@@ -489,7 +489,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     // English ("Details"/"People"/"Planning"/"Relationships") above already
     // localized field rows — the half-translated screen REEF-298 calls out. They
     // now resolve from the merged ko catalog end to end. REEF-002 always renders
-    // the full property rail + relationships section.
+    // the full property rail + relationship rows.
     await page.goto("/workspace/reef-e2e/issues/REEF-002");
     const sidebar = page.getByTestId("issue-detail-sidebar");
     await expect(sidebar).toBeVisible();

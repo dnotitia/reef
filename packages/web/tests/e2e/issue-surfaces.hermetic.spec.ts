@@ -181,7 +181,7 @@ test.describe("Hermetic issue route surfaces", () => {
       .not.toContain("REEF-004");
   });
 
-  test("creates a sub-issue from Relationships with inherited defaults and optimistic child list update", async ({
+  test("creates a sub-issue from Sub-issues with inherited defaults and optimistic child list update", async ({
     page,
     request,
   }) => {
@@ -196,7 +196,10 @@ test.describe("Hermetic issue route surfaces", () => {
       timeout: 10_000,
     });
     await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
-    await expect(page.locator('[data-testid="issue-children"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="issue-children"]')).toBeVisible();
+    await expect(
+      page.locator('[data-testid="issue-children-empty"]'),
+    ).toContainText("No sub-issues yet.");
 
     await page.locator('[data-testid="add-sub-issue-trigger"]').click();
     const dialog = page.locator('[data-testid="new-issue-dialog"]');
