@@ -106,7 +106,7 @@ export const IssueChildren = memo(function IssueChildren({
         {total === 0 ? (
           <p
             data-testid="issue-children-empty"
-            className="rounded-md border border-dashed border-border-subtle bg-surface px-2 py-3 text-xs text-muted-foreground"
+            className="w-fit max-w-full px-1.5 py-1 text-xs text-muted-foreground/80"
           >
             {t("noSubIssues")}
           </p>

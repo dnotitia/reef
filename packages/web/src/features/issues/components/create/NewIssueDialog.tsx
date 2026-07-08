@@ -506,7 +506,9 @@ export function NewIssueDialog() {
               <DialogTitle>
                 {subIssueContext ? tc("subIssueHeading") : tc("heading")}
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription
+                className={subIssueContext && vault ? "sr-only" : undefined}
+              >
                 {vault
                   ? subIssueContext
                     ? tc.rich("createSubIssueIn", {
@@ -529,6 +531,20 @@ export function NewIssueDialog() {
                       })
                   : tc("configureFirst")}
               </DialogDescription>
+              {subIssueContext && vault ? (
+                <div
+                  aria-hidden="true"
+                  className="mt-1.5 flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs"
+                >
+                  <span className="max-w-[12rem] shrink-0 truncate font-mono text-[11px]">
+                    {vault}
+                  </span>
+                  <span className="text-muted-foreground/50">/</span>
+                  <span className="shrink-0 font-mono text-[11px] text-foreground">
+                    {subIssueContext.parent.id}
+                  </span>
+                </div>
+              ) : null}
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <TemplatePicker
