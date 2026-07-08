@@ -384,7 +384,10 @@ The detail panel's expression of "show the why" is split by intent:
 relationships show issue-to-issue context, linked documents show akb-native
 reference edges, implementation refs hold external/code references, and the
 activity timeline merges comments, status changes, and reconstructed events into
-one chronological thread.
+one chronological thread. Relationship dropdowns, navigable relation rows, and
+sub-issue rows use the same compact issue-row rhythm as the rest of the detail
+panel; their issue-type mark is glyph-only in the visual row, with the localized
+type name kept for screen readers.
 
 ### Activity Hub
 
