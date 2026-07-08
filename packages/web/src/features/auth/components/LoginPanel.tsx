@@ -6,13 +6,17 @@ import { cn } from "@/lib/utils";
 import { AkbAuthConfigSchema } from "@reef/core";
 import { Building2, KeyRound, ShieldCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 export interface LoginPanelProps {
   redirectTo?: string;
 }
 
 type SsoState = "loading" | "enabled" | "disabled";
+
+function akbPlatformToken(chunks: ReactNode) {
+  return <span translate="no">{chunks}</span>;
+}
 
 export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
   const safeRedirect = normalizeSafeRedirect(redirectTo);
@@ -71,7 +75,7 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
             {t("workspaceIdentity")}
           </p>
           <p className="text-muted-foreground text-xs">
-            {t("akbPlatformAccess")}
+            {t.rich("akbPlatformAccess", { akb: akbPlatformToken })}
           </p>
         </div>
       </div>
@@ -79,6 +83,7 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
       <div
         className="flex min-h-[86px] flex-col justify-center pt-4"
         data-testid="sso-option-region"
+        aria-live="polite"
       >
         {ssoState === "loading" && (
           <div
@@ -101,7 +106,7 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
             </a>
             <div className="flex items-center justify-center gap-1.5 text-muted-foreground text-xs">
               <ShieldCheck className="size-3.5" aria-hidden="true" />
-              <span>{t("useAkbIdentity")}</span>
+              <span>{t.rich("useAkbIdentity", { akb: akbPlatformToken })}</span>
             </div>
           </div>
         )}

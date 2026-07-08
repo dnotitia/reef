@@ -67,7 +67,7 @@ describe("SsoCompletePage", () => {
 
     const { invalidateSpy } = renderWithQueryClient(<SsoCompletePage />);
 
-    expect(screen.getByText("Finishing sign-in...")).toBeInTheDocument();
+    expect(screen.getByText("Finishing sign-in…")).toBeInTheDocument();
     await waitFor(() => {
       expect(reconcileAkbAccount).toHaveBeenCalledWith("user-1");
     });

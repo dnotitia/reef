@@ -93,6 +93,10 @@ describe("LoginPage", () => {
     expect(screen.getByTestId("login-panel")).toHaveTextContent(
       "/issues?status=open",
     );
+    expect(screen.getByRole("heading", { name: "reef" })).toHaveAttribute(
+      "translate",
+      "no",
+    );
   });
 
   describe("SSO-first auto-redirect (REEF-312)", () => {

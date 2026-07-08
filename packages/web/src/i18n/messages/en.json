@@ -978,21 +978,21 @@
       "sessionEnded": "Your previous session has ended. Please sign in again."
     },
     "sso": {
-      "finishing": "Finishing sign-in..."
+      "finishing": "Finishing sign-in…"
     },
     "form": {
       "username": "Username",
       "password": "Password",
-      "signIn": "Sign in",
-      "signingIn": "Signing in…",
+      "signIn": "Sign In",
+      "signingIn": "Signing In…",
       "signInFailed": "Sign-in failed. Please try again.",
       "networkError": "Could not reach reef. Check your connection and try again."
     },
     "panel": {
       "workspaceIdentity": "Workspace identity",
-      "akbPlatformAccess": "akb-platform access",
-      "continueWithSso": "Continue with workspace SSO",
-      "useAkbIdentity": "Use your akb-platform identity.",
+      "akbPlatformAccess": "<akb>akb-platform</akb> access",
+      "continueWithSso": "Continue with Workspace SSO",
+      "useAkbIdentity": "Use your <akb>akb-platform</akb> identity.",
       "orUsePassword": "or use password"
     },
     "account": {

@@ -1,6 +1,6 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -75,6 +75,36 @@ describe("LoginForm", () => {
     expect(push).toHaveBeenCalledWith("/issues");
   });
 
+  it("keeps auth controls accessible before and during submit", async () => {
+    let resolveLogin: (response: Response) => void = () => {};
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveLogin = resolve;
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderWithQueryClient(<LoginForm />);
+
+    expect(screen.getByTestId("login-submit")).toBeEnabled();
+    expect(screen.getByTestId("login-username")).toHaveAttribute(
+      "spellcheck",
+      "false",
+    );
+
+    await fillAndSubmit();
+
+    expect(screen.getByTestId("login-submit")).toBeDisabled();
+    expect(screen.getByTestId("login-submit-spinner")).toBeInTheDocument();
+    expect(screen.getByTestId("login-submit")).toHaveTextContent("Signing In…");
+
+    resolveLogin(new Response(JSON.stringify({ user: { id: "user-1" } })));
+    await waitFor(() => {
+      expect(push).toHaveBeenCalledWith("/");
+    });
+  });
+
   it("surfaces the backend error and does not reconcile on a failed sign-in", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ error: "Invalid username or password." }), {
@@ -89,6 +119,7 @@ describe("LoginForm", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Invalid username or password.",
     );
+    expect(screen.getByRole("alert")).toHaveAttribute("aria-live", "polite");
     expect(reconcileAkbAccount).not.toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
   });

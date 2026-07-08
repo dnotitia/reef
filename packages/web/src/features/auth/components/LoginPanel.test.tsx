@@ -52,6 +52,10 @@ describe("LoginPanel", () => {
     renderWithQueryClient(<LoginPanel redirectTo="/issues" />);
 
     expect(screen.getByTestId("sso-option-region")).toBeInTheDocument();
+    expect(screen.getByTestId("sso-option-region")).toHaveAttribute(
+      "aria-live",
+      "polite",
+    );
     expect(screen.getByTestId("sso-config-loading")).toBeInTheDocument();
     expect(screen.getByTestId("login-username")).toBeInTheDocument();
     expect(screen.getByTestId("login-password")).toBeInTheDocument();
@@ -69,7 +73,17 @@ describe("LoginPanel", () => {
       "href",
       "/api/auth/akb/sso/start?redirect=%2Fissues%3Fstatus%3Dopen",
     );
-    expect(screen.getByText("Use your akb-platform identity.")).toBeVisible();
+    expect(
+      screen.getByText((_, node) => {
+        return (
+          node?.tagName === "SPAN" &&
+          node.textContent === "Use your akb-platform identity."
+        );
+      }),
+    ).toBeVisible();
+    for (const token of screen.getAllByText("akb-platform")) {
+      expect(token).toHaveAttribute("translate", "no");
+    }
     expect(screen.getByText("or use password")).toBeVisible();
   });
 

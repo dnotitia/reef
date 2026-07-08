@@ -119,7 +119,10 @@ function LoginView({
       <div className="flex w-full max-w-[420px] flex-col items-center gap-5 text-center">
         <div className="flex flex-col items-center gap-3 pb-1">
           <ReefMark className="size-11" decorative />
-          <h1 className="font-display font-semibold text-3xl text-foreground">
+          <h1
+            className="font-display font-semibold text-3xl text-foreground"
+            translate="no"
+          >
             reef{/* i18n-exempt: brand name */}
           </h1>
         </div>
