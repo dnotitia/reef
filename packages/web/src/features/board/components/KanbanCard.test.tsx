@@ -1,3 +1,4 @@
+import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import type { IssueListItem, PlanningCatalog } from "@reef/core";
 import {
   cleanup,
@@ -21,6 +22,13 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
   currentLogin.value = null;
+  useIssueKeyboardStore.setState({
+    visibleIssueIds: { list: [], board: [] },
+    focusedIssueId: { list: null, board: null },
+    tabStopIssueId: { list: null, board: null },
+    focusRequest: null,
+    quickEditRequest: null,
+  });
 });
 
 // Mock @dnd-kit/core to avoid JSDOM drag issues
@@ -216,6 +224,24 @@ describe("KanbanCard", () => {
     const { container } = render(<KanbanCard issue={mockIssue()} />);
     const card = container.firstChild as HTMLElement;
     expect(card.className).not.toContain("opacity-50");
+  });
+
+  it("keeps keyboard focus chrome inset so column overflow cannot clip rounded card corners", () => {
+    useIssueKeyboardStore.setState({
+      focusedIssueId: { list: null, board: "reef-001" },
+      tabStopIssueId: { list: null, board: "reef-001" },
+    });
+
+    render(<KanbanCard issue={mockIssue()} />);
+
+    const card = screen.getByTestId("kanban-card");
+    expect(card).toHaveAttribute("data-keyboard-focused", "true");
+    expect(card.className).toContain("focus-visible:ring-inset");
+    expect(card.className).toContain("focus-visible:border-brand");
+    expect(card.className).toContain("ring-inset");
+    expect(card.className).toContain("ring-brand/30");
+    expect(card.className).toContain("bg-brand/5");
+    expect(card.className).not.toContain("ring-offset");
   });
 
   it("renders the assignee as an identifiable avatar when present", () => {
