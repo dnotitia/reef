@@ -80,6 +80,10 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Kanban card keyboard focus no longer clips at column edges.** Board cards
+  now use an inset teal focus chrome with a subtle brand tint, so the focused
+  card keeps matching rounded corners even when it sits at the top of a
+  scrollable column. (REEF-377)
 - **Forward-compatible with akb's newer API error format.** reef now reads
   akb's structured `{ message, code }` error envelope in addition to the older
   error shape. This is a compatibility change with no user-visible effect on the
