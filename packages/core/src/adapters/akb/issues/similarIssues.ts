@@ -9,7 +9,7 @@ import { quoteText } from "../core/sql";
 import { withSpan } from "../core/tracing";
 import { rowToIssue, selectIssueRows } from "./issueRows";
 
-export const DEFAULT_SIMILAR_ISSUE_LIMIT = 5;
+const DEFAULT_SIMILAR_ISSUE_LIMIT = 5;
 export const DEFAULT_SIMILAR_ISSUE_MIN_SCORE = 0.03;
 const SEARCH_PREFETCH_LIMIT = 20;
 

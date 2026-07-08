@@ -63,7 +63,14 @@ import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { SidebarFooterShortcuts } from "./SidebarFooterShortcuts";
 
 // The Ask AI panel pulls in the chat heavy deps (streamdown + its mermaid/
@@ -82,6 +89,10 @@ function preloadAskAiDialog() {
   if (typeof window !== "undefined") {
     void import("@/features/ai/components/AskAiDialog");
   }
+}
+
+function subscribeToPlatformStore() {
+  return () => {};
 }
 
 interface DashboardShellProps {
@@ -195,7 +206,6 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   const [chatMounted, setChatMounted] = useState(
     () => useAskAiStore.getState().isOpen,
   );
-  const [macLike, setMacLike] = useState<boolean | null>(null);
   useEffect(() => {
     return useAskAiStore.subscribe((state) => {
       if (state.isOpen) {
@@ -204,10 +214,11 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
     });
   }, []);
 
-  useEffect(() => {
-    setMacLike(isMacLike());
-  }, []);
-
+  const macLike = useSyncExternalStore(
+    subscribeToPlatformStore,
+    isMacLike,
+    () => null,
+  );
   const newIssueShortcut =
     macLike === null
       ? null

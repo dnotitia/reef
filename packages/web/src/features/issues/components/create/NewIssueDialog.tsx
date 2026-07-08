@@ -207,6 +207,7 @@ export function NewIssueDialog() {
   function resetForm() {
     resetFields();
     setSubmitError(null);
+    setCreateAnother(false);
     setDismissedRefs(new Set());
     setReferenceCandidates([]);
     enrichment.reset();
@@ -217,7 +218,6 @@ export function NewIssueDialog() {
   useEffect(() => {
     if (!open) {
       seededContextRef.current = undefined;
-      setCreateAnother(false);
       return;
     }
     if (seededContextRef.current === dialogContext) return;
@@ -227,7 +227,6 @@ export function NewIssueDialog() {
         : undefined,
     );
     setSubmitError(null);
-    setCreateAnother(false);
     seededContextRef.current = dialogContext;
   }, [dialogContext, open, resetFields]);
 

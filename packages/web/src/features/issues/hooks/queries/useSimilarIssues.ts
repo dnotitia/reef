@@ -6,7 +6,7 @@ import type { SimilarIssue } from "@reef/core";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 
-export const SIMILAR_ISSUES_DEBOUNCE_MS = 600;
+const SIMILAR_ISSUES_DEBOUNCE_MS = 600;
 const SIMILAR_ISSUES_LIMIT = 5;
 const MIN_SIMILAR_ISSUE_QUERY_LENGTH = 3;
 const MIN_CJK_SIMILAR_ISSUE_QUERY_LENGTH = 2;
@@ -31,9 +31,11 @@ export function useSimilarIssues({
 }) {
   const query = useDebouncedQuery(SIMILAR_ISSUES_DEBOUNCE_MS, title.trim());
 
+  const { onChange } = query;
+
   useEffect(() => {
-    query.onChange(title);
-  }, [query.onChange, title]);
+    onChange(title);
+  }, [onChange, title]);
 
   const trimmed = query.debounced.trim();
   const liveTitle = query.raw.trim();
