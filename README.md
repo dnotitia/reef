@@ -42,6 +42,10 @@ them.
 
 ## Try reef locally
 
+reef requires Node.js 22+ and pnpm 11. The root `packageManager` field pins the
+exact pnpm version; run `corepack enable` before installing so your shell uses
+that version.
+
 ### UI preview
 
 For a quick UI preview, you can run reef against the hermetic fixture harness.
