@@ -161,6 +161,10 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
     "App shell composition; extract nav badge or shortcut groups when another shell surface shares them.",
   ],
   [
+    "packages/web/src/features/ui/components/DashboardShell.test.tsx",
+    "Shell regression suite sharing one provider/mock setup for nav, badges, shortcuts, and dialogs; extract a platform-shortcut harness when another shell suite reuses it.",
+  ],
+  [
     "packages/web/src/features/issues/components/backlog/BacklogView.tsx",
     "Backlog page workflow; split when rank controls or empty states gain reuse.",
   ],
