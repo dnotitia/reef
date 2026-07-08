@@ -272,7 +272,7 @@ describe("NewIssueDialog", () => {
     // REEF-167: the canvas matches the issue detail sheet width so the widened
     // rail doesn't shrink the main column.
     expect(screen.getByTestId("new-issue-dialog")).toHaveClass(
-      "max-w-[min(94vw,1080px)]",
+      "max-w-[min(94vw,1200px)]",
     );
     // REEF-075: the description owns the main column, so it is no longer pushed
     // below the Planning metadata (which now sits in the right rail). Planning
@@ -436,10 +436,18 @@ describe("NewIssueDialog", () => {
     render(wrap(<NewIssueDialog />));
     await screen.findByText("New Issue");
 
-    // Details + People + Planning fields are each one property row (fixed label
-    // + full-width value), matching the issue detail rail — not `grid-cols-2`
-    // half-cells. Probe a representative field from each group.
-    for (const label of ["Type", "Priority", "Assignee", "Start", "Severity"]) {
+    // Details + People + Planning + Parent/Relations fields are each one
+    // property row (fixed label + full-width value), matching the issue detail
+    // rail — not `grid-cols-2` half-cells. Probe representative fields.
+    for (const label of [
+      "Type",
+      "Priority",
+      "Assignee",
+      "Start",
+      "Severity",
+      "Parent",
+      "Blocks",
+    ]) {
       expect(
         screen.getByLabelText(label).closest('[data-slot="issue-field-row"]'),
         `${label} should sit in an IssueFieldRow`,

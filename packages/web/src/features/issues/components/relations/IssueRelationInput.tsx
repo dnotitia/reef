@@ -59,12 +59,12 @@ interface IssueRelationInputProps {
   /** Suppress the internal label when an external `<label>` already labels it. */
   hideLabel?: boolean;
   /**
-   * Make multi-mode relation chips navigable (REEF-268): each chip becomes a
-   * link to `/issues/{id}`, rendered as the Sub-issues-style `IssueOptionRow`
-   * (status · id · title · type · priority), with the remove `X` kept as a
-   * separate hit target. Detail-panel — the create dialog and the
-   * activity-draft editor leave this `false` so clicking a chip does not navigate
-   * away from an unsaved issue. No effect in single mode (parent uses a field).
+   * Make multi-mode relation rows navigable (REEF-268): each selected target
+   * becomes a link to `/issues/{id}` rendered in the Sub-issues-style
+   * `IssueOptionRow` rhythm, with the remove `X` kept as a separate hit target.
+   * The create dialog and activity-draft editor leave this `false` so selecting
+   * a target does not navigate away from an unsaved issue. No effect in single
+   * mode (parent uses a field).
    */
   navigable?: boolean;
 }
@@ -91,7 +91,7 @@ type Option =
  * query — so a title or prefix search does not store an invalid relation id.
  *
  * Single mode (`maxItems === 1`) keeps the chosen id in the field with a
- * Set/Clear button; multi mode renders removable chips plus an Add button.
+ * Set/Clear button; multi mode renders removable selected rows plus an Add button.
  */
 export function IssueRelationInput({
   id,
@@ -210,7 +210,7 @@ export function IssueRelationInput({
     [relationGraph, allIssues],
   );
 
-  // Resolve each stored relation id to its full list item so a navigable chip
+  // Resolve each stored relation id to its full list item so a selected row
   // can render the Sub-issues-style row (status · id · title); an unresolved id
   // — e.g. an archived target absent from the list — degrades to an id fallback
   // link rather than dropping navigation entirely (REEF-268).
@@ -621,72 +621,60 @@ export function IssueRelationInput({
       </span>
 
       {!isSingle &&
-        value.length > 0 &&
-        (navigable ? (
-          // Detail panel (REEF-268/284): chips become self-describing rows that
-          // drill in place through the same nav model as the parent breadcrumb
-          // and Sub-issues. Isolated in its own component so the drill hook
-          // (router/searchParams) runs on the detail path — the create
-          // dialog / activity-draft editor (navigable=false) does not mount it.
-          <NavigableRelationChips
-            value={value}
-            currentIssueId={currentIssueId}
-            issuesById={issuesById}
-            blockedIndex={blockedIndex}
-            disabled={disabled}
-            onRemove={removeRelation}
-          />
-        ) : (
-          // Create dialog / activity-draft editor: keep the existing
-          // non-navigable id chips so clicking does not leave an unsaved issue.
-          <div className="flex flex-wrap gap-1">
-            {value.map((relationId) => (
-              <span
-                key={relationId}
-                className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-[11px] font-medium text-foreground"
-              >
-                <span className="font-mono" translate="no">
-                  {relationId}
-                </span>
-                <button
-                  type="button"
-                  aria-label={t("removeRelation", { id: relationId })}
-                  disabled={disabled}
-                  onClick={() => removeRelation(relationId)}
-                  // Match the navigable chip's remove button (REEF-268): a
-                  // keyboard-visible focus ring and rounded ring corners, reusing
-                  // the same tokens. `rounded-md` shapes the ring (no bg/
-                  // padding here), so the pill layout is unchanged (REEF-282).
-                  className="touch-manipulation rounded-md text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50"
-                >
-                  <X className="h-3 w-3" aria-hidden="true" />
-                </button>
-              </span>
-            ))}
-          </div>
-        ))}
+        (value.length > 0 ? (
+          navigable ? (
+            // Detail panel (REEF-268/284): selected targets drill in place
+            // through the same nav model as the parent breadcrumb and
+            // Sub-issues. Isolated in its own component so the drill hook
+            // (router/searchParams) only runs on the detail path.
+            <NavigableRelationRows
+              value={value}
+              currentIssueId={currentIssueId}
+              issuesById={issuesById}
+              blockedIndex={blockedIndex}
+              disabled={disabled}
+              onRemove={removeRelation}
+            />
+          ) : (
+            // Create dialog / activity-draft editor: selected targets use the
+            // same compact issue-row rhythm, but without links so clicking does
+            // not leave an unsaved issue.
+            <StaticRelationRows
+              value={value}
+              issuesById={issuesById}
+              blockedIndex={blockedIndex}
+              disabled={disabled}
+              onRemove={removeRelation}
+            />
+          )
+        ) : navigable ? (
+          <p
+            data-testid={`${id}-empty`}
+            className="rounded-md border border-dashed border-border-subtle bg-surface px-2 py-2 text-xs text-muted-foreground"
+          >
+            {t("emptyRelation")}
+          </p>
+        ) : null)}
     </div>
   );
 }
 
 /**
- * Navigable multi-relation chips for the issue detail panel (REEF-268/284).
+ * Navigable multi-relation rows for the issue detail panel (REEF-268/284).
  *
- * Each chip drills to its target in place via `useIssueDrill`, recording the hop
+ * Each row drills to its target in place via `useIssueDrill`, recording the hop
  * on the in-memory nav stack so a single Back returns here and Close exits the
  * whole trail to the list — the same model the parent breadcrumb and Sub-issues
  * already use. `getDrillProps` builds the href through `buildOpenIssueHref`, so a
  * modifier / middle click still opens a fresh deep link that carries the active
- * `?view=` (REEF-222). The id/title region links; the `X` is a separate hit
+ * `?view=` (REEF-222). The issue row region links; the `X` is a separate hit
  * target so removing does not navigate.
  *
  * Split out of `IssueRelationInput` on purpose: the drill hook reads the router
- * and search params, so keeping it in its own component means it runs where
- * chips are navigable (the detail panel). The create dialog and activity-draft
- * editor pass `navigable={false}` and does not mount this, so they stay free of any
- * router dependency.
+ * and search params, so keeping it in its own component means it runs only
+ * where selected relation rows are navigable (the detail panel).
  */
-function NavigableRelationChips({
+function NavigableRelationRows({
   value,
   currentIssueId,
   issuesById,
@@ -733,6 +721,57 @@ function NavigableRelationChips({
                 </span>
               )}
             </Link>
+            <button
+              type="button"
+              aria-label={t("removeRelation", { id: relationId })}
+              disabled={disabled}
+              onClick={() => onRemove(relationId)}
+              className="shrink-0 touch-manipulation rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-50"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function StaticRelationRows({
+  value,
+  issuesById,
+  blockedIndex,
+  disabled,
+  onRemove,
+}: {
+  value: readonly string[];
+  issuesById: Map<string, IssueListItem>;
+  blockedIndex: ReturnType<typeof indexIssuesById>;
+  disabled: boolean;
+  onRemove: (id: string) => void;
+}) {
+  const t = useTranslations("issues.relations");
+  return (
+    <ul className="flex flex-col gap-0.5">
+      {value.map((relationId) => {
+        const target = issuesById.get(relationId);
+        return (
+          <li key={relationId} className="flex items-center gap-1">
+            <div className="flex min-w-0 flex-1 items-center rounded-md px-1.5 py-1">
+              {target ? (
+                <IssueOptionRow
+                  issue={target}
+                  blockerCount={unresolvedBlockerCountIn(target, blockedIndex)}
+                />
+              ) : (
+                <span
+                  translate="no"
+                  className="font-mono text-xs tabular-nums text-muted-foreground"
+                >
+                  {relationId}
+                </span>
+              )}
+            </div>
             <button
               type="button"
               aria-label={t("removeRelation", { id: relationId })}

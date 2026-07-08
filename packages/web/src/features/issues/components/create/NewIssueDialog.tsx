@@ -36,6 +36,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ISSUE_TYPE_OPTIONS, NO_SELECTION } from "../../lib/metadataOptions";
+import { IssueRefsEditor } from "../refs/IssueRefsEditor";
 import { IssueFieldRow } from "../shared/IssueFieldRow";
 import { SimilarIssuesSection } from "../shared/SimilarIssuesSection";
 import { DiscardDraftDialog } from "./DiscardDraftDialog";
@@ -430,8 +431,8 @@ export function NewIssueDialog() {
       renderFieldLabel={renderFieldLabel}
     />
   );
-  // Main-column relationships and external refs, kept below the description so
-  // they don't crowd the rail — matching the issue detail screen.
+  // Parent / Relations live in the rail. Create still does not expose an
+  // editable Sub-issues list before the issue exists.
   const relationFields = (
     <NewIssueRelationFields
       isSubmitting={isSubmitting}
@@ -441,16 +442,24 @@ export function NewIssueDialog() {
       dependsOn={dependsOn}
       blocks={blocks}
       relatedTo={relatedTo}
-      externalRefs={externalRefs}
       setParentId={setParentId}
       setDependsOn={setDependsOn}
       setBlocks={setBlocks}
       setRelatedTo={setRelatedTo}
-      setExternalRefs={setExternalRefs}
       lockedParent={subIssueContext?.parent}
       renderEnrichable={renderEnrichable}
       renderFieldLabel={renderFieldLabel}
     />
+  );
+  const externalRefFields = renderEnrichable(
+    "external_refs",
+    <IssueRefsEditor
+      externalRefs={externalRefs}
+      implementationRefs={[]}
+      onExternalRefsChange={setExternalRefs}
+      disabled={isSubmitting}
+      idPrefix="new-issue-refs"
+    />,
   );
 
   return (
@@ -464,7 +473,7 @@ export function NewIssueDialog() {
         showCloseButton={false}
         // Canvas matches the issue detail sheet (REEF-167) so the widened rail
         // doesn't steal width from the main column.
-        className="max-h-[88vh] max-w-[min(94vw,1080px)] gap-5 overflow-y-auto overscroll-contain"
+        className="max-h-[88vh] max-w-[min(94vw,1200px)] gap-5 overflow-y-auto overscroll-contain"
         onInteractOutside={(e) => {
           // The relation picker renders its dropdown in a body portal, so Radix
           // sees a click on one of its options as "outside" the dialog. That is
@@ -584,8 +593,13 @@ export function NewIssueDialog() {
             titleTestId="new-issue-title-input"
             priorityTestId="new-issue-priority-select"
             labelsTestId="new-issue-labels-input"
-            railSlot={railFields}
-            mainExtra={relationFields}
+            railSlot={
+              <>
+                {railFields}
+                {relationFields}
+              </>
+            }
+            mainExtra={externalRefFields}
             primaryField={
               // A row-shaped Type so split Details reads as a property list
               // (REEF-167), matching the issue detail rail.

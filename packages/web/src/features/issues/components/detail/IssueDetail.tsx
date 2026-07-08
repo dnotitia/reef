@@ -326,7 +326,7 @@ function IssueDetailLoaded({
         onDeleteRequested={() => setConfirmDeleteOpen(true)}
       />
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_400px]">
         <IssueDetailMain
           issueId={issueId}
           vault={vault}
@@ -335,18 +335,10 @@ function IssueDetailLoaded({
           relations={relations}
           title={draft.title}
           body={draft.body}
-          parentId={draft.parentId}
-          dependsOn={draft.dependsOn}
-          blocks={draft.blocks}
-          relatedTo={draft.relatedTo}
           externalRefs={draft.externalRefs}
           implementationRefs={draft.implementationRefs}
           setTitle={(value) => setDraftField("title", value)}
           setBody={(value) => setDraftField("body", value)}
-          setParentId={(value) => setDraftField("parentId", value)}
-          setDependsOn={(value) => setDraftField("dependsOn", value)}
-          setBlocks={(value) => setDraftField("blocks", value)}
-          setRelatedTo={(value) => setDraftField("relatedTo", value)}
           setExternalRefs={(value) => setDraftField("externalRefs", value)}
           setImplementationRefs={(value) =>
             setDraftField("implementationRefs", value)
@@ -358,7 +350,10 @@ function IssueDetailLoaded({
 
         <IssueDetailSidebar
           vault={vault}
+          issueId={issueId}
           issue={issue}
+          allIssues={allIssues ?? []}
+          relations={relations}
           issueType={draft.issueType}
           status={draft.status}
           priority={draft.priority}
@@ -373,6 +368,10 @@ function IssueDetailLoaded({
           milestoneId={draft.milestoneId}
           releaseId={draft.releaseId}
           estimatePoints={draft.estimatePoints}
+          parentId={draft.parentId}
+          dependsOn={draft.dependsOn}
+          blocks={draft.blocks}
+          relatedTo={draft.relatedTo}
           setIssueType={(value) => setDraftField("issueType", value)}
           setStatus={(value) => setDraftField("status", value)}
           setPriority={(value) => setDraftField("priority", value)}
@@ -387,6 +386,10 @@ function IssueDetailLoaded({
           setMilestoneId={(value) => setDraftField("milestoneId", value)}
           setReleaseId={(value) => setDraftField("releaseId", value)}
           setEstimatePoints={(value) => setDraftField("estimatePoints", value)}
+          setParentId={(value) => setDraftField("parentId", value)}
+          setDependsOn={(value) => setDraftField("dependsOn", value)}
+          setBlocks={(value) => setDraftField("blocks", value)}
+          setRelatedTo={(value) => setDraftField("relatedTo", value)}
           commit={commit}
           commitTextField={commitTextField}
           commitNumberField={commitNumberField}

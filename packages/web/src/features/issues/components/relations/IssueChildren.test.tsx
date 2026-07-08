@@ -102,12 +102,22 @@ describe("IssueChildren", () => {
     expect(screen.queryByText("REEF-200")).toBeNull();
   });
 
-  it("renders nothing when the issue has no children", () => {
-    const { container } = render(
-      <IssueChildren issueId="REEF-555" allIssues={ALL} />,
+  it("renders an empty state and keeps the add action with the Sub-issues section", () => {
+    render(
+      <IssueChildren
+        issueId="REEF-555"
+        allIssues={ALL}
+        action={<button type="button">Add sub-issue</button>}
+      />,
     );
-    expect(screen.queryByTestId("issue-children")).toBeNull();
-    expect(container.firstChild).toBeNull();
+    expect(screen.getByTestId("issue-children")).toBeInTheDocument();
+    expect(screen.getByTestId("issue-children-empty")).toHaveTextContent(
+      "No sub-issues yet.",
+    );
+    expect(
+      screen.getByRole("button", { name: "Add sub-issue" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
 
   it("summarizes resolved vs total and exposes a progressbar", () => {

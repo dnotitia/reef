@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { IssueRelationInput } from "./IssueRelationInput";
 
-// Navigable chips drill in place through `useIssueDrill` (REEF-284), which reads
+// Navigable rows drill in place through `useIssueDrill` (REEF-284), which reads
 // the router + live query, so stub both navigation primitives. An empty
 // `useSearchParams` keeps relation hrefs bare (`/issues/REEF-001`).
 const { mockReplace } = vi.hoisted(() => ({ mockReplace: vi.fn() }));
@@ -17,9 +17,9 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({ vault: "reef-test" }),
 }));
 
-// Navigable chips' drill hook reads the active vault (REEF-315) via
+// Navigable rows' drill hook reads the active vault (REEF-315) via
 // useActiveVault, which calls useQuery; this component renders without a
-// QueryClient, so resolve it to a fixed vault that scopes the chip hrefs.
+// QueryClient, so resolve it to a fixed vault that scopes the row hrefs.
 vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   useActiveVault: () => ({
     vault: "reef-test",
@@ -122,7 +122,7 @@ describe("IssueRelationInput", () => {
     expect(onChange).toHaveBeenLastCalledWith([]);
   });
 
-  it("keeps relation chip behavior for multi-value relationships", () => {
+  it("renders multi-value relationships as compact issue rows", () => {
     render(
       <IssueRelationInput
         id="depends-on"
@@ -139,6 +139,7 @@ describe("IssueRelationInput", () => {
     expect(
       screen.getByRole("button", { name: "Add Depends on" }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Parent issue")).toBeInTheDocument();
   });
 
   // REEF-032: candidate dropdown is now a card-level combobox.
@@ -168,10 +169,11 @@ describe("IssueRelationInput", () => {
     },
   ];
 
-  // REEF-268: detail-panel chips are navigable, self-describing rows; the
-  // create dialog / activity-draft editor keep the non-navigable id chips.
-  describe("navigable chips (REEF-268)", () => {
-    it("renders each chip as a link to the issue with id + title", () => {
+  // REEF-268/375: detail-panel relation targets are navigable,
+  // self-describing rows; create dialog / activity-draft editor targets use the
+  // same row rhythm without links.
+  describe("navigable rows (REEF-268)", () => {
+    it("renders each row as a link to the issue with id + title", () => {
       render(
         <IssueRelationInput
           id="depends-on"
@@ -189,7 +191,7 @@ describe("IssueRelationInput", () => {
         "/workspace/reef-test/issues/REEF-001",
       );
       // Self-describing: the id AND the title render inside the link, matching
-      // the Sub-issues row (not the old id fallback chip).
+      // the Sub-issues row (not the old id fallback pill).
       expect(link).toHaveTextContent("REEF-001");
       expect(link).toHaveTextContent("Login fails");
       // Same focus contract as IssueChildren's rows.
@@ -279,22 +281,24 @@ describe("IssueRelationInput", () => {
         />,
       );
 
-      // No link: clicking a chip in an unsaved-issue form should not navigate.
+      // No link: clicking a selected target in an unsaved-issue form should not
+      // navigate.
       expect(screen.queryByRole("link")).not.toBeInTheDocument();
-      // The id chip + its remove control are still rendered.
+      // The compact issue row + its remove control are still rendered.
       expect(screen.getByText("REEF-001")).toBeInTheDocument();
+      expect(screen.getByText("Login fails")).toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: "Remove REEF-001" }),
       ).toBeInTheDocument();
     });
   });
 
-  // REEF-282: the non-navigable chips (create dialog / draft editor) get the
-  // same a11y/i18n finish the navigable chips already have (REEF-268), without
-  // gaining navigation or changing the pill layout. jsdom loads no Tailwind, so
+  // REEF-282: the non-navigable rows (create dialog / draft editor) get the
+  // same a11y/i18n finish the navigable rows already have (REEF-268), without
+  // gaining navigation. jsdom loads no Tailwind, so
   // these assert the structural class/attribute contract the fix turns on.
-  describe("non-navigable chip a11y/i18n finish (REEF-282)", () => {
-    it("gives the remove button the same keyboard focus ring as the navigable chip", () => {
+  describe("non-navigable row a11y/i18n finish (REEF-282)", () => {
+    it("gives the remove button the same keyboard focus ring as the navigable row", () => {
       render(
         <IssueRelationInput
           id="depends-on"
@@ -305,7 +309,7 @@ describe("IssueRelationInput", () => {
         />,
       );
 
-      // No navigation was added — still the non-navigable chip branch.
+      // No navigation was added — still the non-navigable row branch.
       expect(screen.queryByRole("link")).not.toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: "Remove REEF-001" }),
@@ -344,7 +348,9 @@ describe("IssueRelationInput", () => {
         />,
       );
 
-      expect(screen.getByText("REEF-001")).toHaveAttribute("translate", "no");
+      expect(
+        screen.getByText("REEF-001").closest('[translate="no"]'),
+      ).not.toBeNull();
     });
   });
 

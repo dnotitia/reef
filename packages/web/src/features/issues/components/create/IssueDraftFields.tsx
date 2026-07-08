@@ -232,13 +232,14 @@ export function IssueDraftFields({
 
   // Split layout (REEF-075): Title + Description own the main column so the
   // writing area stays prominent, while Details and the injected `railSlot`
-  // (People / Planning) move to a right rail that stacks under the main column
-  // below `lg`. Mirrors the issue detail screen's main/aside split.
+  // (People / Planning / Parent / Relations) move to a right rail that stacks
+  // under the main column below `lg`. Mirrors the issue detail screen's
+  // main/aside split.
   if (layout === "split") {
     return (
-      // Rail track 340px matches the issue detail rail (REEF-167) so the same
+      // Rail track 400px matches the issue detail rail (REEF-375) so the same
       // metadata reads at the same width on both the create and edit surfaces.
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_400px]">
         <div className="flex min-w-0 flex-col gap-4">
           {titleField}
           {descriptionField}
