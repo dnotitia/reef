@@ -57,11 +57,6 @@ export function IssueOptionRow({
   className,
 }: IssueOptionRowProps) {
   const t = useTranslations("components.issueOption");
-  // `task` is the default issue type (TypePill resolves a null type to it) and
-  // the bulk of most boards, so its labeled pill is the least informative weight
-  // in a dense row. Render it as a bare glyph instead (REEF-373); distinct types
-  // keep the labeled chip.
-  const isDefaultType = (issue.issue_type ?? "task") === "task";
   return (
     <div
       className={cn(
@@ -113,19 +108,12 @@ export function IssueOptionRow({
       <TypePill
         type={issue.issue_type}
         variant="list"
-        // A default `task` reads as a bare glyph — chip chrome (border, fill,
-        // padding) stripped and the label `sr-just` — so the most common type
-        // sits like the status icon and priority dot beside it instead of a pill
-        // dominating a content-dense relation row at its natural width (REEF-373).
-        // Distinct types (epic, bug, story, …) keep the labeled chip since their
-        // name carries signal, and below ~16rem their label still folds to a
-        // glyph (REEF-285). `sr-just` (not `hidden`) keeps the type name in the
-        // a11y tree either way — the glyph itself is aria-hidden, so display:none
-        // would drop the type for screen readers.
-        className={
-          isDefaultType ? "border-0 bg-transparent px-0 py-0" : undefined
-        }
-        labelClassName={isDefaultType ? "sr-only" : "@max-[16rem]:sr-only"}
+        // In dense relation rows, every issue type reads as a bare glyph so the
+        // type column keeps one visual weight regardless of epic/story/task/bug
+        // mix (REEF-376). The label stays sr-only, not hidden, because the glyph
+        // itself is decorative and screen readers still need the type name.
+        className="border-0 bg-transparent px-0 py-0"
+        labelClassName="sr-only"
       />
       {/* Priority consistently reserves its column so the dot lines up whether or not
           a sibling row carries one. */}
