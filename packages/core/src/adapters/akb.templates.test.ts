@@ -5,6 +5,7 @@ import {
   NotFoundError,
   REEF_ACTIVITY_SUGGESTIONS_TABLE,
   REEF_ACTIVITY_TABLE,
+  REEF_ATTACHMENTS_TABLE,
   REEF_COMMENTS_TABLE,
   REEF_ISSUES_TABLE,
   REEF_MILESTONES_TABLE,
@@ -104,6 +105,7 @@ describe("templates", () => {
       { status: 201, body: { name: REEF_TEMPLATES_TABLE } },
       { status: 201, body: { name: REEF_ACTIVITY_SUGGESTIONS_TABLE } },
       { status: 201, body: { name: REEF_COMMENTS_TABLE } },
+      { status: 201, body: { name: REEF_ATTACHMENTS_TABLE } },
       { status: 201, body: { name: REEF_ACTIVITY_TABLE } },
       { body: makeListTablesResponse(ALL_REEF_TABLES) },
       // probe SELECT: empty (table now exists)
@@ -119,12 +121,12 @@ describe("templates", () => {
         template: SAMPLE_TEMPLATE,
       }),
     ).resolves.toBeUndefined();
-    expect(calls).toHaveLength(14);
+    expect(calls).toHaveLength(15);
     const createNames = calls
-      .slice(1, 11)
+      .slice(1, 12)
       .map((c) => JSON.parse(c.init?.body as string).name);
     expect(createNames).toEqual(ALL_REEF_TABLES);
-    const insertSql = JSON.parse(calls[13]?.init?.body as string).sql;
+    const insertSql = JSON.parse(calls[14]?.init?.body as string).sql;
     expect(insertSql).toContain("INSERT INTO reef_templates");
   });
 

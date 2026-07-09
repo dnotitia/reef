@@ -31,11 +31,28 @@ const ALL_REEF_TABLES = [
   "reef_templates",
   "reef_activity_suggestions",
   "reef_comments",
+  "reef_attachments",
   "reef_activity",
   "reef_sprints",
   "reef_milestones",
   "reef_releases",
 ];
+
+const EMPTY_ATTACHMENT_QUERY = {
+  kind: "table_query",
+  columns: ["file_uri"],
+  items: [],
+  total: 0,
+};
+
+const ATTACHMENT_QUERY = {
+  ...EMPTY_ATTACHMENT_QUERY,
+  items: [
+    { file_uri: "akb://reef-sample/issues/reef-001/attachments/file/file-1" },
+    { file_uri: "akb://reef-sample/issues/reef-002/attachments/file/file-2" },
+  ],
+  total: 2,
+};
 
 function pathname(url: string | undefined): string {
   return new URL(url ?? "").pathname;
@@ -73,11 +90,16 @@ describe("deleteVault", () => {
 });
 
 describe("detachReef", () => {
-  it("deletes only reef-owned documents (issue docs by id + vault-skill) and drops every table, settings last", async () => {
-    // 8 vault-skill docs + 2 issue docs + 1 activity-inbox collection + 10 tables.
-    const { calls } = setupFetch(
-      Array.from({ length: 21 }, () => ({ status: 204 })),
-    );
+  it("deletes only reef-owned documents/files and drops every table, settings last", async () => {
+    // 8 vault-skill docs + 2 issue docs + 1 activity-inbox collection
+    // + attachment URI query + 2 attachment files + 11 tables.
+    const { calls } = setupFetch([
+      ...Array.from({ length: 11 }, () => ({ status: 204 })),
+      { body: ATTACHMENT_QUERY },
+      { status: 204 },
+      { status: 204 },
+      ...Array.from({ length: 11 }, () => ({ status: 204 })),
+    ]);
 
     await detachReef({
       adapter: makeAdapter(),
@@ -85,8 +107,12 @@ describe("detachReef", () => {
       actor: "alice",
     });
 
-    expect(calls.every((c) => c.init?.method === "DELETE")).toBe(true);
     const paths = calls.map((c) => pathname(c.url));
+    expect(
+      calls
+        .filter((c) => pathname(c.url) !== "/api/v1/tables/reef-sample/sql")
+        .every((c) => c.init?.method === "DELETE"),
+    ).toBe(true);
 
     const docDeletes = paths.filter((p) =>
       p.startsWith("/api/v1/documents/reef-sample/"),
@@ -94,8 +120,11 @@ describe("detachReef", () => {
     const collectionDeletes = paths.filter((p) =>
       p.startsWith("/api/v1/collections/reef-sample/"),
     );
-    const tableDrops = paths.filter((p) =>
-      p.startsWith("/api/v1/tables/reef-sample/"),
+    const fileDeletes = paths.filter((p) =>
+      p.startsWith("/api/v1/files/reef-sample/"),
+    );
+    const tableDrops = paths.filter(
+      (p) => p.startsWith("/api/v1/tables/reef-sample/") && !p.endsWith("/sql"),
     );
 
     // Issue documents are deleted by their deterministic id→path, NOT by
@@ -128,7 +157,17 @@ describe("detachReef", () => {
       }
     }
 
-    // All 10 reef tables dropped, reef_settings last (has_reef_config flips last).
+    expect(fileDeletes).toEqual([
+      "/api/v1/files/reef-sample/file-1",
+      "/api/v1/files/reef-sample/file-2",
+    ]);
+    expect(
+      Math.max(...fileDeletes.map((path) => paths.indexOf(path))),
+    ).toBeLessThan(
+      paths.indexOf("/api/v1/tables/reef-sample/reef_attachments"),
+    );
+
+    // All 11 reef tables dropped, reef_settings last (has_reef_config flips last).
     const droppedTables = tableDrops.map((p) => p.split("/").pop());
     expect(new Set(droppedTables)).toEqual(new Set(ALL_REEF_TABLES));
     expect(pathname(calls.at(-1)?.url)).toBe(
@@ -137,13 +176,19 @@ describe("detachReef", () => {
   });
 
   it("treats an already-gone resource (404) as success — retry-safe", async () => {
-    // 8 skill docs + 2 issue docs + 1 collection + 10 tables, all already gone.
-    setupFetch(
-      Array.from({ length: 21 }, () => ({
+    // 8 skill docs + 2 issue docs + 1 collection, attachment table already gone,
+    // then 11 tables all already gone.
+    setupFetch([
+      ...Array.from({ length: 11 }, () => ({
         status: 404,
         body: { detail: "gone" },
       })),
-    );
+      { body: { error: 'relation "reef_attachments" does not exist' } },
+      ...Array.from({ length: 11 }, () => ({
+        status: 404,
+        body: { detail: "gone" },
+      })),
+    ]);
 
     await expect(
       detachReef({
@@ -155,9 +200,10 @@ describe("detachReef", () => {
   });
 
   it("propagates a non-404 failure (e.g. 403 on a table drop)", async () => {
-    // documents + collection succeed; a table drop is forbidden.
+    // documents + collection + attachment query succeed; a table drop is forbidden.
     setupFetch([
       ...Array.from({ length: 11 }, () => ({ status: 204 })),
+      { body: EMPTY_ATTACHMENT_QUERY },
       { status: 403, body: { detail: "Requires 'admin' role" } },
       ...Array.from({ length: 9 }, () => ({ status: 204 })),
     ]);

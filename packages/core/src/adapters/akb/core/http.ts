@@ -13,6 +13,11 @@ const tracer = trace.getTracer("@reef/core");
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+type AkbFetchBody = Exclude<
+  NonNullable<Parameters<typeof fetch>[1]>["body"],
+  null
+>;
+
 export interface AkbAdapter {
   request: AkbRequest;
 }
@@ -22,15 +27,25 @@ export type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
 export interface AkbRequestInit {
   method?: HttpMethod;
   body?: unknown;
+  rawBody?: AkbFetchBody;
+  rawHeaders?: Record<string, string>;
   query?: Record<string, string | number | undefined>;
   /** Resource label used to translate 404 responses into NotFoundError. */
   resource?: string;
+  responseType?: "json" | "arrayBuffer";
 }
 
 export type AkbRequest = (
   path: string,
   init?: AkbRequestInit,
 ) => Promise<unknown>;
+
+export interface AkbBinaryResponse {
+  body: ArrayBuffer;
+  contentType: string | null;
+  contentLength: number | null;
+  filename: string | null;
+}
 
 // ─── Response envelopes (validated at the boundary) ───────────────────────────
 
@@ -172,6 +187,14 @@ function translateAkbHttpError(
   throw new AkbApiError({ status, message });
 }
 
+function filenameFromContentDisposition(header: string | null): string | null {
+  if (!header) return null;
+  const utf8 = header.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8?.[1]) return decodeURIComponent(utf8[1]);
+  const plain = header.match(/filename="?([^";]+)"?/i);
+  return plain?.[1] ?? null;
+}
+
 function makeRequest(baseUrl: string, jwt: string): AkbRequest {
   return async (path, init = {}) => {
     const url = buildUrl(baseUrl, path, init.query);
@@ -190,11 +213,14 @@ function makeRequest(baseUrl: string, jwt: string): AkbRequest {
         const headers: Record<string, string> = {
           Authorization: `Bearer ${jwt}`,
           Accept: "application/json",
+          ...init.rawHeaders,
         };
-        let body: string | undefined;
+        let body: AkbFetchBody | undefined;
         if (init.body !== undefined) {
           headers["Content-Type"] = "application/json";
           body = JSON.stringify(init.body);
+        } else if (init.rawBody !== undefined) {
+          body = init.rawBody;
         }
         let response: Response;
         try {
@@ -224,6 +250,19 @@ function makeRequest(baseUrl: string, jwt: string): AkbRequest {
         if (!response.ok) {
           const message = await extractErrorMessage(response);
           translateAkbHttpError(response.status, message, init.resource);
+        }
+        if (init.responseType === "arrayBuffer") {
+          return {
+            body: await response.arrayBuffer(),
+            contentType: response.headers.get("content-type"),
+            contentLength:
+              response.headers.get("content-length") != null
+                ? Number(response.headers.get("content-length"))
+                : null,
+            filename: filenameFromContentDisposition(
+              response.headers.get("content-disposition"),
+            ),
+          } satisfies AkbBinaryResponse;
         }
         try {
           return await response.json();

@@ -14,6 +14,9 @@ vi.mock("../refs/IssueRefsEditor", () => ({ IssueRefsEditor: () => null }));
 vi.mock("../activity/ActivityTimeline", () => ({
   ActivityTimeline: () => null,
 }));
+vi.mock("../attachments/IssueAttachments", () => ({
+  IssueAttachments: () => null,
+}));
 vi.mock("../relations/IssueChildren", () => ({
   IssueChildren: ({ action }: { action?: ReactNode }) => (
     <section aria-label="Sub-issues">{action}</section>

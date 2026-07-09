@@ -33,8 +33,10 @@ import {
   GitPullRequest,
   Link2,
   Network,
+  Paperclip,
   Tag,
   Type,
+  Unlink2,
   UserRound,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -240,6 +242,12 @@ function glyphFor(event: TimelineSystemEvent): ReactNode {
       const Icon = event.to ? Archive : ArchiveRestore;
       return <Icon className="size-3.5 text-muted-foreground" aria-hidden />;
     }
+    case "attachment_added":
+      return (
+        <Paperclip className="size-3.5 text-muted-foreground" aria-hidden />
+      );
+    case "attachment_removed":
+      return <Unlink2 className="size-3.5 text-muted-foreground" aria-hidden />;
   }
 }
 
@@ -517,6 +525,18 @@ function lineFor(
       return event.to
         ? t.rich("archived", { hasActor, actor })
         : t.rich("restored", { hasActor, actor });
+    case "attachment_added":
+      return t.rich("attachmentAdded", {
+        hasActor,
+        actor,
+        filename: () => valueToken(event.filename),
+      });
+    case "attachment_removed":
+      return t.rich("attachmentRemoved", {
+        hasActor,
+        actor,
+        filename: () => valueToken(event.filename),
+      });
   }
 }
 

@@ -20,6 +20,11 @@ explicitly in the entries below.
   while custom link text is preserved. Rendered document links still keep the
   original akb URI in markdown storage and open through the configured akb web
   URL. (REEF-395)
+- **Attach files directly to issues.** Issue descriptions and comments now accept
+  pasted or dropped files, storing them in akb and linking them to the issue.
+  Images render inline through reef's authenticated download proxy, while other
+  files appear in a new Attachments section with download links. Jira attachment
+  references can be rewritten to the same akb file URIs during import. (REEF-349)
 - **Issue detail now uses a details-first right rail.** The issue detail sheet
   and new-issue dialog share a wider 400px property rail for Details, People,
   Planning, Parent, and Relationships, while title, description, Sub-issues,

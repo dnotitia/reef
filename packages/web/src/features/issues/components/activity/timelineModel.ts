@@ -1,6 +1,8 @@
 import {
   ACTIVITY_EVENT_ARCHIVED_CHANGE,
   ACTIVITY_EVENT_ASSIGNEE_CHANGE,
+  ACTIVITY_EVENT_ATTACHMENT_ADDED,
+  ACTIVITY_EVENT_ATTACHMENT_REMOVED,
   ACTIVITY_EVENT_DUE_DATE_CHANGE,
   ACTIVITY_EVENT_ESTIMATE_CHANGE,
   ACTIVITY_EVENT_IMPL_REF_LINKED,
@@ -180,6 +182,28 @@ export type TimelineSystemEvent =
       /** Archive `false → true`, restore `true → false`. */
       from: boolean;
       to: boolean;
+    }
+  | {
+      id: string;
+      at: string;
+      actor: string | null;
+      kind: "attachment_added";
+      attachmentId: string;
+      filename: string;
+      fileUri: string;
+      mimeType: string;
+      sizeBytes: number;
+    }
+  | {
+      id: string;
+      at: string;
+      actor: string | null;
+      kind: "attachment_removed";
+      attachmentId: string;
+      filename: string;
+      fileUri: string;
+      mimeType: string;
+      sizeBytes: number;
     };
 
 export interface CommentEntry {
@@ -303,6 +327,26 @@ function fromActivityEvent(event: ActivityEvent): TimelineSystemEvent | null {
         kind: "archived_change",
         from: event.payload.from,
         to: event.payload.to,
+      };
+    case ACTIVITY_EVENT_ATTACHMENT_ADDED:
+      return {
+        ...base,
+        kind: "attachment_added",
+        attachmentId: event.payload.attachment_id,
+        filename: event.payload.filename,
+        fileUri: event.payload.file_uri,
+        mimeType: event.payload.mime_type,
+        sizeBytes: event.payload.size_bytes,
+      };
+    case ACTIVITY_EVENT_ATTACHMENT_REMOVED:
+      return {
+        ...base,
+        kind: "attachment_removed",
+        attachmentId: event.payload.attachment_id,
+        filename: event.payload.filename,
+        fileUri: event.payload.file_uri,
+        mimeType: event.payload.mime_type,
+        sizeBytes: event.payload.size_bytes,
       };
     case ACTIVITY_EVENT_IMPL_REF_LINKED:
       // Delivery is reconstructed from the issue's implementation_refs; the

@@ -14,12 +14,14 @@
 //   issueRows.ts  — `reef_issues` row ↔ Issue mapping + row reads/writes
 //   issueQuery.ts — issue-list WHERE / ORDER BY / keyset cursor / default view
 //   documents.ts  — akb document search / delete / put-body / response guards
+//   files.ts      — AKB file-storage upload/download primitives
 //
 // Prefer importing from the specific module above in NEW code; this barrel
 // exists for older import support.
 
 export * from "./constants";
 export * from "./documents";
+export * from "./files";
 export * from "./http";
 export * from "../issues/issueQuery";
 export * from "../issues/issueRows";

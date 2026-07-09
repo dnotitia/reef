@@ -3,8 +3,10 @@
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { useCreateComment } from "@/features/issues/hooks/mutations/useCreateComment";
 import { useUpdateComment } from "@/features/issues/hooks/mutations/useUpdateComment";
+import { useUploadIssueAttachment } from "@/features/issues/hooks/mutations/useUploadIssueAttachment";
 import { useActivity } from "@/features/issues/hooks/queries/useActivity";
 import { useComments } from "@/features/issues/hooks/queries/useComments";
+import { resolveIssueAttachmentUrl } from "@/features/issues/lib/attachmentUrls";
 import type { ActivityEvent, Comment, IssueMetadata } from "@reef/core";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
@@ -57,11 +59,18 @@ export function ActivityTimeline({
   );
   const createComment = useCreateComment();
   const updateComment = useUpdateComment();
+  const uploadAttachment = useUploadIssueAttachment();
   const [flashId, setFlashId] = useState<string | null>(null);
 
   const timeline = useMemo(
     () => buildTimeline(comments, activity, issue),
     [comments, activity, issue],
+  );
+
+  const resolveMarkdownUrl = useMemo(
+    () => (url: string, key: string) =>
+      resolveIssueAttachmentUrl({ issueId, vault, url, key }),
+    [issueId, vault],
   );
 
   async function handleCreate(body: string) {
@@ -83,6 +92,20 @@ export function ActivityTimeline({
     }
   }
 
+  async function handleUploadFiles(files: File[]) {
+    return Promise.all(
+      files.map((file) =>
+        uploadAttachment.mutateAsync({
+          issueId,
+          vault,
+          file,
+          source: "comment",
+          inline: file.type.startsWith("image/"),
+        }),
+      ),
+    );
+  }
+
   return (
     <section className="flex min-w-0 flex-col gap-3">
       <h3 className={ISSUE_SECTION_HEADER_CLASS}>{nav("activity")}</h3>
@@ -97,6 +120,7 @@ export function ActivityTimeline({
                 currentLogin={currentLogin}
                 flash={entry.comment.id === flashId}
                 onSave={(body) => handleEdit(entry.comment.id, body)}
+                resolveMarkdownUrl={resolveMarkdownUrl}
               />
             );
           }
@@ -122,6 +146,7 @@ export function ActivityTimeline({
           currentLogin={currentLogin}
           pending={createComment.isPending}
           onSubmit={handleCreate}
+          onUploadFiles={handleUploadFiles}
         />
       </div>
 

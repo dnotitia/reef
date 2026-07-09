@@ -52,6 +52,10 @@ export const ACTIVITY_EVENT_PARENT_CHANGE = "parent_change";
 export const ACTIVITY_EVENT_RELATION_CHANGE = "relation_change";
 /** An archive edit: the issue was archived or restored (REEF-277). */
 export const ACTIVITY_EVENT_ARCHIVED_CHANGE = "archived_change";
+/** A file or image attachment was linked to the issue (REEF-349). */
+export const ACTIVITY_EVENT_ATTACHMENT_ADDED = "attachment_added";
+/** A file or image attachment was unlinked from the issue (REEF-349). */
+export const ACTIVITY_EVENT_ATTACHMENT_REMOVED = "attachment_removed";
 
 /** Which planning dimension a `planning_link` event records. */
 export const PlanningLinkFieldEnum = z.enum(["milestone", "sprint", "release"]);
@@ -186,6 +190,26 @@ export const ArchivedChangePayloadSchema = z.object({
 });
 export type ArchivedChangePayload = z.infer<typeof ArchivedChangePayloadSchema>;
 
+const attachmentPayloadShape = {
+  attachment_id: z.string().min(1, "attachment id is required"),
+  file_uri: z.string().min(1, "file uri is required"),
+  filename: z.string().min(1, "filename is required"),
+  mime_type: z.string().min(1, "mime type is required"),
+  size_bytes: z.number().int().nonnegative(),
+} as const;
+
+/** `attachment_added` payload: stable identity and display metadata. */
+export const AttachmentAddedPayloadSchema = z.object(attachmentPayloadShape);
+export type AttachmentAddedPayload = z.infer<
+  typeof AttachmentAddedPayloadSchema
+>;
+
+/** `attachment_removed` payload: same identity shape so consumers can map deletes. */
+export const AttachmentRemovedPayloadSchema = z.object(attachmentPayloadShape);
+export type AttachmentRemovedPayload = z.infer<
+  typeof AttachmentRemovedPayloadSchema
+>;
+
 /** Every `reef_activity.event_type` value this release knows how to record. */
 export const ACTIVITY_EVENT_TYPES = [
   ACTIVITY_EVENT_STATUS_CHANGE,
@@ -200,6 +224,8 @@ export const ACTIVITY_EVENT_TYPES = [
   ACTIVITY_EVENT_PARENT_CHANGE,
   ACTIVITY_EVENT_RELATION_CHANGE,
   ACTIVITY_EVENT_ARCHIVED_CHANGE,
+  ACTIVITY_EVENT_ATTACHMENT_ADDED,
+  ACTIVITY_EVENT_ATTACHMENT_REMOVED,
 ] as const;
 export type ActivityEventType = (typeof ACTIVITY_EVENT_TYPES)[number];
 
@@ -298,6 +324,16 @@ export const ActivityEventSchema = z.discriminatedUnion("event_type", [
     ...activityEventBaseShape,
     event_type: z.literal(ACTIVITY_EVENT_ARCHIVED_CHANGE),
     payload: ArchivedChangePayloadSchema,
+  }),
+  z.object({
+    ...activityEventBaseShape,
+    event_type: z.literal(ACTIVITY_EVENT_ATTACHMENT_ADDED),
+    payload: AttachmentAddedPayloadSchema,
+  }),
+  z.object({
+    ...activityEventBaseShape,
+    event_type: z.literal(ACTIVITY_EVENT_ATTACHMENT_REMOVED),
+    payload: AttachmentRemovedPayloadSchema,
   }),
 ]);
 export type ActivityEvent = z.infer<typeof ActivityEventSchema>;

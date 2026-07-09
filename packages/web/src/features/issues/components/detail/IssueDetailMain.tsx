@@ -16,6 +16,7 @@ import { Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ComponentProps } from "react";
 import { ActivityTimeline } from "../activity/ActivityTimeline";
+import { IssueAttachments } from "../attachments/IssueAttachments";
 import { IssueLinkedDocuments } from "../refs/IssueLinkedDocuments";
 import { IssueRefsEditor } from "../refs/IssueRefsEditor";
 import { IssueChildren } from "../relations/IssueChildren";
@@ -40,6 +41,8 @@ export function IssueDetailMain({
   setBody,
   setExternalRefs,
   setImplementationRefs,
+  onUploadBodyFiles,
+  resolveBodyImageSrc,
   commitTitle,
   commitBody,
   commit,
@@ -57,6 +60,10 @@ export function IssueDetailMain({
   setBody: ValueSetter<string>;
   setExternalRefs: ValueSetter<ExternalRef[]>;
   setImplementationRefs: ValueSetter<ImplementationRef[]>;
+  onUploadBodyFiles?: ComponentProps<typeof MarkdownEditor>["onUploadFiles"];
+  resolveBodyImageSrc?: ComponentProps<
+    typeof MarkdownEditor
+  >["resolveImageSrc"];
   commitTitle: (value: string) => void;
   commitBody: (value: string) => void;
   commit: (patch: IssueUpdatePatch) => void;
@@ -134,6 +141,8 @@ export function IssueDetailMain({
           value={body}
           onChange={setBody}
           onBlur={commitBody}
+          onUploadFiles={onUploadBodyFiles}
+          resolveImageSrc={resolveBodyImageSrc}
           placeholder={t("descriptionPlaceholder")}
           ariaLabel={t("descriptionAriaLabel")}
           vault={vault}
@@ -148,6 +157,8 @@ export function IssueDetailMain({
       />
 
       <IssueLinkedDocuments issueId={issueId} vault={vault} />
+
+      <IssueAttachments issueId={issueId} vault={vault} />
 
       <IssueRefsEditor
         externalRefs={externalRefs}

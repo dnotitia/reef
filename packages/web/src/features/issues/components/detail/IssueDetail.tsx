@@ -6,12 +6,14 @@ import { useAskAiStore } from "@/features/ai/stores/useAskAiStore";
 import { useArchiveIssue } from "@/features/issues/hooks/mutations/useArchiveIssue";
 import { useDeleteIssue } from "@/features/issues/hooks/mutations/useDeleteIssue";
 import { useUpdateIssue } from "@/features/issues/hooks/mutations/useUpdateIssue";
+import { useUploadIssueAttachment } from "@/features/issues/hooks/mutations/useUploadIssueAttachment";
 import {
   type IssueDetailResponse,
   useIssue,
 } from "@/features/issues/hooks/queries/useIssue";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
+import { resolveIssueAttachmentUrl } from "@/features/issues/lib/attachmentUrls";
 import type { ClosedReason, IssueUpdatePatch } from "@reef/core";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
@@ -114,6 +116,7 @@ function IssueDetailLoaded({
   const updateMutation = useUpdateIssue();
   const archiveMutation = useArchiveIssue();
   const deleteMutation = useDeleteIssue();
+  const uploadAttachment = useUploadIssueAttachment();
   const serverDraft = useMemo(() => createIssueDetailDraft(data), [data]);
   const [draft, dispatchDraft] = useReducer(
     issueDetailDraftReducer,
@@ -135,6 +138,10 @@ function IssueDetailLoaded({
   const handledConflictRef = useRef(conflictCount);
   const issue = data.issue;
   const isArchived = issue.archived_at != null;
+  const resolveBodyImageSrc = useMemo(
+    () => (url: string) => resolveIssueAttachmentUrl({ issueId, vault, url }),
+    [issueId, vault],
+  );
 
   // "Ask AI about this issue" grounds the chat on this issue (REEF-360 AC3).
   // Grounding is set by this explicit affordance — not silently from the
@@ -183,6 +190,20 @@ function IssueDetailLoaded({
 
   function commitBody(value: string) {
     if (value !== (data.content ?? "")) commit({}, value);
+  }
+
+  async function handleBodyUploadFiles(files: File[]) {
+    return Promise.all(
+      files.map((file) =>
+        uploadAttachment.mutateAsync({
+          issueId,
+          vault,
+          file,
+          source: "issue_body",
+          inline: file.type.startsWith("image/"),
+        }),
+      ),
+    );
   }
 
   function commitTextField<K extends keyof IssueUpdatePatch>(
@@ -343,6 +364,8 @@ function IssueDetailLoaded({
           setImplementationRefs={(value) =>
             setDraftField("implementationRefs", value)
           }
+          onUploadBodyFiles={handleBodyUploadFiles}
+          resolveBodyImageSrc={resolveBodyImageSrc}
           commitTitle={commitTitle}
           commitBody={commitBody}
           commit={commit}

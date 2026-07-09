@@ -4,6 +4,7 @@ import {
   MONITORED_REPOS_TABLE,
   REEF_ACTIVITY_SUGGESTIONS_TABLE,
   REEF_ACTIVITY_TABLE,
+  REEF_ATTACHMENTS_TABLE,
   REEF_COMMENTS_TABLE,
   REEF_ISSUES_TABLE,
   REEF_MILESTONES_TABLE,
@@ -152,6 +153,7 @@ describe("writeConfig (tables)", () => {
       { status: 201, body: { name: REEF_TEMPLATES_TABLE } },
       { status: 201, body: { name: REEF_ACTIVITY_SUGGESTIONS_TABLE } },
       { status: 201, body: { name: REEF_COMMENTS_TABLE } },
+      { status: 201, body: { name: REEF_ATTACHMENTS_TABLE } },
       { status: 201, body: { name: REEF_ACTIVITY_TABLE } },
       { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlMutationResponse("DELETE 0") }, // DELETE project_prefix
@@ -178,10 +180,10 @@ describe("writeConfig (tables)", () => {
         ai_scanning_enabled: false,
       },
     });
-    expect(calls).toHaveLength(22);
+    expect(calls).toHaveLength(23);
     expect(calls[0]?.url).toBe("https://akb.test/api/v1/tables/reef-sample");
     const createNames = calls
-      .slice(1, 11)
+      .slice(1, 12)
       .map((c) => JSON.parse(c.init?.body as string).name);
     expect(createNames).toEqual(ALL_REEF_TABLES);
   });

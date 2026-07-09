@@ -43,6 +43,8 @@ export interface FetchCall {
 export interface FetchResponseSpec {
   status?: number;
   body?: unknown;
+  rawBody?: BodyInit;
+  headers?: HeadersInit;
   /** Set true for a body-less response (e.g. 204). */
   empty?: boolean;
 }
@@ -60,12 +62,18 @@ export function setupFetch(responses: FetchResponseSpec[]): {
       throw new Error(`No mocked response for ${url}`);
     }
     const status = next.status ?? 200;
+    if (next.rawBody !== undefined) {
+      return new Response(next.rawBody, {
+        status,
+        headers: next.headers,
+      });
+    }
     if (next.empty || next.body === undefined) {
       return new Response(null, { status });
     }
     return new Response(JSON.stringify(next.body), {
       status,
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...next.headers },
     });
   });
   vi.stubGlobal("fetch", fetchMock);

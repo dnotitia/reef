@@ -3,6 +3,7 @@ import {
   MONITORED_REPOS_TABLE,
   REEF_ACTIVITY_SUGGESTIONS_TABLE,
   REEF_ACTIVITY_TABLE,
+  REEF_ATTACHMENTS_TABLE,
   REEF_COMMENTS_TABLE,
   REEF_ISSUES_TABLE,
   REEF_MILESTONES_TABLE,
@@ -44,6 +45,7 @@ export interface ReefTableManifest extends AkbCreateTableRequest {
     | typeof REEF_TEMPLATES_TABLE
     | typeof REEF_ACTIVITY_SUGGESTIONS_TABLE
     | typeof REEF_COMMENTS_TABLE
+    | typeof REEF_ATTACHMENTS_TABLE
     | typeof REEF_ACTIVITY_TABLE;
   columns: AkbTableColumn[];
 }
@@ -202,6 +204,23 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
     columns: [
       { name: "reef_id", type: "text", required: true },
       { name: "body", type: "text", required: true },
+      { name: "meta", type: "json" },
+    ],
+  },
+  {
+    name: REEF_ATTACHMENTS_TABLE,
+    description: "Issue-scoped metadata for AKB file attachments",
+    columns: [
+      { name: "reef_id", type: "text", required: true },
+      { name: "file_uri", type: "text", required: true },
+      { name: "filename", type: "text", required: true },
+      { name: "mime_type", type: "text", required: true },
+      { name: "size_bytes", type: "number", required: true },
+      { name: "author", type: "text", required: true },
+      { name: "created_at", type: "text", required: true },
+      { name: "source", type: "text", required: true },
+      { name: "inline", type: "boolean" },
+      { name: "original_jira_attachment_id", type: "text" },
       { name: "meta", type: "json" },
     ],
   },

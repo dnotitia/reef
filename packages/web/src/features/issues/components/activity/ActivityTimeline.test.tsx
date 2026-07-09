@@ -21,6 +21,7 @@ vi.mock("@/features/auth/hooks/useCurrentUserLogin", () => ({
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock("streamdown", () => ({
   Streamdown: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  defaultUrlTransform: (url: string) => url,
 }));
 
 import { apiFetch } from "@/lib/apiClient";
@@ -90,6 +91,31 @@ beforeEach(() => {
       if (url.includes("/planning"))
         return json({ sprints: [], milestones: [], releases: [] });
       if (url.includes("/activity")) return json({ activity });
+      if (url.includes("/attachments")) {
+        if (method === "POST") {
+          return json(
+            {
+              attachment: {
+                id: "att-1",
+                reef_id: "REEF-001",
+                file_uri: "akb://reef-test/issues/file/file-1",
+                filename: "screen.png",
+                mime_type: "image/png",
+                size_bytes: 3,
+                author: "alice",
+                created_at: "2026-07-09T01:00:00.000Z",
+                source: "comment",
+                inline: true,
+                original_jira_attachment_id: null,
+                meta: null,
+              },
+              markdown: "![screen.png](akb://reef-test/issues/file/file-1)",
+            },
+            201,
+          );
+        }
+        return json({ attachments: [] });
+      }
       if (url.includes("/comments")) {
         if (method === "GET") return json({ comments });
         if (method === "POST") {
@@ -243,6 +269,42 @@ describe("ActivityTimeline — field-change rows (REEF-276)", () => {
   });
 });
 
+describe("ActivityTimeline — attachment rows (REEF-349)", () => {
+  it("renders attachment activity with filename", async () => {
+    comments = [];
+    activity = [
+      {
+        id: "att-event-1",
+        reef_id: "REEF-001",
+        event_type: "attachment_added",
+        event_key: "attachment_added:att-1@2026-07-09T01:00:00.000Z",
+        payload: {
+          attachment_id: "att-1",
+          file_uri: "akb://reef-test/issues/file/file-1",
+          filename: "screen.png",
+          mime_type: "image/png",
+          size_bytes: 3,
+        },
+        actor: "alice",
+        at: "2026-07-09T01:00:00.000Z",
+        source: null,
+      },
+    ];
+
+    renderTimeline(makeIssue());
+
+    await waitFor(() =>
+      expect(screen.getByText(/screen\.png/)).toBeInTheDocument(),
+    );
+    const text = screen
+      .getAllByTestId("activity-event")
+      .map((row) => row.textContent ?? "")
+      .join(" | ");
+    expect(text).toContain("attached");
+    expect(text).toContain("alice");
+  });
+});
+
 describe("ActivityTimeline — collapse (AC3)", () => {
   it("folds a run of ≥3 status changes and expands them on click", async () => {
     comments = [];
@@ -288,6 +350,36 @@ describe("ActivityTimeline — comment mutations", () => {
             init?.method === "POST",
         ),
       ).toBe(true),
+    );
+  });
+
+  it("uploads pasted images in the comment composer before appending markdown", async () => {
+    renderTimeline();
+    await waitFor(() =>
+      expect(screen.getByText("alice comment")).toBeInTheDocument(),
+    );
+
+    const textarea = screen.getByLabelText("Add a comment");
+    const file = new File([new Uint8Array([1, 2, 3])], "screen.png", {
+      type: "image/png",
+    });
+    fireEvent.paste(textarea, {
+      clipboardData: { files: [file] },
+    });
+
+    await waitFor(() =>
+      expect(
+        mockApiFetch.mock.calls.some(
+          ([url, init]) =>
+            String(url).includes("/attachments?vault=v") &&
+            init?.method === "POST",
+        ),
+      ).toBe(true),
+    );
+    await waitFor(() =>
+      expect(textarea).toHaveValue(
+        "![screen.png](akb://reef-test/issues/file/file-1)",
+      ),
     );
   });
 
