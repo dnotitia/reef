@@ -19,6 +19,7 @@ Options:
   --project-key <key>       Jira project key, for example SHDEV.
   --vault <vault>           Target Reef workspace vault.
   --report <path>           Optional local dry-run/report path.
+  --account-mapping <path>  Local Jira account mapping artifact JSON path.
   --api-token-file <path>   Local Jira API-token secret file.
   --bearer-token-file <path> Local Jira bearer-token secret file.
 `;

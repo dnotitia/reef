@@ -27,6 +27,7 @@ export interface JiraMigratorConfig {
   jira: JiraConfig;
   targetVault: string;
   reportPath: string | null;
+  accountMappingPath: string | null;
 }
 
 export interface PublicJiraMigratorConfig {
@@ -43,6 +44,7 @@ export interface PublicJiraMigratorConfig {
   };
   targetVault: string;
   reportPath: string | null;
+  accountMappingPath: string | null;
 }
 
 interface ParsedArgs {
@@ -52,6 +54,7 @@ interface ParsedArgs {
   projectKey: string | null;
   vault: string | null;
   reportPath: string | null;
+  accountMappingPath: string | null;
   apiTokenFile: string | null;
   bearerTokenFile: string | null;
 }
@@ -113,6 +116,7 @@ export function parseJiraMigratorArgs(argv: readonly string[]): ParsedArgs {
     projectKey: null,
     vault: null,
     reportPath: null,
+    accountMappingPath: null,
     apiTokenFile: null,
     bearerTokenFile: null,
   };
@@ -167,6 +171,15 @@ export function parseJiraMigratorArgs(argv: readonly string[]): ParsedArgs {
     }
     if (arg?.startsWith("--report=")) {
       parsed.reportPath = arg.slice("--report=".length);
+      continue;
+    }
+    if (arg === "--account-mapping") {
+      parsed.accountMappingPath = readFlagValue(argv, index, arg);
+      index += 1;
+      continue;
+    }
+    if (arg?.startsWith("--account-mapping=")) {
+      parsed.accountMappingPath = arg.slice("--account-mapping=".length);
       continue;
     }
     if (arg === "--api-token-file") {
@@ -356,6 +369,10 @@ export function loadJiraMigratorConfig({
       parsed.reportPath,
       env.REEF_JIRA_MIGRATOR_REPORT_PATH,
     ),
+    accountMappingPath: firstValue(
+      parsed.accountMappingPath,
+      env.REEF_JIRA_ACCOUNT_MAPPING_PATH,
+    ),
   };
 }
 
@@ -377,6 +394,7 @@ export function publicJiraMigratorConfig(
     },
     targetVault: config.targetVault,
     reportPath: config.reportPath,
+    accountMappingPath: config.accountMappingPath,
   };
 }
 

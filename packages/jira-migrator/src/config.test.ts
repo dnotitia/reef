@@ -28,6 +28,7 @@ describe("loadJiraMigratorConfig", () => {
       dryRun: true,
       targetVault: "reef-test",
       reportPath: "reports/shdev.json",
+      accountMappingPath: null,
       jira: {
         baseUrl: "https://example.atlassian.net",
         cloudId: "cloud-1",
@@ -48,7 +49,14 @@ describe("loadJiraMigratorConfig", () => {
 
   it("can derive an Atlassian API gateway base URL from cloud id", () => {
     const config = loadJiraMigratorConfig({
-      argv: ["--project-key", "SDDEV", "--vault", "reef-test"],
+      argv: [
+        "--project-key",
+        "SDDEV",
+        "--vault",
+        "reef-test",
+        "--account-mapping",
+        "artifacts/jira-account-mapping.cloud-abc.json",
+      ],
       env: {
         REEF_JIRA_CLOUD_ID: "cloud-abc",
         REEF_JIRA_BEARER_TOKEN: "bearer-secret",
@@ -63,6 +71,9 @@ describe("loadJiraMigratorConfig", () => {
       isConfigured: true,
       email: null,
     });
+    expect(publicJiraMigratorConfig(config).accountMappingPath).toBe(
+      "artifacts/jira-account-mapping.cloud-abc.json",
+    );
   });
 
   it("redacts raw token values and derived auth headers from arbitrary reports", () => {
@@ -113,6 +124,7 @@ describe("loadJiraMigratorConfig", () => {
         "--vault=reef-test",
         "--report",
         "reports/out.json",
+        "--account-mapping=artifacts/accounts.json",
         "--api-token-file",
         ".secrets/jira-token",
       ]),
@@ -123,6 +135,7 @@ describe("loadJiraMigratorConfig", () => {
       projectKey: "SHDEV",
       vault: "reef-test",
       reportPath: "reports/out.json",
+      accountMappingPath: "artifacts/accounts.json",
       apiTokenFile: ".secrets/jira-token",
       bearerTokenFile: null,
     });

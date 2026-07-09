@@ -51,6 +51,8 @@ describe("JiraReadClient", () => {
     expect(String(url)).toContain("/rest/api/3/search/jql");
     expect(String(url)).toContain("jql=project+%3D+SHDEV+ORDER+BY+key+ASC");
     expect(String(url)).toContain("nextPageToken=cursor-1");
+    expect(String(url)).toContain("fields=assignee");
+    expect(String(url)).toContain("fields=reporter");
     expect(init?.method).toBe("GET");
     expect(page.items[0]?.key).toBe("SHDEV-1");
     expect(page.cursor).toEqual({ kind: "nextPageToken", value: "next-token" });

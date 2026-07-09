@@ -6,12 +6,13 @@ const StringOrNumberAsStringSchema = z
 
 const UnknownRecordSchema = z.record(z.unknown());
 
-const JiraUserSchema = z
+export const JiraUserSchema = z
   .object({
     accountId: z.string().optional(),
     displayName: z.string().optional(),
     emailAddress: z.string().optional(),
     active: z.boolean().optional(),
+    accountType: z.string().optional(),
   })
   .passthrough();
 
@@ -86,6 +87,8 @@ export const JiraIssueSchema = z
           })
           .passthrough()
           .optional(),
+        assignee: JiraUserSchema.nullable().optional(),
+        reporter: JiraUserSchema.nullable().optional(),
         attachment: z.array(JiraAttachmentSchema).optional(),
         issuelinks: z.array(JiraIssueLinkSchema).optional(),
       })
@@ -142,6 +145,7 @@ export const JiraChangelogPageSchema = z
 export type JiraAttachmentPayload = z.infer<typeof JiraAttachmentSchema>;
 export type JiraIssueLinkPayload = z.infer<typeof JiraIssueLinkSchema>;
 export type JiraIssuePayload = z.infer<typeof JiraIssueSchema>;
+export type JiraUserPayload = z.infer<typeof JiraUserSchema>;
 export type JiraSearchResponsePayload = z.infer<
   typeof JiraSearchResponseSchema
 >;
@@ -168,6 +172,15 @@ export interface NormalizedJiraIssueLink {
   label: string | null;
 }
 
+export interface NormalizedJiraUser {
+  accountId: string | null;
+  emailAddress: string | null;
+  displayName: string | null;
+  active: boolean | null;
+  accountType: string | null;
+  raw: JiraUserPayload;
+}
+
 export interface NormalizedJiraIssue {
   id: string;
   key: string;
@@ -180,8 +193,26 @@ export interface NormalizedJiraIssue {
   labels: string[];
   attachments: NormalizedJiraAttachment[];
   links: NormalizedJiraIssueLink[];
+  users: {
+    assignee: NormalizedJiraUser | null;
+    reporter: NormalizedJiraUser | null;
+  };
   raw: JiraIssuePayload;
 }
+
+export const normalizeJiraUser = (
+  user: JiraUserPayload | null | undefined,
+): NormalizedJiraUser | null =>
+  user
+    ? {
+        accountId: user.accountId ?? null,
+        emailAddress: user.emailAddress ?? null,
+        displayName: user.displayName ?? null,
+        active: user.active ?? null,
+        accountType: user.accountType ?? null,
+        raw: user,
+      }
+    : null;
 
 export const normalizeJiraAttachment = (
   attachment: JiraAttachmentPayload,
@@ -230,5 +261,9 @@ export const normalizeJiraIssue = (
   links: (issue.fields.issuelinks ?? [])
     .map(normalizeJiraIssueLink)
     .filter((link): link is NormalizedJiraIssueLink => link !== null),
+  users: {
+    assignee: normalizeJiraUser(issue.fields.assignee),
+    reporter: normalizeJiraUser(issue.fields.reporter),
+  },
   raw: issue,
 });
