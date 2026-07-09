@@ -363,6 +363,7 @@ export function MarkdownEditor({
   const [uploadError, setUploadError] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const latestValueRef = useRef(value);
+  const lastSyncedValueRef = useRef(value);
   const onChangeRef = useRef(onChange);
   const onBlurRef = useRef(onBlur);
   const uploadFilesRef = useRef(onUploadFiles);
@@ -546,17 +547,19 @@ export function MarkdownEditor({
       equalityFn: sameActive,
     }) ?? NO_ACTIVE;
 
-  // Sync external value changes without moving the cursor
+  // Sync external value changes without moving the cursor.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: queueAkbTitleResolution reads mutable refs; rerunning this effect for that function identity would re-arm setContent on unrelated selection rerenders.
   useEffect(() => {
     const normalized = normalizeAkbDocumentMarkdownLinks(
       value,
       resolvedTitleMapRef.current,
     );
+    const externalValueChanged = normalized !== lastSyncedValueRef.current;
     latestValueRef.current = normalized;
     if (normalized !== value) onChangeRef.current(normalized);
     if (!editor) return;
     const current = editor.getMarkdown();
-    if (normalized !== current) {
+    if (externalValueChanged && normalized !== current) {
       // contentType: 'markdown' is required so the @tiptap/markdown extension parses the
       // string through marked; without it, Tiptap treats input as HTML and raw markdown
       // shows up as plain text. emitUpdate: false avoids retriggering onChange.
@@ -565,8 +568,9 @@ export function MarkdownEditor({
         emitUpdate: false,
       });
     }
+    lastSyncedValueRef.current = normalized;
     queueAkbTitleResolution(normalized, editor);
-  });
+  }, [editor, value]);
 
   useEffect(() => {
     if (rootRef.current) {
