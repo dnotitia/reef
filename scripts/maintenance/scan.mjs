@@ -96,12 +96,9 @@ const SLOW_TEST_SUPPRESSIONS = new Set([
   "i18n hardcoded-string guard matches the committed baseline (no new hardcoded JSX strings)",
 ]);
 
-const LARGE_FILE_ROOTS = [
-  "packages/core/src",
-  "packages/web/src",
-  "packages/web/tests",
-  "scripts",
-];
+const PACKAGES_DIR = path.join(ROOT, "packages");
+
+const LARGE_FILE_EXTRA_ROOTS = ["scripts"];
 
 const LARGE_FILE_SUPPRESSIONS = new Map([
   [
@@ -353,6 +350,83 @@ function displayPath(filePath) {
   return filePath;
 }
 
+function packageStepKey(packageDir) {
+  return path.basename(packageDir).replace(/[^a-zA-Z0-9-]/g, "-");
+}
+
+async function readPackageManifest(packageDir) {
+  try {
+    return JSON.parse(
+      await readFile(path.join(packageDir, "package.json"), "utf8"),
+    );
+  } catch {
+    return {};
+  }
+}
+
+async function listWorkspacePackages() {
+  if (!(await pathExists(PACKAGES_DIR))) return [];
+  const entries = await readdir(PACKAGES_DIR, { withFileTypes: true });
+  const packages = [];
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const packageDir = path.join(PACKAGES_DIR, entry.name);
+    if (!(await pathExists(path.join(packageDir, "package.json")))) continue;
+
+    const manifest = await readPackageManifest(packageDir);
+    const relativeDir = displayPath(packageDir);
+    const srcRoot = path.join(relativeDir, "src");
+    const testRoot = path.join(relativeDir, "tests");
+    packages.push({
+      dir: packageDir,
+      key: packageStepKey(packageDir),
+      manifest,
+      name:
+        typeof manifest.name === "string" && manifest.name
+          ? manifest.name
+          : relativeDir,
+      relativeDir,
+      srcRoot: (await pathExists(path.join(packageDir, "src")))
+        ? srcRoot
+        : null,
+      testRoot: (await pathExists(path.join(packageDir, "tests")))
+        ? testRoot
+        : null,
+    });
+  }
+
+  packages.sort((left, right) =>
+    left.relativeDir.localeCompare(right.relativeDir),
+  );
+  return packages;
+}
+
+async function workspaceSourceRoots() {
+  return (await listWorkspacePackages())
+    .map((workspacePackage) => workspacePackage.srcRoot)
+    .filter(Boolean);
+}
+
+async function workspaceTestRoots() {
+  return (await listWorkspacePackages())
+    .map((workspacePackage) => workspacePackage.testRoot)
+    .filter(Boolean);
+}
+
+async function largeFileRoots() {
+  return [
+    ...(await workspaceSourceRoots()),
+    ...(await workspaceTestRoots()),
+    ...LARGE_FILE_EXTRA_ROOTS,
+  ];
+}
+
+function packageHasVitestTestScript(workspacePackage) {
+  const testScript = workspacePackage.manifest.scripts?.test;
+  return typeof testScript === "string" && /\bvitest\b/.test(testScript);
+}
+
 function commandLine(command, args) {
   return [command, ...args].map((part) => JSON.stringify(part)).join(" ");
 }
@@ -439,13 +513,13 @@ async function runCommand({
 
 async function runDuplicates({ dryRun, outDir }) {
   const reportDir = path.join(outDir, "duplicates-jscpd", "report");
+  const roots = await workspaceSourceRoots();
   return [
     await runCommand({
       args: [
         "exec",
         "jscpd",
-        "packages/core/src",
-        "packages/web/src",
+        ...roots,
         "--pattern",
         "**/*.{ts,tsx}",
         "--ignore",
@@ -484,6 +558,7 @@ async function runMaintenanceLint({ dryRun, outDir }) {
     "maintenance-eslint",
     "eslint-report.json",
   );
+  const roots = await workspaceSourceRoots();
   return [
     await runCommand({
       args: [
@@ -495,8 +570,7 @@ async function runMaintenanceLint({ dryRun, outDir }) {
         "json",
         "--output-file",
         jsonPath,
-        "packages/core/src",
-        "packages/web/src",
+        ...roots,
       ],
       dryRun,
       name: "maintenance-eslint",
@@ -507,40 +581,35 @@ async function runMaintenanceLint({ dryRun, outDir }) {
 }
 
 async function runSlowTests({ dryRun, outDir }) {
-  return [
-    await runCommand({
-      args: [
-        "--filter",
-        "@reef/core",
-        "exec",
-        "vitest",
-        "run",
-        "--reporter=json",
-        `--outputFile=${path.join(outDir, "slow-tests-core", "vitest.json")}`,
-        `--slowTestThreshold=${SLOW_TEST_THRESHOLD_MS}`,
-      ],
-      dryRun,
-      name: "slow-tests-core",
-      outDir,
-      primaryOutputPath: path.join(outDir, "slow-tests-core", "vitest.json"),
-    }),
-    await runCommand({
-      args: [
-        "--filter",
-        "web",
-        "exec",
-        "vitest",
-        "run",
-        "--reporter=json",
-        `--outputFile=${path.join(outDir, "slow-tests-web", "vitest.json")}`,
-        `--slowTestThreshold=${SLOW_TEST_THRESHOLD_MS}`,
-      ],
-      dryRun,
-      name: "slow-tests-web",
-      outDir,
-      primaryOutputPath: path.join(outDir, "slow-tests-web", "vitest.json"),
-    }),
-  ];
+  const testPackages = (await listWorkspacePackages()).filter(
+    packageHasVitestTestScript,
+  );
+  const steps = [];
+
+  for (const workspacePackage of testPackages) {
+    const stepName = `slow-tests-${workspacePackage.key}`;
+    const outputPath = path.join(outDir, stepName, "vitest.json");
+    steps.push(
+      await runCommand({
+        args: [
+          "--filter",
+          workspacePackage.name,
+          "exec",
+          "vitest",
+          "run",
+          "--reporter=json",
+          `--outputFile=${outputPath}`,
+          `--slowTestThreshold=${SLOW_TEST_THRESHOLD_MS}`,
+        ],
+        dryRun,
+        name: stepName,
+        outDir,
+        primaryOutputPath: outputPath,
+      }),
+    );
+  }
+
+  return steps;
 }
 
 async function pathExists(filePath) {
@@ -671,13 +740,17 @@ async function runCommentClaims({ dryRun, outDir }) {
     ];
   }
 
+  const sourceRoots = await workspaceSourceRoots();
   const files = [
-    ...(await walkFiles(path.join(ROOT, "packages/core/src"), {
-      skipUiComponents: true,
-    })),
-    ...(await walkFiles(path.join(ROOT, "packages/web/src"), {
-      skipUiComponents: true,
-    })),
+    ...(
+      await Promise.all(
+        sourceRoots.map((root) =>
+          walkFiles(path.join(ROOT, root), {
+            skipUiComponents: true,
+          }),
+        ),
+      )
+    ).flat(),
     ...(await walkFiles(path.join(ROOT, "scripts"))),
   ].sort();
 
@@ -827,6 +900,16 @@ function assertPath(outDir, category, suffix) {
   return path.join(outDir, category, suffix);
 }
 
+async function slowTestReportPaths(outDir) {
+  const entries = await readdir(outDir, { withFileTypes: true });
+  return entries
+    .filter(
+      (entry) => entry.isDirectory() && entry.name.startsWith("slow-tests-"),
+    )
+    .map((entry) => path.join(outDir, entry.name, "vitest.json"))
+    .sort();
+}
+
 async function countCategoryFindings(category, outDir) {
   switch (category) {
     case "duplicates": {
@@ -898,27 +981,31 @@ async function countCategoryFindings(category, outDir) {
           };
     }
     case "slow-tests": {
-      const corePath = assertPath(outDir, "slow-tests-core", "vitest.json");
-      const webPath = assertPath(outDir, "slow-tests-web", "vitest.json");
-      const [core, web] = await Promise.all([
-        readJsonForAssert(corePath),
-        readJsonForAssert(webPath),
-      ]);
-      if (!core.ok || !web.ok) {
+      const reportPaths = await slowTestReportPaths(outDir);
+      const reports = await Promise.all(reportPaths.map(readJsonForAssert));
+      const failures = reports
+        .map((report, index) =>
+          report.ok
+            ? null
+            : `${displayPath(reportPaths[index])}: ${report.error}`,
+        )
+        .filter(Boolean);
+      if (failures.length > 0) {
         return {
           count: 0,
-          detail: [
-            core.ok ? null : `${displayPath(corePath)}: ${core.error}`,
-            web.ok ? null : `${displayPath(webPath)}: ${web.error}`,
-          ]
-            .filter(Boolean)
-            .join("; "),
+          detail: failures.join("; "),
           status: "error",
         };
       }
       return {
-        count: countSlowTests(core.value) + countSlowTests(web.value),
-        detail: `${displayPath(corePath)}, ${displayPath(webPath)}`,
+        count: reports.reduce(
+          (total, report) => total + countSlowTests(report.value),
+          0,
+        ),
+        detail:
+          reportPaths.length > 0
+            ? reportPaths.map(displayPath).join(", ")
+            : "no slow-test reports",
         status: "ok",
       };
     }
@@ -987,6 +1074,7 @@ async function runLargeFiles({ dryRun, outDir }) {
   const jsonPath = path.join(stepDir, "large-files.json");
   const mdPath = path.join(stepDir, "large-files.md");
   const commandPath = path.join(stepDir, "command.txt");
+  const roots = await largeFileRoots();
   const renderedCommand = `native large-file scan (${Object.entries(
     LARGE_FILE_THRESHOLDS,
   )
@@ -1007,9 +1095,7 @@ async function runLargeFiles({ dryRun, outDir }) {
   }
 
   const files = (
-    await Promise.all(
-      LARGE_FILE_ROOTS.map((root) => walkFiles(path.join(ROOT, root))),
-    )
+    await Promise.all(roots.map((root) => walkFiles(path.join(ROOT, root))))
   )
     .flat()
     .sort();
@@ -1058,7 +1144,7 @@ async function runLargeFiles({ dryRun, outDir }) {
       {
         candidates,
         count: candidates.length,
-        scannedRoots: LARGE_FILE_ROOTS,
+        scannedRoots: roots,
         suppressed,
         suppressedCount: suppressed.length,
         thresholds: LARGE_FILE_THRESHOLDS,
