@@ -61,19 +61,81 @@ describe("IssueOptionRow", () => {
     expect(screen.getByLabelText("Blocked by 2 issues")).toBeInTheDocument();
   });
 
-  it("lays the row out as a fixed-track grid with a reserved priority column", () => {
-    // The grid (not a flex row) keeps the title from collapsing and the type /
-    // priority columns aligned across rows whether or not a row has a priority
-    // or a blocked marker (REEF-285).
+  it("lays the row out as a fixed-track grid with reserved blocker and priority columns", () => {
+    // The grid (not a flex row) keeps the title from collapsing and the blocker /
+    // type / priority columns aligned across rows whether or not a row has those
+    // markers (REEF-285 / REEF-390).
     const { container } = render(
       <IssueOptionRow issue={{ ...ISSUE, priority: null }} />,
     );
     const root = container.firstChild as HTMLElement;
     expect(root.className).toContain(
-      "grid-cols-[auto_5rem_minmax(0,1fr)_auto_0.75rem]",
+      "grid-cols-[auto_5rem_1.875rem_minmax(0,1fr)_auto_0.75rem]",
     );
+    expect(
+      root.querySelector('[data-issue-option-slot="blocker"]'),
+    ).not.toBeNull();
     // No priority dot, but its column is still reserved so dots align row-to-row.
     expect(screen.queryByLabelText(/Priority:/)).toBeNull();
+  });
+
+  it("keeps the blocked marker in its own column outside the title track", () => {
+    const { rerender } = render(
+      <IssueOptionRow issue={ISSUE} blockerCount={0} />,
+    );
+
+    const title = screen.getByText("Card-level dropdown rows");
+    const titleSlot = title.closest('[data-issue-option-slot="title"]');
+    const blockerSlot = title
+      .closest("[data-issue-option-row]")
+      ?.querySelector('[data-issue-option-slot="blocker"]');
+    expect(titleSlot).not.toBeNull();
+    expect(blockerSlot).not.toBeNull();
+    expect(blockerSlot).toBeEmptyDOMElement();
+
+    rerender(<IssueOptionRow issue={ISSUE} blockerCount={2} />);
+
+    const marker = screen.getByLabelText("Blocked by 2 issues");
+    expect(marker.closest('[data-issue-option-slot="blocker"]')).toBe(
+      blockerSlot,
+    );
+    expect(titleSlot).not.toContainElement(marker);
+    expect(
+      screen
+        .getByText("Card-level dropdown rows")
+        .closest('[data-issue-option-slot="title"]'),
+    ).toBe(titleSlot);
+  });
+
+  it("keeps long narrow rows truncating in the title track only", () => {
+    const { container } = render(
+      <IssueOptionRow
+        issue={{
+          ...ISSUE,
+          title:
+            "A very long relation row title that should truncate before meta columns move",
+        }}
+        blockerCount={12}
+        className="w-40"
+      />,
+    );
+
+    const root = container.firstChild as HTMLElement;
+    expect(root.className).toContain(
+      "grid-cols-[auto_5rem_1.875rem_minmax(0,1fr)_auto_0.75rem]",
+    );
+    const marker = screen.getByLabelText("Blocked by 12 issues");
+    expect(marker).toHaveTextContent("9+");
+    expect(marker.closest('[data-issue-option-slot="blocker"]')).not.toBeNull();
+
+    const title = screen.getByText(/A very long relation row title/);
+    expect(title).toHaveClass("min-w-0");
+    expect(title).toHaveClass("truncate");
+    expect(
+      title.closest('[data-issue-option-slot="title"]'),
+    ).not.toContainElement(marker);
+    expect(screen.getByText("Story")).toBeInTheDocument();
+    expect(screen.getByLabelText("Priority: High")).toBeInTheDocument();
   });
 
   it.each(IssueTypeEnum.options)(
