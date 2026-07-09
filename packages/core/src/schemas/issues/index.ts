@@ -26,6 +26,9 @@ export {
 
 export {
   AddIssueReferenceRequestSchema,
+  AKB_DOCUMENT_URI_RE,
+  ResolveDocumentTitlesRequestSchema,
+  ResolveDocumentTitlesResponseSchema,
   type AkbDocumentReference,
   type DocumentSearchHit,
 } from "./references";

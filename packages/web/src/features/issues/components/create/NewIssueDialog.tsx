@@ -601,6 +601,7 @@ export function NewIssueDialog() {
             onLabelsChange={setLabels}
             body={body}
             onBodyChange={setBody}
+            vault={vault ?? undefined}
             disabled={isSubmitting}
             renderField={renderEnrichable}
             titleId="new-issue-title"

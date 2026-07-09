@@ -376,6 +376,29 @@ describe("MarkdownEditor", () => {
       ).not.toBeInTheDocument();
     });
 
+    it("keeps akb document URIs as akb links", () => {
+      const uri = "akb://reef-test/coll/research/doc/report.md";
+      render(<MarkdownEditor value="" onChange={vi.fn()} />);
+      act(() => {
+        fireEvent.click(screen.getByTitle("Link"));
+      });
+      act(() => {
+        fireEvent.change(screen.getByTestId("markdown-link-input"), {
+          target: { value: uri },
+        });
+      });
+      act(() => {
+        fireEvent.click(screen.getByText("Apply"));
+      });
+
+      expect(mockChain.insertContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: uri,
+          marks: [{ type: "link", attrs: { href: uri } }],
+        }),
+      );
+    });
+
     it("applies a link on Enter and prevents form submission", () => {
       render(<MarkdownEditor value="" onChange={vi.fn()} />);
       act(() => {

@@ -3,11 +3,24 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { resolveAkbDocumentTitles } from "@/lib/akb/documentTitleResolver";
+import { parseAkbDocumentUri } from "@/lib/akb/documentUri";
+import {
+  extractAkbDocumentUris,
+  normalizeAkbDocumentMarkdownLinks,
+  retargetRenderedAkbDocumentLinks,
+} from "@/lib/akb/markdownDocumentLinks";
 import { cn } from "@/lib/utils";
+import { useAkbWebUrl } from "@/providers/AkbWebUrlProvider";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Markdown } from "@tiptap/markdown";
-import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
+import {
+  type Editor,
+  EditorContent,
+  useEditor,
+  useEditorState,
+} from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import {
   Bold,
@@ -70,6 +83,8 @@ export interface MarkdownEditorProps {
    * without reverse-engineering the editor's focus boundary from outside.
    */
   onBlur?: (value: string) => void;
+  /** Active AKB vault. Enables akb:// document title resolution when supplied. */
+  vault?: string;
 }
 
 /** Active-state flags for every toolbar control, derived from the selection. */
@@ -108,7 +123,16 @@ export function createMarkdownEditorExtensions(placeholder: string) {
     // StarterKit v3 bundles the Link extension; configure it here rather than
     // registering a second @tiptap/extension-link (which warns about a
     // duplicate 'link' extension and leaves link behavior ambiguous).
-    StarterKit.configure({ link: { openOnClick: false } }),
+    StarterKit.configure({
+      link: {
+        openOnClick: false,
+        protocols: [{ scheme: "akb", optionalSlashes: true }],
+        isAllowedUri: (url, ctx) =>
+          url.startsWith("akb://")
+            ? parseAkbDocumentUri(url) !== null
+            : ctx.defaultValidate(url),
+      },
+    }),
     TaskList,
     TaskItem.configure({ nested: true }),
     Markdown,
@@ -131,6 +155,9 @@ function sameActive(a: ActiveMarks | null, b: ActiveMarks | null): boolean {
 function normalizeUrl(raw: string): string | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
+  if (/^akb:\/\//i.test(trimmed)) {
+    return parseAkbDocumentUri(trimmed) ? trimmed : null;
+  }
   if (/^(https?:\/\/|mailto:|\/|#)/i.test(trimmed)) return trimmed;
   return `https://${trimmed}`;
 }
@@ -201,13 +228,85 @@ export function MarkdownEditor({
   readOnly = false,
   ariaLabel,
   onBlur,
+  vault,
 }: MarkdownEditorProps) {
   const t = useTranslations("markdownEditor");
   const c = useTranslations("common");
+  const akbWebBase = useAkbWebUrl();
   const [sourceMode, setSourceMode] = useState(false);
   const [linkEditorOpen, setLinkEditorOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const latestValueRef = useRef(value);
+  const onChangeRef = useRef(onChange);
+  const onBlurRef = useRef(onBlur);
+  const resolvedTitleMapRef = useRef(new Map<string, string | null>());
+  const pendingTitleUrisRef = useRef(new Set<string>());
+  const previousVaultRef = useRef(vault);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+    onBlurRef.current = onBlur;
+  }, [onChange, onBlur]);
+
+  useEffect(() => {
+    if (previousVaultRef.current === vault) return;
+    previousVaultRef.current = vault;
+    resolvedTitleMapRef.current.clear();
+    pendingTitleUrisRef.current.clear();
+  });
+
+  function rootContainsFocus(): boolean {
+    const root = rootRef.current;
+    return !!root && root.contains(document.activeElement);
+  }
+
+  function syncEditorMarkdown(ed: Editor | null | undefined, markdown: string) {
+    if (!ed || ed.isDestroyed) return;
+    if (ed.getMarkdown() === markdown) return;
+    ed.commands.setContent(markdown, {
+      contentType: "markdown",
+      emitUpdate: false,
+    });
+  }
+
+  function queueAkbTitleResolution(markdown: string, ed?: Editor | null) {
+    if (!vault) return;
+    const unresolved = extractAkbDocumentUris(markdown).filter(
+      (uri) =>
+        !resolvedTitleMapRef.current.has(uri) &&
+        !pendingTitleUrisRef.current.has(uri),
+    );
+    if (unresolved.length === 0) return;
+
+    for (const uri of unresolved) pendingTitleUrisRef.current.add(uri);
+    void resolveAkbDocumentTitles(vault, unresolved).then((titles) => {
+      for (const uri of unresolved) {
+        pendingTitleUrisRef.current.delete(uri);
+        resolvedTitleMapRef.current.set(uri, titles.get(uri) ?? null);
+      }
+      const next = normalizeAkbDocumentMarkdownLinks(
+        latestValueRef.current,
+        resolvedTitleMapRef.current,
+      );
+      if (next === latestValueRef.current) return;
+      latestValueRef.current = next;
+      onChangeRef.current(next);
+      syncEditorMarkdown(ed ?? editor, next);
+      if (!rootContainsFocus()) onBlurRef.current?.(next);
+    });
+  }
+
+  function publishMarkdown(rawMarkdown: string, ed?: Editor | null) {
+    const markdown = normalizeAkbDocumentMarkdownLinks(
+      rawMarkdown,
+      resolvedTitleMapRef.current,
+    );
+    latestValueRef.current = markdown;
+    if (markdown !== rawMarkdown) syncEditorMarkdown(ed, markdown);
+    onChangeRef.current(markdown);
+    queueAkbTitleResolution(markdown, ed);
+  }
 
   const editor = useEditor({
     // Tiptap v3 requires this explicit opt-out under Next.js to avoid an SSR
@@ -229,9 +328,7 @@ export function MarkdownEditor({
       },
     },
     onUpdate: ({ editor: ed }) => {
-      const markdown = ed.getMarkdown();
-      latestValueRef.current = markdown;
-      onChange(markdown);
+      publishMarkdown(ed.getMarkdown(), ed);
     },
   });
 
@@ -263,19 +360,31 @@ export function MarkdownEditor({
 
   // Sync external value changes without moving the cursor
   useEffect(() => {
-    latestValueRef.current = value;
+    const normalized = normalizeAkbDocumentMarkdownLinks(
+      value,
+      resolvedTitleMapRef.current,
+    );
+    latestValueRef.current = normalized;
+    if (normalized !== value) onChangeRef.current(normalized);
     if (!editor) return;
     const current = editor.getMarkdown();
-    if (value !== current) {
+    if (normalized !== current) {
       // contentType: 'markdown' is required so the @tiptap/markdown extension parses the
       // string through marked; without it, Tiptap treats input as HTML and raw markdown
       // shows up as plain text. emitUpdate: false avoids retriggering onChange.
-      editor.commands.setContent(value, {
+      editor.commands.setContent(normalized, {
         contentType: "markdown",
         emitUpdate: false,
       });
     }
-  }, [value, editor]);
+    queueAkbTitleResolution(normalized, editor);
+  });
+
+  useEffect(() => {
+    if (rootRef.current) {
+      retargetRenderedAkbDocumentLinks(rootRef.current, akbWebBase);
+    }
+  });
 
   // Tiptap captures `editable` at creation and ignores later option changes, so
   // a readOnly toggle after mount (e.g. a save-pending lock) should be applied
@@ -294,7 +403,10 @@ export function MarkdownEditor({
 
   // Source mode textarea handler
   function handleSourceChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
-    const newValue = e.target.value;
+    const newValue = normalizeAkbDocumentMarkdownLinks(
+      e.target.value,
+      resolvedTitleMapRef.current,
+    );
     latestValueRef.current = newValue;
     onChange(newValue);
     if (editor) {
@@ -303,6 +415,7 @@ export function MarkdownEditor({
         emitUpdate: false,
       });
     }
+    queueAkbTitleResolution(newValue, editor);
   }
 
   function closeLinkEditor() {
@@ -360,6 +473,7 @@ export function MarkdownEditor({
 
   return (
     <div
+      ref={rootRef}
       data-testid="markdown-editor"
       onBlur={(e) => {
         // fire when focus truly exits the editor subtree (toolbar +

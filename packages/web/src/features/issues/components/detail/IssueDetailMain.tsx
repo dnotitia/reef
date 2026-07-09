@@ -136,6 +136,7 @@ export function IssueDetailMain({
           onBlur={commitBody}
           placeholder={t("descriptionPlaceholder")}
           ariaLabel={t("descriptionAriaLabel")}
+          vault={vault}
         />
       </div>
 

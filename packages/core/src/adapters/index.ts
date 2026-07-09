@@ -32,6 +32,7 @@ export {
   updateComment as akbUpdateComment,
   listIssueActivity as akbListIssueActivity,
   searchDocuments as akbSearchDocuments,
+  resolveDocumentTitles as akbResolveDocumentTitles,
   issueDocumentUri as akbIssueDocumentUri,
   writeActivitySuggestion as akbWriteActivitySuggestion,
   listActivitySuggestions as akbListActivitySuggestions,
