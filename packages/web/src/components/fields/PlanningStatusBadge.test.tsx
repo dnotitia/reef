@@ -21,7 +21,10 @@ describe("PlanningStatusBadge", () => {
     );
     expect(
       planningStatusMeta("milestones", "closed", noLabels).colorClass,
-    ).toBe("text-status-done");
+    ).toBe("text-status-closed");
+    expect(planningStatusMeta("sprints", "closed", noLabels).colorClass).toBe(
+      "text-status-closed",
+    );
     expect(
       planningStatusMeta("releases", "released", noLabels).colorClass,
     ).toBe("text-status-done");
