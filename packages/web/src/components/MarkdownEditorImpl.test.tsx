@@ -165,6 +165,76 @@ describe("MarkdownEditor", () => {
     expect(className).toContain(EDITOR_BODY_SIZING);
   });
 
+  it("opens clicked editor links with noopener while consuming the link click", () => {
+    render(
+      <MarkdownEditor
+        value="[Spec](https://example.com/spec)"
+        onChange={vi.fn()}
+      />,
+    );
+    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
+      editorProps?: {
+        handleClick?: (
+          view: { dom: HTMLElement },
+          pos: number,
+          event: MouseEvent,
+        ) => boolean;
+      };
+    };
+    const root = document.createElement("div");
+    root.innerHTML =
+      '<p><a href="https://example.com/spec" target="_blank">Spec</a></p>';
+    const link = root.querySelector("a");
+    const event = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    Object.defineProperty(event, "target", { value: link });
+    const opened = { opener: window } as Window;
+    const open = vi.spyOn(window, "open").mockReturnValue(opened);
+
+    const handled = opts.editorProps?.handleClick?.({ dom: root }, 1, event);
+
+    expect(handled).toBe(true);
+    expect(event.defaultPrevented).toBe(true);
+    expect(open).toHaveBeenCalledWith(
+      "https://example.com/spec",
+      "_blank",
+      "noopener,noreferrer",
+    );
+    expect(opened.opener).toBeNull();
+  });
+
+  it("leaves ordinary editor text clicks for ProseMirror selection handling", () => {
+    render(<MarkdownEditor value="plain text" onChange={vi.fn()} />);
+    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
+      editorProps?: {
+        handleClick?: (
+          view: { dom: HTMLElement },
+          pos: number,
+          event: MouseEvent,
+        ) => boolean;
+      };
+    };
+    const root = document.createElement("div");
+    root.innerHTML = "<p>plain text</p>";
+    const paragraph = root.querySelector("p");
+    const event = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    Object.defineProperty(event, "target", { value: paragraph });
+    const open = vi.spyOn(window, "open");
+
+    const handled = opts.editorProps?.handleClick?.({ dom: root }, 1, event);
+
+    expect(handled).toBe(false);
+    expect(event.defaultPrevented).toBe(false);
+    expect(open).not.toHaveBeenCalled();
+  });
+
   it("shows toolbar buttons when not readOnly", () => {
     render(<MarkdownEditor value="" onChange={vi.fn()} />);
     expect(screen.getByTitle("Bold")).toBeInTheDocument();
@@ -295,6 +365,20 @@ describe("MarkdownEditor", () => {
 
     expect(onChange).toHaveBeenCalledWith("fresh markdown");
     expect(onBlur).toHaveBeenCalledWith("fresh markdown");
+  });
+
+  it("does not reset editor content when the external value is unchanged", () => {
+    const { rerender } = render(
+      <MarkdownEditor value="stable markdown" onChange={vi.fn()} />,
+    );
+    const editor = vi.mocked(useEditor).mock.results.at(-1)?.value as {
+      commands: { setContent: ReturnType<typeof vi.fn> };
+    };
+
+    editor.commands.setContent.mockClear();
+    rerender(<MarkdownEditor value="stable markdown" onChange={vi.fn()} />);
+
+    expect(editor.commands.setContent).not.toHaveBeenCalled();
   });
 
   it("passes the latest source markdown to onBlur", () => {

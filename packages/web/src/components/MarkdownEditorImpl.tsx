@@ -140,6 +140,30 @@ export function createMarkdownEditorExtensions(placeholder: string) {
   ];
 }
 
+function openClickedEditorLink(root: ParentNode, event: MouseEvent): boolean {
+  if (event.button !== 0) return false;
+  const target = event.target instanceof Element ? event.target : null;
+  const anchor = target?.closest<HTMLAnchorElement>("a[href]") ?? null;
+  if (!anchor || !root.contains(anchor)) return false;
+
+  const href = anchor.href || anchor.getAttribute("href");
+  if (!href) return false;
+
+  // Tiptap's built-in openOnClick omits noopener for programmatic opens.
+  const opened = window.open(
+    href,
+    anchor.getAttribute("target") ?? "_blank",
+    "noopener,noreferrer",
+  );
+  try {
+    if (opened) opened.opener = null;
+  } catch {
+    // Cross-origin windows can reject opener mutation; noopener above is primary.
+  }
+  event.preventDefault();
+  return true;
+}
+
 function sameActive(a: ActiveMarks | null, b: ActiveMarks | null): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
@@ -326,6 +350,8 @@ export function MarkdownEditor({
         ),
         ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
       },
+      handleClick: (view, _pos, event) =>
+        openClickedEditorLink(view.dom, event),
     },
     onUpdate: ({ editor: ed }) => {
       publishMarkdown(ed.getMarkdown(), ed);
