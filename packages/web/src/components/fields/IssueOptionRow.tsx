@@ -28,10 +28,13 @@ import { useTranslations } from "next-intl";
  * The id and title share one summary track so the issue key reads directly into
  * the title instead of leaving a table-like gutter. The blocked marker lives in
  * a trailing metadata track (REEF-397), away from that id/title summary so
- * relation rows do not read it as the relation type. Empty rows keep the
- * trailing blocker slot blank, so blocker/no-blocker siblings do not shift, and
- * the priority column is consistently reserved so the dot lines up even on rows
- * without one.
+ * relation rows do not read it as the relation type. In this dense option-row
+ * context, the marker keeps the same destructive blocked color language as the
+ * kanban card state, but at lower emphasis: it remains available metadata and
+ * accessible as "blocked by N" without becoming the row's visual anchor ahead
+ * of the issue id/title. Empty rows keep the trailing blocker slot blank, so
+ * blocker/no-blocker siblings do not shift, and the priority column is
+ * consistently reserved so the dot lines up even on rows without one.
  *
  * Composed from the existing render leaves imported directly by file (REEF-018:
  * no `components/fields` barrel). Each glyph-bearing leaf carries a `size-*`
@@ -141,7 +144,7 @@ export function IssueOptionRow({
             <BlockedBadge
               variant="compact"
               count={blockerCount}
-              className="shrink-0 gap-0 text-[10px] font-normal leading-none text-destructive/70 [&>svg]:size-2.5"
+              className="shrink-0 gap-0 text-[10px] font-normal leading-none text-destructive/50 [&>svg]:size-2.5"
             />
           ) : null}
         </span>

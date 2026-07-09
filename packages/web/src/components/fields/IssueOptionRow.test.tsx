@@ -156,7 +156,8 @@ describe("IssueOptionRow", () => {
     expect(
       marker.closest('[data-issue-option-slot="metadata"]')?.className,
     ).toContain("gap-x-1.5");
-    expect(marker.className).toContain("text-destructive/70");
+    expect(marker.className).toContain("text-destructive/50");
+    expect(marker.className).not.toContain("text-muted-foreground");
     expect(marker.className).toContain("font-normal");
     expect(marker.className).not.toContain("max-w-full");
 

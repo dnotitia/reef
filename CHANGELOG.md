@@ -113,10 +113,11 @@ explicitly in the entries below.
 
 - **Blocked counts no longer read like relationship labels.** Relationship,
   issue-picker, and sub-issue rows now show an issue's unresolved blocker count
-  as trailing metadata after the type and priority markers, instead of inserting
-  the red count between the issue id and title. The compact marker keeps its
-  `Blocked by N issues` accessible label and stays stable in narrow relationship
-  columns. (REEF-397)
+  as low-emphasis trailing metadata after the type and priority markers, instead
+  of inserting a high-emphasis count between the issue id and title. The compact
+  marker keeps reef's blocked/destructive color language, keeps its
+  `Blocked by N issues` accessible label, and stays stable in narrow
+  relationship columns. (REEF-397)
 
 ### Operational
 
