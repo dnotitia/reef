@@ -215,6 +215,141 @@ describe("MarkdownEditor", () => {
     expect(opened.opener).toBeNull();
   });
 
+  it("keeps link mouse down from moving the editor selection before opening", () => {
+    render(
+      <MarkdownEditor
+        value="[Spec](https://example.com/spec)"
+        onChange={vi.fn()}
+      />,
+    );
+    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
+      editorProps?: {
+        handleDOMEvents?: {
+          mousedown?: (
+            view: { dom: HTMLElement },
+            event: MouseEvent,
+          ) => boolean;
+        };
+      };
+    };
+    const root = document.createElement("div");
+    root.innerHTML =
+      '<p><a href="https://example.com/spec" target="_blank">Spec</a></p>';
+    const link = root.querySelector("a");
+    const event = new MouseEvent("mousedown", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    Object.defineProperty(event, "target", { value: link });
+    const open = vi.spyOn(window, "open");
+
+    const handled = opts.editorProps?.handleDOMEvents?.mousedown?.(
+      { dom: root },
+      event,
+    );
+
+    expect(handled).toBe(true);
+    expect(event.defaultPrevented).toBe(true);
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("opens editor links on mouse up after preventing link mouse down selection", () => {
+    render(
+      <MarkdownEditor
+        value="[Spec](https://example.com/spec)"
+        onChange={vi.fn()}
+      />,
+    );
+    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
+      editorProps?: {
+        handleDOMEvents?: {
+          mouseup?: (view: { dom: HTMLElement }, event: MouseEvent) => boolean;
+        };
+        handleClick?: (
+          view: { dom: HTMLElement },
+          pos: number,
+          event: MouseEvent,
+        ) => boolean;
+      };
+    };
+    const root = document.createElement("div");
+    root.innerHTML =
+      '<p><a href="https://example.com/spec" target="_blank">Spec</a></p>';
+    const link = root.querySelector("a");
+    const opened = { opener: window } as Window;
+    const open = vi.spyOn(window, "open").mockReturnValue(opened);
+    const mouseUp = new MouseEvent("mouseup", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    Object.defineProperty(mouseUp, "target", { value: link });
+
+    const handledMouseUp = opts.editorProps?.handleDOMEvents?.mouseup?.(
+      { dom: root },
+      mouseUp,
+    );
+
+    expect(handledMouseUp).toBe(true);
+    expect(mouseUp.defaultPrevented).toBe(true);
+    expect(open).toHaveBeenCalledOnce();
+    expect(open).toHaveBeenCalledWith(
+      "https://example.com/spec",
+      "_blank",
+      "noopener,noreferrer",
+    );
+    expect(opened.opener).toBeNull();
+
+    const click = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    Object.defineProperty(click, "target", { value: link });
+
+    const handledClick = opts.editorProps?.handleClick?.(
+      { dom: root },
+      1,
+      click,
+    );
+
+    expect(handledClick).toBe(true);
+    expect(click.defaultPrevented).toBe(true);
+    expect(open).toHaveBeenCalledOnce();
+  });
+
+  it("leaves ordinary editor mouse down for ProseMirror selection handling", () => {
+    render(<MarkdownEditor value="plain text" onChange={vi.fn()} />);
+    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
+      editorProps?: {
+        handleDOMEvents?: {
+          mousedown?: (
+            view: { dom: HTMLElement },
+            event: MouseEvent,
+          ) => boolean;
+        };
+      };
+    };
+    const root = document.createElement("div");
+    root.innerHTML = "<p>plain text</p>";
+    const paragraph = root.querySelector("p");
+    const event = new MouseEvent("mousedown", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    Object.defineProperty(event, "target", { value: paragraph });
+
+    const handled = opts.editorProps?.handleDOMEvents?.mousedown?.(
+      { dom: root },
+      event,
+    );
+
+    expect(handled).toBe(false);
+    expect(event.defaultPrevented).toBe(false);
+  });
+
   it("leaves ordinary editor text clicks for ProseMirror selection handling", () => {
     render(<MarkdownEditor value="plain text" onChange={vi.fn()} />);
     const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {

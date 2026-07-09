@@ -138,6 +138,8 @@ const NO_ACTIVE: ActiveMarks = {
   link: false,
 };
 
+const LINK_CLICK_SUPPRESSION_MS = 1000;
+
 function createImageExtension(resolveImageSrc?: (src: string) => string) {
   return Image.extend({
     renderHTML({ HTMLAttributes }) {
@@ -181,12 +183,17 @@ export function createMarkdownEditorExtensions(
   ];
 }
 
-function openClickedEditorLink(root: ParentNode, event: MouseEvent): boolean {
-  if (event.button !== 0) return false;
+function findClickedEditorLink(
+  root: ParentNode,
+  event: MouseEvent,
+): HTMLAnchorElement | null {
   const target = event.target instanceof Element ? event.target : null;
   const anchor = target?.closest<HTMLAnchorElement>("a[href]") ?? null;
-  if (!anchor || !root.contains(anchor)) return false;
+  if (!anchor || !root.contains(anchor)) return null;
+  return anchor;
+}
 
+function openEditorLink(anchor: HTMLAnchorElement): boolean {
   const href = anchor.href || anchor.getAttribute("href");
   if (!href) return false;
 
@@ -201,6 +208,54 @@ function openClickedEditorLink(root: ParentNode, event: MouseEvent): boolean {
   } catch {
     // Cross-origin windows can reject opener mutation; noopener above is primary.
   }
+  return true;
+}
+
+function openClickedEditorLink(
+  root: ParentNode,
+  event: MouseEvent,
+  linksOpenedFromMouseUp: WeakMap<HTMLAnchorElement, number>,
+): boolean {
+  if (event.button !== 0) return false;
+  const anchor = findClickedEditorLink(root, event);
+  if (!anchor) return false;
+
+  const openedAt = linksOpenedFromMouseUp.get(anchor);
+  if (
+    openedAt !== undefined &&
+    Date.now() - openedAt < LINK_CLICK_SUPPRESSION_MS
+  ) {
+    event.preventDefault();
+    return true;
+  }
+
+  if (!openEditorLink(anchor)) return false;
+  event.preventDefault();
+  return true;
+}
+
+function preventEditorSelectionOnLinkMouseDown(
+  root: ParentNode,
+  event: MouseEvent,
+): boolean {
+  if (event.button !== 0) return false;
+  if (!findClickedEditorLink(root, event)) return false;
+
+  event.preventDefault();
+  return true;
+}
+
+function openEditorLinkOnMouseUp(
+  root: ParentNode,
+  event: MouseEvent,
+  linksOpenedFromMouseUp: WeakMap<HTMLAnchorElement, number>,
+): boolean {
+  if (event.button !== 0) return false;
+  const anchor = findClickedEditorLink(root, event);
+  if (!anchor) return false;
+  if (!openEditorLink(anchor)) return false;
+
+  linksOpenedFromMouseUp.set(anchor, Date.now());
   event.preventDefault();
   return true;
 }
@@ -315,6 +370,9 @@ export function MarkdownEditor({
   const resolvedTitleMapRef = useRef(new Map<string, string | null>());
   const pendingTitleUrisRef = useRef(new Set<string>());
   const previousVaultRef = useRef(vault);
+  const linksOpenedFromMouseUpRef = useRef(
+    new WeakMap<HTMLAnchorElement, number>(),
+  );
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -400,8 +458,22 @@ export function MarkdownEditor({
         ),
         ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
       },
+      handleDOMEvents: {
+        mousedown: (view, event) =>
+          preventEditorSelectionOnLinkMouseDown(view.dom, event),
+        mouseup: (view, event) =>
+          openEditorLinkOnMouseUp(
+            view.dom,
+            event,
+            linksOpenedFromMouseUpRef.current,
+          ),
+      },
       handleClick: (view, _pos, event) =>
-        openClickedEditorLink(view.dom, event),
+        openClickedEditorLink(
+          view.dom,
+          event,
+          linksOpenedFromMouseUpRef.current,
+        ),
       handlePaste: (_view, event) => {
         const files = filesFromFileList(event.clipboardData?.files ?? null);
         if (
