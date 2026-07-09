@@ -193,13 +193,13 @@ describe("BacklogView", () => {
     expect(screen.queryByTestId("backlog-empty")).toBeNull();
   });
 
-  it("asks the server for rank ascending and shows a drag grip in manual order (REEF-129)", async () => {
+  it("asks the server for rank ascending and shows a drag grip in rank order (REEF-129)", async () => {
     mockList(issues);
     render(wrap(<BacklogView vault="reef-acme" />));
 
     await screen.findByText("Deferred idea");
 
-    // Manual order (no explicit sort) → server sorts by rank ascending.
+    // Rank order (no explicit sort) → server sorts by rank ascending.
     const askedRank = mockApiFetch.mock.calls.some((c) => {
       const url = String(c[0]);
       return url.includes("sort_field=rank") && url.includes("sort_order=asc");
@@ -207,18 +207,18 @@ describe("BacklogView", () => {
     expect(askedRank).toBe(true);
 
     // The row carries a drag handle, and the in-body line is the drag
-    // affordance just — the order name ("Manual order") now lives in the header
+    // affordance just — the order name ("Rank order") now lives in the header
     // SortControl, not here (REEF-169).
     expect(screen.getByTestId("backlog-grip-REEF-1")).toBeInTheDocument();
     expect(screen.getByTestId("backlog-order-mode")).toHaveTextContent(
       "Drag to reorder",
     );
     expect(screen.getByTestId("backlog-order-mode")).not.toHaveTextContent(
-      "Manual order",
+      "Rank order",
     );
   });
 
-  it("disables reordering and points to Manual order when a user sort is active (REEF-129, REEF-169)", async () => {
+  it("disables reordering and points to Rank order when a user sort is active (REEF-129, REEF-169)", async () => {
     mockList(issues);
     useIssueStore.setState({
       filter: { sortField: "priority", sortOrder: "desc" },
@@ -231,17 +231,17 @@ describe("BacklogView", () => {
 
     // No grip in sorted mode. The body no longer restates the sort (it does not
     // leaks the raw `priority` field name) and carries no restore button — the
-    // header SortControl owns the order vocabulary and the switch back to manual
+    // header SortControl owns the order vocabulary and the switch back to rank
     // order (REEF-169). The body just hints how to re-enable reordering.
     expect(screen.queryByTestId("backlog-grip-REEF-1")).toBeNull();
     expect(screen.getByTestId("backlog-order-mode")).toHaveTextContent(
-      "Switch to Manual order to reorder",
+      "Switch to Rank order to reorder",
     );
     expect(screen.getByTestId("backlog-order-mode")).not.toHaveTextContent(
       "Sorted by",
     );
     expect(
-      screen.queryByRole("button", { name: /switch to manual order/i }),
+      screen.queryByRole("button", { name: /switch to rank order/i }),
     ).toBeNull();
   });
 
@@ -301,7 +301,7 @@ describe("BacklogView", () => {
     expect(rows[1]).toHaveTextContent("Older padded");
   });
 
-  it("disables reordering while archived rows are shown so they can't join the manual order (REEF-129)", async () => {
+  it("disables reordering while archived rows are shown so they can't join rank order (REEF-129)", async () => {
     mockList(issues);
     useIssueStore.setState({
       filter: { showArchived: true },
@@ -370,7 +370,7 @@ describe("BacklogView", () => {
       .map((c) => String(c[0]))
       .filter((u) => u.includes("status=backlog"));
     expect(listUrls.length).toBeGreaterThan(0);
-    // Manual order asks the server for the whole ranked backlog (the spine) ...
+    // Rank order asks the server for the whole ranked backlog (the spine) ...
     expect(listUrls.every((u) => u.includes("sort_field=rank"))).toBe(true);
     // ... and does not pushes the active priority facet to the server (it is applied
     // client-side), so the drag-reorder computes against the global order.

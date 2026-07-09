@@ -164,8 +164,19 @@ export {
   activitySuggestionId,
   computeReorderedRanks,
   backlogRankSortKey,
+  mapJiraRanksToIssueOrder,
+  JIRA_RANK_MAPPED,
+  JIRA_RANK_UNMAPPED,
 } from "./models";
-export type { CodeSignal, RankedItem, RankAssignment } from "./models";
+export type {
+  CodeSignal,
+  RankedItem,
+  RankAssignment,
+  JiraRankedIssue,
+  JiraRankMappingClassification,
+  JiraRankMappingResult,
+  JiraRankUnmappedReason,
+} from "./models";
 export {
   ReefError,
   SchemaValidationError,

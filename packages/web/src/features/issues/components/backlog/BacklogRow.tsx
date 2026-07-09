@@ -26,7 +26,7 @@ interface BacklogRowProps {
   onOpen: (id: string) => void;
   onStatusChange: (issue: IssueListItem, nextStatus: Status) => void;
   /**
-   * Manual-order mode (REEF-129): the row is drag-reorderable by its grip
+   * Rank-order mode (REEF-129): the row is drag-reorderable by its grip
    * handle. When false (a user sort is active) the grip is inert and the row is
    * a static triage row.
    */
@@ -35,7 +35,7 @@ interface BacklogRowProps {
 
 /**
  * Slim triage row for the backlog view: Grip · Type · ID · Title · Status ·
- * Priority · Assignee · Updated. In manual-order mode the leading grip is a
+ * Priority · Assignee · Updated. In rank-order mode the leading grip is a
  * drag handle; the Status cell is an inline picker so a backlog issue can be
  * promoted to Todo in place (REEF-109). Clicking the row opens the issue; the
  * grip and the status picker stop propagation so neither navigates.
@@ -71,7 +71,7 @@ export function BacklogRow({
       data-testid="backlog-row"
     >
       {/* Grip — drag handle, revealed on hover/focus, interactive just in
-          manual-order mode. The empty span keeps the column width stable when a
+          rank-order mode. The empty span keeps the column width stable when a
           user sort disables reordering. */}
       <TableCell className="w-7 pr-0 text-muted-foreground">
         {sortable ? (

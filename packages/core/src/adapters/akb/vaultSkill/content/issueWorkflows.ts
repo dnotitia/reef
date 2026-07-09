@@ -98,7 +98,7 @@ The Issue schema surfaces meta.author as created_by and meta.last_editor as upda
 
 Reserved future-proof fields: watchers, reviewers, qa_owner, and custom_fields exist for future collaboration, QA, and customization workflows. They are not used by the current Reef product UI or write flows, and live in meta. Do not set or change them unless a future runbook explicitly introduces that workflow.
 
-rank is the backlog manual order — a typed column, not a meta field. It is owned by the backlog view's drag-to-reorder flow, which writes it directly; do not hand-author or change rank on a create or a normal field update. A new issue is created with rank unset, and an unranked issue sorts into the backlog tail (newest first) until a PM drags it into an explicit order.
+rank is reef's issue-wide numeric ordering scalar — a typed column, not a meta field. Lower values sort earlier, NULL sorts at the ordered tail, the product UI writes it only through the backlog view's drag-to-reorder flow, and trusted importers may seed it from source-system current order (for example Jira Rank). Do not hand-author or change rank on a conversational create or a normal field update. A normal new issue gets product/backlog defaults rather than a caller-provided rank.
 
 ## When the row is present but the board hides it
 

@@ -108,15 +108,15 @@ interface BacklogViewProps {
 /**
  * The dedicated backlog view: a flat triage list of `backlog` issues with an
  * inline status picker to promote them out of the backlog (REEF-109) and
- * drag-to-reorder for the manual `rank` order (REEF-129). It owns its own fetch
+ * drag-to-reorder for the editable `rank` order (REEF-129). It owns its own fetch
  * and the status/reorder mutations; the surrounding chrome (PageHeader,
  * ViewSwitcher, filter toolbar) is owned by IssuesWorkspace, which hides the
  * status facet for this view.
  *
- * Manual order is the default (no explicit user sort): the server orders by
+ * Rank order is the default (no explicit user sort): the server orders by
  * `rank`, the rows are drag-reorderable, and unranked issues sink to a tail
  * below a divider. Picking a sort from the toolbar switches to that sort and
- * disables reordering until manual order is restored.
+ * disables reordering until rank order is restored.
  */
 export function BacklogView({ vault }: BacklogViewProps) {
   const t = useTranslations("issues.backlog");
@@ -130,7 +130,7 @@ export function BacklogView({ vault }: BacklogViewProps) {
     useState<IssueListItem | null>(null);
 
   // Rank order is shown whenever the user has not picked an explicit sort.
-  const isManualOrder = !filter.sortField;
+  const isRankOrder = !filter.sortField;
 
   // The effective backlog filter: force `status=['backlog']` on the server query
   // AND the client residual filter (overriding the store's hidden status facet),
@@ -157,7 +157,7 @@ export function BacklogView({ vault }: BacklogViewProps) {
   // Derived from `backlogFilter` so the neutralized sprint/release/due facets
   // does not count (they are neither shown nor applied) — matching the bar's reduced
   // facet set (REEF-177). Drives the no-matches-vs-empty signal below; it does
-  // NOT gate drag-reorder: in manual order the query fetches the full ranked
+  // NOT gate drag-reorder: in rank order the query fetches the full ranked
   // backlog (the ordering spine), so a filtered reorder is computed against the
   // true global neighbors — see `query` and `orderedBacklog` (REEF-176).
   const filtersActive = !!(
@@ -189,7 +189,7 @@ export function BacklogView({ vault }: BacklogViewProps) {
   );
 
   const query = useMemo(() => {
-    // Manual order fetches the FULL ranked backlog as an ordering spine: the
+    // Rank order fetches the FULL ranked backlog as an ordering spine: the
     // triage facets and search are NOT sent to the server (they are applied
     // client-side for display below), so a drag-reorder while filtered computes
     // against the true global neighbors instead of the visible subset —
@@ -200,7 +200,7 @@ export function BacklogView({ vault }: BacklogViewProps) {
     // an already-fetched set. `rank` ascending puts any unranked rows in the tail;
     // it is does not a user-pickable sort. With an explicit user sort, reordering is
     // off, so the normal server-filtered query applies.
-    if (isManualOrder) {
+    if (isRankOrder) {
       return {
         ...buildIssueQuery(
           {
@@ -214,7 +214,7 @@ export function BacklogView({ vault }: BacklogViewProps) {
       };
     }
     return buildIssueQuery(backlogFilter, searchQuery);
-  }, [isManualOrder, backlogFilter, searchQuery, filter.showArchived]);
+  }, [isRankOrder, backlogFilter, searchQuery, filter.showArchived]);
   const {
     data: issues,
     isPending,
@@ -227,15 +227,15 @@ export function BacklogView({ vault }: BacklogViewProps) {
   const { data: relations } = useIssueRelations(vault);
 
   // Reorder on the FRESH active backlog, does not while a previous reorder is still
-  // in flight. A triage filter no longer blocks it (REEF-176): the manual-order
+  // in flight. A triage filter no longer blocks it (REEF-176): the rank-order
   // query loads the full ranked backlog, so a filtered drag is computed against
   // the true global neighbors. Sort/filter transitions serve stale placeholder
   // rows; a second overlapping drag would POST absolute ranks that, under akb's
   // last-write-wins, can arrive out of order. `showArchived` surfaces archived
-  // rows that should not join the manual order (the server skips them too). All
+  // rows that should not join rank order (the server skips them too). All
   // remaining windows are guarded here.
   const canReorder =
-    isManualOrder &&
+    isRankOrder &&
     !filter.showArchived &&
     !isPlaceholderData &&
     !reorder.isPending;
@@ -243,9 +243,9 @@ export function BacklogView({ vault }: BacklogViewProps) {
   const allIssues = issues ?? EMPTY_ISSUES;
   const graph = relations ?? allIssues;
 
-  // The full active backlog in manual order — the spine a drag-reorder computes
+  // The full active backlog in rank order — the spine a drag-reorder computes
   // against (not the filtered visible rows), so a filtered drop lands between the
-  // moved row's true global neighbors (REEF-176). In manual order `allIssues` is
+  // moved row's true global neighbors (REEF-176). In rank order `allIssues` is
   // the unfiltered ranked backlog; the status/archived pin guards a stale
   // optimistically-promoted row. In sorted mode reordering is off, so unused.
   const orderedBacklog = useMemo(
@@ -267,7 +267,7 @@ export function BacklogView({ vault }: BacklogViewProps) {
       filter.dependencyFilter ?? null,
       graph,
     );
-    return isManualOrder
+    return isRankOrder
       ? [...depFiltered].sort(compareBacklogManualOrder)
       : sortIssues(depFiltered, filter.sortField, filter.sortOrder);
   }, [
@@ -276,15 +276,15 @@ export function BacklogView({ vault }: BacklogViewProps) {
     graph,
     searchQuery,
     filter,
-    isManualOrder,
+    isRankOrder,
     staleWindowDays,
   ]);
 
   // The divider sits between the manually-ordered (ranked) rows and the unranked
   // tail. Hidden when the backlog is entirely ranked or entirely unranked.
   const firstUnrankedIndex = useMemo(
-    () => (isManualOrder ? visibleIssues.findIndex((i) => i.rank == null) : -1),
-    [isManualOrder, visibleIssues],
+    () => (isRankOrder ? visibleIssues.findIndex((i) => i.rank == null) : -1),
+    [isRankOrder, visibleIssues],
   );
   const showDivider =
     firstUnrankedIndex > 0 && firstUnrankedIndex < visibleIssues.length;
@@ -382,9 +382,9 @@ export function BacklogView({ vault }: BacklogViewProps) {
   // the shared chrome (the ViewSwitcher tab), so the body stays free of the
   // count/identity row the other views don't have (REEF-175). This is does not a
   // second sort label either: the header SortControl owns the order vocabulary,
-  // including the word "Manual order" (REEF-169).
-  const reorderHint = !isManualOrder
-    ? t("reorderHintSwitchToManual")
+  // including the words "Rank order" (REEF-169 / REEF-393).
+  const reorderHint = !isRankOrder
+    ? t("reorderHintSwitchToRank")
     : canReorder
       ? t("reorderHintDrag")
       : filter.showArchived

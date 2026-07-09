@@ -85,43 +85,70 @@ describe("SortControl", () => {
     expect(screen.queryByTestId("sort-reset")).toBeNull();
   });
 
-  // REEF-169 — on the backlog the pristine state is the manual `rank` order, and
-  // this control is the single place that names it. The board/list tests above
-  // (no `supportsManualOrder`) prove the default behavior is unchanged.
-  describe("backlog manual order (supportsManualOrder)", () => {
-    it("shows Manual order — not the muted Priority default — when pristine", () => {
-      render(<SortControl supportsManualOrder />);
+  // REEF-169 — on the backlog the pristine state is `rank` order, and
+  // this control is the single place that names it.
+  describe("backlog rank order (supportsRankOrder)", () => {
+    it("shows Rank order — not the muted Priority default — when pristine", () => {
+      render(<SortControl supportsRankOrder showsBacklogReorderHint />);
       const trigger = screen.getByTestId("sort-control-trigger");
-      expect(trigger.textContent).toContain("Manual order");
+      expect(trigger.textContent).toContain("Rank order");
       expect(trigger.textContent).not.toContain("Priority");
-      // Manual order has no asc/desc the user controls, so no direction toggle.
+      // Rank order has no asc/desc the user controls, so no direction toggle.
       expect(screen.queryByTestId("sort-direction-toggle")).toBeNull();
       // Still pristine — nothing leaked into the store.
       expect(useIssueStore.getState().filter.sortField).toBeUndefined();
     });
 
-    it("offers Manual order as a first-class option that clears an active sort", async () => {
+    it("offers Rank order as a first-class option that clears an active sort", async () => {
       useIssueStore.setState({
         filter: { sortField: "updated_at", sortOrder: "desc" },
       });
       const user = userEvent.setup();
-      render(<SortControl supportsManualOrder />);
+      render(<SortControl supportsRankOrder showsBacklogReorderHint />);
       await user.click(screen.getByTestId("sort-control-trigger"));
-      await user.click(screen.getByTestId("sort-option-manual"));
+      expect(screen.getByTestId("sort-option-rank")).toHaveTextContent("Drag");
+      await user.click(screen.getByTestId("sort-option-rank"));
       // The single shared clearSort wipes BOTH halves (REEF-169 / REEF-057).
       expect(useIssueStore.getState().filter.sortField).toBeUndefined();
       expect(useIssueStore.getState().filter.sortOrder).toBeUndefined();
     });
 
-    it("omits the separate Reset item — Manual order is the reset", async () => {
+    it("omits the separate Reset item — Rank order is the reset", async () => {
       useIssueStore.setState({
         filter: { sortField: "due_date", sortOrder: "asc" },
       });
       const user = userEvent.setup();
-      render(<SortControl supportsManualOrder />);
+      render(<SortControl supportsRankOrder showsBacklogReorderHint />);
       await user.click(screen.getByTestId("sort-control-trigger"));
       expect(screen.queryByTestId("sort-reset")).toBeNull();
-      expect(screen.getByTestId("sort-option-manual")).toBeInTheDocument();
+      expect(screen.getByTestId("sort-option-rank")).toBeInTheDocument();
+    });
+  });
+
+  describe("board rank order (supportsRankOrder)", () => {
+    it("shows Rank order — not the muted Priority default — when pristine", () => {
+      render(<SortControl supportsRankOrder />);
+      const trigger = screen.getByTestId("sort-control-trigger");
+      expect(trigger.textContent).toContain("Rank order");
+      expect(trigger.textContent).not.toContain("Priority");
+      expect(screen.queryByTestId("sort-direction-toggle")).toBeNull();
+      expect(useIssueStore.getState().filter.sortField).toBeUndefined();
+    });
+
+    it("offers Rank order as the reset for an active board sort", async () => {
+      useIssueStore.setState({
+        filter: { sortField: "updated_at", sortOrder: "desc" },
+      });
+      const user = userEvent.setup();
+      render(<SortControl supportsRankOrder />);
+      await user.click(screen.getByTestId("sort-control-trigger"));
+      expect(screen.getByTestId("sort-option-rank")).not.toHaveTextContent(
+        "Drag",
+      );
+      await user.click(screen.getByTestId("sort-option-rank"));
+      expect(useIssueStore.getState().filter.sortField).toBeUndefined();
+      expect(useIssueStore.getState().filter.sortOrder).toBeUndefined();
+      expect(screen.queryByTestId("sort-reset")).toBeNull();
     });
   });
 });

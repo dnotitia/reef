@@ -32,6 +32,14 @@ explicitly in the entries below.
   Images render inline through reef's authenticated download proxy, while other
   files appear in a new Attachments section with download links. Jira attachment
   references can be rewritten to the same akb file URIs during import. (REEF-349)
+- **Jira Rank now has an import mapping policy.** The new Jira migrator package
+  maps distinct SHDEV Jira Rank strings into reef's existing numeric `rank`
+  ordering, preserves the original Jira Rank in provenance, and reports missing
+  or duplicate values as `rank_unmapped` instead of silently dropping them to
+  raw-only output. The Kanban board now uses that issue-wide `rank` as its
+  pristine in-column order while keeping explicit user sorts separate, and
+  generic issue create/update still cannot hand-author rank. (REEF-393, epic
+  REEF-311)
 - **Insert issue attachments from the markdown toolbar.** Editors that support
   uploads now show a paperclip button in the Insert group, opening a file picker
   and appending the uploaded attachment markdown through the same path as paste

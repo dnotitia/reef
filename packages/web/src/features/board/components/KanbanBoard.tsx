@@ -21,6 +21,7 @@ import {
   filterIssues,
   searchIssues,
   sortIssues,
+  sortIssuesByRankOrder,
 } from "@/features/issues/lib/issueListUtils";
 import { buildStatusPatch } from "@/features/issues/lib/statusPatch";
 import { useFlashStore } from "@/features/issues/stores/useFlashStore";
@@ -85,10 +86,12 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
   // pipeline below still applies due/label/dependency residuals and grouping.
   // The whole-vault relation projection backs blocker badges + the dependency
   // filter so they stay correct over the server-filtered subset.
-  const query = useMemo(
-    () => buildIssueQuery(filter, searchQuery),
-    [filter, searchQuery],
-  );
+  const query = useMemo(() => {
+    const next = buildIssueQuery(filter, searchQuery);
+    return filter.sortField
+      ? next
+      : { ...next, sort_field: "rank", sort_order: "asc" };
+  }, [filter, searchQuery]);
   // isPending (not isLoading) — see useActiveVault for the rationale.
   const { data: issues, isPending, isError } = useIssueList(vault, query);
   const staleWindowDays = useResolvedAutoHideWindows(vault);
@@ -134,10 +137,13 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
       filter.dependencyFilter ?? null,
       graph,
     );
-    // Run the same comparator the list uses so both views order identically
-    // (REEF-059). Grouping by status below preserves this order within each
-    // column. An unset sort is a no-op here, leaving the server's default order.
-    return sortIssues(depFiltered, filter.sortField, filter.sortOrder);
+    // Explicit user sorts still match the list comparator (REEF-059). With no
+    // selected sort, the board shows reef's issue-wide rank order seeded by
+    // backlog reorder or trusted imports (REEF-393); grouping preserves that
+    // order inside each workflow column.
+    return filter.sortField
+      ? sortIssues(depFiltered, filter.sortField, filter.sortOrder)
+      : sortIssuesByRankOrder(depFiltered);
   }, [allIssues, filter, graph, searchQuery, staleWindowDays]);
   // The filtered list controls card visibility; the full `allIssues` list
   // still powers dependency lookups so hidden deps can resolve accurately.

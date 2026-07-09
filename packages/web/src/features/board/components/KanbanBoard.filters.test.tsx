@@ -26,10 +26,10 @@ describe("KanbanBoard filtering and rendering", () => {
     render(wrap(<KanbanBoard vault="reef-acme" />));
     await screen.findByText("Open A");
 
-    // The default sort (priority desc, REEF-057) rides along on every list
-    // request — applied at the query-building layer, so it is consistently on the wire.
+    // The board's pristine order is the issue-wide rank order (REEF-393),
+    // applied on the wire so server pagination and the client column order agree.
     expect(mockApiFetch).toHaveBeenCalledWith(
-      "/api/issues?vault=reef-acme&sort_field=priority&sort_order=desc",
+      "/api/issues?vault=reef-acme&sort_field=rank&sort_order=asc",
     );
   });
 
