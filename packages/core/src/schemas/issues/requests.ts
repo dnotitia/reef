@@ -56,11 +56,11 @@ export const CreateIssueRequestSchema = z
 
 /**
  * User-selectable sort columns — the set surfaced in the issue list's sort
- * control. `rank` is deliberately excluded: it is server-managed manual
- * ordering, not a value the user picks. The persisted-filter schema (REEF-009)
- * restores these, so a stale/shared `?sort=rank` is dropped on restore,
- * matching a UI that does not offers it. This is also the single source for the
- * user-facing sort values.
+ * control. `rank` is deliberately excluded: it is server-managed issue ordering
+ * (backlog drag-reorder and trusted imports), not a value the user picks. The
+ * persisted-filter schema (REEF-009) restores these, so a stale/shared
+ * `?sort=rank` is dropped on restore, matching a UI that does not offers it.
+ * This is also the single source for the user-facing sort values.
  *
  * `priority` sorts by a CASE rank and `estimate_points` by a COALESCE'd numeric
  * (see the adapter's `sortLeadExpr` / `NUMERIC_SORT_FIELDS`); `title` is a
@@ -87,7 +87,8 @@ export type UserSortField = (typeof USER_SORT_FIELDS)[number];
 /**
  * Sortable columns for the issue list. `priority` sorts by a CASE rank (see the
  * adapter's `priorityRankCase`); the rest are direct `reef_issues` columns.
- * `rank` is the server-managed manual order and is not user-selectable (see
+ * `rank` is the server-managed issue ordering scalar and is accepted for
+ * internal/backlog/import verification queries, but not user-selectable (see
  * `USER_SORT_FIELDS`).
  */
 const SORT_FIELDS = [...USER_SORT_FIELDS, "rank"] as const;

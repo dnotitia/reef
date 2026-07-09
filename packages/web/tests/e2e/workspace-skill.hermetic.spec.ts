@@ -59,7 +59,7 @@ test.describe("Hermetic workspace skill update workflow", () => {
     await expect
       .poll(async () => reefVault(await readFixtureState(request)).settings)
       .toMatchObject({
-        vault_skill: { version: 15 },
+        vault_skill: { version: 16 },
       });
     await expect
       .poll(async () => {

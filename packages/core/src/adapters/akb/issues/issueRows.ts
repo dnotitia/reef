@@ -231,10 +231,10 @@ export function rowToIssue(row: Record<string, unknown>): IssueMetadata {
 /**
  * SQL scalar subquery yielding the next tail rank for the active backlog:
  * `RANK_STEP` above the current maximum, so a new or demoted backlog issue
- * appends to the BOTTOM of the manual order (REEF-176). An empty backlog yields
- * `RANK_STEP`. Computed in-statement (not read-then-write) so a create/demote
- * stays one atomic write; concurrent appends can tie on the same max and are
- * broken by `reef_id`, then re-spaced by the next drag.
+ * appends to the BOTTOM of the product-managed backlog order (REEF-176). An
+ * empty backlog yields `RANK_STEP`. Computed in-statement (not read-then-write)
+ * so a create/demote stays one atomic write; concurrent appends can tie on the
+ * same max and are broken by `reef_id`, then re-spaced by the next drag.
  *
  * Assumes the born-correct invariant (a fully-ranked active backlog). A older
  * `rank IS NULL` row predating this invariant displays at the COALESCE sort
@@ -256,7 +256,10 @@ export function backlogTailRankExpr(): string {
  * Issue. Shared by INSERT and UPDATE — `document_uri` and `reef_id` are the
  * immutable keys and are added separately on INSERT just. `opts.rankExpr`
  * substitutes a raw SQL expression for the `rank` value (the born-correct tail
- * subquery on a backlog entry) instead of the literal `issue.rank`.
+ * subquery on a backlog entry) instead of the literal `issue.rank`. Trusted
+ * importers may set `issue.rank` before INSERT to seed issue-wide ordering
+ * (REEF-393); generic product create/update schemas still keep rank out of
+ * user-authored patches.
  */
 export function issueRowMutableFields(
   issue: IssueMetadata,
@@ -298,9 +301,10 @@ export function issueRowMutableFields(
 
 /** INSERT the projection row for an issue. Used on create and on delete's
  * compensating restore. `document_uri` / `reef_id` are the immutable keys.
- * `opts.assignBacklogRank` (set by `writeIssue` on a genuine create) appends a
- * new backlog issue to the manual-order tail (REEF-176); the delete-restore
- * path omits it so the row is recreated with its exact prior rank. */
+ * `opts.assignBacklogRank` (set by `writeIssue` on a genuine product create)
+ * appends a new backlog issue to the manual-order tail (REEF-176); the
+ * delete-restore path omits it so the row is recreated with its exact prior
+ * rank. */
 export function insertIssueRow(
   adapter: AkbAdapter,
   vault: string,

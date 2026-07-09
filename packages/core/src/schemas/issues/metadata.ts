@@ -220,8 +220,9 @@ export const IssueCreateFieldsSchema = IssueMetadataSchema.pick({
   release_id: true,
   estimate_points: true,
   severity: true,
-  // `rank` is deliberately NOT a create field: the backlog manual order is owned
-  // by the drag-reorder endpoint, and new issues are consistently unranked (REEF-129).
+  // `rank` is deliberately NOT a create field: product create flows do not
+  // hand-author ordering. The backlog drag-reorder endpoint and trusted import
+  // paths own writes to the issue-wide numeric ordering scalar (REEF-129/393).
   parent_id: true,
   labels: true,
   depends_on: true,
@@ -264,10 +265,10 @@ export const IssueUpdatePatchSchema = IssueMetadataSchema.pick({
   release_id: true,
   estimate_points: true,
   severity: true,
-  // `rank` is intentionally NOT updatable here: the backlog manual order is
-  // owned by the atomic, backlog-scoped reorder endpoint (REEF-129). Allowing it
-  // on the generic PATCH would bypass that path's status guard and could stamp
-  // hidden rank onto non-backlog issues.
+  // `rank` is intentionally NOT updatable here: the issue-wide numeric ordering
+  // scalar is owned by the atomic, backlog-scoped reorder endpoint and trusted
+  // import paths (REEF-129/393). Allowing it on generic PATCH would bypass those
+  // ownership guards.
   closed_reason: true,
   parent_id: true,
   labels: true,
