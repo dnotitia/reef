@@ -80,6 +80,7 @@ test.describe("Hermetic linked-document backlink (REEF-368)", () => {
       .locator(".reef-markdown-editor a", { hasText: "Spec overview" })
       .first();
     await expect(bodyLink).toHaveAttribute("href", EXPECTED_HREF);
+    await page.evaluate(() => window.getSelection()?.removeAllRanges());
 
     await page.context().route(`${AKB_WEB_BASE}/**`, async (route) => {
       await route.fulfill({
@@ -94,5 +95,26 @@ test.describe("Hermetic linked-document backlink (REEF-368)", () => {
     await expect(popup).toHaveURL(EXPECTED_HREF);
     await expect(popup).toHaveTitle("AKB document");
     await popup.close();
+
+    const selectionAfterClick = await page.evaluate(() => {
+      const editor = document.querySelector(".reef-markdown-editor");
+      const selection = window.getSelection();
+      return {
+        anchorInsideEditor: Boolean(
+          editor &&
+            selection?.anchorNode &&
+            editor.contains(selection.anchorNode),
+        ),
+        focusInsideEditor: Boolean(
+          editor &&
+            selection?.focusNode &&
+            editor.contains(selection.focusNode),
+        ),
+      };
+    });
+    expect(selectionAfterClick).toEqual({
+      anchorInsideEditor: false,
+      focusInsideEditor: false,
+    });
   });
 });
