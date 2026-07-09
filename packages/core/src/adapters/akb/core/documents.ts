@@ -1,6 +1,7 @@
 import { ZodError, z } from "zod";
 import { SchemaValidationError } from "../../../errors";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
+import type { AkbDocumentReference } from "../../../schemas/issues/references";
 import { buildIssueAkbTitle, uniqueStrings } from "../issues/issueRows";
 import { ISSUES_COLLECTION } from "./constants";
 import {
@@ -13,6 +14,21 @@ import {
   type DocumentResponse,
   DocumentResponseSchema,
 } from "./http";
+
+const AKB_DOCUMENT_URI_PARTS_RE =
+  /^akb:\/\/([^/]+)\/(?:(?:coll\/(.+)\/doc\/(.+))|(?:doc\/(.+)))$/;
+
+function documentPathFromUri(
+  expectedVault: string,
+  uri: string,
+): string | null {
+  const match = AKB_DOCUMENT_URI_PARTS_RE.exec(uri);
+  if (!match || match[1] !== expectedVault) return null;
+  const collection = match[2];
+  const collSlug = match[3];
+  const rootPath = match[4];
+  return collection && collSlug ? `${collection}/${collSlug}` : rootPath;
+}
 
 export async function searchDocuments({
   adapter,
@@ -47,6 +63,40 @@ export async function searchDocuments({
   }
   const parsed = AkbSearchResponseSchema.parse(payload);
   return parsed.results ?? parsed.items ?? [];
+}
+
+/**
+ * Resolve document titles for markdown `akb://` links. Failures stay local to
+ * each URI so editing does not block when a pasted document is missing or the
+ * title lookup is temporarily unavailable.
+ */
+export async function resolveDocumentTitles({
+  adapter,
+  vault,
+  uris,
+}: {
+  adapter: AkbAdapter;
+  vault: string;
+  uris: readonly string[];
+}): Promise<AkbDocumentReference[]> {
+  const uniqueUris = [...new Set(uris)];
+  const documents = await Promise.all(
+    uniqueUris.map(async (uri): Promise<AkbDocumentReference> => {
+      const path = documentPathFromUri(vault, uri);
+      if (!path) return { uri, title: null, resource_type: "doc" };
+      try {
+        const payload = await adapter.request(
+          `/api/v1/documents/${encodeURIComponent(vault)}/${path}`,
+          { resource: `document ${path}` },
+        );
+        const document = ensureDocumentResponse(payload);
+        return { uri, title: document.title, resource_type: "doc" };
+      } catch {
+        return { uri, title: null, resource_type: "doc" };
+      }
+    }),
+  );
+  return documents;
 }
 
 /**

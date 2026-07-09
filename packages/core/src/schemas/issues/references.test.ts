@@ -3,6 +3,7 @@ import {
   AddIssueReferenceRequestSchema,
   AkbDocumentReferenceSchema,
   IssueReferencesResponseSchema,
+  ResolveDocumentTitlesRequestSchema,
 } from "./references";
 
 describe("AddIssueReferenceRequestSchema", () => {
@@ -70,5 +71,26 @@ describe("IssueReferencesResponseSchema", () => {
       ],
     });
     expect(parsed.references).toHaveLength(1);
+  });
+});
+
+describe("ResolveDocumentTitlesRequestSchema", () => {
+  it("accepts document URI batches", () => {
+    expect(
+      ResolveDocumentTitlesRequestSchema.safeParse({
+        uris: ["akb://v/doc/root.md", "akb://v/coll/research/doc/report.md"],
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects empty batches and non-document akb resources", () => {
+    expect(
+      ResolveDocumentTitlesRequestSchema.safeParse({ uris: [] }).success,
+    ).toBe(false);
+    expect(
+      ResolveDocumentTitlesRequestSchema.safeParse({
+        uris: ["akb://v/table/pipeline"],
+      }).success,
+    ).toBe(false);
   });
 });

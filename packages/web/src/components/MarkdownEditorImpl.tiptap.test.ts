@@ -26,6 +26,15 @@ afterEach(() => {
 });
 
 describe("MarkdownEditor Tiptap extensions", () => {
+  it("preserves markdown links to akb documents", () => {
+    const uri = "akb://reef-test/coll/research/doc/report.md";
+    const editor = createEditor(`[Research Report](${uri})`);
+
+    expect(editor.getMarkdown()).toContain(`[Research Report](${uri})`);
+    const link = editor.view.dom.querySelector("a");
+    expect(link?.getAttribute("href")).toBe(uri);
+  });
+
   it.each([
     ["unchecked task", "- [ ] task", "- [ ] task"],
     ["checked task", "- [x] done", "- [x] done"],

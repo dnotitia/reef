@@ -39,4 +39,46 @@ test.describe("Hermetic linked-document backlink (REEF-368)", () => {
     const openLink = page.getByRole("link", { name: "Open document in akb" });
     await expect(openLink).toHaveAttribute("href", EXPECTED_HREF);
   });
+
+  test("auto-links akb document URIs in the issue body and opens them with AKB_WEB_URL", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues/REEF-001");
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    const source = page.getByTestId("markdown-source-textarea");
+    const resolved = `See [Spec overview](${REFERENCE_URI})`;
+    const resolveResponse = page.waitForResponse(
+      (response) =>
+        response.url().includes("/api/documents/resolve") &&
+        response.status() === 200,
+    );
+
+    await source.fill(`See ${REFERENCE_URI}`);
+    await resolveResponse;
+    await expect(source).toHaveValue(resolved);
+
+    const saveResponse = page.waitForResponse(
+      (response) =>
+        response.url().includes("/api/issues/REEF-001") &&
+        response.request().method() === "PATCH" &&
+        response.status() === 200,
+    );
+    await page.getByTestId("issue-title-input").click();
+    await saveResponse;
+
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    const bodyLink = page
+      .locator(".reef-markdown-editor a", { hasText: "Spec overview" })
+      .first();
+    await expect(bodyLink).toHaveAttribute("href", EXPECTED_HREF);
+  });
 });

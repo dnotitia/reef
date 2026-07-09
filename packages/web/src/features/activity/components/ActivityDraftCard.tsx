@@ -346,6 +346,7 @@ export function ActivityDraftCard({
             onLabelsChange={setLabels}
             body={content}
             onBodyChange={setContent}
+            vault={vault ?? undefined}
             titleId={`draft-edit-title-${draft.id}`}
             labelsId={`draft-edit-labels-${draft.id}`}
             titleTestId="draft-edit-title"

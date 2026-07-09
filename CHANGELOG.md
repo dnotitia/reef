@@ -14,6 +14,12 @@ explicitly in the entries below.
 
 ### Added
 
+- **Issue descriptions turn akb document URIs into readable links.** Pasting a
+  bare `akb://.../doc/...` document URI into an issue body now turns it into a
+  markdown link whose text uses the document title when reef can resolve it,
+  while custom link text is preserved. Rendered document links still keep the
+  original akb URI in markdown storage and open through the configured akb web
+  URL. (REEF-395)
 - **Issue detail now uses a details-first right rail.** The issue detail sheet
   and new-issue dialog share a wider 400px property rail for Details, People,
   Planning, Parent, and Relationships, while title, description, Sub-issues,
