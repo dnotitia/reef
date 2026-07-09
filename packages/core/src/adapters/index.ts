@@ -57,6 +57,7 @@ export {
   deleteRelease as akbDeleteRelease,
   installReefVaultSkill as akbInstallReefVaultSkill,
   getVaultSkillStatus as akbGetVaultSkillStatus,
+  REEF_VAULT_SKILL_VERSION,
   readConfig as akbReadConfig,
   writeConfig as akbWriteConfig,
   readAuthoringLanguage as akbReadAuthoringLanguage,
