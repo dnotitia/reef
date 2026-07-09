@@ -96,7 +96,7 @@ describe("apiClient.fetch — deployment-managed LLM", () => {
     await setConfigValue("llm_base_url", "https://api.openai.com/v1");
     await setConfigValue("llm_model", "gpt-4o");
 
-    await apiClient.fetch("/api/chat");
+    await apiClient.fetch("/api/agents/runs");
 
     const [, init] = (mockFetch as Mock).mock.calls[0] as [
       RequestInfo | URL,
@@ -111,7 +111,7 @@ describe("apiClient.fetch — deployment-managed LLM", () => {
     await setConfigValue("llm_base_url", "https://api.openai.com/v1");
     await setConfigValue("llm_model", "gpt-4o");
 
-    await apiClient.fetch("/api/chat", {
+    await apiClient.fetch("/api/agents/runs", {
       headers: { "Content-Type": "application/json" },
     });
 
@@ -143,7 +143,7 @@ describe("apiClient.fetch — X-Reef-Vault (REEF-315)", () => {
   it("attaches the Dexie default vault when the caller provides none", async () => {
     await setConfigValue("vault", "reef-dexie");
 
-    await apiClient.fetch("/api/chat");
+    await apiClient.fetch("/api/agents/runs");
 
     const [, init] = (mockFetch as Mock).mock.calls[0] as [
       RequestInfo | URL,
@@ -153,11 +153,11 @@ describe("apiClient.fetch — X-Reef-Vault (REEF-315)", () => {
   });
 
   it("respects a caller-provided X-Reef-Vault over the Dexie default (tab-local context)", async () => {
-    // Two tabs share the Dexie pointer; the URL-scoped caller (chat transport)
+    // Two tabs share the Dexie pointer; the task-scoped caller
     // sets its own workspace and the shared default should not clobber it.
     await setConfigValue("vault", "reef-dexie");
 
-    await apiClient.fetch("/api/chat", {
+    await apiClient.fetch("/api/agents/runs", {
       headers: { "X-Reef-Vault": "reef-url" },
     });
 

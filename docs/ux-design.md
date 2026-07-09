@@ -423,9 +423,9 @@ suggestion state so they don't reappear for the workspace. The empty state reads
 
 A teal **FAB** (bottom-right, `Sparkles`) toggles a floating, non-modal Ask AI
 panel; both hide entirely when the deployment has no AI configured. The panel
-is a multi-turn chat (`useChat` over `/api/chat`, AI Elements
-conversation/message/prompt-input) backed by the **read-only grounding agent**
-— it answers questions about the codebase (file locations, references, how
+is a multi-turn chat (`useWorkspaceChat` over `/api/agents/runs` with
+`task_id: "chat.workspace"`) backed by the **read-only grounding agent** — it
+answers questions about the codebase (file locations, references, how
 something works) and holds no mutating tools. It stays mounted so history
 survives close/open, shows an unread dot when replies arrive while closed, and
 offers a "New chat" reset and Esc-to-close. Its empty state primes the user:

@@ -128,8 +128,8 @@ persisted query shape changes may need a TanStack Query buster bump.
 - Call `@reef/core` for business logic and external service access.
 - Use the redacting logger for request and error logging.
 - Keep credentials in headers or httpOnly cookies, never URL query strings.
-- Preserve `/api/chat` streaming behavior; deployment proxy buffering must stay
-  disabled for streaming routes.
+- Preserve `/api/agents/runs` streaming behavior; deployment proxy buffering
+  must stay disabled for streaming routes.
 
 ## Commands
 

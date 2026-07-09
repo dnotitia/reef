@@ -105,7 +105,7 @@ named `letsencrypt-prod` (annotation `cert-manager.io/cluster-issuer`). Change
 the issuer name to match your cluster, or drop the annotation and supply the
 `reef-web-tls` Secret yourself. The nginx SSE annotations
 (`proxy-buffering: "off"`, long `proxy-read/send-timeout`) **must stay** — they
-keep `/api/chat` token streaming working through the proxy.
+keep `/api/agents/runs` chat streaming working through the proxy.
 
 ### Apply
 

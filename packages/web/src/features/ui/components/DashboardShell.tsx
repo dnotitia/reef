@@ -198,7 +198,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   // Keep the assistant message count in DashboardShell so the FAB can show
-  // an unread dot without subscribing to useChat itself.
+  // an unread dot without subscribing to the chat runtime itself.
   const [askAiMessageCount, setAskAiMessageCount] = useState(0);
   // Mount the lazy Ask AI panel on first open and keep it mounted thereafter,
   // so its chunk loads when used and chat history survives close/open.

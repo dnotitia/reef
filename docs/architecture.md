@@ -149,8 +149,10 @@ streams chat to the browser. The AI layer is built on the **Vercel AI SDK**:
 
 - Chat streaming is assembled in `core` (`agents/chatAgent.ts`) using the SDK's
   agent loop and UI-stream helpers. `web` does not rebuild the loop; it delegates
-  to a `core` helper. The client consumes the `UIMessage` stream with `useChat`
-  and reads message *parts* (it never assumes `content` is a plain string).
+  to a `core` helper through `POST /api/agents/runs` (`task_id:
+  "chat.workspace"`). The client consumes agent-run SSE through
+  `useWorkspaceChat` / `useAgentRun` and reads message *parts* (it never assumes
+  `content` is a plain string).
 - Tools are defined once with a single Zod schema that serves as the LLM
   descriptor, the runtime validator, and the TypeScript type. Tool input schemas
   stay **strict-JSON-Schema compatible**: every property is required, nullable
@@ -276,10 +278,10 @@ preserves Server-Sent Events.
   server as a non-root user. It deploys to Kubernetes as a sibling of the AKB
   deployment, using rolling updates; clients pick up a new version on their next
   full page load.
-- **Streaming.** `/api/chat` must stay SSE-compatible. Proxy buffering must be
-  disabled (`proxy_buffering off` on the nginx/Kubernetes ingress) and read
-  timeouts raised for long agent loops. This is an operational requirement, not
-  an option: if it is misconfigured, the chat stream breaks silently.
+- **Streaming.** `/api/agents/runs` must stay SSE-compatible. Proxy buffering
+  must be disabled (`proxy_buffering off` on the nginx/Kubernetes ingress) and
+  read timeouts raised for long agent loops. This is an operational requirement,
+  not an option: if it is misconfigured, the chat stream breaks silently.
 
 ## Where to look in the code
 
