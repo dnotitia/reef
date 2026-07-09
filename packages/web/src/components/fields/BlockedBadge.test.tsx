@@ -36,6 +36,18 @@ describe("BlockedBadge", () => {
     expect(screen.getByLabelText("Blocked by 2 issues")).toBeInTheDocument();
   });
 
+  it("compact variant keeps blocked red but lowers the visual emphasis", () => {
+    render(<BlockedBadge variant="compact" count={2} />);
+    const marker = screen.getByLabelText("Blocked by 2 issues");
+    expect(marker.className).toContain("text-destructive/50");
+    expect(marker.className).toContain("font-normal");
+    expect(marker.className).toContain("text-[10px]");
+    expect(marker.className).not.toContain("text-muted-foreground");
+    expect(marker.querySelector("svg")?.getAttribute("class") ?? "").toContain(
+      "size-2.5",
+    );
+  });
+
   it("compact variant singularizes one blocker and clamps large counts", () => {
     const { rerender } = render(<BlockedBadge variant="compact" count={1} />);
     expect(screen.getByLabelText("Blocked by 1 issue")).toBeInTheDocument();

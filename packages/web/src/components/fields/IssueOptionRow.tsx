@@ -141,11 +141,7 @@ export function IssueOptionRow({
           className="flex min-w-4 shrink-0 justify-start"
         >
           {blockerCount > 0 ? (
-            <BlockedBadge
-              variant="compact"
-              count={blockerCount}
-              className="shrink-0 gap-0 text-[10px] font-normal leading-none text-destructive/50 [&>svg]:size-2.5"
-            />
+            <BlockedBadge variant="compact" count={blockerCount} />
           ) : null}
         </span>
       </span>

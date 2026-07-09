@@ -6,8 +6,9 @@ import { useTranslations } from "next-intl";
  * Shared "blocked" indicator. Three surfaces render it differently:
  * - `kanban`: a destructive-tinted uppercase pill, no count.
  * - `list`: plain destructive text with the unresolved-blocker count.
- * - `compact`: a destructive glyph + count, no word — for dense issue-option
- *   rows (REEF-285) where the full "Blocked (N)" text crowded out the title.
+ * - `compact`: a low-emphasis destructive glyph + count, no word — for dense
+ *   issue-option rows (REEF-285 / REEF-397) where blocked is useful metadata,
+ *   but the issue id/title should remain the row's visual anchor.
  *   The full sentence stays in the a11y tree via `role="img"` + `aria-label`,
  *   so the value is encoded once visually (glyph + count) without losing meaning
  *   for assistive tech.
@@ -36,13 +37,13 @@ export function BlockedBadge({
         aria-label={label}
         title={label}
         className={cn(
-          "inline-flex items-center gap-0.5 text-xs font-medium text-destructive",
+          "inline-flex shrink-0 items-center gap-0 text-[10px] font-normal leading-none text-destructive/50",
           className,
         )}
       >
         {/* Glyph + count carry the meaning visually; both are hidden from the
             a11y tree so the role="img" aria-label is the single accessible name. */}
-        <Ban className="size-3.5 shrink-0" aria-hidden="true" />
+        <Ban className="size-2.5 shrink-0" aria-hidden="true" />
         <span aria-hidden="true" className="tabular-nums">
           {n > 9 ? "9+" : n}
         </span>
