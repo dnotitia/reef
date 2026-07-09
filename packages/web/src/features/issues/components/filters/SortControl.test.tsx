@@ -86,8 +86,7 @@ describe("SortControl", () => {
   });
 
   // REEF-169 — on the backlog the pristine state is the manual `rank` order, and
-  // this control is the single place that names it. The board/list tests above
-  // (no `supportsManualOrder`) prove the default behavior is unchanged.
+  // this control is the single place that names it.
   describe("backlog manual order (supportsManualOrder)", () => {
     it("shows Manual order — not the muted Priority default — when pristine", () => {
       render(<SortControl supportsManualOrder />);
@@ -122,6 +121,30 @@ describe("SortControl", () => {
       await user.click(screen.getByTestId("sort-control-trigger"));
       expect(screen.queryByTestId("sort-reset")).toBeNull();
       expect(screen.getByTestId("sort-option-manual")).toBeInTheDocument();
+    });
+  });
+
+  describe("board rank order (supportsRankOrder)", () => {
+    it("shows Rank order — not the muted Priority default — when pristine", () => {
+      render(<SortControl supportsRankOrder />);
+      const trigger = screen.getByTestId("sort-control-trigger");
+      expect(trigger.textContent).toContain("Rank order");
+      expect(trigger.textContent).not.toContain("Priority");
+      expect(screen.queryByTestId("sort-direction-toggle")).toBeNull();
+      expect(useIssueStore.getState().filter.sortField).toBeUndefined();
+    });
+
+    it("offers Rank order as the reset for an active board sort", async () => {
+      useIssueStore.setState({
+        filter: { sortField: "updated_at", sortOrder: "desc" },
+      });
+      const user = userEvent.setup();
+      render(<SortControl supportsRankOrder />);
+      await user.click(screen.getByTestId("sort-control-trigger"));
+      await user.click(screen.getByTestId("sort-option-rank"));
+      expect(useIssueStore.getState().filter.sortField).toBeUndefined();
+      expect(useIssueStore.getState().filter.sortOrder).toBeUndefined();
+      expect(screen.queryByTestId("sort-reset")).toBeNull();
     });
   });
 });

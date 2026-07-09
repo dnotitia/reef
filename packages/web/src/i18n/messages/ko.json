@@ -737,6 +737,7 @@
       "resetToDefault": "기본값으로 재설정",
       "toggleDirection": "정렬 방향 전환",
       "manualOrder": "수동 정렬",
+      "rankOrder": "Rank 정렬",
       "orderAria": "이슈 순서: {label}",
       "sortAria": "{field} 기준으로 이슈 정렬, {direction}",
       "directionTitle": "방향: {direction}"

@@ -1,5 +1,6 @@
 import {
   type IssueListItem,
+  backlogRankSortKey,
   isResolvedStatus,
   isStaleResolved,
 } from "@reef/core";
@@ -60,6 +61,17 @@ export function sortIssues(
     if (aVal < bVal) return -1 * dir;
     if (aVal > bVal) return 1 * dir;
     return 0;
+  });
+}
+
+/** Sort by reef's issue-wide ordering scalar, matching `sort_field=rank`. */
+export function sortIssuesByRankOrder(
+  issues: IssueListItem[],
+): IssueListItem[] {
+  return [...issues].sort((a, b) => {
+    const byRank = backlogRankSortKey(a.rank) - backlogRankSortKey(b.rank);
+    if (byRank !== 0) return byRank;
+    return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
   });
 }
 

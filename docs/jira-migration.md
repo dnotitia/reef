@@ -20,11 +20,13 @@ The SHDEV mapping policy is:
 - Classify missing or duplicate Jira Rank values as `rank_unmapped` in dry-run
   and apply reports, and do not invent a reef rank for them.
 
-Issue list and board defaults do not change. The board/list landing views keep
-their existing status, priority, sprint, and user-selected sorting behavior.
-The query layer may still accept `sort_field=rank` for internal consumers,
-backlog order, import verification, and future explicit issue-wide ordering
-surfaces. Backlog remains `status=backlog` plus ascending `rank`.
+The board's pristine order uses `rank ASC` inside each workflow column, so Jira
+Rank seeded by the migrator is visible on the Kanban board without making
+`rank` user-selectable. Explicit board/list user sorts still use the existing
+shared sort control, and the issue list keeps its priority-based default. The
+query layer accepts `sort_field=rank` for the board's pristine order, backlog
+order, import verification, and other internal consumers. Backlog remains
+`status=backlog` plus ascending `rank`.
 
 Jira Rank changelog history reconstruction is out of scope. REEF-393 preserves
 the current Jira ordering only.

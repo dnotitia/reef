@@ -1,5 +1,5 @@
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   FILTER_ISSUES,
@@ -23,6 +23,45 @@ describe("KanbanBoard in-column sorting (REEF-059)", () => {
 
   // FILTER_ISSUES puts two cards in the Open column:
   //   REEF-010 "UI board polish" (high), REEF-013 "Backend blocker" (medium).
+  it("orders cards within a column by issue-wide rank by default (REEF-393)", async () => {
+    useIssueStore.setState({
+      filter: {},
+      searchQuery: "",
+      selectedIssueId: null,
+    });
+    mockApiFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          issues: FILTER_ISSUES.map((issue) =>
+            issue.id === "REEF-010"
+              ? { ...issue, rank: 2000 }
+              : issue.id === "REEF-013"
+                ? { ...issue, rank: 1000 }
+                : issue,
+          ),
+        }),
+        { status: 200 },
+      ),
+    );
+
+    render(wrap(<KanbanBoard vault="reef-acme" />));
+
+    const backend = await screen.findByText("Backend blocker");
+    const ui = await screen.findByText("UI board polish");
+    expect(isBefore(backend, ui)).toBe(true);
+
+    await waitFor(() => {
+      const askedRank = mockApiFetch.mock.calls.some(([url]) => {
+        const requestUrl = String(url);
+        return (
+          requestUrl.includes("sort_field=rank") &&
+          requestUrl.includes("sort_order=asc")
+        );
+      });
+      expect(askedRank).toBe(true);
+    });
+  });
+
   it("orders cards within a column by the selected title sort (A→Z)", async () => {
     useIssueStore.setState({
       filter: { sortField: "title", sortOrder: "asc" },

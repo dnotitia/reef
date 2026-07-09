@@ -29,8 +29,10 @@ explicitly in the entries below.
   maps distinct SHDEV Jira Rank strings into reef's existing numeric `rank`
   ordering, preserves the original Jira Rank in provenance, and reports missing
   or duplicate values as `rank_unmapped` instead of silently dropping them to
-  raw-only output. Issue list and board defaults stay unchanged, and generic
-  issue create/update still cannot hand-author rank. (REEF-393, epic REEF-311)
+  raw-only output. The Kanban board now uses that issue-wide `rank` as its
+  pristine in-column order while keeping explicit user sorts separate, and
+  generic issue create/update still cannot hand-author rank. (REEF-393, epic
+  REEF-311)
 - **Issue detail now uses a details-first right rail.** The issue detail sheet
   and new-issue dialog share a wider 400px property rail for Details, People,
   Planning, Parent, and Relationships, while title, description, Sub-issues,

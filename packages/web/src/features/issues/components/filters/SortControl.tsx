@@ -39,6 +39,11 @@ interface SortControlProps {
    * "how is this list ordered" vocabulary across every view (REEF-169).
    */
   supportsManualOrder?: boolean;
+  /**
+   * Board just: surface the issue-wide `rank` order as the pristine state
+   * without showing backlog's drag-to-reorder hint (REEF-393).
+   */
+  supportsRankOrder?: boolean;
 }
 
 /**
@@ -53,12 +58,16 @@ interface SortControlProps {
  * first field pick or direction toggle promotes the default to an explicit
  * selection.
  *
- * On the backlog (`supportsManualOrder`), the same pristine state instead reads
- * as the active "Manual order" (rank) mode — meaningful, not muted — and the
- * dropdown offers it as a first-class option. That keeps the order vocabulary in
- * one place; the backlog body carries the drag affordance (REEF-169).
+ * On the backlog (`supportsManualOrder`) and board (`supportsRankOrder`), the
+ * same pristine state instead reads as an active rank-backed order mode —
+ * meaningful, not muted — and the dropdown offers it as a first-class option.
+ * That keeps the order vocabulary in one place; the backlog body carries the
+ * drag affordance (REEF-169 / REEF-393).
  */
-export function SortControl({ supportsManualOrder = false }: SortControlProps) {
+export function SortControl({
+  supportsManualOrder = false,
+  supportsRankOrder = false,
+}: SortControlProps) {
   // Granular selectors — does not subscribe to the whole store (web/AGENTS.md).
   const sortField = useIssueStore((s) => s.filter.sortField);
   const sortOrder = useIssueStore((s) => s.filter.sortOrder);
@@ -76,12 +85,16 @@ export function SortControl({ supportsManualOrder = false }: SortControlProps) {
   // the backlog body no longer restates it (REEF-169).
   const t = useTranslations("issues.sort");
   const manualOrderLabel = t("manualOrder");
+  const rankOrderLabel = t("rankOrder");
 
   // Derived during render — no effect, no mirrored state (you-might-not-need-an-effect).
   const isDefault = !sortField;
   // On the backlog the pristine (no explicit sort) state IS the manual rank
   // order, shown as a real mode rather than a muted implicit default.
   const manualActive = supportsManualOrder && isDefault;
+  const rankOrderActive = supportsRankOrder && isDefault;
+  const namedOrderActive = manualActive || rankOrderActive;
+  const namedOrderLabel = manualActive ? manualOrderLabel : rankOrderLabel;
   const effectiveField: UserSortField = sortField ?? DEFAULT_ISSUE_SORT_FIELD;
   const effectiveOrder = sortField
     ? (sortOrder ?? naturalSortOrder(sortField))
@@ -115,32 +128,34 @@ export function SortControl({ supportsManualOrder = false }: SortControlProps) {
           className={cn(
             "inline-flex h-full items-center gap-1.5 px-2.5 text-[13px] transition-colors duration-150 hover:bg-surface-hover",
             // No direction toggle in manual order, so the trigger is fully rounded.
-            manualActive ? "rounded-md" : "rounded-l-md",
+            namedOrderActive ? "rounded-md" : "rounded-l-md",
             // Muted for the board/list implicit default; manual order and
             // explicit sorts read as active foreground state.
-            isDefault && !manualActive
+            isDefault && !namedOrderActive
               ? "text-muted-foreground"
               : "text-foreground",
           )}
           data-testid="sort-control-trigger"
           aria-label={
-            manualActive
-              ? t("orderAria", { label: manualOrderLabel })
+            namedOrderActive
+              ? t("orderAria", { label: namedOrderLabel })
               : t("sortAria", {
                   field: sortFieldLabels[effectiveField],
                   direction: directionLabel(effectiveField, effectiveOrder),
                 })
           }
         >
-          {manualActive ? (
+          {namedOrderActive ? (
             <ListOrdered className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           ) : (
             <ArrowUpDown className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           )}
           <span className="font-medium">
-            {manualActive ? manualOrderLabel : sortFieldLabels[effectiveField]}
+            {namedOrderActive
+              ? namedOrderLabel
+              : sortFieldLabels[effectiveField]}
           </span>
-          {!manualActive && (
+          {!namedOrderActive && (
             <span className="text-muted-foreground">
               {directionLabel(effectiveField, effectiveOrder)}
             </span>
@@ -174,6 +189,24 @@ export function SortControl({ supportsManualOrder = false }: SortControlProps) {
               </span>
             </DropdownMenuItem>
           )}
+          {supportsRankOrder && (
+            <DropdownMenuItem
+              onSelect={() => clearSort()}
+              data-testid="sort-option-rank"
+              className="justify-between gap-6"
+            >
+              <span className="inline-flex items-center gap-2">
+                <Check
+                  className={cn(
+                    "h-3.5 w-3.5",
+                    rankOrderActive ? "text-brand opacity-100" : "opacity-0",
+                  )}
+                  aria-hidden="true"
+                />
+                {rankOrderLabel}
+              </span>
+            </DropdownMenuItem>
+          )}
           {SORT_OPTIONS.map((field) => (
             <DropdownMenuItem
               key={field}
@@ -203,9 +236,9 @@ export function SortControl({ supportsManualOrder = false }: SortControlProps) {
               </span>
             </DropdownMenuItem>
           ))}
-          {/* On the backlog the Manual-order option IS the reset, so the separate
-              "Reset to default" item is redundant and omitted there. */}
-          {!supportsManualOrder && !isDefault ? (
+          {/* On rank-backed surfaces the named order option IS the reset, so the
+              separate "Reset to default" item is redundant and omitted there. */}
+          {!supportsManualOrder && !supportsRankOrder && !isDefault ? (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -220,9 +253,9 @@ export function SortControl({ supportsManualOrder = false }: SortControlProps) {
           ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
-      {/* Manual order has no user-controlled asc/desc (it is rank ascending), so
-          the direction toggle is hidden in that mode. */}
-      {!manualActive && (
+      {/* Rank-backed pristine orders have no user-controlled asc/desc, so the
+          direction toggle is hidden in those modes. */}
+      {!namedOrderActive && (
         <button
           type="button"
           onClick={toggleDirection}
