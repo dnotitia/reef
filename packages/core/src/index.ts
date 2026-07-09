@@ -219,6 +219,7 @@ export {
   akbDeleteRelease,
   akbInstallReefVaultSkill,
   akbGetVaultSkillStatus,
+  REEF_VAULT_SKILL_VERSION,
   akbReadConfig,
   akbWriteConfig,
   akbReadAuthoringLanguage,

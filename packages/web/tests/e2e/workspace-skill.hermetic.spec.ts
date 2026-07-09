@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { REEF_VAULT_SKILL_VERSION } from "@reef/core";
 import {
   REEF_E2E_VAULT,
   openExistingWorkspace,
@@ -59,7 +60,7 @@ test.describe("Hermetic workspace skill update workflow", () => {
     await expect
       .poll(async () => reefVault(await readFixtureState(request)).settings)
       .toMatchObject({
-        vault_skill: { version: 15 },
+        vault_skill: { version: REEF_VAULT_SKILL_VERSION },
       });
     await expect
       .poll(async () => {

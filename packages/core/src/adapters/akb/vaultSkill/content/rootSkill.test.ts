@@ -54,3 +54,22 @@ describe("root skill — history and comment routing (REEF-252)", () => {
     );
   });
 });
+
+// REEF-395: generated issue bodies should use portable Markdown link syntax,
+// while Reef issue relationships stay in structured fields instead of prose.
+describe("root skill — issue body links (REEF-395)", () => {
+  const content = rootSkillContent("reef-test");
+
+  it("puts the issue-body link rule in the always-loaded invariants", () => {
+    expect(content).toContain("Issue body links use Markdown");
+    expect(content).toContain("[label](https://...)");
+    expect(content).toContain("Mention Reef issues as plain ids");
+  });
+
+  it("separates prose links from structured issue relationships", () => {
+    expect(content).toContain("depends_on");
+    expect(content).toContain("related_to");
+    expect(content).toContain("parent_id");
+    expect(content).toContain("Do not hand-write wiki links");
+  });
+});
