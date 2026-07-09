@@ -2,6 +2,7 @@ import { Buffer } from "node:buffer";
 import { readFileSync } from "node:fs";
 import { VaultNameSchema } from "@reef/core";
 import { redactUnknown } from "./redaction.js";
+import { trimTrailingSlashes } from "./url.js";
 
 export type JiraAuthSecret =
   | {
@@ -207,10 +208,10 @@ const parseBaseUrl = (raw: string | null, cloudId: string | null): string => {
     if (url.protocol !== "https:") {
       throw new Error("non_https");
     }
-    url.pathname = url.pathname.replace(/\/+$/, "");
+    url.pathname = trimTrailingSlashes(url.pathname);
     url.search = "";
     url.hash = "";
-    return url.toString().replace(/\/+$/, "");
+    return trimTrailingSlashes(url.toString());
   } catch {
     throw new JiraMigratorConfigError([
       "Jira base URL must be a valid HTTPS URL",

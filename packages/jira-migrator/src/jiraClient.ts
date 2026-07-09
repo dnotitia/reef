@@ -13,6 +13,7 @@ import {
   normalizeJiraIssue,
   normalizeJiraIssueLink,
 } from "./payloads.js";
+import { trimTrailingSlashes } from "./url.js";
 
 export interface JiraRateLimit {
   limit: number | null;
@@ -181,7 +182,7 @@ export class JiraReadClient {
 
   constructor(options: JiraClientOptions) {
     this.fetchImpl = options.fetch ?? fetch;
-    this.baseUrl = options.baseUrl.replace(/\/+$/, "");
+    this.baseUrl = trimTrailingSlashes(options.baseUrl);
     this.projectKey = options.projectKey;
     this.auth = options.auth;
   }
@@ -321,7 +322,7 @@ export class JiraReadClient {
     >,
   ): URL {
     const base = new URL(this.baseUrl);
-    const basePath = base.pathname.replace(/\/+$/, "");
+    const basePath = trimTrailingSlashes(base.pathname);
     base.pathname = `${basePath}${path.startsWith("/") ? path : `/${path}`}`;
     base.search = "";
     for (const [key, value] of Object.entries(query)) {

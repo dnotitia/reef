@@ -154,7 +154,7 @@ describe("JiraReadClient", () => {
       }),
     );
     const client = new JiraReadClient({
-      baseUrl: "https://api.atlassian.com/ex/jira/cloud-abc",
+      baseUrl: "https://api.atlassian.com/ex/jira/cloud-abc///",
       projectKey: "SHDEV",
       auth: { mode: "bearer", token: "bearer-secret" },
       fetch: fetchImpl,
@@ -164,6 +164,9 @@ describe("JiraReadClient", () => {
 
     expect(String(fetchImpl.mock.calls[0]?.[0])).toContain(
       "/ex/jira/cloud-abc/rest/api/3/search/jql",
+    );
+    expect(String(fetchImpl.mock.calls[0]?.[0])).not.toContain(
+      "cloud-abc///rest",
     );
   });
 });

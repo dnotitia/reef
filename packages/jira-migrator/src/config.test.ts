@@ -9,7 +9,7 @@ import {
 } from "./config.js";
 
 const env = {
-  REEF_JIRA_BASE_URL: "https://example.atlassian.net/",
+  REEF_JIRA_BASE_URL: "https://example.atlassian.net///",
   REEF_JIRA_CLOUD_ID: "cloud-1",
   REEF_JIRA_PROJECT_KEY: "shdev",
   REEF_JIRA_EMAIL: "operator@example.com",
