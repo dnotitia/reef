@@ -6,6 +6,7 @@ import {
   type RankedItem,
   backlogRankSortKey,
   computeReorderedRanks,
+  mapJiraRanksToIssueOrder,
 } from "./backlogRank";
 
 function items(...specs: Array<[string, number | null]>): RankedItem[] {
@@ -41,6 +42,91 @@ describe("backlogRankSortKey", () => {
     expect(backlogRankSortKey(undefined)).toBe(RANK_NULL_SORT_SENTINEL);
     expect(backlogRankSortKey(500)).toBe(500);
     expect(500).toBeLessThan(RANK_NULL_SORT_SENTINEL);
+  });
+});
+
+describe("mapJiraRanksToIssueOrder", () => {
+  it("maps distinct Jira Rank strings to sparse reef ranks in Jira order (REEF-393)", () => {
+    const mapped = mapJiraRanksToIssueOrder([
+      { id: "REEF-2", jiraRank: "0|i00020:" },
+      { id: "REEF-1", jiraRank: "0|i00010:" },
+      { id: "REEF-3", jiraRank: "0|i00030:" },
+    ]);
+
+    expect(mapped).toEqual([
+      {
+        id: "REEF-2",
+        jiraRank: "0|i00020:",
+        rank: 2 * RANK_STEP,
+        classification: "rank_mapped",
+      },
+      {
+        id: "REEF-1",
+        jiraRank: "0|i00010:",
+        rank: RANK_STEP,
+        classification: "rank_mapped",
+      },
+      {
+        id: "REEF-3",
+        jiraRank: "0|i00030:",
+        rank: 3 * RANK_STEP,
+        classification: "rank_mapped",
+      },
+    ]);
+  });
+
+  it("classifies missing and duplicate Jira Rank values as rank_unmapped", () => {
+    const mapped = mapJiraRanksToIssueOrder([
+      { id: "REEF-1", jiraRank: "0|same:" },
+      { id: "REEF-2", jiraRank: "   " },
+      { id: "REEF-3", jiraRank: "0|same:" },
+      { id: "REEF-4", jiraRank: null },
+    ]);
+
+    expect(mapped).toEqual([
+      {
+        id: "REEF-1",
+        jiraRank: "0|same:",
+        rank: null,
+        classification: "rank_unmapped",
+        reason: "duplicate_jira_rank",
+      },
+      {
+        id: "REEF-2",
+        jiraRank: null,
+        rank: null,
+        classification: "rank_unmapped",
+        reason: "missing_jira_rank",
+      },
+      {
+        id: "REEF-3",
+        jiraRank: "0|same:",
+        rank: null,
+        classification: "rank_unmapped",
+        reason: "duplicate_jira_rank",
+      },
+      {
+        id: "REEF-4",
+        jiraRank: null,
+        rank: null,
+        classification: "rank_unmapped",
+        reason: "missing_jira_rank",
+      },
+    ]);
+  });
+
+  it("keeps backlog drag-reorder midpoint writes valid over migrated ranks", () => {
+    const mapped = mapJiraRanksToIssueOrder([
+      { id: "A", jiraRank: "0|a:" },
+      { id: "B", jiraRank: "0|b:" },
+      { id: "C", jiraRank: "0|c:" },
+    ]);
+    const list = mapped.map((m) => ({ id: m.id, rank: m.rank }));
+
+    const updates = computeReorderedRanks(list, 2, 1);
+
+    expect(updates).toEqual([{ id: "C", rank: 1500 }]);
+    expect(applyAndOrder(list, updates)).toEqual(["A", "C", "B"]);
   });
 });
 

@@ -1,9 +1,12 @@
-// ─── Backlog manual ordering (REEF-129) ──────────────────────────────────────
+// ─── Issue ordering / backlog manual ordering (REEF-129, REEF-393) ───────────
 //
-// The backlog view lets a PM drag issues into an explicit order, persisted in
-// the `reef_issues.rank` numeric column. This module is the pure ordering
-// algebra shared by the server sort, the client comparator, and the
-// drag-to-reorder write path. It performs no I/O.
+// `reef_issues.rank` is reef's numeric issue ordering scalar. The product UI
+// currently writes it only from the backlog drag-reorder flow; Jira importers
+// may seed it from a source system's current rank so ordering survives outside
+// the backlog. Generic issue create/update paths still reject caller-supplied
+// rank. This module is the pure ordering algebra shared by the server sort, the
+// client comparator, the Jira rank mapper, and the drag-to-reorder write path.
+// It performs no I/O.
 //
 // Model:
 // - Lower `rank` sorts higher (nearer the top, picked sooner).
@@ -57,6 +60,30 @@ export interface RankAssignment {
   rank: number;
 }
 
+export const JIRA_RANK_MAPPED = "rank_mapped";
+export const JIRA_RANK_UNMAPPED = "rank_unmapped";
+
+export type JiraRankMappingClassification =
+  | typeof JIRA_RANK_MAPPED
+  | typeof JIRA_RANK_UNMAPPED;
+
+export type JiraRankUnmappedReason =
+  | "missing_jira_rank"
+  | "duplicate_jira_rank";
+
+export interface JiraRankedIssue {
+  id: string;
+  jiraRank?: string | null;
+}
+
+export interface JiraRankMappingResult {
+  id: string;
+  jiraRank: string | null;
+  rank: number | null;
+  classification: JiraRankMappingClassification;
+  reason?: JiraRankUnmappedReason;
+}
+
 /**
  * The sort key for a row under the backlog's manual order: ranked rows by their
  * ascending rank, unranked rows collapsed to the sentinel so they sink to the
@@ -67,6 +94,81 @@ export interface RankAssignment {
  */
 export function backlogRankSortKey(rank: number | null | undefined): number {
   return rank ?? RANK_NULL_SORT_SENTINEL;
+}
+
+function normalizeJiraRank(rank: string | null | undefined): string | null {
+  if (rank == null) return null;
+  const trimmed = rank.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function compareJiraRank(a: string, b: string): number {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+}
+
+/**
+ * Map Jira's current Rank strings into reef's sparse numeric ordering. Jira
+ * Rank / LexoRank values are opaque but sortable strings; reef persists the
+ * current order as evenly spaced `rank` values so later backlog drags can use
+ * the same midpoint algebra. Missing or duplicate source ranks are not guessed:
+ * they are reported as `rank_unmapped` so dry-run/apply output can call them out
+ * instead of silently falling back to raw-only provenance.
+ */
+export function mapJiraRanksToIssueOrder(
+  issues: readonly JiraRankedIssue[],
+): JiraRankMappingResult[] {
+  const indexed = issues.map((issue, index) => ({
+    index,
+    id: issue.id,
+    jiraRank: normalizeJiraRank(issue.jiraRank),
+  }));
+  const rankCounts = new Map<string, number>();
+  for (const issue of indexed) {
+    if (issue.jiraRank == null) continue;
+    rankCounts.set(issue.jiraRank, (rankCounts.get(issue.jiraRank) ?? 0) + 1);
+  }
+  const rankByIndex = new Map<number, number>();
+  indexed
+    .filter(
+      (issue) => issue.jiraRank != null && rankCounts.get(issue.jiraRank) === 1,
+    )
+    .sort((a, b) => {
+      const byRank = compareJiraRank(a.jiraRank ?? "", b.jiraRank ?? "");
+      if (byRank !== 0) return byRank;
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+    })
+    .forEach((issue, order) => {
+      rankByIndex.set(issue.index, RANK_STEP * (order + 1));
+    });
+
+  return indexed.map((issue) => {
+    if (issue.jiraRank == null) {
+      return {
+        id: issue.id,
+        jiraRank: null,
+        rank: null,
+        classification: JIRA_RANK_UNMAPPED,
+        reason: "missing_jira_rank",
+      };
+    }
+    if ((rankCounts.get(issue.jiraRank) ?? 0) > 1) {
+      return {
+        id: issue.id,
+        jiraRank: issue.jiraRank,
+        rank: null,
+        classification: JIRA_RANK_UNMAPPED,
+        reason: "duplicate_jira_rank",
+      };
+    }
+    return {
+      id: issue.id,
+      jiraRank: issue.jiraRank,
+      rank: rankByIndex.get(issue.index) ?? null,
+      classification: JIRA_RANK_MAPPED,
+    };
+  });
 }
 
 function arrayMove<T>(items: readonly T[], from: number, to: number): T[] {

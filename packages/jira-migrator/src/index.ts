@@ -57,3 +57,10 @@ export {
   redactUnknown,
   safeJsonStringify,
 } from "./redaction.js";
+export {
+  applyShdevJiraRankImportPlan,
+  buildShdevJiraRankImportPlan,
+  type ShdevJiraRankImportPlan,
+  type ShdevJiraRankInput,
+  type ShdevJiraRankReportClassification,
+} from "./rank.js";

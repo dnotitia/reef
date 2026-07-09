@@ -3,6 +3,7 @@ import {
   CreateIssueRequestSchema,
   IssueListQuerySchema,
   IssueListResponseSchema,
+  USER_SORT_FIELDS,
   hasAnyFilter,
 } from "./requests";
 
@@ -101,6 +102,13 @@ describe("IssueListQuerySchema", () => {
   it("rejects an unknown sort field or status member", () => {
     expect(() => IssueListQuerySchema.parse({ sort_field: "nope" })).toThrow();
     expect(() => IssueListQuerySchema.parse({ status: ["bogus"] })).toThrow();
+  });
+
+  it("accepts rank for internal issue-order queries but keeps it out of user sorts (REEF-393)", () => {
+    expect(IssueListQuerySchema.parse({ sort_field: "rank" }).sort_field).toBe(
+      "rank",
+    );
+    expect(USER_SORT_FIELDS as readonly string[]).not.toContain("rank");
   });
 
   it("rejects a malformed cursor and accepts a well-formed one", () => {

@@ -25,6 +25,12 @@ explicitly in the entries below.
   Images render inline through reef's authenticated download proxy, while other
   files appear in a new Attachments section with download links. Jira attachment
   references can be rewritten to the same akb file URIs during import. (REEF-349)
+- **Jira Rank now has an import mapping policy.** The new Jira migrator package
+  maps distinct SHDEV Jira Rank strings into reef's existing numeric `rank`
+  ordering, preserves the original Jira Rank in provenance, and reports missing
+  or duplicate values as `rank_unmapped` instead of silently dropping them to
+  raw-only output. Issue list and board defaults stay unchanged, and generic
+  issue create/update still cannot hand-author rank. (REEF-393, epic REEF-311)
 - **Issue detail now uses a details-first right rail.** The issue detail sheet
   and new-issue dialog share a wider 400px property rail for Details, People,
   Planning, Parent, and Relationships, while title, description, Sub-issues,

@@ -208,9 +208,9 @@ const NUMERIC_SORT_FIELDS = new Set<IssueSortField>([
  * comparison does not hits a NULL; `created_at` / `updated_at` / `title` are NOT
  * NULL. ORDER BY and the keyset share this expression so paging stays exact.
  *
- * `rank` (the backlog manual order, REEF-129) coalesces NULL to
- * `RANK_NULL_SORT_SENTINEL` — a value far above any real rank — so unranked
- * issues sink below the manually-ordered ones under ascending order, instead of
+ * `rank` (the issue-wide ordering scalar, REEF-129/393) coalesces NULL to
+ * `RANK_NULL_SORT_SENTINEL` — a value far above any real rank — so unranked or
+ * unmapped issues sink below ordered ones under ascending order, instead of
  * collapsing to 0 and floating to the top.
  */
 function sortLeadExpr(sortField: IssueSortField): string {
