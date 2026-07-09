@@ -125,16 +125,16 @@ describe("SortControl", () => {
   });
 
   describe("board rank order (supportsRankOrder)", () => {
-    it("shows Rank order — not the muted Priority default — when pristine", () => {
+    it("shows Manual order — not the muted Priority default — when pristine", () => {
       render(<SortControl supportsRankOrder />);
       const trigger = screen.getByTestId("sort-control-trigger");
-      expect(trigger.textContent).toContain("Rank order");
+      expect(trigger.textContent).toContain("Manual order");
       expect(trigger.textContent).not.toContain("Priority");
       expect(screen.queryByTestId("sort-direction-toggle")).toBeNull();
       expect(useIssueStore.getState().filter.sortField).toBeUndefined();
     });
 
-    it("offers Rank order as the reset for an active board sort", async () => {
+    it("offers Manual order as the reset for an active board sort", async () => {
       useIssueStore.setState({
         filter: { sortField: "updated_at", sortOrder: "desc" },
       });

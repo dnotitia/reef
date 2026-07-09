@@ -59,10 +59,10 @@ interface SortControlProps {
  * selection.
  *
  * On the backlog (`supportsManualOrder`) and board (`supportsRankOrder`), the
- * same pristine state instead reads as an active rank-backed order mode —
- * meaningful, not muted — and the dropdown offers it as a first-class option.
- * That keeps the order vocabulary in one place; the backlog body carries the
- * drag affordance (REEF-169 / REEF-393).
+ * same pristine state instead reads as the active Manual order — meaningful,
+ * not muted — and the dropdown offers it as a first-class option. That keeps
+ * the order vocabulary in one place; the backlog body carries the drag
+ * affordance (REEF-169 / REEF-393).
  */
 export function SortControl({
   supportsManualOrder = false,
@@ -85,7 +85,6 @@ export function SortControl({
   // the backlog body no longer restates it (REEF-169).
   const t = useTranslations("issues.sort");
   const manualOrderLabel = t("manualOrder");
-  const rankOrderLabel = t("rankOrder");
 
   // Derived during render — no effect, no mirrored state (you-might-not-need-an-effect).
   const isDefault = !sortField;
@@ -94,7 +93,7 @@ export function SortControl({
   const manualActive = supportsManualOrder && isDefault;
   const rankOrderActive = supportsRankOrder && isDefault;
   const namedOrderActive = manualActive || rankOrderActive;
-  const namedOrderLabel = manualActive ? manualOrderLabel : rankOrderLabel;
+  const namedOrderLabel = manualOrderLabel;
   const effectiveField: UserSortField = sortField ?? DEFAULT_ISSUE_SORT_FIELD;
   const effectiveOrder = sortField
     ? (sortOrder ?? naturalSortOrder(sortField))
@@ -203,7 +202,7 @@ export function SortControl({
                   )}
                   aria-hidden="true"
                 />
-                {rankOrderLabel}
+                {manualOrderLabel}
               </span>
             </DropdownMenuItem>
           )}

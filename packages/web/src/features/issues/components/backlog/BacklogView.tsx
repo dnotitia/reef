@@ -129,7 +129,7 @@ export function BacklogView({ vault }: BacklogViewProps) {
   const [pendingCloseIssue, setPendingCloseIssue] =
     useState<IssueListItem | null>(null);
 
-  // Rank order is shown whenever the user has not picked an explicit sort.
+  // Manual order is shown whenever the user has not picked an explicit sort.
   const isManualOrder = !filter.sortField;
 
   // The effective backlog filter: force `status=['backlog']` on the server query

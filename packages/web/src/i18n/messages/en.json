@@ -554,7 +554,6 @@
       "resetToDefault": "Reset to default",
       "toggleDirection": "Toggle sort direction",
       "manualOrder": "Manual order",
-      "rankOrder": "Rank order",
       "orderAria": "Order issues: {label}",
       "sortAria": "Sort issues by {field}, {direction}",
       "directionTitle": "Direction: {direction}"
