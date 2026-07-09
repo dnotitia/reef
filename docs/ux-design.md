@@ -197,6 +197,11 @@ palette), Table, Tooltip, Hover Card, Badge, Separator, Skeleton, Spinner, and
 Sonner (toasts). Feature-specific composites live in their feature folders, and
 shared but custom leaves live alongside the primitives.
 
+Concrete UX and design-system policy for reef-web lives in this document. Short
+standalone design-system notes should be folded back here rather than added as
+root-level siblings, so README, architecture, and package docs keep pointing at
+one source of truth.
+
 ### Customization Strategy
 
 Design tokens are CSS custom properties defined in `packages/web/src/app/globals.css`
@@ -232,6 +237,22 @@ Brand and AI tokens (light mode; dark-mode variants are defined alongside):
 | `--ai-subtle-foreground` | AI text/icon on the subtle surface | `hsl(260 70% 35%)` |
 | `--ai-border` | AI card / strip border | `hsl(260 60% 88%)` |
 | `--destructive` | destructive actions, blocked indicators, errors | `hsl(0 75% 55%)` |
+
+Surface tokens keep the product quiet and dense. The canonical values live in
+`packages/web/src/app/globals.css`; the table below captures the intended
+roles so component work uses the tokens for the same jobs:
+
+| Role | Token | Light | Dark | Usage |
+|------|-------|-------|------|-------|
+| Page surface | `--background` | `hsl(0 0% 100%)` | `hsl(220 14% 8%)` | Main app background |
+| Sidebar surface | `--surface-sidebar` | `hsl(220 13% 97%)` | `hsl(220 14% 6%)` | Primary navigation |
+| Elevated surface | `--surface-elevated` | `hsl(0 0% 100%)` | `hsl(220 14% 11%)` | Inputs, popovers, dialogs |
+| Hover surface | `--surface-hover` | `hsl(220 13% 95%)` | `hsl(220 13% 14%)` | Hover and active rows |
+| Subtle surface | `--surface-subtle` | `hsl(220 13% 98%)` | `hsl(220 14% 10%)` | Quiet section backgrounds |
+| Primary text | `--foreground` | `hsl(220 13% 13%)` | `hsl(220 13% 95%)` | Main text |
+| Muted text | `--muted-foreground` | `hsl(220 9% 46%)` | `hsl(220 9% 65%)` | Captions and helper copy |
+| Default border | `--border` | `hsl(220 13% 91%)` | `hsl(220 13% 18%)` | Standard hairlines |
+| Subtle border | `--border-subtle` | `hsl(220 13% 93%)` | `hsl(220 13% 15%)` | Group dividers |
 
 Status colors (the five canonical statuses; rendered as the `StatusIcon`
 glyph color and the status badge text):
@@ -288,11 +309,33 @@ semantic token has a dark variant.
 The product font is **Inter** (loaded via `next/font`, with a separate
 display instance for headings/brand); code, IDs, and timestamps use **Geist
 Mono**. Issue IDs and SHAs render in the monospace stack with tabular numerals.
+The scale is compact on purpose:
+
+| Level | Size | Weight | Line height | Tracking | Usage |
+|-------|------|--------|-------------|----------|-------|
+| Page title | `text-xl` to `text-2xl` | 600 | Tight | 0 | Main app page headers |
+| Group title | `15px` | 600 | Normal | 0 | Settings group headings |
+| Section label | `13px` | 600 | Normal | Wide uppercase | Settings section labels |
+| Body | `14px` | 400 | Normal | 0 | Dense app text |
+| Caption | `12px` | 400 to 500 | Normal | 0 | Helper copy and metadata |
+| Mono value | `13px` | 400 | Normal | 0 | IDs, prefixes, branch-like values |
+
+Hero-scale type does not belong inside dashboard panels. Routed product
+surfaces should not drop below 12px captions or 14px body copy.
 
 ### Spacing, Layout & Density
 
 Layout follows Tailwind's spacing scale. The frame is a fixed sidebar plus a
 fluid main column:
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `gap-1` | 4px | Tight label stacks |
+| `gap-2` | 8px | Inline controls |
+| `gap-3` | 12px | Form field groups |
+| `gap-4` | 16px | Compact panel internals |
+| `gap-6` | 24px | Settings group header to content |
+| `gap-8` | 32px | Settings sections |
 
 - **Sidebar** — collapsible between an expanded `w-60` and a `w-14` icon rail.
   It holds the reef wordmark, a prominent New Issue button, the primary nav
@@ -325,6 +368,27 @@ titles/descriptions on the issue Sheet, and keyboard activation (Enter/Space)
 on the card. The Kanban card is reachable and openable by keyboard; pointer
 drag-and-drop is the enhancement, not the only path to moving an issue (status
 can also be changed from the detail panel's status select).
+
+### Surface, Depth & Motion
+
+reef uses borders plus tonal shift rather than decorative elevation. Hairlines
+separate dense work areas; elevated surfaces are subtle and shadowless by
+default. Cards are reserved for repeated items, dialogs, proposal cards, and
+genuinely framed tools. Page sections stay unframed unless an existing shared
+component already frames them.
+
+Motion uses one signature curve and a small duration scale defined in
+`globals.css`:
+
+| Type | Duration | Easing | Usage |
+|------|----------|--------|-------|
+| Micro | `--duration-fast` 120ms | `--ease-signature` | Button and row hover |
+| Standard | `--duration-base` 150ms | `--ease-signature` | Sort and filter transitions |
+| Emphasis | `--duration-slow` 500ms | `--ease-signature` | Drag/drop settle |
+
+Animate color, opacity, and transform. Avoid layout animation unless a shared
+library already owns the interaction, and give every interactive control a
+visible hover and focus affordance.
 
 ## Core Surfaces
 
@@ -473,6 +537,14 @@ per-user preferences from team-shared workspace settings such as project prefix,
 monitored repos, templates, and authoring language. These pages share the
 standard page header + body chrome and the same field leaves where issue fields
 appear.
+
+Settings groups follow a consistent dense form pattern: a group header with the
+title, optional scope, optional access badge, description, and hairline, followed
+by vertically stacked sections. The access badge is omitted while role
+resolution is pending. Editor rows pair explicit labels and helper copy with
+controlled inputs and a Save button; skeletons cover loading, inline alerts use
+`aria-invalid` / `role="alert"` where appropriate, and users without write
+access see read-only text instead of disabled mystery controls.
 
 ## User Journey Flows
 
