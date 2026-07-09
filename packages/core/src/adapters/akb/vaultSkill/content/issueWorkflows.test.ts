@@ -96,3 +96,29 @@ describe("issue workflows — field-change activity invariant (REEF-126)", () =>
     expect(content).toContain('every event shares that one "at"');
   });
 });
+
+// REEF-395: the issue-creation runbook must tell agents how to write links in
+// generated Markdown bodies and when to use structured relationship fields.
+describe("issue workflows — issue body link syntax (REEF-395)", () => {
+  const content = issueWorkflowsContent();
+
+  it("requires standard Markdown links with absolute external URLs", () => {
+    expect(content).toContain("[label](https://example.com/path)");
+    expect(content).toContain("absolute external URL");
+  });
+
+  it("keeps Reef issue relationships in structured fields", () => {
+    expect(content).toContain("Mention Reef issues in prose as plain ids");
+    expect(content).toContain("depends_on");
+    expect(content).toContain("blocks");
+    expect(content).toContain("parent_id");
+  });
+
+  it("rejects non-portable body link forms", () => {
+    expect(content).toContain("wiki-style links");
+    expect(content).toContain("[[REEF-012]]");
+    expect(content).toContain("hand-built `akb://` paths");
+    expect(content).toContain("meta.external_refs");
+    expect(content).toContain("meta.implementation_refs");
+  });
+});
