@@ -140,14 +140,19 @@ describe("IssueRelationInput", () => {
       screen.getByRole("button", { name: "Add Depends on" }),
     ).toBeInTheDocument();
     const title = screen.getByText("Parent issue");
-    const row = title.closest("[data-issue-option-row]");
-    const blockerSlot = row?.querySelector(
+    const row = title.closest("[data-issue-option-row]") as HTMLElement;
+    const identity = row.querySelector(
+      '[data-issue-option-slot="identity"]',
+    ) as HTMLElement;
+    const blockerSlot = row.querySelector(
       '[data-issue-option-slot="blocker"]',
-    );
+    ) as HTMLElement;
+    expect(identity).not.toBeNull();
     expect(blockerSlot).toBeEmptyDOMElement();
+    expect(identity).toContainElement(blockerSlot);
     expect(title.closest('[data-issue-option-slot="title"]')).not.toBeNull();
-    expect(row?.className).toContain(
-      "grid-cols-[auto_5rem_1.875rem_minmax(0,1fr)_auto_0.75rem]",
+    expect(row.className).toContain(
+      "grid-cols-[auto_5rem_minmax(0,1fr)_auto_0.75rem]",
     );
   });
 
@@ -397,11 +402,16 @@ describe("IssueRelationInput", () => {
     const title = screen.getByText("Blocked work");
     expect(badge).toBeInTheDocument();
     expect(badge.closest('[data-issue-option-slot="blocker"]')).not.toBeNull();
+    expect(badge.closest('[data-issue-option-slot="identity"]')).toBe(
+      title
+        .closest("[data-issue-option-row]")
+        ?.querySelector('[data-issue-option-slot="identity"]'),
+    );
     expect(
       title.closest('[data-issue-option-slot="title"]'),
     ).not.toContainElement(badge);
     expect(title.closest("[data-issue-option-row]")?.className).toContain(
-      "grid-cols-[auto_5rem_1.875rem_minmax(0,1fr)_auto_0.75rem]",
+      "grid-cols-[auto_5rem_minmax(0,1fr)_auto_0.75rem]",
     );
   });
 

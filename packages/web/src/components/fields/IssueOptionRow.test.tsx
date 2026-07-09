@@ -61,19 +61,23 @@ describe("IssueOptionRow", () => {
     expect(screen.getByLabelText("Blocked by 2 issues")).toBeInTheDocument();
   });
 
-  it("lays the row out as a fixed-track grid with reserved blocker and priority columns", () => {
-    // The grid (not a flex row) keeps the title from collapsing and the blocker /
-    // type / priority columns aligned across rows whether or not a row has those
-    // markers (REEF-285 / REEF-390).
+  it("lays the row out as a fixed-track grid with blocker inside the id track", () => {
+    // The grid (not a flex row) keeps the title from collapsing and the type /
+    // priority columns aligned. The blocker slot uses the reserved room inside
+    // the fixed id track instead of adding another outer column (REEF-390).
     const { container } = render(
       <IssueOptionRow issue={{ ...ISSUE, priority: null }} />,
     );
     const root = container.firstChild as HTMLElement;
     expect(root.className).toContain(
-      "grid-cols-[auto_5rem_1.875rem_minmax(0,1fr)_auto_0.75rem]",
+      "grid-cols-[auto_5rem_minmax(0,1fr)_auto_0.75rem]",
     );
+    const identity = root.querySelector('[data-issue-option-slot="identity"]');
+    expect(identity?.className).toContain("grid-cols-[minmax(0,1fr)_1.25rem]");
+    expect(screen.getByText("REEF-042").className).toContain("block");
+    expect(screen.getByText("REEF-042").className).toContain("truncate");
     expect(
-      root.querySelector('[data-issue-option-slot="blocker"]'),
+      identity?.querySelector('[data-issue-option-slot="blocker"]'),
     ).not.toBeNull();
     // No priority dot, but its column is still reserved so dots align row-to-row.
     expect(screen.queryByLabelText(/Priority:/)).toBeNull();
@@ -88,6 +92,7 @@ describe("IssueOptionRow", () => {
     const titleSlot = title.closest('[data-issue-option-slot="title"]');
     const blockerSlot = title
       .closest("[data-issue-option-row]")
+      ?.querySelector('[data-issue-option-slot="identity"]')
       ?.querySelector('[data-issue-option-slot="blocker"]');
     expect(titleSlot).not.toBeNull();
     expect(blockerSlot).not.toBeNull();
@@ -122,7 +127,7 @@ describe("IssueOptionRow", () => {
 
     const root = container.firstChild as HTMLElement;
     expect(root.className).toContain(
-      "grid-cols-[auto_5rem_1.875rem_minmax(0,1fr)_auto_0.75rem]",
+      "grid-cols-[auto_5rem_minmax(0,1fr)_auto_0.75rem]",
     );
     const marker = screen.getByLabelText("Blocked by 12 issues");
     expect(marker).toHaveTextContent("9+");
