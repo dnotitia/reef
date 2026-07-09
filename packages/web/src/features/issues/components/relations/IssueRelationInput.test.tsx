@@ -149,10 +149,10 @@ describe("IssueRelationInput", () => {
     ) as HTMLElement;
     expect(identity).not.toBeNull();
     expect(blockerSlot).toBeEmptyDOMElement();
-    expect(identity).toContainElement(blockerSlot);
+    expect(identity).not.toContainElement(blockerSlot);
     expect(title.closest('[data-issue-option-slot="title"]')).not.toBeNull();
     expect(row.className).toContain(
-      "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem]",
+      "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem_minmax(1.25rem,auto)]",
     );
   });
 
@@ -400,18 +400,17 @@ describe("IssueRelationInput", () => {
     // the full sentence (REEF-285).
     const badge = screen.getByLabelText("Blocked by 1 issue");
     const title = screen.getByText("Blocked work");
+    const row = title.closest("[data-issue-option-row]");
     expect(badge).toBeInTheDocument();
     expect(badge.closest('[data-issue-option-slot="blocker"]')).not.toBeNull();
-    expect(badge.closest('[data-issue-option-slot="identity"]')).toBe(
-      title
-        .closest("[data-issue-option-row]")
-        ?.querySelector('[data-issue-option-slot="identity"]'),
-    );
+    expect(
+      row?.querySelector('[data-issue-option-slot="identity"]'),
+    ).not.toContainElement(badge);
     expect(
       title.closest('[data-issue-option-slot="title"]'),
     ).not.toContainElement(badge);
-    expect(title.closest("[data-issue-option-row]")?.className).toContain(
-      "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem]",
+    expect(row?.className).toContain(
+      "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem_minmax(1.25rem,auto)]",
     );
   });
 

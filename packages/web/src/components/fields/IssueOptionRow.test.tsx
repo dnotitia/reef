@@ -61,36 +61,33 @@ describe("IssueOptionRow", () => {
     expect(screen.getByLabelText("Blocked by 2 issues")).toBeInTheDocument();
   });
 
-  it("lays the row out as a grid with blocker inside the id track", () => {
+  it("lays the row out as a grid with blocker as trailing metadata", () => {
     // The grid (not a flex row) keeps the title from collapsing and the type /
-    // priority columns aligned. The blocker slot uses the reserved room inside
-    // the 5rem-minimum id track instead of adding another outer column
-    // (REEF-390).
+    // priority / blocker columns aligned. The blocker slot is trailing metadata
+    // so it does not split the id/title identity flow (REEF-397).
     const { container } = render(
       <IssueOptionRow issue={{ ...ISSUE, priority: null }} />,
     );
     const root = container.firstChild as HTMLElement;
     expect(root.className).toContain(
-      "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem]",
+      "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem_minmax(1.25rem,auto)]",
     );
     const identity = root.querySelector('[data-issue-option-slot="identity"]');
-    expect(identity?.className).toContain("flex");
+    expect(identity?.className).toContain("min-w-0");
     const issueId = screen.getByText("REEF-042");
     expect(issueId.className).toContain("block");
     expect(issueId.className).toContain("truncate");
     expect(issueId.parentElement?.className).toContain("shrink-0");
-    const blocker = identity?.querySelector(
-      '[data-issue-option-slot="blocker"]',
-    );
+    const blocker = root.querySelector('[data-issue-option-slot="blocker"]');
     expect(blocker).not.toBeNull();
-    expect(blocker?.className).toContain("ml-1");
-    expect(blocker?.className).toContain("min-w-4");
+    expect(blocker?.className).toContain("min-w-5");
     expect(blocker?.className).not.toContain("overflow-hidden");
+    expect(identity).not.toContainElement(blocker as HTMLElement);
     // No priority dot, but its column is still reserved so dots align row-to-row.
     expect(screen.queryByLabelText(/Priority:/)).toBeNull();
   });
 
-  it("keeps the blocked marker in its own column outside the title track", () => {
+  it("keeps the blocked marker outside the identity and title tracks", () => {
     const { rerender } = render(
       <IssueOptionRow issue={ISSUE} blockerCount={0} />,
     );
@@ -99,11 +96,14 @@ describe("IssueOptionRow", () => {
     const titleSlot = title.closest('[data-issue-option-slot="title"]');
     const blockerSlot = title
       .closest("[data-issue-option-row]")
-      ?.querySelector('[data-issue-option-slot="identity"]')
       ?.querySelector('[data-issue-option-slot="blocker"]');
+    const identitySlot = title
+      .closest("[data-issue-option-row]")
+      ?.querySelector('[data-issue-option-slot="identity"]');
     expect(titleSlot).not.toBeNull();
     expect(blockerSlot).not.toBeNull();
     expect(blockerSlot).toBeEmptyDOMElement();
+    expect(identitySlot).not.toContainElement(blockerSlot as HTMLElement);
 
     rerender(<IssueOptionRow issue={ISSUE} blockerCount={2} />);
 
@@ -111,6 +111,7 @@ describe("IssueOptionRow", () => {
     expect(marker.closest('[data-issue-option-slot="blocker"]')).toBe(
       blockerSlot,
     );
+    expect(identitySlot).not.toContainElement(marker);
     expect(titleSlot).not.toContainElement(marker);
     expect(
       screen
@@ -134,14 +135,15 @@ describe("IssueOptionRow", () => {
 
     const root = container.firstChild as HTMLElement;
     expect(root.className).toContain(
-      "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem]",
+      "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem_minmax(1.25rem,auto)]",
     );
     const marker = screen.getByLabelText("Blocked by 12 issues");
     expect(marker).toHaveTextContent("9+");
     expect(marker.closest('[data-issue-option-slot="blocker"]')).not.toBeNull();
     expect(
       marker.closest('[data-issue-option-slot="blocker"]')?.className,
-    ).toContain("min-w-4");
+    ).toContain("min-w-5");
+    expect(marker.className).toContain("text-destructive/80");
     expect(marker.className).not.toContain("max-w-full");
 
     const title = screen.getByText(/A very long relation row title/);

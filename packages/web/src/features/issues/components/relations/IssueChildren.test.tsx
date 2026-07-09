@@ -208,14 +208,14 @@ describe("IssueChildren", () => {
     const title = screen.getByText("Blocked child");
     const row = title.closest("[data-issue-option-row]");
     expect(badge.closest('[data-issue-option-slot="blocker"]')).not.toBeNull();
-    expect(badge.closest('[data-issue-option-slot="identity"]')).toBe(
+    expect(
       row?.querySelector('[data-issue-option-slot="identity"]'),
-    );
+    ).not.toContainElement(badge);
     expect(
       title.closest('[data-issue-option-slot="title"]'),
     ).not.toContainElement(badge);
     expect(row?.className).toContain(
-      "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem]",
+      "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem_minmax(1.25rem,auto)]",
     );
   });
 });

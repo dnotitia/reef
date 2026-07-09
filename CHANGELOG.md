@@ -109,6 +109,15 @@ explicitly in the entries below.
   and color still distinguish each type, and screen readers still announce every
   issue's type. (REEF-373, REEF-376)
 
+### Fixed
+
+- **Blocked counts no longer read like relationship labels.** Relationship,
+  issue-picker, and sub-issue rows now show an issue's unresolved blocker count
+  as trailing metadata after the type and priority markers, instead of inserting
+  the red count between the issue id and title. The compact marker keeps its
+  `Blocked by N issues` accessible label and stays stable in narrow relationship
+  columns. (REEF-397)
+
 ### Operational
 
 - **Background orchestration now has a separate runtime package.** reef adds a
