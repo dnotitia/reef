@@ -103,6 +103,13 @@ describe("catalog parity (REEF-293 AC2 — missing-key check)", () => {
     expect(orphans, "ko keys absent from the en base catalog").toEqual([]);
   });
 
+  it("keeps markdown editor copy present in both en and ko catalogs", () => {
+    const missingKoKeys = Object.keys(en.markdownEditor).filter(
+      (key) => !(key in ko.markdownEditor),
+    );
+    expect(missingKoKeys).toEqual([]);
+  });
+
   it("every catalog leaf is a non-empty string", () => {
     for (const [label, catalog] of [
       ["en", en],
