@@ -123,6 +123,12 @@ explicitly in the entries below.
 
 ### Operational
 
+- **Jira migration now has a read-only operator package.** reef adds a private
+  `@reef/jira-migrator` workspace package with Jira REST v3 read client
+  scaffolding, SHDEV/SDDEV project config loading, secret redaction helpers,
+  payload normalization fixtures, and tests that keep the one-shot migration
+  runtime outside `reef-web`. Import/write mapping remains in follow-up
+  migration issues. (REEF-317)
 - **The legacy chat endpoint has been removed.** Ask AI streaming now uses only
   `POST /api/agents/runs` with `task_id: "chat.workspace"`; deployment docs,
   proxy comments, and web package guidance now describe that route as the SSE
