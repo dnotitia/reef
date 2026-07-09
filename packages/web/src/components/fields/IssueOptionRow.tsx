@@ -16,17 +16,19 @@ import { useTranslations } from "next-intl";
  * rows, and the Sub-issues list so they all read like a compressed card
  * instead of a plain-text line.
  *
- * Laid out as a fixed-track CSS grid, not a flex row (REEF-285). status ·
- * id/blocker · title · type · priority are real tracks, so the type and
- * priority columns line up across rows whether or not a given row carries a
- * priority or a blocked marker. Solely the title track flexes (`minmax(0,1fr)`)
- * and truncates — a flex row with a `shrink-0` trailing meta block let the title
- * collapse to nothing in narrow columns (the half-width relation column hid the
- * title entirely once a blocked badge appeared); a grid track is unable to.
+ * Laid out as a grid, not a flex row (REEF-285). status · id/blocker · title ·
+ * type · priority are real tracks, so the type and priority columns line up
+ * across rows whether or not a given row carries a priority or a blocked
+ * marker. Solely the title track flexes (`minmax(0,1fr)`) and truncates — a
+ * flex row with a `shrink-0` trailing meta block let the title collapse to
+ * nothing in narrow columns (the half-width relation column hid the title
+ * entirely once a blocked badge appeared); a grid track is unable to.
  *
- * The blocked marker uses the reserved space inside the fixed id track rather
- * than adding another outer column. Empty rows keep that slot blank, so every
- * title starts from the same grid line and the slot's meaning stays visible.
+ * The blocked marker uses reserved space inside the id track rather than adding
+ * another outer column. The id track keeps the REEF-id rhythm at a 5rem minimum,
+ * then grows to max-content for longer project prefixes instead of clipping
+ * valid ids. Empty rows keep the blocker slot blank, so every title starts from
+ * the same grid line for same-width ids and the slot's meaning stays visible.
  * The priority column is consistently reserved so the dot lines up even on rows
  * without one.
  *
@@ -66,21 +68,22 @@ export function IssueOptionRow({
         // while the wider dropdown and Sub-issues list keep it (REEF-285).
         "@container grid min-w-0 flex-1 items-center gap-x-2",
         // status · id/blocker · title · type · priority. Solely the title
-        // track flexes and truncates; the blocker slot stays inside the fixed
-        // id track so it occupies the otherwise-empty space after the id.
-        "grid-cols-[auto_5rem_minmax(0,1fr)_auto_0.75rem]",
+        // track flexes and truncates; the blocker slot stays inside the id
+        // track so it occupies the otherwise-empty space after the id without
+        // clipping longer project prefixes.
+        "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem]",
         className,
       )}
     >
       <StatusIcon status={issue.status} className="size-3.5" />
       <span
         data-issue-option-slot="identity"
-        className="grid min-w-0 grid-cols-[minmax(0,1fr)_1.25rem] items-center"
+        className="flex min-w-0 items-center"
       >
         {/* `translate="no"` keeps machine translation from mangling the reef id
             (e.g. browser auto-translate rewriting "REEF-001"); the id is a code
             identifier, not prose. */}
-        <span translate="no" className="min-w-0 overflow-hidden">
+        <span translate="no" className="shrink-0 overflow-hidden">
           <HighlightText
             text={issue.id}
             query={query}
@@ -89,13 +92,13 @@ export function IssueOptionRow({
         </span>
         <span
           data-issue-option-slot="blocker"
-          className="flex min-w-0 justify-end overflow-hidden"
+          className="ml-1 flex min-w-4 shrink-0 justify-end"
         >
           {blockerCount > 0 ? (
             <BlockedBadge
               variant="compact"
               count={blockerCount}
-              className="max-w-full shrink-0 gap-0 text-[10px] leading-none [&>svg]:size-3"
+              className="shrink-0 gap-0 text-[10px] leading-none [&>svg]:size-2.5"
             />
           ) : null}
         </span>

@@ -152,7 +152,7 @@ describe("IssueRelationInput", () => {
     expect(identity).toContainElement(blockerSlot);
     expect(title.closest('[data-issue-option-slot="title"]')).not.toBeNull();
     expect(row.className).toContain(
-      "grid-cols-[auto_5rem_minmax(0,1fr)_auto_0.75rem]",
+      "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem]",
     );
   });
 
@@ -411,7 +411,7 @@ describe("IssueRelationInput", () => {
       title.closest('[data-issue-option-slot="title"]'),
     ).not.toContainElement(badge);
     expect(title.closest("[data-issue-option-row]")?.className).toContain(
-      "grid-cols-[auto_5rem_minmax(0,1fr)_auto_0.75rem]",
+      "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem]",
     );
   });
 

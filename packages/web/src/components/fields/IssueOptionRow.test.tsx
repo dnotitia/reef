@@ -61,24 +61,31 @@ describe("IssueOptionRow", () => {
     expect(screen.getByLabelText("Blocked by 2 issues")).toBeInTheDocument();
   });
 
-  it("lays the row out as a fixed-track grid with blocker inside the id track", () => {
+  it("lays the row out as a grid with blocker inside the id track", () => {
     // The grid (not a flex row) keeps the title from collapsing and the type /
     // priority columns aligned. The blocker slot uses the reserved room inside
-    // the fixed id track instead of adding another outer column (REEF-390).
+    // the 5rem-minimum id track instead of adding another outer column
+    // (REEF-390).
     const { container } = render(
       <IssueOptionRow issue={{ ...ISSUE, priority: null }} />,
     );
     const root = container.firstChild as HTMLElement;
     expect(root.className).toContain(
-      "grid-cols-[auto_5rem_minmax(0,1fr)_auto_0.75rem]",
+      "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem]",
     );
     const identity = root.querySelector('[data-issue-option-slot="identity"]');
-    expect(identity?.className).toContain("grid-cols-[minmax(0,1fr)_1.25rem]");
-    expect(screen.getByText("REEF-042").className).toContain("block");
-    expect(screen.getByText("REEF-042").className).toContain("truncate");
-    expect(
-      identity?.querySelector('[data-issue-option-slot="blocker"]'),
-    ).not.toBeNull();
+    expect(identity?.className).toContain("flex");
+    const issueId = screen.getByText("REEF-042");
+    expect(issueId.className).toContain("block");
+    expect(issueId.className).toContain("truncate");
+    expect(issueId.parentElement?.className).toContain("shrink-0");
+    const blocker = identity?.querySelector(
+      '[data-issue-option-slot="blocker"]',
+    );
+    expect(blocker).not.toBeNull();
+    expect(blocker?.className).toContain("ml-1");
+    expect(blocker?.className).toContain("min-w-4");
+    expect(blocker?.className).not.toContain("overflow-hidden");
     // No priority dot, but its column is still reserved so dots align row-to-row.
     expect(screen.queryByLabelText(/Priority:/)).toBeNull();
   });
@@ -127,11 +134,15 @@ describe("IssueOptionRow", () => {
 
     const root = container.firstChild as HTMLElement;
     expect(root.className).toContain(
-      "grid-cols-[auto_5rem_minmax(0,1fr)_auto_0.75rem]",
+      "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem]",
     );
     const marker = screen.getByLabelText("Blocked by 12 issues");
     expect(marker).toHaveTextContent("9+");
     expect(marker.closest('[data-issue-option-slot="blocker"]')).not.toBeNull();
+    expect(
+      marker.closest('[data-issue-option-slot="blocker"]')?.className,
+    ).toContain("min-w-4");
+    expect(marker.className).not.toContain("max-w-full");
 
     const title = screen.getByText(/A very long relation row title/);
     expect(title).toHaveClass("min-w-0");
