@@ -139,7 +139,21 @@ describe("IssueRelationInput", () => {
     expect(
       screen.getByRole("button", { name: "Add Depends on" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Parent issue")).toBeInTheDocument();
+    const title = screen.getByText("Parent issue");
+    const row = title.closest("[data-issue-option-row]") as HTMLElement;
+    const identity = row.querySelector(
+      '[data-issue-option-slot="identity"]',
+    ) as HTMLElement;
+    const blockerSlot = row.querySelector(
+      '[data-issue-option-slot="blocker"]',
+    ) as HTMLElement;
+    expect(identity).not.toBeNull();
+    expect(blockerSlot).toBeEmptyDOMElement();
+    expect(identity).toContainElement(blockerSlot);
+    expect(title.closest('[data-issue-option-slot="title"]')).not.toBeNull();
+    expect(row.className).toContain(
+      "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem]",
+    );
   });
 
   // REEF-032: candidate dropdown is now a card-level combobox.
@@ -194,6 +208,17 @@ describe("IssueRelationInput", () => {
       // the Sub-issues row (not the old id fallback pill).
       expect(link).toHaveTextContent("REEF-001");
       expect(link).toHaveTextContent("Login fails");
+      expect(
+        screen
+          .getByText("Login fails")
+          .closest('[data-issue-option-slot="title"]'),
+      ).not.toBeNull();
+      expect(
+        screen
+          .getByText("Login fails")
+          .closest("[data-issue-option-row]")
+          ?.querySelector('[data-issue-option-slot="blocker"]'),
+      ).toBeEmptyDOMElement();
       // Same focus contract as IssueChildren's rows.
       expect(link).toHaveClass("focus-visible:ring-brand/40");
     });
@@ -373,7 +398,21 @@ describe("IssueRelationInput", () => {
     expect(screen.getByLabelText("Priority: Medium")).toBeInTheDocument();
     // The blocked marker is the compact glyph + count; its accessible name is
     // the full sentence (REEF-285).
-    expect(screen.getByLabelText("Blocked by 1 issue")).toBeInTheDocument();
+    const badge = screen.getByLabelText("Blocked by 1 issue");
+    const title = screen.getByText("Blocked work");
+    expect(badge).toBeInTheDocument();
+    expect(badge.closest('[data-issue-option-slot="blocker"]')).not.toBeNull();
+    expect(badge.closest('[data-issue-option-slot="identity"]')).toBe(
+      title
+        .closest("[data-issue-option-row]")
+        ?.querySelector('[data-issue-option-slot="identity"]'),
+    );
+    expect(
+      title.closest('[data-issue-option-slot="title"]'),
+    ).not.toContainElement(badge);
+    expect(title.closest("[data-issue-option-row]")?.className).toContain(
+      "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem]",
+    );
   });
 
   it("adds a candidate chosen from the dropdown", async () => {

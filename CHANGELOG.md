@@ -111,6 +111,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Blocked markers in relationship rows no longer shift issue titles.**
+  Sub-issue and relationship rows now reserve a dedicated blocker-count column,
+  so issue titles, type icons, and priority dots stay aligned whether a row is
+  blocked or not. (REEF-390)
 - **Long issue descriptions no longer shave the editor's focused corner.**
   The issue description editor now keeps its scrollable body inset from the
   focus border and reserves a stable scrollbar gutter, so long markdown bodies

@@ -61,19 +61,97 @@ describe("IssueOptionRow", () => {
     expect(screen.getByLabelText("Blocked by 2 issues")).toBeInTheDocument();
   });
 
-  it("lays the row out as a fixed-track grid with a reserved priority column", () => {
+  it("lays the row out as a grid with blocker inside the id track", () => {
     // The grid (not a flex row) keeps the title from collapsing and the type /
-    // priority columns aligned across rows whether or not a row has a priority
-    // or a blocked marker (REEF-285).
+    // priority columns aligned. The blocker slot uses the reserved room inside
+    // the 5rem-minimum id track instead of adding another outer column
+    // (REEF-390).
     const { container } = render(
       <IssueOptionRow issue={{ ...ISSUE, priority: null }} />,
     );
     const root = container.firstChild as HTMLElement;
     expect(root.className).toContain(
-      "grid-cols-[auto_5rem_minmax(0,1fr)_auto_0.75rem]",
+      "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem]",
     );
+    const identity = root.querySelector('[data-issue-option-slot="identity"]');
+    expect(identity?.className).toContain("flex");
+    const issueId = screen.getByText("REEF-042");
+    expect(issueId.className).toContain("block");
+    expect(issueId.className).toContain("truncate");
+    expect(issueId.parentElement?.className).toContain("shrink-0");
+    const blocker = identity?.querySelector(
+      '[data-issue-option-slot="blocker"]',
+    );
+    expect(blocker).not.toBeNull();
+    expect(blocker?.className).toContain("ml-1");
+    expect(blocker?.className).toContain("min-w-4");
+    expect(blocker?.className).not.toContain("overflow-hidden");
     // No priority dot, but its column is still reserved so dots align row-to-row.
     expect(screen.queryByLabelText(/Priority:/)).toBeNull();
+  });
+
+  it("keeps the blocked marker in its own column outside the title track", () => {
+    const { rerender } = render(
+      <IssueOptionRow issue={ISSUE} blockerCount={0} />,
+    );
+
+    const title = screen.getByText("Card-level dropdown rows");
+    const titleSlot = title.closest('[data-issue-option-slot="title"]');
+    const blockerSlot = title
+      .closest("[data-issue-option-row]")
+      ?.querySelector('[data-issue-option-slot="identity"]')
+      ?.querySelector('[data-issue-option-slot="blocker"]');
+    expect(titleSlot).not.toBeNull();
+    expect(blockerSlot).not.toBeNull();
+    expect(blockerSlot).toBeEmptyDOMElement();
+
+    rerender(<IssueOptionRow issue={ISSUE} blockerCount={2} />);
+
+    const marker = screen.getByLabelText("Blocked by 2 issues");
+    expect(marker.closest('[data-issue-option-slot="blocker"]')).toBe(
+      blockerSlot,
+    );
+    expect(titleSlot).not.toContainElement(marker);
+    expect(
+      screen
+        .getByText("Card-level dropdown rows")
+        .closest('[data-issue-option-slot="title"]'),
+    ).toBe(titleSlot);
+  });
+
+  it("keeps long narrow rows truncating in the title track only", () => {
+    const { container } = render(
+      <IssueOptionRow
+        issue={{
+          ...ISSUE,
+          title:
+            "A very long relation row title that should truncate before meta columns move",
+        }}
+        blockerCount={12}
+        className="w-40"
+      />,
+    );
+
+    const root = container.firstChild as HTMLElement;
+    expect(root.className).toContain(
+      "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem]",
+    );
+    const marker = screen.getByLabelText("Blocked by 12 issues");
+    expect(marker).toHaveTextContent("9+");
+    expect(marker.closest('[data-issue-option-slot="blocker"]')).not.toBeNull();
+    expect(
+      marker.closest('[data-issue-option-slot="blocker"]')?.className,
+    ).toContain("min-w-4");
+    expect(marker.className).not.toContain("max-w-full");
+
+    const title = screen.getByText(/A very long relation row title/);
+    expect(title).toHaveClass("min-w-0");
+    expect(title).toHaveClass("truncate");
+    expect(
+      title.closest('[data-issue-option-slot="title"]'),
+    ).not.toContainElement(marker);
+    expect(screen.getByText("Story")).toBeInTheDocument();
+    expect(screen.getByLabelText("Priority: High")).toBeInTheDocument();
   });
 
   it.each(IssueTypeEnum.options)(
