@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
   openExistingWorkspace,
@@ -16,6 +16,15 @@ async function issueStatus(
     ?.issues.find((issue) => issue.id === issueId)?.status;
 }
 
+async function expectIssueListKeyboardReady(page: Page) {
+  const rows = page.locator('[data-testid="issue-list-row"]');
+  await expect(rows.first()).toBeVisible({ timeout: 15_000 });
+  await expect(rows.first()).toHaveAttribute("tabindex", "0", {
+    timeout: 15_000,
+  });
+  return rows;
+}
+
 test.describe("Hermetic issue keyboard navigation", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
@@ -28,8 +37,7 @@ test.describe("Hermetic issue keyboard navigation", () => {
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/issues?view=list");
 
-    const rows = page.locator('[data-testid="issue-list-row"]');
-    await expect(rows.first()).toBeVisible({ timeout: 15_000 });
+    const rows = await expectIssueListKeyboardReady(page);
 
     await page.keyboard.press("j");
     await expect(rows.nth(0)).toHaveAttribute("data-keyboard-focused", "true");
@@ -51,8 +59,7 @@ test.describe("Hermetic issue keyboard navigation", () => {
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/issues?view=list");
 
-    const rows = page.locator('[data-testid="issue-list-row"]');
-    await expect(rows.first()).toBeVisible({ timeout: 15_000 });
+    const rows = await expectIssueListKeyboardReady(page);
     await page.keyboard.press("j");
     await expect(rows.first()).toHaveAttribute("data-keyboard-focused", "true");
 
@@ -70,9 +77,9 @@ test.describe("Hermetic issue keyboard navigation", () => {
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/issues?view=list");
 
-    const rows = page.locator('[data-testid="issue-list-row"]');
-    await expect(rows.first()).toBeVisible({ timeout: 15_000 });
+    const rows = await expectIssueListKeyboardReady(page);
     await page.keyboard.press("j");
+    await expect(rows.first()).toHaveAttribute("data-keyboard-focused", "true");
 
     const patch = page.waitForResponse((response) => {
       const url = new URL(response.url());
@@ -128,8 +135,7 @@ test.describe("Hermetic issue keyboard navigation", () => {
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/issues?view=list");
 
-    const rows = page.locator('[data-testid="issue-list-row"]');
-    await expect(rows.first()).toBeVisible({ timeout: 15_000 });
+    const rows = await expectIssueListKeyboardReady(page);
 
     await page.locator('[data-testid="search-input"]').focus();
     await page.evaluate(() => {
