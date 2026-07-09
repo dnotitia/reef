@@ -1096,6 +1096,7 @@
     "divider": "Divider",
     "link": "Link",
     "linkUrl": "Link URL",
+    "attachFile": "Attach file",
     "source": "Source",
     "toggleSourceMode": "Toggle source mode",
     "apply": "Apply",

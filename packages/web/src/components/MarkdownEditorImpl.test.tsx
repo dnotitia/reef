@@ -266,6 +266,73 @@ describe("MarkdownEditor", () => {
     expect(screen.getByTitle("Link")).toBeInTheDocument();
   });
 
+  it("shows the attachment insert control only when uploads are supported", () => {
+    const { rerender } = render(<MarkdownEditor value="" onChange={vi.fn()} />);
+    expect(screen.queryByTitle("Attach file")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("markdown-attachment-input")).toBeNull();
+
+    rerender(
+      <MarkdownEditor value="" onChange={vi.fn()} onUploadFiles={vi.fn()} />,
+    );
+    expect(screen.getByTitle("Attach file")).toBeInTheDocument();
+    expect(screen.getByTestId("markdown-attachment-input")).toBeInTheDocument();
+  });
+
+  it("uploads files selected from the toolbar before appending returned markdown", async () => {
+    const onChange = vi.fn();
+    const onUploadFiles = vi
+      .fn()
+      .mockResolvedValue([
+        { markdown: "[brief](akb://reef-test/issues/file/file-1)" },
+      ]);
+    render(
+      <MarkdownEditor
+        value="Existing body"
+        onChange={onChange}
+        onUploadFiles={onUploadFiles}
+      />,
+    );
+    const file = new File([new Uint8Array([1])], "brief.pdf", {
+      type: "application/pdf",
+    });
+
+    fireEvent.change(screen.getByTestId("markdown-attachment-input"), {
+      target: { files: [file] },
+    });
+
+    await waitFor(() => expect(onUploadFiles).toHaveBeenCalledWith([file]));
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith(
+        "Existing body\n\n[brief](akb://reef-test/issues/file/file-1)",
+      ),
+    );
+  });
+
+  it("does not append markdown when a toolbar-selected file upload fails", async () => {
+    const onChange = vi.fn();
+    const onUploadFiles = vi.fn().mockRejectedValue(new Error("boom"));
+    render(
+      <MarkdownEditor
+        value="Existing body"
+        onChange={onChange}
+        onUploadFiles={onUploadFiles}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId("markdown-attachment-input"), {
+      target: {
+        files: [new File(["x"], "brief.pdf", { type: "application/pdf" })],
+      },
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Couldn't upload that file.",
+      ),
+    );
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("keeps the Source toggle out of the wrapping control group", () => {
     render(<MarkdownEditor value="" onChange={vi.fn()} />);
     const toolbar = screen.getByTestId("markdown-toolbar");
@@ -286,6 +353,18 @@ describe("MarkdownEditor", () => {
   it("hides toolbar when readOnly is true", () => {
     render(<MarkdownEditor value="" onChange={vi.fn()} readOnly />);
     expect(screen.queryByTitle("Bold")).not.toBeInTheDocument();
+  });
+
+  it("hides the attachment insert control when readOnly is true", () => {
+    render(
+      <MarkdownEditor
+        value=""
+        onChange={vi.fn()}
+        onUploadFiles={vi.fn()}
+        readOnly
+      />,
+    );
+    expect(screen.queryByTitle("Attach file")).not.toBeInTheDocument();
   });
 
   it("runs the matching command when a formatting control is clicked", () => {
@@ -491,6 +570,37 @@ describe("MarkdownEditor", () => {
     expect(screen.getByTitle("Bold")).toBeDisabled();
     expect(screen.getByTitle("Italic")).toBeDisabled();
     expect(screen.getByTitle("Link")).toBeDisabled();
+  });
+
+  it("keeps attachment insertion available in source mode through the upload path", async () => {
+    const onChange = vi.fn();
+    const onUploadFiles = vi
+      .fn()
+      .mockResolvedValue([{ markdown: "![screen](akb://reef-test/file/1)" }]);
+    render(
+      <MarkdownEditor
+        value="Existing body"
+        onChange={onChange}
+        onUploadFiles={onUploadFiles}
+      />,
+    );
+    act(() => {
+      fireEvent.click(screen.getByTitle("Toggle source mode"));
+    });
+
+    expect(screen.getByTitle("Attach file")).not.toBeDisabled();
+    fireEvent.change(screen.getByTestId("markdown-attachment-input"), {
+      target: {
+        files: [new File(["x"], "screen.png", { type: "image/png" })],
+      },
+    });
+
+    await waitFor(() => expect(onUploadFiles).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith(
+        "Existing body\n\n![screen](akb://reef-test/file/1)",
+      ),
+    );
   });
 
   describe("link editor", () => {

@@ -118,4 +118,35 @@ test.describe("Hermetic issue attachments (REEF-349)", () => {
       path: "test-results/reef-349-attachment-card.png",
     });
   });
+
+  test("inserts uploaded image markdown from the editor toolbar file picker (REEF-401)", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues/REEF-001");
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+
+    const attachButton = page.getByTitle("Attach file");
+    await expect(attachButton).toBeVisible();
+    await expect(attachButton).toBeEnabled();
+
+    const chooserPromise = page.waitForEvent("filechooser");
+    await attachButton.click();
+    const chooser = await chooserPromise;
+    await chooser.setFiles({
+      name: "reef-toolbar.png",
+      mimeType: "image/png",
+      buffer: INLINE_PNG,
+    });
+
+    await page.locator('[data-testid="markdown-source-toggle"] button').click();
+    const source = page.locator('[data-testid="markdown-source-textarea"]');
+    await expect(source).toHaveValue(
+      /!\[reef-toolbar\.png\]\(akb:\/\/reef-e2e\/issues\/reef-001\/attachments\/file\/file-1\)/,
+    );
+    await expect(attachButton).toBeEnabled();
+    await page.locator('[data-testid="markdown-editor"]').screenshot({
+      path: "test-results/reef-401-toolbar-attachment-live-proof.png",
+    });
+  });
 });

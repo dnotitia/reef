@@ -25,6 +25,11 @@ explicitly in the entries below.
   Images render inline through reef's authenticated download proxy, while other
   files appear in a new Attachments section with download links. Jira attachment
   references can be rewritten to the same akb file URIs during import. (REEF-349)
+- **Insert issue attachments from the markdown toolbar.** Editors that support
+  uploads now show a paperclip button in the Insert group, opening a file picker
+  and appending the uploaded attachment markdown through the same path as paste
+  and drop. The control stays hidden for read-only or non-uploading editors, and
+  failed uploads do not leave broken local markdown behind. (REEF-401)
 - **Issue detail now uses a details-first right rail.** The issue detail sheet
   and new-issue dialog share a wider 400px property rail for Details, People,
   Planning, Parent, and Relationships, while title, description, Sub-issues,

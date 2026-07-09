@@ -40,6 +40,7 @@ import {
   ListOrdered,
   type LucideIcon,
   Minus,
+  Paperclip,
   Quote,
   SquareCode,
   Strikethrough,
@@ -310,6 +311,7 @@ export function MarkdownEditor({
   const onChangeRef = useRef(onChange);
   const onBlurRef = useRef(onBlur);
   const uploadFilesRef = useRef(onUploadFiles);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const readOnlyRef = useRef(readOnly);
   const resolveImageSrcRef = useRef(resolveImageSrc);
   const resolvedTitleMapRef = useRef(new Map<string, string | null>());
@@ -562,6 +564,22 @@ export function MarkdownEditor({
     }
   }
 
+  function openAttachmentFilePicker() {
+    if (uploadingFiles || !uploadFilesRef.current || readOnlyRef.current) {
+      return;
+    }
+    fileInputRef.current?.click();
+  }
+
+  function handleAttachmentInputChange(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    const files = filesFromFileList(event.currentTarget.files);
+    event.currentTarget.value = "";
+    if (files.length === 0) return;
+    void uploadAndAppendFiles(files);
+  }
+
   function handleSourcePaste(event: ClipboardEvent<HTMLTextAreaElement>) {
     const files = filesFromFileList(event.clipboardData.files);
     if (files.length === 0 || !uploadFilesRef.current || readOnlyRef.current) {
@@ -784,6 +802,25 @@ export function MarkdownEditor({
                   linkEditorOpen ? closeLinkEditor() : openLinkEditor()
                 }
               />
+              {onUploadFiles && (
+                <>
+                  <ToolbarButton
+                    icon={Paperclip}
+                    label={t("attachFile")}
+                    disabled={uploadingFiles}
+                    onClick={openAttachmentFilePicker}
+                  />
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    aria-label={t("attachFile")}
+                    data-testid="markdown-attachment-input"
+                    onChange={handleAttachmentInputChange}
+                  />
+                </>
+              )}
             </div>
           </div>
 
