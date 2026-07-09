@@ -19,9 +19,9 @@ spec:
       labels:
         app: reef-web
     spec:
-      # SSE drain: /api/chat streams can run long. preStop holds the pod
-      # open so in-flight streams finish before SIGTERM; the grace period
-      # is the hard ceiling.
+      # SSE drain: /api/agents/runs chat streams can run long. preStop holds
+      # the pod open so in-flight streams finish before SIGTERM; the grace
+      # period is the hard ceiling.
       terminationGracePeriodSeconds: 90
       securityContext:
         runAsNonRoot: true

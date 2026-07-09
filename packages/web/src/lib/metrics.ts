@@ -91,10 +91,10 @@ export const registry: Registry = metrics.registry;
 
 /**
  * Total number of HTTP requests handled by reef-web, labeled by HTTP method
- * and a coarse `route_class` (e.g. "/api/chat", "/api/issues", "/api/metrics",
- * "page"). The route_class is derived from the request path WITHOUT high-
- * cardinality segments (no issue ids, no query strings) — this keeps the
- * Prometheus label cardinality bounded.
+ * and a coarse `route_class` (e.g. "/api/agents", "/api/issues",
+ * "/api/metrics", "page"). The route_class is derived from the request path
+ * WITHOUT high-cardinality segments (no issue ids, no query strings) — this
+ * keeps the Prometheus label cardinality bounded.
  *
  * Incremented in `apps/web/src/proxy.ts` (per-request hook). Does NOT include
  * status code — the proxy runs UPSTREAM of the Route Handler and does not see
@@ -120,7 +120,7 @@ export const httpRequestDurationSeconds: Histogram<"method" | "route_class"> =
   metrics.httpRequestDurationSeconds;
 
 /**
- * Total number of agent loop steps executed across all /api/chat calls.
+ * Total number of agent loop steps executed by AI agent routes.
  * Increment once per `onStepFinish` callback invocation.
  */
 export const agentLoopStepsTotal: Counter<string> = metrics.agentLoopStepsTotal;

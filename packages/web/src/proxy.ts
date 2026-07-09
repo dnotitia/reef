@@ -238,7 +238,7 @@ function sanitizeQueryForLog(search: string): string | undefined {
  * Examples:
  *   /                   → "page"
  *   /issues             → "page"
- *   /api/chat           → "/api/chat"
+ *   /api/agents/runs    → "/api/agents"
  *   /api/issues         → "/api/issues"
  *   /api/issues/REEF-42 → "/api/issues"
  *   /api/auth/akb       → "/api/auth/akb"

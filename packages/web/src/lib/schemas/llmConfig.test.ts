@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
-import { ChatRequestBodySchema, LLMConfigSchema } from "./llmConfig";
+import { LLMConfigSchema } from "./llmConfig";
 
 describe("LLMConfigSchema", () => {
   it("parses a valid LLM config", () => {
@@ -77,99 +77,5 @@ describe("LLMConfigSchema", () => {
   it("fails when required fields are missing", () => {
     const result = LLMConfigSchema.safeParse({});
     expect(result.success).toBe(false);
-  });
-});
-
-describe("ChatRequestBodySchema", () => {
-  it("accepts a valid messages array (v5 UIMessage parts shape)", () => {
-    const result = ChatRequestBodySchema.safeParse({
-      messages: [{ role: "user", parts: [{ type: "text", text: "hello" }] }],
-    });
-    expect(result.success).toBe(true);
-    expect(result.data?.messages[0]?.id).toBe("chat-message-0");
-  });
-
-  it("accepts AI SDK text part metadata from persisted assistant messages", () => {
-    const result = ChatRequestBodySchema.safeParse({
-      messages: [
-        {
-          role: "assistant",
-          parts: [
-            {
-              type: "text",
-              text: "hello",
-              state: "done",
-              providerMetadata: { openai: { cachedTokens: 3 } },
-            },
-          ],
-        },
-      ],
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it("rejects an empty messages array", () => {
-    const result = ChatRequestBodySchema.safeParse({ messages: [] });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects a missing messages field", () => {
-    const result = ChatRequestBodySchema.safeParse({});
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects an unknown role", () => {
-    const result = ChatRequestBodySchema.safeParse({
-      messages: [{ role: "hacker", parts: [{ type: "text", text: "x" }] }],
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects a text part missing the `text` field (fallback must not absorb malformed text)", () => {
-    const result = ChatRequestBodySchema.safeParse({
-      messages: [{ role: "user", parts: [{ type: "text" }] }],
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects a tool-* part wrapped as a generic fallback shape mismatch", () => {
-    // A `tool-foo` part is accepted by ToolPartSchema (passthrough), but the
-    // FallbackPartSchema should not also accept it — otherwise a malformed
-    // `tool-foo` would slip through. Here we sanity-check that the guard
-    // rejects a part typed as `text` lacking a string `text` field.
-    const result = ChatRequestBodySchema.safeParse({
-      messages: [
-        {
-          role: "user",
-          parts: [{ type: "text", text: 123 as unknown as string }],
-        },
-      ],
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("accepts tool-* parts inside a message", () => {
-    const result = ChatRequestBodySchema.safeParse({
-      messages: [
-        {
-          role: "assistant",
-          parts: [
-            { type: "text", text: "Drafting..." },
-            {
-              type: "tool-draft_issue",
-              toolCallId: "abc",
-              state: "output-available",
-              output: {
-                proposal: {
-                  operation: "create",
-                  create: { fields: { title: "x" }, content: "y" },
-                },
-              },
-            },
-          ],
-        },
-      ],
-    });
-    expect(result.success).toBe(true);
   });
 });

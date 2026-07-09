@@ -104,7 +104,7 @@ describe("proxy — credential redaction", () => {
   });
 
   it("never logs the X-Reef-LLM header value", () => {
-    const request = new NextRequest("https://reef.test/api/chat", {
+    const request = new NextRequest("https://reef.test/api/agents/runs", {
       method: "POST",
       headers: {
         "X-Reef-LLM": FAKE_LLM_HEADER,
@@ -145,7 +145,7 @@ describe("proxy — credential redaction", () => {
       }),
     ).toString("base64");
 
-    const request = new NextRequest("https://reef.test/api/chat", {
+    const request = new NextRequest("https://reef.test/api/agents/runs", {
       method: "POST",
       headers: {
         "X-Reef-LLM": encoded,

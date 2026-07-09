@@ -7,7 +7,7 @@ import type { GitHubAdapter } from "@reef/core";
 /**
  * Resolve the GitHub adapter for AI **code grounding** — the read scoped
  * monitored-repo `search_code` / `dev_read_file` tools wired into Ask AI
- * (`/api/chat`), enrich (`/api/enrich`), and agent runs (`/api/agents/runs`).
+ * (`/api/agents/runs`), enrich (`/api/enrich`), and other agent runs.
  *
  * Credential selection is shared with the scan and repo-list callers through
  * `resolveGitHubAdapter` (REEF-290 AC2): server-managed GitHub App, then the
