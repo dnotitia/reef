@@ -17,6 +17,7 @@ import { useCreateIssue } from "@/features/issues/hooks/mutations/useCreateIssue
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import { useAiAvailable } from "@/features/settings/hooks/useAiAvailable";
 import {
   ensureProjectConfig,
   useProjectConfig,
@@ -90,6 +91,9 @@ export function NewIssueDialog() {
   const configQuery = useProjectConfig(vault ?? "");
   const prefix =
     configQuery.data?.config.project_prefix ?? DEFAULT_CONFIG.project_prefix;
+  const { isAvailable: isAiAvailable, isLoading: isAiAvailabilityLoading } =
+    useAiAvailable();
+  const aiUnavailable = !isAiAvailabilityLoading && !isAiAvailable;
 
   const {
     title,
@@ -171,12 +175,13 @@ export function NewIssueDialog() {
   const {
     enrichment,
     enrichMutation,
-    enrichError,
+    enrichErrorMessage,
     enrichIsEmpty,
     showEnrichmentBar,
-    buildEnrichmentRequest,
     handleAcceptAll,
     handleEnrichClick,
+    handleRetry,
+    resetEnrichmentNotice,
     renderEnrichable,
     renderFieldLabel,
   } = useNewIssueEnrichment({
@@ -190,6 +195,9 @@ export function NewIssueDialog() {
     buildCreateFields,
     setSubmitError,
     setReferenceCandidates,
+    isAiAvailable,
+    isAiAvailabilityLoading,
+    aiUnavailableMessage: tc("aiUnavailable"),
   });
 
   // AI-proposed documents not yet accepted into `references` or dismissed.
@@ -212,7 +220,7 @@ export function NewIssueDialog() {
     setDismissedRefs(new Set());
     setReferenceCandidates([]);
     enrichment.reset();
-    enrichMutation.reset();
+    resetEnrichmentNotice();
     createMutation.reset();
   }
 
@@ -385,7 +393,7 @@ export function NewIssueDialog() {
         setDismissedRefs(new Set());
         setReferenceCandidates([]);
         enrichment.reset();
-        enrichMutation.reset();
+        resetEnrichmentNotice();
         createMutation.reset();
         requestAnimationFrame(() => titleInputRef.current?.focus());
         return;
@@ -555,7 +563,11 @@ export function NewIssueDialog() {
               <Button
                 type="button"
                 size="sm"
-                className="h-8 gap-1.5 bg-ai px-3 text-xs text-ai-foreground hover:bg-ai/90"
+                className={
+                  aiUnavailable
+                    ? "h-8 gap-1.5 border border-ai-border bg-ai-subtle px-3 text-ai-subtle-foreground text-xs hover:bg-ai-subtle/80"
+                    : "h-8 gap-1.5 bg-ai px-3 text-ai-foreground text-xs hover:bg-ai/90"
+                }
                 onClick={handleEnrichClick}
                 disabled={isSubmitting || enrichMutation.isPending || noVault}
                 data-testid="enrich-trigger"
@@ -563,7 +575,9 @@ export function NewIssueDialog() {
                 <Sparkles className="h-3.5 w-3.5" />
                 {enrichMutation.isPending
                   ? tc("enriching")
-                  : tc("enrichWithAi")}
+                  : aiUnavailable
+                    ? tc("aiUnavailableShort")
+                    : tc("enrichWithAi")}
               </Button>
             </div>
           </div>
@@ -578,12 +592,9 @@ export function NewIssueDialog() {
               onDismissAll={enrichment.dismissAll}
               isLoading={enrichMutation.isPending}
               isEmpty={enrichIsEmpty}
-              error={enrichError?.message}
-              onRetry={() => {
-                const enrichmentRequest = buildEnrichmentRequest();
-                if (enrichmentRequest) enrichMutation.mutate(enrichmentRequest);
-              }}
-              onClose={() => enrichMutation.reset()}
+              error={enrichErrorMessage}
+              onRetry={handleRetry}
+              onClose={resetEnrichmentNotice}
             />
           )}
 

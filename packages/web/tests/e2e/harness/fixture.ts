@@ -94,6 +94,17 @@ export async function setIssueListFailure(
   expect(response.ok()).toBeTruthy();
 }
 
+export async function setOpenRouterFailure(
+  request: APIRequestContext,
+  enabled: boolean,
+): Promise<void> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/openrouter-failure`,
+    { data: { enabled } },
+  );
+  expect(response.ok()).toBeTruthy();
+}
+
 export async function setKeycloakEnabled(
   request: APIRequestContext,
   enabled: boolean,

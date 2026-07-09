@@ -627,6 +627,8 @@
       "configureFirst": "Configure a workspace in Settings first.",
       "enriching": "Enriching…",
       "enrichWithAi": "Enrich with AI",
+      "aiUnavailableShort": "AI unavailable",
+      "aiUnavailable": "AI is unavailable for this deployment. You can still create the issue manually.",
       "creating": "Creating…",
       "submit": "Create issue",
       "createAndAddAnother": "Create & add another",

@@ -22,7 +22,7 @@ import type {
   IssueCreateFields,
   ReferenceSuggestion,
 } from "@reef/core";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 const FIELD_LABEL_CLASS = "text-xs font-medium text-muted-foreground";
 
@@ -37,6 +37,9 @@ export function useNewIssueEnrichment({
   buildCreateFields,
   setSubmitError,
   setReferenceCandidates,
+  isAiAvailable,
+  isAiAvailabilityLoading,
+  aiUnavailableMessage,
 }: {
   vault: string | null | undefined;
   prefix: string;
@@ -48,11 +51,16 @@ export function useNewIssueEnrichment({
   buildCreateFields: (input?: { fallbackTitle?: string }) => IssueCreateFields;
   setSubmitError: (message: string | null) => void;
   setReferenceCandidates: (references: ReferenceSuggestion[]) => void;
+  isAiAvailable: boolean;
+  isAiAvailabilityLoading: boolean;
+  aiUnavailableMessage: string;
 }) {
   const enrichment = useInlineEnrichment(formApi);
   const ingestEnrichment = enrichment.ingest;
+  const [localError, setLocalError] = useState<string | null>(null);
   const enrichMutation = useEnrichIssue({
     onSuccess: (result) => {
+      setLocalError(null);
       ingestEnrichment(result.suggestions);
       setReferenceCandidates(result.references);
     },
@@ -76,6 +84,23 @@ export function useNewIssueEnrichment({
     };
   }
 
+  function canRequestAi(): boolean {
+    if (isAiAvailabilityLoading || isAiAvailable) return true;
+    setSubmitError(null);
+    enrichMutation.reset();
+    setLocalError(aiUnavailableMessage);
+    return false;
+  }
+
+  function mutateEnrichment(
+    enrichmentRequest: EnrichmentRequest,
+    options: { resetSuggestions: boolean },
+  ) {
+    setLocalError(null);
+    if (options.resetSuggestions) enrichment.reset();
+    enrichMutation.mutate(enrichmentRequest);
+  }
+
   function handleEnrichClick() {
     if (!title.trim()) {
       setSubmitError(
@@ -89,6 +114,7 @@ export function useNewIssueEnrichment({
       );
       return;
     }
+    if (!canRequestAi()) return;
     const enrichmentRequest = buildEnrichmentRequest();
     if (!enrichmentRequest) {
       setSubmitError(
@@ -97,8 +123,20 @@ export function useNewIssueEnrichment({
       return;
     }
     setSubmitError(null);
-    enrichment.reset();
-    enrichMutation.mutate(enrichmentRequest);
+    mutateEnrichment(enrichmentRequest, { resetSuggestions: true });
+  }
+
+  function handleRetry() {
+    if (!canRequestAi()) return;
+    const enrichmentRequest = buildEnrichmentRequest();
+    if (enrichmentRequest) {
+      mutateEnrichment(enrichmentRequest, { resetSuggestions: false });
+    }
+  }
+
+  function resetEnrichmentNotice() {
+    setLocalError(null);
+    enrichMutation.reset();
   }
 
   function handleAcceptAll() {
@@ -158,13 +196,14 @@ export function useNewIssueEnrichment({
   }
 
   const enrichError = enrichMutation.error as EnrichIssueError | undefined;
+  const enrichErrorMessage = localError ?? enrichError?.message;
   const enrichIsEmpty =
     enrichMutation.isSuccess &&
     (enrichMutation.data?.suggestions.length ?? 0) === 0 &&
     (enrichMutation.data?.references.length ?? 0) === 0;
   const showEnrichmentBar =
     enrichMutation.isPending ||
-    Boolean(enrichError) ||
+    Boolean(enrichErrorMessage) ||
     enrichIsEmpty ||
     enrichment.counts.pending > 0 ||
     enrichment.counts.accepted > 0;
@@ -173,11 +212,14 @@ export function useNewIssueEnrichment({
     enrichment,
     enrichMutation,
     enrichError,
+    enrichErrorMessage,
     enrichIsEmpty,
     showEnrichmentBar,
     buildEnrichmentRequest,
     handleAcceptAll,
     handleEnrichClick,
+    handleRetry,
+    resetEnrichmentNotice,
     renderEnrichable,
     renderFieldLabel,
   };

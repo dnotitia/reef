@@ -5,6 +5,7 @@ import {
   openExistingWorkspace,
   readFixtureState,
   resetFixture,
+  setOpenRouterFailure,
   writeIndexedDbConfig,
 } from "./harness/fixture";
 
@@ -179,6 +180,74 @@ test.describe("Hermetic issue route surfaces", () => {
         return reefVault(state).issue_ids;
       })
       .not.toContain("REEF-004");
+  });
+
+  test("keeps issue creation usable across AI enrichment failure and retry", async ({
+    page,
+    request,
+  }) => {
+    await setOpenRouterFailure(request, true);
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+
+    await page.locator('[data-testid="new-issue-trigger"]').click();
+    const dialog = page.locator('[data-testid="new-issue-dialog"]');
+    await expect(dialog).toBeVisible();
+    await dialog
+      .locator('[data-testid="new-issue-title-input"]')
+      .fill("Manual issue while AI is recovering");
+    await dialog.getByRole("button", { name: "Source" }).click();
+    await dialog
+      .locator('[data-testid="markdown-source-textarea"]')
+      .fill("Body text survives failed enrichment.");
+
+    const failedEnrich = page.waitForResponse((response) =>
+      response.url().includes("/api/enrich"),
+    );
+    await dialog.locator('[data-testid="enrich-trigger"]').click();
+    expect((await failedEnrich).status()).toBe(503);
+
+    await expect(
+      dialog.locator('[data-testid="enrichment-review-error"]'),
+    ).toContainText("AI enrichment is unavailable");
+    await expect(
+      dialog.locator('[data-testid="new-issue-title-input"]'),
+    ).toHaveValue("Manual issue while AI is recovering");
+    await expect(
+      dialog.locator('[data-testid="markdown-source-textarea"]'),
+    ).toHaveValue("Body text survives failed enrichment.");
+
+    await setOpenRouterFailure(request, false);
+    const recoveredEnrich = page.waitForResponse((response) =>
+      response.url().includes("/api/enrich"),
+    );
+    await dialog.getByRole("button", { name: "Try again" }).click();
+    expect((await recoveredEnrich).status()).toBe(200);
+
+    await expect(
+      dialog.locator('[data-testid="enrichment-review-bar"]'),
+    ).toContainText("1 to review");
+    await expect(
+      dialog.locator('[data-testid="new-issue-title-input"]'),
+    ).toHaveValue("Manual issue while AI is recovering");
+    await expect(
+      dialog.locator('[data-testid="markdown-source-textarea"]'),
+    ).toHaveValue("Body text survives failed enrichment.");
+
+    await dialog.locator('[data-testid="new-issue-submit"]').click();
+
+    await page.waitForURL(/\/issues\/REEF-004/, { timeout: 10_000 });
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+    await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
+      "Manual issue while AI is recovering",
+    );
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        return reefVault(state).issues.find((issue) => issue.id === "REEF-004")
+          ?.title;
+      })
+      .toBe("Manual issue while AI is recovering");
   });
 
   test("creates a sub-issue from Sub-issues with inherited defaults and optimistic child list update", async ({

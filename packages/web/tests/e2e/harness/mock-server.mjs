@@ -45,6 +45,14 @@ const server = createServer(async (req, res) => {
         issue_list_failure: state.issueListFailure,
       });
     }
+    if (url.pathname === "/__e2e/openrouter-failure" && req.method === "POST") {
+      const body = await readJson(req);
+      state.openRouterFailure = body?.enabled === true;
+      return json(res, 200, {
+        ok: true,
+        openrouter_failure: state.openRouterFailure,
+      });
+    }
     if (url.pathname === "/__e2e/keycloak" && req.method === "POST") {
       const body = await readJson(req);
       state.keycloakEnabled = body?.enabled === true;
@@ -144,6 +152,7 @@ function makeState(scenario) {
     loginToken: token,
     vaults: new Map(),
     issueListFailure: false,
+    openRouterFailure: false,
     keycloakEnabled: false,
     commitSeq: 0,
     planningSeq: 10,
@@ -1446,6 +1455,9 @@ function tableSql() {
 
 async function handleOpenRouter(req, res) {
   if (req.method === "POST") {
+    if (state.openRouterFailure) {
+      return json(res, 503, { error: "openrouter_unavailable" });
+    }
     const body = await readJson(req);
     if (body?.stream === true) {
       const created = Math.floor(new Date(NOW).getTime() / 1000);
@@ -1464,24 +1476,64 @@ async function handleOpenRouter(req, res) {
       await streamOpenRouterChunks(res, basicTextChunks(created));
       return;
     }
-    return json(res, 200, {
-      id: "chatcmpl-e2e",
-      object: "chat.completion",
-      created: Math.floor(new Date(NOW).getTime() / 1000),
-      model: "e2e/mock-model",
-      choices: [
-        {
-          index: 0,
-          finish_reason: "stop",
-          message: {
-            role: "assistant",
-            content: "Mock OpenRouter response.",
-          },
-        },
-      ],
-    });
+    return json(
+      res,
+      200,
+      openRouterTextResponse(
+        isEnrichmentPromptTurn(body)
+          ? JSON.stringify({
+              suggestions: [
+                {
+                  field: "priority",
+                  value: "high",
+                  reasoning: "The draft describes user-visible work.",
+                  confidence: 0.82,
+                },
+              ],
+              references: [],
+            })
+          : "Mock OpenRouter response.",
+      ),
+    );
   }
   return json(res, 404, { error: "not_found" });
+}
+
+function openRouterTextResponse(text) {
+  return {
+    id: "resp-e2e",
+    created_at: Math.floor(new Date(NOW).getTime() / 1000),
+    model: "e2e/mock-model",
+    output: [
+      {
+        type: "message",
+        role: "assistant",
+        id: "msg-e2e",
+        phase: "final_answer",
+        content: [
+          {
+            type: "output_text",
+            text,
+            annotations: [],
+          },
+        ],
+      },
+    ],
+    incomplete_details: null,
+    service_tier: null,
+    usage: {
+      input_tokens: 8,
+      input_tokens_details: { cached_tokens: 0 },
+      output_tokens: 4,
+      output_tokens_details: { reasoning_tokens: 0 },
+    },
+  };
+}
+
+function isEnrichmentPromptTurn(body) {
+  return collectStrings(body).some((value) =>
+    value.includes("helps product managers complete a new Reef issue draft"),
+  );
 }
 
 function basicTextChunks(created) {

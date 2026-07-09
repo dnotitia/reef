@@ -27,6 +27,26 @@ vi.mock("@/features/activity/hooks/useActivityRepo", () => ({
   })),
 }));
 
+const { mockAiAvailability } = vi.hoisted(() => ({
+  mockAiAvailability: {
+    value: {
+      isAvailable: true,
+      isLoading: false,
+      provider: "openrouter" as const,
+      model: "e2e/mock-model",
+    } as {
+      isAvailable: boolean;
+      isLoading: boolean;
+      provider: "openrouter";
+      model: string | null;
+    },
+  },
+}));
+
+vi.mock("@/features/settings/hooks/useAiAvailable", () => ({
+  useAiAvailable: () => mockAiAvailability.value,
+}));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
@@ -86,11 +106,14 @@ vi.mock("./useNewIssueEnrichment", async () => {
         reset: vi.fn(),
       },
       enrichError: undefined,
+      enrichErrorMessage: undefined,
       enrichIsEmpty: false,
       showEnrichmentBar: false,
       buildEnrichmentRequest: vi.fn(() => null),
       handleAcceptAll: vi.fn(),
       handleEnrichClick: vi.fn(),
+      handleRetry: vi.fn(),
+      resetEnrichmentNotice: vi.fn(),
       renderEnrichable: (field: unknown, control: ReactNode) =>
         React.createElement(
           React.Fragment,
@@ -248,6 +271,12 @@ describe("NewIssueDialog", () => {
     mockViewStore.state.newIssueDialogOpen = false;
     mockViewStore.state.newIssueDialogContext = null;
     mockEnrichmentState.exposeParentOverride = false;
+    mockAiAvailability.value = {
+      isAvailable: true,
+      isLoading: false,
+      provider: "openrouter",
+      model: "e2e/mock-model",
+    };
     installDefaultApiMocks();
   });
 
@@ -283,6 +312,43 @@ describe("NewIssueDialog", () => {
         .compareDocumentPosition(screen.getByText("Planning")) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("keeps manual creation usable when deployment AI is unavailable", async () => {
+    const user = userEvent.setup();
+    mockAiAvailability.value = {
+      isAvailable: false,
+      isLoading: false,
+      provider: "openrouter",
+      model: null,
+    };
+    mockViewStore.state.newIssueDialogOpen = true;
+    render(wrap(<NewIssueDialog />));
+
+    await screen.findByText("New Issue");
+    expect(screen.getByTestId("enrich-trigger")).toHaveTextContent(
+      "AI unavailable",
+    );
+
+    await user.type(
+      screen.getByTestId("new-issue-title-input"),
+      "Manual issue while AI is unavailable",
+    );
+    await user.click(screen.getByTestId("new-issue-submit"));
+
+    await waitFor(() =>
+      expect(
+        mockApiFetch.mock.calls.some(
+          ([url, init]) => url === "/api/issues" && init?.method === "POST",
+        ),
+      ).toBe(true),
+    );
+    const postCall = mockApiFetch.mock.calls.find(
+      ([url, init]) => url === "/api/issues" && init?.method === "POST",
+    );
+    expect(JSON.parse(postCall?.[1]?.body as string).create.fields.title).toBe(
+      "Manual issue while AI is unavailable",
+    );
   });
 
   it("creates a parent-locked sub-issue with inherited defaults and keeps adding", async () => {
