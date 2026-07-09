@@ -7,9 +7,9 @@
  * Human LABELS are no longer re-exported here: since REEF-292 they are
  * locale-resolved at render time through `@/i18n/fieldLabels` (e.g.
  * `useSprintStatusLabels()`). Plain data module (no React); import it directly.
- * Mirrors `fieldKit.ts` for issue fields, reusing the shared `--status-*` tokens
- * so planning status indicators share the visual language of the issue
- * StatusBadge.
+ * Mirrors `fieldKit.ts` for issue fields while using dedicated `--planning-*`
+ * tokens, so sprint/milestone/release lifecycle colors stay separate from issue
+ * status semantics.
  */
 import type {
   MilestoneStatus,
@@ -28,20 +28,20 @@ export {
 
 /** Tailwind text-color classes per sprint status (consumed as the dot color). */
 export const SPRINT_STATUS_COLORS: Record<SprintStatus, string> = {
-  planned: "text-status-open",
-  active: "text-status-in-progress",
-  closed: "text-status-closed",
+  planned: "text-planning-pending",
+  active: "text-planning-active",
+  closed: "text-planning-closed",
 };
 
 /** Tailwind text-color classes per milestone status. */
 export const MILESTONE_STATUS_COLORS: Record<MilestoneStatus, string> = {
-  open: "text-status-open",
-  closed: "text-status-closed",
+  open: "text-planning-open",
+  closed: "text-planning-closed",
 };
 
 /** Tailwind text-color classes per release status. */
 export const RELEASE_STATUS_COLORS: Record<ReleaseStatus, string> = {
-  planned: "text-status-open",
-  in_progress: "text-status-in-progress",
-  released: "text-status-done",
+  planned: "text-planning-pending",
+  in_progress: "text-planning-active",
+  released: "text-planning-released",
 };

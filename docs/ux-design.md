@@ -200,9 +200,10 @@ shared but custom leaves live alongside the primitives.
 ### Customization Strategy
 
 Design tokens are CSS custom properties defined in `packages/web/src/app/globals.css`
-in three tiers: raw HSL values per mode, semantic tokens (status, priority,
-type, brand, AI), and a Tailwind `@theme inline` mapping that exposes them as
-utility classes (`bg-brand`, `text-status-done`, `bg-ai`, …). This is the
+in three tiers: raw HSL values per mode, semantic tokens (status, planning,
+priority, type, brand, AI), and a Tailwind `@theme inline` mapping that exposes
+them as utility classes (`bg-brand`, `text-status-done`, `text-planning-open`,
+`bg-ai`, …). This is the
 mechanism behind the field-display ownership rule: a field's *label and
 options* live in core (`packages/core/src/schemas/issues/fieldRegistry.ts`, no React or
 Tailwind), and a field's *color* lives in web
@@ -242,6 +243,19 @@ glyph color and the status badge text):
 | In Review | `--status-in-review` | `hsl(260 70% 60%)` (purple) |
 | Done | `--status-done` | `hsl(150 65% 42%)` (green) |
 | Closed | `--status-closed` | `hsl(220 9% 50%)` (gray) |
+
+Planning lifecycle colors use a separate `--planning-*` token family from issue
+workflow status. The separation keeps issue `todo/open` neutral while letting an
+open milestone read as an active planning target, and keeps "released" as the
+only planning state that uses shipped green.
+
+| Planning meaning | Token | Used by |
+|------------------|-------|---------|
+| Pending | `--planning-pending` | planned sprints and planned releases |
+| Open | `--planning-open` | open milestones, rendered in brand-adjacent teal |
+| Active | `--planning-active` | active sprints and in-progress releases |
+| Closed | `--planning-closed` | closed sprints and closed milestones |
+| Released | `--planning-released` | released releases only |
 
 Priority colors (rendered as the priority dot fill):
 

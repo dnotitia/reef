@@ -17,7 +17,7 @@
  *
  * Three-tier system:
  *   1. Raw HSL values per mode  (`--background`, `--surface-sidebar`, ...)
- *   2. Semantic tokens for status / priority / brand
+ *   2. Semantic tokens for status / planning / priority / brand
  *   3. `@theme inline` mapping into Tailwind v4 utility tokens
  *      (consumed via `bg-foo`, `text-foo`, `border-foo`)
  *
@@ -79,6 +79,13 @@
   --status-in-review: hsl(260 70% 60%);
   --status-done: hsl(150 65% 42%);
   --status-closed: hsl(220 9% 50%);
+
+  /* planning status — sprint/milestone/release lifecycle colors */
+  --planning-pending: hsl(220 9% 60%);
+  --planning-open: hsl(184 64% 38%);
+  --planning-active: hsl(40 90% 50%);
+  --planning-closed: hsl(220 9% 50%);
+  --planning-released: hsl(150 65% 42%);
 
   /* priority — dots just, is not used as fill backgrounds */
   --priority-critical: hsl(0 75% 55%);
@@ -193,6 +200,12 @@
   --status-done: hsl(150 60% 50%);
   --status-closed: hsl(220 9% 55%);
 
+  --planning-pending: hsl(220 9% 65%);
+  --planning-open: hsl(184 60% 56%);
+  --planning-active: hsl(40 90% 60%);
+  --planning-closed: hsl(220 9% 55%);
+  --planning-released: hsl(150 60% 50%);
+
   --priority-critical: hsl(0 70% 60%);
   --priority-high: hsl(20 85% 60%);
   --priority-medium: hsl(40 85% 55%);
@@ -278,6 +291,13 @@
   --color-status-in-review: var(--status-in-review);
   --color-status-done: var(--status-done);
   --color-status-closed: var(--status-closed);
+
+  /* planning status */
+  --color-planning-pending: var(--planning-pending);
+  --color-planning-open: var(--planning-open);
+  --color-planning-active: var(--planning-active);
+  --color-planning-closed: var(--planning-closed);
+  --color-planning-released: var(--planning-released);
 
   /* priority */
   --color-priority-critical: var(--priority-critical);
