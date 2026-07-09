@@ -80,5 +80,19 @@ test.describe("Hermetic linked-document backlink (REEF-368)", () => {
       .locator(".reef-markdown-editor a", { hasText: "Spec overview" })
       .first();
     await expect(bodyLink).toHaveAttribute("href", EXPECTED_HREF);
+
+    await page.context().route(`${AKB_WEB_BASE}/**`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "text/html",
+        body: "<!doctype html><title>AKB document</title>",
+      });
+    });
+    const popupPromise = page.waitForEvent("popup");
+    await bodyLink.click();
+    const popup = await popupPromise;
+    await expect(popup).toHaveURL(EXPECTED_HREF);
+    await expect(popup).toHaveTitle("AKB document");
+    await popup.close();
   });
 });

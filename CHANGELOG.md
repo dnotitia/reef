@@ -121,6 +121,10 @@ explicitly in the entries below.
   Restored planning catalog cache now waits until after the first client
   hydration render before replacing the SSR skeleton, so the planning table no
   longer remounts from a skeleton/table DOM mismatch.
+- **Issue body links open as links again.** Clicking a rendered link in an issue
+  description now opens the target instead of being swallowed by the markdown
+  editor as a cursor/selection change; unchanged editor values also avoid a
+  redundant content reset that could move the cursor. (REEF-400)
 - **Planning milestone closed badges now read as closed, not done.** Closed
   milestones now use the same closed-status color as closed sprints, while
   released releases keep the done color reserved for shipped work. (REEF-396)
