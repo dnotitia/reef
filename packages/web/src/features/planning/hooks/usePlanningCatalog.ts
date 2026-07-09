@@ -1,6 +1,7 @@
 "use client";
 
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
+import { useHydrated } from "@/lib/useHydrated";
 import {
   type Milestone,
   MilestoneSchema,
@@ -35,12 +36,35 @@ async function fetchPlanningCatalog(vault: string): Promise<PlanningCatalog> {
 }
 
 export function usePlanningCatalog(vault: string) {
-  return useQuery({
+  const hydrated = useHydrated();
+  const result = useQuery({
     queryKey: planningCatalogKey(vault),
     queryFn: () => fetchPlanningCatalog(vault),
     enabled: vault.length > 0,
     staleTime: 60_000,
   });
+
+  // Hydration gate. Like issue lists, planning catalog data can be restored
+  // from PersistQueryClientProvider before the first client render while SSR
+  // rendered the pending skeleton. Keep that first render SSR-shaped, then let
+  // the cached catalog appear after mount.
+  if (!hydrated) {
+    return {
+      ...result,
+      data: undefined,
+      error: null,
+      isPending: true,
+      isLoading: false,
+      isLoadingError: false,
+      isRefetchError: false,
+      isSuccess: false,
+      isError: false,
+      status: "pending",
+      fetchStatus: "idle",
+    } as typeof result;
+  }
+
+  return result;
 }
 
 function schemaFor(kind: PlanningKind) {

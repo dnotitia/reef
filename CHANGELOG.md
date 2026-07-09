@@ -117,6 +117,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Planning pages no longer recover from a hydration mismatch on reload.**
+  Restored planning catalog cache now waits until after the first client
+  hydration render before replacing the SSR skeleton, so the planning table no
+  longer remounts from a skeleton/table DOM mismatch.
 - **Issue body links open as links again.** Clicking a rendered link in an issue
   description now opens the target instead of being swallowed by the markdown
   editor as a cursor/selection change; unchanged editor values also avoid a
