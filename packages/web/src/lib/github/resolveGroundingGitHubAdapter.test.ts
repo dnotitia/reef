@@ -35,7 +35,7 @@ const mockCreateGitHubAdapter = vi.mocked(createGitHubAdapter);
 const mockCreateProvider = vi.mocked(createGitHubAppInstallationTokenProvider);
 
 function makeRequest(headers: Record<string, string> = {}): Request {
-  return new Request("http://localhost/api/chat", { headers });
+  return new Request("http://localhost/api/agents/runs", { headers });
 }
 
 const SENTINEL_ADAPTER = {

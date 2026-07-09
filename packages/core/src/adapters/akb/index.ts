@@ -15,6 +15,7 @@ export {
   REEF_SCHEMA_VERSION,
   REEF_DESIRED_TABLES,
   ensureReefTables,
+  resolveDocumentTitles,
   searchDocuments,
   issueDocumentUri,
   type AkbAdapter,

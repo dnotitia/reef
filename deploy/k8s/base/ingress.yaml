@@ -8,7 +8,7 @@ metadata:
   name: reef-web
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    # SSE: /api/chat streams token-by-token. Response buffering MUST be
+    # SSE: /api/agents/runs streams token-by-token. Response buffering MUST be
     # off or frames are silently held until the stream closes. The long
     # read/send timeouts keep idle-but-open streams alive.
     nginx.ingress.kubernetes.io/proxy-buffering: "off"

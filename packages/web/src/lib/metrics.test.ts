@@ -56,13 +56,13 @@ describe("metrics singleton", () => {
 
   it("increments reef_http_requests_total with method and route_class labels", async () => {
     httpRequestsTotal.inc({ method: "GET", route_class: "/api/issues" });
-    httpRequestsTotal.inc({ method: "POST", route_class: "/api/chat" });
+    httpRequestsTotal.inc({ method: "POST", route_class: "/api/agents" });
     httpRequestsTotal.inc({ method: "GET", route_class: "/api/issues" });
 
     const allMetrics = await registry.metrics();
     expect(allMetrics).toContain('method="GET"');
     expect(allMetrics).toContain('route_class="/api/issues"');
-    expect(allMetrics).toContain('route_class="/api/chat"');
+    expect(allMetrics).toContain('route_class="/api/agents"');
   });
 
   it("increments reef_agent_loop_steps_total correctly", async () => {
@@ -103,7 +103,7 @@ describe("metrics singleton", () => {
       0.05,
     );
     httpRequestDurationSeconds.observe(
-      { method: "POST", route_class: "/api/chat" },
+      { method: "POST", route_class: "/api/agents" },
       1.2,
     );
 

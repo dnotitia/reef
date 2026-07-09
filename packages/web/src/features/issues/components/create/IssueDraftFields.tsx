@@ -38,6 +38,7 @@ interface IssueDraftFieldsProps {
   onLabelsChange: (labels: string[]) => void;
   body: string;
   onBodyChange: (body: string) => void;
+  vault?: string;
   disabled?: boolean;
   titleAction?: ReactNode;
   titleBelow?: ReactNode;
@@ -87,6 +88,7 @@ export function IssueDraftFields({
   onLabelsChange,
   body,
   onBodyChange,
+  vault,
   disabled = false,
   titleAction,
   titleBelow,
@@ -224,6 +226,7 @@ export function IssueDraftFields({
             placeholder={resolvedBodyPlaceholder}
             readOnly={disabled}
             ariaLabel={t("descriptionAriaLabel")}
+            vault={vault}
           />,
         )}
       </div>

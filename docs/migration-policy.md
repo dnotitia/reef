@@ -110,7 +110,7 @@ Each operational migration must document:
 - Rollback behavior.
 - Whether the old and new application versions can run concurrently.
 
-Streaming changes require special care. `/api/chat` depends on response
+Streaming changes require special care. `/api/agents/runs` depends on response
 buffering being disabled at the proxy layer; any ingress or proxy change must
 preserve that behavior and should be covered by an SSE smoke test.
 

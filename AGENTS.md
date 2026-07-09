@@ -137,5 +137,5 @@ metadata.
 - Release, migration, Docker, changelog, and deployment rules live in
   `docs/release-policy.md` and `docs/migration-policy.md`. Release-impacting
   changes update `CHANGELOG.md` under `Unreleased`.
-- Streaming changes must preserve `/api/chat` SSE delivery; nginx/K8s proxy
-  buffering must remain disabled for streaming routes.
+- Streaming changes must preserve `/api/agents/runs` SSE delivery; nginx/K8s
+  proxy buffering must remain disabled for streaming routes.

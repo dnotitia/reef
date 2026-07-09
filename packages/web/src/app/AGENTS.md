@@ -14,9 +14,8 @@
   (`createChatRunEventBridge`) so text deltas, tool-call frames, and run
   lifecycle events reach the client. The client consumes it through
   `useWorkspaceChat` / `useAgentRun`.
-- `/api/chat` is the legacy AI-SDK `useChat` endpoint, now `@deprecated` and
-  unused by the client (kept pending removal). Do not add new callers; new chat
-  work targets the agent-run route.
+- There is no legacy chat compat endpoint. New chat work targets the agent-run
+  route above.
 - Chat tools are read-only. If a mutating tool is added later, pair its
   `needsApproval: true` contract with the client approval-response flow.
 - Keep the chat run route streaming-compatible; proxy buffering must remain

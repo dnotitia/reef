@@ -40,9 +40,9 @@ interface AskAiState {
  *   - any feature (future quick-link, context menu) can trigger the panel
  *   - ⌘+Shift+A keyboard shortcut wires through a single canonical source
  *
- * Conversation messages themselves are owned by useChat() inside AskAiDialog —
- * we deliberately do NOT mirror them here. Persisting chat history across
- * panel closes is a future concern.
+ * Conversation messages themselves are owned by the Ask AI chat runtime inside
+ * AskAiDialog — we deliberately do NOT mirror them here. Persisting chat
+ * history across panel closes is a future concern.
  */
 export const useAskAiStore = create<AskAiState>((set) => ({
   isOpen: false,

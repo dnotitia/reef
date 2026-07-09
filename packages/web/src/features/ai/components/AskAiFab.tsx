@@ -10,8 +10,8 @@ interface AskAiFabProps {
   /**
    * Number of assistant-side messages currently in the dialog. Used to compute
    * an unread dot when new replies arrive while the panel is closed. The
-   * dialog passes this in so the FAB does not have to subscribe to useChat
-   * itself.
+   * dialog passes this in so the FAB does not have to subscribe to the chat
+   * runtime itself.
    */
   messageCount?: number;
   /**

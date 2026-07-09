@@ -14,6 +14,12 @@ explicitly in the entries below.
 
 ### Added
 
+- **Issue descriptions turn akb document URIs into readable links.** Pasting a
+  bare `akb://.../doc/...` document URI into an issue body now turns it into a
+  markdown link whose text uses the document title when reef can resolve it,
+  while custom link text is preserved. Rendered document links still keep the
+  original akb URI in markdown storage and open through the configured akb web
+  URL. (REEF-395)
 - **Issue detail now uses a details-first right rail.** The issue detail sheet
   and new-issue dialog share a wider 400px property rail for Details, People,
   Planning, Parent, and Relationships, while title, description, Sub-issues,
@@ -118,9 +124,16 @@ explicitly in the entries below.
   marker keeps reef's blocked/destructive color language, keeps its
   `Blocked by N issues` accessible label, and stays stable in narrow
   relationship columns. (REEF-397)
+- **Planning milestone closed badges now read as closed, not done.** Closed
+  milestones now use the same closed-status color as closed sprints, while
+  released releases keep the done color reserved for shipped work. (REEF-396)
 
 ### Operational
 
+- **The legacy chat endpoint has been removed.** Ask AI streaming now uses only
+  `POST /api/agents/runs` with `task_id: "chat.workspace"`; deployment docs,
+  proxy comments, and web package guidance now describe that route as the SSE
+  buffering contract. (REEF-371)
 - **Background orchestration now has a separate runtime package.** reef adds a
   private `@reef/orchestrator` workspace package with config loading, a dry-run
   startup smoke path, an idle loop shell, graceful shutdown handling, and a
@@ -389,8 +402,8 @@ explicitly in the entries below.
   failing silently (REEF-240 / REEF-244).
 - **Ground Ask AI, enrich, and agent runs without a personal access token.**
   When a deployment configures a GitHub App, the monitored-repo code grounding
-  behind Ask AI (`/api/chat`), issue enrichment (`/api/enrich`), and agent runs
-  (`/api/agents/runs`) now reads repositories through the server-managed App
+  behind Ask AI and agent runs (`/api/agents/runs`) plus issue enrichment
+  (`/api/enrich`) now reads repositories through the server-managed App
   installation, so AI answers can cite repo code without a GitHub PAT in the
   browser. Because grounding is an enhancement, any GitHub unavailability — no
   deployment-managed credential, an unverified session, or a revoked /
