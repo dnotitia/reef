@@ -117,6 +117,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Planning pages no longer recover from a hydration mismatch on reload.**
+  Restored planning catalog cache now waits until after the first client
+  hydration render before replacing the SSR skeleton, so the planning table no
+  longer remounts from a skeleton/table DOM mismatch.
 - **Planning milestone closed badges now read as closed, not done.** Closed
   milestones now use the same closed-status color as closed sprints, while
   released releases keep the done color reserved for shipped work. (REEF-396)
