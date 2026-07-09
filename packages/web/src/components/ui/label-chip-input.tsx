@@ -13,6 +13,7 @@ interface LabelChipInputProps {
   disabled?: boolean;
   className?: string;
   autoFocus?: boolean;
+  ariaLabel?: string;
   "data-testid"?: string;
 }
 
@@ -24,6 +25,7 @@ export function LabelChipInput({
   disabled = false,
   className,
   autoFocus = false,
+  ariaLabel,
   "data-testid": testId,
 }: LabelChipInputProps) {
   const [draft, setDraft] = useState("");
@@ -101,9 +103,11 @@ export function LabelChipInput({
       {value.map((label, i) => (
         <span
           key={label}
-          className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-xs text-foreground"
+          className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-full border border-border bg-secondary py-0.5 pl-2 pr-0.5 text-xs text-foreground"
         >
-          {label}
+          <span className="min-w-0 max-w-[10rem] truncate" title={label}>
+            {label}
+          </span>
           <button
             type="button"
             onClick={(e) => {
@@ -111,7 +115,7 @@ export function LabelChipInput({
               removeAt(i);
             }}
             disabled={disabled}
-            className="-mr-0.5 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground disabled:cursor-not-allowed"
+            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 disabled:cursor-not-allowed disabled:opacity-50"
             aria-label={t("removeLabel", { label })}
           >
             <X className="h-2.5 w-2.5" />
@@ -127,6 +131,7 @@ export function LabelChipInput({
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
         onBlur={commitDraft}
+        aria-label={ariaLabel}
         placeholder={value.length === 0 ? resolvedPlaceholder : undefined}
         disabled={disabled}
         // Labels are free-form tokens, not prose: suppress the browser's
@@ -134,7 +139,10 @@ export function LabelChipInput({
         // tag entry everywhere this control is reused.
         autoComplete="off"
         spellCheck={false}
-        className="min-w-[6rem] flex-1 border-0 bg-transparent px-1 py-0.5 text-[13px] outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
+        className={cn(
+          "flex-1 border-0 bg-transparent px-1 py-0.5 text-[13px] outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed",
+          "min-w-[6rem]",
+        )}
       />
     </div>
   );

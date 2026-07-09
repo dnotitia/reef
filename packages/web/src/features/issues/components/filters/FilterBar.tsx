@@ -7,9 +7,19 @@ import { SeverityBadge } from "@/components/fields/SeverityBadge";
 import { TypePill } from "@/components/fields/TypePill";
 import { DEPENDENCY_OPTIONS, DUE_OPTIONS } from "@/components/fields/fieldKit";
 import type { ComboboxOption } from "@/components/ui/combobox";
-import { CBX_TRIGGER_ACTIVE } from "@/components/ui/comboboxChrome";
+import {
+  CBX_CHEVRON,
+  CBX_TRIGGER_CHIP,
+  CBX_TRIGGER_CHIP_ACTIVE,
+  CBX_TRIGGER_CHIP_INACTIVE,
+} from "@/components/ui/comboboxChrome";
 import { LabelChipInput } from "@/components/ui/label-chip-input";
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { PriorityBadge } from "@/components/ui/priority-dot";
 import { StatusBadge } from "@/components/ui/status-icon";
 import { PlanningItemCombobox } from "@/features/planning/components/PlanningItemCombobox";
@@ -28,9 +38,9 @@ import { cn } from "@/lib/utils";
 import type { Status } from "@reef/core";
 import { PRIORITY_OPTIONS } from "@reef/core/fields";
 import { STATUS_OPTIONS } from "@reef/core/fields";
-import { X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatLabelFilter, parseLabelFilter } from "../../lib/issueListUtils";
 import {
   ISSUE_TYPE_OPTIONS,
@@ -47,11 +57,16 @@ import { DisplayOptionsFilter } from "./DisplayOptionsFilter";
 export const USER_FILTER_PANEL_CLASS = "min-w-[17rem] max-w-[90vw]";
 
 /**
- * Shared width policy for Milestone and Labels: hug the selected value, keep an
- * empty field readable, and cap long values before they push the bar wide
- * (REEF-269). Multi-select facets use chip triggers instead.
+ * Width policy for the remaining single-select Milestone value field: hug the
+ * selected value, keep the empty field readable, and cap long values before they
+ * push the bar wide (REEF-269). Multi-select facets use chip triggers instead.
  */
 export const FILTER_FIELD_CLASS = "w-fit min-w-[9rem] max-w-[16rem]";
+
+/** Labels are free-form tokens, so their facet opens a token-entry panel rather
+ * than a fixed option list. Keep the closed trigger on the same compact chip
+ * vocabulary as Status/Type/Priority, and put the wider editor in the panel. */
+export const LABEL_FILTER_PANEL_CLASS = "w-72 max-w-[calc(100vw-2rem)] p-2";
 
 /**
  * Wrapper for the single-select Milestone value field. The width token lives on
@@ -152,6 +167,84 @@ function countActiveFilters(
   if (filter.label?.trim()) count++;
   if (filter.dependencyFilter?.length) count++;
   return count;
+}
+
+interface LabelFilterFacetProps {
+  label: string;
+  values: readonly string[];
+  onChange: (next: string[]) => void;
+  active: boolean;
+}
+
+function LabelFilterFacet({
+  label,
+  values,
+  onChange,
+  active,
+}: LabelFilterFacetProps) {
+  const [open, setOpen] = useState(false);
+  const closeTimerRef = useRef<number | null>(null);
+  const summary = values.length > 0 ? ` (${values.length})` : "";
+
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current !== null) {
+        window.clearTimeout(closeTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleOpenChange = useCallback((nextOpen: boolean) => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+
+    if (nextOpen) {
+      setOpen(true);
+      return;
+    }
+
+    // LabelChipInput intentionally commits partial drafts on blur. The popover
+    // primitive dismisses on document mousedown, which can otherwise unmount the
+    // focused input before the browser delivers blur.
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    closeTimerRef.current = window.setTimeout(() => {
+      closeTimerRef.current = null;
+      setOpen(false);
+    }, 0);
+  }, []);
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger
+        className={cn(
+          CBX_TRIGGER_CHIP,
+          active ? CBX_TRIGGER_CHIP_ACTIVE : CBX_TRIGGER_CHIP_INACTIVE,
+        )}
+        data-testid="labels-dropdown-trigger"
+      >
+        <span>{label}</span>
+        {summary ? <span>{summary}</span> : null}
+        <ChevronDown className={CBX_CHEVRON} data-open={open} />
+      </PopoverTrigger>
+      <PopoverContent
+        aria-label={label}
+        className={LABEL_FILTER_PANEL_CLASS}
+        data-testid="labels-dropdown-content"
+      >
+        <LabelChipInput
+          value={values}
+          onChange={onChange}
+          ariaLabel={label}
+          autoFocus={open}
+          data-testid="labels-input"
+        />
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 interface FilterBarProps {
@@ -432,26 +525,12 @@ export function FilterBar({
       )}
 
       {/* Labels filter */}
-      <div
-        className={cn("relative", FILTER_FIELD_CLASS)}
-        data-testid="labels-filter"
-      >
-        <LabelChipInput
-          value={labelValues}
+      <div data-testid="labels-filter">
+        <LabelFilterFacet
+          label={fieldNames.labels}
+          values={labelValues}
           onChange={handleLabelsChange}
-          placeholder={fieldNames.labels}
-          data-testid="labels-input"
-          // Unlike the combobox value fields — whose closed trigger shows a short
-          // placeholder so they rest at the shared `9rem` floor — the chip input's
-          // text field carries a browser-default ~20ch intrinsic width that would
-          // push this `w-fit` wrapper past the floor and break the empty-state
-          // alignment. Zero the input's width basis so it flexes to fill the
-          // floored field instead of dictating it; the field still hugs upward as
-          // chips accumulate, up to the shared `16rem` cap (REEF-269).
-          className={cn(
-            "min-h-8 py-1 [&_input]:w-0",
-            filter.label?.trim() && CBX_TRIGGER_ACTIVE,
-          )}
+          active={Boolean(filter.label?.trim())}
         />
       </div>
 

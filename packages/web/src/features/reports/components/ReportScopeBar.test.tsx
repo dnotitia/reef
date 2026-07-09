@@ -74,7 +74,14 @@ describe("ReportScopeBar", () => {
   it("keeps report controls on readable responsive tracks", () => {
     renderBar();
     expect(screen.getByTestId("report-scope-bar").className).toContain(
-      "grid-cols-[repeat(auto-fit,minmax(13rem,1fr))]",
+      "grid-cols-[repeat(auto-fit,minmax(min(13rem,100%),1fr))]",
+    );
+  });
+
+  it("gives the labels input an explicit accessible name", () => {
+    renderBar();
+    expect(screen.getByLabelText("Labels")).toBe(
+      screen.getByTestId("report-label-input"),
     );
   });
 

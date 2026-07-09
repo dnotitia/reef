@@ -84,7 +84,7 @@ export function ReportScopeBar({
   return (
     <div
       data-testid="report-scope-bar"
-      className="grid w-full grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-2 rounded-lg border border-border-subtle bg-surface-subtle p-2"
+      className="grid w-full grid-cols-[repeat(auto-fit,minmax(min(13rem,100%),1fr))] gap-2 rounded-lg border border-border-subtle bg-surface-subtle p-2"
     >
       <ScopeSelect
         label={t("period")}
@@ -165,6 +165,7 @@ export function ReportScopeBar({
         <LabelChipInput
           value={labelValues}
           onChange={(labels) => patch({ label: formatLabelFilter(labels) })}
+          ariaLabel={fieldNames.labels}
           placeholder={fieldNames.labels}
           data-testid="report-label-input"
         />

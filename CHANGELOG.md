@@ -121,6 +121,11 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Labels now match the rest of the Issues filter bar.** The free-form Labels
+  filter now opens from the same compact chip trigger as the other issue facets,
+  with label entry in a popover panel, so it no longer stretches the filter row
+  like a standalone text field. Issue detail, reports, templates, and new-issue
+  forms keep the wider token-entry field where direct editing belongs. (REEF-394)
 - **Blocked markers in relationship rows no longer shift issue titles.**
   Sub-issue and relationship rows now reserve a dedicated blocker-count column,
   so issue titles, type icons, and priority dots stay aligned whether a row is

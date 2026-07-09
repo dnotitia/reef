@@ -26,12 +26,14 @@ describe("persisted issue filter (config helpers)", () => {
     await setPersistedIssueFilter("reef-acme", {
       status: ["todo"],
       priority: ["high"],
+      label: "ui,risk",
       sortField: "updated_at",
       sortOrder: "desc",
     });
     expect(await getPersistedIssueFilter("reef-acme")).toEqual({
       status: ["todo"],
       priority: ["high"],
+      label: "ui,risk",
       sortField: "updated_at",
       sortOrder: "desc",
     });

@@ -59,6 +59,9 @@ function Harness() {
       <button type="button" onClick={() => setFilter({ priority: ["high"] })}>
         Set priority
       </button>
+      <button type="button" onClick={() => setFilter({ label: "ui,risk" })}>
+        Set labels
+      </button>
     </>
   );
 }
@@ -286,6 +289,23 @@ describe("useIssueUrlSync", () => {
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith(
         "/workspace/reef-acme/issues?status=todo",
+        {
+          scroll: false,
+        },
+      );
+    });
+  });
+
+  it("writes the comma-joined labels filter back to the current route", async () => {
+    render(<Harness />);
+    await waitFor(() => expect(mockPush).not.toHaveBeenCalled());
+    mockPush.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: "Set labels" }));
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith(
+        "/workspace/reef-acme/issues?labels=ui%2Crisk",
         {
           scroll: false,
         },

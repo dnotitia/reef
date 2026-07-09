@@ -1,7 +1,13 @@
 import { PLANNING_ITEM_PANEL_CLASS } from "@/features/planning/components/PlanningItemCombobox";
 import { WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +15,7 @@ import { useIssueStore } from "../../stores/useIssueStore";
 import {
   FILTER_FIELD_CLASS,
   FilterBar,
+  LABEL_FILTER_PANEL_CLASS,
   PLANNING_FILTER_WRAPPER_CLASS,
   USER_FILTER_PANEL_CLASS,
 } from "./FilterBar";
@@ -69,7 +76,25 @@ describe("FilterBar", () => {
     expect(screen.getByTestId("dependency-dropdown-trigger")).toBeTruthy();
     expect(screen.getByTestId("assignee-filter")).toBeTruthy();
     expect(screen.getByTestId("requester-filter")).toBeTruthy();
-    expect(screen.getByTestId("labels-input")).toBeTruthy();
+    expect(screen.getByTestId("labels-dropdown-trigger")).toBeTruthy();
+  });
+
+  it("renders Labels as a compact facet trigger with a named token-entry panel", async () => {
+    const user = userEvent.setup();
+    renderFilterBar();
+
+    const trigger = screen.getByTestId("labels-dropdown-trigger");
+    expect(trigger.textContent).toContain("Labels");
+    expect(trigger.className).toContain("inline-flex");
+    expect(trigger.className).not.toContain("min-w-[9rem]");
+    expect(screen.queryByTestId("labels-input")).toBeNull();
+
+    await user.click(trigger);
+    const panel = screen.getByTestId("labels-dropdown-content");
+    const input = screen.getByTestId("labels-input");
+    expect(panel.className).toContain(LABEL_FILTER_PANEL_CLASS);
+    expect(screen.getByRole("textbox", { name: "Labels" })).toBe(input);
+    expect(input.getAttribute("placeholder")).not.toBe("Labels");
   });
 
   it("keeps Milestone a single-select value field with a readable panel; Sprint/Release are multi-select chips (REEF-267)", async () => {
@@ -172,7 +197,7 @@ describe("FilterBar", () => {
     expect(screen.getByTestId("dependency-dropdown-trigger")).toBeTruthy();
     expect(screen.getByTestId("assignee-filter")).toBeTruthy();
     expect(screen.getByTestId("requester-filter")).toBeTruthy();
-    expect(screen.getByTestId("labels-input")).toBeTruthy();
+    expect(screen.getByTestId("labels-dropdown-trigger")).toBeTruthy();
   });
 
   it("ignores stray status/sprint/release/due values in the backlog active count (REEF-109, REEF-177)", () => {
@@ -317,15 +342,11 @@ describe("FilterBar", () => {
     expect(USER_FILTER_PANEL_CLASS).toContain("min-w-[17rem]");
   });
 
-  // REEF-269/267: after Assignee · Requester · Sprint · Release became
-  // multi-select chips, the remaining "value field" comboboxes are just Milestone
-  // and Labels, both still drawing their width from the single FILTER_FIELD_CLASS
-  // token. The token lives on each field's width-controlling element: the wrapper
-  // for the labels field, the inner combobox root (the trigger's parent) for
-  // Milestone, matching REEF-246's fit-content placement. jsdom can not measure
-  // pixels, so this is a class-contract regression guard; the real visual
-  // alignment is checked in the hermetic runtime.
-  it("sizes the remaining value fields (Milestone, Labels) from the shared FILTER_FIELD_CLASS token (REEF-269/267)", () => {
+  // REEF-269/267/394: Milestone is the remaining single-select value field and
+  // still draws from FILTER_FIELD_CLASS. Labels joined the compact facet-chip
+  // vocabulary, so it must not carry the value-field floor/cap that made the bar
+  // visually uneven.
+  it("keeps Milestone on the value-field token while Labels uses the compact facet trigger (REEF-269/267/394)", () => {
     vi.mocked(useActiveVault).mockReturnValue({
       vault: "reef-acme",
       isLoading: false,
@@ -333,15 +354,17 @@ describe("FilterBar", () => {
     });
     renderFilterBar();
 
-    // Labels field: the token is on the field wrapper.
-    expect(screen.getByTestId("labels-filter").className).toContain(
-      FILTER_FIELD_CLASS,
-    );
     // Milestone (the one single-select planning field): the token is on the
     // inner combobox root (the trigger's parent), per REEF-246's placement.
     expect(
       screen.getByLabelText("Milestone").parentElement?.className,
     ).toContain(FILTER_FIELD_CLASS);
+
+    const labelsTrigger = screen.getByTestId("labels-dropdown-trigger");
+    expect(labelsTrigger.className).toContain("inline-flex");
+    expect(labelsTrigger.className).not.toContain("w-fit");
+    expect(labelsTrigger.className).not.toContain("min-w-[9rem]");
+    expect(labelsTrigger.className).not.toContain("max-w-[16rem]");
   });
 
   // REEF-269/267: the multi-select facet chips are NOT value fields — they keep
@@ -362,6 +385,7 @@ describe("FilterBar", () => {
       "requester-dropdown-trigger",
       "sprint-dropdown-trigger",
       "release-dropdown-trigger",
+      "labels-dropdown-trigger",
     ]) {
       const chip = screen.getByTestId(testId);
       expect(chip.className).toContain("inline-flex");
@@ -409,6 +433,7 @@ describe("FilterBar", () => {
   it("commits labels with Enter instead of asking for comma-separated text", async () => {
     const user = userEvent.setup();
     renderFilterBar();
+    await user.click(screen.getByTestId("labels-dropdown-trigger"));
     const input = screen.getByTestId("labels-input");
     expect(input.getAttribute("placeholder")).not.toContain("comma");
 
@@ -418,11 +443,50 @@ describe("FilterBar", () => {
     expect(screen.getByText("ui")).toBeTruthy();
   });
 
+  it("commits a draft label before dismissing the labels popover on click-away", async () => {
+    const user = userEvent.setup();
+    renderFilterBar();
+    await user.click(screen.getByTestId("labels-dropdown-trigger"));
+    const input = screen.getByTestId("labels-input");
+
+    await user.type(input, "ui");
+    await user.click(screen.getByTestId("status-dropdown-trigger"));
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.label).toBe("ui");
+    });
+    expect(screen.queryByTestId("labels-dropdown-content")).toBeNull();
+  });
+
+  it("renders restored comma-joined labels as an active compact facet and truncates chips in the panel", async () => {
+    const user = userEvent.setup();
+    const longLabel = "very-long-label-that-should-not-expand-the-filter-bar";
+    useIssueStore.setState({
+      filter: { label: `ui,${longLabel}` },
+      searchQuery: "",
+      selectedIssueId: null,
+    });
+    renderFilterBar();
+
+    const trigger = screen.getByTestId("labels-dropdown-trigger");
+    expect(trigger.className).toContain("border-brand");
+    expect(trigger.textContent).toContain("Labels (2)");
+    expect(screen.getByTestId("active-filter-count").textContent).toContain(
+      "1 filter",
+    );
+
+    await user.click(trigger);
+    expect(screen.getByText(longLabel)).toHaveAttribute("title", longLabel);
+    expect(screen.getByText(longLabel).className).toContain("truncate");
+  });
+
   // Labels are free-form tokens, not prose — the input suppresses the browser's
   // spellcheck underline and autofill so it reads as tag entry (web interface
   // guidelines: spellcheck off + autocomplete off on non-prose fields).
-  it("disables spellcheck and autocomplete on the labels input", () => {
+  it("disables spellcheck and autocomplete on the labels input", async () => {
+    const user = userEvent.setup();
     renderFilterBar();
+    await user.click(screen.getByTestId("labels-dropdown-trigger"));
     const input = screen.getByTestId("labels-input");
     expect(input.getAttribute("spellcheck")).toBe("false");
     expect(input.getAttribute("autocomplete")).toBe("off");
@@ -431,6 +495,7 @@ describe("FilterBar", () => {
   it("serializes multiple label chips with the existing comma filter contract", async () => {
     const user = userEvent.setup();
     renderFilterBar();
+    await user.click(screen.getByTestId("labels-dropdown-trigger"));
     const input = screen.getByTestId("labels-input");
 
     await user.type(input, "auth{Enter}infra{Enter}");
