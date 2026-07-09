@@ -61,27 +61,39 @@ describe("IssueOptionRow", () => {
     expect(screen.getByLabelText("Blocked by 2 issues")).toBeInTheDocument();
   });
 
-  it("lays the row out as a grid with blocker as trailing metadata", () => {
+  it("lays the row out as a compact summary plus trailing metadata", () => {
     // The grid (not a flex row) keeps the title from collapsing and the type /
-    // priority / blocker columns aligned. The blocker slot is trailing metadata
-    // so it does not split the id/title identity flow (REEF-397).
+    // priority / blocker columns aligned. The id and title share one summary
+    // track so there is no fixed gutter between the issue key and title
+    // (REEF-397).
     const { container } = render(
       <IssueOptionRow issue={{ ...ISSUE, priority: null }} />,
     );
     const root = container.firstChild as HTMLElement;
-    expect(root.className).toContain(
-      "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem_minmax(1.25rem,auto)]",
+    expect(root.className).toContain("grid-cols-[auto_minmax(0,1fr)_auto]");
+    const summary = root.querySelector('[data-issue-option-slot="summary"]');
+    expect(summary?.className).toContain("gap-2");
+    const metadata = root.querySelector('[data-issue-option-slot="metadata"]');
+    expect(metadata?.className).toContain(
+      "grid-cols-[auto_0.75rem_minmax(1rem,auto)]",
     );
+    expect(metadata?.className).toContain("gap-x-1.5");
     const identity = root.querySelector('[data-issue-option-slot="identity"]');
-    expect(identity?.className).toContain("min-w-0");
+    const title = screen.getByText("Card-level dropdown rows");
+    const titleSlot = title.closest('[data-issue-option-slot="title"]');
+    expect(summary).toContainElement(identity as HTMLElement);
+    expect(summary).toContainElement(titleSlot as HTMLElement);
     const issueId = screen.getByText("REEF-042");
     expect(issueId.className).toContain("block");
     expect(issueId.className).toContain("truncate");
     expect(issueId.parentElement?.className).toContain("shrink-0");
     const blocker = root.querySelector('[data-issue-option-slot="blocker"]');
     expect(blocker).not.toBeNull();
-    expect(blocker?.className).toContain("min-w-5");
+    expect(blocker?.className).toContain("min-w-4");
+    expect(blocker?.className).toContain("justify-start");
     expect(blocker?.className).not.toContain("overflow-hidden");
+    expect(summary).not.toContainElement(blocker as HTMLElement);
+    expect(metadata).toContainElement(blocker as HTMLElement);
     expect(identity).not.toContainElement(blocker as HTMLElement);
     // No priority dot, but its column is still reserved so dots align row-to-row.
     expect(screen.queryByLabelText(/Priority:/)).toBeNull();
@@ -134,16 +146,18 @@ describe("IssueOptionRow", () => {
     );
 
     const root = container.firstChild as HTMLElement;
-    expect(root.className).toContain(
-      "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem_minmax(1.25rem,auto)]",
-    );
+    expect(root.className).toContain("grid-cols-[auto_minmax(0,1fr)_auto]");
     const marker = screen.getByLabelText("Blocked by 12 issues");
     expect(marker).toHaveTextContent("9+");
     expect(marker.closest('[data-issue-option-slot="blocker"]')).not.toBeNull();
     expect(
       marker.closest('[data-issue-option-slot="blocker"]')?.className,
-    ).toContain("min-w-5");
-    expect(marker.className).toContain("text-destructive/80");
+    ).toContain("min-w-4");
+    expect(
+      marker.closest('[data-issue-option-slot="metadata"]')?.className,
+    ).toContain("gap-x-1.5");
+    expect(marker.className).toContain("text-destructive/70");
+    expect(marker.className).toContain("font-normal");
     expect(marker.className).not.toContain("max-w-full");
 
     const title = screen.getByText(/A very long relation row title/);

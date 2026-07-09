@@ -150,10 +150,14 @@ describe("IssueRelationInput", () => {
     expect(identity).not.toBeNull();
     expect(blockerSlot).toBeEmptyDOMElement();
     expect(identity).not.toContainElement(blockerSlot);
+    expect(
+      row.querySelector('[data-issue-option-slot="summary"]'),
+    ).toContainElement(identity);
+    expect(
+      row.querySelector('[data-issue-option-slot="metadata"]')?.className,
+    ).toContain("gap-x-1.5");
     expect(title.closest('[data-issue-option-slot="title"]')).not.toBeNull();
-    expect(row.className).toContain(
-      "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem_minmax(1.25rem,auto)]",
-    );
+    expect(row.className).toContain("grid-cols-[auto_minmax(0,1fr)_auto]");
   });
 
   // REEF-032: candidate dropdown is now a card-level combobox.
@@ -409,9 +413,13 @@ describe("IssueRelationInput", () => {
     expect(
       title.closest('[data-issue-option-slot="title"]'),
     ).not.toContainElement(badge);
-    expect(row?.className).toContain(
-      "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem_minmax(1.25rem,auto)]",
-    );
+    expect(
+      row?.querySelector('[data-issue-option-slot="summary"]'),
+    ).not.toContainElement(badge);
+    expect(
+      row?.querySelector('[data-issue-option-slot="metadata"]'),
+    ).toContainElement(badge);
+    expect(row?.className).toContain("grid-cols-[auto_minmax(0,1fr)_auto]");
   });
 
   it("adds a candidate chosen from the dropdown", async () => {

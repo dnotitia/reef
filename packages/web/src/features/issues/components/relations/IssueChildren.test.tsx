@@ -214,8 +214,12 @@ describe("IssueChildren", () => {
     expect(
       title.closest('[data-issue-option-slot="title"]'),
     ).not.toContainElement(badge);
-    expect(row?.className).toContain(
-      "grid-cols-[auto_minmax(5rem,max-content)_minmax(0,1fr)_auto_0.75rem_minmax(1.25rem,auto)]",
-    );
+    expect(
+      row?.querySelector('[data-issue-option-slot="summary"]'),
+    ).not.toContainElement(badge);
+    expect(
+      row?.querySelector('[data-issue-option-slot="metadata"]'),
+    ).toContainElement(badge);
+    expect(row?.className).toContain("grid-cols-[auto_minmax(0,1fr)_auto]");
   });
 });
