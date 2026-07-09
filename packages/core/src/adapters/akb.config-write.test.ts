@@ -144,17 +144,7 @@ describe("writeConfig (tables)", () => {
   it("creates missing tables on first write (lazy provisioning)", async () => {
     const { calls } = setupFetch([
       { body: makeListTablesResponse([]) },
-      { status: 201, body: { name: REEF_SETTINGS_TABLE } },
-      { status: 201, body: { name: MONITORED_REPOS_TABLE } },
-      { status: 201, body: { name: REEF_ISSUES_TABLE } },
-      { status: 201, body: { name: REEF_SPRINTS_TABLE } },
-      { status: 201, body: { name: REEF_MILESTONES_TABLE } },
-      { status: 201, body: { name: REEF_RELEASES_TABLE } },
-      { status: 201, body: { name: REEF_TEMPLATES_TABLE } },
-      { status: 201, body: { name: REEF_ACTIVITY_SUGGESTIONS_TABLE } },
-      { status: 201, body: { name: REEF_COMMENTS_TABLE } },
-      { status: 201, body: { name: REEF_ATTACHMENTS_TABLE } },
-      { status: 201, body: { name: REEF_ACTIVITY_TABLE } },
+      ...ALL_REEF_TABLES.map((name) => ({ status: 201, body: { name } })),
       { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlMutationResponse("DELETE 0") }, // DELETE project_prefix
       { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT project_prefix
@@ -180,10 +170,10 @@ describe("writeConfig (tables)", () => {
         ai_scanning_enabled: false,
       },
     });
-    expect(calls).toHaveLength(23);
+    expect(calls).toHaveLength(ALL_REEF_TABLES.length + 12);
     expect(calls[0]?.url).toBe("https://akb.test/api/v1/tables/reef-sample");
     const createNames = calls
-      .slice(1, 12)
+      .slice(1, 1 + ALL_REEF_TABLES.length)
       .map((c) => JSON.parse(c.init?.body as string).name);
     expect(createNames).toEqual(ALL_REEF_TABLES);
   });

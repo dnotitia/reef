@@ -5,6 +5,9 @@ import {
   MONITORED_REPOS_TABLE,
   REEF_ACTIVITY_SUGGESTIONS_TABLE,
   REEF_ACTIVITY_TABLE,
+  REEF_AGENT_RUNS_TABLE,
+  REEF_AGENT_RUN_ATTEMPTS_TABLE,
+  REEF_AGENT_RUN_EVENTS_TABLE,
   REEF_ATTACHMENTS_TABLE,
   REEF_COMMENTS_TABLE,
   REEF_DESIRED_TABLES,
@@ -16,6 +19,7 @@ import {
   REEF_SETTINGS_TABLE,
   REEF_SPRINTS_TABLE,
   REEF_TEMPLATES_TABLE,
+  REEF_WORK_EVENTS_TABLE,
   ensureReefTables,
   makeAdapter,
   makeListTablesResponse,
@@ -68,11 +72,15 @@ describe("ensureReefTables", () => {
       { status: 201, body: { name: REEF_COMMENTS_TABLE } },
       { status: 201, body: { name: REEF_ATTACHMENTS_TABLE } },
       { status: 201, body: { name: REEF_ACTIVITY_TABLE } },
+      { status: 201, body: { name: REEF_WORK_EVENTS_TABLE } },
+      { status: 201, body: { name: REEF_AGENT_RUNS_TABLE } },
+      { status: 201, body: { name: REEF_AGENT_RUN_ATTEMPTS_TABLE } },
+      { status: 201, body: { name: REEF_AGENT_RUN_EVENTS_TABLE } },
       { body: makeListTablesResponse(ALL_REEF_TABLES) },
     ]);
     const adapter = makeAdapter();
     await ensureReefTables({ adapter, vault: "reef-sample" });
-    expect(calls).toHaveLength(13);
+    expect(calls).toHaveLength(ALL_REEF_TABLES.length + 2);
     expect(calls[0]?.url).toBe("https://akb.test/api/v1/tables/reef-sample");
     expect(calls[0]?.init?.method ?? "GET").toBe("GET");
     const firstCreate = JSON.parse(calls[1]?.init?.body as string);
@@ -259,6 +267,73 @@ describe("ensureReefTables", () => {
     expect(activityColumnNames).not.toContain("created_at");
     expect(activityColumnNames).not.toContain("updated_at");
     expect(activityColumnNames).not.toContain("created_by");
+
+    const twelfthCreate = JSON.parse(calls[12]?.init?.body as string);
+    expect(twelfthCreate.name).toBe(REEF_WORK_EVENTS_TABLE);
+    expect(twelfthCreate.columns).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "work_event_id",
+          type: "text",
+          required: true,
+        }),
+        expect.objectContaining({ name: "event_key", type: "text" }),
+        expect.objectContaining({ name: "payload", type: "json" }),
+      ]),
+    );
+
+    const thirteenthCreate = JSON.parse(calls[13]?.init?.body as string);
+    expect(thirteenthCreate.name).toBe(REEF_AGENT_RUNS_TABLE);
+    expect(thirteenthCreate.columns).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "run_id",
+          type: "text",
+          required: true,
+        }),
+        expect.objectContaining({ name: "status", type: "text" }),
+        expect.objectContaining({ name: "phase", type: "text" }),
+        expect.objectContaining({ name: "state_updated_at", type: "text" }),
+        expect.objectContaining({ name: "target", type: "json" }),
+      ]),
+    );
+    const runColumnNames = (
+      thirteenthCreate.columns as Array<{ name: string }>
+    ).map((c) => c.name);
+    expect(runColumnNames).not.toContain("updated_at");
+
+    const fourteenthCreate = JSON.parse(calls[14]?.init?.body as string);
+    expect(fourteenthCreate.name).toBe(REEF_AGENT_RUN_ATTEMPTS_TABLE);
+    expect(fourteenthCreate.columns).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "attempt_id",
+          type: "text",
+          required: true,
+        }),
+        expect.objectContaining({ name: "attempt_number", type: "number" }),
+        expect.objectContaining({ name: "result", type: "json" }),
+      ]),
+    );
+
+    const fifteenthCreate = JSON.parse(calls[15]?.init?.body as string);
+    expect(fifteenthCreate.name).toBe(REEF_AGENT_RUN_EVENTS_TABLE);
+    expect(fifteenthCreate.columns).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "run_event_id",
+          type: "text",
+          required: true,
+        }),
+        expect.objectContaining({ name: "seq", type: "number" }),
+        expect.objectContaining({ name: "emitted_at", type: "text" }),
+        expect.objectContaining({ name: "payload", type: "json" }),
+      ]),
+    );
+    const runEventColumnNames = (
+      fifteenthCreate.columns as Array<{ name: string }>
+    ).map((c) => c.name);
+    expect(runEventColumnNames).not.toContain("created_at");
   });
 
   it("creates only the missing tables when some already exist", async () => {
@@ -274,26 +349,21 @@ describe("ensureReefTables", () => {
       { status: 201, body: { name: REEF_COMMENTS_TABLE } },
       { status: 201, body: { name: REEF_ATTACHMENTS_TABLE } },
       { status: 201, body: { name: REEF_ACTIVITY_TABLE } },
+      { status: 201, body: { name: REEF_WORK_EVENTS_TABLE } },
+      { status: 201, body: { name: REEF_AGENT_RUNS_TABLE } },
+      { status: 201, body: { name: REEF_AGENT_RUN_ATTEMPTS_TABLE } },
+      { status: 201, body: { name: REEF_AGENT_RUN_EVENTS_TABLE } },
       { body: makeListTablesResponse(ALL_REEF_TABLES) },
     ]);
     const adapter = makeAdapter();
     await ensureReefTables({ adapter, vault: "reef-sample" });
-    expect(calls).toHaveLength(12);
+    expect(calls).toHaveLength(ALL_REEF_TABLES.length + 1);
     const createdNames = calls
-      .slice(1, 11)
+      .slice(1, ALL_REEF_TABLES.length)
       .map((c) => JSON.parse(c.init?.body as string).name);
-    expect(createdNames).toEqual([
-      MONITORED_REPOS_TABLE,
-      REEF_ISSUES_TABLE,
-      REEF_SPRINTS_TABLE,
-      REEF_MILESTONES_TABLE,
-      REEF_RELEASES_TABLE,
-      REEF_TEMPLATES_TABLE,
-      REEF_ACTIVITY_SUGGESTIONS_TABLE,
-      REEF_COMMENTS_TABLE,
-      REEF_ATTACHMENTS_TABLE,
-      REEF_ACTIVITY_TABLE,
-    ]);
+    expect(createdNames).toEqual(
+      ALL_REEF_TABLES.filter((name) => name !== REEF_SETTINGS_TABLE),
+    );
   });
 
   it("is a no-op when all tables already exist", async () => {

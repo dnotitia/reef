@@ -141,6 +141,12 @@ explicitly in the entries below.
 
 ### Operational
 
+- **Agent orchestration runs now have durable core data contracts.** reef adds
+  AKB-backed core schemas and table manifests for work events, agent runs, run
+  attempts, run events, and development targets, with run status kept separate
+  from issue status and internal phase. This provisions the storage contract for
+  the follow-up worker claim and UI issues without changing current issue
+  workflows. (REEF-380)
 - **Jira migration now has a read-only operator package.** reef adds a private
   `@reef/jira-migrator` workspace package with Jira REST v3 read client
   scaffolding, SHDEV/SDDEV project config loading, secret redaction helpers,

@@ -70,6 +70,10 @@ const ALL_REEF_TABLES = [
   "reef_comments",
   "reef_attachments",
   "reef_activity",
+  "reef_work_events",
+  "reef_agent_runs",
+  "reef_agent_run_attempts",
+  "reef_agent_run_events",
 ];
 
 /**

@@ -3,6 +3,13 @@ import type {
   ActivitySuggestionStatus,
 } from "../../../schemas/activity/suggestion";
 import type {
+  AgentRunAttempt,
+  AgentRunEventRecord,
+  AgentRunRecord,
+  AgentRunWithIssueStatus,
+  WorkEvent,
+} from "../../../schemas/ai/runRecords";
+import type {
   IssueCreateInput,
   IssueMetadata,
   IssueUpdateInput,
@@ -204,6 +211,82 @@ export interface WriteMultipleIssuesItemResult {
 
 export interface WriteMultipleIssuesOutput {
   results: WriteMultipleIssuesItemResult[];
+}
+
+// ── Durable agent run/work-event data ──
+
+export interface AppendWorkEventParams {
+  adapter: AkbAdapter;
+  vault: string;
+  event: WorkEvent;
+}
+
+export interface WriteAgentRunParams {
+  adapter: AkbAdapter;
+  vault: string;
+  run: AgentRunRecord;
+}
+
+export interface ReadAgentRunParams {
+  adapter: AkbAdapter;
+  vault: string;
+  runId: string;
+}
+
+export interface ReadAgentRunResult {
+  run: AgentRunRecord;
+}
+
+export interface ReadAgentRunWithIssueStatusParams {
+  adapter: AkbAdapter;
+  vault: string;
+  runId: string;
+}
+
+export interface ReadAgentRunWithIssueStatusResult {
+  item: AgentRunWithIssueStatus;
+}
+
+export interface WriteAgentRunAttemptParams {
+  adapter: AkbAdapter;
+  vault: string;
+  attempt: AgentRunAttempt;
+}
+
+export interface ReadAgentRunAttemptParams {
+  adapter: AkbAdapter;
+  vault: string;
+  attemptId: string;
+}
+
+export interface ReadAgentRunAttemptResult {
+  attempt: AgentRunAttempt;
+}
+
+export interface ListAgentRunAttemptsParams {
+  adapter: AkbAdapter;
+  vault: string;
+  runId: string;
+}
+
+export interface ListAgentRunAttemptsResult {
+  attempts: AgentRunAttempt[];
+}
+
+export interface AppendAgentRunEventParams {
+  adapter: AkbAdapter;
+  vault: string;
+  event: AgentRunEventRecord;
+}
+
+export interface ListAgentRunEventsParams {
+  adapter: AkbAdapter;
+  vault: string;
+  runId: string;
+}
+
+export interface ListAgentRunEventsResult {
+  events: AgentRunEventRecord[];
 }
 
 // ── Template / Config / Vault meta ──

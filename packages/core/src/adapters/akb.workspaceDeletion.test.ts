@@ -33,6 +33,10 @@ const ALL_REEF_TABLES = [
   "reef_comments",
   "reef_attachments",
   "reef_activity",
+  "reef_work_events",
+  "reef_agent_runs",
+  "reef_agent_run_attempts",
+  "reef_agent_run_events",
   "reef_sprints",
   "reef_milestones",
   "reef_releases",
@@ -92,13 +96,15 @@ describe("deleteVault", () => {
 describe("detachReef", () => {
   it("deletes only reef-owned documents/files and drops every table, settings last", async () => {
     // 8 vault-skill docs + 2 issue docs + 1 activity-inbox collection
-    // + attachment URI query + 2 attachment files + 11 tables.
+    // + attachment URI query + 2 attachment files + reef tables.
     const { calls } = setupFetch([
       ...Array.from({ length: 11 }, () => ({ status: 204 })),
       { body: ATTACHMENT_QUERY },
       { status: 204 },
       { status: 204 },
-      ...Array.from({ length: 11 }, () => ({ status: 204 })),
+      ...Array.from({ length: ALL_REEF_TABLES.length }, () => ({
+        status: 204,
+      })),
     ]);
 
     await detachReef({
@@ -167,7 +173,7 @@ describe("detachReef", () => {
       paths.indexOf("/api/v1/tables/reef-sample/reef_attachments"),
     );
 
-    // All 11 reef tables dropped, reef_settings last (has_reef_config flips last).
+    // All reef tables dropped, reef_settings last (has_reef_config flips last).
     const droppedTables = tableDrops.map((p) => p.split("/").pop());
     expect(new Set(droppedTables)).toEqual(new Set(ALL_REEF_TABLES));
     expect(pathname(calls.at(-1)?.url)).toBe(
@@ -177,14 +183,14 @@ describe("detachReef", () => {
 
   it("treats an already-gone resource (404) as success — retry-safe", async () => {
     // 8 skill docs + 2 issue docs + 1 collection, attachment table already gone,
-    // then 11 tables all already gone.
+    // then reef tables all already gone.
     setupFetch([
       ...Array.from({ length: 11 }, () => ({
         status: 404,
         body: { detail: "gone" },
       })),
       { body: { error: 'relation "reef_attachments" does not exist' } },
-      ...Array.from({ length: 11 }, () => ({
+      ...Array.from({ length: ALL_REEF_TABLES.length }, () => ({
         status: 404,
         body: { detail: "gone" },
       })),
@@ -205,7 +211,9 @@ describe("detachReef", () => {
       ...Array.from({ length: 11 }, () => ({ status: 204 })),
       { body: EMPTY_ATTACHMENT_QUERY },
       { status: 403, body: { detail: "Requires 'admin' role" } },
-      ...Array.from({ length: 9 }, () => ({ status: 204 })),
+      ...Array.from({ length: ALL_REEF_TABLES.length - 1 }, () => ({
+        status: 204,
+      })),
     ]);
 
     await expect(
