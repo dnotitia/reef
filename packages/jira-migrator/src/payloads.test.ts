@@ -41,6 +41,22 @@ describe("Jira payload schemas and normalizers", () => {
           label: "blocks",
         },
       ],
+      users: {
+        assignee: {
+          accountId: "acct-assignee",
+          emailAddress: "operator@example.com",
+          displayName: "Operator",
+          active: true,
+          accountType: "atlassian",
+        },
+        reporter: {
+          accountId: "acct-reporter",
+          emailAddress: "requester@example.com",
+          displayName: "Requester",
+          active: true,
+          accountType: "atlassian",
+        },
+      },
     });
   });
 

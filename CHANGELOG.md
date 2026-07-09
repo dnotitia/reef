@@ -14,6 +14,13 @@ explicitly in the entries below.
 
 ### Added
 
+- **Jira migration account mapping.** The Jira migrator now captures Jira
+  `accountId`, email, display name, active state, and account type for issue,
+  comment, and changelog actors, then resolves them through one shared mapping
+  policy with account overrides, email-based reef actor matching, and stable
+  fallback actors. The account mapping artifact is Jira-cloud scoped so SHDEV
+  and SDDEV imports can share it, and migration reports call out newly seen or
+  changed account mappings without logging credentials. (REEF-391)
 - **Issue descriptions turn akb document URIs into readable links.** Pasting a
   bare `akb://.../doc/...` document URI into an issue body now turns it into a
   markdown link whose text uses the document title when reef can resolve it,

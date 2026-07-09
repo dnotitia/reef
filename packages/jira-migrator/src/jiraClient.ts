@@ -200,6 +200,8 @@ export class JiraReadClient {
         "status",
         "issuetype",
         "project",
+        "assignee",
+        "reporter",
         "created",
         "updated",
       ],

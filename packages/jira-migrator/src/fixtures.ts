@@ -25,6 +25,20 @@ export const jiraIssueFixture = {
       id: "3",
       name: "In Progress",
     },
+    assignee: {
+      accountId: "acct-assignee",
+      emailAddress: "operator@example.com",
+      displayName: "Operator",
+      active: true,
+      accountType: "atlassian",
+    },
+    reporter: {
+      accountId: "acct-reporter",
+      emailAddress: "requester@example.com",
+      displayName: "Requester",
+      active: true,
+      accountType: "atlassian",
+    },
     attachment: [
       {
         id: "30001",
@@ -78,9 +92,11 @@ export const jiraCommentPageFixture = {
       created: "2026-06-02T01:00:00.000+0000",
       updated: "2026-06-02T01:10:00.000+0000",
       author: {
-        accountId: "abc",
-        displayName: "Operator",
+        accountId: "acct-commenter",
+        emailAddress: "commenter@example.com",
+        displayName: "Commenter",
         active: true,
+        accountType: "atlassian",
       },
     },
   ],
@@ -95,6 +111,13 @@ export const jiraChangelogPageFixture = {
     {
       id: "60001",
       created: "2026-06-03T01:00:00.000+0000",
+      author: {
+        accountId: "acct-changelog",
+        emailAddress: "operator@example.com",
+        displayName: "Operator",
+        active: true,
+        accountType: "atlassian",
+      },
       items: [
         {
           field: "status",
