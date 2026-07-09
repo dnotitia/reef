@@ -66,7 +66,7 @@ interface IssueState {
   /**
    * Clear BOTH halves of the sort back to the pristine default in one update.
    * The single owner of "return to no explicit sort" — the SortControl reset and
-   * its backlog Manual-order option both call this, so the reset logic is not
+   * its rank-order option both call this, so the reset logic is not
    * copy-pasted across surfaces (REEF-169). Clearing both halves matters: an
    * orphaned `sortOrder` still serializes to the URL (`order=…`) and IndexedDB
    * and violates the field-⟺-order invariant.

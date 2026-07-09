@@ -720,7 +720,7 @@
       "goToBoard": "보드로 이동 →",
       "unrankedDivider": "순위 미지정 · 최신순",
       "reorderHintDrag": "드래그하여 순서 변경",
-      "reorderHintSwitchToManual": "순서를 바꾸려면 수동 정렬로 전환하세요",
+      "reorderHintSwitchToRank": "순서를 바꾸려면 Rank 기준으로 전환하세요",
       "reorderHintHideArchived": "순서를 바꾸려면 보관 항목을 숨기세요",
       "updateErrorTitle": "이슈를 업데이트하지 못했습니다",
       "updateErrorDescription": "백로그가 되돌려졌습니다. 다시 이동하려면 재시도하세요.",
@@ -736,7 +736,7 @@
       "drag": "드래그",
       "resetToDefault": "기본값으로 재설정",
       "toggleDirection": "정렬 방향 전환",
-      "manualOrder": "수동 정렬",
+      "rankOrder": "Rank 기준",
       "orderAria": "이슈 순서: {label}",
       "sortAria": "{field} 기준으로 이슈 정렬, {direction}",
       "directionTitle": "방향: {direction}"

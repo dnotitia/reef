@@ -537,7 +537,7 @@
       "goToBoard": "Go to the board →",
       "unrankedDivider": "Unranked · newest first",
       "reorderHintDrag": "Drag to reorder",
-      "reorderHintSwitchToManual": "Switch to Manual order to reorder",
+      "reorderHintSwitchToRank": "Switch to Rank order to reorder",
       "reorderHintHideArchived": "Hide archived to reorder",
       "updateErrorTitle": "Couldn't update issue",
       "updateErrorDescription": "The backlog was reverted. Retry to move it again.",
@@ -553,7 +553,7 @@
       "drag": "Drag",
       "resetToDefault": "Reset to default",
       "toggleDirection": "Toggle sort direction",
-      "manualOrder": "Manual order",
+      "rankOrder": "Rank order",
       "orderAria": "Order issues: {label}",
       "sortAria": "Sort issues by {field}, {direction}",
       "directionTitle": "Direction: {direction}"

@@ -46,12 +46,12 @@ export function IssuesWorkspace() {
           <div className="flex items-center gap-2">
             {/* Timeline is date-ordered, so the field/direction sort does not
                 apply there. Board, list, and backlog share the control; board
-                and backlog additionally surface their pristine `rank` order here,
-                so the header is the single place that names the order (REEF-169/393). */}
+                and backlog surface their pristine `rank` order here, while only
+                backlog adds the drag affordance (REEF-169/393). */}
             {view === "timeline" ? null : (
               <SortControl
-                supportsManualOrder={view === "backlog"}
-                supportsRankOrder={view === "board"}
+                supportsRankOrder={view === "board" || view === "backlog"}
+                showsBacklogReorderHint={view === "backlog"}
               />
             )}
             <ViewSwitcher activeView={view} />
