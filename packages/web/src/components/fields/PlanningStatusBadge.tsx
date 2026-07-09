@@ -14,7 +14,7 @@ import {
 export type PlanningStatusKind = "sprints" | "milestones" | "releases";
 
 /** Neutral fallback for an unexpected status value (defensive — data is schema-validated). */
-const NEUTRAL_COLOR = "text-status-closed";
+const NEUTRAL_COLOR = "text-planning-closed";
 
 const STATUS_COLORS_BY_KIND = {
   sprints: SPRINT_STATUS_COLORS,

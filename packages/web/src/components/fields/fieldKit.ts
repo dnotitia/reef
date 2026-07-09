@@ -24,8 +24,8 @@ export {
 /** Tailwind text-color classes for the status indicator. */
 export const STATUS_COLORS: Record<Status, string> = {
   backlog: "text-status-backlog",
-  // `todo` keeps the shared `--status-open` token (also used by planning &
-  // reports); the status key is renamed (REEF-139).
+  // `todo` keeps the shared `--status-open` token (also used by reports);
+  // the status key is renamed (REEF-139).
   todo: "text-status-open",
   in_progress: "text-status-in-progress",
   in_review: "text-status-in-review",

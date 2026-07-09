@@ -120,6 +120,11 @@ explicitly in the entries below.
 - **Planning milestone closed badges now read as closed, not done.** Closed
   milestones now use the same closed-status color as closed sprints, while
   released releases keep the done color reserved for shipped work. (REEF-396)
+- **Planning status badges now use planning-specific color tokens.** Sprint,
+  milestone, and release badges no longer borrow issue workflow status tokens:
+  open milestones render in teal, planned sprint/release work stays neutral,
+  active planning work stays amber, closed sprint/milestone work stays gray, and
+  only released releases use shipped green. (REEF-398)
 
 ### Operational
 
