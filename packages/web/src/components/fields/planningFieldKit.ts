@@ -36,7 +36,7 @@ export const SPRINT_STATUS_COLORS: Record<SprintStatus, string> = {
 /** Tailwind text-color classes per milestone status. */
 export const MILESTONE_STATUS_COLORS: Record<MilestoneStatus, string> = {
   open: "text-status-open",
-  closed: "text-status-done",
+  closed: "text-status-closed",
 };
 
 /** Tailwind text-color classes per release status. */

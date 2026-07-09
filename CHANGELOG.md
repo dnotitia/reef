@@ -115,6 +115,12 @@ explicitly in the entries below.
   and color still distinguish each type, and screen readers still announce every
   issue's type. (REEF-373, REEF-376)
 
+### Fixed
+
+- **Planning milestone closed badges now read as closed, not done.** Closed
+  milestones now use the same closed-status color as closed sprints, while
+  released releases keep the done color reserved for shipped work. (REEF-396)
+
 ### Operational
 
 - **The legacy chat endpoint has been removed.** Ask AI streaming now uses only
