@@ -46,6 +46,8 @@ for (const m of chainMethods) {
   mockChain[m] = vi.fn(() => mockChain);
 }
 
+let mockMarkdownOverride: string | undefined;
+
 vi.mock("@tiptap/react", () => {
   const mockEditor = {
     chain: () => mockChain,
@@ -77,9 +79,11 @@ vi.mock("@tiptap/react", () => {
       }) => {
         // Expose onUpdate so tests can trigger it
         (mockEditor as unknown as { _opts: typeof opts })._opts = opts;
-        mockEditor.getMarkdown = vi.fn(() => opts.content ?? "");
+        mockEditor.getMarkdown = vi.fn(
+          () => mockMarkdownOverride ?? opts.content ?? "",
+        );
         mockEditor.storage.markdown.getMarkdown = vi.fn(
-          () => opts.content ?? "",
+          () => mockMarkdownOverride ?? opts.content ?? "",
         );
         return mockEditor;
       },
@@ -121,6 +125,7 @@ vi.mock("@tiptap/markdown", () => ({ Markdown: {} }));
 describe("MarkdownEditor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockMarkdownOverride = undefined;
   });
 
   it("renders the editor container", () => {
@@ -583,6 +588,27 @@ describe("MarkdownEditor", () => {
 
     editor.commands.setContent.mockClear();
     rerender(<MarkdownEditor value="stable markdown" onChange={vi.fn()} />);
+
+    expect(editor.commands.setContent).not.toHaveBeenCalled();
+  });
+
+  it("does not reset content on unrelated rerenders when serialized markdown differs", () => {
+    mockMarkdownOverride = "stable markdown\n";
+    const { rerender } = render(
+      <MarkdownEditor value="stable markdown" onChange={vi.fn()} />,
+    );
+    const editor = vi.mocked(useEditor).mock.results.at(-1)?.value as {
+      commands: { setContent: ReturnType<typeof vi.fn> };
+    };
+
+    editor.commands.setContent.mockClear();
+    rerender(
+      <MarkdownEditor
+        value="stable markdown"
+        onChange={vi.fn()}
+        className="unrelated-rerender"
+      />,
+    );
 
     expect(editor.commands.setContent).not.toHaveBeenCalled();
   });

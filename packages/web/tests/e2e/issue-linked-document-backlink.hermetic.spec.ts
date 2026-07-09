@@ -117,4 +117,81 @@ test.describe("Hermetic linked-document backlink (REEF-368)", () => {
       focusInsideEditor: false,
     });
   });
+
+  test("keeps ordinary body text clicks at the clicked paragraph after editor rerenders", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues/REEF-001");
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    const source = page.getByTestId("markdown-source-textarea");
+
+    const topParagraph = "Top target paragraph for caret placement.";
+    const tailParagraph =
+      "Tail marker paragraph that should not receive focus.";
+    await source.fill(
+      [
+        topParagraph,
+        "",
+        `See [Spec overview](${REFERENCE_URI})`,
+        "",
+        tailParagraph,
+      ].join("\n"),
+    );
+    const saveResponse = page.waitForResponse(
+      (response) =>
+        response.url().includes("/api/issues/REEF-001") &&
+        response.request().method() === "PATCH" &&
+        response.status() === 200,
+    );
+    await page.getByTestId("issue-title-input").click();
+    await saveResponse;
+
+    await page
+      .getByTestId("markdown-source-toggle")
+      .getByRole("button")
+      .click();
+    const topText = page
+      .locator(".reef-markdown-editor p", { hasText: topParagraph })
+      .first();
+    await expect(topText).toBeVisible();
+
+    await page.evaluate(() => window.getSelection()?.removeAllRanges());
+    await topText.click();
+
+    await expect
+      .poll(async () =>
+        page.evaluate(() => {
+          const selection = window.getSelection();
+          return selection?.anchorNode?.textContent ?? "";
+        }),
+      )
+      .toContain(topParagraph);
+
+    const selectionAfterTextClick = await page.evaluate((expectedText) => {
+      const editor = document.querySelector(".reef-markdown-editor");
+      const selection = window.getSelection();
+      return {
+        anchorInsideEditor: Boolean(
+          editor &&
+            selection?.anchorNode &&
+            editor.contains(selection.anchorNode),
+        ),
+        anchorText: selection?.anchorNode?.textContent ?? "",
+        focusText: selection?.focusNode?.textContent ?? "",
+        expectedText,
+      };
+    }, topParagraph);
+
+    expect(selectionAfterTextClick).toMatchObject({
+      anchorInsideEditor: true,
+      anchorText: topParagraph,
+      focusText: topParagraph,
+    });
+  });
 });
