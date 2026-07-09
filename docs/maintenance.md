@@ -57,29 +57,31 @@ A scanner's exit code is advisory: a non-zero exit usually means it reported
 findings, not that the scan failed. What each scan looks at, and what its output
 means:
 
-- **duplicates** (`jscpd`) — scans `.ts`/`.tsx` under `packages/core/src` and
-  `packages/web/src` for copy-paste blocks of at least 20 lines / 150 tokens.
+- **duplicates** (`jscpd`) — scans `.ts`/`.tsx` under every workspace package's
+  `src/` directory for copy-paste blocks of at least 20 lines / 150 tokens.
   Output is clone groups: each group lists the two or more locations that share
   the same block.
 - **dead-code** (`knip`) — reports unused exports, unused files, and unused
-  dependencies across the workspace. Because `core` and `web` are private
-  packages, entry-file exports are checked too, not assumed public.
+  dependencies across the workspace. Because reef packages are private,
+  configured entry-file exports are checked too, not assumed public.
 - **maintenance-lint** (`eslint` with the maintenance config) — React Compiler
   and hooks diagnostics plus `@typescript-eslint/no-deprecated`. Output is
   warnings grouped by rule; each points at a file and line.
 - **large-files** — scans source, test, and maintenance script files for files
+  under workspace package `src/` roots, package `tests/` roots, and `scripts/`
   over the repo's advisory line-count thresholds. Output is a list of files with
   their kind, line count, threshold, reasons, and suggested verification focus.
   A large file is a cohesion-review candidate, not an automatic refactor request.
-- **slow-tests** (`vitest`) — runs the core and web suites and flags tests over a
-  300 ms threshold. Output is per-test durations; the slow ones are the
-  candidates.
+- **slow-tests** (`vitest`) — runs every workspace package whose `test` script is
+  Vitest-based and flags tests over a 300 ms threshold. Output is one
+  `slow-tests-<package-dir>/vitest.json` report per package; the slow tests are
+  the candidates.
 - **comment-claims** — scans comments for high-risk claim patterns: absolute
   wording (always/never/only/must), lifecycle wording (forward-only/backward/
   reopen), deprecated/legacy markers, stale document references (FR123,
-  architecture.md), TODO/FIXME debt, and Korean lifecycle wording. Output is
-  candidate comments with the pattern they matched — a prompt to verify, never an
-  automatic failure.
+  architecture.md), TODO/FIXME debt, and Korean lifecycle wording under
+  workspace package `src/` roots and `scripts/`. Output is candidate comments
+  with the pattern they matched — a prompt to verify, never an automatic failure.
 
 ## Reading A Finding
 
@@ -87,9 +89,9 @@ Scanner output is a candidate, not a verdict. Before changing anything, confirm
 the candidate against the real code path. The general method:
 
 1. Open the owning code and find what the scanner pointed at.
-2. Find who depends on it — in-repo consumers, tests, docs. For `core` symbols
-   that means `web` imports, tests, scripts, and subpath entries
-   (`@reef/core/fields`, `@reef/core/status`), not just the defining file.
+2. Find who depends on it — in-repo consumers, tests, docs, scripts, workspace
+   package imports, and package subpath entries such as `@reef/core/fields` and
+   `@reef/core/status`, not just the defining file.
 3. Decide whether the candidate is real, a false positive the scanner could not
    see through, or a question code cannot answer.
 
@@ -134,19 +136,20 @@ unused symbols, or suppress a documented scanner miss. Treat as `needs-human`
 only when the symbol is tied to a schema, adapter, storage, UI, or product
 contract that needs a separate decision.
 
-`@reef/core` and `@reef/web` are private packages. Do not treat a `core` export as
-public API merely because it sits in an entry file. The internal contract is that
-`web`, tests, scripts, and subpath entries consume `core`; an export with no
-verified in-repo consumer is an ordinary dead-code candidate. For a `core` export:
+Reef workspace packages are private. Do not treat an export as public API merely
+because it sits in an entry file. The internal contract is that other workspace
+packages, tests, scripts, CLIs, and subpath entries consume package exports; an
+export with no verified in-repo consumer is an ordinary dead-code candidate. For
+a package export:
 
 1. Check direct in-repo consumers first.
 2. If none, prefer the smallest cleanup: remove the export, make it file-local,
    or delete the symbol.
 3. Suppress only with a documented intentional consumer the scanner cannot see —
    record the file, symbol, missed consumer, and suppression location.
-4. `needs-human` when the change would alter a schema or adapter contract across
-   the `core`/`web` boundary, change storage or wire semantics, or need a broader
-   verification plan.
+4. `needs-human` when the change would alter a schema, adapter, CLI, runtime, or
+   package boundary contract, change storage or wire semantics, or need a
+   broader verification plan.
 
 For a leaf export (exported directly from its defining file, not only re-exported
 by a barrel), triage in order: same-file-only consumer → drop `export`; no

@@ -48,6 +48,16 @@
       "includeEntryExports": true,
       "project": ["src/**/*.ts"]
     },
+    "packages/jira-migrator": {
+      "entry": ["src/index.ts", "src/cli.ts"],
+      "includeEntryExports": true,
+      "project": ["src/**/*.ts"]
+    },
+    "packages/orchestrator": {
+      "entry": ["src/index.ts", "src/cli.ts"],
+      "includeEntryExports": true,
+      "project": ["src/**/*.ts"]
+    },
     "packages/web": {
       "entry": [
         "next.config.ts",
