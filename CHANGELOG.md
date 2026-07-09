@@ -109,6 +109,16 @@ explicitly in the entries below.
   and color still distinguish each type, and screen readers still announce every
   issue's type. (REEF-373, REEF-376)
 
+### Operational
+
+- **Background orchestration now has a separate runtime package.** reef adds a
+  private `@reef/orchestrator` workspace package with config loading, a dry-run
+  startup smoke path, an idle loop shell, graceful shutdown handling, and a
+  structural guard that keeps worker polling and long-running orchestration loops
+  out of web Route Handlers. The package does not claim queued work yet; run/event
+  storage and queue claiming remain in the follow-up orchestration issues.
+  (REEF-379)
+
 ### Fixed
 
 - **Blocked markers in relationship rows no longer shift issue titles.**
