@@ -3,6 +3,9 @@ export {
   buildUnmappedJiraUsersCustomFields,
   collectJiraUserObservations,
   createJiraAccountMappingArtifact,
+  JiraAccountMappingArtifactSchema,
+  JiraAccountMappingRecordSchema,
+  JiraAccountOverrideSchema,
   mapJiraChangelogActor,
   mapJiraCommentActor,
   mapJiraIssueActors,
@@ -22,6 +25,12 @@ export {
   type JiraUsersCustomFields,
   type ReefActorDirectoryEntry,
 } from "./accountMapping.js";
+export {
+  JiraAccountMappingFileError,
+  loadJiraAccountMappingArtifact,
+  writeJiraAccountMappingArtifact,
+  type LoadJiraAccountMappingArtifactOptions,
+} from "./accountMappingFile.js";
 export {
   JiraMigratorConfigError,
   jiraAuthHeader,

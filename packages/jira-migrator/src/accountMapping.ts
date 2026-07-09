@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   type JiraChangelogItemPayload,
   type JiraCommentPayload,
@@ -124,6 +125,38 @@ export interface JiraUsersCustomFields {
     }>;
   };
 }
+
+export const JiraAccountOverrideSchema = z
+  .object({
+    actor: z.string().min(1),
+    reason: z.string().min(1).optional(),
+  })
+  .strict();
+
+export const JiraAccountMappingRecordSchema = z
+  .object({
+    accountId: z.string().min(1),
+    emailAddress: z.string().min(1).nullable(),
+    displayName: z.string().min(1).nullable(),
+    active: z.boolean().nullable(),
+    accountType: z.string().min(1).nullable(),
+    actor: z.string().min(1),
+    mappingStrategy: z.enum(["override", "email", "fallback"]),
+    overrideReason: z.string().min(1).nullable(),
+    firstSeenAt: z.string().min(1),
+    lastSeenAt: z.string().min(1),
+    projectKeys: z.array(z.string().min(1)),
+  })
+  .strict();
+
+export const JiraAccountMappingArtifactSchema = z
+  .object({
+    version: z.literal(1),
+    jiraCloudId: z.string().min(1),
+    accounts: z.record(JiraAccountMappingRecordSchema),
+    overrides: z.record(JiraAccountOverrideSchema),
+  })
+  .strict();
 
 const emptyChangeReport = (): JiraAccountMappingChangeReport => ({
   added: [],
@@ -288,7 +321,7 @@ export const resolveJiraActor = (
   }
 
   const existing = options.artifact.accounts[jiraUser.accountId];
-  if (existing) {
+  if (existing && existing.mappingStrategy !== "override") {
     return {
       context,
       actor: existing.actor,

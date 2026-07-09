@@ -332,4 +332,59 @@ describe("Jira account mapping", () => {
       },
     });
   });
+
+  it("stops using an override after the operator removes it from the artifact", () => {
+    const issue = JiraIssueSchema.parse(jiraIssueFixture);
+    const reporterObservation = collectJiraUserObservations({ issue }).filter(
+      (observation) => observation.user.accountId === "acct-reporter",
+    );
+    let artifact = createJiraAccountMappingArtifact({
+      jiraCloudId: "cloud-abc",
+      overrides: {
+        "acct-reporter": {
+          actor: "reef-requester",
+          reason: "operator confirmed requester account",
+        },
+      },
+    });
+
+    let result = upsertJiraAccountMappingArtifact({
+      artifact,
+      observations: reporterObservation,
+      observedAt: "2026-07-09T07:00:00.000Z",
+    });
+    artifact = result.artifact;
+    expect(artifact.accounts["acct-reporter"]).toMatchObject({
+      actor: "reef-requester",
+      mappingStrategy: "override",
+      overrideReason: "operator confirmed requester account",
+    });
+
+    result = upsertJiraAccountMappingArtifact({
+      artifact: { ...artifact, overrides: {} },
+      observations: reporterObservation,
+      directory: [],
+      observedAt: "2026-07-09T08:00:00.000Z",
+    });
+
+    expect(result.artifact.accounts["acct-reporter"]).toMatchObject({
+      actor: "jira:acct-reporter",
+      mappingStrategy: "fallback",
+      overrideReason: null,
+    });
+    expect(result.report.changed).toEqual([
+      {
+        accountId: "acct-reporter",
+        actor: "jira:acct-reporter",
+        changedFields: ["actor", "mappingStrategy", "overrideReason"],
+      },
+    ]);
+    expect(
+      mapJiraIssueActors(issue, { artifact: result.artifact }).reporter,
+    ).toMatchObject({
+      actor: "jira:acct-reporter",
+      strategy: "fallback",
+      overrideReason: null,
+    });
+  });
 });
