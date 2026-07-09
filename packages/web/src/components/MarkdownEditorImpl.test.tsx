@@ -215,6 +215,141 @@ describe("MarkdownEditor", () => {
     expect(opened.opener).toBeNull();
   });
 
+  it("keeps link mouse down from moving the editor selection before opening", () => {
+    render(
+      <MarkdownEditor
+        value="[Spec](https://example.com/spec)"
+        onChange={vi.fn()}
+      />,
+    );
+    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
+      editorProps?: {
+        handleDOMEvents?: {
+          mousedown?: (
+            view: { dom: HTMLElement },
+            event: MouseEvent,
+          ) => boolean;
+        };
+      };
+    };
+    const root = document.createElement("div");
+    root.innerHTML =
+      '<p><a href="https://example.com/spec" target="_blank">Spec</a></p>';
+    const link = root.querySelector("a");
+    const event = new MouseEvent("mousedown", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    Object.defineProperty(event, "target", { value: link });
+    const open = vi.spyOn(window, "open");
+
+    const handled = opts.editorProps?.handleDOMEvents?.mousedown?.(
+      { dom: root },
+      event,
+    );
+
+    expect(handled).toBe(true);
+    expect(event.defaultPrevented).toBe(true);
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("opens editor links on mouse up after preventing link mouse down selection", () => {
+    render(
+      <MarkdownEditor
+        value="[Spec](https://example.com/spec)"
+        onChange={vi.fn()}
+      />,
+    );
+    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
+      editorProps?: {
+        handleDOMEvents?: {
+          mouseup?: (view: { dom: HTMLElement }, event: MouseEvent) => boolean;
+        };
+        handleClick?: (
+          view: { dom: HTMLElement },
+          pos: number,
+          event: MouseEvent,
+        ) => boolean;
+      };
+    };
+    const root = document.createElement("div");
+    root.innerHTML =
+      '<p><a href="https://example.com/spec" target="_blank">Spec</a></p>';
+    const link = root.querySelector("a");
+    const opened = { opener: window } as Window;
+    const open = vi.spyOn(window, "open").mockReturnValue(opened);
+    const mouseUp = new MouseEvent("mouseup", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    Object.defineProperty(mouseUp, "target", { value: link });
+
+    const handledMouseUp = opts.editorProps?.handleDOMEvents?.mouseup?.(
+      { dom: root },
+      mouseUp,
+    );
+
+    expect(handledMouseUp).toBe(true);
+    expect(mouseUp.defaultPrevented).toBe(true);
+    expect(open).toHaveBeenCalledOnce();
+    expect(open).toHaveBeenCalledWith(
+      "https://example.com/spec",
+      "_blank",
+      "noopener,noreferrer",
+    );
+    expect(opened.opener).toBeNull();
+
+    const click = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    Object.defineProperty(click, "target", { value: link });
+
+    const handledClick = opts.editorProps?.handleClick?.(
+      { dom: root },
+      1,
+      click,
+    );
+
+    expect(handledClick).toBe(true);
+    expect(click.defaultPrevented).toBe(true);
+    expect(open).toHaveBeenCalledOnce();
+  });
+
+  it("leaves ordinary editor mouse down for ProseMirror selection handling", () => {
+    render(<MarkdownEditor value="plain text" onChange={vi.fn()} />);
+    const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
+      editorProps?: {
+        handleDOMEvents?: {
+          mousedown?: (
+            view: { dom: HTMLElement },
+            event: MouseEvent,
+          ) => boolean;
+        };
+      };
+    };
+    const root = document.createElement("div");
+    root.innerHTML = "<p>plain text</p>";
+    const paragraph = root.querySelector("p");
+    const event = new MouseEvent("mousedown", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    Object.defineProperty(event, "target", { value: paragraph });
+
+    const handled = opts.editorProps?.handleDOMEvents?.mousedown?.(
+      { dom: root },
+      event,
+    );
+
+    expect(handled).toBe(false);
+    expect(event.defaultPrevented).toBe(false);
+  });
+
   it("leaves ordinary editor text clicks for ProseMirror selection handling", () => {
     render(<MarkdownEditor value="plain text" onChange={vi.fn()} />);
     const opts = vi.mocked(useEditor).mock.calls.at(-1)?.[0] as {
@@ -266,6 +401,73 @@ describe("MarkdownEditor", () => {
     expect(screen.getByTitle("Link")).toBeInTheDocument();
   });
 
+  it("shows the attachment insert control only when uploads are supported", () => {
+    const { rerender } = render(<MarkdownEditor value="" onChange={vi.fn()} />);
+    expect(screen.queryByTitle("Attach file")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("markdown-attachment-input")).toBeNull();
+
+    rerender(
+      <MarkdownEditor value="" onChange={vi.fn()} onUploadFiles={vi.fn()} />,
+    );
+    expect(screen.getByTitle("Attach file")).toBeInTheDocument();
+    expect(screen.getByTestId("markdown-attachment-input")).toBeInTheDocument();
+  });
+
+  it("uploads files selected from the toolbar before appending returned markdown", async () => {
+    const onChange = vi.fn();
+    const onUploadFiles = vi
+      .fn()
+      .mockResolvedValue([
+        { markdown: "[brief](akb://reef-test/issues/file/file-1)" },
+      ]);
+    render(
+      <MarkdownEditor
+        value="Existing body"
+        onChange={onChange}
+        onUploadFiles={onUploadFiles}
+      />,
+    );
+    const file = new File([new Uint8Array([1])], "brief.pdf", {
+      type: "application/pdf",
+    });
+
+    fireEvent.change(screen.getByTestId("markdown-attachment-input"), {
+      target: { files: [file] },
+    });
+
+    await waitFor(() => expect(onUploadFiles).toHaveBeenCalledWith([file]));
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith(
+        "Existing body\n\n[brief](akb://reef-test/issues/file/file-1)",
+      ),
+    );
+  });
+
+  it("does not append markdown when a toolbar-selected file upload fails", async () => {
+    const onChange = vi.fn();
+    const onUploadFiles = vi.fn().mockRejectedValue(new Error("boom"));
+    render(
+      <MarkdownEditor
+        value="Existing body"
+        onChange={onChange}
+        onUploadFiles={onUploadFiles}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId("markdown-attachment-input"), {
+      target: {
+        files: [new File(["x"], "brief.pdf", { type: "application/pdf" })],
+      },
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Couldn't upload that file.",
+      ),
+    );
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("keeps the Source toggle out of the wrapping control group", () => {
     render(<MarkdownEditor value="" onChange={vi.fn()} />);
     const toolbar = screen.getByTestId("markdown-toolbar");
@@ -286,6 +488,18 @@ describe("MarkdownEditor", () => {
   it("hides toolbar when readOnly is true", () => {
     render(<MarkdownEditor value="" onChange={vi.fn()} readOnly />);
     expect(screen.queryByTitle("Bold")).not.toBeInTheDocument();
+  });
+
+  it("hides the attachment insert control when readOnly is true", () => {
+    render(
+      <MarkdownEditor
+        value=""
+        onChange={vi.fn()}
+        onUploadFiles={vi.fn()}
+        readOnly
+      />,
+    );
+    expect(screen.queryByTitle("Attach file")).not.toBeInTheDocument();
   });
 
   it("runs the matching command when a formatting control is clicked", () => {
@@ -491,6 +705,37 @@ describe("MarkdownEditor", () => {
     expect(screen.getByTitle("Bold")).toBeDisabled();
     expect(screen.getByTitle("Italic")).toBeDisabled();
     expect(screen.getByTitle("Link")).toBeDisabled();
+  });
+
+  it("keeps attachment insertion available in source mode through the upload path", async () => {
+    const onChange = vi.fn();
+    const onUploadFiles = vi
+      .fn()
+      .mockResolvedValue([{ markdown: "![screen](akb://reef-test/file/1)" }]);
+    render(
+      <MarkdownEditor
+        value="Existing body"
+        onChange={onChange}
+        onUploadFiles={onUploadFiles}
+      />,
+    );
+    act(() => {
+      fireEvent.click(screen.getByTitle("Toggle source mode"));
+    });
+
+    expect(screen.getByTitle("Attach file")).not.toBeDisabled();
+    fireEvent.change(screen.getByTestId("markdown-attachment-input"), {
+      target: {
+        files: [new File(["x"], "screen.png", { type: "image/png" })],
+      },
+    });
+
+    await waitFor(() => expect(onUploadFiles).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith(
+        "Existing body\n\n![screen](akb://reef-test/file/1)",
+      ),
+    );
   });
 
   describe("link editor", () => {

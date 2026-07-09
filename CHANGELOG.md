@@ -33,6 +33,11 @@ explicitly in the entries below.
   pristine in-column order while keeping explicit user sorts separate, and
   generic issue create/update still cannot hand-author rank. (REEF-393, epic
   REEF-311)
+- **Insert issue attachments from the markdown toolbar.** Editors that support
+  uploads now show a paperclip button in the Insert group, opening a file picker
+  and appending the uploaded attachment markdown through the same path as paste
+  and drop. The control stays hidden for read-only or non-uploading editors, and
+  failed uploads do not leave broken local markdown behind. (REEF-401)
 - **Issue detail now uses a details-first right rail.** The issue detail sheet
   and new-issue dialog share a wider 400px property rail for Details, People,
   Planning, Parent, and Relationships, while title, description, Sub-issues,
@@ -136,8 +141,9 @@ explicitly in the entries below.
   longer remounts from a skeleton/table DOM mismatch.
 - **Issue body links open as links again.** Clicking a rendered link in an issue
   description now opens the target instead of being swallowed by the markdown
-  editor as a cursor/selection change; unchanged editor values also avoid a
-  redundant content reset that could move the cursor. (REEF-400)
+  editor as a cursor/selection change, and the link mouse-down no longer moves
+  the editor selection before the target opens. Unchanged editor values also
+  avoid a redundant content reset that could move the cursor. (REEF-400)
 - **Planning milestone closed badges now read as closed, not done.** Closed
   milestones now use the same closed-status color as closed sprints, while
   released releases keep the done color reserved for shipped work. (REEF-396)

@@ -1279,6 +1279,7 @@
     "divider": "구분선",
     "link": "링크",
     "linkUrl": "링크 URL",
+    "attachFile": "첨부파일 삽입",
     "source": "소스",
     "toggleSourceMode": "소스 모드 전환",
     "apply": "적용",
