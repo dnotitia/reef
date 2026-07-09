@@ -239,6 +239,7 @@ function configuredVault(name) {
       "reef_templates",
       "reef_activity_suggestions",
       "reef_comments",
+      "reef_attachments",
       "reef_activity",
       "reef_sprints",
       "reef_milestones",
@@ -299,6 +300,8 @@ function configuredVault(name) {
     ],
     templates: [],
     activitySuggestions: [],
+    attachments: [],
+    files: new Map(),
     comments: [
       {
         id: uuidFor(40),
@@ -631,6 +634,8 @@ function rawVault(name) {
     releases: [],
     templates: [],
     activitySuggestions: [],
+    attachments: [],
+    files: new Map(),
   };
 }
 
@@ -771,6 +776,57 @@ async function handleAkb(req, res, url) {
     return json(res, 200, { members: vault.members });
   }
 
+  if (path === "/api/v1/files" && req.method === "POST") {
+    const form = await readMultipartForm(req);
+    const vault = getVault(String(form.fields.vault ?? ""), res);
+    if (!vault) return;
+    const file = form.files.file;
+    if (!file) return json(res, 422, { error: "missing file" });
+    if (!vault.files) vault.files = new Map();
+    const fileId = `file-${vault.files.size + 1}`;
+    const collection = String(form.fields.collection ?? "files")
+      .replace(/^\/+/, "")
+      .replace(/\/+$/, "");
+    const filename = file.filename || "attachment";
+    const mimeType = file.contentType || "application/octet-stream";
+    const uri = `akb://${vault.name}/${collection}/file/${fileId}`;
+    vault.files.set(fileId, {
+      id: fileId,
+      uri,
+      filename,
+      mimeType,
+      sizeBytes: file.body.length,
+      body: file.body,
+    });
+    return json(res, 200, {
+      uri,
+      filename,
+      mime_type: mimeType,
+      size_bytes: file.body.length,
+    });
+  }
+
+  const fileMatch = path.match(/^\/api\/v1\/files\/([^/]+)\/([^/]+)$/);
+  if (fileMatch && req.method === "DELETE") {
+    const vault = getVault(decodeURIComponent(fileMatch[1]), res);
+    if (!vault) return;
+    vault.files?.delete(decodeURIComponent(fileMatch[2]));
+    return json(res, 200, { deleted: true });
+  }
+  if (fileMatch && req.method === "GET") {
+    const vault = getVault(decodeURIComponent(fileMatch[1]), res);
+    if (!vault) return;
+    const file = vault.files?.get(decodeURIComponent(fileMatch[2]));
+    if (!file) return json(res, 404, { error: "file not found" });
+    res.writeHead(200, {
+      "Content-Type": file.mimeType,
+      "Content-Length": String(file.body.length),
+      "Content-Disposition": `inline; filename="${headerQuoted(file.filename)}"`,
+      "Cache-Control": "no-store",
+    });
+    return res.end(file.body);
+  }
+
   const tablesMatch = path.match(/^\/api\/v1\/tables\/([^/]+)$/);
   if (tablesMatch && req.method === "GET") {
     const vault = getVault(decodeURIComponent(tablesMatch[1]), res);
@@ -903,6 +959,7 @@ function handleSql(vault, sql) {
   }
 
   if (!vault.comments) vault.comments = [];
+  if (!vault.attachments) vault.attachments = [];
   if (!vault.activity) vault.activity = [];
 
   if (lower.startsWith("select key, value from reef_settings")) {
@@ -1159,6 +1216,38 @@ function handleSql(vault, sql) {
     return tableQuery(commentColumns(), [row]);
   }
 
+  if (lower.startsWith("select distinct file_uri from reef_attachments")) {
+    const rows = [
+      ...new Set(
+        filterAttachmentRows(vault.attachments, normalized)
+          .map((row) => row.file_uri)
+          .filter((uri) => typeof uri === "string" && uri.length > 0),
+      ),
+    ].map((file_uri) => ({ file_uri }));
+    return tableQuery(["file_uri"], rows);
+  }
+  if (lower.startsWith("select * from reef_attachments")) {
+    const rows = filterAttachmentRows(vault.attachments, normalized).sort(
+      (a, b) =>
+        String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")) ||
+        String(a.id ?? "").localeCompare(String(b.id ?? "")),
+    );
+    return tableQuery(attachmentColumns(), applyLimit(rows, normalized));
+  }
+  if (lower.includes("insert into reef_attachments")) {
+    const insert = parseInsert(normalized);
+    if (!insert) return tableQuery([], []);
+    const row = objectFromColumns(insert.columns, insert.values);
+    row.id = row.id ?? uuidFor(9000 + (vault.attachments?.length ?? 0));
+    row.created_at = row.created_at ?? NOW;
+    row.inline =
+      row.inline === true || String(row.inline).toLowerCase() === "true";
+    row.meta = row.meta ?? null;
+    row.original_jira_attachment_id = row.original_jira_attachment_id ?? null;
+    vault.attachments.push(row);
+    return tableQuery(attachmentColumns(), [row]);
+  }
+
   // REEF-277: the issue activity timeline (reef_activity), distinct from the
   // activity-scan inbox (reef_activity_suggestions) handled above.
   if (lower.startsWith("select * from reef_activity where")) {
@@ -1243,6 +1332,23 @@ function commentColumns() {
     "created_at",
     "updated_at",
     "created_by",
+  ];
+}
+
+function attachmentColumns() {
+  return [
+    "id",
+    "reef_id",
+    "file_uri",
+    "filename",
+    "mime_type",
+    "size_bytes",
+    "author",
+    "created_at",
+    "source",
+    "inline",
+    "original_jira_attachment_id",
+    "meta",
   ];
 }
 
@@ -1418,6 +1524,17 @@ function filterActivityRows(rows, sql) {
   return out;
 }
 
+function filterAttachmentRows(rows, sql) {
+  let out = [...rows];
+  const reefId = matchSqlString(sql, /reef_id\s*=\s*'([^']+)'/i);
+  if (reefId) out = out.filter((row) => row.reef_id === reefId);
+  const id = matchSqlString(sql, /\bid\s*=\s*'([^']+)'/i);
+  if (id) out = out.filter((row) => row.id === id);
+  const fileUri = matchSqlString(sql, /file_uri\s*=\s*'([^']+)'/i);
+  if (fileUri) out = out.filter((row) => row.file_uri === fileUri);
+  return out;
+}
+
 function tableNamesInSql(lowerSql) {
   return [
     "reef_settings",
@@ -1425,6 +1542,7 @@ function tableNamesInSql(lowerSql) {
     "reef_issues",
     "reef_templates",
     "reef_activity_suggestions",
+    "reef_attachments",
     "reef_sprints",
     "reef_milestones",
     "reef_releases",
@@ -2259,12 +2377,68 @@ function rememberCall(method, path) {
 }
 
 async function readJson(req) {
-  const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
-  if (chunks.length === 0) return {};
-  const raw = Buffer.concat(chunks).toString("utf8");
+  const body = await readRawBody(req);
+  if (body.length === 0) return {};
+  const raw = body.toString("utf8");
   if (!raw) return {};
   return JSON.parse(raw);
+}
+
+async function readRawBody(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  return Buffer.concat(chunks);
+}
+
+async function readMultipartForm(req) {
+  const body = await readRawBody(req);
+  const contentType = String(req.headers["content-type"] ?? "");
+  const boundary = contentType.match(/boundary="?([^";]+)"?/i)?.[1] ?? "";
+  if (!boundary) return { fields: {}, files: {} };
+  return parseMultipart(body, boundary);
+}
+
+function parseMultipart(body, boundary) {
+  const fields = {};
+  const files = {};
+  const raw = body.toString("binary");
+  const marker = `--${boundary}`;
+  for (let part of raw.split(marker).slice(1)) {
+    if (part.startsWith("--")) break;
+    if (part.startsWith("\r\n")) part = part.slice(2);
+    if (part.endsWith("\r\n")) part = part.slice(0, -2);
+    const separator = part.indexOf("\r\n\r\n");
+    if (separator < 0) continue;
+    const headerText = part.slice(0, separator);
+    let bodyText = part.slice(separator + 4);
+    if (bodyText.endsWith("\r\n")) bodyText = bodyText.slice(0, -2);
+    const headers = Object.fromEntries(
+      headerText
+        .split("\r\n")
+        .map((line) => line.split(/:\s*/, 2))
+        .filter(([key, value]) => key && value)
+        .map(([key, value]) => [key.toLowerCase(), value]),
+    );
+    const disposition = headers["content-disposition"] ?? "";
+    const name = disposition.match(/name="([^"]+)"/i)?.[1];
+    if (!name) continue;
+    const filename = disposition.match(/filename="([^"]*)"/i)?.[1];
+    const buffer = Buffer.from(bodyText, "binary");
+    if (filename != null) {
+      files[name] = {
+        filename,
+        contentType: headers["content-type"] ?? "application/octet-stream",
+        body: buffer,
+      };
+    } else {
+      fields[name] = buffer.toString("utf8");
+    }
+  }
+  return { fields, files };
+}
+
+function headerQuoted(value) {
+  return String(value).replace(/["\\\r\n]/g, "_");
 }
 
 function json(res, status, body) {

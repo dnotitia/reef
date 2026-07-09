@@ -54,6 +54,20 @@ describe("MarkdownEditor Tiptap extensions", () => {
     },
   );
 
+  it("parses image markdown while preserving the stored akb file URI", () => {
+    const editor = createEditor(
+      "![screen](akb://reef-test/issues/file/file-1)",
+    );
+
+    expect(() => editor.state.doc.check()).not.toThrow();
+    expect(editor.view.dom.querySelector("img")?.getAttribute("src")).toBe(
+      "akb://reef-test/issues/file/file-1",
+    );
+    expect(editor.getMarkdown()).toContain(
+      "![screen](akb://reef-test/issues/file/file-1)",
+    );
+  });
+
   // The REEF-161 checklist alignment CSS (globals.css, `.reef-markdown-editor`)
   // can just keep the checkbox and its text on one line if it targets the DOM
   // the live node-view actually produces. Pin that DOM contract here: the <li>

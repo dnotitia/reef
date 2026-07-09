@@ -68,6 +68,7 @@ const ALL_REEF_TABLES = [
   "reef_templates",
   "reef_activity_suggestions",
   "reef_comments",
+  "reef_attachments",
   "reef_activity",
 ];
 

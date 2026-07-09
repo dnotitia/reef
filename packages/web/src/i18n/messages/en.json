@@ -259,6 +259,8 @@
     "sessionExpired": "Your session has expired. Please sign in again.",
     "invalidJsonBody": "Invalid JSON body.",
     "invalidBody": "Invalid request body.",
+    "attachmentTooLarge": "That file is larger than this deployment allows.",
+    "attachmentTypeBlocked": "This deployment does not allow that file type.",
     "missingVault": "Missing or invalid `vault` parameter.",
     "invalidIssueId": "Invalid issue id. Expected format: PREFIX-NUMBER.",
     "backend": "Workspace backend error.",
@@ -604,7 +606,9 @@
         "related_to": "related to"
       },
       "archived": "{hasActor, select, true {<actor></actor> archived this issue} other {Archived this issue}}",
-      "restored": "{hasActor, select, true {<actor></actor> restored this issue} other {Restored this issue}}"
+      "restored": "{hasActor, select, true {<actor></actor> restored this issue} other {Restored this issue}}",
+      "attachmentAdded": "{hasActor, select, true {<actor></actor> attached <filename></filename>} other {Attached <filename></filename>}}",
+      "attachmentRemoved": "{hasActor, select, true {<actor></actor> removed attachment <filename></filename>} other {Removed attachment <filename></filename>}}"
     },
     "comments": {
       "editComment": "Edit comment",
@@ -612,7 +616,14 @@
       "edited": "edited",
       "addLabel": "Add a comment",
       "placeholder": "Add a comment…",
-      "submit": "Comment"
+      "submit": "Comment",
+      "uploading": "Uploading attachment…",
+      "uploadError": "Couldn't upload that file."
+    },
+    "attachments": {
+      "heading": "Attachments",
+      "loading": "Loading attachments…",
+      "download": "Download"
     },
     "create": {
       "discardTitle": "Discard Draft?",
@@ -1087,7 +1098,9 @@
     "linkUrl": "Link URL",
     "source": "Source",
     "toggleSourceMode": "Toggle source mode",
-    "apply": "Apply"
+    "apply": "Apply",
+    "uploading": "Uploading attachment…",
+    "uploadError": "Couldn't upload that file."
   },
   "misc": {
     "offlineBanner": "You're offline — viewing cached data. Changes will sync when you reconnect.",

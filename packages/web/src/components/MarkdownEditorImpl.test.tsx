@@ -1,4 +1,10 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { useEditor } from "@tiptap/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -102,6 +108,9 @@ vi.mock("@tiptap/starter-kit", () => ({
 }));
 vi.mock("@tiptap/extension-placeholder", () => ({
   default: { configure: () => ({}) },
+}));
+vi.mock("@tiptap/extension-image", () => ({
+  default: { extend: () => ({ configure: () => ({}) }) },
 }));
 vi.mock("@tiptap/extension-list", () => ({
   TaskList: {},
@@ -335,6 +344,68 @@ describe("MarkdownEditor", () => {
       fireEvent.change(textarea, { target: { value: "new content" } });
     });
     expect(onChange).toHaveBeenCalledWith("new content");
+  });
+
+  it("uploads pasted source-mode files before appending returned markdown", async () => {
+    const onChange = vi.fn();
+    const onUploadFiles = vi
+      .fn()
+      .mockResolvedValue([
+        { markdown: "![screen](akb://reef-test/issues/file/file-1)" },
+        { markdown: null },
+      ]);
+    render(
+      <MarkdownEditor
+        value="Existing body"
+        onChange={onChange}
+        onUploadFiles={onUploadFiles}
+      />,
+    );
+
+    act(() => {
+      fireEvent.click(screen.getByTitle("Toggle source mode"));
+    });
+    const file = new File([new Uint8Array([1])], "screen.png", {
+      type: "image/png",
+    });
+    fireEvent.paste(screen.getByTestId("markdown-source-textarea"), {
+      clipboardData: { files: [file] },
+    });
+
+    await waitFor(() => expect(onUploadFiles).toHaveBeenCalledWith([file]));
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith(
+        "Existing body\n\n![screen](akb://reef-test/issues/file/file-1)",
+      ),
+    );
+  });
+
+  it("does not append markdown when a pasted file upload fails", async () => {
+    const onChange = vi.fn();
+    const onUploadFiles = vi.fn().mockRejectedValue(new Error("boom"));
+    render(
+      <MarkdownEditor
+        value="Existing body"
+        onChange={onChange}
+        onUploadFiles={onUploadFiles}
+      />,
+    );
+
+    act(() => {
+      fireEvent.click(screen.getByTitle("Toggle source mode"));
+    });
+    fireEvent.paste(screen.getByTestId("markdown-source-textarea"), {
+      clipboardData: {
+        files: [new File(["x"], "screen.png", { type: "image/png" })],
+      },
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Couldn't upload that file.",
+      ),
+    );
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("passes the latest WYSIWYG markdown to onBlur", () => {

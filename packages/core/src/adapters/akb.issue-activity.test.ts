@@ -378,6 +378,26 @@ describe("activityEventKey (REEF-277)", () => {
   });
 });
 
+describe("activityEventKey (REEF-349)", () => {
+  const at = "2026-07-09T01:00:00.000Z";
+  const payload = {
+    attachment_id: "att-1",
+    file_uri: "akb://reef-test/issues/file/file-1",
+    filename: "screenshot.png",
+    mime_type: "image/png",
+    size_bytes: 42,
+  };
+
+  it("keys attachment events by attachment id and timestamp", () => {
+    expect(
+      activityEventKey({ eventType: "attachment_added", payload }, at),
+    ).toBe(`attachment_added:att-1@${at}`);
+    expect(
+      activityEventKey({ eventType: "attachment_removed", payload }, at),
+    ).toBe(`attachment_removed:att-1@${at}`);
+  });
+});
+
 describe("diffFieldActivityEvents (REEF-126)", () => {
   const meta = {
     at: "2026-06-18T04:00:00.000Z",

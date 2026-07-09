@@ -3,6 +3,11 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import {
+  type AttachmentMarkdownUploadResult,
+  appendMarkdownSnippets,
+  filesFromFileList,
+} from "@/features/issues/lib/attachmentMarkdown";
 import { resolveAkbDocumentTitles } from "@/lib/akb/documentTitleResolver";
 import { parseAkbDocumentUri } from "@/lib/akb/documentUri";
 import {
@@ -12,6 +17,7 @@ import {
 } from "@/lib/akb/markdownDocumentLinks";
 import { cn } from "@/lib/utils";
 import { useAkbWebUrl } from "@/providers/AkbWebUrlProvider";
+import Image from "@tiptap/extension-image";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Markdown } from "@tiptap/markdown";
@@ -39,7 +45,13 @@ import {
   Strikethrough,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect, useRef, useState } from "react";
+import {
+  type ClipboardEvent,
+  type DragEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 /**
  * Shared height policy for both editor surfaces — the WYSIWYG body and the
@@ -85,6 +97,14 @@ export interface MarkdownEditorProps {
   onBlur?: (value: string) => void;
   /** Active AKB vault. Enables akb:// document title resolution when supplied. */
   vault?: string;
+  /**
+   * Optional file upload hook for issue-owned editor surfaces. The editor only
+   * mutates markdown after this resolves, so failed uploads never leave broken
+   * local links behind.
+   */
+  onUploadFiles?: (files: File[]) => Promise<AttachmentMarkdownUploadResult[]>;
+  /** Resolve stored image URLs (for example akb:// file URIs) for WYSIWYG paint. */
+  resolveImageSrc?: (src: string) => string;
 }
 
 /** Active-state flags for every toolbar control, derived from the selection. */
@@ -118,7 +138,27 @@ const NO_ACTIVE: ActiveMarks = {
   link: false,
 };
 
-export function createMarkdownEditorExtensions(placeholder: string) {
+function createImageExtension(resolveImageSrc?: (src: string) => string) {
+  return Image.extend({
+    renderHTML({ HTMLAttributes }) {
+      const attrs = { ...HTMLAttributes };
+      if (typeof attrs.src === "string") {
+        attrs.src = resolveImageSrc?.(attrs.src) ?? attrs.src;
+      }
+      return ["img", { ...this.options.HTMLAttributes, ...attrs }];
+    },
+  }).configure({
+    allowBase64: false,
+    HTMLAttributes: {
+      class: "max-w-full rounded-md border border-border-subtle",
+    },
+  });
+}
+
+export function createMarkdownEditorExtensions(
+  placeholder: string,
+  resolveImageSrc?: (src: string) => string,
+) {
   return [
     // StarterKit v3 bundles the Link extension; configure it here rather than
     // registering a second @tiptap/extension-link (which warns about a
@@ -135,6 +175,7 @@ export function createMarkdownEditorExtensions(placeholder: string) {
     }),
     TaskList,
     TaskItem.configure({ nested: true }),
+    createImageExtension(resolveImageSrc),
     Markdown,
     Placeholder.configure({ placeholder }),
   ];
@@ -253,6 +294,8 @@ export function MarkdownEditor({
   ariaLabel,
   onBlur,
   vault,
+  onUploadFiles,
+  resolveImageSrc,
 }: MarkdownEditorProps) {
   const t = useTranslations("markdownEditor");
   const c = useTranslations("common");
@@ -260,10 +303,15 @@ export function MarkdownEditor({
   const [sourceMode, setSourceMode] = useState(false);
   const [linkEditorOpen, setLinkEditorOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [uploadError, setUploadError] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const latestValueRef = useRef(value);
   const onChangeRef = useRef(onChange);
   const onBlurRef = useRef(onBlur);
+  const uploadFilesRef = useRef(onUploadFiles);
+  const readOnlyRef = useRef(readOnly);
+  const resolveImageSrcRef = useRef(resolveImageSrc);
   const resolvedTitleMapRef = useRef(new Map<string, string | null>());
   const pendingTitleUrisRef = useRef(new Set<string>());
   const previousVaultRef = useRef(vault);
@@ -336,7 +384,9 @@ export function MarkdownEditor({
     // Tiptap v3 requires this explicit opt-out under Next.js to avoid an SSR
     // hydration mismatch — the editor mounts on the client just.
     immediatelyRender: false,
-    extensions: createMarkdownEditorExtensions(placeholder),
+    extensions: createMarkdownEditorExtensions(placeholder, (src) => {
+      return resolveImageSrcRef.current?.(src) ?? src;
+    }),
     content: value,
     contentType: "markdown",
     editable: !readOnly,
@@ -352,11 +402,49 @@ export function MarkdownEditor({
       },
       handleClick: (view, _pos, event) =>
         openClickedEditorLink(view.dom, event),
+      handlePaste: (_view, event) => {
+        const files = filesFromFileList(event.clipboardData?.files ?? null);
+        if (
+          files.length === 0 ||
+          !uploadFilesRef.current ||
+          readOnlyRef.current
+        ) {
+          return false;
+        }
+        event.preventDefault();
+        void uploadAndAppendFiles(files);
+        return true;
+      },
+      handleDrop: (_view, event) => {
+        const files = filesFromFileList(event.dataTransfer?.files ?? null);
+        if (
+          files.length === 0 ||
+          !uploadFilesRef.current ||
+          readOnlyRef.current
+        ) {
+          return false;
+        }
+        event.preventDefault();
+        void uploadAndAppendFiles(files);
+        return true;
+      },
     },
     onUpdate: ({ editor: ed }) => {
       publishMarkdown(ed.getMarkdown(), ed);
     },
   });
+
+  useEffect(() => {
+    uploadFilesRef.current = onUploadFiles;
+  }, [onUploadFiles]);
+
+  useEffect(() => {
+    readOnlyRef.current = readOnly;
+  }, [readOnly]);
+
+  useEffect(() => {
+    resolveImageSrcRef.current = resolveImageSrc;
+  }, [resolveImageSrc]);
 
   // Subscribe to derived active-state booleans just, so the toolbar re-renders
   // when formatting under the cursor changes — not on every transaction. The
@@ -442,6 +530,54 @@ export function MarkdownEditor({
       });
     }
     queueAkbTitleResolution(newValue, editor);
+  }
+
+  function appendUploadedMarkdown(snippets: readonly string[]) {
+    const next = appendMarkdownSnippets(latestValueRef.current, snippets);
+    if (next === latestValueRef.current) return;
+    latestValueRef.current = next;
+    onChange(next);
+    editor?.commands.setContent(next, {
+      contentType: "markdown",
+      emitUpdate: false,
+    });
+  }
+
+  async function uploadAndAppendFiles(files: File[]) {
+    const uploadFiles = uploadFilesRef.current;
+    if (!uploadFiles || readOnlyRef.current) return;
+    setUploadingFiles(true);
+    setUploadError(false);
+    try {
+      const results = await uploadFiles(files);
+      appendUploadedMarkdown(
+        results
+          .map((result) => result.markdown)
+          .filter((markdown): markdown is string => !!markdown),
+      );
+    } catch {
+      setUploadError(true);
+    } finally {
+      setUploadingFiles(false);
+    }
+  }
+
+  function handleSourcePaste(event: ClipboardEvent<HTMLTextAreaElement>) {
+    const files = filesFromFileList(event.clipboardData.files);
+    if (files.length === 0 || !uploadFilesRef.current || readOnlyRef.current) {
+      return;
+    }
+    event.preventDefault();
+    void uploadAndAppendFiles(files);
+  }
+
+  function handleSourceDrop(event: DragEvent<HTMLTextAreaElement>) {
+    const files = filesFromFileList(event.dataTransfer.files);
+    if (files.length === 0 || !uploadFilesRef.current || readOnlyRef.current) {
+      return;
+    }
+    event.preventDefault();
+    void uploadAndAppendFiles(files);
   }
 
   function closeLinkEditor() {
@@ -733,6 +869,15 @@ export function MarkdownEditor({
         </div>
       )}
 
+      {(uploadingFiles || uploadError) && (
+        <div
+          className="border-b border-border-subtle px-3 py-1.5 text-xs text-muted-foreground"
+          role={uploadError ? "alert" : "status"}
+        >
+          {uploadError ? t("uploadError") : t("uploading")}
+        </div>
+      )}
+
       <div
         data-testid="markdown-editor-body-frame"
         className={EDITOR_BODY_FRAME_CLASS}
@@ -742,6 +887,13 @@ export function MarkdownEditor({
           <textarea
             value={value}
             onChange={handleSourceChange}
+            onPaste={handleSourcePaste}
+            onDrop={handleSourceDrop}
+            onDragOver={(event) => {
+              if (uploadFilesRef.current && !readOnlyRef.current) {
+                event.preventDefault();
+              }
+            }}
             readOnly={readOnly}
             aria-label={ariaLabel}
             // field-sizing-content auto-grows with the body where supported;

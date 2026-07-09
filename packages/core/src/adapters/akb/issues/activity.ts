@@ -3,6 +3,8 @@ import { SchemaValidationError } from "../../../errors";
 import {
   ACTIVITY_EVENT_ARCHIVED_CHANGE,
   ACTIVITY_EVENT_ASSIGNEE_CHANGE,
+  ACTIVITY_EVENT_ATTACHMENT_ADDED,
+  ACTIVITY_EVENT_ATTACHMENT_REMOVED,
   ACTIVITY_EVENT_DUE_DATE_CHANGE,
   ACTIVITY_EVENT_ESTIMATE_CHANGE,
   ACTIVITY_EVENT_IMPL_REF_LINKED,
@@ -22,6 +24,10 @@ import {
   ArchivedChangePayloadSchema,
   type AssigneeChangePayload,
   AssigneeChangePayloadSchema,
+  type AttachmentAddedPayload,
+  AttachmentAddedPayloadSchema,
+  type AttachmentRemovedPayload,
+  AttachmentRemovedPayloadSchema,
   type DueDateChangePayload,
   DueDateChangePayloadSchema,
   type EstimateChangePayload,
@@ -113,6 +119,14 @@ export type ActivityEventDescriptor =
   | {
       eventType: typeof ACTIVITY_EVENT_ARCHIVED_CHANGE;
       payload: ArchivedChangePayload;
+    }
+  | {
+      eventType: typeof ACTIVITY_EVENT_ATTACHMENT_ADDED;
+      payload: AttachmentAddedPayload;
+    }
+  | {
+      eventType: typeof ACTIVITY_EVENT_ATTACHMENT_REMOVED;
+      payload: AttachmentRemovedPayload;
     };
 
 /**
@@ -177,6 +191,10 @@ export function activityEventKey(
     case ACTIVITY_EVENT_RELATION_CHANGE: {
       const { relation, added, removed } = descriptor.payload;
       return `${descriptor.eventType}:${relation}:${setKeySegment(added, removed)}@${at}`;
+    }
+    case ACTIVITY_EVENT_ATTACHMENT_ADDED:
+    case ACTIVITY_EVENT_ATTACHMENT_REMOVED: {
+      return `${descriptor.eventType}:${descriptor.payload.attachment_id}@${at}`;
     }
     default: {
       // status / assignee / priority / title / due_date / estimate / parent /
@@ -577,6 +595,8 @@ const PAYLOAD_SCHEMA_BY_EVENT_TYPE = {
   [ACTIVITY_EVENT_PARENT_CHANGE]: ParentChangePayloadSchema,
   [ACTIVITY_EVENT_RELATION_CHANGE]: RelationChangePayloadSchema,
   [ACTIVITY_EVENT_ARCHIVED_CHANGE]: ArchivedChangePayloadSchema,
+  [ACTIVITY_EVENT_ATTACHMENT_ADDED]: AttachmentAddedPayloadSchema,
+  [ACTIVITY_EVENT_ATTACHMENT_REMOVED]: AttachmentRemovedPayloadSchema,
 } as const;
 
 /**

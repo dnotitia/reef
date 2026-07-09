@@ -8,6 +8,7 @@ export {
   REEF_TEMPLATES_TABLE,
   REEF_ACTIVITY_SUGGESTIONS_TABLE,
   REEF_COMMENTS_TABLE,
+  REEF_ATTACHMENTS_TABLE,
   REEF_ACTIVITY_TABLE,
   REEF_SPRINTS_TABLE,
   REEF_MILESTONES_TABLE,
@@ -63,6 +64,17 @@ export {
   createComment,
   updateComment,
 } from "./issues/comments";
+export {
+  listIssueAttachments,
+  uploadIssueAttachment,
+  createIssueAttachmentRecord,
+  downloadIssueAttachment,
+  downloadIssueAttachmentByFileUri,
+  type DownloadIssueAttachmentParams,
+  type DownloadIssueAttachmentByFileUriParams,
+  type DownloadIssueAttachmentResult,
+  type UploadIssueAttachmentParams,
+} from "./issues/attachments";
 export {
   activityEventKey,
   appendActivityEvents,

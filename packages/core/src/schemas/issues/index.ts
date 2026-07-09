@@ -40,6 +40,23 @@ export {
 } from "./comment";
 
 export {
+  IssueAttachmentCreateInputSchema,
+  IssueAttachmentSchema,
+  IssueAttachmentSourceEnum,
+  type IssueAttachment,
+  type IssueAttachmentCreateInput,
+  type IssueAttachmentSource,
+} from "./attachment";
+
+export {
+  buildJiraAttachmentCreateInput,
+  jiraAttachmentIdFromUrl,
+  rewriteJiraAttachmentReferences,
+  type JiraAttachmentImportInput,
+  type JiraAttachmentRewriteTarget,
+} from "./jiraAttachments";
+
+export {
   ACTIVITY_EVENT_ASSIGNEE_CHANGE,
   ACTIVITY_EVENT_IMPL_REF_LINKED,
   ACTIVITY_EVENT_PLANNING_LINK,
@@ -52,6 +69,8 @@ export {
   ACTIVITY_EVENT_PARENT_CHANGE,
   ACTIVITY_EVENT_RELATION_CHANGE,
   ACTIVITY_EVENT_ARCHIVED_CHANGE,
+  ACTIVITY_EVENT_ATTACHMENT_ADDED,
+  ACTIVITY_EVENT_ATTACHMENT_REMOVED,
   type ActivityEventType,
   type ActivityEventPayload,
   type AssigneeChangePayload,
@@ -68,6 +87,8 @@ export {
   type ParentChangePayload,
   type RelationChangePayload,
   type ArchivedChangePayload,
+  type AttachmentAddedPayload,
+  type AttachmentRemovedPayload,
   type ActivityEvent,
 } from "./activity";
 

@@ -9,7 +9,7 @@ import type { Comment } from "@reef/core";
 import { Pencil } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { type KeyboardEvent, useState } from "react";
-import { Streamdown } from "streamdown";
+import { Streamdown, type UrlTransform, defaultUrlTransform } from "streamdown";
 
 interface CommentCardProps {
   comment: Comment;
@@ -19,6 +19,7 @@ interface CommentCardProps {
   flash?: boolean;
   /** Resolve to leave edit mode; reject to stay editing (error toasted above). */
   onSave: (body: string) => Promise<void>;
+  resolveMarkdownUrl?: UrlTransform;
 }
 
 /**
@@ -32,6 +33,7 @@ export function CommentCard({
   currentLogin,
   flash = false,
   onSave,
+  resolveMarkdownUrl,
 }: CommentCardProps) {
   const isOwn = !!currentLogin && comment.author === currentLogin;
   const [editing, setEditing] = useState(false);
@@ -70,6 +72,12 @@ export function CommentCard({
       setEditing(false);
     }
   }
+
+  const urlTransform: UrlTransform = (url, key, node) => {
+    const resolved = resolveMarkdownUrl?.(url, key, node) ?? url;
+    if (resolved !== url) return resolved;
+    return defaultUrlTransform(url, key, node);
+  };
 
   return (
     <div className={cn("group flex gap-3", flash && "reef-flash-row")}>
@@ -155,6 +163,7 @@ export function CommentCard({
           <Streamdown
             className="mt-1 w-full min-w-0 break-words text-[13px] text-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
             linkSafety={linkSafetyConfig}
+            urlTransform={urlTransform}
           >
             {comment.body}
           </Streamdown>

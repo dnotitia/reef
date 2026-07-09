@@ -5,6 +5,7 @@ import {
   MONITORED_REPOS_TABLE,
   REEF_ACTIVITY_SUGGESTIONS_TABLE,
   REEF_ACTIVITY_TABLE,
+  REEF_ATTACHMENTS_TABLE,
   REEF_COMMENTS_TABLE,
   REEF_DESIRED_TABLES,
   REEF_ISSUES_TABLE,
@@ -65,12 +66,13 @@ describe("ensureReefTables", () => {
       { status: 201, body: { name: REEF_TEMPLATES_TABLE } },
       { status: 201, body: { name: REEF_ACTIVITY_SUGGESTIONS_TABLE } },
       { status: 201, body: { name: REEF_COMMENTS_TABLE } },
+      { status: 201, body: { name: REEF_ATTACHMENTS_TABLE } },
       { status: 201, body: { name: REEF_ACTIVITY_TABLE } },
       { body: makeListTablesResponse(ALL_REEF_TABLES) },
     ]);
     const adapter = makeAdapter();
     await ensureReefTables({ adapter, vault: "reef-sample" });
-    expect(calls).toHaveLength(12);
+    expect(calls).toHaveLength(13);
     expect(calls[0]?.url).toBe("https://akb.test/api/v1/tables/reef-sample");
     expect(calls[0]?.init?.method ?? "GET").toBe("GET");
     const firstCreate = JSON.parse(calls[1]?.init?.body as string);
@@ -220,8 +222,30 @@ describe("ensureReefTables", () => {
     expect(commentsColumnNames).not.toContain("created_by");
 
     const tenthCreate = JSON.parse(calls[10]?.init?.body as string);
-    expect(tenthCreate.name).toBe(REEF_ACTIVITY_TABLE);
+    expect(tenthCreate.name).toBe(REEF_ATTACHMENTS_TABLE);
     expect(tenthCreate.columns).toEqual([
+      { name: "reef_id", type: "text", required: true },
+      { name: "file_uri", type: "text", required: true },
+      { name: "filename", type: "text", required: true },
+      { name: "mime_type", type: "text", required: true },
+      { name: "size_bytes", type: "number", required: true },
+      { name: "author", type: "text", required: true },
+      { name: "created_at", type: "text", required: true },
+      { name: "source", type: "text", required: true },
+      { name: "inline", type: "boolean" },
+      { name: "original_jira_attachment_id", type: "text" },
+      { name: "meta", type: "json" },
+    ]);
+    const attachmentColumnNames = (
+      tenthCreate.columns as Array<{ name: string }>
+    ).map((c) => c.name);
+    expect(attachmentColumnNames).not.toContain("id");
+    expect(attachmentColumnNames).not.toContain("updated_at");
+    expect(attachmentColumnNames).not.toContain("created_by");
+
+    const eleventhCreate = JSON.parse(calls[11]?.init?.body as string);
+    expect(eleventhCreate.name).toBe(REEF_ACTIVITY_TABLE);
+    expect(eleventhCreate.columns).toEqual([
       { name: "reef_id", type: "text", required: true },
       { name: "event_type", type: "text", required: true },
       { name: "event_key", type: "text", required: true },
@@ -229,7 +253,7 @@ describe("ensureReefTables", () => {
       { name: "meta", type: "json" },
     ]);
     const activityColumnNames = (
-      tenthCreate.columns as Array<{ name: string }>
+      eleventhCreate.columns as Array<{ name: string }>
     ).map((c) => c.name);
     expect(activityColumnNames).not.toContain("id");
     expect(activityColumnNames).not.toContain("created_at");
@@ -248,14 +272,15 @@ describe("ensureReefTables", () => {
       { status: 201, body: { name: REEF_TEMPLATES_TABLE } },
       { status: 201, body: { name: REEF_ACTIVITY_SUGGESTIONS_TABLE } },
       { status: 201, body: { name: REEF_COMMENTS_TABLE } },
+      { status: 201, body: { name: REEF_ATTACHMENTS_TABLE } },
       { status: 201, body: { name: REEF_ACTIVITY_TABLE } },
       { body: makeListTablesResponse(ALL_REEF_TABLES) },
     ]);
     const adapter = makeAdapter();
     await ensureReefTables({ adapter, vault: "reef-sample" });
-    expect(calls).toHaveLength(11);
+    expect(calls).toHaveLength(12);
     const createdNames = calls
-      .slice(1, 10)
+      .slice(1, 11)
       .map((c) => JSON.parse(c.init?.body as string).name);
     expect(createdNames).toEqual([
       MONITORED_REPOS_TABLE,
@@ -266,6 +291,7 @@ describe("ensureReefTables", () => {
       REEF_TEMPLATES_TABLE,
       REEF_ACTIVITY_SUGGESTIONS_TABLE,
       REEF_COMMENTS_TABLE,
+      REEF_ATTACHMENTS_TABLE,
       REEF_ACTIVITY_TABLE,
     ]);
   });

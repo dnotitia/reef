@@ -1,13 +1,15 @@
 import { NotFoundError } from "../../../errors";
 import {
   ACTIVITY_INBOX_COLLECTION,
+  REEF_ATTACHMENTS_TABLE,
   REEF_SETTINGS_TABLE,
   REEF_TABLE_NAMES,
 } from "../core/constants";
 import { deleteCollection, deleteDocument } from "../core/documents";
+import { deleteAkbFile } from "../core/files";
 import type { AkbAdapter } from "../core/http";
 import { issuePathFor } from "../core/paths";
-import { isMissingTableError } from "../core/sql";
+import { isMissingTableError, runSql, tableRef } from "../core/sql";
 import { dropAkbTable } from "../core/tables";
 import { withSpan } from "../core/tracing";
 import type { DeleteVaultParams, DetachReefParams } from "../core/types";
@@ -44,6 +46,26 @@ async function reefIssueDocumentPaths(
   try {
     const { issues } = await listIssues({ adapter, vault });
     return issues.map((issue) => issuePathFor(issue.id));
+  } catch (err) {
+    if (isMissingTableError(err)) return [];
+    throw err;
+  }
+}
+
+async function reefAttachmentFileUris(
+  adapter: AkbAdapter,
+  vault: string,
+): Promise<string[]> {
+  try {
+    const res = await runSql(
+      adapter,
+      vault,
+      `SELECT DISTINCT file_uri FROM ${tableRef(REEF_ATTACHMENTS_TABLE)}`,
+    );
+    if (res.kind !== "table_query") return [];
+    return res.items
+      .map((row) => row.file_uri)
+      .filter((uri): uri is string => typeof uri === "string" && uri !== "");
   } catch (err) {
     if (isMissingTableError(err)) return [];
     throw err;
@@ -105,7 +127,15 @@ export async function detachReef(params: DetachReefParams): Promise<void> {
       deleteCollection(adapter, vault, ACTIVITY_INBOX_COLLECTION, true),
     );
 
-    // 2. reef tables, settings last (see doc comment).
+    // 2. reef-owned attachment files, while the table still holds their URIs.
+    const attachmentFileUris = await reefAttachmentFileUris(adapter, vault);
+    await Promise.all(
+      attachmentFileUris.map((uri) =>
+        ignoreMissing(deleteAkbFile(adapter, vault, uri)),
+      ),
+    );
+
+    // 3. reef tables, settings last (see doc comment).
     const nonSettings = REEF_TABLE_NAMES.filter(
       (table) => table !== REEF_SETTINGS_TABLE,
     );

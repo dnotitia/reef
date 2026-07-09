@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   ACTIVITY_EVENT_ARCHIVED_CHANGE,
   ACTIVITY_EVENT_ASSIGNEE_CHANGE,
+  ACTIVITY_EVENT_ATTACHMENT_ADDED,
+  ACTIVITY_EVENT_ATTACHMENT_REMOVED,
   ACTIVITY_EVENT_DUE_DATE_CHANGE,
   ACTIVITY_EVENT_ESTIMATE_CHANGE,
   ACTIVITY_EVENT_IMPL_REF_LINKED,
@@ -15,6 +17,8 @@ import {
   ActivityEventSchema,
   ArchivedChangePayloadSchema,
   AssigneeChangePayloadSchema,
+  AttachmentAddedPayloadSchema,
+  AttachmentRemovedPayloadSchema,
   DueDateChangePayloadSchema,
   EstimateChangePayloadSchema,
   ImplRefLinkedPayloadSchema,
@@ -169,6 +173,21 @@ describe("activity payload schemas (REEF-277)", () => {
       ArchivedChangePayloadSchema.parse({ from: "no", to: "yes" }),
     ).toThrow();
   });
+
+  it("attachment payloads carry stable file identity and display metadata", () => {
+    const payload = {
+      attachment_id: "att-1",
+      file_uri: "akb://reef/issues/file/file-1",
+      filename: "screenshot.png",
+      mime_type: "image/png",
+      size_bytes: 42,
+    };
+    expect(AttachmentAddedPayloadSchema.parse(payload)).toEqual(payload);
+    expect(AttachmentRemovedPayloadSchema.parse(payload)).toEqual(payload);
+    expect(() =>
+      AttachmentAddedPayloadSchema.parse({ ...payload, size_bytes: -1 }),
+    ).toThrow();
+  });
 });
 
 describe("ActivityEventSchema discriminated union (REEF-126)", () => {
@@ -221,6 +240,26 @@ describe("ActivityEventSchema discriminated union (REEF-126)", () => {
       {
         event_type: ACTIVITY_EVENT_ARCHIVED_CHANGE,
         payload: { from: false, to: true },
+      },
+      {
+        event_type: ACTIVITY_EVENT_ATTACHMENT_ADDED,
+        payload: {
+          attachment_id: "att-1",
+          file_uri: "akb://reef/issues/file/file-1",
+          filename: "screenshot.png",
+          mime_type: "image/png",
+          size_bytes: 42,
+        },
+      },
+      {
+        event_type: ACTIVITY_EVENT_ATTACHMENT_REMOVED,
+        payload: {
+          attachment_id: "att-1",
+          file_uri: "akb://reef/issues/file/file-1",
+          filename: "screenshot.png",
+          mime_type: "image/png",
+          size_bytes: 42,
+        },
       },
     ];
     for (const c of cases) {

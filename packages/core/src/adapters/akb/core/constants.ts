@@ -34,6 +34,9 @@ export const ACTIVITY_INBOX_COLLECTION = "_reef/activity-inbox";
  *   reef_comments — flat issue comment rows keyed by `reef_id`; comment author
  *                 and edit semantics live in `meta` so the create-time schema
  *                 stays small while akb lacks HTTP ALTER support.
+ *   reef_attachments — issue-scoped AKB file metadata. File bytes stay in AKB
+ *                 file storage; this table holds the queryable issue link and
+ *                 Jira import provenance.
  *   reef_activity — immutable issue event rows keyed by `(reef_id, event_key)`;
  *                 event-specific details live in `payload`, and actor/source
  *                 audit semantics live in `meta`.
@@ -44,6 +47,7 @@ export const REEF_ISSUES_TABLE = "reef_issues";
 export const REEF_TEMPLATES_TABLE = "reef_templates";
 export const REEF_ACTIVITY_SUGGESTIONS_TABLE = "reef_activity_suggestions";
 export const REEF_COMMENTS_TABLE = "reef_comments";
+export const REEF_ATTACHMENTS_TABLE = "reef_attachments";
 export const REEF_ACTIVITY_TABLE = "reef_activity";
 export const REEF_SPRINTS_TABLE = "reef_sprints";
 export const REEF_MILESTONES_TABLE = "reef_milestones";
@@ -91,6 +95,7 @@ export const REEF_TABLE_NAMES = [
   REEF_TEMPLATES_TABLE,
   REEF_ACTIVITY_SUGGESTIONS_TABLE,
   REEF_COMMENTS_TABLE,
+  REEF_ATTACHMENTS_TABLE,
   REEF_ACTIVITY_TABLE,
   REEF_SPRINTS_TABLE,
   REEF_MILESTONES_TABLE,
