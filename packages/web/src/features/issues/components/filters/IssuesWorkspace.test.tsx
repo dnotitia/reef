@@ -61,6 +61,7 @@ vi.mock("@/features/issues/components/filters/IssueFilterToolbar", () => ({
   IssueFilterToolbar: () => <div data-testid="filter-toolbar" />,
 }));
 
+import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { IssuesWorkspace } from "./IssuesWorkspace";
 
@@ -91,6 +92,8 @@ describe("IssuesWorkspace", () => {
       searchQuery: "",
       selectedIssueId: null,
     });
+    useIssueSelectionStore.getState().setRunning(false);
+    useIssueSelectionStore.getState().clearForContextChange();
     await db.config.clear();
   });
 
@@ -110,6 +113,19 @@ describe("IssuesWorkspace", () => {
     expect(screen.getByTestId("issue-bulk-action-bar")).toBeInTheDocument();
     expect(screen.queryByTestId("board-bulk-edit-shortcut")).toBeNull();
     expect(screen.queryByTestId("board-body")).toBeNull();
+  });
+
+  it("clears selection on a context change even while a bulk job is running", async () => {
+    navigationState.searchParams = new URLSearchParams("view=list");
+    useIssueSelectionStore.getState().toggle("REEF-101");
+    useIssueSelectionStore.getState().setRunning(true);
+
+    render(wrap(<IssuesWorkspace />));
+
+    await waitFor(() => {
+      expect(useIssueSelectionStore.getState().selectedIds.size).toBe(0);
+    });
+    expect(useIssueSelectionStore.getState().running).toBe(true);
   });
 
   it("renders the timeline body when ?view=timeline", () => {

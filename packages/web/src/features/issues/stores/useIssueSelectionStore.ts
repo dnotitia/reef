@@ -17,6 +17,7 @@ interface IssueSelectionState {
   removeSucceeded: (issueIds: readonly string[]) => void;
   setRunning: (running: boolean) => void;
   clear: () => void;
+  clearForContextChange: () => void;
 }
 
 const EMPTY_SELECTION = new Set<string>();
@@ -84,4 +85,5 @@ export const useIssueSelectionStore = create<IssueSelectionState>((set) => ({
     set((state) =>
       state.running ? {} : { selectedIds: new Set(), anchor: null },
     ),
+  clearForContextChange: () => set({ selectedIds: new Set(), anchor: null }),
 }));

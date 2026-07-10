@@ -66,6 +66,10 @@ describe("useIssueSelectionStore", () => {
       running: true,
     });
 
+    useIssueSelectionStore.getState().clearForContextChange();
+    expect(useIssueSelectionStore.getState().selectedIds.size).toBe(0);
+    expect(useIssueSelectionStore.getState().running).toBe(true);
+
     useIssueSelectionStore.getState().setRunning(false);
     useIssueSelectionStore.getState().clear();
     expect(useIssueSelectionStore.getState().selectedIds.size).toBe(0);

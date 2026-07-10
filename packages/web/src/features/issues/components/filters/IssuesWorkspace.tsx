@@ -40,7 +40,9 @@ export function IssuesWorkspace() {
   const nav = useTranslations("nav");
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
-  const clearSelection = useIssueSelectionStore((state) => state.clear);
+  const clearSelectionForContextChange = useIssueSelectionStore(
+    (state) => state.clearForContextChange,
+  );
   const selectionContext = JSON.stringify({ filter, searchQuery, vault, view });
   const previousSelectionContext = useRef<string | null>(null);
 
@@ -50,8 +52,8 @@ export function IssuesWorkspace() {
   useEffect(() => {
     if (previousSelectionContext.current === selectionContext) return;
     previousSelectionContext.current = selectionContext;
-    clearSelection();
-  }, [clearSelection, selectionContext]);
+    clearSelectionForContextChange();
+  }, [clearSelectionForContextChange, selectionContext]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
