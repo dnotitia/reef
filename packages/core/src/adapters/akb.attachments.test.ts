@@ -57,7 +57,13 @@ describe("listIssueAttachments", () => {
     const { calls } = setupFetch([
       {
         body: makeSqlQueryResponse(
-          [makeAttachmentRow({ id: "att-1" })],
+          [
+            makeAttachmentRow({
+              id: "att-1",
+              created_at: "2026-07-10T01:00:00.000Z",
+              meta: { created_at: "2026-07-09T01:00:00.000Z" },
+            }),
+          ],
           ATTACHMENT_ROW_COLUMNS,
         ),
       },
@@ -73,11 +79,15 @@ describe("listIssueAttachments", () => {
     expect(attachments[0]).toMatchObject({
       id: "att-1",
       file_uri: "akb://reef-sample/issues/file/file-1",
+      created_at: "2026-07-09T01:00:00.000Z",
       inline: true,
+      meta: null,
     });
     const sql = lastSql(calls[0]?.init?.body);
     expect(sql).toContain(`FROM ${REEF_ATTACHMENTS_TABLE}`);
-    expect(sql).toContain("ORDER BY created_at ASC, id ASC");
+    expect(sql).toContain(
+      "ORDER BY COALESCE(meta->>'created_at', created_at::text) ASC, id ASC",
+    );
   });
 
   it("returns an empty list before the attachment table exists", async () => {
@@ -133,6 +143,10 @@ describe("uploadIssueAttachment", () => {
     expect(calls[2]?.init?.body).toBeInstanceOf(FormData);
     const insertSql = lastSql(calls[3]?.init?.body);
     expect(insertSql).toContain(`INSERT INTO ${REEF_ATTACHMENTS_TABLE}`);
+    expect(insertSql.slice(0, insertSql.indexOf(" VALUES "))).not.toContain(
+      '"created_at"',
+    );
+    expect(insertSql).toContain('"created_at":');
     expect(insertSql).toContain("'REEF-349'");
     expect(insertSql).toContain("'akb://reef-sample/issues/file/file-1'");
     const activitySql = lastSql(calls[5]?.init?.body);
@@ -150,8 +164,10 @@ describe("createIssueAttachmentRecord", () => {
         body: makeSqlQueryResponse(
           [
             makeAttachmentRow({
+              created_at: "2026-07-10T01:00:00.000Z",
               source: "jira_import",
               original_jira_attachment_id: "10001",
+              meta: { created_at: "2026-07-09T01:00:00.000Z" },
             }),
           ],
           ATTACHMENT_ROW_COLUMNS,
@@ -159,26 +175,34 @@ describe("createIssueAttachmentRecord", () => {
       },
     ]);
 
-    await createIssueAttachmentRecord(makeAdapter(), "reef-sample", {
-      reef_id: "REEF-349",
-      file_uri: "akb://reef-sample/issues/file/file-1",
-      filename: "screenshot.png",
-      mime_type: "image/png",
-      size_bytes: 1234,
-      author: "jira-import",
-      created_at: "2026-07-09T01:00:00.000Z",
-      source: "jira_import",
-      inline: true,
-      original_jira_attachment_id: "10001",
-      meta: null,
-    });
+    const attachment = await createIssueAttachmentRecord(
+      makeAdapter(),
+      "reef-sample",
+      {
+        reef_id: "REEF-349",
+        file_uri: "akb://reef-sample/issues/file/file-1",
+        filename: "screenshot.png",
+        mime_type: "image/png",
+        size_bytes: 1234,
+        author: "jira-import",
+        created_at: "2026-07-09T01:00:00.000Z",
+        source: "jira_import",
+        inline: true,
+        original_jira_attachment_id: "10001",
+        meta: null,
+      },
+    );
 
     expect(calls.some((call) => call.url.endsWith("/api/v1/files"))).toBe(
       false,
     );
     const sql = lastSql(calls[2]?.init?.body);
+    const insertColumns = sql.slice(0, sql.indexOf(" VALUES "));
+    expect(insertColumns).not.toContain('"created_at"');
+    expect(sql).toContain('"created_at":"2026-07-09T01:00:00.000Z"');
     expect(sql).toContain("'jira_import'");
     expect(sql).toContain("'10001'");
+    expect(attachment.created_at).toBe("2026-07-09T01:00:00.000Z");
   });
 });
 

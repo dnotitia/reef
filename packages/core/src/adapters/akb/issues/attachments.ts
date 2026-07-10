@@ -63,6 +63,14 @@ export interface DownloadIssueAttachmentResult {
 
 function rowToAttachment(row: Record<string, unknown>): IssueAttachment {
   try {
+    const decodedMeta = decodeSettingsValue(row.meta);
+    const storedMeta =
+      decodedMeta &&
+      typeof decodedMeta === "object" &&
+      !Array.isArray(decodedMeta)
+        ? (decodedMeta as Record<string, unknown>)
+        : null;
+    const { created_at: semanticCreatedAt, ...publicMeta } = storedMeta ?? {};
     return IssueAttachmentSchema.parse({
       id: row.id,
       reef_id: row.reef_id,
@@ -71,11 +79,14 @@ function rowToAttachment(row: Record<string, unknown>): IssueAttachment {
       mime_type: row.mime_type,
       size_bytes: Number(row.size_bytes),
       author: row.author,
-      created_at: row.created_at,
+      created_at:
+        typeof semanticCreatedAt === "string"
+          ? semanticCreatedAt
+          : row.created_at,
       source: row.source,
       inline: row.inline === true || row.inline === "true",
       original_jira_attachment_id: row.original_jira_attachment_id ?? null,
-      meta: decodeSettingsValue(row.meta) ?? null,
+      meta: Object.keys(publicMeta).length > 0 ? publicMeta : null,
     });
   } catch (err) {
     if (err instanceof ZodError) {
@@ -127,6 +138,7 @@ async function insertAttachmentRow(
   vault: string,
   input: IssueAttachmentCreateInput,
 ): Promise<IssueAttachment> {
+  const persistedMeta = { ...(input.meta ?? {}), created_at: input.created_at };
   const fields: Array<[string, string]> = [
     ["reef_id", quoteText(input.reef_id, "attachment reef_id")],
     ["file_uri", quoteText(input.file_uri, "attachment file_uri")],
@@ -134,7 +146,6 @@ async function insertAttachmentRow(
     ["mime_type", quoteText(input.mime_type, "attachment mime_type")],
     ["size_bytes", quoteNumberOrNull(input.size_bytes)],
     ["author", quoteText(input.author, "attachment author")],
-    ["created_at", quoteText(input.created_at, "attachment created_at")],
     ["source", quoteText(input.source, "attachment source")],
     ["inline", input.inline ? "TRUE" : "FALSE"],
     [
@@ -144,7 +155,7 @@ async function insertAttachmentRow(
         "attachment original_jira_attachment_id",
       ),
     ],
-    ["meta", quoteJson(input.meta ?? null)],
+    ["meta", quoteJson(persistedMeta)],
   ];
   const columns = fields
     .map(([column]) => column)
@@ -206,7 +217,7 @@ export async function listIssueAttachments(
           `SELECT * FROM ${tableRef(REEF_ATTACHMENTS_TABLE)} WHERE reef_id = ${quoteText(
             reefId,
             "attachment reef_id",
-          )} ORDER BY created_at ASC, id ASC`,
+          )} ORDER BY COALESCE(meta->>'created_at', created_at::text) ASC, id ASC`,
         );
         const rows = res.kind === "table_query" ? res.items : [];
         const attachments = rows.map(rowToAttachment);

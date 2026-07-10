@@ -142,6 +142,12 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Missing attachment tables provision successfully again.** Reef no longer
+  declares or inserts AKB-managed timestamp columns when creating attachment
+  storage. Existing attachment and Jira-import timestamps keep their public
+  `created_at` meaning through attachment metadata, and every desired table
+  manifest is now checked for reserved AKB columns before provisioning starts.
+  (REEF-404)
 - **Planning pages no longer recover from a hydration mismatch on reload.**
   Restored planning catalog cache now waits until after the first client
   hydration render before replacing the SSR skeleton, so the planning table no
