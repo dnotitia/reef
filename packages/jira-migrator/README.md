@@ -1,125 +1,84 @@
 # @reef/jira-migrator
 
-Operator-run package for one-shot Jira migrations into Reef. It is intentionally
-outside `@reef/web`: Jira credentials are deployment/operator secrets, not user
-state in the product runtime.
+Operator-run package for one-shot Jira migrations into Reef. The package is
+intentionally outside `@reef/web`: Jira credentials are deployment/operator
+secrets, not user state in the product runtime.
 
-## Configuration
+At the current scaffold stage, the CLI validates migration configuration and
+prints a redacted public config. It does not write to Jira or Reef.
 
-The package loads non-secret settings from CLI flags or environment variables,
-and credentials only from environment variables or local secret files.
+## Documentation Policy
+
+- This README is the package entry point for engineers and operators. Keep it
+  focused on scope, quick start, package commands, exported surfaces, and links.
+- `../../docs/jira-migration.md` is the canonical operator runbook and migration
+  policy document. Keep field mapping, account mapping, report interpretation,
+  and Jira-to-Reef behavior there.
+- `AGENTS.md` is for agent-only implementation rules.
+- When CLI flags or environment variables change, update this README and
+  `../../docs/jira-migration.md` together.
+
+## Quick Start
+
+Run the scaffolded dry-run from the repository root:
 
 ```bash
-reef-jira-migrator \
+pnpm --filter @reef/jira-migrator run start -- \
   --jira-base-url https://example.atlassian.net \
   --project-key SHDEV \
   --vault reef-test \
   --dry-run
 ```
 
-Environment variables:
+Credentials come from environment variables or local secret files:
 
-- `REEF_JIRA_BASE_URL` or `JIRA_BASE_URL`
-- `REEF_JIRA_CLOUD_ID` or `JIRA_CLOUD_ID` (optional; can derive the Atlassian
-  API gateway base URL when no base URL is supplied)
-- `REEF_JIRA_PROJECT_KEY` or `JIRA_PROJECT_KEY`
-- `REEF_JIRA_MIGRATOR_VAULT`, `REEF_ORCHESTRATOR_VAULT`, or `REEF_VAULT`
-- `REEF_JIRA_MIGRATOR_REPORT_PATH` (optional)
-- `REEF_JIRA_ACCOUNT_MAPPING_PATH` (optional local account mapping artifact)
-- Basic auth: `REEF_JIRA_EMAIL`/`JIRA_EMAIL` plus
-  `REEF_JIRA_API_TOKEN`/`JIRA_API_TOKEN` or
-  `REEF_JIRA_API_TOKEN_FILE`/`JIRA_API_TOKEN_FILE`
-- Bearer auth: `REEF_JIRA_BEARER_TOKEN`/`JIRA_BEARER_TOKEN` or
-  `REEF_JIRA_BEARER_TOKEN_FILE`/`JIRA_BEARER_TOKEN_FILE`
+```bash
+export REEF_JIRA_EMAIL=operator@example.com
+export REEF_JIRA_API_TOKEN_FILE=./secrets/jira-api-token
+```
 
 `publicJiraMigratorConfig` and `redactForConfig` are the only supported ways to
 serialize config/report data; they omit or redact secret values.
 
-## Jira Account Mapping
+See `../../docs/jira-migration.md` for the full configuration matrix and
+operator procedure.
 
-Jira Cloud issue payloads identify people by `accountId`. The migrator maps
-those account ids to Reef actors in this order:
+## Package Surface
 
-1. Operator overrides in the account mapping artifact.
-2. Email-directory matches when Jira exposes an email address.
-3. Existing artifact records from a previous migration scan.
-4. A stable fallback actor, `jira:<accountId>`.
+The package exports:
 
-Pass a local JSON artifact path with either the CLI flag or environment
-variable:
+- CLI/config loading helpers that keep secrets out of public output.
+- A read-only Jira REST client and Jira payload schemas/normalizers.
+- Local Jira account mapping artifact helpers.
+- SHDEV Jira Rank import planning helpers.
 
-```bash
-reef-jira-migrator \
-  --jira-cloud-id cloud-abc \
-  --project-key SHDEV \
-  --vault reef-test \
-  --account-mapping ./artifacts/jira-account-mapping.cloud-abc.json \
-  --dry-run
-```
+Use `@reef/core` for shared Reef contracts where available. Do not import
+`@reef/web` or browser/Next.js runtime APIs into this package.
+
+## Commands
+
+Run from the repository root:
 
 ```bash
-export REEF_JIRA_ACCOUNT_MAPPING_PATH=./artifacts/jira-account-mapping.cloud-abc.json
+pnpm --filter @reef/jira-migrator run typecheck
+pnpm --filter @reef/jira-migrator run test
+pnpm --filter @reef/jira-migrator run smoke:dry-run
 ```
 
-The current CLI entrypoint validates and exposes this path in config output.
-Migration drivers should load and write the artifact with the exported helpers:
+`smoke:dry-run` requires the same Jira, vault, and credential settings as the
+CLI quick start.
 
-```ts
-import {
-  collectJiraUserObservations,
-  loadJiraAccountMappingArtifact,
-  mapJiraIssueActors,
-  upsertJiraAccountMappingArtifact,
-  writeJiraAccountMappingArtifact,
-} from "@reef/jira-migrator";
+Workspace-wide gates:
+
+```bash
+pnpm biome check .
+pnpm -r run typecheck
+pnpm -r run test
 ```
 
-When the configured file is missing, `loadJiraAccountMappingArtifact` returns an
-empty artifact for the requested Jira Cloud id. After a scan, write the updated
-artifact back so operators can review account ids before import:
+## Related Docs
 
-```json
-{
-  "version": 1,
-  "jiraCloudId": "cloud-abc",
-  "accounts": {
-    "acct-reporter": {
-      "accountId": "acct-reporter",
-      "emailAddress": "requester@example.com",
-      "displayName": "Requester",
-      "active": true,
-      "accountType": "atlassian",
-      "actor": "jira:acct-reporter",
-      "mappingStrategy": "fallback",
-      "overrideReason": null,
-      "firstSeenAt": "2026-07-09T08:00:00.000Z",
-      "lastSeenAt": "2026-07-09T08:00:00.000Z",
-      "projectKeys": ["SHDEV"]
-    }
-  },
-  "overrides": {}
-}
-```
-
-To override a fallback or email match, add an entry under `overrides` keyed by
-the Jira account id:
-
-```json
-{
-  "overrides": {
-    "acct-reporter": {
-      "actor": "reef-requester",
-      "reason": "operator confirmed requester account"
-    }
-  }
-}
-```
-
-On the next mapping pass, `acct-reporter` resolves to `reef-requester` with the
-`override` strategy. Removing that override makes the account recalculate from
-email-directory data or the stable `jira:<accountId>` fallback; stale override
-records are not kept active.
-
-Keep account mapping artifacts local to the migration run. They can contain
-Jira account ids, display names, and email addresses, so do not commit them to
-the repository or include them in issue bodies, logs, or PR descriptions.
+- [Jira migration runbook and policy](../../docs/jira-migration.md)
+- [Root README](../../README.md)
+- [Root agent contract](../../AGENTS.md)
+- [Package agent rules](AGENTS.md)

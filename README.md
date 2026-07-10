@@ -121,12 +121,13 @@ inside this repository.
 | --- | --- |
 | `packages/core` | Framework-agnostic TypeScript library (`@reef/core`) for schemas, models, adapters, agents, tools, and errors. GitHub, AKB, and LLM calls originate here. |
 | `packages/web` | Next.js App Router application package (`@reef/web`) and stateless Backend-for-Frontend. Route Handlers validate requests, extract credentials, call `core`, and translate errors. |
+| `packages/jira-migrator` | Operator-run Jira-to-Reef migration package (`@reef/jira-migrator`) for Jira read paths, migration config, account mapping artifacts, and dry-run/report helpers. |
 | `docs/` | Architecture, UX, deployment, migration, release, and maintenance documentation. |
 | `deploy/` | Kubernetes deployment assets. |
 | `scripts/` | Repository automation, including release-policy and maintenance checks. |
 
-Package-local engineering rules live in `packages/core/AGENTS.md` and
-`packages/web/AGENTS.md`.
+Package-local engineering rules live in `packages/core/AGENTS.md`,
+`packages/web/AGENTS.md`, and `packages/jira-migrator/AGENTS.md`.
 
 ## Development with AKB
 
@@ -199,9 +200,11 @@ reef origin. See [docs/deployment.md](docs/deployment.md) and
 - [Keycloak SSO deployment contract](docs/keycloak-sso.md)
 - [Release policy](docs/release-policy.md)
 - [Migration policy](docs/migration-policy.md)
+- [Jira migration](docs/jira-migration.md)
 - [Maintenance](docs/maintenance.md)
 - [Core package README](packages/core/README.md)
 - [`@reef/web` package README](packages/web/README.md)
+- [`@reef/jira-migrator` package README](packages/jira-migrator/README.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 - [Changelog](CHANGELOG.md)
