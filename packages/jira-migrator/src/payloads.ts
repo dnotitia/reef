@@ -386,10 +386,13 @@ export const normalizeJiraSprint = (
   goal: sprint.goal ?? null,
 });
 
-const isSprintField = (field: JiraFieldPayload): boolean => {
-  const customSchema = field.schema?.custom?.toLowerCase() ?? "";
-  return customSchema.includes("sprint");
-};
+const JIRA_SOFTWARE_SPRINT_FIELD_SCHEMA =
+  "com.pyxis.greenhopper.jira:gh-sprint";
+
+const isSprintField = (field: JiraFieldPayload): boolean =>
+  field.schema?.custom === JIRA_SOFTWARE_SPRINT_FIELD_SCHEMA &&
+  field.schema.type === "array" &&
+  field.schema.items === "json";
 
 export const findJiraSprintFieldId = (
   fields: readonly JiraFieldPayload[],

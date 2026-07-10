@@ -110,7 +110,18 @@ describe("Jira payload schemas and normalizers", () => {
   });
 
   it("discovers the Sprint custom field from the Jira field schema instead of a fixed id", () => {
-    const fields = JiraFieldCatalogSchema.parse(jiraFieldCatalogFixture);
+    const fields = JiraFieldCatalogSchema.parse([
+      {
+        id: "customfield_10000",
+        name: "Sprint capacity note",
+        custom: true,
+        schema: {
+          type: "string",
+          custom: "com.example:sprint-capacity",
+        },
+      },
+      ...jiraFieldCatalogFixture,
+    ]);
     const issue = JiraIssueSchema.parse({
       ...jiraIssueFixture,
       fields: {
