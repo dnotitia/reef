@@ -214,3 +214,79 @@ order, import verification, and other internal consumers. Backlog remains
 
 Jira Rank changelog history reconstruction is out of scope. REEF-393 preserves
 the current Jira ordering only.
+
+## Jira Version And Sprint Planning Migration
+
+REEF-402 treats Jira Version and Sprint records as independent migration
+entities. Issue import consumes the resulting Reef UUID mappings; it does not
+create releases or sprints itself.
+
+### Read And Selection Policy
+
+- Read the complete paginated Version catalog for every configured source
+  project with `JiraReadClient.readProjectVersionCatalog()`.
+- Discover the issue Sprint custom field from Jira's field catalog schema with
+  `listFields()` and `normalizeIssueSprintReferences()`; do not hard-code a
+  `customfield_NNNNN` id.
+- Always include Sprint records referenced by in-scope issues.
+- Expand Sprint selection only from boards the operator explicitly configured,
+  using `readBoardSprintCatalog()`. A shared board is not inferred from a
+  project name.
+- Record `configured_project`, `issue_reference`, and `configured_board` in the
+  action's selection provenance so dry-run reports explain why each source
+  entity is present.
+
+Version identity is `jiraCloudId + projectId + versionId`. Sprint identity is
+`jiraCloudId + sprintId`; source names are display and exact-match fallback
+values only. The exported identity helpers encode these components into stable
+keys suitable for REEF-319 ledger records.
+
+### Lifecycle And Field Mapping
+
+| Jira source | Reef target | Mapping |
+| --- | --- | --- |
+| Version `released=true` | `reef_releases.status` | `released` |
+| Other Version | `reef_releases.status` | `planned`; dates do not imply `in_progress` |
+| Version `releaseDate` | release dates | `target_date`, and `released_at` only when released |
+| Version description | release notes | `notes` |
+| Sprint `future` | `reef_sprints.status` | `planned` |
+| Sprint `active` | `reef_sprints.status` | `active` |
+| Sprint `closed` | `reef_sprints.status` | `closed` |
+| Sprint dates and goal | sprint fields | `start_date`, `end_date`, and `goal` |
+
+Fields Reef cannot express are retained in the whitelisted source provenance,
+not silently discarded: Version `startDate` and `archived`, Sprint
+`completeDate` and `originBoardId`, plus their stable source ids. The planning
+plan intentionally excludes raw payloads, auth headers, credentials, watchers,
+and account data.
+
+### Resolution And Report Contract
+
+`buildJiraPlanningMigrationPlan()` is pure and returns a deeply frozen plan.
+Dry-run and apply must consume that same plan:
+
+1. Reuse a REEF-319 ledger binding when one exists for the stable source key.
+2. Otherwise find case-insensitive exact-name candidates in the matching Reef
+   planning table.
+3. Reuse only one candidate whose lifecycle and core dates are compatible.
+4. Classify no candidate as `create`.
+5. Classify duplicate names or incompatible metadata as `conflict` with reason
+   `planning_conflict`; do not merge them automatically.
+6. Classify an unknown Jira lifecycle as `unsupported` unless a ledger binding
+   already supplies the target.
+
+Every action carries field-level `mapped`, `preserved`, `conflict`, or
+`unsupported` report entries and a preservation path for source-only fields.
+After REEF-321 executes a create action through `@reef/core`, pass the returned
+UUID to `resolveJiraPlanningActionTarget()`. REEF-319 can persist that resolution
+by stable source identity, while REEF-318 can consume the release and Sprint
+maps from `buildJiraPlanningTargetMappings()` without creating planning rows.
+
+SHDEV is the first fixture-backed validation input, but the planning API,
+action shape, and tests are project-independent and exercise a second project
+key with the same contract.
+
+Official API references:
+
+- [Jira project Version REST API](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-project-versions/)
+- [Jira board Sprint REST API](https://developer.atlassian.com/cloud/jira/software/rest/api-group-board/#api-rest-agile-1-0-board-boardid-sprint-get)

@@ -14,6 +14,12 @@ explicitly in the entries below.
 
 ### Added
 
+- **Jira Version and Sprint planning migration contracts.** The Jira migrator
+  now reads complete project Version and explicitly configured board/Sprint
+  catalogs, discovers issue Sprint references from the Jira field schema, and
+  builds one immutable dry-run/apply plan with stable source identities,
+  deterministic Reef lifecycle mapping, ledger-first reuse, collision reports,
+  and UUID handoff seams for issue migration. (REEF-402, epic REEF-311)
 - **Jira migration account mapping.** The Jira migrator now captures Jira
   `accountId`, email, display name, active state, and account type for issue,
   comment, and changelog actors, then resolves them through one shared mapping

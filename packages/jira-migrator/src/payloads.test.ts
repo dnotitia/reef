@@ -2,15 +2,25 @@ import { describe, expect, it } from "vitest";
 import {
   jiraChangelogPageFixture,
   jiraCommentPageFixture,
+  jiraFieldCatalogFixture,
   jiraIssueFixture,
   jiraSearchFixture,
+  jiraSprintPageFixture,
+  jiraVersionPageFixture,
 } from "./fixtures.js";
 import {
   JiraChangelogPageSchema,
   JiraCommentPageSchema,
+  JiraFieldCatalogSchema,
   JiraIssueSchema,
   JiraSearchResponseSchema,
+  JiraSprintPageSchema,
+  JiraVersionPageSchema,
+  findJiraSprintFieldId,
+  normalizeIssueSprintReferences,
   normalizeJiraIssue,
+  normalizeJiraSprint,
+  normalizeJiraVersion,
 } from "./payloads.js";
 
 describe("Jira payload schemas and normalizers", () => {
@@ -74,5 +84,55 @@ describe("Jira payload schemas and normalizers", () => {
     expect(
       JiraChangelogPageSchema.parse(jiraChangelogPageFixture).values[0]?.id,
     ).toBe("60001");
+  });
+
+  it("normalizes Version and Sprint catalogs without retaining unrelated wire fields", () => {
+    const version = normalizeJiraVersion(
+      JiraVersionPageSchema.parse(jiraVersionPageFixture).values[0],
+    );
+    const sprint = normalizeJiraSprint(
+      JiraSprintPageSchema.parse(jiraSprintPageFixture).values[0],
+    );
+
+    expect(version).toMatchObject({
+      id: "70001",
+      projectId: "200",
+      name: "1.0",
+      released: false,
+    });
+    expect(sprint).toMatchObject({
+      id: "80001",
+      state: "active",
+      originBoardId: "90001",
+    });
+    expect(version).not.toHaveProperty("self");
+    expect(sprint).not.toHaveProperty("self");
+  });
+
+  it("discovers the Sprint custom field from the Jira field schema instead of a fixed id", () => {
+    const fields = JiraFieldCatalogSchema.parse([
+      {
+        id: "customfield_10000",
+        name: "Sprint capacity note",
+        custom: true,
+        schema: {
+          type: "string",
+          custom: "com.example:sprint-capacity",
+        },
+      },
+      ...jiraFieldCatalogFixture,
+    ]);
+    const issue = JiraIssueSchema.parse({
+      ...jiraIssueFixture,
+      fields: {
+        ...jiraIssueFixture.fields,
+        customfield_10420: jiraSprintPageFixture.values,
+      },
+    });
+
+    expect(findJiraSprintFieldId(fields)).toBe("customfield_10420");
+    expect(normalizeIssueSprintReferences(issue, fields)).toEqual([
+      expect.objectContaining({ id: "80001", name: "Migration Sprint 1" }),
+    ]);
   });
 });

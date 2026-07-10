@@ -2,8 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
   jiraChangelogPageFixture,
   jiraCommentPageFixture,
+  jiraFieldCatalogFixture,
   jiraIssueFixture,
   jiraSearchFixture,
+  jiraSprintPageFixture,
+  jiraVersionPageFixture,
 } from "./fixtures.js";
 import { JiraApiError, JiraReadClient } from "./jiraClient.js";
 
@@ -170,5 +173,90 @@ describe("JiraReadClient", () => {
     expect(String(fetchImpl.mock.calls[0]?.[0])).not.toContain(
       "cloud-abc///rest",
     );
+  });
+
+  it("reads every project Version page and preserves GET/rate-limit behavior", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse(jiraVersionPageFixture))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ...jiraVersionPageFixture,
+          startAt: 1,
+          isLast: true,
+          values: [
+            {
+              ...jiraVersionPageFixture.values[0],
+              id: "70002",
+              name: "2.0",
+            },
+          ],
+        }),
+      );
+    const client = makeClient(fetchImpl);
+
+    const catalog = await client.readProjectVersionCatalog({ maxResults: 1 });
+
+    expect(catalog.items.map((version) => version.id)).toEqual([
+      "70001",
+      "70002",
+    ]);
+    expect(fetchImpl.mock.calls.map(([, init]) => init?.method)).toEqual([
+      "GET",
+      "GET",
+    ]);
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain(
+      "/rest/api/3/project/SHDEV/version",
+    );
+    expect(String(fetchImpl.mock.calls[1]?.[0])).toContain("startAt=1");
+    expect(catalog.rateLimits).toHaveLength(2);
+  });
+
+  it("reads configured board Sprint pages and the Jira field catalog", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse(jiraSprintPageFixture))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ...jiraSprintPageFixture,
+          startAt: 1,
+          isLast: true,
+          values: [
+            {
+              ...jiraSprintPageFixture.values[0],
+              id: 80002,
+              name: "Migration Sprint 2",
+              state: "future",
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse(jiraFieldCatalogFixture));
+    const client = makeClient(fetchImpl);
+
+    const catalog = await client.readBoardSprintCatalog("90001", {
+      maxResults: 1,
+      states: ["future", "active", "closed"],
+    });
+    const fields = await client.listFields();
+
+    expect(catalog.items.map((sprint) => sprint.id)).toEqual([
+      "80001",
+      "80002",
+    ]);
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain(
+      "/rest/agile/1.0/board/90001/sprint",
+    );
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain(
+      "state=future%2Cactive%2Cclosed",
+    );
+    expect(fields.items).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "Sprint" })]),
+    );
+    expect(fetchImpl.mock.calls.map(([, init]) => init?.method)).toEqual([
+      "GET",
+      "GET",
+      "GET",
+    ]);
   });
 });

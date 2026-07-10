@@ -49,8 +49,17 @@ The package exports:
 
 - CLI/config loading helpers that keep secrets out of public output.
 - A read-only Jira REST client and Jira payload schemas/normalizers.
+- Generic Jira Version and board/Sprint catalog readers with pagination, plus
+  field-catalog-based Sprint reference discovery.
+- Immutable Version/Sprint planning action plans that classify target work as
+  `create`, `reuse`, `conflict`, or `unsupported` before any Reef write.
 - Local Jira account mapping artifact helpers.
 - SHDEV Jira Rank import planning helpers.
+
+The planning surface uses stable Jira Cloud, project, Version, and Sprint ids;
+project keys such as SHDEV are fixtures and operator inputs, never exported API
+names. See the operator runbook for lifecycle mapping, source selection, ledger
+precedence, and report interpretation.
 
 Use `@reef/core` for shared Reef contracts where available. Do not import
 `@reef/web` or browser/Next.js runtime APIs into this package.

@@ -128,3 +128,60 @@ export const jiraChangelogPageFixture = {
     },
   ],
 } as const;
+
+export const jiraVersionPageFixture = {
+  startAt: 0,
+  maxResults: 1,
+  total: 2,
+  isLast: false,
+  values: [
+    {
+      id: "70001",
+      projectId: 200,
+      name: "1.0",
+      description: "First migration release",
+      startDate: "2026-07-01",
+      releaseDate: "2026-07-31",
+      released: false,
+      archived: false,
+    },
+  ],
+} as const;
+
+export const jiraSprintPageFixture = {
+  startAt: 0,
+  maxResults: 1,
+  total: 2,
+  isLast: false,
+  values: [
+    {
+      id: 80001,
+      state: "active",
+      name: "Migration Sprint 1",
+      startDate: "2026-07-01T00:00:00.000Z",
+      endDate: "2026-07-14T00:00:00.000Z",
+      originBoardId: 90001,
+      goal: "Prove the generic migration",
+    },
+  ],
+} as const;
+
+export const jiraFieldCatalogFixture = [
+  {
+    id: "summary",
+    name: "Summary",
+    custom: false,
+    schema: { type: "string", system: "summary" },
+  },
+  {
+    id: "customfield_10420",
+    name: "Sprint",
+    custom: true,
+    schema: {
+      type: "array",
+      items: "json",
+      custom: "com.pyxis.greenhopper.jira:gh-sprint",
+      customId: 10420,
+    },
+  },
+] as const;

@@ -104,6 +104,71 @@ export const JiraSearchResponseSchema = z
   })
   .passthrough();
 
+export const JiraVersionSchema = z
+  .object({
+    id: StringOrNumberAsStringSchema,
+    projectId: StringOrNumberAsStringSchema,
+    name: z.string().min(1),
+    description: z.string().optional(),
+    startDate: z.string().optional(),
+    releaseDate: z.string().optional(),
+    released: z.boolean().default(false),
+    archived: z.boolean().default(false),
+  })
+  .passthrough();
+
+export const JiraVersionPageSchema = z
+  .object({
+    startAt: z.number().int().nonnegative().default(0),
+    maxResults: z.number().int().positive(),
+    total: z.number().int().nonnegative().optional(),
+    isLast: z.boolean().optional(),
+    values: z.array(JiraVersionSchema),
+  })
+  .passthrough();
+
+export const JiraSprintSchema = z
+  .object({
+    id: StringOrNumberAsStringSchema,
+    state: z.string(),
+    name: z.string().min(1),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+    completeDate: z.string().optional(),
+    originBoardId: StringOrNumberAsStringSchema.optional(),
+    goal: z.string().optional(),
+  })
+  .passthrough();
+
+export const JiraSprintPageSchema = z
+  .object({
+    startAt: z.number().int().nonnegative().default(0),
+    maxResults: z.number().int().positive(),
+    total: z.number().int().nonnegative().optional(),
+    isLast: z.boolean().optional(),
+    values: z.array(JiraSprintSchema),
+  })
+  .passthrough();
+
+export const JiraFieldSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    custom: z.boolean().optional(),
+    schema: z
+      .object({
+        type: z.string().optional(),
+        items: z.string().optional(),
+        custom: z.string().optional(),
+        customId: z.number().optional(),
+      })
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+
+export const JiraFieldCatalogSchema = z.array(JiraFieldSchema);
+
 export const JiraCommentSchema = z
   .object({
     id: StringOrNumberAsStringSchema,
@@ -149,6 +214,11 @@ export type JiraUserPayload = z.infer<typeof JiraUserSchema>;
 export type JiraSearchResponsePayload = z.infer<
   typeof JiraSearchResponseSchema
 >;
+export type JiraVersionPayload = z.infer<typeof JiraVersionSchema>;
+export type JiraVersionPagePayload = z.infer<typeof JiraVersionPageSchema>;
+export type JiraSprintPayload = z.infer<typeof JiraSprintSchema>;
+export type JiraSprintPagePayload = z.infer<typeof JiraSprintPageSchema>;
+export type JiraFieldPayload = z.infer<typeof JiraFieldSchema>;
 export type JiraCommentPayload = z.infer<typeof JiraCommentSchema>;
 export type JiraCommentPagePayload = z.infer<typeof JiraCommentPageSchema>;
 export type JiraChangelogItemPayload = z.infer<typeof JiraChangelogItemSchema>;
@@ -198,6 +268,28 @@ export interface NormalizedJiraIssue {
     reporter: NormalizedJiraUser | null;
   };
   raw: JiraIssuePayload;
+}
+
+export interface NormalizedJiraVersion {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string | null;
+  startDate: string | null;
+  releaseDate: string | null;
+  released: boolean;
+  archived: boolean;
+}
+
+export interface NormalizedJiraSprint {
+  id: string;
+  state: string;
+  name: string;
+  startDate: string | null;
+  endDate: string | null;
+  completeDate: string | null;
+  originBoardId: string | null;
+  goal: string | null;
 }
 
 export const normalizeJiraUser = (
@@ -267,3 +359,55 @@ export const normalizeJiraIssue = (
   },
   raw: issue,
 });
+
+export const normalizeJiraVersion = (
+  version: JiraVersionPayload,
+): NormalizedJiraVersion => ({
+  id: version.id,
+  projectId: version.projectId,
+  name: version.name,
+  description: version.description ?? null,
+  startDate: version.startDate ?? null,
+  releaseDate: version.releaseDate ?? null,
+  released: version.released,
+  archived: version.archived,
+});
+
+export const normalizeJiraSprint = (
+  sprint: JiraSprintPayload,
+): NormalizedJiraSprint => ({
+  id: sprint.id,
+  state: sprint.state,
+  name: sprint.name,
+  startDate: sprint.startDate ?? null,
+  endDate: sprint.endDate ?? null,
+  completeDate: sprint.completeDate ?? null,
+  originBoardId: sprint.originBoardId ?? null,
+  goal: sprint.goal ?? null,
+});
+
+const JIRA_SOFTWARE_SPRINT_FIELD_SCHEMA =
+  "com.pyxis.greenhopper.jira:gh-sprint";
+
+const isSprintField = (field: JiraFieldPayload): boolean =>
+  field.schema?.custom === JIRA_SOFTWARE_SPRINT_FIELD_SCHEMA &&
+  field.schema.type === "array" &&
+  field.schema.items === "json";
+
+export const findJiraSprintFieldId = (
+  fields: readonly JiraFieldPayload[],
+): string | null => fields.find(isSprintField)?.id ?? null;
+
+export const normalizeIssueSprintReferences = (
+  issue: JiraIssuePayload,
+  fieldCatalog: readonly JiraFieldPayload[],
+): NormalizedJiraSprint[] => {
+  const fieldId = findJiraSprintFieldId(fieldCatalog);
+  if (!fieldId) return [];
+  const value = issue.fields[fieldId];
+  if (value === null || value === undefined) return [];
+  const references = z
+    .array(JiraSprintSchema)
+    .parse(Array.isArray(value) ? value : [value]);
+  return references.map(normalizeJiraSprint);
+};
