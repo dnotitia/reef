@@ -73,6 +73,10 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
     await expect(page.getByTestId("issue-bulk-action-bar")).toContainText(
       "3 selected",
     );
+    await expect(page.getByTestId("bulk-sprint")).toBeVisible();
+    await expect(page.getByTestId("bulk-add-labels")).toBeVisible();
+    await expect(page.getByTestId("bulk-remove-labels")).toBeVisible();
+    await expect(page.getByTestId("bulk-more")).toHaveCount(0);
     const getsBefore = listGets;
     await chooseBulkStatus(page, "In Review");
     await expect(page.getByTestId("issue-bulk-action-bar")).toHaveCount(0);

@@ -426,9 +426,11 @@ checkboxes on hover, focus, or selection; Shift+Click extends an inclusive
 range in list order, while normal clicks still open issue detail. The header
 selects only the currently loaded filtered ids and announces unchecked, mixed,
 and checked states. Once at least one issue is selected, an integrated toolbar
-between the filters and table offers focused Status, Assignee, and Priority
-menus. Sprint and Add/Remove labels live under More, and Clear closes selection
-mode. Selection uses the brand-teal surface (never AI purple), suppresses
+between the filters and table directly exposes Status, Assignee, Priority,
+Sprint, Add labels, and Remove labels; Clear closes selection mode. The action
+group stays on one row when space permits and wraps to a second row at narrow
+desktop widths instead of hiding fields behind an overflow menu. Selection uses
+the brand-teal surface (never AI purple), suppresses
 single-issue quick-edit shortcuts, clears on view/filter/workspace changes, and
 yields to an open dialog, popover, or input before Esc clears it.
 
