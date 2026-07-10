@@ -12,6 +12,7 @@ storybook-static/
 packages/web/playwright-report/
 packages/web/test-results/
 packages/web/tests/e2e/.auth/
+/artifacts/
 
 # Editors / IDEs
 .vscode/

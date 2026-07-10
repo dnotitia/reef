@@ -239,7 +239,7 @@ export class JiraReadClient {
       cursor,
       isLast: payload.isLast ?? cursor === null,
       rateLimit: body.rateLimit,
-      raw: payload,
+      raw: body.json,
     };
   }
 
@@ -255,7 +255,7 @@ export class JiraReadClient {
     return {
       issue: normalizeJiraIssue(payload),
       rateLimit: body.rateLimit,
-      raw: payload,
+      raw: body.json,
     };
   }
 
@@ -279,7 +279,7 @@ export class JiraReadClient {
         nextOffsetCursor(payload.startAt, payload.maxResults, payload.total) ===
         null,
       rateLimit: body.rateLimit,
-      raw: payload,
+      raw: body.json,
     };
   }
 
@@ -303,7 +303,7 @@ export class JiraReadClient {
       cursor,
       isLast: cursor === null,
       rateLimit: body.rateLimit,
-      raw: payload,
+      raw: body.json,
     };
   }
 
@@ -344,7 +344,7 @@ export class JiraReadClient {
     return {
       items: payload,
       rateLimit: body.rateLimit,
-      raw: payload,
+      raw: body.json,
     };
   }
 
@@ -371,7 +371,7 @@ export class JiraReadClient {
       cursor,
       isLast: cursor === null,
       rateLimit: body.rateLimit,
-      raw: payload,
+      raw: body.json,
     };
   }
 
@@ -407,7 +407,7 @@ export class JiraReadClient {
       cursor,
       isLast: cursor === null,
       rateLimit: body.rateLimit,
-      raw: payload,
+      raw: body.json,
     };
   }
 

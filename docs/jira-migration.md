@@ -95,6 +95,125 @@ account ids, display names, email addresses, and migration decisions. Keep them
 local to the migration run unless a later runbook explicitly defines a sanitized
 artifact publication path.
 
+## Verifiable Raw Archive
+
+The raw archive preserves the JSON value returned by `Response.json()` before
+Jira payload schemas or normalizers run. It is not a byte-for-byte HTTP capture:
+headers, compression, whitespace, and original object-key order are excluded.
+The archive uses RFC 8785 JSON Canonicalization Scheme (JCS) bytes and SHA-256
+content addresses so equivalent JSON objects share one immutable object while
+array order remains significant.
+
+### Private Local Storage
+
+- Use an operator-owned directory on an encrypted local volume outside the
+  repository. Network shares, synchronized folders, and filesystems without
+  reliable exclusive-create and atomic-rename semantics are unsupported.
+- On POSIX, the archive creates and verifies directories as `0700` and files as
+  `0600`. An existing symlink or group/other-accessible artifact fails closed.
+- On Windows, configure a dedicated-user ACL first and supply the verifier name
+  and timestamp through the `external_acl` acknowledgement. The writer refuses
+  to start without it because Node file modes cannot prove the Windows ACL.
+- `/artifacts/` is ignored at the repository root as a secondary commit guard.
+  It is not the recommended archive root.
+
+Each new run requires an explicit retention owner, a future `retention_until`,
+and an organization policy reference. There is deliberately no default
+retention period. Review archive access and expiry against that policy before
+every apply or resume operation.
+
+### Archive And Reference Contract
+
+```ts
+import { createRawArchive } from "@reef/jira-migrator";
+
+const archive = createRawArchive({
+  root: "/encrypted/private/reef-jira-archive",
+  runId: "migration-2026-07-10",
+  sourceScope: { cloud_id: "cloud-id", project_key: "PROJECT" },
+  createdAt: new Date().toISOString(),
+  retention: {
+    owner: "migration-operator",
+    retention_until: "2026-10-10T00:00:00.000Z",
+    policy_ref: "organization-retention-policy",
+  },
+  permissionVerification: { kind: "posix_mode", verified: true },
+  forbiddenSecretValues: [jiraToken, secretFileContents],
+});
+
+const reference = await archive.archive({
+  entityKind: "issue",
+  sourceIdentity: { cloud_id: "cloud-id", project_key: "PROJECT", issue_id: "10001" },
+  sourceEndpoint: { method: "GET", pathname: "/rest/api/3/issue/10001" },
+  classification: "restricted_pii",
+  fetchedAt: new Date().toISOString(),
+  payload: jiraResult.raw,
+});
+// { runId, entryId, contentSha256 }
+```
+
+REEF-318 field results and REEF-392 changelog classifications store this opaque
+reference. REEF-319 later persists the same reference in its ledger, and
+REEF-321 passes it through report/apply/resume orchestration. None of those
+surfaces should duplicate or stringify the raw payload. `readRawArchiveReference`
+and `verifyRawArchive` validate the envelope version, manifest checksum,
+reference, object presence, byte size, object digest, canonical JSON, file
+permissions, and lock state before returning data or an apply-ready summary.
+
+Source endpoint metadata contains only `GET`, a pathname, and optional
+allowlisted `start_at`, `max_results`, and `next_page_token` pagination values.
+Origins, arbitrary query strings, request
+headers, `Authorization`, `Cookie`, and `Set-Cookie` are rejected. Configured
+non-empty secret values are checked against payload and manifest metadata before
+the first archive file is created. Jira account ids, email addresses, watcher
+lists, and attachment URLs are not silently redacted; classify them as
+`restricted_pii` and protect them with the private storage boundary.
+
+Every source identity includes `cloud_id`; its value must match the archive
+source scope. The remaining required fields are part of the public API through
+`RawArchiveSourceIdentityByKind` and
+`RAW_ARCHIVE_SOURCE_IDENTITY_REQUIRED_KEYS`:
+
+| Entity kind | Additional required identity fields |
+| --- | --- |
+| `issue` | `project_key`, `issue_id` |
+| `description_adf` | `issue_id`, `entity_kind: "description_adf"` |
+| `changelog_history` | `issue_id`, `history_id` |
+| `watcher_list` | `issue_id`, `entity_kind: "watcher_list"` |
+| `comment_source` | `issue_id`, `comment_id` |
+| `attachment_source` | `attachment_id` |
+| `remote_link` | `issue_id`, `remote_link_id` |
+| `custom_field` | `issue_id`, `entity_kind: "custom_field"`, `field_id` |
+
+When present, `project_key` must match the archive source scope, and
+`entity_kind` must match the input entity kind. Missing, empty, or mismatched
+identity fields fail with `invalid_source_metadata` before the archive root is
+created.
+
+### Failure, Recovery, And Disposal
+
+Stable failure codes include `secret_material_detected`, `lock_conflict`,
+`permission_violation`, `symlink_not_allowed`, `manifest_checksum_mismatch`,
+`object_missing`, `object_size_mismatch`, `object_checksum_mismatch`,
+`object_malformed_json`, and `unsupported_schema_version`. Errors contain the
+code only, never payload, source URL, account data, or a matched secret.
+
+Manifest updates use a `.manifest.lock`, an exclusive private temporary file,
+flush, atomic replacement, and immediate readback verification. If a process
+dies and leaves a stale lock, stop all writers, verify the archive and intended
+run, preserve evidence needed by the incident process, and only then remove the
+lock manually. The writer never deletes a stale lock automatically. Missing or
+corrupt objects/manifests must be restored from an approved encrypted backup or
+recaptured from Jira into a new run; do not edit checksums to make validation
+pass.
+
+At retention expiry, stop the migrator and writer, confirm that no lock exists,
+identify the exact run and shared content objects covered by policy, and follow
+the organization's approved sanitization procedure. Prefer encrypted-volume key
+destruction or another method selected under
+[NIST SP 800-88 Rev. 2](https://csrc.nist.gov/pubs/sp/800/88/r2/final).
+Ordinary file deletion must not be represented as guaranteed physical erasure.
+
 ## Jira Account Mapping
 
 Jira Cloud issue payloads identify people by `accountId`. The migrator maps

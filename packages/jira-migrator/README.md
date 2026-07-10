@@ -54,6 +54,9 @@ The package exports:
 - Immutable Version/Sprint planning action plans that classify target work as
   `create`, `reuse`, `conflict`, or `unsupported` before any Reef write.
 - Local Jira account mapping artifact helpers.
+- A verifiable raw archive API for pre-validation Jira JSON, returning opaque
+  `{runId, entryId, contentSha256}` references instead of copying payloads into
+  downstream plans or reports.
 - SHDEV Jira Rank import planning helpers.
 
 The planning surface uses stable Jira Cloud, project, Version, and Sprint ids;
@@ -63,6 +66,28 @@ precedence, and report interpretation.
 
 Use `@reef/core` for shared Reef contracts where available. Do not import
 `@reef/web` or browser/Next.js runtime APIs into this package.
+
+## Raw Archive
+
+`createRawArchive`, `readRawArchiveReference`, and `verifyRawArchive` preserve
+JSON values before Jira Zod validation or normalization. Objects are JCS
+canonicalized, addressed by SHA-256, stored once, and referenced from a
+versioned run manifest. The archive returns only opaque references and safe
+verification summaries; callers must not add raw values to logs or reports.
+Entity-specific identity shapes are exported as
+`RawArchiveSourceIdentityByKind`, with runtime-required keys available from
+`RAW_ARCHIVE_SOURCE_IDENTITY_REQUIRED_KEYS`; use them instead of guessing a
+generic identity record.
+
+Create the archive under an operator-owned, encrypted local volume outside the
+repository. POSIX roots and directories must be private (`0700`) and files use
+`0600`. Windows operators must establish a dedicated-user ACL and pass an
+`external_acl` acknowledgement. A retention owner, future expiry, and policy
+reference are required. Synchronized or network filesystems are unsupported.
+
+The repository-level `/artifacts/` ignore rule is a last-resort commit guard,
+not an operational storage default. See the operator runbook for recovery,
+stale-lock, access-review, retention, and sanitization procedures.
 
 ## Commands
 
