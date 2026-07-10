@@ -426,6 +426,44 @@ const deepFreeze = <T>(value: T): T => {
   return Object.freeze(value);
 };
 
+const markInPlanNameConflicts = (
+  actions: JiraPlanningAction[],
+): JiraPlanningAction[] => {
+  const groups = new Map<string, number[]>();
+  for (const [index, action] of actions.entries()) {
+    if (!action.target) continue;
+    const key = `${action.target.kind}:${normalizeName(action.target.item.name)}`;
+    const group = groups.get(key);
+    if (group) group.push(index);
+    else groups.set(key, [index]);
+  }
+
+  const result = [...actions];
+  for (const indexes of groups.values()) {
+    if (indexes.length < 2) continue;
+    for (const index of indexes) {
+      const action = result[index];
+      if (!action || action.reason === "ledger_binding") continue;
+      result[index] = {
+        ...action,
+        classification: "conflict",
+        reason: "planning_conflict",
+        targetId: null,
+        report: [
+          ...action.report,
+          {
+            field: "name",
+            outcome: "conflict",
+            reason:
+              "multiple source identities resolve to the same case-insensitive target name",
+          },
+        ],
+      };
+    }
+  }
+  return result;
+};
+
 export const buildJiraPlanningMigrationPlan = (
   input: BuildJiraPlanningMigrationPlanInput,
 ): JiraPlanningMigrationPlan => {
@@ -529,14 +567,15 @@ export const buildJiraPlanningMigrationPlan = (
     );
   }
 
+  const resolvedActions = markInPlanNameConflicts(actions);
   const summary: Record<JiraPlanningActionClassification, number> = {
     create: 0,
     reuse: 0,
     conflict: 0,
     unsupported: 0,
   };
-  for (const action of actions) summary[action.classification] += 1;
-  return deepFreeze({ actions, summary });
+  for (const action of resolvedActions) summary[action.classification] += 1;
+  return deepFreeze({ actions: resolvedActions, summary });
 };
 
 export const resolveJiraPlanningActionTarget = (

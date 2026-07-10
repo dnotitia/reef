@@ -223,6 +223,50 @@ describe("buildJiraPlanningMigrationPlan", () => {
     );
   });
 
+  it("reports duplicate target names across distinct source identities in the same plan", () => {
+    const plan = buildJiraPlanningMigrationPlan({
+      ...emptyInput,
+      versions: [
+        version({ id: "70001", projectId: "200", name: "Shared 1.0" }),
+        version({ id: "70002", projectId: "201", name: "shared 1.0" }),
+      ],
+      issueSprints: [
+        sprint({ id: "80001", name: "Shared Sprint" }),
+        sprint({ id: "80002", name: "shared sprint" }),
+      ],
+    });
+
+    expect(plan.summary).toEqual({
+      create: 0,
+      reuse: 0,
+      conflict: 4,
+      unsupported: 0,
+    });
+    expect(plan.actions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          classification: "conflict",
+          reason: "planning_conflict",
+          sourceIdentity: expect.objectContaining({ versionId: "70001" }),
+        }),
+        expect.objectContaining({
+          classification: "conflict",
+          reason: "planning_conflict",
+          sourceIdentity: expect.objectContaining({ sprintId: "80002" }),
+        }),
+      ]),
+    );
+    expect(plan.actions[0]?.report).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          field: "name",
+          outcome: "conflict",
+          reason: expect.stringContaining("multiple source identities"),
+        }),
+      ]),
+    );
+  });
+
   it("classifies unsupported lifecycle without leaking credentials or account fields", () => {
     const unsafeWireData = {
       ...sprint({ state: "paused" }),
