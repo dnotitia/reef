@@ -3,6 +3,9 @@ import {
   MONITORED_REPOS_TABLE,
   REEF_ACTIVITY_SUGGESTIONS_TABLE,
   REEF_ACTIVITY_TABLE,
+  REEF_AGENT_RUNS_TABLE,
+  REEF_AGENT_RUN_ATTEMPTS_TABLE,
+  REEF_AGENT_RUN_EVENTS_TABLE,
   REEF_ATTACHMENTS_TABLE,
   REEF_COMMENTS_TABLE,
   REEF_ISSUES_TABLE,
@@ -11,6 +14,7 @@ import {
   REEF_SETTINGS_TABLE,
   REEF_SPRINTS_TABLE,
   REEF_TEMPLATES_TABLE,
+  REEF_WORK_EVENTS_TABLE,
 } from "./constants";
 
 export const AkbTableColumnTypeSchema = z.enum([
@@ -46,11 +50,15 @@ export interface ReefTableManifest extends AkbCreateTableRequest {
     | typeof REEF_ACTIVITY_SUGGESTIONS_TABLE
     | typeof REEF_COMMENTS_TABLE
     | typeof REEF_ATTACHMENTS_TABLE
-    | typeof REEF_ACTIVITY_TABLE;
+    | typeof REEF_ACTIVITY_TABLE
+    | typeof REEF_WORK_EVENTS_TABLE
+    | typeof REEF_AGENT_RUNS_TABLE
+    | typeof REEF_AGENT_RUN_ATTEMPTS_TABLE
+    | typeof REEF_AGENT_RUN_EVENTS_TABLE;
   columns: AkbTableColumn[];
 }
 
-export const REEF_SCHEMA_VERSION = 1;
+export const REEF_SCHEMA_VERSION = 2;
 
 /**
  * Declarative desired schema for every AKB dynamic table Reef owns. Keep this
@@ -231,6 +239,77 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
       { name: "reef_id", type: "text", required: true },
       { name: "event_type", type: "text", required: true },
       { name: "event_key", type: "text", required: true },
+      { name: "payload", type: "json" },
+      { name: "meta", type: "json" },
+    ],
+  },
+  {
+    name: REEF_WORK_EVENTS_TABLE,
+    description: "Immutable reef work queue events that can spawn agent runs",
+    columns: [
+      { name: "work_event_id", type: "text", required: true },
+      { name: "reef_id", type: "text", required: true },
+      { name: "event_type", type: "text", required: true },
+      { name: "event_key", type: "text", required: true },
+      { name: "occurred_at", type: "text", required: true },
+      { name: "payload", type: "json" },
+      { name: "meta", type: "json" },
+    ],
+  },
+  {
+    name: REEF_AGENT_RUNS_TABLE,
+    description:
+      "Durable agent execution rows, separate from reef issue lifecycle state",
+    columns: [
+      { name: "run_id", type: "text", required: true },
+      { name: "reef_id", type: "text", required: true },
+      { name: "work_event_id", type: "text" },
+      { name: "task_id", type: "text", required: true },
+      { name: "vault", type: "text" },
+      { name: "status", type: "text", required: true },
+      { name: "phase", type: "text", required: true },
+      { name: "attempt_number", type: "number", required: true },
+      { name: "target", type: "json" },
+      { name: "input", type: "json" },
+      { name: "result", type: "json" },
+      { name: "error", type: "json" },
+      { name: "queued_at", type: "text", required: true },
+      { name: "claimed_at", type: "text" },
+      { name: "started_at", type: "text" },
+      { name: "completed_at", type: "text" },
+      { name: "state_updated_at", type: "text" },
+      { name: "meta", type: "json" },
+    ],
+  },
+  {
+    name: REEF_AGENT_RUN_ATTEMPTS_TABLE,
+    description:
+      "Durable retry attempts for agent runs, preserving prior outcomes",
+    columns: [
+      { name: "attempt_id", type: "text", required: true },
+      { name: "run_id", type: "text", required: true },
+      { name: "attempt_number", type: "number", required: true },
+      { name: "status", type: "text", required: true },
+      { name: "phase", type: "text", required: true },
+      { name: "target", type: "json" },
+      { name: "started_at", type: "text", required: true },
+      { name: "completed_at", type: "text" },
+      { name: "result", type: "json" },
+      { name: "error", type: "json" },
+      { name: "meta", type: "json" },
+    ],
+  },
+  {
+    name: REEF_AGENT_RUN_EVENTS_TABLE,
+    description: "Append-only durable agent run event stream",
+    columns: [
+      { name: "run_event_id", type: "text", required: true },
+      { name: "run_id", type: "text", required: true },
+      { name: "attempt_id", type: "text" },
+      { name: "seq", type: "number", required: true },
+      { name: "event_type", type: "text", required: true },
+      { name: "phase", type: "text" },
+      { name: "emitted_at", type: "text", required: true },
       { name: "payload", type: "json" },
       { name: "meta", type: "json" },
     ],

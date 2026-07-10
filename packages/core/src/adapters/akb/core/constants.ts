@@ -40,6 +40,14 @@ export const ACTIVITY_INBOX_COLLECTION = "_reef/activity-inbox";
  *   reef_activity — immutable issue event rows keyed by `(reef_id, event_key)`;
  *                 event-specific details live in `payload`, and actor/source
  *                 audit semantics live in `meta`.
+ *   reef_work_events — immutable issue/work queue events used to connect reef
+ *                 issue work to one or more agent runs.
+ *   reef_agent_runs — one row per durable agent execution; the run lifecycle is
+ *                 intentionally separate from `reef_issues.status`.
+ *   reef_agent_run_attempts — retry/history rows for a run, preserving each
+ *                 attempt result instead of overwriting older outcomes.
+ *   reef_agent_run_events — append-only event stream rows for durable run
+ *                 progress and diagnostics.
  */
 export const REEF_SETTINGS_TABLE = "reef_settings";
 export const MONITORED_REPOS_TABLE = "monitored_repos";
@@ -49,6 +57,10 @@ export const REEF_ACTIVITY_SUGGESTIONS_TABLE = "reef_activity_suggestions";
 export const REEF_COMMENTS_TABLE = "reef_comments";
 export const REEF_ATTACHMENTS_TABLE = "reef_attachments";
 export const REEF_ACTIVITY_TABLE = "reef_activity";
+export const REEF_WORK_EVENTS_TABLE = "reef_work_events";
+export const REEF_AGENT_RUNS_TABLE = "reef_agent_runs";
+export const REEF_AGENT_RUN_ATTEMPTS_TABLE = "reef_agent_run_attempts";
+export const REEF_AGENT_RUN_EVENTS_TABLE = "reef_agent_run_events";
 export const REEF_SPRINTS_TABLE = "reef_sprints";
 export const REEF_MILESTONES_TABLE = "reef_milestones";
 export const REEF_RELEASES_TABLE = "reef_releases";
@@ -97,6 +109,10 @@ export const REEF_TABLE_NAMES = [
   REEF_COMMENTS_TABLE,
   REEF_ATTACHMENTS_TABLE,
   REEF_ACTIVITY_TABLE,
+  REEF_WORK_EVENTS_TABLE,
+  REEF_AGENT_RUNS_TABLE,
+  REEF_AGENT_RUN_ATTEMPTS_TABLE,
+  REEF_AGENT_RUN_EVENTS_TABLE,
   REEF_SPRINTS_TABLE,
   REEF_MILESTONES_TABLE,
   REEF_RELEASES_TABLE,

@@ -96,17 +96,7 @@ describe("templates", () => {
     const { calls } = setupFetch([
       // ensureReefTables: nothing exists yet → creates all reef tables.
       { body: makeListTablesResponse([]) },
-      { status: 201, body: { name: REEF_SETTINGS_TABLE } },
-      { status: 201, body: { name: MONITORED_REPOS_TABLE } },
-      { status: 201, body: { name: REEF_ISSUES_TABLE } },
-      { status: 201, body: { name: REEF_SPRINTS_TABLE } },
-      { status: 201, body: { name: REEF_MILESTONES_TABLE } },
-      { status: 201, body: { name: REEF_RELEASES_TABLE } },
-      { status: 201, body: { name: REEF_TEMPLATES_TABLE } },
-      { status: 201, body: { name: REEF_ACTIVITY_SUGGESTIONS_TABLE } },
-      { status: 201, body: { name: REEF_COMMENTS_TABLE } },
-      { status: 201, body: { name: REEF_ATTACHMENTS_TABLE } },
-      { status: 201, body: { name: REEF_ACTIVITY_TABLE } },
+      ...ALL_REEF_TABLES.map((name) => ({ status: 201, body: { name } })),
       { body: makeListTablesResponse(ALL_REEF_TABLES) },
       // probe SELECT: empty (table now exists)
       { body: makeSqlQueryResponse([], TEMPLATE_ROW_COLUMNS) },
@@ -121,12 +111,12 @@ describe("templates", () => {
         template: SAMPLE_TEMPLATE,
       }),
     ).resolves.toBeUndefined();
-    expect(calls).toHaveLength(15);
+    expect(calls).toHaveLength(ALL_REEF_TABLES.length + 4);
     const createNames = calls
-      .slice(1, 12)
+      .slice(1, 1 + ALL_REEF_TABLES.length)
       .map((c) => JSON.parse(c.init?.body as string).name);
     expect(createNames).toEqual(ALL_REEF_TABLES);
-    const insertSql = JSON.parse(calls[14]?.init?.body as string).sql;
+    const insertSql = JSON.parse(calls.at(-1)?.init?.body as string).sql;
     expect(insertSql).toContain("INSERT INTO reef_templates");
   });
 
