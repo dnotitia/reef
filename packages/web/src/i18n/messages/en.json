@@ -298,6 +298,20 @@
     "backend": "Workspace backend error.",
     "workspaceOwnerRequired": "Only the workspace owner can do that.",
     "workspaceAdminRequired": "You need workspace admin access to manage agent execution.",
+    "issueRun": {
+      "notAuthorized": "You need workspace write access to request a run.",
+      "notAssignee": "This issue is assigned to someone else.",
+      "issueArchived": "Archived issues cannot be run.",
+      "documentUnavailable": "The issue document is unavailable. Restore access before requesting a run.",
+      "typeNotRunnable": "This issue type cannot be run.",
+      "statusNotTodo": "Move the issue to Todo before requesting a run.",
+      "dependenciesUnresolved": "Resolve this issue's dependencies before requesting a run.",
+      "targetMissing": "No agent execution target is configured for this workspace.",
+      "targetDisabled": "Agent execution is disabled for the available repository.",
+      "targetInvalid": "The available execution target configuration is invalid.",
+      "profileUnavailable": "The execution target uses a profile that is unavailable in this deployment.",
+      "alreadyActive": "A run is already active for this issue."
+    },
     "githubAppUnconfigured": "GitHub App is not configured for this deployment.",
     "invalidSuggestionId": "Invalid suggestion id.",
     "invalidSuggestionStatus": "Invalid suggestion status.",
@@ -562,6 +576,46 @@
     "planningDeleteError": "Delete failed."
   },
   "issues": {
+    "run": {
+      "run": "Run",
+      "queued": "Queued",
+      "unavailable": "Run unavailable:",
+      "eligibilityLoadFailed": "Run eligibility could not be checked. Try again shortly.",
+      "targetCount": "{count, plural, one {# target} other {# targets}}",
+      "dialogTitle": "Request agent run",
+      "dialogDescription": "Review the execution target. The request is queued for a worker; it does not change the issue status.",
+      "repository": "Repository",
+      "selectRepository": "Select a repository",
+      "cancel": "Cancel",
+      "requestRun": "Request run",
+      "requesting": "Requesting…",
+      "requestedToast": "Run request queued",
+      "alreadyQueuedToast": "This issue already has an active run",
+      "requestFailed": "Couldn't request a run.",
+      "status": {
+        "queued": "Queued",
+        "claimed": "Claimed",
+        "running": "In progress",
+        "blocked": "Blocked",
+        "failed": "Failed",
+        "cancelled": "Cancelled",
+        "succeeded": "Succeeded"
+      },
+      "reasons": {
+        "notAuthorized": "You need workspace write access.",
+        "notAssignee": "This issue is assigned to someone else.",
+        "issueArchived": "Archived issues cannot be run.",
+        "documentUnavailable": "The issue document is unavailable.",
+        "typeNotRunnable": "This issue type cannot be run.",
+        "statusNotTodo": "Move the issue to Todo first.",
+        "dependenciesUnresolved": "Resolve the issue's dependencies first.",
+        "targetMissing": "No execution target is configured.",
+        "targetDisabled": "Agent execution is disabled for the available repository.",
+        "targetInvalid": "The execution target configuration is invalid.",
+        "profileUnavailable": "A required execution profile is unavailable.",
+        "alreadyActive": "A run is already active for this issue."
+      }
+    },
     "backlog": {
       "loadError": "Failed to load the backlog.",
       "noMatches": "No backlog issues match your filters.",

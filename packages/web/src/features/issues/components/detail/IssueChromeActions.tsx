@@ -16,6 +16,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
+import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   formatAbsoluteTime,
@@ -48,6 +49,7 @@ export function IssueChromeActions({
   onAskAi,
   onArchiveToggle,
   onDeleteRequested,
+  runControl,
 }: {
   updatedAt: string | null;
   saveStatus: SaveStatus;
@@ -59,6 +61,7 @@ export function IssueChromeActions({
   onAskAi: () => void;
   onArchiveToggle: () => void;
   onDeleteRequested: () => void;
+  runControl?: ReactNode;
 }) {
   const slot = useIssueChromeSlot();
   const locale = useLocale();
@@ -85,6 +88,7 @@ export function IssueChromeActions({
           {t("edited", { time: formatRelativeTime(updatedAt, locale) })}
         </span>
       ) : null}
+      {runControl}
       <DropdownMenu>
         <DropdownMenuTrigger
           type="button"

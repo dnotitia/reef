@@ -9,6 +9,7 @@ export type FixtureScenario =
   | "demo_board"
   | "raw_only"
   | "activity_suggestions"
+  | "issue_runs"
   | "skill_outdated";
 export const REEF_E2E_VAULT = "reef-e2e";
 
@@ -46,6 +47,19 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
       runner_profile: string | null;
       permission_profile: string | null;
       branch_template: string | null;
+    }>;
+    work_events: Array<{
+      work_event_id: string;
+      reef_id: string;
+      event_type: string;
+      event_key: string;
+    }>;
+    agent_runs: Array<{
+      run_id: string;
+      reef_id: string;
+      active_reef_id: string | null;
+      status: string;
+      phase: string;
     }>;
     issue_ids: string[];
     issues: Array<{
@@ -119,6 +133,24 @@ export async function setVaultRole(
 ): Promise<void> {
   const response = await request.post(`${E2E_MOCK_URL}/__e2e/vault-role`, {
     data: { role, vault },
+  });
+  expect(response.ok()).toBeTruthy();
+}
+
+export async function setIssueRunCase(
+  request: APIRequestContext,
+  patch: {
+    issueId?: string;
+    assignedTo?: string | null;
+    status?: string;
+    dependsOn?: string[];
+    documentAvailable?: boolean;
+    body?: string;
+    targetCount?: 0 | 1 | 2;
+  },
+): Promise<void> {
+  const response = await request.post(`${E2E_MOCK_URL}/__e2e/issue-run-case`, {
+    data: patch,
   });
   expect(response.ok()).toBeTruthy();
 }

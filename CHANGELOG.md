@@ -14,6 +14,14 @@ explicitly in the entries below.
 
 ### Added
 
+- **Request an agent run from issue detail.** Eligible Todo stories, tasks,
+  bugs, spikes, and chores now show a teal Run action with their configured
+  repository target. Writers can request their own or unassigned work, while
+  admins and owners may override assignment; disabled states explain status,
+  dependency, document, target, permission, and active-run blockers. Requests
+  enqueue one durable run plus one work event without changing the issue's PM
+  lifecycle status, and idempotent retries or simultaneous requests cannot
+  create duplicate active runs. (REEF-382, epic REEF-104)
 - **Repository-scoped agent execution settings.** Workspace members can inspect
   a new Settings › Workspace › Agent execution page, while admins and owners can
   explicitly enable a monitored repository and bind it to a checkout-relative
@@ -221,6 +229,21 @@ explicitly in the entries below.
 
 ### Migration
 
+- Reef workspace schema version 4 adds nullable `active_reef_id` to
+  `reef_agent_runs`, unique keys on `reef_agent_runs.run_id` and
+  `reef_agent_runs.active_reef_id`, and unique keys on
+  `reef_work_events.work_event_id` and `(reef_id, event_key)`. New workspaces
+  receive the v4 shape at creation. Existing workspaces must use an AKB-owned
+  migration or approved operator runbook before deploying the v4 Run-request
+  routes: preflight for duplicate run ids, event ids/keys, and multiple
+  non-terminal runs per issue; add the nullable column; backfill
+  `active_reef_id = reef_id` for every queued, claimed, running, or blocked run;
+  then add the keys and stamp schema version 4. The routes fail closed until
+  the column/key readback matches and defensively treat any unbackfilled
+  non-terminal row as active.
+  Rolling back to v3 code is safe because it ignores the additive column and
+  keys; queued v4 rows remain durable. No browser storage migration is needed.
+  (REEF-382)
 - Reef workspace schema version 3 adds the root `reef_development_targets`
   table. Existing workspaces receive it additively on the next Reef table
   ensure; no targets are enabled or backfilled, so every monitored repository

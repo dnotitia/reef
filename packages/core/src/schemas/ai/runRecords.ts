@@ -71,6 +71,7 @@ export const AgentRunRecordSchema = z
   .object({
     run_id: z.string().min(1),
     reef_id: z.string().min(1),
+    active_reef_id: z.string().min(1).nullable().default(null),
     work_event_id: z.string().min(1).nullable().default(null),
     task_id: z.string().min(1),
     vault: VaultNameSchema.nullable().default(null),
@@ -90,6 +91,23 @@ export const AgentRunRecordSchema = z
   })
   .strict()
   .superRefine((run, ctx) => {
+    const active = ["queued", "claimed", "running", "blocked"].includes(
+      run.status,
+    );
+    if (active && run.active_reef_id !== run.reef_id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "non-terminal runs must hold their issue active slot",
+        path: ["active_reef_id"],
+      });
+    }
+    if (!active && run.active_reef_id != null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "terminal runs must release their issue active slot",
+        path: ["active_reef_id"],
+      });
+    }
     if (
       ["failed", "cancelled", "succeeded"].includes(run.status) &&
       run.completed_at == null

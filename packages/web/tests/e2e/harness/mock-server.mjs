@@ -7,6 +7,51 @@ const REEF_VAULT = "reef-e2e";
 const TOOL_LOOP_E2E_PROMPT = "tool transparency e2e";
 const TOOL_LOOP_SEARCH_ISSUES_CALL_ID = "call_e2e_search_issues";
 const TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID = "call_e2e_search_documents";
+const ACTIVE_AGENT_RUN_STATUSES = new Set([
+  "queued",
+  "claimed",
+  "running",
+  "blocked",
+]);
+const WORK_EVENT_TABLE = {
+  columns: [
+    { name: "work_event_id", type: "text", required: true },
+    { name: "reef_id", type: "text", required: true },
+    { name: "event_type", type: "text", required: true },
+    { name: "event_key", type: "text", required: true },
+    { name: "occurred_at", type: "text", required: true },
+    { name: "payload", type: "json" },
+    { name: "meta", type: "json" },
+  ],
+  unique_keys: [
+    { columns: ["work_event_id"] },
+    { columns: ["reef_id", "event_key"] },
+  ],
+};
+const AGENT_RUN_TABLE = {
+  columns: [
+    { name: "run_id", type: "text", required: true },
+    { name: "reef_id", type: "text", required: true },
+    { name: "active_reef_id", type: "text" },
+    { name: "work_event_id", type: "text" },
+    { name: "task_id", type: "text", required: true },
+    { name: "vault", type: "text" },
+    { name: "status", type: "text", required: true },
+    { name: "phase", type: "text", required: true },
+    { name: "attempt_number", type: "number", required: true },
+    { name: "target", type: "json" },
+    { name: "input", type: "json" },
+    { name: "result", type: "json" },
+    { name: "error", type: "json" },
+    { name: "queued_at", type: "text", required: true },
+    { name: "claimed_at", type: "text" },
+    { name: "started_at", type: "text" },
+    { name: "completed_at", type: "text" },
+    { name: "state_updated_at", type: "text" },
+    { name: "meta", type: "json" },
+  ],
+  unique_keys: [{ columns: ["run_id"] }, { columns: ["active_reef_id"] }],
+};
 
 // A monotonically-advancing "edit clock". Each issue-row UPDATE stamps an
 // `updated_at` strictly later than the seeded `NOW`, mirroring real akb, which
@@ -65,6 +110,60 @@ const server = createServer(async (req, res) => {
       const alice = vault.members.find((member) => member.username === "alice");
       if (alice) alice.role = role;
       return json(res, 200, { ok: true, role });
+    }
+    if (url.pathname === "/__e2e/issue-run-case" && req.method === "POST") {
+      const body = await readJson(req);
+      const vault = state.vaults.get(REEF_VAULT);
+      if (!vault) return json(res, 404, { error: "vault_not_found" });
+      const issueId = String(body?.issueId ?? "REEF-001");
+      const issue = vault.issues.find((item) => item.reef_id === issueId);
+      if (!issue) return json(res, 404, { error: "issue_not_found" });
+      if (Object.hasOwn(body ?? {}, "assignedTo")) {
+        issue.assigned_to = body.assignedTo ?? null;
+      }
+      if (typeof body?.status === "string") issue.status = body.status;
+      if (Array.isArray(body?.dependsOn)) issue.depends_on = body.dependsOn;
+      const documentPath = issuePathFor(issueId);
+      if (body?.documentAvailable === false) {
+        vault.documents.delete(documentPath);
+      } else if (
+        body?.documentAvailable === true &&
+        !vault.documents.has(documentPath)
+      ) {
+        seedIssueDocument(
+          vault,
+          issueId,
+          String(body?.body ?? "Runnable issue body."),
+        );
+      }
+      if (typeof body?.body === "string") {
+        const document = vault.documents.get(documentPath);
+        if (document) document.content = body.body;
+      }
+      if ([0, 1, 2].includes(body?.targetCount)) {
+        seedIssueRunTarget(vault);
+        if (body.targetCount === 0) {
+          vault.monitoredRepos = [];
+          vault.developmentTargets = [];
+        } else if (body.targetCount === 2) {
+          vault.monitoredRepos.push({
+            github_id: 1002,
+            owner: "octo",
+            name: "reef-mobile",
+            description: "Fixture mobile repository",
+          });
+          vault.developmentTargets.push({
+            id: "development-target-1002-1",
+            github_id: 1002,
+            enabled: true,
+            recipe_path: ".reef/mobile-agent.yml",
+            runner_profile: "default",
+            permission_profile: ":workspace",
+            branch_template: "agent/{issue_id}/{run_id}",
+          });
+        }
+      }
+      return json(res, 200, { ok: true });
     }
     // akb's Keycloak login start. reef-web calls this server-side to begin the
     // hand-off (REEF-312). It is mounted at the bare path, not under /akb,
@@ -133,6 +232,7 @@ function normalizeScenario(value) {
     value === "demo_board" ||
     value === "raw_only" ||
     value === "activity_suggestions" ||
+    value === "issue_runs" ||
     value === "skill_outdated"
   ) {
     return value;
@@ -183,10 +283,12 @@ function makeState(scenario) {
   if (
     scenario === "configured" ||
     scenario === "activity_suggestions" ||
+    scenario === "issue_runs" ||
     scenario === "skill_outdated"
   ) {
     const vault = configuredVault(REEF_VAULT);
     if (scenario === "activity_suggestions") seedActivitySuggestions(vault);
+    if (scenario === "issue_runs") seedIssueRunTarget(vault);
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);
     next.vaults.set(REEF_VAULT, vault);
     next.vaults.set("raw-vault", rawVault("raw-vault"));
@@ -255,6 +357,8 @@ function configuredVault(name) {
       "reef_comments",
       "reef_attachments",
       "reef_activity",
+      "reef_work_events",
+      "reef_agent_runs",
       "reef_sprints",
       "reef_milestones",
       "reef_releases",
@@ -265,9 +369,16 @@ function configuredVault(name) {
     settings: new Map([
       ["project_prefix", "REEF"],
       ["ai_scanning_enabled", true],
+      ["schema_version", { version: 4, applied_at: NOW }],
+    ]),
+    tableSchemas: new Map([
+      ["reef_work_events", WORK_EVENT_TABLE],
+      ["reef_agent_runs", AGENT_RUN_TABLE],
     ]),
     monitoredRepos: [],
     developmentTargets: [],
+    workEvents: [],
+    agentRuns: [],
     issues,
     documents: new Map(),
     members: [
@@ -394,6 +505,28 @@ function configuredVault(name) {
     tags: ["docs", "ask-ai", "e2e"],
   });
   return vault;
+}
+
+function seedIssueRunTarget(vault) {
+  vault.monitoredRepos = [
+    {
+      github_id: 1001,
+      owner: "octo",
+      name: "reef",
+      description: "Fixture reef repository",
+    },
+  ];
+  vault.developmentTargets = [
+    {
+      id: "development-target-1001-1",
+      github_id: 1001,
+      enabled: true,
+      recipe_path: ".reef/agent.yml",
+      runner_profile: "default",
+      permission_profile: ":workspace",
+      branch_template: "agent/{issue_id}/{run_id}",
+    },
+  ];
 }
 
 function demoBoardVault(name) {
@@ -850,14 +983,24 @@ async function handleAkb(req, res, url) {
     return json(res, 200, {
       kind: "table",
       vault: vault.name,
-      items: [...vault.tables].map((name) => ({ name })),
+      items: [...vault.tables].map((name) => ({
+        name,
+        ...(vault.tableSchemas?.get(name) ?? {}),
+      })),
     });
   }
   if (tablesMatch && req.method === "POST") {
     const vault = getVault(decodeURIComponent(tablesMatch[1]), res);
     if (!vault) return;
     const body = await readJson(req);
-    if (typeof body?.name === "string") vault.tables.add(body.name);
+    if (typeof body?.name === "string") {
+      vault.tables.add(body.name);
+      if (!vault.tableSchemas) vault.tableSchemas = new Map();
+      vault.tableSchemas.set(body.name, {
+        columns: body.columns ?? [],
+        unique_keys: body.unique_keys ?? [],
+      });
+    }
     return json(res, 200, { ok: true });
   }
 
@@ -977,6 +1120,72 @@ function handleSql(vault, sql) {
   if (!vault.comments) vault.comments = [];
   if (!vault.attachments) vault.attachments = [];
   if (!vault.activity) vault.activity = [];
+  if (!vault.workEvents) vault.workEvents = [];
+  if (!vault.agentRuns) vault.agentRuns = [];
+
+  if (lower.startsWith("with inserted_run as (insert into reef_agent_runs")) {
+    const runInsertAt = lower.indexOf("insert into reef_agent_runs");
+    const runInsertSql = normalized.slice(runInsertAt);
+    const insert =
+      parseInsert(runInsertSql) ?? parseConditionalInsert(runInsertSql);
+    if (!insert) return tableQuery([], []);
+    const run = objectFromColumns(insert.columns, insert.values);
+    const existing = vault.agentRuns.find(
+      (item) =>
+        item.run_id === run.run_id ||
+        (run.active_reef_id != null &&
+          item.active_reef_id === run.active_reef_id) ||
+        (item.reef_id === run.reef_id &&
+          ACTIVE_AGENT_RUN_STATUSES.has(item.status)),
+    );
+    if (existing) return tableQuery(Object.keys(existing), []);
+    const requestId = run.meta?.request_id;
+    const event = {
+      work_event_id: run.work_event_id,
+      reef_id: run.reef_id,
+      event_type: "issue.run.requested",
+      event_key: `issue.run.requested:${requestId}`,
+      occurred_at: run.queued_at,
+      payload: {
+        run_id: run.run_id,
+        task_id: run.task_id,
+        github_id: run.target?.github_id,
+      },
+      meta: { actor: run.input?.requested_by, source: "reef-web:issue-run" },
+    };
+    const duplicateEvent = vault.workEvents.some(
+      (item) =>
+        item.work_event_id === event.work_event_id ||
+        (item.reef_id === event.reef_id && item.event_key === event.event_key),
+    );
+    if (duplicateEvent) return { error: "duplicate work event" };
+    run.id = uuidFor(6000 + vault.agentRuns.length);
+    run.created_at = NOW;
+    run.updated_at = NOW;
+    run.created_by = run.input?.requested_by ?? "alice";
+    event.id = uuidFor(7000 + vault.workEvents.length);
+    vault.agentRuns.push(run);
+    vault.workEvents.push(event);
+    return tableQuery(Object.keys(run), [run]);
+  }
+
+  if (lower.startsWith("select * from reef_agent_runs")) {
+    const runId = matchSqlString(normalized, /run_id\s*=\s*'([^']+)'/i);
+    const activeReefId = matchSqlString(
+      normalized,
+      /active_reef_id\s*=\s*'([^']+)'/i,
+    );
+    const rows = vault.agentRuns.filter(
+      (run) =>
+        (runId != null && run.run_id === runId) ||
+        (activeReefId != null &&
+          (run.active_reef_id === activeReefId ||
+            (run.active_reef_id == null &&
+              run.reef_id === activeReefId &&
+              ACTIVE_AGENT_RUN_STATUSES.has(run.status)))),
+    );
+    return tableQuery(Object.keys(vault.agentRuns[0] ?? {}), rows.slice(0, 1));
+  }
 
   if (lower.startsWith("select key, value from reef_settings")) {
     return tableQuery(["key", "value"], settingsRows(vault, normalized));
@@ -1682,6 +1891,8 @@ function tableNamesInSql(lowerSql) {
     "reef_sprints",
     "reef_milestones",
     "reef_releases",
+    "reef_work_events",
+    "reef_agent_runs",
   ].filter((table) => lowerSql.includes(table));
 }
 
@@ -2463,6 +2674,8 @@ function publicState() {
       settings: Object.fromEntries(vault.settings.entries()),
       monitored_repos: vault.monitoredRepos,
       development_targets: vault.developmentTargets,
+      work_events: vault.workEvents ?? [],
+      agent_runs: vault.agentRuns ?? [],
       issue_ids: vault.issues.map((issue) => issue.reef_id),
       issues: vault.issues.map((issue) => ({
         id: issue.reef_id,

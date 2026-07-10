@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { ConflictError, SchemaValidationError } from "../../../errors";
 import {
+  REEF_AGENT_RUNS_TABLE,
   REEF_SETTINGS_SCHEMA_VERSION_KEY,
   REEF_SETTINGS_TABLE,
+  REEF_WORK_EVENTS_TABLE,
 } from "./constants";
 import type { AkbAdapter } from "./http";
 import {
@@ -34,11 +36,14 @@ export { REEF_DESIRED_TABLES, REEF_SCHEMA_VERSION } from "./tableManifest";
 export interface EnsureReefTablesParams {
   adapter: AkbAdapter;
   vault: string;
+  requireSchemaVerification?: boolean;
+  requiredTables?: readonly ReefTableManifest["name"][];
 }
 
 interface AkbTableSummary {
   name: string;
   columns?: AkbTableColumn[];
+  unique_keys?: Array<{ name?: string; columns: string[] }>;
 }
 
 async function listAkbTables(
@@ -63,7 +68,11 @@ async function listAkbTables(
   })();
   return items.flatMap((item) => {
     if (!item || typeof item !== "object" || !("name" in item)) return [];
-    const obj = item as { name: unknown; columns?: unknown };
+    const obj = item as {
+      name: unknown;
+      columns?: unknown;
+      unique_keys?: unknown;
+    };
     const table: AkbTableSummary = { name: String(obj.name) };
     if (Array.isArray(obj.columns)) {
       table.columns = obj.columns.flatMap((col) => {
@@ -74,6 +83,17 @@ async function listAkbTables(
             required: z.boolean().optional(),
           })
           .safeParse(col);
+        return parsed.success ? [parsed.data] : [];
+      });
+    }
+    if (Array.isArray(obj.unique_keys)) {
+      table.unique_keys = obj.unique_keys.flatMap((key) => {
+        const parsed = z
+          .object({
+            name: z.string().optional(),
+            columns: z.array(z.string().min(1)).min(1),
+          })
+          .safeParse(key);
         return parsed.success ? [parsed.data] : [];
       });
     }
@@ -135,6 +155,18 @@ function columnsMatch(
   });
 }
 
+function uniqueKeysMatch(
+  expected: readonly { columns: string[] }[] | undefined,
+  actual: readonly { columns: string[] }[] | undefined,
+): boolean {
+  const expectedKeys = expected ?? [];
+  if (!actual) return expectedKeys.length === 0;
+  if (actual.length !== expectedKeys.length) return false;
+  const canonical = (columns: readonly string[]) => columns.join("\u0000");
+  const actualKeys = new Set(actual.map((key) => canonical(key.columns)));
+  return expectedKeys.every((key) => actualKeys.has(canonical(key.columns)));
+}
+
 function manifestMatchesTable(
   manifest: ReefTableManifest,
   table: AkbTableSummary | undefined,
@@ -142,7 +174,8 @@ function manifestMatchesTable(
   return (
     table?.name === manifest.name &&
     tableHasColumnMetadata(table) &&
-    columnsMatch(manifest.columns, table.columns)
+    columnsMatch(manifest.columns, table.columns) &&
+    uniqueKeysMatch(manifest.unique_keys, table.unique_keys)
   );
 }
 
@@ -160,20 +193,52 @@ function assertManifestMatches(
       issues: [`Reef table schema mismatch: ${manifest.name}`],
     });
   }
+  if (!uniqueKeysMatch(manifest.unique_keys, table.unique_keys)) {
+    throw new SchemaValidationError({
+      issues: [`Reef table unique-key mismatch: ${manifest.name}`],
+    });
+  }
 }
 
-function canVerifySchema(tables: AkbTableSummary[]): boolean {
+function canVerifySchema(
+  tables: AkbTableSummary[],
+  manifests: readonly ReefTableManifest[] = REEF_DESIRED_TABLES,
+): boolean {
   const byName = tableMap(tables);
-  return REEF_DESIRED_TABLES.every((manifest) =>
+  return manifests.every((manifest) =>
     tableHasColumnMetadata(byName.get(manifest.name)),
   );
 }
 
-function assertDesiredTablesMatch(tables: AkbTableSummary[]): void {
+function assertDesiredTablesMatch(
+  tables: AkbTableSummary[],
+  manifests: readonly ReefTableManifest[] = REEF_DESIRED_TABLES,
+): void {
   const byName = tableMap(tables);
-  for (const manifest of REEF_DESIRED_TABLES) {
+  for (const manifest of manifests) {
     assertManifestMatches(manifest, byName.get(manifest.name));
   }
+}
+
+function manifestsForStoredVersion(
+  storedVersion: number,
+): readonly ReefTableManifest[] {
+  if (storedVersion !== 3) return REEF_DESIRED_TABLES;
+  return REEF_DESIRED_TABLES.map((manifest) => {
+    if (manifest.name === REEF_AGENT_RUNS_TABLE) {
+      return {
+        ...manifest,
+        columns: manifest.columns.filter(
+          (column) => column.name !== "active_reef_id",
+        ),
+        unique_keys: undefined,
+      };
+    }
+    if (manifest.name === REEF_WORK_EVENTS_TABLE) {
+      return { ...manifest, unique_keys: undefined };
+    }
+    return manifest;
+  });
 }
 
 async function readStoredSchemaVersion(
@@ -261,23 +326,56 @@ async function createMissingTable(
 export async function ensureReefTables(
   params: EnsureReefTablesParams,
 ): Promise<void> {
-  const { adapter, vault } = params;
+  const {
+    adapter,
+    vault,
+    requireSchemaVerification = false,
+    requiredTables,
+  } = params;
   return withSpan("akb.tables.ensure", { vault }, async (span) => {
     let tables = await listAkbTables(adapter, vault);
     const initial = tableMap(tables);
     span.setAttribute("existing_table_count", initial.size);
 
-    const supportsSchemaVerification = canVerifySchema(tables);
-    if (supportsSchemaVerification) {
-      assertDesiredTablesMatch(tables);
+    const requiredNames = new Set(requiredTables ?? []);
+    const canInspectDesiredSchema = canVerifySchema(tables);
+    const storedVersion =
+      !requireSchemaVerification && canInspectDesiredSchema
+        ? await readStoredSchemaVersion(
+            adapter,
+            vault,
+            initial.has(REEF_SETTINGS_TABLE),
+          )
+        : 0;
+    const compatibleManifests = requireSchemaVerification
+      ? REEF_DESIRED_TABLES
+      : manifestsForStoredVersion(storedVersion);
+    const verificationManifests =
+      requireSchemaVerification && requiredNames.size > 0
+        ? compatibleManifests.filter((manifest) =>
+            requiredNames.has(manifest.name),
+          )
+        : compatibleManifests;
+    const supportsSchemaVerification = canVerifySchema(
+      tables,
+      verificationManifests,
+    );
+    if (requireSchemaVerification && !supportsSchemaVerification) {
+      throw new SchemaValidationError({
+        issues: ["Reef table schema metadata is unavailable"],
+      });
     }
-    const storedVersion = supportsSchemaVerification
-      ? await readStoredSchemaVersion(
-          adapter,
-          vault,
-          initial.has(REEF_SETTINGS_TABLE),
-        )
-      : 0;
+    if (supportsSchemaVerification) {
+      assertDesiredTablesMatch(tables, verificationManifests);
+    }
+    const verifiedStoredVersion =
+      requireSchemaVerification && supportsSchemaVerification
+        ? await readStoredSchemaVersion(
+            adapter,
+            vault,
+            initial.has(REEF_SETTINGS_TABLE),
+          )
+        : storedVersion;
     const missing = REEF_DESIRED_TABLES.filter(
       (manifest) => !initial.has(manifest.name),
     );
@@ -287,8 +385,8 @@ export async function ensureReefTables(
       span.setAttribute("created_table_count", 0);
       return;
     }
-    const schemaUpToDate = storedVersion >= REEF_SCHEMA_VERSION;
-    span.setAttribute("schema_version", storedVersion);
+    const schemaUpToDate = verifiedStoredVersion >= REEF_SCHEMA_VERSION;
+    span.setAttribute("schema_version", verifiedStoredVersion);
     span.setAttribute("desired_schema_version", REEF_SCHEMA_VERSION);
 
     if (schemaUpToDate && missing.length === 0) {
@@ -300,9 +398,18 @@ export async function ensureReefTables(
       missing.map((manifest) => createMissingTable(adapter, vault, manifest)),
     );
 
+    if (
+      verifiedStoredVersion > 0 &&
+      verifiedStoredVersion < REEF_SCHEMA_VERSION &&
+      !requireSchemaVerification
+    ) {
+      span.setAttribute("created_table_count", missing.length);
+      return;
+    }
+
     tables = await listAkbTables(adapter, vault);
-    if (canVerifySchema(tables)) {
-      assertDesiredTablesMatch(tables);
+    if (canVerifySchema(tables, verificationManifests)) {
+      assertDesiredTablesMatch(tables, verificationManifests);
       await stampSchemaVersion(adapter, vault);
     }
 

@@ -35,10 +35,14 @@ import { withSpan } from "../core/tracing";
 import type {
   AppendAgentRunEventParams,
   AppendWorkEventParams,
+  CreateQueuedIssueRunParams,
+  CreateQueuedIssueRunResult,
   ListAgentRunAttemptsParams,
   ListAgentRunAttemptsResult,
   ListAgentRunEventsParams,
   ListAgentRunEventsResult,
+  ReadActiveAgentRunForIssueParams,
+  ReadActiveAgentRunForIssueResult,
   ReadAgentRunAttemptParams,
   ReadAgentRunAttemptResult,
   ReadAgentRunParams,
@@ -50,6 +54,8 @@ import type {
 } from "../core/types";
 
 type Jsonish = Record<string, unknown> | null;
+const ACTIVE_AGENT_RUN_SQL_STATUSES =
+  "'queued', 'claimed', 'running', 'blocked'";
 
 function parseSchemaError(
   err: unknown,
@@ -128,6 +134,7 @@ export function rowToAgentRunRecord(
     return AgentRunRecordSchema.parse({
       run_id: row.run_id,
       reef_id: row.reef_id,
+      active_reef_id: row.active_reef_id ?? null,
       work_event_id: row.work_event_id ?? null,
       task_id: row.task_id,
       vault: row.vault ?? null,
@@ -224,6 +231,10 @@ function agentRunFields(run: AgentRunRecord): Array<[string, string]> {
   return [
     ["run_id", quoteText(run.run_id, "agent run id")],
     ["reef_id", quoteText(run.reef_id, "agent run reef_id")],
+    [
+      "active_reef_id",
+      quoteTextOrNull(run.active_reef_id, "agent run active_reef_id"),
+    ],
     [
       "work_event_id",
       quoteTextOrNull(run.work_event_id, "agent run work_event_id"),
@@ -333,18 +344,26 @@ export async function writeAgentRun(
     "akb.write_agent_run",
     { vault, run_id: run.run_id, reef_id: run.reef_id, status: run.status },
     async () => {
-      await ensureReefTables({ adapter, vault });
+      await ensureReefTables({
+        adapter,
+        vault,
+        requiredTables: [REEF_AGENT_RUNS_TABLE],
+        requireSchemaVerification: true,
+      });
+      const fields = agentRunFields(run);
+      const { columns, values } = rowFields(fields);
+      const assignments = assignmentList(
+        fields.filter(([column]) => column !== "run_id"),
+      );
       const runId = quoteText(run.run_id, "agent run id");
       await runSql(
         adapter,
         vault,
-        `DELETE FROM ${tableRef(REEF_AGENT_RUNS_TABLE)} WHERE run_id = ${runId}`,
-      );
-      const { columns, values } = rowFields(agentRunFields(run));
-      await runSql(
-        adapter,
-        vault,
-        `INSERT INTO ${tableRef(REEF_AGENT_RUNS_TABLE)} (${columns}) VALUES (${values})`,
+        `WITH updated AS (UPDATE ${tableRef(
+          REEF_AGENT_RUNS_TABLE,
+        )} SET ${assignments} WHERE run_id = ${runId} RETURNING run_id) INSERT INTO ${tableRef(
+          REEF_AGENT_RUNS_TABLE,
+        )} (${columns}) SELECT ${values} WHERE NOT EXISTS (SELECT 1 FROM updated)`,
       );
     },
   );
@@ -368,6 +387,129 @@ export async function readAgentRun(
     if (!row) throw new NotFoundError({ resource: `agent run ${runId}` });
     return { run: rowToAgentRunRecord(row) };
   });
+}
+
+export async function readActiveAgentRunForIssue(
+  params: ReadActiveAgentRunForIssueParams,
+): Promise<ReadActiveAgentRunForIssueResult> {
+  const { adapter, vault, reefId } = params;
+  return withSpan(
+    "akb.read_active_agent_run_for_issue",
+    { vault, reef_id: reefId },
+    async () => {
+      await ensureReefTables({
+        adapter,
+        vault,
+        requireSchemaVerification: true,
+        requiredTables: [REEF_AGENT_RUNS_TABLE, REEF_WORK_EVENTS_TABLE],
+      });
+      const rows = await selectRows(
+        adapter,
+        vault,
+        `SELECT * FROM ${tableRef(
+          REEF_AGENT_RUNS_TABLE,
+        )} WHERE active_reef_id = ${quoteText(
+          reefId,
+          "agent run active reef_id",
+        )} OR (active_reef_id IS NULL AND reef_id = ${quoteText(
+          reefId,
+          "legacy agent run reef_id",
+        )} AND status IN (${ACTIVE_AGENT_RUN_SQL_STATUSES})) LIMIT 1`,
+      );
+      const row = rows[0];
+      return {
+        run: row
+          ? rowToAgentRunRecord({
+              ...row,
+              active_reef_id: row.active_reef_id ?? row.reef_id,
+            })
+          : null,
+      };
+    },
+  );
+}
+
+/**
+ * Atomically persist the queued run and its immutable request event. The run
+ * insert is the concurrency gate (`run_id` + nullable `active_reef_id` unique
+ * keys); the event insert is driven only from its RETURNING row, so an event
+ * failure rolls the run back with the same SQL statement.
+ */
+export async function createQueuedIssueRun(
+  params: CreateQueuedIssueRunParams,
+): Promise<CreateQueuedIssueRunResult> {
+  const { adapter, vault } = params;
+  const run = AgentRunRecordSchema.parse(params.run);
+  const event = WorkEventSchema.parse(params.event);
+  if (
+    run.status !== "queued" ||
+    run.phase !== "queued" ||
+    run.active_reef_id !== run.reef_id ||
+    run.work_event_id !== event.work_event_id ||
+    run.reef_id !== event.reef_id ||
+    event.event_type !== "issue.run.requested"
+  ) {
+    throw new SchemaValidationError({
+      issues: ["queued issue run and work event do not share one request"],
+      clientValidated: true,
+    });
+  }
+  return withSpan(
+    "akb.create_queued_issue_run",
+    { vault, run_id: run.run_id, reef_id: run.reef_id },
+    async (span) => {
+      await ensureReefTables({
+        adapter,
+        vault,
+        requireSchemaVerification: true,
+        requiredTables: [REEF_AGENT_RUNS_TABLE, REEF_WORK_EVENTS_TABLE],
+      });
+      const runRow = rowFields(agentRunFields(run));
+      const eventRow = rowFields(workEventFields(event));
+      const reefId = quoteText(run.reef_id, "agent run reef_id");
+      const inserted = await selectRows(
+        adapter,
+        vault,
+        `WITH inserted_run AS (INSERT INTO ${tableRef(
+          REEF_AGENT_RUNS_TABLE,
+        )} (${runRow.columns}) SELECT ${runRow.values} WHERE NOT EXISTS (SELECT 1 FROM ${tableRef(
+          REEF_AGENT_RUNS_TABLE,
+        )} WHERE reef_id = ${reefId} AND status IN (${ACTIVE_AGENT_RUN_SQL_STATUSES})) ON CONFLICT DO NOTHING RETURNING *), inserted_event AS (INSERT INTO ${tableRef(
+          REEF_WORK_EVENTS_TABLE,
+        )} (${eventRow.columns}) SELECT ${eventRow.values} FROM inserted_run RETURNING work_event_id) SELECT inserted_run.* FROM inserted_run JOIN inserted_event ON inserted_event.work_event_id = inserted_run.work_event_id`,
+      );
+      if (inserted[0]) {
+        span.setAttribute("result", "created");
+        return { kind: "created", run: rowToAgentRunRecord(inserted[0]) };
+      }
+
+      const runId = quoteText(run.run_id, "agent run id");
+      const existingRows = await selectRows(
+        adapter,
+        vault,
+        `SELECT * FROM ${tableRef(
+          REEF_AGENT_RUNS_TABLE,
+        )} WHERE run_id = ${runId} OR active_reef_id = ${reefId} OR (active_reef_id IS NULL AND reef_id = ${reefId} AND status IN (${ACTIVE_AGENT_RUN_SQL_STATUSES})) ORDER BY CASE WHEN run_id = ${runId} THEN 0 ELSE 1 END LIMIT 1`,
+      );
+      const existingRow = existingRows[0];
+      if (!existingRow) {
+        throw new SchemaValidationError({
+          issues: ["queued run conflict did not expose the retained run"],
+        });
+      }
+      const existing = rowToAgentRunRecord({
+        ...existingRow,
+        active_reef_id:
+          existingRow.active_reef_id ?? existingRow.reef_id ?? null,
+      });
+      if (existing.run_id === run.run_id && existing.reef_id === run.reef_id) {
+        span.setAttribute("result", "replayed");
+        return { kind: "replayed", run: existing };
+      }
+      span.setAttribute("result", "conflict");
+      return { kind: "conflict", run: existing };
+    },
+  );
 }
 
 export async function readAgentRunWithIssueStatus(

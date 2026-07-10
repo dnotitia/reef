@@ -237,6 +237,41 @@ export interface ReadAgentRunResult {
   run: AgentRunRecord;
 }
 
+export interface ReadActiveAgentRunForIssueParams {
+  adapter: AkbAdapter;
+  vault: string;
+  reefId: string;
+}
+
+export interface ReadActiveAgentRunForIssueResult {
+  run: AgentRunRecord | null;
+}
+
+export interface CreateQueuedIssueRunParams {
+  adapter: AkbAdapter;
+  vault: string;
+  run: AgentRunRecord;
+  event: WorkEvent;
+}
+
+export type CreateQueuedIssueRunResult =
+  | { kind: "created"; run: AgentRunRecord }
+  | { kind: "replayed"; run: AgentRunRecord }
+  | { kind: "conflict"; run: AgentRunRecord };
+
+export interface ReadIssueRunRequestContextParams {
+  adapter: AkbAdapter;
+  vault: string;
+  id: string;
+}
+
+export interface ReadIssueRunRequestContextResult {
+  issue: IssueMetadata;
+  document_uri: string | null;
+  commit_hash: string | null;
+  document_available: boolean;
+}
+
 export interface ReadAgentRunWithIssueStatusParams {
   adapter: AkbAdapter;
   vault: string;
