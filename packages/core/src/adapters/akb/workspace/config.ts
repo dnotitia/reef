@@ -16,6 +16,7 @@ import {
 import {
   type AkbSqlResponse,
   MONITORED_REPOS_TABLE,
+  REEF_DEVELOPMENT_TARGETS_TABLE,
   REEF_SETTINGS_AI_SCANNING_ENABLED_KEY,
   REEF_SETTINGS_AUTHORING_LANGUAGE_KEY,
   REEF_SETTINGS_PROJECT_PREFIX_KEY,
@@ -366,6 +367,21 @@ export async function writeConfig(params: WriteConfigParams): Promise<void> {
         `INSERT INTO ${tableRef(MONITORED_REPOS_TABLE)} (github_id, owner, name, description) VALUES ${valuesClause}`,
       );
     }
+
+    // Clean up execution policy only after the monitored-repo replacement has
+    // completed successfully. If the INSERT above fails, this statement is not
+    // reached and existing target policy is preserved for recovery.
+    await runSql(
+      adapter,
+      vault,
+      `DELETE FROM ${tableRef(
+        REEF_DEVELOPMENT_TARGETS_TABLE,
+      )} WHERE NOT EXISTS (SELECT 1 FROM ${tableRef(
+        MONITORED_REPOS_TABLE,
+      )} WHERE ${tableRef(MONITORED_REPOS_TABLE)}.github_id = ${tableRef(
+        REEF_DEVELOPMENT_TARGETS_TABLE,
+      )}.github_id)`,
+    );
   });
 }
 

@@ -39,6 +39,14 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
       name: string;
       description?: string;
     }>;
+    development_targets: Array<{
+      github_id: number;
+      enabled: boolean;
+      recipe_path: string | null;
+      runner_profile: string | null;
+      permission_profile: string | null;
+      branch_template: string | null;
+    }>;
     issue_ids: string[];
     issues: Array<{
       id: string;
@@ -100,6 +108,17 @@ export async function setKeycloakEnabled(
 ): Promise<void> {
   const response = await request.post(`${E2E_MOCK_URL}/__e2e/keycloak`, {
     data: { enabled },
+  });
+  expect(response.ok()).toBeTruthy();
+}
+
+export async function setVaultRole(
+  request: APIRequestContext,
+  role: "reader" | "writer" | "admin" | "owner",
+  vault = REEF_E2E_VAULT,
+): Promise<void> {
+  const response = await request.post(`${E2E_MOCK_URL}/__e2e/vault-role`, {
+    data: { role, vault },
   });
   expect(response.ok()).toBeTruthy();
 }

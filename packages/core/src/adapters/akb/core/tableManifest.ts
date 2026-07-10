@@ -8,6 +8,7 @@ import {
   REEF_AGENT_RUN_EVENTS_TABLE,
   REEF_ATTACHMENTS_TABLE,
   REEF_COMMENTS_TABLE,
+  REEF_DEVELOPMENT_TARGETS_TABLE,
   REEF_ISSUES_TABLE,
   REEF_MILESTONES_TABLE,
   REEF_RELEASES_TABLE,
@@ -42,6 +43,7 @@ export interface ReefTableManifest extends AkbCreateTableRequest {
   name:
     | typeof REEF_SETTINGS_TABLE
     | typeof MONITORED_REPOS_TABLE
+    | typeof REEF_DEVELOPMENT_TARGETS_TABLE
     | typeof REEF_ISSUES_TABLE
     | typeof REEF_SPRINTS_TABLE
     | typeof REEF_MILESTONES_TABLE
@@ -58,7 +60,7 @@ export interface ReefTableManifest extends AkbCreateTableRequest {
   columns: AkbTableColumn[];
 }
 
-export const REEF_SCHEMA_VERSION = 2;
+export const REEF_SCHEMA_VERSION = 3;
 
 /**
  * Declarative desired schema for every AKB dynamic table Reef owns. Keep this
@@ -85,6 +87,18 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
       { name: "owner", type: "text", required: true },
       { name: "name", type: "text", required: true },
       { name: "description", type: "text" },
+    ],
+  },
+  {
+    name: REEF_DEVELOPMENT_TARGETS_TABLE,
+    description: "Per-repository agent execution target policy",
+    columns: [
+      { name: "github_id", type: "number", required: true },
+      { name: "enabled", type: "boolean", required: true },
+      { name: "recipe_path", type: "text" },
+      { name: "runner_profile", type: "text" },
+      { name: "permission_profile", type: "text" },
+      { name: "branch_template", type: "text" },
     ],
   },
   {

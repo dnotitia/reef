@@ -25,7 +25,18 @@ describe("useWorkspaceAccess", () => {
     setVaults([{ name: "v", role: "reader" }]);
     const { result } = renderHook(() => useWorkspaceAccess("v"));
     expect(result.current.canEditWorkspace).toBe(false);
+    expect(result.current.canManageExecution).toBe(false);
     expect(result.current.role).toBe("reader");
+  });
+
+  it("restricts execution management to admin and owner", () => {
+    for (const role of ["reader", "writer", "admin", "owner"]) {
+      setVaults([{ name: "v", role }]);
+      const { result } = renderHook(() => useWorkspaceAccess("v"));
+      expect(result.current.canManageExecution).toBe(
+        role === "admin" || role === "owner",
+      );
+    }
   });
 
   it("resolves a null role (no edit) when no vault is selected", () => {

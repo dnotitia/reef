@@ -51,6 +51,7 @@ export const ACTIVITY_INBOX_COLLECTION = "_reef/activity-inbox";
  */
 export const REEF_SETTINGS_TABLE = "reef_settings";
 export const MONITORED_REPOS_TABLE = "monitored_repos";
+export const REEF_DEVELOPMENT_TARGETS_TABLE = "reef_development_targets";
 export const REEF_ISSUES_TABLE = "reef_issues";
 export const REEF_TEMPLATES_TABLE = "reef_templates";
 export const REEF_ACTIVITY_SUGGESTIONS_TABLE = "reef_activity_suggestions";
@@ -103,6 +104,7 @@ export const REEF_SETTINGS_AI_SCANNING_ENABLED_KEY = "ai_scanning_enabled";
 export const REEF_TABLE_NAMES = [
   REEF_SETTINGS_TABLE,
   MONITORED_REPOS_TABLE,
+  REEF_DEVELOPMENT_TARGETS_TABLE,
   REEF_ISSUES_TABLE,
   REEF_TEMPLATES_TABLE,
   REEF_ACTIVITY_SUGGESTIONS_TABLE,

@@ -6,6 +6,7 @@ export {
   REEF_AGENT_RUN_ATTEMPTS_TABLE,
   REEF_AGENT_RUN_EVENTS_TABLE,
   REEF_AGENT_RUNS_TABLE,
+  REEF_DEVELOPMENT_TARGETS_TABLE,
   MONITORED_REPOS_TABLE,
   REEF_ISSUES_TABLE,
   REEF_TEMPLATES_TABLE,
@@ -105,6 +106,12 @@ export {
   writeAgentRun,
   writeAgentRunAttempt,
 } from "./agents/runRecords";
+export {
+  listDevelopmentTargets,
+  writeDevelopmentTarget,
+  type ListDevelopmentTargetsParams,
+  type WriteDevelopmentTargetParams,
+} from "./agents/developmentTargets";
 export {
   composeActivitySuggestionDocumentBody,
   writeActivitySuggestion,

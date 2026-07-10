@@ -1,4 +1,27 @@
 export {
+  DEFAULT_DEVELOPMENT_PROFILE_CATALOG,
+  DevelopmentBranchTemplateSchema,
+  DevelopmentProfileCatalogSchema,
+  DevelopmentProfileIdSchema,
+  DevelopmentProfileOptionSchema,
+  DevelopmentRecipePathSchema,
+  DevelopmentTargetConfigSchema,
+  DevelopmentTargetEligibilityReasonEnum,
+  DevelopmentTargetEligibilitySchema,
+  DevelopmentTargetItemSchema,
+  DevelopmentTargetsResponseSchema,
+  renderDevelopmentBranchTemplate,
+  resolveDevelopmentTargetEligibility,
+  type DevelopmentProfileCatalog,
+  type DevelopmentProfileOption,
+  type DevelopmentTargetConfig,
+  type DevelopmentTargetEligibility,
+  type DevelopmentTargetEligibilityReason,
+  type DevelopmentTargetItem,
+  type DevelopmentTargetsResponse,
+} from "./developmentTargets";
+
+export {
   AgentArtifactCommandRequestSchema,
   AgentArtifactEditRequestSchema,
   AgentRunRequestSchema,

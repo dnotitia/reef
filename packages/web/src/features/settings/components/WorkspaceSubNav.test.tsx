@@ -27,7 +27,7 @@ describe("WorkspaceSubNav (REEF-183)", () => {
     navigationState.pathname = "/workspace/reef-test/settings/workspace";
   });
 
-  it("renders the General and Members sub-views as addressable links (AC3)", () => {
+  it("renders General, Agent execution, and Members as addressable links", () => {
     render(<WorkspaceSubNav />);
     expect(screen.getByRole("link", { name: "General" })).toHaveAttribute(
       "href",
@@ -36,6 +36,24 @@ describe("WorkspaceSubNav (REEF-183)", () => {
     expect(screen.getByRole("link", { name: "Members" })).toHaveAttribute(
       "href",
       "/workspace/reef-test/settings/workspace/members",
+    );
+    expect(
+      screen.getByRole("link", { name: "Agent execution" }),
+    ).toHaveAttribute(
+      "href",
+      "/workspace/reef-test/settings/workspace/agent-execution",
+    );
+  });
+
+  it("activates Agent execution without lighting up General", () => {
+    navigationState.pathname =
+      "/workspace/reef-test/settings/workspace/agent-execution";
+    render(<WorkspaceSubNav />);
+    expect(
+      screen.getByRole("link", { name: "Agent execution" }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "General" })).not.toHaveAttribute(
+      "aria-current",
     );
   });
 

@@ -30,9 +30,13 @@ export type AgentExecutionPhase = z.infer<typeof AgentExecutionPhaseEnum>;
 
 export const DevelopmentTargetSchema = z
   .object({
+    github_id: z.number().int().positive().nullable().default(null),
     repo: z.string().min(1),
     base_ref: z.string().min(1).nullable().default(null),
     branch: z.string().min(1).nullable().default(null),
+    recipe_path: z.string().min(1).nullable().default(null),
+    runner_profile: z.string().min(1).nullable().default(null),
+    permission_profile: z.string().min(1).nullable().default(null),
     worktree_path: z.string().min(1).nullable().default(null),
     head_sha: z.string().min(1).nullable().default(null),
     pull_request_url: z.string().url().nullable().default(null),

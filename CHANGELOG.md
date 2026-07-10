@@ -14,6 +14,13 @@ explicitly in the entries below.
 
 ### Added
 
+- **Repository-scoped agent execution settings.** Workspace members can inspect
+  a new Settings › Workspace › Agent execution page, while admins and owners can
+  explicitly enable a monitored repository and bind it to a checkout-relative
+  recipe, deployment-approved runner and permission profiles, and a safe branch
+  template. Missing, disabled, duplicate, or stale-profile targets fail closed;
+  raw credentials and sandbox/network policy are never stored or returned.
+  (REEF-381, epic REEF-104)
 - **Jira migration account mapping.** The Jira migrator now captures Jira
   `accountId`, email, display name, active state, and account type for issue,
   comment, and changelog actors, then resolves them through one shared mapping
@@ -211,6 +218,15 @@ explicitly in the entries below.
   needed. Operationally: the setting is now the server-side `AKB_WEB_URL`; the
   older `NEXT_PUBLIC_AKB_WEB_URL` is still honored, so existing deployments keep
   working and can rename at their convenience. (REEF-368)
+
+### Migration
+
+- Reef workspace schema version 3 adds the root `reef_development_targets`
+  table. Existing workspaces receive it additively on the next Reef table
+  ensure; no targets are enabled or backfilled, so every monitored repository
+  remains unavailable for agent runs until an admin explicitly saves a target.
+  Older Reef versions ignore the table, and rollback leaves its rows inert.
+  There is no browser storage migration. (REEF-381)
 
 ## v0.6.1 - 2026-07-02
 
