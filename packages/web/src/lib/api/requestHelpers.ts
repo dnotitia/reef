@@ -344,3 +344,22 @@ export async function requireVaultOwner(
     response: await localizedErrorResponse("workspaceOwnerRequired", 403),
   };
 }
+
+/** Server-side admin/owner floor for sensitive execution-policy mutations. */
+export async function requireVaultAdmin(
+  adapter: AkbAdapter,
+  vault: string,
+): Promise<{ role: "admin" | "owner" } | { response: Response }> {
+  try {
+    const { vaults } = await akbListVaults({ adapter });
+    const role = vaults.find((item) => item.name === vault)?.role ?? null;
+    if (role === "admin" || role === "owner") return { role };
+    return {
+      response: await localizedErrorResponse("workspaceAdminRequired", 403),
+    };
+  } catch (err) {
+    return {
+      response: await respondWithError(err, { resourceKind: "workspace" }),
+    };
+  }
+}

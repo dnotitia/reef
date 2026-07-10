@@ -61,6 +61,7 @@ function bodyOf(call: FetchCall): Record<string, unknown> {
 const ALL_REEF_TABLES = [
   "reef_settings",
   "monitored_repos",
+  "reef_development_targets",
   "reef_issues",
   "reef_sprints",
   "reef_milestones",

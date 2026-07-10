@@ -53,6 +53,19 @@ const server = createServer(async (req, res) => {
         keycloak_enabled: state.keycloakEnabled,
       });
     }
+    if (url.pathname === "/__e2e/vault-role" && req.method === "POST") {
+      const body = await readJson(req);
+      const vault = state.vaults.get(String(body?.vault ?? REEF_VAULT));
+      if (!vault) return json(res, 404, { error: "vault_not_found" });
+      const role = String(body?.role ?? "");
+      if (!["reader", "writer", "admin", "owner"].includes(role)) {
+        return json(res, 400, { error: "invalid_role" });
+      }
+      vault.role = role;
+      const alice = vault.members.find((member) => member.username === "alice");
+      if (alice) alice.role = role;
+      return json(res, 200, { ok: true, role });
+    }
     // akb's Keycloak login start. reef-web calls this server-side to begin the
     // hand-off (REEF-312). It is mounted at the bare path, not under /akb,
     // because core resolves the akb-reported login_url ("/api/v1/auth/keycloak/
@@ -235,6 +248,7 @@ function configuredVault(name) {
     tables: new Set([
       "reef_settings",
       "monitored_repos",
+      "reef_development_targets",
       "reef_issues",
       "reef_templates",
       "reef_activity_suggestions",
@@ -253,6 +267,7 @@ function configuredVault(name) {
       ["ai_scanning_enabled", true],
     ]),
     monitoredRepos: [],
+    developmentTargets: [],
     issues,
     documents: new Map(),
     members: [
@@ -626,6 +641,7 @@ function rawVault(name) {
     tables: new Set(),
     settings: new Map(),
     monitoredRepos: [],
+    developmentTargets: [],
     issues: [],
     documents: new Map(),
     members: [],
@@ -1010,6 +1026,125 @@ function handleSql(vault, sql) {
           name: String(row.name),
           description:
             row.description == null ? undefined : String(row.description),
+        });
+      }
+    }
+    return tableSql();
+  }
+
+  if (
+    lower.startsWith("select m.github_id") &&
+    lower.includes("left join reef_development_targets")
+  ) {
+    const rows = [];
+    for (const repo of vault.monitoredRepos) {
+      const matches = vault.developmentTargets.filter(
+        (target) => Number(target.github_id) === Number(repo.github_id),
+      );
+      if (matches.length === 0) {
+        rows.push({
+          ...repo,
+          target_github_id: null,
+          enabled: null,
+          recipe_path: null,
+          runner_profile: null,
+          permission_profile: null,
+          branch_template: null,
+        });
+      } else {
+        for (const target of matches) {
+          rows.push({ ...repo, ...target, target_github_id: target.github_id });
+        }
+      }
+    }
+    return tableQuery(
+      [
+        "github_id",
+        "owner",
+        "name",
+        "description",
+        "target_github_id",
+        "enabled",
+        "recipe_path",
+        "runner_profile",
+        "permission_profile",
+        "branch_template",
+      ],
+      rows,
+    );
+  }
+  if (lower.startsWith("select github_id from monitored_repos")) {
+    const match = normalized.match(/github_id\s*=\s*(\d+)/i);
+    const githubId = match ? Number(match[1]) : Number.NaN;
+    return tableQuery(
+      ["github_id"],
+      vault.monitoredRepos
+        .filter((repo) => Number(repo.github_id) === githubId)
+        .map((repo) => ({ github_id: repo.github_id })),
+    );
+  }
+  if (lower.startsWith("select id from reef_development_targets")) {
+    const match = normalized.match(/github_id\s*=\s*(\d+)/i);
+    const githubId = match ? Number(match[1]) : Number.NaN;
+    return tableQuery(
+      ["id"],
+      vault.developmentTargets
+        .filter((target) => Number(target.github_id) === githubId)
+        .map((target) => ({ id: target.id })),
+    );
+  }
+  if (lower.startsWith("update reef_development_targets")) {
+    const update = parseUpdate(normalized);
+    const id = matchSqlString(normalized, /where id\s*=\s*'([^']+)'/i);
+    const row = vault.developmentTargets.find((target) => target.id === id);
+    if (update && row) {
+      const values = { ...update.values };
+      if (values.enabled !== undefined) {
+        values.enabled = String(values.enabled).toLowerCase() === "true";
+      }
+      Object.assign(row, values);
+    }
+    return tableSql();
+  }
+  if (lower.startsWith("delete from reef_development_targets")) {
+    if (lower.includes("where not exists")) {
+      const monitoredIds = new Set(
+        vault.monitoredRepos.map((repo) => Number(repo.github_id)),
+      );
+      vault.developmentTargets = vault.developmentTargets.filter((target) =>
+        monitoredIds.has(Number(target.github_id)),
+      );
+    } else {
+      const match = normalized.match(/github_id\s*=\s*(\d+)/i);
+      const githubId = match ? Number(match[1]) : Number.NaN;
+      const retainedId = matchSqlString(normalized, /id\s*<>\s*'([^']+)'/i);
+      vault.developmentTargets = vault.developmentTargets.filter(
+        (target) =>
+          Number(target.github_id) !== githubId || target.id === retainedId,
+      );
+    }
+    return tableSql();
+  }
+  if (lower.startsWith("insert into reef_development_targets")) {
+    const insert = parseInsert(normalized);
+    if (insert) {
+      for (const values of insert.valueRows) {
+        const row = objectFromColumns(insert.columns, values);
+        vault.developmentTargets.push({
+          id: `development-target-${row.github_id}-${vault.developmentTargets.length + 1}`,
+          github_id: Number(row.github_id),
+          enabled:
+            row.enabled === true ||
+            String(row.enabled).toLowerCase() === "true",
+          recipe_path: row.recipe_path == null ? null : String(row.recipe_path),
+          runner_profile:
+            row.runner_profile == null ? null : String(row.runner_profile),
+          permission_profile:
+            row.permission_profile == null
+              ? null
+              : String(row.permission_profile),
+          branch_template:
+            row.branch_template == null ? null : String(row.branch_template),
         });
       }
     }
@@ -1539,6 +1674,7 @@ function tableNamesInSql(lowerSql) {
   return [
     "reef_settings",
     "monitored_repos",
+    "reef_development_targets",
     "reef_issues",
     "reef_templates",
     "reef_activity_suggestions",
@@ -2326,6 +2462,7 @@ function publicState() {
       tables: [...vault.tables],
       settings: Object.fromEntries(vault.settings.entries()),
       monitored_repos: vault.monitoredRepos,
+      development_targets: vault.developmentTargets,
       issue_ids: vault.issues.map((issue) => issue.reef_id),
       issues: vault.issues.map((issue) => ({
         id: issue.reef_id,

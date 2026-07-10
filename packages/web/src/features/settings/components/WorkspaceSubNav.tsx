@@ -10,6 +10,11 @@ import { usePathname } from "next/navigation";
 const WORKSPACE_SUB_TABS = [
   { href: "/settings/workspace", id: "general", labelKey: "subtabGeneral" },
   {
+    href: "/settings/workspace/agent-execution",
+    id: "agent-execution",
+    labelKey: "subtabAgentExecution",
+  },
+  {
     href: "/settings/workspace/members",
     id: "members",
     labelKey: "subtabMembers",

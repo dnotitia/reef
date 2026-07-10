@@ -19,6 +19,8 @@ export interface WorkspaceAccess {
   role: string | null;
   /** True when the user may edit team-shared workspace settings. */
   canEditWorkspace: boolean;
+  /** True when the user may manage sensitive agent execution policy. */
+  canManageExecution: boolean;
   /** True while the vault role is still resolving — callers should not render a (wrong) badge yet. */
   isResolving: boolean;
 }
@@ -36,6 +38,7 @@ export function useWorkspaceAccess(vault: string): WorkspaceAccess {
   return {
     role,
     canEditWorkspace: role != null && WRITER_ROLES.has(role),
+    canManageExecution: role === "admin" || role === "owner",
     isResolving: vaultsQuery.isPending,
   };
 }

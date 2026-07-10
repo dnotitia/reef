@@ -27,6 +27,7 @@ import {
 const ALL_REEF_TABLES = [
   "reef_settings",
   "monitored_repos",
+  "reef_development_targets",
   "reef_issues",
   "reef_templates",
   "reef_activity_suggestions",

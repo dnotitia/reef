@@ -91,6 +91,12 @@ export const ERROR_MESSAGES_EN = {
     stale:
       "This suggestion is out of date — the issue's status has already changed. Dismiss it and rescan.",
   },
+  developmentTarget: {
+    unmonitored:
+      "Register this repository as a monitored repository before enabling agent execution.",
+    profileUnavailable:
+      "One or more selected execution profiles are not available in this deployment.",
+  },
 };
 
 /**
@@ -388,6 +394,38 @@ export class ActivitySuggestionError extends ReefError {
   }
 }
 
+export type DevelopmentTargetErrorReason =
+  | "unmonitored"
+  | "profile_unavailable";
+
+const DEVELOPMENT_TARGET_ERROR_SPECS: Record<
+  DevelopmentTargetErrorReason,
+  { status: number; code: ErrorCode }
+> = {
+  unmonitored: { status: 422, code: "developmentTarget.unmonitored" },
+  profile_unavailable: {
+    status: 422,
+    code: "developmentTarget.profileUnavailable",
+  },
+};
+
+export class DevelopmentTargetError extends ReefError {
+  readonly reason: DevelopmentTargetErrorReason;
+  readonly httpStatus: number;
+
+  constructor(reason: DevelopmentTargetErrorReason) {
+    const spec = DEVELOPMENT_TARGET_ERROR_SPECS[reason];
+    super(resolveEnMessage(spec.code));
+    this.name = "DevelopmentTargetError";
+    this.reason = reason;
+    this.httpStatus = spec.status;
+  }
+
+  toUserMessage(): string {
+    return this.message;
+  }
+}
+
 // ─── Error description (the AC4 web-localization seam) ──────────────────────────
 
 const GITHUB_PASS_THROUGH_STATUSES = new Set([401, 403, 404, 409]);
@@ -412,6 +450,10 @@ function resolveApiHttpStatus(
  *  - carries no message text, just a stable code the locale resolves
  */
 export function describeError(err: unknown): ErrorDescriptor {
+  if (err instanceof DevelopmentTargetError) {
+    const spec = DEVELOPMENT_TARGET_ERROR_SPECS[err.reason];
+    return { code: spec.code, status: spec.status };
+  }
   if (err instanceof ActivitySuggestionError) {
     return {
       code: ACTIVITY_SUGGESTION_ERROR_SPECS[err.reason].code,

@@ -538,6 +538,17 @@ monitored repos, templates, and authoring language. These pages share the
 standard page header + body chrome and the same field leaves where issue fields
 appear.
 
+Workspace settings also has a dedicated **Agent execution** sub-view. It lists
+every monitored repository by stable GitHub id and current owner/name, with an
+explicit enable switch, checkout-relative recipe path, deployment-approved
+runner and permission profile selectors, branch-template preview contract, and
+per-repository Save action. Admins and owners can edit; writers and readers see
+the same policy read-only. Missing or disabled targets say **Not available for
+runs**, removed deployment profiles stay visibly unavailable instead of being
+silently replaced, and a failed save keeps the draft in place with an inline
+error. With no monitored repositories, the page links back to General rather
+than rendering an empty form.
+
 Settings groups follow a consistent dense form pattern: a group header with the
 title, optional scope, optional access badge, description, and hairline, followed
 by vertically stacked sections. The access badge is omitted while role

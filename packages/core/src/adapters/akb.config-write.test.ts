@@ -27,7 +27,8 @@ import {
 //   DELETE stale_hide_completed_days, INSERT stale_hide_completed_days,
 //   DELETE stale_hide_canceled_days, INSERT stale_hide_canceled_days,
 //   DELETE ai_scanning_enabled, INSERT ai_scanning_enabled,
-//   DELETE monitored_repos, [INSERT monitored_repos when non-empty].
+//   DELETE monitored_repos, [INSERT monitored_repos when non-empty],
+//   DELETE orphaned reef_development_targets.
 
 describe("writeConfig (tables)", () => {
   it("provisions tables lazily then emits DELETE + INSERT for settings, DELETE only for empty repos", async () => {
@@ -46,6 +47,7 @@ describe("writeConfig (tables)", () => {
       { body: makeSqlMutationResponse("DELETE 0") }, // DELETE ai_scanning_enabled
       { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT ai_scanning_enabled
       { body: makeSqlMutationResponse("DELETE 0") }, // DELETE monitored_repos
+      { body: makeSqlMutationResponse("DELETE 0") }, // cleanup development targets
     ]);
     const adapter = makeAdapter();
     await writeConfig({
@@ -60,7 +62,7 @@ describe("writeConfig (tables)", () => {
         ai_scanning_enabled: false,
       },
     });
-    expect(calls).toHaveLength(11);
+    expect(calls).toHaveLength(12);
     expect(calls[0]?.url).toBe("https://akb.test/api/v1/tables/reef-sample");
     const sqls = calls
       .slice(1)
@@ -109,6 +111,7 @@ describe("writeConfig (tables)", () => {
       { body: makeSqlMutationResponse("DELETE 0") }, // DELETE ai_scanning_enabled
       { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT ai_scanning_enabled
       { body: makeSqlMutationResponse("DELETE 0") }, // DELETE monitored_repos
+      { body: makeSqlMutationResponse("DELETE 0") }, // cleanup development targets
     ]);
     const adapter = makeAdapter();
     await writeConfig({
@@ -123,7 +126,7 @@ describe("writeConfig (tables)", () => {
         ai_scanning_enabled: true,
       },
     });
-    expect(calls).toHaveLength(12);
+    expect(calls).toHaveLength(13);
     const sqls = calls
       .slice(1)
       .map((c) => JSON.parse(c.init?.body as string).sql as string);
@@ -156,6 +159,7 @@ describe("writeConfig (tables)", () => {
       { body: makeSqlMutationResponse("DELETE 0") }, // DELETE ai_scanning_enabled
       { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT ai_scanning_enabled
       { body: makeSqlMutationResponse("DELETE 0") }, // DELETE monitored_repos
+      { body: makeSqlMutationResponse("DELETE 0") }, // cleanup development targets
     ]);
     const adapter = makeAdapter();
     await writeConfig({
@@ -170,7 +174,7 @@ describe("writeConfig (tables)", () => {
         ai_scanning_enabled: false,
       },
     });
-    expect(calls).toHaveLength(ALL_REEF_TABLES.length + 12);
+    expect(calls).toHaveLength(ALL_REEF_TABLES.length + 13);
     expect(calls[0]?.url).toBe("https://akb.test/api/v1/tables/reef-sample");
     const createNames = calls
       .slice(1, 1 + ALL_REEF_TABLES.length)
@@ -194,6 +198,7 @@ describe("writeConfig (tables)", () => {
       { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT ai_scanning_enabled
       { body: makeSqlMutationResponse("DELETE 2") }, // DELETE monitored_repos
       { body: makeSqlMutationResponse("INSERT 0 2") }, // INSERT monitored_repos
+      { body: makeSqlMutationResponse("DELETE 0") }, // cleanup development targets
     ]);
     const adapter = makeAdapter();
     await writeConfig({
@@ -211,7 +216,7 @@ describe("writeConfig (tables)", () => {
         ai_scanning_enabled: true,
       },
     });
-    expect(calls).toHaveLength(12);
+    expect(calls).toHaveLength(13);
     const insertRepos = JSON.parse(calls[11]?.init?.body as string)
       .sql as string;
     expect(insertRepos).toContain(`INSERT INTO ${MONITORED_REPOS_TABLE}`);
@@ -235,6 +240,7 @@ describe("writeConfig (tables)", () => {
       { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT ai_scanning_enabled
       { body: makeSqlMutationResponse("DELETE 0") }, // DELETE monitored_repos
       { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT monitored_repos
+      { body: makeSqlMutationResponse("DELETE 0") }, // cleanup development targets
     ]);
     const adapter = makeAdapter();
     await writeConfig({
