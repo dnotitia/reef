@@ -420,6 +420,43 @@ stay correct even when the board view is filtered.
 **List.** A dense, sortable table rendering the same issues with their field
 leaves.
 
+**Multi-select and bulk edit.** List owns multi-select because its leading
+checkbox column and field-comparison layout fit batch work. Rows expose compact
+14px checkbox indicators on hover, focus, or selection; the native input keeps
+checkbox semantics while the visual indicator uses the elevated surface when
+idle and one solid brand fill with a contrasting check when selected.
+Each checkbox sits in one labeled 32px hit target so the leading-cell dead zone
+never opens issue detail.
+Shift+Click extends an inclusive
+range in list order, while normal clicks still open issue detail. The header
+selects only the currently loaded filtered ids and announces unchecked, mixed,
+and checked states. Once at least one issue is selected, an integrated toolbar
+between the filters and table directly exposes Status, Assignee, Priority,
+Sprint, Add labels, and Remove labels; Clear closes selection mode. The action
+group stays on one row when space permits and wraps to a second row at narrow
+desktop widths instead of hiding fields behind an overflow menu. Selection uses
+the brand-teal surface (never AI purple), suppresses
+single-issue quick-edit shortcuts, clears on view/filter/workspace changes, and
+yields to an open dialog, popover, or input before Esc clears it.
+
+Board deliberately has no card checkbox, range selection, selected-card chrome,
+or selection-driven drag mode. Its card header remains reserved for status, id,
+type, and blocked state; normal click, quick edit, and drag keep their existing
+meaning. A compact, visibly labeled **Bulk edit in List** link switches to List
+while preserving the active search, filters, and sort context; because it is a
+real link, modified and middle clicks retain normal browser navigation.
+
+Bulk writes run through the existing single-issue Route Handler one at a time.
+Each item is optimistic, a failure rolls back only that item, successful and
+unchanged items leave the selection, and failures remain in a viewport-bounded
+tray with their id, title, PM-facing reason, and recovery action. Retry is
+offered for conflicts and transient request failures; a not-found item is
+removed from the stale selection instead. A close action asks for one reason and
+applies it independently to every target; sprint assignment promotes backlog
+issues to Todo, while moving to Backlog clears sprint. The toolbar stays in
+normal page flow, wraps within ordinary and narrow desktop widths, and never
+competes with the Ask AI control or covers issue content.
+
 **Timeline.** A date-windowed schedule view of the same set.
 
 **Backlog.** A flat triage list of backlog issues with manual rank order,
@@ -673,3 +710,6 @@ Global shortcuts are registered at the shell: **⌘N** opens New Issue, **⌘K**
 toggles global search, **⌘⇧A** toggles Ask AI, **⌘?** opens the
 keyboard-shortcuts sheet, and **Esc** closes the active panel. Text-field focus
 is respected so typing is never hijacked.
+When List selection is active, the single-issue `s` / `a` / `p` / `l`
+shortcuts are suppressed and Esc clears the selection only after any focused
+interactive overlay has had the chance to consume it.

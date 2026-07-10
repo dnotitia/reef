@@ -45,6 +45,30 @@ const server = createServer(async (req, res) => {
         issue_list_failure: state.issueListFailure,
       });
     }
+    if (
+      url.pathname === "/__e2e/issue-update-control" &&
+      req.method === "POST"
+    ) {
+      const body = await readJson(req);
+      const id = String(body?.id ?? "");
+      const mode = body?.mode;
+      if (mode === "once" || mode === "always")
+        state.issueUpdateFailures.set(id, mode);
+      else state.issueUpdateFailures.delete(id);
+      return json(res, 200, {
+        ok: true,
+        id,
+        mode: state.issueUpdateFailures.get(id) ?? "clear",
+      });
+    }
+    if (url.pathname === "/__e2e/remove-issue" && req.method === "POST") {
+      const body = await readJson(req);
+      const vault = state.vaults.get(String(body?.vault ?? REEF_VAULT));
+      const id = String(body?.id ?? "");
+      if (vault)
+        vault.issues = vault.issues.filter((issue) => issue.reef_id !== id);
+      return json(res, 200, { ok: true, id });
+    }
     if (url.pathname === "/__e2e/keycloak" && req.method === "POST") {
       const body = await readJson(req);
       state.keycloakEnabled = body?.enabled === true;
@@ -144,6 +168,7 @@ function makeState(scenario) {
     loginToken: token,
     vaults: new Map(),
     issueListFailure: false,
+    issueUpdateFailures: new Map(),
     keycloakEnabled: false,
     commitSeq: 0,
     planningSeq: 10,
@@ -1070,6 +1095,11 @@ function handleSql(vault, sql) {
         normalized,
         /where "?reef_id"?\s*=\s*'([^']+)'/i,
       );
+      const failureMode = state.issueUpdateFailures.get(id);
+      if (failureMode) {
+        if (failureMode === "once") state.issueUpdateFailures.delete(id);
+        return { error: `e2e forced issue update failure for ${id}` };
+      }
       const row = vault.issues.find((issue) => issue.reef_id === id);
       if (row) {
         Object.assign(row, update.values, { updated_at: nextEditTimestamp() });
@@ -2453,6 +2483,11 @@ function publicState() {
           item.meta && typeof item.meta === "object"
             ? item.meta.proposal
             : undefined,
+      })),
+      activity: (vault.activity ?? []).map((item) => ({
+        reef_id: item.reef_id,
+        event_type: item.event_type,
+        payload: item.payload,
       })),
       documents: [...vault.documents.values()].map((doc) => ({
         path: doc.path,

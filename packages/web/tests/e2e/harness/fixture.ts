@@ -65,6 +65,11 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
       approved_issue_id?: string;
       proposal?: unknown;
     }>;
+    activity: Array<{
+      reef_id: string;
+      event_type: string;
+      payload: unknown;
+    }>;
     documents: Array<{
       path: string;
       title: string;
@@ -91,6 +96,31 @@ export async function setIssueListFailure(
     `${E2E_MOCK_URL}/__e2e/issue-list-failure`,
     { data: { enabled } },
   );
+  expect(response.ok()).toBeTruthy();
+}
+
+export async function setIssueUpdateFailure(
+  request: APIRequestContext,
+  id: string,
+  mode: "once" | "always" | "clear",
+): Promise<void> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/issue-update-control`,
+    {
+      data: { id, mode },
+    },
+  );
+  expect(response.ok()).toBeTruthy();
+}
+
+export async function removeFixtureIssue(
+  request: APIRequestContext,
+  id: string,
+  vault = REEF_E2E_VAULT,
+): Promise<void> {
+  const response = await request.post(`${E2E_MOCK_URL}/__e2e/remove-issue`, {
+    data: { id, vault },
+  });
   expect(response.ok()).toBeTruthy();
 }
 

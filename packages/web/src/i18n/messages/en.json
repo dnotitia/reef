@@ -788,6 +788,29 @@
       "loadError": "Failed to load issues.",
       "noMatches": "No issues match your filters.",
       "emptyWorkspace": "Your workspace is empty. What are you working on?"
+    },
+    "bulk": {
+      "selectIssue": "Select {id}",
+      "selectAllLoaded": "Select all loaded issues",
+      "selectedCount": "{count, plural, one {# selected} other {# selected}}",
+      "progress": "{processed} / {total}",
+      "addLabels": "Add labels",
+      "removeLabels": "Remove labels",
+      "editInList": "Bulk edit in List",
+      "noSprint": "No sprint",
+      "clear": "Clear",
+      "failedCount": "{count} failed",
+      "failureList": "Failed issue updates",
+      "retry": "Retry",
+      "removeFromSelection": "Remove from selection",
+      "success": "Updated {count} issues.",
+      "partialFailure": "{failed}/{total} issues failed.",
+      "retrySuccess": "Retried {id} successfully.",
+      "errors": {
+        "not_found": "Issue not found",
+        "conflict": "Save conflict",
+        "request_failed": "Update failed"
+      }
     }
   },
   "board": {

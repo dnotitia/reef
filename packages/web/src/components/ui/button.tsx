@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
 import { cn } from "@/lib/utils";
 
 type ButtonVariant =
@@ -42,14 +43,14 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       className,
       variant = "default",
       size = "default",
-      // asChild is accepted but not implemented (no Radix Slot) — enough for our usage
-      asChild: _asChild,
+      asChild = false,
       ...props
     },
     ref,
   ) => {
+    const Comp = asChild ? Slot : "button";
     return (
-      <button
+      <Comp
         ref={ref}
         data-slot="button"
         className={cn(

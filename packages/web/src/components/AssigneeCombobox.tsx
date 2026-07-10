@@ -30,6 +30,8 @@ interface AssigneeComboboxProps {
   /** Empty/none row label; defaults to `components.assignee.unassigned`. */
   emptyLabel?: string;
   disabled?: boolean;
+  /** Width/layout classes for the trigger root on compact toolbar surfaces. */
+  className?: string;
   /** Filter affordance — paints the brand ring when set (filter surfaces just). */
   active?: boolean;
   /**
@@ -70,6 +72,7 @@ export function AssigneeCombobox({
   placeholder,
   emptyLabel,
   disabled,
+  className,
   active,
   panelClassName,
   align = "end",
@@ -158,6 +161,7 @@ export function AssigneeCombobox({
       active={active}
       ariaLabel={value ? `${resolvedLabel}: ${value}` : resolvedLabel}
       align={align}
+      className={className}
       contentClassName={panelClassName}
       open={open}
       onOpenChange={onOpenChange}

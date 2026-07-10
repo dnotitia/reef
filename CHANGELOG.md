@@ -27,6 +27,15 @@ explicitly in the entries below.
   workspaces should use the normal skill-update prompt before generic AKB agents
   create replies. No AKB table migration or data backfill is required because
   both fields live in the existing `reef_comments.meta` JSON.
+- **Select and edit multiple issues together in List.** List rows now expose
+  keyboard-accessible checkboxes, Shift+Click range selection, and an integrated
+  toolbar for status, assignee, priority, sprint, and label changes. Board stays
+  focused on drag-and-scan work and links to the filtered List for bulk editing.
+  Updates reuse the existing single-issue save path sequentially, preserve
+  successful items when one fails, and keep failed items selected for recovery.
+  Selection controls use full labeled hit targets, while the bounded failure
+  tray retries transient failures and removes stale not-found items cleanly.
+  (REEF-339, epic REEF-330)
 
 ## v0.7.0 - 2026-07-10
 

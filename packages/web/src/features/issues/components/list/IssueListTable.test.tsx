@@ -1,3 +1,4 @@
+import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { apiFetch } from "@/lib/apiClient";
 import type { IssueMetadata } from "@reef/core";
@@ -75,6 +76,7 @@ describe("IssueListTable", () => {
       searchQuery: "",
       selectedIssueId: null,
     });
+    useIssueSelectionStore.getState().clear();
   });
 
   it("requests /api/issues?vault={vault} and renders the rows", async () => {
@@ -120,6 +122,23 @@ describe("IssueListTable", () => {
     await user.click(screen.getByRole("columnheader", { name: "Priority" }));
     expect(useIssueStore.getState().filter.sortField).toBeUndefined();
     expect(useIssueStore.getState().filter.sortOrder).toBeUndefined();
+  });
+
+  it("selects and clears only the currently loaded logical ids from the header", async () => {
+    const user = userEvent.setup();
+    render(wrap(<IssueListTable vault="reef-acme" />));
+    await screen.findByText("First task");
+    const selectAll = screen.getByRole("checkbox", {
+      name: "Select all loaded issues",
+    });
+    await user.click(selectAll);
+    expect([...useIssueSelectionStore.getState().selectedIds].sort()).toEqual([
+      "REEF-1",
+      "REEF-2",
+    ]);
+    expect(selectAll).toBeChecked();
+    await user.click(screen.getAllByTestId("issue-row-checkbox")[0]);
+    expect(selectAll).toHaveAttribute("aria-checked", "mixed");
   });
 
   it("shows the data-empty state when no issues match", async () => {

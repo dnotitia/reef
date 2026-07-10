@@ -11,6 +11,7 @@ import {
 import { IssueListRow } from "@/features/issues/components/list/IssueListRow";
 import { IssueListSkeleton } from "@/features/issues/components/list/IssueListSkeleton";
 import { COLUMN_KEYS } from "@/features/issues/components/list/issueListColumns";
+import { IssueSelectionCheckbox } from "@/features/issues/components/shared/IssueSelectionCheckbox";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
 import { useResolvedAutoHideWindows } from "@/features/issues/hooks/useResolvedAutoHideWindows";
@@ -22,7 +23,9 @@ import {
   searchIssues,
   sortIssues,
 } from "@/features/issues/lib/issueListUtils";
+import { loadedSelectionState } from "@/features/issues/lib/issueSelection";
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
+import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { PageBody } from "@/features/ui/components/PageBody";
@@ -52,6 +55,9 @@ export function IssueListTable({ vault }: IssueListTableProps) {
   const columnLabels = useFieldNameLabels();
   const t = useTranslations("issues.list");
   const common = useTranslations("common");
+  const bulk = useTranslations("issues.bulk");
+  const selectedIds = useIssueSelectionStore((state) => state.selectedIds);
+  const selectionRunning = useIssueSelectionStore((state) => state.running);
   // FLIP the rows into place when the sort/filter projection reorders them,
   // instead of swapping content under fixed positions. Honors
   // prefers-reduced-motion by default.
@@ -101,6 +107,7 @@ export function IssueListTable({ vault }: IssueListTableProps) {
     () => sorted.map((issue) => issue.id),
     [sorted],
   );
+  const selectAllState = loadedSelectionState(selectedIds, visibleIssueIds);
   useEffect(() => {
     useIssueKeyboardStore
       .getState()
@@ -140,9 +147,21 @@ export function IssueListTable({ vault }: IssueListTableProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              {COLUMN_KEYS.map((key) => (
-                <TableHead key={key ?? "actions"}>
-                  {key ? columnLabels[key] : ""}
+              {COLUMN_KEYS.map((key, index) => (
+                <TableHead key={`${key ?? "empty"}-${index}`}>
+                  {index === 0 ? (
+                    <IssueSelectionCheckbox
+                      checked={selectAllState === "checked"}
+                      indeterminate={selectAllState === "mixed"}
+                      disabled
+                      label={bulk("selectAllLoaded")}
+                      onChange={() => {}}
+                    />
+                  ) : key ? (
+                    columnLabels[key]
+                  ) : (
+                    ""
+                  )}
                 </TableHead>
               ))}
             </TableRow>
@@ -187,9 +206,26 @@ export function IssueListTable({ vault }: IssueListTableProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              {COLUMN_KEYS.map((key) => (
-                <TableHead key={key ?? "actions"}>
-                  {key ? columnLabels[key] : ""}
+              {COLUMN_KEYS.map((key, index) => (
+                <TableHead key={`${key ?? "empty"}-${index}`}>
+                  {index === 0 ? (
+                    <IssueSelectionCheckbox
+                      checked={selectAllState === "checked"}
+                      indeterminate={selectAllState === "mixed"}
+                      disabled={selectionRunning}
+                      label={bulk("selectAllLoaded")}
+                      testId="issue-select-all"
+                      onChange={() =>
+                        useIssueSelectionStore
+                          .getState()
+                          .toggleAllLoaded(visibleIssueIds)
+                      }
+                    />
+                  ) : key ? (
+                    columnLabels[key]
+                  ) : (
+                    ""
+                  )}
                 </TableHead>
               ))}
             </TableRow>
@@ -203,6 +239,7 @@ export function IssueListTable({ vault }: IssueListTableProps) {
                 allIssues={graph}
                 planningCatalog={planningCatalog}
                 highlightQuery={searchQuery}
+                logicalIds={visibleIssueIds}
                 onClick={openIssue}
               />
             ))}

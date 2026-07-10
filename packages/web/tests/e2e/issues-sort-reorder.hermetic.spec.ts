@@ -54,10 +54,12 @@ test.describe("Hermetic issue-list sort re-order on edit (REEF-325)", () => {
     // The list loaded through an updated_at-sorted `/api/issues` request.
     await expect.poll(updatedAtFetches).toBeGreaterThan(0);
 
-    // The row order as reef ids, read from each row's first (monospace id) cell.
+    // The row order as reef ids, read from the row's stable semantic id. The
+    // leading cell is reserved for multi-selection and intentionally has no
+    // display text.
     const orderedIds = (): Promise<string[]> =>
       rows.evaluateAll((els) =>
-        els.map((el) => el.querySelector("td")?.textContent?.trim() ?? ""),
+        els.map((el) => el.getAttribute("data-issue-id") ?? ""),
       );
     const indexOf = async (id: string): Promise<number> =>
       (await orderedIds()).indexOf(id);

@@ -28,6 +28,11 @@ interface UpdateIssueInput {
 
 export type UpdateIssueResult = IssueDocument;
 
+export interface UseUpdateIssueOptions {
+  /** Bulk jobs defer list/relation reconciliation until their sequential queue finishes. */
+  reconciliation?: "immediate" | "deferred";
+}
+
 interface UpdateIssueMutationContext {
   previousDetail?: UpdateIssueResult;
   previousLists?: Array<[QueryKey, IssueListItem[] | undefined]>;
@@ -50,8 +55,9 @@ interface UpdateIssueMutationContext {
  * change that won is not clobbered; the user re-applies against the refreshed
  * form.
  */
-export function useUpdateIssue() {
+export function useUpdateIssue(options: UseUpdateIssueOptions = {}) {
   const queryClient = useQueryClient();
+  const reconciliation = options.reconciliation ?? "immediate";
 
   return useMutation<
     UpdateIssueResult,
@@ -186,14 +192,16 @@ export function useUpdateIssue() {
       // edit reorders `updated_at`-sorted variants (every edit restamps
       // `updated_at`) and variants sorted by the edited field — while an
       // unrelated assignee-filtered variant stays patched in place.
-      void queryClient.invalidateQueries({
-        queryKey: ["issues", "list", vault],
-        predicate: listInvalidationPredicate(patch),
-      });
-      if (patchAffectsRelationGraph(patch)) {
+      if (reconciliation === "immediate") {
         void queryClient.invalidateQueries({
-          queryKey: ["issues", "relations", vault],
+          queryKey: ["issues", "list", vault],
+          predicate: listInvalidationPredicate(patch),
         });
+        if (patchAffectsRelationGraph(patch)) {
+          void queryClient.invalidateQueries({
+            queryKey: ["issues", "relations", vault],
+          });
+        }
       }
       // A logged field edit appends a `reef_activity` event server-side
       // (best-effort): status_change (REEF-063) and the field-change set

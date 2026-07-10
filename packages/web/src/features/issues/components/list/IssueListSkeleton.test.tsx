@@ -43,6 +43,6 @@ describe("IssueListSkeleton", () => {
     // source IssueListTable's header uses, so the two do not drift (the bug
     // was a hard-coded 8 against a 13-column header).
     expect(cells).toHaveLength(COLUMN_KEYS.length);
-    expect(cells.length).toBe(13);
+    expect(cells.length).toBe(14);
   });
 });
