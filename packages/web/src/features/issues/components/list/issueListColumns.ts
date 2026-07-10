@@ -12,6 +12,7 @@
 // the browser re-compute column widths on hydration — a horizontal jump. Deriving
 // the skeleton's cell count from COLUMN_KEYS.length keeps the two in lockstep.
 export const COLUMN_KEYS = [
+  null,
   "id",
   "type",
   "title",

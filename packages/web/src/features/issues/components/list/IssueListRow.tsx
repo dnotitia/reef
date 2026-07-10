@@ -10,13 +10,15 @@ import { StatusBadge } from "@/components/ui/status-icon";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { IssueQuickEditAnchor } from "@/features/issues/components/quick-edit/IssueQuickEditAnchor";
+import { IssueSelectionCheckbox } from "@/features/issues/components/shared/IssueSelectionCheckbox";
 import { useIssueFlash } from "@/features/issues/stores/useFlashStore";
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
+import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import { findPlanningName } from "@/features/planning/lib/planningItems";
 import { cn } from "@/lib/utils";
 import type { IssueListItem, PlanningCatalog } from "@reef/core";
-import { useLocale } from "next-intl";
-import { memo, useEffect, useRef } from "react";
+import { useLocale, useTranslations } from "next-intl";
+import { type MouseEvent, memo, useEffect, useRef } from "react";
 import {
   type IssueRelationLike,
   getUnresolvedBlockerCount,
@@ -36,6 +38,7 @@ interface IssueListRowProps {
   allIssues: readonly IssueRelationLike[];
   highlightQuery?: string;
   planningCatalog?: PlanningCatalog;
+  logicalIds?: readonly string[];
   onClick?: (id: string) => void;
 }
 
@@ -50,6 +53,7 @@ export const IssueListRow = memo(function IssueListRow({
   allIssues,
   highlightQuery: _highlightQuery,
   planningCatalog,
+  logicalIds = [],
   onClick,
 }: IssueListRowProps) {
   const issue = useIssueEntity(vault, seed.id) ?? seed;
@@ -66,6 +70,11 @@ export const IssueListRow = memo(function IssueListRow({
   );
   const focusRequest = useIssueKeyboardStore((state) => state.focusRequest);
   const focusIssue = useIssueKeyboardStore((state) => state.focusIssue);
+  const selected = useIssueSelectionStore((state) =>
+    state.selectedIds.has(issue.id),
+  );
+  const selectionRunning = useIssueSelectionStore((state) => state.running);
+  const bulk = useTranslations("issues.bulk");
   const currentLogin = useCurrentUserLogin();
   const locale = useLocale();
   const rowRef = useRef<HTMLTableRowElement | null>(null);
@@ -116,19 +125,45 @@ export const IssueListRow = memo(function IssueListRow({
     <TableRow
       ref={rowRef}
       className={cn(
-        "reef-issue-list-row cursor-pointer transition-colors duration-150 focus-visible:outline-none",
+        "reef-issue-list-row group cursor-pointer transition-colors duration-150 focus-visible:outline-none",
         onClick && "hover:bg-surface-hover",
         focused && "bg-brand/5",
+        selected && "bg-brand/10 ring-1 ring-inset ring-brand/50",
         isFlashing && "reef-flash-row",
       )}
       tabIndex={focused || tabStopped ? 0 : -1}
-      aria-selected={focused || undefined}
+      aria-selected={selected || undefined}
       onFocus={() => focusIssue("list", issue.id)}
-      onClick={() => onClick?.(issue.id)}
+      onClick={(event: MouseEvent<HTMLTableRowElement>) => {
+        if (event.shiftKey) {
+          event.preventDefault();
+          useIssueSelectionStore
+            .getState()
+            .extendRange("list", issue.id, logicalIds);
+          return;
+        }
+        onClick?.(issue.id);
+      }}
       data-testid="issue-list-row"
+      data-issue-id={issue.id}
       data-shortcut-surface="issue-list-row"
       data-keyboard-focused={focused ? "true" : undefined}
     >
+      <TableCell className="w-9 px-2">
+        <IssueSelectionCheckbox
+          checked={selected}
+          disabled={selectionRunning}
+          label={bulk("selectIssue", { id: issue.id })}
+          className={cn(
+            "opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100",
+            selected && "opacity-100",
+          )}
+          testId="issue-row-checkbox"
+          onChange={() =>
+            useIssueSelectionStore.getState().toggle("list", issue.id)
+          }
+        />
+      </TableCell>
       {/* ID */}
       <TableCell className="relative w-24 font-mono text-xs text-muted-foreground">
         {issue.id}

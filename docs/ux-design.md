@@ -420,6 +420,26 @@ stay correct even when the board view is filtered.
 **List.** A dense, sortable table rendering the same issues with their field
 leaves.
 
+**Multi-select and bulk edit.** List rows and board cards expose native
+checkboxes on hover, focus, or selection. Shift+Click extends an inclusive
+range in list order or within one board column; normal clicks still open issue
+detail. The list header selects only the currently loaded filtered ids and
+announces unchecked, mixed, and checked states. Once at least one issue is
+selected, a compact bottom bar offers Status, Assignee, Priority, Sprint,
+Add/Remove labels, and Clear. Selection uses the brand-teal surface (never AI
+purple), disables board drag and single-issue quick-edit shortcuts, clears on
+view/filter/workspace changes, and yields to an open dialog, popover, or input
+before Esc clears it.
+
+Bulk writes run through the existing single-issue Route Handler one at a time.
+Each item is optimistic, a failure rolls back only that item, successful and
+unchanged items leave the selection, and failures remain in a tray with their
+id, title, PM-facing reason, and Retry. A close action asks for one reason and
+applies it independently to every target; sprint assignment promotes backlog
+issues to Todo, while moving to Backlog clears sprint. The bar wraps within
+ordinary and narrow desktop widths and sits above page content but below
+dialogs, sheets, and AI chrome.
+
 **Timeline.** A date-windowed schedule view of the same set.
 
 **Backlog.** A flat triage list of backlog issues with manual rank order,
@@ -666,3 +686,6 @@ Global shortcuts are registered at the shell: **⌘N** opens New Issue, **⌘K**
 toggles global search, **⌘⇧A** toggles Ask AI, **⌘?** opens the
 keyboard-shortcuts sheet, and **Esc** closes the active panel. Text-field focus
 is respected so typing is never hijacked.
+When issue selection is active, the single-issue `s` / `a` / `p` / `l`
+shortcuts are suppressed and Esc clears the selection only after any focused
+interactive overlay has had the chance to consume it.

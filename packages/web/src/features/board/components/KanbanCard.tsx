@@ -9,8 +9,10 @@ import { PriorityDot } from "@/components/ui/priority-dot";
 import { StatusIcon } from "@/components/ui/status-icon";
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { IssueQuickEditAnchor } from "@/features/issues/components/quick-edit/IssueQuickEditAnchor";
+import { IssueSelectionCheckbox } from "@/features/issues/components/shared/IssueSelectionCheckbox";
 import { useIssueFlash } from "@/features/issues/stores/useFlashStore";
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
+import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import {
   type PlanningKind,
   findPlanningName,
@@ -28,9 +30,11 @@ import {
   type Priority,
   isResolvedStatus,
 } from "@reef/core";
+import { useTranslations } from "next-intl";
 import {
   type HTMLAttributes,
   type KeyboardEvent,
+  type MouseEvent,
   type ReactNode,
   forwardRef,
   memo,
@@ -57,6 +61,8 @@ interface KanbanCardProps {
    * the issue detail slide-over.
    */
   onClick?: (id: string) => void;
+  logicalIds?: readonly string[];
+  selectionGroup?: string;
 }
 
 interface KanbanCardSurfaceProps extends HTMLAttributes<HTMLDivElement> {
@@ -257,11 +263,22 @@ export const KanbanCard = memo(function KanbanCard({
   blocked,
   planningCatalog,
   onClick,
+  logicalIds = [],
+  selectionGroup,
 }: KanbanCardProps) {
+  const selected = useIssueSelectionStore((state) =>
+    state.selectedIds.has(issue.id),
+  );
+  const selectionActive = useIssueSelectionStore(
+    (state) => state.selectedIds.size > 0,
+  );
+  const selectionRunning = useIssueSelectionStore((state) => state.running);
+  const bulk = useTranslations("issues.bulk");
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
       id: issue.id,
       data: { issue },
+      disabled: selectionActive,
     });
   // Save-confirm flash: one-shot highlight when this card's edit lands
   // server-side. the flashing card re-renders; the hook auto-clears the
@@ -301,10 +318,17 @@ export const KanbanCard = memo(function KanbanCard({
     ? { transform: CSS.Translate.toString(transform) }
     : undefined;
 
-  function handleClick() {
+  function handleClick(event: MouseEvent<HTMLDivElement>) {
     // Suppress the click that would fire at the end of a drag — pointerup
     // after a drag still emits click on most browsers.
     if (isDragging) return;
+    if (event.shiftKey) {
+      event.preventDefault();
+      useIssueSelectionStore
+        .getState()
+        .extendRange("board", issue.id, logicalIds, selectionGroup);
+      return;
+    }
     onClick?.(issue.id);
   }
 
@@ -319,18 +343,19 @@ export const KanbanCard = memo(function KanbanCard({
     <KanbanCardSurface
       ref={setCardRef}
       style={style}
-      {...listeners}
-      {...attributes}
+      {...(selectionActive ? {} : listeners)}
+      {...(selectionActive ? {} : attributes)}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       onFocus={() => focusIssue("board", issue.id)}
       className={cn(
         focused && "border-brand/60 bg-brand/5",
+        selected && "border-brand bg-brand/10 ring-1 ring-brand/40",
         isFlashing && "reef-flash-card",
       )}
       role="button"
       tabIndex={focused || tabStopped ? 0 : -1}
-      aria-selected={focused || undefined}
+      aria-selected={selected || undefined}
       data-shortcut-surface="issue-kanban-card"
       data-keyboard-focused={focused ? "true" : undefined}
       issue={issue}
@@ -338,9 +363,26 @@ export const KanbanCard = memo(function KanbanCard({
       planningCatalog={planningCatalog}
       isDragging={isDragging}
       quickEditAnchor={
-        vault ? (
-          <IssueQuickEditAnchor scope="board" issue={issue} vault={vault} />
-        ) : undefined
+        <>
+          <IssueSelectionCheckbox
+            checked={selected}
+            disabled={selectionRunning}
+            label={bulk("selectIssue", { id: issue.id })}
+            className={cn(
+              "absolute right-2 top-2 z-20 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100",
+              selected && "opacity-100",
+            )}
+            testId="issue-card-checkbox"
+            onChange={() =>
+              useIssueSelectionStore
+                .getState()
+                .toggle("board", issue.id, selectionGroup)
+            }
+          />
+          {vault && !selectionActive ? (
+            <IssueQuickEditAnchor scope="board" issue={issue} vault={vault} />
+          ) : null}
+        </>
       }
     />
   );

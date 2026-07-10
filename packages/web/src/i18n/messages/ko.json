@@ -965,6 +965,26 @@
       "loadError": "이슈를 불러오지 못했습니다.",
       "noMatches": "필터와 일치하는 이슈가 없습니다.",
       "emptyWorkspace": "워크스페이스가 비어 있습니다. 어떤 작업을 하고 계신가요?"
+    },
+    "bulk": {
+      "selectIssue": "{id} 선택",
+      "selectAllLoaded": "로드된 이슈 전체 선택",
+      "selectedCount": "{count}개 선택",
+      "progress": "{processed} / {total}",
+      "addLabels": "라벨 추가",
+      "removeLabels": "라벨 제거",
+      "noSprint": "스프린트 없음",
+      "clear": "선택 해제",
+      "failedCount": "{count}개 실패",
+      "retry": "재시도",
+      "success": "이슈 {count}개를 업데이트했습니다.",
+      "partialFailure": "{total}개 중 {failed}개를 업데이트하지 못했습니다.",
+      "retrySuccess": "{id} 재시도에 성공했습니다.",
+      "errors": {
+        "not_found": "이슈를 찾을 수 없음",
+        "conflict": "저장 충돌",
+        "request_failed": "업데이트 실패"
+      }
     }
   },
   "board": {
