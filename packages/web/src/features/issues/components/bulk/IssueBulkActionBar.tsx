@@ -29,7 +29,7 @@ import {
   PRIORITY_OPTIONS,
   STATUS_OPTIONS,
 } from "@reef/core/fields";
-import { CheckSquare2, ChevronDown, Tag, X } from "lucide-react";
+import { CheckSquare2, ChevronDown, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -90,7 +90,6 @@ function LabelBulkAction({
         className="h-8 gap-1.5 rounded-md border border-border bg-elevated px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:pointer-events-none disabled:opacity-50"
         data-testid={testId}
       >
-        <Tag className="h-3.5 w-3.5" aria-hidden="true" />
         {label}
         <ChevronDown
           className="h-3.5 w-3.5 text-muted-foreground"
