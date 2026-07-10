@@ -87,7 +87,7 @@ function LabelBulkAction({
     <Popover open={open} onOpenChange={setPopoverOpen} className="shrink-0">
       <PopoverTrigger
         disabled={disabled}
-        className="h-8 gap-1.5 rounded-md border border-border bg-elevated px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:pointer-events-none disabled:opacity-50"
+        className="h-8 gap-1.5 rounded-md border border-border bg-elevated px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:pointer-events-none disabled:opacity-50"
         data-testid={testId}
       >
         {label}
