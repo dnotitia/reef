@@ -39,6 +39,7 @@ function makeDesiredTablesResponse(
     items: REEF_DESIRED_TABLES.map((manifest) => ({
       name: manifest.name,
       columns: manifest.columns,
+      unique_keys: manifest.unique_keys ?? [],
       ...((overrides[manifest.name] as Record<string, unknown> | undefined) ??
         {}),
     })),
@@ -53,8 +54,30 @@ function makeDesiredTablesResponseExcept(name: string): unknown {
       (manifest) => ({
         name: manifest.name,
         columns: manifest.columns,
+        unique_keys: manifest.unique_keys ?? [],
       }),
     ),
+  };
+}
+
+function makeV3TablesResponse(): unknown {
+  return {
+    kind: "table",
+    vault: "reef-sample",
+    items: REEF_DESIRED_TABLES.map((manifest) => ({
+      name: manifest.name,
+      columns:
+        manifest.name === REEF_AGENT_RUNS_TABLE
+          ? manifest.columns.filter(
+              (column) => column.name !== "active_reef_id",
+            )
+          : manifest.columns,
+      unique_keys:
+        manifest.name === REEF_AGENT_RUNS_TABLE ||
+        manifest.name === REEF_WORK_EVENTS_TABLE
+          ? []
+          : (manifest.unique_keys ?? []),
+    })),
   };
 }
 
@@ -291,6 +314,10 @@ describe("ensureReefTables", () => {
         expect.objectContaining({ name: "payload", type: "json" }),
       ]),
     );
+    expect(twelfthCreate.unique_keys).toEqual([
+      { columns: ["work_event_id"] },
+      { columns: ["reef_id", "event_key"] },
+    ]);
 
     const thirteenthCreate = JSON.parse(calls[14]?.init?.body as string);
     expect(thirteenthCreate.name).toBe(REEF_AGENT_RUNS_TABLE);
@@ -301,12 +328,17 @@ describe("ensureReefTables", () => {
           type: "text",
           required: true,
         }),
+        expect.objectContaining({ name: "active_reef_id", type: "text" }),
         expect.objectContaining({ name: "status", type: "text" }),
         expect.objectContaining({ name: "phase", type: "text" }),
         expect.objectContaining({ name: "state_updated_at", type: "text" }),
         expect.objectContaining({ name: "target", type: "json" }),
       ]),
     );
+    expect(thirteenthCreate.unique_keys).toEqual([
+      { columns: ["run_id"] },
+      { columns: ["active_reef_id"] },
+    ]);
     const runColumnNames = (
       thirteenthCreate.columns as Array<{ name: string }>
     ).map((c) => c.name);
@@ -436,10 +468,48 @@ describe("ensureReefTables", () => {
           [REEF_ACTIVITY_TABLE]: mismatchedActivity,
         }),
       },
+      { body: makeSchemaVersionResponse() },
     ]);
     const adapter = makeAdapter();
     await expect(
       ensureReefTables({ adapter, vault: "reef-sample" }),
+    ).rejects.toMatchObject({ name: "SchemaValidationError" });
+    expect(calls).toHaveLength(2);
+  });
+
+  it("keeps ordinary v3 workspace paths available until the operator migration", async () => {
+    const { calls } = setupFetch([
+      { body: makeV3TablesResponse() },
+      { body: makeSchemaVersionResponse(3) },
+    ]);
+
+    await ensureReefTables({ adapter: makeAdapter(), vault: "reef-sample" });
+
+    expect(calls).toHaveLength(2);
+  });
+
+  it("fails closed when a v3 run table lacks the active slot and unique keys", async () => {
+    const v3RunManifest = REEF_DESIRED_TABLES.find(
+      (manifest) => manifest.name === REEF_AGENT_RUNS_TABLE,
+    );
+    const { calls } = setupFetch([
+      {
+        body: makeDesiredTablesResponse({
+          [REEF_AGENT_RUNS_TABLE]: {
+            columns: v3RunManifest?.columns.filter(
+              (column) => column.name !== "active_reef_id",
+            ),
+            unique_keys: [],
+          },
+        }),
+      },
+    ]);
+    await expect(
+      ensureReefTables({
+        adapter: makeAdapter(),
+        vault: "reef-sample",
+        requireSchemaVerification: true,
+      }),
     ).rejects.toMatchObject({ name: "SchemaValidationError" });
     expect(calls).toHaveLength(1);
   });

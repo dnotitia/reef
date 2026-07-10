@@ -37,6 +37,7 @@ export interface AkbCreateTableRequest {
   description?: string;
   columns: AkbTableColumn[];
   collection?: string | null;
+  unique_keys?: Array<{ name?: string; columns: string[] }>;
 }
 
 export interface ReefTableManifest extends AkbCreateTableRequest {
@@ -60,7 +61,7 @@ export interface ReefTableManifest extends AkbCreateTableRequest {
   columns: AkbTableColumn[];
 }
 
-export const REEF_SCHEMA_VERSION = 3;
+export const REEF_SCHEMA_VERSION = 4;
 
 /**
  * Declarative desired schema for every AKB dynamic table Reef owns. Keep this
@@ -260,6 +261,10 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
   {
     name: REEF_WORK_EVENTS_TABLE,
     description: "Immutable reef work queue events that can spawn agent runs",
+    unique_keys: [
+      { columns: ["work_event_id"] },
+      { columns: ["reef_id", "event_key"] },
+    ],
     columns: [
       { name: "work_event_id", type: "text", required: true },
       { name: "reef_id", type: "text", required: true },
@@ -277,6 +282,7 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
     columns: [
       { name: "run_id", type: "text", required: true },
       { name: "reef_id", type: "text", required: true },
+      { name: "active_reef_id", type: "text" },
       { name: "work_event_id", type: "text" },
       { name: "task_id", type: "text", required: true },
       { name: "vault", type: "text" },
@@ -294,6 +300,7 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
       { name: "state_updated_at", type: "text" },
       { name: "meta", type: "json" },
     ],
+    unique_keys: [{ columns: ["run_id"] }, { columns: ["active_reef_id"] }],
   },
   {
     name: REEF_AGENT_RUN_ATTEMPTS_TABLE,

@@ -11,6 +11,7 @@ const SCENARIOS = new Set([
   "demo_board",
   "raw_only",
   "activity_suggestions",
+  "issue_runs",
   "skill_outdated",
 ]);
 

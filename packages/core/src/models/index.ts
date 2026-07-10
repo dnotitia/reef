@@ -19,6 +19,10 @@ export {
   withRecoveredDraftStatus,
   ACTIVE_STATUSES,
 } from "./status";
+export {
+  resolveIssueRunRequestEligibility,
+  type ResolveIssueRunRequestEligibilityInput,
+} from "./issueRunEligibility";
 export type { CodeSignal } from "./status";
 export { buildIssueUpdateMetadataPatch } from "./issueUpdate";
 export {

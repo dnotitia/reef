@@ -16,6 +16,7 @@ describe("@reef/core", () => {
       AgentRunRecordSchema.safeParse({
         run_id: "run-1",
         reef_id: "REEF-380",
+        active_reef_id: "REEF-380",
         task_id: "reef.issue.run",
         status: "queued",
         phase: "queued",

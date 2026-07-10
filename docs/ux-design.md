@@ -459,6 +459,17 @@ holds Details (type, status, priority, severity, labels), People (assignee,
 requester, reporter), and Planning (dates, sprint, milestone, release, points).
 A "more" menu offers Archive/Unarchive and a confirmed Delete.
 
+Run request is a separate standing action in the persistent detail chrome,
+immediately before the overflow menu. It is a teal control-plane action, not a
+purple AI proposal: it queues implementation work for the execution plane and
+does not move the issue's PM status. A single eligible repository is summarized
+and selected automatically; multiple repositories open a keyboard-operable
+selection dialog. When a request is unavailable, the focusable
+`aria-disabled` control points to a visible explanation at the top of the issue
+body instead of hiding the reason in a tooltip. A successful request changes
+the action to Queued; active-run history and terminal controls belong to the
+dedicated run-observation surfaces rather than this request dialog.
+
 The detail panel's expression of "show the why" is split by intent:
 relationships show issue-to-issue context, linked documents show akb-native
 reference edges, implementation refs hold external/code references, and the

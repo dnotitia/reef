@@ -22,6 +22,7 @@ const target = {
 const run = {
   run_id: "run-reef-380",
   reef_id: "REEF-380",
+  active_reef_id: "REEF-380",
   work_event_id: "work-1",
   task_id: "reef.issue.run",
   vault: "reef-test",
@@ -63,6 +64,22 @@ describe("agent execution record schemas", () => {
     expect(() =>
       AgentRunRecordSchema.parse({ ...run, updated_at: timestamp }),
     ).toThrow();
+  });
+
+  it("holds one active issue slot only while the run is non-terminal", () => {
+    expect(AgentRunRecordSchema.parse(run).active_reef_id).toBe("REEF-380");
+    expect(() =>
+      AgentRunRecordSchema.parse({ ...run, active_reef_id: null }),
+    ).toThrow(/active slot/);
+    expect(
+      AgentRunRecordSchema.parse({
+        ...run,
+        status: "succeeded",
+        phase: "terminal",
+        active_reef_id: null,
+        completed_at: timestamp,
+      }).active_reef_id,
+    ).toBeNull();
   });
 
   it("accepts only valid work event payloads at the core schema boundary", () => {

@@ -341,6 +341,20 @@
     "backend": "워크스페이스 백엔드 오류입니다.",
     "workspaceOwnerRequired": "워크스페이스 소유자만 할 수 있습니다.",
     "workspaceAdminRequired": "에이전트 실행을 관리하려면 워크스페이스 관리자 권한이 필요합니다.",
+    "issueRun": {
+      "notAuthorized": "실행을 요청하려면 워크스페이스 쓰기 권한이 필요합니다.",
+      "notAssignee": "이 이슈는 다른 담당자에게 할당되어 있습니다.",
+      "issueArchived": "보관된 이슈는 실행할 수 없습니다.",
+      "documentUnavailable": "이슈 문서를 읽을 수 없습니다. 접근을 복구한 후 실행을 요청하세요.",
+      "typeNotRunnable": "이 이슈 유형은 실행할 수 없습니다.",
+      "statusNotTodo": "실행을 요청하기 전에 이슈를 할 일로 이동하세요.",
+      "dependenciesUnresolved": "실행을 요청하기 전에 이슈의 선행 작업을 해결하세요.",
+      "targetMissing": "이 워크스페이스에 에이전트 실행 대상이 설정되지 않았습니다.",
+      "targetDisabled": "사용 가능한 저장소에서 에이전트 실행이 꺼져 있습니다.",
+      "targetInvalid": "사용 가능한 실행 대상 설정이 올바르지 않습니다.",
+      "profileUnavailable": "실행 대상이 이 배포에서 사용할 수 없는 프로필을 사용합니다.",
+      "alreadyActive": "이 이슈에 이미 활성 실행이 있습니다."
+    },
     "githubAppUnconfigured": "이 배포에는 GitHub App이 설정되어 있지 않습니다.",
     "invalidSuggestionId": "잘못된 제안 ID입니다.",
     "invalidSuggestionStatus": "잘못된 제안 상태입니다.",
@@ -749,6 +763,46 @@
     }
   },
   "issues": {
+    "run": {
+      "run": "실행",
+      "queued": "대기 중",
+      "unavailable": "실행할 수 없음:",
+      "eligibilityLoadFailed": "실행 가능 여부를 확인하지 못했습니다. 잠시 후 다시 시도하세요.",
+      "targetCount": "실행 대상 {count}개",
+      "dialogTitle": "에이전트 실행 요청",
+      "dialogDescription": "실행 대상을 확인하세요. 요청은 워커 대기열에 추가되며 이슈 상태는 바뀌지 않습니다.",
+      "repository": "저장소",
+      "selectRepository": "저장소 선택",
+      "cancel": "취소",
+      "requestRun": "실행 요청",
+      "requesting": "요청 중…",
+      "requestedToast": "실행 요청을 대기열에 추가했습니다",
+      "alreadyQueuedToast": "이 이슈에 이미 활성 실행이 있습니다",
+      "requestFailed": "실행을 요청하지 못했습니다.",
+      "status": {
+        "queued": "대기 중",
+        "claimed": "선점됨",
+        "running": "진행 중",
+        "blocked": "차단됨",
+        "failed": "실패",
+        "cancelled": "취소됨",
+        "succeeded": "성공"
+      },
+      "reasons": {
+        "notAuthorized": "워크스페이스 쓰기 권한이 필요합니다.",
+        "notAssignee": "이 이슈는 다른 담당자에게 할당되어 있습니다.",
+        "issueArchived": "보관된 이슈는 실행할 수 없습니다.",
+        "documentUnavailable": "이슈 문서를 읽을 수 없습니다.",
+        "typeNotRunnable": "이 이슈 유형은 실행할 수 없습니다.",
+        "statusNotTodo": "먼저 이슈를 할 일로 이동하세요.",
+        "dependenciesUnresolved": "먼저 이슈의 선행 작업을 해결하세요.",
+        "targetMissing": "설정된 실행 대상이 없습니다.",
+        "targetDisabled": "사용 가능한 저장소에서 에이전트 실행이 꺼져 있습니다.",
+        "targetInvalid": "실행 대상 설정이 올바르지 않습니다.",
+        "profileUnavailable": "필요한 실행 프로필을 사용할 수 없습니다.",
+        "alreadyActive": "이 이슈에 이미 활성 실행이 있습니다."
+      }
+    },
     "backlog": {
       "loadError": "백로그를 불러오지 못했습니다.",
       "noMatches": "필터와 일치하는 백로그 이슈가 없습니다.",

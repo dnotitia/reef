@@ -53,6 +53,24 @@ export {
 } from "./runRecords";
 
 export {
+  IssueRunActiveRunSummarySchema,
+  IssueRunProfileSummarySchema,
+  IssueRunRequestBodySchema,
+  IssueRunRequestEligibilityReasonEnum,
+  IssueRunRequestEligibilitySchema,
+  IssueRunRequestResultSchema,
+  IssueRunTargetOptionSchema,
+  IssueRunWorkspaceRoleEnum,
+  type IssueRunActiveRunSummary,
+  type IssueRunRequestBody,
+  type IssueRunRequestEligibility,
+  type IssueRunRequestEligibilityReason,
+  type IssueRunRequestResult,
+  type IssueRunTargetOption,
+  type IssueRunWorkspaceRole,
+} from "./issueRunRequests";
+
+export {
   EnrichmentFieldEnum,
   EnrichmentRequestSchema,
   type EnrichmentField,

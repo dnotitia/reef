@@ -93,11 +93,13 @@ export {
 export {
   appendAgentRunEvent,
   appendWorkEvent,
+  createQueuedIssueRun,
   listAgentRunAttempts,
   listAgentRunEvents,
   readAgentRun,
   readAgentRunAttempt,
   readAgentRunWithIssueStatus,
+  readActiveAgentRunForIssue,
   rowToAgentRunAttempt,
   rowToAgentRunEventRecord,
   rowToAgentRunRecord,
@@ -106,6 +108,14 @@ export {
   writeAgentRun,
   writeAgentRunAttempt,
 } from "./agents/runRecords";
+export {
+  getIssueRunRequestEligibility,
+  readIssueRunRequestContext,
+  requestQueuedIssueRun,
+  type GetIssueRunRequestEligibilityParams,
+  type RequestQueuedIssueRunParams,
+  type RequestQueuedIssueRunResult,
+} from "./agents/issueRunRequests";
 export {
   listDevelopmentTargets,
   writeDevelopmentTarget,

@@ -13,6 +13,7 @@ import {
 } from "@/features/issues/hooks/queries/useIssue";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
+import { useIssueRunEligibility } from "@/features/issues/hooks/queries/useIssueRunEligibility";
 import { resolveIssueAttachmentUrl } from "@/features/issues/lib/attachmentUrls";
 import type { ClosedReason, IssueUpdatePatch } from "@reef/core";
 import { useTranslations } from "next-intl";
@@ -31,6 +32,7 @@ import {
 import { IssueDetailMain } from "./IssueDetailMain";
 import { IssueDetailSidebar } from "./IssueDetailSidebar";
 import { IssueDetailSkeleton } from "./IssueDetailSkeleton";
+import { IssueRunAvailabilityNotice, IssueRunControl } from "./IssueRunControl";
 import { useIssueAutosaveMachine } from "./useIssueAutosaveMachine";
 
 interface IssueDetailProps {
@@ -117,6 +119,7 @@ function IssueDetailLoaded({
   const archiveMutation = useArchiveIssue();
   const deleteMutation = useDeleteIssue();
   const uploadAttachment = useUploadIssueAttachment();
+  const runEligibility = useIssueRunEligibility(vault, issueId);
   const serverDraft = useMemo(() => createIssueDetailDraft(data), [data]);
   const [draft, dispatchDraft] = useReducer(
     issueDetailDraftReducer,
@@ -138,6 +141,7 @@ function IssueDetailLoaded({
   const handledConflictRef = useRef(conflictCount);
   const issue = data.issue;
   const isArchived = issue.archived_at != null;
+  const runNoticeId = `issue-run-notice-${issueId}`;
   const resolveBodyImageSrc = useMemo(
     () => (url: string) => resolveIssueAttachmentUrl({ issueId, vault, url }),
     [issueId, vault],
@@ -345,6 +349,22 @@ function IssueDetailLoaded({
         }}
         onArchiveToggle={() => void handleArchiveToggle()}
         onDeleteRequested={() => setConfirmDeleteOpen(true)}
+        runControl={
+          <IssueRunControl
+            issueId={issueId}
+            vault={vault}
+            eligibility={runEligibility.data}
+            isPending={runEligibility.isPending}
+            isError={runEligibility.isError}
+            noticeId={runNoticeId}
+          />
+        }
+      />
+
+      <IssueRunAvailabilityNotice
+        eligibility={runEligibility.data}
+        isError={runEligibility.isError}
+        noticeId={runNoticeId}
       />
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_400px]">
