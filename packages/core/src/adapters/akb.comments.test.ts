@@ -34,6 +34,8 @@ function makeCommentRow(
       author: "alice",
       created_at: "2026-06-18T01:00:00.000Z",
       edited_at: null,
+      parent_comment_id: null,
+      thread_root_id: null,
     },
     created_at: "2026-06-18T01:00:00.123456+00",
     updated_at: "2026-06-18T01:00:00.123456+00",
@@ -141,13 +143,54 @@ describe("listComments", () => {
     expect(comments).toHaveLength(1);
     expect(comments[0]?.id).toBe("c1");
   });
+
+  it("keeps legacy roots and valid replies while skipping broken thread chains", async () => {
+    const rootId = "11111111-1111-4111-8111-111111111111";
+    const replyId = "22222222-2222-4222-8222-222222222222";
+    setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [
+            makeCommentRow({ id: rootId }),
+            makeCommentRow({
+              id: replyId,
+              meta: {
+                author: "bob",
+                created_at: "2026-06-18T02:00:00.000Z",
+                edited_at: null,
+                parent_comment_id: rootId,
+                thread_root_id: rootId,
+              },
+            }),
+            makeCommentRow({
+              id: "33333333-3333-4333-8333-333333333333",
+              meta: {
+                author: "mallory",
+                created_at: "2026-06-18T03:00:00.000Z",
+                edited_at: null,
+                parent_comment_id: replyId,
+                thread_root_id: "44444444-4444-4444-8444-444444444444",
+              },
+            }),
+          ],
+          COMMENT_ROW_COLUMNS,
+        ),
+      },
+    ]);
+
+    const comments = await listComments(
+      makeAdapter(),
+      "reef-sample",
+      "REEF-062",
+    );
+    expect(comments.map((comment) => comment.id)).toEqual([rootId, replyId]);
+  });
 });
 
 describe("createComment", () => {
   it("inserts only reef_id/body/meta and returns the row via RETURNING", async () => {
     const { calls } = setupFetch([
       { body: makeListTablesResponse(ALL_REEF_TABLES) }, // ensureReefTables
-      { body: makeSqlQueryResponse([{ reef_id: "REEF-062" }], ["reef_id"]) }, // parent issue exists
       {
         body: makeSqlQueryResponse(
           [
@@ -180,12 +223,17 @@ describe("createComment", () => {
       author: "alice",
       created_at: "2026-06-18T04:00:00.000Z",
       edited_at: null,
+      parent_comment_id: null,
+      thread_root_id: null,
     });
 
-    const sql = lastSql(calls[2]?.init?.body);
+    const sql = lastSql(calls[1]?.init?.body);
     expect(sql).toContain(`INSERT INTO ${REEF_COMMENTS_TABLE}`);
     // Declared columns are used; akb reserved/auto columns are excluded.
     expect(sql).toContain(`("reef_id", "body", "meta")`);
+    expect(sql).toContain("WITH target_issue AS");
+    expect(sql).toContain("WHERE reef_id = 'REEF-062' LIMIT 1");
+    expect(sql).toContain("SELECT 'REEF-062', 'hello $1 it''s me'");
     expect(sql).not.toContain("created_by");
     expect(sql).toContain("RETURNING *");
     // SQL escaping: single-quote doubled, literal `$` preserved.
@@ -198,7 +246,7 @@ describe("createComment", () => {
   it("404s a comment on a non-existent issue (no orphan row)", async () => {
     setupFetch([
       { body: makeListTablesResponse(ALL_REEF_TABLES) }, // ensureReefTables
-      { body: makeSqlQueryResponse([], ["reef_id"]) }, // parent issue missing
+      { body: makeSqlQueryResponse([], COMMENT_ROW_COLUMNS) },
     ]);
 
     await expect(
@@ -210,6 +258,75 @@ describe("createComment", () => {
         "alice",
       ),
     ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("creates a root reply with direct parent and root in one conditional statement", async () => {
+    const rootId = "11111111-1111-4111-8111-111111111111";
+    const replyId = "22222222-2222-4222-8222-222222222222";
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      {
+        body: makeSqlQueryResponse(
+          [
+            makeCommentRow({
+              id: replyId,
+              body: "reply",
+              meta: {
+                author: "alice",
+                created_at: "2026-06-18T04:00:00.000Z",
+                edited_at: null,
+                parent_comment_id: rootId,
+                thread_root_id: rootId,
+              },
+            }),
+          ],
+          COMMENT_ROW_COLUMNS,
+        ),
+      },
+    ]);
+
+    await expect(
+      createComment(
+        makeAdapter(),
+        "reef-sample",
+        "REEF-062",
+        "reply",
+        "alice",
+        rootId,
+      ),
+    ).resolves.toMatchObject({
+      id: replyId,
+      parent_comment_id: rootId,
+      thread_root_id: rootId,
+    });
+
+    const sql = lastSql(calls[1]?.init?.body);
+    expect(sql).toContain("direct_parent AS");
+    expect(sql).toContain("valid_reply AS");
+    expect(sql).toContain("CROSS JOIN valid_reply");
+    expect(sql).toContain("WITH RECURSIVE target_issue");
+    expect(sql).toContain("WHERE reef_id = 'REEF-062' LIMIT 1");
+    expect(sql).toContain("parent_chain AS");
+    expect(sql.match(/INSERT INTO reef_comments/g)).toHaveLength(1);
+    expect(calls).toHaveLength(2);
+  });
+
+  it("returns the same parent-not-found error for missing, cross-issue, or malformed parents", async () => {
+    setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { body: makeSqlQueryResponse([], COMMENT_ROW_COLUMNS) },
+    ]);
+
+    const error = await createComment(
+      makeAdapter(),
+      "reef-sample",
+      "REEF-062",
+      "reply",
+      "alice",
+      "11111111-1111-4111-8111-111111111111",
+    ).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(NotFoundError);
+    expect((error as NotFoundError).context.resourceKind).toBe("commentParent");
   });
 });
 

@@ -36,6 +36,8 @@ function rowToComment(row: Record<string, unknown>): Comment {
       author: meta.author,
       created_at: meta.created_at,
       edited_at: meta.edited_at,
+      parent_comment_id: meta.parent_comment_id,
+      thread_root_id: meta.thread_root_id,
     });
   } catch (err) {
     if (err instanceof ZodError) {
@@ -84,15 +86,53 @@ export async function listComments(
         }
         throw err;
       }
-      const comments: Comment[] = [];
+      const parsedComments: Comment[] = [];
       for (const row of rows) {
         try {
-          comments.push(rowToComment(row));
+          parsedComments.push(rowToComment(row));
         } catch {
           // Skip a malformed comment row rather than failing the whole thread.
         }
       }
+      const byId = new Map(
+        parsedComments.map((comment) => [comment.id, comment]),
+      );
+      const validity = new Map<string, boolean>();
+      const visiting = new Set<string>();
+      const isValidThreadMember = (comment: Comment): boolean => {
+        const cached = validity.get(comment.id);
+        if (cached !== undefined) return cached;
+        if (visiting.has(comment.id)) return false;
+        visiting.add(comment.id);
+        const parentId = comment.parent_comment_id ?? null;
+        const rootId = comment.thread_root_id ?? null;
+        let valid = parentId === null && rootId === null;
+        if (parentId !== null && rootId !== null) {
+          const parent = byId.get(parentId);
+          const root = byId.get(rootId);
+          valid =
+            !!parent &&
+            !!root &&
+            parent.id !== comment.id &&
+            parent.reef_id === comment.reef_id &&
+            root.reef_id === comment.reef_id &&
+            (root.parent_comment_id ?? null) === null &&
+            (root.thread_root_id ?? null) === null &&
+            ((parent.parent_comment_id ?? null) === null
+              ? parent.id === root.id
+              : parent.thread_root_id === root.id &&
+                isValidThreadMember(parent));
+        }
+        visiting.delete(comment.id);
+        validity.set(comment.id, valid);
+        return valid;
+      };
+      const comments = parsedComments.filter(isValidThreadMember);
       span.setAttribute("comment_count", comments.length);
+      span.setAttribute(
+        "malformed_comment_count",
+        rows.length - comments.length,
+      );
       return comments;
     },
   );
@@ -115,31 +155,20 @@ export async function createComment(
   reefId: string,
   body: string,
   author: string,
+  parentCommentId?: string,
 ): Promise<Comment> {
   return withSpan(
     "akb.create_comment",
     { vault, reef_id: reefId },
     async () => {
       await ensureReefTables({ adapter, vault });
-      // Refuse to attach a comment to a non-existent issue. Issue ids are
-      // predictable, so an orphan row would otherwise surface on a future issue
-      // that reuses the id (autoreview P2). The reef_issues row is the board's
-      // canonical source for an issue's existence.
-      const parent = await runSql(
-        adapter,
-        vault,
-        `SELECT reef_id FROM ${tableRef(REEF_ISSUES_TABLE)} WHERE reef_id = ${quoteText(
-          reefId,
-          "comment reef_id",
-        )} LIMIT 1`,
-      );
-      if (parent.kind !== "table_query" || parent.items.length === 0) {
-        throw new NotFoundError({ resource: `issue ${reefId}` });
-      }
+      const createdAt = new Date().toISOString();
       const meta = {
         author,
-        created_at: new Date().toISOString(),
+        created_at: createdAt,
         edited_at: null,
+        parent_comment_id: null,
+        thread_root_id: null,
       };
       const fields: Array<[string, string]> = [
         ["reef_id", quoteText(reefId, "comment reef_id")],
@@ -151,18 +180,51 @@ export async function createComment(
         .map(quoteIdent)
         .join(", ");
       const values = fields.map(([, v]) => v).join(", ");
-      const res = await runSql(
-        adapter,
-        vault,
-        `WITH ins AS (INSERT INTO ${tableRef(
-          REEF_COMMENTS_TABLE,
-        )} (${columns}) VALUES (${values}) RETURNING *) SELECT * FROM ins`,
-      );
+      const issueGuard = `SELECT reef_id FROM ${tableRef(
+        REEF_ISSUES_TABLE,
+      )} WHERE reef_id = ${quoteText(reefId, "comment reef_id")} LIMIT 1`;
+      const sql = parentCommentId
+        ? `WITH RECURSIVE target_issue AS (${issueGuard}), direct_parent AS (SELECT * FROM ${tableRef(
+            REEF_COMMENTS_TABLE,
+          )} WHERE id = ${quoteText(
+            parentCommentId,
+            "parent comment id",
+          )} AND reef_id = ${quoteText(
+            reefId,
+            "comment reef_id",
+          )}), reply_target AS (SELECT direct_parent.id AS parent_id, CASE WHEN direct_parent.meta->>'parent_comment_id' IS NULL AND direct_parent.meta->>'thread_root_id' IS NULL THEN direct_parent.id ELSE direct_parent.meta->>'thread_root_id' END AS root_id FROM direct_parent), parent_chain AS (SELECT direct_parent.id, direct_parent.reef_id, direct_parent.meta, 0 AS depth FROM direct_parent UNION ALL SELECT chain_parent.id, chain_parent.reef_id, chain_parent.meta, parent_chain.depth + 1 FROM parent_chain JOIN ${tableRef(
+            REEF_COMMENTS_TABLE,
+          )} chain_parent ON chain_parent.id = parent_chain.meta->>'parent_comment_id' AND chain_parent.reef_id = ${quoteText(
+            reefId,
+            "comment reef_id",
+          )} WHERE parent_chain.depth < 100), valid_reply AS (SELECT reply_target.parent_id, reply_target.root_id FROM reply_target JOIN ${tableRef(
+            REEF_COMMENTS_TABLE,
+          )} root_comment ON root_comment.id = reply_target.root_id AND root_comment.reef_id = ${quoteText(
+            reefId,
+            "comment reef_id",
+          )} WHERE root_comment.meta->>'parent_comment_id' IS NULL AND root_comment.meta->>'thread_root_id' IS NULL AND EXISTS (SELECT 1 FROM parent_chain WHERE parent_chain.id = reply_target.root_id AND parent_chain.meta->>'parent_comment_id' IS NULL AND parent_chain.meta->>'thread_root_id' IS NULL) AND NOT EXISTS (SELECT 1 FROM parent_chain WHERE parent_chain.id <> reply_target.root_id AND (parent_chain.meta->>'parent_comment_id' IS NULL OR parent_chain.meta->>'thread_root_id' IS DISTINCT FROM reply_target.root_id))), ins AS (INSERT INTO ${tableRef(
+            REEF_COMMENTS_TABLE,
+          )} (${quoteIdent("reef_id")}, ${quoteIdent("body")}, ${quoteIdent(
+            "meta",
+          )}) SELECT target_issue.reef_id, ${quoteText(
+            body,
+            "comment body",
+          )}, jsonb_build_object('author', ${quoteText(
+            author,
+            "comment author",
+          )}, 'created_at', ${quoteText(
+            createdAt,
+            "comment created_at",
+          )}, 'edited_at', NULL, 'parent_comment_id', valid_reply.parent_id, 'thread_root_id', valid_reply.root_id) FROM target_issue CROSS JOIN valid_reply RETURNING *) SELECT * FROM ins`
+        : `WITH target_issue AS (${issueGuard}), ins AS (INSERT INTO ${tableRef(
+            REEF_COMMENTS_TABLE,
+          )} (${columns}) SELECT ${values} FROM target_issue RETURNING *) SELECT * FROM ins`;
+      const res = await runSql(adapter, vault, sql);
       const row = res.kind === "table_query" ? res.items[0] : undefined;
       if (!row) {
-        throw new SchemaValidationError({
-          issues: ["comment row not returned after insert"],
-        });
+        throw parentCommentId
+          ? new NotFoundError({ resourceKind: "commentParent" })
+          : new NotFoundError({ resource: `issue ${reefId}` });
       }
       return rowToComment(row);
     },

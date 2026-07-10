@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import type { Comment } from "@reef/core";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { CommentCard } from "./CommentCard";
 
@@ -76,5 +76,29 @@ describe("CommentCard", () => {
       "src",
       {},
     );
+  });
+
+  it("shows direct-parent context and exposes a semantic reply control", () => {
+    const onReply = vi.fn();
+    render(
+      <IntlTestProvider locale="ko">
+        <CommentCard
+          comment={COMMENT}
+          currentLogin="bob"
+          replyToAuthor="carol"
+          onReply={onReply}
+          onSave={vi.fn()}
+        />
+      </IntlTestProvider>,
+    );
+    expect(
+      screen.getByText(
+        (_content, element) =>
+          element?.tagName === "P" &&
+          element.textContent === "carol님에게 답글",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "답글" }));
+    expect(onReply).toHaveBeenCalledOnce();
   });
 });

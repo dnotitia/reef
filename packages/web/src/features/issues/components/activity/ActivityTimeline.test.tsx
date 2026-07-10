@@ -119,10 +119,28 @@ beforeEach(() => {
       if (url.includes("/comments")) {
         if (method === "GET") return json({ comments });
         if (method === "POST") {
-          return json(
-            { comment: { ...ALICE_COMMENT, id: "new-id", body: "fresh" } },
-            201,
+          const payload = JSON.parse(String(init?.body ?? "{}")) as {
+            body?: string;
+            parent_comment_id?: string;
+          };
+          const parent = comments.find(
+            (comment) => comment.id === payload.parent_comment_id,
           );
+          const created = {
+            ...ALICE_COMMENT,
+            id:
+              comments.length === 1
+                ? "22222222-2222-4222-8222-222222222222"
+                : "33333333-3333-4333-8333-333333333333",
+            body: payload.body ?? "fresh",
+            created_at: `2026-06-0${comments.length + 3}T00:00:00.000Z`,
+            parent_comment_id: parent?.id ?? null,
+            thread_root_id: parent
+              ? (parent.thread_root_id ?? parent.id)
+              : null,
+          };
+          comments = [...comments, created];
+          return json({ comment: created }, 201);
         }
         return json({
           comment: {
@@ -351,6 +369,71 @@ describe("ActivityTimeline — comment mutations", () => {
         ),
       ).toBe(true),
     );
+  });
+
+  it("keeps one inline reply composer and normalizes reply-to-reply to one visual depth", async () => {
+    renderTimeline();
+    await screen.findByText("alice comment");
+
+    fireEvent.click(screen.getByRole("button", { name: "Reply" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByLabelText("Reply to alice")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reply" }));
+    const rootReply = screen.getByLabelText("Reply to alice");
+    fireEvent.change(rootReply, { target: { value: "first reply" } });
+    fireEvent.click(
+      within(rootReply.closest("form") as HTMLElement).getByRole("button", {
+        name: "Reply",
+      }),
+    );
+
+    await screen.findByText("first reply");
+    const replyRows = screen.getAllByTestId("comment-reply");
+    fireEvent.click(
+      within(replyRows[0]).getByRole("button", { name: "Reply" }),
+    );
+    expect(screen.getAllByLabelText("Reply to alice")).toHaveLength(1);
+    const nestedDraft = screen.getByLabelText("Reply to alice");
+    fireEvent.change(nestedDraft, { target: { value: "second reply" } });
+    fireEvent.click(
+      within(nestedDraft.closest("form") as HTMLElement).getByRole("button", {
+        name: "Reply",
+      }),
+    );
+
+    await screen.findByText("second reply");
+    const replies = screen.getAllByTestId("comment-reply");
+    expect(replies).toHaveLength(2);
+    expect(replies[0].parentElement).toBe(replies[1].parentElement);
+    expect(
+      replies[0].querySelector('[data-testid="comment-reply"]'),
+    ).toBeNull();
+  });
+
+  it("preserves a failed reply draft with an inline retry message", async () => {
+    mockApiFetch.mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.includes("/planning"))
+        return json({ sprints: [], milestones: [], releases: [] });
+      if (url.includes("/activity")) return json({ activity });
+      if (url.includes("/comments") && (init?.method ?? "GET") === "POST") {
+        return json({ error: "nope" }, 500);
+      }
+      if (url.includes("/comments")) return json({ comments });
+      return json({});
+    });
+    renderTimeline();
+    await screen.findByText("alice comment");
+    fireEvent.click(screen.getByRole("button", { name: "Reply" }));
+    const draft = screen.getByLabelText("Reply to alice");
+    fireEvent.change(draft, { target: { value: "keep me" } });
+    fireEvent.click(
+      within(draft.closest("form") as HTMLElement).getByRole("button", {
+        name: "Reply",
+      }),
+    );
+    await screen.findByRole("alert");
+    expect(draft).toHaveValue("keep me");
   });
 
   it("uploads pasted images in the comment composer before appending markdown", async () => {

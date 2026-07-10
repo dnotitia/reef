@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { formatAbsoluteTime, formatRelativeTime } from "@/lib/relativeTime";
 import { cn } from "@/lib/utils";
 import type { Comment } from "@reef/core";
-import { Pencil } from "lucide-react";
+import { Pencil, Reply } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { type KeyboardEvent, useState } from "react";
 import { Streamdown, type UrlTransform, defaultUrlTransform } from "streamdown";
@@ -19,6 +19,8 @@ interface CommentCardProps {
   flash?: boolean;
   /** Resolve to leave edit mode; reject to stay editing (error toasted above). */
   onSave: (body: string) => Promise<void>;
+  onReply?: () => void;
+  replyToAuthor?: string;
   resolveMarkdownUrl?: UrlTransform;
 }
 
@@ -33,6 +35,8 @@ export function CommentCard({
   currentLogin,
   flash = false,
   onSave,
+  onReply,
+  replyToAuthor,
   resolveMarkdownUrl,
 }: CommentCardProps) {
   const isOwn = !!currentLogin && comment.author === currentLogin;
@@ -111,19 +115,45 @@ export function CommentCard({
               · {t("edited")}
             </span>
           ) : null}
-          {isOwn && !editing ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t("editComment")}
-              onClick={startEditing}
-              className="ml-auto text-muted-foreground opacity-0 motion-safe:transition-opacity motion-safe:duration-150 motion-safe:ease-[var(--ease-signature)] hover:text-foreground focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
-            >
-              <Pencil className="size-3.5" aria-hidden="true" />
-            </Button>
+          {!editing ? (
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+              {onReply ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={onReply}
+                  className="h-7 gap-1 px-2 text-xs text-muted-foreground opacity-100 motion-safe:transition-opacity motion-safe:duration-150 motion-safe:ease-[var(--ease-signature)] hover:text-foreground focus-visible:opacity-100 sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100"
+                >
+                  <Reply className="size-3.5" aria-hidden="true" />
+                  {t("reply")}
+                </Button>
+              ) : null}
+              {isOwn ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t("editComment")}
+                  title={t("editComment")}
+                  onClick={startEditing}
+                  className="text-muted-foreground opacity-0 motion-safe:transition-opacity motion-safe:duration-150 motion-safe:ease-[var(--ease-signature)] hover:text-foreground focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100"
+                >
+                  <Pencil className="size-3.5" aria-hidden="true" />
+                </Button>
+              ) : null}
+            </div>
           ) : null}
         </div>
+
+        {replyToAuthor ? (
+          <p className="mt-0.5 break-words text-[11px] text-muted-foreground">
+            {t.rich("replyingTo", {
+              author: replyToAuthor,
+              target: (chunks) => <span translate="no">{chunks}</span>,
+            })}
+          </p>
+        ) : null}
 
         {editing ? (
           <div className="mt-1 flex flex-col rounded-md border border-brand bg-elevated ring-2 ring-inset ring-brand/30">

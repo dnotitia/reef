@@ -44,6 +44,7 @@ vi.mock("@reef/core", async () => {
 });
 
 import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
+import { NotFoundError } from "@reef/core";
 import { VALID_JWT } from "../../../__test-helpers__/jwt";
 import { GET, POST } from "./route";
 
@@ -143,7 +144,75 @@ describe("POST /api/issues/[id]/comments", () => {
       "REEF-001",
       "a comment",
       "alice",
+      undefined,
     );
+  });
+
+  it("passes a verified UUID reply target without accepting a client author", async () => {
+    const parentId = "22222222-2222-4222-8222-222222222222";
+    mockCreateComment.mockResolvedValue({
+      ...COMMENT,
+      parent_comment_id: parentId,
+      thread_root_id: parentId,
+    });
+
+    const res = await POST(
+      new Request("http://localhost/api/issues/REEF-001/comments?vault=v", {
+        method: "POST",
+        headers: authedHeaders(),
+        body: JSON.stringify({
+          body: "a reply",
+          parent_comment_id: parentId,
+          author: "mallory",
+        }),
+      }),
+      params(),
+    );
+
+    expect(res.status).toBe(201);
+    expect(mockCreateComment).toHaveBeenCalledWith(
+      expect.anything(),
+      "v",
+      "REEF-001",
+      "a reply",
+      "alice",
+      parentId,
+    );
+  });
+
+  it("400s a non-UUID reply target", async () => {
+    const res = await POST(
+      new Request("http://localhost/api/issues/REEF-001/comments?vault=v", {
+        method: "POST",
+        headers: authedHeaders(),
+        body: JSON.stringify({ body: "reply", parent_comment_id: "not-uuid" }),
+      }),
+      params(),
+    );
+    expect(res.status).toBe(400);
+    expect(mockCreateComment).not.toHaveBeenCalled();
+  });
+
+  it("returns a PM-facing parent error without leaking cross-issue existence", async () => {
+    mockCreateComment.mockRejectedValue(
+      new NotFoundError({ resourceKind: "commentParent" }),
+    );
+    const res = await POST(
+      new Request("http://localhost/api/issues/REEF-001/comments?vault=v", {
+        method: "POST",
+        headers: authedHeaders(),
+        body: JSON.stringify({
+          body: "reply",
+          parent_comment_id: "22222222-2222-4222-8222-222222222222",
+        }),
+      }),
+      params(),
+    );
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({
+      error:
+        "The comment you are replying to could not be found in this issue.",
+    });
   });
 
   it("400s an empty body", async () => {

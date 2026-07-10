@@ -12,6 +12,22 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Added
+
+- **Comment replies now stay in readable threads.** Comments can reply to a
+  root or another reply while the activity timeline keeps one visual depth,
+  direct-parent context, stable reply ordering, and the root's global timeline
+  position. (REEF-065)
+
+### Migration
+
+- **Update the Reef workspace skill/runbooks to version 17.** The comment
+  contract now documents `parent_comment_id` / `thread_root_id`, atomic reply
+  validation, malformed-chain handling, and trusted importer handoff. Existing
+  workspaces should use the normal skill-update prompt before generic AKB agents
+  create replies. No AKB table migration or data backfill is required because
+  both fields live in the existing `reef_comments.meta` JSON.
+
 ## v0.7.0 - 2026-07-10
 
 ### Added

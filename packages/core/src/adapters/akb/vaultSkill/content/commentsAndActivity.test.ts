@@ -47,6 +47,13 @@ describe("comments-and-activity runbook (REEF-252)", () => {
       );
     });
 
+    it("documents root/reply metadata and rejects malformed flattening", () => {
+      expect(content).toContain("parent_comment_id");
+      expect(content).toContain("thread_root_id");
+      expect(content).toContain("Presentation stays one visual depth");
+      expect(content).toContain("Never flatten a malformed reply");
+    });
+
     it("projects author and timestamps from meta, not akb's auto columns", () => {
       expect(content).toContain(
         "projected from meta -- NOT from akb's auto created_by/created_at columns",
@@ -60,10 +67,10 @@ describe("comments-and-activity runbook (REEF-252)", () => {
       expect(content).toContain("The comment author is the acting user");
     });
 
-    it("guards against a non-existent issue before inserting", () => {
-      expect(content).toContain(
-        "SELECT reef_id FROM reef_issues WHERE reef_id = 'REEF-001' LIMIT 1",
-      );
+    it("guards issue existence in the same conditional insert", () => {
+      expect(content).toContain("WITH target_issue AS");
+      expect(content).toContain("FROM target_issue");
+      expect(content).toContain("RETURNING *");
     });
 
     it("inserts body plus the meta author/created_at/edited_at shape", () => {
@@ -72,6 +79,8 @@ describe("comments-and-activity runbook (REEF-252)", () => {
       );
       expect(content).toContain('"author":"ACTOR"');
       expect(content).toContain('"edited_at":null');
+      expect(content).toContain('"parent_comment_id":null');
+      expect(content).toContain('"thread_root_id":null');
     });
 
     it("requires a full ISO-8601 created_at, never now()::text", () => {
@@ -88,6 +97,17 @@ describe("comments-and-activity runbook (REEF-252)", () => {
       // adapters/akb/core/sql.ts (value.replace(/'/g, "''")).
       expect(content).toContain("user-controlled free text");
       expect(content).toContain("'it''s blocked'");
+    });
+  });
+
+  describe("comment reply", () => {
+    it("requires atomic parent/root validation and trusted importer mapping", () => {
+      expect(content).toContain(
+        "Parent/root validation and the INSERT MUST be one conditional statement",
+      );
+      expect(content).toContain("same parent-not-found error");
+      expect(content).toContain("Trusted importers use that same path");
+      expect(content).toContain("never let a browser supply thread_root_id");
     });
   });
 

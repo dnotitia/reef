@@ -61,6 +61,7 @@ export function ActivityTimeline({
   const updateComment = useUpdateComment();
   const uploadAttachment = useUploadIssueAttachment();
   const [flashId, setFlashId] = useState<string | null>(null);
+  const [replyTargetId, setReplyTargetId] = useState<string | null>(null);
 
   const timeline = useMemo(
     () => buildTimeline(comments, activity, issue),
@@ -73,10 +74,16 @@ export function ActivityTimeline({
     [issueId, vault],
   );
 
-  async function handleCreate(body: string) {
+  async function handleCreate(body: string, parentCommentId?: string) {
     try {
-      const created = await createComment.mutateAsync({ issueId, vault, body });
+      const created = await createComment.mutateAsync({
+        issueId,
+        vault,
+        body,
+        parentCommentId,
+      });
       setFlashId(created.id);
+      if (parentCommentId) setReplyTargetId(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("commentAddError"));
       throw err; // keep the composer's text for a retry
@@ -113,15 +120,74 @@ export function ActivityTimeline({
       <div className="flex min-w-0 flex-col gap-4">
         {timeline.map((entry) => {
           if (entry.type === "comment") {
+            const threadComments = [entry.comment, ...entry.replies];
+            const authorById = new Map(
+              threadComments.map((comment) => [comment.id, comment.author]),
+            );
+            const replyTarget = threadComments.find(
+              (comment) => comment.id === replyTargetId,
+            );
             return (
-              <CommentCard
+              <div
                 key={entry.comment.id}
-                comment={entry.comment}
-                currentLogin={currentLogin}
-                flash={entry.comment.id === flashId}
-                onSave={(body) => handleEdit(entry.comment.id, body)}
-                resolveMarkdownUrl={resolveMarkdownUrl}
-              />
+                data-testid="comment-thread"
+                className="flex min-w-0 flex-col gap-2"
+              >
+                <CommentCard
+                  comment={entry.comment}
+                  currentLogin={currentLogin}
+                  flash={entry.comment.id === flashId}
+                  onSave={(body) => handleEdit(entry.comment.id, body)}
+                  onReply={() => setReplyTargetId(entry.comment.id)}
+                  resolveMarkdownUrl={resolveMarkdownUrl}
+                />
+                {entry.replies.length > 0 || replyTarget ? (
+                  <div className="ml-11 flex min-w-0 flex-col gap-3 border-l border-border-subtle pl-3 sm:ml-12">
+                    {replyTarget?.id === entry.comment.id ? (
+                      <CommentComposer
+                        currentLogin={currentLogin}
+                        pending={createComment.isPending}
+                        replyToAuthor={replyTarget.author}
+                        onCancel={() => setReplyTargetId(null)}
+                        onSubmit={(body) =>
+                          handleCreate(body, entry.comment.id)
+                        }
+                        onUploadFiles={handleUploadFiles}
+                      />
+                    ) : null}
+                    {entry.replies.map((reply) => (
+                      <div
+                        key={reply.id}
+                        data-testid="comment-reply"
+                        className="flex min-w-0 flex-col gap-2"
+                      >
+                        <CommentCard
+                          comment={reply}
+                          currentLogin={currentLogin}
+                          flash={reply.id === flashId}
+                          replyToAuthor={
+                            authorById.get(reply.parent_comment_id ?? "") ??
+                            undefined
+                          }
+                          onSave={(body) => handleEdit(reply.id, body)}
+                          onReply={() => setReplyTargetId(reply.id)}
+                          resolveMarkdownUrl={resolveMarkdownUrl}
+                        />
+                        {replyTarget?.id === reply.id ? (
+                          <CommentComposer
+                            currentLogin={currentLogin}
+                            pending={createComment.isPending}
+                            replyToAuthor={reply.author}
+                            onCancel={() => setReplyTargetId(null)}
+                            onSubmit={(body) => handleCreate(body, reply.id)}
+                            onUploadFiles={handleUploadFiles}
+                          />
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             );
           }
           if (entry.type === "collapsed") {
