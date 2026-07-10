@@ -6,8 +6,8 @@
 ## Package Role
 
 - `jira-migrator` owns operator-run Jira read paths, migration config loading,
-  dry-run/report helpers, and Jira payload normalization for the SHDEV/SDDEV
-  migration.
+  dry-run/report helpers, and Jira payload normalization for generic Jira
+  projects. SHDEV and SDDEV are validation fixtures, not API naming boundaries.
 - Keep the package read-only against Jira until a later issue explicitly adds a
   write/import mapping phase.
 - Use `@reef/core` for shared Reef contracts where available. Do not import

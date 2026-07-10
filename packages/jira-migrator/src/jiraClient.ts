@@ -4,14 +4,22 @@ import {
   JiraChangelogPageSchema,
   JiraCommentPageSchema,
   type JiraCommentPayload,
+  JiraFieldCatalogSchema,
+  type JiraFieldPayload,
   JiraIssueSchema,
   JiraSearchResponseSchema,
+  JiraSprintPageSchema,
+  JiraVersionPageSchema,
   type NormalizedJiraAttachment,
   type NormalizedJiraIssue,
   type NormalizedJiraIssueLink,
+  type NormalizedJiraSprint,
+  type NormalizedJiraVersion,
   normalizeJiraAttachment,
   normalizeJiraIssue,
   normalizeJiraIssueLink,
+  normalizeJiraSprint,
+  normalizeJiraVersion,
 } from "./payloads.js";
 import { trimTrailingSlashes } from "./url.js";
 
@@ -53,6 +61,12 @@ export interface JiraIssueCollectionResult<T> {
   raw: unknown;
 }
 
+export interface JiraCatalogResult<T> {
+  items: T[];
+  pages: unknown[];
+  rateLimits: JiraRateLimit[];
+}
+
 export interface JiraClientOptions {
   baseUrl: string;
   projectKey: string;
@@ -77,6 +91,14 @@ export interface GetIssueOptions {
 export interface OffsetPageOptions {
   startAt?: number;
   maxResults?: number;
+}
+
+export interface ListProjectVersionsOptions extends OffsetPageOptions {
+  projectIdOrKey?: string;
+}
+
+export interface ListBoardSprintsOptions extends OffsetPageOptions {
+  states?: readonly ("future" | "active" | "closed")[];
 }
 
 interface JiraRequestErrorContext {
@@ -314,6 +336,111 @@ export class JiraReadClient {
       rateLimit: detail.rateLimit,
       raw: detail.raw,
     };
+  }
+
+  async listFields(): Promise<JiraIssueCollectionResult<JiraFieldPayload>> {
+    const body = await this.getJson("/rest/api/3/field");
+    const payload = JiraFieldCatalogSchema.parse(body.json);
+    return {
+      items: payload,
+      rateLimit: body.rateLimit,
+      raw: payload,
+    };
+  }
+
+  async listProjectVersions(
+    options: ListProjectVersionsOptions = {},
+  ): Promise<JiraPage<NormalizedJiraVersion>> {
+    const projectIdOrKey = options.projectIdOrKey ?? this.projectKey;
+    const body = await this.getJson(
+      `/rest/api/3/project/${encodeURIComponent(projectIdOrKey)}/version`,
+      {
+        startAt: options.startAt ?? 0,
+        maxResults: options.maxResults ?? 50,
+      },
+    );
+    const payload = JiraVersionPageSchema.parse(body.json);
+    const cursor = nextOffsetCursor(
+      payload.startAt,
+      payload.maxResults,
+      payload.total,
+      payload.isLast,
+    );
+    return {
+      items: payload.values.map(normalizeJiraVersion),
+      cursor,
+      isLast: cursor === null,
+      rateLimit: body.rateLimit,
+      raw: payload,
+    };
+  }
+
+  async readProjectVersionCatalog(
+    options: Omit<ListProjectVersionsOptions, "startAt"> = {},
+  ): Promise<JiraCatalogResult<NormalizedJiraVersion>> {
+    return this.readOffsetCatalog((startAt) =>
+      this.listProjectVersions({ ...options, startAt }),
+    );
+  }
+
+  async listBoardSprints(
+    boardId: string | number,
+    options: ListBoardSprintsOptions = {},
+  ): Promise<JiraPage<NormalizedJiraSprint>> {
+    const body = await this.getJson(
+      `/rest/agile/1.0/board/${encodeURIComponent(String(boardId))}/sprint`,
+      {
+        startAt: options.startAt ?? 0,
+        maxResults: options.maxResults ?? 50,
+        state: options.states?.join(","),
+      },
+    );
+    const payload = JiraSprintPageSchema.parse(body.json);
+    const cursor = nextOffsetCursor(
+      payload.startAt,
+      payload.maxResults,
+      payload.total,
+      payload.isLast,
+    );
+    return {
+      items: payload.values.map(normalizeJiraSprint),
+      cursor,
+      isLast: cursor === null,
+      rateLimit: body.rateLimit,
+      raw: payload,
+    };
+  }
+
+  async readBoardSprintCatalog(
+    boardId: string | number,
+    options: Omit<ListBoardSprintsOptions, "startAt"> = {},
+  ): Promise<JiraCatalogResult<NormalizedJiraSprint>> {
+    return this.readOffsetCatalog((startAt) =>
+      this.listBoardSprints(boardId, { ...options, startAt }),
+    );
+  }
+
+  private async readOffsetCatalog<T>(
+    readPage: (startAt: number) => Promise<JiraPage<T>>,
+  ): Promise<JiraCatalogResult<T>> {
+    const items: T[] = [];
+    const pages: unknown[] = [];
+    const rateLimits: JiraRateLimit[] = [];
+    let startAt = 0;
+
+    while (true) {
+      const page = await readPage(startAt);
+      items.push(...page.items);
+      pages.push(page.raw);
+      rateLimits.push(page.rateLimit);
+      if (!page.cursor) break;
+      if (page.cursor.kind !== "startAt" || page.cursor.value <= startAt) {
+        throw new Error("jira_catalog_pagination_did_not_advance");
+      }
+      startAt = page.cursor.value;
+    }
+
+    return { items, pages, rateLimits };
   }
 
   private buildUrl(
