@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { useEffect, useRef } from "react";
+import { type ChangeEvent, useEffect, useRef } from "react";
 
 interface IssueSelectionCheckboxProps {
   checked: boolean;
@@ -9,7 +9,7 @@ interface IssueSelectionCheckboxProps {
   label: string;
   disabled?: boolean;
   className?: string;
-  onChange: () => void;
+  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
   testId?: string;
 }
 
@@ -44,7 +44,7 @@ export function IssueSelectionCheckbox({
       onKeyDown={(event) => event.stopPropagation()}
       onChange={(event) => {
         event.stopPropagation();
-        onChange();
+        onChange(event);
       }}
     />
   );

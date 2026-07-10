@@ -16,9 +16,11 @@ async function openList(page: Page) {
   });
 }
 
-async function selectRow(page: Page, id: string) {
+async function selectRow(page: Page, id: string, shift = false) {
   const row = page.getByTestId("issue-list-row").filter({ hasText: id });
-  await row.getByRole("checkbox", { name: `Select ${id}` }).click();
+  await row
+    .getByRole("checkbox", { name: `Select ${id}` })
+    .click({ modifiers: shift ? ["Shift"] : [] });
 }
 
 async function chooseBulkStatus(page: Page, label: string) {
@@ -68,8 +70,7 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
     });
 
     await selectRow(page, "REEF-101");
-    await selectRow(page, "REEF-102");
-    await selectRow(page, "REEF-103");
+    await selectRow(page, "REEF-106", true);
     await expect(page.getByTestId("issue-bulk-action-bar")).toContainText(
       "3 selected",
     );
@@ -81,7 +82,8 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
     await chooseBulkStatus(page, "In Review");
     await expect(page.getByTestId("issue-bulk-action-bar")).toHaveCount(0);
 
-    expect(patchIds).toEqual(["REEF-101", "REEF-102", "REEF-103"]);
+    // REEF-106 is already In Review, so the sequential runner skips its PATCH.
+    expect(patchIds).toEqual(["REEF-101", "REEF-108"]);
     expect(maxInFlight).toBe(1);
     expect(listGets - getsBefore).toBeLessThanOrEqual(1);
     const vault = reefVault(await readFixtureState(request));

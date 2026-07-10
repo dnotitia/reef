@@ -157,7 +157,15 @@ export const IssueListRow = memo(function IssueListRow({
             selected && "opacity-100",
           )}
           testId="issue-row-checkbox"
-          onChange={() => useIssueSelectionStore.getState().toggle(issue.id)}
+          onChange={(event) => {
+            if ((event.nativeEvent as globalThis.MouseEvent).shiftKey) {
+              useIssueSelectionStore
+                .getState()
+                .extendRange(issue.id, logicalIds);
+              return;
+            }
+            useIssueSelectionStore.getState().toggle(issue.id);
+          }}
         />
       </TableCell>
       {/* ID */}
