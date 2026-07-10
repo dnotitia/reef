@@ -1,3 +1,6 @@
+# Disabled for the v0.7.0 source/tag-only release. GitHub Actions only loads
+# .yml/.yaml files from this directory; restore the .yml suffix intentionally
+# when Docker Hub publishing is wanted again.
 name: Docker Build & Push
 
 # Releases are git tags (vX.Y.Z), not pushes to main — so the image is built and
