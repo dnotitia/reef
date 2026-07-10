@@ -46,6 +46,12 @@ vi.mock("@/features/issues/components/list/IssueListTable", () => ({
     <div data-testid="list-body" data-vault={vault} />
   ),
 }));
+vi.mock("@/features/issues/components/bulk/BoardBulkEditShortcut", () => ({
+  BoardBulkEditShortcut: () => <div data-testid="board-bulk-edit-shortcut" />,
+}));
+vi.mock("@/features/issues/components/bulk/IssueBulkActionBar", () => ({
+  IssueBulkActionBar: () => <div data-testid="issue-bulk-action-bar" />,
+}));
 vi.mock("@/features/timeline/components/TimelineBody", () => ({
   TimelineBody: ({ vault }: { vault: string }) => (
     <div data-testid="timeline-body" data-vault={vault} />
@@ -55,6 +61,7 @@ vi.mock("@/features/issues/components/filters/IssueFilterToolbar", () => ({
   IssueFilterToolbar: () => <div data-testid="filter-toolbar" />,
 }));
 
+import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { IssuesWorkspace } from "./IssuesWorkspace";
 
@@ -85,12 +92,16 @@ describe("IssuesWorkspace", () => {
       searchQuery: "",
       selectedIssueId: null,
     });
+    useIssueSelectionStore.getState().setRunning(false);
+    useIssueSelectionStore.getState().clearForContextChange();
     await db.config.clear();
   });
 
   it("defaults to the board view when no ?view= is present", () => {
     render(wrap(<IssuesWorkspace />));
     expect(screen.getByTestId("board-body")).toBeInTheDocument();
+    expect(screen.getByTestId("board-bulk-edit-shortcut")).toBeInTheDocument();
+    expect(screen.queryByTestId("issue-bulk-action-bar")).toBeNull();
     expect(screen.queryByTestId("list-body")).toBeNull();
     expect(screen.queryByTestId("timeline-body")).toBeNull();
   });
@@ -99,7 +110,22 @@ describe("IssuesWorkspace", () => {
     navigationState.searchParams = new URLSearchParams("view=list");
     render(wrap(<IssuesWorkspace />));
     expect(screen.getByTestId("list-body")).toBeInTheDocument();
+    expect(screen.getByTestId("issue-bulk-action-bar")).toBeInTheDocument();
+    expect(screen.queryByTestId("board-bulk-edit-shortcut")).toBeNull();
     expect(screen.queryByTestId("board-body")).toBeNull();
+  });
+
+  it("clears selection on a context change even while a bulk job is running", async () => {
+    navigationState.searchParams = new URLSearchParams("view=list");
+    useIssueSelectionStore.getState().toggle("REEF-101");
+    useIssueSelectionStore.getState().setRunning(true);
+
+    render(wrap(<IssuesWorkspace />));
+
+    await waitFor(() => {
+      expect(useIssueSelectionStore.getState().selectedIds.size).toBe(0);
+    });
+    expect(useIssueSelectionStore.getState().running).toBe(true);
   });
 
   it("renders the timeline body when ?view=timeline", () => {

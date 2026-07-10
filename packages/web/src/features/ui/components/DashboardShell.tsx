@@ -23,6 +23,7 @@ import {
   type IssueQuickEditField,
   useIssueKeyboardStore,
 } from "@/features/issues/stores/useIssueKeyboardStore";
+import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import { useMyWorkAttention } from "@/features/my-work/hooks/useMyWorkAttention";
 import { OfflineBanner } from "@/features/network/components/OfflineBanner";
 import { CreateWorkspaceDialog } from "@/features/onboarding/components/CreateWorkspaceDialog";
@@ -186,6 +187,10 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   const requestQuickEdit = useIssueKeyboardStore(
     (state) => state.requestQuickEdit,
   );
+  const selectionActive = useIssueSelectionStore(
+    (state) => state.selectedIds.size > 0,
+  );
+  const clearIssueSelection = useIssueSelectionStore((state) => state.clear);
   // Singleton theme side-effects (one-time hydrate + OS `system` listener).
   // The shell is consistently mounted, so this is the one place they run; every
   // theme control reads the shared store via useTheme (REEF-095).
@@ -386,9 +391,10 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
 
   const editFocusedIssue = useCallback(
     (scope: IssueKeyboardScope, field: IssueQuickEditField) => {
+      if (selectionActive) return;
       requestQuickEdit(scope, field);
     },
-    [requestQuickEdit],
+    [requestQuickEdit, selectionActive],
   );
 
   const shortcutRegistry = useMemo<ShortcutBinding[]>(
@@ -469,6 +475,12 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
         keys: [{ key: "b" }],
         handler: () => navigateTo("/issues?view=backlog"),
       },
+      {
+        labelKey: "closeDialogClearSearch" as const,
+        scope: "list",
+        keys: [{ key: "Escape" }],
+        handler: clearIssueSelection,
+      },
       ...(["list", "board"] as const).flatMap<ShortcutBinding>((scope) => [
         {
           labelKey: "focusNextIssue" as const,
@@ -516,6 +528,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
     ],
     [
       editFocusedIssue,
+      clearIssueSelection,
       moveIssueFocus,
       navigateTo,
       openFocusedIssue,

@@ -2,6 +2,8 @@
 
 import { KanbanBoard } from "@/features/board/components/KanbanBoard";
 import { BacklogView } from "@/features/issues/components/backlog/BacklogView";
+import { BoardBulkEditShortcut } from "@/features/issues/components/bulk/BoardBulkEditShortcut";
+import { IssueBulkActionBar } from "@/features/issues/components/bulk/IssueBulkActionBar";
 import { IssueFilterToolbar } from "@/features/issues/components/filters/IssueFilterToolbar";
 import { SortControl } from "@/features/issues/components/filters/SortControl";
 import { ViewSwitcher } from "@/features/issues/components/filters/ViewSwitcher";
@@ -9,6 +11,8 @@ import { IssueListTable } from "@/features/issues/components/list/IssueListTable
 import { useIssueFilterPersistence } from "@/features/issues/hooks/view/useIssueFilterPersistence";
 import { useIssueUrlSync } from "@/features/issues/hooks/view/useIssueUrlSync";
 import { parseViewParam } from "@/features/issues/lib/viewMode";
+import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
+import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { TimelineBody } from "@/features/timeline/components/TimelineBody";
 import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
@@ -16,6 +20,7 @@ import { PageHeader } from "@/features/ui/components/PageHeader";
 import { STATUS_OPTIONS, WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
 import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
+import { useEffect, useRef } from "react";
 
 /**
  * Unified issues workspace. Board / List / Timeline / Backlog are peer
@@ -33,9 +38,22 @@ export function IssuesWorkspace() {
   const searchParams = useSearchParams();
   const view = parseViewParam(searchParams.get("view"));
   const nav = useTranslations("nav");
+  const filter = useIssueStore((state) => state.filter);
+  const searchQuery = useIssueStore((state) => state.searchQuery);
+  const clearSelectionForContextChange = useIssueSelectionStore(
+    (state) => state.clearForContextChange,
+  );
+  const selectionContext = JSON.stringify({ filter, searchQuery, vault, view });
+  const previousSelectionContext = useRef<string | null>(null);
 
   const { skipNextSave } = useIssueUrlSync();
   useIssueFilterPersistence(vault, skipNextSave);
+
+  useEffect(() => {
+    if (previousSelectionContext.current === selectionContext) return;
+    previousSelectionContext.current = selectionContext;
+    clearSelectionForContextChange();
+  }, [clearSelectionForContextChange, selectionContext]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -54,6 +72,7 @@ export function IssuesWorkspace() {
                 showsBacklogReorderHint={view === "backlog"}
               />
             )}
+            {view === "board" ? <BoardBulkEditShortcut vault={vault} /> : null}
             <ViewSwitcher activeView={view} />
           </div>
         }
@@ -73,6 +92,7 @@ export function IssuesWorkspace() {
               view === "list" ? STATUS_OPTIONS : WORKFLOW_STATUS_OPTIONS
             }
           />
+          {view === "list" ? <IssueBulkActionBar vault={vault} /> : null}
           <div className="flex flex-1 min-h-0 flex-col">
             {view === "board" ? (
               <KanbanBoard vault={vault} />

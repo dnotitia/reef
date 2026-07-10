@@ -8,7 +8,10 @@ import { useEffect, useId, useRef, useState } from "react";
 interface LabelChipInputProps {
   value: readonly string[];
   onChange: (next: string[]) => void;
+  onDraftChange?: (draft: string) => void;
   id?: string;
+  name?: string;
+  "aria-label"?: string;
   placeholder?: string;
   disabled?: boolean;
   className?: string;
@@ -19,7 +22,10 @@ interface LabelChipInputProps {
 export function LabelChipInput({
   value,
   onChange,
+  onDraftChange,
   id,
+  name,
+  "aria-label": ariaLabel,
   placeholder,
   disabled = false,
   className,
@@ -32,6 +38,11 @@ export function LabelChipInput({
   const inputId = id ?? generatedId;
   const t = useTranslations("components.labelInput");
   const resolvedPlaceholder = placeholder ?? t("placeholder");
+
+  function updateDraft(next: string) {
+    setDraft(next);
+    onDraftChange?.(next);
+  }
 
   useEffect(() => {
     if (autoFocus) inputRef.current?.focus();
@@ -55,7 +66,7 @@ export function LabelChipInput({
   function commitDraft() {
     if (!draft.trim()) return;
     addLabels([draft]);
-    setDraft("");
+    updateDraft("");
   }
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -64,9 +75,9 @@ export function LabelChipInput({
       const parts = next.split(",");
       const remainder = parts.pop() ?? "";
       addLabels(parts);
-      setDraft(remainder);
+      updateDraft(remainder);
     } else {
-      setDraft(next);
+      updateDraft(next);
     }
   }
 
@@ -121,6 +132,8 @@ export function LabelChipInput({
       <input
         ref={inputRef}
         id={inputId}
+        name={name}
+        aria-label={ariaLabel}
         data-testid={testId}
         type="text"
         value={draft}

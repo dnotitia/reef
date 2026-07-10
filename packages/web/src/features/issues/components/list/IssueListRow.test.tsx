@@ -1,11 +1,12 @@
 import type { IssueMetadata } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { purgeAll } from "../../stores/issueEntityStore";
 import { useIssueKeyboardStore } from "../../stores/useIssueKeyboardStore";
+import { useIssueSelectionStore } from "../../stores/useIssueSelectionStore";
 import { IssueListRow } from "./IssueListRow";
 
 afterEach(() => {
@@ -21,6 +22,7 @@ afterEach(() => {
     focusRequest: null,
     quickEditRequest: null,
   });
+  useIssueSelectionStore.getState().clear();
 });
 
 const base = {
@@ -76,6 +78,7 @@ function renderRow(
           issue={issue}
           vault="reef-test"
           allIssues={allIssues}
+          logicalIds={["REEF-001", "REEF-002", "REEF-003"]}
           onClick={onClick}
         />
       </tbody>
@@ -151,6 +154,55 @@ describe("IssueListRow", () => {
     const row = screen.getAllByTestId("issue-list-row")[0];
     await user.click(row);
     expect(onClick).toHaveBeenCalledWith("REEF-001");
+  });
+
+  it("toggles selection from the checkbox without opening detail", async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    renderRow(mockIssue, [mockIssue], onClick);
+    await user.click(screen.getByRole("checkbox", { name: "Select REEF-001" }));
+    expect(useIssueSelectionStore.getState().selectedIds.has("REEF-001")).toBe(
+      true,
+    );
+    expect(onClick).not.toHaveBeenCalled();
+    expect(screen.getByTestId("issue-list-row")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
+  it("uses Shift+Click for inclusive range selection instead of detail", () => {
+    const onClick = vi.fn();
+    useIssueSelectionStore.getState().toggle("REEF-001");
+    renderRow({ ...mockIssue, id: "REEF-003" }, [mockIssue], onClick);
+    screen
+      .getByTestId("issue-list-row")
+      .dispatchEvent(
+        new MouseEvent("click", { bubbles: true, shiftKey: true }),
+      );
+    expect([...useIssueSelectionStore.getState().selectedIds]).toEqual([
+      "REEF-001",
+      "REEF-002",
+      "REEF-003",
+    ]);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("extends the range when the selection checkbox is Shift+clicked", () => {
+    const onClick = vi.fn();
+    useIssueSelectionStore.getState().toggle("REEF-001");
+    renderRow({ ...mockIssue, id: "REEF-003" }, [mockIssue], onClick);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select REEF-003" }), {
+      shiftKey: true,
+    });
+
+    expect([...useIssueSelectionStore.getState().selectedIds]).toEqual([
+      "REEF-001",
+      "REEF-002",
+      "REEF-003",
+    ]);
+    expect(onClick).not.toHaveBeenCalled();
   });
 
   it("uses the rounded row focus chrome instead of inset tr rings", () => {

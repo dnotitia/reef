@@ -52,10 +52,13 @@ function makeTestQueryClient() {
   });
 }
 
-function renderUseUpdateIssue(queryClient = makeTestQueryClient()) {
+function renderUseUpdateIssue(
+  queryClient = makeTestQueryClient(),
+  options?: Parameters<typeof useUpdateIssue>[0],
+) {
   return {
     queryClient,
-    ...renderHook(() => useUpdateIssue(), {
+    ...renderHook(() => useUpdateIssue(options), {
       wrapper: makeWrapper(queryClient),
     }),
   };
@@ -208,6 +211,37 @@ describe("useUpdateIssue", () => {
     // avoids blanket invalidation (REEF-098).
     expect(invalidateSpy).not.toHaveBeenCalledWith({
       queryKey: ["issues", "detail", "reef-acme", "REEF-001"],
+    });
+  });
+
+  it("defers list and relation reconciliation for bulk callers but keeps activity fresh", async () => {
+    mockApiFetch.mockResolvedValue(
+      new Response(JSON.stringify({ issue: UPDATED, content: "" }), {
+        status: 200,
+      }),
+    );
+    const queryClient = makeTestQueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderUseUpdateIssue(queryClient, {
+      reconciliation: "deferred",
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        id: "REEF-001",
+        vault: "reef-acme",
+        patch: { status: "in_progress" },
+      });
+    });
+
+    expect(invalidateSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ["issues", "list", "reef-acme"] }),
+    );
+    expect(invalidateSpy).not.toHaveBeenCalledWith({
+      queryKey: ["issues", "relations", "reef-acme"],
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["issues", "activity", "reef-acme", "REEF-001"],
     });
   });
 
