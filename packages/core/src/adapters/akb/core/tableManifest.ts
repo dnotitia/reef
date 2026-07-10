@@ -16,9 +16,11 @@ import {
 export const AkbTableColumnTypeSchema = z.enum([
   "text",
   "number",
+  "numeric",
   "boolean",
   "date",
   "json",
+  "jsonb",
 ]);
 
 export interface AkbTableColumn {

@@ -28,9 +28,9 @@ export { REEF_DESIRED_TABLES, REEF_SCHEMA_VERSION } from "./tableManifest";
 
 // ─── Tables: HTTP primitives ──────────────────────────────────────────────────
 //
-// akb exposes typed columns (text|number|boolean|date|json + required) via
-// `POST /api/v1/tables/{vault}`. SQL escaping for the DML endpoint lives in
-// `sql.ts`.
+// akb accepts the number/json aliases on create, then returns their canonical
+// numeric/jsonb forms when listing the table. SQL escaping for the DML endpoint
+// lives in `sql.ts`.
 
 export interface EnsureReefTablesParams {
   adapter: AkbAdapter;
@@ -140,6 +140,12 @@ function tableHasColumnMetadata(table: AkbTableSummary | undefined): boolean {
   return Array.isArray(table?.columns);
 }
 
+function canonicalColumnType(type: AkbTableColumn["type"]): string {
+  if (type === "number" || type === "numeric") return "numeric";
+  if (type === "json" || type === "jsonb") return "jsonb";
+  return type;
+}
+
 function columnsMatch(
   expected: readonly AkbTableColumn[],
   actual: readonly AkbTableColumn[] | undefined,
@@ -150,7 +156,9 @@ function columnsMatch(
   return expected.every((expectedColumn) => {
     const actualColumn = actualByName.get(expectedColumn.name);
     return (
-      actualColumn?.type === expectedColumn.type &&
+      actualColumn !== undefined &&
+      canonicalColumnType(actualColumn.type) ===
+        canonicalColumnType(expectedColumn.type) &&
       Boolean(actualColumn.required) === Boolean(expectedColumn.required)
     );
   });

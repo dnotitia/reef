@@ -54,6 +54,20 @@ function makeDesiredTablesResponseExcept(name: string): unknown {
   };
 }
 
+function canonicalizeColumns(
+  columns: readonly { name: string; type: string; required?: boolean }[],
+): Array<{ name: string; type: string; required?: boolean }> {
+  return columns.map((column) => ({
+    ...column,
+    type:
+      column.type === "number"
+        ? "numeric"
+        : column.type === "json"
+          ? "jsonb"
+          : column.type,
+  }));
+}
+
 describe("ensureReefTables", () => {
   it("creates all reef tables when none exist (akb { kind: 'table', items: [] } shape)", async () => {
     const { calls } = setupFetch([
@@ -347,6 +361,49 @@ describe("ensureReefTables", () => {
     expect(stampSql).toContain(
       `WHERE key = '${REEF_SETTINGS_SCHEMA_VERSION_KEY}'`,
     );
+  });
+
+  it("accepts AKB canonical numeric/jsonb aliases for a current schema", async () => {
+    const canonicalTables = {
+      kind: "table",
+      vault: "reef-sample",
+      items: REEF_DESIRED_TABLES.map((manifest) => ({
+        name: manifest.name,
+        columns: canonicalizeColumns(manifest.columns),
+      })),
+    };
+    const { calls } = setupFetch([
+      { body: canonicalTables },
+      { body: makeSchemaVersionResponse() },
+    ]);
+
+    await ensureReefTables({ adapter: makeAdapter(), vault: "reef-sample" });
+
+    expect(calls).toHaveLength(2);
+  });
+
+  it("accepts a newly created attachment table after AKB canonicalizes its aliases", async () => {
+    const attachmentManifest = REEF_DESIRED_TABLES.find(
+      (manifest) => manifest.name === REEF_ATTACHMENTS_TABLE,
+    );
+    if (!attachmentManifest) throw new Error("Missing attachment manifest");
+    const { calls } = setupFetch([
+      { body: makeDesiredTablesResponseExcept(REEF_ATTACHMENTS_TABLE) },
+      { status: 201, body: { name: REEF_ATTACHMENTS_TABLE } },
+      {
+        body: makeDesiredTablesResponse({
+          [REEF_ATTACHMENTS_TABLE]: {
+            columns: canonicalizeColumns(attachmentManifest.columns),
+          },
+        }),
+      },
+      { body: makeSqlMutationResponse("DELETE 0") },
+      { body: makeSqlMutationResponse("INSERT 0 1") },
+    ]);
+
+    await ensureReefTables({ adapter: makeAdapter(), vault: "reef-sample" });
+
+    expect(calls).toHaveLength(5);
   });
 
   it("backfills the schema stamp after verifying an unstamped matching manifest", async () => {

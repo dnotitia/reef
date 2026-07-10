@@ -153,7 +153,8 @@ explicitly in the entries below.
   storage. Existing attachment and Jira-import timestamps keep their public
   `created_at` meaning through attachment metadata, and every desired table
   manifest is now checked for reserved AKB columns before provisioning starts.
-  (REEF-404)
+  Schema verification also treats AKB's canonical `numeric`/`jsonb` types as
+  equivalent to the accepted `number`/`json` create aliases. (REEF-404)
 - **Planning pages no longer recover from a hydration mismatch on reload.**
   Restored planning catalog cache now waits until after the first client
   hydration render before replacing the SSR skeleton, so the planning table no
