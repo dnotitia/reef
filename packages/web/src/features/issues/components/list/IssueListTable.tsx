@@ -218,7 +218,7 @@ export function IssueListTable({ vault }: IssueListTableProps) {
                       onChange={() =>
                         useIssueSelectionStore
                           .getState()
-                          .toggleAllLoaded("list", visibleIssueIds)
+                          .toggleAllLoaded(visibleIssueIds)
                       }
                     />
                   ) : key ? (

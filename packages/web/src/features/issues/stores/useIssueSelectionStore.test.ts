@@ -8,19 +8,17 @@ describe("useIssueSelectionStore", () => {
 
   it("toggles with immutable Set instances and replaces the anchor", () => {
     const before = useIssueSelectionStore.getState().selectedIds;
-    useIssueSelectionStore.getState().toggle("list", "A");
+    useIssueSelectionStore.getState().toggle("A");
     const after = useIssueSelectionStore.getState();
     expect(after.selectedIds).not.toBe(before);
     expect([...after.selectedIds]).toEqual(["A"]);
-    expect(after.anchor).toMatchObject({ issueId: "A", scope: "list" });
+    expect(after.anchor).toMatchObject({ issueId: "A" });
   });
 
   it("unions an inclusive range without replacing the modifier-free anchor", () => {
     const store = useIssueSelectionStore.getState();
-    store.toggle("list", "B");
-    useIssueSelectionStore
-      .getState()
-      .extendRange("list", "D", ["A", "B", "C", "D"]);
+    store.toggle("B");
+    useIssueSelectionStore.getState().extendRange("D", ["A", "B", "C", "D"]);
     expect([...useIssueSelectionStore.getState().selectedIds]).toEqual([
       "B",
       "C",
@@ -29,22 +27,21 @@ describe("useIssueSelectionStore", () => {
     expect(useIssueSelectionStore.getState().anchor?.issueId).toBe("B");
   });
 
-  it("keeps board ranges inside the anchor column", () => {
+  it("clears the range anchor when the last selected issue is deselected", () => {
     const store = useIssueSelectionStore.getState();
-    store.toggle("board", "A", "todo");
-    useIssueSelectionStore
-      .getState()
-      .extendRange("board", "D", ["C", "D"], "done");
-    expect([...useIssueSelectionStore.getState().selectedIds]).toEqual([
-      "A",
-      "D",
-    ]);
+    store.toggle("A");
+    useIssueSelectionStore.getState().toggle("A");
+    expect(useIssueSelectionStore.getState().anchor).toBeNull();
+
+    useIssueSelectionStore.getState().extendRange("D", ["A", "B", "C", "D"]);
+    expect([...useIssueSelectionStore.getState().selectedIds]).toEqual(["D"]);
+    expect(useIssueSelectionStore.getState().anchor?.issueId).toBe("D");
   });
 
   it("toggles only loaded ids and removes successful items", () => {
     const store = useIssueSelectionStore.getState();
-    store.toggle("list", "outside");
-    useIssueSelectionStore.getState().toggleAllLoaded("list", ["A", "B"]);
+    store.toggle("outside");
+    useIssueSelectionStore.getState().toggleAllLoaded(["A", "B"]);
     expect([...useIssueSelectionStore.getState().selectedIds]).toEqual([
       "outside",
       "A",
@@ -56,13 +53,12 @@ describe("useIssueSelectionStore", () => {
 
   it("locks selection changes while a job runs and clears context", () => {
     const store = useIssueSelectionStore.getState();
-    store.toggle("list", "A");
+    store.toggle("A");
     useIssueSelectionStore.getState().setRunning(true);
-    useIssueSelectionStore.getState().toggle("list", "B");
+    useIssueSelectionStore.getState().toggle("B");
     expect([...useIssueSelectionStore.getState().selectedIds]).toEqual(["A"]);
     useIssueSelectionStore.getState().clear();
     expect(useIssueSelectionStore.getState()).toMatchObject({
-      scope: null,
       running: false,
     });
     expect(useIssueSelectionStore.getState().selectedIds.size).toBe(0);

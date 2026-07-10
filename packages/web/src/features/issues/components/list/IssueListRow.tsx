@@ -137,9 +137,7 @@ export const IssueListRow = memo(function IssueListRow({
       onClick={(event: MouseEvent<HTMLTableRowElement>) => {
         if (event.shiftKey) {
           event.preventDefault();
-          useIssueSelectionStore
-            .getState()
-            .extendRange("list", issue.id, logicalIds);
+          useIssueSelectionStore.getState().extendRange(issue.id, logicalIds);
           return;
         }
         onClick?.(issue.id);
@@ -159,9 +157,7 @@ export const IssueListRow = memo(function IssueListRow({
             selected && "opacity-100",
           )}
           testId="issue-row-checkbox"
-          onChange={() =>
-            useIssueSelectionStore.getState().toggle("list", issue.id)
-          }
+          onChange={() => useIssueSelectionStore.getState().toggle(issue.id)}
         />
       </TableCell>
       {/* ID */}

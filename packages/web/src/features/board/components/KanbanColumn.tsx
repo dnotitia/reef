@@ -80,8 +80,6 @@ export const KanbanColumn = memo(function KanbanColumn({
             issue={issue}
             blocked={blockedIds.has(issue.id)}
             planningCatalog={planningCatalog}
-            logicalIds={issues.map((item) => item.id)}
-            selectionGroup={status}
             onClick={onIssueClick}
           />
         ))}

@@ -96,35 +96,31 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
     }
   });
 
-  test("selects an inclusive range inside one board column while normal card click still opens detail", async ({
+  test("keeps Board free of selection controls and hands bulk work to filtered List", async ({
     page,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=board`);
+    await page.goto(
+      `/workspace/${REEF_E2E_VAULT}/issues?view=board&status=todo&priority=high`,
+    );
     const first = page
       .getByTestId("kanban-card")
-      .filter({ hasText: "REEF-101" });
-    const third = page
-      .getByTestId("kanban-card")
-      .filter({ hasText: "REEF-103" });
+      .filter({ hasText: "REEF-102" });
     await expect(first).toBeVisible({ timeout: 15_000 });
-    await first.getByRole("checkbox", { name: "Select REEF-101" }).click();
-    await third.click({ modifiers: ["Shift"] });
+    await expect(
+      first.getByRole("checkbox", { name: "Select REEF-102" }),
+    ).toHaveCount(0);
+    await expect(page.getByTestId("issue-bulk-action-bar")).toHaveCount(0);
 
-    await expect(page.getByTestId("issue-bulk-action-bar")).toContainText(
-      "3 selected",
-    );
-    for (const id of ["REEF-101", "REEF-102", "REEF-103"]) {
-      await expect(
-        page.getByTestId("kanban-card").filter({ hasText: id }),
-      ).toHaveAttribute("aria-selected", "true");
-    }
-
-    await first.click();
-    await page.waitForURL(/\/issues\/REEF-101\?view=board/, {
+    await page.getByTestId("board-bulk-edit-shortcut").click();
+    await page.waitForURL(/\/issues\?.*view=list/, {
       timeout: 10_000,
     });
-    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    const params = new URL(page.url()).searchParams;
+    expect(params.get("view")).toBe("list");
+    expect(params.get("status")).toBe("todo");
+    expect(params.get("priority")).toBe("high");
+    await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
   });
 
   test("preserves successes on a middle failure and retries only the failed item", async ({

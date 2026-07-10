@@ -475,13 +475,13 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
         keys: [{ key: "b" }],
         handler: () => navigateTo("/issues?view=backlog"),
       },
+      {
+        labelKey: "closeDialogClearSearch" as const,
+        scope: "list",
+        keys: [{ key: "Escape" }],
+        handler: clearIssueSelection,
+      },
       ...(["list", "board"] as const).flatMap<ShortcutBinding>((scope) => [
-        {
-          labelKey: "closeDialogClearSearch" as const,
-          scope,
-          keys: [{ key: "Escape" }],
-          handler: clearIssueSelection,
-        },
         {
           labelKey: "focusNextIssue" as const,
           scope,

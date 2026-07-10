@@ -26,11 +26,9 @@ import {
 import { buildStatusPatch } from "@/features/issues/lib/statusPatch";
 import { useFlashStore } from "@/features/issues/stores/useFlashStore";
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
-import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { DURATION_BASE, EASE_SIGNATURE } from "@/lib/motionTokens";
-import { cn } from "@/lib/utils";
 import {
   DndContext,
   type DragEndEvent,
@@ -104,9 +102,6 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
   const activeIssueId = useBoardStore((state) => state.activeIssueId);
   const setActiveIssueId = useBoardStore((state) => state.setActiveIssueId);
   const flashIssue = useFlashStore((state) => state.flashIssue);
-  const selectionActive = useIssueSelectionStore(
-    (state) => state.selectedIds.size > 0,
-  );
   const [pendingCloseIssue, setPendingCloseIssue] =
     useState<IssueListItem | null>(null);
 
@@ -222,7 +217,6 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
   }
 
   function handleDragStart(event: DragStartEvent) {
-    if (selectionActive) return;
     const issue = event.active.data.current?.issue as IssueListItem | undefined;
     if (issue) {
       setActiveIssueId(issue.id);
@@ -230,7 +224,6 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
   }
 
   function handleDragEnd(event: DragEndEvent) {
-    if (selectionActive) return;
     const { active, over } = event;
     setActiveIssueId(null);
 
@@ -285,12 +278,7 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
         onDragEnd={handleDragEnd}
         onDragCancel={() => setActiveIssueId(null)}
       >
-        <div
-          className={cn(
-            "flex min-h-0 flex-1 gap-3 overflow-x-auto px-6 pt-4",
-            selectionActive ? "pb-24" : "pb-4",
-          )}
-        >
+        <div className="flex flex-1 min-h-0 gap-3 overflow-x-auto px-6 py-4">
           {WORKFLOW_STATUS_OPTIONS.map((status) => (
             <KanbanColumn
               key={status}

@@ -173,7 +173,7 @@ describe("IssueListRow", () => {
 
   it("uses Shift+Click for inclusive range selection instead of detail", () => {
     const onClick = vi.fn();
-    useIssueSelectionStore.getState().toggle("list", "REEF-001");
+    useIssueSelectionStore.getState().toggle("REEF-001");
     renderRow({ ...mockIssue, id: "REEF-003" }, [mockIssue], onClick);
     screen
       .getByTestId("issue-list-row")

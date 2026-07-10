@@ -46,6 +46,12 @@ vi.mock("@/features/issues/components/list/IssueListTable", () => ({
     <div data-testid="list-body" data-vault={vault} />
   ),
 }));
+vi.mock("@/features/issues/components/bulk/BoardBulkEditShortcut", () => ({
+  BoardBulkEditShortcut: () => <div data-testid="board-bulk-edit-shortcut" />,
+}));
+vi.mock("@/features/issues/components/bulk/IssueBulkActionBar", () => ({
+  IssueBulkActionBar: () => <div data-testid="issue-bulk-action-bar" />,
+}));
 vi.mock("@/features/timeline/components/TimelineBody", () => ({
   TimelineBody: ({ vault }: { vault: string }) => (
     <div data-testid="timeline-body" data-vault={vault} />
@@ -91,6 +97,8 @@ describe("IssuesWorkspace", () => {
   it("defaults to the board view when no ?view= is present", () => {
     render(wrap(<IssuesWorkspace />));
     expect(screen.getByTestId("board-body")).toBeInTheDocument();
+    expect(screen.getByTestId("board-bulk-edit-shortcut")).toBeInTheDocument();
+    expect(screen.queryByTestId("issue-bulk-action-bar")).toBeNull();
     expect(screen.queryByTestId("list-body")).toBeNull();
     expect(screen.queryByTestId("timeline-body")).toBeNull();
   });
@@ -99,6 +107,8 @@ describe("IssuesWorkspace", () => {
     navigationState.searchParams = new URLSearchParams("view=list");
     render(wrap(<IssuesWorkspace />));
     expect(screen.getByTestId("list-body")).toBeInTheDocument();
+    expect(screen.getByTestId("issue-bulk-action-bar")).toBeInTheDocument();
+    expect(screen.queryByTestId("board-bulk-edit-shortcut")).toBeNull();
     expect(screen.queryByTestId("board-body")).toBeNull();
   });
 

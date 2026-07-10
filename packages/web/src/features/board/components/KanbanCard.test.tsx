@@ -1,5 +1,4 @@
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
-import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import type { IssueListItem, PlanningCatalog } from "@reef/core";
 import {
   cleanup,
@@ -30,7 +29,6 @@ afterEach(() => {
     focusRequest: null,
     quickEditRequest: null,
   });
-  useIssueSelectionStore.getState().clear();
 });
 
 // Mock @dnd-kit/core to avoid JSDOM drag issues
@@ -304,53 +302,6 @@ describe("KanbanCard", () => {
     render(<KanbanCard issue={mockIssue()} onClick={onClick} />);
     fireEvent.click(screen.getByTestId("kanban-card"));
     expect(onClick).toHaveBeenCalledWith("reef-001");
-  });
-
-  it("selects from the checkbox and disables drag while selection is active", () => {
-    const onClick = vi.fn();
-    render(
-      <KanbanCard
-        issue={mockIssue()}
-        onClick={onClick}
-        logicalIds={["reef-001", "reef-002"]}
-        selectionGroup="todo"
-      />,
-    );
-    fireEvent.click(screen.getByRole("checkbox", { name: "Select reef-001" }));
-    expect(useIssueSelectionStore.getState().selectedIds.has("reef-001")).toBe(
-      true,
-    );
-    expect(onClick).not.toHaveBeenCalled();
-    expect(screen.getByTestId("kanban-card")).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    expect(screen.getByTestId("kanban-card")).not.toHaveAttribute(
-      "aria-disabled",
-    );
-    expect(vi.mocked(useDraggable).mock.calls.at(-1)?.[0]).toMatchObject({
-      disabled: true,
-    });
-  });
-
-  it("limits Shift+Click range selection to the provided board column order", () => {
-    useIssueSelectionStore.getState().toggle("board", "reef-001", "todo");
-    const onClick = vi.fn();
-    render(
-      <KanbanCard
-        issue={mockIssue({ id: "reef-003" })}
-        onClick={onClick}
-        logicalIds={["reef-001", "reef-002", "reef-003"]}
-        selectionGroup="todo"
-      />,
-    );
-    fireEvent.click(screen.getByTestId("kanban-card"), { shiftKey: true });
-    expect([...useIssueSelectionStore.getState().selectedIds]).toEqual([
-      "reef-001",
-      "reef-002",
-      "reef-003",
-    ]);
-    expect(onClick).not.toHaveBeenCalled();
   });
 
   it("ignores click while dragging", () => {

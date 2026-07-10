@@ -2,6 +2,7 @@
 
 import { KanbanBoard } from "@/features/board/components/KanbanBoard";
 import { BacklogView } from "@/features/issues/components/backlog/BacklogView";
+import { BoardBulkEditShortcut } from "@/features/issues/components/bulk/BoardBulkEditShortcut";
 import { IssueBulkActionBar } from "@/features/issues/components/bulk/IssueBulkActionBar";
 import { IssueFilterToolbar } from "@/features/issues/components/filters/IssueFilterToolbar";
 import { SortControl } from "@/features/issues/components/filters/SortControl";
@@ -69,6 +70,7 @@ export function IssuesWorkspace() {
                 showsBacklogReorderHint={view === "backlog"}
               />
             )}
+            {view === "board" ? <BoardBulkEditShortcut vault={vault} /> : null}
             <ViewSwitcher activeView={view} />
           </div>
         }
@@ -88,6 +90,7 @@ export function IssuesWorkspace() {
               view === "list" ? STATUS_OPTIONS : WORKFLOW_STATUS_OPTIONS
             }
           />
+          {view === "list" ? <IssueBulkActionBar vault={vault} /> : null}
           <div className="flex flex-1 min-h-0 flex-col">
             {view === "board" ? (
               <KanbanBoard vault={vault} />
@@ -99,9 +102,6 @@ export function IssuesWorkspace() {
               <TimelineBody vault={vault} />
             )}
           </div>
-          {(view === "list" || view === "board") && (
-            <IssueBulkActionBar vault={vault} />
-          )}
         </>
       )}
     </div>

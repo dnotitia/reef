@@ -71,7 +71,7 @@ describe("useBulkUpdateIssues", () => {
     queryClient.setQueryData(["issues", "list", "reef-test"], issues);
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     for (const issue of issues)
-      useIssueSelectionStore.getState().toggle("list", issue.id);
+      useIssueSelectionStore.getState().toggle(issue.id);
     const { result } = renderHook(() => useBulkUpdateIssues("reef-test"), {
       wrapper: wrapper(queryClient),
     });

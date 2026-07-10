@@ -14,12 +14,13 @@ explicitly in the entries below.
 
 ### Added
 
-- **Select and edit multiple issues together.** List rows and board cards now
-  expose keyboard-accessible checkboxes, Shift+Click range selection, and a
-  compact bulk bar for status, assignee, priority, sprint, and label changes.
-  Bulk updates reuse the existing single-issue save path sequentially, preserve
-  successful items when one fails, and keep failed items selected for an
-  item-level retry. (REEF-339, epic REEF-330)
+- **Select and edit multiple issues together in List.** List rows now expose
+  keyboard-accessible checkboxes, Shift+Click range selection, and an integrated
+  toolbar for status, assignee, priority, sprint, and label changes. Board stays
+  focused on drag-and-scan work and links to the filtered List for bulk editing.
+  Updates reuse the existing single-issue save path sequentially, preserve
+  successful items when one fails, and keep failed items selected for retry.
+  (REEF-339, epic REEF-330)
 
 ## v0.7.0 - 2026-07-10
 
