@@ -80,5 +80,8 @@ export const useIssueSelectionStore = create<IssueSelectionState>((set) => ({
     }),
 
   setRunning: (running) => set({ running }),
-  clear: () => set({ selectedIds: new Set(), anchor: null, running: false }),
+  clear: () =>
+    set((state) =>
+      state.running ? {} : { selectedIds: new Set(), anchor: null },
+    ),
 }));

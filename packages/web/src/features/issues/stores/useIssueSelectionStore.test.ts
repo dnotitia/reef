@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { useIssueSelectionStore } from "./useIssueSelectionStore";
 
 describe("useIssueSelectionStore", () => {
-  beforeEach(() => useIssueSelectionStore.getState().clear());
+  beforeEach(() => {
+    useIssueSelectionStore.getState().setRunning(false);
+    useIssueSelectionStore.getState().clear();
+  });
 
   it("toggles with immutable Set instances and replaces the anchor", () => {
     const before = useIssueSelectionStore.getState().selectedIds;
@@ -51,16 +54,20 @@ describe("useIssueSelectionStore", () => {
     expect([...useIssueSelectionStore.getState().selectedIds]).toEqual(["B"]);
   });
 
-  it("locks selection changes while a job runs and clears context", () => {
+  it("locks selection changes and clear requests while a job runs", () => {
     const store = useIssueSelectionStore.getState();
     store.toggle("A");
     useIssueSelectionStore.getState().setRunning(true);
     useIssueSelectionStore.getState().toggle("B");
     expect([...useIssueSelectionStore.getState().selectedIds]).toEqual(["A"]);
     useIssueSelectionStore.getState().clear();
+    expect([...useIssueSelectionStore.getState().selectedIds]).toEqual(["A"]);
     expect(useIssueSelectionStore.getState()).toMatchObject({
-      running: false,
+      running: true,
     });
+
+    useIssueSelectionStore.getState().setRunning(false);
+    useIssueSelectionStore.getState().clear();
     expect(useIssueSelectionStore.getState().selectedIds.size).toBe(0);
   });
 });
