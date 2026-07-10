@@ -15,6 +15,20 @@
 - Credentials come only from environment variables or local secret files. Never
   print, log, serialize to reports, or include Jira credentials in AKB payloads.
 
+## Documentation Policy
+
+- Keep `packages/jira-migrator/README.md` as the package entry point: role,
+  current CLI status, package commands, exported surfaces, and links.
+- Keep operator runbooks, migration field policies, report interpretation,
+  account mapping, and Jira-to-Reef data mapping details in
+  `docs/jira-migration.md`.
+- Keep agent-only implementation rules in this file. Do not put operator
+  procedures here unless they are also rules for future agents editing code.
+- When adding or changing CLI flags, environment variables, or secret-loading
+  behavior, update both the README quick start and `docs/jira-migration.md`.
+- When adding or changing migration semantics, provenance shape, or report
+  classifications, update `docs/jira-migration.md` beside the code and tests.
+
 ## Testing And Layout
 
 - Co-locate unit tests beside their targets under `src/`.

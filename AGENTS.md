@@ -1,9 +1,10 @@
 # Project Context for AI Agents
 
 > Root-level, cross-cutting rules for reef. Package-local rules live in
-> `packages/core/AGENTS.md`, `packages/web/AGENTS.md`, and nested `AGENTS.md`
-> files under those package trees; the `CLAUDE.md` files only point back to
-> these `AGENTS.md` files.
+> `packages/core/AGENTS.md`, `packages/web/AGENTS.md`,
+> `packages/jira-migrator/AGENTS.md`, and nested `AGENTS.md` files under those
+> package trees; the `CLAUDE.md` files only point back to these `AGENTS.md`
+> files.
 
 ## Rule Placement
 
@@ -22,9 +23,10 @@
 
 - Exact dependency and runtime versions live in `package.json`, package manifests,
   and `tsconfig*.json`; do not rely on version guesses from memory.
-- This is a pnpm workspace with private `core` and `web` packages. New product
-  behavior starts in `core` when it touches schemas, adapters, agents, or shared
-  contracts, then surfaces through `web`.
+- This is a pnpm workspace with private packages. Product runtime behavior
+  starts in `core` when it touches schemas, adapters, agents, or shared
+  contracts, then surfaces through `web`. Operator-run migration behavior for
+  Jira lives in `packages/jira-migrator`.
 - `core` is framework-agnostic: no Next.js imports, no DOM APIs, and no Node-only
   globals where avoidable.
 
