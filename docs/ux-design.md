@@ -421,8 +421,13 @@ stay correct even when the board view is filtered.
 leaves.
 
 **Multi-select and bulk edit.** List owns multi-select because its leading
-checkbox column and field-comparison layout fit batch work. Rows expose native
-checkboxes on hover, focus, or selection; Shift+Click extends an inclusive
+checkbox column and field-comparison layout fit batch work. Rows expose compact
+14px checkbox indicators on hover, focus, or selection; the native input keeps
+checkbox semantics while the visual indicator uses the elevated surface when
+idle and one solid brand fill with a contrasting check when selected.
+Each checkbox sits in one labeled 32px hit target so the leading-cell dead zone
+never opens issue detail.
+Shift+Click extends an inclusive
 range in list order, while normal clicks still open issue detail. The header
 selects only the currently loaded filtered ids and announces unchecked, mixed,
 and checked states. Once at least one issue is selected, an integrated toolbar
@@ -437,13 +442,16 @@ yields to an open dialog, popover, or input before Esc clears it.
 Board deliberately has no card checkbox, range selection, selected-card chrome,
 or selection-driven drag mode. Its card header remains reserved for status, id,
 type, and blocked state; normal click, quick edit, and drag keep their existing
-meaning. A compact **Bulk edit in List** shortcut switches to List while
-preserving the active search, filters, and sort context.
+meaning. A compact, visibly labeled **Bulk edit in List** link switches to List
+while preserving the active search, filters, and sort context; because it is a
+real link, modified and middle clicks retain normal browser navigation.
 
 Bulk writes run through the existing single-issue Route Handler one at a time.
 Each item is optimistic, a failure rolls back only that item, successful and
-unchanged items leave the selection, and failures remain in a tray with their
-id, title, PM-facing reason, and Retry. A close action asks for one reason and
+unchanged items leave the selection, and failures remain in a viewport-bounded
+tray with their id, title, PM-facing reason, and recovery action. Retry is
+offered for conflicts and transient request failures; a not-found item is
+removed from the stale selection instead. A close action asks for one reason and
 applies it independently to every target; sprint assignment promotes backlog
 issues to Todo, while moving to Backlog clears sprint. The toolbar stays in
 normal page flow, wraps within ordinary and narrow desktop widths, and never

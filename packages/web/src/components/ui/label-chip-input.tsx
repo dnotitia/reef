@@ -10,6 +10,8 @@ interface LabelChipInputProps {
   onChange: (next: string[]) => void;
   onDraftChange?: (draft: string) => void;
   id?: string;
+  name?: string;
+  "aria-label"?: string;
   placeholder?: string;
   disabled?: boolean;
   className?: string;
@@ -22,6 +24,8 @@ export function LabelChipInput({
   onChange,
   onDraftChange,
   id,
+  name,
+  "aria-label": ariaLabel,
   placeholder,
   disabled = false,
   className,
@@ -128,6 +132,8 @@ export function LabelChipInput({
       <input
         ref={inputRef}
         id={inputId}
+        name={name}
+        aria-label={ariaLabel}
         data-testid={testId}
         type="text"
         value={draft}

@@ -19,7 +19,9 @@ explicitly in the entries below.
   toolbar for status, assignee, priority, sprint, and label changes. Board stays
   focused on drag-and-scan work and links to the filtered List for bulk editing.
   Updates reuse the existing single-issue save path sequentially, preserve
-  successful items when one fails, and keep failed items selected for retry.
+  successful items when one fails, and keep failed items selected for recovery.
+  Selection controls use full labeled hit targets, while the bounded failure
+  tray retries transient failures and removes stale not-found items cleanly.
   (REEF-339, epic REEF-330)
 
 ## v0.7.0 - 2026-07-10

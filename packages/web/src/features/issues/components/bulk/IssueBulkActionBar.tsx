@@ -96,11 +96,17 @@ function LabelBulkAction({
           aria-hidden="true"
         />
       </PopoverTrigger>
-      <PopoverContent className="w-72 space-y-2 p-2" align="start">
+      <PopoverContent
+        className="w-72 space-y-2 p-2"
+        align="start"
+        aria-label={label}
+      >
         <LabelChipInput
           value={labels}
           onChange={setLabels}
           onDraftChange={setDraft}
+          name={`${testId}-input`}
+          aria-label={label}
           autoFocus
           data-testid={`${testId}-input`}
         />
@@ -176,7 +182,7 @@ export function IssueBulkActionBar({ vault }: IssueBulkActionBarProps) {
         aria-busy={runner.running}
       >
         <span
-          className="inline-flex min-h-8 min-w-max items-center gap-2 px-1 text-sm font-semibold"
+          className="inline-flex min-h-8 min-w-max items-center gap-2 px-1 text-sm font-semibold tabular-nums"
           aria-live="polite"
         >
           <CheckSquare2 className="h-4 w-4 text-brand" aria-hidden="true" />
@@ -275,27 +281,48 @@ export function IssueBulkActionBar({ vault }: IssueBulkActionBarProps) {
               <PopoverTrigger className="h-7 rounded-md bg-destructive px-2.5 text-xs font-medium text-destructive-foreground hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40">
                 {bulk("failedCount", { count: runner.failures.length })}
               </PopoverTrigger>
-              <PopoverContent className="w-80 space-y-2" align="start">
-                {runner.failures.map((failure) => (
-                  <div
-                    key={failure.id}
-                    className="flex items-center gap-2 text-sm"
-                  >
-                    <span className="min-w-0 flex-1 truncate">
-                      <strong>{failure.id}</strong> · {failure.title} ·{" "}
-                      {bulk(`errors.${failure.reason}`)}
-                    </span>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={runner.running}
-                      onClick={() => void retryFailure(failure)}
+              <PopoverContent
+                className="w-80 p-2"
+                align="start"
+                aria-label={bulk("failureList")}
+              >
+                <div
+                  className="max-h-72 space-y-1 overflow-y-auto overscroll-contain pr-1"
+                  data-testid="bulk-failure-list"
+                >
+                  {runner.failures.map((failure) => (
+                    <div
+                      key={failure.id}
+                      className="flex min-h-9 items-center gap-2 rounded-sm px-1 text-sm [contain-intrinsic-size:auto_2.25rem] [content-visibility:auto]"
                     >
-                      {bulk("retry")}
-                    </Button>
-                  </div>
-                ))}
+                      <span className="min-w-0 flex-1 truncate">
+                        <strong translate="no">{failure.id}</strong> ·{" "}
+                        {failure.title} · {bulk(`errors.${failure.reason}`)}
+                      </span>
+                      {failure.reason === "not_found" ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={runner.running}
+                          onClick={() => runner.dismissFailure(failure.id)}
+                        >
+                          {bulk("removeFromSelection")}
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={runner.running}
+                          onClick={() => void retryFailure(failure)}
+                        >
+                          {bulk("retry")}
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </PopoverContent>
             </Popover>
           )}

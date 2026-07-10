@@ -128,7 +128,7 @@ export const IssueListRow = memo(function IssueListRow({
         "reef-issue-list-row group cursor-pointer transition-colors duration-150 focus-visible:outline-none",
         onClick && "hover:bg-surface-hover",
         focused && "bg-brand/5",
-        selected && "bg-brand/10 ring-1 ring-inset ring-brand/50",
+        selected && "bg-brand/5 ring-1 ring-inset ring-brand/30",
         isFlashing && "reef-flash-row",
       )}
       tabIndex={focused || tabStopped ? 0 : -1}
@@ -153,7 +153,7 @@ export const IssueListRow = memo(function IssueListRow({
           disabled={selectionRunning}
           label={bulk("selectIssue", { id: issue.id })}
           className={cn(
-            "opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100",
+            "opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100",
             selected && "opacity-100",
           )}
           testId="issue-row-checkbox"

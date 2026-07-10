@@ -118,7 +118,11 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
     ).toHaveCount(0);
     await expect(page.getByTestId("issue-bulk-action-bar")).toHaveCount(0);
 
-    await page.getByTestId("board-bulk-edit-shortcut").click();
+    const handoff = page.getByTestId("board-bulk-edit-shortcut");
+    await expect(handoff).toHaveRole("link");
+    await expect(handoff).toHaveText("Bulk edit in List");
+    await expect(handoff).toHaveAttribute("href", /view=list/);
+    await handoff.click();
     await page.waitForURL(/\/issues\?.*view=list/, {
       timeout: 10_000,
     });
@@ -211,11 +215,26 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
     await selectRow(page, "REEF-104");
     await removeFixtureIssue(request, "REEF-103");
     await chooseBulkStatus(page, "Done");
-    await expect(page.getByRole("button", { name: "1 failed" })).toBeVisible();
+    const staleTray = page.getByRole("button", { name: "1 failed" });
+    await expect(staleTray).toBeVisible();
     await expect(page.getByTestId("issue-bulk-action-bar")).toContainText(
       "1 selected",
     );
 
+    await staleTray.click();
+    const failureList = page.getByRole("dialog", {
+      name: "Failed issue updates",
+    });
+    await expect(failureList).toBeVisible();
+    await expect(
+      failureList.getByRole("button", { name: "Retry" }),
+    ).toHaveCount(0);
+    await failureList
+      .getByRole("button", { name: "Remove from selection" })
+      .click();
+    await expect(page.getByTestId("issue-bulk-action-bar")).toHaveCount(0);
+
+    await selectRow(page, "REEF-104");
     await page.getByTestId("view-switcher-board").click();
     await expect(page.getByTestId("issue-bulk-action-bar")).toHaveCount(0);
   });

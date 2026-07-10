@@ -165,7 +165,15 @@ export function useBulkUpdateIssues(vault: string) {
     [progress.failures, run],
   );
 
+  const dismissFailure = useCallback((issueId: string) => {
+    setProgress((current) => ({
+      ...current,
+      failures: current.failures.filter((failure) => failure.id !== issueId),
+    }));
+    useIssueSelectionStore.getState().removeSucceeded([issueId]);
+  }, []);
+
   const reset = useCallback(() => setProgress(INITIAL_PROGRESS), []);
 
-  return { ...progress, run, retry, reset };
+  return { ...progress, run, retry, dismissFailure, reset };
 }

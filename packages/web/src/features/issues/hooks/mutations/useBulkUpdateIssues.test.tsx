@@ -114,6 +114,8 @@ describe("useBulkUpdateIssues", () => {
     const { result } = renderHook(() => useBulkUpdateIssues("reef-test"), {
       wrapper: wrapper(queryClient),
     });
+    useIssueSelectionStore.getState().toggle("REEF-001");
+    useIssueSelectionStore.getState().toggle("REEF-404");
 
     let runResult: Awaited<ReturnType<typeof result.current.run>> | undefined;
     await act(async () => {
@@ -129,6 +131,13 @@ describe("useBulkUpdateIssues", () => {
       reason: "not_found",
     });
     expect(mockApiFetch).toHaveBeenCalledTimes(1);
+    expect([...useIssueSelectionStore.getState().selectedIds]).toEqual([
+      "REEF-404",
+    ]);
+
+    act(() => result.current.dismissFailure("REEF-404"));
+    expect(result.current.failures).toEqual([]);
+    expect(useIssueSelectionStore.getState().selectedIds.size).toBe(0);
   });
 
   it("keeps unrelated failures in the tray when one failed item is retried", async () => {
