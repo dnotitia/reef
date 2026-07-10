@@ -14,6 +14,7 @@ import {
   tableRef,
 } from "./sql";
 import {
+  AKB_MANAGED_TABLE_COLUMNS,
   type AkbCreateTableRequest,
   type AkbTableColumn,
   AkbTableColumnTypeSchema,
@@ -34,6 +35,25 @@ export { REEF_DESIRED_TABLES, REEF_SCHEMA_VERSION } from "./tableManifest";
 export interface EnsureReefTablesParams {
   adapter: AkbAdapter;
   vault: string;
+}
+
+export function assertNoAkbManagedColumns(table: AkbCreateTableRequest): void {
+  const reserved = new Set<string>(AKB_MANAGED_TABLE_COLUMNS);
+  const conflicts = table.columns
+    .map((column) => column.name)
+    .filter((column) => reserved.has(column));
+  if (conflicts.length > 0) {
+    throw new SchemaValidationError({
+      field: `Reef table ${table.name} AKB-managed columns (${conflicts.join(
+        ", ",
+      )})`,
+      issues: [
+        `Reef table ${table.name} declares AKB-managed columns: ${conflicts.join(
+          ", ",
+        )}`,
+      ],
+    });
+  }
 }
 
 interface AkbTableSummary {
@@ -86,6 +106,7 @@ async function createAkbTable(
   vault: string,
   body: AkbCreateTableRequest,
 ): Promise<void> {
+  assertNoAkbManagedColumns(body);
   await adapter.request(`/api/v1/tables/${encodeURIComponent(vault)}`, {
     method: "POST",
     body,
@@ -263,6 +284,9 @@ export async function ensureReefTables(
 ): Promise<void> {
   const { adapter, vault } = params;
   return withSpan("akb.tables.ensure", { vault }, async (span) => {
+    for (const manifest of REEF_DESIRED_TABLES) {
+      assertNoAkbManagedColumns(manifest);
+    }
     let tables = await listAkbTables(adapter, vault);
     const initial = tableMap(tables);
     span.setAttribute("existing_table_count", initial.size);

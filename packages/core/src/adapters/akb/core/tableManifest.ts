@@ -52,6 +52,14 @@ export interface ReefTableManifest extends AkbCreateTableRequest {
 
 export const REEF_SCHEMA_VERSION = 1;
 
+/** Columns injected and owned by AKB for every dynamic table. */
+export const AKB_MANAGED_TABLE_COLUMNS = [
+  "id",
+  "created_at",
+  "updated_at",
+  "created_by",
+] as const;
+
 /**
  * Declarative desired schema for every AKB dynamic table Reef owns. Keep this
  * additive/create-time complete: Reef's runtime HTTP path can create tables but
@@ -217,7 +225,6 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
       { name: "mime_type", type: "text", required: true },
       { name: "size_bytes", type: "number", required: true },
       { name: "author", type: "text", required: true },
-      { name: "created_at", type: "text", required: true },
       { name: "source", type: "text", required: true },
       { name: "inline", type: "boolean" },
       { name: "original_jira_attachment_id", type: "text" },

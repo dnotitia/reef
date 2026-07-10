@@ -24,6 +24,7 @@ import {
   makeSqlQueryResponse,
   setupFetch,
 } from "./akb.testSupport";
+import { assertNoAkbManagedColumns } from "./akb/core/tables";
 
 function makeDesiredTablesResponse(
   overrides: Record<string, unknown> = {},
@@ -230,7 +231,6 @@ describe("ensureReefTables", () => {
       { name: "mime_type", type: "text", required: true },
       { name: "size_bytes", type: "number", required: true },
       { name: "author", type: "text", required: true },
-      { name: "created_at", type: "text", required: true },
       { name: "source", type: "text", required: true },
       { name: "inline", type: "boolean" },
       { name: "original_jira_attachment_id", type: "text" },
@@ -240,6 +240,7 @@ describe("ensureReefTables", () => {
       tenthCreate.columns as Array<{ name: string }>
     ).map((c) => c.name);
     expect(attachmentColumnNames).not.toContain("id");
+    expect(attachmentColumnNames).not.toContain("created_at");
     expect(attachmentColumnNames).not.toContain("updated_at");
     expect(attachmentColumnNames).not.toContain("created_by");
 
@@ -260,6 +261,33 @@ describe("ensureReefTables", () => {
     expect(activityColumnNames).not.toContain("updated_at");
     expect(activityColumnNames).not.toContain("created_by");
   });
+
+  it("never declares AKB-managed columns in a desired table manifest", () => {
+    const reservedColumns = ["id", "created_at", "updated_at", "created_by"];
+
+    for (const manifest of REEF_DESIRED_TABLES) {
+      const columnNames = manifest.columns.map((column) => column.name);
+      for (const reservedColumn of reservedColumns) {
+        expect(columnNames, `${manifest.name}.${reservedColumn}`).not.toContain(
+          reservedColumn,
+        );
+      }
+    }
+  });
+
+  it.each(["id", "created_at", "updated_at", "created_by"])(
+    "rejects the AKB-managed %s column before table creation",
+    (reservedColumn) => {
+      expect(() =>
+        assertNoAkbManagedColumns({
+          name: "invalid_manifest",
+          columns: [{ name: reservedColumn, type: "text" }],
+        }),
+      ).toThrow(
+        `Invalid data: Reef table invalid_manifest AKB-managed columns (${reservedColumn}) could not be validated.`,
+      );
+    },
+  );
 
   it("creates only the missing tables when some already exist", async () => {
     const { calls } = setupFetch([
