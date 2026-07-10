@@ -12,212 +12,79 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.7.0 - 2026-07-10
+
 ### Added
 
-- **Jira Version and Sprint planning migration contracts.** The Jira migrator
-  now reads complete project Version and explicitly configured board/Sprint
-  catalogs, discovers issue Sprint references from the Jira field schema, and
-  builds one immutable dry-run/apply plan with stable source identities,
-  deterministic Reef lifecycle mapping, ledger-first reuse, collision reports,
-  and UUID handoff seams for issue migration. (REEF-402, epic REEF-311)
-- **Jira migration account mapping.** The Jira migrator now captures Jira
-  `accountId`, email, display name, active state, and account type for issue,
-  comment, and changelog actors, then resolves them through one shared mapping
-  policy with account overrides, email-based reef actor matching, and stable
-  fallback actors. The account mapping artifact is Jira-cloud scoped so SHDEV
-  and SDDEV imports can share it, and migration reports call out newly seen or
-  changed account mappings without logging credentials. (REEF-391)
-- **Issue descriptions turn akb document URIs into readable links.** Pasting a
-  bare `akb://.../doc/...` document URI into an issue body now turns it into a
-  markdown link whose text uses the document title when reef can resolve it,
-  while custom link text is preserved. Rendered document links still keep the
-  original akb URI in markdown storage and open through the configured akb web
-  URL. (REEF-395)
-- **Attach files directly to issues.** Issue descriptions and comments now accept
-  pasted or dropped files, storing them in akb and linking them to the issue.
-  Images render inline through reef's authenticated download proxy, while other
-  files appear in a new Attachments section with download links. Jira attachment
-  references can be rewritten to the same akb file URIs during import. (REEF-349)
-- **Jira Rank now has an import mapping policy.** The new Jira migrator package
-  maps distinct SHDEV Jira Rank strings into reef's existing numeric `rank`
-  ordering, preserves the original Jira Rank in provenance, and reports missing
-  or duplicate values as `rank_unmapped` instead of silently dropping them to
-  raw-only output. The Kanban board now uses that issue-wide `rank` as its
-  pristine in-column order while keeping explicit user sorts separate, and
-  generic issue create/update still cannot hand-author rank. (REEF-393, epic
-  REEF-311)
-- **Insert issue attachments from the markdown toolbar.** Editors that support
-  uploads now show a paperclip button in the Insert group, opening a file picker
-  and appending the uploaded attachment markdown through the same path as paste
-  and drop. The control stays hidden for read-only or non-uploading editors, and
-  failed uploads do not leave broken local markdown behind. (REEF-401)
-- **Issue detail now uses a details-first right rail.** The issue detail sheet
-  and new-issue dialog share a wider 400px property rail for Details, People,
-  Planning, Parent, and Relationships, while title, description, Sub-issues,
-  linked documents, references, and activity stay in the main authoring column.
-  Relationship targets now render as compact issue rows instead of id-only
-  chips, and creating an issue shows Parent / Relationships inputs without an
-  editable Sub-issues list before the issue exists. (REEF-375)
-- **Create sub-issues from the parent detail view.** Issue detail now offers
-  **Add sub-issue** from the Relationships section even when the issue has no
-  existing children. The new sub-issue dialog locks the parent, inherits the
-  parent's priority, sprint, milestone, and labels as editable defaults, opens
-  sprint-backed children as Todo instead of hidden backlog work, and supports
-  **Create & add another** so PMs can enter several child issues without
-  reselecting the same context. Newly created children appear in the parent's
-  child list immediately. (REEF-352, epic REEF-334)
-- **Keyboard-first issue scanning.** The Issues list and board now support
-  roving keyboard focus with `j`/`k` or arrow keys, `Enter` opens the focused
-  issue, and single-key field edits (`s`, `a`, `p`, `l`) open the existing
-  status, assignee, priority, and label controls anchored to the focused row or
-  card. A new `g` chord jumps to Issues, My Work, Activity, Reports, or Backlog,
-  while text inputs, editors, search, comments, and IME composition keep
-  shortcuts quiet. The keyboard shortcut dialog lists the new bindings in
-  English and Korean. (REEF-344)
-- **Duplicate hints while drafting issues.** When you type a new issue title or
-  review an AI-generated draft, reef now searches the current workspace for
-  semantically similar issues and shows the top matches as quiet status/id/title
-  rows under the title field. The hints appear after a short debounce, stay
-  advisory only, can be dismissed as a group for the current session, and never
-  block creating or approving the draft. Failed searches stay quiet so issue
-  creation is not interrupted. (REEF-353, epic REEF-334)
-- **A consistent loading line across search.** Every search that fetches from the
-  server — ⌘K quick search, the issue list and backlog, and the Assignee /
-  Requester and document-link pickers — now shows the same thin teal progress line
-  along the input's edge while results load, instead of a different indicator (or
-  none) per surface. The one-off spinner in the document-link picker is replaced by
-  this shared line. Instant, in-place dropdown filters intentionally stay quiet,
-  and the AI chat keeps its own purple streaming style. Under reduced motion the
-  line holds still instead of sweeping, and screen-reader "Searching…"
-  announcements are unchanged. (REEF-369)
-- **Ask AI shows its work.** When the assistant searches your issues or documents
-  to answer, the chat now shows each step as it happens ("Searching issues…" →
-  "Searched issues · 3 results"), collapsed into a foldable trace you can expand to
-  see which tool ran and what it looked for — so you can tell a grounded answer
-  from a guess. Issue ids in the answer (like REEF-142) become links to the issue
-  when it's one you have loaded, and documents the assistant cited show up as
-  "Sources" cards you can open or copy. Streaming, stop, ⌘⇧A, and Esc work exactly
-  as before. (REEF-361, epic REEF-337)
-- **Ask AI now knows your workspace and the issue you're looking at.** The Ask AI
-  chat is grounded in the current project state: it sees a summary of your
-  workspace (the active sprint and how many issues are open, by status) and — when
-  you have an issue open — that issue's fields and description. A new **Ask AI
-  about this issue** item in the issue detail actions menu (⋮) opens the chat
-  focused on that issue, shown as a removable chip above the message box; clear the
-  chip to ask a general question instead. Answers to "what's next on this issue?"
-  now refer to the issue's real status, assignee, and body rather than guessing.
-  Credentials and internal identifiers are never included in what the assistant
-  sees or in logs. (REEF-360, epic REEF-337)
-- **Copy a link to an issue.** The issue detail actions menu (⋮) now has a **Copy
-  link** item at the top that puts a shareable link to the issue on your
-  clipboard, so you can paste it into Slack, a doc, or an email. The copied link
-  always points straight at the issue — even when you opened it from the board or
-  list — and opens the issue directly for anyone who follows it (REEF-328, epic
-  REEF-002).
-- **Link Jira issues and Confluence pages to an issue.** The "External
-  references" picker now offers **Jira** and **Confluence** alongside GitHub,
-  Linear, Slack, and generic links, so you can attach a Jira issue key or a
-  Confluence page URL directly while creating or editing an issue. Existing
-  references are unchanged, and the workspace AI playbook is updated to match, so
-  existing workspaces will see an "update available" prompt in Settings ›
-  Workspace. (REEF-329)
+- **Grounded, transparent Ask AI.** Ask AI now uses the current workspace and
+  issue as context, shows tool-call progress, links cited Reef issues, and
+  exposes document sources so answers can be checked against workspace data.
+  (REEF-337, REEF-360, REEF-361)
+- **Issue attachments and richer document links.** Issue descriptions and
+  comments accept uploads from the toolbar, paste, and drag-and-drop. Images
+  render inline, other files remain downloadable, and bare AKB document URIs
+  become readable title links. (REEF-349, REEF-395, REEF-401)
+- **Faster issue creation and triage.** The issue detail and create flows now use
+  a details-first property rail, support creating multiple inherited sub-issues,
+  and show advisory similar-issue matches while drafting. (REEF-352, REEF-353,
+  REEF-375)
+- **Keyboard-first issue navigation.** Lists and boards support roving keyboard
+  focus, direct field-edit shortcuts, view navigation chords, and consistent
+  loading feedback across server-backed searches. (REEF-344, REEF-369)
+- **More ways to share and connect work.** Issues can be copied as direct links,
+  and external references now support Jira and Confluence alongside the existing
+  providers. (REEF-328, REEF-329)
 
 ### Changed
 
-- **Development installs now use pnpm 11.10.0.** The workspace package-manager
-  pin, Docker build image setup, and pnpm build-script approvals now target pnpm
-  11 so local, CI, and container installs share the same package-manager line.
-- **Kanban card keyboard focus no longer clips at column edges.** Board cards
-  now use an inset teal focus chrome with a subtle brand tint, so the focused
-  card keeps matching rounded corners even when it sits at the top of a
-  scrollable column. (REEF-377)
-- **Forward-compatible with akb's newer API error format.** reef now reads
-  akb's structured `{ message, code }` error envelope in addition to the older
-  error shape. This is a compatibility change with no user-visible effect on the
-  current akb version: when the akb backend is upgraded, workspaces that are
-  still being provisioned (before reef's tables exist) keep falling back to their
-  defaults cleanly instead of surfacing an error. No action is required. (REEF-363)
-- **Related-issue rows are lighter to scan.** In the issue detail relationships
-  editor — and the issue pickers and sub-issue lists that share the same row — an
-  issue's type now reads as a subtle icon for every type, like the status and
-  priority markers beside it, instead of switching between a bare Task glyph and
-  labeled chips for Epic, Bug, Story, Spike, or Chore. Related-issue rows spend
-  their width on the id and title while the existing type-specific glyph shape
-  and color still distinguish each type, and screen readers still announce every
-  issue's type. (REEF-373, REEF-376)
+- **Jira import ordering is preserved in Reef.** Trusted migration plans can map
+  Jira Rank into Reef's issue-wide numeric ordering, and the Kanban board uses
+  that ordering when no explicit user sort overrides it. (REEF-393)
+- **AKB compatibility is more tolerant.** Reef accepts both the legacy and newer
+  structured AKB error envelopes when handling not-yet-provisioned workspaces.
+  (REEF-363)
 
 ### Fixed
 
-- **Missing attachment tables provision successfully again.** Reef no longer
-  declares or inserts AKB-managed timestamp columns when creating attachment
-  storage. Existing attachment and Jira-import timestamps keep their public
-  `created_at` meaning through attachment metadata, and every desired table
-  manifest is now checked for reserved AKB columns before provisioning starts.
-  Schema verification also treats AKB's canonical `numeric`/`jsonb` types as
-  equivalent to the accepted `number`/`json` create aliases. (REEF-404)
-- **Planning pages no longer recover from a hydration mismatch on reload.**
-  Restored planning catalog cache now waits until after the first client
-  hydration render before replacing the SSR skeleton, so the planning table no
-  longer remounts from a skeleton/table DOM mismatch.
-- **Issue body links open as links again.** Clicking a rendered link in an issue
-  description now opens the target instead of being swallowed by the markdown
-  editor as a cursor/selection change, and the link mouse-down no longer moves
-  the editor selection before the target opens. Unchanged editor values also
-  avoid a redundant content reset that could move the cursor. (REEF-400)
-- **Planning milestone closed badges now read as closed, not done.** Closed
-  milestones now use the same closed-status color as closed sprints, while
-  released releases keep the done color reserved for shipped work. (REEF-396)
-- **Planning status badges now use planning-specific color tokens.** Sprint,
-  milestone, and release badges no longer borrow issue workflow status tokens:
-  open milestones render in teal, planned sprint/release work stays neutral,
-  active planning work stays amber, closed sprint/milestone work stays gray, and
-  only released releases use shipped green. (REEF-398)
+- **Attachment tables provision reliably.** Reef no longer attempts to create
+  AKB-managed timestamp columns and recognizes AKB's canonical numeric and JSONB
+  type names during schema verification. (REEF-404)
+- **Markdown and AKB links behave consistently.** Rendered issue-body links open
+  without moving the editor selection, and deployed document backlinks resolve
+  the AKB web URL at request time. (REEF-368, REEF-400)
+- **Planning views render stable, accurate state.** Cached planning data no
+  longer causes a hydration mismatch, and sprint, milestone, and release badges
+  use planning-specific status semantics. (REEF-396, REEF-398)
+
+### Migration
+
+- **Update the Reef workspace skill/runbooks to version 16.** The update adds
+  portable issue-body link rules, importer-owned rank guidance, Jira and
+  Confluence external-reference types, and the attachment table contract.
+  Existing workspaces surface the normal skill-update prompt.
+- **Prefer `AKB_WEB_URL` for deployed AKB backlinks.** The URL is now read from
+  server runtime configuration. `NEXT_PUBLIC_AKB_WEB_URL` remains supported for
+  compatibility, so no immediate environment migration or data backfill is
+  required.
 
 ### Operational
 
-- **Jira migration now has a read-only operator package.** reef adds a private
-  `@reef/jira-migrator` workspace package with Jira REST v3 read client
-  scaffolding, SHDEV/SDDEV project config loading, secret redaction helpers,
-  payload normalization fixtures, and tests that keep the one-shot migration
-  runtime outside `reef-web`. Import/write mapping remains in follow-up
-  migration issues. (REEF-317)
-- **The legacy chat endpoint has been removed.** Ask AI streaming now uses only
-  `POST /api/agents/runs` with `task_id: "chat.workspace"`; deployment docs,
-  proxy comments, and web package guidance now describe that route as the SSE
-  buffering contract. (REEF-371)
-- **Background orchestration now has a separate runtime package.** reef adds a
-  private `@reef/orchestrator` workspace package with config loading, a dry-run
-  startup smoke path, an idle loop shell, graceful shutdown handling, and a
-  structural guard that keeps worker polling and long-running orchestration loops
-  out of web Route Handlers. The package does not claim queued work yet; run/event
-  storage and queue claiming remain in the follow-up orchestration issues.
-  (REEF-379)
-
-### Fixed
-
-- **Blocked markers in relationship rows no longer shift issue titles.**
-  Sub-issue and relationship rows now reserve a dedicated blocker-count column,
-  so issue titles, type icons, and priority dots stay aligned whether a row is
-  blocked or not. (REEF-390)
-- **Long issue descriptions no longer shave the editor's focused corner.**
-  The issue description editor now keeps its scrollable body inset from the
-  focus border and reserves a stable scrollbar gutter, so long markdown bodies
-  can scroll without visually clipping the lower-right border. (REEF-378)
-- **The new issue keyboard shortcut no longer conflicts with the browser's new
-  window command.** The shortcut shown in the sidebar and keyboard-shortcuts
-  dialog now uses Cmd+I on macOS and Ctrl+I elsewhere, with a Firefox-safe
-  Cmd+Option+N / Ctrl+Alt+N fallback because Firefox reserves the Issue chord
-  for Page Info. The global handler opens the New Issue dialog only for the
-  advertised chord. (REEF-374)
-- **The "open in akb" link on a linked document now works in deployed
-  environments.** A linked akb document's open action pointed at the akb web app
-  using a build-time value, so in a container image built without the akb web URL
-  the link silently disappeared even though the URL was set in the deployment
-  config. reef now reads the akb web base on the server at request time, so the
-  same image links out correctly from the deployment config alone — no rebuild
-  needed. Operationally: the setting is now the server-side `AKB_WEB_URL`; the
-  older `NEXT_PUBLIC_AKB_WEB_URL` is still honored, so existing deployments keep
-  working and can rename at their convenience. (REEF-368)
+- **Jira migration tooling is now a separate private package.** The read-only
+  operator package covers Jira payload retrieval and redaction, account mapping,
+  Rank mapping, and deterministic Version/Sprint planning contracts. It does not
+  yet perform the final issue import. (REEF-311, REEF-317, REEF-391, REEF-402)
+- **Background orchestration has a separate runtime package.** The new private
+  package provides configuration, dry-run startup checks, an idle loop,
+  graceful shutdown, and a boundary that keeps long-running workers out of the
+  web process. (REEF-379)
+- **Breaking: the legacy `/api/chat` endpoint has been removed.** Ask AI
+  streaming now uses `POST /api/agents/runs` with
+  `task_id: "chat.workspace"`; proxies must keep SSE buffering disabled.
+  (REEF-371)
+- **Development and container installs use pnpm 11.10.0.**
+- **No Docker Hub image is published for v0.7.0.** This cut is distributed by
+  source and Git tag; local image build verification remains part of the release
+  gate.
 
 ## v0.6.1 - 2026-07-02
 
