@@ -21,7 +21,10 @@ describe("pm-model data-model manifest (REEF-252)", () => {
 
   it("documents reef_comments columns including the meta shape", () => {
     expect(content).toContain("## reef_comments columns");
-    expect(content).toContain("{author, created_at, edited_at}");
+    expect(content).toContain(
+      "{author, created_at, edited_at, parent_comment_id, thread_root_id}",
+    );
+    expect(content).toContain("reply-to-reply keeps the direct parent");
   });
 
   it("documents reef_activity columns including event_type and the meta shape", () => {

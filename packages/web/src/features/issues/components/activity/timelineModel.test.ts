@@ -14,6 +14,7 @@ import {
   buildEntries,
   buildTimeline,
   collapseRuns,
+  groupCommentThreads,
   reconstructEvents,
 } from "./timelineModel";
 
@@ -399,6 +400,7 @@ describe("collapseRuns (AC3)", () => {
         type: "comment",
         at: "2026-06-03T00:00:00.000Z",
         comment: comment("c1", "2026-06-03T00:00:00.000Z"),
+        replies: [],
       },
       sys("s2", "2026-06-04T00:00:00.000Z"),
       sys("s3", "2026-06-05T00:00:00.000Z"),
@@ -406,6 +408,63 @@ describe("collapseRuns (AC3)", () => {
     // s1 alone (1) + comment + s2,s3 (2) — none reaches the threshold.
     expect(entries.every((e) => e.type !== "collapsed")).toBe(true);
     expect(entries).toHaveLength(4);
+  });
+});
+
+describe("groupCommentThreads — reply normalization (REEF-065)", () => {
+  const rootId = "11111111-1111-4111-8111-111111111111";
+  const replyId = "22222222-2222-4222-8222-222222222222";
+  const nestedId = "33333333-3333-4333-8333-333333333333";
+
+  it("groups reply-to-reply at one root and sorts replies by time then id", () => {
+    const root = comment(rootId, "2026-06-02T00:00:00.000Z");
+    const nested = {
+      ...comment(nestedId, "2026-06-03T00:00:00.000Z"),
+      parent_comment_id: replyId,
+      thread_root_id: rootId,
+    };
+    const reply = {
+      ...comment(replyId, "2026-06-03T00:00:00.000Z"),
+      parent_comment_id: rootId,
+      thread_root_id: rootId,
+    };
+
+    expect(groupCommentThreads([nested, root, reply])).toEqual([
+      { root, replies: [reply, nested] },
+    ]);
+  });
+
+  it("skips missing roots and broken parent chains instead of flattening them", () => {
+    const root = comment(rootId, "2026-06-02T00:00:00.000Z");
+    const malformed = {
+      ...comment(replyId, "2026-06-03T00:00:00.000Z"),
+      parent_comment_id: "44444444-4444-4444-8444-444444444444",
+      thread_root_id: rootId,
+    };
+    expect(groupCommentThreads([root, malformed])).toEqual([
+      { root, replies: [] },
+    ]);
+  });
+
+  it("uses the root timestamp as the thread's global timeline position", () => {
+    const root = comment(rootId, "2026-06-02T00:00:00.000Z");
+    const reply = {
+      ...comment(replyId, "2026-06-10T00:00:00.000Z"),
+      parent_comment_id: rootId,
+      thread_root_id: rootId,
+    };
+    const event = activity(
+      "between",
+      "2026-06-05T00:00:00.000Z",
+      "todo",
+      "in_progress",
+    );
+    const entries = buildEntries([reply, root], [event], makeIssue());
+    expect(
+      entries.map((entry) =>
+        entry.type === "comment" ? entry.comment.id : entry.event.id,
+      ),
+    ).toEqual(["created", rootId, "between"]);
   });
 });
 

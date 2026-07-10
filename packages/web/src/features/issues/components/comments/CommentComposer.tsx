@@ -23,6 +23,8 @@ interface CommentComposerProps {
   /** Resolve to clear the field; reject to keep the typed text for a retry. */
   onSubmit: (body: string) => Promise<void>;
   onUploadFiles?: (files: File[]) => Promise<AttachmentMarkdownUploadResult[]>;
+  replyToAuthor?: string;
+  onCancel?: () => void;
 }
 
 /**
@@ -36,19 +38,25 @@ export function CommentComposer({
   pending,
   onSubmit,
   onUploadFiles,
+  replyToAuthor,
+  onCancel,
 }: CommentComposerProps) {
   const [value, setValue] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState(false);
+  const [submitError, setSubmitError] = useState(false);
   const trimmed = value.trim();
   const t = useTranslations("issues.comments");
+  const c = useTranslations("common");
 
   async function submit() {
     if (!trimmed || pending) return;
     try {
       await onSubmit(trimmed);
       setValue("");
+      setSubmitError(false);
     } catch {
+      setSubmitError(true);
       // Keep the typed text so the author can retry; the error is surfaced as a
       // toast by the parent.
     }
@@ -108,6 +116,28 @@ export function CommentComposer({
         className="mt-1 shrink-0"
       />
       <div className="flex min-w-0 flex-1 flex-col rounded-md border border-border bg-elevated transition-colors focus-within:border-brand focus-within:ring-2 focus-within:ring-inset focus-within:ring-brand/30">
+        {replyToAuthor ? (
+          <div className="flex min-w-0 items-center justify-between gap-2 border-b border-border-subtle px-3 py-1.5">
+            <span className="min-w-0 truncate text-[11px] font-medium text-muted-foreground">
+              {t.rich("replyingTo", {
+                author: replyToAuthor,
+                target: (chunks) => <span translate="no">{chunks}</span>,
+              })}
+            </span>
+            {onCancel ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 shrink-0 px-2 text-xs"
+                onClick={onCancel}
+                disabled={pending}
+              >
+                {c("cancel")}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
         <textarea
           value={value}
           onChange={(event) => setValue(event.target.value)}
@@ -118,9 +148,15 @@ export function CommentComposer({
             if (onUploadFiles && !pending) event.preventDefault();
           }}
           rows={2}
+          name={replyToAuthor ? "comment-reply" : "comment"}
+          autoComplete="off"
           disabled={pending || uploading}
-          aria-label={t("addLabel")}
-          placeholder={t("placeholder")}
+          aria-label={
+            replyToAuthor
+              ? t("replyLabel", { author: replyToAuthor })
+              : t("addLabel")
+          }
+          placeholder={replyToAuthor ? t("replyPlaceholder") : t("placeholder")}
           className="max-h-60 w-full resize-none bg-transparent px-3 py-2 text-[13px] text-foreground outline-none [field-sizing:content] placeholder:text-muted-foreground disabled:opacity-50"
         />
         {(uploading || uploadError) && (
@@ -131,6 +167,11 @@ export function CommentComposer({
             {uploadError ? t("uploadError") : t("uploading")}
           </div>
         )}
+        {submitError ? (
+          <div className="px-3 pb-1 text-[11px] text-destructive" role="alert">
+            {t("submitError")}
+          </div>
+        ) : null}
         <div className="flex items-center justify-end gap-2 px-2 pb-2">
           <span
             className="text-[11px] text-muted-foreground"
@@ -149,7 +190,7 @@ export function CommentComposer({
             ) : (
               <CornerDownLeftIcon className="size-3.5" aria-hidden="true" />
             )}
-            {t("submit")}
+            {replyToAuthor ? t("submitReply") : t("submit")}
           </Button>
         </div>
       </div>

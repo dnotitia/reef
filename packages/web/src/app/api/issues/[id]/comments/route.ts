@@ -13,6 +13,7 @@ import { runRouteSpan } from "@/lib/api/routeTracing";
 import { logger } from "@/lib/logging/logger";
 import {
   CommentCreateInputSchema,
+  NotFoundError,
   akbCreateComment as createComment,
   akbListComments as listComments,
 } from "@reef/core";
@@ -83,11 +84,25 @@ export async function POST(
     const comment = await runRouteSpan({
       name: "route.create_comment",
       attributes: { vault, issue_id: id },
-      run: () => createComment(adapter, vault, id, parsed.data.body, actor),
+      run: () =>
+        createComment(
+          adapter,
+          vault,
+          id,
+          parsed.data.body,
+          actor,
+          parsed.data.parent_comment_id,
+        ),
     });
     return Response.json({ comment }, { status: 201 });
   } catch (err) {
     logger.error({ err, vault, id }, "create_comment failed");
-    return respondWithError(err, { resourceKind: "issue" });
+    return respondWithError(err, {
+      resourceKind:
+        err instanceof NotFoundError &&
+        err.context.resourceKind === "commentParent"
+          ? "commentParent"
+          : "issue",
+    });
   }
 }

@@ -612,6 +612,12 @@
     },
     "comments": {
       "editComment": "Edit comment",
+      "reply": "Reply",
+      "replyingTo": "Replying to <target>{author}</target>",
+      "replyLabel": "Reply to {author}",
+      "replyPlaceholder": "Write a reply…",
+      "submitReply": "Reply",
+      "submitError": "Couldn't post this comment. Your draft is still here.",
       "draftLabel": "Comment draft",
       "edited": "edited",
       "addLabel": "Add a comment",

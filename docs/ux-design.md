@@ -505,6 +505,13 @@ sub-issue rows use the same compact issue-row rhythm as the rest of the detail
 panel; their issue-type mark is glyph-only in the visual row, with the localized
 type name kept for screen readers.
 
+Comments in that timeline are threaded without deep visual nesting. A top-level
+comment anchors one timeline position; replies stay beneath it behind a single
+hairline, including replies to replies. Reply controls open one inline composer
+at a time, name the direct parent author, preserve the draft with an inline
+error on failure, and close on cancel or success. The root timestamp determines
+the thread's position among system events, while replies sort within the thread.
+
 ### Activity Hub
 
 `/activity` is the PM's review queue for everything the agent detected. A

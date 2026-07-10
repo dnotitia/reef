@@ -40,7 +40,7 @@ reef_comments stores an issue's discussion thread, one row per comment. Columns:
 
 - reef_id: the issue the comment belongs to.
 - body: the comment's markdown text.
-- meta (json): {author, created_at, edited_at}. author is the reef-semantic actor (akb username) who wrote the comment; created_at is the ISO-8601 write time and the thread's sort key; edited_at is the ISO-8601 of the last body edit, or null when never edited. As with reef_issues, the author and timestamps live in meta -- NOT in akb's auto created_by/created_at columns.
+- meta (json): {author, created_at, edited_at, parent_comment_id, thread_root_id}. author is the reef-semantic actor (akb username) who wrote the comment; created_at is the ISO-8601 write time and sort key; edited_at is the ISO-8601 of the last body edit, or null when never edited. A top-level comment stores null/null for the two thread ids. A reply stores its clicked direct parent uuid plus the verified top-level root uuid; reply-to-reply keeps the direct parent but stays under the same root. Both fields absent is the legacy top-level shape, while only one field or a missing/cross-issue/malformed chain is invalid and is skipped, never flattened. As with reef_issues, the author and timestamps live in meta -- NOT in akb's auto created_by/created_at columns.
 
 AKB manages id (the comment's uuid), created_at, updated_at, and created_by automatically; never set them. See comments-and-activity.md for the read, write, and edit procedures.
 

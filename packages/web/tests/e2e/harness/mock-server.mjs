@@ -1213,6 +1213,102 @@ function handleSql(vault, sql) {
     return tableQuery(commentColumns(), rows);
   }
   if (lower.includes("insert into reef_comments")) {
+    if (lower.includes("target_issue as")) {
+      const values = sqlValues(normalized);
+      const reefId = values[0] ?? null;
+      if (!reefId || !vault.issues.some((issue) => issue.reef_id === reefId)) {
+        return tableQuery(commentColumns(), []);
+      }
+      const parentId = matchSqlString(
+        normalized,
+        /direct_parent\s+as\s*\(select \* from reef_comments where id\s*=\s*'((?:''|[^'])+)'/i,
+      );
+      let body;
+      let meta;
+      if (parentId) {
+        const parent = vault.comments.find(
+          (comment) => comment.id === parentId && comment.reef_id === reefId,
+        );
+        const rootId = parent?.meta?.thread_root_id ?? parent?.id ?? null;
+        const root = vault.comments.find(
+          (comment) =>
+            comment.id === rootId &&
+            comment.reef_id === reefId &&
+            comment.meta?.parent_comment_id == null &&
+            comment.meta?.thread_root_id == null,
+        );
+        let cursor = parent;
+        let validParent = !!parent && !!root;
+        const seen = new Set();
+        while (validParent && cursor) {
+          if (seen.has(cursor.id) || seen.size >= 100) {
+            validParent = false;
+            break;
+          }
+          seen.add(cursor.id);
+          if (cursor.id === root.id) {
+            validParent =
+              cursor.meta?.parent_comment_id == null &&
+              cursor.meta?.thread_root_id == null;
+            break;
+          }
+          if (
+            cursor.meta?.parent_comment_id == null ||
+            cursor.meta?.thread_root_id !== root.id
+          ) {
+            validParent = false;
+            break;
+          }
+          cursor = vault.comments.find(
+            (comment) =>
+              comment.id === cursor.meta.parent_comment_id &&
+              comment.reef_id === reefId,
+          );
+          if (!cursor) validParent = false;
+        }
+        if (!validParent) return tableQuery(commentColumns(), []);
+        body = matchSqlString(
+          normalized,
+          /select target_issue\.reef_id,\s*'((?:''|[^'])*)',\s*jsonb_build_object/i,
+        );
+        const author = matchSqlString(
+          normalized,
+          /'author',\s*'((?:''|[^'])*)'/i,
+        );
+        const createdAt = matchSqlString(
+          normalized,
+          /'created_at',\s*'((?:''|[^'])*)'/i,
+        );
+        meta = {
+          author,
+          created_at: createdAt,
+          edited_at: null,
+          parent_comment_id: parent.id,
+          thread_root_id: root.id,
+        };
+      } else {
+        body = values[2] ?? null;
+        try {
+          meta = JSON.parse(values[3] ?? "null");
+        } catch {
+          meta = null;
+        }
+      }
+      if (typeof body !== "string" || !meta) {
+        return tableQuery(commentColumns(), []);
+      }
+      const row = {
+        id: uuidFor(2000 + (vault.comments?.length ?? 0)),
+        reef_id: reefId,
+        body,
+        meta,
+        created_at: NOW,
+        updated_at: NOW,
+        created_by: meta.author ?? "alice",
+      };
+      vault.comments.push(row);
+      return tableQuery(commentColumns(), [row]);
+    }
     const insert = parseInsert(normalized);
     if (!insert) return tableQuery([], []);
     const row = objectFromColumns(insert.columns, insert.values);

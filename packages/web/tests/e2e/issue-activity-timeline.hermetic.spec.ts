@@ -92,4 +92,90 @@ test.describe("Hermetic issue activity timeline (REEF-277)", () => {
         .filter({ hasText: "Initial issue Alpha v2" }),
     ).toBeVisible();
   });
+
+  test("persists root → reply → reply-to-reply as one-depth threads", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues/REEF-001");
+    await expect(page.getByLabel("Add a comment")).toBeVisible();
+
+    await page.getByLabel("Add a comment").fill("REEF-065 root comment");
+    await page.getByRole("button", { name: "Comment", exact: true }).click();
+    const thread = page
+      .getByTestId("comment-thread")
+      .filter({ hasText: "REEF-065 root comment" });
+    await expect(thread).toBeVisible();
+
+    await thread
+      .getByRole("button", { name: "Reply", exact: true })
+      .first()
+      .click();
+    await thread.getByLabel("Reply to alice").fill("REEF-065 first reply");
+    await thread
+      .getByLabel("Reply to alice")
+      .locator("..")
+      .getByRole("button", { name: "Reply", exact: true })
+      .click();
+    const firstReply = thread
+      .getByTestId("comment-reply")
+      .filter({ hasText: "REEF-065 first reply" });
+    await expect(firstReply).toBeVisible();
+
+    await firstReply
+      .getByRole("button", { name: "Reply", exact: true })
+      .click();
+    await thread.getByLabel("Reply to alice").fill("REEF-065 second reply");
+    await thread
+      .getByLabel("Reply to alice")
+      .locator("..")
+      .getByRole("button", { name: "Reply", exact: true })
+      .click();
+    await expect(
+      thread
+        .getByTestId("comment-reply")
+        .filter({ hasText: "REEF-065 second reply" }),
+    ).toBeVisible();
+    await expect(thread.getByTestId("comment-reply")).toHaveCount(2);
+
+    await page.reload();
+    const persistedThread = page
+      .getByTestId("comment-thread")
+      .filter({ hasText: "REEF-065 root comment" });
+    await expect(persistedThread.getByTestId("comment-reply")).toHaveCount(2);
+    await expect(page.getByText(/Kicking this off/)).toBeVisible();
+    await expect(page.getByTestId("activity-event").first()).toBeVisible();
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(persistedThread).toBeVisible();
+    const shareOneDepth = await persistedThread
+      .getByTestId("comment-reply")
+      .evaluateAll(
+        (rows) =>
+          rows.length === 2 &&
+          rows[0]?.parentElement === rows[1]?.parentElement,
+      );
+    expect(shareOneDepth).toBe(true);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+
+    const crossIssueStatus = await page.evaluate(async () => {
+      const response = await fetch(
+        "/api/issues/REEF-002/comments?vault=reef-e2e",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            body: "must not cross issues",
+            parent_comment_id: "00000000-0000-4000-8000-000000000040",
+          }),
+        },
+      );
+      return response.status;
+    });
+    expect(crossIssueStatus).toBe(404);
+  });
 });

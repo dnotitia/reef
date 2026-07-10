@@ -15,11 +15,24 @@ import { IsoDateFieldSchema } from "../common/date";
  *   created_at — ISO-8601 write time; the thread's displayed + sort time.
  *   edited_at  — ISO-8601 of the last body edit, or null when not edited.
  */
-export const CommentMetaSchema = z.object({
-  author: z.string().min(1, "comment author is required"),
-  created_at: IsoDateFieldSchema,
-  edited_at: IsoDateFieldSchema.nullable().default(null),
-});
+export const CommentMetaSchema = z
+  .object({
+    author: z.string().min(1, "comment author is required"),
+    created_at: IsoDateFieldSchema,
+    edited_at: IsoDateFieldSchema.nullable().default(null),
+    parent_comment_id: z.string().uuid().nullable().default(null),
+    thread_root_id: z.string().uuid().nullable().default(null),
+  })
+  .superRefine((meta, ctx) => {
+    if ((meta.parent_comment_id === null) !== (meta.thread_root_id === null)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["parent_comment_id"],
+        message:
+          "comment parent and thread root must both be set or both be null",
+      });
+    }
+  });
 
 /**
  * CommentSchema — a flat issue comment as it crosses the core boundary into
@@ -35,6 +48,8 @@ export const CommentSchema = z.object({
   author: z.string().min(1, "comment author is required"),
   created_at: IsoDateFieldSchema,
   edited_at: IsoDateFieldSchema.nullable().default(null),
+  parent_comment_id: z.string().uuid().nullable().optional(),
+  thread_root_id: z.string().uuid().nullable().optional(),
 });
 export type Comment = z.infer<typeof CommentSchema>;
 
@@ -55,6 +70,7 @@ const CommentBodySchema = z
  */
 export const CommentCreateInputSchema = z.object({
   body: CommentBodySchema,
+  parent_comment_id: z.string().uuid().optional(),
 });
 
 /** Edit payload (web → core): the replacement body. */

@@ -61,13 +61,17 @@ describe("useCreateComment", () => {
         issueId: "REEF-001",
         vault: "reef-acme",
         body: "new one",
+        parentCommentId: EXISTING.id,
       });
     });
 
     const [url, init] = mockApiFetch.mock.calls[0] ?? [];
     expect(url).toBe("/api/issues/REEF-001/comments?vault=reef-acme");
     expect(init?.method).toBe("POST");
-    expect(JSON.parse(init?.body as string)).toEqual({ body: "new one" });
+    expect(JSON.parse(init?.body as string)).toEqual({
+      body: "new one",
+      parent_comment_id: EXISTING.id,
+    });
     expect(
       queryClient.getQueryData(commentsKey("reef-acme", "REEF-001")),
     ).toEqual([EXISTING, CREATED]);

@@ -58,6 +58,8 @@ export const ERROR_MESSAGES_EN = {
     template: "Template not found.",
     config: "Workspace not found. Check the selected vault.",
     workspace: "Workspace not found. Check the selected vault.",
+    commentParent:
+      "The comment you are replying to could not be found in this issue.",
   },
   schema: {
     invalid: "Invalid data: {field} could not be validated.",
@@ -128,7 +130,12 @@ function resolveEnMessage(
  * akb adapters set, which is LOG and is not interpolated into user copy when a
  * `resourceKind` is present.
  */
-export type AkbResourceLabel = "issue" | "template" | "config" | "workspace";
+export type AkbResourceLabel =
+  | "issue"
+  | "template"
+  | "config"
+  | "workspace"
+  | "commentParent";
 
 // ─── Error descriptor ──────────────────────────────────────────────────────────
 

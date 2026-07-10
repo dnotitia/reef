@@ -209,7 +209,10 @@ export type TimelineSystemEvent =
 export interface CommentEntry {
   type: "comment";
   at: string;
+  /** The top-level comment anchoring this thread. */
   comment: Comment;
+  /** Every valid descendant at one visual depth, ordered by time then id. */
+  replies: Comment[];
 }
 
 export interface SystemEntry {
@@ -473,6 +476,70 @@ function entryId(entry: CommentEntry | SystemEntry): string {
   return entry.type === "comment" ? entry.comment.id : entry.event.id;
 }
 
+function compareComments(a: Comment, b: Comment): number {
+  const time =
+    (Date.parse(a.created_at) || 0) - (Date.parse(b.created_at) || 0);
+  if (time !== 0) return time;
+  return a.id.localeCompare(b.id);
+}
+
+/**
+ * Validate comment relationships and group every reply beneath its verified
+ * top-level root. A malformed or incomplete chain is skipped rather than
+ * silently promoted into a new top-level conversation.
+ */
+export function groupCommentThreads(
+  comments: readonly Comment[],
+): Array<{ root: Comment; replies: Comment[] }> {
+  const byId = new Map(comments.map((comment) => [comment.id, comment]));
+  const validity = new Map<string, boolean>();
+  const visiting = new Set<string>();
+  const isValid = (comment: Comment): boolean => {
+    const cached = validity.get(comment.id);
+    if (cached !== undefined) return cached;
+    if (visiting.has(comment.id)) return false;
+    visiting.add(comment.id);
+    const parentId = comment.parent_comment_id ?? null;
+    const rootId = comment.thread_root_id ?? null;
+    let valid = parentId === null && rootId === null;
+    if (parentId !== null && rootId !== null) {
+      const parent = byId.get(parentId);
+      const root = byId.get(rootId);
+      valid =
+        !!parent &&
+        !!root &&
+        parent.id !== comment.id &&
+        parent.reef_id === comment.reef_id &&
+        root.reef_id === comment.reef_id &&
+        (root.parent_comment_id ?? null) === null &&
+        (root.thread_root_id ?? null) === null &&
+        ((parent.parent_comment_id ?? null) === null
+          ? parent.id === root.id
+          : parent.thread_root_id === root.id && isValid(parent));
+    }
+    visiting.delete(comment.id);
+    validity.set(comment.id, valid);
+    return valid;
+  };
+
+  const threads = new Map<string, { root: Comment; replies: Comment[] }>();
+  for (const comment of comments) {
+    if (!isValid(comment)) continue;
+    const rootId = comment.thread_root_id ?? comment.id;
+    if (rootId === comment.id) {
+      threads.set(rootId, { root: comment, replies: [] });
+    }
+  }
+  for (const comment of comments) {
+    if (!isValid(comment) || !comment.thread_root_id) continue;
+    threads.get(comment.thread_root_id)?.replies.push(comment);
+  }
+  for (const thread of threads.values()) {
+    thread.replies.sort(compareComments);
+  }
+  return [...threads.values()].sort((a, b) => compareComments(a.root, b.root));
+}
+
 /**
  * Merge comments + activity + reconstructed events into one ascending feed
  * (oldest first, AC1). Ties break by kind rank then id so the order is total
@@ -490,8 +557,13 @@ export function buildEntries(
   // renders once, with its reason, instead of as a generic "→ Closed" row.
   const supersededCloseAt = closedReconstructionAt(issue);
 
-  for (const comment of comments) {
-    entries.push({ type: "comment", at: comment.created_at, comment });
+  for (const thread of groupCommentThreads(comments)) {
+    entries.push({
+      type: "comment",
+      at: thread.root.created_at,
+      comment: thread.root,
+      replies: thread.replies,
+    });
   }
   // De-dupe activity by event_key, keeping the first server-ordered row. The
   // append path is idempotent on event_key but akb's HTTP surface has no unique
@@ -535,7 +607,7 @@ export function buildEntries(
     if (ta !== tb) return ta - tb;
     const rank = entryRank(a) - entryRank(b);
     if (rank !== 0) return rank;
-    return entryId(a) < entryId(b) ? -1 : 1;
+    return entryId(a).localeCompare(entryId(b));
   });
 }
 

@@ -7,6 +7,7 @@ interface CreateCommentInput {
   issueId: string;
   vault: string;
   body: string;
+  parentCommentId?: string;
 }
 
 /**
@@ -20,7 +21,7 @@ export function useCreateComment() {
   const queryClient = useQueryClient();
 
   return useMutation<Comment, Error, CreateCommentInput>({
-    mutationFn: async ({ issueId, vault, body }) => {
+    mutationFn: async ({ issueId, vault, body, parentCommentId }) => {
       const res = await apiFetch(
         `/api/issues/${encodeURIComponent(issueId)}/comments?vault=${encodeURIComponent(
           vault,
@@ -28,7 +29,10 @@ export function useCreateComment() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ body }),
+          body: JSON.stringify({
+            body,
+            ...(parentCommentId ? { parent_comment_id: parentCommentId } : {}),
+          }),
         },
       );
       if (!res.ok) {

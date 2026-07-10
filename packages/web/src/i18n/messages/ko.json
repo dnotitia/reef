@@ -267,7 +267,8 @@
       "issue": "이슈를 찾을 수 없습니다.",
       "template": "템플릿을 찾을 수 없습니다.",
       "config": "워크스페이스를 찾을 수 없습니다. 선택한 워크스페이스가 올바른지 확인해 주세요.",
-      "workspace": "워크스페이스를 찾을 수 없습니다. 선택한 워크스페이스가 올바른지 확인해 주세요."
+      "workspace": "워크스페이스를 찾을 수 없습니다. 선택한 워크스페이스가 올바른지 확인해 주세요.",
+      "commentParent": "이 이슈에서 답글을 달 댓글을 찾을 수 없습니다."
     },
     "schema": {
       "invalid": "잘못된 데이터입니다: {field}을(를) 검증할 수 없습니다.",
@@ -795,6 +796,12 @@
     },
     "comments": {
       "editComment": "댓글 수정",
+      "reply": "답글",
+      "replyingTo": "<target>{author}</target>님에게 답글",
+      "replyLabel": "{author}님에게 답글 작성",
+      "replyPlaceholder": "답글을 입력하세요…",
+      "submitReply": "답글 작성",
+      "submitError": "댓글을 작성하지 못했습니다. 초안은 그대로 남아 있습니다.",
       "draftLabel": "댓글 초안",
       "edited": "수정됨",
       "addLabel": "댓글 추가",
