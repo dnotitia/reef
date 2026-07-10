@@ -1,5 +1,6 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -65,6 +66,13 @@ import { IssueBulkActionBar } from "./IssueBulkActionBar";
 describe("IssueBulkActionBar", () => {
   beforeEach(() => {
     runner.reset.mockClear();
+    runner.run.mockReset();
+    runner.run.mockResolvedValue({
+      failures: [],
+      succeeded: ["REEF-101"],
+      total: 1,
+      unchanged: [],
+    });
     useIssueSelectionStore.getState().clear();
     useIssueSelectionStore.getState().toggle("REEF-101");
   });
@@ -84,5 +92,23 @@ describe("IssueBulkActionBar", () => {
     expect(screen.getByTestId("bulk-remove-labels")).toBeVisible();
     expect(screen.getByTestId("bulk-actions")).toHaveClass("flex-wrap");
     expect(screen.queryByTestId("bulk-more")).toBeNull();
+  });
+
+  it("applies the current label draft without requiring Enter", async () => {
+    const user = userEvent.setup();
+    render(
+      <IntlTestProvider>
+        <IssueBulkActionBar vault="reef-acme" />
+      </IntlTestProvider>,
+    );
+
+    await user.click(screen.getByTestId("bulk-add-labels"));
+    await user.type(screen.getByTestId("bulk-add-labels-input"), "frontend");
+    await user.click(screen.getAllByRole("button", { name: "Add labels" })[1]);
+
+    expect(runner.run).toHaveBeenCalledWith(["REEF-101"], {
+      kind: "labels:add",
+      value: ["frontend"],
+    });
   });
 });

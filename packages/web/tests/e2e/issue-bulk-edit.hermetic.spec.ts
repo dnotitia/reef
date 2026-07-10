@@ -127,6 +127,23 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
     await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
   });
 
+  test("applies the typed label draft without requiring Enter", async ({
+    page,
+    request,
+  }) => {
+    await openList(page);
+    await selectRow(page, "REEF-101");
+    await page.getByTestId("bulk-add-labels").click();
+    await page.getByTestId("bulk-add-labels-input").fill("frontend");
+    await page.getByRole("button", { name: "Add labels" }).last().click();
+    await expect(page.getByTestId("issue-bulk-action-bar")).toHaveCount(0);
+
+    const vault = reefVault(await readFixtureState(request));
+    expect(
+      vault.issues.find((issue) => issue.id === "REEF-101")?.labels,
+    ).toContain("frontend");
+  });
+
   test("preserves successes on a middle failure and retries only the failed item", async ({
     page,
     request,

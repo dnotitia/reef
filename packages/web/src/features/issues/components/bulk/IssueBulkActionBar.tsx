@@ -58,10 +58,29 @@ function LabelBulkAction({
 }: LabelBulkActionProps) {
   const [open, setOpen] = useState(false);
   const [labels, setLabels] = useState<string[]>([]);
+  const [draft, setDraft] = useState("");
 
   function setPopoverOpen(next: boolean) {
     setOpen(next);
-    if (!next) setLabels([]);
+    if (!next) {
+      setLabels([]);
+      setDraft("");
+    }
+  }
+
+  function applyLabels() {
+    const next: string[] = [];
+    const seen = new Set<string>();
+    for (const raw of [...labels, draft]) {
+      const trimmed = raw.trim();
+      const key = trimmed.toLowerCase();
+      if (!trimmed || seen.has(key)) continue;
+      seen.add(key);
+      next.push(trimmed);
+    }
+    if (next.length === 0) return;
+    onApply(next);
+    setPopoverOpen(false);
   }
 
   return (
@@ -82,6 +101,7 @@ function LabelBulkAction({
         <LabelChipInput
           value={labels}
           onChange={setLabels}
+          onDraftChange={setDraft}
           autoFocus
           data-testid={`${testId}-input`}
         />
@@ -89,11 +109,8 @@ function LabelBulkAction({
           type="button"
           size="sm"
           className="w-full"
-          disabled={labels.length === 0 || disabled}
-          onClick={() => {
-            onApply(labels);
-            setPopoverOpen(false);
-          }}
+          disabled={(labels.length === 0 && !draft.trim()) || disabled}
+          onClick={applyLabels}
         >
           {label}
         </Button>
