@@ -13,22 +13,34 @@ const {
   mockStreamText,
   mockModelInstance,
   mockOpenAiProvider,
+  mockWrapLanguageModel,
 } = vi.hoisted(() => {
   const mockModelInstance = { type: "stub-language-model" };
-  const mockOpenAiProvider = vi.fn(() => mockModelInstance);
+  const mockOpenAiProvider = Object.assign(
+    vi.fn(() => mockModelInstance),
+    {
+      chat: vi.fn(() => mockModelInstance),
+    },
+  );
   const mockGenerateText = vi.fn();
   const mockStreamText = vi.fn();
+  const mockWrapLanguageModel = vi.fn(({ model }) => ({
+    type: "managed-language-model",
+    wrapped: model,
+  }));
   return {
     mockGenerateText,
     mockStreamText,
     mockModelInstance,
     mockOpenAiProvider,
+    mockWrapLanguageModel,
   };
 });
 
 vi.mock("ai", () => ({
   generateText: mockGenerateText,
   streamText: mockStreamText,
+  wrapLanguageModel: mockWrapLanguageModel,
 }));
 
 vi.mock("@ai-sdk/openai", () => ({
@@ -45,6 +57,14 @@ function makeParams() {
   };
 }
 
+function makeManagedParams() {
+  return {
+    ...makeParams(),
+    baseUrl: "https://gateway.example.test/v1",
+    governanceMode: "platform_hard" as const,
+  };
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("createLlmAdapter", () => {
@@ -53,9 +73,42 @@ describe("createLlmAdapter", () => {
     expect(adapter).toHaveProperty("model");
     expect(adapter).toHaveProperty("streamText");
     expect(adapter).toHaveProperty("generateText");
+    expect(adapter).toHaveProperty("maxRetries");
     expect(typeof adapter.model).toBe("function");
     expect(typeof adapter.streamText).toBe("function");
     expect(typeof adapter.generateText).toBe("function");
+  });
+
+  it("wraps hard models with a fresh caller UUID per model step and disables outer retries", async () => {
+    mockWrapLanguageModel.mockClear();
+    const adapter = createLlmAdapter(makeManagedParams());
+
+    const model = adapter.model();
+
+    expect(adapter.maxRetries).toBe(0);
+    expect(model).toMatchObject({ type: "managed-language-model" });
+    const middleware = mockWrapLanguageModel.mock.calls[0]?.[0].middleware as {
+      transformParams: (args: {
+        params: { headers?: Record<string, string | undefined> };
+      }) => Promise<{ headers?: Record<string, string | undefined> }>;
+    };
+    const first = await middleware.transformParams({
+      params: {
+        headers: {
+          "X-Reef": "preserved",
+          "idempotency-key": "caller-controlled",
+        },
+      },
+    });
+    const second = await middleware.transformParams({ params: {} });
+    const firstId = first.headers?.["Idempotency-Key"];
+    const secondId = second.headers?.["Idempotency-Key"];
+    expect(first.headers?.["X-Reef"]).toBe("preserved");
+    expect(first.headers?.["idempotency-key"]).toBeUndefined();
+    expect(firstId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    expect(secondId).not.toBe(firstId);
   });
 
   it("adapter.model() returns the stub model object", () => {
@@ -92,6 +145,20 @@ describe("createLlmAdapter", () => {
 
       expect(mockGenerateText).toHaveBeenCalledOnce();
       expect(result).toEqual(fakeResult);
+    });
+
+    it("forces maxRetries=0 for hard governed generation", async () => {
+      mockGenerateText.mockResolvedValueOnce({
+        text: "ok",
+        finishReason: "stop",
+      });
+      const adapter = createLlmAdapter(makeManagedParams());
+
+      await adapter.generateText({ model: adapter.model(), prompt: "test" });
+
+      expect(mockGenerateText.mock.calls[0]?.[0]).toMatchObject({
+        maxRetries: 0,
+      });
     });
 
     it("merges experimental_telemetry into the AI SDK call", async () => {
@@ -243,6 +310,20 @@ describe("createLlmAdapter", () => {
 
       expect(mockStreamText).toHaveBeenCalledOnce();
       expect(result).toBe(fakeResult);
+    });
+
+    it("forces maxRetries=0 for hard governed streams", () => {
+      mockStreamText.mockReturnValueOnce({ toDataStreamResponse: vi.fn() });
+      const adapter = createLlmAdapter(makeManagedParams());
+
+      adapter.streamText({
+        model: adapter.model(),
+        messages: [{ role: "user", content: "hi" }],
+      });
+
+      expect(mockStreamText.mock.calls[0]?.[0]).toMatchObject({
+        maxRetries: 0,
+      });
     });
 
     it("merges experimental_telemetry into the AI SDK streamText call", () => {

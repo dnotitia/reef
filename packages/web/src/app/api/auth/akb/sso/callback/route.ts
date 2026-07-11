@@ -15,16 +15,17 @@ import {
   parseCookieHeader,
 } from "@/lib/akb/sessionCookie";
 import { logger } from "@/lib/logging/logger";
-import { AkbApiError, AuthError, akbExchangeKeycloakCode } from "@reef/core";
+import {
+  AkbApiError,
+  AuthError,
+  akbExchangeKeycloakCode,
+  isAkbAccountErrorCode,
+} from "@reef/core";
 
 export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
-  if (!code) {
-    return loginErrorRedirect("missing_code", {
-      clearStartCookie: true,
-    });
-  }
+  const ssoError = url.searchParams.get("sso_error");
 
   const startNonce = parseCookieHeader(request.headers.get("cookie"))[
     SSO_START_COOKIE
@@ -35,6 +36,14 @@ export async function GET(request: Request): Promise<Response> {
   );
   if (!completionPath) {
     return loginErrorRedirect("invalid_sso_state", {
+      clearStartCookie: true,
+    });
+  }
+  if (isAkbAccountErrorCode(ssoError)) {
+    return loginErrorRedirect(ssoError, { clearStartCookie: true });
+  }
+  if (!code) {
+    return loginErrorRedirect("missing_code", {
       clearStartCookie: true,
     });
   }
@@ -75,6 +84,13 @@ export async function GET(request: Request): Promise<Response> {
     headers.append("Set-Cookie", buildClearedSsoStartCookie());
     return new Response(null, { status: 302, headers });
   } catch (err) {
+    if (
+      err instanceof AuthError &&
+      err.context.origin === "akb" &&
+      isAkbAccountErrorCode(err.context.code)
+    ) {
+      return loginErrorRedirect(err.context.code, { clearStartCookie: true });
+    }
     if (err instanceof AuthError || err instanceof AkbApiError) {
       logger.error({ err }, "akb_sso_callback: exchange failed");
       return loginErrorRedirect("exchange_failed", {

@@ -98,6 +98,15 @@ kubectl create secret generic reef-web-secret \
 `OPENROUTER_BASE_URL` and `REEF_LLM_MODEL` are non-secret and live in the
 ConfigMap (defaults are fine for OpenRouter).
 
+This base is the standalone profile. An akb-platform-managed deployment instead
+sets `REEF_LLM_GOVERNANCE_MODE=platform_hard`, injects its component-scoped key
+as `REEF_LLM_API_KEY`, and sets both `REEF_LLM_BASE_URL` and
+`REEF_PLATFORM_GATEWAY_BASE_URL` to the same canonical platform gateway base.
+It must not inject `OPENROUTER_API_KEY` or `OPENROUTER_BASE_URL`. The managed
+readiness gate is `GET /api/ai/managed-platform`: it returns 200 only for a
+complete hard-governed profile and 503 otherwise. `/api/healthz` remains the
+general standalone liveness/readiness endpoint.
+
 ### TLS
 
 The base Ingress requests a certificate via a cert-manager `ClusterIssuer`
@@ -189,6 +198,10 @@ the `reef-web-config` ConfigMap plus the `reef-web-secret` Secret).
 | `OPENROUTER_API_KEY` | yes for AI | OpenRouter API key for reef-web's AI routes. Keep it in a Secret; never inline it in manifests or commit it. |
 | `OPENROUTER_BASE_URL` | no | OpenRouter API base. Defaults to `https://openrouter.ai/api/v1`. |
 | `REEF_LLM_MODEL` | no | Model id passed to OpenRouter (e.g. `deepseek/deepseek-v4-flash`). |
+| `REEF_LLM_GOVERNANCE_MODE` | managed only | Set exactly to `platform_hard` for akb-platform-managed Reef. Unset means the standalone `external_metering` profile. |
+| `REEF_LLM_API_KEY` | managed only | Component-scoped platform gateway key. Required in `platform_hard`; keep it in a Secret. |
+| `REEF_LLM_BASE_URL` | managed only | OpenAI-compatible platform gateway base. Must exactly match `REEF_PLATFORM_GATEWAY_BASE_URL` after trailing-slash normalization. |
+| `REEF_PLATFORM_GATEWAY_BASE_URL` | managed only | Canonical platform gateway base used to fail closed against provider bypass. |
 | `REEF_GITHUB_APP_ID` | yes for GitHub features | GitHub App id used to mint server-side installation tokens for monitored-repo listing, grounding, and activity scans. |
 | `REEF_GITHUB_APP_INSTALLATION_ID` | yes for GitHub features | Installation id for the repository/org installation reef should read from. |
 | `REEF_GITHUB_APP_PRIVATE_KEY` | yes for GitHub features | PEM private key for the GitHub App. Keep it in a Secret; literal `\\n` escapes are accepted and normalized at runtime. |
@@ -208,7 +221,9 @@ Optional tracing/observability:
 
 Per-user secrets are intentionally **not** environment variables: the akb
 session is an httpOnly cookie minted per request. GitHub and LLM credentials are
-deployment-managed server secrets, not browser storage.
+deployment-managed server secrets, not browser storage. Standalone and managed
+LLM profiles are mutually exclusive; managed configuration never falls back to
+the standalone OpenRouter variables.
 
 ### Backend logging and the prod access-line policy
 

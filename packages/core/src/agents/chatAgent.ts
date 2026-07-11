@@ -159,6 +159,9 @@ export async function createWorkspaceChatAgentResponse(
     let stepCounter = 0;
     const agent = new ToolLoopAgent({
       model: params.llmAdapter.model(),
+      ...(params.llmAdapter.maxRetries !== undefined
+        ? { maxRetries: params.llmAdapter.maxRetries }
+        : {}),
       instructions,
       tools,
       stopWhen: stepCountIs(taskConfig.maxSteps ?? 10),

@@ -78,6 +78,14 @@ keeps password login usable and hides the SSO action.
 The AKB JWT is never exposed to browser JavaScript. The optional Keycloak ID
 token is stored only in httpOnly cookies for SSO logout continuation.
 
+AKB remains the account authority after Keycloak authentication. When AKB
+returns `membership_required`, `account_suspended`, or `identity_conflict`, it
+may return that stable code to Reef's allowlisted callback. Reef validates the
+existing SSO nonce and completion path before accepting the code, shows curated
+product copy, and clears every established Reef auth cookie. The same mapping
+applies to password login and later `/auth/me` rejection, so a revoked or
+suspended account cannot continue through a stale local session.
+
 ## Sign-Out Flow
 
 Password and local sign-out always clear `__reef_session` and AKB-scoped browser

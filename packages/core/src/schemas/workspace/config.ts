@@ -46,17 +46,46 @@ export const MonitoredRepoSchema = z.object({
  * handler layer; http is allowed here so local dev against localhost providers
  * (e.g. `http://localhost:11434` for Ollama) works without schema rejection.
  */
-export const LLMConfigSchema = z.object({
-  api_key: z.string().min(1, "api_key is required"),
-  base_url: z
-    .string()
-    .url("base_url must be a valid URL")
-    .refine((url) => {
-      const lower = url.toLowerCase();
-      return lower.startsWith("https://") || lower.startsWith("http://");
-    }, "base_url must use http or https"),
-  model: z.string().min(1, "model is required"),
-});
+const LlmBaseUrlSchema = z
+  .string()
+  .url("base_url must be a valid URL")
+  .refine((url) => {
+    const lower = url.toLowerCase();
+    return lower.startsWith("https://") || lower.startsWith("http://");
+  }, "base_url must use http or https");
+
+export const LLMConfigSchema = z
+  .object({
+    api_key: z.string().min(1, "api_key is required"),
+    base_url: LlmBaseUrlSchema,
+    model: z.string().min(1, "model is required"),
+    governance_mode: z
+      .enum(["external_metering", "platform_hard"])
+      .default("external_metering"),
+    platform_gateway_base_url: LlmBaseUrlSchema.nullable().default(null),
+  })
+  .superRefine((config, ctx) => {
+    if (config.governance_mode !== "platform_hard") return;
+    if (!config.platform_gateway_base_url) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["platform_gateway_base_url"],
+        message: "platform_gateway_base_url is required in platform_hard mode",
+      });
+      return;
+    }
+    if (
+      config.base_url.replace(/\/+$/, "") !==
+      config.platform_gateway_base_url.replace(/\/+$/, "")
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["base_url"],
+        message:
+          "base_url must match platform_gateway_base_url in platform_hard mode",
+      });
+    }
+  });
 
 /**
  * GitHubAppConfigSchema — deployment-managed GitHub App credential.

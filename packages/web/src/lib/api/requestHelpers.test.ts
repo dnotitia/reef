@@ -1,13 +1,14 @@
 // @vitest-environment node
 
 import { SESSION_COOKIE } from "@/lib/akb/sessionCookie";
+import { AuthError } from "@reef/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   EXPIRED_JWT,
   FUTURE_EXP,
   makeJwt,
 } from "../../app/api/__test-helpers__/jwt";
-import { resolveOptionalActor } from "./requestHelpers";
+import { resolveOptionalActor, respondWithError } from "./requestHelpers";
 
 /**
  * REEF-324: the default-view read path resolves its scope actor straight from
@@ -106,5 +107,42 @@ describe("resolveOptionalActor", () => {
       await resolveOptionalActor(requestWithSession(EXPIRED_JWT)),
     ).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("respondWithError", () => {
+  it("clears the Reef session when AKB rejects a suspended account", async () => {
+    const response = await respondWithError(
+      new AuthError({
+        origin: "akb",
+        code: "account_suspended",
+        status: 403,
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(response.headers.get("set-cookie")).toContain("__reef_session=");
+    expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
+    expect(await response.json()).toMatchObject({
+      error: expect.stringMatching(/suspended/i),
+    });
+  });
+
+  it("does not clear the Reef session for a non-AKB auth error", async () => {
+    const response = await respondWithError(new AuthError());
+    expect(response.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("does not clear the Reef session for an AKB permission denial", async () => {
+    const response = await respondWithError(
+      new AuthError({
+        origin: "akb",
+        code: "permission_denied",
+        status: 403,
+      }),
+    );
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get("set-cookie")).toBeNull();
   });
 });

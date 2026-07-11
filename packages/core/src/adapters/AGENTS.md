@@ -53,7 +53,13 @@
 
 ## LLM Adapter (`llm.ts`)
 
-- LLM configuration is deployment-managed server state:
-  `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, and `REEF_LLM_MODEL`.
+- LLM configuration is deployment-managed server state. Standalone uses
+  `OPENROUTER_*`; managed uses `REEF_LLM_GOVERNANCE_MODE=platform_hard` and the
+  dedicated `REEF_LLM_*` / `REEF_PLATFORM_GATEWAY_BASE_URL` inputs.
+- In `platform_hard`, every model step receives a fresh UUID
+  `Idempotency-Key`, AI SDK retries stay disabled, and provider fallback is not
+  allowed. Managed calls use the explicit Chat Completions provider so the
+  platform gateway can meter its canonical token envelope. Keep the
+  external-metering behavior unchanged.
 - Keep provider errors credential-free when surfacing or logging them; preserve
   useful status and response detail only through safe error types.

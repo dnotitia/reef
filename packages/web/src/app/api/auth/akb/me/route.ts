@@ -1,8 +1,15 @@
 import { getAkbBackendUrl } from "@/lib/akb/akbBackendUrl";
 import { extractAkbSession } from "@/lib/akb/extractAkbSession";
 import { buildClearedEstablishedAuthCookies } from "@/lib/akb/sessionCookie";
+import { localizeError } from "@/lib/api/errorLocalization";
 import { logger } from "@/lib/logging/logger";
-import { AuthError, ReefError, akbGetMe, createAkbAdapter } from "@reef/core";
+import {
+  AuthError,
+  ReefError,
+  akbGetMe,
+  createAkbAdapter,
+  isAkbAccountErrorCode,
+} from "@reef/core";
 
 /**
  * GET /api/auth/akb/me
@@ -48,6 +55,14 @@ export async function GET(request: Request): Promise<Response> {
   } catch (err) {
     if (err instanceof AuthError) {
       // akb rejected the JWT (expired/revoked) — clear the cookie defensively.
+      if (
+        err.context.origin === "akb" &&
+        isAkbAccountErrorCode(err.context.code)
+      ) {
+        const localized = (await localizeError(err)) as Response;
+        const body = (await localized.json()) as { error: string };
+        return clearedSessionResponse(body.error, err.context.code);
+      }
       return clearedSessionResponse(
         "Your session has expired. Please sign in again.",
       );
@@ -74,7 +89,7 @@ export async function GET(request: Request): Promise<Response> {
   });
 }
 
-function clearedSessionResponse(message: string): Response {
+function clearedSessionResponse(message: string, code?: string): Response {
   const headers = new Headers({
     "Cache-Control": "no-store",
     "Content-Type": "application/json",
@@ -82,8 +97,11 @@ function clearedSessionResponse(message: string): Response {
   for (const cookie of buildClearedEstablishedAuthCookies()) {
     headers.append("Set-Cookie", cookie);
   }
-  return new Response(JSON.stringify({ error: message }), {
-    status: 401,
-    headers,
-  });
+  return new Response(
+    JSON.stringify({ error: message, ...(code ? { code } : {}) }),
+    {
+      status: 401,
+      headers,
+    },
+  );
 }

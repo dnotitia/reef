@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { AkbApiError, AuthError } from "../../../errors";
+import { AkbApiError, AuthError, isAkbAccountErrorCode } from "../../../errors";
 import { stripTrailingSlashes } from "../../url";
+import { readAkbErrorResponse } from "../core/errorResponse";
 import type { AkbAdapter } from "../core/http";
 import { withSpan } from "../core/shared";
 
@@ -114,10 +115,20 @@ export function login(params: AkbLoginParams): Promise<AkbLoginResult> {
         message: err instanceof Error ? err.message : "Network error",
       });
     }
-    if (response.status === 401 || response.status === 403) {
-      throw new AuthError({ message: "invalid_credentials" });
-    }
     if (!response.ok) {
+      const error = await readAkbErrorResponse(response);
+      if (
+        response.status === 401 ||
+        response.status === 403 ||
+        isAkbAccountErrorCode(error.code)
+      ) {
+        throw new AuthError({
+          origin: "akb",
+          code: error.code,
+          status: response.status,
+          message: error.message,
+        });
+      }
       // Preserve the status so the route can keep its 422/502 matrix.
       throw new AkbApiError({
         status: response.status,
@@ -423,10 +434,19 @@ async function fetchTokenlessJson(params: {
       message: err instanceof Error ? err.message : "Network error",
     });
   }
-  if (authStatuses?.has(response.status)) {
-    throw new AuthError({ message: failureMessage });
-  }
   if (!response.ok) {
+    const error = await readAkbErrorResponse(response);
+    if (
+      authStatuses?.has(response.status) ||
+      isAkbAccountErrorCode(error.code)
+    ) {
+      throw new AuthError({
+        origin: "akb",
+        code: error.code,
+        status: response.status,
+        message: error.message,
+      });
+    }
     throw new AkbApiError({
       status: response.status,
       message: failureMessage,

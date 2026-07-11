@@ -6,10 +6,11 @@ import {
   normalizeSafeRedirect,
 } from "@/lib/akb/safeRedirect";
 import { ssoAutoRedirectEnabled } from "@/lib/akb/ssoAutoRedirect";
+import { type AkbAccountErrorCode, isAkbAccountErrorCode } from "@reef/core";
 import { useTranslations } from "next-intl";
 import { redirect } from "next/navigation";
 
-type LoginErrorKind = "sso" | "legacy" | null;
+type LoginErrorKind = "sso" | "legacy" | AkbAccountErrorCode | null;
 
 type LoginSearchParams = { [key: string]: string | string[] | undefined };
 
@@ -38,11 +39,13 @@ export default async function LoginPage({
   const redirectTo = normalizeSafeRedirect(
     typeof params.redirect === "string" ? params.redirect : null,
   );
-  const errorKind: LoginErrorKind = ssoError
-    ? "sso"
-    : legacyError
-      ? "legacy"
-      : null;
+  const errorKind: LoginErrorKind = isAkbAccountErrorCode(ssoError)
+    ? ssoError
+    : ssoError
+      ? "sso"
+      : legacyError
+        ? "legacy"
+        : null;
 
   const ssoStartPath = await resolveSsoAutoRedirect({
     errorKind,
@@ -107,12 +110,22 @@ function LoginView({
   redirectTo: string;
 }) {
   const t = useTranslations("auth.login");
-  const errorMessage =
-    errorKind === "sso"
-      ? t("ssoError")
-      : errorKind === "legacy"
-        ? t("sessionEnded")
-        : null;
+  const errorMessage = (() => {
+    switch (errorKind) {
+      case "membership_required":
+        return t("membershipRequired");
+      case "account_suspended":
+        return t("accountSuspended");
+      case "identity_conflict":
+        return t("identityConflict");
+      case "sso":
+        return t("ssoError");
+      case "legacy":
+        return t("sessionEnded");
+      default:
+        return null;
+    }
+  })();
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-background p-6">

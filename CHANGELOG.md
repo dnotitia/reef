@@ -23,6 +23,13 @@ explicitly in the entries below.
   operator package now separates pre-validation Jira JSON from normalized
   models and exposes a content-addressed, versioned raw archive with integrity,
   retention, secret, and private-permission checks. (REEF-406)
+- **Managed Reef can use the akb-platform LLM gateway without a provider bypass.**
+  The hard-governed profile requires the canonical platform gateway, gives every
+  model step a UUID request identity, disables SDK retries, and exposes a managed
+  readiness gate while preserving standalone OpenRouter deployments.
+- **AKB account state now survives every Reef sign-in path.** Membership-required,
+  suspended-account, and identity-conflict responses have stable local and SSO
+  UX, and an AKB rejection clears all established Reef authentication cookies.
 - **Comment replies now stay in readable threads.** Comments can reply to a
   root or another reply while the activity timeline keeps one visual depth,
   direct-parent context, stable reply ordering, and the root's global timeline

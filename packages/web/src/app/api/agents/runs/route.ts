@@ -5,6 +5,7 @@ import { resolveGroundingGitHubAdapter } from "@/lib/github/resolveGroundingGitH
 import { resolveScanGitHubAdapter } from "@/lib/github/resolveScanGitHubAdapter";
 import {
   ServerLlmConfigError,
+  createServerLlmAdapter,
   getRequiredServerLlmConfig,
 } from "@/lib/llm/serverConfig";
 import { logger } from "@/lib/logging/logger";
@@ -13,7 +14,6 @@ import {
   AuthError,
   type GitHubAdapter,
   akbReadAuthoringLanguage,
-  createLlmAdapter,
   createWorkspaceChatAgentResponse,
   describeError,
   enrichIssue,
@@ -84,11 +84,7 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const llmAdapter = createLlmAdapter({
-    apiKey: llmConfig.api_key,
-    baseUrl: llmConfig.base_url,
-    model: llmConfig.model,
-  });
+  const llmAdapter = createServerLlmAdapter(llmConfig);
 
   if (runRequest.task_id === "chat.workspace") {
     let vault: string;

@@ -49,9 +49,18 @@ metadata.
   `REEF_GITHUB_APP_PRIVATE_KEY`, with `REEF_GITHUB_PAT` allowed only as a
   deployment-managed dev/CI fallback; reef-web must not collect, store, or
   forward a browser GitHub PAT.
-- LLM configuration is deployment-managed server state:
-  `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, and `REEF_LLM_MODEL`; never store
-  per-user LLM keys.
+- LLM configuration is deployment-managed server state. Standalone deployments
+  use `OPENROUTER_API_KEY` / `OPENROUTER_BASE_URL`; managed deployments use the
+  fail-closed `REEF_LLM_GOVERNANCE_MODE=platform_hard` profile with
+  `REEF_LLM_API_KEY`, `REEF_LLM_BASE_URL`, and
+  `REEF_PLATFORM_GATEWAY_BASE_URL`. The two managed URLs must match and legacy
+  `OPENROUTER_*` variables must be absent. Both profiles use `REEF_LLM_MODEL`;
+  never store per-user LLM keys.
+- AKB is the user-account authority. Preserve the stable account-denial codes
+  `membership_required`, `account_suspended`, and `identity_conflict`; an AKB
+  account denial or invalid-session 401 must clear every established Reef auth
+  cookie before returning. A resource-level permission denial must not sign the
+  user out.
 - `core` is the only place where GitHub, akb, and LLM I/O originates — data-plane
   reads/writes **and** auth/session calls (`login`, `getMe`, `getCurrentActor`)
   alike. `web` consumes `core` through thin Route Handlers; the Route Handler owns

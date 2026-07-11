@@ -6,8 +6,10 @@ import {
   ConflictError,
   NotFoundError,
   SchemaValidationError,
+  isAkbAccountErrorCode,
 } from "../../../errors";
 import { stripTrailingSlashes } from "../../url";
+import { readAkbErrorResponse } from "./errorResponse";
 
 const tracer = trace.getTracer("@reef/core");
 
@@ -139,41 +141,17 @@ function buildUrl(
   return `${url}?${params.toString()}`;
 }
 
-async function extractErrorMessage(response: Response): Promise<string> {
-  // FastAPI default surfaces `detail`; akb's main.py wraps as `error`.
-  let body: Record<string, unknown> | null = null;
-  try {
-    body = (await response.json()) as Record<string, unknown>;
-  } catch {
-    return response.statusText || "Unknown error";
-  }
-  const detail = body?.detail;
-  if (typeof detail === "string") return detail;
-  if (Array.isArray(detail) && detail[0] && typeof detail[0] === "object") {
-    const msg = (detail[0] as { msg?: unknown }).msg;
-    if (typeof msg === "string") return msg;
-  }
-  // akb's REST `_raise_service_error` envelope surfaces a service error as an
-  // object `detail: { message, code }` (e.g. an `/sql` runtime error such as a
-  // missing relation, now returned as a 4xx instead of the older HTTP 200
-  // `{ error }` body). Extract `message` so downstream pattern-matchers — most
-  // importantly `isMissingTableError`, which powers the not-yet-provisioned
-  // table degrade paths — keep seeing the raw Postgres text (REEF-363).
-  if (detail && typeof detail === "object" && !Array.isArray(detail)) {
-    const message = (detail as { message?: unknown }).message;
-    if (typeof message === "string") return message;
-  }
-  if (typeof body?.error === "string") return body.error;
-  return response.statusText || "Unknown error";
-}
-
 function translateAkbHttpError(
   status: number,
   message: string,
+  code: string | undefined,
   resource: string | undefined,
 ): never {
+  if (isAkbAccountErrorCode(code)) {
+    throw new AuthError({ origin: "akb", code, status, message });
+  }
   if (status === 401 || status === 403) {
-    throw new AuthError({ message });
+    throw new AuthError({ origin: "akb", code, status, message });
   }
   if (status === 404) {
     throw new NotFoundError({ resource });
@@ -248,8 +226,13 @@ function makeRequest(baseUrl: string, jwt: string): AkbRequest {
           return null;
         }
         if (!response.ok) {
-          const message = await extractErrorMessage(response);
-          translateAkbHttpError(response.status, message, init.resource);
+          const error = await readAkbErrorResponse(response);
+          translateAkbHttpError(
+            response.status,
+            error.message,
+            error.code,
+            init.resource,
+          );
         }
         if (init.responseType === "arrayBuffer") {
           return {

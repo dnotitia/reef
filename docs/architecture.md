@@ -133,9 +133,14 @@ the system needs are each placed deliberately:
   activity scans. Local development and CI may set `REEF_GITHUB_PAT` as a
   server-managed fallback when no App is configured. Browser clients do not
   collect or forward GitHub tokens.
-- **LLM configuration** — deployment-managed server environment:
-  `OPENROUTER_API_KEY` (secret), `OPENROUTER_BASE_URL`, and `REEF_LLM_MODEL`.
-  There are no per-user or bring-your-own LLM keys and no per-user LLM headers.
+- **LLM configuration** — deployment-managed server environment. Standalone
+  Reef uses `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, and `REEF_LLM_MODEL`.
+  Managed Reef uses a component-scoped `REEF_LLM_API_KEY`, an exact canonical
+  platform gateway URL, and `REEF_LLM_GOVERNANCE_MODE=platform_hard`. In hard
+  mode every model step gets one UUID `Idempotency-Key`, uses the gateway-metered
+  Chat Completions envelope, disables SDK retries, and fails closed on incomplete
+  or legacy provider configuration. There are no per-user or bring-your-own LLM
+  keys and no per-user LLM headers.
 
 A redacting logger masks `Authorization`, `Cookie`, `Set-Cookie`, and the
 LLM-config header in request and error logs; if a known token substring appears

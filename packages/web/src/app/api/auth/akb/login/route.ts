@@ -5,8 +5,14 @@ import {
   buildSessionCookie,
   decodeJwtExp,
 } from "@/lib/akb/sessionCookie";
+import { localizeError } from "@/lib/api/errorLocalization";
 import { logger } from "@/lib/logging/logger";
-import { AkbApiError, AuthError, akbLogin } from "@reef/core";
+import {
+  AkbApiError,
+  AuthError,
+  akbLogin,
+  isAkbAccountErrorCode,
+} from "@reef/core";
 import { z } from "zod";
 
 /**
@@ -66,6 +72,12 @@ export async function POST(request: Request): Promise<Response> {
     });
   } catch (err) {
     if (err instanceof AuthError) {
+      if (
+        err.context.origin === "akb" &&
+        isAkbAccountErrorCode(err.context.code)
+      ) {
+        return localizeError(err);
+      }
       return Response.json(
         { error: "Invalid username or password." },
         { status: 401 },

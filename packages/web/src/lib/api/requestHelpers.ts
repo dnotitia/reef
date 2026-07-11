@@ -6,7 +6,10 @@
 
 import { getAkbBackendUrl } from "@/lib/akb/akbBackendUrl";
 import { extractAkbSession } from "@/lib/akb/extractAkbSession";
-import { decodeSessionUsername } from "@/lib/akb/sessionCookie";
+import {
+  buildClearedEstablishedAuthCookies,
+  decodeSessionUsername,
+} from "@/lib/akb/sessionCookie";
 import {
   type AkbAdapter,
   type AkbResourceLabel,
@@ -18,6 +21,7 @@ import {
   akbGetCurrentActor,
   akbListVaults,
   createAkbAdapter,
+  isAkbAccountErrorCode,
 } from "@reef/core";
 import type { z } from "zod";
 import { localizeError, localizedErrorResponse } from "./errorLocalization";
@@ -136,8 +140,23 @@ export function parseIssueListQueryParams(
 // detection reads `next/headers`; a Route Handler returning `helper()` from its
 // async body flattens the Promise, so call sites are unchanged.
 
-function authErrorResponse(): Promise<Response> {
-  return localizedErrorResponse("sessionExpired", 401);
+async function withClearedEstablishedAuthCookies(
+  response: Response,
+): Promise<Response> {
+  for (const cookie of buildClearedEstablishedAuthCookies()) {
+    response.headers.append("Set-Cookie", cookie);
+  }
+  response.headers.set("Cache-Control", "no-store");
+  return response;
+}
+
+async function authErrorResponse(options?: {
+  clearEstablishedAuth?: boolean;
+}): Promise<Response> {
+  const response = await localizedErrorResponse("sessionExpired", 401);
+  return options?.clearEstablishedAuth
+    ? withClearedEstablishedAuthCookies(response)
+    : response;
 }
 
 export function invalidJsonBodyResponse(): Promise<Response> {
@@ -194,13 +213,20 @@ function withResource(err: unknown, resourceKind: AkbResourceLabel): unknown {
  * should not log — callers own observability and should call `logger.error(...)`
  * from the redacting logger immediately before calling this.
  */
-export function respondWithError(
+export async function respondWithError(
   err: unknown,
   ctx?: { resourceKind?: AkbResourceLabel },
 ): Promise<Response> {
-  return localizeError(
+  const response = await localizeError(
     ctx?.resourceKind ? withResource(err, ctx.resourceKind) : err,
   );
+  const shouldClearEstablishedAuth =
+    err instanceof AuthError &&
+    err.context.origin === "akb" &&
+    (err.context.status === 401 || isAkbAccountErrorCode(err.context.code));
+  return shouldClearEstablishedAuth
+    ? withClearedEstablishedAuthCookies(response)
+    : response;
 }
 
 // ─── Adapter construction ────────────────────────────────────────────────────
@@ -269,7 +295,9 @@ export async function getAkbCurrentActor(
     }));
   } catch (err) {
     if (err instanceof AuthError) {
-      return { response: await authErrorResponse() };
+      return {
+        response: await authErrorResponse({ clearEstablishedAuth: true }),
+      };
     }
     return { response: await backendErrorResponse() };
   }

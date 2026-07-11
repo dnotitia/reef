@@ -61,6 +61,24 @@ describe("LoginPage", () => {
     expect(screen.getByRole("alert")).not.toHaveTextContent("exchange_failed");
   });
 
+  it.each([
+    ["membership_required", /not.*member|workspace access/i],
+    ["account_suspended", /suspended/i],
+    ["identity_conflict", /identity/i],
+  ] as const)("renders stable account SSO UX for %s", async (code, message) => {
+    render(
+      <IntlTestProvider>
+        {
+          await LoginPage({
+            searchParams: Promise.resolve({ sso_error: code }),
+          })
+        }
+      </IntlTestProvider>,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(message);
+  });
+
   it("keeps the older session-ended message", async () => {
     render(
       <IntlTestProvider>

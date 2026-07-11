@@ -87,6 +87,29 @@ describe("akb auth adapter", () => {
       ).rejects.toBeInstanceOf(AuthError);
     });
 
+    it("preserves a suspended-account code from local login", async () => {
+      setupFetch([
+        {
+          status: 403,
+          body: {
+            message: "This AKB account is suspended",
+            code: "account_suspended",
+          },
+        },
+      ]);
+
+      await expect(
+        login({ baseUrl: BASE_URL, username: "a", password: "b" }),
+      ).rejects.toMatchObject({
+        name: "AuthError",
+        context: {
+          origin: "akb",
+          code: "account_suspended",
+          status: 403,
+        },
+      });
+    });
+
     it("throws AkbApiError preserving the status on akb 5xx", async () => {
       setupFetch([{ status: 503, body: {} }]);
       await expect(

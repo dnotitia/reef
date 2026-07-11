@@ -11,13 +11,11 @@ import {
 import { resolveScanGitHubAdapter } from "@/lib/github/resolveScanGitHubAdapter";
 import {
   ServerLlmConfigError,
+  createServerLlmAdapter,
   getRequiredServerLlmConfig,
 } from "@/lib/llm/serverConfig";
 import { logger } from "@/lib/logging/logger";
-import {
-  createLlmAdapter,
-  scanAndPersistActivitySuggestions,
-} from "@reef/core";
+import { scanAndPersistActivitySuggestions } from "@reef/core";
 import { z } from "zod";
 
 /**
@@ -109,11 +107,7 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const llmAdapter = createLlmAdapter({
-    apiKey: llmConfig.api_key,
-    baseUrl: llmConfig.base_url,
-    model: llmConfig.model,
-  });
+  const llmAdapter = createServerLlmAdapter(llmConfig);
 
   try {
     const result = await scanAndPersistActivitySuggestions({

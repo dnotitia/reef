@@ -15,11 +15,11 @@ import {
   NotFoundError,
   SchemaValidationError,
   akbReadAuthoringLanguage,
-  createLlmAdapter,
   enrichIssue,
 } from "@reef/core";
 import {
   ServerLlmConfigError,
+  createServerLlmAdapter,
   getRequiredServerLlmConfig,
 } from "../../../lib/llm/serverConfig";
 
@@ -74,11 +74,7 @@ export async function POST(request: Request): Promise<Response> {
     return localizedErrorResponse("requestBodyInvalid", 400);
   }
 
-  const adapter = createLlmAdapter({
-    apiKey: config.api_key,
-    baseUrl: config.base_url,
-    model: config.model,
-  });
+  const adapter = createServerLlmAdapter(config);
 
   const akbAdapterResult = getAkbAdapter(request);
   if ("response" in akbAdapterResult) {

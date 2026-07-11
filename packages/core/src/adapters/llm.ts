@@ -2,8 +2,10 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import {
   type LanguageModel,
+  type LanguageModelMiddleware,
   generateText as aiGenerateText,
   streamText as aiStreamText,
+  wrapLanguageModel,
 } from "ai";
 import { LlmError } from "../errors";
 import { observe } from "../observability";
@@ -15,9 +17,13 @@ export interface CreateLlmAdapterParams {
   apiKey: string;
   baseUrl: string;
   model: string;
+  governanceMode?: "external_metering" | "platform_hard";
 }
 
 export interface LlmAdapter {
+  /** Hard-governed calls disable AI SDK retries so each model step has exactly
+   * one billable request identity. Undefined preserves the SDK default. */
+  maxRetries: number | undefined;
   /**
    * Returns the resolved AI SDK language model instance.
    * Created fresh on each call — no module-level singleton.
@@ -59,12 +65,48 @@ export interface LlmAdapter {
  * credentials does not escape into module scope.
  */
 export function createLlmAdapter(params: CreateLlmAdapterParams): LlmAdapter {
-  const { apiKey, baseUrl, model: modelId } = params;
+  const {
+    apiKey,
+    baseUrl,
+    model: modelId,
+    governanceMode = "external_metering",
+  } = params;
+  const maxRetries = governanceMode === "platform_hard" ? 0 : undefined;
+
+  const managedIdentityMiddleware: LanguageModelMiddleware = {
+    specificationVersion: "v3",
+    transformParams: async ({ params: call }) => {
+      const headers = Object.fromEntries(
+        Object.entries(call.headers ?? {}).filter(
+          ([key]) => key.toLowerCase() !== "idempotency-key",
+        ),
+      );
+      return {
+        ...call,
+        headers: {
+          ...headers,
+          "Idempotency-Key": globalThis.crypto.randomUUID(),
+        },
+      };
+    },
+  };
 
   function model(): LanguageModel {
     // Constructed fresh each call — credentials scoped to this call frame.
     const openai = createOpenAI({ apiKey, baseURL: baseUrl });
-    return openai(modelId);
+    // The platform gateway meters the OpenAI chat-completions usage envelope
+    // (`prompt_tokens` / `completion_tokens`). Keep standalone on the provider's
+    // existing default, but pin hard-governed calls to that metered wire shape.
+    const resolved =
+      governanceMode === "platform_hard"
+        ? openai.chat(modelId)
+        : openai(modelId);
+    return governanceMode === "platform_hard"
+      ? wrapLanguageModel({
+          model: resolved,
+          middleware: managedIdentityMiddleware,
+        })
+      : resolved;
   }
 
   function streamText(
@@ -78,6 +120,7 @@ export function createLlmAdapter(params: CreateLlmAdapterParams): LlmAdapter {
       const result = aiStreamText({
         ...options,
         model: model(),
+        ...(maxRetries !== undefined ? { maxRetries } : {}),
         experimental_telemetry: {
           isEnabled: true,
           functionId: "reef.streamText",
@@ -123,6 +166,7 @@ export function createLlmAdapter(params: CreateLlmAdapterParams): LlmAdapter {
         const result = await aiGenerateText({
           ...options,
           model: model(),
+          ...(maxRetries !== undefined ? { maxRetries } : {}),
           experimental_telemetry: {
             isEnabled: true,
             functionId: "reef.generateText",
@@ -160,6 +204,7 @@ export function createLlmAdapter(params: CreateLlmAdapterParams): LlmAdapter {
   }
 
   return {
+    maxRetries,
     model,
     streamText: streamText as typeof aiStreamText,
     generateText: generateText as typeof aiGenerateText,
