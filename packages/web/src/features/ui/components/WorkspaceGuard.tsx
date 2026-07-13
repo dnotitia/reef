@@ -1,5 +1,6 @@
 "use client";
 
+import { AppShellSkeleton } from "@/components/AppShellSkeleton";
 import { useAuthRedirect } from "@/features/auth/hooks/useAuthRedirect";
 import { useSyncActiveVaultFromUrl } from "@/features/settings/hooks/useActiveVault";
 import { useVaults } from "@/features/settings/hooks/useVaults";
@@ -29,8 +30,31 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
   const params = useParams<{ vault: string }>();
   const vault = typeof params.vault === "string" ? params.vault : "";
 
-  // Session auth gate; membership is validated below against the vault list.
-  useAuthRedirect("workspace");
+  // Keep the protected tree unmounted until `/auth/me` confirms the session.
+  // Otherwise its parallel queries can consume and clear an account-denial
+  // cookie before this guard preserves the stable AKB denial code.
+  const authStatus = useAuthRedirect("workspace");
+
+  // Malformed segment → hard 404. The auth hook above remains unconditional so
+  // hook order is stable across route changes.
+  if (!VAULT_NAME_RE.test(vault)) notFound();
+
+  if (authStatus !== "active") {
+    return <AppShellSkeleton />;
+  }
+
+  return (
+    <AuthenticatedWorkspaceGuard appVersion={appVersion} vault={vault}>
+      {children}
+    </AuthenticatedWorkspaceGuard>
+  );
+}
+
+function AuthenticatedWorkspaceGuard({
+  appVersion,
+  children,
+  vault,
+}: WorkspaceGuardProps & { vault: string }) {
   const vaultsQuery = useVaults();
   // A usable reef workspace is one the user can access AND that already carries
   // a reef config — the same `has_reef_config` bar the sidebar switcher and
@@ -47,10 +71,6 @@ export function WorkspaceGuard({ appVersion, children }: WorkspaceGuardProps) {
   // redirecting into the inaccessible workspace. Passing "" while membership is
   // unknown or denied makes the sync a no-op.
   useSyncActiveVaultFromUrl(isMember ? vault : "");
-
-  // Malformed segment → hard 404 (AC5). Thrown after the hooks above so hook
-  // order is stable across renders.
-  if (!VAULT_NAME_RE.test(vault)) notFound();
 
   // Membership gate (AC5) — no silent fallback, but render the shell
   // optimistically. The common case is a member, and gating every page load on

@@ -1,6 +1,6 @@
 import { extractVault } from "@/lib/akb/extractVault";
 import { localizedAgentError } from "@/lib/api/errorLocalization";
-import { getAkbAdapter } from "@/lib/api/requestHelpers";
+import { getAkbAdapter, getAkbCurrentActor } from "@/lib/api/requestHelpers";
 import { resolveGroundingGitHubAdapter } from "@/lib/github/resolveGroundingGitHubAdapter";
 import { resolveScanGitHubAdapter } from "@/lib/github/resolveScanGitHubAdapter";
 import {
@@ -60,11 +60,26 @@ export async function POST(request: Request): Promise<Response> {
 
   const akb = getAkbAdapter(request);
   if ("response" in akb) {
+    const authResponse = await akb.response;
+    if (authResponse.headers.has("set-cookie")) return authResponse;
     return localizedAgentError(
       "agent.workspaceAuthRequired",
       401,
       "workspace_auth_required",
     );
+  }
+
+  // Chat and enrichment open an SSE response before their first AKB data read.
+  // Verify the account while response headers are still mutable so a removed or
+  // suspended member cannot reach a model step and receives the session-clearing
+  // cookies from the shared AKB account boundary. Activity scan already performs
+  // the same preflight through resolveScanGitHubAdapter before opening its stream.
+  if (
+    runRequest.task_id === "chat.workspace" ||
+    runRequest.task_id === "issue.enrichment"
+  ) {
+    const account = await getAkbCurrentActor(request);
+    if ("response" in account) return account.response;
   }
 
   let llmConfig: ReturnType<typeof getRequiredServerLlmConfig>;
@@ -201,10 +216,12 @@ export async function POST(request: Request): Promise<Response> {
   // mid-stream.
   const github = await resolveScanGitHubAdapter(request);
   if (github.kind === "session_invalid") {
-    // The resolver surfaces getAkbCurrentActor's response, which is 401 for a
-    // bad/expired session but 5xx when the akb backend itself is unreachable.
-    // Preserve that status — and its recoverable semantics — instead of
-    // flattening a backend outage into a non-recoverable auth error.
+    // Account denials carry localized copy and session-clearing cookies from the
+    // shared AKB boundary. Returning that response intact is the only way to
+    // preserve both. Plain 401 and backend failures retain the structured agent
+    // error contract below.
+    if (github.response.headers.has("set-cookie")) return github.response;
+
     const status = github.response.status;
     return status === 401
       ? localizedAgentError(

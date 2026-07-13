@@ -29,7 +29,9 @@ explicitly in the entries below.
   readiness gate while preserving standalone OpenRouter deployments.
 - **AKB account state now survives every Reef sign-in path.** Membership-required,
   suspended-account, and identity-conflict responses have stable local and SSO
-  UX, and an AKB rejection clears all established Reef authentication cookies.
+  UX. AKB's SSO-only/local-auth policy controls the login surface, and an account
+  rejection clears established Reef cookies plus account-scoped browser caches
+  without treating an ordinary permission denial as a sign-out.
 - **Comment replies now stay in readable threads.** Comments can reply to a
   root or another reply while the activity timeline keeps one visual depth,
   direct-parent context, stable reply ordering, and the root's global timeline

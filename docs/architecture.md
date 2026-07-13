@@ -67,6 +67,10 @@ Next.js and scatter external I/O across the app.
   which call the Route Handlers. **Server Actions are not used**, so reads,
   mutations, and chat streaming all travel the same `apiFetch` → Route Handler →
   `core` path.
+- When AKB rejects an established account/session, the BFF clears its httpOnly
+  cookies and emits `X-Reef-Auth-Invalidated: 1`. `apiFetch` then wipes all
+  persisted and in-memory AKB-account-scoped browser state. A normal permission
+  `403` carries no such signal and keeps the session intact.
 
 The trade-off is boilerplate: every mutation needs both a Route Handler and a
 client action. In exchange, domain logic is testable without Next.js, external

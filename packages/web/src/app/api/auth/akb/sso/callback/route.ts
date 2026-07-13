@@ -1,11 +1,18 @@
 import { getAkbBackendUrl } from "@/lib/akb/akbBackendUrl";
 import {
+  AUTH_ACCOUNT_ERROR_HEADER,
+  AUTH_INVALIDATED_HEADER,
+} from "@/lib/akb/headers";
+import {
   buildPathWithParams,
   isSafeSameOriginPath,
 } from "@/lib/akb/safeRedirect";
 import {
   DEFAULT_SESSION_MAX_AGE_SECONDS,
   SSO_START_COOKIE,
+  buildAuthInvalidationCookie,
+  buildClearedAuthInvalidationCookie,
+  buildClearedEstablishedAuthCookies,
   buildClearedSsoIdTokenCookie,
   buildClearedSsoStartCookie,
   buildSessionCookie,
@@ -40,7 +47,10 @@ export async function GET(request: Request): Promise<Response> {
     });
   }
   if (isAkbAccountErrorCode(ssoError)) {
-    return loginErrorRedirect(ssoError, { clearStartCookie: true });
+    return loginErrorRedirect(ssoError, {
+      clearStartCookie: true,
+      clearEstablishedAuth: true,
+    });
   }
   if (!code) {
     return loginErrorRedirect("missing_code", {
@@ -82,6 +92,7 @@ export async function GET(request: Request): Promise<Response> {
       headers.append("Set-Cookie", buildClearedSsoIdTokenCookie());
     }
     headers.append("Set-Cookie", buildClearedSsoStartCookie());
+    headers.append("Set-Cookie", buildClearedAuthInvalidationCookie());
     return new Response(null, { status: 302, headers });
   } catch (err) {
     if (
@@ -89,7 +100,10 @@ export async function GET(request: Request): Promise<Response> {
       err.context.origin === "akb" &&
       isAkbAccountErrorCode(err.context.code)
     ) {
-      return loginErrorRedirect(err.context.code, { clearStartCookie: true });
+      return loginErrorRedirect(err.context.code, {
+        clearStartCookie: true,
+        clearEstablishedAuth: true,
+      });
     }
     if (err instanceof AuthError || err instanceof AkbApiError) {
       logger.error({ err }, "akb_sso_callback: exchange failed");
@@ -140,7 +154,10 @@ function sessionMaxAgeSeconds(jwt: string): number {
 
 function loginErrorRedirect(
   code: string,
-  options: { clearStartCookie?: boolean } = {},
+  options: {
+    clearStartCookie?: boolean;
+    clearEstablishedAuth?: boolean;
+  } = {},
 ): Response {
   const headers = new Headers({
     // Relative same-origin Location; request.url's host is the container bind
@@ -150,6 +167,16 @@ function loginErrorRedirect(
   });
   if (options.clearStartCookie) {
     headers.append("Set-Cookie", buildClearedSsoStartCookie());
+  }
+  if (options.clearEstablishedAuth) {
+    headers.set(AUTH_INVALIDATED_HEADER, "1");
+    if (isAkbAccountErrorCode(code)) {
+      headers.set(AUTH_ACCOUNT_ERROR_HEADER, code);
+    }
+    for (const cookie of buildClearedEstablishedAuthCookies()) {
+      headers.append("Set-Cookie", cookie);
+    }
+    headers.append("Set-Cookie", buildAuthInvalidationCookie());
   }
   return new Response(null, { status: 302, headers });
 }

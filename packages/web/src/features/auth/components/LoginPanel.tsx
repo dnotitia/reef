@@ -2,6 +2,7 @@
 
 import { LoginForm } from "@/features/auth/components/LoginForm";
 import { normalizeSafeRedirect } from "@/lib/akb/safeRedirect";
+import { apiFetch } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
 import { AkbAuthConfigSchema } from "@reef/core";
 import { Building2, KeyRound, ShieldCheck } from "lucide-react";
@@ -12,7 +13,10 @@ export interface LoginPanelProps {
   redirectTo?: string;
 }
 
-type SsoState = "loading" | "enabled" | "disabled";
+interface AuthCapabilities {
+  ssoEnabled: boolean;
+  localAuthEnabled: boolean;
+}
 
 function akbPlatformToken(chunks: ReactNode) {
   return <span translate="no">{chunks}</span>;
@@ -20,7 +24,9 @@ function akbPlatformToken(chunks: ReactNode) {
 
 export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
   const safeRedirect = normalizeSafeRedirect(redirectTo);
-  const [ssoState, setSsoState] = useState<SsoState>("loading");
+  const [capabilities, setCapabilities] = useState<AuthCapabilities | null>(
+    null,
+  );
   const t = useTranslations("auth.panel");
 
   useEffect(() => {
@@ -28,23 +34,24 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
 
     async function loadConfig() {
       try {
-        const res = await fetch("/api/auth/akb/config", {
+        const res = await apiFetch("/api/auth/akb/config", {
           credentials: "same-origin",
           signal: controller.signal,
         });
         if (!res.ok) {
-          setSsoState("disabled");
+          setCapabilities({ ssoEnabled: false, localAuthEnabled: true });
           return;
         }
         const config = AkbAuthConfigSchema.parse(await res.json());
-        setSsoState(
-          config.keycloak.enabled && config.keycloak.login_url
-            ? "enabled"
-            : "disabled",
-        );
+        setCapabilities({
+          ssoEnabled: Boolean(
+            config.keycloak.enabled && config.keycloak.login_url,
+          ),
+          localAuthEnabled: config.local_auth.enabled,
+        });
       } catch {
         if (!controller.signal.aborted) {
-          setSsoState("disabled");
+          setCapabilities({ ssoEnabled: false, localAuthEnabled: true });
         }
       }
     }
@@ -58,9 +65,10 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
     return `/api/auth/akb/sso/start?${params.toString()}`;
   }, [safeRedirect]);
 
-  const ssoEnabled = ssoState === "enabled";
+  const ssoEnabled = capabilities?.ssoEnabled ?? false;
+  const localAuthEnabled = capabilities?.localAuthEnabled ?? false;
 
-  if (ssoState === "disabled") {
+  if (capabilities && !ssoEnabled && localAuthEnabled) {
     return <LoginForm redirectTo={safeRedirect} />;
   }
 
@@ -85,7 +93,7 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
         data-testid="sso-option-region"
         aria-live="polite"
       >
-        {ssoState === "loading" && (
+        {!capabilities && (
           <div
             aria-hidden="true"
             data-testid="sso-config-loading"
@@ -110,9 +118,15 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
             </div>
           </div>
         )}
+
+        {capabilities && !ssoEnabled && !localAuthEnabled && (
+          <p role="alert" className="text-sm text-destructive">
+            {t("unavailable")}
+          </p>
+        )}
       </div>
 
-      {ssoEnabled && (
+      {ssoEnabled && localAuthEnabled && (
         <div className="my-4 flex items-center gap-3 text-muted-foreground text-xs">
           <div className="h-px flex-1 bg-border" />
           <span>{t("orUsePassword")}</span>
@@ -120,7 +134,7 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
         </div>
       )}
 
-      <LoginForm redirectTo={safeRedirect} />
+      {localAuthEnabled && <LoginForm redirectTo={safeRedirect} />}
     </div>
   );
 }

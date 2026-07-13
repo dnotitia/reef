@@ -1,6 +1,8 @@
 "use client";
 
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
+import { holdQueryUntilHydrated } from "@/lib/queryHydration";
+import { useHydrated } from "@/lib/useHydrated";
 import {
   type EnrichedVaultSummary,
   EnrichedVaultSummarySchema,
@@ -19,7 +21,8 @@ const VaultsResponseSchema = z.object({
  * (REEF-143).
  */
 export function useVaults() {
-  return useQuery({
+  const hydrated = useHydrated();
+  const result = useQuery({
     queryKey: ["vaults"] as const,
     queryFn: async (): Promise<EnrichedVaultSummary[]> => {
       const res = await apiFetch("/api/vaults");
@@ -32,4 +35,13 @@ export function useVaults() {
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
+
+  // The server has no persisted React Query cache, while the browser can
+  // restore ["vaults"] synchronously before hydration. Exposing that restored
+  // list on the first client render changes loading skeletons, membership
+  // gates, and workspace pickers before React has matched the server HTML.
+  // Return one deterministic pending snapshot on both sides, then reveal the
+  // cache after mount. A disabled query is not sufficient because it still
+  // exposes data restored by PersistQueryClientProvider.
+  return holdQueryUntilHydrated(result, hydrated);
 }

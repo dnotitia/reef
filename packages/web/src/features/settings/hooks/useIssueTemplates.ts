@@ -1,6 +1,8 @@
 "use client";
 
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
+import { holdQueryUntilHydrated } from "@/lib/queryHydration";
+import { useHydrated } from "@/lib/useHydrated";
 import { type Template, TemplateSchema } from "@reef/core";
 import {
   type UseMutationResult,
@@ -54,13 +56,16 @@ async function fetchIssueTemplates(
 export function useIssueTemplates(
   vault: string,
 ): UseQueryResult<IssueTemplatesResult, Error> {
-  return useQuery({
+  const hydrated = useHydrated();
+  const result = useQuery({
     queryKey: issueTemplatesKey(vault),
     queryFn: () => fetchIssueTemplates(vault),
     enabled: vault.length > 0,
     staleTime: STALE_TIME_MS,
     retry: false,
   });
+
+  return holdQueryUntilHydrated(result, hydrated);
 }
 
 export interface UpsertTemplateArgs {

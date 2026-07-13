@@ -24,7 +24,8 @@ export type ResolveGitHubAdapterResult =
   | { kind: "adapter"; adapter: GitHubAdapter; source: GitHubCredentialSource }
   /**
    * A deployment credential (App or server PAT) was selected but akb rejected
-   * the session, so nothing was minted/used. `response` is the ready 401/5xx.
+   * the session, so nothing was minted/used. `response` is the ready auth,
+   * account-denial, or backend-error response.
    */
   | { kind: "session_invalid"; response: Response }
   /** No deployment-managed GitHub credential is configured. */

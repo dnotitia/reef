@@ -121,6 +121,11 @@ describe("POST /api/auth/akb/login", () => {
 
       expect(res.status).toBe(status);
       expect((await res.json()).error).toMatch(message);
+      const setCookie = res.headers.get("set-cookie") ?? "";
+      expect(setCookie).toContain("__reef_session=");
+      expect(setCookie).toContain("__reef_sso=");
+      expect(setCookie).toContain("Max-Age=0");
+      expect(res.headers.get("cache-control")).toBe("no-store");
     },
   );
 

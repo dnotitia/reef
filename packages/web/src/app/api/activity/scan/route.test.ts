@@ -203,6 +203,23 @@ describe("POST /api/activity/scan", () => {
     const res = await POST(makeRequest({}));
     expect(res.status).toBe(401);
   });
+
+  it("clears established auth when AKB removes the account during a scan", async () => {
+    mockScanAndPersistActivitySuggestions.mockRejectedValueOnce(
+      new AuthError({
+        origin: "akb",
+        code: "membership_required",
+        status: 403,
+      }),
+    );
+
+    const res = await POST(makeRequest({}));
+
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toMatch(/workspace|member/i);
+    expect(res.headers.get("set-cookie")).toContain("__reef_session=");
+    expect(res.headers.get("set-cookie")).toContain("Max-Age=0");
+  });
 });
 
 describe("POST /api/activity/scan — server-managed GitHub App path", () => {

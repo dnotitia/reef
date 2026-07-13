@@ -27,9 +27,16 @@ const AkbLoginResponseSchema = z.object({
 });
 
 export const AkbAuthConfigSchema = z.object({
+  local_auth: z
+    .object({
+      enabled: z.boolean(),
+    })
+    .default({ enabled: true }),
   keycloak: z.object({
     enabled: z.boolean(),
     login_url: z.string().min(1).nullable(),
+    sso_only: z.boolean().default(false),
+    enrollment_mode: z.enum(["open", "invite_only", "disabled"]).optional(),
   }),
 });
 

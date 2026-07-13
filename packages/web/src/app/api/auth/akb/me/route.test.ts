@@ -95,6 +95,7 @@ describe("GET /api/auth/akb/me", () => {
 
     expect(res.status).toBe(401);
     expect(await res.json()).toMatchObject({ code: "account_suspended" });
+    expect(res.headers.get("x-reef-account-error")).toBe("account_suspended");
     expectClearedAuthCookies(res);
   });
 
@@ -141,4 +142,5 @@ function expectClearedAuthCookies(res: Response) {
   expect(setCookie).toContain("__reef_sso_id_token=");
   expect(setCookie).not.toContain("__reef_sso_start=");
   expect(setCookie).toContain("Max-Age=0");
+  expect(res.headers.get("x-reef-auth-invalidated")).toBe("1");
 }

@@ -22,7 +22,7 @@ import type { GitHubAdapter } from "@reef/core";
  */
 export type ResolveScanGitHubAdapterResult =
   | { kind: "adapter"; adapter: GitHubAdapter }
-  /** A deployment credential was selected but akb rejected the session; `response` is the ready 401/5xx. */
+  /** A deployment credential was selected but akb rejected the session; `response` is the ready auth, account-denial, or backend-error response. */
   | { kind: "session_invalid"; response: Response }
   /** No deployment-managed GitHub credential is configured. */
   | { kind: "github_app_unconfigured" }

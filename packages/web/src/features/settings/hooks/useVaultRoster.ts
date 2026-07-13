@@ -1,6 +1,8 @@
 "use client";
 
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
+import { holdQueryUntilHydrated } from "@/lib/queryHydration";
+import { useHydrated } from "@/lib/useHydrated";
 import { type VaultMember, VaultMemberSchema } from "@reef/core";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
@@ -23,7 +25,8 @@ export function vaultRosterKey(vault: string): readonly unknown[] {
  * both so a membership change reflects in the roster and the assignee picker.
  */
 export function useVaultRoster(vault: string) {
-  return useQuery({
+  const hydrated = useHydrated();
+  const result = useQuery({
     queryKey: vaultRosterKey(vault),
     queryFn: async (): Promise<VaultMember[]> => {
       const res = await apiFetch(
@@ -39,4 +42,6 @@ export function useVaultRoster(vault: string) {
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
+
+  return holdQueryUntilHydrated(result, hydrated);
 }

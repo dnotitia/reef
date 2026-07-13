@@ -118,6 +118,10 @@ test.describe("Hermetic issue list flow", () => {
     });
     await restored.goto("/workspace/reef-e2e/issues?view=list");
 
+    // The browser-local filter must survive closing the original page. Keep
+    // this assertion separate from the URL mirror below so a persistence wipe
+    // and a restore/writeback regression produce different failures.
+    await expectPersistedStatus(restored, REEF_E2E_VAULT, "todo");
     await restored.waitForURL(/status=todo/, { timeout: 10_000 });
     await expect(restored.getByText("Initial issue Alpha")).toBeVisible();
     await expect(restored.getByText("Initial issue Beta")).toBeHidden();

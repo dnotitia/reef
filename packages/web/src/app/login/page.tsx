@@ -65,7 +65,8 @@ export default async function LoginPage({
  * Returns the same-origin `/api/auth/akb/sso/start` path to redirect to, or
  * null to render the panel. It fires for a *clean* entry into `/login`:
  *
- * - The deployment opted in (`REEF_SSO_AUTO_REDIRECT`); default is the panel.
+ * - The deployment opted in (`REEF_SSO_AUTO_REDIRECT`) or AKB declares its
+ *   authoritative `keycloak.sso_only` presentation policy.
  * - No SSO/session error is present (`?sso_error=` / `?error=`). This is the
  *   loop guard: an SSO failure returns here, so auto-redirecting again would
  *   bounce the user between reef and Keycloak forever.
@@ -87,13 +88,15 @@ async function resolveSsoAutoRedirect({
   params: LoginSearchParams;
   redirectTo: string;
 }): Promise<string | null> {
-  if (!ssoAutoRedirectEnabled()) return null;
   if (errorKind !== null) return null;
   if (params.password === "1" || params.prompt === "login") return null;
 
   const result = await loadAkbAuthConfig();
   if (!result.ok) return null;
   if (!result.config.keycloak.enabled || !result.config.keycloak.login_url) {
+    return null;
+  }
+  if (!ssoAutoRedirectEnabled() && !result.config.keycloak.sso_only) {
     return null;
   }
 
@@ -144,6 +147,7 @@ function LoginView({
         {errorMessage && (
           <p
             role="alert"
+            data-testid="login-error-alert"
             className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
           >
             {errorMessage}

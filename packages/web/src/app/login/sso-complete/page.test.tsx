@@ -23,9 +23,11 @@ vi.mock("@/components/ui/reef-mark", () => ({
 }));
 
 const reconcileAkbAccount = vi.hoisted(() => vi.fn());
+const wipeAkbScopedBrowserState = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/akb/accountReconcile", () => ({
   reconcileAkbAccount: (id: string) => reconcileAkbAccount(id),
+  wipeAkbScopedBrowserState: () => wipeAkbScopedBrowserState(),
 }));
 
 import SsoCompletePage from "./page";
@@ -50,6 +52,7 @@ describe("SsoCompletePage", () => {
     navigation.replace.mockClear();
     navigation.searchParams = new URLSearchParams();
     reconcileAkbAccount.mockClear();
+    wipeAkbScopedBrowserState.mockClear();
   });
 
   it("reconciles the current AKB account before navigating to a safe next path", async () => {
@@ -134,4 +137,34 @@ describe("SsoCompletePage", () => {
     });
     expect(reconcileAkbAccount).not.toHaveBeenCalled();
   });
+
+  it.each([
+    "membership_required",
+    "account_suspended",
+    "identity_conflict",
+  ] as const)(
+    "preserves the AKB account denial %s from completion verification",
+    async (code) => {
+      navigation.searchParams = new URLSearchParams({ next: "/issues" });
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response(JSON.stringify({ error: "account denied", code }), {
+            status: 401,
+            headers: { "X-Reef-Auth-Invalidated": "1" },
+          }),
+        ),
+      );
+
+      renderWithQueryClient(<SsoCompletePage />);
+
+      await waitFor(() => {
+        expect(navigation.replace).toHaveBeenCalledWith(
+          `/login?sso_error=${code}`,
+        );
+      });
+      expect(reconcileAkbAccount).not.toHaveBeenCalled();
+      expect(wipeAkbScopedBrowserState).toHaveBeenCalledOnce();
+    },
+  );
 });

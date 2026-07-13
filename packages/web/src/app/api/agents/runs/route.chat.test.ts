@@ -11,6 +11,7 @@ import {
   makeUiMessageStreamResponse,
   message,
   mockCreateGitHubAdapter,
+  mockCreateLlmAdapter,
   mockCreateWorkspaceChatAgentResponse,
   mockEnrichIssue,
   mockGetAkbCurrentActor,
@@ -144,23 +145,28 @@ describe("POST /api/agents/runs chat streaming", () => {
     );
   });
 
-  it("streams chat.workspace AKB-only when GitHub App session verification fails", async () => {
+  it("rejects chat before the LLM when AKB session verification fails", async () => {
     mockGetAkbCurrentActor.mockResolvedValueOnce({
-      response: Response.json({ error: "expired" }, { status: 401 }),
+      response: Response.json(
+        { error: "This account is suspended." },
+        {
+          status: 403,
+          headers: {
+            "Set-Cookie": "__reef_session=; Path=/; Max-Age=0",
+            "Cache-Control": "no-store",
+          },
+        },
+      ),
     });
 
     const res = await POST(makeRequest(chatRunBody));
 
-    expect(res.status).toBe(200);
-    expect(parseSseEvents(await res.text()).map((event) => event.type)).toEqual(
-      ["run.started", "model.delta", "run.completed"],
-    );
+    expect(res.status).toBe(403);
+    expect(res.headers.get("set-cookie")).toContain("__reef_session=");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(mockCreateLlmAdapter).not.toHaveBeenCalled();
     expect(mockCreateGitHubAdapter).not.toHaveBeenCalled();
-    expect(mockCreateWorkspaceChatAgentResponse).toHaveBeenCalledWith(
-      expect.not.objectContaining({
-        githubAdapter: expect.anything(),
-      }),
-    );
+    expect(mockCreateWorkspaceChatAgentResponse).not.toHaveBeenCalled();
   });
 
   it("does not emit a duplicate route error after a task terminal error", async () => {

@@ -1,9 +1,14 @@
 import { getAkbBackendUrl } from "@/lib/akb/akbBackendUrl";
 import { extractAkbSession } from "@/lib/akb/extractAkbSession";
+import {
+  AUTH_ACCOUNT_ERROR_HEADER,
+  AUTH_INVALIDATED_HEADER,
+} from "@/lib/akb/headers";
 import { buildClearedEstablishedAuthCookies } from "@/lib/akb/sessionCookie";
 import { localizeError } from "@/lib/api/errorLocalization";
 import { logger } from "@/lib/logging/logger";
 import {
+  type AkbAccountErrorCode,
   AuthError,
   ReefError,
   akbGetMe,
@@ -89,11 +94,16 @@ export async function GET(request: Request): Promise<Response> {
   });
 }
 
-function clearedSessionResponse(message: string, code?: string): Response {
+function clearedSessionResponse(
+  message: string,
+  code?: AkbAccountErrorCode,
+): Response {
   const headers = new Headers({
     "Cache-Control": "no-store",
     "Content-Type": "application/json",
+    [AUTH_INVALIDATED_HEADER]: "1",
   });
+  if (code) headers.set(AUTH_ACCOUNT_ERROR_HEADER, code);
   for (const cookie of buildClearedEstablishedAuthCookies()) {
     headers.append("Set-Cookie", cookie);
   }

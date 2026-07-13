@@ -7,6 +7,11 @@ const REEF_VAULT = "reef-e2e";
 const TOOL_LOOP_E2E_PROMPT = "tool transparency e2e";
 const TOOL_LOOP_SEARCH_ISSUES_CALL_ID = "call_e2e_search_issues";
 const TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID = "call_e2e_search_documents";
+const ACCOUNT_DENIAL_CODES = new Set([
+  "membership_required",
+  "account_suspended",
+  "identity_conflict",
+]);
 
 // A monotonically-advancing "edit clock". Each issue-row UPDATE stamps an
 // `updated_at` strictly later than the seeded `NOW`, mirroring real akb, which
@@ -72,9 +77,24 @@ const server = createServer(async (req, res) => {
     if (url.pathname === "/__e2e/keycloak" && req.method === "POST") {
       const body = await readJson(req);
       state.keycloakEnabled = body?.enabled === true;
+      state.localAuthEnabled = body?.local_auth_enabled !== false;
+      state.ssoOnly = body?.sso_only === true;
       return json(res, 200, {
         ok: true,
         keycloak_enabled: state.keycloakEnabled,
+        local_auth_enabled: state.localAuthEnabled,
+        sso_only: state.ssoOnly,
+      });
+    }
+    if (url.pathname === "/__e2e/account-denial" && req.method === "POST") {
+      const body = await readJson(req);
+      const requested = body?.code;
+      state.accountDenialCode = ACCOUNT_DENIAL_CODES.has(requested)
+        ? requested
+        : null;
+      return json(res, 200, {
+        ok: true,
+        code: state.accountDenialCode,
       });
     }
     // akb's Keycloak login start. reef-web calls this server-side to begin the
@@ -159,17 +179,30 @@ function makeState(scenario) {
     display_name: "Alice Example",
     is_admin: true,
   };
+  const bob = {
+    id: "user-bob",
+    username: "bob",
+    email: "bob@example.com",
+    display_name: "Bob Example",
+    is_admin: false,
+  };
   const token = makeJwt({ sub: alice.id, username: alice.username });
   const next = {
     scenario,
     calls: [],
-    users: new Map([[alice.username, { ...alice, password: "password" }]]),
+    users: new Map([
+      [alice.username, { ...alice, password: "password" }],
+      [bob.username, bob],
+    ]),
     sessions: new Map([[token, alice.username]]),
     loginToken: token,
     vaults: new Map(),
     issueListFailure: false,
     issueUpdateFailures: new Map(),
     keycloakEnabled: false,
+    localAuthEnabled: true,
+    ssoOnly: false,
+    accountDenialCode: null,
     commitSeq: 0,
     planningSeq: 10,
     githubRepos: [
@@ -732,13 +765,21 @@ async function handleAkb(req, res, url) {
 
   if (path === "/api/v1/auth/config" && req.method === "GET") {
     return json(res, 200, {
+      local_auth: { enabled: state.localAuthEnabled },
       keycloak: state.keycloakEnabled
-        ? { enabled: true, login_url: "/api/v1/auth/keycloak/login" }
-        : { enabled: false, login_url: null },
+        ? {
+            enabled: true,
+            login_url: "/api/v1/auth/keycloak/login",
+            sso_only: state.ssoOnly,
+          }
+        : { enabled: false, login_url: null, sso_only: false },
     });
   }
 
   if (path === "/api/v1/auth/login" && req.method === "POST") {
+    if (state.accountDenialCode) {
+      return accountDenialResponse(res, state.accountDenialCode);
+    }
     const body = await readJson(req);
     const user = state.users.get(String(body?.username ?? ""));
     if (!user || user.password !== body?.password) {
@@ -752,6 +793,9 @@ async function handleAkb(req, res, url) {
 
   const username = requireAkbAuth(req, res);
   if (!username) return;
+  if (state.accountDenialCode) {
+    return accountDenialResponse(res, state.accountDenialCode);
+  }
   const user = state.users.get(username);
 
   if (path === "/api/v1/auth/me" && req.method === "GET") {
@@ -763,6 +807,30 @@ async function handleAkb(req, res, url) {
       display_name: user.display_name,
       is_admin: user.is_admin,
     });
+  }
+
+  if (path === "/api/v1/users/search" && req.method === "GET") {
+    const query = (url.searchParams.get("q") ?? "").trim().toLowerCase();
+    const parsedLimit = Number.parseInt(
+      url.searchParams.get("limit") ?? "20",
+      10,
+    );
+    const limit = Number.isFinite(parsedLimit)
+      ? Math.min(Math.max(parsedLimit, 1), 100)
+      : 20;
+    const users = [...state.users.values()]
+      .filter((candidate) => {
+        if (!query) return true;
+        return [
+          candidate.username,
+          candidate.display_name,
+          candidate.email,
+        ].some((value) => value?.toLowerCase().includes(query));
+      })
+      .toSorted((left, right) => left.username.localeCompare(right.username))
+      .slice(0, limit)
+      .map(publicUser);
+    return json(res, 200, { users });
   }
 
   if (path === "/api/v1/my/vaults" && req.method === "GET") {
@@ -971,6 +1039,17 @@ async function handleAkb(req, res, url) {
   }
 
   return json(res, 404, { error: `unhandled akb mock route: ${path}` });
+}
+
+function accountDenialResponse(res, code) {
+  const status = code === "identity_conflict" ? 409 : 403;
+  const message =
+    code === "membership_required"
+      ? "Workspace membership is required."
+      : code === "account_suspended"
+        ? "The account is suspended."
+        : "The identity conflicts with this workspace account.";
+  return json(res, status, { detail: { code, message } });
 }
 
 function handleSql(vault, sql) {

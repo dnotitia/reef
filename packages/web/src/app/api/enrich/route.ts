@@ -2,7 +2,7 @@ import {
   localizeError,
   localizedErrorResponse,
 } from "@/lib/api/errorLocalization";
-import { getAkbAdapter } from "@/lib/api/requestHelpers";
+import { getAkbAdapter, respondWithError } from "@/lib/api/requestHelpers";
 import { resolveGroundingGitHubAdapter } from "@/lib/github/resolveGroundingGitHubAdapter";
 import { logger } from "@/lib/logging/logger";
 import {
@@ -78,6 +78,8 @@ export async function POST(request: Request): Promise<Response> {
 
   const akbAdapterResult = getAkbAdapter(request);
   if ("response" in akbAdapterResult) {
+    const authResponse = await akbAdapterResult.response;
+    if (authResponse.headers.has("set-cookie")) return authResponse;
     return localizedErrorResponse("workspaceSessionInvalid", 401);
   }
 
@@ -141,6 +143,9 @@ export async function POST(request: Request): Promise<Response> {
         { err, issueId: body.issueId },
         "enrich_issue workspace auth failed",
       );
+      if (err.context.origin === "akb") {
+        return respondWithError(err);
+      }
       return localizedErrorResponse("workspaceSessionInvalid", 401);
     }
     if (err instanceof NotFoundError) {

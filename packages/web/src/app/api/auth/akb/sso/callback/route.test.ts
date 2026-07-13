@@ -6,6 +6,7 @@ const SESSION_COOKIE = "__reef_session";
 const SSO_ID_TOKEN_COOKIE = "__reef_sso_id_token";
 const SSO_SESSION_COOKIE = "__reef_sso";
 const SSO_START_COOKIE = "__reef_sso_start";
+const AUTH_INVALIDATION_COOKIE = "__reef_auth_invalidated";
 
 function makeJwt(payload: object): string {
   const header = Buffer.from(
@@ -187,7 +188,14 @@ describe("GET /api/auth/akb/sso/callback", () => {
       expect(res.status).toBe(302);
       expect(res.headers.get("location")).toBe(`/login?sso_error=${ssoError}`);
       expect(fetchSpy).not.toHaveBeenCalled();
-      expect(res.headers.get("set-cookie")).toContain(`${SSO_START_COOKIE}=`);
+      const setCookie = res.headers.get("set-cookie") ?? "";
+      expect(setCookie).toContain(`${SSO_START_COOKIE}=`);
+      expect(setCookie).toContain(`${SESSION_COOKIE}=`);
+      expect(setCookie).toContain(`${SSO_SESSION_COOKIE}=`);
+      expect(setCookie).toContain(`${AUTH_INVALIDATION_COOKIE}=1`);
+      expect(setCookie).toContain("Max-Age=0");
+      expect(res.headers.get("x-reef-auth-invalidated")).toBe("1");
+      expect(res.headers.get("x-reef-account-error")).toBe(ssoError);
     },
   );
 
@@ -299,6 +307,11 @@ describe("GET /api/auth/akb/sso/callback", () => {
     expect(res.headers.get("location")).toBe(
       "/login?sso_error=identity_conflict",
     );
-    expect(res.headers.get("set-cookie")).toContain(`${SSO_START_COOKIE}=`);
+    const setCookie = res.headers.get("set-cookie") ?? "";
+    expect(setCookie).toContain(`${SSO_START_COOKIE}=`);
+    expect(setCookie).toContain(`${SESSION_COOKIE}=`);
+    expect(setCookie).toContain(`${SSO_SESSION_COOKIE}=`);
+    expect(setCookie).toContain("Max-Age=0");
+    expect(res.headers.get("x-reef-account-error")).toBe("identity_conflict");
   });
 });

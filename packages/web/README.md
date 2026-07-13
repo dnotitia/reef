@@ -77,6 +77,10 @@ variables for secrets.
 | `OPENROUTER_API_KEY` | Server-side OpenRouter key for AI features. |
 | `OPENROUTER_BASE_URL` | OpenRouter-compatible API base URL. |
 | `REEF_LLM_MODEL` | Deployment-selected model for the LLM adapter. |
+| `REEF_LLM_GOVERNANCE_MODE` | `platform_hard` for an akb-platform-managed deployment; unset is standalone external metering. |
+| `REEF_LLM_API_KEY` | Managed component-scoped platform gateway key; mutually exclusive with `OPENROUTER_*`. |
+| `REEF_LLM_BASE_URL` | Managed OpenAI-compatible gateway base. |
+| `REEF_PLATFORM_GATEWAY_BASE_URL` | Managed trust anchor; must exactly match `REEF_LLM_BASE_URL` after normalization. |
 
 GitHub features (monitored repositories, activity scan, and code grounding) are
 deployment-managed through `REEF_GITHUB_APP_ID`,
@@ -88,8 +92,9 @@ alone; the hermetic E2E harness mocks GitHub instead. See
 credential model.
 
 Keycloak SSO is configured on the AKB side. reef-web still only needs
-`AKB_BACKEND_URL`; see `../../docs/keycloak-sso.md` for the AKB callback,
-post-login path, and known logout/error redirect follow-up.
+`AKB_BACKEND_URL`: AKB's `sso_only` and `local_auth.enabled` fields control the
+login surface, while `REEF_SSO_AUTO_REDIRECT` is only a hybrid-mode presentation
+override. See `../../docs/keycloak-sso.md` for the callback and account contract.
 
 ## Layout
 

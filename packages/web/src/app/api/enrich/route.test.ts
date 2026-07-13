@@ -17,9 +17,14 @@ vi.mock("@reef/core", async (importOriginal) => {
   };
 });
 
-vi.mock("@/lib/api/requestHelpers", () => ({
-  getAkbAdapter: mockGetAkbAdapter,
-}));
+vi.mock("@/lib/api/requestHelpers", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@/lib/api/requestHelpers")>();
+  return {
+    ...original,
+    getAkbAdapter: mockGetAkbAdapter,
+  };
+});
 
 import {
   AkbApiError,
@@ -178,6 +183,27 @@ describe("POST /api/enrich", () => {
     expect(body.error).toMatch(/Workspace session/i);
   });
 
+  it("preserves session-clearing headers from an expired workspace session", async () => {
+    mockGetAkbAdapter.mockReturnValueOnce({
+      response: Response.json(
+        { error: "Your session has expired." },
+        {
+          status: 401,
+          headers: {
+            "Set-Cookie": "__reef_session=; Path=/; Max-Age=0",
+            "Cache-Control": "no-store",
+          },
+        },
+      ),
+    });
+
+    const res = await POST(makeRequest({}));
+
+    expect(res.status).toBe(401);
+    expect(res.headers.get("set-cookie")).toContain("__reef_session=");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+
   it("returns 400 on schema validation failure", async () => {
     const res = await POST(makeRequest({ body: { issueId: "" } }));
     expect(res.status).toBe(400);
@@ -209,6 +235,27 @@ describe("POST /api/enrich", () => {
     expect(res.status).toBe(401);
     const body = (await res.json()) as { error: string };
     expect(body.error).toMatch(/Workspace session/i);
+  });
+
+  it("preserves an AKB account denial and clears the established session", async () => {
+    mockEnrichIssue.mockRejectedValueOnce(
+      new AuthError({
+        origin: "akb",
+        code: "account_suspended",
+        status: 403,
+        message: "account suspended",
+      }),
+    );
+
+    const res = await POST(makeRequest({}));
+
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toMatch(/suspended/i);
+    const setCookie = res.headers.get("set-cookie") ?? "";
+    expect(setCookie).toContain("__reef_session=");
+    expect(setCookie).toContain("__reef_sso=");
+    expect(setCookie).toContain("Max-Age=0");
+    expect(res.headers.get("cache-control")).toBe("no-store");
   });
 
   it("returns 404 when core cannot find the requested workspace resource", async () => {

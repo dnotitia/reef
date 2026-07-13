@@ -1,6 +1,8 @@
 "use client";
 
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
+import { holdQueryUntilHydrated } from "@/lib/queryHydration";
+import { useHydrated } from "@/lib/useHydrated";
 import { type VaultSkillStatus, VaultSkillStatusSchema } from "@reef/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { applyWorkspaceSkillUpdate } from "../workspaceSkill.actions";
@@ -15,7 +17,8 @@ function skillStatusKey(vault: string) {
  * the result. Keyed by vault so a workspace switch refetches.
  */
 export function useWorkspaceSkillStatus(vault: string) {
-  return useQuery({
+  const hydrated = useHydrated();
+  const result = useQuery({
     queryKey: skillStatusKey(vault),
     enabled: vault.length > 0,
     queryFn: async (): Promise<VaultSkillStatus> => {
@@ -30,6 +33,8 @@ export function useWorkspaceSkillStatus(vault: string) {
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
+
+  return holdQueryUntilHydrated(result, hydrated);
 }
 
 /**

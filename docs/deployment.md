@@ -5,7 +5,8 @@ reef ships as a single stateless web service, **reef-web**, that talks to an
 own: the akb session lives in an httpOnly cookie, monitored repositories are
 accessed through deployment-managed GitHub credentials, and LLM config is
 deployment-managed server state. That means deployment is just "run the
-container, point it at akb, give it OpenRouter and GitHub configuration."
+container, point it at akb, and give it either standalone provider or managed
+platform-gateway configuration plus GitHub configuration."
 
 This guide covers three ways to run it:
 
@@ -194,10 +195,10 @@ the `reef-web-config` ConfigMap plus the `reef-web-secret` Secret).
 | --- | --- | --- |
 | `AKB_BACKEND_URL` | yes | Base URL of the akb backend reef-web calls server-side. In-cluster this is a Service DNS name (`http://<service>.<namespace>.svc.cluster.local:8000`). |
 | `REEF_PUBLIC_ORIGIN` | yes for SSO | reef-web's canonical external origin — bare `scheme://host[:port]`, no path. Sent to akb as the absolute SSO callback base so reef and akb's own frontend can share a tenant Keycloak. Must match the ingress/public host. `https` except for localhost dev. |
-| `REEF_SSO_AUTO_REDIRECT` | no | SSO-first login (REEF-312). `1`/`true` redirects `/login` straight to akb/Keycloak with no button click, for deployments where SSO is the primary identity. No-op unless akb reports Keycloak enabled; skipped on `?sso_error=`/`?error=` (loop guard) and the `?password=1`/`?prompt=login` password escape hatch. Unset/`0` keeps the button-first panel. |
+| `REEF_SSO_AUTO_REDIRECT` | no | Optional SSO-first presentation override for a hybrid AKB. AKB `keycloak.sso_only=true` redirects without it; AKB `local_auth.enabled=false` suppresses password login even when `?password=1`/`?prompt=login` is present. SSO/session errors suppress automatic redirect as the loop guard. |
 | `OPENROUTER_API_KEY` | yes for AI | OpenRouter API key for reef-web's AI routes. Keep it in a Secret; never inline it in manifests or commit it. |
 | `OPENROUTER_BASE_URL` | no | OpenRouter API base. Defaults to `https://openrouter.ai/api/v1`. |
-| `REEF_LLM_MODEL` | no | Model id passed to OpenRouter (e.g. `deepseek/deepseek-v4-flash`). |
+| `REEF_LLM_MODEL` | no | Deployment-selected model id passed to the standalone provider or managed gateway. |
 | `REEF_LLM_GOVERNANCE_MODE` | managed only | Set exactly to `platform_hard` for akb-platform-managed Reef. Unset means the standalone `external_metering` profile. |
 | `REEF_LLM_API_KEY` | managed only | Component-scoped platform gateway key. Required in `platform_hard`; keep it in a Secret. |
 | `REEF_LLM_BASE_URL` | managed only | OpenAI-compatible platform gateway base. Must exactly match `REEF_PLATFORM_GATEWAY_BASE_URL` after trailing-slash normalization. |

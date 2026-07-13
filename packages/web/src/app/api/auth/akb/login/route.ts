@@ -1,11 +1,12 @@
 import { getAkbBackendUrl } from "@/lib/akb/akbBackendUrl";
 import {
   DEFAULT_SESSION_MAX_AGE_SECONDS,
+  buildClearedAuthInvalidationCookie,
   buildClearedSsoCookies,
   buildSessionCookie,
   decodeJwtExp,
 } from "@/lib/akb/sessionCookie";
-import { localizeError } from "@/lib/api/errorLocalization";
+import { respondWithError } from "@/lib/api/requestHelpers";
 import { logger } from "@/lib/logging/logger";
 import {
   AkbApiError,
@@ -76,7 +77,7 @@ export async function POST(request: Request): Promise<Response> {
         err.context.origin === "akb" &&
         isAkbAccountErrorCode(err.context.code)
       ) {
-        return localizeError(err);
+        return respondWithError(err);
       }
       return Response.json(
         { error: "Invalid username or password." },
@@ -115,6 +116,7 @@ export async function POST(request: Request): Promise<Response> {
   for (const cookie of buildClearedSsoCookies()) {
     headers.append("Set-Cookie", cookie);
   }
+  headers.append("Set-Cookie", buildClearedAuthInvalidationCookie());
   headers.append("Cache-Control", "no-store");
 
   return new Response(JSON.stringify({ user: result.user }), {

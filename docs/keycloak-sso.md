@@ -40,9 +40,14 @@ AKB's public auth config endpoint must return the nested shape used by reef:
 
 ```json
 {
+  "local_auth": {
+    "enabled": false
+  },
   "keycloak": {
     "enabled": true,
-    "login_url": "/api/v1/auth/keycloak/login"
+    "login_url": "/api/v1/auth/keycloak/login",
+    "sso_only": true,
+    "enrollment_mode": "invite_only"
   }
 }
 ```
@@ -51,8 +56,14 @@ AKB's public auth config endpoint must return the nested shape used by reef:
 `/api/v1/auth/keycloak/login`. reef rejects absolute, protocol-relative, query,
 fragment, or non-Keycloak paths before making any server-side request.
 
-When `enabled` is false, `login_url` is null, or the config request fails, reef
-keeps password login usable and hides the SSO action.
+`keycloak.sso_only=true` is the authoritative managed presentation policy: Reef
+redirects a clean `/login` entry server-side with no panel flash. The optional
+`REEF_SSO_AUTO_REDIRECT` variable only forces the same presentation for a hybrid
+AKB. `local_auth.enabled=false` hides the password form and cannot be bypassed by
+the `?password=1` / `?prompt=login` loop escape. Older AKB responses that omit
+these additive fields default to local auth enabled and SSO-only disabled. When
+Keycloak is disabled or the config request fails, Reef falls back to the panel;
+on a config failure it preserves the standalone password-compatible behavior.
 
 ## Login Success Flow
 
@@ -84,7 +95,10 @@ may return that stable code to Reef's allowlisted callback. Reef validates the
 existing SSO nonce and completion path before accepting the code, shows curated
 product copy, and clears every established Reef auth cookie. The same mapping
 applies to password login and later `/auth/me` rejection, so a revoked or
-suspended account cannot continue through a stale local session.
+suspended account cannot continue through a stale local session. Protected Reef
+API responses also emit `X-Reef-Auth-Invalidated: 1`; the shared browser client
+uses that signal to clear persisted and in-memory AKB-account-scoped state while
+leaving ordinary permission denials intact.
 
 ## Sign-Out Flow
 

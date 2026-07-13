@@ -47,10 +47,12 @@ function setup({
   useVaultsMock.mockReturnValue({
     data: [{ name: "reef-acme", role }],
     isLoading: false,
+    isPending: false,
   });
   useStatusMock.mockReturnValue({
     data: statusLoading ? undefined : status,
     isLoading: statusLoading,
+    isPending: statusLoading,
     isError: false,
   });
   const mutate = vi.fn();

@@ -29,6 +29,38 @@ describe("AiConfigurationStatus", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows the platform gateway instead of its wire identifier", () => {
+    useAiAvailableMock.mockReturnValue({
+      isAvailable: true,
+      isLoading: false,
+      provider: "platform-gateway",
+      model: "deepseek/deepseek-v4-flash",
+    });
+
+    render(<AiConfigurationStatus />);
+
+    expect(
+      screen.getByText("AKB Platform Gateway · deepseek/deepseek-v4-flash"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/platform-gateway/)).not.toBeInTheDocument();
+  });
+
+  it("describes managed gateway configuration when that profile is unavailable", () => {
+    useAiAvailableMock.mockReturnValue({
+      isAvailable: false,
+      isLoading: false,
+      provider: "platform-gateway",
+      model: null,
+    });
+
+    render(<AiConfigurationStatus />);
+
+    expect(
+      screen.getByText(/platform gateway configuration/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/OpenRouter API key/i)).not.toBeInTheDocument();
+  });
+
   it("shows a deployment-level unavailable state when unconfigured", () => {
     useAiAvailableMock.mockReturnValue({
       isAvailable: false,

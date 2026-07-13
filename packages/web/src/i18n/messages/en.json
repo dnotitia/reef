@@ -115,7 +115,13 @@
       },
       "ai": {
         "notConfigured": "AI is not configured.",
-        "notConfiguredHelp": "This deployment needs an OpenRouter API key before AI features are available."
+        "notConfiguredHelp": "This deployment needs an OpenRouter API key before AI features are available.",
+        "managedNotConfiguredHelp": "This deployment needs a valid AKB Platform gateway configuration before AI features are available.",
+        "configured": "configured",
+        "provider": {
+          "openrouter": "OpenRouter",
+          "platformGateway": "AKB Platform Gateway"
+        }
       },
       "authoringLanguage": {
         "noVault": "Choose a workspace above before configuring the authoring language.",
@@ -1035,7 +1041,8 @@
       "akbPlatformAccess": "<akb>akb-platform</akb> access",
       "continueWithSso": "Continue with Workspace SSO",
       "useAkbIdentity": "Use your <akb>akb-platform</akb> identity.",
-      "orUsePassword": "or use password"
+      "orUsePassword": "or use password",
+      "unavailable": "No sign-in method is available for this workspace. Contact an administrator."
     },
     "account": {
       "menuLabel": "Account menu",
