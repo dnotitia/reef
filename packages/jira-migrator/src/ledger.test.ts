@@ -134,6 +134,32 @@ describe("Jira migration ledger", () => {
         readbackSucceeded: false,
       }),
     ).toThrowError("target_readback_required");
+
+    for (const [sourceIdentity, target] of [
+      [
+        jiraIssueSourceIdentity("cloud-1", "p-1", "i-2"),
+        {
+          target_kind: "issue",
+          reef_id: "REEF-901",
+          document_uri: "akb://other-vault/coll/issues/doc/reef-901.md",
+        },
+      ],
+      [
+        jiraAttachmentSourceIdentity("cloud-1", "a-1"),
+        {
+          target_kind: "attachment",
+          file_uri: "akb://other-vault/issues/file/file-1",
+        },
+      ],
+    ] as const) {
+      expect(() =>
+        confirmJiraMigrationBinding(ledger, {
+          ...base,
+          sourceIdentity,
+          target,
+        }),
+      ).toThrowError("target_scope_mismatch");
+    }
   });
 
   it("uses one classifier for create, skip, update, retry, and conflict", () => {
@@ -243,8 +269,26 @@ describe("Jira migration ledger", () => {
         reconciliation_state: "not_applicable",
       },
     });
+    ledger = recordJiraMigrationResult(ledger, {
+      runId: "run-1",
+      phase: "issues",
+      result: {
+        source_key: "issue:cloud-1:p:3",
+        entity_kind: "issue",
+        action: "conflict",
+        retryable: false,
+        error_code: null,
+        attempted_at: at,
+        readback_at: null,
+        reconciliation_state: "not_applicable",
+      },
+    });
 
-    const inputs = ["issue:cloud-1:p:2", "issue:cloud-1:p:1"];
+    const inputs = [
+      "issue:cloud-1:p:3",
+      "issue:cloud-1:p:2",
+      "issue:cloud-1:p:1",
+    ];
     expect(
       resumableJiraMigrationEntities(ledger, "run-1", "issues", inputs),
     ).toEqual(["issue:cloud-1:p:2"]);
@@ -261,7 +305,7 @@ describe("Jira migration ledger", () => {
       phase: "issues",
       at,
     });
-    expect(ledger.runs[0]?.phases.issues.status).toBe("partial_failed");
+    expect(ledger.runs[0]?.phases.issues.status).toBe("blocked");
     expect(() =>
       openJiraMigrationRun(ledger, {
         runId: "run-1",

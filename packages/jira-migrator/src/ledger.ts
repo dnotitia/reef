@@ -184,6 +184,40 @@ export const JiraMigrationTargetSchema = z.discriminatedUnion("target_kind", [
 ]);
 export type JiraMigrationTarget = z.infer<typeof JiraMigrationTargetSchema>;
 
+const targetAkbUri = (target: JiraMigrationTarget): string | null => {
+  if (target.target_kind === "issue") return target.document_uri;
+  if (target.target_kind === "attachment") return target.file_uri;
+  return null;
+};
+
+const akbUriBelongsToVault = (uri: string, vault: string): boolean => {
+  try {
+    const parsed = new URL(uri);
+    return (
+      parsed.protocol === "akb:" &&
+      parsed.hostname === vault &&
+      parsed.username === "" &&
+      parsed.password === "" &&
+      parsed.port === ""
+    );
+  } catch {
+    return false;
+  }
+};
+
+const expectedTargetKind: Record<
+  JiraMigrationEntityKind,
+  JiraMigrationTarget["target_kind"]
+> = {
+  version: "release",
+  sprint: "sprint",
+  issue: "issue",
+  comment: "comment",
+  attachment: "attachment",
+  changelog_history: "changelog_history",
+  relation: "relation",
+};
+
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/u);
 const isoSchema = z.string().datetime({ offset: true });
 
@@ -308,6 +342,7 @@ export const JiraMigrationLedgerV1Schema = z
   .superRefine((ledger, context) => {
     const bindingKeys = new Set<string>();
     for (const binding of ledger.bindings) {
+      const akbUri = targetAkbUri(binding.target);
       if (
         binding.source_key !== binding.source_identity.key ||
         binding.source_key !== canonicalSourceKey(binding.source_identity) ||
@@ -320,6 +355,22 @@ export const JiraMigrationLedgerV1Schema = z
           code: z.ZodIssueCode.custom,
           message: "binding identity is inconsistent or duplicated",
           path: ["bindings"],
+        });
+      }
+      if (
+        binding.target.target_kind !== expectedTargetKind[binding.entity_kind]
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "binding target kind does not match entity kind",
+          path: ["bindings", binding.source_key, "target"],
+        });
+      }
+      if (akbUri && !akbUriBelongsToVault(akbUri, ledger.target_scope.vault)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "binding target is outside the ledger vault scope",
+          path: ["bindings", binding.source_key, "target"],
         });
       }
       bindingKeys.add(binding.source_key);
@@ -366,6 +417,7 @@ export class JiraMigrationLedgerError extends Error {
   constructor(
     readonly code:
       | "source_identity_scope_mismatch"
+      | "target_scope_mismatch"
       | "target_readback_required"
       | "binding_target_conflict"
       | "run_plan_conflict"
@@ -519,20 +571,12 @@ export const confirmJiraMigrationBinding = (
   if (identity.jira_cloud_id !== ledger.source_scope.jira_cloud_id) {
     throw new JiraMigrationLedgerError("source_identity_scope_mismatch");
   }
-  const expectedTargetKind: Record<
-    JiraMigrationEntityKind,
-    JiraMigrationTarget["target_kind"]
-  > = {
-    version: "release",
-    sprint: "sprint",
-    issue: "issue",
-    comment: "comment",
-    attachment: "attachment",
-    changelog_history: "changelog_history",
-    relation: "relation",
-  };
   if (input.target.target_kind !== expectedTargetKind[identity.entity_kind]) {
     throw new JiraMigrationLedgerError("binding_target_conflict");
+  }
+  const akbUri = targetAkbUri(input.target);
+  if (akbUri && !akbUriBelongsToVault(akbUri, ledger.target_scope.vault)) {
+    throw new JiraMigrationLedgerError("target_scope_mismatch");
   }
   const existing = ledger.bindings.find(
     (item) => item.source_key === identity.key,

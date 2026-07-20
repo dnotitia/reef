@@ -99,6 +99,7 @@ export const resumableJiraMigrationEntities = (
       const result = results.get(sourceKey);
       if (!result) return true;
       if (result.action === "failed") return result.retryable;
+      if (result.action === "conflict") return false;
       if (
         result.reconciliation_state === "pending_target_migration" ||
         result.reconciliation_state === "ready"
