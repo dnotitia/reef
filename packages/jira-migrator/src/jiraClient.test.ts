@@ -25,7 +25,7 @@ const jsonResponse = (body: unknown, init: ResponseInit = {}): Response =>
 const makeClient = (fetchImpl: typeof fetch) =>
   new JiraReadClient({
     baseUrl: "https://example.atlassian.net",
-    projectKey: "SHDEV",
+    projectKey: "ALPHA",
     auth: {
       mode: "basic",
       email: "operator@example.com",
@@ -52,12 +52,12 @@ describe("JiraReadClient", () => {
 
     const [url, init] = fetchImpl.mock.calls[0] ?? [];
     expect(String(url)).toContain("/rest/api/3/search/jql");
-    expect(String(url)).toContain("jql=project+%3D+SHDEV+ORDER+BY+key+ASC");
+    expect(String(url)).toContain("jql=project+%3D+ALPHA+ORDER+BY+key+ASC");
     expect(String(url)).toContain("nextPageToken=cursor-1");
     expect(String(url)).toContain("fields=assignee");
     expect(String(url)).toContain("fields=reporter");
     expect(init?.method).toBe("GET");
-    expect(page.items[0]?.key).toBe("SHDEV-1");
+    expect(page.items[0]?.key).toBe("ALPHA-1");
     expect(page.cursor).toEqual({ kind: "nextPageToken", value: "next-token" });
     expect(page.rateLimit).toMatchObject({
       limit: 100,
@@ -76,23 +76,23 @@ describe("JiraReadClient", () => {
       .mockResolvedValueOnce(jsonResponse(jiraChangelogPageFixture));
     const client = makeClient(fetchImpl);
 
-    await expect(client.getIssue("SHDEV-1")).resolves.toMatchObject({
-      issue: { key: "SHDEV-1" },
+    await expect(client.getIssue("ALPHA-1")).resolves.toMatchObject({
+      issue: { key: "ALPHA-1" },
     });
     await expect(
-      client.listComments("SHDEV-1", { maxResults: 1 }),
+      client.listComments("ALPHA-1", { maxResults: 1 }),
     ).resolves.toMatchObject({
       cursor: { kind: "startAt", value: 1 },
       items: [{ id: "50001" }],
     });
-    await expect(client.listAttachments("SHDEV-1")).resolves.toMatchObject({
+    await expect(client.listAttachments("ALPHA-1")).resolves.toMatchObject({
       items: [{ filename: "brief.pdf" }],
     });
-    await expect(client.listIssueLinks("SHDEV-1")).resolves.toMatchObject({
-      items: [{ issueKey: "SHDEV-2" }],
+    await expect(client.listIssueLinks("ALPHA-1")).resolves.toMatchObject({
+      items: [{ issueKey: "ALPHA-2" }],
     });
     await expect(
-      client.listChangelog("SHDEV-1", { maxResults: 1 }),
+      client.listChangelog("ALPHA-1", { maxResults: 1 }),
     ).resolves.toMatchObject({
       cursor: { kind: "startAt", value: 1 },
       items: [{ id: "60001" }],
@@ -107,9 +107,9 @@ describe("JiraReadClient", () => {
     ]);
     expect(fetchImpl.mock.calls.map(([url]) => String(url))).toEqual(
       expect.arrayContaining([
-        expect.stringContaining("/rest/api/3/issue/SHDEV-1"),
-        expect.stringContaining("/rest/api/3/issue/SHDEV-1/comment"),
-        expect.stringContaining("/rest/api/3/issue/SHDEV-1/changelog"),
+        expect.stringContaining("/rest/api/3/issue/ALPHA-1"),
+        expect.stringContaining("/rest/api/3/issue/ALPHA-1/comment"),
+        expect.stringContaining("/rest/api/3/issue/ALPHA-1/changelog"),
       ]),
     );
   });
@@ -160,7 +160,7 @@ describe("JiraReadClient", () => {
     );
     const client = new JiraReadClient({
       baseUrl: "https://api.atlassian.com/ex/jira/cloud-abc///",
-      projectKey: "SHDEV",
+      projectKey: "ALPHA",
       auth: { mode: "bearer", token: "bearer-secret" },
       fetch: fetchImpl,
     });
@@ -189,7 +189,7 @@ describe("JiraReadClient", () => {
       vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(rawFixture)),
     );
 
-    const result = await client.getIssue("SHDEV-1");
+    const result = await client.getIssue("ALPHA-1");
 
     expect(result.issue.id).toBe("10001");
     expect(result.raw).toEqual(rawFixture);
@@ -231,7 +231,7 @@ describe("JiraReadClient", () => {
       "GET",
     ]);
     expect(String(fetchImpl.mock.calls[0]?.[0])).toContain(
-      "/rest/api/3/project/SHDEV/version",
+      "/rest/api/3/project/ALPHA/version",
     );
     expect(String(fetchImpl.mock.calls[1]?.[0])).toContain("startAt=1");
     expect(catalog.rateLimits).toHaveLength(2);

@@ -81,7 +81,7 @@ describe("Jira account mapping", () => {
           accountType: "atlassian",
           actor: "reef-operator",
           mappingStrategy: "email",
-          projectKeys: ["SHDEV"],
+          projectKeys: ["ALPHA"],
         },
         {
           accountId: "acct-reporter",
@@ -91,7 +91,7 @@ describe("Jira account mapping", () => {
           accountType: "atlassian",
           actor: "reef-requester",
           mappingStrategy: "override",
-          projectKeys: ["SHDEV"],
+          projectKeys: ["ALPHA"],
         },
       ]),
       changes: {
@@ -178,29 +178,29 @@ describe("Jira account mapping", () => {
     });
   });
 
-  it("shares a cloud account artifact across SHDEV and SDDEV and reports idempotent changes", () => {
-    const shdevIssue = JiraIssueSchema.parse(jiraIssueFixture);
-    const sddevIssue = JiraIssueSchema.parse({
+  it("shares a cloud account artifact across synthetic projects and reports idempotent changes", () => {
+    const alphaIssue = JiraIssueSchema.parse(jiraIssueFixture);
+    const betaIssue = JiraIssueSchema.parse({
       ...jiraIssueFixture,
-      key: "SDDEV-1",
+      key: "BETA-1",
       fields: {
         ...jiraIssueFixture.fields,
         project: {
           ...jiraIssueFixture.fields.project,
-          key: "SDDEV",
-          name: "SDDEV",
+          key: "BETA",
+          name: "Beta",
         },
       },
     });
-    const renamedSddevIssue = JiraIssueSchema.parse({
+    const renamedBetaIssue = JiraIssueSchema.parse({
       ...jiraIssueFixture,
-      key: "SDDEV-1",
+      key: "BETA-1",
       fields: {
         ...jiraIssueFixture.fields,
         project: {
           ...jiraIssueFixture.fields.project,
-          key: "SDDEV",
-          name: "SDDEV",
+          key: "BETA",
+          name: "Beta",
         },
         assignee: {
           ...jiraIssueFixture.fields.assignee,
@@ -220,7 +220,7 @@ describe("Jira account mapping", () => {
         },
       },
     });
-    const onlyAssignee = (issue: typeof shdevIssue) =>
+    const onlyAssignee = (issue: typeof alphaIssue) =>
       collectJiraUserObservations({ issue }).filter(
         (observation) => observation.user.accountId === "acct-assignee",
       );
@@ -230,7 +230,7 @@ describe("Jira account mapping", () => {
 
     let result = upsertJiraAccountMappingArtifact({
       artifact,
-      observations: onlyAssignee(shdevIssue),
+      observations: onlyAssignee(alphaIssue),
       directory,
       observedAt: "2026-07-09T07:00:00.000Z",
     });
@@ -263,7 +263,7 @@ describe("Jira account mapping", () => {
 
     result = upsertJiraAccountMappingArtifact({
       artifact,
-      observations: onlyAssignee(shdevIssue),
+      observations: onlyAssignee(alphaIssue),
       directory,
       observedAt: "2026-07-09T07:01:00.000Z",
     });
@@ -282,7 +282,7 @@ describe("Jira account mapping", () => {
 
     result = upsertJiraAccountMappingArtifact({
       artifact,
-      observations: onlyAssignee(sddevIssue),
+      observations: onlyAssignee(betaIssue),
       directory,
       observedAt: "2026-07-09T07:02:00.000Z",
     });
@@ -294,14 +294,14 @@ describe("Jira account mapping", () => {
       },
     ]);
     expect(result.artifact.accounts["acct-assignee"]?.projectKeys).toEqual([
-      "SDDEV",
-      "SHDEV",
+      "ALPHA",
+      "BETA",
     ]);
     artifact = result.artifact;
 
     result = upsertJiraAccountMappingArtifact({
       artifact,
-      observations: onlyAssignee(renamedSddevIssue),
+      observations: onlyAssignee(renamedBetaIssue),
       directory,
       observedAt: "2026-07-09T07:03:00.000Z",
     });
@@ -319,7 +319,7 @@ describe("Jira account mapping", () => {
         {
           accountId: "acct-assignee",
           displayName: "Operator Renamed",
-          projectKeys: ["SDDEV", "SHDEV"],
+          projectKeys: ["ALPHA", "BETA"],
         },
       ],
       changes: {
@@ -349,7 +349,7 @@ describe("Jira account mapping", () => {
       jiraCloudId: "cloud-abc",
     });
     expect(collectJiraUserObservations({ issue })).toContainEqual(
-      expect.objectContaining({ context: "creator", issueKey: "SHDEV-1" }),
+      expect.objectContaining({ context: "creator", issueKey: "ALPHA-1" }),
     );
     expect(
       mapJiraIssueActors(issue, { artifact, directory }).creator,

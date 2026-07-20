@@ -11,7 +11,7 @@ import {
 const env = {
   REEF_JIRA_BASE_URL: "https://example.atlassian.net///",
   REEF_JIRA_CLOUD_ID: "cloud-1",
-  REEF_JIRA_PROJECT_KEY: "shdev",
+  REEF_JIRA_PROJECT_KEY: "alpha",
   REEF_JIRA_EMAIL: "operator@example.com",
   REEF_JIRA_API_TOKEN: "jira-secret-token",
   REEF_JIRA_MIGRATOR_VAULT: "reef-test",
@@ -20,19 +20,19 @@ const env = {
 describe("loadJiraMigratorConfig", () => {
   it("loads operator config and keeps public config secret-free", () => {
     const config = loadJiraMigratorConfig({
-      argv: ["--dry-run", "--report=reports/shdev.json"],
+      argv: ["--dry-run", "--report=reports/alpha.json"],
       env,
     });
 
     expect(config).toMatchObject({
       dryRun: true,
       targetVault: "reef-test",
-      reportPath: "reports/shdev.json",
+      reportPath: "reports/alpha.json",
       accountMappingPath: null,
       jira: {
         baseUrl: "https://example.atlassian.net",
         cloudId: "cloud-1",
-        projectKey: "SHDEV",
+        projectKey: "ALPHA",
       },
     });
     expect(config.jira.auth).toMatchObject({
@@ -51,7 +51,7 @@ describe("loadJiraMigratorConfig", () => {
     const config = loadJiraMigratorConfig({
       argv: [
         "--project-key",
-        "SDDEV",
+        "BETA",
         "--vault",
         "reef-test",
         "--account-mapping",
@@ -120,7 +120,7 @@ describe("loadJiraMigratorConfig", () => {
         "--jira-cloud-id",
         "cloud-1",
         "--project-key",
-        "SHDEV",
+        "ALPHA",
         "--vault=reef-test",
         "--report",
         "reports/out.json",
@@ -132,7 +132,7 @@ describe("loadJiraMigratorConfig", () => {
       dryRun: true,
       jiraBaseUrl: "https://example.atlassian.net",
       cloudId: "cloud-1",
-      projectKey: "SHDEV",
+      projectKey: "ALPHA",
       vault: "reef-test",
       reportPath: "reports/out.json",
       accountMappingPath: "artifacts/accounts.json",

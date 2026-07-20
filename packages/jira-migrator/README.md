@@ -26,7 +26,7 @@ Run the scaffolded dry-run from the repository root:
 ```bash
 pnpm --filter @reef/jira-migrator run start -- \
   --jira-base-url https://example.atlassian.net \
-  --project-key SHDEV \
+  --project-key PROJECT \
   --vault reef-test \
   --dry-run
 ```
@@ -65,9 +65,9 @@ The package exports:
   field-level reports without performing I/O.
 
 The planning surface uses stable Jira Cloud, project, Version, and Sprint ids;
-project keys such as SHDEV are fixtures and operator inputs, never exported API
-names. See the operator runbook for lifecycle mapping, source selection, ledger
-precedence, and report interpretation.
+project keys are operator inputs, never exported API names. See the operator
+runbook for lifecycle mapping, source selection, ledger precedence, and report
+interpretation.
 
 Issue plans require pre-created opaque raw archive references and consume only
 the target mappings returned by `buildJiraPlanningTargetMappings`. A plan never

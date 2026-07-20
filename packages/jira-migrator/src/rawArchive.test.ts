@@ -39,7 +39,7 @@ const makeBase = async (): Promise<string> => {
 const options = (root: string, runId = "run-001"): CreateRawArchiveOptions => ({
   root,
   runId,
-  sourceScope: { cloud_id: "cloud-abc", project_key: "SHDEV" },
+  sourceScope: { cloud_id: "cloud-abc", project_key: "ALPHA" },
   createdAt: NOW,
   retention: {
     owner: "migration-operator",
@@ -56,13 +56,13 @@ const input = (
   entityKind: "issue",
   sourceIdentity: {
     cloud_id: "cloud-abc",
-    project_key: "SHDEV",
+    project_key: "ALPHA",
     issue_id: "10001",
   },
   sourceEndpoint: { method: "GET", pathname: "/rest/api/3/issue/10001" },
   classification: "internal",
   fetchedAt: NOW,
-  payload: { id: 10001, key: "SHDEV-1", order: [3, 2, 1] },
+  payload: { id: 10001, key: "ALPHA-1", order: [3, 2, 1] },
   ...overrides,
 });
 
@@ -143,7 +143,7 @@ describe("RawArchive", () => {
       "utf8",
     );
     const second = await firstArchive.archive(
-      input({ payload: { order: [3, 2, 1], key: "SHDEV-1", id: 10001 } }),
+      input({ payload: { order: [3, 2, 1], key: "ALPHA-1", id: 10001 } }),
     );
     expect(second).toEqual(first);
     expect(
@@ -174,7 +174,7 @@ describe("RawArchive", () => {
       changed.contentSha256,
     );
     await expect(archive.read(original)).resolves.toMatchObject({
-      key: "SHDEV-1",
+      key: "ALPHA-1",
     });
     await archive.archive(input());
     expect((await readEnvelope(root)).manifest.entries[0]?.current_sha256).toBe(
@@ -184,7 +184,7 @@ describe("RawArchive", () => {
     const one = input({
       sourceIdentity: {
         cloud_id: "cloud-abc",
-        project_key: "SHDEV",
+        project_key: "ALPHA",
         issue_id: "1",
       },
       payload: { id: 1 },
@@ -192,7 +192,7 @@ describe("RawArchive", () => {
     const two = input({
       sourceIdentity: {
         cloud_id: "cloud-abc",
-        project_key: "SHDEV",
+        project_key: "ALPHA",
         issue_id: "2",
       },
       payload: { id: 2 },
@@ -230,7 +230,7 @@ describe("RawArchive", () => {
         kind === "issue"
           ? {
               cloud_id: "cloud-abc",
-              project_key: "SHDEV",
+              project_key: "ALPHA",
               issue_id: `raw-${index}`,
             }
           : kind === "changelog_history"
@@ -419,7 +419,7 @@ describe("RawArchive", () => {
           input({
             sourceIdentity: {
               cloud_id: "cloud-abc",
-              project_key: "SHDEV",
+              project_key: "ALPHA",
               issue_id: "undefined-pagination",
             },
             sourceEndpoint: {
@@ -466,7 +466,7 @@ describe("RawArchive", () => {
     mutableOptions.forbiddenSecretValues = [];
     const sourceIdentity: RawArchiveSourceIdentity<"issue"> = {
       cloud_id: "cloud-abc",
-      project_key: "SHDEV",
+      project_key: "ALPHA",
       issue_id: "mutable-10001",
     };
     const mutableInput = input({ sourceIdentity });
@@ -510,7 +510,7 @@ describe("RawArchive", () => {
             classification: "public" as never,
             sourceIdentity: {
               cloud_id: "cloud-abc",
-              project_key: "SHDEV",
+              project_key: "ALPHA",
               issue_id: "invalid-classification",
             },
           }),
@@ -523,7 +523,7 @@ describe("RawArchive", () => {
           input({
             sourceIdentity: {
               cloud_id: "cloud-abc",
-              project_key: "SHDEV",
+              project_key: "ALPHA",
               issue_id: "invalid-endpoint",
             },
             sourceEndpoint: {
@@ -621,8 +621,8 @@ describe("RawArchive", () => {
       input({
         sourceIdentity: {
           cloud_id: "cloud-abc",
-          project_key: "SHDEV",
-          issue_id: "../민감/SHDEV-1",
+          project_key: "ALPHA",
+          issue_id: "../민감/ALPHA-1",
         },
         payload: { marker: "pii-is-private" },
       }),
@@ -637,7 +637,7 @@ describe("RawArchive", () => {
       .flat()
       .map(String);
     expect(tree.join("\n")).not.toContain("민감");
-    expect(tree.join("\n")).not.toContain("SHDEV-1");
+    expect(tree.join("\n")).not.toContain("ALPHA-1");
     expect(tree.join("\n")).not.toContain("..");
   });
 });

@@ -10,8 +10,8 @@ one-shot Jira-to-Reef migrations. Package-local orientation stays in
 `@reef/jira-migrator` owns operator-run Jira read paths, migration config
 loading, dry-run/report helpers, Jira payload normalization, local account
 mapping artifacts, source-system ordering plans, and immutable issue import
-plans for generic Jira projects. SHDEV/SDDEV are validation fixtures rather
-than API naming boundaries.
+plans for generic Jira projects. Project keys are operator inputs rather than
+API naming boundaries.
 
 The package is intentionally outside `@reef/web`: Jira credentials are
 deployment/operator secrets, not user state in the product runtime. Keep the
@@ -42,7 +42,7 @@ Run the current dry-run scaffold from the repository root:
 ```bash
 pnpm --filter @reef/jira-migrator run start -- \
   --jira-base-url https://example.atlassian.net \
-  --project-key SHDEV \
+  --project-key PROJECT \
   --vault reef-test \
   --account-mapping ./artifacts/jira-account-mapping.cloud-abc.json \
   --report ./artifacts/jira-migration-report.json \
@@ -55,7 +55,7 @@ output is safe for logs and reports because it omits secret values.
 When an installed build is used, the binary name is:
 
 ```bash
-reef-jira-migrator --project-key SHDEV --vault reef-test --dry-run
+reef-jira-migrator --project-key PROJECT --vault reef-test --dry-run
 ```
 
 ## Configuration
@@ -239,7 +239,7 @@ variable:
 ```bash
 pnpm --filter @reef/jira-migrator run start -- \
   --jira-cloud-id cloud-abc \
-  --project-key SHDEV \
+  --project-key PROJECT \
   --vault reef-test \
   --account-mapping ./artifacts/jira-account-mapping.cloud-abc.json \
   --dry-run
@@ -282,7 +282,7 @@ artifact back so operators can review account ids before import:
       "overrideReason": null,
       "firstSeenAt": "2026-07-09T08:00:00.000Z",
       "lastSeenAt": "2026-07-09T08:00:00.000Z",
-      "projectKeys": ["SHDEV"]
+      "projectKeys": ["PROJECT"]
     }
   },
   "overrides": {}
@@ -410,9 +410,8 @@ UUID to `resolveJiraPlanningActionTarget()`. REEF-319 can persist that resolutio
 by stable source identity, while REEF-318 can consume the release and Sprint
 maps from `buildJiraPlanningTargetMappings()` without creating planning rows.
 
-SHDEV is the first fixture-backed validation input, but the planning API,
-action shape, and tests are project-independent and exercise a second project
-key with the same contract.
+The planning API, action shape, and tests are project-independent and exercise
+multiple synthetic project keys with the same contract.
 
 Official API references:
 

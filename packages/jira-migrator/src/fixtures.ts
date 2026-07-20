@@ -1,9 +1,9 @@
 export const jiraIssueFixture = {
   id: "10001",
-  key: "SHDEV-1",
+  key: "ALPHA-1",
   self: "https://example.atlassian.net/rest/api/3/issue/10001",
   fields: {
-    summary: "Ship SHDEV pilot migration",
+    summary: "Ship synthetic migration fixture",
     description: {
       type: "doc",
       version: 1,
@@ -14,8 +14,8 @@ export const jiraIssueFixture = {
     labels: ["migration", "pilot"],
     project: {
       id: "200",
-      key: "SHDEV",
-      name: "SHDEV",
+      key: "ALPHA",
+      name: "Alpha",
     },
     issuetype: {
       id: "10002",
@@ -61,7 +61,7 @@ export const jiraIssueFixture = {
         },
         outwardIssue: {
           id: "10002",
-          key: "SHDEV-2",
+          key: "ALPHA-2",
           fields: {
             summary: "Downstream task",
           },
