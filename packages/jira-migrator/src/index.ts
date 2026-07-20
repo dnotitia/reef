@@ -226,3 +226,58 @@ export {
   type JiraRankInput,
   type JiraRankReportClassification,
 } from "./rank.js";
+export {
+  finalizeJiraMigrationPhase,
+  recordJiraMigrationResult,
+  resumableJiraMigrationEntities,
+} from "./checkpoint.js";
+export {
+  classifyJiraMigrationDiff,
+  fingerprintJiraState,
+  type JiraMigrationDiffBinding,
+  type JiraMigrationDiffResult,
+} from "./diff.js";
+export {
+  JIRA_MIGRATION_PHASES,
+  JiraMigrationActionSchema,
+  JiraMigrationBindingSchema,
+  JiraMigrationEntityKindSchema,
+  JiraMigrationEntityResultSchema,
+  JiraMigrationLedgerError,
+  JiraMigrationLedgerV1Schema,
+  JiraMigrationRunSchema,
+  JiraMigrationSafeErrorCodeSchema,
+  JiraMigrationSourceIdentitySchema,
+  JiraMigrationTargetSchema,
+  confirmJiraMigrationBinding,
+  createJiraMigrationLedger,
+  getJiraCommentTargetId,
+  getJiraIssueTarget,
+  getJiraPlanningLedgerBindings,
+  jiraAttachmentSourceIdentity,
+  jiraChangelogSourceIdentity,
+  jiraCommentSourceIdentity,
+  jiraIssueSourceIdentity,
+  jiraRelationSourceIdentity,
+  openJiraMigrationRun,
+  type ConfirmJiraMigrationBindingInput,
+  type JiraMigrationAction,
+  type JiraMigrationBinding,
+  type JiraMigrationEntityKind,
+  type JiraMigrationEntityResult,
+  type JiraMigrationLedgerV1,
+  type JiraMigrationPhase,
+  type JiraMigrationRun,
+  type JiraMigrationSourceIdentity,
+  type JiraMigrationTarget,
+} from "./ledger.js";
+export {
+  JiraMigrationLedgerFileError,
+  loadJiraMigrationLedger,
+  writeJiraMigrationLedger,
+  type JiraMigrationLedgerFileErrorCode,
+} from "./ledgerFile.js";
+export {
+  buildJiraMigrationReport,
+  type JiraMigrationReportCounts,
+} from "./report.js";

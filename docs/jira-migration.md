@@ -418,6 +418,92 @@ Official API references:
 - [Jira project Version REST API](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-project-versions/)
 - [Jira board Sprint REST API](https://developer.atlassian.com/cloud/jira/software/rest/api-group-board/#api-rest-agile-1-0-board-boardid-sprint-get)
 
+## Migration Ledger And Checkpoint
+
+REEF-319 adds the operator-owned local execution-state artifact used by later
+apply orchestration. It is deliberately separate from the REEF-406 raw archive:
+the archive owns canonical source payloads, while the ledger stores only stable
+identity, sanitized fingerprints, opaque archive references, successful target
+bindings, and immutable run results. The ledger is not stored in reef-web or an
+AKB table.
+
+### Scope And Identity
+
+A version 1 ledger has one Jira Cloud `source_scope` and one Reef vault
+`target_scope`. Multiple project keys from that Cloud share the same artifact;
+opening the same `run_id` with another Cloud, vault, project set, or plan
+fingerprint is a conflict. Source names, summaries, project keys, and issue keys
+remain display provenance rather than identity:
+
+- Version: Jira Cloud id + project id + Version id.
+- Sprint: Jira Cloud id + Sprint id; origin board is provenance.
+- Issue: Jira Cloud id + project id + issue id.
+- Comment: Jira Cloud id + issue id + comment id.
+- Attachment: Jira Cloud id + attachment id.
+- Changelog: Jira Cloud id + issue id + history id.
+- Relation: source/target issue ids plus stable link type, direction, and id.
+
+Use the exported percent-encoding identity builders. Do not hand-build keys or
+fall back to mutable Jira names and keys. `getJiraPlanningLedgerBindings`
+adapts confirmed Version/Sprint bindings to the planning API, while issue and
+comment lookup helpers return the Reef issue document pair and comment UUID.
+Jira `external_refs` remain PM-facing links; they do not provide idempotency.
+
+### Diff, Apply, And Resume
+
+Dry-run and apply must call the same `classifyJiraMigrationDiff` function over
+the same normalized fingerprints and target readback evidence:
+
+- no binding is `create`;
+- a valid binding with matching desired mapped state and target readback is
+  `skip`;
+- changed mapped state on the same valid target is `update`;
+- a retryable prior failure with unchanged preconditions is `retry`;
+- a missing/mismatched bound target, changed retry precondition, or
+  non-retryable prior failure is `conflict`.
+
+Call `confirmJiraMigrationBinding` only after both the target write and target
+identity readback succeed. A failed write or readback belongs in the run result,
+not in `bindings`; resume then retries or conflicts instead of creating a second
+target. Checkpoints are phase plus canonical entity key, never an array index.
+The ordered phases are planning, issues, related
+(comments/attachments/changelog), and reconciliation. Reordering source input
+does not change which completed entities are skipped.
+
+Cross-project relations persist `pending_target_migration`, `ready`, and
+`reconciled` separately. A retryable entity failure leaves its phase
+`partial_failed` without blocking unrelated entities; a conflict or
+non-retryable failure marks it `blocked`. `buildJiraMigrationReport` derives
+created, updated, skipped, conflict, failed, and retryable counts directly from
+the selected run, grouped by phase and entity kind; no mutable counter totals
+are persisted.
+
+### File Lifecycle And Recovery
+
+Place the artifact in a private operator directory on an encrypted local
+volume. POSIX directories must be `0700` and files `0600`. Windows writes need
+an explicit external ACL acknowledgement. Synchronized and network filesystems
+are unsupported.
+
+`loadJiraMigrationLedger` interprets only `ENOENT` as a new empty v1 artifact.
+Malformed JSON, a strict-schema error, unsupported version, scope mismatch,
+unsafe permissions, symlink, or sibling lock is a typed fail-closed error and
+must not be repaired by overwriting the file. `writeJiraMigrationLedger`
+rejects secret-like keys and configured secret values before its first write,
+takes an exclusive sibling lock, writes and flushes a private temporary file,
+renames it in the same directory, syncs the directory on POSIX, and immediately
+reloads the artifact for readback.
+
+Before apply, copy the unlocked ledger to a private backup and verify that the
+copy parses with the same Cloud and vault scopes. After interruption, preserve
+the ledger and inspect the selected run report; resume the same run id and plan
+fingerprint so only missing or retryable entity keys execute again. Never delete
+a stale lock automatically. Confirm no writer is alive, preserve the ledger,
+lock, and temporary sibling files as incident evidence, then have the operator
+remove only the exact stale lock and reload before retrying. Corruption, scope
+drift, run drift, or a missing bound target requires operator investigation or
+restoration from the verified backup; do not synthesize a fresh target.
+
 ## Jira Issue Import Plans
 
 `buildJiraIssueImportPlan()` is a pure mapping boundary. It accepts one parsed

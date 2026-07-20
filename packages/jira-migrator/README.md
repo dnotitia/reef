@@ -58,6 +58,9 @@ The package exports:
 - A verifiable raw archive API for pre-validation Jira JSON, returning opaque
   `{runId, entryId, contentSha256}` references instead of copying payloads into
   downstream plans or reports.
+- A strict local `JiraMigrationLedgerV1` execution-state artifact with stable
+  source identities, readback-confirmed target bindings, shared diff decisions,
+  entity-key checkpoints, deterministic reports, and guarded atomic file I/O.
 - Jira Rank import planning helpers.
 - Tenant field-catalog resolution, ADF-to-Markdown conversion, and immutable
   `JiraIssueImportPlan` builders that combine configurable enum policies,
@@ -98,6 +101,29 @@ reference are required. Synchronized or network filesystems are unsupported.
 The repository-level `/artifacts/` ignore rule is a last-resort commit guard,
 not an operational storage default. See the operator runbook for recovery,
 stale-lock, access-review, retention, and sanitization procedures.
+
+## Ledger And Checkpoint
+
+`loadJiraMigrationLedger` treats only a missing path as an empty version 1
+artifact. Malformed JSON, an unsupported schema version, a Jira Cloud or target
+vault scope mismatch, invalid private permissions, or a sibling lock all stop
+the run with a typed safe error. `writeJiraMigrationLedger` validates the full
+strict schema and configured forbidden secret values before taking an exclusive
+sibling lock, flushing a private temporary file, atomically replacing the
+artifact, and reloading it for identity readback.
+
+Use the exported source-identity builders, `fingerprintJiraState`, and
+`classifyJiraMigrationDiff` for both dry-run and apply. Persist a binding with
+`confirmJiraMigrationBinding` only after the target write and target identity
+readback both succeed. `openJiraMigrationRun`, checkpoint reducers, and
+`buildJiraMigrationReport` operate on canonical entity keys rather than input
+array indexes, so reordered inputs and multiple Jira projects in one Cloud
+scope resume deterministically.
+
+The ledger is operator-owned local execution state, not a raw payload archive,
+an AKB table, or reef-web persistence. Keep it on an encrypted local volume,
+back it up before an apply, and never delete a stale lock automatically. See
+the operator runbook for the full resume and repair procedure.
 
 ## Commands
 

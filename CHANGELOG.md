@@ -14,6 +14,12 @@ explicitly in the entries below.
 
 ### Added
 
+- **Jira migration reruns now have a durable local identity ledger and
+  checkpoint.** The operator package persists Cloud-scoped stable source-to-
+  target bindings only after identity readback, resumes by phase and canonical
+  entity key, derives multi-project reports from run state, and rejects corrupt,
+  scope-drifted, locked, or secret-bearing artifacts through private atomic file
+  I/O. (REEF-319)
 - **Jira issues can be mapped into immutable Reef import plans.** The operator
   package now resolves tenant fields without fuzzy defaults, converts ADF to
   Markdown with explicit unsupported/media evidence, and combines configurable
