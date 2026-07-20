@@ -327,6 +327,51 @@ describe("Jira issue import planning", () => {
     }
   });
 
+  it("blocks account artifacts from a different Jira cloud", () => {
+    const plan = buildJiraIssueImportPlan(
+      makeInput({
+        accountMapping: {
+          artifact: createJiraAccountMappingArtifact({
+            jiraCloudId: "foreign-cloud",
+            overrides: {
+              "creator-private-id": { actor: "foreign-creator" },
+              "reporter-id": { actor: "foreign-reporter" },
+              "assignee-id": { actor: "foreign-assignee" },
+            },
+          }),
+        },
+      }),
+    );
+    expect(plan.status).toBe("blocked");
+    expect(plan.desired.issue).toBeNull();
+    expect(plan.warnings).toContain("account_mapping_cloud_mismatch");
+    expect(plan.field_results).toContainEqual(
+      expect.objectContaining({
+        sourceFieldId: "account_mapping",
+        classification: "blocked",
+        reason: "account_mapping_cloud_mismatch",
+      }),
+    );
+    expect(JSON.stringify(plan)).not.toContain("foreign-");
+  });
+
+  it("blocks a Rank plan for a different target Reef issue", () => {
+    const plan = buildJiraIssueImportPlan(
+      makeInput({
+        rankPlan: buildJiraRankImportPlan([
+          {
+            reefId: "REEF-OTHER",
+            jiraKey: "ALPHA-1",
+            jiraRank: "0|i00010:",
+          },
+        ])[0],
+      }),
+    );
+    expect(plan.status).toBe("blocked");
+    expect(plan.desired.issue).toBeNull();
+    expect(plan.warnings).toContain("rank_plan_issue_mismatch");
+  });
+
   it("does not require a watcher-list archive for the standard watch summary", () => {
     const issueWithWatchSummary = JiraIssueSchema.parse({
       ...issueFixture,

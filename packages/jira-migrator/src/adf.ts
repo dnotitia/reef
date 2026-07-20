@@ -51,6 +51,45 @@ const escapeText = (value: string): string =>
 const escapeInlineSourceText = (value: string): string =>
   escapeText(value.replace(/\s+/gu, " ").trim());
 
+const longestBacktickSequence = (value: string): number => {
+  let longestBacktickRun = 0;
+  let currentBacktickRun = 0;
+  for (const character of value) {
+    if (character === "`") {
+      currentBacktickRun += 1;
+      longestBacktickRun = Math.max(longestBacktickRun, currentBacktickRun);
+    } else {
+      currentBacktickRun = 0;
+    }
+  }
+  return longestBacktickRun;
+};
+
+const renderInlineCode = (value: string): string => {
+  const longestBacktickRun = longestBacktickSequence(value);
+  const fence = "`".repeat(longestBacktickRun + 1);
+  return `${fence} ${value} ${fence}`;
+};
+
+const stripHorizontalWhitespaceBeforeNewlines = (value: string): string => {
+  const chunks: string[] = [];
+  let lineStart = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    if (value[index] !== "\n") continue;
+    let lineEnd = index;
+    while (
+      lineEnd > lineStart &&
+      (value[lineEnd - 1] === " " || value[lineEnd - 1] === "\t")
+    ) {
+      lineEnd -= 1;
+    }
+    chunks.push(value.slice(lineStart, lineEnd), "\n");
+    lineStart = index + 1;
+  }
+  chunks.push(value.slice(lineStart));
+  return chunks.join("");
+};
+
 const rawReferenceToken = (reference: RawArchiveReference): string =>
   `${reference.runId}/${reference.entryId}@${reference.contentSha256}`;
 
@@ -122,8 +161,11 @@ const applyMarks = (
   path: string,
   context: RenderContext,
 ): string => {
-  if (!Array.isArray(marks)) return text;
-  let rendered = text;
+  if (!Array.isArray(marks)) return escapeText(text);
+  const containsCodeMark = marks.some(
+    (mark) => isPlainObject(mark) && mark.type === "code",
+  );
+  let rendered = containsCodeMark ? text : escapeText(text);
   for (const [index, rawMark] of marks.entries()) {
     if (!isPlainObject(rawMark) || typeof rawMark.type !== "string") continue;
     const markPath = `${path}.marks[${index}]`;
@@ -139,7 +181,7 @@ const applyMarks = (
         rendered = `~~${rendered}~~`;
         break;
       case "code":
-        rendered = `\`${rendered.replace(/`/gu, "\\`")}\``;
+        rendered = renderInlineCode(rendered);
         break;
       case "link": {
         const href =
@@ -329,7 +371,7 @@ function renderNode(
       return renderChildren(rawNode, path, context).trim();
     case "text": {
       const value = typeof rawNode.text === "string" ? rawNode.text : "";
-      return applyMarks(escapeText(value), rawNode.marks, path, context);
+      return applyMarks(value, rawNode.marks, path, context);
     }
     case "paragraph":
       return `${renderChildren(rawNode, path, context)}\n\n`;
@@ -388,10 +430,7 @@ function renderNode(
             : {}),
         });
       }
-      const longestBacktickRun = Math.max(
-        0,
-        ...(body.match(/`+/gu) ?? []).map((run) => run.length),
-      );
+      const longestBacktickRun = longestBacktickSequence(body);
       const fence = "`".repeat(Math.max(3, longestBacktickRun + 1));
       return `${fence}${language}\n${body}\n${fence}\n\n`;
     }
@@ -518,8 +557,9 @@ export const convertAdfToMarkdown = (
     options,
     listDepth: 0,
   };
-  const markdown = renderNode(adf, "$", context)
-    .replace(/[ \t]+\n/gu, "\n")
+  const markdown = stripHorizontalWhitespaceBeforeNewlines(
+    renderNode(adf, "$", context),
+  )
     .replace(/\n{3,}/gu, "\n\n")
     .trim();
   return deepFreeze({

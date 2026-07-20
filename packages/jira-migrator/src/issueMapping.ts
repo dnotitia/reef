@@ -13,6 +13,7 @@ import {
 import {
   type JiraAccountMappingArtifact,
   type ReefActorDirectoryEntry,
+  createJiraAccountMappingArtifact,
   mapJiraIssueActors,
 } from "./accountMapping.js";
 import { convertAdfToMarkdown } from "./adf.js";
@@ -322,6 +323,28 @@ export const buildJiraIssueImportPlan = (
   const deferred: JiraIssueDeferredItem[] = [];
   const warnings: string[] = [];
   const blockers: string[] = [];
+  const accountMappingMatchesCloud =
+    input.accountMapping.artifact.jiraCloudId === input.jiraCloudId;
+  const safeAccountMapping = accountMappingMatchesCloud
+    ? input.accountMapping
+    : {
+        artifact: createJiraAccountMappingArtifact({
+          jiraCloudId: input.jiraCloudId,
+        }),
+      };
+
+  if (!accountMappingMatchesCloud) {
+    blockers.push("account_mapping_cloud_mismatch");
+    fieldResults.push(
+      fieldResult(
+        "account_mapping",
+        "Jira account mapping",
+        null,
+        "blocked",
+        "account_mapping_cloud_mismatch",
+      ),
+    );
+  }
 
   if (!input.rawArchiveReferences.issue) {
     blockers.push("raw_archive_reference_missing:issue");
@@ -425,7 +448,7 @@ export const buildJiraIssueImportPlan = (
   }
   const description = descriptionIsAdf
     ? convertAdfToMarkdown(issue.description, {
-        accountMapping: input.accountMapping,
+        accountMapping: safeAccountMapping,
         descriptionRawArchiveReference:
           input.rawArchiveReferences.descriptionAdf,
         mediaRawArchiveReferences: input.rawArchiveReferences.media,
@@ -464,7 +487,7 @@ export const buildJiraIssueImportPlan = (
     }
   }
 
-  const actors = mapJiraIssueActors(parsedIssue, input.accountMapping);
+  const actors = mapJiraIssueActors(parsedIssue, safeAccountMapping);
   const planActors = Object.fromEntries(
     Object.entries(actors).map(([context, actor]) => [
       context,
@@ -663,7 +686,10 @@ export const buildJiraIssueImportPlan = (
   }
 
   const rankPlan =
-    input.rankPlan?.jiraKey === issue.key ? input.rankPlan : null;
+    input.rankPlan?.jiraKey === issue.key &&
+    input.rankPlan.reefId === input.targetReefId
+      ? input.rankPlan
+      : null;
   if (input.rankPlan && !rankPlan) blockers.push("rank_plan_issue_mismatch");
   if (rankPlan?.reportClassification === "rank_unmapped") {
     warnings.push(`rank_unmapped:${rankPlan.reportReason ?? "unknown"}`);

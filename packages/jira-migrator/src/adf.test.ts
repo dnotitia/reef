@@ -238,6 +238,35 @@ describe("ADF to Markdown", () => {
     );
   });
 
+  it("uses a longer inline-code delimiter without rewriting backslashes", () => {
+    const source = "C:\\temp\\`tick`` [x](javascript:alert(1))";
+    const result = convertAdfToMarkdown({
+      type: "doc",
+      version: 1,
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: source, marks: [{ type: "code" }] }],
+        },
+      ],
+    });
+    expect(result.markdown).toBe(`\`\`\` ${source} \`\`\``);
+  });
+
+  it("removes large trailing tab runs in linear output order", () => {
+    const result = convertAdfToMarkdown({
+      type: "doc",
+      version: 1,
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: `kept${"\t".repeat(100_000)}` }],
+        },
+      ],
+    });
+    expect(result.markdown).toBe("kept");
+  });
+
   it("rejects unsafe card URLs without preserving active Markdown", () => {
     const result = convertAdfToMarkdown(
       {
