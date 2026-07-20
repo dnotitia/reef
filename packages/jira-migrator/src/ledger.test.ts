@@ -186,6 +186,20 @@ describe("Jira migration ledger", () => {
         desiredMappedStateFingerprint: fingerprint,
       }),
     ).toMatchObject({ action: "conflict" });
+    expect(
+      classifyJiraMigrationDiff({
+        binding: { ...binding, targetMatchesExpectedIdentity: false },
+        desiredMappedStateFingerprint: fingerprint,
+        previousResult: {
+          action: "failed",
+          retryable: true,
+          preconditionsMatch: true,
+        },
+      }),
+    ).toMatchObject({
+      action: "conflict",
+      reason: "target_identity_mismatch",
+    });
   });
 
   it("resumes by phase and canonical entity key regardless of input ordering", () => {

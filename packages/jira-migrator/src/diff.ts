@@ -35,6 +35,9 @@ export const classifyJiraMigrationDiff = ({
     preconditionsMatch: boolean;
   };
 }): JiraMigrationDiffResult => {
+  if (binding && !binding.targetMatchesExpectedIdentity) {
+    return { action: "conflict", reason: "target_identity_mismatch" };
+  }
   if (previousResult) {
     if (!previousResult.retryable) {
       return { action: "conflict", reason: "non_retryable_previous_failure" };
@@ -45,9 +48,6 @@ export const classifyJiraMigrationDiff = ({
     return { action: "retry", reason: "retryable_previous_failure" };
   }
   if (!binding) return { action: "create", reason: "binding_missing" };
-  if (!binding.targetMatchesExpectedIdentity) {
-    return { action: "conflict", reason: "target_identity_mismatch" };
-  }
   if (binding.mapped_state_fingerprint === desiredMappedStateFingerprint) {
     return { action: "skip", reason: "mapped_state_matches" };
   }
