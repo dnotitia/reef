@@ -55,7 +55,7 @@ describe("ADF to Markdown", () => {
       },
     );
     expect(result.markdown).toContain(
-      "first [**linked**](https://example.test) then @reef\\-alice\n✅",
+      "first [**linked**](https://example.test) then @reef\\-alice  \n✅",
     );
     expect(result.markdown).toContain("- [x] ship");
     expect(result.reports).toContainEqual(
@@ -235,6 +235,31 @@ describe("ADF to Markdown", () => {
         reason: "code_language_sanitized",
         rawArchiveReference: rawRef,
       }),
+    );
+  });
+
+  it("preserves hard-break markers and code-block trailing whitespace", () => {
+    const result = convertAdfToMarkdown({
+      type: "doc",
+      version: 1,
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "first" },
+            { type: "hardBreak" },
+            { type: "text", text: "second" },
+          ],
+        },
+        {
+          type: "codeBlock",
+          attrs: { language: "text" },
+          content: [{ type: "text", text: "value \t \nnext\t" }],
+        },
+      ],
+    });
+    expect(result.markdown).toBe(
+      "first  \nsecond\n\n```text\nvalue \t \nnext\t\n```",
     );
   });
 

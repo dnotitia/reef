@@ -71,19 +71,47 @@ const renderInlineCode = (value: string): string => {
   return `${fence} ${value} ${fence}`;
 };
 
-const stripHorizontalWhitespaceBeforeNewlines = (value: string): string => {
+const markdownFence = (
+  line: string,
+): { length: number; suffix: string } | null => {
+  let index = 0;
+  while (index < line.length && index < 3 && line[index] === " ") index += 1;
+  const fenceStart = index;
+  while (index < line.length && line[index] === "`") index += 1;
+  const length = index - fenceStart;
+  return length >= 3 ? { length, suffix: line.slice(index) } : null;
+};
+
+const normalizeHorizontalWhitespaceBeforeNewlines = (value: string): string => {
   const chunks: string[] = [];
   let lineStart = 0;
+  let openFenceLength: number | null = null;
   for (let index = 0; index < value.length; index += 1) {
     if (value[index] !== "\n") continue;
-    let lineEnd = index;
-    while (
-      lineEnd > lineStart &&
-      (value[lineEnd - 1] === " " || value[lineEnd - 1] === "\t")
-    ) {
-      lineEnd -= 1;
+    const line = value.slice(lineStart, index);
+    const fence = markdownFence(line);
+    if (openFenceLength !== null) {
+      chunks.push(line, "\n");
+      if (
+        fence &&
+        fence.length >= openFenceLength &&
+        fence.suffix.trim().length === 0
+      ) {
+        openFenceLength = null;
+      }
+    } else if (fence) {
+      openFenceLength = fence.length;
+      chunks.push(line, "\n");
+    } else {
+      let lineEnd = line.length;
+      while (
+        lineEnd > 0 &&
+        (line[lineEnd - 1] === " " || line[lineEnd - 1] === "\t")
+      ) {
+        lineEnd -= 1;
+      }
+      chunks.push(line.slice(0, lineEnd), line.endsWith("  ") ? "  \n" : "\n");
     }
-    chunks.push(value.slice(lineStart, lineEnd), "\n");
     lineStart = index + 1;
   }
   chunks.push(value.slice(lineStart));
@@ -557,7 +585,7 @@ export const convertAdfToMarkdown = (
     options,
     listDepth: 0,
   };
-  const markdown = stripHorizontalWhitespaceBeforeNewlines(
+  const markdown = normalizeHorizontalWhitespaceBeforeNewlines(
     renderNode(adf, "$", context),
   )
     .replace(/\n{3,}/gu, "\n\n")
