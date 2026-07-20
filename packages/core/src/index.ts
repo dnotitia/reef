@@ -22,6 +22,8 @@ export {
   PriorityEnum,
   IssueTypeEnum,
   SeverityEnum,
+  ClosedReasonEnum,
+  IssueMetadataSchema,
   IssueListItemSchema,
   SimilarIssueSchema,
   IssueCreateInputSchema,

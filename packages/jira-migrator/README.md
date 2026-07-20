@@ -4,8 +4,9 @@ Operator-run package for one-shot Jira migrations into Reef. The package is
 intentionally outside `@reef/web`: Jira credentials are deployment/operator
 secrets, not user state in the product runtime.
 
-At the current scaffold stage, the CLI validates migration configuration and
-prints a redacted public config. It does not write to Jira or Reef.
+The CLI still validates migration configuration and prints a redacted public
+config. The library additionally builds immutable Jira issue import plans; it
+does not apply those plans or write to Jira or Reef.
 
 ## Documentation Policy
 
@@ -57,12 +58,21 @@ The package exports:
 - A verifiable raw archive API for pre-validation Jira JSON, returning opaque
   `{runId, entryId, contentSha256}` references instead of copying payloads into
   downstream plans or reports.
-- SHDEV Jira Rank import planning helpers.
+- Project-neutral Jira Rank import planning helpers.
+- Tenant field-catalog resolution, ADF-to-Markdown conversion, and immutable
+  `JiraIssueImportPlan` builders that combine configurable enum policies,
+  account mappings, planning bindings, parents, Rank, compact provenance, and
+  field-level reports without performing I/O.
 
 The planning surface uses stable Jira Cloud, project, Version, and Sprint ids;
 project keys such as SHDEV are fixtures and operator inputs, never exported API
 names. See the operator runbook for lifecycle mapping, source selection, ledger
 precedence, and report interpretation.
+
+Issue plans require pre-created opaque raw archive references and consume only
+the target mappings returned by `buildJiraPlanningTargetMappings`. A plan never
+creates planning entities, performs an AKB write, or embeds raw ADF, watcher
+payloads, email addresses, or full Jira account objects.
 
 Use `@reef/core` for shared Reef contracts where available. Do not import
 `@reef/web` or browser/Next.js runtime APIs into this package.

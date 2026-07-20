@@ -1,19 +1,16 @@
 import { describe, expect, it } from "vitest";
-import {
-  applyShdevJiraRankImportPlan,
-  buildShdevJiraRankImportPlan,
-} from "./rank";
+import { applyJiraRankImportPlan, buildJiraRankImportPlan } from "./rank";
 
-describe("buildShdevJiraRankImportPlan", () => {
-  it("maps SHDEV Jira Rank into reef rank and preserves the source rank in provenance", () => {
-    const plans = buildShdevJiraRankImportPlan([
-      { reefId: "REEF-2", jiraKey: "SHDEV-2", jiraRank: "0|i00020:" },
-      { reefId: "REEF-1", jiraKey: "SHDEV-1", jiraRank: "0|i00010:" },
+describe("buildJiraRankImportPlan", () => {
+  it("maps Jira Rank into reef rank and preserves the source rank in provenance", () => {
+    const plans = buildJiraRankImportPlan([
+      { reefId: "REEF-2", jiraKey: "ALPHA-2", jiraRank: "0|i00020:" },
+      { reefId: "REEF-1", jiraKey: "ALPHA-1", jiraRank: "0|i00010:" },
     ]);
 
     expect(plans[0]).toMatchObject({
       reefId: "REEF-2",
-      jiraKey: "SHDEV-2",
+      jiraKey: "ALPHA-2",
       rank: 2000,
       reportClassification: "rank_mapped",
       provenance: {
@@ -25,7 +22,7 @@ describe("buildShdevJiraRankImportPlan", () => {
         rank: 2000,
         custom_fields: {
           jira: {
-            key: "SHDEV-2",
+            key: "ALPHA-2",
             rank: "0|i00020:",
             rank_mapping: {
               classification: "rank_mapped",
@@ -39,10 +36,10 @@ describe("buildShdevJiraRankImportPlan", () => {
   });
 
   it("reports unmapped Jira Rank values without writing a reef rank", () => {
-    const plans = buildShdevJiraRankImportPlan([
-      { reefId: "REEF-1", jiraKey: "SHDEV-1", jiraRank: "0|same:" },
-      { reefId: "REEF-2", jiraKey: "SHDEV-2", jiraRank: "0|same:" },
-      { reefId: "REEF-3", jiraKey: "SHDEV-3", jiraRank: null },
+    const plans = buildJiraRankImportPlan([
+      { reefId: "REEF-1", jiraKey: "ALPHA-1", jiraRank: "0|same:" },
+      { reefId: "REEF-2", jiraKey: "ALPHA-2", jiraRank: "0|same:" },
+      { reefId: "REEF-3", jiraKey: "ALPHA-3", jiraRank: null },
     ]);
 
     expect(plans.map((p) => p.reportClassification)).toEqual([
@@ -55,7 +52,7 @@ describe("buildShdevJiraRankImportPlan", () => {
     expect(plans[0].issueFields).not.toHaveProperty("rank");
     expect(plans[2].issueFields.custom_fields).toMatchObject({
       jira: {
-        key: "SHDEV-3",
+        key: "ALPHA-3",
         rank: null,
         rank_mapping: {
           classification: "rank_unmapped",
@@ -66,12 +63,12 @@ describe("buildShdevJiraRankImportPlan", () => {
   });
 });
 
-describe("applyShdevJiraRankImportPlan", () => {
+describe("applyJiraRankImportPlan", () => {
   it("merges Jira Rank provenance into existing issue custom fields", () => {
-    const [plan] = buildShdevJiraRankImportPlan([
-      { reefId: "REEF-1", jiraKey: "SHDEV-1", jiraRank: "0|i00010:" },
+    const [plan] = buildJiraRankImportPlan([
+      { reefId: "REEF-1", jiraKey: "ALPHA-1", jiraRank: "0|i00010:" },
     ]);
-    const issue = applyShdevJiraRankImportPlan(
+    const issue = applyJiraRankImportPlan(
       {
         id: "REEF-1",
         title: "Imported issue",
@@ -91,7 +88,7 @@ describe("applyShdevJiraRankImportPlan", () => {
       keep: true,
       jira: {
         status: "해야 할 일",
-        key: "SHDEV-1",
+        key: "ALPHA-1",
         rank: "0|i00010:",
         rank_mapping: {
           classification: "rank_mapped",
@@ -102,10 +99,10 @@ describe("applyShdevJiraRankImportPlan", () => {
   });
 
   it("keeps an existing reef rank untouched when the Jira Rank plan is unmapped", () => {
-    const [plan] = buildShdevJiraRankImportPlan([
-      { reefId: "REEF-1", jiraKey: "SHDEV-1", jiraRank: null },
+    const [plan] = buildJiraRankImportPlan([
+      { reefId: "REEF-1", jiraKey: "ALPHA-1", jiraRank: null },
     ]);
-    const issue = applyShdevJiraRankImportPlan(
+    const issue = applyJiraRankImportPlan(
       {
         id: "REEF-1",
         title: "Imported issue",
@@ -123,7 +120,7 @@ describe("applyShdevJiraRankImportPlan", () => {
     expect(issue.rank).toBe(4000);
     expect(issue.custom_fields).toMatchObject({
       jira: {
-        key: "SHDEV-1",
+        key: "ALPHA-1",
         rank: null,
         rank_mapping: {
           classification: "rank_unmapped",

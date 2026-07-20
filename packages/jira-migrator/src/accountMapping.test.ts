@@ -333,6 +333,33 @@ describe("Jira account mapping", () => {
     });
   });
 
+  it("uses the same resolver precedence for Jira issue creators", () => {
+    const issue = JiraIssueSchema.parse({
+      ...jiraIssueFixture,
+      fields: {
+        ...jiraIssueFixture.fields,
+        creator: {
+          accountId: "acct-creator",
+          emailAddress: "operator@example.com",
+          displayName: "Creator",
+        },
+      },
+    });
+    const artifact = createJiraAccountMappingArtifact({
+      jiraCloudId: "cloud-abc",
+    });
+    expect(collectJiraUserObservations({ issue })).toContainEqual(
+      expect.objectContaining({ context: "creator", issueKey: "SHDEV-1" }),
+    );
+    expect(
+      mapJiraIssueActors(issue, { artifact, directory }).creator,
+    ).toMatchObject({
+      context: "creator",
+      actor: "reef-operator",
+      strategy: "email",
+    });
+  });
+
   it("stops using an override after the operator removes it from the artifact", () => {
     const issue = JiraIssueSchema.parse(jiraIssueFixture);
     const reporterObservation = collectJiraUserObservations({ issue }).filter(

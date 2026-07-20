@@ -6,20 +6,20 @@ import {
   mapJiraRanksToIssueOrder,
 } from "@reef/core";
 
-export interface ShdevJiraRankInput {
+export interface JiraRankInput {
   reefId: string;
   jiraKey: string;
   jiraRank?: string | null;
 }
 
-export type ShdevJiraRankReportClassification =
+export type JiraRankReportClassification =
   JiraRankMappingResult["classification"];
 
-export interface ShdevJiraRankImportPlan {
+export interface JiraRankImportPlan {
   reefId: string;
   jiraKey: string;
   rank: number | null;
-  reportClassification: ShdevJiraRankReportClassification;
+  reportClassification: JiraRankReportClassification;
   reportReason?: JiraRankUnmappedReason;
   provenance: {
     source: "jira";
@@ -38,7 +38,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function jiraCustomFieldsForPlan(
   plan: Pick<
-    ShdevJiraRankImportPlan,
+    JiraRankImportPlan,
     "jiraKey" | "rank" | "reportClassification" | "reportReason" | "provenance"
   >,
   existing?: IssueMetadata["custom_fields"],
@@ -61,9 +61,9 @@ function jiraCustomFieldsForPlan(
 }
 
 function planFromMapping(
-  input: ShdevJiraRankInput,
+  input: JiraRankInput,
   mapping: JiraRankMappingResult,
-): ShdevJiraRankImportPlan {
+): JiraRankImportPlan {
   const basePlan = {
     reefId: input.reefId,
     jiraKey: input.jiraKey,
@@ -86,9 +86,9 @@ function planFromMapping(
   };
 }
 
-export function buildShdevJiraRankImportPlan(
-  inputs: readonly ShdevJiraRankInput[],
-): ShdevJiraRankImportPlan[] {
+export function buildJiraRankImportPlan(
+  inputs: readonly JiraRankInput[],
+): JiraRankImportPlan[] {
   const mappings = mapJiraRanksToIssueOrder(
     inputs.map((input) => ({
       id: input.reefId,
@@ -98,9 +98,9 @@ export function buildShdevJiraRankImportPlan(
   return inputs.map((input, index) => planFromMapping(input, mappings[index]));
 }
 
-export function applyShdevJiraRankImportPlan(
+export function applyJiraRankImportPlan(
   issue: IssueMetadata,
-  plan: ShdevJiraRankImportPlan,
+  plan: JiraRankImportPlan,
 ): IssueMetadata {
   if (issue.id !== plan.reefId) {
     throw new Error(

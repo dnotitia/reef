@@ -24,6 +24,57 @@ import {
 } from "./payloads.js";
 
 describe("Jira payload schemas and normalizers", () => {
+  it("parses expanded issue fields without treating source timestamps as Reef timestamps", () => {
+    const issue = JiraIssueSchema.parse({
+      ...jiraIssueFixture,
+      fields: {
+        ...jiraIssueFixture.fields,
+        issuetype: {
+          id: "10002",
+          name: "Sub-task",
+          subtask: true,
+          hierarchyLevel: -1,
+        },
+        status: {
+          id: "3",
+          name: "Done",
+          statusCategory: { id: "3", key: "done", name: "Done" },
+        },
+        priority: { id: "2", name: "High" },
+        creator: { accountId: "creator" },
+        parent: { id: "10000", key: "SHDEV-0" },
+        duedate: "2026-07-21",
+        resolution: { id: "1", name: "Fixed" },
+        resolutiondate: "2026-07-20T01:00:00.000Z",
+        fixVersions: [{ id: "10", name: "1.0" }],
+        versions: [{ id: "9", name: "0.9" }],
+        components: [{ id: "8", name: "API" }],
+        environment: "production",
+        watches: { watchCount: 2, isWatching: false },
+        votes: { votes: 1, hasVoted: false },
+        timetracking: { originalEstimateSeconds: 3600 },
+        worklog: { total: 1, worklogs: [] },
+      },
+    });
+    expect(normalizeJiraIssue(issue)).toMatchObject({
+      issueTypeId: "10002",
+      issueTypeSubtask: true,
+      issueTypeHierarchyLevel: -1,
+      statusId: "3",
+      statusCategoryKey: "done",
+      priority: { id: "2", name: "High" },
+      dueDate: "2026-07-21",
+      resolution: { id: "1", name: "Fixed" },
+      resolutionDate: "2026-07-20T01:00:00.000Z",
+      parent: { id: "10000", key: "SHDEV-0" },
+      fixVersions: [{ id: "10", name: "1.0" }],
+      affectedVersions: [{ id: "9", name: "0.9" }],
+      components: [{ id: "8", name: "API" }],
+      environment: "production",
+      users: { creator: { accountId: "creator" } },
+    });
+  });
+
   it("parses and normalizes an issue detail payload with attachments and links", () => {
     const issue = JiraIssueSchema.parse(jiraIssueFixture);
     const normalized = normalizeJiraIssue(issue);

@@ -12,6 +12,8 @@ export type JiraActorMappingContext =
   | "assignee"
   | "reporter"
   | "requester"
+  | "creator"
+  | "mention"
   | "comment_author"
   | "changelog_actor";
 
@@ -363,6 +365,7 @@ export const collectJiraUserObservations = (input: {
 
   push("assignee", input.issue.fields.assignee);
   push("reporter", input.issue.fields.reporter);
+  push("creator", input.issue.fields.creator);
   for (const comment of input.comments ?? []) {
     push("comment_author", comment.author);
   }
@@ -502,10 +505,12 @@ export const mapJiraIssueActors = (
   assignee: JiraActorMappingResult;
   reporter: JiraActorMappingResult;
   requester: JiraActorMappingResult;
+  creator: JiraActorMappingResult;
 } => ({
   assignee: resolveJiraActor("assignee", issue.fields.assignee, options),
   reporter: resolveJiraActor("reporter", issue.fields.reporter, options),
   requester: resolveJiraActor("requester", issue.fields.reporter, options),
+  creator: resolveJiraActor("creator", issue.fields.creator, options),
 });
 
 export const mapJiraCommentActor = (

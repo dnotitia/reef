@@ -14,6 +14,11 @@ explicitly in the entries below.
 
 ### Added
 
+- **Jira issues can be mapped into immutable Reef import plans.** The operator
+  package now resolves tenant fields without fuzzy defaults, converts ADF to
+  Markdown with explicit unsupported/media evidence, and combines configurable
+  enum, account, planning, parent, and Rank mappings into runtime-validated,
+  raw-reference-backed plans without performing writes. (REEF-318)
 - **Jira migrations can preserve verifiable raw source artifacts.** The
   operator package now separates pre-validation Jira JSON from normalized
   models and exposes a content-addressed, versioned raw archive with integrity,
