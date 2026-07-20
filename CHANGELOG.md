@@ -57,6 +57,18 @@ explicitly in the entries below.
   `OPENROUTER_API_KEY` before applying the manifests. See
   `docs/deployment.md#upgrade-an-existing-openrouter-deployment` for the exact
   sequence and rollback behavior. (REEF-413)
+- **AKB table evolution now has an explicit operator-owned rollout policy.**
+  New-table provisioning remains limited to `ensureReefTables` create/verify,
+  while a release pre-start gate must enumerate every registered Reef workspace,
+  apply pending caller-keyed `akbApplyTableMigration` phases, and finish with
+  manifest/version verification before Reef can become ready. Kubernetes uses
+  an identity-isolating initContainer with `Recreate` until mixed-version
+  compatibility is proven; local `pnpm dev` runs the same gate once before
+  Next.js without passing its migration credential to the long-running process.
+  REEF-367 owns the service identity and inventory prerequisites, and REEF-414
+  owns the runner and deployment/development wiring. This documentation-only
+  change adds no runner, credential, manifest, package script, schema migration,
+  data backfill, or `REEF_SCHEMA_VERSION` bump. (REEF-030)
 - **Update the Reef workspace skill/runbooks to version 17.** The comment
   contract now documents `parent_comment_id` / `thread_root_id`, atomic reply
   validation, malformed-chain handling, and trusted importer handoff. Existing

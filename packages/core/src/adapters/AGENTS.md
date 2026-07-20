@@ -9,9 +9,19 @@
   queryable projection. Keep row/document writes paired.
 - Issue templates are table-only rows in `reef_templates`, addressed by their
   `name` stem; they are not searchable akb documents.
-- `ensureReefTables` provisions Reef tables for new vaults. Use the row `meta`
-  JSON for ad-hoc fields, and promote a field to a typed column only when it must
-  be filtered or sorted.
+- `ensureReefTables` only creates missing Reef tables and verifies existing
+  tables against the desired manifest; it never alters an existing table from a
+  read or hot path. Existing-table evolution runs only in the release pre-start
+  gate: enumerate every workspace from the authoritative inventory, apply its
+  pending phases through `akbApplyTableMigration`, then call
+  `ensureReefTables` for final manifest/version verification. Any workspace
+  failure blocks startup/readiness. Never migrate from user requests,
+  issue/comment/activity paths, individual workspace entry, or hot reload;
+  `akbAlterTable` stays a low-level primitive.
+  Use `meta`/`payload` JSON for ad-hoc fields; promote a field to a typed column
+  only for filtering, sorting, joins, constraints/uniqueness, or indexing, then
+  follow `docs/migration-policy.md`'s Expand → Backfill → Enforce → Contract
+  policy.
 - Writes are last-write-wins and non-transactional across document + row.
   `writeIssue` compensates a failed row insert by deleting the just-created
   document, and `updateIssue` compensates a failed row update by re-PATCHing the
