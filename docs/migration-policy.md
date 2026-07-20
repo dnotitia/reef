@@ -38,28 +38,192 @@ stay deployment-managed server state rather than browser-local state.
 
 ## akb Compatibility
 
-reef-web does not own direct akb database migrations. New vault provisioning is
-handled through reef's akb adapter by `ensureReefTables`, while existing akb
-database evolution must be handled through akb-owned migration mechanisms or an
-approved operational runbook.
+Reef separates table provisioning from table evolution. The four paths below
+have different owners and must not be collapsed into an automatic hot-path
+migration:
+
+| Change | Owner and standard path |
+| --- | --- |
+| Add a new Reef table | Core's desired table manifest, a `REEF_SCHEMA_VERSION` bump, and `ensureReefTables` additive create/verify |
+| Change an existing table's columns, constraints, unique keys, or indexes | An explicit operator workflow calling `akbApplyTableMigration` |
+| Backfill or repair existing rows | A bounded, retry-safe AKB DML job owned by the deployment operator and kept separate from schema operations |
+| Drop, rename, or contract a type or representation | A separately approved Contract-phase operator migration after the compatibility window and rollback prerequisites are satisfied |
+
+`ensureReefTables` is the lazy self-heal path for a new workspace: it creates
+missing tables and verifies existing tables against the desired manifest. It
+must not ALTER an existing table. A manifest mismatch remains a hard failure so
+that a user request, issue/comment/activity hot path, individual workspace
+entry, or hot reload cannot silently acquire migration privileges or mutate a
+live schema. Release startup uses the explicit pre-start gate defined below.
+
+For an existing table, `akbApplyTableMigration` is the standard schema
+primitive. AKB applies its ordered operations atomically and returns a typed
+migration result tied to a caller-provided UUID. `akbAlterTable` remains a
+low-level primitive for investigation or a deliberately isolated single
+operation; it is not the normal release-rollout path because it does not provide
+the same migration replay record. AKB may expose both endpoints to a writer, so
+operator-only use is enforced by Reef's caller boundary and runbook, not by
+assuming the upstream role is an administrator role. Service-identity wiring is
+a separate security concern and must not be improvised as part of a schema
+change.
 
 Do not commit ad hoc PostgreSQL migration files for akb-owned tables in this
-repository.
+repository. Do not perform DDL with the DML backfill path, and do not hide an
+existing-table mismatch by teaching `ensureReefTables` to repair it.
 
-When reef starts depending on a new akb table, column, document shape, or API
-behavior:
+### Typed column promotion
 
-- Update the relevant Zod schema in `packages/core/src/schemas` first.
-- Update `ensureReefTables` for newly created vaults.
-- Document the minimum akb compatibility requirement in `CHANGELOG.md`.
-- Add release notes explaining whether existing vaults need an akb-side
-  migration, a one-time backfill, or no action.
-- Prefer extension fields in existing `meta` JSON when a field does not need to
-  be filtered or sorted.
+Keep ad-hoc extension fields in the owning `meta` or `payload` JSON
+compatibility envelope. Promote a field to a typed column only when the product
+needs at least one database-level capability: filtering, sorting, joining,
+uniqueness or another constraint, or an index. Display-only annotations and
+fields that are merely carried through a response stay in JSON.
 
-If a SQL backfill is unavoidable, keep it in the akb repository or in an
-operator runbook owned by the deployment environment. The reef release note may
-link to that runbook, but should not become the source of truth for akb DDL.
+When a field qualifies, update its canonical Zod schema and the desired table
+manifest for newly provisioned vaults. Existing vaults still follow the
+operator migration phases below; changing the manifest does not authorize
+`ensureReefTables` to ALTER them.
+
+### Expand, Backfill, Enforce, Contract
+
+Promoting an existing JSON field or otherwise tightening an existing table is a
+four-phase rollout. Each phase is independently observable and retryable:
+
+1. **Expand.** Add the typed column as nullable through an explicit operator
+   migration. New application code may write the typed value, but readers must
+   fall back to the legacy `meta` or `payload` value and writers must preserve a
+   representation that the oldest supported reader understands. Do not combine
+   the nullable add with a destructive drop, rename, or type contraction.
+2. **Backfill.** Populate existing rows with a separate bounded DML job. Define
+   deterministic conversion rules, count the target rows, invalid or
+   unparseable values, and failures, and make retries skip values already
+   filled rather than overwriting them. Schema success is not backfill success.
+3. **Enforce.** Preflight until null, invalid-value, and duplicate counts that
+   would violate the intended contract are zero. Repair data before adding a
+   NOT NULL or uniqueness constraint; a constraint is never a duplicate-cleanup
+   mechanism. Add constraints, unique keys, and indexes with a new migration
+   phase UUID, then verify their presence and application reader/writer
+   behavior.
+4. **Contract.** After at least one compatible release and the documented
+   rollback window, remove the legacy fallback or dual write. A drop, rename, or
+   type contraction uses a separate issue, pull request, and migration UUID.
+   Execute it only after proving that supported old readers and writers are no
+   longer needed and that an inverse migration or data-restore plan exists.
+
+For a type change, add a new nullable column, dual-read/write as required,
+backfill it, enforce it, and remove the old column later. Never use an in-place
+destructive type change to bypass the compatibility phases.
+
+### Migration identity, replay, and evidence
+
+Assign one stable UUID to each target-vault migration phase. Reuse that UUID for
+every retry in the same vault and environment. The ordered operation list,
+including every payload, is immutable once associated with the UUID:
+
+- A first application returns an applied result and its checksum.
+- An unchanged same-key retry may return a replay result such as
+  `applied: false`; treat that as idempotent evidence, not a reason to mint a new
+  key.
+- The same key with a different operation, payload, or operation order is a
+  checksum conflict. Fail closed, record the drift, and reconcile which
+  operation list is authoritative. Do not bypass the conflict with a new UUID.
+
+The pull request or operator runbook must record, without credentials:
+
+- Reef issue id, target vault and environment, phase name, migration UUID, and
+  immutable ordered operation list.
+- Returned checksum, applied/replay result, and timestamps.
+- Preflight target, null, invalid, and duplicate counts, plus any data-repair or
+  backfill outcome.
+- Postflight schema invariants, constraint/index presence, application
+  reader/writer compatibility, and rollback observables.
+- The condition that permits rollout to continue and the condition that stops
+  or rolls it back.
+
+### Release pre-start gate
+
+Existing-table migrations run only in a release pre-start gate, before Reef
+accepts user traffic or reports ready. The gate is a deployment-owned runner;
+it is not a route, workspace-opening side effect, or repair action triggered by
+an individual user. It must not accept a manually selected vault as the rollout
+scope. Instead, it reads the authoritative Reef workspace inventory and treats
+every registered workspace as part of the release.
+
+The runner performs this sequence:
+
+1. Confirm AKB readiness and authenticate with a non-interactive migration
+   identity.
+2. Enumerate every registered Reef workspace from the authoritative inventory.
+3. Read each workspace's schema/version state and apply every pending phase in
+   order with `akbApplyTableMigration` and that phase's stable UUID.
+4. Confirm that any separately owned bounded backfill required before the next
+   phase has completed and satisfies its preflight invariants.
+5. After pending phases are applied, call `ensureReefTables` to create any new
+   tables and verify the complete desired manifest and version stamp.
+6. Start Reef, or mark it ready, only after every registered workspace passes.
+
+The gate fails closed on inventory, identity, migration, backfill, replay,
+checksum, or final-manifest errors. One failed workspace blocks application
+startup/readiness for the release; the runner must not skip it, narrow the
+inventory to a convenient vault, or defer repair until that workspace is first
+opened. Re-running the whole gate is safe because phase UUIDs and operations
+are stable and successful replays are evidence.
+
+The non-interactive AKB identity, its least-privilege authorization, and the
+authoritative registration/discovery contract are implementation
+prerequisites. REEF-367 owns those identity and inventory decisions. REEF-414
+owns the runner, migration catalog, deployment wiring, and development wrapper.
+This policy does not implement any of them.
+
+### Kubernetes and local development
+
+The Kubernetes reference implementation runs the gate in an `initContainer` so
+the migration credential is available only to the short-lived runner, not the
+long-running Reef application container. A separate one-off Job is optional,
+not a required part of this policy. While Reef requires exact desired-manifest
+compatibility and old/new application concurrency has not been proven, the
+Deployment strategy must be `Recreate`. `RollingUpdate` is allowed only after a
+separate compatibility change proves mixed-version readers and writers safe for
+every migration phase.
+
+Local `pnpm dev` runs the same gate once, before starting the Next.js development
+server. A gate failure prevents Next.js from starting, and hot reload does not
+run migrations again. Local migration credentials must be supplied separately
+from the general `.env.local` loaded by Next.js and removed from the child
+process environment before the long-running server starts. Development uses an
+isolated local AKB or explicitly allowed development workspaces, never reused
+production credentials.
+
+User requests, issue/comment/activity operations, individual workspace entry,
+and hot reload remain migration-free in every environment. They may surface a
+schema mismatch, but they do not call `akbApplyTableMigration` to repair it.
+
+### Compatibility and rollback
+
+Before each phase, verify the target AKB compatibility, current table shape,
+data counts, migration history for the chosen UUID, and whether old and new
+application versions can run concurrently. After each phase, verify the typed
+result rather than relying only on a successful HTTP status.
+
+During Expand and Backfill, application rollback ignores the new nullable
+column and continues to read the legacy fallback. Leave the expanded column in
+place; dropping it during an application rollback would turn a reversible
+deployment into destructive schema work. Before Enforce, prove that the oldest
+supported writer satisfies the proposed constraints.
+
+Contract is not automatically reversible. If dropping or renaming data cannot
+be undone with a tested inverse migration or restored from a defined backup,
+do not execute that phase. If a destructive phase has already run, application
+rollback alone is insufficient; follow the recorded inverse/data-restore plan.
+
+Every AKB compatibility change must document the minimum upstream requirement
+and whether existing vaults require a schema migration, a one-time backfill, a
+vault-skill reinstall, or no action. A policy-only change that executes none of
+these must say so explicitly in `CHANGELOG.md`.
+
+REEF-030 is policy-only: it adds no runner, credential, initContainer manifest,
+package script, schema operation, or data backfill. Those runtime changes must
+land through their owning implementation issues.
 
 ## Vault Skill Documents
 
