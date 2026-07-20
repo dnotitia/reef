@@ -558,6 +558,32 @@ export const buildJiraIssueImportPlan = (
   }
 
   const projectId = asString(parsedIssue.fields.project?.id);
+  if (issue.fixVersions.length > 0 && !projectId) {
+    blockers.push("version_project_id_missing");
+    fieldResults.push(
+      fieldResult(
+        "fixVersions",
+        "Fix versions",
+        "release_id",
+        "blocked",
+        "version_project_id_missing",
+        "raw_preservation.archiveReferences",
+      ),
+    );
+  }
+  if (issue.fixVersions.some((version) => !asString(version.id))) {
+    blockers.push("version_id_missing");
+    fieldResults.push(
+      fieldResult(
+        "fixVersions",
+        "Fix versions",
+        "release_id",
+        "blocked",
+        "version_id_missing",
+        "raw_preservation.archiveReferences",
+      ),
+    );
+  }
   const versionRelations = issue.fixVersions.flatMap((version) => {
     const sourceId = asString(version.id);
     if (!sourceId || !projectId) return [];
@@ -685,12 +711,37 @@ export const buildJiraIssueImportPlan = (
     );
   }
 
-  const rankPlan =
+  const issueMatchedRankPlan =
     input.rankPlan?.jiraKey === issue.key &&
     input.rankPlan.reefId === input.targetReefId
       ? input.rankPlan
       : null;
-  if (input.rankPlan && !rankPlan) blockers.push("rank_plan_issue_mismatch");
+  if (input.rankPlan && !issueMatchedRankPlan) {
+    blockers.push("rank_plan_issue_mismatch");
+  }
+  const rankField = fieldResolutions.rank.field;
+  const rawRankValue = rankField ? parsedIssue.fields[rankField.id] : undefined;
+  const rankPlanMatchesCurrentValue =
+    !issueMatchedRankPlan ||
+    !rankField ||
+    ((typeof rawRankValue === "string" ||
+      rawRankValue === null ||
+      rawRankValue === undefined) &&
+      issueMatchedRankPlan.provenance.value === (rawRankValue ?? null));
+  if (issueMatchedRankPlan && !rankPlanMatchesCurrentValue && rankField) {
+    blockers.push("rank_plan_value_mismatch");
+    fieldResults.push(
+      fieldResult(
+        rankField.id,
+        rankField.name,
+        "rank",
+        "blocked",
+        "rank_plan_value_mismatch",
+        "raw_preservation.archiveReferences",
+      ),
+    );
+  }
+  const rankPlan = rankPlanMatchesCurrentValue ? issueMatchedRankPlan : null;
   if (rankPlan?.reportClassification === "rank_unmapped") {
     warnings.push(`rank_unmapped:${rankPlan.reportReason ?? "unknown"}`);
   }

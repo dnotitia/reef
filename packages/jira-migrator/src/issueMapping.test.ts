@@ -372,6 +372,32 @@ describe("Jira issue import planning", () => {
     expect(plan.warnings).toContain("rank_plan_issue_mismatch");
   });
 
+  it("blocks a stale Rank plan whose source value differs from the issue", () => {
+    const plan = buildJiraIssueImportPlan(
+      makeInput({
+        rankPlan: buildJiraRankImportPlan([
+          {
+            reefId: "REEF-900",
+            jiraKey: "ALPHA-1",
+            jiraRank: "0|stale:",
+          },
+        ])[0],
+      }),
+    );
+    expect(plan.status).toBe("blocked");
+    expect(plan.desired.issue).toBeNull();
+    expect(plan.warnings).toContain("rank_plan_value_mismatch");
+    expect(plan.field_results).toContainEqual(
+      expect.objectContaining({
+        sourceFieldId: "customfield_alpha_rank",
+        targetField: "rank",
+        classification: "blocked",
+        reason: "rank_plan_value_mismatch",
+        preservationLocation: "raw_preservation.archiveReferences",
+      }),
+    );
+  });
+
   it("does not require a watcher-list archive for the standard watch summary", () => {
     const issueWithWatchSummary = JiraIssueSchema.parse({
       ...issueFixture,
@@ -469,6 +495,31 @@ describe("Jira issue import planning", () => {
     expect(
       plan.deferred.filter((item) => item.reason === "owner_decision_required"),
     ).toHaveLength(2);
+  });
+
+  it("blocks fix version planning when the source project id is absent", () => {
+    const issueWithoutProjectId = JiraIssueSchema.parse({
+      ...issueFixture,
+      fields: {
+        ...issueFixture.fields,
+        project: { key: "ALPHA", name: "Alpha" },
+      },
+    });
+    const plan = buildJiraIssueImportPlan(
+      makeInput({ issue: issueWithoutProjectId }),
+    );
+    expect(plan.status).toBe("blocked");
+    expect(plan.desired.issue).toBeNull();
+    expect(plan.warnings).toContain("version_project_id_missing");
+    expect(plan.field_results).toContainEqual(
+      expect.objectContaining({
+        sourceFieldId: "fixVersions",
+        targetField: "release_id",
+        classification: "blocked",
+        reason: "version_project_id_missing",
+        preservationLocation: "raw_preservation.archiveReferences",
+      }),
+    );
   });
 
   it("defers missing planning bindings and unresolved/cross-project parents", () => {
