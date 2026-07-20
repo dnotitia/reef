@@ -97,7 +97,8 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
     // issue creation) and should not declare them here. `meta` json carries the
     // reef "semantic actor" fields (author/last_editor) and `source` —
     // distinct from akb's auth-principal created_by — plus future extension
-    // fields, sidestepping the no-ALTER-TABLE-over-HTTP limitation.
+    // fields as a compatibility envelope before an explicit operator migration
+    // is applied, or when one cannot run.
     columns: [
       { name: "document_uri", type: "text", required: true },
       { name: "reef_id", type: "text", required: true },
@@ -172,8 +173,9 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
     // akb auto-injects id/created_at/updated_at/created_by. `name` is the
     // logical key (the filename-stem id surfaced in the UI). `body` is a plain
     // text column — the template is self-contained, no backing document. `meta`
-    // json holds future non-filtered extension fields, sidestepping the
-    // no-ALTER-TABLE-over-HTTP limitation.
+    // json holds future non-filtered extension fields as a compatibility
+    // envelope before an explicit operator migration is applied, or when one
+    // cannot run.
     columns: [
       { name: "name", type: "text", required: true },
       { name: "label", type: "text", required: true },

@@ -32,6 +32,279 @@ export { REEF_DESIRED_TABLES, REEF_SCHEMA_VERSION } from "./tableManifest";
 // numeric/jsonb forms when listing the table. SQL escaping for the DML endpoint
 // lives in `sql.ts`.
 
+const NonEmptyStringSchema = z.string().min(1);
+
+export const AkbTableMutationColumnTypeSchema = z.enum([
+  "text",
+  "int",
+  "float",
+  "numeric",
+  "number",
+  "boolean",
+  "uuid",
+  "date",
+  "timestamp",
+  "jsonb",
+  "json",
+  "text[]",
+  "enum",
+]);
+
+const AkbAddedColumnSchema = z
+  .object({
+    name: NonEmptyStringSchema,
+    type: AkbTableMutationColumnTypeSchema,
+  })
+  .passthrough();
+
+const AkbAlteredColumnSchema = z
+  .object({ name: NonEmptyStringSchema })
+  .passthrough();
+
+const AkbUniqueKeySchema = z
+  .object({
+    name: NonEmptyStringSchema.optional(),
+    columns: z.array(NonEmptyStringSchema).min(1),
+  })
+  .passthrough();
+
+const AkbIndexColumnSchema = z.union([
+  NonEmptyStringSchema,
+  z.object({ name: NonEmptyStringSchema }).passthrough(),
+]);
+
+const AkbIndexSchema = z
+  .object({
+    name: NonEmptyStringSchema.optional(),
+    columns: z.array(AkbIndexColumnSchema).min(1),
+  })
+  .passthrough();
+
+export const AkbAlterTableChangesSchema = z
+  .object({
+    add_columns: z.array(AkbAddedColumnSchema).optional(),
+    alter_columns: z.array(AkbAlteredColumnSchema).optional(),
+    drop_columns: z.array(NonEmptyStringSchema).optional(),
+    rename_columns: z.record(NonEmptyStringSchema).optional(),
+    add_unique_keys: z.array(AkbUniqueKeySchema).optional(),
+    drop_unique_keys: z.array(NonEmptyStringSchema).optional(),
+    add_indexes: z.array(AkbIndexSchema).optional(),
+    drop_indexes: z.array(NonEmptyStringSchema).optional(),
+  })
+  .strict()
+  .superRefine((changes, ctx) => {
+    for (const oldName of Object.keys(changes.rename_columns ?? {})) {
+      if (oldName.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.too_small,
+          minimum: 1,
+          inclusive: true,
+          type: "string",
+          path: ["rename_columns", oldName],
+          message: "rename source must not be empty",
+        });
+      }
+    }
+  });
+
+const MigrationBaseSchema = z.object({ table: NonEmptyStringSchema });
+
+export const AkbTableMigrationOperationSchema = z.discriminatedUnion("op", [
+  MigrationBaseSchema.extend({
+    op: z.literal("add_column"),
+    column: AkbAddedColumnSchema,
+  }).strict(),
+  MigrationBaseSchema.extend({
+    op: z.literal("alter_column"),
+    column: AkbAlteredColumnSchema,
+  }).strict(),
+  MigrationBaseSchema.extend({
+    op: z.literal("drop_column"),
+    name: NonEmptyStringSchema,
+  }).strict(),
+  MigrationBaseSchema.extend({
+    op: z.literal("rename_column"),
+    from: NonEmptyStringSchema,
+    to: NonEmptyStringSchema,
+  }).strict(),
+  MigrationBaseSchema.extend({
+    op: z.literal("add_unique_key"),
+    unique_key: AkbUniqueKeySchema,
+  }).strict(),
+  MigrationBaseSchema.extend({
+    op: z.literal("drop_unique_key"),
+    name: NonEmptyStringSchema,
+  }).strict(),
+  MigrationBaseSchema.extend({
+    op: z.literal("add_index"),
+    index: AkbIndexSchema,
+  }).strict(),
+  MigrationBaseSchema.extend({
+    op: z.literal("drop_index"),
+    name: NonEmptyStringSchema,
+  }).strict(),
+]);
+
+export const AkbTableMigrationOperationsSchema = z
+  .array(AkbTableMigrationOperationSchema)
+  .min(1);
+
+const AkbTableResponseColumnSchema = z
+  .object({
+    name: NonEmptyStringSchema,
+    type: AkbTableMutationColumnTypeSchema,
+  })
+  .passthrough();
+
+export const AkbTableResultSchema = z
+  .object({
+    kind: z.literal("table"),
+    uri: NonEmptyStringSchema,
+    vault: NonEmptyStringSchema,
+    name: NonEmptyStringSchema,
+    columns: z.array(AkbTableResponseColumnSchema),
+    unique_keys: z.array(z.record(z.unknown())),
+    indexes: z.array(z.record(z.unknown())),
+  })
+  .passthrough();
+
+const AkbTableMigrationStepResultSchema = z
+  .object({
+    index: z.number().int().positive(),
+    op: NonEmptyStringSchema,
+    table: NonEmptyStringSchema,
+    result: AkbTableResultSchema,
+  })
+  .passthrough();
+
+export const AkbTableMigrationResultSchema = z
+  .object({
+    kind: z.literal("table_migration"),
+    id: z.string().uuid().optional(),
+    vault: NonEmptyStringSchema,
+    idempotency_key: z.string().uuid(),
+    checksum: NonEmptyStringSchema,
+    applied: z.boolean(),
+    applied_at: NonEmptyStringSchema.optional(),
+    operations: z.number().int().positive(),
+    results: z.array(AkbTableMigrationStepResultSchema),
+  })
+  .passthrough();
+
+export type AkbAlterTableChanges = z.infer<typeof AkbAlterTableChangesSchema>;
+export type AkbTableMigrationOperation = z.infer<
+  typeof AkbTableMigrationOperationSchema
+>;
+export type AkbTableResult = z.infer<typeof AkbTableResultSchema>;
+export type AkbTableMigrationResult = z.infer<
+  typeof AkbTableMigrationResultSchema
+>;
+
+export interface AlterAkbTableParams {
+  adapter: AkbAdapter;
+  vault: string;
+  table: string;
+  changes: AkbAlterTableChanges;
+}
+
+export interface ApplyAkbTableMigrationParams {
+  adapter: AkbAdapter;
+  vault: string;
+  idempotencyKey: string;
+  operations: AkbTableMigrationOperation[];
+}
+
+function schemaValidationError(error: z.ZodError): SchemaValidationError {
+  return new SchemaValidationError({
+    clientValidated: true,
+    issues: error.issues.map(
+      (issue) => `${issue.path.join(".") || "input"}: ${issue.message}`,
+    ),
+  });
+}
+
+function parseOrThrow<T>(schema: z.ZodType<T>, value: unknown): T {
+  const parsed = schema.safeParse(value);
+  if (!parsed.success) throw schemaValidationError(parsed.error);
+  return parsed.data;
+}
+
+function alterOperationCount(changes: AkbAlterTableChanges): number {
+  return (
+    (changes.add_columns?.length ?? 0) +
+    (changes.alter_columns?.length ?? 0) +
+    (changes.drop_columns?.length ?? 0) +
+    Object.keys(changes.rename_columns ?? {}).length +
+    (changes.add_unique_keys?.length ?? 0) +
+    (changes.drop_unique_keys?.length ?? 0) +
+    (changes.add_indexes?.length ?? 0) +
+    (changes.drop_indexes?.length ?? 0)
+  );
+}
+
+/** Apply one low-level, transactional table alter through AKB's REST API. */
+export async function alterAkbTable(
+  params: AlterAkbTableParams,
+): Promise<AkbTableResult> {
+  const parsed = parseOrThrow(
+    z.object({
+      vault: NonEmptyStringSchema,
+      table: NonEmptyStringSchema,
+      changes: AkbAlterTableChangesSchema,
+    }),
+    params,
+  );
+  return withSpan(
+    "akb.tables.alter",
+    {
+      vault: parsed.vault,
+      table: parsed.table,
+      operation_count: alterOperationCount(parsed.changes),
+    },
+    async () => {
+      const payload = await params.adapter.request(
+        `/api/v1/tables/${encodeURIComponent(parsed.vault)}/${encodeURIComponent(parsed.table)}`,
+        {
+          method: "PATCH",
+          body: parsed.changes,
+          resource: `table ${parsed.table}`,
+        },
+      );
+      return parseOrThrow(AkbTableResultSchema, payload);
+    },
+  );
+}
+
+/** Apply an atomic table migration with a caller-owned idempotency UUID. */
+export async function applyAkbTableMigration(
+  params: ApplyAkbTableMigrationParams,
+): Promise<AkbTableMigrationResult> {
+  const parsed = parseOrThrow(
+    z.object({
+      vault: NonEmptyStringSchema,
+      idempotencyKey: z.string().uuid(),
+      operations: AkbTableMigrationOperationsSchema,
+    }),
+    params,
+  );
+  return withSpan(
+    "akb.tables.migrate",
+    { vault: parsed.vault, operation_count: parsed.operations.length },
+    async () => {
+      const payload = await params.adapter.request(
+        `/api/v1/tables/${encodeURIComponent(parsed.vault)}/migrations`,
+        {
+          method: "POST",
+          body: parsed.operations,
+          rawHeaders: { "Idempotency-Key": parsed.idempotencyKey },
+          resource: `table migration in vault ${parsed.vault}`,
+        },
+      );
+      return parseOrThrow(AkbTableMigrationResultSchema, payload);
+    },
+  );
+}
+
 export interface EnsureReefTablesParams {
   adapter: AkbAdapter;
   vault: string;

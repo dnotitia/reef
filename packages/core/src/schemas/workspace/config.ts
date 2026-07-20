@@ -125,8 +125,9 @@ export const StaleHideDaysSchema = z
  *                     detection (grounding just — these are not the issue store).
  *
  * Future extension slots (default_labels, default_status, custom workflow)
- * land as new keys in `reef_settings` — schema-free key-value sidesteps the
- * fact that akb's HTTP surface does not expose ALTER TABLE.
+ * land as new keys in `reef_settings` — the schema-free key-value shape remains
+ * a compatibility envelope before an explicit operator migration is applied,
+ * or when one cannot run.
  *
  *   authoring_language — default language for AI-generated content (REEF-136).
  *                        A stored `reef_settings` key; `null` means unset (no
