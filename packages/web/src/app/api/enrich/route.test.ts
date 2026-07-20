@@ -1,12 +1,17 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockEnrichIssue, mockGetAkbAdapter, mockReadAuthoringLanguage } =
-  vi.hoisted(() => ({
-    mockEnrichIssue: vi.fn(),
-    mockGetAkbAdapter: vi.fn(),
-    mockReadAuthoringLanguage: vi.fn(),
-  }));
+const {
+  mockEnrichIssue,
+  mockGetAkbAdapter,
+  mockGetAkbCurrentActor,
+  mockReadAuthoringLanguage,
+} = vi.hoisted(() => ({
+  mockEnrichIssue: vi.fn(),
+  mockGetAkbAdapter: vi.fn(),
+  mockGetAkbCurrentActor: vi.fn(),
+  mockReadAuthoringLanguage: vi.fn(),
+}));
 
 vi.mock("@reef/core", async (importOriginal) => {
   const original = await importOriginal<typeof import("@reef/core")>();
@@ -23,6 +28,7 @@ vi.mock("@/lib/api/requestHelpers", async (importOriginal) => {
   return {
     ...original,
     getAkbAdapter: mockGetAkbAdapter,
+    getAkbCurrentActor: mockGetAkbCurrentActor,
   };
 });
 
@@ -88,6 +94,7 @@ describe("POST /api/enrich", () => {
     vi.stubEnv("REEF_LLM_BASE_URL", "https://api.openai.com/v1");
     vi.stubEnv("REEF_LLM_MODEL", "gpt-4o");
     mockGetAkbAdapter.mockReturnValue({ adapter: { request: vi.fn() } });
+    mockGetAkbCurrentActor.mockResolvedValue({ actor: "alice" });
     mockReadAuthoringLanguage.mockResolvedValue(null);
   });
 
@@ -215,6 +222,32 @@ describe("POST /api/enrich", () => {
     expect(res.status).toBe(503);
     const body = (await res.json()) as { error: string };
     expect(body.error).toMatch(/deployment/i);
+  });
+
+  it("returns account denial before an unavailable LLM capability", async () => {
+    vi.stubEnv("REEF_LLM_API_KEY", "");
+    vi.stubEnv("OPENROUTER_API_KEY", "");
+    mockGetAkbCurrentActor.mockResolvedValueOnce({
+      response: Response.json(
+        { error: "Your account is suspended." },
+        {
+          status: 403,
+          headers: {
+            "Set-Cookie":
+              "__reef_session=; Path=/; Max-Age=0, __reef_sso=; Path=/; Max-Age=0",
+            "Cache-Control": "no-store",
+          },
+        },
+      ),
+    });
+
+    const res = await POST(makeRequest({}));
+
+    expect(res.status).toBe(403);
+    expect(res.headers.get("set-cookie")).toContain("__reef_session=");
+    expect(res.headers.get("set-cookie")).toContain("__reef_sso=");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(mockEnrichIssue).not.toHaveBeenCalled();
   });
 
   it("returns 503 with a PM-vocabulary message on LlmError", async () => {

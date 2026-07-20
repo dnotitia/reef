@@ -154,6 +154,7 @@ describe("POST /api/agents/runs chat streaming", () => {
           headers: {
             "Set-Cookie": "__reef_session=; Path=/; Max-Age=0",
             "Cache-Control": "no-store",
+            "X-Reef-Account-Error": "account_suspended",
           },
         },
       ),

@@ -106,6 +106,33 @@ enable AI, partial configuration fails closed, and no values is an intentionally
 disabled capability. Keycloak remains independent, so a Keycloak-only
 deployment is valid.
 
+#### Upgrade an existing OpenRouter deployment
+
+Older Kubernetes releases supplied `OPENROUTER_BASE_URL` and `REEF_LLM_MODEL`
+from the base ConfigMap, while operators usually stored only
+`OPENROUTER_API_KEY` in `reef-web-secret`. Migrate that shape before applying
+this release; otherwise the surviving legacy key is an invalid partial LLM
+configuration after the old base defaults are removed.
+
+To keep AI enabled, add the provider-neutral key to the Secret with the same
+value as `OPENROUTER_API_KEY`, and add both URL names plus the model to the
+overlay ConfigMap:
+
+```yaml
+data:
+  REEF_LLM_BASE_URL: "https://openrouter.ai/api/v1"
+  OPENROUTER_BASE_URL: "https://openrouter.ai/api/v1"
+  REEF_LLM_MODEL: "deepseek/deepseek-v4-flash"
+```
+
+Keep both key names and both matching URL names through the rollout and rollback
+window. That lets old and new pods run concurrently and keeps rollback safe;
+remove the `OPENROUTER_*` aliases after the old image is no longer needed. To
+disable AI instead, remove `OPENROUTER_API_KEY` from the Secret before applying
+the manifests (or remove the Secret when it contains no other capability keys).
+Then apply the overlay normally. Existing old pods keep their startup
+environment until drained, while new pods start in the valid AI-disabled state.
+
 `GET /api/healthz` is the Reef workload liveness/readiness endpoint. The legacy-
 named `GET /api/ai/managed-platform` endpoint is an LLM capability declaration:
 valid enabled and disabled states return 200, while malformed LLM configuration

@@ -284,10 +284,41 @@ describe("POST /api/agents/runs activity.scan — server-managed GitHub App path
       response: Response.json(
         { error: "This account does not have access to this workspace." },
         {
+          status: 409,
+          headers: {
+            "Set-Cookie": "__reef_session=; Path=/; Max-Age=0",
+            "Cache-Control": "no-store",
+            "X-Reef-Account-Error": "identity_conflict",
+          },
+        },
+      ),
+    });
+
+    const res = await POST(makeRequest(activityRunBody));
+
+    expect(res.status).toBe(409);
+    expect(res.headers.get("x-reef-account-error")).toBe("identity_conflict");
+    expect(res.headers.get("set-cookie")).toContain("__reef_session=");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(mint).not.toHaveBeenCalled();
+    expect(mockScanAndPersistActivitySuggestions).not.toHaveBeenCalled();
+  });
+
+  it("returns account denial before an unavailable LLM capability", async () => {
+    vi.stubEnv("REEF_LLM_API_KEY", "");
+    vi.stubEnv("REEF_LLM_BASE_URL", "");
+    vi.stubEnv("REEF_LLM_MODEL", "");
+    const mint = vi.fn(async () => "ghs_minted_token");
+    mockCreateGitHubAppInstallationTokenProvider.mockReturnValue(mint);
+    mockGetAkbCurrentActor.mockResolvedValue({
+      response: Response.json(
+        { error: "This account does not have access to this workspace." },
+        {
           status: 403,
           headers: {
             "Set-Cookie": "__reef_session=; Path=/; Max-Age=0",
             "Cache-Control": "no-store",
+            "X-Reef-Account-Error": "membership_required",
           },
         },
       ),

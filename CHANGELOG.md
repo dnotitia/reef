@@ -43,6 +43,15 @@ explicitly in the entries below.
 
 ### Migration
 
+- **Migrate existing Kubernetes LLM settings before deploying REEF-413.** The
+  base ConfigMap no longer supplies OpenRouter URL/model defaults. To keep AI
+  enabled, add the three provider-neutral `REEF_LLM_*` values in the deployment
+  overlay/Secret and retain matching `OPENROUTER_API_KEY` and
+  `OPENROUTER_BASE_URL` aliases through the rollout and rollback window so old
+  and new pods can run concurrently. To disable AI, remove the legacy
+  `OPENROUTER_API_KEY` before applying the manifests. See
+  `docs/deployment.md#upgrade-an-existing-openrouter-deployment` for the exact
+  sequence and rollback behavior. (REEF-413)
 - **Update the Reef workspace skill/runbooks to version 17.** The comment
   contract now documents `parent_comment_id` / `thread_root_id`, atomic reply
   validation, malformed-chain handling, and trusted importer handoff. Existing

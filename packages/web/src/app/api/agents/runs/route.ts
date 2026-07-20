@@ -1,4 +1,5 @@
 import { extractVault } from "@/lib/akb/extractVault";
+import { AUTH_ACCOUNT_ERROR_HEADER } from "@/lib/akb/headers";
 import { localizedAgentError } from "@/lib/api/errorLocalization";
 import { getAkbAdapter, getAkbCurrentActor } from "@/lib/api/requestHelpers";
 import { resolveGroundingGitHubAdapter } from "@/lib/github/resolveGroundingGitHubAdapter";
@@ -26,6 +27,37 @@ import {
   createTopLevelRunEmitter,
   drainResponseBody,
 } from "./stream";
+
+async function agentAccountError(response: Response): Promise<Response> {
+  // Account denials carry localized copy and session-clearing cookies from the
+  // shared AKB boundary. Plain 401 and backend failures retain the structured
+  // agent error contract while inheriting operational headers such as cookie
+  // clearing and no-store from the underlying auth response.
+  if (response.headers.has(AUTH_ACCOUNT_ERROR_HEADER)) {
+    return response;
+  }
+
+  const agentResponse = await (response.status === 401
+    ? localizedAgentError(
+        "agent.workspaceAuthRequired",
+        401,
+        "workspace_auth_required",
+      )
+    : localizedAgentError(
+        "agent.workspaceUnavailable",
+        response.status,
+        "workspace_unavailable",
+      ));
+  for (const [name, value] of response.headers) {
+    if (name === "set-cookie") {
+      agentResponse.headers.append(name, value);
+      continue;
+    }
+    if (name === "content-length" || name === "content-type") continue;
+    agentResponse.headers.set(name, value);
+  }
+  return agentResponse;
+}
 
 /**
  * POST /api/agents/runs — unified agent runtime entrypoint.
@@ -61,25 +93,15 @@ export async function POST(request: Request): Promise<Response> {
   const akb = getAkbAdapter(request);
   if ("response" in akb) {
     const authResponse = await akb.response;
-    if (authResponse.headers.has("set-cookie")) return authResponse;
-    return localizedAgentError(
-      "agent.workspaceAuthRequired",
-      401,
-      "workspace_auth_required",
-    );
+    return agentAccountError(authResponse);
   }
 
-  // Chat and enrichment open an SSE response before their first AKB data read.
-  // Verify the account while response headers are still mutable so a removed or
-  // suspended member cannot reach a model step and receives the session-clearing
-  // cookies from the shared AKB account boundary. Activity scan already performs
-  // the same preflight through resolveScanGitHubAdapter before opening its stream.
-  if (
-    runRequest.task_id === "chat.workspace" ||
-    runRequest.task_id === "issue.enrichment"
-  ) {
-    const account = await getAkbCurrentActor(request);
-    if ("response" in account) return account.response;
+  // Validate every task before LLM or GitHub capability checks can short-circuit
+  // the account boundary. This keeps account-denial cookies intact even when an
+  // optional deployment capability is unavailable.
+  const account = await getAkbCurrentActor(request);
+  if ("response" in account) {
+    return agentAccountError(account.response);
   }
 
   let llmConfig: ReturnType<typeof getRequiredServerLlmConfig>;
@@ -216,24 +238,7 @@ export async function POST(request: Request): Promise<Response> {
   // mid-stream.
   const github = await resolveScanGitHubAdapter(request);
   if (github.kind === "session_invalid") {
-    // Account denials carry localized copy and session-clearing cookies from the
-    // shared AKB boundary. Returning that response intact is the only way to
-    // preserve both. Plain 401 and backend failures retain the structured agent
-    // error contract below.
-    if (github.response.headers.has("set-cookie")) return github.response;
-
-    const status = github.response.status;
-    return status === 401
-      ? localizedAgentError(
-          "agent.workspaceAuthRequired",
-          401,
-          "workspace_auth_required",
-        )
-      : localizedAgentError(
-          "agent.workspaceUnavailable",
-          status,
-          "workspace_unavailable",
-        );
+    return agentAccountError(github.response);
   }
   if (github.kind === "github_app_unconfigured") {
     return localizedAgentError(
