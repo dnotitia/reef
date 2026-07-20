@@ -102,7 +102,7 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
     }
   });
 
-  test("keeps Board free of selection controls and hands bulk work to filtered List", async ({
+  test("keeps Board free of selection and bulk-edit controls", async ({
     page,
   }) => {
     await openExistingWorkspace(page);
@@ -117,20 +117,7 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
       first.getByRole("checkbox", { name: "Select REEF-102" }),
     ).toHaveCount(0);
     await expect(page.getByTestId("issue-bulk-action-bar")).toHaveCount(0);
-
-    const handoff = page.getByTestId("board-bulk-edit-shortcut");
-    await expect(handoff).toHaveRole("link");
-    await expect(handoff).toHaveText("Bulk edit in List");
-    await expect(handoff).toHaveAttribute("href", /view=list/);
-    await handoff.click();
-    await page.waitForURL(/\/issues\?.*view=list/, {
-      timeout: 10_000,
-    });
-    const params = new URL(page.url()).searchParams;
-    expect(params.get("view")).toBe("list");
-    expect(params.get("status")).toBe("todo");
-    expect(params.get("priority")).toBe("high");
-    await expect(page.getByTestId("issue-list-row").first()).toBeVisible();
+    await expect(page.getByTestId("board-bulk-edit-shortcut")).toHaveCount(0);
   });
 
   test("applies the typed label draft without requiring Enter", async ({

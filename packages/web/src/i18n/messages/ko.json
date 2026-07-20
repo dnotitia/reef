@@ -980,7 +980,6 @@
       "progress": "{processed} / {total}",
       "addLabels": "라벨 추가",
       "removeLabels": "라벨 제거",
-      "editInList": "목록에서 일괄 편집",
       "noSprint": "스프린트 없음",
       "clear": "선택 해제",
       "failedCount": "{count}개 실패",
