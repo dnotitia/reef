@@ -175,6 +175,31 @@ describe("JiraReadClient", () => {
     );
   });
 
+  it("returns the pre-validation JSON value without schema coercion or stripping", async () => {
+    const rawFixture = {
+      ...jiraIssueFixture,
+      id: 10001,
+      unknownRawOnlyField: { preserved: true },
+      fields: {
+        ...jiraIssueFixture.fields,
+        unknownCustomField: ["second", "first"],
+      },
+    };
+    const client = makeClient(
+      vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(rawFixture)),
+    );
+
+    const result = await client.getIssue("SHDEV-1");
+
+    expect(result.issue.id).toBe("10001");
+    expect(result.raw).toEqual(rawFixture);
+    expect(result.raw).toMatchObject({
+      id: 10001,
+      unknownRawOnlyField: { preserved: true },
+      fields: { unknownCustomField: ["second", "first"] },
+    });
+  });
+
   it("reads every project Version page and preserves GET/rate-limit behavior", async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()

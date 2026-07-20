@@ -14,6 +14,10 @@ explicitly in the entries below.
 
 ### Added
 
+- **Jira migrations can preserve verifiable raw source artifacts.** The
+  operator package now separates pre-validation Jira JSON from normalized
+  models and exposes a content-addressed, versioned raw archive with integrity,
+  retention, secret, and private-permission checks. (REEF-406)
 - **Comment replies now stay in readable threads.** Comments can reply to a
   root or another reply while the activity timeline keeps one visual depth,
   direct-parent context, stable reply ordering, and the root's global timeline
