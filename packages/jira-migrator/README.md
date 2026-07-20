@@ -58,7 +58,7 @@ The package exports:
 - A verifiable raw archive API for pre-validation Jira JSON, returning opaque
   `{runId, entryId, contentSha256}` references instead of copying payloads into
   downstream plans or reports.
-- Project-neutral Jira Rank import planning helpers.
+- Jira Rank import planning helpers.
 - Tenant field-catalog resolution, ADF-to-Markdown conversion, and immutable
   `JiraIssueImportPlan` builders that combine configurable enum policies,
   account mappings, planning bindings, parents, Rank, compact provenance, and

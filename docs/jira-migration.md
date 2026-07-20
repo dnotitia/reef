@@ -323,7 +323,7 @@ writes it only through backlog drag-to-reorder, and generic issue create/update
 schemas still reject caller-supplied rank. Trusted Jira importers may seed
 `rank` while creating imported issues.
 
-The project-neutral mapping policy is:
+The Jira Rank mapping policy is:
 
 - Sort distinct, non-empty Jira Rank strings lexicographically.
 - Assign sparse reef ranks in that order using `RANK_STEP` gaps.
