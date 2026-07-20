@@ -38,7 +38,7 @@ export function WorkspaceSkillSection() {
   const role = vaultsQuery.data?.find((v) => v.name === vault)?.role ?? null;
   const canWrite = role != null && WRITER_ROLES.has(role);
 
-  if (!vault || status.isLoading || vaultsQuery.isLoading) {
+  if (!vault || status.isPending || vaultsQuery.isPending) {
     // Placeholder for the resolved two-line status block, matching the skeleton
     // language used across the app's loading states (REEF-255).
     return (

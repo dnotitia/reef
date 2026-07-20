@@ -15,10 +15,12 @@ export const SSO_SESSION_COOKIE = "__reef_sso";
 export const SSO_ID_TOKEN_COOKIE = "__reef_sso_id_token";
 export const SSO_LOGOUT_COOKIE = "__reef_sso_logout";
 export const SSO_LOGOUT_ID_TOKEN_COOKIE = "__reef_sso_logout_id_token";
+export const AUTH_INVALIDATION_COOKIE = "__reef_auth_invalidated";
 
 export const DEFAULT_SESSION_MAX_AGE_SECONDS = 24 * 60 * 60;
 const SSO_START_MAX_AGE_SECONDS = 10 * 60;
 const SSO_LOGOUT_MAX_AGE_SECONDS = 60;
+const AUTH_INVALIDATION_MAX_AGE_SECONDS = 60;
 
 export interface BuildSessionCookieOptions {
   maxAgeSeconds?: number;
@@ -109,6 +111,29 @@ export function buildClearedSsoStartCookie(
   options: { secure?: boolean } = {},
 ): string {
   return buildHttpOnlyCookie(SSO_START_COOKIE, "", {
+    maxAgeSeconds: 0,
+    secure: options.secure,
+  });
+}
+
+/**
+ * Bridges a top-level SSO callback denial to the next same-origin client fetch.
+ * The marker carries no identity or secret and expires quickly; the auth-config
+ * route consumes it into X-Reef-Auth-Invalidated and immediately clears it.
+ */
+export function buildAuthInvalidationCookie(
+  options: { secure?: boolean } = {},
+): string {
+  return buildHttpOnlyCookie(AUTH_INVALIDATION_COOKIE, "1", {
+    maxAgeSeconds: AUTH_INVALIDATION_MAX_AGE_SECONDS,
+    secure: options.secure,
+  });
+}
+
+export function buildClearedAuthInvalidationCookie(
+  options: { secure?: boolean } = {},
+): string {
+  return buildHttpOnlyCookie(AUTH_INVALIDATION_COOKIE, "", {
     maxAgeSeconds: 0,
     secure: options.secure,
   });

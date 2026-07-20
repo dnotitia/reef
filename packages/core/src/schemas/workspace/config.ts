@@ -39,22 +39,24 @@ export const MonitoredRepoSchema = z.object({
  * intentionally NOT part of `ConfigSchema` (the `_reef/config.md` shape)
  * because `api_key` is a secret and should not be committed to the akb vault.
  *
- * reef-web's deployment-managed OpenRouter config is read from server env per
+ * reef-web's deployment-managed LLM config is read from server env per
  * request. These values are is not written to the akb vault.
  *
  * `base_url` accepts http(s):// — https is enforced in production at the route
  * handler layer; http is allowed here so local dev against localhost providers
  * (e.g. `http://localhost:11434` for Ollama) works without schema rejection.
  */
+const LlmBaseUrlSchema = z
+  .string()
+  .url("base_url must be a valid URL")
+  .refine((url) => {
+    const lower = url.toLowerCase();
+    return lower.startsWith("https://") || lower.startsWith("http://");
+  }, "base_url must use http or https");
+
 export const LLMConfigSchema = z.object({
   api_key: z.string().min(1, "api_key is required"),
-  base_url: z
-    .string()
-    .url("base_url must be a valid URL")
-    .refine((url) => {
-      const lower = url.toLowerCase();
-      return lower.startsWith("https://") || lower.startsWith("http://");
-    }, "base_url must use http or https"),
+  base_url: LlmBaseUrlSchema,
   model: z.string().min(1, "model is required"),
 });
 

@@ -1,10 +1,15 @@
 "use client";
 
-import { hasActiveAkbSession } from "@/lib/akb/checkAkbSession";
+import {
+  consumePendingAkbAccountError,
+  subscribeAkbAccountDenied,
+} from "@/lib/akb/accountDenialClient";
+import { getAkbSessionStatus } from "@/lib/akb/checkAkbSession";
+import { buildPathWithParams } from "@/lib/akb/safeRedirect";
 import { getActiveVault } from "@/lib/storage/config";
 import { withVault } from "@/lib/workspaceHref";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 /**
  * `root` — RootPage at `/`: redirect to the Dexie default workspace's
@@ -16,6 +21,7 @@ import { useEffect } from "react";
  * `onboarding` — `/onboarding` page: session check; vault is being picked here.
  */
 export type AuthGateMode = "root" | "workspace" | "onboarding";
+export type AuthGateStatus = "checking" | "active" | "inactive";
 
 /**
  * Shared client-side auth gate. Probe order:
@@ -29,20 +35,46 @@ export type AuthGateMode = "root" | "workspace" | "onboarding";
  * GitHub App and LLM config are NOT login gates - they are deployment
  * capabilities surfaced on the GitHub / activity / AI surfaces.
  */
-export function useAuthRedirect(mode: AuthGateMode): void {
+export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
   const router = useRouter();
+  const [status, setStatus] = useState<AuthGateStatus>("checking");
 
   useEffect(() => {
     const controller = new AbortController();
+    let redirectCommitted = false;
+    setStatus("checking");
+
+    const redirectToLogin = (
+      accountError?:
+        | "membership_required"
+        | "account_suspended"
+        | "identity_conflict",
+    ) => {
+      if (redirectCommitted || controller.signal.aborted) return;
+      redirectCommitted = true;
+      setStatus("inactive");
+      if (accountError) consumePendingAkbAccountError();
+      router.replace(
+        accountError
+          ? buildPathWithParams("/login", { sso_error: accountError })
+          : "/login",
+      );
+    };
+    const unsubscribe = subscribeAkbAccountDenied(redirectToLogin);
+
     async function run() {
       try {
-        const sessionActive = await hasActiveAkbSession(controller.signal);
+        const session = await getAkbSessionStatus(controller.signal);
         if (controller.signal.aborted) return;
 
-        if (!sessionActive) {
-          router.replace("/login");
+        if (!session.active) {
+          redirectToLogin(session.accountError);
           return;
         }
+
+        if (redirectCommitted) return;
+
+        setStatus("active");
 
         if (mode === "onboarding" || mode === "workspace") return;
 
@@ -59,11 +91,16 @@ export function useAuthRedirect(mode: AuthGateMode): void {
         }
       } catch {
         if (controller.signal.aborted) return;
-        router.replace("/login");
+        redirectToLogin();
       }
     }
 
     void run();
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      unsubscribe();
+    };
   }, [router, mode]);
+
+  return status;
 }

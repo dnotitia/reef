@@ -1,5 +1,7 @@
 "use client";
 
+import { holdQueryUntilHydrated } from "@/lib/queryHydration";
+import { useHydrated } from "@/lib/useHydrated";
 import { useQuery } from "@tanstack/react-query";
 
 export interface GithubAppAvailableState {
@@ -25,27 +27,31 @@ export interface GithubAppAvailableState {
  * on every mount; deployment config does not change within a session.
  */
 export function useGithubAppAvailable(): GithubAppAvailableState {
-  const query = useQuery({
-    queryKey: ["github", "status"],
-    queryFn: async () => {
-      const res = await fetch("/api/github/status", {
-        credentials: "same-origin",
-      });
-      if (!res.ok) {
-        throw new Error(`GitHub App status failed (${res.status})`);
-      }
-      return (await res.json()) as {
-        isConfigured: boolean;
-        appId: string | null;
-      };
-    },
-    staleTime: 60_000,
-    retry: false,
-  });
+  const hydrated = useHydrated();
+  const query = holdQueryUntilHydrated(
+    useQuery({
+      queryKey: ["github", "status"],
+      queryFn: async () => {
+        const res = await fetch("/api/github/status", {
+          credentials: "same-origin",
+        });
+        if (!res.ok) {
+          throw new Error(`GitHub App status failed (${res.status})`);
+        }
+        return (await res.json()) as {
+          isConfigured: boolean;
+          appId: string | null;
+        };
+      },
+      staleTime: 60_000,
+      retry: false,
+    }),
+    hydrated,
+  );
 
   return {
     isAvailable: query.data?.isConfigured ?? false,
-    isLoading: query.isLoading,
+    isLoading: query.isPending,
     appId: query.data?.appId ?? null,
   };
 }

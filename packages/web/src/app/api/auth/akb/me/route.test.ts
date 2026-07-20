@@ -80,6 +80,25 @@ describe("GET /api/auth/akb/me", () => {
     expectClearedAuthCookies(res);
   });
 
+  it("returns a stable suspended code and clears every established session cookie", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          message: "This AKB account is suspended",
+          code: "account_suspended",
+        }),
+        { status: 403 },
+      ),
+    );
+
+    const res = await GET(makeRequest(`__reef_session=${VALID_JWT}`));
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({ code: "account_suspended" });
+    expect(res.headers.get("x-reef-account-error")).toBe("account_suspended");
+    expectClearedAuthCookies(res);
+  });
+
   it("returns 502 on akb backend 5xx", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response("err", { status: 500 }),
@@ -123,4 +142,5 @@ function expectClearedAuthCookies(res: Response) {
   expect(setCookie).toContain("__reef_sso_id_token=");
   expect(setCookie).not.toContain("__reef_sso_start=");
   expect(setCookie).toContain("Max-Age=0");
+  expect(res.headers.get("x-reef-auth-invalidated")).toBe("1");
 }

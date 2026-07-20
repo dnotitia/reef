@@ -1,8 +1,16 @@
 import * as matchers from "@testing-library/jest-dom/matchers";
 import { cleanup } from "@testing-library/react";
-import { afterEach, expect, vi } from "vitest";
+import { afterEach, beforeEach, expect, vi } from "vitest";
 
 expect.extend(matchers);
+
+// Keep a developer shell's compatibility aliases from leaking into otherwise
+// hermetic tests; individual alias tests pass an explicit environment object.
+beforeEach(() => {
+  for (const key of ["OPENROUTER_API_KEY", "OPENROUTER_BASE_URL"]) {
+    vi.stubEnv(key, "");
+  }
+});
 
 // Field labels are locale-resolved through next-intl (REEF-292). For the broad
 // component suite we resolve them to the en base directly — the same English
@@ -192,6 +200,7 @@ if (
 // Automatic cleanup after each test
 afterEach(() => {
   cleanup();
+  vi.unstubAllEnvs();
   if (typeof document !== "undefined") {
     document.body.style.pointerEvents = "";
     document.body.removeAttribute("data-scroll-locked");

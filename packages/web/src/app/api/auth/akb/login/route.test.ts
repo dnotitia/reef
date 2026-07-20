@@ -102,6 +102,33 @@ describe("POST /api/auth/akb/login", () => {
     expect(body.error).toMatch(/invalid/i);
   });
 
+  it.each([
+    ["membership_required", 403, /not.*member|workspace access/i],
+    ["account_suspended", 403, /suspended/i],
+    ["identity_conflict", 409, /identity/i],
+  ] as const)(
+    "maps AKB account denial %s to stable product UX",
+    async (code, status, message) => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify({ message: "account denied", code }), {
+          status,
+        }),
+      );
+
+      const res = await POST(
+        makeLoginRequest({ username: "alice", password: "p" }),
+      );
+
+      expect(res.status).toBe(status);
+      expect((await res.json()).error).toMatch(message);
+      const setCookie = res.headers.get("set-cookie") ?? "";
+      expect(setCookie).toContain("__reef_session=");
+      expect(setCookie).toContain("__reef_sso=");
+      expect(setCookie).toContain("Max-Age=0");
+      expect(res.headers.get("cache-control")).toBe("no-store");
+    },
+  );
+
   it("returns 422 on akb backend 422", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response("{}", { status: 422 }),

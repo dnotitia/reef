@@ -87,6 +87,29 @@ describe("akb auth adapter", () => {
       ).rejects.toBeInstanceOf(AuthError);
     });
 
+    it("preserves a suspended-account code from local login", async () => {
+      setupFetch([
+        {
+          status: 403,
+          body: {
+            message: "This AKB account is suspended",
+            code: "account_suspended",
+          },
+        },
+      ]);
+
+      await expect(
+        login({ baseUrl: BASE_URL, username: "a", password: "b" }),
+      ).rejects.toMatchObject({
+        name: "AuthError",
+        context: {
+          origin: "akb",
+          code: "account_suspended",
+          status: 403,
+        },
+      });
+    });
+
     it("throws AkbApiError preserving the status on akb 5xx", async () => {
       setupFetch([{ status: 503, body: {} }]);
       await expect(
@@ -144,6 +167,35 @@ describe("akb auth adapter", () => {
   });
 
   describe("getAuthConfig (standalone, token-less)", () => {
+    it("preserves managed local-auth and SSO-only policy fields", async () => {
+      setupFetch([
+        {
+          status: 200,
+          body: {
+            local_auth: { enabled: false },
+            keycloak: {
+              enabled: true,
+              login_url: "/api/v1/auth/keycloak/login",
+              sso_only: true,
+              enrollment_mode: "invite_only",
+            },
+          },
+        },
+      ]);
+
+      const result = await getAuthConfig({ baseUrl: BASE_URL });
+
+      expect(result.config).toEqual({
+        local_auth: { enabled: false },
+        keycloak: {
+          enabled: true,
+          login_url: "/api/v1/auth/keycloak/login",
+          sso_only: true,
+          enrollment_mode: "invite_only",
+        },
+      });
+    });
+
     it("gets the nested Keycloak config from /api/v1/auth/config", async () => {
       const { calls } = setupFetch([
         {
@@ -160,9 +212,11 @@ describe("akb auth adapter", () => {
       const result = await getAuthConfig({ baseUrl: BASE_URL });
 
       expect(result.config).toEqual({
+        local_auth: { enabled: true },
         keycloak: {
           enabled: true,
           login_url: "/api/v1/auth/keycloak/login",
+          sso_only: false,
         },
       });
       expect(calls[0]?.url).toBe("https://akb.test/api/v1/auth/config");
@@ -180,7 +234,8 @@ describe("akb auth adapter", () => {
       const result = await getAuthConfig({ baseUrl: BASE_URL });
 
       expect(result.config).toEqual({
-        keycloak: { enabled: false, login_url: null },
+        local_auth: { enabled: true },
+        keycloak: { enabled: false, login_url: null, sso_only: false },
       });
     });
 

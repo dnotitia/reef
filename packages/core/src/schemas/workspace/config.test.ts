@@ -79,7 +79,7 @@ describe("LLMConfigSchema", () => {
   });
 
   it("rejects missing api_key", () => {
-    const { api_key: _api_key, ...rest } = validLLMConfig;
+    const { api_key: _credential, ...rest } = validLLMConfig;
     const result = LLMConfigSchema.safeParse(rest);
     expect(result.success).toBe(false);
   });

@@ -6,8 +6,16 @@
 
 import { getAkbBackendUrl } from "@/lib/akb/akbBackendUrl";
 import { extractAkbSession } from "@/lib/akb/extractAkbSession";
-import { decodeSessionUsername } from "@/lib/akb/sessionCookie";
 import {
+  AUTH_ACCOUNT_ERROR_HEADER,
+  AUTH_INVALIDATED_HEADER,
+} from "@/lib/akb/headers";
+import {
+  buildClearedEstablishedAuthCookies,
+  decodeSessionUsername,
+} from "@/lib/akb/sessionCookie";
+import {
+  type AkbAccountErrorCode,
   type AkbAdapter,
   type AkbResourceLabel,
   AuthError,
@@ -18,6 +26,7 @@ import {
   akbGetCurrentActor,
   akbListVaults,
   createAkbAdapter,
+  isAkbAccountErrorCode,
 } from "@reef/core";
 import type { z } from "zod";
 import { localizeError, localizedErrorResponse } from "./errorLocalization";
@@ -136,8 +145,34 @@ export function parseIssueListQueryParams(
 // detection reads `next/headers`; a Route Handler returning `helper()` from its
 // async body flattens the Promise, so call sites are unchanged.
 
-function authErrorResponse(): Promise<Response> {
-  return localizedErrorResponse("sessionExpired", 401);
+async function withClearedEstablishedAuthCookies(
+  response: Response,
+  accountError?: AkbAccountErrorCode,
+): Promise<Response> {
+  for (const cookie of buildClearedEstablishedAuthCookies()) {
+    response.headers.append("Set-Cookie", cookie);
+  }
+  response.headers.set("Cache-Control", "no-store");
+  response.headers.set(AUTH_INVALIDATED_HEADER, "1");
+  if (accountError) {
+    response.headers.set(AUTH_ACCOUNT_ERROR_HEADER, accountError);
+  }
+  return response;
+}
+
+async function authErrorResponse(options?: {
+  clearEstablishedAuth?: boolean;
+}): Promise<Response> {
+  const response = await localizedErrorResponse("sessionExpired", 401);
+  return options?.clearEstablishedAuth
+    ? withClearedEstablishedAuthCookies(response)
+    : response;
+}
+
+function isExpiredLocalSession(err: unknown): boolean {
+  return (
+    err instanceof AuthError && err.context.message === "expired_session_cookie"
+  );
 }
 
 export function invalidJsonBodyResponse(): Promise<Response> {
@@ -194,13 +229,26 @@ function withResource(err: unknown, resourceKind: AkbResourceLabel): unknown {
  * should not log — callers own observability and should call `logger.error(...)`
  * from the redacting logger immediately before calling this.
  */
-export function respondWithError(
+export async function respondWithError(
   err: unknown,
   ctx?: { resourceKind?: AkbResourceLabel },
 ): Promise<Response> {
-  return localizeError(
+  const response = await localizeError(
     ctx?.resourceKind ? withResource(err, ctx.resourceKind) : err,
   );
+  const shouldClearEstablishedAuth =
+    err instanceof AuthError &&
+    err.context.origin === "akb" &&
+    (err.context.status === 401 || isAkbAccountErrorCode(err.context.code));
+  const accountError =
+    err instanceof AuthError &&
+    err.context.origin === "akb" &&
+    isAkbAccountErrorCode(err.context.code)
+      ? err.context.code
+      : undefined;
+  return shouldClearEstablishedAuth
+    ? withClearedEstablishedAuthCookies(response, accountError)
+    : response;
 }
 
 // ─── Adapter construction ────────────────────────────────────────────────────
@@ -217,11 +265,15 @@ export function getAkbAdapter(
   let jwt: string;
   try {
     jwt = extractAkbSession(request);
-  } catch {
+  } catch (err) {
     // The localized response is a Promise (locale detection is async). This
     // helper stays sync; every consumer either `return`s `.response` (the async
     // Route Handler flattens it) or ignores it, so the deferral is invisible.
-    return { response: authErrorResponse() };
+    return {
+      response: authErrorResponse({
+        clearEstablishedAuth: isExpiredLocalSession(err),
+      }),
+    };
   }
   return { adapter: createAkbAdapter({ baseUrl: getAkbBackendUrl(), jwt }) };
 }
@@ -250,8 +302,12 @@ export async function getAkbCurrentActor(
   let jwt: string;
   try {
     jwt = extractAkbSession(request);
-  } catch {
-    return { response: await authErrorResponse() };
+  } catch (err) {
+    return {
+      response: await authErrorResponse({
+        clearEstablishedAuth: isExpiredLocalSession(err),
+      }),
+    };
   }
 
   let backendUrl: string;
@@ -269,7 +325,9 @@ export async function getAkbCurrentActor(
     }));
   } catch (err) {
     if (err instanceof AuthError) {
-      return { response: await authErrorResponse() };
+      return {
+        response: await respondWithError(err),
+      };
     }
     return { response: await backendErrorResponse() };
   }

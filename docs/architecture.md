@@ -37,7 +37,7 @@ reef-web (stateless Next.js BFF)
    │  @reef/core adapters (the only place external I/O originates)
    ├── AKB vault   (issues, planning, templates, settings)  — read + write
    ├── GitHub      (monitored repos)                        — read-only grounding
-   └── LLM provider (OpenRouter-compatible)                 — chat + agents
+   └── OpenAI-compatible LLM endpoint                       — chat + agents
 ```
 
 The repository is a pnpm workspace with two private, unpublished packages under
@@ -67,6 +67,10 @@ Next.js and scatter external I/O across the app.
   which call the Route Handlers. **Server Actions are not used**, so reads,
   mutations, and chat streaming all travel the same `apiFetch` → Route Handler →
   `core` path.
+- When AKB rejects an established account/session, the BFF clears its httpOnly
+  cookies and emits `X-Reef-Auth-Invalidated: 1`. `apiFetch` then wipes all
+  persisted and in-memory AKB-account-scoped browser state. A normal permission
+  `403` carries no such signal and keeps the session intact.
 
 The trade-off is boilerplate: every mutation needs both a Route Handler and a
 client action. In exchange, domain logic is testable without Next.js, external
@@ -133,9 +137,14 @@ the system needs are each placed deliberately:
   activity scans. Local development and CI may set `REEF_GITHUB_PAT` as a
   server-managed fallback when no App is configured. Browser clients do not
   collect or forward GitHub tokens.
-- **LLM configuration** — deployment-managed server environment:
-  `OPENROUTER_API_KEY` (secret), `OPENROUTER_BASE_URL`, and `REEF_LLM_MODEL`.
-  There are no per-user or bring-your-own LLM keys and no per-user LLM headers.
+- **LLM configuration** — deployment-managed server environment through
+  `REEF_LLM_API_KEY`, `REEF_LLM_BASE_URL`, and `REEF_LLM_MODEL`. The URL may
+  target OpenRouter or an akb-platform gateway; Reef does not infer a provider
+  or topology. Every endpoint uses Chat Completions, one UUID
+  `Idempotency-Key` per model step, and zero SDK retries. No values means the
+  optional LLM capability is disabled; partial values fail closed. LLM state
+  does not change AKB or Keycloak readiness, and there are no per-user LLM keys
+  or headers.
 
 A redacting logger masks `Authorization`, `Cookie`, `Set-Cookie`, and the
 LLM-config header in request and error logs; if a known token substring appears

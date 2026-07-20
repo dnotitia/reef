@@ -89,9 +89,6 @@ build the image and run it on port `3000`:
 docker build -t reef-web:local .
 docker run --rm -p 3000:3000 \
   -e AKB_BACKEND_URL=http://host.docker.internal:8000 \
-  -e OPENROUTER_API_KEY="${OPENROUTER_API_KEY:-}" \
-  -e OPENROUTER_BASE_URL=https://openrouter.ai/api/v1 \
-  -e REEF_LLM_MODEL=deepseek/deepseek-v4-flash \
   reef-web:local
 ```
 
@@ -100,6 +97,10 @@ Docker Compose network as reef-web, use the AKB service name in
 `AKB_BACKEND_URL` instead, for example `http://akb-backend:8000`. Add
 `REEF_PUBLIC_ORIGIN=http://localhost:3000` when testing AKB-delegated SSO
 locally.
+
+AI is optional. To enable it, pass `REEF_LLM_API_KEY`, `REEF_LLM_BASE_URL`,
+and `REEF_LLM_MODEL` together; the endpoint can be OpenRouter or any compatible
+akb-platform gateway. Leaving all three unset keeps AI disabled.
 
 ## What reef includes
 

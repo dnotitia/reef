@@ -29,8 +29,8 @@ describe("loadOrchestratorConfig", () => {
       argv: ["--dry-run", "--vault", "reef-test"],
       env: {
         AKB_BASE_URL: "https://akb.example",
-        OPENROUTER_API_KEY: "sk-secret",
-        OPENROUTER_BASE_URL: "https://openrouter.ai/api/v1",
+        REEF_LLM_API_KEY: "sk-secret",
+        REEF_LLM_BASE_URL: "https://llm.example/v1",
         REEF_LLM_MODEL: "openai/gpt-test",
         REEF_GITHUB_APP_ID: "123",
         REEF_GITHUB_APP_INSTALLATION_ID: "456",
@@ -46,7 +46,6 @@ describe("loadOrchestratorConfig", () => {
         akb: { isConfigured: true },
         llm: {
           isConfigured: true,
-          provider: "openrouter",
           model: "openai/gpt-test",
         },
         githubApp: {
@@ -69,20 +68,47 @@ describe("loadOrchestratorConfig", () => {
     ).toThrow(OrchestratorConfigError);
   });
 
-  it("treats partial optional deployment settings as unavailable for dry-run startup", () => {
+  it("rejects partial optional LLM settings", () => {
+    expect(() =>
+      loadOrchestratorConfig({
+        argv: ["--dry-run", "--vault", "reef-test"],
+        env: {
+          REEF_LLM_API_KEY: "sk-present-locally",
+        },
+      }),
+    ).toThrow(OrchestratorConfigError);
+  });
+
+  it("accepts the main branch OpenRouter variables as compatibility aliases", () => {
     const config = loadOrchestratorConfig({
       argv: ["--dry-run", "--vault", "reef-test"],
       env: {
-        OPENROUTER_API_KEY: "sk-present-locally",
+        OPENROUTER_API_KEY: "legacy-key",
+        OPENROUTER_BASE_URL: "https://openrouter.ai/api/v1",
+        REEF_LLM_MODEL: "model-a",
       },
     });
 
-    expect(config.llm).toBeNull();
-    expect(publicOrchestratorConfig(config).llm).toEqual({
-      isConfigured: false,
-      provider: "openrouter",
-      model: null,
+    expect(config.llm).toEqual({
+      api_key: "legacy-key",
+      base_url: "https://openrouter.ai/api/v1",
+      model: "model-a",
     });
+  });
+
+  it("rejects conflicting canonical and compatibility alias values", () => {
+    expect(() =>
+      loadOrchestratorConfig({
+        argv: ["--dry-run", "--vault", "reef-test"],
+        env: {
+          REEF_LLM_API_KEY: "canonical-key",
+          OPENROUTER_API_KEY: "different-key",
+          REEF_LLM_BASE_URL: "https://llm.example/v1",
+          OPENROUTER_BASE_URL: "https://different.example/v1",
+          REEF_LLM_MODEL: "model-a",
+        },
+      }),
+    ).toThrow(OrchestratorConfigError);
   });
 
   it("parses CLI flags", () => {

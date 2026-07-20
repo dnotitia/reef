@@ -134,6 +134,38 @@ export async function setKeycloakEnabled(
   expect(response.ok()).toBeTruthy();
 }
 
+export async function setAuthPolicy(
+  request: APIRequestContext,
+  policy: {
+    keycloakEnabled: boolean;
+    localAuthEnabled: boolean;
+    ssoOnly: boolean;
+  },
+): Promise<void> {
+  const response = await request.post(`${E2E_MOCK_URL}/__e2e/keycloak`, {
+    data: {
+      enabled: policy.keycloakEnabled,
+      local_auth_enabled: policy.localAuthEnabled,
+      sso_only: policy.ssoOnly,
+    },
+  });
+  expect(response.ok()).toBeTruthy();
+}
+
+export async function setAkbAccountDenial(
+  request: APIRequestContext,
+  code:
+    | "membership_required"
+    | "account_suspended"
+    | "identity_conflict"
+    | null,
+): Promise<void> {
+  const response = await request.post(`${E2E_MOCK_URL}/__e2e/account-denial`, {
+    data: { code },
+  });
+  expect(response.ok()).toBeTruthy();
+}
+
 export async function signInAsAlice(page: Page): Promise<void> {
   await page.goto("/login");
   await waitForPasswordLogin(page);

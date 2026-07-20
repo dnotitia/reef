@@ -23,10 +23,9 @@ data:
   # Production mode enables the Secure cookie flag and the strict
   # (no unsafe-eval) CSP. Must be `production` in-cluster.
   NODE_ENV: "production"
-  # Deployment-managed OpenRouter LLM config. The API key lives in
-  # `reef-web-secret` as OPENROUTER_API_KEY.
-  OPENROUTER_BASE_URL: "https://openrouter.ai/api/v1"
-  REEF_LLM_MODEL: "deepseek/deepseek-v4-flash"
+  # Optional LLM capability. An overlay must set REEF_LLM_BASE_URL and
+  # REEF_LLM_MODEL together with REEF_LLM_API_KEY in `reef-web-secret`.
+  # Leaving all three absent is a valid AI-disabled deployment.
   # OpenTelemetry trace export — optional, no-op when unset. Wire this only
   # after an OTLP collector / Langfuse is deployed and reachable in-cluster.
   # OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.example.svc.cluster.local:4318"

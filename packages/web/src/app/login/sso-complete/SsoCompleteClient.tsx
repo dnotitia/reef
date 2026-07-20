@@ -3,7 +3,12 @@
 import { ReefMark } from "@/components/ui/reef-mark";
 import { CURRENT_USER_QUERY_KEY } from "@/features/auth/hooks/useCurrentUser";
 import { reconcileAkbAccount } from "@/lib/akb/accountReconcile";
-import { normalizeSafeRedirect } from "@/lib/akb/safeRedirect";
+import {
+  buildPathWithParams,
+  normalizeSafeRedirect,
+} from "@/lib/akb/safeRedirect";
+import { apiFetch } from "@/lib/apiClient";
+import { isAkbAccountErrorCode } from "@reef/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -20,10 +25,19 @@ export function SsoCompleteClient() {
 
     async function finishSignIn() {
       try {
-        const res = await fetch("/api/auth/akb/me", {
+        const res = await apiFetch("/api/auth/akb/me", {
           credentials: "same-origin",
         });
         if (!res.ok) {
+          const accountError = await readAccountErrorCode(res);
+          if (accountError) {
+            if (cancelled) return;
+            router.replace(
+              buildPathWithParams("/login", { sso_error: accountError }),
+            );
+            router.refresh();
+            return;
+          }
           throw new Error("SSO completion profile check failed.");
         }
         const profile: unknown = await res.json();
@@ -53,6 +67,19 @@ export function SsoCompleteClient() {
   }, [nextPath, queryClient, router]);
 
   return <SsoCompletionStatus />;
+}
+
+async function readAccountErrorCode(
+  response: Response,
+): Promise<string | null> {
+  try {
+    const body: unknown = await response.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+    const code = (body as Record<string, unknown>).code;
+    return isAkbAccountErrorCode(code) ? code : null;
+  } catch {
+    return null;
+  }
 }
 
 export function SsoCompletionStatus() {

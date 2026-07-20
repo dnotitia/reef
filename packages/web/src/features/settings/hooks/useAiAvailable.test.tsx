@@ -31,7 +31,6 @@ describe("useAiAvailable", () => {
     mockFetch.mockResolvedValueOnce(
       Response.json({
         isConfigured: true,
-        provider: "openrouter",
         model: "deepseek/deepseek-v4-flash",
       }),
     );
@@ -44,7 +43,6 @@ describe("useAiAvailable", () => {
     expect(result.current).toEqual({
       isAvailable: true,
       isLoading: false,
-      provider: "openrouter",
       model: "deepseek/deepseek-v4-flash",
     });
     expect(mockFetch).toHaveBeenCalledWith("/api/ai/status", {

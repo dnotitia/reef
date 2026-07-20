@@ -6,10 +6,11 @@ import {
   normalizeSafeRedirect,
 } from "@/lib/akb/safeRedirect";
 import { ssoAutoRedirectEnabled } from "@/lib/akb/ssoAutoRedirect";
+import { type AkbAccountErrorCode, isAkbAccountErrorCode } from "@reef/core";
 import { useTranslations } from "next-intl";
 import { redirect } from "next/navigation";
 
-type LoginErrorKind = "sso" | "legacy" | null;
+type LoginErrorKind = "sso" | "legacy" | AkbAccountErrorCode | null;
 
 type LoginSearchParams = { [key: string]: string | string[] | undefined };
 
@@ -38,11 +39,13 @@ export default async function LoginPage({
   const redirectTo = normalizeSafeRedirect(
     typeof params.redirect === "string" ? params.redirect : null,
   );
-  const errorKind: LoginErrorKind = ssoError
-    ? "sso"
-    : legacyError
-      ? "legacy"
-      : null;
+  const errorKind: LoginErrorKind = isAkbAccountErrorCode(ssoError)
+    ? ssoError
+    : ssoError
+      ? "sso"
+      : legacyError
+        ? "legacy"
+        : null;
 
   const ssoStartPath = await resolveSsoAutoRedirect({
     errorKind,
@@ -62,7 +65,8 @@ export default async function LoginPage({
  * Returns the same-origin `/api/auth/akb/sso/start` path to redirect to, or
  * null to render the panel. It fires for a *clean* entry into `/login`:
  *
- * - The deployment opted in (`REEF_SSO_AUTO_REDIRECT`); default is the panel.
+ * - The deployment opted in (`REEF_SSO_AUTO_REDIRECT`) or AKB declares its
+ *   authoritative `keycloak.sso_only` presentation policy.
  * - No SSO/session error is present (`?sso_error=` / `?error=`). This is the
  *   loop guard: an SSO failure returns here, so auto-redirecting again would
  *   bounce the user between reef and Keycloak forever.
@@ -84,13 +88,15 @@ async function resolveSsoAutoRedirect({
   params: LoginSearchParams;
   redirectTo: string;
 }): Promise<string | null> {
-  if (!ssoAutoRedirectEnabled()) return null;
   if (errorKind !== null) return null;
   if (params.password === "1" || params.prompt === "login") return null;
 
   const result = await loadAkbAuthConfig();
   if (!result.ok) return null;
   if (!result.config.keycloak.enabled || !result.config.keycloak.login_url) {
+    return null;
+  }
+  if (!ssoAutoRedirectEnabled() && !result.config.keycloak.sso_only) {
     return null;
   }
 
@@ -107,12 +113,22 @@ function LoginView({
   redirectTo: string;
 }) {
   const t = useTranslations("auth.login");
-  const errorMessage =
-    errorKind === "sso"
-      ? t("ssoError")
-      : errorKind === "legacy"
-        ? t("sessionEnded")
-        : null;
+  const errorMessage = (() => {
+    switch (errorKind) {
+      case "membership_required":
+        return t("membershipRequired");
+      case "account_suspended":
+        return t("accountSuspended");
+      case "identity_conflict":
+        return t("identityConflict");
+      case "sso":
+        return t("ssoError");
+      case "legacy":
+        return t("sessionEnded");
+      default:
+        return null;
+    }
+  })();
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-background p-6">
@@ -131,6 +147,7 @@ function LoginView({
         {errorMessage && (
           <p
             role="alert"
+            data-testid="login-error-alert"
             className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
           >
             {errorMessage}

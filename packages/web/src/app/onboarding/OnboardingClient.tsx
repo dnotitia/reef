@@ -1,5 +1,6 @@
 "use client";
 
+import { AppShellSkeleton } from "@/components/AppShellSkeleton";
 import { useAuthRedirect } from "@/features/auth/hooks/useAuthRedirect";
 import { OnboardingPanel } from "@/features/onboarding/components/OnboardingPanel";
 
@@ -9,6 +10,7 @@ import { OnboardingPanel } from "@/features/onboarding/components/OnboardingPane
  * The panel handles its own loading/error states for vault and repo data.
  */
 export function OnboardingClient() {
-  useAuthRedirect("onboarding");
+  const authStatus = useAuthRedirect("onboarding");
+  if (authStatus !== "active") return <AppShellSkeleton />;
   return <OnboardingPanel />;
 }

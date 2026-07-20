@@ -1,6 +1,8 @@
 "use client";
 
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
+import { holdQueryUntilHydrated } from "@/lib/queryHydration";
+import { useHydrated } from "@/lib/useHydrated";
 import {
   type AuthoringLanguage,
   type Config,
@@ -52,13 +54,21 @@ async function fetchProjectConfig(vault: string): Promise<ProjectConfigResult> {
 export function useProjectConfig(
   vault: string,
 ): UseQueryResult<ProjectConfigResult, Error> {
-  return useQuery({
+  const hydrated = useHydrated();
+  const result = useQuery({
     queryKey: projectConfigKey(vault),
     queryFn: () => fetchProjectConfig(vault),
     enabled: vault.length > 0,
     staleTime: STALE_TIME_MS,
     retry: false,
   });
+
+  // Keep a restored ["config", vault] snapshot out of the first hydration
+  // render. The server always starts pending, while PersistQueryClientProvider
+  // can otherwise make settings and activity consumers render loaded state
+  // immediately in the browser, changing both permission-gated controls and
+  // read-only empty states before React has matched the server HTML.
+  return holdQueryUntilHydrated(result, hydrated);
 }
 
 /**

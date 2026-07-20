@@ -29,11 +29,16 @@ import LoginPage from "./page";
 
 const loadAkbAuthConfigMock = vi.mocked(loadAkbAuthConfig);
 
-function ssoEnabledConfig() {
+function ssoEnabledConfig(options: { ssoOnly?: boolean } = {}) {
   return {
     ok: true as const,
     config: {
-      keycloak: { enabled: true, login_url: "/api/v1/auth/keycloak/login" },
+      local_auth: { enabled: true },
+      keycloak: {
+        enabled: true,
+        login_url: "/api/v1/auth/keycloak/login",
+        sso_only: options.ssoOnly ?? false,
+      },
     },
   };
 }
@@ -61,6 +66,24 @@ describe("LoginPage", () => {
     expect(screen.getByRole("alert")).not.toHaveTextContent("exchange_failed");
   });
 
+  it.each([
+    ["membership_required", /not.*member|workspace access/i],
+    ["account_suspended", /suspended/i],
+    ["identity_conflict", /identity/i],
+  ] as const)("renders stable account SSO UX for %s", async (code, message) => {
+    render(
+      <IntlTestProvider>
+        {
+          await LoginPage({
+            searchParams: Promise.resolve({ sso_error: code }),
+          })
+        }
+      </IntlTestProvider>,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(message);
+  });
+
   it("keeps the older session-ended message", async () => {
     render(
       <IntlTestProvider>
@@ -78,6 +101,7 @@ describe("LoginPage", () => {
   });
 
   it("passes a safe redirect target into the login panel", async () => {
+    loadAkbAuthConfigMock.mockResolvedValue(ssoEnabledConfig());
     render(
       <IntlTestProvider>
         {
@@ -101,11 +125,22 @@ describe("LoginPage", () => {
 
   describe("SSO-first auto-redirect (REEF-312)", () => {
     it("does not auto-redirect by default (env unset)", async () => {
+      loadAkbAuthConfigMock.mockResolvedValue(ssoEnabledConfig());
       const view = await LoginPage({ searchParams: Promise.resolve({}) });
       render(<IntlTestProvider>{view}</IntlTestProvider>);
 
       expect(screen.getByTestId("login-panel")).toBeInTheDocument();
-      expect(loadAkbAuthConfigMock).not.toHaveBeenCalled();
+      expect(loadAkbAuthConfigMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("redirects when AKB declares an SSO-only policy without an env override", async () => {
+      loadAkbAuthConfigMock.mockResolvedValue(
+        ssoEnabledConfig({ ssoOnly: true }),
+      );
+
+      await expect(
+        LoginPage({ searchParams: Promise.resolve({ redirect: "/issues" }) }),
+      ).rejects.toThrow("REDIRECT:/api/auth/akb/sso/start?redirect=%2Fissues");
     });
 
     it("redirects to SSO start, preserving the redirect destination", async () => {
@@ -178,7 +213,10 @@ describe("LoginPage", () => {
       vi.stubEnv("REEF_SSO_AUTO_REDIRECT", "1");
       loadAkbAuthConfigMock.mockResolvedValue({
         ok: true,
-        config: { keycloak: { enabled: false, login_url: null } },
+        config: {
+          local_auth: { enabled: true },
+          keycloak: { enabled: false, login_url: null, sso_only: false },
+        },
       });
 
       const view = await LoginPage({ searchParams: Promise.resolve({}) });

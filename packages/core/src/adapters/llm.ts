@@ -2,8 +2,10 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import {
   type LanguageModel,
+  type LanguageModelMiddleware,
   generateText as aiGenerateText,
   streamText as aiStreamText,
+  wrapLanguageModel,
 } from "ai";
 import { LlmError } from "../errors";
 import { observe } from "../observability";
@@ -18,6 +20,8 @@ export interface CreateLlmAdapterParams {
 }
 
 export interface LlmAdapter {
+  /** Reef sends one request identity per model step and never retries it. */
+  maxRetries: 0;
   /**
    * Returns the resolved AI SDK language model instance.
    * Created fresh on each call — no module-level singleton.
@@ -60,11 +64,35 @@ export interface LlmAdapter {
  */
 export function createLlmAdapter(params: CreateLlmAdapterParams): LlmAdapter {
   const { apiKey, baseUrl, model: modelId } = params;
+  const maxRetries = 0 as const;
+  const requestIdentityMiddleware: LanguageModelMiddleware = {
+    specificationVersion: "v3",
+    transformParams: async ({ params: call }) => {
+      const headers = Object.fromEntries(
+        Object.entries(call.headers ?? {}).filter(
+          ([key]) => key.toLowerCase() !== "idempotency-key",
+        ),
+      );
+      return {
+        ...call,
+        headers: {
+          ...headers,
+          "Idempotency-Key": globalThis.crypto.randomUUID(),
+        },
+      };
+    },
+  };
 
   function model(): LanguageModel {
     // Constructed fresh each call — credentials scoped to this call frame.
     const openai = createOpenAI({ apiKey, baseURL: baseUrl });
-    return openai(modelId);
+    // Every Reef endpoint uses the same OpenAI-compatible Chat Completions
+    // envelope and request identity contract. Core does not classify the
+    // endpoint by provider or deployment topology.
+    return wrapLanguageModel({
+      model: openai.chat(modelId),
+      middleware: requestIdentityMiddleware,
+    });
   }
 
   function streamText(
@@ -78,6 +106,7 @@ export function createLlmAdapter(params: CreateLlmAdapterParams): LlmAdapter {
       const result = aiStreamText({
         ...options,
         model: model(),
+        maxRetries,
         experimental_telemetry: {
           isEnabled: true,
           functionId: "reef.streamText",
@@ -123,6 +152,7 @@ export function createLlmAdapter(params: CreateLlmAdapterParams): LlmAdapter {
         const result = await aiGenerateText({
           ...options,
           model: model(),
+          maxRetries,
           experimental_telemetry: {
             isEnabled: true,
             functionId: "reef.generateText",
@@ -160,6 +190,7 @@ export function createLlmAdapter(params: CreateLlmAdapterParams): LlmAdapter {
   }
 
   return {
+    maxRetries,
     model,
     streamText: streamText as typeof aiStreamText,
     generateText: generateText as typeof aiGenerateText,

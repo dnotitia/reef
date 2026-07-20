@@ -13,6 +13,17 @@ import {
   it,
   vi,
 } from "vitest";
+
+const wipeAkbScopedBrowserState = vi.hoisted(() => vi.fn());
+const recordAkbAccountDenial = vi.hoisted(() => vi.fn());
+
+vi.mock("./akb/accountReconcile", () => ({
+  wipeAkbScopedBrowserState: () => wipeAkbScopedBrowserState(),
+}));
+vi.mock("./akb/accountDenialClient", () => ({
+  recordAkbAccountDenial: (code: string) => recordAkbAccountDenial(code),
+}));
+
 import { apiClient, apiFetch } from "./apiClient";
 import { setConfigValue } from "./storage/config";
 import { db } from "./storage/db";
@@ -29,6 +40,8 @@ describe("apiClient.fetch — browser request headers", () => {
     vi.stubGlobal("fetch", mockFetch);
     await db.config.clear();
     mockFetch.mockReset();
+    wipeAkbScopedBrowserState.mockReset();
+    recordAkbAccountDenial.mockReset();
     mockFetch.mockResolvedValue(mockResponse());
   });
 
@@ -75,6 +88,58 @@ describe("apiClient.fetch — browser request headers", () => {
       RequestInit,
     ];
     expect(new Headers(init.headers).get("Authorization")).toBeNull();
+  });
+
+  it("wipes AKB-scoped browser state when the server invalidates auth", async () => {
+    const response = new Response("{}", {
+      status: 403,
+      headers: { "X-Reef-Auth-Invalidated": "1" },
+    });
+    mockFetch.mockResolvedValueOnce(response);
+
+    await expect(apiClient.fetch("/api/issues")).resolves.toBe(response);
+
+    expect(wipeAkbScopedBrowserState).toHaveBeenCalledOnce();
+  });
+
+  it("propagates a stable account denial after clearing browser state", async () => {
+    const response = new Response("{}", {
+      status: 403,
+      headers: {
+        "X-Reef-Auth-Invalidated": "1",
+        "X-Reef-Account-Error": "membership_required",
+      },
+    });
+    mockFetch.mockResolvedValueOnce(response);
+
+    await apiClient.fetch("/api/issues");
+
+    expect(wipeAkbScopedBrowserState).toHaveBeenCalledOnce();
+    expect(recordAkbAccountDenial).toHaveBeenCalledWith("membership_required");
+    expect(wipeAkbScopedBrowserState.mock.invocationCallOrder[0]).toBeLessThan(
+      recordAkbAccountDenial.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+
+  it("keeps browser state for an ordinary permission denial", async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse(403));
+
+    await apiClient.fetch("/api/issues");
+
+    expect(wipeAkbScopedBrowserState).not.toHaveBeenCalled();
+  });
+
+  it("preserves the account-denial response when browser cleanup fails", async () => {
+    const response = new Response("{}", {
+      status: 403,
+      headers: { "X-Reef-Auth-Invalidated": "1" },
+    });
+    mockFetch.mockResolvedValueOnce(response);
+    wipeAkbScopedBrowserState.mockRejectedValueOnce(
+      new Error("IndexedDB unavailable"),
+    );
+
+    await expect(apiClient.fetch("/api/issues")).resolves.toBe(response);
   });
 });
 

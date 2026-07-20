@@ -16,7 +16,7 @@ export default function DeploymentSettingsPage() {
       access="managed"
       testId="settings-group-deployment"
     >
-      {/* AI Configuration — deployment-managed OpenRouter status */}
+      {/* AI Configuration — deployment-managed LLM status */}
       <section className="flex flex-col gap-3">
         <h3 className="font-display text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
           {t("deployment.aiConfiguration")}

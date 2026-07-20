@@ -5,6 +5,7 @@ import "fake-indexeddb/auto";
 import { setPersistedIssueFilter } from "@/lib/storage/config";
 import { db } from "@/lib/storage/db";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useIssueStore } from "../../stores/useIssueStore";
 import { useIssueUrlSync } from "./useIssueUrlSync";
@@ -356,6 +357,24 @@ describe("useIssueUrlSync", () => {
       );
     });
     expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it("restarts an interrupted restore under Strict Effects", async () => {
+    await setPersistedIssueFilter("reef-acme", { status: ["todo"] });
+
+    render(
+      <StrictMode>
+        <Harness />
+      </StrictMode>,
+    );
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.status).toEqual(["todo"]);
+    });
+    expect(mockReplace).toHaveBeenCalledWith(
+      "/workspace/reef-acme/issues?status=todo",
+      { scroll: false },
+    );
   });
 
   it("lets URL params win over the saved filter (restore is skipped)", async () => {

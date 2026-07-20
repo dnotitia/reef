@@ -24,12 +24,17 @@ function renderWithQueryClient(ui: ReactElement) {
   return { queryClient };
 }
 
-function configResponse(enabled: boolean) {
+function configResponse(
+  enabled: boolean,
+  options: { localAuth?: boolean; ssoOnly?: boolean } = {},
+) {
   return new Response(
     JSON.stringify({
+      local_auth: { enabled: options.localAuth ?? true },
       keycloak: {
         enabled,
         login_url: enabled ? "/api/v1/auth/keycloak/login" : null,
+        sso_only: options.ssoOnly ?? false,
       },
     }),
     { status: 200, headers: { "content-type": "application/json" } },
@@ -43,7 +48,7 @@ describe("LoginPanel", () => {
     refresh.mockClear();
   });
 
-  it("keeps password fields usable while SSO config is loading", () => {
+  it("does not flash password fields while auth policy is loading", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(() => new Promise(() => undefined)),
@@ -57,8 +62,8 @@ describe("LoginPanel", () => {
       "polite",
     );
     expect(screen.getByTestId("sso-config-loading")).toBeInTheDocument();
-    expect(screen.getByTestId("login-username")).toBeInTheDocument();
-    expect(screen.getByTestId("login-password")).toBeInTheDocument();
+    expect(screen.queryByTestId("login-username")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("login-password")).not.toBeInTheDocument();
   });
 
   it("renders the workspace SSO action when Keycloak is enabled", async () => {
@@ -85,6 +90,40 @@ describe("LoginPanel", () => {
       expect(token).toHaveAttribute("translate", "no");
     }
     expect(screen.getByText("or use password")).toBeVisible();
+  });
+
+  it("hides the password escape when AKB disables local auth", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          configResponse(true, { localAuth: false, ssoOnly: true }),
+        ),
+    );
+
+    renderWithQueryClient(<LoginPanel redirectTo="/issues" />);
+
+    expect(
+      await screen.findByRole("link", { name: /continue with workspace sso/i }),
+    ).toBeVisible();
+    expect(screen.queryByTestId("login-username")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("login-password")).not.toBeInTheDocument();
+    expect(screen.queryByText("or use password")).not.toBeInTheDocument();
+  });
+
+  it("shows an unavailable state when AKB exposes no login method", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(configResponse(false, { localAuth: false })),
+    );
+
+    renderWithQueryClient(<LoginPanel />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /no sign-in method is available/i,
+    );
+    expect(screen.queryByTestId("login-password")).not.toBeInTheDocument();
   });
 
   it("falls back to password-only when SSO is disabled", async () => {
