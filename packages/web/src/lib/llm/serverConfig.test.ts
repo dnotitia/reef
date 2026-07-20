@@ -2,118 +2,119 @@
 import { describe, expect, it } from "vitest";
 import {
   ServerLlmConfigError,
+  createServerLlmAdapter,
   getRequiredServerLlmConfig,
   resolveServerLlmConfig,
 } from "./serverConfig";
 
-describe("server OpenRouter LLM config", () => {
-  const completeEnv = {
+describe("server LLM config", () => {
+  const enabledEnv = {
     NODE_ENV: "test",
-    OPENROUTER_API_KEY: "sk-test",
-    OPENROUTER_BASE_URL: "https://openrouter.ai/api/v1",
+    REEF_LLM_API_KEY: "endpoint-key",
+    REEF_LLM_BASE_URL: "https://llm.example.test/v1/",
     REEF_LLM_MODEL: "deepseek/deepseek-v4-flash",
   } satisfies NodeJS.ProcessEnv;
 
-  it("resolves complete env into an LLM config and public status", () => {
-    const result = resolveServerLlmConfig(completeEnv);
+  it("loads one provider-neutral LLM endpoint", () => {
+    const result = resolveServerLlmConfig(enabledEnv);
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error("expected ok");
-    expect(result.config).toEqual({
-      api_key: "sk-test",
-      base_url: "https://openrouter.ai/api/v1",
-      model: "deepseek/deepseek-v4-flash",
-      governance_mode: "external_metering",
-      platform_gateway_base_url: null,
-    });
-    expect(result.status).toEqual({
-      isConfigured: true,
-      provider: "openrouter",
-      model: "deepseek/deepseek-v4-flash",
+    expect(result).toEqual({
+      ok: true,
+      config: {
+        api_key: "endpoint-key",
+        base_url: "https://llm.example.test/v1",
+        model: "deepseek/deepseek-v4-flash",
+      },
+      status: {
+        isConfigured: true,
+        state: "enabled",
+        model: "deepseek/deepseek-v4-flash",
+      },
     });
   });
 
-  it("requires dedicated credentials and an exact trust anchor for platform_hard", () => {
-    const gateway = "http://akb-platform-api-gateway.akb-platform.svc:4000/v1";
+  it("treats no LLM variables as a valid disabled capability", () => {
+    expect(resolveServerLlmConfig({ NODE_ENV: "production" })).toEqual({
+      ok: true,
+      config: null,
+      status: {
+        isConfigured: false,
+        state: "disabled",
+        model: null,
+      },
+    });
+  });
+
+  it("rejects every partial canonical LLM configuration", () => {
+    for (const env of [
+      { REEF_LLM_API_KEY: "endpoint-key" },
+      { REEF_LLM_BASE_URL: "https://llm.example.test/v1" },
+      { REEF_LLM_MODEL: "model-a" },
+      {
+        REEF_LLM_API_KEY: "endpoint-key",
+        REEF_LLM_MODEL: "model-a",
+      },
+    ]) {
+      const result = resolveServerLlmConfig(env);
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("expected invalid config");
+      expect(result.issues).toContain(
+        "REEF_LLM_API_KEY, REEF_LLM_BASE_URL, and REEF_LLM_MODEL must be set together",
+      );
+      expect(result.status.state).toBe("invalid");
+    }
+  });
+
+  it("accepts the main branch OpenRouter variables as compatibility aliases", () => {
     const result = resolveServerLlmConfig({
-      NODE_ENV: "production",
-      REEF_LLM_API_KEY: "gateway-key",
-      REEF_LLM_BASE_URL: `${gateway}/`,
-      REEF_LLM_MODEL: "deepseek/deepseek-v4-flash",
-      REEF_LLM_GOVERNANCE_MODE: "platform_hard",
-      REEF_PLATFORM_GATEWAY_BASE_URL: gateway,
-    });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error("expected ok");
-    expect(result.config).toEqual({
-      api_key: "gateway-key",
-      base_url: gateway,
-      model: "deepseek/deepseek-v4-flash",
-      governance_mode: "platform_hard",
-      platform_gateway_base_url: gateway,
-    });
-    expect(result.status.provider).toBe("platform-gateway");
-  });
-
-  it("rejects hard mode with legacy provider credentials, URL drift, or an unknown mode", () => {
-    const gateway = "https://gateway.example.test/v1";
-    const managed = {
-      NODE_ENV: "production",
-      REEF_LLM_API_KEY: "gateway-key",
-      REEF_LLM_BASE_URL: gateway,
+      OPENROUTER_API_KEY: "legacy-key",
+      OPENROUTER_BASE_URL: "https://openrouter.ai/api/v1",
       REEF_LLM_MODEL: "model-a",
-      REEF_LLM_GOVERNANCE_MODE: "platform_hard",
-      REEF_PLATFORM_GATEWAY_BASE_URL: gateway,
-    } satisfies NodeJS.ProcessEnv;
+    });
 
-    expect(
-      resolveServerLlmConfig({ ...managed, OPENROUTER_API_KEY: "direct-key" })
-        .ok,
-    ).toBe(false);
-    expect(
-      resolveServerLlmConfig({
-        ...managed,
-        REEF_LLM_BASE_URL: "https://openrouter.ai/api/v1",
-      }).ok,
-    ).toBe(false);
-    expect(
-      resolveServerLlmConfig({
-        ...managed,
-        REEF_LLM_GOVERNANCE_MODE: "typo-falls-open",
-      }).ok,
-    ).toBe(false);
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected valid aliases");
+    expect(result.config).toEqual({
+      api_key: "legacy-key",
+      base_url: "https://openrouter.ai/api/v1",
+      model: "model-a",
+    });
   });
 
-  it("returns unconfigured status when a required env value is missing", () => {
+  it("rejects conflicting canonical and compatibility alias values", () => {
     const result = resolveServerLlmConfig({
-      ...completeEnv,
-      OPENROUTER_API_KEY: "",
+      ...enabledEnv,
+      OPENROUTER_API_KEY: "different-key",
+      OPENROUTER_BASE_URL: "https://different.example/v1",
     });
 
     expect(result.ok).toBe(false);
-    expect(result.status).toEqual({
-      isConfigured: false,
-      provider: "openrouter",
-      model: "deepseek/deepseek-v4-flash",
-    });
+    if (result.ok) throw new Error("expected alias conflict");
+    expect(result.issues).toEqual([
+      "REEF_LLM_API_KEY and its OPENROUTER_API_KEY alias must not disagree",
+      "REEF_LLM_BASE_URL and its OPENROUTER_BASE_URL alias must not disagree",
+    ]);
   });
 
-  it("rejects invalid base URLs", () => {
+  it("validates the canonical endpoint URL", () => {
     const result = resolveServerLlmConfig({
-      ...completeEnv,
-      OPENROUTER_BASE_URL: "not-a-url",
+      ...enabledEnv,
+      REEF_LLM_BASE_URL: "ftp://llm.example.test/v1",
     });
 
     expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected invalid config");
+    expect(result.issues).toContain("base_url must use http or https");
   });
 
-  it("throws ServerLlmConfigError when required config is invalid", () => {
-    expect(() =>
-      getRequiredServerLlmConfig({
-        ...completeEnv,
-        REEF_LLM_MODEL: "",
-      }),
-    ).toThrow(ServerLlmConfigError);
+  it("creates the common request policy without provider knowledge", () => {
+    const config = getRequiredServerLlmConfig(enabledEnv);
+    const adapter = createServerLlmAdapter(config);
+
+    expect(adapter.maxRetries).toBe(0);
+  });
+
+  it("throws when a caller requires a disabled LLM capability", () => {
+    expect(() => getRequiredServerLlmConfig({})).toThrow(ServerLlmConfigError);
   });
 });

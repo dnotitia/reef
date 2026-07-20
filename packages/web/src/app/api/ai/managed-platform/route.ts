@@ -2,12 +2,13 @@ import { resolveServerLlmConfig } from "@/lib/llm/serverConfig";
 
 export function GET(): Response {
   const resolved = resolveServerLlmConfig();
-  if (!resolved.ok || resolved.config.governance_mode !== "platform_hard") {
+  if (!resolved.ok) {
     return Response.json(
       {
         ok: false,
         service: "reef-web",
-        capability: "reef-managed-platform-v1",
+        capability: "reef-llm-capability-v1",
+        llm: { enabled: false, state: "invalid" },
       },
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
@@ -16,8 +17,11 @@ export function GET(): Response {
     {
       ok: true,
       service: "reef-web",
-      capability: "reef-managed-platform-v1",
-      llmGovernanceMode: resolved.config.governance_mode,
+      capability: "reef-llm-capability-v1",
+      llm: {
+        enabled: resolved.status.isConfigured,
+        state: resolved.status.state,
+      },
     },
     { headers: { "Cache-Control": "no-store" } },
   );

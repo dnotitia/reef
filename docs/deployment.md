@@ -5,8 +5,8 @@ reef ships as a single stateless web service, **reef-web**, that talks to an
 own: the akb session lives in an httpOnly cookie, monitored repositories are
 accessed through deployment-managed GitHub credentials, and LLM config is
 deployment-managed server state. That means deployment is just "run the
-container, point it at akb, and give it either standalone provider or managed
-platform-gateway configuration plus GitHub configuration."
+container, point it at akb, and optionally give it one OpenAI-compatible LLM
+endpoint plus GitHub configuration."
 
 This guide covers three ways to run it:
 
@@ -85,28 +85,31 @@ cp -r deploy/k8s/overlays/example deploy/k8s/overlays/my-cluster
 4. **Public host** — `patch-ingress.yaml` → the `tls.hosts` entry and
    `rules[].host`.
 
-### Provide the OpenRouter secret
+### Provide optional capability secrets
 
-The Deployment pulls `OPENROUTER_API_KEY` from a Secret named `reef-web-secret`
-in the same namespace. Create it once:
+The Deployment reads optional GitHub and LLM credentials from a Secret named
+`reef-web-secret` in the same namespace. The Secret reference is optional, so
+an AKB/Keycloak-only deployment does not need to create an empty Secret.
+
+To enable AI, create the Secret with `REEF_LLM_API_KEY`:
 
 ```bash
 kubectl create secret generic reef-web-secret \
   --namespace my-namespace \
-  --from-literal=OPENROUTER_API_KEY=sk-or-...
+  --from-literal=REEF_LLM_API_KEY=component-or-provider-key
 ```
 
-`OPENROUTER_BASE_URL` and `REEF_LLM_MODEL` are non-secret and live in the
-ConfigMap (defaults are fine for OpenRouter).
+Set `REEF_LLM_BASE_URL` and `REEF_LLM_MODEL` in the overlay ConfigMap at the
+same time. The URL may point to OpenRouter or an akb-platform gateway; Reef does
+not classify the endpoint or derive a deployment mode from it. All three values
+enable AI, partial configuration fails closed, and no values is an intentionally
+disabled capability. Keycloak remains independent, so a Keycloak-only
+deployment is valid.
 
-This base is the standalone profile. An akb-platform-managed deployment instead
-sets `REEF_LLM_GOVERNANCE_MODE=platform_hard`, injects its component-scoped key
-as `REEF_LLM_API_KEY`, and sets both `REEF_LLM_BASE_URL` and
-`REEF_PLATFORM_GATEWAY_BASE_URL` to the same canonical platform gateway base.
-It must not inject `OPENROUTER_API_KEY` or `OPENROUTER_BASE_URL`. The managed
-readiness gate is `GET /api/ai/managed-platform`: it returns 200 only for a
-complete hard-governed profile and 503 otherwise. `/api/healthz` remains the
-general standalone liveness/readiness endpoint.
+`GET /api/healthz` is the Reef workload liveness/readiness endpoint. The legacy-
+named `GET /api/ai/managed-platform` endpoint is an LLM capability declaration:
+valid enabled and disabled states return 200, while malformed LLM configuration
+returns 503. It must not be used as the workload readiness probe.
 
 ### TLS
 
@@ -160,10 +163,10 @@ services:
       # reef-web's canonical external origin (bare scheme://host[:port]).
       # For local-only use over http this may be http://localhost:3000.
       REEF_PUBLIC_ORIGIN: https://reef.example.com
-      # Deployment-managed LLM config
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:?set OPENROUTER_API_KEY}
-      OPENROUTER_BASE_URL: https://openrouter.ai/api/v1
-      REEF_LLM_MODEL: deepseek/deepseek-v4-flash
+      # Optional provider-neutral LLM config. Set all three or omit all three.
+      REEF_LLM_API_KEY: ${REEF_LLM_API_KEY:?set REEF_LLM_API_KEY}
+      REEF_LLM_BASE_URL: ${REEF_LLM_BASE_URL:?set REEF_LLM_BASE_URL}
+      REEF_LLM_MODEL: ${REEF_LLM_MODEL:?set REEF_LLM_MODEL}
       # Deployment-managed GitHub App for monitored-repo features
       REEF_GITHUB_APP_ID: ${REEF_GITHUB_APP_ID:?set REEF_GITHUB_APP_ID}
       REEF_GITHUB_APP_INSTALLATION_ID: ${REEF_GITHUB_APP_INSTALLATION_ID:?set REEF_GITHUB_APP_INSTALLATION_ID}
@@ -173,7 +176,9 @@ services:
 ```
 
 ```bash
-OPENROUTER_API_KEY=sk-or-... \
+REEF_LLM_API_KEY="${REEF_LLM_API_KEY}" \
+REEF_LLM_BASE_URL="${REEF_LLM_BASE_URL}" \
+REEF_LLM_MODEL="${REEF_LLM_MODEL}" \
 REEF_GITHUB_APP_ID=123456 \
 REEF_GITHUB_APP_INSTALLATION_ID=789 \
 REEF_GITHUB_APP_PRIVATE_KEY="$(cat github-app.private-key.pem)" \
@@ -189,20 +194,18 @@ that as the host in `AKB_BACKEND_URL` (e.g. `http://akb-backend:8000`).
 ## Required environment
 
 reef-web reads its configuration from the process environment (in Kubernetes:
-the `reef-web-config` ConfigMap plus the `reef-web-secret` Secret).
+the `reef-web-config` ConfigMap plus the optional `reef-web-secret` Secret).
 
 | Variable | Required | Description |
 | --- | --- | --- |
 | `AKB_BACKEND_URL` | yes | Base URL of the akb backend reef-web calls server-side. In-cluster this is a Service DNS name (`http://<service>.<namespace>.svc.cluster.local:8000`). |
 | `REEF_PUBLIC_ORIGIN` | yes for SSO | reef-web's canonical external origin — bare `scheme://host[:port]`, no path. Sent to akb as the absolute SSO callback base so reef and akb's own frontend can share a tenant Keycloak. Must match the ingress/public host. `https` except for localhost dev. |
 | `REEF_SSO_AUTO_REDIRECT` | no | Optional SSO-first presentation override for a hybrid AKB. AKB `keycloak.sso_only=true` redirects without it; AKB `local_auth.enabled=false` suppresses password login even when `?password=1`/`?prompt=login` is present. SSO/session errors suppress automatic redirect as the loop guard. |
-| `OPENROUTER_API_KEY` | yes for AI | OpenRouter API key for reef-web's AI routes. Keep it in a Secret; never inline it in manifests or commit it. |
-| `OPENROUTER_BASE_URL` | no | OpenRouter API base. Defaults to `https://openrouter.ai/api/v1`. |
-| `REEF_LLM_MODEL` | no | Deployment-selected model id passed to the standalone provider or managed gateway. |
-| `REEF_LLM_GOVERNANCE_MODE` | managed only | Set exactly to `platform_hard` for akb-platform-managed Reef. Unset means the standalone `external_metering` profile. |
-| `REEF_LLM_API_KEY` | managed only | Component-scoped platform gateway key. Required in `platform_hard`; keep it in a Secret. |
-| `REEF_LLM_BASE_URL` | managed only | OpenAI-compatible platform gateway base. Must exactly match `REEF_PLATFORM_GATEWAY_BASE_URL` after trailing-slash normalization. |
-| `REEF_PLATFORM_GATEWAY_BASE_URL` | managed only | Canonical platform gateway base used to fail closed against provider bypass. |
+| `REEF_LLM_API_KEY` | for enabled AI | Key for the configured OpenAI-compatible endpoint. Keep it in a Secret; never inline it in manifests or commit it. |
+| `REEF_LLM_BASE_URL` | for enabled AI | OpenAI-compatible endpoint base URL. It may target OpenRouter or an akb-platform gateway. |
+| `REEF_LLM_MODEL` | for enabled AI | Deployment-selected model id passed to the configured endpoint. |
+| `OPENROUTER_API_KEY` | compatibility alias | Alias for `REEF_LLM_API_KEY`; prefer the provider-neutral name in new deployments. If both are set, their values must match. |
+| `OPENROUTER_BASE_URL` | compatibility alias | Alias for `REEF_LLM_BASE_URL`; prefer the provider-neutral name in new deployments. If both are set, their normalized values must match. |
 | `REEF_GITHUB_APP_ID` | yes for GitHub features | GitHub App id used to mint server-side installation tokens for monitored-repo listing, grounding, and activity scans. |
 | `REEF_GITHUB_APP_INSTALLATION_ID` | yes for GitHub features | Installation id for the repository/org installation reef should read from. |
 | `REEF_GITHUB_APP_PRIVATE_KEY` | yes for GitHub features | PEM private key for the GitHub App. Keep it in a Secret; literal `\\n` escapes are accepted and normalized at runtime. |
@@ -222,9 +225,9 @@ Optional tracing/observability:
 
 Per-user secrets are intentionally **not** environment variables: the akb
 session is an httpOnly cookie minted per request. GitHub and LLM credentials are
-deployment-managed server secrets, not browser storage. Standalone and managed
-LLM profiles are mutually exclusive; managed configuration never falls back to
-the standalone OpenRouter variables.
+deployment-managed server secrets, not browser storage. The three `REEF_LLM_*`
+values must be set together; with none set, AI routes are unavailable but Reef,
+AKB, and Keycloak flows remain ready.
 
 ### Backend logging and the prod access-line policy
 

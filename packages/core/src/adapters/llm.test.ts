@@ -25,7 +25,7 @@ const {
   const mockGenerateText = vi.fn();
   const mockStreamText = vi.fn();
   const mockWrapLanguageModel = vi.fn(({ model }) => ({
-    type: "managed-language-model",
+    type: "identified-language-model",
     wrapped: model,
   }));
   return {
@@ -57,14 +57,6 @@ function makeParams() {
   };
 }
 
-function makeManagedParams() {
-  return {
-    ...makeParams(),
-    baseUrl: "https://gateway.example.test/v1",
-    governanceMode: "platform_hard" as const,
-  };
-}
-
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("createLlmAdapter", () => {
@@ -79,14 +71,14 @@ describe("createLlmAdapter", () => {
     expect(typeof adapter.generateText).toBe("function");
   });
 
-  it("wraps hard models with a fresh caller UUID per model step and disables outer retries", async () => {
+  it("applies the common chat-completions, request identity, and retry contract", async () => {
     mockWrapLanguageModel.mockClear();
-    const adapter = createLlmAdapter(makeManagedParams());
+    const adapter = createLlmAdapter(makeParams());
 
     const model = adapter.model();
 
     expect(adapter.maxRetries).toBe(0);
-    expect(model).toMatchObject({ type: "managed-language-model" });
+    expect(model).toMatchObject({ type: "identified-language-model" });
     const middleware = mockWrapLanguageModel.mock.calls[0]?.[0].middleware as {
       transformParams: (args: {
         params: { headers?: Record<string, string | undefined> };
@@ -114,7 +106,10 @@ describe("createLlmAdapter", () => {
   it("adapter.model() returns the stub model object", () => {
     const adapter = createLlmAdapter(makeParams());
     const model = adapter.model();
-    expect(model).toBe(mockModelInstance);
+    expect(model).toMatchObject({
+      type: "identified-language-model",
+      wrapped: mockModelInstance,
+    });
   });
 
   it("adapter.model() calls createOpenAI fresh per invocation", async () => {
@@ -147,12 +142,12 @@ describe("createLlmAdapter", () => {
       expect(result).toEqual(fakeResult);
     });
 
-    it("forces maxRetries=0 for hard governed generation", async () => {
+    it("passes an explicit maxRetries=0 policy to generation", async () => {
       mockGenerateText.mockResolvedValueOnce({
         text: "ok",
         finishReason: "stop",
       });
-      const adapter = createLlmAdapter(makeManagedParams());
+      const adapter = createLlmAdapter(makeParams());
 
       await adapter.generateText({ model: adapter.model(), prompt: "test" });
 
@@ -312,9 +307,9 @@ describe("createLlmAdapter", () => {
       expect(result).toBe(fakeResult);
     });
 
-    it("forces maxRetries=0 for hard governed streams", () => {
+    it("passes an explicit maxRetries=0 policy to streams", () => {
       mockStreamText.mockReturnValueOnce({ toDataStreamResponse: vi.fn() });
-      const adapter = createLlmAdapter(makeManagedParams());
+      const adapter = createLlmAdapter(makeParams());
 
       adapter.streamText({
         model: adapter.model(),

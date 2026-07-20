@@ -100,5 +100,5 @@ all differ from your training data. Read the relevant guide in
   jsdom — so add it deliberately.
 - E2E tests live in `packages/web/tests/e2e/`; LLM evals live in `packages/web/tests/evals/` with
   `vitest.eval.ts`.
-- Real GitHub/OpenRouter/AKB contract checks belong in a separate live E2E
+- Real GitHub/LLM/AKB contract checks belong in a separate live E2E
   project or command and must not be the default `test:e2e` signal.

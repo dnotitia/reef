@@ -33,7 +33,6 @@ export interface PublicOrchestratorConfig {
   };
   llm: {
     isConfigured: boolean;
-    provider: "openrouter";
     model: string | null;
   };
   githubApp: {
@@ -160,13 +159,38 @@ const normalizePrivateKey = (raw: string | undefined): string =>
 const resolveOptionalLlmConfig = (
   env: Record<string, string | undefined>,
 ): LLMConfig | null => {
+  const canonicalApiKey = trimToNull(env.REEF_LLM_API_KEY);
+  const legacyApiKey = trimToNull(env.OPENROUTER_API_KEY);
+  const canonicalBaseUrl = trimToNull(env.REEF_LLM_BASE_URL);
+  const legacyBaseUrl = trimToNull(env.OPENROUTER_BASE_URL);
+  const aliasConflicts = [
+    canonicalApiKey && legacyApiKey && canonicalApiKey !== legacyApiKey
+      ? "REEF_LLM_API_KEY and its OPENROUTER_API_KEY alias must not disagree"
+      : null,
+    canonicalBaseUrl &&
+    legacyBaseUrl &&
+    canonicalBaseUrl.replace(/\/+$/, "") !== legacyBaseUrl.replace(/\/+$/, "")
+      ? "REEF_LLM_BASE_URL and its OPENROUTER_BASE_URL alias must not disagree"
+      : null,
+  ].filter((issue): issue is string => issue !== null);
+  if (aliasConflicts.length > 0) {
+    throw new OrchestratorConfigError(aliasConflicts);
+  }
+
   const raw = {
-    api_key: trimToNull(env.OPENROUTER_API_KEY) ?? "",
-    base_url: trimToNull(env.OPENROUTER_BASE_URL) ?? "",
+    api_key: canonicalApiKey ?? legacyApiKey ?? "",
+    base_url: canonicalBaseUrl ?? legacyBaseUrl ?? "",
     model: trimToNull(env.REEF_LLM_MODEL) ?? "",
   };
-  const allConfigured = Object.values(raw).every((value) => value.length > 0);
-  if (!allConfigured) return null;
+  const configuredCount = Object.values(raw).filter(
+    (value) => value.length > 0,
+  ).length;
+  if (configuredCount === 0) return null;
+  if (configuredCount !== Object.keys(raw).length) {
+    throw new OrchestratorConfigError([
+      "REEF_LLM_API_KEY, REEF_LLM_BASE_URL, and REEF_LLM_MODEL must be set together",
+    ]);
+  }
 
   const parsed = LLMConfigSchema.safeParse(raw);
   if (!parsed.success) {
@@ -259,7 +283,6 @@ export function publicOrchestratorConfig(
     },
     llm: {
       isConfigured: config.llm !== null,
-      provider: "openrouter",
       model: config.llm?.model ?? null,
     },
     githubApp: {

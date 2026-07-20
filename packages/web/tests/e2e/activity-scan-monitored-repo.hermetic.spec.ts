@@ -38,7 +38,10 @@ test.describe("Activity scan monitored-repo boundary (REEF-289)", () => {
         },
       },
     });
-    expect(patch.ok()).toBeTruthy();
+    expect(
+      patch.ok(),
+      `PATCH /api/config failed: ${patch.status()} ${await patch.text()}`,
+    ).toBeTruthy();
   });
 
   test("rejects a scan of a repo the workspace does not monitor", async ({

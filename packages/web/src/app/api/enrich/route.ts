@@ -40,7 +40,7 @@ const ENRICHMENT_OUTPUT_LOG_KEYS = [
  * POST /api/enrich — AI-assisted issue enrichment.
  *
  * Thin route handler around `enrichIssue` in `@reef/core`:
- *   1. Resolve deployment-managed OpenRouter config from server env (503 on failure).
+ *   1. Resolve deployment-managed LLM config from server env (503 on failure).
  *   2. Parse + validate body against `EnrichmentRequestSchema` (400).
  *   3. Resolve the akb session cookie (401 on failure) for workspace context.
  *   4. Resolve a GitHub adapter for monitored-repo code grounding — the

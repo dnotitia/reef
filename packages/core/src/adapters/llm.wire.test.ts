@@ -3,23 +3,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { LlmError } from "../errors";
 import { createLlmAdapter } from "./llm";
 
-function responsesApiResponse(): Response {
-  return Response.json({
-    id: "resp-test",
-    created_at: 1,
-    model: "test-model",
-    output: [
-      {
-        type: "message",
-        role: "assistant",
-        id: "msg-test",
-        content: [{ type: "output_text", text: "ok", annotations: [] }],
-      },
-    ],
-    usage: { input_tokens: 1, output_tokens: 1 },
-  });
-}
-
 function chatCompletionsResponse(): Response {
   return Response.json({
     id: "chatcmpl-test",
@@ -37,7 +20,7 @@ function chatCompletionsResponse(): Response {
   });
 }
 
-describe("managed LLM wire contract", () => {
+describe("LLM wire contract", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -59,7 +42,6 @@ describe("managed LLM wire contract", () => {
       apiKey: "component-key",
       baseUrl: "https://gateway.example.test/v1",
       model: "test-model",
-      governanceMode: "platform_hard",
     });
 
     await adapter.generateText({ model: adapter.model(), prompt: "hello" });
@@ -73,7 +55,7 @@ describe("managed LLM wire contract", () => {
     );
   });
 
-  it("does not retry a failed hard-governed wire request", async () => {
+  it("does not retry a failed request", async () => {
     const fetchMock = vi.fn(async () =>
       Response.json(
         { error: { message: "gateway unavailable" } },
@@ -85,7 +67,6 @@ describe("managed LLM wire contract", () => {
       apiKey: "component-key",
       baseUrl: "https://gateway.example.test/v1",
       model: "test-model",
-      governanceMode: "platform_hard",
     });
 
     await expect(
@@ -94,13 +75,15 @@ describe("managed LLM wire contract", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("does not add a managed request identity in external-metering mode", async () => {
+  it("uses the same identified chat-completions contract for any endpoint", async () => {
     let requestId: string | null = null;
+    let requestUrl: string | null = null;
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        requestUrl = input instanceof Request ? input.url : input.toString();
         requestId = new Headers(init?.headers).get("Idempotency-Key");
-        return responsesApiResponse();
+        return chatCompletionsResponse();
       }),
     );
     const adapter = createLlmAdapter({
@@ -111,6 +94,11 @@ describe("managed LLM wire contract", () => {
 
     await adapter.generateText({ model: adapter.model(), prompt: "hello" });
 
-    expect(requestId).toBeNull();
+    expect(requestUrl).toBe(
+      "https://provider.example.test/v1/chat/completions",
+    );
+    expect(requestId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
   });
 });

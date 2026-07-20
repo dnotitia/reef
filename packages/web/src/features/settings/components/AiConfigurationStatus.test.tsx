@@ -14,72 +14,39 @@ describe("AiConfigurationStatus", () => {
     vi.clearAllMocks();
   });
 
-  it("shows the managed OpenRouter model when configured", () => {
+  it("shows the configured provider-neutral model", () => {
     useAiAvailableMock.mockReturnValue({
       isAvailable: true,
       isLoading: false,
-      provider: "openrouter",
       model: "deepseek/deepseek-v4-flash",
     });
 
     render(<AiConfigurationStatus />);
 
     expect(
-      screen.getByText("OpenRouter · deepseek/deepseek-v4-flash"),
+      screen.getByText("configured · deepseek/deepseek-v4-flash"),
     ).toBeInTheDocument();
-  });
-
-  it("shows the platform gateway instead of its wire identifier", () => {
-    useAiAvailableMock.mockReturnValue({
-      isAvailable: true,
-      isLoading: false,
-      provider: "platform-gateway",
-      model: "deepseek/deepseek-v4-flash",
-    });
-
-    render(<AiConfigurationStatus />);
-
-    expect(
-      screen.getByText("AKB Platform Gateway · deepseek/deepseek-v4-flash"),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/platform-gateway/)).not.toBeInTheDocument();
-  });
-
-  it("describes managed gateway configuration when that profile is unavailable", () => {
-    useAiAvailableMock.mockReturnValue({
-      isAvailable: false,
-      isLoading: false,
-      provider: "platform-gateway",
-      model: null,
-    });
-
-    render(<AiConfigurationStatus />);
-
-    expect(
-      screen.getByText(/platform gateway configuration/i),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/OpenRouter API key/i)).not.toBeInTheDocument();
   });
 
   it("shows a deployment-level unavailable state when unconfigured", () => {
     useAiAvailableMock.mockReturnValue({
       isAvailable: false,
       isLoading: false,
-      provider: "openrouter",
       model: null,
     });
 
     render(<AiConfigurationStatus />);
 
     expect(screen.getByText("AI is not configured.")).toBeInTheDocument();
-    expect(screen.getByText(/This deployment needs/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/deployment-managed LLM endpoint/),
+    ).toBeInTheDocument();
   });
 
   it("renders a skeleton placeholder while the status is loading (REEF-255)", () => {
     useAiAvailableMock.mockReturnValue({
       isAvailable: false,
       isLoading: true,
-      provider: "openrouter",
       model: null,
     });
 

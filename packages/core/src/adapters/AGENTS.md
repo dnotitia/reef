@@ -53,13 +53,10 @@
 
 ## LLM Adapter (`llm.ts`)
 
-- LLM configuration is deployment-managed server state. Standalone uses
-  `OPENROUTER_*`; managed uses `REEF_LLM_GOVERNANCE_MODE=platform_hard` and the
-  dedicated `REEF_LLM_*` / `REEF_PLATFORM_GATEWAY_BASE_URL` inputs.
-- In `platform_hard`, every model step receives a fresh UUID
-  `Idempotency-Key`, AI SDK retries stay disabled, and provider fallback is not
-  allowed. Managed calls use the explicit Chat Completions provider so the
-  platform gateway can meter its canonical token envelope. Keep the
-  external-metering behavior unchanged.
+- LLM configuration is deployment-managed server state. Core receives one
+  provider-neutral OpenAI-compatible endpoint and must not infer or interpret a
+  provider or platform deployment mode.
+- Every model step uses Chat Completions, a fresh UUID `Idempotency-Key`, and
+  zero AI SDK retries. This is Reef's endpoint-independent request contract.
 - Keep provider errors credential-free when surfacing or logging them; preserve
   useful status and response detail only through safe error types.

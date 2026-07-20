@@ -39,7 +39,7 @@ export const MonitoredRepoSchema = z.object({
  * intentionally NOT part of `ConfigSchema` (the `_reef/config.md` shape)
  * because `api_key` is a secret and should not be committed to the akb vault.
  *
- * reef-web's deployment-managed OpenRouter config is read from server env per
+ * reef-web's deployment-managed LLM config is read from server env per
  * request. These values are is not written to the akb vault.
  *
  * `base_url` accepts http(s):// — https is enforced in production at the route
@@ -54,38 +54,11 @@ const LlmBaseUrlSchema = z
     return lower.startsWith("https://") || lower.startsWith("http://");
   }, "base_url must use http or https");
 
-export const LLMConfigSchema = z
-  .object({
-    api_key: z.string().min(1, "api_key is required"),
-    base_url: LlmBaseUrlSchema,
-    model: z.string().min(1, "model is required"),
-    governance_mode: z
-      .enum(["external_metering", "platform_hard"])
-      .default("external_metering"),
-    platform_gateway_base_url: LlmBaseUrlSchema.nullable().default(null),
-  })
-  .superRefine((config, ctx) => {
-    if (config.governance_mode !== "platform_hard") return;
-    if (!config.platform_gateway_base_url) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["platform_gateway_base_url"],
-        message: "platform_gateway_base_url is required in platform_hard mode",
-      });
-      return;
-    }
-    if (
-      config.base_url.replace(/\/+$/, "") !==
-      config.platform_gateway_base_url.replace(/\/+$/, "")
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["base_url"],
-        message:
-          "base_url must match platform_gateway_base_url in platform_hard mode",
-      });
-    }
-  });
+export const LLMConfigSchema = z.object({
+  api_key: z.string().min(1, "api_key is required"),
+  base_url: LlmBaseUrlSchema,
+  model: z.string().min(1, "model is required"),
+});
 
 /**
  * GitHubAppConfigSchema — deployment-managed GitHub App credential.

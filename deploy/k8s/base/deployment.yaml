@@ -36,6 +36,9 @@ spec:
                 name: reef-web-config
             - secretRef:
                 name: reef-web-secret
+                # GitHub and LLM capabilities are optional. Deployments that
+                # only use AKB/Keycloak do not need an otherwise empty Secret.
+                optional: true
           resources:
             requests:
               memory: "256Mi"

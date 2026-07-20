@@ -52,6 +52,32 @@ test.describe("SSO-first login auto-redirect", () => {
     await expect(page.locator('[data-testid="akb-login-form"]')).toHaveCount(0);
   });
 
+  test("Keycloak remains available when the optional LLM capability is disabled", async ({
+    page,
+    request,
+  }) => {
+    test.skip(
+      process.env.REEF_E2E_LLM_DISABLED !== "1",
+      "This deployment-contract scenario runs in the governance gate.",
+    );
+    await setKeycloakEnabled(request, true);
+
+    const capabilityResponse = await request.get("/api/ai/managed-platform");
+    expect(capabilityResponse.status()).toBe(200);
+    expect(await capabilityResponse.json()).toEqual({
+      ok: true,
+      service: "reef-web",
+      capability: "reef-llm-capability-v1",
+      llm: { enabled: false, state: "disabled" },
+    });
+
+    await page.goto("/login");
+    await page.waitForURL(/\/keycloak\/authorize$/, { timeout: 15_000 });
+    await expect(
+      page.locator('[data-testid="fixture-keycloak-authorize"]'),
+    ).toBeVisible();
+  });
+
   test("AC2: an SSO error keeps the panel (loop guard)", async ({
     page,
     request,

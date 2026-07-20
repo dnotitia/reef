@@ -130,10 +130,13 @@ try {
       // Server-read akb web base (REEF-368) so linked-document backlinks render
       // when browsing the hermetic runtime locally.
       AKB_WEB_URL: process.env.AKB_WEB_URL ?? "https://akb.e2e.test",
-      OPENROUTER_API_KEY:
-        process.env.OPENROUTER_API_KEY ?? "e2e-openrouter-key",
-      OPENROUTER_BASE_URL:
-        process.env.OPENROUTER_BASE_URL ?? `${MOCK_URL}/openrouter/v1`,
+      // Pin this hermetic runtime to the canonical names even when the parent
+      // shell still exports the supported OpenRouter compatibility aliases.
+      OPENROUTER_API_KEY: "",
+      OPENROUTER_BASE_URL: "",
+      REEF_LLM_API_KEY: process.env.REEF_LLM_API_KEY ?? "e2e-llm-endpoint-key",
+      REEF_LLM_BASE_URL:
+        process.env.REEF_LLM_BASE_URL ?? `${MOCK_URL}/openrouter/v1`,
       REEF_LLM_MODEL: process.env.REEF_LLM_MODEL ?? "e2e/mock-model",
       REEF_GITHUB_API_BASE_URL:
         process.env.REEF_GITHUB_API_BASE_URL ?? `${MOCK_URL}/github`,

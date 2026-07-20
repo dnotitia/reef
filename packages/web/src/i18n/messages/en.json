@@ -115,13 +115,8 @@
       },
       "ai": {
         "notConfigured": "AI is not configured.",
-        "notConfiguredHelp": "This deployment needs an OpenRouter API key before AI features are available.",
-        "managedNotConfiguredHelp": "This deployment needs a valid AKB Platform gateway configuration before AI features are available.",
-        "configured": "configured",
-        "provider": {
-          "openrouter": "OpenRouter",
-          "platformGateway": "AKB Platform Gateway"
-        }
+        "notConfiguredHelp": "Configure the deployment-managed LLM endpoint to enable AI features.",
+        "configured": "configured"
       },
       "authoringLanguage": {
         "noVault": "Choose a workspace above before configuring the authoring language.",

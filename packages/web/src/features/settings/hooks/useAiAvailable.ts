@@ -1,6 +1,5 @@
 "use client";
 
-import type { ServerLlmProvider } from "@/lib/llm/serverConfig";
 import { holdQueryUntilHydrated } from "@/lib/queryHydration";
 import { useHydrated } from "@/lib/useHydrated";
 import { useQuery } from "@tanstack/react-query";
@@ -10,7 +9,6 @@ export interface AiAvailableState {
   isAvailable: boolean;
   /** True while the deployment status request is in flight. */
   isLoading: boolean;
-  provider: ServerLlmProvider;
   model: string | null;
 }
 
@@ -35,7 +33,6 @@ export function useAiAvailable(): AiAvailableState {
         }
         return (await res.json()) as {
           isConfigured: boolean;
-          provider: ServerLlmProvider;
           model: string | null;
         };
       },
@@ -48,7 +45,6 @@ export function useAiAvailable(): AiAvailableState {
   return {
     isAvailable: query.data?.isConfigured ?? false,
     isLoading: query.isPending,
-    provider: query.data?.provider ?? "openrouter",
     model: query.data?.model ?? null,
   };
 }

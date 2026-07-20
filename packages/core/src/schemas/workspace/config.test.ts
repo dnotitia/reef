@@ -31,42 +31,6 @@ describe("LLMConfigSchema", () => {
   it("parses a valid LLM config", () => {
     const result = LLMConfigSchema.safeParse(validLLMConfig);
     expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.governance_mode).toBe("external_metering");
-      expect(result.data.platform_gateway_base_url).toBeNull();
-    }
-  });
-
-  it("accepts an exact platform hard gateway binding", () => {
-    const result = LLMConfigSchema.safeParse({
-      ...validLLMConfig,
-      base_url: "https://gateway.example.test/v1/",
-      governance_mode: "platform_hard",
-      platform_gateway_base_url: "https://gateway.example.test/v1",
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it("rejects unknown or incomplete platform governance", () => {
-    expect(
-      LLMConfigSchema.safeParse({
-        ...validLLMConfig,
-        governance_mode: "typo-falls-open",
-      }).success,
-    ).toBe(false);
-    expect(
-      LLMConfigSchema.safeParse({
-        ...validLLMConfig,
-        governance_mode: "platform_hard",
-      }).success,
-    ).toBe(false);
-    expect(
-      LLMConfigSchema.safeParse({
-        ...validLLMConfig,
-        governance_mode: "platform_hard",
-        platform_gateway_base_url: "https://gateway.example.test/v1",
-      }).success,
-    ).toBe(false);
   });
 
   it("accepts http://localhost base_url (local dev)", () => {
@@ -115,7 +79,7 @@ describe("LLMConfigSchema", () => {
   });
 
   it("rejects missing api_key", () => {
-    const { api_key: _api_key, ...rest } = validLLMConfig;
+    const { api_key: _credential, ...rest } = validLLMConfig;
     const result = LLMConfigSchema.safeParse(rest);
     expect(result.success).toBe(false);
   });

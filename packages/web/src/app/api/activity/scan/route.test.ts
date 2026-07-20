@@ -72,8 +72,8 @@ describe("POST /api/activity/scan", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("AKB_BACKEND_URL", "http://akb.test");
-    vi.stubEnv("OPENROUTER_API_KEY", "sk-test");
-    vi.stubEnv("OPENROUTER_BASE_URL", "https://api.openai.com/v1");
+    vi.stubEnv("REEF_LLM_API_KEY", "sk-test");
+    vi.stubEnv("REEF_LLM_BASE_URL", "https://api.openai.com/v1");
     vi.stubEnv("REEF_LLM_MODEL", "gpt-4o");
     setServerAppConfig(APP_CONFIG);
     mockGetActor.mockResolvedValue({ actor: "alice" });
@@ -163,8 +163,8 @@ describe("POST /api/activity/scan", () => {
     expect(mockScanAndPersistActivitySuggestions).not.toHaveBeenCalled();
   });
 
-  it("returns 503 when deployment OpenRouter config is missing", async () => {
-    vi.stubEnv("OPENROUTER_API_KEY", "");
+  it("returns 503 when deployment LLM config is missing", async () => {
+    vi.stubEnv("REEF_LLM_API_KEY", "");
     const res = await POST(
       makeRequest({
         headers: {
@@ -239,8 +239,8 @@ describe("POST /api/activity/scan — server-managed GitHub App path", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("AKB_BACKEND_URL", "http://akb.test");
-    vi.stubEnv("OPENROUTER_API_KEY", "sk-test");
-    vi.stubEnv("OPENROUTER_BASE_URL", "https://api.openai.com/v1");
+    vi.stubEnv("REEF_LLM_API_KEY", "sk-test");
+    vi.stubEnv("REEF_LLM_BASE_URL", "https://api.openai.com/v1");
     vi.stubEnv("REEF_LLM_MODEL", "gpt-4o");
     setServerAppConfig(APP_CONFIG);
     mockGetActor.mockResolvedValue({ actor: "alice" });

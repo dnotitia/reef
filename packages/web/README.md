@@ -53,9 +53,9 @@ For local development, `packages/web/.env.local` should include:
 
 ```bash
 AKB_BACKEND_URL=http://localhost:8000
-OPENROUTER_API_KEY=
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-REEF_LLM_MODEL=deepseek/deepseek-v4-flash
+REEF_LLM_API_KEY=
+REEF_LLM_BASE_URL=
+REEF_LLM_MODEL=
 ```
 
 Start reef from the repo root:
@@ -74,13 +74,18 @@ variables for secrets.
 | Variable | Purpose |
 | --- | --- |
 | `AKB_BACKEND_URL` | Base URL for the AKB backend. Local dev usually uses `http://localhost:8000`. |
-| `OPENROUTER_API_KEY` | Server-side OpenRouter key for AI features. |
-| `OPENROUTER_BASE_URL` | OpenRouter-compatible API base URL. |
-| `REEF_LLM_MODEL` | Deployment-selected model for the LLM adapter. |
-| `REEF_LLM_GOVERNANCE_MODE` | `platform_hard` for an akb-platform-managed deployment; unset is standalone external metering. |
-| `REEF_LLM_API_KEY` | Managed component-scoped platform gateway key; mutually exclusive with `OPENROUTER_*`. |
-| `REEF_LLM_BASE_URL` | Managed OpenAI-compatible gateway base. |
-| `REEF_PLATFORM_GATEWAY_BASE_URL` | Managed trust anchor; must exactly match `REEF_LLM_BASE_URL` after normalization. |
+| `REEF_LLM_API_KEY` | Server-side key for the configured OpenAI-compatible LLM endpoint. |
+| `REEF_LLM_BASE_URL` | Base URL for the configured OpenAI-compatible LLM endpoint. |
+| `REEF_LLM_MODEL` | Deployment-selected model for an enabled LLM capability. |
+| `OPENROUTER_API_KEY` | Compatibility alias for `REEF_LLM_API_KEY`. |
+| `OPENROUTER_BASE_URL` | Compatibility alias for `REEF_LLM_BASE_URL`. |
+
+Set all three LLM variables to enable AI, or leave all three empty to disable
+it. Partial configuration fails closed. `REEF_LLM_BASE_URL` can point to
+OpenRouter or an akb-platform gateway; Reef does not classify the endpoint by
+provider or deployment mode. LLM state does not affect AKB or Keycloak
+authentication. Canonical and compatibility alias values may be set together
+only when they agree.
 
 GitHub features (monitored repositories, activity scan, and code grounding) are
 deployment-managed through `REEF_GITHUB_APP_ID`,

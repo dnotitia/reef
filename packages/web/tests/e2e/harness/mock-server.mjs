@@ -1809,41 +1809,49 @@ async function handleOpenRouter(req, res) {
 
 function basicTextChunks(created) {
   return [
-    responseCreatedChunk("resp-e2e", created),
-    messageAddedChunk("msg-e2e"),
-    textDeltaChunk("msg-e2e", "Mock OpenRouter response."),
-    messageDoneChunk("msg-e2e"),
-    completedChunk({ inputTokens: 8, outputTokens: 4 }),
+    chatCompletionChunk("chatcmpl-e2e", created, { role: "assistant" }),
+    chatCompletionChunk("chatcmpl-e2e", created, {
+      content: "Mock OpenRouter response.",
+    }),
+    chatCompletionChunk("chatcmpl-e2e", created, {}, "stop"),
   ];
 }
 
 function initialToolLoopChunks(created) {
   return [
-    responseCreatedChunk("resp-e2e-tools", created),
-    ...functionCallChunks({
-      outputIndex: 0,
-      id: "fc-e2e-search-issues",
-      callId: TOOL_LOOP_SEARCH_ISSUES_CALL_ID,
-      name: "search_issues",
-      input: {
-        query: "Initial issue Alpha",
-        status: null,
-        assigned_to: null,
-        labels: null,
-        limit: 3,
-      },
+    chatCompletionChunk("chatcmpl-e2e-tools", created, {
+      role: "assistant",
+      tool_calls: [
+        {
+          index: 0,
+          id: TOOL_LOOP_SEARCH_ISSUES_CALL_ID,
+          type: "function",
+          function: {
+            name: "search_issues",
+            arguments: JSON.stringify({
+              query: "Initial issue Alpha",
+              status: null,
+              assigned_to: null,
+              labels: null,
+              limit: 3,
+            }),
+          },
+        },
+        {
+          index: 1,
+          id: TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID,
+          type: "function",
+          function: {
+            name: "search_documents",
+            arguments: JSON.stringify({
+              query: "Spec overview",
+              limit: 3,
+            }),
+          },
+        },
+      ],
     }),
-    ...functionCallChunks({
-      outputIndex: 1,
-      id: "fc-e2e-search-documents",
-      callId: TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID,
-      name: "search_documents",
-      input: {
-        query: "Spec overview",
-        limit: 3,
-      },
-    }),
-    completedChunk({ inputTokens: 21, outputTokens: 16 }),
+    chatCompletionChunk("chatcmpl-e2e-tools", created, {}, "tool_calls"),
   ];
 }
 
@@ -1851,108 +1859,29 @@ function finalToolLoopChunks(created) {
   const text =
     "I found REEF-001 from the issue search and the Spec overview document as supporting context.";
   return [
-    responseCreatedChunk("resp-e2e-tools-final", created),
-    messageAddedChunk("msg-e2e-tools-final"),
-    textDeltaChunk("msg-e2e-tools-final", text),
-    messageDoneChunk("msg-e2e-tools-final"),
-    completedChunk({ inputTokens: 34, outputTokens: 18 }),
+    chatCompletionChunk("chatcmpl-e2e-tools-final", created, {
+      role: "assistant",
+    }),
+    chatCompletionChunk("chatcmpl-e2e-tools-final", created, {
+      content: text,
+    }),
+    chatCompletionChunk("chatcmpl-e2e-tools-final", created, {}, "stop"),
   ];
 }
 
-function responseCreatedChunk(id, created) {
+function chatCompletionChunk(id, created, delta, finishReason = null) {
   return {
-    type: "response.created",
-    response: {
-      id,
-      created_at: created,
-      model: "e2e/mock-model",
-      service_tier: null,
-    },
-  };
-}
-
-function messageAddedChunk(id) {
-  return {
-    type: "response.output_item.added",
-    output_index: 0,
-    item: {
-      type: "message",
-      id,
-      phase: "final_answer",
-    },
-  };
-}
-
-function textDeltaChunk(itemId, delta) {
-  return {
-    type: "response.output_text.delta",
-    item_id: itemId,
-    delta,
-  };
-}
-
-function messageDoneChunk(id) {
-  return {
-    type: "response.output_item.done",
-    output_index: 0,
-    item: {
-      type: "message",
-      id,
-      phase: "final_answer",
-    },
-  };
-}
-
-function functionCallChunks({ outputIndex, id, callId, name, input }) {
-  const args = JSON.stringify(input);
-  return [
-    {
-      type: "response.output_item.added",
-      output_index: outputIndex,
-      item: {
-        type: "function_call",
-        id,
-        call_id: callId,
-        name,
-        arguments: "",
-        namespace: null,
+    id,
+    object: "chat.completion.chunk",
+    created,
+    model: "e2e/mock-model",
+    choices: [
+      {
+        index: 0,
+        delta,
+        finish_reason: finishReason,
       },
-    },
-    {
-      type: "response.function_call_arguments.delta",
-      item_id: id,
-      output_index: outputIndex,
-      delta: args,
-    },
-    {
-      type: "response.output_item.done",
-      output_index: outputIndex,
-      item: {
-        type: "function_call",
-        id,
-        call_id: callId,
-        name,
-        arguments: args,
-        status: "completed",
-        namespace: null,
-      },
-    },
-  ];
-}
-
-function completedChunk({ inputTokens, outputTokens }) {
-  return {
-    type: "response.completed",
-    response: {
-      incomplete_details: null,
-      usage: {
-        input_tokens: inputTokens,
-        output_tokens: outputTokens,
-        input_tokens_details: { cached_tokens: 0 },
-        output_tokens_details: { reasoning_tokens: 0 },
-      },
-      service_tier: null,
-    },
+    ],
   };
 }
 
@@ -1967,17 +1896,13 @@ async function streamOpenRouterChunks(
     Connection: "keep-alive",
   });
   for (const chunk of chunks) {
-    if (
-      delayBeforeTextDeltaMs > 0 &&
-      chunk.type === "response.output_text.delta"
-    ) {
+    if (delayBeforeTextDeltaMs > 0 && chunk.choices?.[0]?.delta?.content) {
       await sleep(delayBeforeTextDeltaMs);
     }
     res.write(`data: ${JSON.stringify(chunk)}\n\n`);
     if (
       delayAfterFunctionCallMs > 0 &&
-      chunk.type === "response.output_item.done" &&
-      chunk.item?.type === "function_call"
+      chunk.choices?.[0]?.finish_reason === "tool_calls"
     ) {
       await sleep(delayAfterFunctionCallMs);
     }
@@ -1986,15 +1911,21 @@ async function streamOpenRouterChunks(
 }
 
 function isToolLoopPromptTurn(body) {
-  return collectStrings(body?.input).some((value) =>
+  return collectStrings(body?.messages ?? body?.input).some((value) =>
     value.toLowerCase().includes(TOOL_LOOP_E2E_PROMPT),
   );
 }
 
 function isToolLoopResultTurn(body) {
   return (
-    hasFunctionCallOutput(body?.input, TOOL_LOOP_SEARCH_ISSUES_CALL_ID) ||
-    hasFunctionCallOutput(body?.input, TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID)
+    hasFunctionCallOutput(
+      body?.messages ?? body?.input,
+      TOOL_LOOP_SEARCH_ISSUES_CALL_ID,
+    ) ||
+    hasFunctionCallOutput(
+      body?.messages ?? body?.input,
+      TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID,
+    )
   );
 }
 
@@ -2006,6 +1937,7 @@ function hasFunctionCallOutput(value, callId) {
   if (value.type === "function_call_output" && value.call_id === callId) {
     return true;
   }
+  if (value.role === "tool" && value.tool_call_id === callId) return true;
   return Object.values(value).some((item) =>
     hasFunctionCallOutput(item, callId),
   );

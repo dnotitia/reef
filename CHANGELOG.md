@@ -23,10 +23,14 @@ explicitly in the entries below.
   operator package now separates pre-validation Jira JSON from normalized
   models and exposes a content-addressed, versioned raw archive with integrity,
   retention, secret, and private-permission checks. (REEF-406)
-- **Managed Reef can use the akb-platform LLM gateway without a provider bypass.**
-  The hard-governed profile requires the canonical platform gateway, gives every
-  model step a UUID request identity, disables SDK retries, and exposes a managed
-  readiness gate while preserving standalone OpenRouter deployments.
+- **Reef uses one provider-neutral LLM endpoint contract.** Deployments set
+  `REEF_LLM_API_KEY`, `REEF_LLM_BASE_URL`, and `REEF_LLM_MODEL` together for
+  either OpenRouter or an akb-platform gateway, without a mode switch or
+  provider-specific runtime behavior. Existing `OPENROUTER_API_KEY` and
+  `OPENROUTER_BASE_URL` settings remain supported as compatibility aliases.
+  Every model step uses Chat Completions, a UUID request identity, and zero SDK
+  retries. LLM availability remains independent from AKB and Keycloak, so
+  Keycloak-only deployments stay healthy with AI disabled. (REEF-413)
 - **AKB account state now survives every Reef sign-in path.** Membership-required,
   suspended-account, and identity-conflict responses have stable local and SSO
   UX. AKB's SSO-only/local-auth policy controls the login surface, and an account

@@ -12,7 +12,7 @@ import { getActiveVault } from "./storage/config";
 /**
  * A fetch() wrapper that attaches browser-local request context.
  *
- * LLM credentials are deployment-managed server-side via OpenRouter env vars,
+ * LLM credentials are deployment-managed server-side via REEF_LLM_* env vars,
  * and GitHub grounding now uses deployment-managed GitHub App credentials, so
  * this client does not attach `X-Reef-LLM` or `Authorization`.
  *
