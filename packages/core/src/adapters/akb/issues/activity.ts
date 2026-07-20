@@ -252,9 +252,10 @@ interface ActivityRowInput {
  * the same logical change finds the committed row and adds nothing. Append path:
  * there is no update path for an event row. Returns whether a row was added.
  *
- * Residual: akb's runtime HTTP surface creates tables by column list and
- * exposes no ALTER/unique-index (REEF-125), so two *simultaneous* inserts of the
- * identical event_key could both pass `NOT EXISTS`. That needs concurrent
+ * Residual: until an explicit operator migration installs the unique key (or
+ * when that migration cannot run), the compatibility envelope lets two
+ * *simultaneous* inserts of the identical event_key both pass `NOT EXISTS`.
+ * That needs concurrent
  * retries of the very same update; it is de-duplicated downstream on `event_key`
  * by the timeline (REEF-064). A DB-enforced unique index is an akb-layer
  * follow-up. Callers `ensureReefTables` first so a vault predating the table

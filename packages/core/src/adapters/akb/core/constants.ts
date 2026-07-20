@@ -15,8 +15,8 @@ export const ACTIVITY_INBOX_COLLECTION = "_reef/activity-inbox";
  *
  *   reef_settings — single-row-per-key team-shared settings (project_prefix
  *                   today, future flags later). Schema-free `value json`
- *                   sidesteps the fact that akb does not expose ALTER TABLE
- *                   via HTTP.
+ *                   remains a compatibility envelope before an explicit
+ *                   operator migration is applied, or when one cannot run.
  *   monitored_repos — typed rows for GitHub repos this workspace tracks. PK
  *                     is the GitHub numeric `github_id` (rename/transfer-safe).
  *   reef_issues — one row per reef issue, the queryable read projection of the
@@ -33,7 +33,8 @@ export const ACTIVITY_INBOX_COLLECTION = "_reef/activity-inbox";
  *                 boilerplate "material", not a searchable akb document.
  *   reef_comments — flat issue comment rows keyed by `reef_id`; comment author
  *                 and edit semantics live in `meta` so the create-time schema
- *                 stays small while akb lacks HTTP ALTER support.
+ *                 stays a compatibility envelope before an explicit operator
+ *                 migration is applied, or when one cannot run.
  *   reef_attachments — issue-scoped AKB file metadata. File bytes stay in AKB
  *                 file storage; this table holds the queryable issue link and
  *                 Jira import provenance.

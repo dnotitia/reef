@@ -14,6 +14,11 @@ explicitly in the entries below.
 
 ### Added
 
+- **AKB table schema changes are available through the core adapter.** Operators
+  can call low-level table alters or caller-keyed idempotent migrations through
+  validated public helpers. No vault schema is changed automatically; target
+  AKB deployments must provide the table alter and migration endpoints.
+  (REEF-055)
 - **Jira migrations can preserve verifiable raw source artifacts.** The
   operator package now separates pre-validation Jira JSON from normalized
   models and exposes a content-addressed, versioned raw archive with integrity,
