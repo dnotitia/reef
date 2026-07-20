@@ -790,7 +790,6 @@
       "progress": "{processed} / {total}",
       "addLabels": "Add labels",
       "removeLabels": "Remove labels",
-      "editInList": "Bulk edit in List",
       "noSprint": "No sprint",
       "clear": "Clear",
       "failedCount": "{count} failed",

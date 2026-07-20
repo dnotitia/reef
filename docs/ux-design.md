@@ -440,11 +440,9 @@ single-issue quick-edit shortcuts, clears on view/filter/workspace changes, and
 yields to an open dialog, popover, or input before Esc clears it.
 
 Board deliberately has no card checkbox, range selection, selected-card chrome,
-or selection-driven drag mode. Its card header remains reserved for status, id,
-type, and blocked state; normal click, quick edit, and drag keep their existing
-meaning. A compact, visibly labeled **Bulk edit in List** link switches to List
-while preserving the active search, filters, and sort context; because it is a
-real link, modified and middle clicks retain normal browser navigation.
+selection-driven drag mode, or bulk-edit action. Its card header remains
+reserved for status, id, type, and blocked state; normal click, quick edit, and
+drag keep their existing meaning. Bulk editing remains available from List.
 
 Bulk writes run through the existing single-issue Route Handler one at a time.
 Each item is optimistic, a failure rolls back only that item, successful and

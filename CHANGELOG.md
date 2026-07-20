@@ -17,7 +17,8 @@ explicitly in the entries below.
 - **Select and edit multiple issues together in List.** List rows now expose
   keyboard-accessible checkboxes, Shift+Click range selection, and an integrated
   toolbar for status, assignee, priority, sprint, and label changes. Board stays
-  focused on drag-and-scan work and links to the filtered List for bulk editing.
+  focused on drag-and-scan work; bulk editing remains available after switching
+  to List.
   Updates reuse the existing single-issue save path sequentially, preserve
   successful items when one fails, and keep failed items selected for recovery.
   Selection controls use full labeled hit targets, while the bounded failure
