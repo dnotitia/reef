@@ -9,7 +9,17 @@ type VaultsState = {
   data?: Array<{ name: string; has_reef_config: boolean }>;
 };
 
-const { paramsRef, notFoundMock, syncMock, vaultsRef } = vi.hoisted(() => ({
+const {
+  authStatusRef,
+  paramsRef,
+  notFoundMock,
+  syncMock,
+  vaultsMock,
+  vaultsRef,
+} = vi.hoisted(() => ({
+  authStatusRef: {
+    current: "active" as "checking" | "active" | "inactive",
+  },
   paramsRef: {
     current: { vault: "reef-acme" } as Record<string, string | string[]>,
   },
@@ -17,6 +27,7 @@ const { paramsRef, notFoundMock, syncMock, vaultsRef } = vi.hoisted(() => ({
     throw new Error("NEXT_NOT_FOUND");
   }),
   syncMock: vi.fn(),
+  vaultsMock: vi.fn(),
   vaultsRef: { current: {} as VaultsState },
 }));
 
@@ -25,13 +36,19 @@ vi.mock("next/navigation", () => ({
   notFound: notFoundMock,
 }));
 vi.mock("@/features/auth/hooks/useAuthRedirect", () => ({
-  useAuthRedirect: vi.fn(),
+  useAuthRedirect: () => authStatusRef.current,
 }));
 vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   useSyncActiveVaultFromUrl: syncMock,
 }));
 vi.mock("@/features/settings/hooks/useVaults", () => ({
-  useVaults: () => vaultsRef.current,
+  useVaults: () => {
+    vaultsMock();
+    return vaultsRef.current;
+  },
+}));
+vi.mock("@/components/AppShellSkeleton", () => ({
+  AppShellSkeleton: () => <div data-testid="auth-loading-shell" />,
 }));
 vi.mock("./DashboardShell", () => ({
   DashboardShell: ({ children }: { children: ReactNode }) => (
@@ -49,6 +66,7 @@ import { WorkspaceGuard } from "./WorkspaceGuard";
 describe("WorkspaceGuard (REEF-315)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    authStatusRef.current = "active";
     paramsRef.current = { vault: "reef-acme" };
     vaultsRef.current = {
       isPending: false,
@@ -56,6 +74,21 @@ describe("WorkspaceGuard (REEF-315)", () => {
       isError: false,
       data: [{ name: "reef-acme", has_reef_config: true }],
     };
+  });
+
+  it("does not mount workspace data queries until the session is verified", () => {
+    authStatusRef.current = "checking";
+
+    render(
+      <WorkspaceGuard appVersion="1.0.0">
+        <span data-testid="page" />
+      </WorkspaceGuard>,
+    );
+
+    expect(screen.getByTestId("auth-loading-shell")).toBeInTheDocument();
+    expect(screen.queryByTestId("dashboard-shell")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("page")).not.toBeInTheDocument();
+    expect(vaultsMock).not.toHaveBeenCalled();
   });
 
   it("renders the DashboardShell for a member's workspace and syncs the URL vault", () => {

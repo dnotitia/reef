@@ -7,6 +7,11 @@ const REEF_VAULT = "reef-e2e";
 const TOOL_LOOP_E2E_PROMPT = "tool transparency e2e";
 const TOOL_LOOP_SEARCH_ISSUES_CALL_ID = "call_e2e_search_issues";
 const TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID = "call_e2e_search_documents";
+const ACCOUNT_DENIAL_CODES = new Set([
+  "membership_required",
+  "account_suspended",
+  "identity_conflict",
+]);
 
 // A monotonically-advancing "edit clock". Each issue-row UPDATE stamps an
 // `updated_at` strictly later than the seeded `NOW`, mirroring real akb, which
@@ -72,9 +77,24 @@ const server = createServer(async (req, res) => {
     if (url.pathname === "/__e2e/keycloak" && req.method === "POST") {
       const body = await readJson(req);
       state.keycloakEnabled = body?.enabled === true;
+      state.localAuthEnabled = body?.local_auth_enabled !== false;
+      state.ssoOnly = body?.sso_only === true;
       return json(res, 200, {
         ok: true,
         keycloak_enabled: state.keycloakEnabled,
+        local_auth_enabled: state.localAuthEnabled,
+        sso_only: state.ssoOnly,
+      });
+    }
+    if (url.pathname === "/__e2e/account-denial" && req.method === "POST") {
+      const body = await readJson(req);
+      const requested = body?.code;
+      state.accountDenialCode = ACCOUNT_DENIAL_CODES.has(requested)
+        ? requested
+        : null;
+      return json(res, 200, {
+        ok: true,
+        code: state.accountDenialCode,
       });
     }
     // akb's Keycloak login start. reef-web calls this server-side to begin the
@@ -159,17 +179,30 @@ function makeState(scenario) {
     display_name: "Alice Example",
     is_admin: true,
   };
+  const bob = {
+    id: "user-bob",
+    username: "bob",
+    email: "bob@example.com",
+    display_name: "Bob Example",
+    is_admin: false,
+  };
   const token = makeJwt({ sub: alice.id, username: alice.username });
   const next = {
     scenario,
     calls: [],
-    users: new Map([[alice.username, { ...alice, password: "password" }]]),
+    users: new Map([
+      [alice.username, { ...alice, password: "password" }],
+      [bob.username, bob],
+    ]),
     sessions: new Map([[token, alice.username]]),
     loginToken: token,
     vaults: new Map(),
     issueListFailure: false,
     issueUpdateFailures: new Map(),
     keycloakEnabled: false,
+    localAuthEnabled: true,
+    ssoOnly: false,
+    accountDenialCode: null,
     commitSeq: 0,
     planningSeq: 10,
     githubRepos: [
@@ -732,13 +765,21 @@ async function handleAkb(req, res, url) {
 
   if (path === "/api/v1/auth/config" && req.method === "GET") {
     return json(res, 200, {
+      local_auth: { enabled: state.localAuthEnabled },
       keycloak: state.keycloakEnabled
-        ? { enabled: true, login_url: "/api/v1/auth/keycloak/login" }
-        : { enabled: false, login_url: null },
+        ? {
+            enabled: true,
+            login_url: "/api/v1/auth/keycloak/login",
+            sso_only: state.ssoOnly,
+          }
+        : { enabled: false, login_url: null, sso_only: false },
     });
   }
 
   if (path === "/api/v1/auth/login" && req.method === "POST") {
+    if (state.accountDenialCode) {
+      return accountDenialResponse(res, state.accountDenialCode);
+    }
     const body = await readJson(req);
     const user = state.users.get(String(body?.username ?? ""));
     if (!user || user.password !== body?.password) {
@@ -752,6 +793,9 @@ async function handleAkb(req, res, url) {
 
   const username = requireAkbAuth(req, res);
   if (!username) return;
+  if (state.accountDenialCode) {
+    return accountDenialResponse(res, state.accountDenialCode);
+  }
   const user = state.users.get(username);
 
   if (path === "/api/v1/auth/me" && req.method === "GET") {
@@ -763,6 +807,30 @@ async function handleAkb(req, res, url) {
       display_name: user.display_name,
       is_admin: user.is_admin,
     });
+  }
+
+  if (path === "/api/v1/users/search" && req.method === "GET") {
+    const query = (url.searchParams.get("q") ?? "").trim().toLowerCase();
+    const parsedLimit = Number.parseInt(
+      url.searchParams.get("limit") ?? "20",
+      10,
+    );
+    const limit = Number.isFinite(parsedLimit)
+      ? Math.min(Math.max(parsedLimit, 1), 100)
+      : 20;
+    const users = [...state.users.values()]
+      .filter((candidate) => {
+        if (!query) return true;
+        return [
+          candidate.username,
+          candidate.display_name,
+          candidate.email,
+        ].some((value) => value?.toLowerCase().includes(query));
+      })
+      .toSorted((left, right) => left.username.localeCompare(right.username))
+      .slice(0, limit)
+      .map(publicUser);
+    return json(res, 200, { users });
   }
 
   if (path === "/api/v1/my/vaults" && req.method === "GET") {
@@ -971,6 +1039,17 @@ async function handleAkb(req, res, url) {
   }
 
   return json(res, 404, { error: `unhandled akb mock route: ${path}` });
+}
+
+function accountDenialResponse(res, code) {
+  const status = code === "identity_conflict" ? 409 : 403;
+  const message =
+    code === "membership_required"
+      ? "Workspace membership is required."
+      : code === "account_suspended"
+        ? "The account is suspended."
+        : "The identity conflicts with this workspace account.";
+  return json(res, status, { detail: { code, message } });
 }
 
 function handleSql(vault, sql) {
@@ -1730,41 +1809,49 @@ async function handleOpenRouter(req, res) {
 
 function basicTextChunks(created) {
   return [
-    responseCreatedChunk("resp-e2e", created),
-    messageAddedChunk("msg-e2e"),
-    textDeltaChunk("msg-e2e", "Mock OpenRouter response."),
-    messageDoneChunk("msg-e2e"),
-    completedChunk({ inputTokens: 8, outputTokens: 4 }),
+    chatCompletionChunk("chatcmpl-e2e", created, { role: "assistant" }),
+    chatCompletionChunk("chatcmpl-e2e", created, {
+      content: "Mock OpenRouter response.",
+    }),
+    chatCompletionChunk("chatcmpl-e2e", created, {}, "stop"),
   ];
 }
 
 function initialToolLoopChunks(created) {
   return [
-    responseCreatedChunk("resp-e2e-tools", created),
-    ...functionCallChunks({
-      outputIndex: 0,
-      id: "fc-e2e-search-issues",
-      callId: TOOL_LOOP_SEARCH_ISSUES_CALL_ID,
-      name: "search_issues",
-      input: {
-        query: "Initial issue Alpha",
-        status: null,
-        assigned_to: null,
-        labels: null,
-        limit: 3,
-      },
+    chatCompletionChunk("chatcmpl-e2e-tools", created, {
+      role: "assistant",
+      tool_calls: [
+        {
+          index: 0,
+          id: TOOL_LOOP_SEARCH_ISSUES_CALL_ID,
+          type: "function",
+          function: {
+            name: "search_issues",
+            arguments: JSON.stringify({
+              query: "Initial issue Alpha",
+              status: null,
+              assigned_to: null,
+              labels: null,
+              limit: 3,
+            }),
+          },
+        },
+        {
+          index: 1,
+          id: TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID,
+          type: "function",
+          function: {
+            name: "search_documents",
+            arguments: JSON.stringify({
+              query: "Spec overview",
+              limit: 3,
+            }),
+          },
+        },
+      ],
     }),
-    ...functionCallChunks({
-      outputIndex: 1,
-      id: "fc-e2e-search-documents",
-      callId: TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID,
-      name: "search_documents",
-      input: {
-        query: "Spec overview",
-        limit: 3,
-      },
-    }),
-    completedChunk({ inputTokens: 21, outputTokens: 16 }),
+    chatCompletionChunk("chatcmpl-e2e-tools", created, {}, "tool_calls"),
   ];
 }
 
@@ -1772,108 +1859,29 @@ function finalToolLoopChunks(created) {
   const text =
     "I found REEF-001 from the issue search and the Spec overview document as supporting context.";
   return [
-    responseCreatedChunk("resp-e2e-tools-final", created),
-    messageAddedChunk("msg-e2e-tools-final"),
-    textDeltaChunk("msg-e2e-tools-final", text),
-    messageDoneChunk("msg-e2e-tools-final"),
-    completedChunk({ inputTokens: 34, outputTokens: 18 }),
+    chatCompletionChunk("chatcmpl-e2e-tools-final", created, {
+      role: "assistant",
+    }),
+    chatCompletionChunk("chatcmpl-e2e-tools-final", created, {
+      content: text,
+    }),
+    chatCompletionChunk("chatcmpl-e2e-tools-final", created, {}, "stop"),
   ];
 }
 
-function responseCreatedChunk(id, created) {
+function chatCompletionChunk(id, created, delta, finishReason = null) {
   return {
-    type: "response.created",
-    response: {
-      id,
-      created_at: created,
-      model: "e2e/mock-model",
-      service_tier: null,
-    },
-  };
-}
-
-function messageAddedChunk(id) {
-  return {
-    type: "response.output_item.added",
-    output_index: 0,
-    item: {
-      type: "message",
-      id,
-      phase: "final_answer",
-    },
-  };
-}
-
-function textDeltaChunk(itemId, delta) {
-  return {
-    type: "response.output_text.delta",
-    item_id: itemId,
-    delta,
-  };
-}
-
-function messageDoneChunk(id) {
-  return {
-    type: "response.output_item.done",
-    output_index: 0,
-    item: {
-      type: "message",
-      id,
-      phase: "final_answer",
-    },
-  };
-}
-
-function functionCallChunks({ outputIndex, id, callId, name, input }) {
-  const args = JSON.stringify(input);
-  return [
-    {
-      type: "response.output_item.added",
-      output_index: outputIndex,
-      item: {
-        type: "function_call",
-        id,
-        call_id: callId,
-        name,
-        arguments: "",
-        namespace: null,
+    id,
+    object: "chat.completion.chunk",
+    created,
+    model: "e2e/mock-model",
+    choices: [
+      {
+        index: 0,
+        delta,
+        finish_reason: finishReason,
       },
-    },
-    {
-      type: "response.function_call_arguments.delta",
-      item_id: id,
-      output_index: outputIndex,
-      delta: args,
-    },
-    {
-      type: "response.output_item.done",
-      output_index: outputIndex,
-      item: {
-        type: "function_call",
-        id,
-        call_id: callId,
-        name,
-        arguments: args,
-        status: "completed",
-        namespace: null,
-      },
-    },
-  ];
-}
-
-function completedChunk({ inputTokens, outputTokens }) {
-  return {
-    type: "response.completed",
-    response: {
-      incomplete_details: null,
-      usage: {
-        input_tokens: inputTokens,
-        output_tokens: outputTokens,
-        input_tokens_details: { cached_tokens: 0 },
-        output_tokens_details: { reasoning_tokens: 0 },
-      },
-      service_tier: null,
-    },
+    ],
   };
 }
 
@@ -1888,17 +1896,13 @@ async function streamOpenRouterChunks(
     Connection: "keep-alive",
   });
   for (const chunk of chunks) {
-    if (
-      delayBeforeTextDeltaMs > 0 &&
-      chunk.type === "response.output_text.delta"
-    ) {
+    if (delayBeforeTextDeltaMs > 0 && chunk.choices?.[0]?.delta?.content) {
       await sleep(delayBeforeTextDeltaMs);
     }
     res.write(`data: ${JSON.stringify(chunk)}\n\n`);
     if (
       delayAfterFunctionCallMs > 0 &&
-      chunk.type === "response.output_item.done" &&
-      chunk.item?.type === "function_call"
+      chunk.choices?.[0]?.finish_reason === "tool_calls"
     ) {
       await sleep(delayAfterFunctionCallMs);
     }
@@ -1907,15 +1911,21 @@ async function streamOpenRouterChunks(
 }
 
 function isToolLoopPromptTurn(body) {
-  return collectStrings(body?.input).some((value) =>
+  return collectStrings(body?.messages ?? body?.input).some((value) =>
     value.toLowerCase().includes(TOOL_LOOP_E2E_PROMPT),
   );
 }
 
 function isToolLoopResultTurn(body) {
   return (
-    hasFunctionCallOutput(body?.input, TOOL_LOOP_SEARCH_ISSUES_CALL_ID) ||
-    hasFunctionCallOutput(body?.input, TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID)
+    hasFunctionCallOutput(
+      body?.messages ?? body?.input,
+      TOOL_LOOP_SEARCH_ISSUES_CALL_ID,
+    ) ||
+    hasFunctionCallOutput(
+      body?.messages ?? body?.input,
+      TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID,
+    )
   );
 }
 
@@ -1927,6 +1937,7 @@ function hasFunctionCallOutput(value, callId) {
   if (value.type === "function_call_output" && value.call_id === callId) {
     return true;
   }
+  if (value.role === "tool" && value.tool_call_id === callId) return true;
   return Object.values(value).some((item) =>
     hasFunctionCallOutput(item, callId),
   );

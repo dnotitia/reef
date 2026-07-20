@@ -119,4 +119,27 @@ describe("akb HTTP error translation (REEF-363)", () => {
       }),
     ).toBeInstanceOf(AuthError);
   });
+
+  it.each([
+    [403, "membership_required"],
+    [403, "account_suspended"],
+    [409, "identity_conflict"],
+  ])("preserves stable AKB account code %s/%s", async (status, code) => {
+    const err = await requestError({
+      status,
+      body: {
+        message: "safe account denial",
+        error: "safe account denial",
+        code,
+        detail: { message: "safe account denial", code },
+      },
+    });
+
+    expect(err).toBeInstanceOf(AuthError);
+    expect((err as AuthError).context).toMatchObject({
+      origin: "akb",
+      code,
+      status,
+    });
+  });
 });

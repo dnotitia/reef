@@ -2,7 +2,11 @@ import {
   localizeError,
   localizedErrorResponse,
 } from "@/lib/api/errorLocalization";
-import { getAkbAdapter } from "@/lib/api/requestHelpers";
+import {
+  getAkbAdapter,
+  getAkbCurrentActor,
+  respondWithError,
+} from "@/lib/api/requestHelpers";
 import { resolveGroundingGitHubAdapter } from "@/lib/github/resolveGroundingGitHubAdapter";
 import { logger } from "@/lib/logging/logger";
 import {
@@ -15,11 +19,11 @@ import {
   NotFoundError,
   SchemaValidationError,
   akbReadAuthoringLanguage,
-  createLlmAdapter,
   enrichIssue,
 } from "@reef/core";
 import {
   ServerLlmConfigError,
+  createServerLlmAdapter,
   getRequiredServerLlmConfig,
 } from "../../../lib/llm/serverConfig";
 
@@ -40,9 +44,9 @@ const ENRICHMENT_OUTPUT_LOG_KEYS = [
  * POST /api/enrich — AI-assisted issue enrichment.
  *
  * Thin route handler around `enrichIssue` in `@reef/core`:
- *   1. Resolve deployment-managed OpenRouter config from server env (503 on failure).
- *   2. Parse + validate body against `EnrichmentRequestSchema` (400).
- *   3. Resolve the akb session cookie (401 on failure) for workspace context.
+ *   1. Parse + validate body against `EnrichmentRequestSchema` (400).
+ *   2. Resolve and validate the akb session/account for workspace context.
+ *   3. Resolve deployment-managed LLM config from server env (503 on failure).
  *   4. Resolve a GitHub adapter for monitored-repo code grounding — the
  *      deployment GitHub App; any GitHub unavailability degrades to AKB scoped
  *      enrichment (REEF-243 / REEF-244).
@@ -52,16 +56,6 @@ const ENRICHMENT_OUTPUT_LOG_KEYS = [
  *      the unavailable state without losing the user's in-progress draft.
  */
 export async function POST(request: Request): Promise<Response> {
-  let config: ReturnType<typeof getRequiredServerLlmConfig>;
-  try {
-    config = getRequiredServerLlmConfig();
-  } catch (err) {
-    if (err instanceof ServerLlmConfigError) {
-      return localizedErrorResponse("enrichDeploymentUnavailable", 503);
-    }
-    return localizedErrorResponse("enrichDeploymentUnavailable", 503);
-  }
-
   let body: ReturnType<typeof EnrichmentRequestSchema.parse>;
   try {
     const raw: unknown = await request.json();
@@ -74,16 +68,29 @@ export async function POST(request: Request): Promise<Response> {
     return localizedErrorResponse("requestBodyInvalid", 400);
   }
 
-  const adapter = createLlmAdapter({
-    apiKey: config.api_key,
-    baseUrl: config.base_url,
-    model: config.model,
-  });
-
   const akbAdapterResult = getAkbAdapter(request);
   if ("response" in akbAdapterResult) {
+    const authResponse = await akbAdapterResult.response;
+    if (authResponse.headers.has("set-cookie")) return authResponse;
     return localizedErrorResponse("workspaceSessionInvalid", 401);
   }
+
+  // Account denial is authoritative even when this deployment has no usable
+  // optional LLM capability. In particular, preserve the AKB response that
+  // clears established reef/SSO cookies for suspended or removed accounts.
+  const account = await getAkbCurrentActor(request);
+  if ("response" in account) return account.response;
+
+  let config: ReturnType<typeof getRequiredServerLlmConfig>;
+  try {
+    config = getRequiredServerLlmConfig();
+  } catch (err) {
+    if (err instanceof ServerLlmConfigError) {
+      return localizedErrorResponse("enrichDeploymentUnavailable", 503);
+    }
+    return localizedErrorResponse("enrichDeploymentUnavailable", 503);
+  }
+  const adapter = createServerLlmAdapter(config);
 
   // Code grounding just matters when the request carries a monitored repo.
   // Server-managed GitHub App just; any failure degrades to AKB scoped enrichment
@@ -145,6 +152,9 @@ export async function POST(request: Request): Promise<Response> {
         { err, issueId: body.issueId },
         "enrich_issue workspace auth failed",
       );
+      if (err.context.origin === "akb") {
+        return respondWithError(err);
+      }
       return localizedErrorResponse("workspaceSessionInvalid", 401);
     }
     if (err instanceof NotFoundError) {

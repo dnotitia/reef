@@ -331,37 +331,50 @@ export function useIssueUrlSync(): { skipNextSave: RefObject<boolean> } {
 
     const restoringVault = vault;
     let aborted = false;
+    let settled = false;
     void (async () => {
-      const stored = await getPersistedIssueFilter(restoringVault);
-      // Apply if this read wasn't superseded (a vault switch aborts it; URL
-      // changes do NOT, since this effect no longer depends on searchParams) AND
-      // the user hasn't started filtering during the await — a live user action
-      // takes precedence over the saved value. When the user did edit mid-await
-      // the store is non-pristine, so this branch is skipped and the mirror effect
-      // has already pushed their edit to the URL; the empty-vault case has its
-      // stale URL cleared by the vault-switch clear above.
-      if (!aborted) {
-        const state = useIssueStore.getState();
-        const pristine =
-          Object.keys(state.filter).length === 0 && state.searchQuery === "";
-        if (pristine && Object.keys(stored).length > 0) {
-          // REEF-010: mirror the restored filter onto the URL, but as a REPLACE
-          // (hydration, not navigation) so the bare /issues entry is rewritten in
-          // place rather than a new history entry being stacked. (This branch
-          // previously set skipNextWrite to suppress the mirror entirely.)
-          replaceNextWrite.current = true;
-          // Mark this as the restore's own write so the persistence hook does
-          // not save the restored value straight back. A user edit during the
-          // await makes the store non-pristine, so this branch is skipped and
-          // their edit is persisted normally.
-          skipNextSave.current = true;
-          useIssueStore.setState({ filter: normalizeRestoredSort(stored) });
+      try {
+        const stored = await getPersistedIssueFilter(restoringVault);
+        // Apply if this read wasn't superseded (a vault switch aborts it; URL
+        // changes do NOT, since this effect no longer depends on searchParams) AND
+        // the user hasn't started filtering during the await — a live user action
+        // takes precedence over the saved value. When the user did edit mid-await
+        // the store is non-pristine, so this branch is skipped and the mirror effect
+        // has already pushed their edit to the URL; the empty-vault case has its
+        // stale URL cleared by the vault-switch clear above.
+        if (!aborted) {
+          const state = useIssueStore.getState();
+          const pristine =
+            Object.keys(state.filter).length === 0 && state.searchQuery === "";
+          if (pristine && Object.keys(stored).length > 0) {
+            // REEF-010: mirror the restored filter onto the URL, but as a REPLACE
+            // (hydration, not navigation) so the bare /issues entry is rewritten in
+            // place rather than a new history entry being stacked. (This branch
+            // previously set skipNextWrite to suppress the mirror entirely.)
+            replaceNextWrite.current = true;
+            // Mark this as the restore's own write so the persistence hook does
+            // not save the restored value straight back. A user edit during the
+            // await makes the store non-pristine, so this branch is skipped and
+            // their edit is persisted normally.
+            skipNextSave.current = true;
+            useIssueStore.setState({ filter: normalizeRestoredSort(stored) });
+          }
         }
+      } finally {
+        settled = true;
       }
     })();
 
     return () => {
       aborted = true;
+      // React Strict Effects intentionally cleans up and replays a newly
+      // mounted effect. If that interrupts this async read, make the replay
+      // eligible to start it again instead of leaving initialized=true with no
+      // live restore. A completed restore keeps its initialization state.
+      if (!settled) {
+        initialized.current = false;
+        restoreStarted.current = false;
+      }
     };
   }, [vault]);
   /* eslint-enable react-hooks/exhaustive-deps */

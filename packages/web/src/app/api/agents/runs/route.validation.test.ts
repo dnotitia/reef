@@ -10,6 +10,7 @@ import {
   makeRequest,
   mockCreateWorkspaceChatAgentResponse,
   mockEnrichIssue,
+  mockGetAkbAdapter,
   mockScanAndPersistActivitySuggestions,
   parseSseEvents,
   resetAgentRunsRouteMocks,
@@ -78,6 +79,35 @@ describe("POST /api/agents/runs validation", () => {
     );
 
     expect(res.status).toBe(400);
+    expect(mockCreateWorkspaceChatAgentResponse).not.toHaveBeenCalled();
+  });
+
+  it("preserves session-clearing headers before creating an agent stream", async () => {
+    const authHeaders = new Headers({ "Cache-Control": "no-store" });
+    authHeaders.append("Set-Cookie", "__reef_session=; Path=/; Max-Age=0");
+    authHeaders.append("Set-Cookie", "__reef_sso=; Path=/; Max-Age=0");
+    mockGetAkbAdapter.mockReturnValueOnce({
+      response: Promise.resolve(
+        Response.json(
+          { error: "Your session has expired." },
+          {
+            status: 401,
+            headers: authHeaders,
+          },
+        ),
+      ),
+    });
+
+    const res = await POST(makeRequest(chatRunBody));
+
+    expect(res.status).toBe(401);
+    expect((await res.json()).runtime_error?.code).toBe(
+      "workspace_auth_required",
+    );
+    expect(res.headers.get("set-cookie")).toContain("__reef_session=");
+    expect(res.headers.get("set-cookie")).toContain("__reef_sso=");
+    expect(res.headers.getSetCookie()).toHaveLength(2);
+    expect(res.headers.get("cache-control")).toBe("no-store");
     expect(mockCreateWorkspaceChatAgentResponse).not.toHaveBeenCalled();
   });
 });

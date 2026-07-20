@@ -215,6 +215,15 @@ describe("AuthError", () => {
     const err = new AuthError();
     expect(err.message).toBe(err.toUserMessage());
   });
+
+  it.each([
+    ["membership_required", "workspace"],
+    ["account_suspended", "suspended"],
+    ["identity_conflict", "identity"],
+  ] as const)("maps AKB account code %s to stable copy", (code, phrase) => {
+    const err = new AuthError({ origin: "akb", code, status: 403 });
+    expect(err.toUserMessage().toLowerCase()).toContain(phrase);
+  });
 });
 
 // ─── NotFoundError ────────────────────────────────────────────────────────────
@@ -293,6 +302,21 @@ describe("describeError", () => {
       status: 401,
     });
   });
+
+  it.each([
+    ["membership_required", "akb.membershipRequired", 403],
+    ["account_suspended", "akb.accountSuspended", 403],
+    ["identity_conflict", "akb.identityConflict", 409],
+  ] as const)(
+    "AKB account AuthError %s → %s / %s",
+    (accountCode, code, status) => {
+      expect(
+        describeError(
+          new AuthError({ origin: "akb", code: accountCode, status }),
+        ),
+      ).toEqual({ code, status });
+    },
+  );
 
   it("NotFoundError → notFound.item / 404 with default resource param", () => {
     expect(describeError(new NotFoundError())).toEqual({

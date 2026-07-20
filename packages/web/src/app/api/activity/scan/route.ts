@@ -7,17 +7,16 @@ import {
   getAkbAdapter,
   invalidBodyResponse,
   invalidJsonBodyResponse,
+  respondWithError,
 } from "@/lib/api/requestHelpers";
 import { resolveScanGitHubAdapter } from "@/lib/github/resolveScanGitHubAdapter";
 import {
   ServerLlmConfigError,
+  createServerLlmAdapter,
   getRequiredServerLlmConfig,
 } from "@/lib/llm/serverConfig";
 import { logger } from "@/lib/logging/logger";
-import {
-  createLlmAdapter,
-  scanAndPersistActivitySuggestions,
-} from "@reef/core";
+import { scanAndPersistActivitySuggestions } from "@reef/core";
 import { z } from "zod";
 
 /**
@@ -109,11 +108,7 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const llmAdapter = createLlmAdapter({
-    apiKey: llmConfig.api_key,
-    baseUrl: llmConfig.base_url,
-    model: llmConfig.model,
-  });
+  const llmAdapter = createServerLlmAdapter(llmConfig);
 
   try {
     const result = await scanAndPersistActivitySuggestions({
@@ -140,6 +135,6 @@ export async function POST(request: Request): Promise<Response> {
     // Discriminate typed ReefError subclasses (GitHubApiError/AuthError/
     // NotFoundError → 401/404, AkbApiError → 502, …) instead of collapsing
     // everything to 500 and leaking raw err.message. (REEF-051)
-    return localizeError(err);
+    return respondWithError(err);
   }
 }

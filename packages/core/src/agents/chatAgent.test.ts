@@ -93,6 +93,7 @@ const getAgentSettings = () =>
     }) => void;
     stopWhen: unknown;
     tools: Record<string, unknown>;
+    maxRetries?: number;
   };
 
 describe("workspace chat agent task", () => {
@@ -123,6 +124,19 @@ describe("workspace chat agent task", () => {
       maxSteps: 10,
       toolsetPolicy: ["workspace-read", "repo-read"],
     });
+  });
+
+  it("passes the adapter retry policy into every ToolLoopAgent model step", async () => {
+    await createWorkspaceChatAgentResponse(
+      createParams({
+        llmAdapter: {
+          model: vi.fn(() => ({ id: "managed-model" })),
+          maxRetries: 0,
+        } as unknown as LlmAdapter,
+      }),
+    );
+
+    expect(getAgentSettings().maxRetries).toBe(0);
   });
 
   it("assembles the AI SDK stream presenter from registry config", async () => {

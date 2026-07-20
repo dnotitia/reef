@@ -238,6 +238,13 @@ test.describe("Hermetic settings workflows", () => {
       main.locator('[data-testid="settings-group-members"]'),
     ).toBeVisible();
     await expect(main.locator('[data-testid="members-section"]')).toBeVisible();
+    await main
+      .locator('[data-testid="member-directory-combobox"]')
+      .getByRole("button")
+      .click();
+    await expect(page.getByTestId("directory-option-bob")).toContainText(
+      "Bob Example",
+    );
 
     await page.goto("/workspace/reef-e2e/settings/deployment");
     await expect(

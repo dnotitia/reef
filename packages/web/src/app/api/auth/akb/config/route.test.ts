@@ -2,9 +2,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET } from "./route";
 
-function makeRequest(): Request {
+function makeRequest(cookie?: string): Request {
   return new Request("http://localhost/api/auth/akb/config", {
     method: "GET",
+    headers: cookie ? { cookie } : undefined,
   });
 }
 
@@ -35,9 +36,11 @@ describe("GET /api/auth/akb/config", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
+      local_auth: { enabled: true },
       keycloak: {
         enabled: true,
         login_url: "/api/v1/auth/keycloak/login",
+        sso_only: false,
       },
     });
     expect(res.headers.get("cache-control")).toBe("no-store");
@@ -45,6 +48,27 @@ describe("GET /api/auth/akb/config", () => {
       "http://akb.test/api/v1/auth/config",
       expect.objectContaining({ method: "GET" }),
     );
+  });
+
+  it("consumes a callback invalidation marker into the browser cleanup contract", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          keycloak: {
+            enabled: true,
+            login_url: "/api/v1/auth/keycloak/login",
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const res = await GET(makeRequest("__reef_auth_invalidated=1"));
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-reef-auth-invalidated")).toBe("1");
+    expect(res.headers.get("set-cookie")).toContain("__reef_auth_invalidated=");
+    expect(res.headers.get("set-cookie")).toContain("Max-Age=0");
   });
 
   it("returns 503 when AKB_BACKEND_URL is missing", async () => {

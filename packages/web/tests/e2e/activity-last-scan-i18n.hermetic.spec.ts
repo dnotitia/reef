@@ -47,7 +47,10 @@ test.describe("Activity last-scan label i18n (REEF-300)", () => {
         },
       },
     });
-    expect(patch.ok()).toBeTruthy();
+    expect(
+      patch.ok(),
+      `PATCH /api/config failed: ${patch.status()} ${await patch.text()}`,
+    ).toBeTruthy();
   });
 
   test("renders the last-scan relative time in the active locale (ko)", async ({

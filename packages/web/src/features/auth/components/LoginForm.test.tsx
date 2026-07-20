@@ -12,8 +12,10 @@ vi.mock("next/navigation", () => ({
 }));
 
 const reconcileAkbAccount = vi.fn();
+const wipeAkbScopedBrowserState = vi.fn();
 vi.mock("@/lib/akb/accountReconcile", () => ({
   reconcileAkbAccount: (id: string) => reconcileAkbAccount(id),
+  wipeAkbScopedBrowserState: () => wipeAkbScopedBrowserState(),
 }));
 
 import { LoginForm } from "./LoginForm";
@@ -122,5 +124,26 @@ describe("LoginForm", () => {
     expect(screen.getByRole("alert")).toHaveAttribute("aria-live", "polite");
     expect(reconcileAkbAccount).not.toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it("wipes AKB-scoped browser state when login reports an account denial", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: "Account suspended." }), {
+          status: 403,
+          headers: { "X-Reef-Auth-Invalidated": "1" },
+        }),
+      ),
+    );
+
+    renderWithQueryClient(<LoginForm />);
+    await fillAndSubmit();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Account suspended.",
+    );
+    expect(wipeAkbScopedBrowserState).toHaveBeenCalledOnce();
+    expect(reconcileAkbAccount).not.toHaveBeenCalled();
   });
 });

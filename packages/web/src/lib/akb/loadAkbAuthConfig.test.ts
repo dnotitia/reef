@@ -27,7 +27,12 @@ describe("loadAkbAuthConfig", () => {
     expect(result).toEqual({
       ok: true,
       config: {
-        keycloak: { enabled: true, login_url: "/api/v1/auth/keycloak/login" },
+        local_auth: { enabled: true },
+        keycloak: {
+          enabled: true,
+          login_url: "/api/v1/auth/keycloak/login",
+          sso_only: false,
+        },
       },
     });
     expect(globalThis.fetch).toHaveBeenCalledWith(

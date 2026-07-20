@@ -6,6 +6,7 @@ const SESSION_COOKIE = "__reef_session";
 const SSO_ID_TOKEN_COOKIE = "__reef_sso_id_token";
 const SSO_SESSION_COOKIE = "__reef_sso";
 const SSO_START_COOKIE = "__reef_sso_start";
+const AUTH_INVALIDATION_COOKIE = "__reef_auth_invalidated";
 
 function makeJwt(payload: object): string {
   const header = Buffer.from(
@@ -39,11 +40,13 @@ function makeNestedCallbackPath(state = "nonce-1", next = "/issues"): string {
 
 function makeCallbackRequest(options: {
   code?: string;
+  ssoError?: string;
   redirect?: string;
   cookie?: string;
 }): Request {
   const params = new URLSearchParams();
   if (options.code) params.set("code", options.code);
+  if (options.ssoError) params.set("sso_error", options.ssoError);
   if (options.redirect) params.set("redirect", options.redirect);
   return new Request(
     `http://localhost/api/auth/akb/sso/callback?${params.toString()}`,
@@ -169,6 +172,62 @@ describe("GET /api/auth/akb/sso/callback", () => {
     expect(res.headers.get("set-cookie")).toContain(`${SSO_START_COOKIE}=`);
   });
 
+  it.each(["membership_required", "account_suspended", "identity_conflict"])(
+    "preserves trusted AKB account SSO error %s",
+    async (ssoError) => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+      const res = await GET(
+        makeCallbackRequest({
+          ssoError,
+          redirect: makeCompletionPath(),
+          cookie: `${SSO_START_COOKIE}=nonce-1`,
+        }),
+      );
+
+      expect(res.status).toBe(302);
+      expect(res.headers.get("location")).toBe(`/login?sso_error=${ssoError}`);
+      expect(fetchSpy).not.toHaveBeenCalled();
+      const setCookie = res.headers.get("set-cookie") ?? "";
+      expect(setCookie).toContain(`${SSO_START_COOKIE}=`);
+      expect(setCookie).toContain(`${SESSION_COOKIE}=`);
+      expect(setCookie).toContain(`${SSO_SESSION_COOKIE}=`);
+      expect(setCookie).toContain(`${AUTH_INVALIDATION_COOKIE}=1`);
+      expect(setCookie).toContain("Max-Age=0");
+      expect(res.headers.get("x-reef-auth-invalidated")).toBe("1");
+      expect(res.headers.get("x-reef-account-error")).toBe(ssoError);
+    },
+  );
+
+  it("does not reflect an unrecognized upstream SSO error", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    const res = await GET(
+      makeCallbackRequest({
+        ssoError: "arbitrary_upstream_text",
+        redirect: makeCompletionPath(),
+        cookie: `${SSO_START_COOKIE}=nonce-1`,
+      }),
+    );
+
+    expect(res.headers.get("location")).toBe("/login?sso_error=missing_code");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("validates SSO state before accepting an account error", async () => {
+    const res = await GET(
+      makeCallbackRequest({
+        ssoError: "account_suspended",
+        redirect: makeCompletionPath("nonce-1"),
+        cookie: `${SSO_START_COOKIE}=different`,
+      }),
+    );
+
+    expect(res.headers.get("location")).toBe(
+      "/login?sso_error=invalid_sso_state",
+    );
+  });
+
   it("redirects to invalid_sso_state on missing or mismatched nonce", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
@@ -224,5 +283,35 @@ describe("GET /api/auth/akb/sso/callback", () => {
       "/login?sso_error=exchange_failed",
     );
     expect(res.headers.get("set-cookie")).toContain(`${SSO_START_COOKIE}=`);
+  });
+
+  it("preserves an account denial returned by code exchange", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          message: "The login identity conflicts with this account",
+          code: "identity_conflict",
+        }),
+        { status: 409 },
+      ),
+    );
+
+    const res = await GET(
+      makeCallbackRequest({
+        code: "one-time-code",
+        redirect: makeCompletionPath(),
+        cookie: `${SSO_START_COOKIE}=nonce-1`,
+      }),
+    );
+
+    expect(res.headers.get("location")).toBe(
+      "/login?sso_error=identity_conflict",
+    );
+    const setCookie = res.headers.get("set-cookie") ?? "";
+    expect(setCookie).toContain(`${SSO_START_COOKIE}=`);
+    expect(setCookie).toContain(`${SESSION_COOKIE}=`);
+    expect(setCookie).toContain(`${SSO_SESSION_COOKIE}=`);
+    expect(setCookie).toContain("Max-Age=0");
+    expect(res.headers.get("x-reef-account-error")).toBe("identity_conflict");
   });
 });

@@ -6,16 +6,32 @@ import { defineConfig, devices } from "@playwright/test";
  * for real; only external services are replaced by the local fixture server.
  */
 function buildWebServerEnv(): Record<string, string> {
+  const llmEnv =
+    process.env.REEF_E2E_LLM_DISABLED === "1"
+      ? {
+          REEF_LLM_API_KEY: "",
+          REEF_LLM_BASE_URL: "",
+          REEF_LLM_MODEL: "",
+        }
+      : {
+          REEF_LLM_API_KEY:
+            process.env.REEF_LLM_API_KEY ?? "e2e-llm-endpoint-key",
+          REEF_LLM_BASE_URL:
+            process.env.REEF_LLM_BASE_URL ?? `${E2E_MOCK_URL}/openrouter/v1`,
+          REEF_LLM_MODEL: process.env.REEF_LLM_MODEL ?? "e2e/mock-model",
+        };
+
   return {
     AKB_BACKEND_URL: process.env.AKB_BACKEND_URL ?? `${E2E_MOCK_URL}/akb`,
+    // Keep the hermetic server pinned to canonical names when a developer shell
+    // exports the supported OpenRouter compatibility aliases.
+    OPENROUTER_API_KEY: "",
+    OPENROUTER_BASE_URL: "",
     // Server-read akb web base (REEF-368) so linked-document backlinks render in
     // the hermetic runtime; the backlink spec asserts the open-link href built
     // from this value, proving the runtime server-read path end to end.
     AKB_WEB_URL: process.env.AKB_WEB_URL ?? "https://akb.e2e.test",
-    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ?? "e2e-openrouter-key",
-    OPENROUTER_BASE_URL:
-      process.env.OPENROUTER_BASE_URL ?? `${E2E_MOCK_URL}/openrouter/v1`,
-    REEF_LLM_MODEL: process.env.REEF_LLM_MODEL ?? "e2e/mock-model",
+    ...llmEnv,
     REEF_GITHUB_API_BASE_URL:
       process.env.REEF_GITHUB_API_BASE_URL ?? `${E2E_MOCK_URL}/github`,
     REEF_GITHUB_APP_ID: process.env.REEF_GITHUB_APP_ID ?? "123456",

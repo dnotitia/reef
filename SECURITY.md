@@ -1,10 +1,10 @@
 # Security Policy
 
-reef sits on the credential path for a team: it brokers a GitHub personal
-access token, the `__reef_session` httpOnly cookie that carries an AKB session,
-and a server-side `OPENROUTER_API_KEY`, and it proxies requests to an LLM.
-Because of that, we take security reports seriously and ask that they be
-disclosed privately.
+reef sits on the credential path for a team: it brokers deployment-managed
+GitHub credentials, the `__reef_session` httpOnly cookie that carries an AKB
+session, and optional server-side LLM credentials, and it proxies configured
+requests to an LLM. Because of that, we take security reports seriously and ask
+that they be disclosed privately.
 
 ## Reporting a vulnerability
 
@@ -44,6 +44,7 @@ upgrade to the most recent release before reporting, and report against it.
   `REEF_GITHUB_PAT` fallback for local and CI) rather than a browser-stored
   token. Reports that demonstrate a leak of these credentials (to logs, LLM
   prompts, the URL, or another user) are in scope.
-- LLM configuration (`OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`,
+- LLM configuration (`REEF_LLM_API_KEY`, `REEF_LLM_BASE_URL`, and
   `REEF_LLM_MODEL`) is deployment-managed server state and must never be
-  exposed to clients or included in prompts.
+  exposed to clients or included in prompts. All three values enable the LLM
+  capability; no values disable it, and partial configuration fails closed.

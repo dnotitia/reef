@@ -301,8 +301,8 @@ export async function POST(request: Request) {
 
 export function resetAgentRunsRouteMocks() {
   vi.clearAllMocks();
-  vi.stubEnv("OPENROUTER_API_KEY", "sk-test");
-  vi.stubEnv("OPENROUTER_BASE_URL", "https://api.openai.com/v1");
+  vi.stubEnv("REEF_LLM_API_KEY", "sk-test");
+  vi.stubEnv("REEF_LLM_BASE_URL", "https://api.openai.com/v1");
   vi.stubEnv("REEF_LLM_MODEL", "gpt-4o");
   appConfigState.current = APP_CONFIG;
   mockGetAkbAdapter.mockReturnValue({ adapter: { request: vi.fn() } });

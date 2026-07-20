@@ -1,5 +1,5 @@
 # Overrides the base reef-web-config ConfigMap. Only the keys that differ
-# per deployment are listed here; the rest (NODE_ENV, OpenRouter defaults)
+# per deployment are listed here; the rest (for example NODE_ENV)
 # come from the base and rarely change.
 apiVersion: v1
 kind: ConfigMap

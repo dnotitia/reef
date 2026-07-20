@@ -1,5 +1,7 @@
 "use client";
 
+import { holdQueryUntilHydrated } from "@/lib/queryHydration";
+import { useHydrated } from "@/lib/useHydrated";
 import { useQuery } from "@tanstack/react-query";
 
 export interface AiAvailableState {
@@ -7,7 +9,6 @@ export interface AiAvailableState {
   isAvailable: boolean;
   /** True while the deployment status request is in flight. */
   isLoading: boolean;
-  provider: "openrouter";
   model: string | null;
 }
 
@@ -19,29 +20,31 @@ export interface AiAvailableState {
  * state rather than blocking issue browsing.
  */
 export function useAiAvailable(): AiAvailableState {
-  const query = useQuery({
-    queryKey: ["ai", "status"],
-    queryFn: async () => {
-      const res = await fetch("/api/ai/status", {
-        credentials: "same-origin",
-      });
-      if (!res.ok) {
-        throw new Error(`AI status failed (${res.status})`);
-      }
-      return (await res.json()) as {
-        isConfigured: boolean;
-        provider: "openrouter";
-        model: string | null;
-      };
-    },
-    staleTime: 60_000,
-    retry: false,
-  });
+  const hydrated = useHydrated();
+  const query = holdQueryUntilHydrated(
+    useQuery({
+      queryKey: ["ai", "status"],
+      queryFn: async () => {
+        const res = await fetch("/api/ai/status", {
+          credentials: "same-origin",
+        });
+        if (!res.ok) {
+          throw new Error(`AI status failed (${res.status})`);
+        }
+        return (await res.json()) as {
+          isConfigured: boolean;
+          model: string | null;
+        };
+      },
+      staleTime: 60_000,
+      retry: false,
+    }),
+    hydrated,
+  );
 
   return {
     isAvailable: query.data?.isConfigured ?? false,
-    isLoading: query.isLoading,
-    provider: query.data?.provider ?? "openrouter",
+    isLoading: query.isPending,
     model: query.data?.model ?? null,
   };
 }

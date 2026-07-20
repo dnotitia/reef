@@ -308,7 +308,7 @@ describe("NewIssueDialog", () => {
       "Parent story",
     );
     await user.type(screen.getByTestId("new-issue-title-input"), "Child work");
-    await user.click(screen.getByRole("button", { name: "Source" }));
+    await user.click(await screen.findByRole("button", { name: "Source" }));
     await user.type(
       screen.getByTestId("markdown-source-textarea"),
       "Draft body",

@@ -1,12 +1,17 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockEnrichIssue, mockGetAkbAdapter, mockReadAuthoringLanguage } =
-  vi.hoisted(() => ({
-    mockEnrichIssue: vi.fn(),
-    mockGetAkbAdapter: vi.fn(),
-    mockReadAuthoringLanguage: vi.fn(),
-  }));
+const {
+  mockEnrichIssue,
+  mockGetAkbAdapter,
+  mockGetAkbCurrentActor,
+  mockReadAuthoringLanguage,
+} = vi.hoisted(() => ({
+  mockEnrichIssue: vi.fn(),
+  mockGetAkbAdapter: vi.fn(),
+  mockGetAkbCurrentActor: vi.fn(),
+  mockReadAuthoringLanguage: vi.fn(),
+}));
 
 vi.mock("@reef/core", async (importOriginal) => {
   const original = await importOriginal<typeof import("@reef/core")>();
@@ -17,9 +22,15 @@ vi.mock("@reef/core", async (importOriginal) => {
   };
 });
 
-vi.mock("@/lib/api/requestHelpers", () => ({
-  getAkbAdapter: mockGetAkbAdapter,
-}));
+vi.mock("@/lib/api/requestHelpers", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@/lib/api/requestHelpers")>();
+  return {
+    ...original,
+    getAkbAdapter: mockGetAkbAdapter,
+    getAkbCurrentActor: mockGetAkbCurrentActor,
+  };
+});
 
 import {
   AkbApiError,
@@ -79,10 +90,11 @@ function makeRequest(opts: {
 describe("POST /api/enrich", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubEnv("OPENROUTER_API_KEY", "sk-test");
-    vi.stubEnv("OPENROUTER_BASE_URL", "https://api.openai.com/v1");
+    vi.stubEnv("REEF_LLM_API_KEY", "sk-test");
+    vi.stubEnv("REEF_LLM_BASE_URL", "https://api.openai.com/v1");
     vi.stubEnv("REEF_LLM_MODEL", "gpt-4o");
     mockGetAkbAdapter.mockReturnValue({ adapter: { request: vi.fn() } });
+    mockGetAkbCurrentActor.mockResolvedValue({ actor: "alice" });
     mockReadAuthoringLanguage.mockResolvedValue(null);
   });
 
@@ -178,17 +190,64 @@ describe("POST /api/enrich", () => {
     expect(body.error).toMatch(/Workspace session/i);
   });
 
+  it("preserves session-clearing headers from an expired workspace session", async () => {
+    mockGetAkbAdapter.mockReturnValueOnce({
+      response: Response.json(
+        { error: "Your session has expired." },
+        {
+          status: 401,
+          headers: {
+            "Set-Cookie": "__reef_session=; Path=/; Max-Age=0",
+            "Cache-Control": "no-store",
+          },
+        },
+      ),
+    });
+
+    const res = await POST(makeRequest({}));
+
+    expect(res.status).toBe(401);
+    expect(res.headers.get("set-cookie")).toContain("__reef_session=");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+
   it("returns 400 on schema validation failure", async () => {
     const res = await POST(makeRequest({ body: { issueId: "" } }));
     expect(res.status).toBe(400);
   });
 
-  it("returns 503 when deployment OpenRouter config is missing", async () => {
-    vi.stubEnv("OPENROUTER_API_KEY", "");
+  it("returns 503 when deployment LLM config is missing", async () => {
+    vi.stubEnv("REEF_LLM_API_KEY", "");
     const res = await POST(makeRequest({}));
     expect(res.status).toBe(503);
     const body = (await res.json()) as { error: string };
     expect(body.error).toMatch(/deployment/i);
+  });
+
+  it("returns account denial before an unavailable LLM capability", async () => {
+    vi.stubEnv("REEF_LLM_API_KEY", "");
+    vi.stubEnv("OPENROUTER_API_KEY", "");
+    mockGetAkbCurrentActor.mockResolvedValueOnce({
+      response: Response.json(
+        { error: "Your account is suspended." },
+        {
+          status: 403,
+          headers: {
+            "Set-Cookie":
+              "__reef_session=; Path=/; Max-Age=0, __reef_sso=; Path=/; Max-Age=0",
+            "Cache-Control": "no-store",
+          },
+        },
+      ),
+    });
+
+    const res = await POST(makeRequest({}));
+
+    expect(res.status).toBe(403);
+    expect(res.headers.get("set-cookie")).toContain("__reef_session=");
+    expect(res.headers.get("set-cookie")).toContain("__reef_sso=");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(mockEnrichIssue).not.toHaveBeenCalled();
   });
 
   it("returns 503 with a PM-vocabulary message on LlmError", async () => {
@@ -209,6 +268,27 @@ describe("POST /api/enrich", () => {
     expect(res.status).toBe(401);
     const body = (await res.json()) as { error: string };
     expect(body.error).toMatch(/Workspace session/i);
+  });
+
+  it("preserves an AKB account denial and clears the established session", async () => {
+    mockEnrichIssue.mockRejectedValueOnce(
+      new AuthError({
+        origin: "akb",
+        code: "account_suspended",
+        status: 403,
+        message: "account suspended",
+      }),
+    );
+
+    const res = await POST(makeRequest({}));
+
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toMatch(/suspended/i);
+    const setCookie = res.headers.get("set-cookie") ?? "";
+    expect(setCookie).toContain("__reef_session=");
+    expect(setCookie).toContain("__reef_sso=");
+    expect(setCookie).toContain("Max-Age=0");
+    expect(res.headers.get("cache-control")).toBe("no-store");
   });
 
   it("returns 404 when core cannot find the requested workspace resource", async () => {

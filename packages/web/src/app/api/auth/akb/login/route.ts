@@ -1,12 +1,19 @@
 import { getAkbBackendUrl } from "@/lib/akb/akbBackendUrl";
 import {
   DEFAULT_SESSION_MAX_AGE_SECONDS,
+  buildClearedAuthInvalidationCookie,
   buildClearedSsoCookies,
   buildSessionCookie,
   decodeJwtExp,
 } from "@/lib/akb/sessionCookie";
+import { respondWithError } from "@/lib/api/requestHelpers";
 import { logger } from "@/lib/logging/logger";
-import { AkbApiError, AuthError, akbLogin } from "@reef/core";
+import {
+  AkbApiError,
+  AuthError,
+  akbLogin,
+  isAkbAccountErrorCode,
+} from "@reef/core";
 import { z } from "zod";
 
 /**
@@ -66,6 +73,12 @@ export async function POST(request: Request): Promise<Response> {
     });
   } catch (err) {
     if (err instanceof AuthError) {
+      if (
+        err.context.origin === "akb" &&
+        isAkbAccountErrorCode(err.context.code)
+      ) {
+        return respondWithError(err);
+      }
       return Response.json(
         { error: "Invalid username or password." },
         { status: 401 },
@@ -103,6 +116,7 @@ export async function POST(request: Request): Promise<Response> {
   for (const cookie of buildClearedSsoCookies()) {
     headers.append("Set-Cookie", cookie);
   }
+  headers.append("Set-Cookie", buildClearedAuthInvalidationCookie());
   headers.append("Cache-Control", "no-store");
 
   return new Response(JSON.stringify({ user: result.user }), {

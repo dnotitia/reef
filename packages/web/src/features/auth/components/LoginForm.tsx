@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { reconcileAkbAccount } from "@/lib/akb/accountReconcile";
+import { apiFetch } from "@/lib/apiClient";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
@@ -30,7 +31,7 @@ export function LoginForm({ redirectTo = "/" }: LoginFormProps) {
     setError(null);
     setIsSubmitting(true);
     try {
-      const res = await fetch("/api/auth/akb/login", {
+      const res = await apiFetch("/api/auth/akb/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",

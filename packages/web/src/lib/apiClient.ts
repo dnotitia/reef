@@ -1,11 +1,18 @@
-import { VAULT_HEADER } from "./akb/headers";
+import { isAkbAccountErrorCode } from "@reef/core";
+import { recordAkbAccountDenial } from "./akb/accountDenialClient";
+import { wipeAkbScopedBrowserState } from "./akb/accountReconcile";
+import {
+  AUTH_ACCOUNT_ERROR_HEADER,
+  AUTH_INVALIDATED_HEADER,
+  VAULT_HEADER,
+} from "./akb/headers";
 import { VAULT_NAME_RE } from "./akb/vaultName";
 import { getActiveVault } from "./storage/config";
 
 /**
  * A fetch() wrapper that attaches browser-local request context.
  *
- * LLM credentials are deployment-managed server-side via OpenRouter env vars,
+ * LLM credentials are deployment-managed server-side via REEF_LLM_* env vars,
  * and GitHub grounding now uses deployment-managed GitHub App credentials, so
  * this client does not attach `X-Reef-LLM` or `Authorization`.
  *
@@ -13,7 +20,10 @@ import { getActiveVault } from "./storage/config";
  */
 export const apiClient = {
   async fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-    const vault = await getActiveVault();
+    // Browser-local context is optional request decoration. IndexedDB can be
+    // unavailable (private mode, denied storage, startup failure); that must not
+    // turn login or an otherwise valid BFF request into a network error.
+    const vault = await getActiveVault().catch(() => "");
 
     const headers = new Headers(init?.headers);
 
@@ -32,7 +42,27 @@ export const apiClient = {
     // (used by /api/auth/akb/me and any future authenticated reef-web endpoint)
     // is forwarded automatically without leaking cookies to cross-origin URLs
     // that might land in `input`.
-    return fetch(input, { credentials: "same-origin", ...init, headers });
+    const response = await fetch(input, {
+      credentials: "same-origin",
+      ...init,
+      headers,
+    });
+    if (response.headers.get(AUTH_INVALIDATED_HEADER) === "1") {
+      const accountError = response.headers.get(AUTH_ACCOUNT_ERROR_HEADER);
+      // The server has already invalidated the httpOnly session. In-memory
+      // cleanup runs before accountReconcile touches IndexedDB; if persistent
+      // storage is unavailable, preserve the authoritative denial response
+      // instead of misreporting it as a network failure.
+      try {
+        await wipeAkbScopedBrowserState();
+      } catch {
+        // Best-effort persistent cleanup; the authoritative response wins.
+      }
+      if (isAkbAccountErrorCode(accountError)) {
+        recordAkbAccountDenial(accountError);
+      }
+    }
+    return response;
   },
 };
 

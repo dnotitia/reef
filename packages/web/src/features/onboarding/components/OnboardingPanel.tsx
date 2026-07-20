@@ -21,7 +21,7 @@ import { CreateWorkspaceForm } from "./CreateWorkspaceForm";
  * `monitored_repos` rows). The create form is the shared CreateWorkspaceForm,
  * which the sidebar "New workspace" dialog reuses (REEF-146). GitHub monitored
  * repos remain optional; AI is configured at deployment level and shown as
- * unavailable if the server lacks OpenRouter settings.
+ * unavailable if the server lacks LLM settings.
  */
 export function OnboardingPanel() {
   const t = useTranslations("onboarding");

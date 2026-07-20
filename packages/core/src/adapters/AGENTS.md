@@ -53,7 +53,10 @@
 
 ## LLM Adapter (`llm.ts`)
 
-- LLM configuration is deployment-managed server state:
-  `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, and `REEF_LLM_MODEL`.
+- LLM configuration is deployment-managed server state. Core receives one
+  provider-neutral OpenAI-compatible endpoint and must not infer or interpret a
+  provider or platform deployment mode.
+- Every model step uses Chat Completions, a fresh UUID `Idempotency-Key`, and
+  zero AI SDK retries. This is Reef's endpoint-independent request contract.
 - Keep provider errors credential-free when surfacing or logging them; preserve
   useful status and response detail only through safe error types.

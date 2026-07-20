@@ -79,6 +79,12 @@ export const ERROR_MESSAGES_EN = {
   },
   akb: {
     auth: "Authentication failed. Please sign in again.",
+    membershipRequired:
+      "This account does not have access to this workspace. Ask a workspace administrator for membership.",
+    accountSuspended:
+      "This account is suspended. Contact a workspace administrator.",
+    identityConflict:
+      "This sign-in identity conflicts with the account linked to this workspace. Contact a workspace administrator.",
     notFound: "The requested item could not be found.",
     conflict: "Save conflict occurred — please refresh and try again.",
     unknown:
@@ -296,6 +302,36 @@ export class ConflictError extends ReefError {
 
 export interface AuthErrorContext {
   message?: string;
+  origin?: "akb" | "github";
+  code?: string;
+  status?: number;
+}
+
+export const AKB_ACCOUNT_ERROR_SPECS = {
+  membership_required: { code: "akb.membershipRequired", status: 403 },
+  account_suspended: { code: "akb.accountSuspended", status: 403 },
+  identity_conflict: { code: "akb.identityConflict", status: 409 },
+} as const;
+
+export type AkbAccountErrorCode = keyof typeof AKB_ACCOUNT_ERROR_SPECS;
+
+export function isAkbAccountErrorCode(
+  value: unknown,
+): value is AkbAccountErrorCode {
+  return (
+    typeof value === "string" &&
+    Object.prototype.hasOwnProperty.call(AKB_ACCOUNT_ERROR_SPECS, value)
+  );
+}
+
+function authErrorCode(context: AuthErrorContext): {
+  code: ErrorCode;
+  status: number;
+} {
+  if (context.origin === "akb" && isAkbAccountErrorCode(context.code)) {
+    return AKB_ACCOUNT_ERROR_SPECS[context.code];
+  }
+  return { code: "auth", status: 401 };
 }
 
 // Origin-NEUTRAL auth copy. AuthError is shared by the akb session surface AND
@@ -308,7 +344,7 @@ export class AuthError extends ReefError {
   readonly context: AuthErrorContext;
 
   constructor(context: AuthErrorContext = {}) {
-    super(resolveEnMessage("auth"));
+    super(resolveEnMessage(authErrorCode(context).code));
     this.name = "AuthError";
     this.context = context;
   }
@@ -426,7 +462,7 @@ export function describeError(err: unknown): ErrorDescriptor {
     };
   }
   if (err instanceof ConflictError) return { code: "conflict", status: 409 };
-  if (err instanceof AuthError) return { code: "auth", status: 401 };
+  if (err instanceof AuthError) return authErrorCode(err.context);
   if (err instanceof NotFoundError) {
     return { ...notFoundCode(err.context), status: 404 };
   }

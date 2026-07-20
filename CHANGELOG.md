@@ -28,6 +28,19 @@ explicitly in the entries below.
   operator package now separates pre-validation Jira JSON from normalized
   models and exposes a content-addressed, versioned raw archive with integrity,
   retention, secret, and private-permission checks. (REEF-406)
+- **Reef uses one provider-neutral LLM endpoint contract.** Deployments set
+  `REEF_LLM_API_KEY`, `REEF_LLM_BASE_URL`, and `REEF_LLM_MODEL` together for
+  either OpenRouter or an akb-platform gateway, without a mode switch or
+  provider-specific runtime behavior. Existing `OPENROUTER_API_KEY` and
+  `OPENROUTER_BASE_URL` settings remain supported as compatibility aliases.
+  Every model step uses Chat Completions, a UUID request identity, and zero SDK
+  retries. LLM availability remains independent from AKB and Keycloak, so
+  Keycloak-only deployments stay healthy with AI disabled. (REEF-413)
+- **AKB account state now survives every Reef sign-in path.** Membership-required,
+  suspended-account, and identity-conflict responses have stable local and SSO
+  UX. AKB's SSO-only/local-auth policy controls the login surface, and an account
+  rejection clears established Reef cookies plus account-scoped browser caches
+  without treating an ordinary permission denial as a sign-out.
 - **Comment replies now stay in readable threads.** Comments can reply to a
   root or another reply while the activity timeline keeps one visual depth,
   direct-parent context, stable reply ordering, and the root's global timeline
@@ -35,6 +48,15 @@ explicitly in the entries below.
 
 ### Migration
 
+- **Migrate existing Kubernetes LLM settings before deploying REEF-413.** The
+  base ConfigMap no longer supplies OpenRouter URL/model defaults. To keep AI
+  enabled, add the three provider-neutral `REEF_LLM_*` values in the deployment
+  overlay/Secret and retain matching `OPENROUTER_API_KEY` and
+  `OPENROUTER_BASE_URL` aliases through the rollout and rollback window so old
+  and new pods can run concurrently. To disable AI, remove the legacy
+  `OPENROUTER_API_KEY` before applying the manifests. See
+  `docs/deployment.md#upgrade-an-existing-openrouter-deployment` for the exact
+  sequence and rollback behavior. (REEF-413)
 - **Update the Reef workspace skill/runbooks to version 17.** The comment
   contract now documents `parent_comment_id` / `thread_root_id`, atomic reply
   validation, malformed-chain handling, and trusted importer handoff. Existing

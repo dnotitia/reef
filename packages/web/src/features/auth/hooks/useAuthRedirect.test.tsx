@@ -6,9 +6,30 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace }),
 }));
 
-const hasActiveAkbSession = vi.fn();
+const getAkbSessionStatus = vi.fn();
 vi.mock("@/lib/akb/checkAkbSession", () => ({
-  hasActiveAkbSession: (signal?: AbortSignal) => hasActiveAkbSession(signal),
+  getAkbSessionStatus: (signal?: AbortSignal) => getAkbSessionStatus(signal),
+}));
+
+const accountDeniedHandler = vi.hoisted(() => ({
+  current: undefined as
+    | ((
+        code: "membership_required" | "account_suspended" | "identity_conflict",
+      ) => void)
+    | undefined,
+}));
+vi.mock("@/lib/akb/accountDenialClient", () => ({
+  consumePendingAkbAccountError: vi.fn(),
+  subscribeAkbAccountDenied: (
+    handler: (
+      code: "membership_required" | "account_suspended" | "identity_conflict",
+    ) => void,
+  ) => {
+    accountDeniedHandler.current = handler;
+    return () => {
+      accountDeniedHandler.current = undefined;
+    };
+  },
 }));
 
 const getActiveVault = vi.fn();
@@ -21,10 +42,26 @@ import { useAuthRedirect } from "./useAuthRedirect";
 describe("useAuthRedirect", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    accountDeniedHandler.current = undefined;
+  });
+
+  it("redirects immediately when a protected request reports an account denial", async () => {
+    getAkbSessionStatus.mockResolvedValue({ active: true });
+
+    renderHook(() => useAuthRedirect("workspace"));
+    await waitFor(() => expect(accountDeniedHandler.current).toBeDefined());
+
+    act(() => accountDeniedHandler.current?.("account_suspended"));
+
+    await waitFor(() => {
+      expect(replace).toHaveBeenCalledWith(
+        "/login?sso_error=account_suspended",
+      );
+    });
   });
 
   it("routes unauthenticated users to /login", async () => {
-    hasActiveAkbSession.mockResolvedValue(false);
+    getAkbSessionStatus.mockResolvedValue({ active: false });
 
     renderHook(() => useAuthRedirect("root"));
 
@@ -34,8 +71,24 @@ describe("useAuthRedirect", () => {
     expect(getActiveVault).not.toHaveBeenCalled();
   });
 
+  it("preserves an AKB account denial when routing to login", async () => {
+    getAkbSessionStatus.mockResolvedValue({
+      active: false,
+      accountError: "membership_required",
+    });
+
+    renderHook(() => useAuthRedirect("workspace"));
+
+    await waitFor(() => {
+      expect(replace).toHaveBeenCalledWith(
+        "/login?sso_error=membership_required",
+      );
+    });
+    expect(getActiveVault).not.toHaveBeenCalled();
+  });
+
   it("routes authenticated users without an active vault to /onboarding", async () => {
-    hasActiveAkbSession.mockResolvedValue(true);
+    getAkbSessionStatus.mockResolvedValue({ active: true });
     getActiveVault.mockResolvedValue("");
 
     renderHook(() => useAuthRedirect("root"));
@@ -46,7 +99,7 @@ describe("useAuthRedirect", () => {
   });
 
   it("routes fully onboarded users from root to /issues", async () => {
-    hasActiveAkbSession.mockResolvedValue(true);
+    getAkbSessionStatus.mockResolvedValue({ active: true });
     getActiveVault.mockResolvedValue("reef-acme");
 
     renderHook(() => useAuthRedirect("root"));
@@ -58,11 +111,11 @@ describe("useAuthRedirect", () => {
 
   it("does not redirect when an in-flight auth probe is aborted during navigation", async () => {
     let capturedSignal: AbortSignal | undefined;
-    let resolveSession!: (value: boolean) => void;
-    const sessionPromise = new Promise<boolean>((resolve) => {
+    let resolveSession!: (value: { active: boolean }) => void;
+    const sessionPromise = new Promise<{ active: boolean }>((resolve) => {
       resolveSession = resolve;
     });
-    hasActiveAkbSession.mockImplementation((signal?: AbortSignal) => {
+    getAkbSessionStatus.mockImplementation((signal?: AbortSignal) => {
       capturedSignal = signal;
       return sessionPromise;
     });
@@ -73,7 +126,7 @@ describe("useAuthRedirect", () => {
     expect(capturedSignal?.aborted).toBe(true);
 
     await act(async () => {
-      resolveSession(false);
+      resolveSession({ active: false });
       await sessionPromise;
     });
 
