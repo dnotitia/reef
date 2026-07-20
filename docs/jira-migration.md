@@ -9,15 +9,18 @@ one-shot Jira-to-Reef migrations. Package-local orientation stays in
 
 `@reef/jira-migrator` owns operator-run Jira read paths, migration config
 loading, dry-run/report helpers, Jira payload normalization, local account
-mapping artifacts, and source-system ordering plans for SHDEV/SDDEV migrations.
+mapping artifacts, source-system ordering plans, and immutable issue import
+plans for generic Jira projects. Project keys are operator inputs rather than
+API naming boundaries.
 
 The package is intentionally outside `@reef/web`: Jira credentials are
 deployment/operator secrets, not user state in the product runtime. Keep the
 package read-only against Jira unless a later issue explicitly adds a write or
 import mapping phase.
 
-At the current scaffold stage, the CLI validates configuration and prints a
-redacted public config. It does not write to Jira or Reef.
+The CLI validates configuration and prints a redacted public config. The
+library can build issue import plans, but it does not apply them or write to
+Jira or Reef.
 
 ## Documentation Placement
 
@@ -39,7 +42,7 @@ Run the current dry-run scaffold from the repository root:
 ```bash
 pnpm --filter @reef/jira-migrator run start -- \
   --jira-base-url https://example.atlassian.net \
-  --project-key SHDEV \
+  --project-key PROJECT \
   --vault reef-test \
   --account-mapping ./artifacts/jira-account-mapping.cloud-abc.json \
   --report ./artifacts/jira-migration-report.json \
@@ -52,7 +55,7 @@ output is safe for logs and reports because it omits secret values.
 When an installed build is used, the binary name is:
 
 ```bash
-reef-jira-migrator --project-key SHDEV --vault reef-test --dry-run
+reef-jira-migrator --project-key PROJECT --vault reef-test --dry-run
 ```
 
 ## Configuration
@@ -224,13 +227,19 @@ those account ids to Reef actors in this order:
 3. Existing artifact records from a previous migration scan.
 4. A stable fallback actor, `jira:<accountId>`.
 
+Assignee, reporter, requester, creator, ADF mention, comment-author, and
+changelog contexts all use this resolver. Serialized issue plans retain only a
+safe `{context, actor, strategy}` summary; account ids, email addresses,
+display names, and full Jira account objects stay in the private mapping/raw
+artifacts.
+
 Pass a local JSON artifact path with either the CLI flag or environment
 variable:
 
 ```bash
 pnpm --filter @reef/jira-migrator run start -- \
   --jira-cloud-id cloud-abc \
-  --project-key SHDEV \
+  --project-key PROJECT \
   --vault reef-test \
   --account-mapping ./artifacts/jira-account-mapping.cloud-abc.json \
   --dry-run
@@ -273,7 +282,7 @@ artifact back so operators can review account ids before import:
       "overrideReason": null,
       "firstSeenAt": "2026-07-09T08:00:00.000Z",
       "lastSeenAt": "2026-07-09T08:00:00.000Z",
-      "projectKeys": ["SHDEV"]
+      "projectKeys": ["PROJECT"]
     }
   },
   "overrides": {}
@@ -311,10 +320,10 @@ scalar: lower numbers sort earlier, and `NULL` sorts at the ordered tail.
 
 This does not make `rank` a normal user-authored issue field. The product UI
 writes it only through backlog drag-to-reorder, and generic issue create/update
-schemas still reject caller-supplied rank. Trusted importers, including the
-SHDEV Jira migrator, may seed `rank` while creating imported issues.
+schemas still reject caller-supplied rank. Trusted Jira importers may seed
+`rank` while creating imported issues.
 
-The SHDEV mapping policy is:
+The Jira Rank mapping policy is:
 
 - Sort distinct, non-empty Jira Rank strings lexicographically.
 - Assign sparse reef ranks in that order using `RANK_STEP` gaps.
@@ -401,11 +410,89 @@ UUID to `resolveJiraPlanningActionTarget()`. REEF-319 can persist that resolutio
 by stable source identity, while REEF-318 can consume the release and Sprint
 maps from `buildJiraPlanningTargetMappings()` without creating planning rows.
 
-SHDEV is the first fixture-backed validation input, but the planning API,
-action shape, and tests are project-independent and exercise a second project
-key with the same contract.
+The planning API, action shape, and tests are project-independent and exercise
+multiple synthetic project keys with the same contract.
 
 Official API references:
 
 - [Jira project Version REST API](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-project-versions/)
 - [Jira board Sprint REST API](https://developer.atlassian.com/cloud/jira/software/rest/api-group-board/#api-rest-agile-1-0-board-boardid-sprint-get)
+
+## Jira Issue Import Plans
+
+`buildJiraIssueImportPlan()` is a pure mapping boundary. It accepts one parsed
+Jira issue, a tenant field-catalog snapshot, explicit status/type/priority
+policies, the REEF-391 account artifact, REEF-402 target mappings, a batch Jira
+key-to-Reef-id map, an optional generic Rank plan, and REEF-406 opaque archive
+references. It returns a deeply frozen `schema_version: 1` plan; it never reads
+the network or filesystem and never writes Jira, AKB, planning rows, or archive
+objects.
+
+### Field Catalog And Enum Policy
+
+Canonical custom roles are `sprint`, `story_points`, `start_date`, and `rank`.
+Resolve them in this order:
+
+1. An explicit field-id override that exists in the current catalog and has a
+   compatible schema.
+2. An exact Jira schema custom key plus compatible type.
+3. A normalized exact field name or clause alias plus compatible type.
+
+Substring and fuzzy matching are prohibited. Missing fields report
+`field_unresolved`; multiple exact candidates report `field_ambiguous`; an
+absent or incompatible override reports `field_override_invalid`. Ambiguity
+and invalid overrides block the plan instead of choosing a candidate.
+
+Status, issue type, and priority policies match exact source ids or normalized
+exact names. Status alone may fall back to an explicitly configured Jira status
+category. An unknown required status or issue type blocks the plan; unknown
+priority remains null and is preserved with a warning rather than becoming an
+arbitrary `medium`. Closed mappings must supply the Reef close reason, and
+`resolutiondate` is the historical `closed_at` candidate.
+
+### Description, Planning, Parent, And Rank
+
+ADF traversal preserves node, mark, and content order and covers paragraphs,
+headings, lists/tasks, quotes, code, tables, links, mentions, emoji, cards,
+status/expand, rules, and media variants. Unsupported nodes retain their exact
+path and type as `description_node_unsupported`. Media becomes a stable
+placeholder containing only source media identifiers and an opaque archive
+reference; REEF-320 owns its eventual rewrite.
+
+Issue planning consumes only `buildJiraPlanningTargetMappings()` output. One
+Version or Sprint relation may be primary automatically; multiple relations
+need an explicit source-key primary, otherwise every relation remains in the
+report as `owner_decision_required`. A selected relation without a target UUID
+is deferred as `needs_release_mapping` or `needs_sprint_mapping`. No planning
+entity is created by issue mapping.
+
+Parents resolve from the batch Jira-key-to-Reef-id map. Unresolved same-project
+parents use `needs_parent_reconcile`; cross-project parents use
+`cross_project_reconcile`. Jira subtasks map to Reef `task` and require a parent.
+Rank consumes `buildJiraRankImportPlan()` output; missing and duplicate values
+retain the existing `rank_unmapped` classification. Rank APIs are tenant-neutral
+and do not expose project-specific aliases.
+
+### Plan Safety And Report Interpretation
+
+Every source field result is `mapped`, `preserved`, `deferred`, `unsupported`,
+or `blocked` and names its target or preservation location. Compact Jira
+provenance is deep-merged so enum, account, planning, and Rank fragments cannot
+overwrite one another. Full issue JSON, raw ADF, watcher payloads, email
+addresses, and complete Jira account objects are prohibited from serialized
+plans and reports.
+
+A raw issue reference is required for every plan. ADF, watcher, and media
+references are additionally required when those payloads exist. Missing one
+produces `raw_archive_reference_missing` and a blocked plan. Blocked plans carry
+no `desired.issue`, preventing callers from applying a fabricated required
+field. Ready plans validate `desired.issue` with the public core
+`IssueMetadataSchema`.
+
+`desired.issue.created_at` and `updated_at` use the caller-supplied run timestamp
+only to satisfy runtime validation. `projectJiraIssueEventualWrite()` removes
+both fields before REEF-321 write projection. Original Jira `created` and
+`updated` remain under compact provenance/raw archive and never overwrite AKB's
+automatic timestamps. REEF-319 owns ledger/checkpoint decisions; REEF-320 owns
+comments/files/link rewrites; REEF-392 owns changelog import; REEF-321 owns the
+apply runner.

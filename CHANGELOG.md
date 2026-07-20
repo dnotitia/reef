@@ -14,6 +14,11 @@ explicitly in the entries below.
 
 ### Added
 
+- **Jira issues can be mapped into immutable Reef import plans.** The operator
+  package now resolves tenant fields without fuzzy defaults, converts ADF to
+  Markdown with explicit unsupported/media evidence, and combines configurable
+  enum, account, planning, parent, and Rank mappings into runtime-validated,
+  raw-reference-backed plans without performing writes. (REEF-318)
 - **AKB table schema changes are available through the core adapter.** Operators
   can call low-level table alters or caller-keyed idempotent migrations through
   validated public helpers. No vault schema is changed automatically; target

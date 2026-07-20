@@ -1,4 +1,54 @@
 export {
+  convertAdfToMarkdown,
+  type AdfConversionReport,
+  type AdfMediaReference,
+  type AdfToMarkdownOptions,
+  type AdfToMarkdownResult,
+} from "./adf.js";
+export {
+  deepFreeze,
+  isPlainObject,
+  mergeJiraCustomFields,
+} from "./customFields.js";
+export {
+  buildJiraFieldCatalog,
+  JIRA_CANONICAL_FIELD_ROLES,
+  JiraFieldCatalogSnapshotSchema,
+  resolveJiraField,
+  resolveJiraFields,
+  type JiraCanonicalFieldRole,
+  type JiraFieldCatalogSnapshot,
+  type JiraFieldOverrides,
+  type JiraFieldResolution,
+  type JiraFieldResolutionClassification,
+} from "./fieldCatalog.js";
+export {
+  JiraFieldResultClassificationSchema,
+  JiraIssueDeferredItemSchema,
+  JiraIssueFieldResultSchema,
+  JiraIssueImportPlanSchema,
+  JiraIssuePlanStatusSchema,
+  JiraPlanningAssociationSchema,
+  parseJiraIssueImportPlan,
+  projectJiraIssueEventualWrite,
+  RawArchiveReferenceSchema,
+  type JiraIssueDeferredItem,
+  type JiraIssueEventualWriteProjection,
+  type JiraIssueFieldResult,
+  type JiraIssueImportPlan,
+  type JiraPlanningAssociation,
+} from "./importPlan.js";
+export {
+  buildJiraIssueImportPlan,
+  buildJiraIssueImportPlans,
+  type BuildJiraIssueImportPlanInput,
+  type JiraIssueMappingPolicy,
+  type JiraIssueRawArchiveReferences,
+  type JiraIssueTypeMappingRule,
+  type JiraPriorityMappingRule,
+  type JiraStatusMappingRule,
+} from "./issueMapping.js";
+export {
   buildJiraAccountMigrationReport,
   buildUnmappedJiraUsersCustomFields,
   collectJiraUserObservations,
@@ -170,9 +220,9 @@ export {
   safeJsonStringify,
 } from "./redaction.js";
 export {
-  applyShdevJiraRankImportPlan,
-  buildShdevJiraRankImportPlan,
-  type ShdevJiraRankImportPlan,
-  type ShdevJiraRankInput,
-  type ShdevJiraRankReportClassification,
+  applyJiraRankImportPlan,
+  buildJiraRankImportPlan,
+  type JiraRankImportPlan,
+  type JiraRankInput,
+  type JiraRankReportClassification,
 } from "./rank.js";

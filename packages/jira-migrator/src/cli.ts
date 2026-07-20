@@ -10,13 +10,13 @@ import {
 const USAGE = `reef-jira-migrator
 
 Usage:
-  reef-jira-migrator --project-key SHDEV --vault <vault> [--jira-base-url <url>] [--dry-run]
+  reef-jira-migrator --project-key PROJECT --vault <vault> [--jira-base-url <url>] [--dry-run]
 
 Options:
   --dry-run                 Load config and report readiness without migrating.
   --jira-base-url <url>     Jira tenant URL. Can also use REEF_JIRA_BASE_URL.
   --jira-cloud-id <id>      Atlassian cloud id. Can derive the API gateway URL.
-  --project-key <key>       Jira project key, for example SHDEV.
+  --project-key <key>       Jira project key, for example PROJECT.
   --vault <vault>           Target Reef workspace vault.
   --report <path>           Optional local dry-run/report path.
   --account-mapping <path>  Local Jira account mapping artifact JSON path.

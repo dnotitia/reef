@@ -77,6 +77,8 @@ export const JiraIssueSchema = z
           .object({
             id: StringOrNumberAsStringSchema.optional(),
             name: z.string().optional(),
+            subtask: z.boolean().optional(),
+            hierarchyLevel: z.number().int().optional(),
           })
           .passthrough()
           .optional(),
@@ -84,11 +86,47 @@ export const JiraIssueSchema = z
           .object({
             id: StringOrNumberAsStringSchema.optional(),
             name: z.string().optional(),
+            statusCategory: z
+              .object({
+                id: StringOrNumberAsStringSchema.optional(),
+                key: z.string().optional(),
+                name: z.string().optional(),
+              })
+              .passthrough()
+              .optional(),
           })
           .passthrough()
           .optional(),
         assignee: JiraUserSchema.nullable().optional(),
         reporter: JiraUserSchema.nullable().optional(),
+        creator: JiraUserSchema.nullable().optional(),
+        priority: z
+          .object({
+            id: StringOrNumberAsStringSchema.optional(),
+            name: z.string().optional(),
+          })
+          .passthrough()
+          .nullable()
+          .optional(),
+        duedate: z.string().nullable().optional(),
+        resolution: z
+          .object({
+            id: StringOrNumberAsStringSchema.optional(),
+            name: z.string().optional(),
+          })
+          .passthrough()
+          .nullable()
+          .optional(),
+        resolutiondate: z.string().nullable().optional(),
+        parent: JiraLinkedIssueSchema.nullable().optional(),
+        fixVersions: z.array(z.record(z.unknown())).optional(),
+        versions: z.array(z.record(z.unknown())).optional(),
+        components: z.array(z.record(z.unknown())).optional(),
+        environment: z.unknown().optional(),
+        watches: z.record(z.unknown()).optional(),
+        votes: z.record(z.unknown()).optional(),
+        timetracking: z.record(z.unknown()).optional(),
+        worklog: z.record(z.unknown()).optional(),
         attachment: z.array(JiraAttachmentSchema).optional(),
         issuelinks: z.array(JiraIssueLinkSchema).optional(),
       })
@@ -155,6 +193,7 @@ export const JiraFieldSchema = z
     id: z.string(),
     name: z.string(),
     custom: z.boolean().optional(),
+    clauseNames: z.array(z.string()).default([]),
     schema: z
       .object({
         type: z.string().optional(),
@@ -257,7 +296,27 @@ export interface NormalizedJiraIssue {
   summary: string;
   projectKey: string | null;
   issueType: string | null;
+  issueTypeId: string | null;
+  issueTypeSubtask: boolean;
+  issueTypeHierarchyLevel: number | null;
   status: string | null;
+  statusId: string | null;
+  statusCategoryKey: string | null;
+  statusCategoryName: string | null;
+  description: unknown;
+  priority: { id: string | null; name: string | null } | null;
+  dueDate: string | null;
+  resolution: { id: string | null; name: string | null } | null;
+  resolutionDate: string | null;
+  parent: { id: string | null; key: string } | null;
+  fixVersions: ReadonlyArray<Record<string, unknown>>;
+  affectedVersions: ReadonlyArray<Record<string, unknown>>;
+  components: ReadonlyArray<Record<string, unknown>>;
+  environment: unknown;
+  watches: Readonly<Record<string, unknown>> | null;
+  votes: Readonly<Record<string, unknown>> | null;
+  timetracking: Readonly<Record<string, unknown>> | null;
+  worklog: Readonly<Record<string, unknown>> | null;
   created: string | null;
   updated: string | null;
   labels: string[];
@@ -266,6 +325,7 @@ export interface NormalizedJiraIssue {
   users: {
     assignee: NormalizedJiraUser | null;
     reporter: NormalizedJiraUser | null;
+    creator: NormalizedJiraUser | null;
   };
   raw: JiraIssuePayload;
 }
@@ -345,7 +405,39 @@ export const normalizeJiraIssue = (
   summary: issue.fields.summary ?? "",
   projectKey: issue.fields.project?.key ?? null,
   issueType: issue.fields.issuetype?.name ?? null,
+  issueTypeId: issue.fields.issuetype?.id ?? null,
+  issueTypeSubtask: issue.fields.issuetype?.subtask ?? false,
+  issueTypeHierarchyLevel: issue.fields.issuetype?.hierarchyLevel ?? null,
   status: issue.fields.status?.name ?? null,
+  statusId: issue.fields.status?.id ?? null,
+  statusCategoryKey: issue.fields.status?.statusCategory?.key ?? null,
+  statusCategoryName: issue.fields.status?.statusCategory?.name ?? null,
+  description: issue.fields.description ?? null,
+  priority: issue.fields.priority
+    ? {
+        id: issue.fields.priority.id ?? null,
+        name: issue.fields.priority.name ?? null,
+      }
+    : null,
+  dueDate: issue.fields.duedate ?? null,
+  resolution: issue.fields.resolution
+    ? {
+        id: issue.fields.resolution.id ?? null,
+        name: issue.fields.resolution.name ?? null,
+      }
+    : null,
+  resolutionDate: issue.fields.resolutiondate ?? null,
+  parent: issue.fields.parent
+    ? { id: issue.fields.parent.id ?? null, key: issue.fields.parent.key }
+    : null,
+  fixVersions: issue.fields.fixVersions ?? [],
+  affectedVersions: issue.fields.versions ?? [],
+  components: issue.fields.components ?? [],
+  environment: issue.fields.environment ?? null,
+  watches: issue.fields.watches ?? null,
+  votes: issue.fields.votes ?? null,
+  timetracking: issue.fields.timetracking ?? null,
+  worklog: issue.fields.worklog ?? null,
   created: issue.fields.created ?? null,
   updated: issue.fields.updated ?? null,
   labels: issue.fields.labels ?? [],
@@ -356,6 +448,7 @@ export const normalizeJiraIssue = (
   users: {
     assignee: normalizeJiraUser(issue.fields.assignee),
     reporter: normalizeJiraUser(issue.fields.reporter),
+    creator: normalizeJiraUser(issue.fields.creator),
   },
   raw: issue,
 });

@@ -41,7 +41,7 @@ const sprint = (
 
 const emptyInput = {
   jiraCloudId: "cloud-abc",
-  projectKey: "SHDEV",
+  projectKey: "ALPHA",
   versions: [],
   issueSprints: [],
   configuredBoards: [],
@@ -58,7 +58,7 @@ describe("buildJiraPlanningMigrationPlan", () => {
         version({
           id: "70002",
           projectId: "201",
-          name: "SDDEV 2.0",
+          name: "Beta 2.0",
           released: true,
         }),
       ],
@@ -84,7 +84,7 @@ describe("buildJiraPlanningMigrationPlan", () => {
       },
     });
     expect(plan.actions[1]?.target).toMatchObject({
-      item: { name: "SDDEV 2.0", status: "released" },
+      item: { name: "Beta 2.0", status: "released" },
     });
     expect(plan.actions[0]?.report).toEqual(
       expect.arrayContaining([
@@ -109,7 +109,7 @@ describe("buildJiraPlanningMigrationPlan", () => {
     });
     const plan = buildJiraPlanningMigrationPlan({
       ...emptyInput,
-      projectKey: "SDDEV",
+      projectKey: "BETA",
       issueSprints: [issueReference],
       configuredBoards: [
         {
@@ -140,7 +140,7 @@ describe("buildJiraPlanningMigrationPlan", () => {
         end_date: "2026-07-14T00:00:00.000Z",
       },
     });
-    expect(JSON.stringify(plan)).not.toContain("SDDEV");
+    expect(JSON.stringify(plan)).not.toContain("BETA");
   });
 
   it("prefers ledger bindings, reuses only a unique compatible name, and reports collisions", () => {
