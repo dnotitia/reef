@@ -56,7 +56,7 @@ const issueFixture = (size = 3): JiraIssuePayload => ({
         mimeType: "application/octet-stream",
         size,
         created: "2026-01-01T00:00:00.000Z",
-        author: { accountId: "acct-1" },
+        author: { emailAddress: "directory-key-1" },
       },
     ],
     issuelinks: [
@@ -374,6 +374,9 @@ describe("Jira related-data import stage", () => {
       client,
       target: state.target,
       accountMapping,
+      actorDirectory: [
+        { actor: "reef-directory-actor", emailAddress: "directory-key-1" },
+      ],
       linkMappings: [
         {
           typeId: "1",
@@ -430,6 +433,9 @@ describe("Jira related-data import stage", () => {
     });
     expect(state.description).toContain("akb://isolated/");
     expect(state.attachments.size).toBe(1);
+    expect([...state.attachments.values()][0]?.attachment.author).toBe(
+      "reef-directory-actor",
+    );
     expect(state.relations.size).toBe(1);
     expect([...state.relations.values()][0]).toMatchObject({
       sourceReefId: "REEF-1",

@@ -245,6 +245,23 @@ describe("JiraReadClient", () => {
     );
   });
 
+  it("does not compare decoded bytes with a compressed wire length", async () => {
+    const client = makeClient(
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(new Uint8Array([1, 2, 3]), {
+          headers: {
+            "content-encoding": "gzip",
+            "content-length": "2",
+          },
+        }),
+      ),
+    );
+
+    await expect(
+      client.downloadAttachmentContent("42", 1024),
+    ).resolves.toMatchObject({ bytes: new Uint8Array([1, 2, 3]) });
+  });
+
   it("cancels unsuccessful attachment response bodies", async () => {
     const cancel = vi.fn();
     const body = new ReadableStream<Uint8Array>({ cancel });

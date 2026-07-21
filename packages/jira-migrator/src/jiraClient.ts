@@ -571,6 +571,10 @@ export class JiraReadClient {
       contentLength >= 0
         ? contentLength
         : null;
+    const contentEncoding = response.headers
+      .get("content-encoding")
+      ?.trim()
+      .toLowerCase();
     if (declaredContentLength !== null && declaredContentLength > maxBytes) {
       await response.body?.cancel();
       throw new Error("jira_attachment_size_limit_exceeded");
@@ -600,7 +604,11 @@ export class JiraReadClient {
       bytes.set(chunk, offset);
       offset += chunk.byteLength;
     }
-    if (declaredContentLength !== null && byteLength !== declaredContentLength)
+    if (
+      declaredContentLength !== null &&
+      (!contentEncoding || contentEncoding === "identity") &&
+      byteLength !== declaredContentLength
+    )
       throw new Error("jira_attachment_content_length_mismatch");
     return {
       bytes,

@@ -3,7 +3,7 @@ import type {
   JiraAccountMappingArtifact,
   ReefActorDirectoryEntry,
 } from "./accountMapping.js";
-import { mapJiraCommentActor } from "./accountMapping.js";
+import { mapJiraCommentActor, resolveJiraActor } from "./accountMapping.js";
 import {
   type AdfMediaReference,
   type AdfToMarkdownOptions,
@@ -628,9 +628,14 @@ export async function importJiraRelatedData(
     const existing = ledger.bindings.find(
       (item) => item.source_key === identity.key,
     );
-    const mappedAuthor = attachment.author?.accountId
-      ? input.accountMapping.accounts[attachment.author.accountId]?.actor
-      : null;
+    const mappedAuthor = resolveJiraActor(
+      "attachment_author",
+      attachment.author,
+      {
+        artifact: input.accountMapping,
+        directory: input.actorDirectory ?? [],
+      },
+    ).actor;
     const expectedAttachmentBase = {
       reefId: input.reefId,
       author: mappedAuthor ?? "jira-import",
