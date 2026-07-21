@@ -1,7 +1,7 @@
 import { ZodError, z } from "zod";
 import { AkbApiError, SchemaValidationError } from "../../../errors";
 import type { ReefTableName } from "./constants";
-import type { AkbAdapter } from "./http";
+import { type AkbAdapter, sanitizeCredentialSafeAkbCode } from "./http";
 
 // ─── SQL escaping ─────────────────────────────────────────────────────────────
 //
@@ -142,19 +142,34 @@ export async function runSql(
     },
   );
   // akb returns SQL *runtime* errors (e.g. "relation does not exist") as an
-  // HTTP 200 with `{ error: <postgres message> }`. translateAkbHttpError
-  // does not fires for these — so detect the envelope here and throw an
-  // AkbApiError carrying the raw message so `isMissingTableError` can pattern
-  // match against `err.context.message`.
+  // HTTP 200 with `{ error: <postgres message> }`. translateAkbHttpError does
+  // not fire for these, so detect the envelope here. Service adapters retain
+  // only the stable code needed for control flow; user adapters preserve the
+  // legacy message-based fallback.
   if (
     payload &&
     typeof payload === "object" &&
     "error" in payload &&
     typeof (payload as { error: unknown }).error === "string"
   ) {
+    const upstreamMessage = String((payload as { error: unknown }).error);
+    const code =
+      "code" in payload && typeof payload.code === "string"
+        ? payload.code
+        : undefined;
+    const controlCode =
+      code ??
+      (isMissingRelationMessage(upstreamMessage)
+        ? "undefined_table"
+        : undefined);
     throw new AkbApiError({
       status: 200,
-      message: String((payload as { error: unknown }).error),
+      message: adapter.credentialSafeErrors
+        ? "akb_upstream_error_200"
+        : upstreamMessage,
+      code: adapter.credentialSafeErrors
+        ? sanitizeCredentialSafeAkbCode(controlCode)
+        : controlCode,
     });
   }
   try {
@@ -181,12 +196,17 @@ export async function runSql(
 export function isMissingTableError(err: unknown): boolean {
   let raw = "";
   if (err instanceof AkbApiError) {
+    if (err.context.code === "undefined_table") return true;
     raw = err.context.message ?? "";
   } else if (err instanceof SchemaValidationError) {
     raw = err.context.issues?.join(" ") ?? "";
   } else {
     return false;
   }
+  return isMissingRelationMessage(raw);
+}
+
+function isMissingRelationMessage(raw: string): boolean {
   const message = raw.toLowerCase();
   return message.includes("does not exist") && message.includes("relation");
 }

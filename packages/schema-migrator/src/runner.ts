@@ -4,6 +4,8 @@ import {
   akbApplyTableMigration,
   akbEnsureReefTables,
   akbGetMe,
+  akbGetVaultSkillStatus,
+  akbListAuthTokens,
   akbListVaultMembers,
   akbListVaults,
   akbReadConfig,
@@ -53,10 +55,12 @@ export interface MigrationRuntime {
     username?: string;
     isAdmin?: boolean;
     keyClass?: string;
+    tokenScopes?: readonly string[];
   }>;
   listVaults(): Promise<Array<{ name: string }>>;
   inspectWorkspace(vault: string): Promise<{
     isReef: boolean;
+    initializationPending: boolean;
     members: Array<{ username: string; role: string }>;
   }>;
   readSchemaVersion(vault: string): Promise<number>;
@@ -98,22 +102,39 @@ export function createCoreMigrationRuntime(
   });
   return {
     async getIdentity() {
-      const { profile } = await akbGetMe({ adapter });
+      const [{ profile }, { tokens }] = await Promise.all([
+        akbGetMe({ adapter }),
+        akbListAuthTokens({ adapter }),
+      ]);
+      const matchingTokens = tokens.filter(
+        (token) =>
+          token.key_class === "service" &&
+          config.serviceKey.startsWith(token.prefix),
+      );
+      const currentToken =
+        matchingTokens.length === 1 ? matchingTokens[0] : undefined;
       return {
         username: profile.username,
         isAdmin: profile.is_admin,
         keyClass: profile.key_class,
+        tokenScopes: currentToken?.scopes,
       };
     },
     async listVaults() {
       return (await akbListVaults({ adapter })).vaults;
     },
     async inspectWorkspace(vault) {
-      const [configResult, membersResult] = await Promise.all([
+      const [configResult, membersResult, skillStatus] = await Promise.all([
         akbReadConfig({ adapter, vault }),
         akbListVaultMembers({ adapter, vault }),
+        akbGetVaultSkillStatus({ adapter, vault }),
       ]);
-      return { isReef: configResult.exists, members: membersResult.members };
+      return {
+        isReef: configResult.exists,
+        initializationPending:
+          !configResult.exists && skillStatus.installed_version !== null,
+        members: membersResult.members,
+      };
     },
     readSchemaVersion: (vault) => akbReadReefSchemaVersion({ adapter, vault }),
     async applyPhase(vault, phaseId, operations) {
@@ -151,7 +172,8 @@ export async function runSchemaMigrations({
   if (
     identity.username !== serviceAccount ||
     identity.isAdmin !== false ||
-    identity.keyClass !== "service"
+    identity.keyClass !== "service" ||
+    !hasExactMigrationScopes(identity.tokenScopes)
   ) {
     throw new MigrationRunError(
       failedReport("identity_invalid", counts, completed),
@@ -173,6 +195,7 @@ export async function runSchemaMigrations({
   let inspections: Array<{
     vault: string;
     isReef: boolean;
+    initializationPending: boolean;
     members: Array<{ username: string; role: string }>;
   }>;
   try {
@@ -185,6 +208,17 @@ export async function runSchemaMigrations({
   } catch {
     throw new MigrationRunError(
       failedReport("preflight_failed", counts, completed),
+    );
+  }
+
+  const pendingInitialization = inspections.find(
+    ({ initializationPending }) => initializationPending,
+  );
+  if (pendingInitialization) {
+    throw new MigrationRunError(
+      failedReport("preflight_failed", counts, completed, {
+        vault: pendingInitialization.vault,
+      }),
     );
   }
 
@@ -267,4 +301,13 @@ export async function runSchemaMigrations({
     counts,
     workspaces: completed,
   };
+}
+
+function hasExactMigrationScopes(scopes: readonly string[] | undefined) {
+  return (
+    scopes !== undefined &&
+    scopes.length === 2 &&
+    scopes.includes("read") &&
+    scopes.includes("write")
+  );
 }

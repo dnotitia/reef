@@ -66,6 +66,19 @@ export const AkbCurrentUserSchema = z
 
 export type AkbCurrentUser = z.infer<typeof AkbCurrentUserSchema>;
 
+export const AkbAuthTokenSummarySchema = z.object({
+  token_id: z.string().uuid(),
+  prefix: z.string().min(1),
+  scopes: z.array(z.enum(["read", "write", "admin"])),
+  key_class: z.enum(["pat", "service", "publishable"]),
+});
+
+export type AkbAuthTokenSummary = z.infer<typeof AkbAuthTokenSummarySchema>;
+
+const AkbAuthTokensResponseSchema = z.object({
+  tokens: z.array(AkbAuthTokenSummarySchema),
+});
+
 // Client-facing projection of `/auth/me` for DISPLAY surfaces (the workspace
 // account menu). Unlike `AkbCurrentUserSchema` — which is `.passthrough()` and
 // observe so the me route can re-emit the profile verbatim — this STRIPS
@@ -496,6 +509,29 @@ export function getMe(params: GetMeParams): Promise<GetMeResult> {
       return { profile: (payload ?? {}) as AkbCurrentUser };
     }
     return { profile: result.data };
+  });
+}
+
+export interface ListAuthTokensParams {
+  adapter: AkbAdapter;
+}
+
+export interface ListAuthTokensResult {
+  tokens: AkbAuthTokenSummary[];
+}
+
+/** Read the current account's non-secret token metadata for identity preflight. */
+export function listAuthTokens(
+  params: ListAuthTokensParams,
+): Promise<ListAuthTokensResult> {
+  const { adapter } = params;
+  return withSpan("akb.auth.tokens.list", {}, async (span) => {
+    const payload = await adapter.request("/api/v1/auth/tokens", {
+      resource: "auth tokens",
+    });
+    const parsed = AkbAuthTokensResponseSchema.parse(payload);
+    span.setAttribute("token_count", parsed.tokens.length);
+    return parsed;
   });
 }
 

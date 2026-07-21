@@ -1,12 +1,14 @@
 "use client";
 
 import { LoginForm } from "@/features/auth/components/LoginForm";
-import { peekPendingAkbAccountError } from "@/lib/akb/accountDenialClient";
-import { buildPathWithParams } from "@/lib/akb/safeRedirect";
+import {
+  consumePendingAkbAccountError,
+  peekPendingAkbAccountError,
+} from "@/lib/akb/accountDenialClient";
 import { normalizeSafeRedirect } from "@/lib/akb/safeRedirect";
 import { apiFetch } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
-import { AkbAuthConfigSchema } from "@reef/core";
+import { AkbAuthConfigSchema, isAkbAccountErrorCode } from "@reef/core";
 import { Building2, KeyRound, ShieldCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -36,13 +38,17 @@ export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
 
   useEffect(() => {
     const pendingAccountError = peekPendingAkbAccountError();
-    if (
-      pendingAccountError &&
-      searchParams.get("sso_error") !== pendingAccountError
-    ) {
-      router.replace(
-        buildPathWithParams("/login", { sso_error: pendingAccountError }),
-      );
+    const explicitAccountError = searchParams.get("sso_error");
+    if (isAkbAccountErrorCode(explicitAccountError)) {
+      if (pendingAccountError && pendingAccountError !== explicitAccountError) {
+        consumePendingAkbAccountError();
+      }
+      return;
+    }
+    if (pendingAccountError && !searchParams.has("sso_error")) {
+      const nextParams = new URLSearchParams(searchParams.toString());
+      nextParams.set("sso_error", pendingAccountError);
+      router.replace(`/login?${nextParams.toString()}`);
     }
   }, [router, searchParams]);
 

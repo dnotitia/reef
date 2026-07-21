@@ -3,10 +3,20 @@
 import { pathToFileURL } from "node:url";
 import { loadMigrationConfig } from "./config.js";
 import {
+  type MigrationReport,
   MigrationRunError,
   createCoreMigrationRuntime,
   runSchemaMigrations,
 } from "./runner.js";
+
+export function projectMigrationReport(report: MigrationReport) {
+  return {
+    ok: report.ok,
+    code: report.code,
+    targetVersion: report.targetVersion,
+    counts: report.counts,
+  };
+}
 
 const HELP = `reef-schema-migrator
 
@@ -35,12 +45,12 @@ export async function main(
       runtime: createCoreMigrationRuntime(config),
       serviceAccount: config.serviceAccount,
     });
-    process.stdout.write(`${JSON.stringify(report)}\n`);
+    process.stdout.write(`${JSON.stringify(projectMigrationReport(report))}\n`);
     return 0;
   } catch (error) {
     const report =
       error instanceof MigrationRunError
-        ? error.report
+        ? projectMigrationReport(error.report)
         : { ok: false, code: "migration_config_invalid" };
     process.stderr.write(`${JSON.stringify(report)}\n`);
     return 1;

@@ -10,12 +10,20 @@ export interface MigrationPhase {
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+function deepFreeze<T>(value: T): T {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value)) {
+    return value;
+  }
+  for (const nested of Object.values(value)) deepFreeze(nested);
+  return Object.freeze(value);
+}
+
 const freezePhase = (phase: MigrationPhase): MigrationPhase =>
   Object.freeze({
     ...phase,
     operations: Object.freeze(
       phase.operations.map((operation) =>
-        Object.freeze(structuredClone(operation)),
+        deepFreeze(structuredClone(operation)),
       ),
     ),
   });
@@ -67,8 +75,23 @@ export function pendingMigrationPhases(
   if (currentVersion > targetVersion) {
     throw new Error("migration_schema_version_ahead");
   }
-  return catalog.filter(
-    (phase) =>
-      phase.fromVersion >= currentVersion && phase.toVersion <= targetVersion,
-  );
+  if (currentVersion === targetVersion) return [];
+  // Version 0 also represents a vault without Reef tables or a schema stamp.
+  // An intentionally empty release catalog delegates that baseline creation
+  // and target-version stamp to the runner's final ensureReefTables step.
+  if (catalog.length === 0) return [];
+
+  const pending: MigrationPhase[] = [];
+  let nextVersion = currentVersion;
+  while (nextVersion < targetVersion) {
+    const phase = catalog.find(
+      (candidate) =>
+        candidate.fromVersion === nextVersion &&
+        candidate.toVersion <= targetVersion,
+    );
+    if (!phase) throw new Error("migration_catalog_incomplete_chain");
+    pending.push(phase);
+    nextVersion = phase.toVersion;
+  }
+  return pending;
 }

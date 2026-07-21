@@ -1,13 +1,18 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { defineMigrationCatalog } from "./catalog";
 import {
   MigrationRunError,
   type MigrationRuntime,
+  createCoreMigrationRuntime,
   runSchemaMigrations,
 } from "./runner";
 
 const PHASE = "018f47a4-8e3b-7f62-a3d2-9876543210ab";
 const SERVICE_ACCOUNT = "reef-migrator";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function runtime(overrides: Partial<MigrationRuntime> = {}): MigrationRuntime {
   return {
@@ -15,6 +20,7 @@ function runtime(overrides: Partial<MigrationRuntime> = {}): MigrationRuntime {
       username: SERVICE_ACCOUNT,
       isAdmin: false,
       keyClass: "service",
+      tokenScopes: ["read", "write"],
     }),
     listVaults: vi
       .fn()
@@ -25,6 +31,7 @@ function runtime(overrides: Partial<MigrationRuntime> = {}): MigrationRuntime {
       ]),
     inspectWorkspace: vi.fn().mockImplementation(async (vault: string) => ({
       isReef: vault !== "raw",
+      initializationPending: false,
       members: [{ username: SERVICE_ACCOUNT, role: "writer" }],
     })),
     readSchemaVersion: vi.fn().mockResolvedValue(1),
@@ -50,6 +57,44 @@ const onePhase = defineMigrationCatalog([
 ]);
 
 describe("schema migration runner", () => {
+  it("matches the active service token using the upstream-provided prefix length", async () => {
+    const serviceKey = "akb_secret_variable_prefix_key";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async (input: string | URL | Request) => {
+        const url = String(input);
+        const payload = url.endsWith("/api/v1/auth/me")
+          ? {
+              username: SERVICE_ACCOUNT,
+              is_admin: false,
+              key_class: "service",
+            }
+          : {
+              tokens: [
+                {
+                  token_id: "018f47a4-8e3b-7f62-a3d2-9876543210ad",
+                  prefix: "akb_secret_variable",
+                  scopes: ["read", "write"],
+                  key_class: "service",
+                },
+              ],
+            };
+        return new Response(JSON.stringify(payload), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+
+    await expect(
+      createCoreMigrationRuntime({
+        akbBaseUrl: "https://akb.test",
+        serviceKey,
+        serviceAccount: SERVICE_ACCOUNT,
+      }).getIdentity(),
+    ).resolves.toMatchObject({ tokenScopes: ["read", "write"] });
+  });
+
   it("preflights the complete sorted inventory before an empty-catalog final verification", async () => {
     const events: string[] = [];
     const subject = runtime({
@@ -57,6 +102,7 @@ describe("schema migration runner", () => {
         events.push(`inspect:${vault}`);
         return {
           isReef: vault !== "raw",
+          initializationPending: false,
           members: [{ username: SERVICE_ACCOUNT, role: "writer" }],
         };
       }),
@@ -89,11 +135,38 @@ describe("schema migration runner", () => {
   });
 
   it.each([
-    { username: "somebody-else", isAdmin: false, keyClass: "service" },
-    { username: SERVICE_ACCOUNT, isAdmin: true, keyClass: "service" },
-    { username: SERVICE_ACCOUNT, isAdmin: false, keyClass: "pat" },
+    {
+      username: "somebody-else",
+      isAdmin: false,
+      keyClass: "service",
+      tokenScopes: ["read", "write"],
+    },
+    {
+      username: SERVICE_ACCOUNT,
+      isAdmin: true,
+      keyClass: "service",
+      tokenScopes: ["read", "write"],
+    },
+    {
+      username: SERVICE_ACCOUNT,
+      isAdmin: false,
+      keyClass: "pat",
+      tokenScopes: ["read", "write"],
+    },
+    {
+      username: SERVICE_ACCOUNT,
+      isAdmin: false,
+      keyClass: "service",
+      tokenScopes: ["read"],
+    },
+    {
+      username: SERVICE_ACCOUNT,
+      isAdmin: false,
+      keyClass: "service",
+      tokenScopes: ["read", "write", "admin"],
+    },
   ])(
-    "rejects a non-matching, admin, or non-service identity",
+    "rejects a mismatched identity or a credential without exact read+write scopes",
     async (identity) => {
       const subject = runtime({
         getIdentity: vi.fn().mockResolvedValue(identity),
@@ -112,6 +185,7 @@ describe("schema migration runner", () => {
     const subject = runtime({
       inspectWorkspace: vi.fn().mockImplementation(async (vault: string) => ({
         isReef: vault !== "raw",
+        initializationPending: false,
         members: [
           {
             username: SERVICE_ACCOUNT,
@@ -128,6 +202,29 @@ describe("schema migration runner", () => {
     ).rejects.toMatchObject({
       message: "preflight_failed",
       report: { counts: { completed: 0 }, failure: { vault: "reef-b" } },
+    });
+    expect(subject.readSchemaVersion).not.toHaveBeenCalled();
+    expect(subject.applyPhase).not.toHaveBeenCalled();
+    expect(subject.ensureTables).not.toHaveBeenCalled();
+  });
+
+  it("fails preflight for a durable skill stamp without a completed Reef marker", async () => {
+    const subject = runtime({
+      inspectWorkspace: vi.fn().mockImplementation(async (vault: string) => ({
+        isReef: vault !== "raw",
+        initializationPending: vault === "raw",
+        members: [{ username: SERVICE_ACCOUNT, role: "writer" }],
+      })),
+    });
+
+    await expect(
+      runSchemaMigrations({
+        runtime: subject,
+        serviceAccount: SERVICE_ACCOUNT,
+      }),
+    ).rejects.toMatchObject({
+      message: "preflight_failed",
+      report: { failure: { vault: "raw" } },
     });
     expect(subject.readSchemaVersion).not.toHaveBeenCalled();
     expect(subject.applyPhase).not.toHaveBeenCalled();

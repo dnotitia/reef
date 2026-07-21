@@ -13,6 +13,13 @@ import { readAkbErrorResponse } from "./errorResponse";
 
 const tracer = trace.getTracer("@reef/core");
 
+/** Codes whose exact value is required for service-side control flow. */
+export function sanitizeCredentialSafeAkbCode(
+  code: string | undefined,
+): string | undefined {
+  return code === "undefined_table" ? code : undefined;
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type AkbFetchBody = Exclude<
@@ -22,6 +29,8 @@ type AkbFetchBody = Exclude<
 
 export interface AkbAdapter {
   request: AkbRequest;
+  /** Upstream-controlled error text must not escape this adapter boundary. */
+  credentialSafeErrors?: boolean;
 }
 
 export type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
@@ -162,7 +171,7 @@ function translateAkbHttpError(
   if (status === 422) {
     throw new SchemaValidationError({ issues: [message] });
   }
-  throw new AkbApiError({ status, message });
+  throw new AkbApiError({ status, message, code });
 }
 
 function filenameFromContentDisposition(header: string | null): string | null {
@@ -208,7 +217,11 @@ function makeRequest(
         try {
           response = await fetch(url, { method, headers, body });
         } catch (err) {
-          const error = err instanceof Error ? err : new Error("Network error");
+          const error = credentialSafeErrors
+            ? new Error("akb_network_error")
+            : err instanceof Error
+              ? err
+              : new Error("Network error");
           span.recordException(error);
           span.setStatus({
             code: SpanStatusCode.ERROR,
@@ -236,7 +249,9 @@ function makeRequest(
             credentialSafeErrors
               ? `akb_upstream_error_${response.status}`
               : error.message,
-            error.code,
+            credentialSafeErrors
+              ? sanitizeCredentialSafeAkbCode(error.code)
+              : error.code,
             init.resource,
           );
         }
@@ -303,5 +318,6 @@ export function createAkbServiceAdapter({
 }): AkbAdapter {
   return {
     request: makeRequest(baseUrl, serviceKey, { credentialSafeErrors: true }),
+    credentialSafeErrors: true,
   };
 }

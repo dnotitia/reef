@@ -16,7 +16,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json && esbuild src/cli.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/cli.mjs",
-    "dev:wrapper": "node --env-file-if-exists=../../.env.migration.local --import tsx src/dev.ts",
+    "dev:wrapper": "node --env-file-if-exists=../../.env.migration.local --import tsx scripts/dev.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

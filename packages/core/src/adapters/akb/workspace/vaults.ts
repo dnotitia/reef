@@ -207,6 +207,20 @@ export async function restoreVaultMigrationWriter(
   const { adapter, vault, previousRole } = params;
   const username = params.username.trim();
   if (previousRole === "writer") return;
+  let currentRole: string | undefined = "writer";
+  try {
+    const { members } = await listVaultMembers({ adapter, vault });
+    currentRole = members.find((member) => member.username === username)?.role;
+  } catch {
+    // The runbook excludes concurrent membership administration. If this
+    // defensive read is unavailable, continue the original compensation so a
+    // transient GET failure cannot strand the writer grant.
+  }
+  // Do not overwrite a newer direct membership edit. AKB's pinned grant API
+  // has no compare-and-set token, so compensation is limited to the exact
+  // writer state Reef installed and the deployment runbook excludes concurrent
+  // membership administration during this short critical section.
+  if (currentRole !== "writer") return;
   if (previousRole === "reader") {
     await grantVaultMember({
       adapter,

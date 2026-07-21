@@ -13,12 +13,20 @@ Reef workspaces. Configure its non-secret username as
 `REEF_AKB_MIGRATION_SERVICE_ACCOUNT`; keep the key in
 `REEF_AKB_MIGRATION_SERVICE_KEY`.
 
-New workspaces register and read back the writer membership with the creating
-owner's user JWT before the Reef config marker is written. The web process needs
-the username but never the service key. If skill installation or marker writing
-fails, Reef restores the account's prior membership (or revokes the new grant)
-before returning the initialization failure; retrying registration remains
-idempotent.
+New workspaces install the Reef vault skill first, then register and read back
+the writer membership with the creating owner's user JWT, and only then write
+the Reef config marker. The skill stamp is the durable incomplete-initialization
+signal if later grant compensation is ambiguous; startup fails instead of
+silently skipping that vault. The web process needs the username but never the
+service key. If marker writing fails, Reef restores the account's prior
+membership (or revokes the new grant) before returning the initialization
+failure; retrying registration remains idempotent.
+
+Do not add, remove, or change the migration account's membership while a
+workspace initialization request is running. The pinned AKB grant API has no
+compare-and-set token; Reef re-reads the role before compensation and leaves a
+newer non-writer edit untouched, but the rollout still treats direct membership
+administration as an operator-serialized action.
 
 For existing workspaces, an owner or AKB administrator must backfill the writer
 membership before rollout. Read back the member list and confirm that the exact

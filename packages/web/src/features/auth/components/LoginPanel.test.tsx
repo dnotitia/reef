@@ -4,15 +4,21 @@ import { render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const push = vi.fn();
-const refresh = vi.fn();
-const replace = vi.fn();
+const { push, refresh, replace, searchParamsState } = vi.hoisted(() => ({
+  push: vi.fn(),
+  refresh: vi.fn(),
+  replace: vi.fn(),
+  searchParamsState: { value: "" },
+}));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, refresh, replace }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(searchParamsState.value),
 }));
 
-import { recordAkbAccountDenial } from "@/lib/akb/accountDenialClient";
+import {
+  consumePendingAkbAccountError,
+  recordAkbAccountDenial,
+} from "@/lib/akb/accountDenialClient";
 import { LoginPanel } from "./LoginPanel";
 
 function renderWithQueryClient(ui: ReactElement) {
@@ -50,7 +56,36 @@ describe("LoginPanel", () => {
     push.mockClear();
     refresh.mockClear();
     replace.mockClear();
+    searchParamsState.value = "";
     sessionStorage.clear();
+  });
+
+  it("preserves redirect and password query state when restoring a denial", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(configResponse(false)));
+    searchParamsState.value = "redirect=%2Fissues&password=1";
+    recordAkbAccountDenial("membership_required");
+
+    renderWithQueryClient(<LoginPanel redirectTo="/issues" />);
+
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith(
+        "/login?redirect=%2Fissues&password=1&sso_error=membership_required",
+      ),
+    );
+  });
+
+  it("does not replace a newer explicit denial with stale session state", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(configResponse(false)));
+    searchParamsState.value = "sso_error=account_suspended&redirect=%2Fissues";
+    recordAkbAccountDenial("membership_required");
+
+    renderWithQueryClient(<LoginPanel redirectTo="/issues" />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("login-username")).toBeVisible(),
+    );
+    expect(replace).not.toHaveBeenCalled();
+    expect(consumePendingAkbAccountError()).toBeUndefined();
   });
 
   it("restores a pending account-denial query after a late plain-login redirect", async () => {

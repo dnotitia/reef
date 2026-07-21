@@ -241,6 +241,8 @@ export class GitHubApiError extends ReefError {
 export interface AkbApiErrorContext {
   status: number;
   message: string;
+  /** Stable upstream code safe for control flow; never raw response text. */
+  code?: string;
 }
 
 export class AkbApiError extends ReefError {

@@ -11,6 +11,7 @@ import {
   getAuthConfig,
   getCurrentActor,
   getMe,
+  listAuthTokens,
   login,
   startKeycloakLogin,
   startKeycloakLogout,
@@ -573,6 +574,46 @@ describe("akb auth adapter", () => {
       await expect(
         getMe({ adapter: makeTestAkbAdapter() }),
       ).rejects.toBeInstanceOf(AuthError);
+    });
+  });
+
+  describe("listAuthTokens", () => {
+    it("returns validated non-secret token metadata", async () => {
+      const token = {
+        token_id: "018f47a4-8e3b-7f62-a3d2-9876543210ab",
+        prefix: "akb_secret_x",
+        scopes: ["read", "write"],
+        key_class: "service",
+      };
+      const { calls } = setupFetch([
+        { status: 200, body: { tokens: [token] } },
+      ]);
+
+      await expect(
+        listAuthTokens({ adapter: makeTestAkbAdapter() }),
+      ).resolves.toEqual({ tokens: [token] });
+      expect(calls[0]?.url).toBe("https://akb.test/api/v1/auth/tokens");
+    });
+
+    it("rejects malformed or unknown token scopes", async () => {
+      setupFetch([
+        {
+          status: 200,
+          body: {
+            tokens: [
+              {
+                token_id: "018f47a4-8e3b-7f62-a3d2-9876543210ab",
+                prefix: "akb_secret_x",
+                scopes: ["owner"],
+                key_class: "service",
+              },
+            ],
+          },
+        },
+      ]);
+      await expect(
+        listAuthTokens({ adapter: makeTestAkbAdapter() }),
+      ).rejects.toThrow();
     });
   });
 

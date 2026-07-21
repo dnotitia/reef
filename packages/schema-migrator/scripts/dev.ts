@@ -6,8 +6,11 @@ import {
   MIGRATION_ONLY_ENV_KEYS,
   type MigrationConfig,
   loadMigrationConfig,
-} from "./config.js";
-import { createCoreMigrationRuntime, runSchemaMigrations } from "./runner.js";
+} from "../src/config.js";
+import {
+  createCoreMigrationRuntime,
+  runSchemaMigrations,
+} from "../src/runner.js";
 
 interface SpawnedProcess {
   once(event: "error", listener: () => void): this;
