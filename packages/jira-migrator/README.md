@@ -96,7 +96,10 @@ The package exports:
   then both accepted by the description precondition.
   Standard link mappings must resolve to exactly one configured rule;
   overlapping matches are isolated as ambiguous rather than selected by array
-  order.
+  order. Successful explicit standard-link and remote-link catalogs also
+  reconcile target relations/refs that disappeared or changed identity; an
+  omitted standard-link field or failed remote-link read is not treated as an
+  empty catalog.
 - Tenant field-catalog resolution, ADF-to-Markdown conversion, and immutable
   `JiraIssueImportPlan` builders that combine configurable enum policies,
   account mappings, planning bindings, parents, Rank, compact provenance, and

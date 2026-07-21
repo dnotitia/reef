@@ -24,7 +24,8 @@ and rerun the same input without duplicates.
    bindings.
 3. Rerun leaves target counts unchanged and reports readback/skipped entities.
    A changed Jira comment updates the existing Reef comment in place, and its
-   next unchanged rerun is skipped.
+   next unchanged rerun is skipped. Successful explicit link catalogs remove
+   standard relations and remote refs that disappeared or changed identity.
 4. An orphan reply, ambiguous media, attachment size mismatch, or unknown link
    is isolated while sibling entities continue.
 5. A comment with Jira visibility restrictions or the Jira Service Management

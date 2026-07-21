@@ -378,6 +378,9 @@ const makeTarget = () => {
           }
         : null;
     },
+    async listExternalRefKeys(prefix) {
+      return [...refs.keys()].filter((key) => key.startsWith(prefix)).sort();
+    },
     async deleteExternalRef(key) {
       refs.delete(key);
     },
@@ -1470,6 +1473,91 @@ describe("Jira related-data import stage", () => {
       ),
     ).toBe(false);
     expect(result.report.links.unresolved).toBe(1);
+  });
+
+  it("removes a relation whose Jira link disappears from an explicit catalog", async () => {
+    const state = makeTarget();
+    const base = {
+      jiraCloudId: "cloud-1",
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client: makeClient([]),
+      target: state.target,
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [{ typeId: "1", kind: "symmetric" as const }],
+      resolveIssueTarget: () => ({
+        reefId: "REEF-2",
+        documentUri: "akb://isolated/coll/issues/doc/reef-2.md",
+      }),
+      mode: "apply" as const,
+    };
+    const applied = await importJiraRelatedData({
+      ...base,
+      issue: issueFixture(),
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+    });
+    expect(state.relations.size).toBe(1);
+    const withoutLinks = issueFixture();
+    withoutLinks.fields.issuelinks = [];
+    const reconciled = await importJiraRelatedData({
+      ...base,
+      issue: withoutLinks,
+      ledger: applied.ledger,
+    });
+    expect(state.relations.size).toBe(0);
+    expect(
+      reconciled.ledger.bindings.some(
+        (binding) => binding.entity_kind === "relation",
+      ),
+    ).toBe(false);
+  });
+
+  it("removes remote refs that disappear from a successful catalog", async () => {
+    const state = makeTarget();
+    const client = makeClient([]);
+    const base = {
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client,
+      target: state.target,
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [{ typeId: "1", kind: "symmetric" as const }],
+      resolveIssueTarget: () => ({
+        reefId: "REEF-2",
+        documentUri: "akb://isolated/coll/issues/doc/reef-2.md",
+      }),
+      mode: "apply" as const,
+    };
+    const applied = await importJiraRelatedData({
+      ...base,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+    });
+    expect(state.refs.size).toBe(2);
+    client.listRemoteLinks = async () => ({
+      items: [],
+      rateLimit: {
+        limit: null,
+        remaining: null,
+        reset: null,
+        nearLimit: false,
+        retryAfterSeconds: null,
+      },
+      raw: [],
+    });
+    await importJiraRelatedData({ ...base, ledger: applied.ledger });
+    expect(state.refs.size).toBe(0);
   });
 
   it("keeps explicit and content-derived remote-link identities disjoint", async () => {

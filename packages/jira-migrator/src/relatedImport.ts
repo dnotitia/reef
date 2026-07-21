@@ -135,6 +135,7 @@ export interface JiraRelatedImportTarget {
     ref: ExternalRef;
     provenance: Record<string, unknown>;
   } | null>;
+  listExternalRefKeys(prefix: string): Promise<string[]>;
   deleteExternalRef(idempotencyKey: string): Promise<void>;
 }
 
@@ -1521,6 +1522,40 @@ export async function importJiraRelatedData(
     uniqueLinks.set(link.id, link);
   }
   report.links.unique = uniqueLinks.size;
+  if (input.mode === "apply" && input.issue.fields.issuelinks !== undefined) {
+    const missingRelationBindings = ledger.bindings.filter(
+      (binding) =>
+        binding.source_identity.entity_kind === "relation" &&
+        binding.source_identity.jira_cloud_id === input.jiraCloudId &&
+        binding.source_identity.source_issue_id === issue.id &&
+        !uniqueLinks.has(binding.source_identity.link_id),
+    );
+    for (const binding of missingRelationBindings) {
+      if (binding.source_identity.entity_kind !== "relation") continue;
+      const linkId = binding.source_identity.link_id;
+      try {
+        await removeStaleRelationBindings(linkId);
+        await reconcileProvisionalLinkRefs(
+          input.target,
+          input.jiraCloudId,
+          linkId,
+          [
+            binding.source_identity.source_issue_id,
+            binding.source_identity.target_issue_id,
+          ],
+        );
+      } catch (error) {
+        failure(
+          report.failures,
+          "link",
+          linkId,
+          String(error).includes("readback") ? "readback" : "write",
+          "link_source_reconciliation_failed",
+          error,
+        );
+      }
+    }
+  }
   for (const [linkId, link] of uniqueLinks) {
     try {
       const mappingMatches = input.linkMappings.filter((item) =>
@@ -1718,6 +1753,35 @@ export async function importJiraRelatedData(
     }
   }
 
+  const remotePrefix = `jira-remote:${input.jiraCloudId}:${issue.id}:`;
+  if (input.mode === "apply" && remoteRead.status === "fulfilled") {
+    const currentRemoteKeys = new Set(
+      remoteLinks.flatMap((remote) =>
+        remote.object.url
+          ? [`${remotePrefix}${canonicalRemoteLinkIdentity(remote)}`]
+          : [],
+      ),
+    );
+    for (const existingKey of await input.target.listExternalRefKeys(
+      remotePrefix,
+    )) {
+      if (currentRemoteKeys.has(existingKey)) continue;
+      try {
+        await input.target.deleteExternalRef(existingKey);
+        if ((await input.target.readExternalRef(existingKey)) !== null)
+          throw new Error("remote_link_delete_readback_mismatch");
+      } catch (error) {
+        failure(
+          report.failures,
+          "remote_link",
+          `sha256:${fingerprintJiraState(existingKey)}`,
+          String(error).includes("readback") ? "readback" : "write",
+          "remote_link_source_reconciliation_failed",
+          error,
+        );
+      }
+    }
+  }
   for (const remote of remoteLinks) {
     const remoteId = canonicalRemoteLinkIdentity(remote);
     const remoteReportId = `sha256:${fingerprintJiraState(remoteId)}`;
@@ -1734,7 +1798,7 @@ export async function importJiraRelatedData(
     }
     if (input.mode === "apply") {
       try {
-        const idempotencyKey = `jira-remote:${input.jiraCloudId}:${issue.id}:${remoteId}`;
+        const idempotencyKey = `${remotePrefix}${remoteId}`;
         const remoteValue = {
           reefId: input.reefId,
           ref: { type: "url" as const, url, label: remote.object.title },
