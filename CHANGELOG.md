@@ -23,10 +23,11 @@ explicitly in the entries below.
   plus attachments whose comment-level visibility cannot be explicitly
   attested complete, are isolated rather than published without their Jira
   access controls; reruns revoke already-imported comments and attachment bytes
-  when visibility becomes unsafe. Attachment buffering is bounded by
-  an operator-set byte limit in dry-run and apply. Legacy ADF media projections
-  remain eligible for option-aware reconciliation, so no AKB schema migration
-  or backfill is required. (REEF-320)
+  when visibility becomes unsafe, replace revoked file references with a stable
+  recoverable projection, and update edited Jira comments in place. Attachment
+  buffering is bounded by an operator-set byte limit in dry-run and apply.
+  Legacy ADF media projections remain eligible for option-aware reconciliation,
+  so no AKB schema migration or backfill is required. (REEF-320)
 
 - **Jira changelog histories can be planned as auditable Reef activity.** The
   migrator now verifies pre-normalization raw-history references, classifies

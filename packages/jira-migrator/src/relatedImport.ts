@@ -82,6 +82,10 @@ export interface JiraImportedAttachmentInput {
 
 export interface JiraRelatedImportTarget {
   createComment(input: JiraImportedCommentInput): Promise<Comment>;
+  updateComment(
+    commentId: string,
+    input: JiraImportedCommentInput,
+  ): Promise<Comment>;
   readComment(commentId: string): Promise<Comment | null>;
   findCommentByIdempotencyKey(idempotencyKey: string): Promise<Comment | null>;
   deleteComment(commentId: string): Promise<void>;
@@ -95,7 +99,12 @@ export interface JiraRelatedImportTarget {
     reefId: string,
     jiraAttachmentId: string,
   ): Promise<{ attachment: IssueAttachment; bytes: Uint8Array } | null>;
-  revokeAttachment(fileUri: string): Promise<void>;
+  revokeAttachment(input: {
+    reefId: string;
+    fileUri: string;
+    replacement: string;
+  }): Promise<void>;
+  hasMediaReference(reefId: string, fileUri: string): Promise<boolean>;
   readDescription(reefId: string): Promise<string>;
   updateDescription(reefId: string, markdown: string): Promise<void>;
   putRelation(input: {
@@ -158,6 +167,7 @@ export interface JiraRelatedImportReport {
     roots: number;
     replies: number;
     created: number;
+    updated: number;
     skipped: number;
     flat_fallback: 0;
   };
@@ -440,6 +450,9 @@ export const resolveJiraMediaReference = (
   return null;
 };
 
+const revokedAttachmentPlaceholder = (attachmentId: string): string =>
+  `\u{e002}jira-attachment-revoked:${encodeURIComponent(attachmentId)}\u{e003}`;
+
 const rewriteMedia = (
   adf: unknown,
   bindings: readonly AttachmentBinding[],
@@ -452,12 +465,14 @@ const rewriteMedia = (
   markdown: string;
   preRewriteMarkdown: string;
   legacyPreRewriteMarkdown: string;
+  revokedPreRewriteMarkdown: string;
   resolved: boolean;
   changed: boolean;
 } => {
   const converted = convertAdfToMarkdown(adf, conversionOptions);
   let markdown = converted.markdown;
   let legacyPreRewriteMarkdown = converted.markdown;
+  let revokedPreRewriteMarkdown = converted.markdown;
   let resolved = true;
   for (const media of converted.media) {
     legacyPreRewriteMarkdown = legacyPreRewriteMarkdown.replace(
@@ -486,6 +501,10 @@ const rewriteMedia = (
     markdown = markdown
       .split(media.placeholder)
       .join(resolution.binding.fileUri);
+    revokedPreRewriteMarkdown = revokedPreRewriteMarkdown.replace(
+      media.placeholder,
+      revokedAttachmentPlaceholder(resolution.binding.source.id),
+    );
     report.media.rewritten += 1;
     report.media.by_strategy[resolution.strategy] =
       (report.media.by_strategy[resolution.strategy] ?? 0) + 1;
@@ -494,6 +513,7 @@ const rewriteMedia = (
     markdown,
     preRewriteMarkdown: converted.markdown,
     legacyPreRewriteMarkdown,
+    revokedPreRewriteMarkdown,
     resolved,
     changed: markdown !== converted.markdown,
   };
@@ -547,6 +567,7 @@ const reportTemplate = (
     roots: 0,
     replies: 0,
     created: 0,
+    updated: 0,
     skipped: 0,
     flat_fallback: 0,
   },
@@ -677,9 +698,15 @@ export async function importJiraRelatedData(
       fileUris.add(binding.target.file_uri);
     if (recovered) fileUris.add(recovered.attachment.file_uri);
     for (const fileUri of fileUris) {
-      await input.target.revokeAttachment(fileUri);
+      await input.target.revokeAttachment({
+        reefId: input.reefId,
+        fileUri,
+        replacement: revokedAttachmentPlaceholder(attachmentId),
+      });
       if ((await input.target.readAttachment(fileUri)) !== null)
         throw new Error("attachment_revocation_readback_mismatch");
+      if (await input.target.hasMediaReference(input.reefId, fileUri))
+        throw new Error("attachment_reference_revocation_readback_mismatch");
     }
     ledger = removeJiraMigrationBindings(ledger, [identity.key]);
   };
@@ -1075,7 +1102,8 @@ export async function importJiraRelatedData(
       );
       if (
         existingDescription === description.preRewriteMarkdown ||
-        existingDescription === description.legacyPreRewriteMarkdown
+        existingDescription === description.legacyPreRewriteMarkdown ||
+        existingDescription === description.revokedPreRewriteMarkdown
       )
         await input.target.updateDescription(
           input.reefId,
@@ -1195,18 +1223,47 @@ export async function importJiraRelatedData(
       const existingTarget = getJiraCommentTargetId(ledger, identity);
       if (existingTarget) {
         const existing = await input.target.readComment(existingTarget);
-        if (!validCommentReadback(existing, commentInput))
-          throw new Error("comment_readback_mismatch");
-        report.comments.skipped += 1;
+        if (validCommentReadback(existing, commentInput)) {
+          report.comments.skipped += 1;
+          continue;
+        }
+        if (input.mode === "dry-run") {
+          report.comments.updated += 1;
+          continue;
+        }
+        await input.target.updateComment(existingTarget, commentInput);
+        const readback = await input.target.readComment(existingTarget);
+        if (!validCommentReadback(readback, commentInput))
+          throw new Error("comment_update_readback_mismatch");
+        ledger = confirmJiraMigrationBinding(ledger, {
+          sourceIdentity: identity,
+          target: { target_kind: "comment", comment_id: existingTarget },
+          sourceFingerprint: fingerprintJiraState(comment),
+          mappedStateFingerprint: fingerprintJiraState({
+            body: body.markdown,
+            author: actor.actor,
+            parent: parentTargetId,
+          }),
+          lastAppliedAt: now(),
+          writeSucceeded: true,
+          readbackSucceeded: true,
+        });
+        plannedCommentTargets.set(comment.id, existingTarget);
+        report.comments.updated += 1;
         continue;
       }
       const recovered = await input.target.findCommentByIdempotencyKey(
         identity.key,
       );
       if (recovered) {
-        if (!validCommentReadback(recovered, commentInput))
-          throw new Error("comment_readback_mismatch");
         plannedCommentTargets.set(comment.id, recovered.id);
+        const matches = validCommentReadback(recovered, commentInput);
+        if (!matches && input.mode === "apply") {
+          await input.target.updateComment(recovered.id, commentInput);
+          const readback = await input.target.readComment(recovered.id);
+          if (!validCommentReadback(readback, commentInput))
+            throw new Error("comment_update_readback_mismatch");
+        }
         if (input.mode === "apply") {
           ledger = confirmJiraMigrationBinding(ledger, {
             sourceIdentity: identity,
@@ -1222,7 +1279,8 @@ export async function importJiraRelatedData(
             readbackSucceeded: true,
           });
         }
-        report.comments.skipped += 1;
+        if (matches) report.comments.skipped += 1;
+        else report.comments.updated += 1;
         continue;
       }
       if (input.mode === "dry-run") {

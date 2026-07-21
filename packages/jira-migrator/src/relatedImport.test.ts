@@ -91,6 +91,7 @@ const makeClient = (
   commentMedia = false,
   restrictedComment = false,
   internalComment = false,
+  rootText = "root",
 ) =>
   new JiraReadClient({
     baseUrl: "https://example.atlassian.net",
@@ -137,7 +138,7 @@ const makeClient = (
                           content: [
                             {
                               type: "paragraph",
-                              content: [{ type: "text", text: "root" }],
+                              content: [{ type: "text", text: rootText }],
                             },
                           ],
                         },
@@ -232,12 +233,31 @@ const makeTarget = () => {
   >();
   const relations = new Map<string, unknown>();
   const refs = new Map<string, unknown>();
+  let nextFileId = 30001;
   let description = convertAdfToMarkdown(
     issueFixture().fields.description,
   ).markdown;
   const target: JiraRelatedImportTarget = {
     async createComment(input) {
       const id = input.parentCommentId ? replyId : rootId;
+      const parent = input.parentCommentId
+        ? comments.get(input.parentCommentId)
+        : null;
+      const comment = {
+        id,
+        reef_id: input.reefId,
+        body: input.body,
+        author: input.author,
+        created_at: input.createdAt,
+        edited_at: input.editedAt,
+        parent_comment_id: input.parentCommentId ?? null,
+        thread_root_id: parent ? (parent.thread_root_id ?? parent.id) : null,
+      };
+      comments.set(id, comment);
+      commentKeys.set(input.idempotencyKey, id);
+      return comment;
+    },
+    async updateComment(id, input) {
       const parent = input.parentCommentId
         ? comments.get(input.parentCommentId)
         : null;
@@ -266,7 +286,7 @@ const makeTarget = () => {
       comments.delete(id);
     },
     async createAttachment(input) {
-      const file_uri = "akb://isolated/coll/files/file/30001";
+      const file_uri = `akb://isolated/coll/files/file/${nextFileId++}`;
       const attachment = {
         id: attachmentRowId,
         reef_id: input.reefId,
@@ -296,8 +316,21 @@ const makeTarget = () => {
         ) ?? null
       );
     },
-    async revokeAttachment(fileUri) {
-      attachments.delete(fileUri);
+    async revokeAttachment(input) {
+      attachments.delete(input.fileUri);
+      description = description.split(input.fileUri).join(input.replacement);
+      for (const [id, comment] of comments) {
+        comments.set(id, {
+          ...comment,
+          body: comment.body.split(input.fileUri).join(input.replacement),
+        });
+      }
+    },
+    async hasMediaReference(_reefId, fileUri) {
+      return (
+        description.includes(fileUri) ||
+        [...comments.values()].some((comment) => comment.body.includes(fileUri))
+      );
     },
     async readDescription() {
       return description;
@@ -586,6 +619,50 @@ describe("Jira related-data import stage", () => {
     });
     expect(result.report.failures).toEqual([]);
     expect(state.description).toContain("akb://isolated/");
+  });
+
+  it("updates an edited Jira comment in place and then reruns idempotently", async () => {
+    const state = makeTarget();
+    const base = {
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      target: state.target,
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [] as const,
+      resolveIssueTarget: () => null,
+      mode: "apply" as const,
+    };
+    const applied = await importJiraRelatedData({
+      ...base,
+      client: makeClient([]),
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+    });
+
+    const updated = await importJiraRelatedData({
+      ...base,
+      client: makeClient([], false, false, false, false, false, "edited root"),
+      ledger: applied.ledger,
+    });
+    expect(updated.report.comments).toMatchObject({ updated: 1, skipped: 1 });
+    expect(state.comments.get(rootId)).toMatchObject({
+      id: rootId,
+      body: "edited root",
+    });
+
+    const rerun = await importJiraRelatedData({
+      ...base,
+      client: makeClient([], false, false, false, false, false, "edited root"),
+      ledger: updated.ledger,
+    });
+    expect(rerun.report.comments).toMatchObject({ updated: 0, skipped: 2 });
+    expect(state.comments.size).toBe(2);
   });
 
   it("isolates orphan replies, size mismatches, and unknown links", async () => {
@@ -893,6 +970,8 @@ describe("Jira related-data import stage", () => {
       }),
     });
     expect(state.attachments.size).toBe(1);
+    const originalFileUri = [...state.attachments.keys()][0];
+    expect(originalFileUri).toBeDefined();
 
     const restricted = await importJiraRelatedData({
       ...base,
@@ -906,11 +985,24 @@ describe("Jira related-data import stage", () => {
       expect.objectContaining({ reason: "attachment_size_limit_exceeded" }),
     );
     expect(state.attachments.size).toBe(0);
+    expect(state.description).not.toContain(originalFileUri);
     expect(
       restricted.ledger.bindings.some(
         (binding) => binding.entity_kind === "attachment",
       ),
     ).toBe(false);
+
+    const restored = await importJiraRelatedData({
+      ...base,
+      attachmentPolicy,
+      ledger: restricted.ledger,
+    });
+    expect(restored.report.failures).toEqual([]);
+    expect(state.attachments.size).toBe(1);
+    const replacementFileUri = [...state.attachments.keys()][0];
+    expect(replacementFileUri).not.toBe(originalFileUri);
+    expect(state.description).toContain(replacementFileUri);
+    expect(state.description).not.toContain("jira-attachment-revoked:");
   });
 
   it("reports and rewrites comment media consistently in dry-run and apply", async () => {

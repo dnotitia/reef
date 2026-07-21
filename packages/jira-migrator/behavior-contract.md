@@ -23,6 +23,8 @@ and rerun the same input without duplicates.
    rewritten file URIs, configured relations, external refs, and ledger
    bindings.
 3. Rerun leaves target counts unchanged and reports readback/skipped entities.
+   A changed Jira comment updates the existing Reef comment in place, and its
+   next unchanged rerun is skipped.
 4. An orphan reply, ambiguous media, attachment size mismatch, or unknown link
    is isolated while sibling entities continue.
 5. A comment with Jira visibility restrictions or the Jira Service Management
@@ -37,6 +39,9 @@ and rerun the same input without duplicates.
    removed. Previously imported comments missing from a later readable catalog,
    or present when that catalog read fails, are reconciled the same way, as are
    previously imported attachments absent from the later issue payload.
+   Attachment revocation also removes generated file references from imported
+   descriptions/comments; a later eligible rerun rewrites the stable revoked
+   projection to the newly stored file URI.
 
 ## Anti-Cheat Probes
 
