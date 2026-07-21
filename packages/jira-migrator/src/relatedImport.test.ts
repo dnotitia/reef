@@ -74,7 +74,11 @@ const issueFixture = (size = 3): JiraIssuePayload => ({
   },
 });
 
-const makeClient = (requests: string[], orphan = false) =>
+const makeClient = (
+  requests: string[],
+  orphan = false,
+  remoteFailure = false,
+) =>
   new JiraReadClient({
     baseUrl: "https://example.atlassian.net",
     projectKey: "DEMO",
@@ -136,6 +140,8 @@ const makeClient = (requests: string[], orphan = false) =>
               },
         );
       }
+      if (parsed.pathname.endsWith("/remotelink") && remoteFailure)
+        return new Response(null, { status: 403, statusText: "Forbidden" });
       if (parsed.pathname.endsWith("/remotelink"))
         return json([
           {
@@ -268,6 +274,8 @@ describe("Jira related-data import stage", () => {
           inward: "is required by",
           outward: "requires",
           kind: "directional" as const,
+          outwardRelation: "depends_on" as const,
+          inwardRelation: "blocks" as const,
         },
       ],
       resolveIssueTarget: (value: string) =>
@@ -316,6 +324,9 @@ describe("Jira related-data import stage", () => {
     expect(state.description).toContain("akb://isolated/");
     expect(state.attachments.size).toBe(1);
     expect(state.relations.size).toBe(1);
+    expect([...state.relations.values()][0]).toMatchObject({
+      relation: "depends_on",
+    });
     expect(state.refs.size).toBe(2);
 
     const rerun = await importJiraRelatedData({
@@ -376,6 +387,48 @@ describe("Jira related-data import stage", () => {
     );
     expect(result.report.links.unresolved).toBe(1);
     expect(state.refs.size).toBeGreaterThan(0);
+  });
+
+  it("isolates a remote-link catalog read failure from comments, attachments, and standard links", async () => {
+    const state = makeTarget();
+    const result = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      client: makeClient([], false, true),
+      target: state.target,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [
+        {
+          typeId: "1",
+          kind: "directional",
+          outwardRelation: "depends_on",
+          inwardRelation: "blocks",
+        },
+      ],
+      resolveIssueTarget: () => ({
+        reefId: "REEF-2",
+        documentUri: "akb://isolated/coll/issues/doc/reef-2.md",
+      }),
+      mode: "apply",
+    });
+
+    expect(result.report.failures).toContainEqual(
+      expect.objectContaining({
+        source_kind: "remote_link",
+        phase: "read",
+        reason: "remote_link_catalog_read_failed",
+      }),
+    );
+    expect(state.comments.size).toBe(2);
+    expect(state.attachments.size).toBe(1);
+    expect(state.relations.size).toBe(1);
   });
 });
 

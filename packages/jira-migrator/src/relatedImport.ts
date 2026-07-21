@@ -26,13 +26,22 @@ import { normalizeJiraIssue } from "./payloads.js";
 
 export type JiraRelationKind = "blocks" | "depends_on" | "related_to";
 
-export interface JiraLinkMapping {
+interface JiraLinkMappingMatch {
   typeId?: string;
   name?: string;
   inward?: string;
   outward?: string;
-  kind: "directional" | "symmetric";
 }
+
+export type JiraLinkMapping = JiraLinkMappingMatch &
+  (
+    | {
+        kind: "directional";
+        outwardRelation: "blocks" | "depends_on";
+        inwardRelation: "blocks" | "depends_on";
+      }
+    | { kind: "symmetric" }
+  );
 
 export interface JiraRelatedImportFailure {
   source_kind: "comment" | "attachment" | "media" | "link" | "remote_link";
@@ -312,11 +321,34 @@ export async function importJiraRelatedData(
 ): Promise<JiraRelatedImportResult> {
   const report = reportTemplate(input.mode);
   const issue = normalizeJiraIssue(input.issue);
-  const [commentsResult, remoteResult] = await Promise.all([
+  const [commentsRead, remoteRead] = await Promise.allSettled([
     input.client.readComments(issue.key),
     input.client.listRemoteLinks(issue.key),
   ]);
-  const comments = commentsResult.items;
+  const comments =
+    commentsRead.status === "fulfilled" ? commentsRead.value.items : [];
+  if (commentsRead.status === "rejected") {
+    failure(
+      report.failures,
+      "comment",
+      issue.id,
+      "read",
+      "comment_catalog_read_failed",
+      commentsRead.reason,
+    );
+  }
+  const remoteLinks =
+    remoteRead.status === "fulfilled" ? remoteRead.value.items : [];
+  if (remoteRead.status === "rejected") {
+    failure(
+      report.failures,
+      "remote_link",
+      issue.id,
+      "read",
+      "remote_link_catalog_read_failed",
+      remoteRead.reason,
+    );
+  }
   const attachments = issue.attachments;
   const links = issue.links;
   report.comments.total = comments.length;
@@ -326,7 +358,7 @@ export async function importJiraRelatedData(
   report.comments.replies = comments.length - report.comments.roots;
   report.attachments.total = attachments.length;
   report.links.entries = links.length;
-  report.remote_links.total = remoteResult.items.length;
+  report.remote_links.total = remoteLinks.length;
   let ledger = input.ledger;
   const attachmentBindings: AttachmentBinding[] = [];
   const plannedCommentTargets = new Map<string, string>();
@@ -608,8 +640,8 @@ export async function importJiraRelatedData(
         mapping.kind === "symmetric"
           ? "related_to"
           : link.direction === "outward"
-            ? "blocks"
-            : "depends_on";
+            ? mapping.outwardRelation
+            : mapping.inwardRelation;
       const identity = jiraRelationSourceIdentity(
         input.jiraCloudId,
         issue.id,
@@ -660,7 +692,7 @@ export async function importJiraRelatedData(
     }
   }
 
-  for (const remote of remoteResult.items) {
+  for (const remote of remoteLinks) {
     const remoteId = canonicalRemoteLinkIdentity(remote);
     const url = remote.object.url;
     if (!url) {
