@@ -555,11 +555,21 @@ export async function importJiraRelatedData(
   ]);
   const comments =
     commentsRead.status === "fulfilled" ? commentsRead.value.items : [];
+  const returnedCommentIds = new Set(comments.map((comment) => comment.id));
+  const missingCommentBindings = input.ledger.bindings.filter(
+    (binding) =>
+      binding.source_identity.entity_kind === "comment" &&
+      binding.source_identity.jira_cloud_id === input.jiraCloudId &&
+      binding.source_identity.issue_id === issue.id &&
+      (commentsRead.status === "rejected" ||
+        !returnedCommentIds.has(binding.source_identity.comment_id)),
+  );
   const attachmentVisibilityEstablished =
     input.attachmentPolicy?.commentVisibilityCompleteness === "verified" &&
     Number.isSafeInteger(input.attachmentPolicy.maxBytes) &&
     input.attachmentPolicy.maxBytes > 0 &&
     commentsRead.status === "fulfilled" &&
+    missingCommentBindings.length === 0 &&
     comments.every((comment) => jiraCommentVisibility(comment) === "safe");
   if (commentsRead.status === "rejected") {
     failure(
@@ -597,6 +607,34 @@ export async function importJiraRelatedData(
   const attachmentBindings: AttachmentBinding[] = [];
   const plannedCommentTargets = new Map<string, string>();
   const now = input.now ?? (() => new Date().toISOString());
+
+  if (input.mode === "apply") {
+    for (const binding of missingCommentBindings) {
+      const commentId =
+        binding.source_identity.entity_kind === "comment"
+          ? binding.source_identity.comment_id
+          : "missing";
+      try {
+        if (binding.target.target_kind === "comment") {
+          await input.target.deleteComment(binding.target.comment_id);
+          if (
+            (await input.target.readComment(binding.target.comment_id)) !== null
+          )
+            throw new Error("comment_catalog_revocation_readback_mismatch");
+        }
+        ledger = removeJiraMigrationBindings(ledger, [binding.source_key]);
+      } catch (error) {
+        failure(
+          report.failures,
+          "comment",
+          commentId,
+          String(error).includes("readback") ? "readback" : "write",
+          "comment_catalog_reconciliation_failed",
+          error,
+        );
+      }
+    }
+  }
 
   for (const attachment of attachments) {
     const identity = jiraAttachmentSourceIdentity(

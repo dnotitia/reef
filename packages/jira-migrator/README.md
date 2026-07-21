@@ -71,7 +71,9 @@ The package exports:
   their source ACL; missing or malformed expanded comment properties fail
   closed. If visibility becomes unsafe on a rerun, imported comments are
   deleted and attachment bytes are revoked with readback before their ledger
-  bindings are removed. Attachment import requires an
+  bindings are removed. The same reconciliation applies when a previously
+  imported comment disappears from the readable catalog or the catalog read
+  fails. Attachment import requires an
   explicit operator attestation that the comment catalog is complete plus a
   positive byte limit; without it, or when any comment restriction is visible,
   issue attachments are isolated because Jira does not expose a reliable

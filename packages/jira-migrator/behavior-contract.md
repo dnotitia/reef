@@ -34,7 +34,8 @@ and rerun the same input without duplicates.
 6. If a previously public Jira comment becomes restricted or comment
    completeness becomes unsafe on rerun, already-imported comments and
    attachment bytes are revoked with readback and their ledger bindings are
-   removed.
+   removed. Previously imported comments missing from a later readable catalog,
+   or present when that catalog read fails, are reconciled the same way.
 
 ## Anti-Cheat Probes
 

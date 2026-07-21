@@ -716,6 +716,54 @@ describe("Jira related-data import stage", () => {
     expect(state.attachments.size).toBe(0);
   });
 
+  it("revokes imported comments omitted from a later readable catalog", async () => {
+    const state = makeTarget();
+    const base = {
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      target: state.target,
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [] as const,
+      resolveIssueTarget: () => null,
+      mode: "apply" as const,
+    };
+    const applied = await importJiraRelatedData({
+      ...base,
+      client: makeClient([]),
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+    });
+    expect(state.comments.size).toBe(2);
+    expect(state.attachments.size).toBe(1);
+
+    const filteredClient = makeClient([]);
+    filteredClient.readComments = async () => ({
+      items: [],
+      pages: [],
+      rateLimits: [],
+    });
+    const reconciled = await importJiraRelatedData({
+      ...base,
+      client: filteredClient,
+      ledger: applied.ledger,
+    });
+    expect(state.comments.size).toBe(0);
+    expect(state.attachments.size).toBe(0);
+    expect(
+      reconciled.ledger.bindings.some(
+        (binding) =>
+          binding.entity_kind === "comment" ||
+          binding.entity_kind === "attachment",
+      ),
+    ).toBe(false);
+  });
+
   it("requires an explicit completeness attestation before attachment import", async () => {
     const requests: string[] = [];
     const state = makeTarget();
