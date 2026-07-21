@@ -86,6 +86,7 @@ export interface JiraRelatedImportTarget {
     sourceReefId: string;
     targetReefId: string;
     relation: JiraRelationKind;
+    inverseRelation: JiraRelationKind;
     provenance: Record<string, unknown>;
   }): Promise<void>;
   hasRelation(idempotencyKey: string): Promise<boolean>;
@@ -225,6 +226,33 @@ export type JiraMediaResolutionStrategy =
   | "sole_attachment"
   | "rendered_element"
   | "rendered_unique_filename";
+
+export const canonicalizeJiraRelation = (
+  mapping: JiraLinkMapping,
+  direction: NormalizedJiraIssueLink["direction"],
+  currentReefId: string,
+  linkedReefId: string,
+): {
+  sourceReefId: string;
+  targetReefId: string;
+  relation: JiraRelationKind;
+  inverseRelation: JiraRelationKind;
+} => {
+  if (mapping.kind === "symmetric") {
+    return {
+      sourceReefId: currentReefId,
+      targetReefId: linkedReefId,
+      relation: "related_to",
+      inverseRelation: "related_to",
+    };
+  }
+  return {
+    sourceReefId: direction === "outward" ? currentReefId : linkedReefId,
+    targetReefId: direction === "outward" ? linkedReefId : currentReefId,
+    relation: mapping.outwardRelation,
+    inverseRelation: mapping.inwardRelation,
+  };
+};
 
 export const resolveJiraMediaReference = (
   media: AdfMediaReference,
@@ -636,12 +664,13 @@ export async function importJiraRelatedData(
         continue;
       }
       if (input.mode === "dry-run") continue;
-      const relation: JiraRelationKind =
-        mapping.kind === "symmetric"
-          ? "related_to"
-          : link.direction === "outward"
-            ? mapping.outwardRelation
-            : mapping.inwardRelation;
+      const { relation, inverseRelation, sourceReefId, targetReefId } =
+        canonicalizeJiraRelation(
+          mapping,
+          link.direction,
+          input.reefId,
+          targetIssue.reefId,
+        );
       const identity = jiraRelationSourceIdentity(
         input.jiraCloudId,
         issue.id,
@@ -662,9 +691,10 @@ export async function importJiraRelatedData(
       }
       await input.target.putRelation({
         idempotencyKey: identity.key,
-        sourceReefId: input.reefId,
-        targetReefId: targetIssue.reefId,
+        sourceReefId,
+        targetReefId,
         relation,
+        inverseRelation,
         provenance: { source: "jira", link_id: linkId },
       });
       ledger = confirmJiraMigrationBinding(ledger, {
@@ -672,8 +702,10 @@ export async function importJiraRelatedData(
         target: { target_kind: "relation", idempotency_key: identity.key },
         sourceFingerprint: fingerprintJiraState(link),
         mappedStateFingerprint: fingerprintJiraState({
+          source: sourceReefId,
+          target: targetReefId,
           relation,
-          target: targetIssue.reefId,
+          inverseRelation,
         }),
         lastAppliedAt: now(),
         writeSucceeded: true,

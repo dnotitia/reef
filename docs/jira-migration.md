@@ -629,6 +629,9 @@ type triple (`id`, `name`, `inward`, `outward`) as directional or symmetric;
 tenant labels are not built into the package. Directional mappings explicitly
 declare the Reef relation for both the outward and inward side rather than
 inferring meaning from display labels; symmetric mappings produce `related_to`.
+The importer canonicalizes each directional edge as Jira outward endpoint to
+inward endpoint before applying both relations, so project traversal order
+cannot choose the stored orientation.
 Unknown or not-yet-migrated endpoints remain Jira external refs
 with reconciliation provenance. Remote links are a separate reader and use
 `globalId`, or a canonical content hash when absent, while preserving URL,

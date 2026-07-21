@@ -5,6 +5,7 @@ import { createJiraMigrationLedger } from "./ledger.js";
 import type { JiraIssuePayload, NormalizedJiraAttachment } from "./payloads.js";
 import {
   type JiraRelatedImportTarget,
+  canonicalizeJiraRelation,
   importJiraRelatedData,
   resolveJiraMediaReference,
 } from "./relatedImport.js";
@@ -325,7 +326,10 @@ describe("Jira related-data import stage", () => {
     expect(state.attachments.size).toBe(1);
     expect(state.relations.size).toBe(1);
     expect([...state.relations.values()][0]).toMatchObject({
+      sourceReefId: "REEF-1",
+      targetReefId: "REEF-2",
       relation: "depends_on",
+      inverseRelation: "blocks",
     });
     expect(state.refs.size).toBe(2);
 
@@ -496,5 +500,19 @@ describe("media crosswalk", () => {
         '<span data-media-services-id="m1" data-filename="b.bin"></span>',
       )?.strategy,
     ).toBe("rendered_unique_filename");
+  });
+});
+
+describe("directional link canonicalization", () => {
+  it("produces the same outward-to-inward edge from either endpoint view", () => {
+    const mapping = {
+      typeId: "1",
+      kind: "directional" as const,
+      outwardRelation: "depends_on" as const,
+      inwardRelation: "blocks" as const,
+    };
+    expect(
+      canonicalizeJiraRelation(mapping, "outward", "REEF-1", "REEF-2"),
+    ).toEqual(canonicalizeJiraRelation(mapping, "inward", "REEF-2", "REEF-1"));
   });
 });

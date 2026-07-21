@@ -196,6 +196,7 @@ export {
 } from "./payloads.js";
 export {
   importJiraRelatedData,
+  canonicalizeJiraRelation,
   resolveJiraMediaReference,
   type JiraImportedAttachmentInput,
   type JiraImportedCommentInput,
