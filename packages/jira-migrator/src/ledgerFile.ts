@@ -25,6 +25,8 @@ export type JiraMigrationLedgerFileErrorCode =
   | "permission_violation"
   | "symlink_not_allowed"
   | "lock_conflict"
+  | "write_precondition_required"
+  | "stale_ledger"
   | "secret_material_detected"
   | "external_acl_required"
   | "ledger_io_failed";
@@ -221,11 +223,13 @@ const writeFlushedExclusive = async (
 export const writeJiraMigrationLedger = async ({
   path,
   ledger,
+  expectedLedger,
   forbiddenSecretValues = [],
   externalAclAcknowledged = false,
 }: {
   path: string;
   ledger: JiraMigrationLedgerV1;
+  expectedLedger?: JiraMigrationLedgerV1;
   forbiddenSecretValues?: readonly string[];
   externalAclAcknowledged?: boolean;
 }): Promise<void> => {
@@ -237,18 +241,17 @@ export const writeJiraMigrationLedger = async ({
   const parsed = parseResult.success
     ? parseResult.data
     : fail("ledger_schema_invalid");
+  const expectedParseResult = expectedLedger
+    ? JiraMigrationLedgerV1Schema.safeParse(expectedLedger)
+    : null;
+  const parsedExpected = expectedParseResult?.success
+    ? expectedParseResult.data
+    : expectedParseResult
+      ? fail("ledger_schema_invalid")
+      : undefined;
   const absolutePath = resolve(path);
   const directory = dirname(absolutePath);
   await ensurePrivateDirectory(directory);
-
-  if (await pathExists(absolutePath)) {
-    await loadLedger({
-      path: absolutePath,
-      jiraCloudId: parsed.source_scope.jira_cloud_id,
-      targetVault: parsed.target_scope.vault,
-      allowLock: false,
-    });
-  }
 
   const lockPath = `${absolutePath}.lock`;
   const temporaryPath = `${absolutePath}.${randomUUID()}.tmp`;
@@ -262,6 +265,22 @@ export const writeJiraMigrationLedger = async ({
       fail("ledger_io_failed");
     }
     await assertPrivateNode(lockPath, "file");
+    const artifactExists = await pathExists(absolutePath);
+    const current = await loadLedger({
+      path: absolutePath,
+      jiraCloudId: parsed.source_scope.jira_cloud_id,
+      targetVault: parsed.target_scope.vault,
+      allowLock: true,
+    });
+    if (artifactExists && !parsedExpected) {
+      fail("write_precondition_required");
+    }
+    if (
+      parsedExpected &&
+      canonicalizeJson(current) !== canonicalizeJson(parsedExpected)
+    ) {
+      fail("stale_ledger");
+    }
     await writeFlushedExclusive(temporaryPath, canonicalizeJson(parsed));
     await assertPrivateNode(temporaryPath, "file");
     await rename(temporaryPath, absolutePath);

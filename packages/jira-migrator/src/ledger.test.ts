@@ -125,6 +125,18 @@ describe("Jira migration ledger", () => {
     expect(() =>
       confirmJiraMigrationBinding(ledger, {
         ...base,
+        sourceIdentity: issue,
+        target: {
+          document_uri: "akb://reef-target/coll/issues/doc/reef-900.md",
+          reef_id: "REEF-900",
+          target_kind: "issue",
+        },
+      }),
+    ).not.toThrow();
+
+    expect(() =>
+      confirmJiraMigrationBinding(ledger, {
+        ...base,
         sourceIdentity: jiraIssueSourceIdentity("cloud-1", "p-1", "i-2"),
         target: {
           target_kind: "issue",

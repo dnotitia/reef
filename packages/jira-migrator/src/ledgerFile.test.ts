@@ -1,7 +1,8 @@
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createJiraMigrationLedger } from "./ledger.js";
+import { fingerprintJiraState } from "./diff.js";
+import { createJiraMigrationLedger, openJiraMigrationRun } from "./ledger.js";
 import {
   JiraMigrationLedgerFileError,
   loadJiraMigrationLedger,
@@ -88,5 +89,47 @@ describe("Jira migration ledger file", () => {
         forbiddenSecretValues: ["hidden"],
       }),
     ).rejects.toBeInstanceOf(JiraMigrationLedgerFileError);
+  });
+
+  it("rejects a stale whole-ledger write after another writer commits", async () => {
+    const root = await import("node:fs/promises").then(({ mkdtemp }) =>
+      mkdtemp(join(process.env.TMPDIR ?? "/tmp", "reef-ledger-cas-")),
+    );
+    await chmod(root, 0o700);
+    const path = join(root, "ledger.json");
+    const initial = createJiraMigrationLedger(scope);
+    await writeJiraMigrationLedger({ path, ledger: initial });
+    const loaded = await loadJiraMigrationLedger({ path, ...scope });
+    const firstWriter = openJiraMigrationRun(loaded, {
+      runId: "run-first",
+      projectKeys: ["ALPHA"],
+      planFingerprint: fingerprintJiraState({ plan: "first" }),
+      at: "2026-07-21T00:00:00.000Z",
+    });
+    await writeJiraMigrationLedger({
+      path,
+      ledger: firstWriter,
+      expectedLedger: loaded,
+    });
+    const staleWriter = openJiraMigrationRun(loaded, {
+      runId: "run-stale",
+      projectKeys: ["BETA"],
+      planFingerprint: fingerprintJiraState({ plan: "stale" }),
+      at: "2026-07-21T00:00:01.000Z",
+    });
+
+    await expect(
+      writeJiraMigrationLedger({
+        path,
+        ledger: staleWriter,
+        expectedLedger: loaded,
+      }),
+    ).rejects.toMatchObject({ code: "stale_ledger" });
+    await expect(
+      writeJiraMigrationLedger({ path, ledger: firstWriter }),
+    ).rejects.toMatchObject({ code: "write_precondition_required" });
+    expect(await loadJiraMigrationLedger({ path, ...scope })).toEqual(
+      firstWriter,
+    );
   });
 });

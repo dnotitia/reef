@@ -490,9 +490,14 @@ Malformed JSON, a strict-schema error, unsupported version, scope mismatch,
 unsafe permissions, symlink, or sibling lock is a typed fail-closed error and
 must not be repaired by overwriting the file. `writeJiraMigrationLedger`
 rejects secret-like keys and configured secret values before its first write,
-takes an exclusive sibling lock, writes and flushes a private temporary file,
-renames it in the same directory, syncs the directory on POSIX, and immediately
-reloads the artifact for readback.
+takes an exclusive sibling lock, and then re-reads the current artifact. An
+update to an existing artifact must pass the value previously returned by
+`loadJiraMigrationLedger` as `expectedLedger`; a missing precondition fails with
+`write_precondition_required`, while an intervening committed write fails with
+`stale_ledger` instead of being overwritten. After that compare-and-swap check,
+the writer writes and flushes a private temporary file, renames it in the same
+directory, syncs the directory on POSIX, and immediately reloads the artifact
+for readback.
 
 Before apply, copy the unlocked ledger to a private backup and verify that the
 copy parses with the same Cloud and vault scopes. After interruption, preserve

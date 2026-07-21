@@ -574,24 +574,22 @@ export const confirmJiraMigrationBinding = (
   if (input.target.target_kind !== expectedTargetKind[identity.entity_kind]) {
     throw new JiraMigrationLedgerError("binding_target_conflict");
   }
-  const akbUri = targetAkbUri(input.target);
+  const target = JiraMigrationTargetSchema.parse(input.target);
+  const akbUri = targetAkbUri(target);
   if (akbUri && !akbUriBelongsToVault(akbUri, ledger.target_scope.vault)) {
     throw new JiraMigrationLedgerError("target_scope_mismatch");
   }
   const existing = ledger.bindings.find(
     (item) => item.source_key === identity.key,
   );
-  if (
-    existing &&
-    JSON.stringify(existing.target) !== JSON.stringify(input.target)
-  ) {
+  if (existing && JSON.stringify(existing.target) !== JSON.stringify(target)) {
     throw new JiraMigrationLedgerError("binding_target_conflict");
   }
   const binding = JiraMigrationBindingSchema.parse({
     source_key: identity.key,
     entity_kind: identity.entity_kind,
     source_identity: identity,
-    target: input.target,
+    target,
     source_fingerprint: input.sourceFingerprint,
     mapped_state_fingerprint: input.mappedStateFingerprint,
     last_applied_at: input.lastAppliedAt,

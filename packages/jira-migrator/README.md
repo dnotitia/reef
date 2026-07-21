@@ -109,8 +109,12 @@ artifact. Malformed JSON, an unsupported schema version, a Jira Cloud or target
 vault scope mismatch, invalid private permissions, or a sibling lock all stop
 the run with a typed safe error. `writeJiraMigrationLedger` validates the full
 strict schema and configured forbidden secret values before taking an exclusive
-sibling lock, flushing a private temporary file, atomically replacing the
-artifact, and reloading it for identity readback.
+sibling lock. For an existing artifact, pass the value returned by
+`loadJiraMigrationLedger` as `expectedLedger`; the writer re-reads and compares
+that precondition while holding the lock, rejecting a missing precondition or a
+stale writer with `write_precondition_required` or `stale_ledger`. It then
+flushes a private temporary file, atomically replaces the artifact, and reloads
+it for identity readback.
 
 Use the exported source-identity builders, `fingerprintJiraState`, and
 `classifyJiraMigrationDiff` for both dry-run and apply. Persist a binding with
