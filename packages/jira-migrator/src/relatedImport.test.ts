@@ -665,6 +665,62 @@ describe("Jira related-data import stage", () => {
     expect(state.comments.size).toBe(2);
   });
 
+  it("keeps an unknown comment commit discoverable until visibility revocation", async () => {
+    const state = makeTarget();
+    const createComment = state.target.createComment.bind(state.target);
+    const deleteComment = state.target.deleteComment.bind(state.target);
+    state.target.createComment = async (input) => {
+      await createComment(input);
+      throw new Error("simulated_unknown_commit");
+    };
+    state.target.deleteComment = async () => {
+      throw new Error("simulated_rollback_failure");
+    };
+    const base = {
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      target: state.target,
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [] as const,
+      resolveIssueTarget: () => null,
+      mode: "apply" as const,
+    };
+    const failed = await importJiraRelatedData({
+      ...base,
+      client: makeClient([]),
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+    });
+    expect(state.comments.size).toBe(2);
+    expect(
+      failed.ledger.bindings.some(
+        (binding) => binding.entity_kind === "comment",
+      ),
+    ).toBe(true);
+    expect(failed.report.failures).toContainEqual(
+      expect.objectContaining({ reason: "comment_import_failed" }),
+    );
+
+    state.target.deleteComment = deleteComment;
+    const revoked = await importJiraRelatedData({
+      ...base,
+      client: makeClient([], false, false, false, true),
+      ledger: failed.ledger,
+    });
+    expect(state.comments.size).toBe(0);
+    expect(
+      revoked.ledger.bindings.some(
+        (binding) => binding.entity_kind === "comment",
+      ),
+    ).toBe(false);
+  });
+
   it("isolates orphan replies, size mismatches, and unknown links", async () => {
     const requests: string[] = [];
     const client = makeClient(requests, true);
