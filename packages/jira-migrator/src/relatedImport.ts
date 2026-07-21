@@ -899,7 +899,7 @@ export async function importJiraRelatedData(
       if (!mapping || !targetIssue) {
         report.links.unresolved += 1;
         if (input.mode === "apply") {
-          const externalKey = `jira-link:${input.jiraCloudId}:${linkId}`;
+          const externalKey = `jira-link:${input.jiraCloudId}:${issue.id}:${linkId}`;
           const externalValue = {
             reefId: input.reefId,
             ref: {
@@ -1039,12 +1039,13 @@ export async function importJiraRelatedData(
 
   for (const remote of remoteLinks) {
     const remoteId = canonicalRemoteLinkIdentity(remote);
+    const remoteReportId = `sha256:${fingerprintJiraState(remoteId)}`;
     const url = remote.object.url;
     if (!url) {
       failure(
         report.failures,
         "remote_link",
-        remoteId,
+        remoteReportId,
         "resolve",
         "remote_link_url_missing",
       );
@@ -1087,7 +1088,7 @@ export async function importJiraRelatedData(
         failure(
           report.failures,
           "remote_link",
-          remoteId,
+          remoteReportId,
           String(error).includes("readback") ? "readback" : "write",
           "remote_link_import_failed",
           error,

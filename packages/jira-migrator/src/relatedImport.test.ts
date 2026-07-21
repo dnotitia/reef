@@ -22,7 +22,10 @@ const attachmentRowId = "33333333-3333-4333-8333-333333333333";
 const issueFixture = (size = 3): JiraIssuePayload => ({
   id: "10001",
   key: "DEMO-1",
-  renderedFields: { description: "" },
+  renderedFields: {
+    description:
+      '<span data-media-services-id="media-1" href="/attachment/30001/sample.dat"></span>',
+  },
   fields: {
     summary: "Migration fixture",
     project: { id: "10", key: "DEMO" },
@@ -538,7 +541,7 @@ describe("Jira related-data import stage", () => {
       rewritten: 2,
       unresolved: 0,
     });
-    expect(dryRun.report.media.by_strategy.rendered_element).toBe(1);
+    expect(dryRun.report.media.by_strategy.rendered_element).toBe(2);
     expect(state.comments.size).toBe(0);
 
     const applied = await importJiraRelatedData({ ...base, mode: "apply" });
