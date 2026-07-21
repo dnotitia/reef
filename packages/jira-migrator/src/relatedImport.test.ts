@@ -768,6 +768,17 @@ describe("Jira related-data import stage", () => {
     expect(state.comments.size).toBe(2);
     expect(state.attachments.size).toBe(1);
 
+    const deleteComment = state.target.deleteComment.bind(state.target);
+    state.target.deleteComment = async (commentId) => {
+      if (
+        [...state.comments.values()].some(
+          (comment) => comment.parent_comment_id === commentId,
+        )
+      )
+        throw new Error("comment_has_replies");
+      await deleteComment(commentId);
+    };
+
     const filteredClient = makeClient([]);
     filteredClient.readComments = async () => ({
       items: [],

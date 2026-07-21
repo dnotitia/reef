@@ -701,36 +701,51 @@ export async function importJiraRelatedData(
   );
 
   if (input.mode === "apply") {
-    for (const commentId of unsafeCommentRevokeOrder) {
-      const identity = jiraCommentSourceIdentity(
-        input.jiraCloudId,
-        issue.id,
-        commentId,
-      );
-      try {
-        const binding = ledger.bindings.find(
-          (candidate) => candidate.source_key === identity.key,
-        );
-        const recovered = await input.target.findCommentByIdempotencyKey(
-          identity.key,
-        );
-        await revokeCommentTargets(input.target, [
-          binding?.target.target_kind === "comment"
-            ? binding.target.comment_id
-            : null,
-          recovered?.id,
-        ]);
-        ledger = removeJiraMigrationBindings(ledger, [identity.key]);
-      } catch (error) {
-        failure(
-          report.failures,
-          "comment",
+    let pendingCommentRevocations = unsafeCommentRevokeOrder;
+    const commentRevocationErrors = new Map<string, unknown>();
+    while (pendingCommentRevocations.length > 0) {
+      const retry: string[] = [];
+      let progress = false;
+      for (const commentId of pendingCommentRevocations) {
+        const identity = jiraCommentSourceIdentity(
+          input.jiraCloudId,
+          issue.id,
           commentId,
-          String(error).includes("readback") ? "readback" : "write",
-          "comment_catalog_reconciliation_failed",
-          error,
         );
+        try {
+          const binding = ledger.bindings.find(
+            (candidate) => candidate.source_key === identity.key,
+          );
+          const recovered = await input.target.findCommentByIdempotencyKey(
+            identity.key,
+          );
+          await revokeCommentTargets(input.target, [
+            binding?.target.target_kind === "comment"
+              ? binding.target.comment_id
+              : null,
+            recovered?.id,
+          ]);
+          ledger = removeJiraMigrationBindings(ledger, [identity.key]);
+          commentRevocationErrors.delete(commentId);
+          progress = true;
+        } catch (error) {
+          commentRevocationErrors.set(commentId, error);
+          retry.push(commentId);
+        }
       }
+      pendingCommentRevocations = retry;
+      if (!progress) break;
+    }
+    for (const commentId of pendingCommentRevocations) {
+      const error = commentRevocationErrors.get(commentId);
+      failure(
+        report.failures,
+        "comment",
+        commentId,
+        String(error).includes("readback") ? "readback" : "write",
+        "comment_catalog_reconciliation_failed",
+        error,
+      );
     }
 
     for (const binding of missingAttachmentBindings) {
