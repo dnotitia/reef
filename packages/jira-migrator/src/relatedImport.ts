@@ -679,14 +679,41 @@ export async function importJiraRelatedData(
     input.client.readComments(issue.key),
     input.client.listRemoteLinks(issue.key),
   ]);
-  const comments =
+  const returnedComments =
     commentsRead.status === "fulfilled" ? commentsRead.value.items : [];
-  const returnedCommentIds = new Set(comments.map((comment) => comment.id));
+  const commentsById = new Map<string, JiraCommentPayload>();
+  const conflictingCommentIds = new Set<string>();
+  for (const comment of returnedComments) {
+    if (conflictingCommentIds.has(comment.id)) continue;
+    const existing = commentsById.get(comment.id);
+    if (
+      existing &&
+      fingerprintJiraState(existing) !== fingerprintJiraState(comment)
+    ) {
+      commentsById.delete(comment.id);
+      conflictingCommentIds.add(comment.id);
+      failure(
+        report.failures,
+        "comment",
+        comment.id,
+        "resolve",
+        "jira_comment_duplicate_conflict",
+      );
+      continue;
+    }
+    commentsById.set(comment.id, comment);
+  }
+  const comments = [...commentsById.values()];
+  const returnedCommentIds = new Set(
+    returnedComments.map((comment) => comment.id),
+  );
   const unsafeVisibilityCommentIds = new Set(
-    comments
+    returnedComments
       .filter((comment) => jiraCommentVisibility(comment) !== "safe")
       .map((comment) => comment.id),
   );
+  for (const commentId of conflictingCommentIds)
+    unsafeVisibilityCommentIds.add(commentId);
   const safeReturnedCommentIds = new Set(
     comments
       .filter(
@@ -719,6 +746,7 @@ export async function importJiraRelatedData(
         ? [binding.source_identity.comment_id]
         : [],
     ),
+    ...unsafeVisibilityCommentIds,
     ...ledger.comment_quarantines.flatMap((quarantine) =>
       quarantine.jira_cloud_id === input.jiraCloudId &&
       quarantine.issue_id === issue.id &&
@@ -797,8 +825,7 @@ export async function importJiraRelatedData(
       (binding.source_identity.issue_id === undefined ||
         binding.source_identity.issue_id === issue.id) &&
       (!attachmentAclEstablished ||
-        (!attachmentBytePolicyInvalid &&
-          attachmentCatalogPresent &&
+        (attachmentCatalogPresent &&
           !returnedAttachmentIds.has(binding.source_identity.attachment_id))),
   );
   report.comments.total = comments.length;

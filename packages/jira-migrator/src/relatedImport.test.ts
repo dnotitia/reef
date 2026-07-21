@@ -1004,7 +1004,7 @@ describe("Jira related-data import stage", () => {
     expect(state.attachments.size).toBe(0);
   });
 
-  it("fails closed on duplicate comment ids with conflicting visibility", async () => {
+  it("fails closed on conflicting duplicate comment ids", async () => {
     const state = makeTarget();
     const client = makeClient([]);
     const body = {
@@ -1022,9 +1022,16 @@ describe("Jira related-data import stage", () => {
         { id: "50001", body, properties: [] },
         {
           id: "50001",
-          body,
+          body: {
+            ...body,
+            content: [
+              {
+                type: "paragraph",
+                content: [{ type: "text", text: "conflicting duplicate" }],
+              },
+            ],
+          },
           properties: [],
-          visibility: { type: "role", identifier: "restricted-role" },
         },
       ],
       pages: [],
@@ -1050,7 +1057,7 @@ describe("Jira related-data import stage", () => {
     });
     expect(state.comments.size).toBe(0);
     expect(result.report.failures).toContainEqual(
-      expect.objectContaining({ reason: "comment_visibility_restricted" }),
+      expect.objectContaining({ reason: "jira_comment_duplicate_conflict" }),
     );
     client.readComments = async () => ({
       items: [],
@@ -1295,6 +1302,48 @@ describe("Jira related-data import stage", () => {
         reason: "attachment_source_reconciliation_failed",
       }),
     );
+  });
+
+  it("reconciles an explicitly missing attachment despite an invalid byte policy", async () => {
+    const state = makeTarget();
+    const base = {
+      jiraCloudId: "cloud-1",
+      reefId: "REEF-1",
+      client: makeClient([]),
+      target: state.target,
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [] as const,
+      resolveIssueTarget: () => null,
+      mode: "apply" as const,
+    };
+    const applied = await importJiraRelatedData({
+      ...base,
+      issue: issueFixture(),
+      attachmentPolicy,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+    });
+    const withoutAttachments = issueFixture();
+    withoutAttachments.fields.attachment = [];
+    const reconciled = await importJiraRelatedData({
+      ...base,
+      issue: withoutAttachments,
+      attachmentPolicy: {
+        commentVisibilityCompleteness: "verified",
+        maxBytes: 256 * 1024 * 1024 + 1,
+      },
+      ledger: applied.ledger,
+    });
+    expect(state.attachments.size).toBe(0);
+    expect(
+      reconciled.ledger.bindings.some(
+        (binding) => binding.entity_kind === "attachment",
+      ),
+    ).toBe(false);
   });
 
   it("does not revoke a recovered attachment owned by another Jira cloud", async () => {
