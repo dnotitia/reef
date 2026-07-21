@@ -364,6 +364,19 @@ export const resolveJiraMediaReference = (
   binding: AttachmentBinding;
   strategy: JiraMediaResolutionStrategy;
 } | null => {
+  const hint = renderedHints(renderedHtml).get(media.mediaId);
+  if (hint?.attachmentId) {
+    const candidates = sourceAttachments.filter(
+      (item) => item.id === hint.attachmentId,
+    );
+    if (candidates.length === 1) {
+      const binding = attachments.find(
+        (item) => item.source.id === candidates[0]?.id,
+      );
+      return binding ? { binding, strategy: "rendered_element" } : null;
+    }
+    if (candidates.length > 1) return null;
+  }
   if (media.filename) {
     const candidates = sourceAttachments.filter(
       (item) => item.filename === media.filename,
@@ -381,20 +394,7 @@ export const resolveJiraMediaReference = (
     );
     return binding ? { binding, strategy: "sole_attachment" } : null;
   }
-  const hint = renderedHints(renderedHtml).get(media.mediaId);
   if (!hint) return null;
-  if (hint.attachmentId) {
-    const candidates = sourceAttachments.filter(
-      (item) => item.id === hint.attachmentId,
-    );
-    if (candidates.length === 1) {
-      const binding = attachments.find(
-        (item) => item.source.id === candidates[0]?.id,
-      );
-      return binding ? { binding, strategy: "rendered_element" } : null;
-    }
-    if (candidates.length > 1) return null;
-  }
   if (hint.filename) {
     const candidates = sourceAttachments.filter(
       (item) => item.filename === hint.filename,
@@ -605,21 +605,23 @@ export async function importJiraRelatedData(
           source: attachment,
           fileUri: recovered.attachment.file_uri,
         });
-        ledger = confirmJiraMigrationBinding(ledger, {
-          sourceIdentity: identity,
-          target: {
-            target_kind: "attachment",
-            file_uri: recovered.attachment.file_uri,
-          },
-          sourceFingerprint: fingerprintJiraState(attachment),
-          mappedStateFingerprint: fingerprintJiraState({
-            file_uri: recovered.attachment.file_uri,
-            size: recovered.bytes.byteLength,
-          }),
-          lastAppliedAt: now(),
-          writeSucceeded: true,
-          readbackSucceeded: true,
-        });
+        if (input.mode === "apply") {
+          ledger = confirmJiraMigrationBinding(ledger, {
+            sourceIdentity: identity,
+            target: {
+              target_kind: "attachment",
+              file_uri: recovered.attachment.file_uri,
+            },
+            sourceFingerprint: fingerprintJiraState(attachment),
+            mappedStateFingerprint: fingerprintJiraState({
+              file_uri: recovered.attachment.file_uri,
+              size: recovered.bytes.byteLength,
+            }),
+            lastAppliedAt: now(),
+            writeSucceeded: true,
+            readbackSucceeded: true,
+          });
+        }
         report.attachments.skipped += 1;
         continue;
       }
