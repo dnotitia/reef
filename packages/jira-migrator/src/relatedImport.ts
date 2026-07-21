@@ -577,12 +577,36 @@ export async function importJiraRelatedData(
       (commentsRead.status === "rejected" ||
         !returnedCommentIds.has(binding.source_identity.comment_id)),
   );
+  const unsafeCommentIds = new Set(
+    missingCommentBindings.flatMap((binding) =>
+      binding.source_identity.entity_kind === "comment"
+        ? [binding.source_identity.comment_id]
+        : [],
+    ),
+  );
+  for (const comment of comments) {
+    if (
+      jiraCommentVisibility(comment) !== "safe" ||
+      (comment.parentId !== null &&
+        comment.parentId !== undefined &&
+        !returnedCommentIds.has(comment.parentId))
+    )
+      unsafeCommentIds.add(comment.id);
+  }
+  let unsafeCommentCount = -1;
+  while (unsafeCommentCount !== unsafeCommentIds.size) {
+    unsafeCommentCount = unsafeCommentIds.size;
+    for (const comment of comments) {
+      if (comment.parentId && unsafeCommentIds.has(comment.parentId))
+        unsafeCommentIds.add(comment.id);
+    }
+  }
   const attachmentVisibilityEstablished =
     input.attachmentPolicy?.commentVisibilityCompleteness === "verified" &&
     Number.isSafeInteger(input.attachmentPolicy.maxBytes) &&
     input.attachmentPolicy.maxBytes > 0 &&
     commentsRead.status === "fulfilled" &&
-    missingCommentBindings.length === 0 &&
+    unsafeCommentIds.size === 0 &&
     comments.every((comment) => jiraCommentVisibility(comment) === "safe");
   if (commentsRead.status === "rejected") {
     failure(
@@ -632,7 +656,10 @@ export async function importJiraRelatedData(
   const plannedCommentTargets = new Map<string, string>();
   const now = input.now ?? (() => new Date().toISOString());
   const unsafeCommentSourceKeys = new Set(
-    missingCommentBindings.map((binding) => binding.source_key),
+    [...unsafeCommentIds].map(
+      (commentId) =>
+        jiraCommentSourceIdentity(input.jiraCloudId, issue.id, commentId).key,
+    ),
   );
   const revokeAttachmentBinding = async (
     identity: ReturnType<typeof jiraAttachmentSourceIdentity>,
@@ -656,24 +683,44 @@ export async function importJiraRelatedData(
     }
     ledger = removeJiraMigrationBindings(ledger, [identity.key]);
   };
+  const commentById = new Map(comments.map((comment) => [comment.id, comment]));
+  const commentDepth = (commentId: string): number => {
+    let depth = 0;
+    let current = commentById.get(commentId);
+    const visited = new Set<string>();
+    while (current?.parentId && !visited.has(current.parentId)) {
+      visited.add(current.parentId);
+      depth += 1;
+      current = commentById.get(current.parentId);
+    }
+    return depth;
+  };
+  const unsafeCommentRevokeOrder = [...unsafeCommentIds].sort(
+    (left, right) =>
+      commentDepth(right) - commentDepth(left) || left.localeCompare(right),
+  );
 
   if (input.mode === "apply") {
-    for (const binding of missingCommentBindings) {
-      const commentId =
-        binding.source_identity.entity_kind === "comment"
-          ? binding.source_identity.comment_id
-          : "missing";
+    for (const commentId of unsafeCommentRevokeOrder) {
+      const identity = jiraCommentSourceIdentity(
+        input.jiraCloudId,
+        issue.id,
+        commentId,
+      );
       try {
+        const binding = ledger.bindings.find(
+          (candidate) => candidate.source_key === identity.key,
+        );
         const recovered = await input.target.findCommentByIdempotencyKey(
-          binding.source_key,
+          identity.key,
         );
         await revokeCommentTargets(input.target, [
-          binding.target.target_kind === "comment"
+          binding?.target.target_kind === "comment"
             ? binding.target.comment_id
             : null,
           recovered?.id,
         ]);
-        ledger = removeJiraMigrationBindings(ledger, [binding.source_key]);
+        ledger = removeJiraMigrationBindings(ledger, [identity.key]);
       } catch (error) {
         failure(
           report.failures,
@@ -1060,28 +1107,6 @@ export async function importJiraRelatedData(
     const visibility = jiraCommentVisibility(comment);
     if (visibility !== "safe") {
       unsafeCommentSourceKeys.add(identity.key);
-      if (input.mode === "apply") {
-        try {
-          const boundTargetId = getJiraCommentTargetId(ledger, identity);
-          const recovered = await input.target.findCommentByIdempotencyKey(
-            identity.key,
-          );
-          await revokeCommentTargets(input.target, [
-            boundTargetId,
-            recovered?.id,
-          ]);
-          ledger = removeJiraMigrationBindings(ledger, [identity.key]);
-        } catch (error) {
-          failure(
-            report.failures,
-            "comment",
-            comment.id,
-            String(error).includes("readback") ? "readback" : "write",
-            "comment_visibility_revocation_failed",
-            error,
-          );
-        }
-      }
       failure(
         report.failures,
         "comment",
@@ -1109,28 +1134,6 @@ export async function importJiraRelatedData(
           null);
     if (parentSourceId !== null && parentTargetId === null) {
       unsafeCommentSourceKeys.add(identity.key);
-      if (input.mode === "apply") {
-        try {
-          const boundTargetId = getJiraCommentTargetId(ledger, identity);
-          const recovered = await input.target.findCommentByIdempotencyKey(
-            identity.key,
-          );
-          await revokeCommentTargets(input.target, [
-            boundTargetId,
-            recovered?.id,
-          ]);
-          ledger = removeJiraMigrationBindings(ledger, [identity.key]);
-        } catch (error) {
-          failure(
-            report.failures,
-            "comment",
-            comment.id,
-            String(error).includes("readback") ? "readback" : "write",
-            "comment_orphan_revocation_failed",
-            error,
-          );
-        }
-      }
       failure(
         report.failures,
         "comment",
@@ -1263,7 +1266,8 @@ export async function importJiraRelatedData(
       );
       const mapping =
         mappingMatches.length === 1 ? mappingMatches[0] : undefined;
-      if (mappingMatches.length > 1)
+      if (mappingMatches.length > 1) {
+        report.links.unresolved += 1;
         failure(
           report.failures,
           "link",
@@ -1271,6 +1275,8 @@ export async function importJiraRelatedData(
           "resolve",
           "jira_link_mapping_ambiguous",
         );
+        continue;
+      }
       const targetIssue = input.resolveIssueTarget(
         link.issueId ?? link.issueKey,
       );

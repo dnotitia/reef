@@ -620,7 +620,7 @@ describe("Jira related-data import stage", () => {
     });
     expect(result.report.failures.map((item) => item.reason)).toEqual(
       expect.arrayContaining([
-        "attachment_size_mismatch",
+        "attachment_visibility_unverifiable",
         "comment_parent_unresolved",
       ]),
     );
@@ -670,6 +670,16 @@ describe("Jira related-data import stage", () => {
       expect.objectContaining({ reason: "comment_parent_unresolved" }),
     );
     expect(dryRestricted.report.comments.skipped).toBe(0);
+    const deleteComment = state.target.deleteComment.bind(state.target);
+    state.target.deleteComment = async (commentId) => {
+      if (
+        [...state.comments.values()].some(
+          (comment) => comment.parent_comment_id === commentId,
+        )
+      )
+        throw new Error("comment_has_replies");
+      await deleteComment(commentId);
+    };
     requests.length = 0;
 
     const result = await importJiraRelatedData({
@@ -995,20 +1005,35 @@ describe("Jira related-data import stage", () => {
 
   it("isolates ambiguous link mappings instead of using array order", async () => {
     const state = makeTarget();
-    const result = await importJiraRelatedData({
+    const base = {
       jiraCloudId: "cloud-1",
       issue: issueFixture(),
       reefId: "REEF-1",
       attachmentPolicy,
       client: makeClient([]),
       target: state.target,
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      resolveIssueTarget: () => ({
+        reefId: "REEF-2",
+        documentUri: "akb://isolated/coll/issues/doc/reef-2.md",
+      }),
+      mode: "apply" as const,
+    };
+    const applied = await importJiraRelatedData({
+      ...base,
       ledger: createJiraMigrationLedger({
         jiraCloudId: "cloud-1",
         targetVault: "isolated",
       }),
-      accountMapping: createJiraAccountMappingArtifact({
-        jiraCloudId: "cloud-1",
-      }),
+      linkMappings: [{ typeId: "1", kind: "symmetric" }],
+    });
+    expect(state.relations.size).toBe(1);
+
+    const result = await importJiraRelatedData({
+      ...base,
+      ledger: applied.ledger,
       linkMappings: [
         { typeId: "1", kind: "symmetric" },
         {
@@ -1018,16 +1043,11 @@ describe("Jira related-data import stage", () => {
           inwardRelation: "blocks",
         },
       ],
-      resolveIssueTarget: () => ({
-        reefId: "REEF-2",
-        documentUri: "akb://isolated/coll/issues/doc/reef-2.md",
-      }),
-      mode: "apply",
     });
     expect(result.report.failures).toContainEqual(
       expect.objectContaining({ reason: "jira_link_mapping_ambiguous" }),
     );
-    expect(state.relations.size).toBe(0);
+    expect(state.relations.size).toBe(1);
     expect(result.report.links.unresolved).toBe(1);
   });
 
