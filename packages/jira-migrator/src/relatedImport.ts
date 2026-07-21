@@ -62,6 +62,7 @@ export interface JiraImportedCommentInput {
 }
 
 export interface JiraImportedAttachmentInput {
+  idempotencyKey: string;
   reefId: string;
   filename: string;
   mimeType: string;
@@ -80,6 +81,10 @@ export interface JiraRelatedImportTarget {
   ): Promise<IssueAttachment>;
   readAttachment(
     fileUri: string,
+  ): Promise<{ attachment: IssueAttachment; bytes: Uint8Array } | null>;
+  findAttachmentByJiraId(
+    reefId: string,
+    jiraAttachmentId: string,
   ): Promise<{ attachment: IssueAttachment; bytes: Uint8Array } | null>;
   updateDescription(reefId: string, markdown: string): Promise<void>;
   putRelation(input: {
@@ -263,12 +268,25 @@ export const canonicalizeJiraRelation = (
     };
   }
   return {
-    sourceReefId: direction === "outward" ? currentReefId : linkedReefId,
-    targetReefId: direction === "outward" ? linkedReefId : currentReefId,
+    sourceReefId: direction === "outward" ? linkedReefId : currentReefId,
+    targetReefId: direction === "outward" ? currentReefId : linkedReefId,
     relation: mapping.outwardRelation,
     inverseRelation: mapping.inwardRelation,
   };
 };
+
+const validCommentReadback = (
+  readback: Comment | null,
+  expected: JiraImportedCommentInput,
+): boolean =>
+  readback !== null &&
+  readback.reef_id === expected.reefId &&
+  readback.body === expected.body &&
+  readback.author === expected.author &&
+  readback.created_at === expected.createdAt &&
+  readback.edited_at === expected.editedAt &&
+  readback.parent_comment_id === (expected.parentCommentId ?? null) &&
+  (expected.parentCommentId === undefined || readback.thread_root_id !== null);
 
 export const resolveJiraMediaReference = (
   media: AdfMediaReference,
@@ -432,6 +450,35 @@ export async function importJiraRelatedData(
         report.attachments.skipped += 1;
         continue;
       }
+      const recovered = await input.target.findAttachmentByJiraId(
+        input.reefId,
+        attachment.id,
+      );
+      if (recovered) {
+        if (!validAttachmentReadback(recovered, attachment))
+          throw new Error("attachment_readback_mismatch");
+        attachmentBindings.push({
+          source: attachment,
+          fileUri: recovered.attachment.file_uri,
+        });
+        ledger = confirmJiraMigrationBinding(ledger, {
+          sourceIdentity: identity,
+          target: {
+            target_kind: "attachment",
+            file_uri: recovered.attachment.file_uri,
+          },
+          sourceFingerprint: fingerprintJiraState(attachment),
+          mappedStateFingerprint: fingerprintJiraState({
+            file_uri: recovered.attachment.file_uri,
+            size: recovered.bytes.byteLength,
+          }),
+          lastAppliedAt: now(),
+          writeSucceeded: true,
+          readbackSucceeded: true,
+        });
+        report.attachments.skipped += 1;
+        continue;
+      }
       if (input.mode === "dry-run") {
         attachmentBindings.push({
           source: attachment,
@@ -451,6 +498,7 @@ export async function importJiraRelatedData(
         ? input.accountMapping.accounts[attachment.author.accountId]?.actor
         : null;
       const created = await input.target.createAttachment({
+        idempotencyKey: identity.key,
         reefId: input.reefId,
         filename: attachment.filename,
         mimeType:
@@ -564,11 +612,10 @@ export async function importJiraRelatedData(
       continue;
     }
     try {
-      const renderedComment = "";
       const body = rewriteMedia(
         comment.body,
         attachmentBindings,
-        renderedComment,
+        comment.renderedBody ?? "",
         report,
         comment.id,
       );
@@ -588,7 +635,7 @@ export async function importJiraRelatedData(
         artifact: input.accountMapping,
         directory: input.actorDirectory ?? [],
       });
-      const created = await input.target.createComment({
+      const commentInput: JiraImportedCommentInput = {
         reefId: input.reefId,
         body: body.markdown,
         author: actor.actor ?? "jira-import",
@@ -598,13 +645,11 @@ export async function importJiraRelatedData(
             ? comment.updated
             : null,
         ...(parentTargetId ? { parentCommentId: parentTargetId } : {}),
-      });
-      if (
-        parentTargetId &&
-        (created.parent_comment_id !== parentTargetId ||
-          !created.thread_root_id)
-      )
-        throw new Error("comment_thread_readback_mismatch");
+      };
+      const created = await input.target.createComment(commentInput);
+      const readback = await input.target.readComment(created.id);
+      if (!validCommentReadback(readback, commentInput))
+        throw new Error("comment_readback_mismatch");
       ledger = confirmJiraMigrationBinding(ledger, {
         sourceIdentity: identity,
         target: { target_kind: "comment", comment_id: created.id },
@@ -707,37 +752,43 @@ export async function importJiraRelatedData(
         link.direction,
         linkId,
       );
+      const mappedStateFingerprint = fingerprintJiraState({
+        source: sourceReefId,
+        target: targetReefId,
+        relation,
+        inverseRelation,
+      });
       const existingBinding = ledger.bindings.find(
         (item) =>
           item.source_key === identity.key || item.source_key === legacyKey,
       );
       if (
         existingBinding?.target.target_kind === "relation" &&
+        existingBinding.mapped_state_fingerprint === mappedStateFingerprint &&
         (await input.target.hasRelation(existingBinding.target.idempotency_key))
       ) {
         report.links.skipped += 1;
         continue;
       }
+      const relationKey =
+        existingBinding?.target.target_kind === "relation"
+          ? existingBinding.target.idempotency_key
+          : identity.key;
       await input.target.putRelation({
-        idempotencyKey: identity.key,
+        idempotencyKey: relationKey,
         sourceReefId,
         targetReefId,
         relation,
         inverseRelation,
         provenance: { source: "jira", link_id: linkId },
       });
-      if (!(await input.target.hasRelation(identity.key)))
+      if (!(await input.target.hasRelation(relationKey)))
         throw new Error("relation_readback_missing");
       ledger = confirmJiraMigrationBinding(ledger, {
-        sourceIdentity: identity,
-        target: { target_kind: "relation", idempotency_key: identity.key },
+        sourceIdentity: existingBinding?.source_identity ?? identity,
+        target: { target_kind: "relation", idempotency_key: relationKey },
         sourceFingerprint: fingerprintJiraState(link),
-        mappedStateFingerprint: fingerprintJiraState({
-          source: sourceReefId,
-          target: targetReefId,
-          relation,
-          inverseRelation,
-        }),
+        mappedStateFingerprint,
         lastAppliedAt: now(),
         writeSucceeded: true,
         readbackSucceeded: true,

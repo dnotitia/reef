@@ -275,7 +275,7 @@ export class JiraReadClient {
     const body = await this.getJson(issuePath(issueIdOrKey, "/comment"), {
       startAt: options.startAt ?? 0,
       maxResults: options.maxResults ?? 50,
-      expand: "properties",
+      expand: "properties,renderedBody",
     });
     const payload = JiraCommentPageSchema.parse(body.json);
     return {

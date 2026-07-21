@@ -218,6 +218,7 @@ export const JiraCommentSchema = z
     id: StringOrNumberAsStringSchema,
     parentId: JiraCommentParentIdSchema.nullable().optional(),
     body: z.unknown().optional(),
+    renderedBody: z.string().optional(),
     author: JiraUserSchema.optional(),
     created: z.string().optional(),
     updated: z.string().optional(),

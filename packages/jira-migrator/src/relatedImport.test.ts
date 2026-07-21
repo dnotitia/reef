@@ -114,7 +114,6 @@ const makeClient = (
                                   attrs: {
                                     id: "comment-media",
                                     type: "file",
-                                    alt: "sample.dat",
                                   },
                                 },
                               ],
@@ -131,6 +130,9 @@ const makeClient = (
                             },
                           ],
                         },
+                    renderedBody: commentMedia
+                      ? '<span data-media-services-id="comment-media" href="/attachment/30001/fixture">media</span>'
+                      : undefined,
                     author: { accountId: "acct-1" },
                     created: "2026-01-01T01:00:00.000Z",
                   },
@@ -246,6 +248,15 @@ const makeTarget = () => {
     async readAttachment(uri) {
       return attachments.get(uri) ?? null;
     },
+    async findAttachmentByJiraId(reefId, jiraAttachmentId) {
+      return (
+        [...attachments.values()].find(
+          ({ attachment }) =>
+            attachment.reef_id === reefId &&
+            attachment.original_jira_attachment_id === jiraAttachmentId,
+        ) ?? null
+      );
+    },
     async updateDescription(_reefId, markdown) {
       description = markdown;
     },
@@ -347,8 +358,8 @@ describe("Jira related-data import stage", () => {
     expect(state.attachments.size).toBe(1);
     expect(state.relations.size).toBe(1);
     expect([...state.relations.values()][0]).toMatchObject({
-      sourceReefId: "REEF-1",
-      targetReefId: "REEF-2",
+      sourceReefId: "REEF-2",
+      targetReefId: "REEF-1",
       relation: "depends_on",
       inverseRelation: "blocks",
     });
@@ -373,6 +384,18 @@ describe("Jira related-data import stage", () => {
     ).toBe(true);
     expect(requests.some((item) => item.includes("redirect=false"))).toBe(true);
     expect(requests.join("\n")).not.toContain("test-secret");
+
+    const remapped = await importJiraRelatedData({
+      ...base,
+      ledger: rerun.ledger,
+      linkMappings: [{ typeId: "1", kind: "symmetric" }],
+      mode: "apply",
+    });
+    expect(remapped.report.links.applied).toBe(1);
+    expect([...state.relations.values()][0]).toMatchObject({
+      relation: "related_to",
+      inverseRelation: "related_to",
+    });
 
     const preservedDescription = state.description;
     const [storedUri, storedAttachment] = [...state.attachments.entries()][0];
@@ -437,13 +460,28 @@ describe("Jira related-data import stage", () => {
 
   it("reports comment media in dry-run and defers comments whose media cannot be imported", async () => {
     const state = makeTarget();
+    const issue = issueFixture(4);
+    issue.fields.attachment?.push({
+      id: "30002",
+      filename: "other.dat",
+      mimeType: "application/octet-stream",
+      size: 3,
+      created: "2026-01-01T00:00:00.000Z",
+    });
+    issue.fields.attachment?.push({
+      id: "30003",
+      filename: "third.dat",
+      mimeType: "application/octet-stream",
+      size: 3,
+      created: "2026-01-01T00:00:00.000Z",
+    });
     const initial = createJiraMigrationLedger({
       jiraCloudId: "cloud-1",
       targetVault: "isolated",
     });
     const base = {
       jiraCloudId: "cloud-1",
-      issue: issueFixture(4),
+      issue,
       reefId: "REEF-1",
       client: makeClient([], false, false, true),
       target: state.target,
@@ -463,6 +501,7 @@ describe("Jira related-data import stage", () => {
       rewritten: 2,
       unresolved: 0,
     });
+    expect(dryRun.report.media.by_strategy.rendered_element).toBe(1);
     expect(state.comments.size).toBe(0);
 
     const applied = await importJiraRelatedData({ ...base, mode: "apply" });
