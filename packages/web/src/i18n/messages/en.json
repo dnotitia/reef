@@ -609,7 +609,12 @@
       "archived": "{hasActor, select, true {<actor></actor> archived this issue} other {Archived this issue}}",
       "restored": "{hasActor, select, true {<actor></actor> restored this issue} other {Restored this issue}}",
       "attachmentAdded": "{hasActor, select, true {<actor></actor> attached <filename></filename>} other {Attached <filename></filename>}}",
-      "attachmentRemoved": "{hasActor, select, true {<actor></actor> removed attachment <filename></filename>} other {Removed attachment <filename></filename>}}"
+      "attachmentRemoved": "{hasActor, select, true {<actor></actor> removed attachment <filename></filename>} other {Removed attachment <filename></filename>}}",
+      "issueTypeChanged": "{hasActor, select, true {<actor></actor> changed the issue type <from></from> → <to></to>} other {Changed the issue type <from></from> → <to></to>}}",
+      "startDateChanged": "{hasActor, select, true {<actor></actor> changed the start date <from></from> → <to></to>} other {Changed the start date <from></from> → <to></to>}}",
+      "startDateSet": "{hasActor, select, true {<actor></actor> set the start date to <to></to>} other {Set the start date to <to></to>}}",
+      "startDateCleared": "{hasActor, select, true {<actor></actor> cleared the start date} other {Cleared the start date}}",
+      "startDateChangedNoValue": "{hasActor, select, true {<actor></actor> changed the start date} other {Changed the start date}}"
     },
     "comments": {
       "editComment": "Edit comment",

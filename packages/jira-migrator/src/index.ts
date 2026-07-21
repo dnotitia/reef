@@ -1,4 +1,20 @@
 export {
+  buildJiraChangelogPlan,
+  jiraChangelogActivityEventKey,
+  JIRA_CHANGELOG_FIELD_ROLES,
+  JiraChangelogClassificationSchema,
+  type BuildJiraChangelogPlanInput,
+  type JiraAttachmentActivityBinding,
+  type JiraChangelogClassification,
+  type JiraChangelogFieldRole,
+  type JiraChangelogItemPlan,
+  type JiraChangelogPlan,
+  type JiraChangelogReportCounts,
+  type JiraCurrentIssueLinkSnapshot,
+  type JiraCurrentRemoteLinkSnapshot,
+  type JiraRelationActivityBinding,
+} from "./changelog.js";
+export {
   convertAdfToMarkdown,
   type AdfConversionReport,
   type AdfMediaReference,
@@ -147,6 +163,7 @@ export {
 export {
   JiraAttachmentSchema,
   JiraChangelogItemSchema,
+  JiraChangelogHistorySchema,
   JiraChangelogPageSchema,
   JiraCommentPageSchema,
   JiraCommentSchema,
@@ -170,6 +187,7 @@ export {
   normalizeJiraVersion,
   type JiraAttachmentPayload,
   type JiraChangelogItemPayload,
+  type JiraChangelogHistoryPayload,
   type JiraChangelogPagePayload,
   type JiraCommentPagePayload,
   type JiraCommentPayload,

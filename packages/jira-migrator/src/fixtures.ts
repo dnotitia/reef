@@ -121,6 +121,10 @@ export const jiraChangelogPageFixture = {
       items: [
         {
           field: "status",
+          fieldId: "status",
+          fieldtype: "jira",
+          from: "10000",
+          to: "3",
           fromString: "To Do",
           toString: "In Progress",
         },

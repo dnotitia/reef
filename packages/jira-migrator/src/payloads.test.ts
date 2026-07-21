@@ -9,6 +9,7 @@ import {
   jiraVersionPageFixture,
 } from "./fixtures.js";
 import {
+  JiraChangelogItemSchema,
   JiraChangelogPageSchema,
   JiraCommentPageSchema,
   JiraFieldCatalogSchema,
@@ -132,9 +133,41 @@ describe("Jira payload schemas and normalizers", () => {
     expect(
       JiraCommentPageSchema.parse(jiraCommentPageFixture).comments[0]?.id,
     ).toBe("50001");
+    const history = JiraChangelogPageSchema.parse(jiraChangelogPageFixture)
+      .values[0];
+    expect(history?.id).toBe("60001");
+    expect(history?.items[0]).toEqual({
+      field: "status",
+      fieldId: "status",
+      fieldtype: "jira",
+      from: "10000",
+      to: "3",
+      fromString: "To Do",
+      toString: "In Progress",
+    });
+  });
+
+  it("accepts nullable and omitted Jira changelog item variants without inventing values", () => {
     expect(
-      JiraChangelogPageSchema.parse(jiraChangelogPageFixture).values[0]?.id,
-    ).toBe("60001");
+      JiraChangelogItemSchema.parse({
+        field: "Start date",
+        fieldId: "customfield_10015",
+        fieldtype: "custom",
+        from: null,
+        to: "2026-07-21",
+        fromString: null,
+      }),
+    ).toEqual({
+      field: "Start date",
+      fieldId: "customfield_10015",
+      fieldtype: "custom",
+      from: null,
+      to: "2026-07-21",
+      fromString: null,
+    });
+    expect(JiraChangelogItemSchema.parse({ field: "description" })).toEqual({
+      field: "description",
+    });
   });
 
   it("normalizes Version and Sprint catalogs without retaining unrelated wire fields", () => {

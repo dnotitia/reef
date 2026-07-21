@@ -2,8 +2,7 @@
 
 This is the canonical operator runbook and migration policy document for
 one-shot Jira-to-Reef migrations. Package-local orientation stays in
-`packages/jira-migrator/README.md`; agent-only implementation rules stay in
-`packages/jira-migrator/AGENTS.md`.
+`packages/jira-migrator/README.md`.
 
 ## Scope And Status
 
@@ -29,7 +28,6 @@ Jira or Reef.
 - This file owns operator procedures, source-to-target mapping policy, report
   interpretation, account mapping, security handling, and Jira-to-Reef migration
   decisions.
-- `packages/jira-migrator/AGENTS.md` owns agent-only implementation rules.
 - CLI flag, environment variable, or secret-loading changes must update both the
   package README and this runbook.
 - Migration semantics, provenance shape, field mapping, or report
@@ -418,6 +416,49 @@ Official API references:
 
 - [Jira project Version REST API](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-project-versions/)
 - [Jira board Sprint REST API](https://developer.atlassian.com/cloud/jira/software/rest/api-group-board/#api-rest-agile-1-0-board-boardid-sprint-get)
+
+## Jira Changelog Activity Planning
+
+Changelog import is a pure planning step. Archive each complete Jira history
+object before validation, then pass that exact object and its opaque
+`{runId, entryId, contentSha256}` reference to `buildJiraChangelogPlan()`. The
+planner fingerprints the pre-normalization object, verifies the reference, and
+returns a deeply frozen plan. Missing or mismatched raw evidence stops planning;
+no activity is emitted.
+
+Every item receives exactly one classification: `promoted`, `raw`, `deferred`,
+or `failed`. Total and per-field counts must conserve the input item count, and
+each history reports exactly one opaque preservation location. Reports may
+contain stable field ids and reason codes but must not contain raw authors,
+source bodies, account ids, tokens, cookies, or local archive paths.
+
+Lossless promotion follows these rules:
+
+- status, assignee, summary, parent, due date, and labels reuse existing Reef
+  activity types after field-id, canonical-role, or configured exact-alias
+  resolution; display-name fuzzy matching is forbidden;
+- issue type maps to `issue_type_change` only when both values resolve to Reef
+  issue types, and Start date maps to `start_date_change` only for valid dates
+  or null;
+- Fix Version requires an existing Version-to-Release binding; issue links
+  require link identity, direction, target binding, and a matching current
+  snapshot; remote links require a current snapshot; attachments require the
+  imported attachment identity;
+- description, Rank, Goals, resolution, Comment, and arbitrary custom fields
+  remain raw-only. The planner does not reconstruct description diffs, Rank
+  movement, comments, or unsupported custom activity.
+
+Promoted activities carry a caller-supplied migration event key derived from
+Jira Cloud id, issue id, history id, item index, and event type. Replay of the
+same history therefore reuses the key, while otherwise-identical transitions
+from different histories do not collide. Core validates this reserved key
+before AKB I/O; ordinary Reef activity callers omit it and retain the existing
+value-and-time key calculation. Record the changelog-history source fingerprint
+in the migration ledger only after target write/readback succeeds. A changed
+fingerprint for an existing binding is a failed conflict, not an overwrite.
+
+The apply runner, bulk changelog API selection, current-object import, and
+concurrent-writer database uniqueness remain outside this planning API.
 
 ## Migration Ledger And Checkpoint
 

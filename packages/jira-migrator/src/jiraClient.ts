@@ -1,6 +1,6 @@
 import { type JiraAuthSecret, jiraAuthHeader } from "./config.js";
 import {
-  type JiraChangelogItemPayload,
+  type JiraChangelogHistoryPayload,
   JiraChangelogPageSchema,
   JiraCommentPageSchema,
   type JiraCommentPayload,
@@ -286,7 +286,7 @@ export class JiraReadClient {
   async listChangelog(
     issueIdOrKey: string,
     options: OffsetPageOptions = {},
-  ): Promise<JiraPage<JiraChangelogItemPayload>> {
+  ): Promise<JiraPage<JiraChangelogHistoryPayload>> {
     const body = await this.getJson(issuePath(issueIdOrKey, "/changelog"), {
       startAt: options.startAt ?? 0,
       maxResults: options.maxResults ?? 50,

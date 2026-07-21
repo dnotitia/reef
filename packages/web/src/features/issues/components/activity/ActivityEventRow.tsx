@@ -7,6 +7,7 @@ import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog
 import { findPlanningName } from "@/features/planning/lib/planningItems";
 import {
   useClosedReasonLabels,
+  useIssueTypeLabels,
   usePlanningKindSingularLabels,
   usePriorityLabels,
   useStatusLabels,
@@ -15,6 +16,7 @@ import { formatAbsoluteTime, formatRelativeTime } from "@/lib/relativeTime";
 import type {
   ClosedReason,
   ImplementationRef,
+  IssueType,
   PlanningLinkField,
   Priority,
   RelationField,
@@ -87,6 +89,7 @@ interface EventLabels {
   priority: Record<Priority, string>;
   closedReason: Record<ClosedReason, string>;
   planningKindSingular: Record<PlanningKind, string>;
+  issueType: Record<IssueType, string>;
 }
 
 /** A short, human label for a delivery ref ("PR #25", "commit a1b2c3d"). */
@@ -248,6 +251,11 @@ function glyphFor(event: TimelineSystemEvent): ReactNode {
       );
     case "attachment_removed":
       return <Unlink2 className="size-3.5 text-muted-foreground" aria-hidden />;
+    case "issue_type_change":
+    case "start_date_change":
+      return (
+        <CircleDot className="size-3.5 text-muted-foreground" aria-hidden />
+      );
   }
 }
 
@@ -537,6 +545,31 @@ function lineFor(
         actor,
         filename: () => valueToken(event.filename),
       });
+    case "issue_type_change":
+      return t.rich("issueTypeChanged", {
+        hasActor,
+        actor,
+        from: () => valueToken(labels.issueType[event.from]),
+        to: () => valueToken(labels.issueType[event.to]),
+      });
+    case "start_date_change": {
+      const { from, to } = event;
+      if (from && to)
+        return t.rich("startDateChanged", {
+          hasActor,
+          actor,
+          from: () => dateToken(from),
+          to: () => dateToken(to),
+        });
+      if (to)
+        return t.rich("startDateSet", {
+          hasActor,
+          actor,
+          to: () => dateToken(to),
+        });
+      if (from) return t.rich("startDateCleared", { hasActor, actor });
+      return t.rich("startDateChangedNoValue", { hasActor, actor });
+    }
   }
 }
 
@@ -568,11 +601,13 @@ export const ActivityEventRow = memo(function ActivityEventRow({
   const priority = usePriorityLabels();
   const closedReason = useClosedReasonLabels();
   const planningKindSingular = usePlanningKindSingularLabels();
+  const issueType = useIssueTypeLabels();
   const labels: EventLabels = {
     status,
     priority,
     closedReason,
     planningKindSingular,
+    issueType,
   };
 
   return (

@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+
+import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -13,6 +15,14 @@ import type { TimelineSystemEvent } from "./timelineModel";
 
 function renderEvent(event: TimelineSystemEvent) {
   return render(<ActivityEventRow event={event} vault="v" />);
+}
+
+function renderLocalizedEvent(event: TimelineSystemEvent, locale: "en" | "ko") {
+  return render(
+    <IntlTestProvider locale={locale}>
+      <ActivityEventRow event={event} vault="v" />
+    </IntlTestProvider>,
+  );
 }
 
 const AT = "2026-06-02T00:00:00.000Z";
@@ -184,5 +194,38 @@ describe("ActivityEventRow — REEF-277 field-change rows", () => {
         to: false,
       }).getByText(/restored this issue/),
     ).toBeInTheDocument();
+  });
+
+  it("renders issue type and start date changes in English and Korean with one neutral glyph", () => {
+    const issueTypeEvent = {
+      id: "type",
+      at: AT,
+      actor: "alice",
+      kind: "issue_type_change" as const,
+      from: "story" as const,
+      to: "bug" as const,
+    };
+    const startDateEvent = {
+      id: "start",
+      at: AT,
+      actor: "alice",
+      kind: "start_date_change" as const,
+      from: null,
+      to: "2026-07-21",
+    };
+
+    const enType = renderLocalizedEvent(issueTypeEvent, "en");
+    expect(enType.getByText(/changed the issue type/)).toBeInTheDocument();
+    enType.unmount();
+    const koType = renderLocalizedEvent(issueTypeEvent, "ko");
+    expect(koType.getByText(/이슈 유형을/)).toBeInTheDocument();
+    koType.unmount();
+    const enStart = renderLocalizedEvent(startDateEvent, "en");
+    expect(enStart.getByText(/set the start date to/)).toBeInTheDocument();
+    expect(enStart.container.querySelectorAll("svg")).toHaveLength(1);
+    enStart.unmount();
+    const koStart = renderLocalizedEvent(startDateEvent, "ko");
+    expect(koStart.getByText(/시작일을/)).toBeInTheDocument();
+    expect(koStart.container.querySelectorAll("svg")).toHaveLength(1);
   });
 });
