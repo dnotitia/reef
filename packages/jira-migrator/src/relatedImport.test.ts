@@ -266,6 +266,19 @@ const makeTarget = () => {
     async hasRelation(key) {
       return relations.has(key);
     },
+    async readRelation(key) {
+      const value = relations.get(key) as
+        | Parameters<JiraRelatedImportTarget["putRelation"]>[0]
+        | undefined;
+      return value
+        ? {
+            sourceReefId: value.sourceReefId,
+            targetReefId: value.targetReefId,
+            relation: value.relation,
+            inverseRelation: value.inverseRelation,
+          }
+        : null;
+    },
     async putExternalRef(value) {
       refs.set(value.idempotencyKey, value);
     },
@@ -370,8 +383,8 @@ describe("Jira related-data import stage", () => {
     expect(state.attachments.size).toBe(1);
     expect(state.relations.size).toBe(1);
     expect([...state.relations.values()][0]).toMatchObject({
-      sourceReefId: "REEF-2",
-      targetReefId: "REEF-1",
+      sourceReefId: "REEF-1",
+      targetReefId: "REEF-2",
       relation: "depends_on",
       inverseRelation: "blocks",
     });
@@ -575,7 +588,7 @@ describe("Jira related-data import stage", () => {
 
   it("does not confirm a relation binding until target readback succeeds", async () => {
     const state = makeTarget();
-    state.target.hasRelation = async () => false;
+    state.target.readRelation = async () => null;
     const result = await importJiraRelatedData({
       jiraCloudId: "cloud-1",
       issue: issueFixture(),

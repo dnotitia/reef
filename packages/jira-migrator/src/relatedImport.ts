@@ -97,6 +97,12 @@ export interface JiraRelatedImportTarget {
     provenance: Record<string, unknown>;
   }): Promise<void>;
   hasRelation(idempotencyKey: string): Promise<boolean>;
+  readRelation(idempotencyKey: string): Promise<{
+    sourceReefId: string;
+    targetReefId: string;
+    relation: JiraRelationKind;
+    inverseRelation: JiraRelationKind;
+  } | null>;
   putExternalRef(input: {
     idempotencyKey: string;
     reefId: string;
@@ -312,8 +318,8 @@ export const canonicalizeJiraRelation = (
     };
   }
   return {
-    sourceReefId: direction === "outward" ? linkedReefId : currentReefId,
-    targetReefId: direction === "outward" ? currentReefId : linkedReefId,
+    sourceReefId: direction === "outward" ? currentReefId : linkedReefId,
+    targetReefId: direction === "outward" ? linkedReefId : currentReefId,
     relation: mapping.outwardRelation,
     inverseRelation: mapping.inwardRelation,
   };
@@ -514,11 +520,18 @@ export async function importJiraRelatedData(
       mimeType: attachment.mimeType,
       jiraCloudId: input.jiraCloudId,
     };
+    let attachmentPhase: JiraRelatedImportFailure["phase"] = "read";
     try {
       if (existing?.target.target_kind === "attachment") {
         const download = await input.client.downloadAttachmentContent(
           attachment.id,
         );
+        if (
+          attachment.size !== null &&
+          download.bytes.byteLength !== attachment.size
+        )
+          throw new Error("attachment_size_mismatch");
+        attachmentPhase = "readback";
         const readback = await input.target.readAttachment(
           existing.target.file_uri,
         );
@@ -538,14 +551,22 @@ export async function importJiraRelatedData(
         report.attachments.skipped += 1;
         continue;
       }
+      attachmentPhase = "readback";
       const recovered = await input.target.findAttachmentByJiraId(
         input.reefId,
         attachment.id,
       );
       if (recovered) {
+        attachmentPhase = "read";
         const download = await input.client.downloadAttachmentContent(
           attachment.id,
         );
+        if (
+          attachment.size !== null &&
+          download.bytes.byteLength !== attachment.size
+        )
+          throw new Error("attachment_size_mismatch");
+        attachmentPhase = "readback";
         if (
           !validAttachmentReadback(
             recovered,
@@ -584,6 +605,7 @@ export async function importJiraRelatedData(
         });
         continue;
       }
+      attachmentPhase = "read";
       const download = await input.client.downloadAttachmentContent(
         attachment.id,
       );
@@ -596,6 +618,7 @@ export async function importJiraRelatedData(
         attachment.mimeType ??
         download.contentType ??
         "application/octet-stream";
+      attachmentPhase = "write";
       const created = await input.target.createAttachment({
         idempotencyKey: identity.key,
         reefId: input.reefId,
@@ -607,6 +630,7 @@ export async function importJiraRelatedData(
         originalJiraAttachmentId: attachment.id,
         meta: { source: "jira", jira_cloud_id: input.jiraCloudId },
       });
+      attachmentPhase = "readback";
       const readback = await input.target.readAttachment(created.file_uri);
       if (
         !validAttachmentReadback(
@@ -641,7 +665,7 @@ export async function importJiraRelatedData(
         report.failures,
         "attachment",
         attachment.id,
-        String(error).includes("readback") ? "readback" : "write",
+        attachmentPhase,
         String(error).includes("size_mismatch")
           ? "attachment_size_mismatch"
           : "attachment_import_failed",
@@ -874,6 +898,12 @@ export async function importJiraRelatedData(
         relation,
         inverseRelation,
       });
+      const expectedRelation = {
+        sourceReefId,
+        targetReefId,
+        relation,
+        inverseRelation,
+      };
       const existingBinding = ledger.bindings.find(
         (item) =>
           item.source_key === identity.key ||
@@ -882,13 +912,18 @@ export async function importJiraRelatedData(
             item.source_identity.jira_cloud_id === input.jiraCloudId &&
             item.source_identity.link_id === linkId),
       );
-      if (
-        existingBinding?.target.target_kind === "relation" &&
-        existingBinding.mapped_state_fingerprint === mappedStateFingerprint &&
-        (await input.target.hasRelation(existingBinding.target.idempotency_key))
-      ) {
-        report.links.skipped += 1;
-        continue;
+      if (existingBinding?.target.target_kind === "relation") {
+        const existingRelation = await input.target.readRelation(
+          existingBinding.target.idempotency_key,
+        );
+        if (
+          existingBinding.mapped_state_fingerprint === mappedStateFingerprint &&
+          fingerprintJiraState(existingRelation) ===
+            fingerprintJiraState(expectedRelation)
+        ) {
+          report.links.skipped += 1;
+          continue;
+        }
       }
       const relationKey =
         existingBinding?.target.target_kind === "relation"
@@ -896,13 +931,14 @@ export async function importJiraRelatedData(
           : identity.key;
       await input.target.putRelation({
         idempotencyKey: relationKey,
-        sourceReefId,
-        targetReefId,
-        relation,
-        inverseRelation,
+        ...expectedRelation,
         provenance: { source: "jira", link_id: linkId },
       });
-      if (!(await input.target.hasRelation(relationKey)))
+      const relationReadback = await input.target.readRelation(relationKey);
+      if (
+        fingerprintJiraState(relationReadback) !==
+        fingerprintJiraState(expectedRelation)
+      )
         throw new Error("relation_readback_missing");
       ledger = confirmJiraMigrationBinding(ledger, {
         sourceIdentity: existingBinding?.source_identity ?? identity,
