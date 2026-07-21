@@ -459,8 +459,8 @@ value-and-time key calculation. Record the changelog-history source fingerprint
 in the migration ledger only after target write/readback succeeds. A changed
 fingerprint for an existing binding is a failed conflict, not an overwrite.
 
-The REEF-321 apply runner, bulk changelog API selection, current-object import,
-and concurrent-writer database uniqueness are separate work.
+The apply runner, bulk changelog API selection, current-object import, and
+concurrent-writer database uniqueness remain outside this planning API.
 
 ## Migration Ledger And Checkpoint
 
