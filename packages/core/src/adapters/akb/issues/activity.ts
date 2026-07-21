@@ -358,11 +358,22 @@ export async function appendActivityEvents(
   if (!first) {
     return;
   }
-  const eventKeys = events.map((event) =>
-    event.eventKey === undefined
-      ? activityEventKey(event, event.at)
-      : JiraChangelogActivityEventKeySchema.parse(event.eventKey),
-  );
+  const eventKeys = events.map((event) => {
+    if (event.eventKey === undefined) {
+      return activityEventKey(event, event.at);
+    }
+    const eventKey = JiraChangelogActivityEventKeySchema.parse(event.eventKey);
+    if (!eventKey.endsWith(`:${event.eventType}`)) {
+      throw new ZodError([
+        {
+          code: "custom",
+          path: ["eventKey"],
+          message: "Jira changelog event key type does not match event type",
+        },
+      ]);
+    }
+    return eventKey;
+  });
   return withSpan(
     "akb.append_activity_events",
     { vault, reef_id: first.reefId, count: events.length },

@@ -689,6 +689,24 @@ describe("appendActivityEvents (REEF-126)", () => {
     ).rejects.toThrow();
     expect(calls).toHaveLength(0);
   });
+
+  it("rejects migration keys whose suffix does not match the event type before I/O", async () => {
+    const { calls } = setupFetch([]);
+    await expect(
+      appendActivityEvents(makeAdapter(), "reef-sample", [
+        {
+          reefId: "REEF-126",
+          eventType: "issue_type_change",
+          eventKey: "jira-changelog:cloud-1:10001:h-1:0:status_change",
+          payload: { from: "story", to: "bug" },
+          at,
+          actor: "carol",
+          source: "jira-changelog:history-key:0",
+        },
+      ]),
+    ).rejects.toThrow(/does not match event type/u);
+    expect(calls).toHaveLength(0);
+  });
 });
 
 describe("listIssueActivity reads the REEF-126 event types", () => {
