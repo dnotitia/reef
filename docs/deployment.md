@@ -96,8 +96,9 @@ The Deployment reads optional GitHub and LLM credentials from a Secret named
 an AKB/Keycloak-only deployment does not need to create an empty Secret.
 
 The separate `reef-migration-secret` is required by the startup init container.
-Replace the base's `replace-before-deploy` placeholder through your secret
-manager before applying the overlay. Its `REEF_AKB_MIGRATION_SERVICE_KEY` is
+Create it through your external secret manager before applying the overlay; the
+base references but never creates or overwrites it. Its
+`REEF_AKB_MIGRATION_SERVICE_KEY` is
 never injected into the `reef-web` container; only the non-secret
 `REEF_AKB_MIGRATION_SERVICE_ACCOUNT` username is shared through the ConfigMap.
 

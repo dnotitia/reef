@@ -8,7 +8,6 @@ kind: Kustomization
 
 resources:
   - configmap.yaml
-  - migration-init-values.yaml
   - deployment.yaml
   - service.yaml
   - ingress.yaml

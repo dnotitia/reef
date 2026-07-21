@@ -63,9 +63,10 @@ explicitly in the entries below.
 
 - **Configure the startup migration identity before deploying REEF-414.**
   Backfill exact `writer` membership for the non-admin service account in every
-  existing Reef workspace, set `REEF_AKB_MIGRATION_SERVICE_ACCOUNT`, and replace
-  the `reef-migration-secret` placeholder with a `read`+`write` scoped service
-  key. The reference Deployment now uses `Recreate` and an init container; the
+  existing Reef workspace, set `REEF_AKB_MIGRATION_SERVICE_ACCOUNT`, and create
+  the externally managed `reef-migration-secret` with a `read`+`write` scoped
+  service key. The Kustomize base references but never writes that Secret. The
+  reference Deployment now uses `Recreate` and an init container; the
   app does not receive the key. Local `pnpm dev` requires an isolated
   `.env.migration.local`. This release adds no schema operation, backfill, or
   `REEF_SCHEMA_VERSION` bump. See `docs/schema-migrations.md`. (REEF-414)

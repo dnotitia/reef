@@ -28,8 +28,9 @@ runner to discover that omission.
 
 ## Kubernetes rollout
 
-1. Replace the placeholder `reef-migration-secret` with a Secret managed by the
-   deployment's secret store. Do not commit the real value.
+1. Create `reef-migration-secret` through the deployment's external secret
+   store before applying Reef. The Kustomize base references but deliberately
+   does not create or overwrite it. Do not commit the real value.
 2. Set `REEF_AKB_MIGRATION_SERVICE_ACCOUNT` in the deployment overlay ConfigMap.
 3. Backfill and read back every existing Reef workspace membership.
 4. Render the overlay and verify `strategy.type: Recreate`, the
