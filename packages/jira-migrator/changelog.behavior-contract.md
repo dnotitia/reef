@@ -67,6 +67,9 @@ English and Korean.
 - Remote/Confluence links use the current remote-link snapshot to plan an
   external reference or reconciliation action. History-only internal metadata
   stays raw and does not appear in the action or report.
+- Promoted remote-link URLs have no credentials or fragment and use only the
+  explicit Confluence location-query allowlist; every other query key is
+  deferred so token aliases cannot escape through an external-reference action.
 - Attachment add/remove uses the existing attachment identity binding. Missing
   identity is deferred.
 - `description`, `Rank`, `Goals`, `resolution`, `Comment`, and arbitrary custom

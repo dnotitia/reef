@@ -181,42 +181,24 @@ const nullableValue = (
     ? (item[side] ?? null)
     : (item[`${side}String`] ?? null);
 
-const SECRET_URL_PARAMETER_NAMES = new Set([
-  "apikey",
-  "auth",
-  "authorization",
-  "bearer",
-  "cookie",
+const SAFE_REMOTE_LINK_QUERY_PARAMETER_NAMES = new Set([
+  "focusedcommentid",
+  "pageid",
 ]);
-
-const SECRET_URL_PARAMETER_PARTS = [
-  "credential",
-  "password",
-  "passwd",
-  "secret",
-  "signature",
-  "token",
-] as const;
 
 const normalizeUrlParameterName = (value: string): string =>
   value.toLocaleLowerCase("en-US").replaceAll(/[^a-z0-9]/gu, "");
-
-const hasSecretUrlParameter = (parameters: URLSearchParams): boolean =>
-  [...parameters.keys()].some((key) => {
-    const normalized = normalizeUrlParameterName(key);
-    return (
-      SECRET_URL_PARAMETER_NAMES.has(normalized) ||
-      SECRET_URL_PARAMETER_PARTS.some((part) => normalized.includes(part))
-    );
-  });
 
 const isSafeRemoteLinkUrl = (value: string): boolean => {
   try {
     const url = new URL(value);
     if (url.protocol !== "http:" && url.protocol !== "https:") return false;
-    if (url.username || url.password || hasSecretUrlParameter(url.searchParams))
-      return false;
-    return !hasSecretUrlParameter(new URLSearchParams(url.hash.slice(1)));
+    if (url.username || url.password || url.hash) return false;
+    return [...url.searchParams.keys()].every((key) =>
+      SAFE_REMOTE_LINK_QUERY_PARAMETER_NAMES.has(
+        normalizeUrlParameterName(key),
+      ),
+    );
   } catch {
     return false;
   }

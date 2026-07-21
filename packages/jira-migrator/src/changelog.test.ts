@@ -345,8 +345,28 @@ describe("buildJiraChangelogPlan", () => {
         },
       ],
     });
+    const aliasUrl = new URL("https://example.invalid/callback");
+    aliasUrl.searchParams.set(["j", "w", "t"].join(""), "alias-value");
+    const aliasPlan = buildJiraChangelogPlan({
+      ...baseInput(history),
+      currentRemoteLinks: [
+        {
+          id: "600",
+          globalId: "remote-600",
+          url: aliasUrl.toString(),
+          title: "Private callback",
+          application: null,
+          relationship: null,
+        },
+      ],
+    });
 
-    for (const plan of [credentialPlan, tokenPlan, fragmentSecretPlan]) {
+    for (const plan of [
+      credentialPlan,
+      tokenPlan,
+      fragmentSecretPlan,
+      aliasPlan,
+    ]) {
       expect(plan.items[0]).toMatchObject({
         classification: "deferred",
         reason: "remote_link_url_unsafe",
@@ -357,11 +377,38 @@ describe("buildJiraChangelogPlan", () => {
       credentialPlan,
       tokenPlan,
       fragmentSecretPlan,
+      aliasPlan,
     ]);
     expect(serialized).not.toContain("secret-value");
     expect(serialized).not.toContain("fragment-value");
     expect(serialized).not.toContain("refresh-value");
+    expect(serialized).not.toContain("alias-value");
     expect(serialized).not.toContain("password");
+  });
+
+  it("preserves allowlisted Confluence location parameters", () => {
+    const input = baseInput([
+      {
+        field: "RemoteIssueLink",
+        fieldId: "RemoteIssueLink",
+        from: null,
+        to: "600",
+      },
+    ]);
+    const plan = buildJiraChangelogPlan({
+      ...input,
+      currentRemoteLinks: input.currentRemoteLinks?.map((remote) => ({
+        ...remote,
+        url: "https://example.invalid/wiki/view?pageId=600",
+      })),
+    });
+
+    expect(plan.items[0]).toMatchObject({
+      classification: "promoted",
+      externalRef: {
+        url: "https://example.invalid/wiki/view?pageId=600",
+      },
+    });
   });
 
   it("defers an unbound issue link even when the current snapshot has that id", () => {
