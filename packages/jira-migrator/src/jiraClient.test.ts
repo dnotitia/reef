@@ -231,6 +231,15 @@ describe("JiraReadClient", () => {
     );
   });
 
+  it("rejects impractical attachment buffer limits before fetching", async () => {
+    const fetchImpl = vi.fn<typeof fetch>();
+    const client = makeClient(fetchImpl);
+    await expect(
+      client.downloadAttachmentContent("42", 256 * 1024 * 1024 + 1),
+    ).rejects.toThrow("jira_attachment_size_limit_invalid");
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it("marks attachment transport failures as retryable", async () => {
     const fetchFailure = makeClient(
       vi.fn<typeof fetch>().mockRejectedValue(new TypeError("network failed")),

@@ -1757,6 +1757,25 @@ describe("Jira related-data import stage", () => {
     });
     expect(state.refs.size).toBe(2);
     client.listRemoteLinks = async () => ({
+      items: [{ globalId: "remote-1", object: { title: "Reference" } }],
+      rateLimit: {
+        limit: null,
+        remaining: null,
+        reset: null,
+        nearLimit: false,
+        retryAfterSeconds: null,
+      },
+      raw: [],
+    });
+    const malformed = await importJiraRelatedData({
+      ...base,
+      ledger: applied.ledger,
+    });
+    expect(state.refs.size).toBe(1);
+    expect(malformed.report.failures).toContainEqual(
+      expect.objectContaining({ reason: "remote_link_url_missing" }),
+    );
+    client.listRemoteLinks = async () => ({
       items: [],
       rateLimit: {
         limit: null,
@@ -1767,7 +1786,7 @@ describe("Jira related-data import stage", () => {
       },
       raw: [],
     });
-    await importJiraRelatedData({ ...base, ledger: applied.ledger });
+    await importJiraRelatedData({ ...base, ledger: malformed.ledger });
     expect(state.refs.size).toBe(0);
   });
 

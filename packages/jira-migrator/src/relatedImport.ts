@@ -1817,10 +1817,8 @@ export async function importJiraRelatedData(
   const remotePrefix = `jira-remote:${input.jiraCloudId}:${issue.id}:`;
   if (input.mode === "apply" && remoteRead.status === "fulfilled") {
     const currentRemoteKeys = new Set(
-      remoteLinks.flatMap((remote) =>
-        remote.object.url
-          ? [`${remotePrefix}${canonicalRemoteLinkIdentity(remote)}`]
-          : [],
+      remoteLinks.map(
+        (remote) => `${remotePrefix}${canonicalRemoteLinkIdentity(remote)}`,
       ),
     );
     let existingRemoteKeys: string[] = [];

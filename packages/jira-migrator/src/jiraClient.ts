@@ -184,6 +184,18 @@ export const readJiraRateLimit = (headers: Headers): JiraRateLimit => {
 };
 
 const retryableStatuses = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
+const MAX_ATTACHMENT_BUFFER_BYTES = 256 * 1024 * 1024;
+
+interface ResizableArrayBuffer extends ArrayBuffer {
+  resize(newByteLength: number): void;
+}
+
+const ResizableArrayBufferConstructor = ArrayBuffer as typeof ArrayBuffer & {
+  new (
+    byteLength: number,
+    options: { maxByteLength: number },
+  ): ResizableArrayBuffer;
+};
 
 export const isRetryableJiraStatus = (status: number): boolean =>
   retryableStatuses.has(status);
@@ -553,7 +565,11 @@ export class JiraReadClient {
     maxBytes: number,
     query: Record<string, string | number | boolean | null | undefined> = {},
   ): Promise<JiraBinaryResult> {
-    if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0)
+    if (
+      !Number.isSafeInteger(maxBytes) ||
+      maxBytes <= 0 ||
+      maxBytes > MAX_ATTACHMENT_BUFFER_BYTES
+    )
       throw new Error("jira_attachment_size_limit_invalid");
     const url = this.buildUrl(path, query);
     let response: Response;
@@ -602,7 +618,9 @@ export class JiraReadClient {
       throw new Error("jira_attachment_size_limit_exceeded");
     }
     const reader = response.body?.getReader();
-    const bytes = new Uint8Array(maxBytes);
+    const buffer = new ResizableArrayBufferConstructor(0, {
+      maxByteLength: maxBytes,
+    });
     let byteLength = 0;
     if (reader) {
       try {
@@ -617,7 +635,8 @@ export class JiraReadClient {
             await reader.cancel();
             throw new Error("jira_attachment_size_limit_exceeded");
           }
-          bytes.set(value, byteLength);
+          buffer.resize(nextByteLength);
+          new Uint8Array(buffer, byteLength, value.byteLength).set(value);
           byteLength = nextByteLength;
         }
       } finally {
@@ -631,7 +650,7 @@ export class JiraReadClient {
     )
       throw new Error("jira_attachment_content_length_mismatch");
     return {
-      bytes: bytes.subarray(0, byteLength),
+      bytes: new Uint8Array(buffer, 0, byteLength),
       contentType: response.headers.get("content-type"),
       contentLength: declaredContentLength,
       rateLimit,

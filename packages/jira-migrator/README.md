@@ -79,7 +79,11 @@ The package exports:
   positive byte limit; without it, or when any comment restriction is visible,
   issue attachments are isolated because Jira does not expose a reliable
   attachment-to-comment ACL association through this stage's source contract.
-  Both declared sizes and streamed response bytes are bounded by that limit.
+  Both declared sizes and streamed response bytes are bounded by that limit;
+  limits above 256 MiB are rejected before fetch so a policy value cannot force
+  an impractical allocation. The Node 22 implementation grows one resizable
+  buffer with received bytes instead of preallocating the limit or retaining a
+  second full-size copy.
   Lowering the limit on a rerun revokes attachments that no longer satisfy the
   policy, replaces their generated description/comment file references with a
   stable private placeholder, and verifies that neither bytes nor stale file
