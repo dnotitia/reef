@@ -77,6 +77,7 @@ export interface JiraImportedAttachmentInput {
 export interface JiraRelatedImportTarget {
   createComment(input: JiraImportedCommentInput): Promise<Comment>;
   readComment(commentId: string): Promise<Comment | null>;
+  findCommentByIdempotencyKey(idempotencyKey: string): Promise<Comment | null>;
   createAttachment(
     input: JiraImportedAttachmentInput,
   ): Promise<IssueAttachment>;
@@ -415,7 +416,12 @@ const rewriteMedia = (
   report: JiraRelatedImportReport,
   sourceId: string,
   sourceAttachments: readonly NormalizedJiraAttachment[],
-): { markdown: string; resolved: boolean } => {
+): {
+  markdown: string;
+  preRewriteMarkdown: string;
+  resolved: boolean;
+  changed: boolean;
+} => {
   const converted = convertAdfToMarkdown(adf);
   let markdown = converted.markdown;
   let resolved = true;
@@ -446,7 +452,12 @@ const rewriteMedia = (
     report.media.by_strategy[resolution.strategy] =
       (report.media.by_strategy[resolution.strategy] ?? 0) + 1;
   }
-  return { markdown, resolved };
+  return {
+    markdown,
+    preRewriteMarkdown: converted.markdown,
+    resolved,
+    changed: markdown !== converted.markdown,
+  };
 };
 
 const reportTemplate = (
@@ -700,16 +711,18 @@ export async function importJiraRelatedData(
     issue.id,
     attachments,
   );
-  if (input.mode === "apply" && description.resolved) {
+  if (input.mode === "apply" && description.resolved && description.changed) {
     try {
       const existingDescription = await input.target.readDescription(
         input.reefId,
       );
-      if (existingDescription !== description.markdown)
+      if (existingDescription === description.preRewriteMarkdown)
         await input.target.updateDescription(
           input.reefId,
           description.markdown,
         );
+      else if (existingDescription !== description.markdown)
+        throw new Error("description_precondition_failed");
     } catch (error) {
       failure(
         report.failures,
@@ -798,6 +811,31 @@ export async function importJiraRelatedData(
         const existing = await input.target.readComment(existingTarget);
         if (!validCommentReadback(existing, commentInput))
           throw new Error("comment_readback_mismatch");
+        report.comments.skipped += 1;
+        continue;
+      }
+      const recovered = await input.target.findCommentByIdempotencyKey(
+        identity.key,
+      );
+      if (recovered) {
+        if (!validCommentReadback(recovered, commentInput))
+          throw new Error("comment_readback_mismatch");
+        plannedCommentTargets.set(comment.id, recovered.id);
+        if (input.mode === "apply") {
+          ledger = confirmJiraMigrationBinding(ledger, {
+            sourceIdentity: identity,
+            target: { target_kind: "comment", comment_id: recovered.id },
+            sourceFingerprint: fingerprintJiraState(comment),
+            mappedStateFingerprint: fingerprintJiraState({
+              body: body.markdown,
+              author: actor.actor,
+              parent: parentTargetId,
+            }),
+            lastAppliedAt: now(),
+            writeSucceeded: true,
+            readbackSucceeded: true,
+          });
+        }
         report.comments.skipped += 1;
         continue;
       }

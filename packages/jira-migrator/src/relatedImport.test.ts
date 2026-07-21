@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createJiraAccountMappingArtifact } from "./accountMapping.js";
+import { convertAdfToMarkdown } from "./adf.js";
 import { JiraReadClient } from "./jiraClient.js";
 import { createJiraMigrationLedger } from "./ledger.js";
 import type { JiraIssuePayload, NormalizedJiraAttachment } from "./payloads.js";
@@ -197,13 +198,16 @@ const makeClient = (
 
 const makeTarget = () => {
   const comments = new Map<string, import("@reef/core").Comment>();
+  const commentKeys = new Map<string, string>();
   const attachments = new Map<
     string,
     { attachment: import("@reef/core").IssueAttachment; bytes: Uint8Array }
   >();
   const relations = new Map<string, unknown>();
   const refs = new Map<string, unknown>();
-  let description = "";
+  let description = convertAdfToMarkdown(
+    issueFixture().fields.description,
+  ).markdown;
   const target: JiraRelatedImportTarget = {
     async createComment(input) {
       const id = input.parentCommentId ? replyId : rootId;
@@ -221,10 +225,15 @@ const makeTarget = () => {
         thread_root_id: parent ? (parent.thread_root_id ?? parent.id) : null,
       };
       comments.set(id, comment);
+      commentKeys.set(input.idempotencyKey, id);
       return comment;
     },
     async readComment(id) {
       return comments.get(id) ?? null;
+    },
+    async findCommentByIdempotencyKey(key) {
+      const id = commentKeys.get(key);
+      return id ? (comments.get(id) ?? null) : null;
     },
     async createAttachment(input) {
       const file_uri = "akb://isolated/coll/files/file/30001";
