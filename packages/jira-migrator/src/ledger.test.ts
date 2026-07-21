@@ -366,6 +366,25 @@ describe("Jira migration ledger", () => {
         (entity) => entity.reconciliation_state,
       ),
     ).toEqual(["pending_target_migration", "ready", "reconciled"]);
+    ledger = finalizeJiraMigrationPhase(ledger, {
+      runId: "run-links",
+      phase: "reconciliation",
+      at,
+    });
+    expect(ledger.runs[0]?.phases.reconciliation.status).toBe("running");
+    expect(
+      resumableJiraMigrationEntities(
+        ledger,
+        "run-links",
+        "reconciliation",
+        ledger.runs[0]?.phases.reconciliation.entities.map(
+          (entity) => entity.source_key,
+        ) ?? [],
+      ),
+    ).toEqual([
+      "relation:cloud-1:1:2:type:out:1",
+      "relation:cloud-1:1:3:type:out:2",
+    ]);
   });
 
   it("reports persisted multi-project results by phase and entity kind", () => {

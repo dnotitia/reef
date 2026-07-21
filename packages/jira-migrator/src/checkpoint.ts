@@ -26,6 +26,18 @@ const phaseStatus = (
   return "running";
 };
 
+const isResumableResult = (result: JiraMigrationEntityResult): boolean => {
+  if (result.action === "failed") return result.retryable;
+  if (result.action === "conflict") return false;
+  if (
+    result.reconciliation_state === "pending_target_migration" ||
+    result.reconciliation_state === "ready"
+  ) {
+    return true;
+  }
+  return result.readback_at === null;
+};
+
 export const recordJiraMigrationResult = (
   ledger: JiraMigrationLedgerV1,
   input: {
@@ -67,6 +79,7 @@ export const finalizeJiraMigrationPhase = (
     found = true;
     const current = run.phases[input.phase];
     const status = phaseStatus(current.entities);
+    const hasResumableWork = current.entities.some(isResumableResult);
     return {
       ...run,
       updated_at: input.at,
@@ -74,7 +87,8 @@ export const finalizeJiraMigrationPhase = (
         ...run.phases,
         [input.phase]: {
           ...current,
-          status: status === "running" ? "completed" : status,
+          status:
+            status === "running" && !hasResumableWork ? "completed" : status,
         },
       },
     };
@@ -98,15 +112,7 @@ export const resumableJiraMigrationEntities = (
     .filter((sourceKey) => {
       const result = results.get(sourceKey);
       if (!result) return true;
-      if (result.action === "failed") return result.retryable;
-      if (result.action === "conflict") return false;
-      if (
-        result.reconciliation_state === "pending_target_migration" ||
-        result.reconciliation_state === "ready"
-      ) {
-        return true;
-      }
-      return result.readback_at === null;
+      return isResumableResult(result);
     })
     .sort();
 };
