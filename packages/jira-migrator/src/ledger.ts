@@ -67,6 +67,7 @@ export const JiraMigrationSourceIdentitySchema = z.discriminatedUnion(
       .object({
         ...sourceIdentityBase,
         entity_kind: z.literal("attachment"),
+        issue_id: z.string().min(1),
         attachment_id: z.string().min(1),
       })
       .strict(),
@@ -468,10 +469,12 @@ export const jiraCommentSourceIdentity = (
 
 export const jiraAttachmentSourceIdentity = (
   jiraCloudId: string,
+  issueId: string,
   attachmentId: string,
 ) => ({
   entity_kind: "attachment" as const,
   jira_cloud_id: jiraCloudId,
+  issue_id: issueId,
   attachment_id: attachmentId,
   key: encodedKey("attachment", [jiraCloudId, attachmentId]),
 });

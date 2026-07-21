@@ -35,7 +35,8 @@ and rerun the same input without duplicates.
    completeness becomes unsafe on rerun, already-imported comments and
    attachment bytes are revoked with readback and their ledger bindings are
    removed. Previously imported comments missing from a later readable catalog,
-   or present when that catalog read fails, are reconciled the same way.
+   or present when that catalog read fails, are reconciled the same way, as are
+   previously imported attachments absent from the later issue payload.
 
 ## Anti-Cheat Probes
 

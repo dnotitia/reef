@@ -38,7 +38,7 @@ describe("Jira migration ledger", () => {
     expect(jiraCommentSourceIdentity("cloud:a", "100", "c/1").key).toBe(
       "comment:cloud%3Aa:100:c%2F1",
     );
-    expect(jiraAttachmentSourceIdentity("cloud:a", "a:1").key).toBe(
+    expect(jiraAttachmentSourceIdentity("cloud:a", "issue:1", "a:1").key).toBe(
       "attachment:cloud%3Aa:a%3A1",
     );
     expect(jiraChangelogSourceIdentity("cloud:a", "100", "h 1").key).toBe(
@@ -205,7 +205,7 @@ describe("Jira migration ledger", () => {
         },
       ],
       [
-        jiraAttachmentSourceIdentity("cloud-1", "a-1"),
+        jiraAttachmentSourceIdentity("cloud-1", "issue-1", "a-1"),
         {
           target_kind: "attachment",
           file_uri: "akb://other-vault/issues/file/file-1",

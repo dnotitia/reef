@@ -654,6 +654,22 @@ describe("Jira related-data import stage", () => {
     });
     expect(state.comments.size).toBe(2);
     expect(state.attachments.size).toBe(1);
+    const duplicateId = "44444444-4444-4444-8444-444444444444";
+    const rootComment = state.comments.get(rootId);
+    if (!rootComment) throw new Error("expected imported root comment");
+    const duplicate = { ...rootComment, id: duplicateId };
+    state.comments.set(duplicateId, duplicate);
+    state.target.findCommentByIdempotencyKey = async () => duplicate;
+    const dryRestricted = await importJiraRelatedData({
+      ...base,
+      client: makeClient([], false, false, false, true),
+      ledger: applied.ledger,
+      mode: "dry-run",
+    });
+    expect(dryRestricted.report.failures).toContainEqual(
+      expect.objectContaining({ reason: "comment_parent_unresolved" }),
+    );
+    expect(dryRestricted.report.comments.skipped).toBe(0);
     requests.length = 0;
 
     const result = await importJiraRelatedData({
@@ -748,8 +764,11 @@ describe("Jira related-data import stage", () => {
       pages: [],
       rateLimits: [],
     });
+    const filteredIssue = issueFixture();
+    filteredIssue.fields.attachment = [];
     const reconciled = await importJiraRelatedData({
       ...base,
+      issue: filteredIssue,
       client: filteredClient,
       ledger: applied.ledger,
     });
@@ -928,6 +947,44 @@ describe("Jira related-data import stage", () => {
     expect(state.comments.size).toBe(2);
     expect(state.attachments.size).toBe(1);
     expect(state.relations.size).toBe(1);
+  });
+
+  it("isolates ambiguous link mappings instead of using array order", async () => {
+    const state = makeTarget();
+    const result = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client: makeClient([]),
+      target: state.target,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [
+        { typeId: "1", kind: "symmetric" },
+        {
+          typeId: "1",
+          kind: "directional",
+          outwardRelation: "depends_on",
+          inwardRelation: "blocks",
+        },
+      ],
+      resolveIssueTarget: () => ({
+        reefId: "REEF-2",
+        documentUri: "akb://isolated/coll/issues/doc/reef-2.md",
+      }),
+      mode: "apply",
+    });
+    expect(result.report.failures).toContainEqual(
+      expect.objectContaining({ reason: "jira_link_mapping_ambiguous" }),
+    );
+    expect(state.relations.size).toBe(0);
+    expect(result.report.links.unresolved).toBe(1);
   });
 
   it("keeps explicit and content-derived remote-link identities disjoint", async () => {

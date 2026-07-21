@@ -73,7 +73,8 @@ The package exports:
   deleted and attachment bytes are revoked with readback before their ledger
   bindings are removed. The same reconciliation applies when a previously
   imported comment disappears from the readable catalog or the catalog read
-  fails. Attachment import requires an
+  fails; per-issue attachment bindings also revoke bytes for attachments that
+  disappear from the later issue payload. Attachment import requires an
   explicit operator attestation that the comment catalog is complete plus a
   positive byte limit; without it, or when any comment restriction is visible,
   issue attachments are isolated because Jira does not expose a reliable
@@ -84,6 +85,9 @@ The package exports:
   projected with raw-archive or account-mapping options, pass the same options
   as `descriptionConversionOptions`; legacy and current media placeholders are
   then both accepted by the description precondition.
+  Standard link mappings must resolve to exactly one configured rule;
+  overlapping matches are isolated as ambiguous rather than selected by array
+  order.
 - Tenant field-catalog resolution, ADF-to-Markdown conversion, and immutable
   `JiraIssueImportPlan` builders that combine configurable enum policies,
   account mappings, planning bindings, parents, Rank, compact provenance, and

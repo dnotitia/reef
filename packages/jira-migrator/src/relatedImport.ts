@@ -525,6 +525,19 @@ const reconcileProvisionalLinkRefs = async (
   }
 };
 
+const revokeCommentTargets = async (
+  target: JiraRelatedImportTarget,
+  commentIds: Iterable<string | null | undefined>,
+): Promise<void> => {
+  for (const commentId of new Set(
+    [...commentIds].filter((id): id is string => id != null),
+  )) {
+    await target.deleteComment(commentId);
+    if ((await target.readComment(commentId)) !== null)
+      throw new Error("comment_revocation_readback_mismatch");
+  }
+};
+
 const reportTemplate = (
   mode: "dry-run" | "apply",
 ): JiraRelatedImportReport => ({
@@ -595,6 +608,16 @@ export async function importJiraRelatedData(
   }
   const attachments = issue.attachments;
   const links = issue.links;
+  const returnedAttachmentIds = new Set(
+    attachments.map((attachment) => attachment.id),
+  );
+  const missingAttachmentBindings = input.ledger.bindings.filter(
+    (binding) =>
+      binding.source_identity.entity_kind === "attachment" &&
+      binding.source_identity.jira_cloud_id === input.jiraCloudId &&
+      binding.source_identity.issue_id === issue.id &&
+      !returnedAttachmentIds.has(binding.source_identity.attachment_id),
+  );
   report.comments.total = comments.length;
   report.comments.roots = comments.filter(
     (item) => item.parentId == null,
@@ -607,6 +630,9 @@ export async function importJiraRelatedData(
   const attachmentBindings: AttachmentBinding[] = [];
   const plannedCommentTargets = new Map<string, string>();
   const now = input.now ?? (() => new Date().toISOString());
+  const unsafeCommentSourceKeys = new Set(
+    missingCommentBindings.map((binding) => binding.source_key),
+  );
 
   if (input.mode === "apply") {
     for (const binding of missingCommentBindings) {
@@ -615,13 +641,15 @@ export async function importJiraRelatedData(
           ? binding.source_identity.comment_id
           : "missing";
       try {
-        if (binding.target.target_kind === "comment") {
-          await input.target.deleteComment(binding.target.comment_id);
-          if (
-            (await input.target.readComment(binding.target.comment_id)) !== null
-          )
-            throw new Error("comment_catalog_revocation_readback_mismatch");
-        }
+        const recovered = await input.target.findCommentByIdempotencyKey(
+          binding.source_key,
+        );
+        await revokeCommentTargets(input.target, [
+          binding.target.target_kind === "comment"
+            ? binding.target.comment_id
+            : null,
+          recovered?.id,
+        ]);
         ledger = removeJiraMigrationBindings(ledger, [binding.source_key]);
       } catch (error) {
         failure(
@@ -634,11 +662,44 @@ export async function importJiraRelatedData(
         );
       }
     }
+
+    for (const binding of missingAttachmentBindings) {
+      const attachmentId =
+        binding.source_identity.entity_kind === "attachment"
+          ? binding.source_identity.attachment_id
+          : "missing";
+      try {
+        const recovered = await input.target.findAttachmentByJiraId(
+          input.reefId,
+          attachmentId,
+        );
+        const fileUris = new Set<string>();
+        if (binding.target.target_kind === "attachment")
+          fileUris.add(binding.target.file_uri);
+        if (recovered) fileUris.add(recovered.attachment.file_uri);
+        for (const fileUri of fileUris) {
+          await input.target.revokeAttachment(fileUri);
+          if ((await input.target.readAttachment(fileUri)) !== null)
+            throw new Error("attachment_source_removal_readback_mismatch");
+        }
+        ledger = removeJiraMigrationBindings(ledger, [binding.source_key]);
+      } catch (error) {
+        failure(
+          report.failures,
+          "attachment",
+          attachmentId,
+          String(error).includes("readback") ? "readback" : "write",
+          "attachment_source_reconciliation_failed",
+          error,
+        );
+      }
+    }
   }
 
   for (const attachment of attachments) {
     const identity = jiraAttachmentSourceIdentity(
       input.jiraCloudId,
+      issue.id,
       attachment.id,
     );
     if (!attachmentVisibilityEstablished) {
@@ -955,18 +1016,17 @@ export async function importJiraRelatedData(
     );
     const visibility = jiraCommentVisibility(comment);
     if (visibility !== "safe") {
+      unsafeCommentSourceKeys.add(identity.key);
       if (input.mode === "apply") {
         try {
           const boundTargetId = getJiraCommentTargetId(ledger, identity);
           const recovered = await input.target.findCommentByIdempotencyKey(
             identity.key,
           );
-          const targetId = boundTargetId ?? recovered?.id ?? null;
-          if (targetId) {
-            await input.target.deleteComment(targetId);
-            if ((await input.target.readComment(targetId)) !== null)
-              throw new Error("comment_revocation_readback_mismatch");
-          }
+          await revokeCommentTargets(input.target, [
+            boundTargetId,
+            recovered?.id,
+          ]);
           ledger = removeJiraMigrationBindings(ledger, [identity.key]);
         } catch (error) {
           failure(
@@ -995,7 +1055,7 @@ export async function importJiraRelatedData(
       parentSourceId === null
         ? null
         : (getJiraCommentTargetId(
-            ledger,
+            removeJiraMigrationBindings(ledger, [...unsafeCommentSourceKeys]),
             jiraCommentSourceIdentity(
               input.jiraCloudId,
               issue.id,
@@ -1005,18 +1065,17 @@ export async function importJiraRelatedData(
           plannedCommentTargets.get(parentSourceId) ??
           null);
     if (parentSourceId !== null && parentTargetId === null) {
+      unsafeCommentSourceKeys.add(identity.key);
       if (input.mode === "apply") {
         try {
           const boundTargetId = getJiraCommentTargetId(ledger, identity);
           const recovered = await input.target.findCommentByIdempotencyKey(
             identity.key,
           );
-          const targetId = boundTargetId ?? recovered?.id ?? null;
-          if (targetId) {
-            await input.target.deleteComment(targetId);
-            if ((await input.target.readComment(targetId)) !== null)
-              throw new Error("comment_orphan_revocation_readback_mismatch");
-          }
+          await revokeCommentTargets(input.target, [
+            boundTargetId,
+            recovered?.id,
+          ]);
           ledger = removeJiraMigrationBindings(ledger, [identity.key]);
         } catch (error) {
           failure(
@@ -1156,9 +1215,19 @@ export async function importJiraRelatedData(
   report.links.unique = uniqueLinks.size;
   for (const [linkId, link] of uniqueLinks) {
     try {
-      const mapping = input.linkMappings.find((item) =>
+      const mappingMatches = input.linkMappings.filter((item) =>
         sameLinkMapping(item, link),
       );
+      const mapping =
+        mappingMatches.length === 1 ? mappingMatches[0] : undefined;
+      if (mappingMatches.length > 1)
+        failure(
+          report.failures,
+          "link",
+          linkId,
+          "resolve",
+          "jira_link_mapping_ambiguous",
+        );
       const targetIssue = input.resolveIssueTarget(
         link.issueId ?? link.issueKey,
       );
