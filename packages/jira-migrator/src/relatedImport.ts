@@ -218,10 +218,12 @@ const validAttachmentReadback = (
     createdAt: string;
     mimeType: string;
     jiraCloudId: string;
+    fileUri: string;
   },
   expectedBytes?: Uint8Array,
 ): boolean =>
   readback !== null &&
+  readback.attachment.file_uri === expected.fileUri &&
   readback.attachment.original_jira_attachment_id === source.id &&
   readback.attachment.reef_id === expected.reefId &&
   readback.attachment.filename === source.filename &&
@@ -982,7 +984,7 @@ export async function importJiraRelatedData(
           !validAttachmentReadback(
             readback,
             attachment,
-            expectedAttachment,
+            { ...expectedAttachment, fileUri: existing.target.file_uri },
             download.bytes,
           )
         )
@@ -1022,7 +1024,10 @@ export async function importJiraRelatedData(
           !validAttachmentReadback(
             recovered,
             attachment,
-            expectedAttachment,
+            {
+              ...expectedAttachment,
+              fileUri: recovered.attachment.file_uri,
+            },
             download.bytes,
           )
         )
@@ -1093,7 +1098,7 @@ export async function importJiraRelatedData(
           !validAttachmentReadback(
             readback,
             attachment,
-            expectedAttachment,
+            { ...expectedAttachment, fileUri: created.file_uri },
             download.bytes,
           )
         )
@@ -1126,7 +1131,7 @@ export async function importJiraRelatedData(
         const residualIsValid = validAttachmentReadback(
           residual,
           attachment,
-          expectedAttachment,
+          { ...expectedAttachment, fileUri: residual.attachment.file_uri },
           download.bytes,
         );
         ledger = confirmJiraMigrationBinding(ledger, {
@@ -1333,6 +1338,25 @@ export async function importJiraRelatedData(
       if (existingTarget) {
         const existing = await input.target.readComment(existingTarget);
         if (validCommentReadback(existing, commentInput)) {
+          const existingBinding = ledger.bindings.find(
+            (binding) => binding.source_key === identity.key,
+          );
+          if (
+            input.mode === "apply" &&
+            (existingBinding?.source_fingerprint !== sourceFingerprint ||
+              existingBinding.mapped_state_fingerprint !==
+                mappedStateFingerprint)
+          ) {
+            ledger = confirmJiraMigrationBinding(ledger, {
+              sourceIdentity: identity,
+              target: { target_kind: "comment", comment_id: existingTarget },
+              sourceFingerprint,
+              mappedStateFingerprint,
+              lastAppliedAt: now(),
+              writeSucceeded: true,
+              readbackSucceeded: true,
+            });
+          }
           report.comments.skipped += 1;
           continue;
         }

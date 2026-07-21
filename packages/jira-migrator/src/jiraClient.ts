@@ -152,6 +152,19 @@ export class JiraApiError extends Error {
   }
 }
 
+const jiraTransportError = (
+  path: string,
+  rateLimit: JiraRateLimit = readJiraRateLimit(new Headers()),
+): JiraApiError =>
+  new JiraApiError({
+    status: 0,
+    statusText: "Transport Error",
+    method: "GET",
+    path,
+    retryable: true,
+    rateLimit,
+  });
+
 const readIntegerHeader = (headers: Headers, name: string): number | null => {
   const raw = headers.get(name);
   if (!raw) return null;
@@ -543,14 +556,19 @@ export class JiraReadClient {
     if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0)
       throw new Error("jira_attachment_size_limit_invalid");
     const url = this.buildUrl(path, query);
-    const response = await this.fetchImpl(url, {
-      method: "GET",
-      headers: {
-        Accept: "*/*",
-        Authorization: jiraAuthHeader(this.auth),
-      },
-      redirect: "error",
-    });
+    let response: Response;
+    try {
+      response = await this.fetchImpl(url, {
+        method: "GET",
+        headers: {
+          Accept: "*/*",
+          Authorization: jiraAuthHeader(this.auth),
+        },
+        redirect: "error",
+      });
+    } catch {
+      throw jiraTransportError(path);
+    }
     const rateLimit = readJiraRateLimit(response.headers);
     if (!response.ok) {
       await response.body?.cancel();
@@ -589,7 +607,10 @@ export class JiraReadClient {
     if (reader) {
       try {
         while (true) {
-          const { done, value } = await reader.read();
+          const result = await reader
+            .read()
+            .catch(() => Promise.reject(jiraTransportError(path, rateLimit)));
+          const { done, value } = result;
           if (done) break;
           byteLength += value.byteLength;
           if (byteLength > maxBytes) {

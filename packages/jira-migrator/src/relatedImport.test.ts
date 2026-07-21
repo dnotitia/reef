@@ -484,6 +484,29 @@ describe("Jira related-data import stage", () => {
     });
     expect(state.refs.size).toBe(2);
 
+    const [boundUri, boundAttachment] = [...state.attachments.entries()][0];
+    if (!boundUri || !boundAttachment)
+      throw new Error("expected imported attachment");
+    state.attachments.set(boundUri, {
+      ...boundAttachment,
+      attachment: {
+        ...boundAttachment.attachment,
+        file_uri: "akb://isolated/coll/files/file/alias",
+      },
+    });
+    const uriMismatch = await importJiraRelatedData({
+      ...base,
+      ledger: applied.ledger,
+      mode: "apply",
+    });
+    expect(uriMismatch.report.failures).toContainEqual(
+      expect.objectContaining({
+        source_kind: "attachment",
+        phase: "readback",
+      }),
+    );
+    state.attachments.set(boundUri, boundAttachment);
+
     const rerun = await importJiraRelatedData({
       ...base,
       ledger: applied.ledger,
@@ -719,6 +742,68 @@ describe("Jira related-data import stage", () => {
         (binding) => binding.entity_kind === "comment",
       ),
     ).toBe(false);
+  });
+
+  it("refreshes ledger fingerprints after an unknown comment update commit", async () => {
+    const state = makeTarget();
+    const base = {
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      target: state.target,
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [] as const,
+      resolveIssueTarget: () => null,
+      mode: "apply" as const,
+    };
+    const applied = await importJiraRelatedData({
+      ...base,
+      client: makeClient([]),
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+    });
+    const updateComment = state.target.updateComment.bind(state.target);
+    state.target.updateComment = async (id, input) => {
+      await updateComment(id, input);
+      throw new Error("simulated_unknown_update_commit");
+    };
+    const failed = await importJiraRelatedData({
+      ...base,
+      client: makeClient([], false, false, false, false, false, "edited root"),
+      ledger: applied.ledger,
+    });
+    expect(failed.report.failures).toContainEqual(
+      expect.objectContaining({ reason: "comment_import_failed" }),
+    );
+    state.target.updateComment = updateComment;
+
+    const recovered = await importJiraRelatedData({
+      ...base,
+      client: makeClient([], false, false, false, false, false, "edited root"),
+      ledger: failed.ledger,
+    });
+    const originalRootBinding = applied.ledger.bindings.find(
+      (binding) =>
+        binding.entity_kind === "comment" &&
+        binding.source_identity.entity_kind === "comment" &&
+        binding.source_identity.comment_id === "50001",
+    );
+    const recoveredRootBinding = recovered.ledger.bindings.find(
+      (binding) =>
+        binding.entity_kind === "comment" &&
+        binding.source_identity.entity_kind === "comment" &&
+        binding.source_identity.comment_id === "50001",
+    );
+    expect(recovered.report.comments.skipped).toBe(2);
+    expect(recoveredRootBinding?.source_fingerprint).not.toBe(
+      originalRootBinding?.source_fingerprint,
+    );
+    expect(state.comments.get(rootId)?.body).toBe("edited root");
   });
 
   it("isolates orphan replies, size mismatches, and unknown links", async () => {

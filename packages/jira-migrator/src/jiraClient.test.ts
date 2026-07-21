@@ -231,6 +231,27 @@ describe("JiraReadClient", () => {
     );
   });
 
+  it("marks attachment transport failures as retryable", async () => {
+    const fetchFailure = makeClient(
+      vi.fn<typeof fetch>().mockRejectedValue(new TypeError("network failed")),
+    );
+    await expect(
+      fetchFailure.downloadAttachmentContent("42", 3),
+    ).rejects.toMatchObject({ retryable: true });
+
+    const interrupted = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.error(new TypeError("stream interrupted"));
+      },
+    });
+    const streamFailure = makeClient(
+      vi.fn<typeof fetch>().mockResolvedValue(new Response(interrupted)),
+    );
+    await expect(
+      streamFailure.downloadAttachmentContent("42", 3),
+    ).rejects.toMatchObject({ retryable: true });
+  });
+
   it("rejects attachment bodies shorter than the declared content length", async () => {
     const client = makeClient(
       vi.fn<typeof fetch>().mockResolvedValue(
