@@ -103,7 +103,8 @@ The package exports:
   order. Successful explicit standard-link and remote-link catalogs also
   reconcile target relations/refs that disappeared or changed identity; an
   omitted standard-link field or failed remote-link read is not treated as an
-  empty catalog.
+  empty catalog. A returned remote identity without a usable URL invalidates
+  and removes its prior ref while recording an isolated entity failure.
 - Tenant field-catalog resolution, ADF-to-Markdown conversion, and immutable
   `JiraIssueImportPlan` builders that combine configurable enum policies,
   account mappings, planning bindings, parents, Rank, compact provenance, and

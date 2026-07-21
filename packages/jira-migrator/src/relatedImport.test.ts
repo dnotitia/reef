@@ -1771,7 +1771,7 @@ describe("Jira related-data import stage", () => {
       ...base,
       ledger: applied.ledger,
     });
-    expect(state.refs.size).toBe(1);
+    expect(state.refs.size).toBe(0);
     expect(malformed.report.failures).toContainEqual(
       expect.objectContaining({ reason: "remote_link_url_missing" }),
     );
