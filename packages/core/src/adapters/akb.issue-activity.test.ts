@@ -648,6 +648,47 @@ describe("appendActivityEvents (REEF-126)", () => {
     await appendActivityEvents(makeAdapter(), "reef-sample", []);
     expect(calls).toHaveLength(0);
   });
+
+  it("accepts a validated caller-supplied migration key and preserves ordinary key calculation", async () => {
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { body: makeSqlQueryResponse([{ id: "migration-event" }], ["id"]) },
+    ]);
+    const eventKey = "jira-changelog:cloud-1:10001:h-1:0:issue_type_change";
+    await appendActivityEvents(makeAdapter(), "reef-sample", [
+      {
+        reefId: "REEF-126",
+        eventType: "issue_type_change",
+        eventKey,
+        payload: { from: "story", to: "bug" },
+        at,
+        actor: "carol",
+        source: "jira-changelog:history-key:0",
+      },
+    ]);
+    expect(lastSql(calls[1]?.init?.body)).toContain(`'${eventKey}'`);
+    expect(activityEventKey(events[0], at)).toBe(
+      `assignee_change:alice->bob@${at}`,
+    );
+  });
+
+  it("rejects malformed caller-supplied keys before performing I/O", async () => {
+    const { calls } = setupFetch([]);
+    await expect(
+      appendActivityEvents(makeAdapter(), "reef-sample", [
+        {
+          reefId: "REEF-126",
+          eventType: "start_date_change",
+          eventKey: "manual-override",
+          payload: { from: null, to: "2026-07-21" },
+          at,
+          actor: "carol",
+          source: "jira-changelog:history-key:0",
+        },
+      ]),
+    ).rejects.toThrow();
+    expect(calls).toHaveLength(0);
+  });
 });
 
 describe("listIssueActivity reads the REEF-126 event types", () => {
@@ -703,6 +744,18 @@ describe("listIssueActivity reads the REEF-126 event types", () => {
                 repo: "dnotitia/reef",
               },
             }),
+            activityRow({
+              id: "it",
+              event_type: "issue_type_change",
+              at: "2026-06-18T06:00:05.000Z",
+              payload: { from: "story", to: "bug" },
+            }),
+            activityRow({
+              id: "sd",
+              event_type: "start_date_change",
+              at: "2026-06-18T06:00:06.000Z",
+              payload: { from: null, to: "2026-07-21" },
+            }),
           ],
           ACTIVITY_ROW_COLUMNS,
         ),
@@ -720,6 +773,8 @@ describe("listIssueActivity reads the REEF-126 event types", () => {
       "priority_change",
       "planning_link",
       "impl_ref_linked",
+      "issue_type_change",
+      "start_date_change",
     ]);
     expect(events[0]?.payload).toEqual({ from: "alice", to: "bob" });
     expect(events[3]?.payload).toEqual({
@@ -727,6 +782,7 @@ describe("listIssueActivity reads the REEF-126 event types", () => {
       ref: "42",
       repo: "dnotitia/reef",
     });
+    expect(events[5]?.payload).toEqual({ from: null, to: "2026-07-21" });
   });
 
   it("skips a row whose event_type this release cannot model", async () => {

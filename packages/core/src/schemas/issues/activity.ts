@@ -2,6 +2,7 @@ import { z } from "zod";
 import { IsoDateFieldSchema } from "../common/date";
 import {
   ImplementationRefTypeEnum,
+  IssueTypeEnum,
   PriorityEnum,
   StatusEnum,
 } from "./metadata";
@@ -56,6 +57,10 @@ export const ACTIVITY_EVENT_ARCHIVED_CHANGE = "archived_change";
 export const ACTIVITY_EVENT_ATTACHMENT_ADDED = "attachment_added";
 /** A file or image attachment was unlinked from the issue (REEF-349). */
 export const ACTIVITY_EVENT_ATTACHMENT_REMOVED = "attachment_removed";
+/** A losslessly mapped Jira issue-type transition (REEF-392). */
+export const ACTIVITY_EVENT_ISSUE_TYPE_CHANGE = "issue_type_change";
+/** A losslessly mapped Jira start-date transition (REEF-392). */
+export const ACTIVITY_EVENT_START_DATE_CHANGE = "start_date_change";
 
 /** Which planning dimension a `planning_link` event records. */
 export const PlanningLinkFieldEnum = z.enum(["milestone", "sprint", "release"]);
@@ -210,6 +215,34 @@ export type AttachmentRemovedPayload = z.infer<
   typeof AttachmentRemovedPayloadSchema
 >;
 
+/** `issue_type_change` payload: both ends are canonical Reef issue types. */
+export const IssueTypeChangePayloadSchema = z.object({
+  from: IssueTypeEnum,
+  to: IssueTypeEnum,
+});
+export type IssueTypeChangePayload = z.infer<
+  typeof IssueTypeChangePayloadSchema
+>;
+
+/** `start_date_change` payload: either end may be unset. */
+export const StartDateChangePayloadSchema = z.object({
+  from: IsoDateFieldSchema.nullable(),
+  to: IsoDateFieldSchema.nullable(),
+});
+export type StartDateChangePayload = z.infer<
+  typeof StartDateChangePayloadSchema
+>;
+
+/** Validated caller override reserved for deterministic Jira migration keys. */
+export const JiraChangelogActivityEventKeySchema = z
+  .string()
+  .min(1)
+  .max(512)
+  .regex(
+    /^jira-changelog:[A-Za-z0-9._~%-]+:[A-Za-z0-9._~%-]+:[A-Za-z0-9._~%-]+:\d+:[a-z_]+$/u,
+    "invalid Jira changelog activity event key",
+  );
+
 /** Every `reef_activity.event_type` value this release knows how to record. */
 export const ACTIVITY_EVENT_TYPES = [
   ACTIVITY_EVENT_STATUS_CHANGE,
@@ -226,6 +259,8 @@ export const ACTIVITY_EVENT_TYPES = [
   ACTIVITY_EVENT_ARCHIVED_CHANGE,
   ACTIVITY_EVENT_ATTACHMENT_ADDED,
   ACTIVITY_EVENT_ATTACHMENT_REMOVED,
+  ACTIVITY_EVENT_ISSUE_TYPE_CHANGE,
+  ACTIVITY_EVENT_START_DATE_CHANGE,
 ] as const;
 export type ActivityEventType = (typeof ACTIVITY_EVENT_TYPES)[number];
 
@@ -334,6 +369,16 @@ export const ActivityEventSchema = z.discriminatedUnion("event_type", [
     ...activityEventBaseShape,
     event_type: z.literal(ACTIVITY_EVENT_ATTACHMENT_REMOVED),
     payload: AttachmentRemovedPayloadSchema,
+  }),
+  z.object({
+    ...activityEventBaseShape,
+    event_type: z.literal(ACTIVITY_EVENT_ISSUE_TYPE_CHANGE),
+    payload: IssueTypeChangePayloadSchema,
+  }),
+  z.object({
+    ...activityEventBaseShape,
+    event_type: z.literal(ACTIVITY_EVENT_START_DATE_CHANGE),
+    payload: StartDateChangePayloadSchema,
   }),
 ]);
 export type ActivityEvent = z.infer<typeof ActivityEventSchema>;

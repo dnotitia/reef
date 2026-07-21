@@ -6,11 +6,13 @@ import {
   ACTIVITY_EVENT_DUE_DATE_CHANGE,
   ACTIVITY_EVENT_ESTIMATE_CHANGE,
   ACTIVITY_EVENT_IMPL_REF_LINKED,
+  ACTIVITY_EVENT_ISSUE_TYPE_CHANGE,
   ACTIVITY_EVENT_LABELS_CHANGE,
   ACTIVITY_EVENT_PARENT_CHANGE,
   ACTIVITY_EVENT_PLANNING_LINK,
   ACTIVITY_EVENT_PRIORITY_CHANGE,
   ACTIVITY_EVENT_RELATION_CHANGE,
+  ACTIVITY_EVENT_START_DATE_CHANGE,
   ACTIVITY_EVENT_STATUS_CHANGE,
   ACTIVITY_EVENT_TITLE_CHANGE,
   type ActivityEvent,
@@ -18,6 +20,7 @@ import {
   type Comment,
   type ImplementationRef,
   type IssueMetadata,
+  type IssueType,
   type PlanningLinkField,
   type Priority,
   type RelationField,
@@ -204,6 +207,22 @@ export type TimelineSystemEvent =
       fileUri: string;
       mimeType: string;
       sizeBytes: number;
+    }
+  | {
+      id: string;
+      at: string;
+      actor: string | null;
+      kind: "issue_type_change";
+      from: IssueType;
+      to: IssueType;
+    }
+  | {
+      id: string;
+      at: string;
+      actor: string | null;
+      kind: "start_date_change";
+      from: string | null;
+      to: string | null;
     };
 
 export interface CommentEntry {
@@ -350,6 +369,20 @@ function fromActivityEvent(event: ActivityEvent): TimelineSystemEvent | null {
         fileUri: event.payload.file_uri,
         mimeType: event.payload.mime_type,
         sizeBytes: event.payload.size_bytes,
+      };
+    case ACTIVITY_EVENT_ISSUE_TYPE_CHANGE:
+      return {
+        ...base,
+        kind: "issue_type_change",
+        from: event.payload.from,
+        to: event.payload.to,
+      };
+    case ACTIVITY_EVENT_START_DATE_CHANGE:
+      return {
+        ...base,
+        kind: "start_date_change",
+        from: event.payload.from,
+        to: event.payload.to,
       };
     case ACTIVITY_EVENT_IMPL_REF_LINKED:
       // Delivery is reconstructed from the issue's implementation_refs; the

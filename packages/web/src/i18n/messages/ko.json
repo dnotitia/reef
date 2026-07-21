@@ -796,7 +796,12 @@
       "archived": "{hasActor, select, true {<actor></actor>님이 이 이슈를 보관했습니다} other {이 이슈가 보관됨}}",
       "restored": "{hasActor, select, true {<actor></actor>님이 이 이슈를 복원했습니다} other {이 이슈가 복원됨}}",
       "attachmentAdded": "{hasActor, select, true {<actor></actor>님이 <filename></filename>을(를) 첨부했습니다} other {<filename></filename> 첨부됨}}",
-      "attachmentRemoved": "{hasActor, select, true {<actor></actor>님이 첨부파일 <filename></filename>을(를) 제거했습니다} other {첨부파일 <filename></filename> 제거됨}}"
+      "attachmentRemoved": "{hasActor, select, true {<actor></actor>님이 첨부파일 <filename></filename>을(를) 제거했습니다} other {첨부파일 <filename></filename> 제거됨}}",
+      "issueTypeChanged": "{hasActor, select, true {<actor></actor>님이 이슈 유형을 <from></from>에서 <to></to>로 변경했습니다} other {이슈 유형이 <from></from>에서 <to></to>로 변경되었습니다}}",
+      "startDateChanged": "{hasActor, select, true {<actor></actor>님이 시작일을 <from></from>에서 <to></to>로 변경했습니다} other {시작일이 <from></from>에서 <to></to>로 변경되었습니다}}",
+      "startDateSet": "{hasActor, select, true {<actor></actor>님이 시작일을 <to></to>로 설정했습니다} other {시작일이 <to></to>로 설정되었습니다}}",
+      "startDateCleared": "{hasActor, select, true {<actor></actor>님이 시작일을 지웠습니다} other {시작일이 지워짐}}",
+      "startDateChangedNoValue": "{hasActor, select, true {<actor></actor>님이 시작일을 변경했습니다} other {시작일이 변경됨}}"
     },
     "comments": {
       "editComment": "댓글 수정",

@@ -8,11 +8,13 @@ import {
   ACTIVITY_EVENT_DUE_DATE_CHANGE,
   ACTIVITY_EVENT_ESTIMATE_CHANGE,
   ACTIVITY_EVENT_IMPL_REF_LINKED,
+  ACTIVITY_EVENT_ISSUE_TYPE_CHANGE,
   ACTIVITY_EVENT_LABELS_CHANGE,
   ACTIVITY_EVENT_PARENT_CHANGE,
   ACTIVITY_EVENT_PLANNING_LINK,
   ACTIVITY_EVENT_PRIORITY_CHANGE,
   ACTIVITY_EVENT_RELATION_CHANGE,
+  ACTIVITY_EVENT_START_DATE_CHANGE,
   ACTIVITY_EVENT_STATUS_CHANGE,
   ACTIVITY_EVENT_TITLE_CHANGE,
   type ActivityEvent,
@@ -34,6 +36,9 @@ import {
   EstimateChangePayloadSchema,
   type ImplRefLinkedPayload,
   ImplRefLinkedPayloadSchema,
+  type IssueTypeChangePayload,
+  IssueTypeChangePayloadSchema,
+  JiraChangelogActivityEventKeySchema,
   type LabelsChangePayload,
   LabelsChangePayloadSchema,
   type ParentChangePayload,
@@ -46,6 +51,8 @@ import {
   type RelationChangePayload,
   RelationChangePayloadSchema,
   type RelationField,
+  type StartDateChangePayload,
+  StartDateChangePayloadSchema,
   type StatusChangePayload,
   StatusChangePayloadSchema,
   type TitleChangePayload,
@@ -127,6 +134,14 @@ export type ActivityEventDescriptor =
   | {
       eventType: typeof ACTIVITY_EVENT_ATTACHMENT_REMOVED;
       payload: AttachmentRemovedPayload;
+    }
+  | {
+      eventType: typeof ACTIVITY_EVENT_ISSUE_TYPE_CHANGE;
+      payload: IssueTypeChangePayload;
+    }
+  | {
+      eventType: typeof ACTIVITY_EVENT_START_DATE_CHANGE;
+      payload: StartDateChangePayload;
     };
 
 /**
@@ -142,6 +157,8 @@ export type ActivityEventInput = ActivityEventDescriptor & {
   actor: string;
   /** Trigger provenance (the issue's `meta.source`), or null. */
   source: string | null;
+  /** Deterministic migration override; ordinary callers omit this. */
+  eventKey?: string;
 };
 
 /**
@@ -341,17 +358,22 @@ export async function appendActivityEvents(
   if (!first) {
     return;
   }
+  const eventKeys = events.map((event) =>
+    event.eventKey === undefined
+      ? activityEventKey(event, event.at)
+      : JiraChangelogActivityEventKeySchema.parse(event.eventKey),
+  );
   return withSpan(
     "akb.append_activity_events",
     { vault, reef_id: first.reefId, count: events.length },
     async (span) => {
       await ensureReefTables({ adapter, vault });
       let appended = 0;
-      for (const event of events) {
+      for (const [index, event] of events.entries()) {
         const ok = await insertActivityEventRow(adapter, vault, {
           reefId: event.reefId,
           eventType: event.eventType,
-          eventKey: activityEventKey(event, event.at),
+          eventKey: eventKeys[index] ?? activityEventKey(event, event.at),
           payload: event.payload,
           meta: {
             actor: event.actor,
@@ -598,6 +620,8 @@ const PAYLOAD_SCHEMA_BY_EVENT_TYPE = {
   [ACTIVITY_EVENT_ARCHIVED_CHANGE]: ArchivedChangePayloadSchema,
   [ACTIVITY_EVENT_ATTACHMENT_ADDED]: AttachmentAddedPayloadSchema,
   [ACTIVITY_EVENT_ATTACHMENT_REMOVED]: AttachmentRemovedPayloadSchema,
+  [ACTIVITY_EVENT_ISSUE_TYPE_CHANGE]: IssueTypeChangePayloadSchema,
+  [ACTIVITY_EVENT_START_DATE_CHANGE]: StartDateChangePayloadSchema,
 } as const;
 
 /**
