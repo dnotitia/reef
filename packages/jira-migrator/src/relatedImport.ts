@@ -713,6 +713,7 @@ export async function importJiraRelatedData(
     );
   }
   const attachments = issue.attachments;
+  const attachmentCatalogPresent = input.issue.fields.attachment !== undefined;
   const links = issue.links;
   const returnedAttachmentIds = new Set(
     attachments.map((attachment) => attachment.id),
@@ -723,7 +724,9 @@ export async function importJiraRelatedData(
       binding.source_identity.jira_cloud_id === input.jiraCloudId &&
       (binding.source_identity.issue_id === undefined ||
         binding.source_identity.issue_id === issue.id) &&
-      !returnedAttachmentIds.has(binding.source_identity.attachment_id),
+      (!attachmentVisibilityEstablished ||
+        (attachmentCatalogPresent &&
+          !returnedAttachmentIds.has(binding.source_identity.attachment_id))),
   );
   report.comments.total = comments.length;
   report.comments.roots = comments.filter(
@@ -1069,48 +1072,91 @@ export async function importJiraRelatedData(
         attachment.mimeType ??
         download.contentType ??
         "application/octet-stream";
-      attachmentPhase = "write";
-      const created = await input.target.createAttachment({
-        idempotencyKey: identity.key,
-        reefId: input.reefId,
-        filename: attachment.filename,
-        mimeType,
-        bytes: download.bytes,
-        author: mappedAuthor ?? "jira-import",
-        createdAt: expectedAttachmentBase.createdAt,
-        originalJiraAttachmentId: attachment.id,
-        meta: { source: "jira", jira_cloud_id: input.jiraCloudId },
-      });
-      attachmentPhase = "readback";
-      const readback = await input.target.readAttachment(created.file_uri);
-      if (
-        !validAttachmentReadback(
-          readback,
-          attachment,
-          { ...expectedAttachmentBase, mimeType },
-          download.bytes,
-        )
-      )
-        throw new Error("attachment_readback_mismatch");
-      report.attachments.bytes += download.bytes.byteLength;
-      report.attachments.created += 1;
-      attachmentBindings.push({
-        source: attachment,
-        fileUri: created.file_uri,
-      });
+      const expectedAttachment = { ...expectedAttachmentBase, mimeType };
       const sourceFingerprint = fingerprintJiraState(attachment);
-      ledger = confirmJiraMigrationBinding(ledger, {
-        sourceIdentity: identity,
-        target: { target_kind: "attachment", file_uri: created.file_uri },
-        sourceFingerprint,
-        mappedStateFingerprint: fingerprintJiraState({
-          file_uri: created.file_uri,
-          size: download.bytes.byteLength,
-        }),
-        lastAppliedAt: now(),
-        writeSucceeded: true,
-        readbackSucceeded: true,
-      });
+      attachmentPhase = "write";
+      try {
+        const created = await input.target.createAttachment({
+          idempotencyKey: identity.key,
+          reefId: input.reefId,
+          filename: attachment.filename,
+          mimeType,
+          bytes: download.bytes,
+          author: mappedAuthor ?? "jira-import",
+          createdAt: expectedAttachmentBase.createdAt,
+          originalJiraAttachmentId: attachment.id,
+          meta: { source: "jira", jira_cloud_id: input.jiraCloudId },
+        });
+        attachmentPhase = "readback";
+        const readback = await input.target.readAttachment(created.file_uri);
+        if (
+          !validAttachmentReadback(
+            readback,
+            attachment,
+            expectedAttachment,
+            download.bytes,
+          )
+        )
+          throw new Error("attachment_readback_mismatch");
+        report.attachments.bytes += download.bytes.byteLength;
+        report.attachments.created += 1;
+        attachmentBindings.push({
+          source: attachment,
+          fileUri: created.file_uri,
+        });
+        ledger = confirmJiraMigrationBinding(ledger, {
+          sourceIdentity: identity,
+          target: { target_kind: "attachment", file_uri: created.file_uri },
+          sourceFingerprint,
+          mappedStateFingerprint: fingerprintJiraState({
+            file_uri: created.file_uri,
+            size: download.bytes.byteLength,
+          }),
+          lastAppliedAt: now(),
+          writeSucceeded: true,
+          readbackSucceeded: true,
+        });
+      } catch (writeError) {
+        attachmentPhase = "readback";
+        const residual = await input.target.findAttachmentByJiraId(
+          input.reefId,
+          attachment.id,
+        );
+        if (!residual) throw writeError;
+        const residualIsValid = validAttachmentReadback(
+          residual,
+          attachment,
+          expectedAttachment,
+          download.bytes,
+        );
+        ledger = confirmJiraMigrationBinding(ledger, {
+          sourceIdentity: identity,
+          target: {
+            target_kind: "attachment",
+            file_uri: residual.attachment.file_uri,
+          },
+          sourceFingerprint,
+          mappedStateFingerprint: residualIsValid
+            ? fingerprintJiraState({
+                file_uri: residual.attachment.file_uri,
+                size: download.bytes.byteLength,
+              })
+            : fingerprintJiraState(residual),
+          lastAppliedAt: now(),
+          writeSucceeded: true,
+          readbackSucceeded: true,
+        });
+        if (!residualIsValid) {
+          await revokeAttachmentBinding(identity, attachment.id);
+          throw writeError;
+        }
+        report.attachments.bytes += download.bytes.byteLength;
+        report.attachments.created += 1;
+        attachmentBindings.push({
+          source: attachment,
+          fileUri: residual.attachment.file_uri,
+        });
+      }
     } catch (error) {
       if (input.mode === "apply" && String(error).includes("size_limit")) {
         try {

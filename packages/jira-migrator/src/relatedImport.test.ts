@@ -1002,6 +1002,87 @@ describe("Jira related-data import stage", () => {
     expect(state.attachments.size).toBe(0);
   });
 
+  it("recovers an attachment committed before the target reports failure", async () => {
+    const state = makeTarget();
+    const createAttachment = state.target.createAttachment.bind(state.target);
+    state.target.createAttachment = async (input) => {
+      await createAttachment(input);
+      throw new Error("simulated_unknown_commit");
+    };
+    const result = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client: makeClient([]),
+      target: state.target,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [],
+      resolveIssueTarget: () => null,
+      mode: "apply",
+    });
+    expect(result.report.failures).toEqual([]);
+    expect(result.report.attachments.created).toBe(1);
+    expect(state.attachments.size).toBe(1);
+    expect(
+      result.ledger.bindings.some(
+        (binding) => binding.entity_kind === "attachment",
+      ),
+    ).toBe(true);
+  });
+
+  it("does not treat an omitted attachment field as an empty catalog", async () => {
+    const state = makeTarget();
+    const base = {
+      jiraCloudId: "cloud-1",
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client: makeClient([]),
+      target: state.target,
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [] as const,
+      resolveIssueTarget: () => null,
+      mode: "apply" as const,
+    };
+    const applied = await importJiraRelatedData({
+      ...base,
+      issue: issueFixture(),
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+    });
+    const partialSource = issueFixture();
+    const { attachment: omittedAttachments, ...partialFields } =
+      partialSource.fields;
+    expect(omittedAttachments).toBeDefined();
+    const partialIssue = { ...partialSource, fields: partialFields };
+    const partial = await importJiraRelatedData({
+      ...base,
+      issue: partialIssue,
+      ledger: applied.ledger,
+    });
+    expect(state.attachments.size).toBe(1);
+    expect(
+      partial.ledger.bindings.some(
+        (binding) => binding.entity_kind === "attachment",
+      ),
+    ).toBe(true);
+    expect(partial.report.failures).not.toContainEqual(
+      expect.objectContaining({
+        reason: "attachment_source_reconciliation_failed",
+      }),
+    );
+  });
+
   it("revokes an imported attachment when the byte policy is lowered", async () => {
     const state = makeTarget();
     const base = {
