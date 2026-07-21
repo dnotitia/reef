@@ -171,11 +171,26 @@ const validAttachmentReadback = (
     bytes: Uint8Array;
   } | null,
   source: NormalizedJiraAttachment,
+  expected: {
+    reefId: string;
+    author: string;
+    createdAt: string;
+    mimeType: string | null;
+    jiraCloudId: string;
+  },
   expectedByteLength = source.size,
 ): boolean =>
   readback !== null &&
   readback.attachment.original_jira_attachment_id === source.id &&
+  readback.attachment.reef_id === expected.reefId &&
   readback.attachment.filename === source.filename &&
+  (expected.mimeType === null ||
+    readback.attachment.mime_type === expected.mimeType) &&
+  readback.attachment.author === expected.author &&
+  readback.attachment.created_at === expected.createdAt &&
+  readback.attachment.source === "jira_import" &&
+  readback.attachment.meta?.source === "jira" &&
+  readback.attachment.meta?.jira_cloud_id === expected.jiraCloudId &&
   readback.attachment.size_bytes === readback.bytes.byteLength &&
   (expectedByteLength === null ||
     readback.bytes.byteLength === expectedByteLength);
@@ -302,7 +317,6 @@ export const resolveJiraMediaReference = (
     );
     if (candidates.length === 1)
       return { binding: candidates[0], strategy: "unique_filename" };
-    if (candidates.length > 1) return null;
   }
   if (attachments.length === 1)
     return { binding: attachments[0], strategy: "sole_attachment" };
@@ -436,12 +450,22 @@ export async function importJiraRelatedData(
     const existing = ledger.bindings.find(
       (item) => item.source_key === identity.key,
     );
+    const mappedAuthor = attachment.author?.accountId
+      ? input.accountMapping.accounts[attachment.author.accountId]?.actor
+      : null;
+    const expectedAttachment = {
+      reefId: input.reefId,
+      author: mappedAuthor ?? "jira-import",
+      createdAt: attachment.created ?? now(),
+      mimeType: attachment.mimeType,
+      jiraCloudId: input.jiraCloudId,
+    };
     try {
       if (existing?.target.target_kind === "attachment") {
         const readback = await input.target.readAttachment(
           existing.target.file_uri,
         );
-        if (!validAttachmentReadback(readback, attachment))
+        if (!validAttachmentReadback(readback, attachment, expectedAttachment))
           throw new Error("attachment_readback_mismatch");
         attachmentBindings.push({
           source: attachment,
@@ -455,7 +479,7 @@ export async function importJiraRelatedData(
         attachment.id,
       );
       if (recovered) {
-        if (!validAttachmentReadback(recovered, attachment))
+        if (!validAttachmentReadback(recovered, attachment, expectedAttachment))
           throw new Error("attachment_readback_mismatch");
         attachmentBindings.push({
           source: attachment,
@@ -494,20 +518,18 @@ export async function importJiraRelatedData(
         download.bytes.byteLength !== attachment.size
       )
         throw new Error("attachment_size_mismatch");
-      const mappedAuthor = attachment.author?.accountId
-        ? input.accountMapping.accounts[attachment.author.accountId]?.actor
-        : null;
+      const mimeType =
+        attachment.mimeType ??
+        download.contentType ??
+        "application/octet-stream";
       const created = await input.target.createAttachment({
         idempotencyKey: identity.key,
         reefId: input.reefId,
         filename: attachment.filename,
-        mimeType:
-          attachment.mimeType ??
-          download.contentType ??
-          "application/octet-stream",
+        mimeType,
         bytes: download.bytes,
         author: mappedAuthor ?? "jira-import",
-        createdAt: attachment.created ?? now(),
+        createdAt: expectedAttachment.createdAt,
         originalJiraAttachmentId: attachment.id,
         meta: { source: "jira", jira_cloud_id: input.jiraCloudId },
       });
@@ -516,6 +538,7 @@ export async function importJiraRelatedData(
         !validAttachmentReadback(
           readback,
           attachment,
+          { ...expectedAttachment, mimeType },
           download.bytes.byteLength,
         )
       )
@@ -620,17 +643,6 @@ export async function importJiraRelatedData(
         comment.id,
       );
       if (!body.resolved) continue;
-      const existingTarget = getJiraCommentTargetId(ledger, identity);
-      if (existingTarget) {
-        const existing = await input.target.readComment(existingTarget);
-        if (!existing) throw new Error("comment_readback_missing");
-        report.comments.skipped += 1;
-        continue;
-      }
-      if (input.mode === "dry-run") {
-        plannedCommentTargets.set(comment.id, `dry-run-comment:${comment.id}`);
-        continue;
-      }
       const actor = mapJiraCommentActor(comment, {
         artifact: input.accountMapping,
         directory: input.actorDirectory ?? [],
@@ -646,6 +658,18 @@ export async function importJiraRelatedData(
             : null,
         ...(parentTargetId ? { parentCommentId: parentTargetId } : {}),
       };
+      const existingTarget = getJiraCommentTargetId(ledger, identity);
+      if (existingTarget) {
+        const existing = await input.target.readComment(existingTarget);
+        if (!validCommentReadback(existing, commentInput))
+          throw new Error("comment_readback_mismatch");
+        report.comments.skipped += 1;
+        continue;
+      }
+      if (input.mode === "dry-run") {
+        plannedCommentTargets.set(comment.id, `dry-run-comment:${comment.id}`);
+        continue;
+      }
       const created = await input.target.createComment(commentInput);
       const readback = await input.target.readComment(created.id);
       if (!validCommentReadback(readback, commentInput))
@@ -723,6 +747,8 @@ export async function importJiraRelatedData(
               unresolved: true,
             },
           });
+          if (!(await input.target.hasExternalRef(externalKey)))
+            throw new Error("external_ref_readback_missing");
         }
         continue;
       }
@@ -760,7 +786,11 @@ export async function importJiraRelatedData(
       });
       const existingBinding = ledger.bindings.find(
         (item) =>
-          item.source_key === identity.key || item.source_key === legacyKey,
+          item.source_key === identity.key ||
+          item.source_key === legacyKey ||
+          (item.source_identity.entity_kind === "relation" &&
+            item.source_identity.jira_cloud_id === input.jiraCloudId &&
+            item.source_identity.link_id === linkId),
       );
       if (
         existingBinding?.target.target_kind === "relation" &&
@@ -839,13 +869,15 @@ export async function importJiraRelatedData(
             object: remote.object,
           },
         });
+        if (!(await input.target.hasExternalRef(idempotencyKey)))
+          throw new Error("external_ref_readback_missing");
         report.remote_links.applied += 1;
       } catch (error) {
         failure(
           report.failures,
           "remote_link",
           remoteId,
-          "write",
+          String(error).includes("readback") ? "readback" : "write",
           "remote_link_import_failed",
           error,
         );
