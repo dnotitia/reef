@@ -14,6 +14,13 @@ explicitly in the entries below.
 
 ### Added
 
+- **Jira migrations preserve issue discussion and related artifacts.** The
+  operator package now exposes a dry-run/apply stage for root-first threaded
+  comments, redirect-safe attachment downloads, deterministic ADF media
+  rewrites, configured directional or symmetric issue links, separately
+  modeled remote links, isolated failures, and readback-confirmed idempotent
+  reruns. No AKB schema migration or backfill is required. (REEF-320)
+
 - **Jira migration reruns now have a durable local identity ledger and
   checkpoint.** The operator package persists Cloud-scoped stable source-to-
   target bindings only after identity readback, resumes by phase and canonical

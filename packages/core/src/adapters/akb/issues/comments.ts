@@ -156,17 +156,19 @@ export async function createComment(
   body: string,
   author: string,
   parentCommentId?: string,
+  preserved?: { createdAt: string; editedAt: string | null },
 ): Promise<Comment> {
   return withSpan(
     "akb.create_comment",
     { vault, reef_id: reefId },
     async () => {
       await ensureReefTables({ adapter, vault });
-      const createdAt = new Date().toISOString();
+      const createdAt = preserved?.createdAt ?? new Date().toISOString();
+      const editedAt = preserved?.editedAt ?? null;
       const meta = {
         author,
         created_at: createdAt,
-        edited_at: null,
+        edited_at: editedAt,
         parent_comment_id: null,
         thread_root_id: null,
       };
@@ -215,7 +217,7 @@ export async function createComment(
           )}, 'created_at', ${quoteText(
             createdAt,
             "comment created_at",
-          )}, 'edited_at', NULL, 'parent_comment_id', valid_reply.parent_id, 'thread_root_id', valid_reply.root_id) FROM target_issue CROSS JOIN valid_reply RETURNING *) SELECT * FROM ins`
+          )}, 'edited_at', ${editedAt === null ? "NULL" : quoteText(editedAt, "comment edited_at")}, 'parent_comment_id', valid_reply.parent_id, 'thread_root_id', valid_reply.root_id) FROM target_issue CROSS JOIN valid_reply RETURNING *) SELECT * FROM ins`
         : `WITH target_issue AS (${issueGuard}), ins AS (INSERT INTO ${tableRef(
             REEF_COMMENTS_TABLE,
           )} (${columns}) SELECT ${values} FROM target_issue RETURNING *) SELECT * FROM ins`;

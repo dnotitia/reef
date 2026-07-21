@@ -137,6 +137,27 @@ describe("Jira payload schemas and normalizers", () => {
     ).toBe("60001");
   });
 
+  it("normalizes numeric, string, null, and absent comment parent ids", () => {
+    const base = { body: { type: "doc", version: 1, content: [] } };
+    const comments = JiraCommentPageSchema.parse({
+      startAt: 0,
+      maxResults: 4,
+      total: 4,
+      comments: [
+        { ...base, id: 1, parentId: 9 },
+        { ...base, id: "2", parentId: "0009" },
+        { ...base, id: 3, parentId: null },
+        { ...base, id: 4 },
+      ],
+    }).comments;
+    expect(comments.map((item) => item.parentId)).toEqual([
+      "9",
+      "9",
+      null,
+      undefined,
+    ]);
+  });
+
   it("normalizes Version and Sprint catalogs without retaining unrelated wire fields", () => {
     const version = normalizeJiraVersion(
       JiraVersionPageSchema.parse(jiraVersionPageFixture).values[0],

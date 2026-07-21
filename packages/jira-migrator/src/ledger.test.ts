@@ -51,7 +51,7 @@ describe("Jira migration ledger", () => {
         "outward",
         "7",
       ).key,
-    ).toContain("relation:cloud%3Aa:100:200:blocks:outward:7");
+    ).toBe("relation:cloud%3Aa:7");
   });
 
   it("confirms bindings only after target identity readback and exposes planning/issue/comment lookups", () => {

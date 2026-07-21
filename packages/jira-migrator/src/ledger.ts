@@ -132,14 +132,7 @@ const canonicalSourceKey = (identity: JiraMigrationSourceIdentity): string => {
         identity.history_id,
       ]);
     case "relation":
-      return encodedKey("relation", [
-        identity.jira_cloud_id,
-        identity.source_issue_id,
-        identity.target_issue_id,
-        identity.link_type,
-        identity.direction,
-        identity.link_id,
-      ]);
+      return encodedKey("relation", [identity.jira_cloud_id, identity.link_id]);
   }
 };
 
@@ -491,14 +484,7 @@ export const jiraRelationSourceIdentity = (
   link_type: linkType,
   direction,
   link_id: linkId,
-  key: encodedKey("relation", [
-    jiraCloudId,
-    sourceIssueId,
-    targetIssueId,
-    linkType,
-    direction,
-    linkId,
-  ]),
+  key: encodedKey("relation", [jiraCloudId, linkId]),
 });
 
 const emptyPhases = (): JiraMigrationRun["phases"] => ({

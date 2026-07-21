@@ -112,6 +112,7 @@ describe("JiraReadClient", () => {
         expect.stringContaining("/rest/api/3/issue/ALPHA-1/changelog"),
       ]),
     );
+    expect(String(fetchImpl.mock.calls[1]?.[0])).toContain("expand=properties");
   });
 
   it("classifies rate limits and transient API failures as retryable without leaking secrets", async () => {
@@ -173,6 +174,44 @@ describe("JiraReadClient", () => {
     expect(String(fetchImpl.mock.calls[0]?.[0])).not.toContain(
       "cloud-abc///rest",
     );
+  });
+
+  it("reads remote links and downloads attachment bytes only from the configured origin without redirects", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        jsonResponse([
+          {
+            id: 1,
+            globalId: "remote-1",
+            object: { url: "https://example.com/reference", title: "Ref" },
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1, 2, 3]), {
+          headers: {
+            "content-type": "application/octet-stream",
+            "content-length": "3",
+          },
+        }),
+      );
+    const client = makeClient(fetchImpl);
+
+    await expect(client.listRemoteLinks("ALPHA-1")).resolves.toMatchObject({
+      items: [{ globalId: "remote-1" }],
+    });
+    await expect(client.downloadAttachmentContent("42")).resolves.toMatchObject(
+      { bytes: new Uint8Array([1, 2, 3]), contentLength: 3 },
+    );
+
+    const [remoteUrl] = fetchImpl.mock.calls[0] ?? [];
+    const [downloadUrl, downloadInit] = fetchImpl.mock.calls[1] ?? [];
+    expect(String(remoteUrl)).toContain("/issue/ALPHA-1/remotelink");
+    expect(String(downloadUrl)).toBe(
+      "https://example.atlassian.net/rest/api/3/attachment/content/42?redirect=false",
+    );
+    expect(downloadInit).toMatchObject({ method: "GET", redirect: "error" });
   });
 
   it("returns the pre-validation JSON value without schema coercion or stripping", async () => {

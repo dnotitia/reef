@@ -37,6 +37,9 @@ export interface UploadIssueAttachmentParams {
   author: string;
   source: IssueAttachmentSource;
   inline?: boolean;
+  createdAt?: string;
+  originalJiraAttachmentId?: string;
+  meta?: Record<string, unknown>;
 }
 
 export interface DownloadIssueAttachmentParams {
@@ -261,11 +264,11 @@ export async function uploadIssueAttachment(
         mime_type: uploaded.mimeType,
         size_bytes: uploaded.sizeBytes,
         author,
-        created_at: new Date().toISOString(),
+        created_at: params.createdAt ?? new Date().toISOString(),
         source,
         inline: params.inline ?? false,
-        original_jira_attachment_id: null,
-        meta: null,
+        original_jira_attachment_id: params.originalJiraAttachmentId ?? null,
+        meta: params.meta ?? null,
       });
       await appendAttachmentAddedEvent(adapter, vault, attachment).catch(() => {
         // Best effort: the upload + row are the user-visible work; activity is

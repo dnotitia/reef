@@ -200,7 +200,7 @@ describe("createComment", () => {
               meta: {
                 author: "alice",
                 created_at: "2026-06-18T04:00:00.000Z",
-                edited_at: null,
+                edited_at: "2026-06-18T05:00:00.000Z",
               },
             }),
           ],
@@ -215,6 +215,11 @@ describe("createComment", () => {
       "REEF-062",
       "hello $1 it's me",
       "alice",
+      undefined,
+      {
+        createdAt: "2026-06-18T04:00:00.000Z",
+        editedAt: "2026-06-18T05:00:00.000Z",
+      },
     );
 
     expect(comment).toMatchObject({
@@ -222,7 +227,7 @@ describe("createComment", () => {
       reef_id: "REEF-062",
       author: "alice",
       created_at: "2026-06-18T04:00:00.000Z",
-      edited_at: null,
+      edited_at: "2026-06-18T05:00:00.000Z",
       parent_comment_id: null,
       thread_root_id: null,
     });
@@ -240,7 +245,7 @@ describe("createComment", () => {
     expect(sql).toContain("'hello $1 it''s me'");
     // Semantic author lives in meta.
     expect(sql).toContain('"author":"alice"');
-    expect(sql).toContain('"edited_at":null');
+    expect(sql).toContain('"edited_at":"2026-06-18T05:00:00.000Z"');
   });
 
   it("404s a comment on a non-existent issue (no orphan row)", async () => {

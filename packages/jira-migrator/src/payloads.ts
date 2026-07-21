@@ -4,6 +4,10 @@ const StringOrNumberAsStringSchema = z
   .union([z.string(), z.number()])
   .transform((value) => String(value));
 
+export const JiraCommentParentIdSchema = z
+  .union([z.string().regex(/^\d+$/u), z.number().int().nonnegative().safe()])
+  .transform((value) => BigInt(String(value)).toString());
+
 const UnknownRecordSchema = z.record(z.unknown());
 
 export const JiraUserSchema = z
@@ -131,6 +135,7 @@ export const JiraIssueSchema = z
         issuelinks: z.array(JiraIssueLinkSchema).optional(),
       })
       .passthrough(),
+    renderedFields: UnknownRecordSchema.optional(),
   })
   .passthrough();
 
@@ -211,12 +216,33 @@ export const JiraFieldCatalogSchema = z.array(JiraFieldSchema);
 export const JiraCommentSchema = z
   .object({
     id: StringOrNumberAsStringSchema,
+    parentId: JiraCommentParentIdSchema.nullable().optional(),
     body: z.unknown().optional(),
     author: JiraUserSchema.optional(),
     created: z.string().optional(),
     updated: z.string().optional(),
   })
   .passthrough();
+
+export const JiraRemoteLinkSchema = z
+  .object({
+    id: StringOrNumberAsStringSchema.optional(),
+    globalId: z.string().optional(),
+    application: UnknownRecordSchema.optional(),
+    relationship: z.string().optional(),
+    object: z
+      .object({
+        url: z.string().optional(),
+        title: z.string().optional(),
+        summary: z.string().optional(),
+        icon: UnknownRecordSchema.optional(),
+        status: UnknownRecordSchema.optional(),
+      })
+      .passthrough(),
+  })
+  .passthrough();
+
+export const JiraRemoteLinkListSchema = z.array(JiraRemoteLinkSchema);
 
 export const JiraCommentPageSchema = z
   .object({
@@ -260,6 +286,7 @@ export type JiraSprintPagePayload = z.infer<typeof JiraSprintPageSchema>;
 export type JiraFieldPayload = z.infer<typeof JiraFieldSchema>;
 export type JiraCommentPayload = z.infer<typeof JiraCommentSchema>;
 export type JiraCommentPagePayload = z.infer<typeof JiraCommentPageSchema>;
+export type JiraRemoteLinkPayload = z.infer<typeof JiraRemoteLinkSchema>;
 export type JiraChangelogItemPayload = z.infer<typeof JiraChangelogItemSchema>;
 export type JiraChangelogPagePayload = z.infer<typeof JiraChangelogPageSchema>;
 
@@ -270,11 +297,15 @@ export interface NormalizedJiraAttachment {
   size: number | null;
   contentUrl: string | null;
   created: string | null;
+  author: NormalizedJiraUser | null;
 }
 
 export interface NormalizedJiraIssueLink {
   id: string | null;
+  typeId: string | null;
   type: string | null;
+  inward: string | null;
+  outward: string | null;
   direction: "inward" | "outward";
   issueKey: string;
   issueId: string | null;
@@ -375,6 +406,7 @@ export const normalizeJiraAttachment = (
   size: attachment.size ?? null,
   contentUrl: attachment.content ?? null,
   created: attachment.created ?? null,
+  author: normalizeJiraUser(attachment.author),
 });
 
 export const normalizeJiraIssueLink = (
@@ -386,7 +418,10 @@ export const normalizeJiraIssueLink = (
 
   return {
     id: link.id ?? null,
+    typeId: link.type?.id ?? null,
     type: link.type?.name ?? null,
+    inward: link.type?.inward ?? null,
+    outward: link.type?.outward ?? null,
     direction,
     issueKey: issue.key,
     issueId: issue.id ?? null,

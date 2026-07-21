@@ -5,8 +5,10 @@ intentionally outside `@reef/web`: Jira credentials are deployment/operator
 secrets, not user state in the product runtime.
 
 The CLI still validates migration configuration and prints a redacted public
-config. The library additionally builds immutable Jira issue import plans; it
-does not apply those plans or write to Jira or Reef.
+config. The library additionally builds immutable Jira issue import plans and
+exposes a dependency-injected related-data stage for comments,
+attachments/media, and links. Final project traversal and CLI orchestration
+remain separate.
 
 ## Documentation Policy
 
@@ -62,6 +64,10 @@ The package exports:
   source identities, readback-confirmed target bindings, shared diff decisions,
   entity-key checkpoints, deterministic reports, and guarded atomic file I/O.
 - Jira Rank import planning helpers.
+- `importJiraRelatedData`, which supports mutation-free dry runs and idempotent
+  apply/readback for threaded comments, controlled attachment downloads, ADF
+  media rewrites, standard issue links, and remote links through an isolated
+  Reef target implementation.
 - Tenant field-catalog resolution, ADF-to-Markdown conversion, and immutable
   `JiraIssueImportPlan` builders that combine configurable enum policies,
   account mappings, planning bindings, parents, Rank, compact provenance, and

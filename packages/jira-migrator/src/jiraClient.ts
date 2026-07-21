@@ -7,6 +7,8 @@ import {
   JiraFieldCatalogSchema,
   type JiraFieldPayload,
   JiraIssueSchema,
+  JiraRemoteLinkListSchema,
+  type JiraRemoteLinkPayload,
   JiraSearchResponseSchema,
   JiraSprintPageSchema,
   JiraVersionPageSchema,
@@ -59,6 +61,13 @@ export interface JiraIssueCollectionResult<T> {
   items: T[];
   rateLimit: JiraRateLimit;
   raw: unknown;
+}
+
+export interface JiraBinaryResult {
+  bytes: Uint8Array;
+  contentType: string | null;
+  contentLength: number | null;
+  rateLimit: JiraRateLimit;
 }
 
 export interface JiraCatalogResult<T> {
@@ -266,6 +275,7 @@ export class JiraReadClient {
     const body = await this.getJson(issuePath(issueIdOrKey, "/comment"), {
       startAt: options.startAt ?? 0,
       maxResults: options.maxResults ?? 50,
+      expand: "properties",
     });
     const payload = JiraCommentPageSchema.parse(body.json);
     return {
@@ -278,6 +288,35 @@ export class JiraReadClient {
       isLast:
         nextOffsetCursor(payload.startAt, payload.maxResults, payload.total) ===
         null,
+      rateLimit: body.rateLimit,
+      raw: body.json,
+    };
+  }
+
+  async readComments(
+    issueIdOrKey: string,
+    options: Omit<OffsetPageOptions, "startAt"> = {},
+  ): Promise<JiraCatalogResult<JiraCommentPayload>> {
+    return this.readOffsetCatalog((startAt) =>
+      this.listComments(issueIdOrKey, { ...options, startAt }),
+    );
+  }
+
+  async downloadAttachmentContent(
+    attachmentId: string | number,
+  ): Promise<JiraBinaryResult> {
+    return this.getBinary(
+      `/rest/api/3/attachment/content/${encodeURIComponent(String(attachmentId))}`,
+      { redirect: false },
+    );
+  }
+
+  async listRemoteLinks(
+    issueIdOrKey: string,
+  ): Promise<JiraIssueCollectionResult<JiraRemoteLinkPayload>> {
+    const body = await this.getJson(issuePath(issueIdOrKey, "/remotelink"));
+    return {
+      items: JiraRemoteLinkListSchema.parse(body.json),
       rateLimit: body.rateLimit,
       raw: body.json,
     };
@@ -490,6 +529,43 @@ export class JiraReadClient {
 
     return {
       json: await response.json(),
+      rateLimit,
+    };
+  }
+
+  private async getBinary(
+    path: string,
+    query: Record<string, string | number | boolean | null | undefined> = {},
+  ): Promise<JiraBinaryResult> {
+    const url = this.buildUrl(path, query);
+    const response = await this.fetchImpl(url, {
+      method: "GET",
+      headers: {
+        Accept: "*/*",
+        Authorization: jiraAuthHeader(this.auth),
+      },
+      redirect: "error",
+    });
+    const rateLimit = readJiraRateLimit(response.headers);
+    if (!response.ok) {
+      throw new JiraApiError({
+        status: response.status,
+        statusText: response.statusText,
+        method: "GET",
+        path,
+        retryable: isRetryableJiraStatus(response.status),
+        rateLimit,
+      });
+    }
+    const rawLength = response.headers.get("content-length");
+    const contentLength = rawLength === null ? null : Number(rawLength);
+    return {
+      bytes: new Uint8Array(await response.arrayBuffer()),
+      contentType: response.headers.get("content-type"),
+      contentLength:
+        contentLength !== null && Number.isFinite(contentLength)
+          ? contentLength
+          : null,
       rateLimit,
     };
   }
