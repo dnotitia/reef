@@ -31,4 +31,15 @@ describe("migration config", () => {
   ])("fails closed for missing or unsafe configuration", (env) => {
     expect(() => loadMigrationConfig(env)).toThrow("migration_config_invalid");
   });
+
+  it("normalizes an adversarial trailing-slash run without a regular expression", () => {
+    const trailingSlashes = "/".repeat(10_000);
+    expect(
+      loadMigrationConfig({
+        AKB_BACKEND_URL: `https://akb.example${trailingSlashes}`,
+        REEF_AKB_MIGRATION_SERVICE_KEY: "sentinel-key",
+        REEF_AKB_MIGRATION_SERVICE_ACCOUNT: "reef-migrator",
+      }).akbBaseUrl,
+    ).toBe("https://akb.example");
+  });
 });

@@ -24,16 +24,24 @@ const required = (value: string | undefined): string => {
 export function loadMigrationConfig(
   env: Record<string, string | undefined> = process.env,
 ): MigrationConfig {
-  const akbBaseUrl = required(env.AKB_BACKEND_URL).replace(/\/+$/, "");
+  const configuredBaseUrl = required(env.AKB_BACKEND_URL);
   let parsed: URL;
   try {
-    parsed = new URL(akbBaseUrl);
+    parsed = new URL(configuredBaseUrl);
   } catch {
     throw new MigrationConfigError();
   }
   if (!new Set(["http:", "https:"]).has(parsed.protocol)) {
     throw new MigrationConfigError();
   }
+  let baseUrlEnd = configuredBaseUrl.length;
+  while (
+    baseUrlEnd > 0 &&
+    configuredBaseUrl.charCodeAt(baseUrlEnd - 1) === 47
+  ) {
+    baseUrlEnd -= 1;
+  }
+  const akbBaseUrl = configuredBaseUrl.slice(0, baseUrlEnd);
   return {
     akbBaseUrl,
     serviceKey: required(env.REEF_AKB_MIGRATION_SERVICE_KEY),

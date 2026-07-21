@@ -45,7 +45,7 @@ Job.
 
 ## Local development
 
-Copy `.env.migration.local.example` to `.env.migration.local`, point it only at
+Copy `migration.env.example` to `.env.migration.local`, point it only at
 an isolated local AKB, and run `pnpm dev`. The wrapper loads that file, runs the
 same migration application layer once, and starts Next.js only after success.
 The service key is deleted from the child environment, so hot reload cannot
