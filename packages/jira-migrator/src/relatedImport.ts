@@ -159,6 +159,21 @@ interface AttachmentBinding {
   fileUri: string;
 }
 
+const validAttachmentReadback = (
+  readback: {
+    attachment: IssueAttachment;
+    bytes: Uint8Array;
+  } | null,
+  source: NormalizedJiraAttachment,
+  expectedByteLength = source.size,
+): boolean =>
+  readback !== null &&
+  readback.attachment.original_jira_attachment_id === source.id &&
+  readback.attachment.filename === source.filename &&
+  readback.attachment.size_bytes === readback.bytes.byteLength &&
+  (expectedByteLength === null ||
+    readback.bytes.byteLength === expectedByteLength);
+
 const retryableError = (error: unknown): boolean =>
   typeof error === "object" &&
   error !== null &&
@@ -405,10 +420,7 @@ export async function importJiraRelatedData(
         const readback = await input.target.readAttachment(
           existing.target.file_uri,
         );
-        if (
-          !readback ||
-          readback.attachment.original_jira_attachment_id !== attachment.id
-        )
+        if (!validAttachmentReadback(readback, attachment))
           throw new Error("attachment_readback_mismatch");
         attachmentBindings.push({
           source: attachment,
@@ -450,9 +462,11 @@ export async function importJiraRelatedData(
       });
       const readback = await input.target.readAttachment(created.file_uri);
       if (
-        !readback ||
-        readback.bytes.byteLength !== download.bytes.byteLength ||
-        readback.attachment.original_jira_attachment_id !== attachment.id
+        !validAttachmentReadback(
+          readback,
+          attachment,
+          download.bytes.byteLength,
+        )
       )
         throw new Error("attachment_readback_mismatch");
       report.attachments.bytes += download.bytes.byteLength;

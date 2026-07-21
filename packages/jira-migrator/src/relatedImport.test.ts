@@ -352,6 +352,25 @@ describe("Jira related-data import stage", () => {
     ).toBe(true);
     expect(requests.some((item) => item.includes("redirect=false"))).toBe(true);
     expect(requests.join("\n")).not.toContain("test-secret");
+
+    const [storedUri, storedAttachment] = [...state.attachments.entries()][0];
+    state.attachments.set(storedUri, {
+      ...storedAttachment,
+      bytes: new Uint8Array([1, 2]),
+    });
+    const corruptRerun = await importJiraRelatedData({
+      ...base,
+      ledger: rerun.ledger,
+      mode: "apply",
+    });
+    expect(corruptRerun.report.attachments.skipped).toBe(0);
+    expect(corruptRerun.report.failures).toContainEqual(
+      expect.objectContaining({
+        source_kind: "attachment",
+        phase: "readback",
+        reason: "attachment_import_failed",
+      }),
+    );
   });
 
   it("isolates orphan replies, size mismatches, and unknown links", async () => {
