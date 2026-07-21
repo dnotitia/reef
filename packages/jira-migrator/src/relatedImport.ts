@@ -87,6 +87,7 @@ export interface JiraRelatedImportTarget {
     reefId: string,
     jiraAttachmentId: string,
   ): Promise<{ attachment: IssueAttachment; bytes: Uint8Array } | null>;
+  readDescription(reefId: string): Promise<string>;
   updateDescription(reefId: string, markdown: string): Promise<void>;
   putRelation(input: {
     idempotencyKey: string;
@@ -268,10 +269,13 @@ const decodeHtmlAttribute = (value: string): string =>
 
 const renderedHints = (
   html: string,
-): Map<string, { attachmentId: string | null; filename: string | null }> => {
+): Map<
+  string,
+  { attachmentId: string | null; filename: string | null } | null
+> => {
   const hints = new Map<
     string,
-    { attachmentId: string | null; filename: string | null }
+    { attachmentId: string | null; filename: string | null } | null
   >();
   for (const match of html.matchAll(
     /<[^>]*data-media-services-id=["']([^"']+)["'][^>]*>/giu,
@@ -283,10 +287,20 @@ const renderedHints = (
       tag.match(/(?:attachment\/|att)(\d+)(?:\/|[?"'])/iu)?.[1] ?? null;
     const encodedName =
       tag.match(/(?:data-filename|alt|title)=["']([^"']+)["']/iu)?.[1] ?? null;
-    hints.set(mediaId, {
+    const hint = {
       attachmentId: href,
       filename: encodedName ? decodeHtmlAttribute(encodedName) : null,
-    });
+    };
+    const existing = hints.get(mediaId);
+    hints.set(
+      mediaId,
+      existing === undefined ||
+        (existing !== null &&
+          existing.attachmentId === hint.attachmentId &&
+          existing.filename === hint.filename)
+        ? hint
+        : null,
+    );
   }
   return hints;
 };
@@ -688,7 +702,14 @@ export async function importJiraRelatedData(
   );
   if (input.mode === "apply" && description.resolved) {
     try {
-      await input.target.updateDescription(input.reefId, description.markdown);
+      const existingDescription = await input.target.readDescription(
+        input.reefId,
+      );
+      if (existingDescription !== description.markdown)
+        await input.target.updateDescription(
+          input.reefId,
+          description.markdown,
+        );
     } catch (error) {
       failure(
         report.failures,
@@ -841,14 +862,13 @@ export async function importJiraRelatedData(
         report.links.unresolved += 1;
         if (input.mode === "apply") {
           const externalKey = `jira-link:${input.jiraCloudId}:${linkId}`;
-          if (await input.target.hasExternalRef(externalKey)) {
-            report.links.skipped += 1;
-            continue;
-          }
-          await input.target.putExternalRef({
-            idempotencyKey: externalKey,
+          const externalValue = {
             reefId: input.reefId,
-            ref: { type: "jira", ref: link.issueKey, label: "Jira issue link" },
+            ref: {
+              type: "jira" as const,
+              ref: link.issueKey,
+              label: "Jira issue link",
+            },
             provenance: {
               source: "jira",
               link_id: linkId,
@@ -860,8 +880,25 @@ export async function importJiraRelatedData(
               },
               unresolved: true,
             },
+          };
+          const existing = await input.target.readExternalRef(externalKey);
+          if (
+            existing &&
+            fingerprintJiraState(existing) ===
+              fingerprintJiraState(externalValue)
+          ) {
+            report.links.skipped += 1;
+            continue;
+          }
+          await input.target.putExternalRef({
+            idempotencyKey: externalKey,
+            ...externalValue,
           });
-          if (!(await input.target.hasExternalRef(externalKey)))
+          const readback = await input.target.readExternalRef(externalKey);
+          if (
+            fingerprintJiraState(readback) !==
+            fingerprintJiraState(externalValue)
+          )
             throw new Error("external_ref_readback_missing");
         }
         continue;
@@ -1002,7 +1039,10 @@ export async function importJiraRelatedData(
           idempotencyKey,
           ...remoteValue,
         });
-        if (!(await input.target.hasExternalRef(idempotencyKey)))
+        const readback = await input.target.readExternalRef(idempotencyKey);
+        if (
+          fingerprintJiraState(readback) !== fingerprintJiraState(remoteValue)
+        )
           throw new Error("external_ref_readback_missing");
         report.remote_links.applied += 1;
       } catch (error) {

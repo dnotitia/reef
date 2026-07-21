@@ -257,6 +257,9 @@ const makeTarget = () => {
         ) ?? null
       );
     },
+    async readDescription() {
+      return description;
+    },
     async updateDescription(_reefId, markdown) {
       description = markdown;
     },
@@ -692,6 +695,16 @@ describe("media crosswalk", () => {
         '<span data-media-services-id="m1" data-filename="b.bin"></span>',
       )?.strategy,
     ).toBe("rendered_unique_filename");
+    expect(
+      resolveJiraMediaReference(
+        { ...media, filename: null },
+        [
+          { source: source("1", "a.bin"), fileUri: "akb://v/file/1" },
+          { source: source("2", "b.bin"), fileUri: "akb://v/file/2" },
+        ],
+        '<span data-media-services-id="m1" href="/attachment/1/a.bin"></span><span data-media-services-id="m1" href="/attachment/2/b.bin"></span>',
+      ),
+    ).toBeNull();
   });
 });
 
