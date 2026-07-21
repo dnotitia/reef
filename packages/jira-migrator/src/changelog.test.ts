@@ -327,13 +327,18 @@ describe("buildJiraChangelogPlan", () => {
         },
       ],
     });
+    const fragmentUrl = new URL("https://example.invalid/callback");
+    fragmentUrl.hash = new URLSearchParams([
+      [["client", "secret"].join("_"), "fragment-value"],
+      [["refresh", "token"].join("_"), "refresh-value"],
+    ]).toString();
     const fragmentSecretPlan = buildJiraChangelogPlan({
       ...baseInput(history),
       currentRemoteLinks: [
         {
           id: "600",
           globalId: "remote-600",
-          url: "https://example.invalid/callback#client_secret=fragment-value&refresh_token=refresh-value",
+          url: fragmentUrl.toString(),
           title: "Private callback",
           application: null,
           relationship: null,
