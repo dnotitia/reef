@@ -437,6 +437,25 @@ describe("buildJiraChangelogPlan", () => {
     });
   });
 
+  it("defers remote-link removals instead of fabricating external-ref additions", () => {
+    const plan = buildJiraChangelogPlan(
+      baseInput([
+        {
+          field: "RemoteIssueLink",
+          fieldId: "RemoteIssueLink",
+          from: "600",
+          to: null,
+        },
+      ]),
+    );
+
+    expect(plan.items[0]).toMatchObject({
+      classification: "deferred",
+      reason: "remote_link_removal_reconciliation_unsupported",
+      externalRef: null,
+    });
+  });
+
   it("defers an unbound issue link even when the current snapshot has that id", () => {
     const input = baseInput([
       { field: "Link", fieldId: "issuelinks", from: null, to: "500" },

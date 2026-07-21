@@ -70,6 +70,8 @@ English and Korean.
 - Promoted remote-link URLs have no credentials or fragment and use only the
   explicit Confluence location-query allowlist; every other query key is
   deferred so token aliases cannot escape through an external-reference action.
+- Remote-link removal is deferred until a removal/reconciliation action exists;
+  it is never represented as an external-reference addition.
 - Attachment add/remove uses the existing attachment identity binding. Missing
   identity is deferred.
 - `description`, `Rank`, `Goals`, `resolution`, `Comment`, and arbitrary custom

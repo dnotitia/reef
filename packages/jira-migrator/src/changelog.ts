@@ -503,7 +503,10 @@ const planItem = (
       );
     }
     case "remote_link": {
-      const remoteId = nullableValue(item, item.to == null ? "from" : "to");
+      const remoteId = nullableValue(item, "to");
+      if (remoteId === null)
+        return deferred("remote_link_removal_reconciliation_unsupported");
+      if (remoteId === undefined) return deferred("remote_link_value_missing");
       const snapshot = remoteId
         ? input.currentRemoteLinks?.find(
             (candidate) => candidate.id === remoteId,
