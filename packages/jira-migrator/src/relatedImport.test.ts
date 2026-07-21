@@ -906,6 +906,10 @@ describe("Jira related-data import stage", () => {
 
     const result = await importJiraRelatedData({
       ...base,
+      attachmentPolicy: {
+        commentVisibilityCompleteness: "verified",
+        maxBytes: 256 * 1024 * 1024 + 1,
+      },
       client: makeClient(requests, false, false, false, true),
       ledger: applied.ledger,
     });
@@ -1678,9 +1682,16 @@ describe("Jira related-data import stage", () => {
       }),
       mode: "apply" as const,
     };
+    const sourceIssue = issueFixture();
+    sourceIssue.fields.issuelinks = sourceIssue.fields.issuelinks?.map(
+      (link) =>
+        link.outwardIssue
+          ? { ...link, outwardIssue: { key: link.outwardIssue.key } }
+          : link,
+    );
     const applied = await importJiraRelatedData({
       ...base,
-      issue: issueFixture(),
+      issue: sourceIssue,
       reefId: "REEF-1",
       ledger: createJiraMigrationLedger({
         jiraCloudId: "cloud-1",

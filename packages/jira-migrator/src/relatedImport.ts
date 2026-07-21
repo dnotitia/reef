@@ -700,9 +700,8 @@ export async function importJiraRelatedData(
     (!Number.isSafeInteger(input.attachmentPolicy.maxBytes) ||
       input.attachmentPolicy.maxBytes <= 0 ||
       input.attachmentPolicy.maxBytes > JIRA_MAX_ATTACHMENT_BUFFER_BYTES);
-  const attachmentVisibilityEstablished =
+  const attachmentAclEstablished =
     input.attachmentPolicy?.commentVisibilityCompleteness === "verified" &&
-    !attachmentBytePolicyInvalid &&
     commentsRead.status === "fulfilled" &&
     unsafeCommentIds.size === 0 &&
     comments.every((comment) => jiraCommentVisibility(comment) === "safe");
@@ -740,9 +739,9 @@ export async function importJiraRelatedData(
       binding.source_identity.jira_cloud_id === input.jiraCloudId &&
       (binding.source_identity.issue_id === undefined ||
         binding.source_identity.issue_id === issue.id) &&
-      !attachmentBytePolicyInvalid &&
-      (!attachmentVisibilityEstablished ||
-        (attachmentCatalogPresent &&
+      (!attachmentAclEstablished ||
+        (!attachmentBytePolicyInvalid &&
+          attachmentCatalogPresent &&
           !returnedAttachmentIds.has(binding.source_identity.attachment_id))),
   );
   report.comments.total = comments.length;
@@ -912,17 +911,7 @@ export async function importJiraRelatedData(
       issue.id,
       attachment.id,
     );
-    if (attachmentBytePolicyInvalid) {
-      failure(
-        report.failures,
-        "attachment",
-        attachment.id,
-        "resolve",
-        "attachment_size_policy_invalid",
-      );
-      continue;
-    }
-    if (!attachmentVisibilityEstablished) {
+    if (!attachmentAclEstablished) {
       if (input.mode === "apply") {
         try {
           await revokeAttachmentBinding(identity, attachment.id);
@@ -943,6 +932,16 @@ export async function importJiraRelatedData(
         attachment.id,
         "resolve",
         "attachment_visibility_unverifiable",
+      );
+      continue;
+    }
+    if (attachmentBytePolicyInvalid) {
+      failure(
+        report.failures,
+        "attachment",
+        attachment.id,
+        "resolve",
+        "attachment_size_policy_invalid",
       );
       continue;
     }
@@ -1609,7 +1608,9 @@ export async function importJiraRelatedData(
         binding.source_identity.entity_kind === "relation" &&
         binding.source_identity.jira_cloud_id === input.jiraCloudId &&
         (binding.source_identity.source_issue_id === issue.id ||
-          binding.source_identity.target_issue_id === issue.id) &&
+          binding.source_identity.source_issue_id === issue.key ||
+          binding.source_identity.target_issue_id === issue.id ||
+          binding.source_identity.target_issue_id === issue.key) &&
         !uniqueLinks.has(binding.source_identity.link_id),
     );
     for (const binding of missingRelationBindings) {
