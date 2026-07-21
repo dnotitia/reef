@@ -302,6 +302,18 @@ const canonicalRemoteLinkIdentity = (remote: JiraRemoteLinkPayload): string =>
     ? `global:${remote.globalId}`
     : `content-sha256:${fingerprintJiraState({ application: remote.application ?? null, object: remote.object, relationship: remote.relationship ?? null })}`;
 
+const safeRemoteLinkUrl = (value: string | undefined): string | null => {
+  if (!value?.trim()) return null;
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "https:" || url.protocol === "http:"
+      ? url.toString()
+      : null;
+  } catch {
+    return null;
+  }
+};
+
 const decodeHtmlAttribute = (value: string): string =>
   value.replace(
     /&(?:amp|quot|apos|lt|gt|#39|#x27);/giu,
@@ -1931,7 +1943,7 @@ export async function importJiraRelatedData(
   if (input.mode === "apply" && remoteRead.status === "fulfilled") {
     const currentRemoteKeys = new Set(
       remoteLinks.flatMap((remote) =>
-        remote.object.url
+        safeRemoteLinkUrl(remote.object.url)
           ? [`${remotePrefix}${canonicalRemoteLinkIdentity(remote)}`]
           : [],
       ),
@@ -1970,14 +1982,16 @@ export async function importJiraRelatedData(
   for (const remote of remoteLinks) {
     const remoteId = canonicalRemoteLinkIdentity(remote);
     const remoteReportId = `sha256:${fingerprintJiraState(remoteId)}`;
-    const url = remote.object.url;
+    const url = safeRemoteLinkUrl(remote.object.url);
     if (!url) {
       failure(
         report.failures,
         "remote_link",
         remoteReportId,
         "resolve",
-        "remote_link_url_missing",
+        remote.object.url?.trim()
+          ? "remote_link_url_invalid"
+          : "remote_link_url_missing",
       );
       continue;
     }

@@ -1923,6 +1923,52 @@ describe("Jira related-data import stage", () => {
     expect(state.refs.size).toBe(0);
   });
 
+  it("rejects non-http remote-link URLs", async () => {
+    const state = makeTarget();
+    const client = makeClient([]);
+    client.listRemoteLinks = async () => ({
+      items: [
+        {
+          globalId: "unsafe-remote",
+          object: { url: "javascript:alert(1)", title: "Unsafe" },
+        },
+      ],
+      rateLimit: {
+        limit: null,
+        remaining: null,
+        reset: null,
+        nearLimit: false,
+        retryAfterSeconds: null,
+      },
+      raw: [],
+    });
+    const result = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client,
+      target: state.target,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [{ typeId: "1", kind: "symmetric" }],
+      resolveIssueTarget: () => ({
+        reefId: "REEF-2",
+        documentUri: "akb://isolated/coll/issues/doc/reef-2.md",
+      }),
+      mode: "apply",
+    });
+    expect(result.report.failures).toContainEqual(
+      expect.objectContaining({ reason: "remote_link_url_invalid" }),
+    );
+    expect(state.refs.size).toBe(0);
+  });
+
   it("keeps explicit and content-derived remote-link identities disjoint", async () => {
     const state = makeTarget();
     const client = makeClient([]);
