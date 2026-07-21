@@ -307,11 +307,12 @@ const makeTarget = () => {
     async readAttachment(uri) {
       return attachments.get(uri) ?? null;
     },
-    async findAttachmentByJiraId(reefId, jiraAttachmentId) {
+    async findAttachmentByJiraId(reefId, jiraCloudId, jiraAttachmentId) {
       return (
         [...attachments.values()].find(
           ({ attachment }) =>
             attachment.reef_id === reefId &&
+            attachment.meta?.jira_cloud_id === jiraCloudId &&
             attachment.original_jira_attachment_id === jiraAttachmentId,
         ) ?? null
       );
@@ -961,6 +962,56 @@ describe("Jira related-data import stage", () => {
     );
     expect(state.comments.size).toBe(0);
     expect(state.attachments.size).toBe(0);
+  });
+
+  it("fails closed on duplicate comment ids with conflicting visibility", async () => {
+    const state = makeTarget();
+    const client = makeClient([]);
+    const body = {
+      type: "doc",
+      version: 1,
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "duplicate" }],
+        },
+      ],
+    };
+    client.readComments = async () => ({
+      items: [
+        { id: "50001", body, properties: [] },
+        {
+          id: "50001",
+          body,
+          properties: [],
+          visibility: { type: "role", identifier: "restricted-role" },
+        },
+      ],
+      pages: [],
+      rateLimits: [],
+    });
+    const result = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client,
+      target: state.target,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [],
+      resolveIssueTarget: () => null,
+      mode: "apply",
+    });
+    expect(state.comments.size).toBe(0);
+    expect(result.report.failures).toContainEqual(
+      expect.objectContaining({ reason: "comment_visibility_restricted" }),
+    );
   });
 
   it("revokes imported comments omitted from a later readable catalog", async () => {

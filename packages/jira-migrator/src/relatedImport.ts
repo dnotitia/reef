@@ -97,6 +97,7 @@ export interface JiraRelatedImportTarget {
   ): Promise<{ attachment: IssueAttachment; bytes: Uint8Array } | null>;
   findAttachmentByJiraId(
     reefId: string,
+    jiraCloudId: string,
     jiraAttachmentId: string,
   ): Promise<{ attachment: IssueAttachment; bytes: Uint8Array } | null>;
   revokeAttachment(input: {
@@ -654,6 +655,11 @@ export async function importJiraRelatedData(
   const comments =
     commentsRead.status === "fulfilled" ? commentsRead.value.items : [];
   const returnedCommentIds = new Set(comments.map((comment) => comment.id));
+  const unsafeVisibilityCommentIds = new Set(
+    comments
+      .filter((comment) => jiraCommentVisibility(comment) !== "safe")
+      .map((comment) => comment.id),
+  );
   const missingCommentBindings = input.ledger.bindings.filter(
     (binding) =>
       binding.source_identity.entity_kind === "comment" &&
@@ -758,6 +764,7 @@ export async function importJiraRelatedData(
     );
     const recovered = await input.target.findAttachmentByJiraId(
       input.reefId,
+      input.jiraCloudId,
       attachmentId,
     );
     const fileUris = new Set<string>();
@@ -861,6 +868,7 @@ export async function importJiraRelatedData(
             : null;
         const recovered = await input.target.findAttachmentByJiraId(
           input.reefId,
+          input.jiraCloudId,
           attachmentId,
         );
         const belongsToCurrentIssue =
@@ -1007,6 +1015,7 @@ export async function importJiraRelatedData(
       attachmentPhase = "readback";
       const recovered = await input.target.findAttachmentByJiraId(
         input.reefId,
+        input.jiraCloudId,
         attachment.id,
       );
       if (recovered) {
@@ -1133,6 +1142,7 @@ export async function importJiraRelatedData(
         attachmentPhase = "readback";
         const residual = await input.target.findAttachmentByJiraId(
           input.reefId,
+          input.jiraCloudId,
           attachment.id,
         );
         if (!residual) throw writeError;
@@ -1264,14 +1274,15 @@ export async function importJiraRelatedData(
       comment.id,
     );
     const visibility = jiraCommentVisibility(comment);
-    if (visibility !== "safe") {
+    if (visibility !== "safe" || unsafeVisibilityCommentIds.has(comment.id)) {
       unsafeCommentSourceKeys.add(identity.key);
       failure(
         report.failures,
         "comment",
         comment.id,
         "resolve",
-        visibility === "restricted"
+        visibility === "restricted" ||
+          unsafeVisibilityCommentIds.has(comment.id)
           ? "comment_visibility_restricted"
           : "comment_visibility_unverified",
       );

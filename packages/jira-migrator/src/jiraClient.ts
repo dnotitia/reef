@@ -602,7 +602,7 @@ export class JiraReadClient {
       throw new Error("jira_attachment_size_limit_exceeded");
     }
     const reader = response.body?.getReader();
-    const chunks: Uint8Array[] = [];
+    const bytes = new Uint8Array(maxBytes);
     let byteLength = 0;
     if (reader) {
       try {
@@ -612,22 +612,17 @@ export class JiraReadClient {
             .catch(() => Promise.reject(jiraTransportError(path, rateLimit)));
           const { done, value } = result;
           if (done) break;
-          byteLength += value.byteLength;
-          if (byteLength > maxBytes) {
+          const nextByteLength = byteLength + value.byteLength;
+          if (nextByteLength > maxBytes) {
             await reader.cancel();
             throw new Error("jira_attachment_size_limit_exceeded");
           }
-          chunks.push(value);
+          bytes.set(value, byteLength);
+          byteLength = nextByteLength;
         }
       } finally {
         reader.releaseLock();
       }
-    }
-    const bytes = new Uint8Array(byteLength);
-    let offset = 0;
-    for (const chunk of chunks) {
-      bytes.set(chunk, offset);
-      offset += chunk.byteLength;
     }
     if (
       declaredContentLength !== null &&
@@ -636,7 +631,7 @@ export class JiraReadClient {
     )
       throw new Error("jira_attachment_content_length_mismatch");
     return {
-      bytes,
+      bytes: bytes.subarray(0, byteLength),
       contentType: response.headers.get("content-type"),
       contentLength: declaredContentLength,
       rateLimit,
