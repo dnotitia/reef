@@ -199,6 +199,35 @@ describe("buildJiraChangelogPlan", () => {
     expect(plan.items.every((item) => item.activity === null)).toBe(true);
   });
 
+  it("rejects impossible calendar dates without rejecting valid leap days", () => {
+    const plan = buildJiraChangelogPlan(
+      baseInput([
+        {
+          field: "Start date",
+          fieldId: "customfield_10015",
+          from: null,
+          to: "2026-02-31",
+        },
+        {
+          field: "Start date",
+          fieldId: "customfield_10015",
+          from: null,
+          to: "2024-02-29",
+        },
+      ]),
+    );
+
+    expect(plan.items.map((item) => item.classification)).toEqual([
+      "deferred",
+      "promoted",
+    ]);
+    expect(plan.items[0]?.reason).toBe("start_date_lossy");
+    expect(plan.items[1]?.activity?.payload).toEqual({
+      from: null,
+      to: "2024-02-29",
+    });
+  });
+
   it("maps release, issue-link, remote-link, and attachment bindings without fabrication", () => {
     const plan = buildJiraChangelogPlan(
       baseInput([

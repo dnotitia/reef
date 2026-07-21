@@ -227,9 +227,39 @@ const mappedValue = <T>(
   return raw === null ? null : mappings[raw];
 };
 
+const isLeapYear = (year: number): boolean =>
+  year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+
 const isoOrNull = (value: string | null): string | null | undefined => {
   if (value === null) return null;
-  if (!/^\d{4}-\d{2}-\d{2}(?:T.*)?$/u.test(value)) return undefined;
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/u.exec(value);
+  if (!match) return undefined;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const daysInMonth = [
+    31,
+    isLeapYear(year) ? 29 : 28,
+    31,
+    30,
+    31,
+    30,
+    31,
+    31,
+    30,
+    31,
+    30,
+    31,
+  ];
+  const maxDay = daysInMonth.at(month - 1);
+  if (
+    month < 1 ||
+    month > 12 ||
+    maxDay === undefined ||
+    day < 1 ||
+    day > maxDay
+  )
+    return undefined;
   return Number.isFinite(Date.parse(value)) ? value : undefined;
 };
 
