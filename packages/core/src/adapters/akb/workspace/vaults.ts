@@ -169,13 +169,33 @@ export async function registerVaultMigrationWriter(
       issues: ["Migration service account has an incompatible vault role"],
     });
   }
-  await grantVaultMember({ adapter, vault, user: username, role: "writer" });
-  const { members } = await listVaultMembers({ adapter, vault });
-  const membership = members.find((member) => member.username === username);
-  if (membership?.role !== "writer") {
-    throw new SchemaValidationError({
-      issues: ["Migration service account writer membership was not confirmed"],
-    });
+  try {
+    await grantVaultMember({ adapter, vault, user: username, role: "writer" });
+    const { members } = await listVaultMembers({ adapter, vault });
+    const membership = members.find((member) => member.username === username);
+    if (membership?.role !== "writer") {
+      throw new SchemaValidationError({
+        issues: [
+          "Migration service account writer membership was not confirmed",
+        ],
+      });
+    }
+  } catch (registrationError) {
+    try {
+      await restoreVaultMigrationWriter({
+        adapter,
+        vault,
+        username,
+        previousRole: previousRole ?? null,
+      });
+    } catch {
+      throw new SchemaValidationError({
+        issues: [
+          "Migration service account registration failed and prior membership was not restored",
+        ],
+      });
+    }
+    throw registrationError;
   }
   return { previousRole: previousRole ?? null };
 }

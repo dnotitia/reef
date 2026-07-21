@@ -108,6 +108,45 @@ describe("migration service adapter boundary", () => {
         username: "reef-migrator",
       }),
     ).rejects.toThrow("Invalid data");
+    expect(request.mock.calls.map(([path]) => path)).toEqual([
+      "/api/v1/vaults/reef-a/members",
+      "/api/v1/vaults/reef-a/grant",
+      "/api/v1/vaults/reef-a/members",
+      "/api/v1/vaults/reef-a/revoke",
+    ]);
+  });
+
+  it("restores prior membership when writer readback throws after grant", async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        members: [{ username: "reef-migrator", role: "reader" }],
+      })
+      .mockResolvedValueOnce({
+        vault: "reef-a",
+        user: "reef-migrator",
+        role: "writer",
+      })
+      .mockRejectedValueOnce(new Error("readback unavailable"))
+      .mockResolvedValueOnce({
+        vault: "reef-a",
+        user: "reef-migrator",
+        role: "reader",
+      });
+
+    await expect(
+      akbRegisterVaultMigrationWriter({
+        adapter: { request },
+        vault: "reef-a",
+        username: "reef-migrator",
+      }),
+    ).rejects.toThrow("readback unavailable");
+    expect(request).toHaveBeenLastCalledWith(
+      "/api/v1/vaults/reef-a/grant",
+      expect.objectContaining({
+        body: { user: "reef-migrator", role: "reader" },
+      }),
+    );
   });
 
   it("reads the stored Reef schema version through the public adapter boundary", async () => {
