@@ -1,6 +1,6 @@
 import { z } from "zod";
 import {
-  type JiraChangelogItemPayload,
+  type JiraChangelogHistoryPayload,
   type JiraCommentPayload,
   type JiraIssuePayload,
   type JiraUserPayload,
@@ -345,7 +345,7 @@ export const resolveJiraActor = (
 export const collectJiraUserObservations = (input: {
   issue: JiraIssuePayload;
   comments?: readonly JiraCommentPayload[];
-  changelog?: readonly JiraChangelogItemPayload[];
+  changelog?: readonly JiraChangelogHistoryPayload[];
 }): JiraUserObservation[] => {
   const projectKey = input.issue.fields.project?.key ?? null;
   const observations: JiraUserObservation[] = [];
@@ -520,7 +520,7 @@ export const mapJiraCommentActor = (
   resolveJiraActor("comment_author", comment.author, options);
 
 export const mapJiraChangelogActor = (
-  item: JiraChangelogItemPayload,
+  item: JiraChangelogHistoryPayload,
   options: Parameters<typeof resolveJiraActor>[2],
 ): JiraActorMappingResult =>
   resolveJiraActor("changelog_actor", item.author, options);

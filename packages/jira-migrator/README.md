@@ -15,7 +15,6 @@ does not apply those plans or write to Jira or Reef.
 - `../../docs/jira-migration.md` is the canonical operator runbook and migration
   policy document. Keep field mapping, account mapping, report interpretation,
   and Jira-to-Reef behavior there.
-- `AGENTS.md` is for agent-only implementation rules.
 - When CLI flags or environment variables change, update this README and
   `../../docs/jira-migration.md` together.
 
@@ -66,6 +65,10 @@ The package exports:
   `JiraIssueImportPlan` builders that combine configurable enum policies,
   account mappings, planning bindings, parents, Rank, compact provenance, and
   field-level reports without performing I/O.
+- An immutable `buildJiraChangelogPlan` surface that consumes one verified raw
+  history reference, classifies every item as `promoted`, `raw`, `deferred`, or
+  `failed`, and emits only lossless activity/external-reference actions with
+  deterministic migration event keys.
 
 The planning surface uses stable Jira Cloud, project, Version, and Sprint ids;
 project keys are operator inputs, never exported API names. See the operator
@@ -101,6 +104,23 @@ reference are required. Synchronized or network filesystems are unsupported.
 The repository-level `/artifacts/` ignore rule is a last-resort commit guard,
 not an operational storage default. See the operator runbook for recovery,
 stale-lock, access-review, retention, and sanitization procedures.
+
+## Changelog Planning
+
+Archive each Jira changelog history before calling `buildJiraChangelogPlan`.
+The planner verifies the opaque archive checksum against the exact
+pre-normalization payload and rejects a missing or mismatched reference. It
+promotes supported field-id/exact-alias mappings only when every target value,
+actor, timestamp, and required binding or current snapshot resolves without
+loss. Everything else remains raw, deferred, or failed; it never fabricates a
+Reef action.
+
+The returned plan is deeply frozen and includes per-item classifications,
+aggregate and per-field counts, opaque preservation locations, and stable
+`jira-changelog:<cloud>:<issue>:<history>:<item>:<event>` keys. Reports and
+actions intentionally exclude raw authors, source bodies, credentials, and
+local archive paths. The full mapping and replay policy is in the operator
+runbook.
 
 ## Ledger And Checkpoint
 
@@ -156,6 +176,3 @@ pnpm -r run test
 ## Related Docs
 
 - [Jira migration runbook and policy](../../docs/jira-migration.md)
-- [Root README](../../README.md)
-- [Root agent contract](../../AGENTS.md)
-- [Package agent rules](AGENTS.md)

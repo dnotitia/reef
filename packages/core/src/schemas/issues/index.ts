@@ -73,6 +73,11 @@ export {
   ACTIVITY_EVENT_ARCHIVED_CHANGE,
   ACTIVITY_EVENT_ATTACHMENT_ADDED,
   ACTIVITY_EVENT_ATTACHMENT_REMOVED,
+  ACTIVITY_EVENT_ISSUE_TYPE_CHANGE,
+  ACTIVITY_EVENT_START_DATE_CHANGE,
+  JiraChangelogActivityEventKeySchema,
+  IssueTypeChangePayloadSchema,
+  StartDateChangePayloadSchema,
   type ActivityEventType,
   type ActivityEventPayload,
   type AssigneeChangePayload,
@@ -91,6 +96,8 @@ export {
   type ArchivedChangePayload,
   type AttachmentAddedPayload,
   type AttachmentRemovedPayload,
+  type IssueTypeChangePayload,
+  type StartDateChangePayload,
   type ActivityEvent,
 } from "./activity";
 

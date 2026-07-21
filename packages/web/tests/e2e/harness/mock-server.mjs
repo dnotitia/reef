@@ -430,6 +430,14 @@ function configuredVault(name) {
         from: false,
         to: true,
       }),
+      activityRow("REEF-001", "issue_type_change", "2026-06-17T08:35:00.000Z", {
+        from: "story",
+        to: "bug",
+      }),
+      activityRow("REEF-001", "start_date_change", "2026-06-17T08:40:00.000Z", {
+        from: null,
+        to: "2026-07-21",
+      }),
     ],
   };
 
