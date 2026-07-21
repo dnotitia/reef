@@ -304,9 +304,11 @@ export class JiraReadClient {
 
   async downloadAttachmentContent(
     attachmentId: string | number,
+    maxBytes: number,
   ): Promise<JiraBinaryResult> {
     return this.getBinary(
       `/rest/api/3/attachment/content/${encodeURIComponent(String(attachmentId))}`,
+      maxBytes,
       { redirect: false },
     );
   }
@@ -535,8 +537,11 @@ export class JiraReadClient {
 
   private async getBinary(
     path: string,
+    maxBytes: number,
     query: Record<string, string | number | boolean | null | undefined> = {},
   ): Promise<JiraBinaryResult> {
+    if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0)
+      throw new Error("jira_attachment_size_limit_invalid");
     const url = this.buildUrl(path, query);
     const response = await this.fetchImpl(url, {
       method: "GET",
@@ -559,8 +564,41 @@ export class JiraReadClient {
     }
     const rawLength = response.headers.get("content-length");
     const contentLength = rawLength === null ? null : Number(rawLength);
+    if (
+      contentLength !== null &&
+      Number.isFinite(contentLength) &&
+      contentLength > maxBytes
+    ) {
+      await response.body?.cancel();
+      throw new Error("jira_attachment_size_limit_exceeded");
+    }
+    const reader = response.body?.getReader();
+    const chunks: Uint8Array[] = [];
+    let byteLength = 0;
+    if (reader) {
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          byteLength += value.byteLength;
+          if (byteLength > maxBytes) {
+            await reader.cancel();
+            throw new Error("jira_attachment_size_limit_exceeded");
+          }
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    }
+    const bytes = new Uint8Array(byteLength);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
     return {
-      bytes: new Uint8Array(await response.arrayBuffer()),
+      bytes,
       contentType: response.headers.get("content-type"),
       contentLength:
         contentLength !== null && Number.isFinite(contentLength)

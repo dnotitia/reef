@@ -19,6 +19,10 @@ const json = (value: unknown) =>
 const rootId = "11111111-1111-4111-8111-111111111111";
 const replyId = "22222222-2222-4222-8222-222222222222";
 const attachmentRowId = "33333333-3333-4333-8333-333333333333";
+const attachmentPolicy = {
+  commentVisibilityCompleteness: "verified" as const,
+  maxBytes: 1024,
+};
 
 const issueFixture = (size = 3): JiraIssuePayload => ({
   id: "10001",
@@ -353,6 +357,7 @@ describe("Jira related-data import stage", () => {
       jiraCloudId: "cloud-1",
       issue: issueFixture(),
       reefId: "REEF-1",
+      attachmentPolicy,
       client,
       target: state.target,
       accountMapping,
@@ -491,6 +496,7 @@ describe("Jira related-data import stage", () => {
       jiraCloudId: "cloud-1",
       issue: broken,
       reefId: "REEF-1",
+      attachmentPolicy,
       client,
       target: state.target,
       ledger: createJiraMigrationLedger({
@@ -521,6 +527,7 @@ describe("Jira related-data import stage", () => {
       jiraCloudId: "cloud-1",
       issue: issueFixture(),
       reefId: "REEF-1",
+      attachmentPolicy,
       client: makeClient(requests, false, false, false, true),
       target: state.target,
       ledger: createJiraMigrationLedger({
@@ -553,6 +560,38 @@ describe("Jira related-data import stage", () => {
     ).toBe(false);
   });
 
+  it("requires an explicit completeness attestation before attachment import", async () => {
+    const requests: string[] = [];
+    const state = makeTarget();
+    const result = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      client: makeClient(requests),
+      target: state.target,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [],
+      resolveIssueTarget: () => null,
+      mode: "apply",
+    });
+    expect(result.report.failures).toContainEqual(
+      expect.objectContaining({
+        source_kind: "attachment",
+        reason: "attachment_visibility_unverifiable",
+      }),
+    );
+    expect(state.attachments.size).toBe(0);
+    expect(
+      requests.some((request) => request.includes("/attachment/content/")),
+    ).toBe(false);
+  });
+
   it("reports comment media in dry-run and defers comments whose media cannot be imported", async () => {
     const state = makeTarget();
     const issue = issueFixture(4);
@@ -578,6 +617,7 @@ describe("Jira related-data import stage", () => {
       jiraCloudId: "cloud-1",
       issue,
       reefId: "REEF-1",
+      attachmentPolicy,
       client: makeClient([], false, false, true),
       target: state.target,
       ledger: initial,
@@ -620,6 +660,7 @@ describe("Jira related-data import stage", () => {
       jiraCloudId: "cloud-1",
       issue: issueFixture(),
       reefId: "REEF-1",
+      attachmentPolicy,
       client: makeClient([], false, true),
       target: state.target,
       ledger: createJiraMigrationLedger({
@@ -683,6 +724,7 @@ describe("Jira related-data import stage", () => {
       jiraCloudId: "cloud-1",
       issue: issueFixture(),
       reefId: "REEF-1",
+      attachmentPolicy,
       client,
       target: state.target,
       ledger: createJiraMigrationLedger({
@@ -709,6 +751,7 @@ describe("Jira related-data import stage", () => {
       jiraCloudId: "cloud-1",
       issue: issueFixture(),
       reefId: "REEF-1",
+      attachmentPolicy,
       client: makeClient([]),
       target: state.target,
       ledger: createJiraMigrationLedger({
@@ -772,6 +815,7 @@ describe("Jira related-data import stage", () => {
       jiraCloudId: "cloud-1",
       issue: issueFixture(),
       reefId: "REEF-1",
+      attachmentPolicy,
       client: makeClient([]),
       target: state.target,
       accountMapping: createJiraAccountMappingArtifact({

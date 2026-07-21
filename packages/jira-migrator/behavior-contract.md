@@ -25,9 +25,9 @@ and rerun the same input without duplicates.
 4. An orphan reply, ambiguous media, attachment size mismatch, or unknown link
    is isolated while sibling entities continue.
 5. A comment with Jira visibility restrictions is not published without its
-   ACL. If any restriction exists or comment visibility cannot be read, issue
-   attachments are isolated because their comment-level visibility cannot be
-   established by the source contract.
+   ACL. Attachment import requires explicit comment-catalog completeness and
+   maximum-byte policies; if the attestation is absent, any restriction is
+   visible, or a size limit is exceeded, the attachment is isolated.
 
 ## Anti-Cheat Probes
 

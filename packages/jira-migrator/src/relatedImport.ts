@@ -133,6 +133,10 @@ export interface JiraRelatedImportInput {
   accountMapping: JiraAccountMappingArtifact;
   actorDirectory?: readonly ReefActorDirectoryEntry[];
   linkMappings: readonly JiraLinkMapping[];
+  attachmentPolicy?: {
+    commentVisibilityCompleteness: "verified";
+    maxBytes: number;
+  };
   resolveIssueTarget(
     sourceIdOrKey: string,
   ): { reefId: string; documentUri: string } | null;
@@ -523,6 +527,9 @@ export async function importJiraRelatedData(
   const comments =
     commentsRead.status === "fulfilled" ? commentsRead.value.items : [];
   const attachmentVisibilityEstablished =
+    input.attachmentPolicy?.commentVisibilityCompleteness === "verified" &&
+    Number.isSafeInteger(input.attachmentPolicy.maxBytes) &&
+    input.attachmentPolicy.maxBytes > 0 &&
     commentsRead.status === "fulfilled" &&
     comments.every((comment) => comment.visibility === undefined);
   if (commentsRead.status === "rejected") {
@@ -573,6 +580,20 @@ export async function importJiraRelatedData(
       );
       continue;
     }
+    const maxAttachmentBytes = input.attachmentPolicy?.maxBytes;
+    if (
+      maxAttachmentBytes === undefined ||
+      (attachment.size !== null && attachment.size > maxAttachmentBytes)
+    ) {
+      failure(
+        report.failures,
+        "attachment",
+        attachment.id,
+        "resolve",
+        "attachment_size_limit_exceeded",
+      );
+      continue;
+    }
     const identity = jiraAttachmentSourceIdentity(
       input.jiraCloudId,
       attachment.id,
@@ -595,6 +616,7 @@ export async function importJiraRelatedData(
       if (existing?.target.target_kind === "attachment") {
         const download = await input.client.downloadAttachmentContent(
           attachment.id,
+          maxAttachmentBytes,
         );
         if (
           attachment.size !== null &&
@@ -630,6 +652,7 @@ export async function importJiraRelatedData(
         attachmentPhase = "read";
         const download = await input.client.downloadAttachmentContent(
           attachment.id,
+          maxAttachmentBytes,
         );
         if (
           attachment.size !== null &&
@@ -680,6 +703,7 @@ export async function importJiraRelatedData(
       attachmentPhase = "read";
       const download = await input.client.downloadAttachmentContent(
         attachment.id,
+        maxAttachmentBytes,
       );
       if (
         attachment.size !== null &&
@@ -740,7 +764,9 @@ export async function importJiraRelatedData(
         attachmentPhase,
         String(error).includes("size_mismatch")
           ? "attachment_size_mismatch"
-          : "attachment_import_failed",
+          : String(error).includes("size_limit")
+            ? "attachment_size_limit_exceeded"
+            : "attachment_import_failed",
         error,
       );
     }

@@ -20,8 +20,10 @@ explicitly in the entries below.
   rewrites, configured directional or symmetric issue links, separately
   modeled remote links, isolated failures, and readback-confirmed idempotent
   reruns. Restricted comments and attachments whose comment-level visibility
-  cannot be established are isolated rather than published without their Jira
-  access controls. No AKB schema migration or backfill is required. (REEF-320)
+  cannot be explicitly attested complete are isolated rather than published
+  without their Jira access controls, and attachment buffering is bounded by
+  an operator-set byte limit. No AKB schema migration or backfill is required.
+  (REEF-320)
 
 - **Jira changelog histories can be planned as auditable Reef activity.** The
   migrator now verifies pre-normalization raw-history references, classifies

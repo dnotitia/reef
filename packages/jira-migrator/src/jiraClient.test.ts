@@ -201,9 +201,12 @@ describe("JiraReadClient", () => {
     await expect(client.listRemoteLinks("ALPHA-1")).resolves.toMatchObject({
       items: [{ globalId: "remote-1" }],
     });
-    await expect(client.downloadAttachmentContent("42")).resolves.toMatchObject(
-      { bytes: new Uint8Array([1, 2, 3]), contentLength: 3 },
-    );
+    await expect(
+      client.downloadAttachmentContent("42", 1024),
+    ).resolves.toMatchObject({
+      bytes: new Uint8Array([1, 2, 3]),
+      contentLength: 3,
+    });
 
     const [remoteUrl] = fetchImpl.mock.calls[0] ?? [];
     const [downloadUrl, downloadInit] = fetchImpl.mock.calls[1] ?? [];
@@ -212,6 +215,20 @@ describe("JiraReadClient", () => {
       "https://example.atlassian.net/rest/api/3/attachment/content/42?redirect=false",
     );
     expect(downloadInit).toMatchObject({ method: "GET", redirect: "error" });
+  });
+
+  it("stops reading attachment bodies that exceed the configured limit", async () => {
+    const client = makeClient(
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(new Uint8Array([1, 2, 3, 4]), {
+          headers: { "content-type": "application/octet-stream" },
+        }),
+      ),
+    );
+
+    await expect(client.downloadAttachmentContent("42", 3)).rejects.toThrow(
+      "jira_attachment_size_limit_exceeded",
+    );
   });
 
   it("returns the pre-validation JSON value without schema coercion or stripping", async () => {
