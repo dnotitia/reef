@@ -230,6 +230,16 @@ export const JiraCommentSchema = z
       })
       .passthrough()
       .optional(),
+    properties: z
+      .array(
+        z
+          .object({
+            key: z.string(),
+            value: z.unknown(),
+          })
+          .passthrough(),
+      )
+      .optional(),
   })
   .passthrough();
 

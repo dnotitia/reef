@@ -90,6 +90,7 @@ const makeClient = (
   remoteFailure = false,
   commentMedia = false,
   restrictedComment = false,
+  internalComment = false,
 ) =>
   new JiraReadClient({
     baseUrl: "https://example.atlassian.net",
@@ -145,6 +146,14 @@ const makeClient = (
                       : undefined,
                     author: { accountId: "acct-1" },
                     created: "2026-01-01T01:00:00.000Z",
+                    properties: internalComment
+                      ? [
+                          {
+                            key: "sd.public.comment",
+                            value: { internal: true },
+                          },
+                        ]
+                      : [],
                     ...(restrictedComment
                       ? {
                           visibility: {
@@ -177,6 +186,7 @@ const makeClient = (
                     author: { accountId: "acct-1" },
                     created: "2026-01-01T02:00:00.000Z",
                     updated: "2026-01-01T03:00:00.000Z",
+                    properties: [],
                   },
                 ],
               },
@@ -605,6 +615,42 @@ describe("Jira related-data import stage", () => {
     expect(
       requests.some((request) => request.includes("/attachment/content/")),
     ).toBe(false);
+  });
+
+  it("does not publish Jira Service Management internal comments", async () => {
+    const state = makeTarget();
+    const result = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client: makeClient([], false, false, false, false, true),
+      target: state.target,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [],
+      resolveIssueTarget: () => null,
+      mode: "apply",
+    });
+    expect(result.report.failures).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source_kind: "comment",
+          reason: "comment_visibility_restricted",
+        }),
+        expect.objectContaining({
+          source_kind: "attachment",
+          reason: "attachment_visibility_unverifiable",
+        }),
+      ]),
+    );
+    expect(state.comments.size).toBe(0);
+    expect(state.attachments.size).toBe(0);
   });
 
   it("requires an explicit completeness attestation before attachment import", async () => {

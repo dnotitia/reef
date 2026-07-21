@@ -25,10 +25,12 @@ and rerun the same input without duplicates.
 3. Rerun leaves target counts unchanged and reports readback/skipped entities.
 4. An orphan reply, ambiguous media, attachment size mismatch, or unknown link
    is isolated while sibling entities continue.
-5. A comment with Jira visibility restrictions is not published without its
-   ACL. Attachment import requires explicit comment-catalog completeness and
-   maximum-byte policies; if the attestation is absent, any restriction is
-   visible, or a size limit is exceeded, the attachment is isolated.
+5. A comment with Jira visibility restrictions or the Jira Service Management
+   internal-comment property is not published without its ACL. Missing or
+   malformed expanded properties fail closed. Attachment import requires
+   explicit comment-catalog completeness and maximum-byte policies; if the
+   attestation is absent, any restriction is visible, or a size limit is
+   exceeded, the attachment is isolated.
 
 ## Anti-Cheat Probes
 

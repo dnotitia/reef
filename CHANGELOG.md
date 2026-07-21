@@ -19,9 +19,10 @@ explicitly in the entries below.
   comments, redirect-safe attachment downloads, deterministic ADF media
   rewrites, configured directional or symmetric issue links, separately
   modeled remote links, isolated failures, and readback-confirmed idempotent
-  reruns. Restricted comments and attachments whose comment-level visibility
-  cannot be explicitly attested complete are isolated rather than published
-  without their Jira access controls, and attachment buffering is bounded by
+  reruns. Role/group-restricted and Jira Service Management internal comments,
+  plus attachments whose comment-level visibility cannot be explicitly
+  attested complete, are isolated rather than published without their Jira
+  access controls. Attachment buffering is bounded by
   an operator-set byte limit in dry-run and apply. Legacy ADF media projections
   remain eligible for option-aware reconciliation, so no AKB schema migration
   or backfill is required. (REEF-320)

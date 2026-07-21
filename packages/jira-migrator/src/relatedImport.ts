@@ -262,6 +262,21 @@ const sameLinkMapping = (
   (mapping.inward === undefined || mapping.inward === link.inward) &&
   (mapping.outward === undefined || mapping.outward === link.outward);
 
+const jiraCommentVisibility = (
+  comment: JiraCommentPayload,
+): "safe" | "restricted" | "unverified" => {
+  if (comment.visibility !== undefined) return "restricted";
+  if (comment.properties === undefined) return "unverified";
+  const serviceManagementVisibility = comment.properties.find(
+    (property) => property.key === "sd.public.comment",
+  );
+  if (!serviceManagementVisibility) return "safe";
+  const value = serviceManagementVisibility.value;
+  if (typeof value !== "object" || value === null || !("internal" in value))
+    return "unverified";
+  return value.internal === false ? "safe" : "restricted";
+};
+
 const canonicalRemoteLinkIdentity = (remote: JiraRemoteLinkPayload): string =>
   remote.globalId
     ? `global:${remote.globalId}`
@@ -544,7 +559,7 @@ export async function importJiraRelatedData(
     Number.isSafeInteger(input.attachmentPolicy.maxBytes) &&
     input.attachmentPolicy.maxBytes > 0 &&
     commentsRead.status === "fulfilled" &&
-    comments.every((comment) => comment.visibility === undefined);
+    comments.every((comment) => jiraCommentVisibility(comment) === "safe");
   if (commentsRead.status === "rejected") {
     failure(
       report.failures,
@@ -844,13 +859,16 @@ export async function importJiraRelatedData(
     if (next) orderedComments.push(next);
   }
   for (const comment of orderedComments) {
-    if (comment.visibility !== undefined) {
+    const visibility = jiraCommentVisibility(comment);
+    if (visibility !== "safe") {
       failure(
         report.failures,
         "comment",
         comment.id,
         "resolve",
-        "comment_visibility_restricted",
+        visibility === "restricted"
+          ? "comment_visibility_restricted"
+          : "comment_visibility_unverified",
       );
       continue;
     }
