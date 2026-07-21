@@ -347,9 +347,8 @@ describe("ADF to Markdown", () => {
         reason: "description_node_unsupported",
       }),
     );
-    expect(first.markdown).toContain(
-      `\\[Jira media media\\-1 \\(file\\) raw:run\\-1/entry\\-media@${rawRef.contentSha256}\\]`,
-    );
+    expect(first.markdown).toContain(first.media[0]?.placeholder);
+    expect(first.media[0]?.placeholder).toContain("jira-media:");
     expect(JSON.stringify(first)).not.toContain('"type":"doc"');
   });
 });

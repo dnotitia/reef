@@ -294,6 +294,9 @@ const makeTarget = () => {
           }
         : null;
     },
+    async deleteRelation(key) {
+      relations.delete(key);
+    },
     async putExternalRef(value) {
       refs.set(value.idempotencyKey, value);
     },

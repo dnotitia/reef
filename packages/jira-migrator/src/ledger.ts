@@ -626,6 +626,21 @@ export const confirmJiraMigrationBinding = (
   return deepFreeze(JiraMigrationLedgerV1Schema.parse({ ...ledger, bindings }));
 };
 
+export const removeJiraMigrationBindings = (
+  ledger: JiraMigrationLedgerV1,
+  sourceKeys: readonly string[],
+): JiraMigrationLedgerV1 => {
+  const removed = new Set(sourceKeys);
+  return deepFreeze(
+    JiraMigrationLedgerV1Schema.parse({
+      ...ledger,
+      bindings: ledger.bindings.filter(
+        (binding) => !removed.has(binding.source_key),
+      ),
+    }),
+  );
+};
+
 export const getJiraPlanningLedgerBindings = (
   ledger: JiraMigrationLedgerV1,
 ): JiraPlanningLedgerBinding[] =>

@@ -355,9 +355,7 @@ const renderMedia = (
       : null;
   const reference = context.options.mediaRawArchiveReferences?.[id] ?? null;
   const token = reference ? rawReferenceToken(reference) : "missing";
-  const placeholder = escapeInlineSourceText(
-    `[Jira media ${id} (${type ?? "unknown"}) raw:${token}]`,
-  );
+  const placeholder = `\u{e000}jira-media:${encodeURIComponent(path)}:${encodeURIComponent(id)}:${encodeURIComponent(token)}\u{e001}`;
   context.media.push({
     path,
     mediaId: id,

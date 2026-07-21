@@ -15,6 +15,7 @@ import {
   jiraCommentSourceIdentity,
   jiraRelationSourceIdentity,
   legacyJiraRelationSourceKey,
+  removeJiraMigrationBindings,
 } from "./ledger.js";
 import type {
   JiraCommentPayload,
@@ -106,6 +107,7 @@ export interface JiraRelatedImportTarget {
     relation: JiraRelationKind;
     inverseRelation: JiraRelationKind;
   } | null>;
+  deleteRelation(idempotencyKey: string): Promise<void>;
   putExternalRef(input: {
     idempotencyKey: string;
     reefId: string;
@@ -726,6 +728,9 @@ export async function importJiraRelatedData(
         );
       else if (existingDescription !== description.markdown)
         throw new Error("description_precondition_failed");
+      const readback = await input.target.readDescription(input.reefId);
+      if (readback !== description.markdown)
+        throw new Error("description_readback_mismatch");
     } catch (error) {
       failure(
         report.failures,
@@ -990,7 +995,7 @@ export async function importJiraRelatedData(
         relation,
         inverseRelation,
       };
-      const existingBinding = ledger.bindings.find(
+      const semanticBindings = ledger.bindings.filter(
         (item) =>
           item.source_key === identity.key ||
           item.source_key === legacyKey ||
@@ -998,7 +1003,13 @@ export async function importJiraRelatedData(
             item.source_identity.jira_cloud_id === input.jiraCloudId &&
             item.source_identity.link_id === linkId),
       );
-      if (existingBinding?.target.target_kind === "relation") {
+      const existingBinding = semanticBindings.find(
+        (binding) => binding.source_key === identity.key,
+      );
+      if (
+        semanticBindings.length === 1 &&
+        existingBinding?.target.target_kind === "relation"
+      ) {
         const existingRelation = await input.target.readRelation(
           existingBinding.target.idempotency_key,
         );
@@ -1011,10 +1022,7 @@ export async function importJiraRelatedData(
           continue;
         }
       }
-      const relationKey =
-        existingBinding?.target.target_kind === "relation"
-          ? existingBinding.target.idempotency_key
-          : identity.key;
+      const relationKey = identity.key;
       await input.target.putRelation({
         idempotencyKey: relationKey,
         ...expectedRelation,
@@ -1026,8 +1034,26 @@ export async function importJiraRelatedData(
         fingerprintJiraState(expectedRelation)
       )
         throw new Error("relation_readback_missing");
+      for (const legacyBinding of semanticBindings) {
+        if (
+          legacyBinding.target.target_kind !== "relation" ||
+          legacyBinding.target.idempotency_key === relationKey
+        )
+          continue;
+        await input.target.deleteRelation(legacyBinding.target.idempotency_key);
+        if (
+          (await input.target.readRelation(
+            legacyBinding.target.idempotency_key,
+          )) !== null
+        )
+          throw new Error("relation_legacy_delete_readback_mismatch");
+      }
+      ledger = removeJiraMigrationBindings(
+        ledger,
+        semanticBindings.map((binding) => binding.source_key),
+      );
       ledger = confirmJiraMigrationBinding(ledger, {
-        sourceIdentity: existingBinding?.source_identity ?? identity,
+        sourceIdentity: identity,
         target: { target_kind: "relation", idempotency_key: relationKey },
         sourceFingerprint: fingerprintJiraState(link),
         mappedStateFingerprint,
