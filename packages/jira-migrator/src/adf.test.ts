@@ -9,6 +9,21 @@ const rawRef = {
 };
 
 describe("ADF to Markdown", () => {
+  it("isolates malformed UTF-16 in media identifiers without throwing", () => {
+    const result = convertAdfToMarkdown({
+      type: "doc",
+      version: 1,
+      content: [
+        {
+          type: "media",
+          attrs: { id: "broken-\ud800-id", type: "file" },
+        },
+      ],
+    });
+    expect(result.media).toHaveLength(1);
+    expect(result.media[0]?.placeholder).toContain("broken-%EF%BF%BD-id");
+  });
+
   it("preserves node/mark order and resolves mentions through the account resolver", () => {
     const result = convertAdfToMarkdown(
       {

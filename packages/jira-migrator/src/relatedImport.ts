@@ -254,8 +254,9 @@ const sameLinkMapping = (
   (mapping.outward === undefined || mapping.outward === link.outward);
 
 const canonicalRemoteLinkIdentity = (remote: JiraRemoteLinkPayload): string =>
-  remote.globalId ??
-  `sha256:${fingerprintJiraState({ application: remote.application ?? null, object: remote.object, relationship: remote.relationship ?? null })}`;
+  remote.globalId
+    ? `global:${remote.globalId}`
+    : `content-sha256:${fingerprintJiraState({ application: remote.application ?? null, object: remote.object, relationship: remote.relationship ?? null })}`;
 
 const decodeHtmlAttribute = (value: string): string =>
   value.replace(
@@ -368,6 +369,7 @@ export const resolveJiraMediaReference = (
   binding: AttachmentBinding;
   strategy: JiraMediaResolutionStrategy;
 } | null => {
+  if (media.mediaType !== "file") return null;
   const hint = renderedHints(renderedHtml).get(media.mediaId);
   if (media.filename) {
     const candidates = sourceAttachments.filter(
@@ -520,6 +522,9 @@ export async function importJiraRelatedData(
   ]);
   const comments =
     commentsRead.status === "fulfilled" ? commentsRead.value.items : [];
+  const attachmentVisibilityEstablished =
+    commentsRead.status === "fulfilled" &&
+    comments.every((comment) => comment.visibility === undefined);
   if (commentsRead.status === "rejected") {
     failure(
       report.failures,
@@ -558,6 +563,16 @@ export async function importJiraRelatedData(
   const now = input.now ?? (() => new Date().toISOString());
 
   for (const attachment of attachments) {
+    if (!attachmentVisibilityEstablished) {
+      failure(
+        report.failures,
+        "attachment",
+        attachment.id,
+        "resolve",
+        "attachment_visibility_unverifiable",
+      );
+      continue;
+    }
     const identity = jiraAttachmentSourceIdentity(
       input.jiraCloudId,
       attachment.id,
@@ -786,6 +801,16 @@ export async function importJiraRelatedData(
     if (next) orderedComments.push(next);
   }
   for (const comment of orderedComments) {
+    if (comment.visibility !== undefined) {
+      failure(
+        report.failures,
+        "comment",
+        comment.id,
+        "resolve",
+        "comment_visibility_restricted",
+      );
+      continue;
+    }
     const identity = jiraCommentSourceIdentity(
       input.jiraCloudId,
       issue.id,

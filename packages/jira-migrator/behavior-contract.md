@@ -24,6 +24,10 @@ and rerun the same input without duplicates.
 3. Rerun leaves target counts unchanged and reports readback/skipped entities.
 4. An orphan reply, ambiguous media, attachment size mismatch, or unknown link
    is isolated while sibling entities continue.
+5. A comment with Jira visibility restrictions is not published without its
+   ACL. If any restriction exists or comment visibility cannot be read, issue
+   attachments are isolated because their comment-level visibility cannot be
+   established by the source contract.
 
 ## Anti-Cheat Probes
 

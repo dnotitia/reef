@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createJiraAccountMappingArtifact } from "./accountMapping.js";
 import { convertAdfToMarkdown } from "./adf.js";
+import { fingerprintJiraState } from "./diff.js";
 import { JiraReadClient } from "./jiraClient.js";
 import { createJiraMigrationLedger } from "./ledger.js";
 import type { JiraIssuePayload, NormalizedJiraAttachment } from "./payloads.js";
@@ -84,6 +85,7 @@ const makeClient = (
   orphan = false,
   remoteFailure = false,
   commentMedia = false,
+  restrictedComment = false,
 ) =>
   new JiraReadClient({
     baseUrl: "https://example.atlassian.net",
@@ -139,6 +141,14 @@ const makeClient = (
                       : undefined,
                     author: { accountId: "acct-1" },
                     created: "2026-01-01T01:00:00.000Z",
+                    ...(restrictedComment
+                      ? {
+                          visibility: {
+                            type: "role",
+                            identifier: "restricted-role",
+                          },
+                        }
+                      : {}),
                   },
                 ],
               }
@@ -504,6 +514,45 @@ describe("Jira related-data import stage", () => {
     expect(state.refs.size).toBeGreaterThan(0);
   });
 
+  it("does not publish restricted comments or attachments with unverifiable visibility", async () => {
+    const requests: string[] = [];
+    const state = makeTarget();
+    const result = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      client: makeClient(requests, false, false, false, true),
+      target: state.target,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [],
+      resolveIssueTarget: () => null,
+      mode: "apply",
+    });
+    expect(result.report.failures).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source_kind: "comment",
+          reason: "comment_visibility_restricted",
+        }),
+        expect.objectContaining({
+          source_kind: "attachment",
+          reason: "attachment_visibility_unverifiable",
+        }),
+      ]),
+    );
+    expect(state.comments.size).toBe(0);
+    expect(state.attachments.size).toBe(0);
+    expect(
+      requests.some((request) => request.includes("/attachment/content/")),
+    ).toBe(false);
+  });
+
   it("reports comment media in dry-run and defers comments whose media cannot be imported", async () => {
     const state = makeTarget();
     const issue = issueFixture(4);
@@ -605,6 +654,52 @@ describe("Jira related-data import stage", () => {
     expect(state.comments.size).toBe(2);
     expect(state.attachments.size).toBe(1);
     expect(state.relations.size).toBe(1);
+  });
+
+  it("keeps explicit and content-derived remote-link identities disjoint", async () => {
+    const state = makeTarget();
+    const client = makeClient([]);
+    const object = {
+      url: "https://example.com/collision-proof",
+      title: "Collision proof",
+    };
+    const digest = fingerprintJiraState({
+      application: null,
+      object,
+      relationship: null,
+    });
+    client.listRemoteLinks = async () => ({
+      items: [{ globalId: `content-sha256:${digest}`, object }, { object }],
+      rateLimit: {
+        limit: null,
+        remaining: null,
+        reset: null,
+        nearLimit: false,
+        retryAfterSeconds: null,
+      },
+      raw: null,
+    });
+    const result = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      client,
+      target: state.target,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [],
+      resolveIssueTarget: () => null,
+      mode: "apply",
+    });
+    expect(result.report.remote_links.applied).toBe(2);
+    expect(
+      [...state.refs.keys()].filter((key) => key.startsWith("jira-remote:")),
+    ).toHaveLength(2);
   });
 
   it("does not confirm a relation binding until target readback succeeds", async () => {
@@ -783,6 +878,13 @@ describe("media crosswalk", () => {
         '<span data-media-services-id="m1" data-filename="b.bin"></span>',
       )?.strategy,
     ).toBe("rendered_unique_filename");
+    expect(
+      resolveJiraMediaReference(
+        { ...media, mediaType: "link" },
+        [{ source: source("1", "a.bin"), fileUri: "akb://v/file/1" }],
+        "",
+      ),
+    ).toBeNull();
     expect(
       resolveJiraMediaReference(
         { ...media, filename: null },

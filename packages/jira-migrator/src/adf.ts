@@ -355,7 +355,17 @@ const renderMedia = (
       : null;
   const reference = context.options.mediaRawArchiveReferences?.[id] ?? null;
   const token = reference ? rawReferenceToken(reference) : "missing";
-  const placeholder = `\u{e000}jira-media:${encodeURIComponent(path)}:${encodeURIComponent(id)}:${encodeURIComponent(token)}\u{e001}`;
+  const safeEncode = (value: string): string =>
+    encodeURIComponent(
+      Array.from(value, (character) =>
+        character.length === 1 &&
+        character.charCodeAt(0) >= 0xd800 &&
+        character.charCodeAt(0) <= 0xdfff
+          ? "\ufffd"
+          : character,
+      ).join(""),
+    );
+  const placeholder = `\u{e000}jira-media:${safeEncode(path)}:${safeEncode(id)}:${safeEncode(token)}\u{e001}`;
   context.media.push({
     path,
     mediaId: id,

@@ -222,6 +222,14 @@ export const JiraCommentSchema = z
     author: JiraUserSchema.optional(),
     created: z.string().optional(),
     updated: z.string().optional(),
+    visibility: z
+      .object({
+        type: z.string().optional(),
+        value: z.string().optional(),
+        identifier: z.string().optional(),
+      })
+      .passthrough()
+      .optional(),
   })
   .passthrough();
 

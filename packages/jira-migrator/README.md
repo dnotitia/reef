@@ -66,7 +66,11 @@ The package exports:
 - `importJiraRelatedData`, which supports mutation-free dry runs and idempotent
   apply/readback for threaded comments, controlled attachment downloads, ADF
   media rewrites, standard issue links, and remote links through an isolated
-  Reef target implementation.
+  Reef target implementation. Restricted Jira comments are isolated instead
+  of being published without their source ACL; when any comment restriction
+  exists or comment visibility cannot be read, issue attachments are likewise
+  isolated because Jira does not expose a reliable attachment-to-comment ACL
+  association through this stage's source contract.
 - Tenant field-catalog resolution, ADF-to-Markdown conversion, and immutable
   `JiraIssueImportPlan` builders that combine configurable enum policies,
   account mappings, planning bindings, parents, Rank, compact provenance, and
