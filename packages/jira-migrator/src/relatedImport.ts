@@ -104,6 +104,11 @@ export interface JiraRelatedImportTarget {
     provenance: Record<string, unknown>;
   }): Promise<void>;
   hasExternalRef(idempotencyKey: string): Promise<boolean>;
+  readExternalRef(idempotencyKey: string): Promise<{
+    reefId: string;
+    ref: ExternalRef;
+    provenance: Record<string, unknown>;
+  } | null>;
 }
 
 export interface JiraRelatedImportInput {
@@ -181,7 +186,7 @@ const validAttachmentReadback = (
     mimeType: string | null;
     jiraCloudId: string;
   },
-  expectedByteLength = source.size,
+  expectedBytes?: Uint8Array,
 ): boolean =>
   readback !== null &&
   readback.attachment.original_jira_attachment_id === source.id &&
@@ -195,8 +200,10 @@ const validAttachmentReadback = (
   readback.attachment.meta?.source === "jira" &&
   readback.attachment.meta?.jira_cloud_id === expected.jiraCloudId &&
   readback.attachment.size_bytes === readback.bytes.byteLength &&
-  (expectedByteLength === null ||
-    readback.bytes.byteLength === expectedByteLength);
+  (source.size === null || readback.bytes.byteLength === source.size) &&
+  (expectedBytes === undefined ||
+    (readback.bytes.byteLength === expectedBytes.byteLength &&
+      readback.bytes.every((byte, index) => byte === expectedBytes[index])));
 
 const retryableError = (error: unknown): boolean =>
   typeof error === "object" &&
@@ -238,6 +245,21 @@ const canonicalRemoteLinkIdentity = (remote: JiraRemoteLinkPayload): string =>
   remote.globalId ??
   `sha256:${fingerprintJiraState({ application: remote.application ?? null, object: remote.object, relationship: remote.relationship ?? null })}`;
 
+const decodeHtmlAttribute = (value: string): string =>
+  value.replace(
+    /&(?:amp|quot|apos|lt|gt|#39|#x27);/giu,
+    (entity) =>
+      ({
+        "&amp;": "&",
+        "&quot;": '"',
+        "&apos;": "'",
+        "&lt;": "<",
+        "&gt;": ">",
+        "&#39;": "'",
+        "&#x27;": "'",
+      })[entity.toLowerCase()] ?? entity,
+  );
+
 const renderedHints = (
   html: string,
 ): Map<string, { attachmentId: string | null; filename: string | null }> => {
@@ -253,9 +275,12 @@ const renderedHints = (
     if (!mediaId) continue;
     const href =
       tag.match(/(?:attachment\/|att)(\d+)(?:\/|[?"'])/iu)?.[1] ?? null;
-    const name =
+    const encodedName =
       tag.match(/(?:data-filename|alt|title)=["']([^"']+)["']/iu)?.[1] ?? null;
-    hints.set(mediaId, { attachmentId: href, filename: name });
+    hints.set(mediaId, {
+      attachmentId: href,
+      filename: encodedName ? decodeHtmlAttribute(encodedName) : null,
+    });
   }
   return hints;
 };
@@ -491,10 +516,20 @@ export async function importJiraRelatedData(
     };
     try {
       if (existing?.target.target_kind === "attachment") {
+        const download = await input.client.downloadAttachmentContent(
+          attachment.id,
+        );
         const readback = await input.target.readAttachment(
           existing.target.file_uri,
         );
-        if (!validAttachmentReadback(readback, attachment, expectedAttachment))
+        if (
+          !validAttachmentReadback(
+            readback,
+            attachment,
+            expectedAttachment,
+            download.bytes,
+          )
+        )
           throw new Error("attachment_readback_mismatch");
         attachmentBindings.push({
           source: attachment,
@@ -508,7 +543,17 @@ export async function importJiraRelatedData(
         attachment.id,
       );
       if (recovered) {
-        if (!validAttachmentReadback(recovered, attachment, expectedAttachment))
+        const download = await input.client.downloadAttachmentContent(
+          attachment.id,
+        );
+        if (
+          !validAttachmentReadback(
+            recovered,
+            attachment,
+            expectedAttachment,
+            download.bytes,
+          )
+        )
           throw new Error("attachment_readback_mismatch");
         attachmentBindings.push({
           source: attachment,
@@ -568,7 +613,7 @@ export async function importJiraRelatedData(
           readback,
           attachment,
           { ...expectedAttachment, mimeType },
-          download.bytes.byteLength,
+          download.bytes,
         )
       )
         throw new Error("attachment_readback_mismatch");
@@ -633,8 +678,21 @@ export async function importJiraRelatedData(
   }
 
   const roots = comments.filter((item) => item.parentId == null);
-  const replies = comments.filter((item) => item.parentId != null);
-  for (const comment of [...roots, ...replies]) {
+  const pendingReplies = comments.filter((item) => item.parentId != null);
+  const orderedComments = [...roots];
+  while (pendingReplies.length > 0) {
+    const nextIndex = pendingReplies.findIndex(
+      (candidate) =>
+        !pendingReplies.some((other) => other.id === candidate.parentId),
+    );
+    if (nextIndex < 0) {
+      orderedComments.push(...pendingReplies.splice(0));
+      break;
+    }
+    const [next] = pendingReplies.splice(nextIndex, 1);
+    if (next) orderedComments.push(next);
+  }
+  for (const comment of orderedComments) {
     const identity = jiraCommentSourceIdentity(
       input.jiraCloudId,
       issue.id,
@@ -884,14 +942,9 @@ export async function importJiraRelatedData(
     if (input.mode === "apply") {
       try {
         const idempotencyKey = `jira-remote:${input.jiraCloudId}:${issue.id}:${remoteId}`;
-        if (await input.target.hasExternalRef(idempotencyKey)) {
-          report.remote_links.skipped += 1;
-          continue;
-        }
-        await input.target.putExternalRef({
-          idempotencyKey,
+        const remoteValue = {
           reefId: input.reefId,
-          ref: { type: "url", url, label: remote.object.title },
+          ref: { type: "url" as const, url, label: remote.object.title },
           provenance: {
             source: "jira",
             remote_identity: remoteId,
@@ -900,6 +953,18 @@ export async function importJiraRelatedData(
             relationship: remote.relationship ?? null,
             object: remote.object,
           },
+        };
+        const existing = await input.target.readExternalRef(idempotencyKey);
+        if (
+          existing &&
+          fingerprintJiraState(existing) === fingerprintJiraState(remoteValue)
+        ) {
+          report.remote_links.skipped += 1;
+          continue;
+        }
+        await input.target.putExternalRef({
+          idempotencyKey,
+          ...remoteValue,
         });
         if (!(await input.target.hasExternalRef(idempotencyKey)))
           throw new Error("external_ref_readback_missing");

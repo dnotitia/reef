@@ -272,6 +272,18 @@ const makeTarget = () => {
     async hasExternalRef(key) {
       return refs.has(key);
     },
+    async readExternalRef(key) {
+      const value = refs.get(key) as
+        | Parameters<JiraRelatedImportTarget["putExternalRef"]>[0]
+        | undefined;
+      return value
+        ? {
+            reefId: value.reefId,
+            ref: value.ref,
+            provenance: value.provenance,
+          }
+        : null;
+    },
   };
   return {
     target,
