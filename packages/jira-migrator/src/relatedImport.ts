@@ -16,12 +16,14 @@ import {
 } from "./jiraClient.js";
 import {
   type JiraMigrationLedgerV1,
+  clearJiraCommentQuarantine,
   confirmJiraMigrationBinding,
   getJiraCommentTargetId,
   jiraAttachmentSourceIdentity,
   jiraCommentSourceIdentity,
   jiraRelationSourceIdentity,
   legacyJiraRelationSourceKey,
+  quarantineJiraCommentSource,
   removeJiraMigrationBindings,
 } from "./ledger.js";
 import type {
@@ -601,12 +603,11 @@ const reconcileProvisionalLinkRefs = async (
   target: JiraRelatedImportTarget,
   jiraCloudId: string,
   linkId: string,
-  endpointIssueIds: readonly (string | null)[],
 ): Promise<void> => {
   const keys = new Set(
-    endpointIssueIds
-      .filter((issueId): issueId is string => issueId !== null)
-      .map((issueId) => `jira-link:${jiraCloudId}:${issueId}:${linkId}`),
+    (await target.listExternalRefKeys(`jira-link:${jiraCloudId}:`)).filter(
+      (key) => key.endsWith(`:${linkId}`),
+    ),
   );
   for (const key of keys) {
     const existing = await target.readExternalRef(key);
@@ -661,6 +662,7 @@ export async function importJiraRelatedData(
 ): Promise<JiraRelatedImportResult> {
   const report = reportTemplate(input.mode);
   const issue = normalizeJiraIssue(input.issue);
+  let ledger = input.ledger;
   const [commentsRead, remoteRead] = await Promise.allSettled([
     input.client.readComments(issue.key),
     input.client.listRemoteLinks(issue.key),
@@ -673,6 +675,24 @@ export async function importJiraRelatedData(
       .filter((comment) => jiraCommentVisibility(comment) !== "safe")
       .map((comment) => comment.id),
   );
+  const safeReturnedCommentIds = new Set(
+    comments
+      .filter(
+        (comment) =>
+          jiraCommentVisibility(comment) === "safe" &&
+          !unsafeVisibilityCommentIds.has(comment.id),
+      )
+      .map((comment) => comment.id),
+  );
+  if (input.mode === "apply") {
+    ledger = clearJiraCommentQuarantine(
+      ledger,
+      [...safeReturnedCommentIds].map(
+        (commentId) =>
+          jiraCommentSourceIdentity(input.jiraCloudId, issue.id, commentId).key,
+      ),
+    );
+  }
   const missingCommentBindings = input.ledger.bindings.filter(
     (binding) =>
       binding.source_identity.entity_kind === "comment" &&
@@ -681,13 +701,20 @@ export async function importJiraRelatedData(
       (commentsRead.status === "rejected" ||
         !returnedCommentIds.has(binding.source_identity.comment_id)),
   );
-  const unsafeCommentIds = new Set(
-    missingCommentBindings.flatMap((binding) =>
+  const unsafeCommentIds = new Set([
+    ...missingCommentBindings.flatMap((binding) =>
       binding.source_identity.entity_kind === "comment"
         ? [binding.source_identity.comment_id]
         : [],
     ),
-  );
+    ...ledger.comment_quarantines.flatMap((quarantine) =>
+      quarantine.jira_cloud_id === input.jiraCloudId &&
+      quarantine.issue_id === issue.id &&
+      !safeReturnedCommentIds.has(quarantine.comment_id)
+        ? [quarantine.comment_id]
+        : [],
+    ),
+  ]);
   for (const comment of comments) {
     if (
       jiraCommentVisibility(comment) !== "safe" ||
@@ -703,6 +730,14 @@ export async function importJiraRelatedData(
     for (const comment of comments) {
       if (comment.parentId && unsafeCommentIds.has(comment.parentId))
         unsafeCommentIds.add(comment.id);
+    }
+  }
+  if (input.mode === "apply") {
+    for (const commentId of unsafeCommentIds) {
+      ledger = quarantineJiraCommentSource(
+        ledger,
+        jiraCommentSourceIdentity(input.jiraCloudId, issue.id, commentId),
+      );
     }
   }
   const attachmentBytePolicyInvalid =
@@ -762,7 +797,6 @@ export async function importJiraRelatedData(
   report.attachments.total = attachments.length;
   report.links.entries = links.length;
   report.remote_links.total = remoteLinks.length;
-  let ledger = input.ledger;
   const attachmentBindings: AttachmentBinding[] = [];
   const plannedCommentTargets = new Map<string, string>();
   const now = input.now ?? (() => new Date().toISOString());
@@ -850,6 +884,7 @@ export async function importJiraRelatedData(
               : null,
             recovered?.id,
           ]);
+          ledger = removeJiraMigrationBindings(ledger, [identity.key]);
           commentRevocationErrors.delete(commentId);
           progress = true;
         } catch (error) {
@@ -1321,7 +1356,8 @@ export async function importJiraRelatedData(
     const parentTargetId =
       parentSourceId === null
         ? null
-        : (getJiraCommentTargetId(
+        : (plannedCommentTargets.get(parentSourceId) ??
+          getJiraCommentTargetId(
             removeJiraMigrationBindings(ledger, [...unsafeCommentSourceKeys]),
             jiraCommentSourceIdentity(
               input.jiraCloudId,
@@ -1329,7 +1365,6 @@ export async function importJiraRelatedData(
               parentSourceId,
             ),
           ) ??
-          plannedCommentTargets.get(parentSourceId) ??
           null);
     if (parentSourceId !== null && parentTargetId === null) {
       unsafeCommentSourceKeys.add(identity.key);
@@ -1387,6 +1422,10 @@ export async function importJiraRelatedData(
         const existing = await input.target.readComment(existingTarget);
         if (existing === null) {
           if (input.mode === "dry-run") {
+            plannedCommentTargets.set(
+              comment.id,
+              `dry-run-comment:${comment.id}`,
+            );
             report.comments.updated += 1;
             continue;
           }
@@ -1565,6 +1604,7 @@ export async function importJiraRelatedData(
     );
   };
   const uniqueLinks = new Map<string, NormalizedJiraIssueLink>();
+  const conflictingLinkIds = new Set<string>();
   for (const link of links) {
     if (!link.id) {
       failure(
@@ -1576,9 +1616,47 @@ export async function importJiraRelatedData(
       );
       continue;
     }
+    if (conflictingLinkIds.has(link.id)) continue;
+    const existing = uniqueLinks.get(link.id);
+    if (
+      existing &&
+      fingerprintJiraState(existing) !== fingerprintJiraState(link)
+    ) {
+      uniqueLinks.delete(link.id);
+      conflictingLinkIds.add(link.id);
+      failure(
+        report.failures,
+        "link",
+        link.id,
+        "resolve",
+        "jira_link_duplicate_conflict",
+      );
+      continue;
+    }
     uniqueLinks.set(link.id, link);
   }
   report.links.unique = uniqueLinks.size;
+  if (input.mode === "apply") {
+    for (const linkId of conflictingLinkIds) {
+      try {
+        await removeStaleRelationBindings(linkId);
+        await reconcileProvisionalLinkRefs(
+          input.target,
+          input.jiraCloudId,
+          linkId,
+        );
+      } catch (error) {
+        failure(
+          report.failures,
+          "link",
+          linkId,
+          String(error).includes("readback") ? "readback" : "write",
+          "link_source_reconciliation_failed",
+          error,
+        );
+      }
+    }
+  }
   if (input.mode === "apply" && input.issue.fields.issuelinks !== undefined) {
     const provisionalPrefix = `jira-link:${input.jiraCloudId}:${issue.id}:`;
     const currentProvisionalKeys = new Set(
@@ -1641,10 +1719,6 @@ export async function importJiraRelatedData(
           input.target,
           input.jiraCloudId,
           linkId,
-          [
-            binding.source_identity.source_issue_id,
-            binding.source_identity.target_issue_id,
-          ],
         );
       } catch (error) {
         failure(
@@ -1791,7 +1865,6 @@ export async function importJiraRelatedData(
             input.target,
             input.jiraCloudId,
             linkId,
-            [issue.id, link.issueId],
           );
           report.links.skipped += 1;
           continue;
@@ -1813,7 +1886,6 @@ export async function importJiraRelatedData(
         input.target,
         input.jiraCloudId,
         linkId,
-        [issue.id, link.issueId],
       );
       for (const legacyBinding of semanticBindings) {
         if (

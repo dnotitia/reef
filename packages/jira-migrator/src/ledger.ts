@@ -342,12 +342,22 @@ export const JiraMigrationRunSchema = z
   .strict();
 export type JiraMigrationRun = z.infer<typeof JiraMigrationRunSchema>;
 
+const JiraCommentQuarantineSchema = z
+  .object({
+    source_key: z.string().min(1),
+    jira_cloud_id: z.string().min(1),
+    issue_id: z.string().min(1),
+    comment_id: z.string().min(1),
+  })
+  .strict();
+
 export const JiraMigrationLedgerV1Schema = z
   .object({
     schema_version: z.literal(1),
     source_scope: z.object({ jira_cloud_id: z.string().min(1) }).strict(),
     target_scope: z.object({ vault: z.string().min(1) }).strict(),
     bindings: z.array(JiraMigrationBindingSchema),
+    comment_quarantines: z.array(JiraCommentQuarantineSchema).default([]),
     runs: z.array(JiraMigrationRunSchema),
   })
   .strict()
@@ -389,6 +399,26 @@ export const JiraMigrationLedgerV1Schema = z
         });
       }
       bindingKeys.add(binding.source_key);
+    }
+    const quarantineKeys = new Set<string>();
+    for (const quarantine of ledger.comment_quarantines) {
+      const identity = jiraCommentSourceIdentity(
+        quarantine.jira_cloud_id,
+        quarantine.issue_id,
+        quarantine.comment_id,
+      );
+      if (
+        quarantine.source_key !== identity.key ||
+        quarantine.jira_cloud_id !== ledger.source_scope.jira_cloud_id ||
+        quarantineKeys.has(quarantine.source_key)
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "comment quarantine identity is inconsistent or duplicated",
+          path: ["comment_quarantines"],
+        });
+      }
+      quarantineKeys.add(quarantine.source_key);
     }
     if (
       new Set(ledger.runs.map((run) => run.run_id)).size !== ledger.runs.length
@@ -546,6 +576,7 @@ export const createJiraMigrationLedger = ({
       source_scope: { jira_cloud_id: jiraCloudId },
       target_scope: { vault: targetVault },
       bindings: [],
+      comment_quarantines: [],
       runs: [],
     }),
   );
@@ -639,6 +670,43 @@ export const removeJiraMigrationBindings = (
       ...ledger,
       bindings: ledger.bindings.filter(
         (binding) => !removed.has(binding.source_key),
+      ),
+    }),
+  );
+};
+
+export const quarantineJiraCommentSource = (
+  ledger: JiraMigrationLedgerV1,
+  identity: ReturnType<typeof jiraCommentSourceIdentity>,
+): JiraMigrationLedgerV1 => {
+  const quarantine = JiraCommentQuarantineSchema.parse({
+    source_key: identity.key,
+    jira_cloud_id: identity.jira_cloud_id,
+    issue_id: identity.issue_id,
+    comment_id: identity.comment_id,
+  });
+  const commentQuarantines = ledger.comment_quarantines
+    .filter((item) => item.source_key !== identity.key)
+    .concat(quarantine)
+    .sort((left, right) => left.source_key.localeCompare(right.source_key));
+  return deepFreeze(
+    JiraMigrationLedgerV1Schema.parse({
+      ...ledger,
+      comment_quarantines: commentQuarantines,
+    }),
+  );
+};
+
+export const clearJiraCommentQuarantine = (
+  ledger: JiraMigrationLedgerV1,
+  sourceKeys: readonly string[],
+): JiraMigrationLedgerV1 => {
+  const cleared = new Set(sourceKeys);
+  return deepFreeze(
+    JiraMigrationLedgerV1Schema.parse({
+      ...ledger,
+      comment_quarantines: ledger.comment_quarantines.filter(
+        (item) => !cleared.has(item.source_key),
       ),
     }),
   );

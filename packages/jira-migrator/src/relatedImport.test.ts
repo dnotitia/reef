@@ -692,6 +692,41 @@ describe("Jira related-data import stage", () => {
     expect(state.comments.size).toBe(2);
   });
 
+  it("dry-runs a stale threaded root with a synthetic replacement parent", async () => {
+    const state = makeTarget();
+    const base = {
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client: makeClient([]),
+      target: state.target,
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [] as const,
+      resolveIssueTarget: () => null,
+    };
+    const applied = await importJiraRelatedData({
+      ...base,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      mode: "apply",
+    });
+    state.comments.delete(rootId);
+    const dry = await importJiraRelatedData({
+      ...base,
+      ledger: applied.ledger,
+      mode: "dry-run",
+    });
+    expect(dry.report.comments.updated).toBe(2);
+    expect(dry.report.failures).not.toContainEqual(
+      expect.objectContaining({ reason: "comment_import_failed" }),
+    );
+  });
+
   it("keeps an unknown comment commit discoverable until visibility revocation", async () => {
     const state = makeTarget();
     const createComment = state.target.createComment.bind(state.target);
@@ -745,7 +780,8 @@ describe("Jira related-data import stage", () => {
       revoked.ledger.bindings.some(
         (binding) => binding.entity_kind === "comment",
       ),
-    ).toBe(true);
+    ).toBe(false);
+    expect(revoked.ledger.comment_quarantines).toHaveLength(2);
   });
 
   it("refreshes ledger fingerprints after an unknown comment update commit", async () => {
@@ -1016,6 +1052,28 @@ describe("Jira related-data import stage", () => {
     expect(result.report.failures).toContainEqual(
       expect.objectContaining({ reason: "comment_visibility_restricted" }),
     );
+    client.readComments = async () => ({
+      items: [],
+      pages: [],
+      rateLimits: [],
+    });
+    const repeated = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client,
+      target: state.target,
+      ledger: result.ledger,
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [],
+      resolveIssueTarget: () => null,
+      mode: "apply",
+    });
+    expect(state.attachments.size).toBe(0);
+    expect(repeated.ledger.comment_quarantines).toHaveLength(1);
   });
 
   it("revokes imported comments omitted from a later readable catalog", async () => {
@@ -1074,7 +1132,8 @@ describe("Jira related-data import stage", () => {
       reconciled.ledger.bindings.some(
         (binding) => binding.entity_kind === "comment",
       ),
-    ).toBe(true);
+    ).toBe(false);
+    expect(reconciled.ledger.comment_quarantines).toHaveLength(2);
     expect(
       reconciled.ledger.bindings.some(
         (binding) => binding.entity_kind === "attachment",
@@ -1632,6 +1691,39 @@ describe("Jira related-data import stage", () => {
       ),
     ).toBe(false);
     expect(result.report.links.unresolved).toBe(1);
+  });
+
+  it("isolates conflicting duplicate Jira link ids", async () => {
+    const state = makeTarget();
+    const issue = issueFixture();
+    const conflicting = issue.fields.issuelinks?.[1];
+    if (conflicting?.outwardIssue)
+      conflicting.outwardIssue = { id: "10003", key: "DEMO-3" };
+    const result = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue,
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client: makeClient([]),
+      target: state.target,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [{ typeId: "1", kind: "symmetric" }],
+      resolveIssueTarget: () => ({
+        reefId: "REEF-2",
+        documentUri: "akb://isolated/coll/issues/doc/reef-2.md",
+      }),
+      mode: "apply",
+    });
+    expect(result.report.failures).toContainEqual(
+      expect.objectContaining({ reason: "jira_link_duplicate_conflict" }),
+    );
+    expect(state.relations.size).toBe(0);
   });
 
   it("removes a relation whose Jira link disappears from an explicit catalog", async () => {
