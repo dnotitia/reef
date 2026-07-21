@@ -259,6 +259,8 @@ export const JiraMigrationEntityResultSchema = z
   .object({
     source_key: z.string().min(1),
     entity_kind: JiraMigrationEntityKindSchema,
+    source_fingerprint: sha256Schema,
+    mapped_state_fingerprint: sha256Schema,
     action: JiraMigrationActionSchema,
     retryable: z.boolean(),
     error_code: JiraMigrationSafeErrorCodeSchema.nullable(),

@@ -119,7 +119,10 @@ it for identity readback.
 Use the exported source-identity builders, `fingerprintJiraState`, and
 `classifyJiraMigrationDiff` for both dry-run and apply. Persist a binding with
 `confirmJiraMigrationBinding` only after the target write and target identity
-readback both succeed. `openJiraMigrationRun`, checkpoint reducers, and
+readback both succeed. Every entity result persists its sanitized source and
+mapped-state fingerprints; retry classification compares those saved
+preconditions with the current fingerprints after restart instead of accepting
+a caller-supplied match flag. `openJiraMigrationRun`, checkpoint reducers, and
 `buildJiraMigrationReport` operate on canonical entity keys rather than input
 array indexes, so reordered inputs and multiple Jira projects in one Cloud
 scope resume deterministically.

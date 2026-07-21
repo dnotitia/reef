@@ -478,6 +478,14 @@ created, updated, skipped, conflict, failed, and retryable counts directly from
 the selected run, grouped by phase and entity kind; no mutable counter totals
 are persisted.
 
+Each entity result stores the sanitized source and mapped-state fingerprints
+used for its attempt. After restart, retry classification compares those
+persisted values with the current source and desired mapped state; changed or
+missing preconditions produce `retry_precondition_changed` rather than a retry.
+Finalization also leaves a phase open while any successful result lacks
+readback or any reconciliation entry remains `pending_target_migration` or
+`ready`.
+
 ### File Lifecycle And Recovery
 
 Place the artifact in a private operator directory on an encrypted local

@@ -25,6 +25,8 @@ import {
 import { buildJiraMigrationReport } from "./report.js";
 
 const at = "2026-07-20T00:00:00.000Z";
+const sourceFingerprint = fingerprintJiraState({ source: "stable" });
+const mappedStateFingerprint = fingerprintJiraState({ mapped: "stable" });
 
 describe("Jira migration ledger", () => {
   it("builds collision-safe stable identities independent of display names and keys", () => {
@@ -210,11 +212,13 @@ describe("Jira migration ledger", () => {
     expect(
       classifyJiraMigrationDiff({
         binding,
+        currentSourceFingerprint: fingerprint,
         desiredMappedStateFingerprint: fingerprint,
         previousResult: {
           action: "failed",
           retryable: true,
-          preconditionsMatch: true,
+          source_fingerprint: fingerprint,
+          mapped_state_fingerprint: fingerprint,
         },
       }),
     ).toMatchObject({ action: "retry" });
@@ -227,16 +231,34 @@ describe("Jira migration ledger", () => {
     expect(
       classifyJiraMigrationDiff({
         binding: { ...binding, targetMatchesExpectedIdentity: false },
+        currentSourceFingerprint: fingerprint,
         desiredMappedStateFingerprint: fingerprint,
         previousResult: {
           action: "failed",
           retryable: true,
-          preconditionsMatch: true,
+          source_fingerprint: fingerprint,
+          mapped_state_fingerprint: fingerprint,
         },
       }),
     ).toMatchObject({
       action: "conflict",
       reason: "target_identity_mismatch",
+    });
+    expect(
+      classifyJiraMigrationDiff({
+        binding,
+        currentSourceFingerprint: fingerprintJiraState({ source: "changed" }),
+        desiredMappedStateFingerprint: fingerprint,
+        previousResult: {
+          action: "failed",
+          retryable: true,
+          source_fingerprint: fingerprint,
+          mapped_state_fingerprint: fingerprint,
+        },
+      }),
+    ).toMatchObject({
+      action: "conflict",
+      reason: "retry_precondition_changed",
     });
   });
 
@@ -259,6 +281,8 @@ describe("Jira migration ledger", () => {
       result: {
         source_key: "issue:cloud-1:p:1",
         entity_kind: "issue",
+        source_fingerprint: sourceFingerprint,
+        mapped_state_fingerprint: mappedStateFingerprint,
         action: "create",
         retryable: false,
         error_code: null,
@@ -273,6 +297,8 @@ describe("Jira migration ledger", () => {
       result: {
         source_key: "issue:cloud-1:p:2",
         entity_kind: "issue",
+        source_fingerprint: sourceFingerprint,
+        mapped_state_fingerprint: mappedStateFingerprint,
         action: "failed",
         retryable: true,
         error_code: "target_unavailable",
@@ -287,6 +313,8 @@ describe("Jira migration ledger", () => {
       result: {
         source_key: "issue:cloud-1:p:3",
         entity_kind: "issue",
+        source_fingerprint: sourceFingerprint,
+        mapped_state_fingerprint: mappedStateFingerprint,
         action: "conflict",
         retryable: false,
         error_code: null,
@@ -352,6 +380,8 @@ describe("Jira migration ledger", () => {
         result: {
           source_key,
           entity_kind: "relation",
+          source_fingerprint: sourceFingerprint,
+          mapped_state_fingerprint: mappedStateFingerprint,
           action: reconciliation_state === "reconciled" ? "create" : "skip",
           retryable: false,
           error_code: null,
@@ -416,6 +446,8 @@ describe("Jira migration ledger", () => {
         result: {
           source_key,
           entity_kind,
+          source_fingerprint: sourceFingerprint,
+          mapped_state_fingerprint: mappedStateFingerprint,
           action,
           retryable,
           error_code: retryable ? "target_unavailable" : null,

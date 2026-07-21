@@ -24,15 +24,18 @@ export interface JiraMigrationDiffResult {
 
 export const classifyJiraMigrationDiff = ({
   binding,
+  currentSourceFingerprint,
   desiredMappedStateFingerprint,
   previousResult,
 }: {
   binding: JiraMigrationDiffBinding | null;
+  currentSourceFingerprint?: string;
   desiredMappedStateFingerprint: string;
   previousResult?: {
     action: "failed";
     retryable: boolean;
-    preconditionsMatch: boolean;
+    source_fingerprint: string;
+    mapped_state_fingerprint: string;
   };
 }): JiraMigrationDiffResult => {
   if (binding && !binding.targetMatchesExpectedIdentity) {
@@ -42,7 +45,11 @@ export const classifyJiraMigrationDiff = ({
     if (!previousResult.retryable) {
       return { action: "conflict", reason: "non_retryable_previous_failure" };
     }
-    if (!previousResult.preconditionsMatch) {
+    if (
+      currentSourceFingerprint === undefined ||
+      previousResult.source_fingerprint !== currentSourceFingerprint ||
+      previousResult.mapped_state_fingerprint !== desiredMappedStateFingerprint
+    ) {
       return { action: "conflict", reason: "retry_precondition_changed" };
     }
     return { action: "retry", reason: "retryable_previous_failure" };
