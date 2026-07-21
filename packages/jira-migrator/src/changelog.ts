@@ -178,6 +178,43 @@ const nullableValue = (
   side: "from" | "to",
 ): string | null => item[side] ?? item[`${side}String`] ?? null;
 
+const SECRET_URL_PARAMETER_NAMES = new Set([
+  "accesstoken",
+  "apikey",
+  "auth",
+  "authorization",
+  "bearer",
+  "cookie",
+  "password",
+  "passwd",
+  "secret",
+  "signature",
+  "token",
+  "xamzcredential",
+  "xamzsecuritytoken",
+  "xamzsignature",
+]);
+
+const normalizeUrlParameterName = (value: string): string =>
+  value.toLocaleLowerCase("en-US").replaceAll(/[^a-z0-9]/gu, "");
+
+const hasSecretUrlParameter = (parameters: URLSearchParams): boolean =>
+  [...parameters.keys()].some((key) =>
+    SECRET_URL_PARAMETER_NAMES.has(normalizeUrlParameterName(key)),
+  );
+
+const isSafeRemoteLinkUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+    if (url.username || url.password || hasSecretUrlParameter(url.searchParams))
+      return false;
+    return !hasSecretUrlParameter(new URLSearchParams(url.hash.slice(1)));
+  } catch {
+    return false;
+  }
+};
+
 const mappedValue = <T>(
   item: JiraChangelogItemPayload,
   side: "from" | "to",
@@ -448,6 +485,8 @@ const planItem = (
           )
         : undefined;
       if (!snapshot) return deferred("remote_link_snapshot_missing");
+      if (!isSafeRemoteLinkUrl(snapshot.url))
+        return deferred("remote_link_url_unsafe");
       const isConfluence =
         snapshot.application === "Confluence" ||
         snapshot.globalId.toLocaleLowerCase("en-US").includes("confluence");

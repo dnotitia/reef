@@ -254,6 +254,57 @@ describe("buildJiraChangelogPlan", () => {
     ).toBe(true);
   });
 
+  it("defers remote links containing credentials or secret-bearing parameters", () => {
+    const history = [
+      {
+        field: "RemoteIssueLink",
+        fieldId: "RemoteIssueLink",
+        from: null,
+        to: "600",
+      },
+    ];
+    const credentialPlan = buildJiraChangelogPlan({
+      ...baseInput(history),
+      currentRemoteLinks: [
+        {
+          id: "600",
+          globalId: "remote-600",
+          url: "https://user:password@example.invalid/wiki/600",
+          title: "Private page",
+          application: null,
+          relationship: null,
+        },
+      ],
+    });
+    const tokenPlan = buildJiraChangelogPlan({
+      ...baseInput(history),
+      currentRemoteLinks: [
+        {
+          id: "600",
+          globalId: "remote-600",
+          url: "https://example.invalid/wiki/600?access_token=secret-value",
+          title: "Private page",
+          application: null,
+          relationship: null,
+        },
+      ],
+    });
+
+    for (const plan of [credentialPlan, tokenPlan]) {
+      expect(plan.items[0]).toMatchObject({
+        classification: "deferred",
+        reason: "remote_link_url_unsafe",
+        externalRef: null,
+      });
+    }
+    expect(JSON.stringify([credentialPlan, tokenPlan])).not.toContain(
+      "secret-value",
+    );
+    expect(JSON.stringify([credentialPlan, tokenPlan])).not.toContain(
+      "password",
+    );
+  });
+
   it("defers an unbound issue link even when the current snapshot has that id", () => {
     const input = baseInput([
       { field: "Link", fieldId: "issuelinks", from: null, to: "500" },
