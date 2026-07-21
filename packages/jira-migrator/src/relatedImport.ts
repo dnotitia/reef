@@ -10,7 +10,10 @@ import {
   convertAdfToMarkdown,
 } from "./adf.js";
 import { fingerprintJiraState } from "./diff.js";
-import type { JiraReadClient } from "./jiraClient.js";
+import {
+  JIRA_MAX_ATTACHMENT_BUFFER_BYTES,
+  type JiraReadClient,
+} from "./jiraClient.js";
 import {
   type JiraMigrationLedgerV1,
   confirmJiraMigrationBinding,
@@ -692,10 +695,14 @@ export async function importJiraRelatedData(
         unsafeCommentIds.add(comment.id);
     }
   }
+  const attachmentBytePolicyInvalid =
+    input.attachmentPolicy !== undefined &&
+    (!Number.isSafeInteger(input.attachmentPolicy.maxBytes) ||
+      input.attachmentPolicy.maxBytes <= 0 ||
+      input.attachmentPolicy.maxBytes > JIRA_MAX_ATTACHMENT_BUFFER_BYTES);
   const attachmentVisibilityEstablished =
     input.attachmentPolicy?.commentVisibilityCompleteness === "verified" &&
-    Number.isSafeInteger(input.attachmentPolicy.maxBytes) &&
-    input.attachmentPolicy.maxBytes > 0 &&
+    !attachmentBytePolicyInvalid &&
     commentsRead.status === "fulfilled" &&
     unsafeCommentIds.size === 0 &&
     comments.every((comment) => jiraCommentVisibility(comment) === "safe");
@@ -733,6 +740,7 @@ export async function importJiraRelatedData(
       binding.source_identity.jira_cloud_id === input.jiraCloudId &&
       (binding.source_identity.issue_id === undefined ||
         binding.source_identity.issue_id === issue.id) &&
+      !attachmentBytePolicyInvalid &&
       (!attachmentVisibilityEstablished ||
         (attachmentCatalogPresent &&
           !returnedAttachmentIds.has(binding.source_identity.attachment_id))),
@@ -904,6 +912,16 @@ export async function importJiraRelatedData(
       issue.id,
       attachment.id,
     );
+    if (attachmentBytePolicyInvalid) {
+      failure(
+        report.failures,
+        "attachment",
+        attachment.id,
+        "resolve",
+        "attachment_size_policy_invalid",
+      );
+      continue;
+    }
     if (!attachmentVisibilityEstablished) {
       if (input.mode === "apply") {
         try {
@@ -1181,7 +1199,10 @@ export async function importJiraRelatedData(
         });
       }
     } catch (error) {
-      if (input.mode === "apply" && String(error).includes("size_limit")) {
+      if (
+        input.mode === "apply" &&
+        String(error).includes("size_limit_exceeded")
+      ) {
         try {
           await revokeAttachmentBinding(identity, attachment.id);
         } catch (revocationError) {

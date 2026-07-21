@@ -184,7 +184,7 @@ export const readJiraRateLimit = (headers: Headers): JiraRateLimit => {
 };
 
 const retryableStatuses = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
-const MAX_ATTACHMENT_BUFFER_BYTES = 256 * 1024 * 1024;
+export const JIRA_MAX_ATTACHMENT_BUFFER_BYTES = 256 * 1024 * 1024;
 
 interface ResizableArrayBuffer extends ArrayBuffer {
   resize(newByteLength: number): void;
@@ -568,7 +568,7 @@ export class JiraReadClient {
     if (
       !Number.isSafeInteger(maxBytes) ||
       maxBytes <= 0 ||
-      maxBytes > MAX_ATTACHMENT_BUFFER_BYTES
+      maxBytes > JIRA_MAX_ATTACHMENT_BUFFER_BYTES
     )
       throw new Error("jira_attachment_size_limit_invalid");
     const url = this.buildUrl(path, query);

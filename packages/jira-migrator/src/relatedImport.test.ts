@@ -1285,6 +1285,24 @@ describe("Jira related-data import stage", () => {
     const originalFileUri = [...state.attachments.keys()][0];
     expect(originalFileUri).toBeDefined();
 
+    const invalidPolicy = await importJiraRelatedData({
+      ...base,
+      attachmentPolicy: {
+        commentVisibilityCompleteness: "verified",
+        maxBytes: 256 * 1024 * 1024 + 1,
+      },
+      ledger: applied.ledger,
+    });
+    expect(invalidPolicy.report.failures).toContainEqual(
+      expect.objectContaining({ reason: "attachment_size_policy_invalid" }),
+    );
+    expect(state.attachments.size).toBe(1);
+    expect(
+      invalidPolicy.ledger.bindings.some(
+        (binding) => binding.entity_kind === "attachment",
+      ),
+    ).toBe(true);
+
     const restricted = await importJiraRelatedData({
       ...base,
       attachmentPolicy: {
