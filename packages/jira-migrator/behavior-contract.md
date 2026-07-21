@@ -17,7 +17,8 @@ and rerun the same input without duplicates.
 ## Operator Tasks And Expected Behavior
 
 1. Dry-run reports comment root/reply counts, attachment and media strategies,
-   deduplicated links, remote links, and failures without target mutations.
+   deduplicated links, remote links, and failures without target mutations; it
+   performs the same bounded attachment-byte validation as apply.
 2. Apply creates root-first threaded comments, attachment file/readback state,
    rewritten file URIs, configured relations, external refs, and ledger
    bindings.

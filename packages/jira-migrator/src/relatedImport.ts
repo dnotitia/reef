@@ -4,7 +4,11 @@ import type {
   ReefActorDirectoryEntry,
 } from "./accountMapping.js";
 import { mapJiraCommentActor } from "./accountMapping.js";
-import { type AdfMediaReference, convertAdfToMarkdown } from "./adf.js";
+import {
+  type AdfMediaReference,
+  type AdfToMarkdownOptions,
+  convertAdfToMarkdown,
+} from "./adf.js";
 import { fingerprintJiraState } from "./diff.js";
 import type { JiraReadClient } from "./jiraClient.js";
 import {
@@ -137,6 +141,7 @@ export interface JiraRelatedImportInput {
     commentVisibilityCompleteness: "verified";
     maxBytes: number;
   };
+  descriptionConversionOptions?: AdfToMarkdownOptions;
   resolveIssueTarget(
     sourceIdOrKey: string,
   ): { reefId: string; documentUri: string } | null;
@@ -426,16 +431,23 @@ const rewriteMedia = (
   report: JiraRelatedImportReport,
   sourceId: string,
   sourceAttachments: readonly NormalizedJiraAttachment[],
+  conversionOptions: AdfToMarkdownOptions = {},
 ): {
   markdown: string;
   preRewriteMarkdown: string;
+  legacyPreRewriteMarkdown: string;
   resolved: boolean;
   changed: boolean;
 } => {
-  const converted = convertAdfToMarkdown(adf);
+  const converted = convertAdfToMarkdown(adf, conversionOptions);
   let markdown = converted.markdown;
+  let legacyPreRewriteMarkdown = converted.markdown;
   let resolved = true;
   for (const media of converted.media) {
+    legacyPreRewriteMarkdown = legacyPreRewriteMarkdown.replace(
+      media.placeholder,
+      media.legacyPlaceholder,
+    );
     report.media.total += 1;
     const resolution = resolveJiraMediaReference(
       media,
@@ -465,6 +477,7 @@ const rewriteMedia = (
   return {
     markdown,
     preRewriteMarkdown: converted.markdown,
+    legacyPreRewriteMarkdown,
     resolved,
     changed: markdown !== converted.markdown,
   };
@@ -693,13 +706,6 @@ export async function importJiraRelatedData(
         report.attachments.skipped += 1;
         continue;
       }
-      if (input.mode === "dry-run") {
-        attachmentBindings.push({
-          source: attachment,
-          fileUri: `dry-run://attachment/${encodeURIComponent(attachment.id)}`,
-        });
-        continue;
-      }
       attachmentPhase = "read";
       const download = await input.client.downloadAttachmentContent(
         attachment.id,
@@ -710,6 +716,13 @@ export async function importJiraRelatedData(
         download.bytes.byteLength !== attachment.size
       )
         throw new Error("attachment_size_mismatch");
+      if (input.mode === "dry-run") {
+        attachmentBindings.push({
+          source: attachment,
+          fileUri: `dry-run://attachment/${encodeURIComponent(attachment.id)}`,
+        });
+        continue;
+      }
       const mimeType =
         attachment.mimeType ??
         download.contentType ??
@@ -783,13 +796,17 @@ export async function importJiraRelatedData(
     report,
     issue.id,
     attachments,
+    input.descriptionConversionOptions,
   );
   if (input.mode === "apply" && description.resolved && description.changed) {
     try {
       const existingDescription = await input.target.readDescription(
         input.reefId,
       );
-      if (existingDescription === description.preRewriteMarkdown)
+      if (
+        existingDescription === description.preRewriteMarkdown ||
+        existingDescription === description.legacyPreRewriteMarkdown
+      )
         await input.target.updateDescription(
           input.reefId,
           description.markdown,

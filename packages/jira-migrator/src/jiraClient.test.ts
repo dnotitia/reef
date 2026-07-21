@@ -231,6 +231,23 @@ describe("JiraReadClient", () => {
     );
   });
 
+  it("cancels unsuccessful attachment response bodies", async () => {
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({ cancel });
+    const client = makeClient(
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(
+          new Response(body, { status: 403, statusText: "Forbidden" }),
+        ),
+    );
+
+    await expect(client.downloadAttachmentContent("42", 1024)).rejects.toThrow(
+      "jira_api_request_failed",
+    );
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
   it("returns the pre-validation JSON value without schema coercion or stripping", async () => {
     const rawFixture = {
       ...jiraIssueFixture,

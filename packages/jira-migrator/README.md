@@ -73,6 +73,11 @@ The package exports:
   issue attachments are isolated because Jira does not expose a reliable
   attachment-to-comment ACL association through this stage's source contract.
   Both declared sizes and streamed response bytes are bounded by that limit.
+  Dry-run performs the same bounded source reads and validations as apply while
+  keeping Reef target mutations at zero. When the issue description was first
+  projected with raw-archive or account-mapping options, pass the same options
+  as `descriptionConversionOptions`; legacy and current media placeholders are
+  then both accepted by the description precondition.
 - Tenant field-catalog resolution, ADF-to-Markdown conversion, and immutable
   `JiraIssueImportPlan` builders that combine configurable enum policies,
   account mappings, planning bindings, parents, Rank, compact provenance, and

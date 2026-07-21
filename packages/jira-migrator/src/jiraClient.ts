@@ -553,6 +553,7 @@ export class JiraReadClient {
     });
     const rateLimit = readJiraRateLimit(response.headers);
     if (!response.ok) {
+      await response.body?.cancel();
       throw new JiraApiError({
         status: response.status,
         statusText: response.statusText,

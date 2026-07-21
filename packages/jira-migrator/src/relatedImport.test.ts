@@ -342,6 +342,9 @@ const makeTarget = () => {
     get description() {
       return description;
     },
+    set description(value: string) {
+      description = value;
+    },
   };
 };
 
@@ -480,6 +483,50 @@ describe("Jira related-data import stage", () => {
     );
   });
 
+  it("rewrites descriptions projected with legacy option-aware media placeholders", async () => {
+    const state = makeTarget();
+    const sourceIssue = issueFixture();
+    const descriptionConversionOptions = {
+      mediaRawArchiveReferences: {
+        "media-1": {
+          runId: "fixture-run",
+          entryId: "fixture-entry",
+          contentSha256: "a".repeat(64),
+        },
+      },
+    };
+    const projection = convertAdfToMarkdown(
+      sourceIssue.fields.description,
+      descriptionConversionOptions,
+    );
+    state.description = projection.media.reduce(
+      (markdown, media) =>
+        markdown.replace(media.placeholder, media.legacyPlaceholder),
+      projection.markdown,
+    );
+    const result = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue: sourceIssue,
+      reefId: "REEF-1",
+      attachmentPolicy,
+      descriptionConversionOptions,
+      client: makeClient([]),
+      target: state.target,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [],
+      resolveIssueTarget: () => null,
+      mode: "apply",
+    });
+    expect(result.report.failures).toEqual([]);
+    expect(state.description).toContain("akb://isolated/");
+  });
+
   it("isolates orphan replies, size mismatches, and unknown links", async () => {
     const requests: string[] = [];
     const client = makeClient(requests, true);
@@ -592,9 +639,42 @@ describe("Jira related-data import stage", () => {
     ).toBe(false);
   });
 
-  it("reports comment media in dry-run and defers comments whose media cannot be imported", async () => {
+  it("validates attachment bytes during dry-run without target mutation", async () => {
+    const requests: string[] = [];
     const state = makeTarget();
-    const issue = issueFixture(4);
+    const result = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(4),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client: makeClient(requests),
+      target: state.target,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [],
+      resolveIssueTarget: () => null,
+      mode: "dry-run",
+    });
+    expect(result.report.failures).toContainEqual(
+      expect.objectContaining({
+        source_kind: "attachment",
+        reason: "attachment_size_mismatch",
+      }),
+    );
+    expect(
+      requests.some((request) => request.includes("/attachment/content/")),
+    ).toBe(true);
+    expect(state.attachments.size).toBe(0);
+  });
+
+  it("reports and rewrites comment media consistently in dry-run and apply", async () => {
+    const state = makeTarget();
+    const issue = issueFixture();
     issue.fields.attachment?.push({
       id: "30002",
       filename: "other.dat",
@@ -631,6 +711,7 @@ describe("Jira related-data import stage", () => {
       ...base,
       mode: "dry-run",
     });
+    expect(dryRun.report.failures).toEqual([]);
     expect(dryRun.report.media).toMatchObject({
       total: 2,
       rewritten: 2,
@@ -640,18 +721,13 @@ describe("Jira related-data import stage", () => {
     expect(state.comments.size).toBe(0);
 
     const applied = await importJiraRelatedData({ ...base, mode: "apply" });
-    expect(applied.report.failures.map((item) => item.reason)).toEqual(
-      expect.arrayContaining([
-        "attachment_size_mismatch",
-        "media_crosswalk_unresolved_or_ambiguous",
-      ]),
-    );
-    expect(state.comments.size).toBe(0);
+    expect(applied.report.failures).toEqual([]);
+    expect(state.comments.size).toBe(2);
     expect(
-      applied.ledger.bindings.some(
-        (binding) => binding.entity_kind === "comment",
+      [...state.comments.values()].some((comment) =>
+        comment.body.includes("akb://isolated/"),
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("isolates a remote-link catalog read failure from comments, attachments, and standard links", async () => {
@@ -877,6 +953,7 @@ describe("media crosswalk", () => {
       filename: "a.bin",
       rawArchiveReference: null,
       placeholder: "placeholder",
+      legacyPlaceholder: "legacy-placeholder",
     };
     expect(
       resolveJiraMediaReference(

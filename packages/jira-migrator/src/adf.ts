@@ -22,6 +22,7 @@ export interface AdfMediaReference {
   filename: string | null;
   rawArchiveReference: RawArchiveReference | null;
   placeholder: string;
+  legacyPlaceholder: string;
 }
 
 export interface AdfToMarkdownResult {
@@ -355,6 +356,9 @@ const renderMedia = (
       : null;
   const reference = context.options.mediaRawArchiveReferences?.[id] ?? null;
   const token = reference ? rawReferenceToken(reference) : "missing";
+  const legacyPlaceholder = escapeInlineSourceText(
+    `[Jira media ${id} (${type ?? "unknown"}) raw:${token}]`,
+  );
   const safeEncode = (value: string): string =>
     encodeURIComponent(
       Array.from(value, (character) =>
@@ -374,6 +378,7 @@ const renderMedia = (
     filename,
     rawArchiveReference: reference,
     placeholder,
+    legacyPlaceholder,
   });
   context.reports.push({
     classification: "preserved",
