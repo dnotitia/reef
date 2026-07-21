@@ -110,6 +110,7 @@ describe("buildJiraChangelogPlan", () => {
         field: "assignee",
         fieldId: "assignee",
         from: null,
+        fromString: "Unassigned",
         to: "actor-1",
       },
       {
@@ -118,11 +119,18 @@ describe("buildJiraChangelogPlan", () => {
         fromString: "Old",
         toString: "New",
       },
-      { field: "parent", fieldId: "parent", from: null, to: "200" },
+      {
+        field: "parent",
+        fieldId: "parent",
+        from: null,
+        fromString: "None",
+        to: "200",
+      },
       {
         field: "due date",
         fieldId: "duedate",
         from: null,
+        fromString: "None",
         to: "2026-07-30",
       },
       {
@@ -136,6 +144,7 @@ describe("buildJiraChangelogPlan", () => {
         field: "Start date",
         fieldId: "customfield_10015",
         from: null,
+        fromString: "None",
         to: "2026-07-21",
       },
     ]);

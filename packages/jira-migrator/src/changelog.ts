@@ -176,7 +176,10 @@ const emptyCounts = (): JiraChangelogReportCounts => ({
 const nullableValue = (
   item: JiraChangelogItemPayload,
   side: "from" | "to",
-): string | null => item[side] ?? item[`${side}String`] ?? null;
+): string | null =>
+  Object.hasOwn(item, side)
+    ? (item[side] ?? null)
+    : (item[`${side}String`] ?? null);
 
 const SECRET_URL_PARAMETER_NAMES = new Set([
   "accesstoken",
