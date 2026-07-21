@@ -453,6 +453,51 @@ export const resolveJiraMediaReference = (
 const revokedAttachmentPlaceholder = (attachmentId: string): string =>
   `\u{e002}jira-attachment-revoked:${encodeURIComponent(attachmentId)}\u{e003}`;
 
+const matchesMediaProjection = (
+  canonicalMarkdown: string,
+  mediaTokens: readonly {
+    placeholder: string;
+    alternatives: readonly string[];
+  }[],
+  candidate: string,
+): boolean => {
+  const segments: string[] = [];
+  let canonicalOffset = 0;
+  for (const token of mediaTokens) {
+    const tokenOffset = canonicalMarkdown.indexOf(
+      token.placeholder,
+      canonicalOffset,
+    );
+    if (tokenOffset < 0) return false;
+    segments.push(canonicalMarkdown.slice(canonicalOffset, tokenOffset));
+    canonicalOffset = tokenOffset + token.placeholder.length;
+  }
+  segments.push(canonicalMarkdown.slice(canonicalOffset));
+  const visited = new Set<string>();
+  const visit = (tokenIndex: number, candidateOffset: number): boolean => {
+    const visitKey = `${tokenIndex}:${candidateOffset}`;
+    if (visited.has(visitKey)) return false;
+    visited.add(visitKey);
+    const segment = segments[tokenIndex];
+    if (
+      segment === undefined ||
+      !candidate.startsWith(segment, candidateOffset)
+    )
+      return false;
+    const nextOffset = candidateOffset + segment.length;
+    if (tokenIndex === mediaTokens.length)
+      return nextOffset === candidate.length;
+    const token = mediaTokens[tokenIndex];
+    if (!token) return false;
+    return token.alternatives.some(
+      (alternative) =>
+        candidate.startsWith(alternative, nextOffset) &&
+        visit(tokenIndex + 1, nextOffset + alternative.length),
+    );
+  };
+  return visit(0, 0);
+};
+
 const rewriteMedia = (
   adf: unknown,
   bindings: readonly AttachmentBinding[],
@@ -466,6 +511,7 @@ const rewriteMedia = (
   preRewriteMarkdown: string;
   legacyPreRewriteMarkdown: string;
   revokedPreRewriteMarkdown: string;
+  matchesPreRewriteMarkdown: (candidate: string) => boolean;
   resolved: boolean;
   changed: boolean;
 } => {
@@ -473,6 +519,10 @@ const rewriteMedia = (
   let markdown = converted.markdown;
   let legacyPreRewriteMarkdown = converted.markdown;
   let revokedPreRewriteMarkdown = converted.markdown;
+  const mediaTokens: {
+    placeholder: string;
+    alternatives: string[];
+  }[] = [];
   let resolved = true;
   for (const media of converted.media) {
     legacyPreRewriteMarkdown = legacyPreRewriteMarkdown.replace(
@@ -505,6 +555,15 @@ const rewriteMedia = (
       media.placeholder,
       revokedAttachmentPlaceholder(resolution.binding.source.id),
     );
+    mediaTokens.push({
+      placeholder: media.placeholder,
+      alternatives: [
+        media.placeholder,
+        media.legacyPlaceholder,
+        revokedAttachmentPlaceholder(resolution.binding.source.id),
+        resolution.binding.fileUri,
+      ].filter((value, index, values) => values.indexOf(value) === index),
+    });
     report.media.rewritten += 1;
     report.media.by_strategy[resolution.strategy] =
       (report.media.by_strategy[resolution.strategy] ?? 0) + 1;
@@ -514,6 +573,8 @@ const rewriteMedia = (
     preRewriteMarkdown: converted.markdown,
     legacyPreRewriteMarkdown,
     revokedPreRewriteMarkdown,
+    matchesPreRewriteMarkdown: (candidate) =>
+      matchesMediaProjection(converted.markdown, mediaTokens, candidate),
     resolved,
     changed: markdown !== converted.markdown,
   };
@@ -1100,11 +1161,7 @@ export async function importJiraRelatedData(
       const existingDescription = await input.target.readDescription(
         input.reefId,
       );
-      if (
-        existingDescription === description.preRewriteMarkdown ||
-        existingDescription === description.legacyPreRewriteMarkdown ||
-        existingDescription === description.revokedPreRewriteMarkdown
-      )
+      if (description.matchesPreRewriteMarkdown(existingDescription))
         await input.target.updateDescription(
           input.reefId,
           description.markdown,

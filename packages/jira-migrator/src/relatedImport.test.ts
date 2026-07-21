@@ -1061,6 +1061,97 @@ describe("Jira related-data import stage", () => {
     expect(state.description).not.toContain("jira-attachment-revoked:");
   });
 
+  it("restores one revoked medium beside another live attachment", async () => {
+    const state = makeTarget();
+    const sourceIssue = issueFixture();
+    sourceIssue.fields.attachment?.push({
+      id: "30002",
+      filename: "second.dat",
+      mimeType: "application/octet-stream",
+      size: 3,
+    });
+    sourceIssue.fields.description = {
+      type: "doc",
+      version: 1,
+      content: [
+        {
+          type: "mediaSingle",
+          content: [
+            {
+              type: "media",
+              attrs: { id: "media-1", type: "file", alt: "sample.dat" },
+            },
+          ],
+        },
+        {
+          type: "mediaSingle",
+          content: [
+            {
+              type: "media",
+              attrs: { id: "media-2", type: "file", alt: "second.dat" },
+            },
+          ],
+        },
+      ],
+    };
+    sourceIssue.renderedFields = {
+      description:
+        '<span data-media-services-id="media-1" href="/attachment/30001/sample.dat"></span>\n<span data-media-services-id="media-2" href="/attachment/30002/second.dat"></span>',
+    };
+    state.description = convertAdfToMarkdown(
+      sourceIssue.fields.description,
+    ).markdown;
+    const base = {
+      jiraCloudId: "cloud-1",
+      reefId: "REEF-1",
+      client: makeClient([]),
+      target: state.target,
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [] as const,
+      resolveIssueTarget: () => null,
+      mode: "apply" as const,
+    };
+    const applied = await importJiraRelatedData({
+      ...base,
+      issue: sourceIssue,
+      attachmentPolicy,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+    });
+    expect(applied.report.failures).toEqual([]);
+    expect(state.attachments.size).toBe(2);
+
+    const restrictedIssue = structuredClone(sourceIssue);
+    const restrictedAttachment = restrictedIssue.fields.attachment?.[1];
+    if (restrictedAttachment) restrictedAttachment.size = 4;
+    const restricted = await importJiraRelatedData({
+      ...base,
+      issue: restrictedIssue,
+      attachmentPolicy: {
+        commentVisibilityCompleteness: "verified",
+        maxBytes: 3,
+      },
+      ledger: applied.ledger,
+    });
+    expect(state.attachments.size).toBe(1);
+    expect(state.description).toContain("akb://isolated/");
+    expect(state.description).toContain("jira-attachment-revoked:");
+
+    const restored = await importJiraRelatedData({
+      ...base,
+      issue: sourceIssue,
+      attachmentPolicy,
+      ledger: restricted.ledger,
+    });
+    expect(restored.report.failures).toEqual([]);
+    expect(state.attachments.size).toBe(2);
+    expect(state.description).not.toContain("jira-attachment-revoked:");
+  });
+
   it("reports and rewrites comment media consistently in dry-run and apply", async () => {
     const state = makeTarget();
     const issue = issueFixture();
