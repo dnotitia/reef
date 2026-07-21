@@ -795,7 +795,7 @@ describe("Jira related-data import stage", () => {
       rewritten: 2,
       unresolved: 0,
     });
-    expect(dryRun.report.media.by_strategy.rendered_element).toBe(1);
+    expect(dryRun.report.media.by_strategy.rendered_element).toBe(2);
     expect(state.comments.size).toBe(0);
 
     const applied = await importJiraRelatedData({ ...base, mode: "apply" });
@@ -1050,6 +1050,29 @@ describe("media crosswalk", () => {
         "",
       ),
     ).toBeNull();
+    const altOnlyMedia = convertAdfToMarkdown({
+      type: "doc",
+      version: 1,
+      content: [
+        {
+          type: "media",
+          attrs: { id: "m1", type: "file", alt: "a.bin" },
+        },
+      ],
+    }).media[0];
+    expect(altOnlyMedia?.filename).toBeNull();
+    expect(
+      altOnlyMedia
+        ? resolveJiraMediaReference(
+            altOnlyMedia,
+            [
+              { source: source("1", "a.bin"), fileUri: "akb://v/file/1" },
+              { source: source("2", "b.bin"), fileUri: "akb://v/file/2" },
+            ],
+            '<span data-media-services-id="m1" href="/attachment/2/b.bin"></span>',
+          )?.binding.source.id
+        : null,
+    ).toBe("2");
     expect(
       resolveJiraMediaReference(
         { ...media, filename: null },

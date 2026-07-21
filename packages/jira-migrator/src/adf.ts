@@ -351,8 +351,8 @@ const renderMedia = (
   const collection =
     typeof mediaAttrs.collection === "string" ? mediaAttrs.collection : null;
   const filename =
-    typeof mediaAttrs.alt === "string" && mediaAttrs.alt.trim()
-      ? mediaAttrs.alt.trim()
+    typeof mediaAttrs.filename === "string" && mediaAttrs.filename.trim()
+      ? mediaAttrs.filename.trim()
       : null;
   const reference = context.options.mediaRawArchiveReferences?.[id] ?? null;
   const token = reference ? rawReferenceToken(reference) : "missing";
