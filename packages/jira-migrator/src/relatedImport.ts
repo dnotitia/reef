@@ -53,6 +53,7 @@ export interface JiraRelatedImportFailure {
 }
 
 export interface JiraImportedCommentInput {
+  idempotencyKey: string;
   reefId: string;
   body: string;
   author: string;
@@ -165,6 +166,8 @@ interface AttachmentBinding {
   fileUri: string;
 }
 
+const MISSING_SOURCE_TIMESTAMP = "1970-01-01T00:00:00.000Z";
+
 const validAttachmentReadback = (
   readback: {
     attachment: IssueAttachment;
@@ -275,9 +278,10 @@ export const canonicalizeJiraRelation = (
   inverseRelation: JiraRelationKind;
 } => {
   if (mapping.kind === "symmetric") {
+    const [sourceReefId, targetReefId] = [currentReefId, linkedReefId].sort();
     return {
-      sourceReefId: currentReefId,
-      targetReefId: linkedReefId,
+      sourceReefId,
+      targetReefId,
       relation: "related_to",
       inverseRelation: "related_to",
     };
@@ -307,35 +311,54 @@ export const resolveJiraMediaReference = (
   media: AdfMediaReference,
   attachments: readonly AttachmentBinding[],
   renderedHtml: string,
+  sourceAttachments: readonly NormalizedJiraAttachment[] = attachments.map(
+    (item) => item.source,
+  ),
 ): {
   binding: AttachmentBinding;
   strategy: JiraMediaResolutionStrategy;
 } | null => {
   if (media.filename) {
-    const candidates = attachments.filter(
-      (item) => item.source.filename === media.filename,
+    const candidates = sourceAttachments.filter(
+      (item) => item.filename === media.filename,
     );
-    if (candidates.length === 1)
-      return { binding: candidates[0], strategy: "unique_filename" };
+    if (candidates.length === 1) {
+      const binding = attachments.find(
+        (item) => item.source.id === candidates[0]?.id,
+      );
+      return binding ? { binding, strategy: "unique_filename" } : null;
+    }
   }
-  if (attachments.length === 1)
-    return { binding: attachments[0], strategy: "sole_attachment" };
+  if (sourceAttachments.length === 1) {
+    const binding = attachments.find(
+      (item) => item.source.id === sourceAttachments[0]?.id,
+    );
+    return binding ? { binding, strategy: "sole_attachment" } : null;
+  }
   const hint = renderedHints(renderedHtml).get(media.mediaId);
   if (!hint) return null;
   if (hint.attachmentId) {
-    const candidates = attachments.filter(
-      (item) => item.source.id === hint.attachmentId,
+    const candidates = sourceAttachments.filter(
+      (item) => item.id === hint.attachmentId,
     );
-    if (candidates.length === 1)
-      return { binding: candidates[0], strategy: "rendered_element" };
+    if (candidates.length === 1) {
+      const binding = attachments.find(
+        (item) => item.source.id === candidates[0]?.id,
+      );
+      return binding ? { binding, strategy: "rendered_element" } : null;
+    }
     if (candidates.length > 1) return null;
   }
   if (hint.filename) {
-    const candidates = attachments.filter(
-      (item) => item.source.filename === hint.filename,
+    const candidates = sourceAttachments.filter(
+      (item) => item.filename === hint.filename,
     );
-    if (candidates.length === 1)
-      return { binding: candidates[0], strategy: "rendered_unique_filename" };
+    if (candidates.length === 1) {
+      const binding = attachments.find(
+        (item) => item.source.id === candidates[0]?.id,
+      );
+      return binding ? { binding, strategy: "rendered_unique_filename" } : null;
+    }
   }
   return null;
 };
@@ -346,13 +369,19 @@ const rewriteMedia = (
   renderedHtml: string,
   report: JiraRelatedImportReport,
   sourceId: string,
+  sourceAttachments: readonly NormalizedJiraAttachment[],
 ): { markdown: string; resolved: boolean } => {
   const converted = convertAdfToMarkdown(adf);
   let markdown = converted.markdown;
   let resolved = true;
   for (const media of converted.media) {
     report.media.total += 1;
-    const resolution = resolveJiraMediaReference(media, bindings, renderedHtml);
+    const resolution = resolveJiraMediaReference(
+      media,
+      bindings,
+      renderedHtml,
+      sourceAttachments,
+    );
     if (!resolution) {
       resolved = false;
       report.media.unresolved += 1;
@@ -456,7 +485,7 @@ export async function importJiraRelatedData(
     const expectedAttachment = {
       reefId: input.reefId,
       author: mappedAuthor ?? "jira-import",
-      createdAt: attachment.created ?? now(),
+      createdAt: attachment.created ?? MISSING_SOURCE_TIMESTAMP,
       mimeType: attachment.mimeType,
       jiraCloudId: input.jiraCloudId,
     };
@@ -586,6 +615,7 @@ export async function importJiraRelatedData(
     renderedDescription,
     report,
     issue.id,
+    attachments,
   );
   if (input.mode === "apply" && description.resolved) {
     try {
@@ -641,6 +671,7 @@ export async function importJiraRelatedData(
         comment.renderedBody ?? "",
         report,
         comment.id,
+        attachments,
       );
       if (!body.resolved) continue;
       const actor = mapJiraCommentActor(comment, {
@@ -648,10 +679,11 @@ export async function importJiraRelatedData(
         directory: input.actorDirectory ?? [],
       });
       const commentInput: JiraImportedCommentInput = {
+        idempotencyKey: identity.key,
         reefId: input.reefId,
         body: body.markdown,
         author: actor.actor ?? "jira-import",
-        createdAt: comment.created ?? now(),
+        createdAt: comment.created ?? MISSING_SOURCE_TIMESTAMP,
         editedAt:
           comment.updated && comment.updated !== comment.created
             ? comment.updated
@@ -851,7 +883,7 @@ export async function importJiraRelatedData(
     }
     if (input.mode === "apply") {
       try {
-        const idempotencyKey = `jira-remote:${input.jiraCloudId}:${remoteId}`;
+        const idempotencyKey = `jira-remote:${input.jiraCloudId}:${issue.id}:${remoteId}`;
         if (await input.target.hasExternalRef(idempotencyKey)) {
           report.remote_links.skipped += 1;
           continue;
