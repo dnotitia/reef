@@ -565,11 +565,13 @@ export class JiraReadClient {
     }
     const rawLength = response.headers.get("content-length");
     const contentLength = rawLength === null ? null : Number(rawLength);
-    if (
+    const declaredContentLength =
       contentLength !== null &&
-      Number.isFinite(contentLength) &&
-      contentLength > maxBytes
-    ) {
+      Number.isSafeInteger(contentLength) &&
+      contentLength >= 0
+        ? contentLength
+        : null;
+    if (declaredContentLength !== null && declaredContentLength > maxBytes) {
       await response.body?.cancel();
       throw new Error("jira_attachment_size_limit_exceeded");
     }
@@ -598,13 +600,12 @@ export class JiraReadClient {
       bytes.set(chunk, offset);
       offset += chunk.byteLength;
     }
+    if (declaredContentLength !== null && byteLength !== declaredContentLength)
+      throw new Error("jira_attachment_content_length_mismatch");
     return {
       bytes,
       contentType: response.headers.get("content-type"),
-      contentLength:
-        contentLength !== null && Number.isFinite(contentLength)
-          ? contentLength
-          : null,
+      contentLength: declaredContentLength,
       rateLimit,
     };
   }

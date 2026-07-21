@@ -231,6 +231,20 @@ describe("JiraReadClient", () => {
     );
   });
 
+  it("rejects attachment bodies shorter than the declared content length", async () => {
+    const client = makeClient(
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(new Uint8Array([1, 2, 3]), {
+          headers: { "content-length": "4" },
+        }),
+      ),
+    );
+
+    await expect(client.downloadAttachmentContent("42", 1024)).rejects.toThrow(
+      "jira_attachment_content_length_mismatch",
+    );
+  });
+
   it("cancels unsuccessful attachment response bodies", async () => {
     const cancel = vi.fn();
     const body = new ReadableStream<Uint8Array>({ cancel });

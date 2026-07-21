@@ -14,6 +14,7 @@ import {
   JiraCommentPageSchema,
   JiraFieldCatalogSchema,
   JiraIssueSchema,
+  JiraRemoteLinkListSchema,
   JiraSearchResponseSchema,
   JiraSprintPageSchema,
   JiraVersionPageSchema,
@@ -25,6 +26,40 @@ import {
 } from "./payloads.js";
 
 describe("Jira payload schemas and normalizers", () => {
+  it("normalizes nullable optional remote-link fields", () => {
+    expect(
+      JiraRemoteLinkListSchema.parse([
+        {
+          id: null,
+          globalId: null,
+          application: null,
+          relationship: null,
+          object: {
+            url: "https://example.com/reference",
+            title: null,
+            summary: null,
+            icon: null,
+            status: null,
+          },
+        },
+      ]),
+    ).toEqual([
+      {
+        id: undefined,
+        globalId: undefined,
+        application: undefined,
+        relationship: undefined,
+        object: {
+          url: "https://example.com/reference",
+          title: undefined,
+          summary: undefined,
+          icon: undefined,
+          status: undefined,
+        },
+      },
+    ]);
+  });
+
   it("parses expanded issue fields without treating source timestamps as Reef timestamps", () => {
     const issue = JiraIssueSchema.parse({
       ...jiraIssueFixture,

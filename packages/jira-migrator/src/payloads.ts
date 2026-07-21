@@ -243,19 +243,31 @@ export const JiraCommentSchema = z
   })
   .passthrough();
 
+const NullableOptionalStringSchema = z.preprocess(
+  (value) => (value === null ? undefined : value),
+  z.string().optional(),
+);
+const NullableOptionalRecordSchema = z.preprocess(
+  (value) => (value === null ? undefined : value),
+  UnknownRecordSchema.optional(),
+);
+
 export const JiraRemoteLinkSchema = z
   .object({
-    id: StringOrNumberAsStringSchema.optional(),
-    globalId: z.string().optional(),
-    application: UnknownRecordSchema.optional(),
-    relationship: z.string().optional(),
+    id: z.preprocess(
+      (value) => (value === null ? undefined : value),
+      StringOrNumberAsStringSchema.optional(),
+    ),
+    globalId: NullableOptionalStringSchema,
+    application: NullableOptionalRecordSchema,
+    relationship: NullableOptionalStringSchema,
     object: z
       .object({
-        url: z.string().optional(),
-        title: z.string().optional(),
-        summary: z.string().optional(),
-        icon: UnknownRecordSchema.optional(),
-        status: UnknownRecordSchema.optional(),
+        url: NullableOptionalStringSchema,
+        title: NullableOptionalStringSchema,
+        summary: NullableOptionalStringSchema,
+        icon: NullableOptionalRecordSchema,
+        status: NullableOptionalRecordSchema,
       })
       .passthrough(),
   })

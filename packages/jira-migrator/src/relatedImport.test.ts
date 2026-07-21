@@ -459,6 +459,32 @@ describe("Jira related-data import stage", () => {
     expect(requests.some((item) => item.includes("redirect=false"))).toBe(true);
     expect(requests.join("\n")).not.toContain("test-secret");
 
+    const [mimeUri, mimeStored] = [...state.attachments.entries()][0];
+    state.attachments.set(mimeUri, {
+      ...mimeStored,
+      attachment: {
+        ...mimeStored.attachment,
+        mime_type: "text/plain",
+      },
+    });
+    const sourceAttachment = base.issue.fields.attachment?.[0];
+    if (sourceAttachment) sourceAttachment.mimeType = undefined;
+    const mimeRerun = await importJiraRelatedData({
+      ...base,
+      ledger: rerun.ledger,
+      mode: "apply",
+    });
+    expect(mimeRerun.report.attachments.skipped).toBe(0);
+    expect(mimeRerun.report.failures).toContainEqual(
+      expect.objectContaining({
+        source_kind: "attachment",
+        phase: "readback",
+      }),
+    );
+    if (sourceAttachment)
+      sourceAttachment.mimeType = "application/octet-stream";
+    state.attachments.set(mimeUri, mimeStored);
+
     const remapped = await importJiraRelatedData({
       ...base,
       ledger: rerun.ledger,

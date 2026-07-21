@@ -204,7 +204,7 @@ const validAttachmentReadback = (
     reefId: string;
     author: string;
     createdAt: string;
-    mimeType: string | null;
+    mimeType: string;
     jiraCloudId: string;
   },
   expectedBytes?: Uint8Array,
@@ -213,8 +213,7 @@ const validAttachmentReadback = (
   readback.attachment.original_jira_attachment_id === source.id &&
   readback.attachment.reef_id === expected.reefId &&
   readback.attachment.filename === source.filename &&
-  (expected.mimeType === null ||
-    readback.attachment.mime_type === expected.mimeType) &&
+  readback.attachment.mime_type === expected.mimeType &&
   readback.attachment.author === expected.author &&
   readback.attachment.created_at === expected.createdAt &&
   readback.attachment.source === "jira_import" &&
@@ -632,11 +631,10 @@ export async function importJiraRelatedData(
     const mappedAuthor = attachment.author?.accountId
       ? input.accountMapping.accounts[attachment.author.accountId]?.actor
       : null;
-    const expectedAttachment = {
+    const expectedAttachmentBase = {
       reefId: input.reefId,
       author: mappedAuthor ?? "jira-import",
       createdAt: attachment.created ?? MISSING_SOURCE_TIMESTAMP,
-      mimeType: attachment.mimeType,
       jiraCloudId: input.jiraCloudId,
     };
     let attachmentPhase: JiraRelatedImportFailure["phase"] = "read";
@@ -651,6 +649,13 @@ export async function importJiraRelatedData(
           download.bytes.byteLength !== attachment.size
         )
           throw new Error("attachment_size_mismatch");
+        const expectedAttachment = {
+          ...expectedAttachmentBase,
+          mimeType:
+            attachment.mimeType ??
+            download.contentType ??
+            "application/octet-stream",
+        };
         attachmentPhase = "readback";
         const readback = await input.target.readAttachment(
           existing.target.file_uri,
@@ -687,6 +692,13 @@ export async function importJiraRelatedData(
           download.bytes.byteLength !== attachment.size
         )
           throw new Error("attachment_size_mismatch");
+        const expectedAttachment = {
+          ...expectedAttachmentBase,
+          mimeType:
+            attachment.mimeType ??
+            download.contentType ??
+            "application/octet-stream",
+        };
         attachmentPhase = "readback";
         if (
           !validAttachmentReadback(
@@ -750,7 +762,7 @@ export async function importJiraRelatedData(
         mimeType,
         bytes: download.bytes,
         author: mappedAuthor ?? "jira-import",
-        createdAt: expectedAttachment.createdAt,
+        createdAt: expectedAttachmentBase.createdAt,
         originalJiraAttachmentId: attachment.id,
         meta: { source: "jira", jira_cloud_id: input.jiraCloudId },
       });
@@ -760,7 +772,7 @@ export async function importJiraRelatedData(
         !validAttachmentReadback(
           readback,
           attachment,
-          { ...expectedAttachment, mimeType },
+          { ...expectedAttachmentBase, mimeType },
           download.bytes,
         )
       )
@@ -792,9 +804,11 @@ export async function importJiraRelatedData(
         attachmentPhase,
         String(error).includes("size_mismatch")
           ? "attachment_size_mismatch"
-          : String(error).includes("size_limit")
-            ? "attachment_size_limit_exceeded"
-            : "attachment_import_failed",
+          : String(error).includes("content_length_mismatch")
+            ? "attachment_size_mismatch"
+            : String(error).includes("size_limit")
+              ? "attachment_size_limit_exceeded"
+              : "attachment_import_failed",
         error,
       );
     }
