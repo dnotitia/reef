@@ -254,6 +254,22 @@ describe("buildJiraChangelogPlan", () => {
     ).toBe(true);
   });
 
+  it("defers an unbound issue link even when the current snapshot has that id", () => {
+    const input = baseInput([
+      { field: "Link", fieldId: "issuelinks", from: null, to: "500" },
+    ]);
+    const plan = buildJiraChangelogPlan({
+      ...input,
+      relationBindings: {},
+    });
+
+    expect(plan.items[0]).toMatchObject({
+      classification: "deferred",
+      reason: "issue_link_reconciliation_missing",
+      activity: null,
+    });
+  });
+
   it("keeps policy-only fields raw and conserves a 6,011-item report", () => {
     const rawFields = [
       "description",

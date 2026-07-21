@@ -412,15 +412,16 @@ const planItem = (
     case "issue_link": {
       const linkId = nullableValue(item, item.to == null ? "from" : "to");
       const binding = linkId ? input.relationBindings?.[linkId] : undefined;
-      const snapshot = linkId
-        ? input.currentIssueLinks?.find(
-            (candidate) =>
-              candidate.id === linkId &&
-              candidate.type === binding?.linkType &&
-              candidate.direction === binding.direction &&
-              candidate.targetIssueId === binding.targetIssueId,
-          )
-        : undefined;
+      const snapshot =
+        linkId && binding
+          ? input.currentIssueLinks?.find(
+              (candidate) =>
+                candidate.id === linkId &&
+                candidate.type === binding.linkType &&
+                candidate.direction === binding.direction &&
+                candidate.targetIssueId === binding.targetIssueId,
+            )
+          : undefined;
       const target = binding
         ? input.issueBindings?.[binding.targetIssueId]
         : undefined;
