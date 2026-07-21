@@ -120,6 +120,7 @@ export interface JiraRelatedImportTarget {
     ref: ExternalRef;
     provenance: Record<string, unknown>;
   } | null>;
+  deleteExternalRef(idempotencyKey: string): Promise<void>;
 }
 
 export interface JiraRelatedImportInput {
@@ -461,6 +462,32 @@ const rewriteMedia = (
     resolved,
     changed: markdown !== converted.markdown,
   };
+};
+
+const reconcileProvisionalLinkRefs = async (
+  target: JiraRelatedImportTarget,
+  jiraCloudId: string,
+  linkId: string,
+  endpointIssueIds: readonly (string | null)[],
+): Promise<void> => {
+  const keys = new Set(
+    endpointIssueIds
+      .filter((issueId): issueId is string => issueId !== null)
+      .map((issueId) => `jira-link:${jiraCloudId}:${issueId}:${linkId}`),
+  );
+  for (const key of keys) {
+    const existing = await target.readExternalRef(key);
+    if (!existing) continue;
+    if (
+      existing.provenance.source !== "jira" ||
+      existing.provenance.link_id !== linkId ||
+      existing.provenance.unresolved !== true
+    )
+      throw new Error("external_ref_reconciliation_mismatch");
+    await target.deleteExternalRef(key);
+    if ((await target.readExternalRef(key)) !== null)
+      throw new Error("external_ref_delete_readback_mismatch");
+  }
 };
 
 const reportTemplate = (
@@ -1018,6 +1045,12 @@ export async function importJiraRelatedData(
           fingerprintJiraState(existingRelation) ===
             fingerprintJiraState(expectedRelation)
         ) {
+          await reconcileProvisionalLinkRefs(
+            input.target,
+            input.jiraCloudId,
+            linkId,
+            [issue.id, link.issueId],
+          );
           report.links.skipped += 1;
           continue;
         }
@@ -1034,6 +1067,12 @@ export async function importJiraRelatedData(
         fingerprintJiraState(expectedRelation)
       )
         throw new Error("relation_readback_missing");
+      await reconcileProvisionalLinkRefs(
+        input.target,
+        input.jiraCloudId,
+        linkId,
+        [issue.id, link.issueId],
+      );
       for (const legacyBinding of semanticBindings) {
         if (
           legacyBinding.target.target_kind !== "relation" ||

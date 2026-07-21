@@ -315,6 +315,9 @@ const makeTarget = () => {
           }
         : null;
     },
+    async deleteExternalRef(key) {
+      refs.delete(key);
+    },
   };
   return {
     target,
@@ -643,6 +646,76 @@ describe("Jira related-data import stage", () => {
         (binding) => binding.entity_kind === "relation",
       ),
     ).toBe(false);
+  });
+
+  it("removes provisional refs from both endpoint views when a link resolves", async () => {
+    const state = makeTarget();
+    const provisional = (reefId: string) => ({
+      reefId,
+      ref: {
+        type: "jira" as const,
+        ref: reefId,
+        label: "Jira issue link",
+      },
+      provenance: {
+        source: "jira",
+        link_id: "40001",
+        unresolved: true,
+      },
+    });
+    const currentKey = "jira-link:cloud-1:10001:40001";
+    const otherKey = "jira-link:cloud-1:10002:40001";
+    await state.target.putExternalRef({
+      idempotencyKey: currentKey,
+      ...provisional("REEF-1"),
+    });
+    await state.target.putExternalRef({
+      idempotencyKey: otherKey,
+      ...provisional("REEF-2"),
+    });
+    const base = {
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      client: makeClient([]),
+      target: state.target,
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [
+        {
+          typeId: "1",
+          kind: "directional" as const,
+          outwardRelation: "depends_on" as const,
+          inwardRelation: "blocks" as const,
+        },
+      ],
+      resolveIssueTarget: () => ({
+        reefId: "REEF-2",
+        documentUri: "akb://isolated/coll/issues/doc/reef-2.md",
+      }),
+      mode: "apply" as const,
+    };
+    const applied = await importJiraRelatedData({
+      ...base,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+    });
+    expect(await state.target.readExternalRef(currentKey)).toBeNull();
+    expect(await state.target.readExternalRef(otherKey)).toBeNull();
+
+    await state.target.putExternalRef({
+      idempotencyKey: otherKey,
+      ...provisional("REEF-2"),
+    });
+    const rerun = await importJiraRelatedData({
+      ...base,
+      ledger: applied.ledger,
+    });
+    expect(rerun.report.links.skipped).toBe(1);
+    expect(await state.target.readExternalRef(otherKey)).toBeNull();
   });
 });
 
