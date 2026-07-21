@@ -155,9 +155,9 @@ const reference = await archive.archive({
 // { runId, entryId, contentSha256 }
 ```
 
-REEF-318 field results and REEF-392 changelog classifications store this opaque
-reference. REEF-319 later persists the same reference in its ledger, and
-REEF-321 passes it through report/apply/resume orchestration. None of those
+Field-mapping results and changelog classifications store this opaque
+reference. The migration ledger persists the same reference, and the apply
+runner passes it through report/apply/resume orchestration. None of those
 surfaces should duplicate or stringify the raw payload. `readRawArchiveReference`
 and `verifyRawArchive` validate the envelope version, manifest checksum,
 reference, object presence, byte size, object digest, canonical JSON, file
@@ -314,8 +314,8 @@ the repository or include them in issue bodies, logs, or PR descriptions.
 
 ## Jira Rank To Reef Ordering
 
-REEF-393 maps Jira Rank's current value into reef's existing
-`reef_issues.rank` column. The column is now the issue-wide numeric ordering
+The Jira Rank importer maps Jira Rank's current value into reef's existing
+`reef_issues.rank` column. The column is the issue-wide numeric ordering
 scalar: lower numbers sort earlier, and `NULL` sorts at the ordered tail.
 
 This does not make `rank` a normal user-authored issue field. The product UI
@@ -340,14 +340,14 @@ query layer accepts `sort_field=rank` for the board's pristine order, backlog
 order, import verification, and other internal consumers. Backlog remains
 `status=backlog` plus ascending `rank`.
 
-Jira Rank changelog history reconstruction is out of scope. REEF-393 preserves
-the current Jira ordering only.
+Jira Rank changelog history reconstruction is out of scope. The importer
+preserves the current Jira ordering only.
 
 ## Jira Version And Sprint Planning Migration
 
-REEF-402 treats Jira Version and Sprint records as independent migration
-entities. Issue import consumes the resulting Reef UUID mappings; it does not
-create releases or sprints itself.
+The planning importer treats Jira Version and Sprint records as independent
+migration entities. Issue import consumes the resulting Reef UUID mappings; it
+does not create releases or sprints itself.
 
 ### Read And Selection Policy
 
@@ -367,7 +367,7 @@ create releases or sprints itself.
 Version identity is `jiraCloudId + projectId + versionId`. Sprint identity is
 `jiraCloudId + sprintId`; source names are display and exact-match fallback
 values only. The exported identity helpers encode these components into stable
-keys suitable for REEF-319 ledger records.
+keys suitable for migration ledger records.
 
 ### Lifecycle And Field Mapping
 
@@ -393,7 +393,7 @@ and account data.
 `buildJiraPlanningMigrationPlan()` is pure and returns a deeply frozen plan.
 Dry-run and apply must consume that same plan:
 
-1. Reuse a REEF-319 ledger binding when one exists for the stable source key.
+1. Reuse a migration ledger binding when one exists for the stable source key.
 2. Otherwise find case-insensitive exact-name candidates in the matching Reef
    planning table.
 3. Reuse only one candidate whose lifecycle and core dates are compatible.
@@ -405,10 +405,11 @@ Dry-run and apply must consume that same plan:
 
 Every action carries field-level `mapped`, `preserved`, `conflict`, or
 `unsupported` report entries and a preservation path for source-only fields.
-After REEF-321 executes a create action through `@reef/core`, pass the returned
-UUID to `resolveJiraPlanningActionTarget()`. REEF-319 can persist that resolution
-by stable source identity, while REEF-318 can consume the release and Sprint
-maps from `buildJiraPlanningTargetMappings()` without creating planning rows.
+After the apply runner executes a create action through `@reef/core`, pass the
+returned UUID to `resolveJiraPlanningActionTarget()`. The migration ledger can
+persist that resolution by stable source identity, while issue mapping can
+consume the release and Sprint maps from `buildJiraPlanningTargetMappings()`
+without creating planning rows.
 
 The planning API, action shape, and tests are project-independent and exercise
 multiple synthetic project keys with the same contract.
@@ -420,9 +421,9 @@ Official API references:
 
 ## Migration Ledger And Checkpoint
 
-REEF-319 adds the operator-owned local execution-state artifact used by later
-apply orchestration. It is deliberately separate from the REEF-406 raw archive:
-the archive owns canonical source payloads, while the ledger stores only stable
+The migration ledger is the operator-owned local execution-state artifact used
+by apply orchestration. It is deliberately separate from the raw archive: the
+archive owns canonical source payloads, while the ledger stores only stable
 identity, sanitized fingerprints, opaque archive references, successful target
 bindings, and immutable run results. The ledger is not stored in reef-web or an
 AKB table.
@@ -521,8 +522,8 @@ restoration from the verified backup; do not synthesize a fresh target.
 
 `buildJiraIssueImportPlan()` is a pure mapping boundary. It accepts one parsed
 Jira issue, a tenant field-catalog snapshot, explicit status/type/priority
-policies, the REEF-391 account artifact, REEF-402 target mappings, a batch Jira
-key-to-Reef-id map, an optional generic Rank plan, and REEF-406 opaque archive
+policies, the account-mapping artifact, planning target mappings, a batch Jira
+key-to-Reef-id map, an optional generic Rank plan, and opaque raw-archive
 references. It returns a deeply frozen `schema_version: 1` plan; it never reads
 the network or filesystem and never writes Jira, AKB, planning rows, or archive
 objects.
@@ -556,7 +557,7 @@ headings, lists/tasks, quotes, code, tables, links, mentions, emoji, cards,
 status/expand, rules, and media variants. Unsupported nodes retain their exact
 path and type as `description_node_unsupported`. Media becomes a stable
 placeholder containing only source media identifiers and an opaque archive
-reference; REEF-320 owns its eventual rewrite.
+reference for the later attachment-rewrite pass.
 
 Issue planning consumes only `buildJiraPlanningTargetMappings()` output. One
 Version or Sprint relation may be primary automatically; multiple relations
@@ -590,8 +591,8 @@ field. Ready plans validate `desired.issue` with the public core
 
 `desired.issue.created_at` and `updated_at` use the caller-supplied run timestamp
 only to satisfy runtime validation. `projectJiraIssueEventualWrite()` removes
-both fields before REEF-321 write projection. Original Jira `created` and
+both fields before apply write projection. Original Jira `created` and
 `updated` remain under compact provenance/raw archive and never overwrite AKB's
-automatic timestamps. REEF-319 owns ledger/checkpoint decisions; REEF-320 owns
-comments/files/link rewrites; REEF-392 owns changelog import; REEF-321 owns the
-apply runner.
+automatic timestamps. Ledger/checkpoint decisions, comments/files/link
+rewrites, changelog import, and apply execution remain separate migration
+responsibilities.
