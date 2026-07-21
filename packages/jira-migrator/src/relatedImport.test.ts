@@ -1171,6 +1171,42 @@ describe("Jira related-data import stage", () => {
     );
   });
 
+  it("does not revoke a recovered attachment owned by another Jira cloud", async () => {
+    const state = makeTarget();
+    await state.target.createAttachment({
+      idempotencyKey: "other-cloud-attachment",
+      reefId: "REEF-1",
+      filename: "sample.dat",
+      mimeType: "application/octet-stream",
+      bytes: new Uint8Array([1, 2, 3]),
+      author: "jira-import",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      originalJiraAttachmentId: "30001",
+      meta: { source: "jira", jira_cloud_id: "cloud-2" },
+    });
+    await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      client: makeClient([]),
+      target: state.target,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [],
+      resolveIssueTarget: () => null,
+      mode: "apply",
+    });
+    expect(state.attachments.size).toBe(1);
+    expect([...state.attachments.values()][0]?.attachment.meta).toMatchObject({
+      jira_cloud_id: "cloud-2",
+    });
+  });
+
   it("revokes an imported attachment when the byte policy is lowered", async () => {
     const state = makeTarget();
     const base = {
@@ -1514,6 +1550,92 @@ describe("Jira related-data import stage", () => {
       reconciled.ledger.bindings.some(
         (binding) => binding.entity_kind === "relation",
       ),
+    ).toBe(false);
+  });
+
+  it("removes a disappeared relation when the other endpoint is processed", async () => {
+    const state = makeTarget();
+    const client = makeClient([]);
+    const base = {
+      jiraCloudId: "cloud-1",
+      attachmentPolicy,
+      client,
+      target: state.target,
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [{ typeId: "1", kind: "symmetric" as const }],
+      resolveIssueTarget: () => ({
+        reefId: "REEF-2",
+        documentUri: "akb://isolated/coll/issues/doc/reef-2.md",
+      }),
+      mode: "apply" as const,
+    };
+    const applied = await importJiraRelatedData({
+      ...base,
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+    });
+    expect(state.relations.size).toBe(1);
+    client.readComments = async () => ({
+      items: [],
+      pages: [],
+      rateLimits: [],
+    });
+    const otherEndpoint = issueFixture();
+    otherEndpoint.id = "10002";
+    otherEndpoint.key = "DEMO-2";
+    otherEndpoint.fields.attachment = [];
+    otherEndpoint.fields.issuelinks = [];
+    otherEndpoint.fields.description = null;
+    await importJiraRelatedData({
+      ...base,
+      issue: otherEndpoint,
+      reefId: "REEF-2",
+      ledger: applied.ledger,
+    });
+    expect(state.relations.size).toBe(0);
+  });
+
+  it("removes a provisional ref whose standard link disappears", async () => {
+    const state = makeTarget();
+    const base = {
+      jiraCloudId: "cloud-1",
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client: makeClient([]),
+      target: state.target,
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [] as const,
+      resolveIssueTarget: () => null,
+      mode: "apply" as const,
+    };
+    const applied = await importJiraRelatedData({
+      ...base,
+      issue: issueFixture(),
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+    });
+    expect(
+      [...state.refs.keys()].some((key) => key.startsWith("jira-link:")),
+    ).toBe(true);
+    const withoutLinks = issueFixture();
+    withoutLinks.fields.issuelinks = [];
+    await importJiraRelatedData({
+      ...base,
+      issue: withoutLinks,
+      ledger: applied.ledger,
+    });
+    expect(
+      [...state.refs.keys()].some((key) => key.startsWith("jira-link:")),
     ).toBe(false);
   });
 

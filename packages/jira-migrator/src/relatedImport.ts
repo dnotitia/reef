@@ -763,7 +763,14 @@ export async function importJiraRelatedData(
     const fileUris = new Set<string>();
     if (binding?.target.target_kind === "attachment")
       fileUris.add(binding.target.file_uri);
-    if (recovered) fileUris.add(recovered.attachment.file_uri);
+    if (
+      recovered?.attachment.source === "jira_import" &&
+      recovered.attachment.reef_id === input.reefId &&
+      recovered.attachment.original_jira_attachment_id === attachmentId &&
+      recovered.attachment.meta?.source === "jira" &&
+      recovered.attachment.meta?.jira_cloud_id === input.jiraCloudId
+    )
+      fileUris.add(recovered.attachment.file_uri);
     for (const fileUri of fileUris) {
       await input.target.revokeAttachment({
         reefId: input.reefId,
@@ -1523,11 +1530,42 @@ export async function importJiraRelatedData(
   }
   report.links.unique = uniqueLinks.size;
   if (input.mode === "apply" && input.issue.fields.issuelinks !== undefined) {
+    const provisionalPrefix = `jira-link:${input.jiraCloudId}:${issue.id}:`;
+    const currentProvisionalKeys = new Set(
+      [...uniqueLinks.keys()].map((linkId) => `${provisionalPrefix}${linkId}`),
+    );
+    for (const existingKey of await input.target.listExternalRefKeys(
+      provisionalPrefix,
+    )) {
+      if (currentProvisionalKeys.has(existingKey)) continue;
+      try {
+        const existing = await input.target.readExternalRef(existingKey);
+        if (
+          existing &&
+          (existing.provenance.source !== "jira" ||
+            existing.provenance.unresolved !== true)
+        )
+          throw new Error("external_ref_reconciliation_mismatch");
+        if (existing) await input.target.deleteExternalRef(existingKey);
+        if ((await input.target.readExternalRef(existingKey)) !== null)
+          throw new Error("external_ref_delete_readback_mismatch");
+      } catch (error) {
+        failure(
+          report.failures,
+          "link",
+          `sha256:${fingerprintJiraState(existingKey)}`,
+          String(error).includes("readback") ? "readback" : "write",
+          "link_source_reconciliation_failed",
+          error,
+        );
+      }
+    }
     const missingRelationBindings = ledger.bindings.filter(
       (binding) =>
         binding.source_identity.entity_kind === "relation" &&
         binding.source_identity.jira_cloud_id === input.jiraCloudId &&
-        binding.source_identity.source_issue_id === issue.id &&
+        (binding.source_identity.source_issue_id === issue.id ||
+          binding.source_identity.target_issue_id === issue.id) &&
         !uniqueLinks.has(binding.source_identity.link_id),
     );
     for (const binding of missingRelationBindings) {
