@@ -15,6 +15,8 @@ import {
   akbInstallReefVaultSkill as installReefVaultSkill,
   akbListVaults as listVaults,
   akbReadConfig as readConfig,
+  akbRegisterVaultMigrationWriter as registerVaultMigrationWriter,
+  akbRestoreVaultMigrationWriter as restoreVaultMigrationWriter,
   akbWriteConfig as writeConfig,
 } from "@reef/core";
 import { z } from "zod";
@@ -117,17 +119,42 @@ export async function POST(request: Request): Promise<Response> {
       await createVault({ adapter, name, description });
     }
 
-    await installReefVaultSkill({ adapter, vault: name });
-
-    // writeConfig provisions the reef tables lazily (idempotent), so the
-    // brownfield/greenfield branches and the Settings PATCH path all reach a
-    // ready vault through one code path.
-    await writeConfig({
+    const migrationAccount =
+      process.env.REEF_AKB_MIGRATION_SERVICE_ACCOUNT ?? "";
+    const registration = await registerVaultMigrationWriter({
       adapter,
       vault: name,
-      config,
-      message: "Initialize reef workspace config",
+      username: migrationAccount,
     });
+
+    try {
+      await installReefVaultSkill({ adapter, vault: name });
+
+      // writeConfig provisions the reef tables lazily (idempotent), so the
+      // brownfield/greenfield branches and the Settings PATCH path all reach a
+      // ready vault through one code path.
+      await writeConfig({
+        adapter,
+        vault: name,
+        config,
+        message: "Initialize reef workspace config",
+      });
+    } catch (initializationError) {
+      try {
+        await restoreVaultMigrationWriter({
+          adapter,
+          vault: name,
+          username: migrationAccount,
+          previousRole: registration.previousRole,
+        });
+      } catch (rollbackError) {
+        logger.error(
+          { err: rollbackError, vault: name },
+          "migration_writer_rollback failed",
+        );
+      }
+      throw initializationError;
+    }
 
     return Response.json(CreateVaultResponseSchema.parse({ name, config }));
   } catch (err) {

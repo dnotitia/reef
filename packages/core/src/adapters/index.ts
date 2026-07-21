@@ -16,6 +16,8 @@ export {
 } from "./llm";
 export {
   createAkbAdapter,
+  createAkbServiceAdapter,
+  REEF_SCHEMA_VERSION,
   readIssue as akbReadIssue,
   writeIssue as akbWriteIssue,
   updateIssue as akbUpdateIssue,
@@ -69,6 +71,7 @@ export {
   alterAkbTable as akbAlterTable,
   applyAkbTableMigration as akbApplyTableMigration,
   ensureReefTables as akbEnsureReefTables,
+  readReefSchemaVersion as akbReadReefSchemaVersion,
   AkbTableMutationColumnTypeSchema,
   AkbAlterTableChangesSchema,
   AkbTableMigrationOperationSchema,
@@ -77,6 +80,8 @@ export {
   AkbTableMigrationResultSchema,
   listVaultMembers as akbListVaultMembers,
   grantVaultMember as akbGrantVaultMember,
+  registerVaultMigrationWriter as akbRegisterVaultMigrationWriter,
+  restoreVaultMigrationWriter as akbRestoreVaultMigrationWriter,
   revokeVaultMember as akbRevokeVaultMember,
   searchUsers as akbSearchUsers,
   filterVaultMembers as akbFilterVaultMembers,

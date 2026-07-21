@@ -58,6 +58,9 @@ export const AkbCurrentUserSchema = z
     user_id: z.string().min(1).optional(),
     id: z.string().min(1).optional(),
     sub: z.string().min(1).optional(),
+    is_admin: z.boolean().optional(),
+    auth_method: z.string().min(1).optional(),
+    key_class: z.string().min(1).optional(),
   })
   .passthrough();
 

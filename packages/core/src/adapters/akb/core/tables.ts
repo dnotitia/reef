@@ -478,12 +478,10 @@ function assertDesiredTablesMatch(tables: AkbTableSummary[]): void {
   }
 }
 
-async function readStoredSchemaVersion(
-  adapter: AkbAdapter,
-  vault: string,
-  hasSettingsTable: boolean,
-): Promise<number> {
-  if (!hasSettingsTable) return 0;
+export async function readReefSchemaVersion({
+  adapter,
+  vault,
+}: EnsureReefTablesParams): Promise<number> {
   try {
     const response = await runSql(
       adapter,
@@ -577,11 +575,7 @@ export async function ensureReefTables(
       assertDesiredTablesMatch(tables);
     }
     const storedVersion = supportsSchemaVerification
-      ? await readStoredSchemaVersion(
-          adapter,
-          vault,
-          initial.has(REEF_SETTINGS_TABLE),
-        )
+      ? await readReefSchemaVersion({ adapter, vault })
       : 0;
     const missing = REEF_DESIRED_TABLES.filter(
       (manifest) => !initial.has(manifest.name),

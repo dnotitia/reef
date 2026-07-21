@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SchemaValidationError } from "../../../errors";
 import type { Collaborator } from "../../../schemas/workspace/collaborator";
 import { withSpan } from "../core/shared";
 import type {
@@ -79,6 +80,21 @@ export const EnrichedVaultSummarySchema = VaultSummarySchema.extend({
 
 export type EnrichedVaultSummary = z.infer<typeof EnrichedVaultSummarySchema>;
 
+export interface RegisterVaultMigrationWriterParams {
+  adapter: import("../core/http").AkbAdapter;
+  vault: string;
+  username: string;
+}
+
+export interface VaultMigrationWriterRegistration {
+  previousRole: "reader" | "writer" | null;
+}
+
+export interface RestoreVaultMigrationWriterParams
+  extends RegisterVaultMigrationWriterParams {
+  previousRole: VaultMigrationWriterRegistration["previousRole"];
+}
+
 const VaultListResponseSchema = z.object({
   vaults: z.array(VaultSummarySchema).default([]),
 });
@@ -126,6 +142,61 @@ export async function grantVaultMember(
     span.setAttribute("role", parsed.role);
     return { vault: parsed.vault, user: parsed.user, role: parsed.role };
   });
+}
+
+/** Register and read back the deployment migration identity before Reef marks a workspace. */
+export async function registerVaultMigrationWriter(
+  params: RegisterVaultMigrationWriterParams,
+): Promise<VaultMigrationWriterRegistration> {
+  const { adapter, vault } = params;
+  const username = params.username.trim();
+  if (!username) {
+    throw new SchemaValidationError({
+      issues: ["Migration service account username is required"],
+    });
+  }
+  const before = await listVaultMembers({ adapter, vault });
+  const previousMembership = before.members.find(
+    (member) => member.username === username,
+  );
+  const previousRole = previousMembership?.role;
+  if (
+    previousRole !== undefined &&
+    previousRole !== "reader" &&
+    previousRole !== "writer"
+  ) {
+    throw new SchemaValidationError({
+      issues: ["Migration service account has an incompatible vault role"],
+    });
+  }
+  await grantVaultMember({ adapter, vault, user: username, role: "writer" });
+  const { members } = await listVaultMembers({ adapter, vault });
+  const membership = members.find((member) => member.username === username);
+  if (membership?.role !== "writer") {
+    throw new SchemaValidationError({
+      issues: ["Migration service account writer membership was not confirmed"],
+    });
+  }
+  return { previousRole: previousRole ?? null };
+}
+
+/** Restore the pre-registration role when Reef initialization fails before its marker is written. */
+export async function restoreVaultMigrationWriter(
+  params: RestoreVaultMigrationWriterParams,
+): Promise<void> {
+  const { adapter, vault, previousRole } = params;
+  const username = params.username.trim();
+  if (previousRole === "writer") return;
+  if (previousRole === "reader") {
+    await grantVaultMember({
+      adapter,
+      vault,
+      user: username,
+      role: "reader",
+    });
+    return;
+  }
+  await revokeVaultMember({ adapter, vault, user: username });
 }
 
 /**

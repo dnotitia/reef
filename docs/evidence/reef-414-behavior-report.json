@@ -1,0 +1,125 @@
+{
+  "overall_behavior": "satisfies_contract",
+  "overall_confidence": 0.94,
+  "target": {
+    "type": "CLI and generated deployment artifact",
+    "access": "isolated local AKB fixture, reef-414-proof image, and rendered example overlay"
+  },
+  "checks": [
+    {
+      "contract_clause": "User task 1: discover all visible vaults and skip raw vaults",
+      "status": "pass",
+      "severity": null,
+      "evidence": "The public CLI reported discovered=4, reef=3, rawSkipped=1, completed=3; the raw vault remained at zero tables while each Reef vault converged to 11 tables.",
+      "reproduction_steps": [
+        "Start the isolated success fixture with one raw and three Reef vaults.",
+        "Run node cli.mjs with a sentinel-only service credential.",
+        "Read the CLI JSON report and fixture mutation state."
+      ],
+      "confidence": 0.99
+    },
+    {
+      "contract_clause": "User task 2: empty release catalog still performs preflight and final verification",
+      "status": "pass",
+      "severity": null,
+      "evidence": "Every Reef workspace reported phases=[] and no_op while the fixture observed membership checks, final ensure/verification, and 11 required tables per Reef vault.",
+      "reproduction_steps": [
+        "Run the public CLI against the empty-catalog success fixture.",
+        "Confirm phases=[] in every workspace report.",
+        "Confirm member requests and final table verification in fixture state."
+      ],
+      "confidence": 0.97
+    },
+    {
+      "contract_clause": "User task 3: fixed phase replay and checksum conflict",
+      "status": "out_of_scope",
+      "severity": null,
+      "evidence": "The release contract explicitly excludes a concrete table operation or schema-version increase, so the public empty-catalog artifact exposes no fixed phase that a source-blind validator can replay or alter. Focused runner/core tests cover ledger replay and checksum-conflict behavior separately.",
+      "reproduction_steps": [
+        "Run the public CLI twice against the same fixture state.",
+        "Observe phases=[] on both runs, as required for this release.",
+        "Do not inject a runtime catalog because that would add a non-contract production surface."
+      ],
+      "confidence": 0.99
+    },
+    {
+      "contract_clause": "User task 4: preflight failure occurs before mutation",
+      "status": "pass",
+      "severity": null,
+      "evidence": "A writer-membership failure exited 1 with code=preflight_failed and failure.vault=reef-b; tableCreates=0 and ensureStarts=0.",
+      "reproduction_steps": [
+        "Start the preflight-failure fixture.",
+        "Run node cli.mjs and capture stdout, stderr, and exit code.",
+        "Read fixture mutation counters."
+      ],
+      "confidence": 0.99
+    },
+    {
+      "contract_clause": "User task 5: middle-workspace failure stops later work and retry converges",
+      "status": "pass",
+      "severity": null,
+      "evidence": "The first run exited 1 after reef-a completed, with reef-b and reef-c at zero creates. Retry exited 0 and all three Reef vaults reached 11 tables without re-creating reef-a tables.",
+      "reproduction_steps": [
+        "Start the fail-once workspace fixture.",
+        "Run the CLI once and inspect per-vault mutation counts.",
+        "Run the same CLI again against unchanged fixture state and inspect convergence."
+      ],
+      "confidence": 0.99
+    },
+    {
+      "contract_clause": "User task 6: bundled image and init-container deployment gate",
+      "status": "pass",
+      "severity": null,
+      "evidence": "The image ran Node v22.23.1 and /app/schema-migrator/cli.mjs without tsx/esbuild. The rendered Deployment uses Recreate, launches the bundle directly from schema-migrate initContainers, references reef-migration-secret only there, and contains no Job.",
+      "reproduction_steps": [
+        "Inspect reef-414-proof for the bundled CLI and absence of dev binary shims.",
+        "Run the bundled CLI against the isolated fixture from inside the image.",
+        "Render the example Kustomize overlay and inspect Deployment/initContainer/secret fields."
+      ],
+      "confidence": 0.98
+    },
+    {
+      "contract_clause": "User task 7: local wrapper gates web spawn and strips the key",
+      "status": "pass",
+      "severity": null,
+      "evidence": "A preflight failure exited 1 with migration_startup_failed before a web command appeared. On success, a PATH-isolated child probe observed exactly '--filter @reef/web dev', key_present=no, and the non-secret account retained.",
+      "reproduction_steps": [
+        "Invoke the public dev wrapper against a preflight-failure fixture and capture its exit/output.",
+        "Invoke it against a success fixture with a PATH-isolated pnpm child probe.",
+        "Inspect child arguments and presence-only environment flags."
+      ],
+      "confidence": 0.98
+    },
+    {
+      "contract_clause": "User task 8: credential sentinel never surfaces",
+      "status": "pass",
+      "severity": null,
+      "evidence": "With the exact sentinel present in both the fake credential and an upstream Authorization error, the CLI exited 1 with a bounded verification_failed report; exact-sentinel searches across stdout, stderr, wrapper output, reports, and the child environment probe returned absent.",
+      "reproduction_steps": [
+        "Start the sentinel-error fixture.",
+        "Run the CLI and local wrapper with the same exact sentinel as the fake credential.",
+        "Search every captured output/report and inspect the child presence-only environment result."
+      ],
+      "confidence": 0.99
+    }
+  ],
+  "anti_cheat_probes": [
+    {
+      "probe": "Added a fourth Reef vault to the isolated mock inventory",
+      "result": "The CLI changed to discovered=5, reef=4, completed=4 and named reef-d."
+    },
+    {
+      "probe": "Ran the same success state twice",
+      "result": "Both runs succeeded; the second run added zero table creates and retained phases=[]."
+    },
+    {
+      "probe": "Moved the fail-once boundary from reef-b to reef-c",
+      "result": "The failure report moved to reef-c; reef-a and reef-b converged while reef-c remained untouched."
+    },
+    {
+      "probe": "Searched captured CLI/wrapper output and child environment for the exact sentinel",
+      "result": "No exact sentinel occurrence was found; the child probe reported key_present=no."
+    }
+  ],
+  "blockers": []
+}

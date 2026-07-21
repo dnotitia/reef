@@ -1,5 +1,6 @@
 export {
   createAkbAdapter,
+  createAkbServiceAdapter,
   ISSUES_COLLECTION,
   REEF_SETTINGS_TABLE,
   REEF_SETTINGS_SCHEMA_VERSION_KEY,
@@ -24,6 +25,7 @@ export {
   alterAkbTable,
   applyAkbTableMigration,
   ensureReefTables,
+  readReefSchemaVersion,
   resolveDocumentTitles,
   searchDocuments,
   issueDocumentUri,
@@ -44,6 +46,8 @@ export {
   vaultMemberToCollaborator,
   listVaultMembers,
   grantVaultMember,
+  registerVaultMigrationWriter,
+  restoreVaultMigrationWriter,
   revokeVaultMember,
   searchUsers,
   listVaults,
@@ -52,6 +56,9 @@ export {
   type UserSearchResult,
   type VaultSummary,
   type EnrichedVaultSummary,
+  type RegisterVaultMigrationWriterParams,
+  type RestoreVaultMigrationWriterParams,
+  type VaultMigrationWriterRegistration,
 } from "./workspace/vaults";
 export { deleteVault, detachReef } from "./workspace/workspaceDeletion";
 export {

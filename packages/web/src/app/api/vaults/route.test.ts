@@ -10,6 +10,8 @@ const {
   mockAkbInstallReefVaultSkill,
   mockAkbListVaults,
   mockAkbReadConfig,
+  mockAkbRegisterVaultMigrationWriter,
+  mockAkbRestoreVaultMigrationWriter,
   mockAkbWriteConfig,
   mockCreateAkbAdapter,
 } = vi.hoisted(() => ({
@@ -17,6 +19,8 @@ const {
   mockAkbInstallReefVaultSkill: vi.fn(),
   mockAkbListVaults: vi.fn(),
   mockAkbReadConfig: vi.fn(),
+  mockAkbRegisterVaultMigrationWriter: vi.fn(),
+  mockAkbRestoreVaultMigrationWriter: vi.fn(),
   mockAkbWriteConfig: vi.fn(),
   mockCreateAkbAdapter: vi.fn(),
 }));
@@ -30,6 +34,8 @@ vi.mock("@reef/core", async () => {
     akbInstallReefVaultSkill: mockAkbInstallReefVaultSkill,
     akbListVaults: mockAkbListVaults,
     akbReadConfig: mockAkbReadConfig,
+    akbRegisterVaultMigrationWriter: mockAkbRegisterVaultMigrationWriter,
+    akbRestoreVaultMigrationWriter: mockAkbRestoreVaultMigrationWriter,
     akbWriteConfig: mockAkbWriteConfig,
     createAkbAdapter: mockCreateAkbAdapter,
   };
@@ -87,6 +93,7 @@ describe("GET /api/vaults", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("AKB_BACKEND_URL", "http://akb.test");
+    vi.stubEnv("REEF_AKB_MIGRATION_SERVICE_ACCOUNT", "reef-migrator");
     mockCreateAkbAdapter.mockReturnValue({ request: vi.fn() });
   });
 
@@ -201,7 +208,11 @@ describe("POST /api/vaults", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("AKB_BACKEND_URL", "http://akb.test");
+    vi.stubEnv("REEF_AKB_MIGRATION_SERVICE_ACCOUNT", "reef-migrator");
     mockCreateAkbAdapter.mockReturnValue({ request: vi.fn() });
+    mockAkbRegisterVaultMigrationWriter.mockResolvedValue({
+      previousRole: null,
+    });
   });
 
   afterEach(() => {
@@ -219,6 +230,9 @@ describe("POST /api/vaults", () => {
     });
     mockAkbWriteConfig.mockResolvedValueOnce(undefined);
     mockAkbInstallReefVaultSkill.mockResolvedValueOnce(undefined);
+    mockAkbRegisterVaultMigrationWriter.mockResolvedValueOnce({
+      previousRole: null,
+    });
 
     const req = new Request("http://localhost/api/vaults", {
       method: "POST",
@@ -251,9 +265,18 @@ describe("POST /api/vaults", () => {
         vault: "reef-new",
       }),
     );
-    expect(mockAkbCreateVault.mock.invocationCallOrder[0]).toBeLessThan(
-      mockAkbInstallReefVaultSkill.mock.invocationCallOrder[0],
+    expect(mockAkbRegisterVaultMigrationWriter).toHaveBeenCalledWith(
+      expect.objectContaining({
+        vault: "reef-new",
+        username: "reef-migrator",
+      }),
     );
+    expect(mockAkbCreateVault.mock.invocationCallOrder[0]).toBeLessThan(
+      mockAkbRegisterVaultMigrationWriter.mock.invocationCallOrder[0],
+    );
+    expect(
+      mockAkbRegisterVaultMigrationWriter.mock.invocationCallOrder[0],
+    ).toBeLessThan(mockAkbInstallReefVaultSkill.mock.invocationCallOrder[0]);
     expect(
       mockAkbInstallReefVaultSkill.mock.invocationCallOrder[0],
     ).toBeLessThan(mockAkbWriteConfig.mock.invocationCallOrder[0]);
@@ -412,6 +435,9 @@ describe("POST /api/vaults", () => {
       config: GREENFIELD_CONFIG,
     });
     expect(mockAkbCreateVault).not.toHaveBeenCalled();
+    expect(
+      mockAkbRegisterVaultMigrationWriter.mock.invocationCallOrder[0],
+    ).toBeLessThan(mockAkbInstallReefVaultSkill.mock.invocationCallOrder[0]);
     expect(mockAkbInstallReefVaultSkill).toHaveBeenCalledWith(
       expect.objectContaining({
         vault: "reef-new",
@@ -423,6 +449,30 @@ describe("POST /api/vaults", () => {
         config: GREENFIELD_CONFIG,
       }),
     );
+  });
+
+  it("does not write the Reef marker when migration writer registration fails", async () => {
+    mockAkbListVaults.mockResolvedValueOnce({ vaults: SAMPLE_VAULTS });
+    mockAkbCreateVault.mockResolvedValueOnce({
+      vault_id: "v1",
+      name: "reef-new",
+      template: null,
+      public_access: "none",
+    });
+    mockAkbRegisterVaultMigrationWriter.mockRejectedValueOnce(
+      new Error("writer readback failed"),
+    );
+
+    const req = new Request("http://localhost/api/vaults", {
+      method: "POST",
+      headers: authedHeaders(),
+      body: JSON.stringify(createVaultBody()),
+    });
+    const res = await POST(req);
+
+    expect(res.status).toBe(500);
+    expect(mockAkbInstallReefVaultSkill).not.toHaveBeenCalled();
+    expect(mockAkbWriteConfig).not.toHaveBeenCalled();
   });
 
   it("does not write config when reef vault skill installation fails", async () => {
@@ -454,5 +504,44 @@ describe("POST /api/vaults", () => {
       expect.objectContaining({ vault: "reef-new" }),
     );
     expect(mockAkbWriteConfig).not.toHaveBeenCalled();
+    expect(mockAkbRestoreVaultMigrationWriter).toHaveBeenCalledWith(
+      expect.objectContaining({
+        vault: "reef-new",
+        username: "reef-migrator",
+        previousRole: null,
+      }),
+    );
+  });
+
+  it("restores the previous migration role when config initialization fails", async () => {
+    mockAkbListVaults.mockResolvedValueOnce({ vaults: SAMPLE_VAULTS });
+    mockAkbCreateVault.mockResolvedValueOnce({
+      vault_id: "v1",
+      name: "reef-new",
+      template: null,
+      public_access: "none",
+    });
+    mockAkbRegisterVaultMigrationWriter.mockResolvedValueOnce({
+      previousRole: "reader",
+    });
+    mockAkbInstallReefVaultSkill.mockResolvedValueOnce(undefined);
+    mockAkbWriteConfig.mockRejectedValueOnce(new Error("config write failed"));
+
+    const res = await POST(
+      new Request("http://localhost/api/vaults", {
+        method: "POST",
+        headers: authedHeaders(),
+        body: JSON.stringify(createVaultBody()),
+      }),
+    );
+
+    expect(res.status).toBe(500);
+    expect(mockAkbRestoreVaultMigrationWriter).toHaveBeenCalledWith(
+      expect.objectContaining({
+        vault: "reef-new",
+        username: "reef-migrator",
+        previousRole: "reader",
+      }),
+    );
   });
 });

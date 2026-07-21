@@ -12,7 +12,10 @@
  */
 import { apiFetch } from "@/lib/apiClient";
 import { type AkbAccountErrorCode, isAkbAccountErrorCode } from "@reef/core";
-import { consumePendingAkbAccountError } from "./accountDenialClient";
+import {
+  consumePendingAkbAccountError,
+  peekPendingAkbAccountError,
+} from "./accountDenialClient";
 
 export type AkbSessionStatus =
   | { active: true }
@@ -39,15 +42,17 @@ export async function getAkbSessionStatus(
         ? body.code
         : undefined;
     if (isAkbAccountErrorCode(code)) {
-      consumePendingAkbAccountError();
       return { active: false, accountError: code };
     }
-    const pendingAccountError = consumePendingAkbAccountError();
+    const pendingAccountError = peekPendingAkbAccountError();
     return pendingAccountError
       ? { active: false, accountError: pendingAccountError }
       : { active: false };
   } catch {
-    return { active: false };
+    const pendingAccountError = peekPendingAkbAccountError();
+    return pendingAccountError
+      ? { active: false, accountError: pendingAccountError }
+      : { active: false };
   }
 }
 

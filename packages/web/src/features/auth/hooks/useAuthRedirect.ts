@@ -1,9 +1,6 @@
 "use client";
 
-import {
-  consumePendingAkbAccountError,
-  subscribeAkbAccountDenied,
-} from "@/lib/akb/accountDenialClient";
+import { subscribeAkbAccountDenied } from "@/lib/akb/accountDenialClient";
 import { getAkbSessionStatus } from "@/lib/akb/checkAkbSession";
 import { buildPathWithParams } from "@/lib/akb/safeRedirect";
 import { getActiveVault } from "@/lib/storage/config";
@@ -53,7 +50,6 @@ export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
       if (redirectCommitted || controller.signal.aborted) return;
       redirectCommitted = true;
       setStatus("inactive");
-      if (accountError) consumePendingAkbAccountError();
       router.replace(
         accountError
           ? buildPathWithParams("/login", { sso_error: accountError })

@@ -37,6 +37,10 @@ docker buildx build --platform linux/amd64 \
 The container listens on `3000` and exposes a health endpoint at
 `/api/healthz` (used by the Kubernetes liveness/readiness probes).
 
+The same image also contains the dependency-complete startup runner at
+`/app/schema-migrator/cli.mjs`. See [Startup schema migrations](schema-migrations.md)
+for service-account registration, Secret setup, backfill, rotation, and recovery.
+
 ---
 
 ## 2. Kubernetes with kustomize
@@ -90,6 +94,12 @@ cp -r deploy/k8s/overlays/example deploy/k8s/overlays/my-cluster
 The Deployment reads optional GitHub and LLM credentials from a Secret named
 `reef-web-secret` in the same namespace. The Secret reference is optional, so
 an AKB/Keycloak-only deployment does not need to create an empty Secret.
+
+The separate `reef-migration-secret` is required by the startup init container.
+Replace the base's `replace-before-deploy` placeholder through your secret
+manager before applying the overlay. Its `REEF_AKB_MIGRATION_SERVICE_KEY` is
+never injected into the `reef-web` container; only the non-secret
+`REEF_AKB_MIGRATION_SERVICE_ACCOUNT` username is shared through the ConfigMap.
 
 To enable AI, create the Secret with `REEF_LLM_API_KEY`:
 
@@ -226,6 +236,8 @@ the `reef-web-config` ConfigMap plus the optional `reef-web-secret` Secret).
 | Variable | Required | Description |
 | --- | --- | --- |
 | `AKB_BACKEND_URL` | yes | Base URL of the akb backend reef-web calls server-side. In-cluster this is a Service DNS name (`http://<service>.<namespace>.svc.cluster.local:8000`). |
+| `REEF_AKB_MIGRATION_SERVICE_ACCOUNT` | yes | Non-secret AKB username registered as exact `writer` in every Reef workspace. The web route uses it during workspace creation; the startup runner verifies it. |
+| `REEF_AKB_MIGRATION_SERVICE_KEY` | startup runner only | Non-admin service key with `read` + `write` scopes. Keep it in `reef-migration-secret` or `.env.migration.local`; never expose it to the long-running web process. |
 | `REEF_PUBLIC_ORIGIN` | yes for SSO | reef-web's canonical external origin — bare `scheme://host[:port]`, no path. Sent to akb as the absolute SSO callback base so reef and akb's own frontend can share a tenant Keycloak. Must match the ingress/public host. `https` except for localhost dev. |
 | `REEF_SSO_AUTO_REDIRECT` | no | Optional SSO-first presentation override for a hybrid AKB. AKB `keycloak.sso_only=true` redirects without it; AKB `local_auth.enabled=false` suppresses password login even when `?password=1`/`?prompt=login` is present. SSO/session errors suppress automatic redirect as the loop guard. |
 | `REEF_LLM_API_KEY` | for enabled AI | Key for the configured OpenAI-compatible endpoint. Keep it in a Secret; never inline it in manifests or commit it. |

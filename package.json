@@ -17,7 +17,7 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "pnpm --filter @reef/web dev",
+    "dev": "pnpm --filter @reef/schema-migrator run dev:wrapper",
     "build": "pnpm --filter @reef/web build",
     "lint": "biome check .",
     "check:release": "node scripts/check-release-policy.mjs",

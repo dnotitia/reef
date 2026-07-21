@@ -173,7 +173,11 @@ function filenameFromContentDisposition(header: string | null): string | null {
   return plain?.[1] ?? null;
 }
 
-function makeRequest(baseUrl: string, jwt: string): AkbRequest {
+function makeRequest(
+  baseUrl: string,
+  jwt: string,
+  { credentialSafeErrors = false }: { credentialSafeErrors?: boolean } = {},
+): AkbRequest {
   return async (path, init = {}) => {
     const url = buildUrl(baseUrl, path, init.query);
     const method = init.method ?? "GET";
@@ -229,7 +233,9 @@ function makeRequest(baseUrl: string, jwt: string): AkbRequest {
           const error = await readAkbErrorResponse(response);
           translateAkbHttpError(
             response.status,
-            error.message,
+            credentialSafeErrors
+              ? `akb_upstream_error_${response.status}`
+              : error.message,
             error.code,
             init.resource,
           );
@@ -278,4 +284,24 @@ export function createAkbAdapter({
   jwt: string;
 }): AkbAdapter {
   return { request: makeRequest(baseUrl, jwt) };
+}
+
+/**
+ * Create an adapter for short-lived deployment automation.
+ *
+ * Unlike the user-session adapter, upstream-controlled error text is replaced
+ * with a bounded status code before it can reach a throwable or span. Service
+ * keys can appear in proxy error bodies, so migration callers must use this
+ * boundary instead of attempting output redaction after the fact.
+ */
+export function createAkbServiceAdapter({
+  baseUrl,
+  serviceKey,
+}: {
+  baseUrl: string;
+  serviceKey: string;
+}): AkbAdapter {
+  return {
+    request: makeRequest(baseUrl, serviceKey, { credentialSafeErrors: true }),
+  };
 }

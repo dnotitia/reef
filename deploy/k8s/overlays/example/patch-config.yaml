@@ -10,5 +10,7 @@ data:
   # `example` with the namespace akb runs in (and adjust the Service name
   # if yours differs), e.g. http://backend.<akb-namespace>.svc.cluster.local:8000.
   AKB_BACKEND_URL: "http://akb-backend.example.svc.cluster.local:8000"
+  # Non-secret username of the least-privilege migration service account.
+  REEF_AKB_MIGRATION_SERVICE_ACCOUNT: "reef-migrator"
   # reef-web's canonical public origin. Must match the ingress host below.
   REEF_PUBLIC_ORIGIN: "https://reef.example.com"

@@ -14,6 +14,13 @@ explicitly in the entries below.
 
 ### Added
 
+- **Reef now gates startup on schema convergence across every registered
+  workspace.** A private bundled ESM runner performs complete service-identity,
+  marker, and writer-membership preflight, applies fixed catalog phases through
+  AKB's migration ledger, and finishes with desired-manifest verification. New
+  workspace creation registers the non-secret migration service username before
+  writing the Reef marker. (REEF-414)
+
 - **Jira migration reruns now have a durable local identity ledger and
   checkpoint.** The operator package persists Cloud-scoped stable source-to-
   target bindings only after identity readback, resumes by phase and canonical
@@ -53,6 +60,15 @@ explicitly in the entries below.
   position. (REEF-065)
 
 ### Migration
+
+- **Configure the startup migration identity before deploying REEF-414.**
+  Backfill exact `writer` membership for the non-admin service account in every
+  existing Reef workspace, set `REEF_AKB_MIGRATION_SERVICE_ACCOUNT`, and replace
+  the `reef-migration-secret` placeholder with a `read`+`write` scoped service
+  key. The reference Deployment now uses `Recreate` and an init container; the
+  app does not receive the key. Local `pnpm dev` requires an isolated
+  `.env.migration.local`. This release adds no schema operation, backfill, or
+  `REEF_SCHEMA_VERSION` bump. See `docs/schema-migrations.md`. (REEF-414)
 
 - **Migrate existing Kubernetes LLM settings before deploying REEF-413.** The
   base ConfigMap no longer supplies OpenRouter URL/model defaults. To keep AI

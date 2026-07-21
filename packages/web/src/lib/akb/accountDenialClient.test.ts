@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   consumePendingAkbAccountError,
+  peekPendingAkbAccountError,
   recordAkbAccountDenial,
   subscribeAkbAccountDenied,
 } from "./accountDenialClient";
@@ -18,6 +19,8 @@ describe("accountDenialClient", () => {
     recordAkbAccountDenial("membership_required");
 
     expect(handler).toHaveBeenCalledWith("membership_required");
+    expect(peekPendingAkbAccountError()).toBe("membership_required");
+    expect(peekPendingAkbAccountError()).toBe("membership_required");
     expect(consumePendingAkbAccountError()).toBe("membership_required");
     expect(consumePendingAkbAccountError()).toBeUndefined();
     unsubscribe();

@@ -1,12 +1,15 @@
 "use client";
 
 import { LoginForm } from "@/features/auth/components/LoginForm";
+import { peekPendingAkbAccountError } from "@/lib/akb/accountDenialClient";
+import { buildPathWithParams } from "@/lib/akb/safeRedirect";
 import { normalizeSafeRedirect } from "@/lib/akb/safeRedirect";
 import { apiFetch } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
 import { AkbAuthConfigSchema } from "@reef/core";
 import { Building2, KeyRound, ShieldCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 export interface LoginPanelProps {
@@ -23,11 +26,25 @@ function akbPlatformToken(chunks: ReactNode) {
 }
 
 export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const safeRedirect = normalizeSafeRedirect(redirectTo);
   const [capabilities, setCapabilities] = useState<AuthCapabilities | null>(
     null,
   );
   const t = useTranslations("auth.panel");
+
+  useEffect(() => {
+    const pendingAccountError = peekPendingAkbAccountError();
+    if (
+      pendingAccountError &&
+      searchParams.get("sso_error") !== pendingAccountError
+    ) {
+      router.replace(
+        buildPathWithParams("/login", { sso_error: pendingAccountError }),
+      );
+    }
+  }, [router, searchParams]);
 
   useEffect(() => {
     const controller = new AbortController();

@@ -9,6 +9,7 @@ RUN corepack enable && corepack prepare pnpm@11.10.0 --activate
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/web/package.json ./packages/web/
 COPY packages/core/package.json ./packages/core/
+COPY packages/schema-migrator/package.json ./packages/schema-migrator/
 
 # Install all workspace dependencies
 RUN pnpm install --frozen-lockfile
@@ -25,12 +26,13 @@ RUN corepack enable && corepack prepare pnpm@11.10.0 --activate
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages/web/node_modules ./packages/web/node_modules
 COPY --from=deps /app/packages/core/node_modules ./packages/core/node_modules
+COPY --from=deps /app/packages/schema-migrator/node_modules ./packages/schema-migrator/node_modules
 
 # Copy source code
 COPY . .
 
-# Build only the web app (output: 'standalone' is set in next.config.ts)
-RUN pnpm --filter @reef/web run build
+# Bundle the operator runner, then build the web app (standalone output).
+RUN pnpm --filter @reef/schema-migrator run build && pnpm --filter @reef/web run build
 
 
 # Stage 3: runner — minimal runtime image
@@ -49,6 +51,7 @@ ENV HOSTNAME=0.0.0.0
 COPY --from=builder --chown=reef:reef /app/packages/web/.next/standalone ./
 COPY --from=builder --chown=reef:reef /app/packages/web/.next/static ./packages/web/.next/static
 COPY --from=builder --chown=reef:reef /app/packages/web/public ./packages/web/public
+COPY --from=builder --chown=reef:reef /app/packages/schema-migrator/dist/cli.mjs ./schema-migrator/cli.mjs
 
 USER 1001
 

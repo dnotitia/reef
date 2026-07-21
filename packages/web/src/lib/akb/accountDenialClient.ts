@@ -3,7 +3,7 @@ import { type AkbAccountErrorCode, isAkbAccountErrorCode } from "@reef/core";
 const PENDING_ACCOUNT_ERROR_KEY = "reef:pending-akb-account-error";
 const ACCOUNT_DENIED_EVENT = "reef:akb-account-denied";
 
-/** Preserve a safe account-denial code across one same-tab navigation. */
+/** Preserve a safe account-denial code until the next successful same-tab session. */
 export function recordAkbAccountDenial(value: unknown): void {
   if (!isAkbAccountErrorCode(value) || typeof window === "undefined") return;
 
@@ -38,6 +38,18 @@ export function consumePendingAkbAccountError():
     return undefined;
   }
   return isAkbAccountErrorCode(value) ? value : undefined;
+}
+
+/** Read the same-tab denial without consuming it while concurrent guards settle. */
+export function peekPendingAkbAccountError(): AkbAccountErrorCode | undefined {
+  if (typeof window === "undefined") return undefined;
+
+  try {
+    const value = window.sessionStorage.getItem(PENDING_ACCOUNT_ERROR_KEY);
+    return isAkbAccountErrorCode(value) ? value : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Notify the mounted auth gate when any protected request rejects the account. */

@@ -4,10 +4,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const apiFetch = vi.hoisted(() => vi.fn());
 const consumePendingAkbAccountError = vi.hoisted(() => vi.fn());
+const peekPendingAkbAccountError = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/apiClient", () => ({ apiFetch }));
 vi.mock("./accountDenialClient", () => ({
   consumePendingAkbAccountError: () => consumePendingAkbAccountError(),
+  peekPendingAkbAccountError: () => peekPendingAkbAccountError(),
 }));
 
 import { getAkbSessionStatus, hasActiveAkbSession } from "./checkAkbSession";
@@ -16,6 +18,7 @@ describe("getAkbSessionStatus", () => {
   beforeEach(() => {
     apiFetch.mockReset();
     consumePendingAkbAccountError.mockReset();
+    peekPendingAkbAccountError.mockReset();
   });
 
   it("reports an active session for a successful profile response", async () => {
@@ -54,7 +57,7 @@ describe("getAkbSessionStatus", () => {
     apiFetch.mockResolvedValue(
       Response.json({ error: "No session." }, { status: 401 }),
     );
-    consumePendingAkbAccountError.mockReturnValue("account_suspended");
+    peekPendingAkbAccountError.mockReturnValue("account_suspended");
 
     await expect(getAkbSessionStatus()).resolves.toEqual({
       active: false,
@@ -66,5 +69,15 @@ describe("getAkbSessionStatus", () => {
     apiFetch.mockRejectedValue(new Error("offline"));
 
     await expect(getAkbSessionStatus()).resolves.toEqual({ active: false });
+  });
+
+  it("preserves a pending denial when a concurrent session probe fails", async () => {
+    apiFetch.mockRejectedValue(new Error("aborted by navigation"));
+    peekPendingAkbAccountError.mockReturnValue("identity_conflict");
+
+    await expect(getAkbSessionStatus()).resolves.toEqual({
+      active: false,
+      accountError: "identity_conflict",
+    });
   });
 });

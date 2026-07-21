@@ -6,10 +6,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const push = vi.fn();
 const refresh = vi.fn();
+const replace = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push, refresh }),
+  useRouter: () => ({ push, refresh, replace }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
+import { recordAkbAccountDenial } from "@/lib/akb/accountDenialClient";
 import { LoginPanel } from "./LoginPanel";
 
 function renderWithQueryClient(ui: ReactElement) {
@@ -46,6 +49,21 @@ describe("LoginPanel", () => {
     vi.unstubAllGlobals();
     push.mockClear();
     refresh.mockClear();
+    replace.mockClear();
+    sessionStorage.clear();
+  });
+
+  it("restores a pending account-denial query after a late plain-login redirect", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(configResponse(false)));
+    recordAkbAccountDenial("membership_required");
+
+    renderWithQueryClient(<LoginPanel />);
+
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith(
+        "/login?sso_error=membership_required",
+      ),
+    );
   });
 
   it("does not flash password fields while auth policy is loading", () => {

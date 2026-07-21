@@ -186,6 +186,13 @@ function makeState(scenario) {
     display_name: "Bob Example",
     is_admin: false,
   };
+  const migrationService = {
+    id: "user-reef-migrator",
+    username: "reef-migrator",
+    email: null,
+    display_name: "Reef Migration Service",
+    is_admin: false,
+  };
   const token = makeJwt({ sub: alice.id, username: alice.username });
   const next = {
     scenario,
@@ -193,6 +200,7 @@ function makeState(scenario) {
     users: new Map([
       [alice.username, { ...alice, password: "password" }],
       [bob.username, bob],
+      [migrationService.username, migrationService],
     ]),
     sessions: new Map([[token, alice.username]]),
     loginToken: token,
@@ -867,6 +875,36 @@ async function handleAkb(req, res, url) {
     const vault = getVault(decodeURIComponent(membersMatch[1]), res);
     if (!vault) return;
     return json(res, 200, { members: vault.members });
+  }
+
+  const grantMatch = path.match(/^\/api\/v1\/vaults\/([^/]+)\/grant$/);
+  if (grantMatch && req.method === "POST") {
+    const vault = getVault(decodeURIComponent(grantMatch[1]), res);
+    if (!vault) return;
+    const body = await readJson(req);
+    const user = state.users.get(String(body?.user ?? ""));
+    const role = String(body?.role ?? "");
+    if (!user || !["reader", "writer"].includes(role)) {
+      return json(res, 422, { error: "invalid grant" });
+    }
+    const existing = vault.members.find(
+      (member) => member.username === user.username,
+    );
+    const member = {
+      username: user.username,
+      display_name: user.display_name,
+      email: user.email,
+      role,
+      since: existing?.since ?? NOW,
+    };
+    if (existing) Object.assign(existing, member);
+    else vault.members.push(member);
+    return json(res, 200, {
+      vault: vault.name,
+      user: user.username,
+      role,
+      granted: true,
+    });
   }
 
   if (path === "/api/v1/files" && req.method === "POST") {
