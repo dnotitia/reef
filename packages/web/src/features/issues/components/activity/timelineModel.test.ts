@@ -214,6 +214,11 @@ describe("buildEntries — merge-sort (AC1)", () => {
         removed: [],
       }),
       base("arch-1", "archived_change", { from: false, to: true }),
+      base("type-1", "issue_type_change", { from: "story", to: "bug" }),
+      base("start-1", "start_date_change", {
+        from: null,
+        to: "2026-07-21",
+      }),
     ];
 
     const byId = new Map(
@@ -256,6 +261,16 @@ describe("buildEntries — merge-sort (AC1)", () => {
     expect(byId.get("arch-1")).toMatchObject({
       kind: "archived_change",
       to: true,
+    });
+    expect(byId.get("type-1")).toMatchObject({
+      kind: "issue_type_change",
+      from: "story",
+      to: "bug",
+    });
+    expect(byId.get("start-1")).toMatchObject({
+      kind: "start_date_change",
+      from: null,
+      to: "2026-07-21",
     });
   });
 });

@@ -7,11 +7,13 @@ import {
   ACTIVITY_EVENT_DUE_DATE_CHANGE,
   ACTIVITY_EVENT_ESTIMATE_CHANGE,
   ACTIVITY_EVENT_IMPL_REF_LINKED,
+  ACTIVITY_EVENT_ISSUE_TYPE_CHANGE,
   ACTIVITY_EVENT_LABELS_CHANGE,
   ACTIVITY_EVENT_PARENT_CHANGE,
   ACTIVITY_EVENT_PLANNING_LINK,
   ACTIVITY_EVENT_PRIORITY_CHANGE,
   ACTIVITY_EVENT_RELATION_CHANGE,
+  ACTIVITY_EVENT_START_DATE_CHANGE,
   ACTIVITY_EVENT_STATUS_CHANGE,
   ACTIVITY_EVENT_TITLE_CHANGE,
   ActivityEventSchema,
@@ -22,11 +24,13 @@ import {
   DueDateChangePayloadSchema,
   EstimateChangePayloadSchema,
   ImplRefLinkedPayloadSchema,
+  IssueTypeChangePayloadSchema,
   LabelsChangePayloadSchema,
   ParentChangePayloadSchema,
   PlanningLinkPayloadSchema,
   PriorityChangePayloadSchema,
   RelationChangePayloadSchema,
+  StartDateChangePayloadSchema,
   StatusChangePayloadSchema,
   TitleChangePayloadSchema,
 } from "./activity";
@@ -188,6 +192,21 @@ describe("activity payload schemas (REEF-277)", () => {
       AttachmentAddedPayloadSchema.parse({ ...payload, size_bytes: -1 }),
     ).toThrow();
   });
+
+  it("validates issue-type and start-date migration events losslessly", () => {
+    expect(
+      IssueTypeChangePayloadSchema.parse({ from: "story", to: "bug" }),
+    ).toEqual({ from: "story", to: "bug" });
+    expect(() =>
+      IssueTypeChangePayloadSchema.parse({ from: "Feature", to: "bug" }),
+    ).toThrow();
+    expect(
+      StartDateChangePayloadSchema.parse({ from: null, to: "2026-07-21" }),
+    ).toEqual({ from: null, to: "2026-07-21" });
+    expect(() =>
+      StartDateChangePayloadSchema.parse({ from: null, to: "tomorrow" }),
+    ).toThrow();
+  });
 });
 
 describe("ActivityEventSchema discriminated union (REEF-126)", () => {
@@ -260,6 +279,14 @@ describe("ActivityEventSchema discriminated union (REEF-126)", () => {
           mime_type: "image/png",
           size_bytes: 42,
         },
+      },
+      {
+        event_type: ACTIVITY_EVENT_ISSUE_TYPE_CHANGE,
+        payload: { from: "story", to: "bug" },
+      },
+      {
+        event_type: ACTIVITY_EVENT_START_DATE_CHANGE,
+        payload: { from: null, to: "2026-07-21" },
       },
     ];
     for (const c of cases) {

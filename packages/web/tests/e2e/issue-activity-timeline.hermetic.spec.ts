@@ -45,6 +45,12 @@ test.describe("Hermetic issue activity timeline (REEF-277)", () => {
     await expect(
       timeline.filter({ hasText: "archived this issue" }),
     ).toBeVisible();
+    await expect(
+      timeline.filter({ hasText: "changed the issue type" }),
+    ).toContainText("Story → Bug");
+    await expect(
+      timeline.filter({ hasText: "set the start date to" }),
+    ).toContainText("2026-07-21");
 
     // A reef id is a code identifier — kept un-translated, unlike the prose.
     await expect(
@@ -58,7 +64,29 @@ test.describe("Hermetic issue activity timeline (REEF-277)", () => {
       .last()
       .scrollIntoViewIfNeeded();
     await page.screenshot({
-      path: "test-results/reef-277-activity-timeline.png",
+      path: "test-results/reef-392-activity-timeline-en.png",
+      fullPage: true,
+    });
+
+    await page.goto("/workspace/reef-e2e/settings/preferences");
+    await page
+      .getByRole("region", { name: "Language" })
+      .getByTestId("locale-option-ko")
+      .click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+    await page.goto("/workspace/reef-e2e/issues/REEF-001");
+    await expect(
+      page
+        .locator('[data-testid="activity-event"]')
+        .filter({ hasText: "이슈 유형을" }),
+    ).toContainText("스토리에서 버그로");
+    await expect(
+      page
+        .locator('[data-testid="activity-event"]')
+        .filter({ hasText: "시작일을" }),
+    ).toContainText("2026-07-21");
+    await page.screenshot({
+      path: "test-results/reef-392-activity-timeline-ko.png",
       fullPage: true,
     });
   });

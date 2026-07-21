@@ -253,12 +253,35 @@ export const JiraCommentPageSchema = z
   })
   .passthrough();
 
-export const JiraChangelogItemSchema = z
+const JiraChangelogItemObjectSchema = z
+  .object({
+    field: z.string().min(1),
+    fieldId: z.string().nullable().optional(),
+    fieldtype: z.string().nullable().optional(),
+    from: StringOrNumberAsStringSchema.nullable().optional(),
+    to: StringOrNumberAsStringSchema.nullable().optional(),
+    fromString: z.string().nullable().optional(),
+    toString: z.string().nullable().optional(),
+  })
+  .passthrough();
+
+// `toString` is a real Jira wire field, but an omitted property otherwise
+// resolves to Object.prototype.toString during Zod object parsing. Copy only
+// own enumerable fields onto a null-prototype object before validation so an
+// omitted Jira value stays omitted.
+export const JiraChangelogItemSchema = z.preprocess((value) => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return value;
+  }
+  return Object.assign(Object.create(null), value);
+}, JiraChangelogItemObjectSchema);
+
+export const JiraChangelogHistorySchema = z
   .object({
     id: StringOrNumberAsStringSchema,
     author: JiraUserSchema.optional(),
     created: z.string().optional(),
-    items: z.array(UnknownRecordSchema).default([]),
+    items: z.array(JiraChangelogItemSchema).default([]),
   })
   .passthrough();
 
@@ -268,7 +291,7 @@ export const JiraChangelogPageSchema = z
     maxResults: z.number().int().positive(),
     total: z.number().int().nonnegative().optional(),
     isLast: z.boolean().optional(),
-    values: z.array(JiraChangelogItemSchema),
+    values: z.array(JiraChangelogHistorySchema),
   })
   .passthrough();
 
@@ -288,6 +311,9 @@ export type JiraCommentPayload = z.infer<typeof JiraCommentSchema>;
 export type JiraCommentPagePayload = z.infer<typeof JiraCommentPageSchema>;
 export type JiraRemoteLinkPayload = z.infer<typeof JiraRemoteLinkSchema>;
 export type JiraChangelogItemPayload = z.infer<typeof JiraChangelogItemSchema>;
+export type JiraChangelogHistoryPayload = z.infer<
+  typeof JiraChangelogHistorySchema
+>;
 export type JiraChangelogPagePayload = z.infer<typeof JiraChangelogPageSchema>;
 
 export interface NormalizedJiraAttachment {

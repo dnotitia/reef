@@ -21,6 +21,12 @@ explicitly in the entries below.
   modeled remote links, isolated failures, and readback-confirmed idempotent
   reruns. No AKB schema migration or backfill is required. (REEF-320)
 
+- **Jira changelog histories can be planned as auditable Reef activity.** The
+  migrator now verifies pre-normalization raw-history references, classifies
+  every item without fuzzy or lossy promotion, reuses planning/link/attachment
+  bindings, and emits deterministic replay-safe activity keys and conservative
+  reports. Reef activity schemas and the bilingual timeline also support
+  lossless issue-type and start-date changes. (REEF-392)
 - **Jira migration reruns now have a durable local identity ledger and
   checkpoint.** The operator package persists Cloud-scoped stable source-to-
   target bindings only after identity readback, resumes by phase and canonical
