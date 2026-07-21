@@ -575,7 +575,11 @@ export class JiraReadClient {
       .get("content-encoding")
       ?.trim()
       .toLowerCase();
-    if (declaredContentLength !== null && declaredContentLength > maxBytes) {
+    if (
+      declaredContentLength !== null &&
+      (!contentEncoding || contentEncoding === "identity") &&
+      declaredContentLength > maxBytes
+    ) {
       await response.body?.cancel();
       throw new Error("jira_attachment_size_limit_exceeded");
     }

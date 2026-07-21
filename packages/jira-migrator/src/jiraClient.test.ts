@@ -251,14 +251,14 @@ describe("JiraReadClient", () => {
         new Response(new Uint8Array([1, 2, 3]), {
           headers: {
             "content-encoding": "gzip",
-            "content-length": "2",
+            "content-length": "4",
           },
         }),
       ),
     );
 
     await expect(
-      client.downloadAttachmentContent("42", 1024),
+      client.downloadAttachmentContent("42", 3),
     ).resolves.toMatchObject({ bytes: new Uint8Array([1, 2, 3]) });
   });
 
