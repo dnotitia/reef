@@ -182,29 +182,33 @@ const nullableValue = (
     : (item[`${side}String`] ?? null);
 
 const SECRET_URL_PARAMETER_NAMES = new Set([
-  "accesstoken",
   "apikey",
   "auth",
   "authorization",
   "bearer",
   "cookie",
+]);
+
+const SECRET_URL_PARAMETER_PARTS = [
+  "credential",
   "password",
   "passwd",
   "secret",
   "signature",
   "token",
-  "xamzcredential",
-  "xamzsecuritytoken",
-  "xamzsignature",
-]);
+] as const;
 
 const normalizeUrlParameterName = (value: string): string =>
   value.toLocaleLowerCase("en-US").replaceAll(/[^a-z0-9]/gu, "");
 
 const hasSecretUrlParameter = (parameters: URLSearchParams): boolean =>
-  [...parameters.keys()].some((key) =>
-    SECRET_URL_PARAMETER_NAMES.has(normalizeUrlParameterName(key)),
-  );
+  [...parameters.keys()].some((key) => {
+    const normalized = normalizeUrlParameterName(key);
+    return (
+      SECRET_URL_PARAMETER_NAMES.has(normalized) ||
+      SECRET_URL_PARAMETER_PARTS.some((part) => normalized.includes(part))
+    );
+  });
 
 const isSafeRemoteLinkUrl = (value: string): boolean => {
   try {

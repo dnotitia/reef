@@ -327,20 +327,36 @@ describe("buildJiraChangelogPlan", () => {
         },
       ],
     });
+    const fragmentSecretPlan = buildJiraChangelogPlan({
+      ...baseInput(history),
+      currentRemoteLinks: [
+        {
+          id: "600",
+          globalId: "remote-600",
+          url: "https://example.invalid/callback#client_secret=fragment-value&refresh_token=refresh-value",
+          title: "Private callback",
+          application: null,
+          relationship: null,
+        },
+      ],
+    });
 
-    for (const plan of [credentialPlan, tokenPlan]) {
+    for (const plan of [credentialPlan, tokenPlan, fragmentSecretPlan]) {
       expect(plan.items[0]).toMatchObject({
         classification: "deferred",
         reason: "remote_link_url_unsafe",
         externalRef: null,
       });
     }
-    expect(JSON.stringify([credentialPlan, tokenPlan])).not.toContain(
-      "secret-value",
-    );
-    expect(JSON.stringify([credentialPlan, tokenPlan])).not.toContain(
-      "password",
-    );
+    const serialized = JSON.stringify([
+      credentialPlan,
+      tokenPlan,
+      fragmentSecretPlan,
+    ]);
+    expect(serialized).not.toContain("secret-value");
+    expect(serialized).not.toContain("fragment-value");
+    expect(serialized).not.toContain("refresh-value");
+    expect(serialized).not.toContain("password");
   });
 
   it("defers an unbound issue link even when the current snapshot has that id", () => {
