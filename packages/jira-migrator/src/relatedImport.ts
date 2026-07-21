@@ -84,6 +84,7 @@ export interface JiraRelatedImportTarget {
   createComment(input: JiraImportedCommentInput): Promise<Comment>;
   readComment(commentId: string): Promise<Comment | null>;
   findCommentByIdempotencyKey(idempotencyKey: string): Promise<Comment | null>;
+  deleteComment(commentId: string): Promise<void>;
   createAttachment(
     input: JiraImportedAttachmentInput,
   ): Promise<IssueAttachment>;
@@ -94,6 +95,7 @@ export interface JiraRelatedImportTarget {
     reefId: string,
     jiraAttachmentId: string,
   ): Promise<{ attachment: IssueAttachment; bytes: Uint8Array } | null>;
+  revokeAttachment(fileUri: string): Promise<void>;
   readDescription(reefId: string): Promise<string>;
   updateDescription(reefId: string, markdown: string): Promise<void>;
   putRelation(input: {
@@ -597,7 +599,41 @@ export async function importJiraRelatedData(
   const now = input.now ?? (() => new Date().toISOString());
 
   for (const attachment of attachments) {
+    const identity = jiraAttachmentSourceIdentity(
+      input.jiraCloudId,
+      attachment.id,
+    );
     if (!attachmentVisibilityEstablished) {
+      if (input.mode === "apply") {
+        try {
+          const binding = ledger.bindings.find(
+            (item) => item.source_key === identity.key,
+          );
+          const recovered = await input.target.findAttachmentByJiraId(
+            input.reefId,
+            attachment.id,
+          );
+          const fileUris = new Set<string>();
+          if (binding?.target.target_kind === "attachment")
+            fileUris.add(binding.target.file_uri);
+          if (recovered) fileUris.add(recovered.attachment.file_uri);
+          for (const fileUri of fileUris) {
+            await input.target.revokeAttachment(fileUri);
+            if ((await input.target.readAttachment(fileUri)) !== null)
+              throw new Error("attachment_revocation_readback_mismatch");
+          }
+          ledger = removeJiraMigrationBindings(ledger, [identity.key]);
+        } catch (error) {
+          failure(
+            report.failures,
+            "attachment",
+            attachment.id,
+            String(error).includes("readback") ? "readback" : "write",
+            "attachment_visibility_revocation_failed",
+            error,
+          );
+        }
+      }
       failure(
         report.failures,
         "attachment",
@@ -621,10 +657,6 @@ export async function importJiraRelatedData(
       );
       continue;
     }
-    const identity = jiraAttachmentSourceIdentity(
-      input.jiraCloudId,
-      attachment.id,
-    );
     const existing = ledger.bindings.find(
       (item) => item.source_key === identity.key,
     );
@@ -878,8 +910,37 @@ export async function importJiraRelatedData(
     if (next) orderedComments.push(next);
   }
   for (const comment of orderedComments) {
+    const identity = jiraCommentSourceIdentity(
+      input.jiraCloudId,
+      issue.id,
+      comment.id,
+    );
     const visibility = jiraCommentVisibility(comment);
     if (visibility !== "safe") {
+      if (input.mode === "apply") {
+        try {
+          const boundTargetId = getJiraCommentTargetId(ledger, identity);
+          const recovered = await input.target.findCommentByIdempotencyKey(
+            identity.key,
+          );
+          const targetId = boundTargetId ?? recovered?.id ?? null;
+          if (targetId) {
+            await input.target.deleteComment(targetId);
+            if ((await input.target.readComment(targetId)) !== null)
+              throw new Error("comment_revocation_readback_mismatch");
+          }
+          ledger = removeJiraMigrationBindings(ledger, [identity.key]);
+        } catch (error) {
+          failure(
+            report.failures,
+            "comment",
+            comment.id,
+            String(error).includes("readback") ? "readback" : "write",
+            "comment_visibility_revocation_failed",
+            error,
+          );
+        }
+      }
       failure(
         report.failures,
         "comment",
@@ -891,11 +952,6 @@ export async function importJiraRelatedData(
       );
       continue;
     }
-    const identity = jiraCommentSourceIdentity(
-      input.jiraCloudId,
-      issue.id,
-      comment.id,
-    );
     const parentSourceId = comment.parentId ?? null;
     const parentTargetId =
       parentSourceId === null
@@ -911,6 +967,30 @@ export async function importJiraRelatedData(
           plannedCommentTargets.get(parentSourceId) ??
           null);
     if (parentSourceId !== null && parentTargetId === null) {
+      if (input.mode === "apply") {
+        try {
+          const boundTargetId = getJiraCommentTargetId(ledger, identity);
+          const recovered = await input.target.findCommentByIdempotencyKey(
+            identity.key,
+          );
+          const targetId = boundTargetId ?? recovered?.id ?? null;
+          if (targetId) {
+            await input.target.deleteComment(targetId);
+            if ((await input.target.readComment(targetId)) !== null)
+              throw new Error("comment_orphan_revocation_readback_mismatch");
+          }
+          ledger = removeJiraMigrationBindings(ledger, [identity.key]);
+        } catch (error) {
+          failure(
+            report.failures,
+            "comment",
+            comment.id,
+            String(error).includes("readback") ? "readback" : "write",
+            "comment_orphan_revocation_failed",
+            error,
+          );
+        }
+      }
       failure(
         report.failures,
         "comment",
@@ -1047,6 +1127,28 @@ export async function importJiraRelatedData(
       if (!mapping || !targetIssue) {
         report.links.unresolved += 1;
         if (input.mode === "apply") {
+          const staleRelationBindings = ledger.bindings.filter(
+            (binding) =>
+              binding.source_identity.entity_kind === "relation" &&
+              binding.source_identity.jira_cloud_id === input.jiraCloudId &&
+              binding.source_identity.link_id === linkId,
+          );
+          const staleRelationKeys = new Set(
+            staleRelationBindings.flatMap((binding) =>
+              binding.target.target_kind === "relation"
+                ? [binding.target.idempotency_key]
+                : [],
+            ),
+          );
+          for (const relationKey of staleRelationKeys) {
+            await input.target.deleteRelation(relationKey);
+            if ((await input.target.readRelation(relationKey)) !== null)
+              throw new Error("relation_mapping_removal_readback_mismatch");
+          }
+          ledger = removeJiraMigrationBindings(
+            ledger,
+            staleRelationBindings.map((binding) => binding.source_key),
+          );
           const externalKey = `jira-link:${input.jiraCloudId}:${issue.id}:${linkId}`;
           const externalValue = {
             reefId: input.reefId,

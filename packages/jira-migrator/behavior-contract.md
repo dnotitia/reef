@@ -31,6 +31,10 @@ and rerun the same input without duplicates.
    explicit comment-catalog completeness and maximum-byte policies; if the
    attestation is absent, any restriction is visible, or a size limit is
    exceeded, the attachment is isolated.
+6. If a previously public Jira comment becomes restricted or comment
+   completeness becomes unsafe on rerun, already-imported comments and
+   attachment bytes are revoked with readback and their ledger bindings are
+   removed.
 
 ## Anti-Cheat Probes
 

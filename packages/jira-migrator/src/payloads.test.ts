@@ -26,6 +26,24 @@ import {
 } from "./payloads.js";
 
 describe("Jira payload schemas and normalizers", () => {
+  it("normalizes numeric comment and parent identifiers consistently", () => {
+    const page = JiraCommentPageSchema.parse({
+      startAt: 0,
+      maxResults: 2,
+      total: 2,
+      comments: [
+        { id: "0009", properties: [] },
+        { id: "0010", parentId: "0009", properties: [] },
+      ],
+    });
+    expect(page.comments.map(({ id, parentId }) => ({ id, parentId }))).toEqual(
+      [
+        { id: "9", parentId: undefined },
+        { id: "10", parentId: "9" },
+      ],
+    );
+  });
+
   it("normalizes nullable optional remote-link fields", () => {
     expect(
       JiraRemoteLinkListSchema.parse([

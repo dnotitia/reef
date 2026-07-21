@@ -8,6 +8,15 @@ export const JiraCommentParentIdSchema = z
   .union([z.string().regex(/^\d+$/u), z.number().int().nonnegative().safe()])
   .transform((value) => BigInt(String(value)).toString());
 
+const JiraCommentIdSchema = z
+  .union([z.string(), z.number().int().nonnegative().safe()])
+  .transform((value) => {
+    const stringValue = String(value);
+    return /^\d+$/u.test(stringValue)
+      ? BigInt(stringValue).toString()
+      : stringValue;
+  });
+
 const UnknownRecordSchema = z.record(z.unknown());
 
 export const JiraUserSchema = z
@@ -215,7 +224,7 @@ export const JiraFieldCatalogSchema = z.array(JiraFieldSchema);
 
 export const JiraCommentSchema = z
   .object({
-    id: StringOrNumberAsStringSchema,
+    id: JiraCommentIdSchema,
     parentId: JiraCommentParentIdSchema.nullable().optional(),
     body: z.unknown().optional(),
     renderedBody: z.string().optional(),

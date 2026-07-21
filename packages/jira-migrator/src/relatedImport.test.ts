@@ -262,6 +262,9 @@ const makeTarget = () => {
       const id = commentKeys.get(key);
       return id ? (comments.get(id) ?? null) : null;
     },
+    async deleteComment(id) {
+      comments.delete(id);
+    },
     async createAttachment(input) {
       const file_uri = "akb://isolated/coll/files/file/30001";
       const attachment = {
@@ -292,6 +295,9 @@ const makeTarget = () => {
             attachment.original_jira_attachment_id === jiraAttachmentId,
         ) ?? null
       );
+    },
+    async revokeAttachment(fileUri) {
+      attachments.delete(fileUri);
     },
     async readDescription() {
       return description;
@@ -502,6 +508,19 @@ describe("Jira related-data import stage", () => {
       relation: "related_to",
       inverseRelation: "related_to",
     });
+    const externalized = await importJiraRelatedData({
+      ...base,
+      ledger: remapped.ledger,
+      linkMappings: [],
+      mode: "apply",
+    });
+    expect(externalized.report.links.unresolved).toBe(1);
+    expect(state.relations.size).toBe(0);
+    expect(
+      externalized.ledger.bindings.some(
+        (binding) => binding.entity_kind === "relation",
+      ),
+    ).toBe(false);
 
     const preservedDescription = state.description;
     const [storedUri, storedAttachment] = [...state.attachments.entries()][0];
@@ -612,23 +631,35 @@ describe("Jira related-data import stage", () => {
   it("does not publish restricted comments or attachments with unverifiable visibility", async () => {
     const requests: string[] = [];
     const state = makeTarget();
-    const result = await importJiraRelatedData({
+    const base = {
       jiraCloudId: "cloud-1",
       issue: issueFixture(),
       reefId: "REEF-1",
       attachmentPolicy,
-      client: makeClient(requests, false, false, false, true),
       target: state.target,
-      ledger: createJiraMigrationLedger({
-        jiraCloudId: "cloud-1",
-        targetVault: "isolated",
-      }),
       accountMapping: createJiraAccountMappingArtifact({
         jiraCloudId: "cloud-1",
       }),
       linkMappings: [],
       resolveIssueTarget: () => null,
-      mode: "apply",
+      mode: "apply" as const,
+    };
+    const applied = await importJiraRelatedData({
+      ...base,
+      client: makeClient(requests),
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+    });
+    expect(state.comments.size).toBe(2);
+    expect(state.attachments.size).toBe(1);
+    requests.length = 0;
+
+    const result = await importJiraRelatedData({
+      ...base,
+      client: makeClient(requests, false, false, false, true),
+      ledger: applied.ledger,
     });
     expect(result.report.failures).toEqual(
       expect.arrayContaining([
