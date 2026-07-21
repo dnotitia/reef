@@ -499,6 +499,27 @@ describe("buildJiraChangelogPlan", () => {
     expect(plan.items.every((item) => item.activity === null)).toBe(true);
   });
 
+  it("counts prototype-shaped field ids as ordinary own report fields", () => {
+    const plan = buildJiraChangelogPlan(
+      baseInput([
+        { field: "Unknown", fieldId: "__proto__", from: "a", to: "b" },
+        { field: "Unknown", fieldId: "constructor", from: "a", to: "b" },
+      ]),
+    );
+
+    expect(plan.report.totals.raw).toBe(2);
+    for (const field of ["__proto__", "constructor"]) {
+      expect(Object.hasOwn(plan.report.byField, field)).toBe(true);
+      expect(plan.report.byField[field]).toEqual({
+        promoted: 0,
+        raw: 1,
+        deferred: 0,
+        failed: 0,
+      });
+    }
+    expect(Object.getPrototypeOf(plan.report.byField)).toBe(Object.prototype);
+  });
+
   it("requires the raw object checksum and exposes drift as failed classifications", () => {
     const input = baseInput([
       { field: "status", fieldId: "status", from: "1", to: "2" },

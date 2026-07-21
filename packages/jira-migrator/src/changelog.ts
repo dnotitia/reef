@@ -292,7 +292,9 @@ const resolveRole = (
   input: BuildJiraChangelogPlanInput,
 ): JiraChangelogFieldRole | null => {
   if (item.fieldId) {
-    const builtIn = BUILT_IN_ROLE_BY_FIELD_ID[item.fieldId];
+    const builtIn = Object.hasOwn(BUILT_IN_ROLE_BY_FIELD_ID, item.fieldId)
+      ? BUILT_IN_ROLE_BY_FIELD_ID[item.fieldId]
+      : undefined;
     if (builtIn) return builtIn;
     for (const role of ["start_date", "rank"] as const) {
       const resolution = resolveJiraField(
@@ -308,7 +310,10 @@ const resolveRole = (
       }
     }
   }
-  return input.configuredExactAliases?.[item.field] ?? null;
+  const aliases = input.configuredExactAliases;
+  return aliases && Object.hasOwn(aliases, item.field)
+    ? (aliases[item.field] ?? null)
+    : null;
 };
 
 const safeSource = (sourceKey: string, itemIndex: number): string =>
@@ -558,19 +563,19 @@ const buildReport = (
   rawArchiveReference: RawArchiveReference,
 ): JiraChangelogPlan["report"] => {
   const totals = emptyCounts();
-  const byField: Record<string, JiraChangelogReportCounts> = {};
+  const byField = new Map<string, JiraChangelogReportCounts>();
   for (const item of items) {
     totals[item.classification] += 1;
     const field = item.fieldId ?? "unidentified";
-    const counts = byField[field] ?? emptyCounts();
+    const counts = byField.get(field) ?? emptyCounts();
     counts[item.classification] += 1;
-    byField[field] = counts;
+    byField.set(field, counts);
   }
   return {
     historyCount: 1,
     itemCount: items.length,
     totals,
-    byField,
+    byField: Object.fromEntries(byField),
     rawPreservationLocations: [rawArchiveReference],
   };
 };
