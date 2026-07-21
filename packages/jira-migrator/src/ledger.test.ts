@@ -6,6 +6,7 @@ import {
 } from "./checkpoint.js";
 import { classifyJiraMigrationDiff, fingerprintJiraState } from "./diff.js";
 import {
+  JiraMigrationLedgerV1Schema,
   confirmJiraMigrationBinding,
   createJiraMigrationLedger,
   getJiraCommentTargetId,
@@ -16,6 +17,7 @@ import {
   jiraCommentSourceIdentity,
   jiraIssueSourceIdentity,
   jiraRelationSourceIdentity,
+  legacyJiraRelationSourceKey,
   openJiraMigrationRun,
 } from "./ledger.js";
 import {
@@ -52,6 +54,50 @@ describe("Jira migration ledger", () => {
         "7",
       ).key,
     ).toBe("relation:cloud%3Aa:7");
+  });
+
+  it("continues to accept persisted V1 relation bindings that use the legacy endpoint key", () => {
+    const legacyKey = legacyJiraRelationSourceKey(
+      "cloud-1",
+      "100",
+      "200",
+      "blocks",
+      "outward",
+      "7",
+    );
+    const ledger = createJiraMigrationLedger({
+      jiraCloudId: "cloud-1",
+      targetVault: "reef-target",
+    });
+    expect(
+      JiraMigrationLedgerV1Schema.parse({
+        ...ledger,
+        bindings: [
+          {
+            source_key: legacyKey,
+            entity_kind: "relation",
+            source_identity: {
+              entity_kind: "relation",
+              jira_cloud_id: "cloud-1",
+              source_issue_id: "100",
+              target_issue_id: "200",
+              link_type: "blocks",
+              direction: "outward",
+              link_id: "7",
+              key: legacyKey,
+            },
+            target: {
+              target_kind: "relation",
+              idempotency_key: legacyKey,
+            },
+            source_fingerprint: sourceFingerprint,
+            mapped_state_fingerprint: mappedStateFingerprint,
+            last_applied_at: at,
+            raw_archive_reference: null,
+          },
+        ],
+      }).bindings[0]?.source_key,
+    ).toBe(legacyKey);
   });
 
   it("confirms bindings only after target identity readback and exposes planning/issue/comment lookups", () => {

@@ -79,6 +79,7 @@ const makeClient = (
   requests: string[],
   orphan = false,
   remoteFailure = false,
+  commentMedia = false,
 ) =>
   new JiraReadClient({
     baseUrl: "https://example.atlassian.net",
@@ -100,16 +101,36 @@ const makeClient = (
                 comments: [
                   {
                     id: 50001,
-                    body: {
-                      type: "doc",
-                      version: 1,
-                      content: [
-                        {
-                          type: "paragraph",
-                          content: [{ type: "text", text: "root" }],
+                    body: commentMedia
+                      ? {
+                          type: "doc",
+                          version: 1,
+                          content: [
+                            {
+                              type: "mediaSingle",
+                              content: [
+                                {
+                                  type: "media",
+                                  attrs: {
+                                    id: "comment-media",
+                                    type: "file",
+                                    alt: "sample.dat",
+                                  },
+                                },
+                              ],
+                            },
+                          ],
+                        }
+                      : {
+                          type: "doc",
+                          version: 1,
+                          content: [
+                            {
+                              type: "paragraph",
+                              content: [{ type: "text", text: "root" }],
+                            },
+                          ],
                         },
-                      ],
-                    },
                     author: { accountId: "acct-1" },
                     created: "2026-01-01T01:00:00.000Z",
                   },
@@ -353,6 +374,7 @@ describe("Jira related-data import stage", () => {
     expect(requests.some((item) => item.includes("redirect=false"))).toBe(true);
     expect(requests.join("\n")).not.toContain("test-secret");
 
+    const preservedDescription = state.description;
     const [storedUri, storedAttachment] = [...state.attachments.entries()][0];
     state.attachments.set(storedUri, {
       ...storedAttachment,
@@ -364,6 +386,7 @@ describe("Jira related-data import stage", () => {
       mode: "apply",
     });
     expect(corruptRerun.report.attachments.skipped).toBe(0);
+    expect(state.description).toBe(preservedDescription);
     expect(corruptRerun.report.failures).toContainEqual(
       expect.objectContaining({
         source_kind: "attachment",
@@ -412,6 +435,51 @@ describe("Jira related-data import stage", () => {
     expect(state.refs.size).toBeGreaterThan(0);
   });
 
+  it("reports comment media in dry-run and defers comments whose media cannot be imported", async () => {
+    const state = makeTarget();
+    const initial = createJiraMigrationLedger({
+      jiraCloudId: "cloud-1",
+      targetVault: "isolated",
+    });
+    const base = {
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(4),
+      reefId: "REEF-1",
+      client: makeClient([], false, false, true),
+      target: state.target,
+      ledger: initial,
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [] as const,
+      resolveIssueTarget: () => null,
+    };
+    const dryRun = await importJiraRelatedData({
+      ...base,
+      mode: "dry-run",
+    });
+    expect(dryRun.report.media).toMatchObject({
+      total: 2,
+      rewritten: 2,
+      unresolved: 0,
+    });
+    expect(state.comments.size).toBe(0);
+
+    const applied = await importJiraRelatedData({ ...base, mode: "apply" });
+    expect(applied.report.failures.map((item) => item.reason)).toEqual(
+      expect.arrayContaining([
+        "attachment_size_mismatch",
+        "media_crosswalk_unresolved_or_ambiguous",
+      ]),
+    );
+    expect(state.comments.size).toBe(0);
+    expect(
+      applied.ledger.bindings.some(
+        (binding) => binding.entity_kind === "comment",
+      ),
+    ).toBe(false);
+  });
+
   it("isolates a remote-link catalog read failure from comments, attachments, and standard links", async () => {
     const state = makeTarget();
     const result = await importJiraRelatedData({
@@ -452,6 +520,47 @@ describe("Jira related-data import stage", () => {
     expect(state.comments.size).toBe(2);
     expect(state.attachments.size).toBe(1);
     expect(state.relations.size).toBe(1);
+  });
+
+  it("does not confirm a relation binding until target readback succeeds", async () => {
+    const state = makeTarget();
+    state.target.hasRelation = async () => false;
+    const result = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      client: makeClient([]),
+      target: state.target,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [
+        {
+          typeId: "1",
+          kind: "directional",
+          outwardRelation: "depends_on",
+          inwardRelation: "blocks",
+        },
+      ],
+      resolveIssueTarget: () => ({
+        reefId: "REEF-2",
+        documentUri: "akb://isolated/coll/issues/doc/reef-2.md",
+      }),
+      mode: "apply",
+    });
+    expect(result.report.links.applied).toBe(0);
+    expect(result.report.failures).toContainEqual(
+      expect.objectContaining({ source_kind: "link", phase: "readback" }),
+    );
+    expect(
+      result.ledger.bindings.some(
+        (binding) => binding.entity_kind === "relation",
+      ),
+    ).toBe(false);
   });
 });
 

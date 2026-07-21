@@ -14,6 +14,7 @@ import {
   jiraAttachmentSourceIdentity,
   jiraCommentSourceIdentity,
   jiraRelationSourceIdentity,
+  legacyJiraRelationSourceKey,
 } from "./ledger.js";
 import type {
   JiraCommentPayload,
@@ -313,13 +314,15 @@ const rewriteMedia = (
   renderedHtml: string,
   report: JiraRelatedImportReport,
   sourceId: string,
-): string => {
+): { markdown: string; resolved: boolean } => {
   const converted = convertAdfToMarkdown(adf);
   let markdown = converted.markdown;
+  let resolved = true;
   for (const media of converted.media) {
     report.media.total += 1;
     const resolution = resolveJiraMediaReference(media, bindings, renderedHtml);
     if (!resolution) {
+      resolved = false;
       report.media.unresolved += 1;
       failure(
         report.failures,
@@ -337,7 +340,7 @@ const rewriteMedia = (
     report.media.by_strategy[resolution.strategy] =
       (report.media.by_strategy[resolution.strategy] ?? 0) + 1;
   }
-  return markdown;
+  return { markdown, resolved };
 };
 
 const reportTemplate = (
@@ -513,9 +516,9 @@ export async function importJiraRelatedData(
     report,
     issue.id,
   );
-  if (input.mode === "apply") {
+  if (input.mode === "apply" && description.resolved) {
     try {
-      await input.target.updateDescription(input.reefId, description);
+      await input.target.updateDescription(input.reefId, description.markdown);
     } catch (error) {
       failure(
         report.failures,
@@ -561,6 +564,15 @@ export async function importJiraRelatedData(
       continue;
     }
     try {
+      const renderedComment = "";
+      const body = rewriteMedia(
+        comment.body,
+        attachmentBindings,
+        renderedComment,
+        report,
+        comment.id,
+      );
+      if (!body.resolved) continue;
       const existingTarget = getJiraCommentTargetId(ledger, identity);
       if (existingTarget) {
         const existing = await input.target.readComment(existingTarget);
@@ -576,17 +588,9 @@ export async function importJiraRelatedData(
         artifact: input.accountMapping,
         directory: input.actorDirectory ?? [],
       });
-      const renderedComment = "";
-      const body = rewriteMedia(
-        comment.body,
-        attachmentBindings,
-        renderedComment,
-        report,
-        comment.id,
-      );
       const created = await input.target.createComment({
         reefId: input.reefId,
-        body,
+        body: body.markdown,
         author: actor.actor ?? "jira-import",
         createdAt: comment.created ?? now(),
         editedAt:
@@ -606,7 +610,7 @@ export async function importJiraRelatedData(
         target: { target_kind: "comment", comment_id: created.id },
         sourceFingerprint: fingerprintJiraState(comment),
         mappedStateFingerprint: fingerprintJiraState({
-          body,
+          body: body.markdown,
           author: actor.actor,
           parent: parentTargetId,
         }),
@@ -685,20 +689,31 @@ export async function importJiraRelatedData(
           input.reefId,
           targetIssue.reefId,
         );
+      const targetIssueId = link.issueId ?? link.issueKey;
+      const linkType = link.typeId ?? link.type ?? "unknown";
       const identity = jiraRelationSourceIdentity(
         input.jiraCloudId,
         issue.id,
-        link.issueId ?? link.issueKey,
-        link.typeId ?? link.type ?? "unknown",
+        targetIssueId,
+        linkType,
+        link.direction,
+        linkId,
+      );
+      const legacyKey = legacyJiraRelationSourceKey(
+        input.jiraCloudId,
+        issue.id,
+        targetIssueId,
+        linkType,
         link.direction,
         linkId,
       );
       const existingBinding = ledger.bindings.find(
-        (item) => item.source_key === identity.key,
+        (item) =>
+          item.source_key === identity.key || item.source_key === legacyKey,
       );
       if (
         existingBinding?.target.target_kind === "relation" &&
-        (await input.target.hasRelation(identity.key))
+        (await input.target.hasRelation(existingBinding.target.idempotency_key))
       ) {
         report.links.skipped += 1;
         continue;
@@ -711,6 +726,8 @@ export async function importJiraRelatedData(
         inverseRelation,
         provenance: { source: "jira", link_id: linkId },
       });
+      if (!(await input.target.hasRelation(identity.key)))
+        throw new Error("relation_readback_missing");
       ledger = confirmJiraMigrationBinding(ledger, {
         sourceIdentity: identity,
         target: { target_kind: "relation", idempotency_key: identity.key },
@@ -731,7 +748,7 @@ export async function importJiraRelatedData(
         report.failures,
         "link",
         linkId,
-        "write",
+        String(error).includes("readback") ? "readback" : "write",
         "link_import_failed",
         error,
       );

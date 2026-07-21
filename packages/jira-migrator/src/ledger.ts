@@ -136,6 +136,22 @@ const canonicalSourceKey = (identity: JiraMigrationSourceIdentity): string => {
   }
 };
 
+const sourceKeyMatchesCanonicalOrLegacy = (
+  identity: JiraMigrationSourceIdentity,
+  sourceKey: string,
+): boolean =>
+  sourceKey === canonicalSourceKey(identity) ||
+  (identity.entity_kind === "relation" &&
+    sourceKey ===
+      legacyJiraRelationSourceKey(
+        identity.jira_cloud_id,
+        identity.source_issue_id,
+        identity.target_issue_id,
+        identity.link_type,
+        identity.direction,
+        identity.link_id,
+      ));
+
 export const JiraMigrationTargetSchema = z.discriminatedUnion("target_kind", [
   z
     .object({ target_kind: z.literal("release"), target_id: z.string().uuid() })
@@ -340,7 +356,10 @@ export const JiraMigrationLedgerV1Schema = z
       const akbUri = targetAkbUri(binding.target);
       if (
         binding.source_key !== binding.source_identity.key ||
-        binding.source_key !== canonicalSourceKey(binding.source_identity) ||
+        !sourceKeyMatchesCanonicalOrLegacy(
+          binding.source_identity,
+          binding.source_key,
+        ) ||
         binding.entity_kind !== binding.source_identity.entity_kind ||
         binding.source_identity.jira_cloud_id !==
           ledger.source_scope.jira_cloud_id ||
@@ -486,6 +505,23 @@ export const jiraRelationSourceIdentity = (
   link_id: linkId,
   key: encodedKey("relation", [jiraCloudId, linkId]),
 });
+
+export const legacyJiraRelationSourceKey = (
+  jiraCloudId: string,
+  sourceIssueId: string,
+  targetIssueId: string,
+  linkType: string,
+  direction: string,
+  linkId: string,
+): string =>
+  encodedKey("relation", [
+    jiraCloudId,
+    sourceIssueId,
+    targetIssueId,
+    linkType,
+    direction,
+    linkId,
+  ]);
 
 const emptyPhases = (): JiraMigrationRun["phases"] => ({
   planning: { status: "pending", entities: [] },
