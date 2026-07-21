@@ -2,8 +2,7 @@
 
 This is the canonical operator runbook and migration policy document for
 one-shot Jira-to-Reef migrations. Package-local orientation stays in
-`packages/jira-migrator/README.md`; agent-only implementation rules stay in
-`packages/jira-migrator/AGENTS.md`.
+`packages/jira-migrator/README.md`.
 
 ## Scope And Status
 
@@ -29,7 +28,6 @@ Jira or Reef.
 - This file owns operator procedures, source-to-target mapping policy, report
   interpretation, account mapping, security handling, and Jira-to-Reef migration
   decisions.
-- `packages/jira-migrator/AGENTS.md` owns agent-only implementation rules.
 - CLI flag, environment variable, or secret-loading changes must update both the
   package README and this runbook.
 - Migration semantics, provenance shape, field mapping, or report

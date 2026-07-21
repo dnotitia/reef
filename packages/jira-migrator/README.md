@@ -15,7 +15,6 @@ does not apply those plans or write to Jira or Reef.
 - `../../docs/jira-migration.md` is the canonical operator runbook and migration
   policy document. Keep field mapping, account mapping, report interpretation,
   and Jira-to-Reef behavior there.
-- `AGENTS.md` is for agent-only implementation rules.
 - When CLI flags or environment variables change, update this README and
   `../../docs/jira-migration.md` together.
 
@@ -177,6 +176,3 @@ pnpm -r run test
 ## Related Docs
 
 - [Jira migration runbook and policy](../../docs/jira-migration.md)
-- [Root README](../../README.md)
-- [Root agent contract](../../AGENTS.md)
-- [Package agent rules](AGENTS.md)
