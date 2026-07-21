@@ -331,12 +331,22 @@ const renderedHints = (
     const tag = match[0];
     const mediaId = match[1];
     if (!mediaId) continue;
-    const href =
-      tag.match(/(?:attachment\/|att)(\d+)(?:\/|[?"'])/iu)?.[1] ?? null;
+    const hrefValue = tag.match(/\bhref=["']([^"']+)["']/iu)?.[1] ?? null;
+    const hrefAttachmentId =
+      hrefValue?.match(/(?:attachment\/|att)(\d+)(?:\/|[?"']|$)/iu)?.[1] ??
+      null;
+    const explicitAttachmentId =
+      tag.match(/\bdata-attachment-id=["'](\d+)["']/iu)?.[1] ?? null;
+    const attachmentId =
+      hrefAttachmentId &&
+      explicitAttachmentId &&
+      hrefAttachmentId !== explicitAttachmentId
+        ? null
+        : (explicitAttachmentId ?? hrefAttachmentId);
     const encodedName =
       tag.match(/(?:data-filename|alt|title)=["']([^"']+)["']/iu)?.[1] ?? null;
     const hint = {
-      attachmentId: href,
+      attachmentId,
       filename: encodedName ? decodeHtmlAttribute(encodedName) : null,
     };
     const existing = hints.get(mediaId);
@@ -840,7 +850,6 @@ export async function importJiraRelatedData(
               : null,
             recovered?.id,
           ]);
-          ledger = removeJiraMigrationBindings(ledger, [identity.key]);
           commentRevocationErrors.delete(commentId);
           progress = true;
         } catch (error) {
@@ -1373,10 +1382,20 @@ export async function importJiraRelatedData(
         author: actor.actor,
         parent: parentTargetId,
       });
-      const existingTarget = getJiraCommentTargetId(ledger, identity);
+      let existingTarget = getJiraCommentTargetId(ledger, identity);
       if (existingTarget) {
         const existing = await input.target.readComment(existingTarget);
-        if (validCommentReadback(existing, commentInput)) {
+        if (existing === null) {
+          if (input.mode === "dry-run") {
+            report.comments.updated += 1;
+            continue;
+          }
+          ledger = removeJiraMigrationBindings(ledger, [identity.key]);
+          existingTarget = null;
+        }
+        if (existingTarget === null) {
+          // A quarantined comment returned safely; recreate it below.
+        } else if (validCommentReadback(existing, commentInput)) {
           const existingBinding = ledger.bindings.find(
             (binding) => binding.source_key === identity.key,
           );
@@ -1398,27 +1417,27 @@ export async function importJiraRelatedData(
           }
           report.comments.skipped += 1;
           continue;
-        }
-        if (input.mode === "dry-run") {
+        } else if (input.mode === "dry-run") {
+          report.comments.updated += 1;
+          continue;
+        } else {
+          await input.target.updateComment(existingTarget, commentInput);
+          const readback = await input.target.readComment(existingTarget);
+          if (!validCommentReadback(readback, commentInput))
+            throw new Error("comment_update_readback_mismatch");
+          ledger = confirmJiraMigrationBinding(ledger, {
+            sourceIdentity: identity,
+            target: { target_kind: "comment", comment_id: existingTarget },
+            sourceFingerprint,
+            mappedStateFingerprint,
+            lastAppliedAt: now(),
+            writeSucceeded: true,
+            readbackSucceeded: true,
+          });
+          plannedCommentTargets.set(comment.id, existingTarget);
           report.comments.updated += 1;
           continue;
         }
-        await input.target.updateComment(existingTarget, commentInput);
-        const readback = await input.target.readComment(existingTarget);
-        if (!validCommentReadback(readback, commentInput))
-          throw new Error("comment_update_readback_mismatch");
-        ledger = confirmJiraMigrationBinding(ledger, {
-          sourceIdentity: identity,
-          target: { target_kind: "comment", comment_id: existingTarget },
-          sourceFingerprint,
-          mappedStateFingerprint,
-          lastAppliedAt: now(),
-          writeSucceeded: true,
-          readbackSucceeded: true,
-        });
-        plannedCommentTargets.set(comment.id, existingTarget);
-        report.comments.updated += 1;
-        continue;
       }
       const recovered = await input.target.findCommentByIdempotencyKey(
         identity.key,

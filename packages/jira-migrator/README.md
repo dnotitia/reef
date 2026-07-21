@@ -70,11 +70,13 @@ The package exports:
   Management internal comments are isolated instead of being published without
   their source ACL; missing or malformed expanded comment properties fail
   closed. If visibility becomes unsafe on a rerun, imported comments are
-  deleted and attachment bytes are revoked with readback before their ledger
-  bindings are removed. The same reconciliation applies when a previously
-  imported comment disappears from the readable catalog or the catalog read
-  fails; per-issue attachment bindings also revoke bytes for attachments that
-  disappear from the later issue payload. Attachment import requires an
+  deleted and attachment bytes are revoked with readback. Attachment bindings
+  are removed, while deleted comment bindings remain as quarantine tombstones
+  until that source ID returns with safe visibility. The same reconciliation
+  applies when a previously imported comment disappears from the readable
+  catalog or the catalog read fails; per-issue attachment bindings also revoke
+  bytes for attachments that disappear from the later issue payload. Attachment
+  import requires an
   explicit operator attestation that the comment catalog is complete plus a
   positive byte limit; without it, or when any comment restriction is visible,
   issue attachments are isolated because Jira does not expose a reliable

@@ -37,8 +37,10 @@ and rerun the same input without duplicates.
    exceeded, the attachment is isolated.
 6. If a previously public Jira comment becomes restricted or comment
    completeness becomes unsafe on rerun, already-imported comments and
-   attachment bytes are revoked with readback and their ledger bindings are
-   removed. Previously imported comments missing from a later readable catalog,
+   attachment bytes are revoked with readback. Attachment bindings are removed;
+   comment bindings remain as quarantine tombstones so identical reruns cannot
+   republish attachments, and are released only if the source comment returns
+   safely. Previously imported comments missing from a later readable catalog,
    or present when that catalog read fails, are reconciled the same way, as are
    previously imported attachments absent from the later issue payload.
    Attachment revocation also removes generated file references from imported

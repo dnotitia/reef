@@ -745,7 +745,7 @@ describe("Jira related-data import stage", () => {
       revoked.ledger.bindings.some(
         (binding) => binding.entity_kind === "comment",
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("refreshes ledger fingerprints after an unknown comment update commit", async () => {
@@ -1062,7 +1062,6 @@ describe("Jira related-data import stage", () => {
       rateLimits: [],
     });
     const filteredIssue = issueFixture();
-    filteredIssue.fields.attachment = [];
     const reconciled = await importJiraRelatedData({
       ...base,
       issue: filteredIssue,
@@ -1073,11 +1072,24 @@ describe("Jira related-data import stage", () => {
     expect(state.attachments.size).toBe(0);
     expect(
       reconciled.ledger.bindings.some(
-        (binding) =>
-          binding.entity_kind === "comment" ||
-          binding.entity_kind === "attachment",
+        (binding) => binding.entity_kind === "comment",
+      ),
+    ).toBe(true);
+    expect(
+      reconciled.ledger.bindings.some(
+        (binding) => binding.entity_kind === "attachment",
       ),
     ).toBe(false);
+    const repeated = await importJiraRelatedData({
+      ...base,
+      issue: filteredIssue,
+      client: filteredClient,
+      ledger: reconciled.ledger,
+    });
+    expect(state.attachments.size).toBe(0);
+    expect(repeated.report.failures).toContainEqual(
+      expect.objectContaining({ reason: "attachment_visibility_unverifiable" }),
+    );
   });
 
   it("requires an explicit completeness attestation before attachment import", async () => {
@@ -2058,6 +2070,26 @@ describe("media crosswalk", () => {
         '<span data-media-services-id="m1" title="b.bin" href="/attachment/2/b.bin"></span>',
       )?.strategy,
     ).toBe("rendered_element");
+    expect(
+      resolveJiraMediaReference(
+        { ...media, filename: null },
+        [
+          { source: source("1", "a.bin"), fileUri: "akb://v/file/1" },
+          { source: source("2", "b.bin"), fileUri: "akb://v/file/2" },
+        ],
+        '<span data-media-services-id="m1" title="att1" href="/attachment/2/b.bin"></span>',
+      )?.binding.source.id,
+    ).toBe("2");
+    expect(
+      resolveJiraMediaReference(
+        { ...media, filename: null },
+        [
+          { source: source("1", "a.bin"), fileUri: "akb://v/file/1" },
+          { source: source("2", "b.bin"), fileUri: "akb://v/file/2" },
+        ],
+        '<span data-media-services-id="m1" data-attachment-id="1" href="/attachment/2/b.bin"></span>',
+      ),
+    ).toBeNull();
     expect(
       resolveJiraMediaReference(
         { ...media, filename: null },
