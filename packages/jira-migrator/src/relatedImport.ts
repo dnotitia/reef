@@ -1545,9 +1545,21 @@ export async function importJiraRelatedData(
     const currentProvisionalKeys = new Set(
       [...uniqueLinks.keys()].map((linkId) => `${provisionalPrefix}${linkId}`),
     );
-    for (const existingKey of await input.target.listExternalRefKeys(
-      provisionalPrefix,
-    )) {
+    let existingProvisionalKeys: string[] = [];
+    try {
+      existingProvisionalKeys =
+        await input.target.listExternalRefKeys(provisionalPrefix);
+    } catch (error) {
+      failure(
+        report.failures,
+        "link",
+        issue.id,
+        "read",
+        "link_target_catalog_read_failed",
+        error,
+      );
+    }
+    for (const existingKey of existingProvisionalKeys) {
       if (currentProvisionalKeys.has(existingKey)) continue;
       try {
         const existing = await input.target.readExternalRef(existingKey);
@@ -1811,9 +1823,20 @@ export async function importJiraRelatedData(
           : [],
       ),
     );
-    for (const existingKey of await input.target.listExternalRefKeys(
-      remotePrefix,
-    )) {
+    let existingRemoteKeys: string[] = [];
+    try {
+      existingRemoteKeys = await input.target.listExternalRefKeys(remotePrefix);
+    } catch (error) {
+      failure(
+        report.failures,
+        "remote_link",
+        issue.id,
+        "read",
+        "remote_link_target_catalog_read_failed",
+        error,
+      );
+    }
+    for (const existingKey of existingRemoteKeys) {
       if (currentRemoteKeys.has(existingKey)) continue;
       try {
         await input.target.deleteExternalRef(existingKey);

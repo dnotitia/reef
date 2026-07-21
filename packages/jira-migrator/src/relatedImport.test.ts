@@ -1509,6 +1509,44 @@ describe("Jira related-data import stage", () => {
     expect(state.relations.size).toBe(1);
   });
 
+  it("isolates target external-ref catalog failures from sibling entities", async () => {
+    const state = makeTarget();
+    state.target.listExternalRefKeys = async () => {
+      throw new Error("target_catalog_unavailable");
+    };
+    const result = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client: makeClient([]),
+      target: state.target,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [{ typeId: "1", kind: "symmetric" }],
+      resolveIssueTarget: () => ({
+        reefId: "REEF-2",
+        documentUri: "akb://isolated/coll/issues/doc/reef-2.md",
+      }),
+      mode: "apply",
+    });
+    expect(result.report.failures.map((item) => item.reason)).toEqual(
+      expect.arrayContaining([
+        "link_target_catalog_read_failed",
+        "remote_link_target_catalog_read_failed",
+      ]),
+    );
+    expect(state.comments.size).toBe(2);
+    expect(state.attachments.size).toBe(1);
+    expect(state.relations.size).toBe(1);
+    expect(state.refs.size).toBe(2);
+  });
+
   it("isolates ambiguous link mappings instead of using array order", async () => {
     const state = makeTarget();
     const base = {
