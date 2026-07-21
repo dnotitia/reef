@@ -80,6 +80,10 @@ The package exports:
   issue attachments are isolated because Jira does not expose a reliable
   attachment-to-comment ACL association through this stage's source contract.
   Both declared sizes and streamed response bytes are bounded by that limit.
+  Lowering the limit on a rerun revokes attachments that no longer satisfy the
+  policy. Existing V1 attachment ledger identities without an issue ID remain
+  readable and are attributed through target readback when reconciliation is
+  required.
   Dry-run performs the same bounded source reads and validations as apply while
   keeping Reef target mutations at zero. When the issue description was first
   projected with raw-archive or account-mapping options, pass the same options

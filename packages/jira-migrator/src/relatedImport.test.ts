@@ -848,6 +848,50 @@ describe("Jira related-data import stage", () => {
     expect(state.attachments.size).toBe(0);
   });
 
+  it("revokes an imported attachment when the byte policy is lowered", async () => {
+    const state = makeTarget();
+    const base = {
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      client: makeClient([]),
+      target: state.target,
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [] as const,
+      resolveIssueTarget: () => null,
+      mode: "apply" as const,
+    };
+    const applied = await importJiraRelatedData({
+      ...base,
+      attachmentPolicy,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+    });
+    expect(state.attachments.size).toBe(1);
+
+    const restricted = await importJiraRelatedData({
+      ...base,
+      attachmentPolicy: {
+        commentVisibilityCompleteness: "verified",
+        maxBytes: 2,
+      },
+      ledger: applied.ledger,
+    });
+    expect(restricted.report.failures).toContainEqual(
+      expect.objectContaining({ reason: "attachment_size_limit_exceeded" }),
+    );
+    expect(state.attachments.size).toBe(0);
+    expect(
+      restricted.ledger.bindings.some(
+        (binding) => binding.entity_kind === "attachment",
+      ),
+    ).toBe(false);
+  });
+
   it("reports and rewrites comment media consistently in dry-run and apply", async () => {
     const state = makeTarget();
     const issue = issueFixture();

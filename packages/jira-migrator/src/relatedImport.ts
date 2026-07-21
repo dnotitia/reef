@@ -615,7 +615,8 @@ export async function importJiraRelatedData(
     (binding) =>
       binding.source_identity.entity_kind === "attachment" &&
       binding.source_identity.jira_cloud_id === input.jiraCloudId &&
-      binding.source_identity.issue_id === issue.id &&
+      (binding.source_identity.issue_id === undefined ||
+        binding.source_identity.issue_id === issue.id) &&
       !returnedAttachmentIds.has(binding.source_identity.attachment_id),
   );
   report.comments.total = comments.length;
@@ -633,6 +634,28 @@ export async function importJiraRelatedData(
   const unsafeCommentSourceKeys = new Set(
     missingCommentBindings.map((binding) => binding.source_key),
   );
+  const revokeAttachmentBinding = async (
+    identity: ReturnType<typeof jiraAttachmentSourceIdentity>,
+    attachmentId: string,
+  ): Promise<void> => {
+    const binding = ledger.bindings.find(
+      (item) => item.source_key === identity.key,
+    );
+    const recovered = await input.target.findAttachmentByJiraId(
+      input.reefId,
+      attachmentId,
+    );
+    const fileUris = new Set<string>();
+    if (binding?.target.target_kind === "attachment")
+      fileUris.add(binding.target.file_uri);
+    if (recovered) fileUris.add(recovered.attachment.file_uri);
+    for (const fileUri of fileUris) {
+      await input.target.revokeAttachment(fileUri);
+      if ((await input.target.readAttachment(fileUri)) !== null)
+        throw new Error("attachment_revocation_readback_mismatch");
+    }
+    ledger = removeJiraMigrationBindings(ledger, [identity.key]);
+  };
 
   if (input.mode === "apply") {
     for (const binding of missingCommentBindings) {
@@ -669,20 +692,28 @@ export async function importJiraRelatedData(
           ? binding.source_identity.attachment_id
           : "missing";
       try {
+        const boundReadback =
+          binding.target.target_kind === "attachment"
+            ? await input.target.readAttachment(binding.target.file_uri)
+            : null;
         const recovered = await input.target.findAttachmentByJiraId(
           input.reefId,
           attachmentId,
         );
-        const fileUris = new Set<string>();
-        if (binding.target.target_kind === "attachment")
-          fileUris.add(binding.target.file_uri);
-        if (recovered) fileUris.add(recovered.attachment.file_uri);
-        for (const fileUri of fileUris) {
-          await input.target.revokeAttachment(fileUri);
-          if ((await input.target.readAttachment(fileUri)) !== null)
-            throw new Error("attachment_source_removal_readback_mismatch");
-        }
-        ledger = removeJiraMigrationBindings(ledger, [binding.source_key]);
+        const belongsToCurrentIssue =
+          binding.source_identity.entity_kind === "attachment" &&
+          (binding.source_identity.issue_id === issue.id ||
+            boundReadback?.attachment.reef_id === input.reefId ||
+            recovered !== null);
+        if (!belongsToCurrentIssue) continue;
+        await revokeAttachmentBinding(
+          jiraAttachmentSourceIdentity(
+            input.jiraCloudId,
+            issue.id,
+            attachmentId,
+          ),
+          attachmentId,
+        );
       } catch (error) {
         failure(
           report.failures,
@@ -705,23 +736,7 @@ export async function importJiraRelatedData(
     if (!attachmentVisibilityEstablished) {
       if (input.mode === "apply") {
         try {
-          const binding = ledger.bindings.find(
-            (item) => item.source_key === identity.key,
-          );
-          const recovered = await input.target.findAttachmentByJiraId(
-            input.reefId,
-            attachment.id,
-          );
-          const fileUris = new Set<string>();
-          if (binding?.target.target_kind === "attachment")
-            fileUris.add(binding.target.file_uri);
-          if (recovered) fileUris.add(recovered.attachment.file_uri);
-          for (const fileUri of fileUris) {
-            await input.target.revokeAttachment(fileUri);
-            if ((await input.target.readAttachment(fileUri)) !== null)
-              throw new Error("attachment_revocation_readback_mismatch");
-          }
-          ledger = removeJiraMigrationBindings(ledger, [identity.key]);
+          await revokeAttachmentBinding(identity, attachment.id);
         } catch (error) {
           failure(
             report.failures,
@@ -747,6 +762,20 @@ export async function importJiraRelatedData(
       maxAttachmentBytes === undefined ||
       (attachment.size !== null && attachment.size > maxAttachmentBytes)
     ) {
+      if (input.mode === "apply") {
+        try {
+          await revokeAttachmentBinding(identity, attachment.id);
+        } catch (error) {
+          failure(
+            report.failures,
+            "attachment",
+            attachment.id,
+            String(error).includes("readback") ? "readback" : "write",
+            "attachment_size_policy_revocation_failed",
+            error,
+          );
+        }
+      }
       failure(
         report.failures,
         "attachment",
@@ -933,6 +962,20 @@ export async function importJiraRelatedData(
         readbackSucceeded: true,
       });
     } catch (error) {
+      if (input.mode === "apply" && String(error).includes("size_limit")) {
+        try {
+          await revokeAttachmentBinding(identity, attachment.id);
+        } catch (revocationError) {
+          failure(
+            report.failures,
+            "attachment",
+            attachment.id,
+            String(revocationError).includes("readback") ? "readback" : "write",
+            "attachment_size_policy_revocation_failed",
+            revocationError,
+          );
+        }
+      }
       failure(
         report.failures,
         "attachment",

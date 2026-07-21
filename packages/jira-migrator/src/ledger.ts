@@ -67,7 +67,7 @@ export const JiraMigrationSourceIdentitySchema = z.discriminatedUnion(
       .object({
         ...sourceIdentityBase,
         entity_kind: z.literal("attachment"),
-        issue_id: z.string().min(1),
+        issue_id: z.string().min(1).optional(),
         attachment_id: z.string().min(1),
       })
       .strict(),

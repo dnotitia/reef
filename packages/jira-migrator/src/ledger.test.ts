@@ -31,6 +31,42 @@ const sourceFingerprint = fingerprintJiraState({ source: "stable" });
 const mappedStateFingerprint = fingerprintJiraState({ mapped: "stable" });
 
 describe("Jira migration ledger", () => {
+  it("keeps V1 attachment identities without issue_id readable", () => {
+    const ledger = confirmJiraMigrationBinding(
+      createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "target-vault",
+      }),
+      {
+        sourceIdentity: jiraAttachmentSourceIdentity(
+          "cloud-1",
+          "issue-1",
+          "attachment-1",
+        ),
+        target: {
+          target_kind: "attachment",
+          file_uri: "akb://target-vault/coll/files/file/1",
+        },
+        sourceFingerprint: "a".repeat(64),
+        mappedStateFingerprint: "b".repeat(64),
+        lastAppliedAt: "2026-01-01T00:00:00.000Z",
+        writeSucceeded: true,
+        readbackSucceeded: true,
+      },
+    );
+    const persisted = structuredClone(ledger);
+    const identity = persisted.bindings[0]?.source_identity;
+    if (identity?.entity_kind !== "attachment")
+      throw new Error("expected attachment binding");
+    Reflect.deleteProperty(identity, "issue_id");
+    expect(
+      JiraMigrationLedgerV1Schema.parse(persisted).bindings[0]?.source_identity,
+    ).toMatchObject({
+      entity_kind: "attachment",
+      attachment_id: "attachment-1",
+    });
+  });
+
   it("builds collision-safe stable identities independent of display names and keys", () => {
     expect(jiraIssueSourceIdentity("cloud:a", "project/b", "100").key).toBe(
       "issue:cloud%3Aa:project%2Fb:100",
