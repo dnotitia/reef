@@ -1378,7 +1378,12 @@ describe("Jira related-data import stage", () => {
     expect(result.report.failures).toContainEqual(
       expect.objectContaining({ reason: "jira_link_mapping_ambiguous" }),
     );
-    expect(state.relations.size).toBe(1);
+    expect(state.relations.size).toBe(0);
+    expect(
+      result.ledger.bindings.some(
+        (binding) => binding.entity_kind === "relation",
+      ),
+    ).toBe(false);
     expect(result.report.links.unresolved).toBe(1);
   });
 

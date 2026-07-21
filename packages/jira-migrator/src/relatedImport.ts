@@ -1458,6 +1458,30 @@ export async function importJiraRelatedData(
     }
   }
 
+  const removeStaleRelationBindings = async (linkId: string): Promise<void> => {
+    const staleRelationBindings = ledger.bindings.filter(
+      (binding) =>
+        binding.source_identity.entity_kind === "relation" &&
+        binding.source_identity.jira_cloud_id === input.jiraCloudId &&
+        binding.source_identity.link_id === linkId,
+    );
+    const staleRelationKeys = new Set(
+      staleRelationBindings.flatMap((binding) =>
+        binding.target.target_kind === "relation"
+          ? [binding.target.idempotency_key]
+          : [],
+      ),
+    );
+    for (const relationKey of staleRelationKeys) {
+      await input.target.deleteRelation(relationKey);
+      if ((await input.target.readRelation(relationKey)) !== null)
+        throw new Error("relation_mapping_removal_readback_mismatch");
+    }
+    ledger = removeJiraMigrationBindings(
+      ledger,
+      staleRelationBindings.map((binding) => binding.source_key),
+    );
+  };
   const uniqueLinks = new Map<string, NormalizedJiraIssueLink>();
   for (const link of links) {
     if (!link.id) {
@@ -1482,6 +1506,7 @@ export async function importJiraRelatedData(
         mappingMatches.length === 1 ? mappingMatches[0] : undefined;
       if (mappingMatches.length > 1) {
         report.links.unresolved += 1;
+        if (input.mode === "apply") await removeStaleRelationBindings(linkId);
         failure(
           report.failures,
           "link",
@@ -1497,28 +1522,7 @@ export async function importJiraRelatedData(
       if (!mapping || !targetIssue) {
         report.links.unresolved += 1;
         if (input.mode === "apply") {
-          const staleRelationBindings = ledger.bindings.filter(
-            (binding) =>
-              binding.source_identity.entity_kind === "relation" &&
-              binding.source_identity.jira_cloud_id === input.jiraCloudId &&
-              binding.source_identity.link_id === linkId,
-          );
-          const staleRelationKeys = new Set(
-            staleRelationBindings.flatMap((binding) =>
-              binding.target.target_kind === "relation"
-                ? [binding.target.idempotency_key]
-                : [],
-            ),
-          );
-          for (const relationKey of staleRelationKeys) {
-            await input.target.deleteRelation(relationKey);
-            if ((await input.target.readRelation(relationKey)) !== null)
-              throw new Error("relation_mapping_removal_readback_mismatch");
-          }
-          ledger = removeJiraMigrationBindings(
-            ledger,
-            staleRelationBindings.map((binding) => binding.source_key),
-          );
+          await removeStaleRelationBindings(linkId);
           const externalKey = `jira-link:${input.jiraCloudId}:${issue.id}:${linkId}`;
           const externalValue = {
             reefId: input.reefId,
