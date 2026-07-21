@@ -329,6 +329,89 @@ const decodeHtmlAttribute = (value: string): string =>
       })[entity.toLowerCase()] ?? entity,
   );
 
+const parseQuotedHtmlAttributes = (tag: string): Map<string, string | null> => {
+  const attributes = new Map<string, string | null>();
+  let cursor = 1;
+  while (cursor < tag.length && !/\s/u.test(tag[cursor] ?? "")) cursor += 1;
+
+  while (cursor < tag.length) {
+    while (
+      cursor < tag.length &&
+      (/\s/u.test(tag[cursor] ?? "") || tag[cursor] === "/")
+    ) {
+      cursor += 1;
+    }
+    const nameStart = cursor;
+    while (cursor < tag.length && !/[\s=>/]/u.test(tag[cursor] ?? "")) {
+      cursor += 1;
+    }
+    if (cursor === nameStart) break;
+    const name = tag.slice(nameStart, cursor).toLowerCase();
+    while (cursor < tag.length && /\s/u.test(tag[cursor] ?? "")) cursor += 1;
+    if (tag[cursor] !== "=") continue;
+    cursor += 1;
+    while (cursor < tag.length && /\s/u.test(tag[cursor] ?? "")) cursor += 1;
+    const quote = tag[cursor];
+    if (quote !== '"' && quote !== "'") continue;
+    const valueStart = cursor + 1;
+    const valueEnd = tag.indexOf(quote, valueStart);
+    if (valueEnd === -1) break;
+    const value = tag.slice(valueStart, valueEnd);
+    const existing = attributes.get(name);
+    attributes.set(
+      name,
+      existing === undefined || existing === value ? value : null,
+    );
+    cursor = valueEnd + 1;
+  }
+  return attributes;
+};
+
+const decimalAttribute = (value: string | null | undefined): string | null => {
+  if (!value) return null;
+  for (const character of value) {
+    if (character < "0" || character > "9") return null;
+  }
+  return value;
+};
+
+const attachmentIdFromHref = (
+  href: string | null | undefined,
+): string | null => {
+  if (!href) return null;
+  const lowerHref = href.toLowerCase();
+  for (const marker of ["attachment/", "att"]) {
+    let offset = 0;
+    while (offset < lowerHref.length) {
+      const markerIndex = lowerHref.indexOf(marker, offset);
+      if (markerIndex === -1) break;
+      const idStart = markerIndex + marker.length;
+      let idEnd = idStart;
+      while (
+        idEnd < href.length &&
+        href[idEnd] !== undefined &&
+        href[idEnd] >= "0" &&
+        href[idEnd] <= "9"
+      ) {
+        idEnd += 1;
+      }
+      const delimiter = href[idEnd];
+      if (
+        idEnd > idStart &&
+        (delimiter === undefined ||
+          delimiter === "/" ||
+          delimiter === "?" ||
+          delimiter === '"' ||
+          delimiter === "'")
+      ) {
+        return href.slice(idStart, idEnd);
+      }
+      offset = markerIndex + 1;
+    }
+  }
+  return null;
+};
+
 const renderedHints = (
   html: string,
 ): Map<
@@ -339,18 +422,22 @@ const renderedHints = (
     string,
     { attachmentId: string | null; filename: string | null } | null
   >();
-  for (const match of html.matchAll(
-    /<[^>]*data-media-services-id=["']([^"']+)["'][^>]*>/giu,
-  )) {
-    const tag = match[0];
-    const mediaId = match[1];
+  let cursor = 0;
+  while (cursor < html.length) {
+    const tagStart = html.indexOf("<", cursor);
+    if (tagStart === -1) break;
+    const tagEnd = html.indexOf(">", tagStart + 1);
+    if (tagEnd === -1) break;
+    cursor = tagEnd + 1;
+    const attributes = parseQuotedHtmlAttributes(
+      html.slice(tagStart, tagEnd + 1),
+    );
+    const mediaId = attributes.get("data-media-services-id");
     if (!mediaId) continue;
-    const hrefValue = tag.match(/\bhref=["']([^"']+)["']/iu)?.[1] ?? null;
-    const hrefAttachmentId =
-      hrefValue?.match(/(?:attachment\/|att)(\d+)(?:\/|[?"']|$)/iu)?.[1] ??
-      null;
-    const explicitAttachmentId =
-      tag.match(/\bdata-attachment-id=["'](\d+)["']/iu)?.[1] ?? null;
+    const hrefAttachmentId = attachmentIdFromHref(attributes.get("href"));
+    const explicitAttachmentId = decimalAttribute(
+      attributes.get("data-attachment-id"),
+    );
     const attachmentId =
       hrefAttachmentId &&
       explicitAttachmentId &&
@@ -358,7 +445,10 @@ const renderedHints = (
         ? null
         : (explicitAttachmentId ?? hrefAttachmentId);
     const encodedName =
-      tag.match(/(?:data-filename|alt|title)=["']([^"']+)["']/iu)?.[1] ?? null;
+      attributes.get("data-filename") ??
+      attributes.get("alt") ??
+      attributes.get("title") ??
+      null;
     const hint = {
       attachmentId,
       filename: encodedName ? decodeHtmlAttribute(encodedName) : null,

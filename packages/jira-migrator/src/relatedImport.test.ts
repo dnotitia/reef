@@ -2304,6 +2304,26 @@ describe("media crosswalk", () => {
         '<span data-media-services-id="m1" href="/attachment/1/a.bin"></span><span data-media-services-id="m1" href="/attachment/2/b.bin"></span>',
       ),
     ).toBeNull();
+    expect(
+      resolveJiraMediaReference(
+        { ...media, filename: null },
+        [
+          { source: source("1", "a.bin"), fileUri: "akb://v/file/1" },
+          { source: source("2", "b.bin"), fileUri: "akb://v/file/2" },
+        ],
+        `${"<".repeat(100_000)}><span data-media-services-id="m1" href="/attachment/2/b.bin"></span>`,
+      )?.binding.source.id,
+    ).toBe("2");
+    expect(
+      resolveJiraMediaReference(
+        { ...media, filename: null },
+        [
+          { source: source("1", "a.bin"), fileUri: "akb://v/file/1" },
+          { source: source("2", "b.bin"), fileUri: "akb://v/file/2" },
+        ],
+        '<span data-media-services-id="m1" data-media-services-id="m2" href="/attachment/2/b.bin"></span>',
+      ),
+    ).toBeNull();
   });
 });
 
