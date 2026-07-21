@@ -199,6 +199,32 @@ describe("buildJiraChangelogPlan", () => {
     expect(plan.items.every((item) => item.activity === null)).toBe(true);
   });
 
+  it("defers omitted values instead of fabricating explicit null transitions", () => {
+    const plan = buildJiraChangelogPlan(
+      baseInput([
+        { field: "assignee", fieldId: "assignee", to: "actor-1" },
+        {
+          field: "Start date",
+          fieldId: "customfield_10015",
+          to: "2026-07-21",
+        },
+        { field: "labels", fieldId: "labels" },
+      ]),
+    );
+
+    expect(plan.items.map((item) => item.classification)).toEqual([
+      "deferred",
+      "deferred",
+      "deferred",
+    ]);
+    expect(plan.items.map((item) => item.reason)).toEqual([
+      "assignee_binding_missing",
+      "start_date_lossy",
+      "labels_value_missing",
+    ]);
+    expect(plan.items.every((item) => item.activity === null)).toBe(true);
+  });
+
   it("rejects impossible calendar dates without rejecting valid leap days", () => {
     const plan = buildJiraChangelogPlan(
       baseInput([

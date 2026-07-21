@@ -176,10 +176,13 @@ const emptyCounts = (): JiraChangelogReportCounts => ({
 const nullableValue = (
   item: JiraChangelogItemPayload,
   side: "from" | "to",
-): string | null =>
-  Object.hasOwn(item, side)
-    ? (item[side] ?? null)
-    : (item[`${side}String`] ?? null);
+): string | null | undefined => {
+  if (Object.hasOwn(item, side)) return item[side] ?? null;
+  const displaySide = `${side}String` as const;
+  return Object.hasOwn(item, displaySide)
+    ? (item[displaySide] ?? null)
+    : undefined;
+};
 
 const SAFE_REMOTE_LINK_QUERY_PARAMETER_NAMES = new Set([
   "focusedcommentid",
@@ -210,14 +213,16 @@ const mappedValue = <T>(
   mappings: Readonly<Record<string, T>>,
 ): T | null | undefined => {
   const raw = nullableValue(item, side);
-  return raw === null ? null : mappings[raw];
+  return raw == null ? raw : mappings[raw];
 };
 
 const isLeapYear = (year: number): boolean =>
   year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
 
-const isoOrNull = (value: string | null): string | null | undefined => {
-  if (value === null) return null;
+const isoOrNull = (
+  value: string | null | undefined,
+): string | null | undefined => {
+  if (value == null) return value;
   const match = /^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/u.exec(value);
   if (!match) return undefined;
   const year = Number(match[1]);
@@ -429,10 +434,11 @@ const planItem = (
         : deferred("due_date_lossy");
     }
     case "labels": {
-      const payload = setDiff(
-        stringSet(nullableValue(item, "from")),
-        stringSet(nullableValue(item, "to")),
-      );
+      const from = nullableValue(item, "from");
+      const to = nullableValue(item, "to");
+      if (from === undefined || to === undefined)
+        return deferred("labels_value_missing");
+      const payload = setDiff(stringSet(from), stringSet(to));
       return promoted(event({ eventType: "labels_change", payload }));
     }
     case "issue_type": {
