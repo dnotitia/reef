@@ -60,6 +60,7 @@ export interface JiraImportedCommentInput {
   createdAt: string;
   editedAt: string | null;
   parentCommentId?: string;
+  expectedThreadRootId: string | null;
 }
 
 export interface JiraImportedAttachmentInput {
@@ -351,7 +352,7 @@ const validCommentReadback = (
   readback.created_at === expected.createdAt &&
   readback.edited_at === expected.editedAt &&
   readback.parent_comment_id === (expected.parentCommentId ?? null) &&
-  (expected.parentCommentId === undefined || readback.thread_root_id !== null);
+  readback.thread_root_id === expected.expectedThreadRootId;
 
 export const resolveJiraMediaReference = (
   media: AdfMediaReference,
@@ -365,18 +366,6 @@ export const resolveJiraMediaReference = (
   strategy: JiraMediaResolutionStrategy;
 } | null => {
   const hint = renderedHints(renderedHtml).get(media.mediaId);
-  if (hint?.attachmentId) {
-    const candidates = sourceAttachments.filter(
-      (item) => item.id === hint.attachmentId,
-    );
-    if (candidates.length === 1) {
-      const binding = attachments.find(
-        (item) => item.source.id === candidates[0]?.id,
-      );
-      return binding ? { binding, strategy: "rendered_element" } : null;
-    }
-    if (candidates.length > 1) return null;
-  }
   if (media.filename) {
     const candidates = sourceAttachments.filter(
       (item) => item.filename === media.filename,
@@ -395,6 +384,18 @@ export const resolveJiraMediaReference = (
     return binding ? { binding, strategy: "sole_attachment" } : null;
   }
   if (!hint) return null;
+  if (hint.attachmentId) {
+    const candidates = sourceAttachments.filter(
+      (item) => item.id === hint.attachmentId,
+    );
+    if (candidates.length === 1) {
+      const binding = attachments.find(
+        (item) => item.source.id === candidates[0]?.id,
+      );
+      return binding ? { binding, strategy: "rendered_element" } : null;
+    }
+    if (candidates.length > 1) return null;
+  }
   if (hint.filename) {
     const candidates = sourceAttachments.filter(
       (item) => item.filename === hint.filename,
@@ -796,6 +797,13 @@ export async function importJiraRelatedData(
         artifact: input.accountMapping,
         directory: input.actorDirectory ?? [],
       });
+      let expectedThreadRootId: string | null = null;
+      if (parentTargetId && !parentTargetId.startsWith("dry-run-comment:")) {
+        const parentReadback = await input.target.readComment(parentTargetId);
+        if (!parentReadback) throw new Error("comment_parent_readback_missing");
+        expectedThreadRootId =
+          parentReadback.thread_root_id ?? parentReadback.id;
+      }
       const commentInput: JiraImportedCommentInput = {
         idempotencyKey: identity.key,
         reefId: input.reefId,
@@ -806,6 +814,7 @@ export async function importJiraRelatedData(
           comment.updated && comment.updated !== comment.created
             ? comment.updated
             : null,
+        expectedThreadRootId,
         ...(parentTargetId ? { parentCommentId: parentTargetId } : {}),
       };
       const existingTarget = getJiraCommentTargetId(ledger, identity);

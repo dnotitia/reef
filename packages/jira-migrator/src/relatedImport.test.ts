@@ -541,7 +541,7 @@ describe("Jira related-data import stage", () => {
       rewritten: 2,
       unresolved: 0,
     });
-    expect(dryRun.report.media.by_strategy.rendered_element).toBe(2);
+    expect(dryRun.report.media.by_strategy.rendered_element).toBe(1);
     expect(state.comments.size).toBe(0);
 
     const applied = await importJiraRelatedData({ ...base, mode: "apply" });
