@@ -168,6 +168,37 @@ describe("startup workspace migrations", () => {
     expect(mocks.reconcile).not.toHaveBeenCalled();
   });
 
+  it.each([
+    [[{ username: "reef-schema", role: "reader" }]],
+    [
+      [
+        { username: "reef-schema", role: "writer" },
+        { username: "reef-schema", role: "writer" },
+      ],
+    ],
+  ])(
+    "rejects detectable wrong-role or duplicate service membership without a marker",
+    async (members) => {
+      readyInventory(["misconfigured"]);
+      mocks.listMembers.mockResolvedValue({ members });
+      mocks.readMarker.mockResolvedValue(null);
+
+      await expect(
+        runStartupWorkspaceMigrations({
+          adapter: adapterWithIdentity(),
+          apiKey: "secret-value",
+          serviceUsername: "reef-schema",
+        }),
+      ).rejects.toMatchObject({
+        context: {
+          reason: "migration_inventory_invalid",
+          vault: "misconfigured",
+        },
+      });
+      expect(mocks.reconcile).not.toHaveBeenCalled();
+    },
+  );
+
   it("reconciles and verifies registered workspaces in deterministic order with an empty catalog", async () => {
     readyInventory(["zeta", "alpha"]);
     const report = await runStartupWorkspaceMigrations({

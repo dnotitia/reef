@@ -115,6 +115,25 @@ describe("initializeWorkspace", () => {
     expect(mocks.writeConfig).not.toHaveBeenCalled();
   });
 
+  it("returns durable current config on an original-request retry after routine edits", async () => {
+    const fingerprint = await workspaceInitializationFingerprint(
+      "reef-sample",
+      config,
+    );
+    const editedConfig = { ...config, project_prefix: "EDITED" };
+    mocks.readMarker.mockResolvedValue(stored("ready", fingerprint));
+    mocks.readConfig.mockResolvedValue({ exists: true, config: editedConfig });
+
+    await expect(
+      initializeWorkspace({
+        adapter: { request: vi.fn() },
+        request: { name: "reef-sample", config },
+        serviceUsername: "reef-schema",
+      }),
+    ).resolves.toMatchObject({ config: editedConfig, state: "ready" });
+    expect(mocks.writeConfig).not.toHaveBeenCalled();
+  });
+
   it("rejects a different-fingerprint retry before lifecycle mutation", async () => {
     mocks.readMarker.mockResolvedValue(stored("initializing", "b".repeat(64)));
 

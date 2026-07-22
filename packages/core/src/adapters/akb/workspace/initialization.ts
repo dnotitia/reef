@@ -229,7 +229,6 @@ export async function initializeWorkspace(
   if (
     stored.marker.state !== "ready" ||
     !configReadback.exists ||
-    !configsEqual(configReadback.config, config) ||
     !(await exactWriterExists(adapter, name, serviceUsername))
   ) {
     throw new SchemaLifecycleError({
@@ -241,7 +240,7 @@ export async function initializeWorkspace(
 
   return {
     name,
-    config,
+    config: configReadback.config,
     state: "ready",
     marker_uri: stored.uri,
   };

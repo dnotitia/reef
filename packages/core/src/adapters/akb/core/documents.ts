@@ -20,10 +20,12 @@ const AKB_DOCUMENT_URI_PARTS_RE =
 const INTERNAL_INITIALIZATION_MARKER_URI_SUFFIX =
   "/coll/overview/doc/reef-initialization.md";
 
-function publicSearchHits(hits: AkbSearchHit[]): AkbSearchHit[] {
-  return hits.filter(
-    (hit) => !hit.uri.endsWith(INTERNAL_INITIALIZATION_MARKER_URI_SUFFIX),
-  );
+function publicSearchHits(hits: AkbSearchHit[], limit: number): AkbSearchHit[] {
+  return hits
+    .filter(
+      (hit) => !hit.uri.endsWith(INTERNAL_INITIALIZATION_MARKER_URI_SUFFIX),
+    )
+    .slice(0, limit);
 }
 
 function documentPathFromUri(
@@ -63,14 +65,16 @@ export async function searchDocuments({
       // `q` and 422s, so semantic search does not reach akb. Caught by the
       // REEF-050 contract review.
       q: query,
-      limit,
+      // The internal lifecycle marker can occupy a ranked result slot. Fetch
+      // one spare result, filter the marker, then restore the caller's limit.
+      limit: limit + 1,
     },
   });
   if (Array.isArray(payload)) {
-    return publicSearchHits(z.array(AkbSearchHitSchema).parse(payload));
+    return publicSearchHits(z.array(AkbSearchHitSchema).parse(payload), limit);
   }
   const parsed = AkbSearchResponseSchema.parse(payload);
-  return publicSearchHits(parsed.results ?? parsed.items ?? []);
+  return publicSearchHits(parsed.results ?? parsed.items ?? [], limit);
 }
 
 /**

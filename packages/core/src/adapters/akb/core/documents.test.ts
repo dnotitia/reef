@@ -79,7 +79,7 @@ describe("resolveDocumentTitles", () => {
 
 describe("searchDocuments", () => {
   it("never exposes the internal initialization marker", async () => {
-    setupFetch([
+    const { calls } = setupFetch([
       {
         body: {
           results: [
@@ -101,7 +101,7 @@ describe("searchDocuments", () => {
         adapter: makeTestAkbAdapter(),
         vault: "reef-test",
         query: "reef",
-        limit: 10,
+        limit: 1,
       }),
     ).resolves.toEqual([
       {
@@ -110,5 +110,6 @@ describe("searchDocuments", () => {
         tags: [],
       },
     ]);
+    expect(new URL(calls[0].url).searchParams.get("limit")).toBe("2");
   });
 });

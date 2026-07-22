@@ -124,7 +124,7 @@ async function preflightInventory(
     const exactWriter =
       serviceMembers.length === 1 && serviceMembers[0]?.role === "writer";
 
-    if (!marker && !exactWriter) {
+    if (!marker && serviceMembers.length === 0) {
       skipped += 1;
       continue;
     }
