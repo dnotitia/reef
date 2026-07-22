@@ -13,19 +13,14 @@ export {
   type JiraCurrentIssueLinkSnapshot,
   type JiraCurrentRemoteLinkSnapshot,
   type JiraRelationActivityBinding,
-} from "./changelog.js";
+} from "./issues/changelog.js";
 export {
   convertAdfToMarkdown,
   type AdfConversionReport,
   type AdfMediaReference,
   type AdfToMarkdownOptions,
   type AdfToMarkdownResult,
-} from "./adf.js";
-export {
-  deepFreeze,
-  isPlainObject,
-  mergeJiraCustomFields,
-} from "./customFields.js";
+} from "./content/adf.js";
 export {
   buildJiraFieldCatalog,
   JIRA_CANONICAL_FIELD_ROLES,
@@ -37,7 +32,7 @@ export {
   type JiraFieldOverrides,
   type JiraFieldResolution,
   type JiraFieldResolutionClassification,
-} from "./fieldCatalog.js";
+} from "./jira/fieldCatalog.js";
 export {
   JiraFieldResultClassificationSchema,
   JiraIssueDeferredItemSchema,
@@ -53,7 +48,7 @@ export {
   type JiraIssueFieldResult,
   type JiraIssueImportPlan,
   type JiraPlanningAssociation,
-} from "./importPlan.js";
+} from "./issues/importPlan.js";
 export {
   buildJiraIssueImportPlan,
   buildJiraIssueImportPlans,
@@ -90,27 +85,25 @@ export {
   type JiraUserObservation,
   type JiraUsersCustomFields,
   type ReefActorDirectoryEntry,
-} from "./accountMapping.js";
+} from "./accounts/mapping.js";
 export {
   JiraAccountMappingFileError,
   loadJiraAccountMappingArtifact,
   writeJiraAccountMappingArtifact,
   type LoadJiraAccountMappingArtifactOptions,
-} from "./accountMappingFile.js";
+} from "./accounts/artifactFile.js";
 export {
   JiraMigratorConfigError,
-  jiraAuthHeader,
   loadJiraMigratorConfig,
   parseJiraMigratorArgs,
   publicJiraMigratorConfig,
   redactForConfig,
-  secretValuesForConfig,
-  type JiraAuthSecret,
   type JiraConfig,
   type JiraMigratorConfig,
   type LoadJiraMigratorConfigOptions,
   type PublicJiraMigratorConfig,
-} from "./config.js";
+} from "./cli/config.js";
+export type { JiraAuthSecret } from "./jira/auth.js";
 export {
   JiraApiError,
   JiraReadClient,
@@ -129,28 +122,20 @@ export {
   type ListBoardSprintsOptions,
   type ListProjectVersionsOptions,
   type SearchProjectIssuesOptions,
-} from "./jiraClient.js";
+} from "./jira/client.js";
 export {
   RAW_ARCHIVE_ENTITY_KINDS,
   RAW_ARCHIVE_SOURCE_IDENTITY_REQUIRED_KEYS,
   RawArchive,
   RawArchiveError,
-  canonicalizeJson,
   createRawArchive,
   readRawArchiveReference,
-  sha256CanonicalJson,
   verifyRawArchive,
-  validateRawArchivePermissionVerification,
   type ArchiveRawPayloadInput,
   type CreateRawArchiveOptions,
-  type JsonPrimitive,
-  type JsonValue,
   type RawArchiveClassification,
   type RawArchiveEntityKind,
-  type RawArchiveEntryV1,
-  type RawArchiveEnvelopeV1,
   type RawArchiveErrorCode,
-  type RawArchiveManifestV1,
   type RawArchivePermissionVerification,
   type RawArchiveReference,
   type RawArchiveRetention,
@@ -159,7 +144,6 @@ export {
   type RawArchiveSourceIdentity,
   type RawArchiveSourceIdentityByKind,
   type RawArchiveVerificationSummary,
-  type RawArchiveVersionV1,
 } from "./rawArchive.js";
 export {
   JiraAttachmentSchema,
@@ -214,12 +198,9 @@ export {
 } from "./payloads.js";
 export {
   importJiraRelatedData,
-  canonicalizeJiraRelation,
-  resolveJiraMediaReference,
   type JiraImportedAttachmentInput,
   type JiraImportedCommentInput,
   type JiraLinkMapping,
-  type JiraMediaResolutionStrategy,
   type JiraRelatedImportFailure,
   type JiraRelatedImportInput,
   type JiraRelatedImportReport,
@@ -250,31 +231,25 @@ export {
   type JiraPlanningTargetResolution,
   type JiraSprintSourceIdentity,
   type JiraVersionSourceIdentity,
-} from "./planning.js";
-export {
-  REDACTED,
-  redactString,
-  redactUnknown,
-  safeJsonStringify,
-} from "./redaction.js";
+} from "./planning/entities.js";
 export {
   applyJiraRankImportPlan,
   buildJiraRankImportPlan,
   type JiraRankImportPlan,
   type JiraRankInput,
   type JiraRankReportClassification,
-} from "./rank.js";
+} from "./planning/rank.js";
 export {
   finalizeJiraMigrationPhase,
   recordJiraMigrationResult,
   resumableJiraMigrationEntities,
-} from "./checkpoint.js";
+} from "./execution/checkpoint.js";
 export {
   classifyJiraMigrationDiff,
   fingerprintJiraState,
   type JiraMigrationDiffBinding,
   type JiraMigrationDiffResult,
-} from "./diff.js";
+} from "./execution/diff.js";
 export {
   JIRA_MIGRATION_PHASES,
   JiraMigrationActionSchema,
@@ -314,8 +289,8 @@ export {
   loadJiraMigrationLedger,
   writeJiraMigrationLedger,
   type JiraMigrationLedgerFileErrorCode,
-} from "./ledgerFile.js";
+} from "./execution/ledgerFile.js";
 export {
   buildJiraMigrationReport,
   type JiraMigrationReportCounts,
-} from "./report.js";
+} from "./execution/report.js";

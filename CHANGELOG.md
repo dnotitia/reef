@@ -81,6 +81,15 @@ explicitly in the entries below.
   direct-parent context, stable reply ordering, and the root's global timeline
   position. (REEF-065)
 
+### Changed
+
+- **The Jira migrator now has explicit internal module boundaries.** Jira wire
+  models, migration execution state, raw-archive security, issue planning, and
+  related-data import stages now have separate owners behind the unchanged
+  `@reef/jira-migrator` root import. Undocumented low-level object, redaction,
+  canonical-JSON, and related-reconciliation helpers are no longer re-exported
+  from the package root.
+
 ### Migration
 
 - **Configure the schema lifecycle identity before startup.** Supply
