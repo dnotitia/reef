@@ -37,12 +37,15 @@ export type AuthGateStatus = "checking" | "active" | "inactive";
  */
 export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
   const router = useRouter();
-  const [status, setStatus] = useState<AuthGateStatus>("checking");
+  const [authState, setAuthState] = useState<{
+    mode: AuthGateMode;
+    status: AuthGateStatus;
+  }>({ mode, status: "checking" });
+  const status = authState.mode === mode ? authState.status : "checking";
 
   useEffect(() => {
     const controller = new AbortController();
     let redirectCommitted = false;
-    setStatus("checking");
 
     const redirectToLogin = (
       accountError?:
@@ -53,7 +56,7 @@ export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
     ) => {
       if (redirectCommitted || controller.signal.aborted) return;
       redirectCommitted = true;
-      setStatus("inactive");
+      setAuthState({ mode, status: "inactive" });
       router.replace(
         accountError
           ? buildPathWithParams("/login", {
@@ -87,7 +90,7 @@ export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
 
         if (redirectCommitted) return;
 
-        setStatus("active");
+        setAuthState({ mode, status: "active" });
 
         if (mode === "onboarding" || mode === "workspace") return;
 

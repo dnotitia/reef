@@ -1,7 +1,6 @@
 export type { IssueIdParts } from "./id";
 export {
   JIRA_RANK_MAPPED,
-  JIRA_RANK_UNMAPPED,
   computeReorderedRanks,
   backlogRankSortKey,
   mapJiraRanksToIssueOrder,
@@ -21,6 +20,7 @@ export {
 } from "./status";
 export type { CodeSignal } from "./status";
 export { buildIssueUpdateMetadataPatch } from "./issueUpdate";
+export { filterValidCommentThreadMembers } from "./commentThreads";
 export {
   activitySuggestionId,
   draftToActivitySuggestion,

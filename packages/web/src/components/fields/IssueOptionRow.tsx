@@ -127,7 +127,7 @@ export function IssueOptionRow({
         variant="list"
         // In dense relation rows, every issue type reads as a bare glyph so the
         // type column keeps one visual weight regardless of epic/story/task/bug
-        // mix (REEF-376). The label stays sr-only, not hidden, because the glyph
+        // mix (REEF-376). The label remains screen-reader text because the glyph
         // itself is decorative and screen readers still need the type name.
         className="border-0 bg-transparent px-0 py-0"
         labelClassName="sr-only"

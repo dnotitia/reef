@@ -41,7 +41,7 @@ export const JiraAttachmentSchema = z
   })
   .passthrough();
 
-export const JiraLinkedIssueSchema = z
+const JiraLinkedIssueSchema = z
   .object({
     id: StringOrNumberAsStringSchema.optional(),
     key: z.string(),
@@ -306,7 +306,7 @@ const JiraChangelogItemObjectSchema = z
   .passthrough();
 
 // `toString` is a real Jira wire field, but an omitted property otherwise
-// resolves to Object.prototype.toString during Zod object parsing. Copy only
+// resolves to Object.prototype.toString during Zod object parsing. Copy the
 // own enumerable fields onto a null-prototype object before validation so an
 // omitted Jira value stays omitted.
 export const JiraChangelogItemSchema = z.preprocess((value) => {

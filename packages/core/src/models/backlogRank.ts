@@ -1,7 +1,7 @@
 // ─── Issue ordering / backlog manual ordering (REEF-129, REEF-393) ───────────
 //
 // `reef_issues.rank` is reef's numeric issue ordering scalar. The product UI
-// currently writes it only from the backlog drag-reorder flow; Jira importers
+// currently writes it from the backlog drag-reorder flow; Jira importers
 // may seed it from a source system's current rank so ordering survives outside
 // the backlog. Generic issue create/update paths still reject caller-supplied
 // rank. This module is the pure ordering algebra shared by the server sort, the
@@ -61,7 +61,7 @@ export interface RankAssignment {
 }
 
 export const JIRA_RANK_MAPPED = "rank_mapped";
-export const JIRA_RANK_UNMAPPED = "rank_unmapped";
+const JIRA_RANK_UNMAPPED = "rank_unmapped";
 
 export type JiraRankMappingClassification =
   | typeof JIRA_RANK_MAPPED
@@ -114,7 +114,7 @@ function compareJiraRank(a: string, b: string): number {
  * current order as evenly spaced `rank` values so later backlog drags can use
  * the same midpoint algebra. Missing or duplicate source ranks are not guessed:
  * they are reported as `rank_unmapped` so dry-run/apply output can call them out
- * instead of silently falling back to raw-only provenance.
+ * instead of silently falling back to raw provenance.
  */
 export function mapJiraRanksToIssueOrder(
   issues: readonly JiraRankedIssue[],

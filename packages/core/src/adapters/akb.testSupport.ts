@@ -64,7 +64,6 @@ export {
   updateActivitySuggestion,
   updateActivitySuggestionStatus,
   updateComment,
-  downloadIssueAttachment,
   downloadIssueAttachmentByFileUri,
   updateIssue,
   updateRelease,

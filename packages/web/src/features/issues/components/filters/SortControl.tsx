@@ -38,7 +38,7 @@ interface SortControlProps {
    */
   supportsRankOrder?: boolean;
   /**
-   * Backlog only: rank order is also user-editable via drag reorder, so the
+   * On backlog, rank order is also user-editable via drag reorder, so the
    * dropdown can carry that extra affordance without changing the order label.
    */
   showsBacklogReorderHint?: boolean;
@@ -79,8 +79,8 @@ export function SortControl({
   const sortFieldLabels = useSortFieldLabels();
   const directionLabel = useDirectionLabel();
 
-  // This control owns the words "Rank order" — the backlog body carries only
-  // the reorder affordance (REEF-169 / REEF-393).
+  // This control owns the words "Rank order"; the backlog body carries the
+  // reorder affordance (REEF-169 / REEF-393).
   const t = useTranslations("issues.sort");
   const rankOrderLabel = t("rankOrder");
 

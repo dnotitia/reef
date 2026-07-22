@@ -60,6 +60,7 @@ const SLOW_TEST_THRESHOLD_MS = 300;
 
 const SLOW_TEST_SUPPRESSIONS = new Set([
   "ActivityItemCard ai_draft edits drafts with the shared issue draft field syntax",
+  "RawArchive preserves prior versions and converges entry ordering",
   "useIssueFilterPersistence skips the restore's own marked write but saves the next user edit",
   "useIssueFilterPersistence scopes saves per vault",
   "IssueDetail keeps detail auto-save active after React StrictMode effect replay",
@@ -69,6 +70,7 @@ const SLOW_TEST_SUPPRESSIONS = new Set([
   "useIssueFilterPersistence does not wipe the saved slot when the store is empty at mount",
   "IssueDetail keeps an earlier field's failure surfaced when a later, unrelated field saves",
   "NewIssueDialog confirms before discarding a dirty draft, then closes on confirm",
+  "NewIssueDialog creates a parent-locked sub-issue with inherited defaults and keeps adding",
   "NewIssueDialog lets the user add external references while creating an issue",
   "agent artifact edit routes defines the edit command contract",
   "agent artifact dismiss routes defines the dismiss command contract",
@@ -101,6 +103,54 @@ const PACKAGES_DIR = path.join(ROOT, "packages");
 const LARGE_FILE_EXTRA_ROOTS = ["scripts"];
 
 const LARGE_FILE_SUPPRESSIONS = new Map([
+  [
+    "packages/jira-migrator/src/related/import.test.ts",
+    "Single public-stage reconciliation matrix sharing one stateful Jira/target harness; split by comments, attachments, and links when the harness is reusable without duplicating state semantics.",
+  ],
+  [
+    "packages/web/src/components/MarkdownEditorImpl.test.tsx",
+    "Single editor contract suite sharing one Tiptap chain mock; split interaction families when another editor surface reuses the mock harness.",
+  ],
+  [
+    "packages/jira-migrator/src/archive/archive.ts",
+    "Single raw-archive security boundary whose validation, permissions, manifest, and object-store helpers enforce one atomic API; extract helpers when a second archive implementation consumes them.",
+  ],
+  [
+    "packages/jira-migrator/src/issues/mapping.ts",
+    "Single immutable Jira issue-plan builder; extract a policy projector when another planner shares its field-resolution semantics.",
+  ],
+  [
+    "packages/jira-migrator/src/jira/client.ts",
+    "Single read-only Jira transport client; split pagination or binary streaming when another client implementation reuses those policies.",
+  ],
+  [
+    "packages/jira-migrator/src/issues/changelog.ts",
+    "Single changelog classification and projection pipeline; extract a classifier when another history source shares the same promoted/raw decision model.",
+  ],
+  [
+    "packages/jira-migrator/src/content/adf.ts",
+    "Single recursive ADF-to-Markdown renderer whose node helpers share escaping and reporting state; split node families when another renderer consumes them.",
+  ],
+  [
+    "packages/core/src/adapters/akb/core/tables.ts",
+    "Single AKB table lifecycle adapter keeping mutation schemas, verification, and provisioning together; split planning helpers when another adapter consumes them.",
+  ],
+  [
+    "packages/jira-migrator/src/planning/entities.ts",
+    "Single Version/Sprint planning projection with shared conflict and target-resolution rules; split entity helpers when their policies diverge or gain another consumer.",
+  ],
+  [
+    "packages/jira-migrator/src/related/attachmentImport.ts",
+    "Single attachment reconciliation transaction with ordered validation, revocation, write, and readback phases; extract a phase when another import surface reuses it.",
+  ],
+  [
+    "packages/jira-migrator/src/accounts/mapping.ts",
+    "Single account-mapping artifact pipeline sharing normalization and change-coalescing rules; extract resolution helpers when another mapping producer reuses them.",
+  ],
+  [
+    "packages/web/src/features/issues/components/detail/IssueDetailSidebar.tsx",
+    "Single detail metadata rail composing field leaves and autosave callbacks; extract a section when another detail surface shares it.",
+  ],
   [
     "packages/web/tests/e2e/harness/mock-server.mjs",
     "Hermetic fixture backend; split when scenario handlers gain separate owners.",
@@ -652,6 +702,17 @@ function matchingClaimIds(text) {
   );
 }
 
+function findLineCommentIndex(line) {
+  let fromIndex = 0;
+  while (fromIndex < line.length) {
+    const index = line.indexOf("//", fromIndex);
+    if (index < 0) return -1;
+    if (index === 0 || line[index - 1] !== ":") return index;
+    fromIndex = index + 2;
+  }
+  return -1;
+}
+
 function pushCandidate(candidates, filePath, line, text) {
   const matches = matchingClaimIds(text);
   if (matches.length === 0) return;
@@ -684,7 +745,7 @@ function scanCommentText(filePath, content) {
       continue;
     }
 
-    const lineCommentIndex = line.indexOf("//");
+    const lineCommentIndex = findLineCommentIndex(line);
     const blockCommentIndex = line.indexOf("/*");
     const hasLineComment = lineCommentIndex >= 0;
     const hasBlockComment = blockCommentIndex >= 0;

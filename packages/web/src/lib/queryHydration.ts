@@ -2,8 +2,8 @@ import type { UseQueryResult } from "@tanstack/react-query";
 
 /**
  * Hide a persisted query snapshot until React has matched the server render.
- * The server cannot read the browser cache, so the only deterministic initial
- * state is a pending, idle query with no data or error.
+ * The server lacks browser-cache access, making a pending idle query without
+ * data or error the deterministic initial state.
  */
 export function holdQueryUntilHydrated<TData, TError>(
   result: UseQueryResult<TData, TError>,

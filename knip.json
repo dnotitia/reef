@@ -50,12 +50,12 @@
     },
     "packages/jira-migrator": {
       "entry": ["src/index.ts", "src/cli.ts"],
-      "includeEntryExports": true,
+      "includeEntryExports": false,
       "project": ["src/**/*.ts"]
     },
     "packages/orchestrator": {
       "entry": ["src/index.ts", "src/cli.ts"],
-      "includeEntryExports": true,
+      "includeEntryExports": false,
       "project": ["src/**/*.ts"]
     },
     "packages/web": {

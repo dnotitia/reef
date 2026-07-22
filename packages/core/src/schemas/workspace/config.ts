@@ -128,8 +128,8 @@ export const StaleHideDaysSchema = z
  *
  * Future extension slots (default_labels, default_status, custom workflow)
  * land as new keys in `reef_settings` — the schema-free key-value shape remains
- * a compatibility envelope before an explicit operator migration is applied,
- * or when one cannot run.
+ * an extension envelope pending an explicit operator migration, including
+ * environments where migration execution is unavailable.
  *
  *   authoring_language — default language for AI-generated content (REEF-136).
  *                        A stored `reef_settings` key; `null` means unset (no

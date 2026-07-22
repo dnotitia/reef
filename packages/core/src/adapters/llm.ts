@@ -20,7 +20,7 @@ export interface CreateLlmAdapterParams {
 }
 
 export interface LlmAdapter {
-  /** Reef sends one request identity per model step and never retries it. */
+  /** Each model step gets a fresh request identity and uses `maxRetries: 0`. */
   maxRetries: 0;
   /**
    * Returns the resolved AI SDK language model instance.

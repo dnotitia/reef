@@ -5,10 +5,7 @@ const secretStrings = (secrets: readonly string[]): string[] =>
     (left, right) => right.length - left.length,
   );
 
-export function redactString(
-  value: string,
-  secrets: readonly string[],
-): string {
+function redactString(value: string, secrets: readonly string[]): string {
   return secretStrings(secrets).reduce(
     (redacted, secret) => redacted.split(secret).join(REDACTED),
     value,
