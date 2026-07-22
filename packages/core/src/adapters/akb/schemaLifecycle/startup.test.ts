@@ -216,95 +216,23 @@ describe("startup workspace migrations", () => {
     expect(report).toMatchObject({ workspaceCount: 2, skippedVaultCount: 0 });
   });
 
-  it("stops later workspaces after an intermediate migration failure", async () => {
-    readyInventory(["beta", "alpha"]);
-    const catalog = createWorkspaceMigrationCatalog(
-      [
-        {
-          fromVersion: 1,
-          toVersion: 2,
-          phaseId: "11111111-1111-4111-8111-111111111111",
-          operations: [
-            {
-              op: "add_column",
-              table: "reef_issues",
-              column: { name: "sample", type: "text" },
-            },
-          ],
-        },
-      ],
-      2,
-    );
-    mocks.applyMigration.mockRejectedValueOnce(new Error("failed"));
+  it("rejects a foreign release catalog before identity or inventory reads", async () => {
+    const adapter = adapterWithIdentity();
+    const catalog = createWorkspaceMigrationCatalog([], 2);
 
     await expect(
       runStartupWorkspaceMigrations({
-        adapter: adapterWithIdentity(),
+        adapter,
         apiKey: "secret-value",
         serviceUsername: "reef-schema",
         catalog,
       }),
     ).rejects.toMatchObject({
-      context: { reason: "migration_execution_failed", vault: "alpha" },
+      context: { reason: "migration_catalog_invalid" },
     });
-    expect(mocks.applyMigration).toHaveBeenCalledTimes(1);
-    expect(mocks.reconcile).not.toHaveBeenCalled();
-  });
-
-  it("applies only the pending catalog suffix and advances durable version state", async () => {
-    readyInventory(["current", "older"]);
-    mocks.readMarker.mockImplementation(async (_adapter, vault: string) => ({
-      uri: `akb://${vault}/coll/overview/doc/reef-initialization.md`,
-      path: "overview/reef-initialization.md",
-      currentCommit: "commit",
-      marker: {
-        schema_version: vault === "current" ? 2 : 1,
-        state: "ready",
-        request_fingerprint: "f".repeat(64),
-      },
-    }));
-    mocks.verify.mockResolvedValue({
-      schemaVersion: 2,
-      manifestVerified: true,
-    });
-    const catalog = createWorkspaceMigrationCatalog(
-      [
-        {
-          fromVersion: 1,
-          toVersion: 2,
-          phaseId: "11111111-1111-4111-8111-111111111111",
-          operations: [
-            {
-              op: "add_column",
-              table: "reef_issues",
-              column: { name: "sample", type: "text" },
-            },
-          ],
-        },
-      ],
-      2,
-    );
-
-    await runStartupWorkspaceMigrations({
-      adapter: adapterWithIdentity(),
-      apiKey: "secret-value",
-      serviceUsername: "reef-schema",
-      catalog,
-    });
-
-    expect(mocks.applyMigration).toHaveBeenCalledTimes(1);
-    expect(mocks.applyMigration).toHaveBeenCalledWith(
-      expect.objectContaining({ vault: "older" }),
-    );
-    expect(mocks.updateMarkerVersion).toHaveBeenCalledTimes(1);
-    expect(mocks.updateMarkerVersion).toHaveBeenCalledWith(
-      expect.anything(),
-      "older",
-      expect.objectContaining({
-        marker: expect.objectContaining({ schema_version: 1 }),
-      }),
-      2,
-    );
+    expect(adapter.request).not.toHaveBeenCalled();
+    expect(mocks.listVaults).not.toHaveBeenCalled();
+    expect(mocks.applyMigration).not.toHaveBeenCalled();
   });
 
   it("rejects a workspace version outside the catalog before mutation", async () => {

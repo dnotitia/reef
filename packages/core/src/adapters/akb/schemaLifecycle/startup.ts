@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { SchemaLifecycleError } from "../../../errors";
 import type { AkbAdapter } from "../core/http";
+import { REEF_SCHEMA_VERSION } from "../core/tableManifest";
 import {
   applyAkbTableMigration,
   reconcileWorkspaceSchema,
@@ -184,6 +185,12 @@ export async function runStartupWorkspaceMigrations(
     throw new SchemaLifecycleError({ reason: "migration_config_invalid" });
   }
   const catalog = params.catalog ?? WORKSPACE_MIGRATION_CATALOG;
+  // Reconciliation and final verification are compiled against this release's
+  // manifest. Refuse a foreign/future catalog before even inventory reads, so
+  // no operation can mutate a workspace into a schema this binary cannot use.
+  if (catalog.targetVersion !== REEF_SCHEMA_VERSION) {
+    throw new SchemaLifecycleError({ reason: "migration_catalog_invalid" });
+  }
   await preflightIdentity(params.adapter, apiKey, serviceUsername);
   const inventory = await preflightInventory(params.adapter, serviceUsername);
   const planned = inventory.registered.map((workspace) => ({
