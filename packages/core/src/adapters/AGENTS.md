@@ -9,15 +9,17 @@
   queryable projection. Keep row/document writes paired.
 - Issue templates are table-only rows in `reef_templates`, addressed by their
   `name` stem; they are not searchable akb documents.
-- `ensureReefTables` only creates missing Reef tables and verifies existing
-  tables against the desired manifest; it never alters an existing table from a
-  read or hot path. Existing-table evolution runs only in the release pre-start
-  gate: enumerate every workspace from the authoritative inventory, apply its
-  pending phases through `akbApplyTableMigration`, then call
-  `ensureReefTables` for final manifest/version verification. Any workspace
-  failure blocks startup/readiness. Never migrate from user requests,
-  issue/comment/activity paths, individual workspace entry, or hot reload;
-  `akbAlterTable` stays a low-level primitive.
+- `reconcileWorkspaceSchema` is a mutation primitive owned only by explicit
+  workspace initialization and the release pre-start migration service.
+  `verifyWorkspaceSchema` is the read-only consumer for every feature path.
+  Existing-table evolution runs only in the release pre-start gate: enumerate
+  every registered workspace from the authoritative marker/member inventory,
+  apply pending phases through `akbApplyTableMigration`, reconcile missing
+  tables, then verify the exact manifest/version. Any workspace failure blocks
+  startup/readiness. Never reconcile or migrate from issue, comment, activity,
+  config, template, workspace-entry, or hot-reload paths; `akbAlterTable` stays
+  a low-level primitive. The architecture guard test owns the two-call-site
+  allowlist.
   Use `meta`/`payload` JSON for ad-hoc fields; promote a field to a typed column
   only for filtering, sorting, joins, constraints/uniqueness, or indexing, then
   follow `docs/migration-policy.md`'s Expand → Backfill → Enforce → Contract

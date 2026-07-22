@@ -85,6 +85,23 @@ cp -r deploy/k8s/overlays/example deploy/k8s/overlays/my-cluster
 4. **Public host** — `patch-ingress.yaml` → the `tls.hosts` entry and
    `rules[].host`.
 
+### Provide the required schema migration identity
+
+Set `REEF_SCHEMA_SERVICE_USERNAME` in the overlay ConfigMap to a unique,
+non-admin AKB service identity. Create its external startup-only Secret with a
+service PAT whose scopes are exactly `read` and `write`:
+
+```bash
+kubectl create secret generic reef-schema-migrator-secret \
+  --namespace my-namespace \
+  --from-literal=REEF_SCHEMA_MIGRATION_KEY='<service-pat>'
+```
+
+The `Recreate` Deployment runs the bundled schema runner as an init container.
+Its full inventory preflight and every registered workspace migration must pass
+before reef-web starts. The application container does not receive this Secret.
+Do not reuse a personal/admin token or add a separate migration Job.
+
 ### Provide optional capability secrets
 
 The Deployment reads optional GitHub and LLM credentials from a Secret named

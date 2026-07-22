@@ -29,6 +29,12 @@ explicitly in the entries below.
   an explicit 256 MiB safety ceiling and single-buffer streaming growth.
   Legacy ADF media projections remain eligible for option-aware reconciliation,
   so no AKB schema migration or backfill is required. (REEF-320)
+- **Workspace schema lifecycle now has explicit owners.** New workspaces use a
+  durable, fingerprinted AKB marker with optimistic concurrency and forward-only
+  replay, while release startup uses a strict service identity, authoritative
+  full-inventory preflight, immutable migration catalog, deterministic
+  reconciliation, and bounded public reports. Ordinary feature paths only
+  verify schema and never provision it lazily. (REEF-414)
 
 - **Jira changelog histories can be planned as auditable Reef activity.** The
   migrator now verifies pre-normalization raw-history references, classifies
@@ -75,6 +81,14 @@ explicitly in the entries below.
   position. (REEF-065)
 
 ### Migration
+
+- **Configure the schema lifecycle identity before startup.** Supply
+  `REEF_SCHEMA_SERVICE_USERNAME` as non-secret configuration and
+  `REEF_SCHEMA_MIGRATION_KEY` only to the startup migrator. Kubernetes now uses
+  `Recreate` plus an init container backed by the external
+  `reef-schema-migrator-secret`; local `pnpm dev` reads the key from
+  `.env.migration.local` and strips it before Next.js starts. This release adds
+  no migration operation, schema-version bump, or data backfill. (REEF-414)
 
 - **Migrate existing Kubernetes LLM settings before deploying REEF-413.** The
   base ConfigMap no longer supplies OpenRouter URL/model defaults. To keep AI

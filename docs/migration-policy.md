@@ -44,17 +44,18 @@ migration:
 
 | Change | Owner and standard path |
 | --- | --- |
-| Add a new Reef table | Core's desired table manifest, a `REEF_SCHEMA_VERSION` bump, and `ensureReefTables` additive create/verify |
+| Add a new Reef table | Core's desired table manifest, a `REEF_SCHEMA_VERSION` bump, and explicit-owner `reconcileWorkspaceSchema` followed by `verifyWorkspaceSchema` |
 | Change an existing table's columns, constraints, unique keys, or indexes | An explicit operator workflow calling `akbApplyTableMigration` |
 | Backfill or repair existing rows | A bounded, retry-safe AKB DML job owned by the deployment operator and kept separate from schema operations |
 | Drop, rename, or contract a type or representation | A separately approved Contract-phase operator migration after the compatibility window and rollback prerequisites are satisfied |
 
-`ensureReefTables` is the lazy self-heal path for a new workspace: it creates
-missing tables and verifies existing tables against the desired manifest. It
-must not ALTER an existing table. A manifest mismatch remains a hard failure so
-that a user request, issue/comment/activity hot path, individual workspace
-entry, or hot reload cannot silently acquire migration privileges or mutate a
-live schema. Release startup uses the explicit pre-start gate defined below.
+`reconcileWorkspaceSchema` creates missing tables but never alters an existing
+table. It has exactly two application owners: durable workspace initialization
+and release startup migration. `verifyWorkspaceSchema` is read-only and is the
+only schema primitive permitted on ordinary feature paths. A missing or
+mismatched schema remains a bounded hard failure; a user request,
+issue/comment/activity path, workspace entry, or hot reload never acquires
+migration privileges or mutates a live schema.
 
 For an existing table, `akbApplyTableMigration` is the standard schema
 primitive. AKB applies its ordered operations atomically and returns a typed
@@ -69,7 +70,7 @@ change.
 
 Do not commit ad hoc PostgreSQL migration files for akb-owned tables in this
 repository. Do not perform DDL with the DML backfill path, and do not hide an
-existing-table mismatch by teaching `ensureReefTables` to repair it.
+existing-table mismatch by teaching reconciliation to alter it.
 
 ### Typed column promotion
 
@@ -82,7 +83,7 @@ fields that are merely carried through a response stay in JSON.
 When a field qualifies, update its canonical Zod schema and the desired table
 manifest for newly provisioned vaults. Existing vaults still follow the
 operator migration phases below; changing the manifest does not authorize
-`ensureReefTables` to ALTER them.
+`reconcileWorkspaceSchema` to ALTER them.
 
 ### Expand, Backfill, Enforce, Contract
 
@@ -158,8 +159,9 @@ The runner performs this sequence:
    order with `akbApplyTableMigration` and that phase's stable UUID.
 4. Confirm that any separately owned bounded backfill required before the next
    phase has completed and satisfies its preflight invariants.
-5. After pending phases are applied, call `ensureReefTables` to create any new
-   tables and verify the complete desired manifest and version stamp.
+5. After pending phases are applied, call `reconcileWorkspaceSchema` to create
+   missing tables, then `verifyWorkspaceSchema` to validate the complete desired
+   manifest and exact version stamp.
 6. Start Reef, or mark it ready, only after every registered workspace passes.
 
 The gate fails closed on inventory, identity, migration, backfill, replay,
@@ -169,18 +171,21 @@ inventory to a convenient vault, or defer repair until that workspace is first
 opened. Re-running the whole gate is safe because phase UUIDs and operations
 are stable and successful replays are evidence.
 
-The non-interactive AKB identity, its least-privilege authorization, and the
-authoritative registration/discovery contract are implementation
-prerequisites. REEF-367 owns those identity and inventory decisions. REEF-414
-owns the runner, migration catalog, deployment wiring, and development wrapper.
-This policy does not implement any of them.
+The runner requires a unique non-admin AKB service PAT with exactly read/write
+scope and an exact configured username. Registered workspaces are those with
+both that exact writer membership and a fixed, ready lifecycle marker, plus a
+readable durable config. The marker fingerprint identifies the immutable
+initialization request; later routine config edits do not rewrite it.
+Marker-only, member-only, or non-ready workspaces fail the full preflight before any mutation;
+unregistered vaults are counted and skipped.
 
 ### Kubernetes and local development
 
 The Kubernetes reference implementation runs the gate in an `initContainer` so
 the migration credential is available only to the short-lived runner, not the
-long-running Reef application container. A separate one-off Job is optional,
-not a required part of this policy. While Reef requires exact desired-manifest
+long-running Reef application container. The credential comes from the
+external `reef-schema-migrator-secret`; the application container does not
+reference it, and this lifecycle has no separate Job. While Reef requires exact desired-manifest
 compatibility and old/new application concurrency has not been proven, the
 Deployment strategy must be `Recreate`. `RollingUpdate` is allowed only after a
 separate compatibility change proves mixed-version readers and writers safe for
@@ -221,9 +226,8 @@ and whether existing vaults require a schema migration, a one-time backfill, a
 vault-skill reinstall, or no action. A policy-only change that executes none of
 these must say so explicitly in `CHANGELOG.md`.
 
-REEF-030 is policy-only: it adds no runner, credential, initContainer manifest,
-package script, schema operation, or data backfill. Those runtime changes must
-land through their owning implementation issues.
+REEF-414 implements the runner and ownership boundary without adding a catalog
+operation, changing `REEF_SCHEMA_VERSION`, or running a data backfill.
 
 ## Vault Skill Documents
 
@@ -240,8 +244,8 @@ Treat changes to these documents as a migration-affecting change when they alter
 - Instructions that need to be present in existing vaults for safe agent
   operation.
 
-New vaults receive the current documents during workspace creation through
-`installReefVaultSkill`. Existing vaults are not automatically updated just
+New vaults receive the current documents during the durable workspace
+initialization state machine. Existing vaults are not automatically updated just
 because reef-web is deployed with newer `vaultSkill.ts` content, unless a route
 or operator action explicitly reruns installation.
 

@@ -73,9 +73,13 @@ point reef at the backend:
 
 ```bash
 cp packages/web/.env.example packages/web/.env.local
+cp .env.migration.example .env.migration.local
 pnpm dev
 ```
 
+Set the development-only migration PAT in `.env.migration.local`; the root
+wrapper runs the schema gate once and will not start Next.js if it fails. The
+wrapper removes `REEF_SCHEMA_MIGRATION_KEY` from the long-running web process.
 By default, `packages/web/.env.local` points `AKB_BACKEND_URL` at
 `http://localhost:8000`. See [Development with AKB](#development-with-akb) when
 you want a real AKB-backed workspace.
@@ -123,6 +127,7 @@ inside this repository.
 | `packages/core` | Framework-agnostic TypeScript library (`@reef/core`) for schemas, models, adapters, agents, tools, and errors. GitHub, AKB, and LLM calls originate here. |
 | `packages/web` | Next.js App Router application package (`@reef/web`) and stateless Backend-for-Frontend. Route Handlers validate requests, extract credentials, call `core`, and translate errors. |
 | `packages/jira-migrator` | Operator-run Jira-to-Reef migration package (`@reef/jira-migrator`) for Jira read paths, migration config, account mapping artifacts, and dry-run/report helpers. |
+| `packages/schema-migrator` | Bundled pre-start workspace schema runner used by local development and the production init container. |
 | `docs/` | Architecture, UX, deployment, migration, release, and maintenance documentation. |
 | `deploy/` | Kubernetes deployment assets. |
 | `scripts/` | Repository automation, including release-policy and maintenance checks. |
@@ -148,7 +153,7 @@ Run these from the repository root.
 
 | Command | What it does |
 | --- | --- |
-| `pnpm dev` | Start the web app on [http://localhost:7333](http://localhost:7333). |
+| `pnpm dev` | Run the workspace schema gate once, then start the web app on [http://localhost:7333](http://localhost:7333). |
 | `pnpm build` | Build the web app for production. |
 | `pnpm lint` | Run `biome check .`. |
 | `pnpm format` | Run `biome format --write .`. |
