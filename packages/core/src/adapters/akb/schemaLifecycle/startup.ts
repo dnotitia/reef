@@ -230,7 +230,6 @@ export async function runStartupWorkspaceMigrations(
       replayedPhases: 0,
       checksums: [],
     };
-    let manifestReconciledAfterLastOperation = false;
     for (const entry of workspace.pending) {
       // A manifest-only version step has no AKB ALTER operation. Its durable
       // effect starts with reconciliation at this exact catalog position. That
@@ -244,7 +243,6 @@ export async function runStartupWorkspaceMigrations(
             schemaVersion: entry.toVersion,
             allowAdditionalColumns: true,
           });
-          manifestReconciledAfterLastOperation = true;
         } catch {
           throw new SchemaLifecycleError({
             reason: "migration_execution_failed",
@@ -264,7 +262,6 @@ export async function runStartupWorkspaceMigrations(
         report.checksums.push(result.checksum);
         if (result.applied) report.appliedPhases += 1;
         else report.replayedPhases += 1;
-        manifestReconciledAfterLastOperation = false;
       } catch {
         throw new SchemaLifecycleError({
           reason: "migration_execution_failed",
@@ -274,12 +271,10 @@ export async function runStartupWorkspaceMigrations(
       }
     }
     try {
-      if (!manifestReconciledAfterLastOperation) {
-        await reconcileWorkspaceSchema({
-          adapter: params.adapter,
-          vault: workspace.vault,
-        });
-      }
+      await reconcileWorkspaceSchema({
+        adapter: params.adapter,
+        vault: workspace.vault,
+      });
       const verification = await verifyWorkspaceSchema({
         adapter: params.adapter,
         vault: workspace.vault,

@@ -202,6 +202,7 @@ describe("startup migrations for a future release catalog", () => {
     });
 
     expect(mocks.applyMigration).not.toHaveBeenCalled();
+    expect(mocks.reconcile).toHaveBeenCalledTimes(2);
     expect(mocks.reconcile).toHaveBeenCalledWith({
       adapter: expect.anything(),
       vault: "older",
@@ -213,6 +214,10 @@ describe("startup migrations for a future release catalog", () => {
       ],
       schemaVersion: 2,
       allowAdditionalColumns: true,
+    });
+    expect(mocks.reconcile).toHaveBeenLastCalledWith({
+      adapter: expect.anything(),
+      vault: "older",
     });
     expect(mocks.verify).toHaveBeenCalledWith({
       adapter: expect.anything(),
