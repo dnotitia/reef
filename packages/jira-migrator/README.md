@@ -129,6 +129,21 @@ payloads, email addresses, or full Jira account objects.
 Use `@reef/core` for shared Reef contracts where available. Do not import
 `@reef/web` or browser/Next.js runtime APIs into this package.
 
+## Public Boundary And Internal Layout
+
+Consumers import only from `@reef/jira-migrator`; package subpaths are not a
+supported API. The root surface exposes operator configuration, Jira reads and
+normalization, migration planners, ledger operations, raw-archive operations,
+and the related-data façade. Low-level object/redaction helpers, canonical JSON
+implementation details, and related-data reconciliation helpers stay internal.
+
+Implementation is grouped by ownership under `src/`: `jira` owns wire schemas,
+normalization, authentication, and reads; `archive` owns raw preservation;
+`execution` owns the ledger/checkpoint/report kernel; `accounts`, `content`,
+`planning`, and `issues` own migration transformations; `related` composes the
+comments, attachments, media, and link stages; and `cli` is the composition
+root. `src/index.ts` remains the only library entry point.
+
 ## Raw Archive
 
 `createRawArchive`, `readRawArchiveReference`, and `verifyRawArchive` preserve
