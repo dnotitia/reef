@@ -1,0 +1,116 @@
+{
+  "reef_settings": [
+    { "name": "key", "type": "text", "required": true },
+    { "name": "value", "type": "json", "required": true }
+  ],
+  "monitored_repos": [
+    { "name": "github_id", "type": "number", "required": true },
+    { "name": "owner", "type": "text", "required": true },
+    { "name": "name", "type": "text", "required": true },
+    { "name": "description", "type": "text" }
+  ],
+  "reef_issues": [
+    { "name": "document_uri", "type": "text", "required": true },
+    { "name": "reef_id", "type": "text", "required": true },
+    { "name": "title", "type": "text", "required": true },
+    { "name": "status", "type": "text", "required": true },
+    { "name": "issue_type", "type": "text", "required": true },
+    { "name": "priority", "type": "text" },
+    { "name": "assigned_to", "type": "text" },
+    { "name": "requester", "type": "text" },
+    { "name": "reporter", "type": "text" },
+    { "name": "start_date", "type": "text" },
+    { "name": "due_date", "type": "text" },
+    { "name": "milestone_id", "type": "text" },
+    { "name": "sprint_id", "type": "text" },
+    { "name": "release_id", "type": "text" },
+    { "name": "estimate_points", "type": "number" },
+    { "name": "severity", "type": "text" },
+    { "name": "rank", "type": "number" },
+    { "name": "closed_at", "type": "text" },
+    { "name": "closed_reason", "type": "text" },
+    { "name": "parent_id", "type": "text" },
+    { "name": "labels", "type": "json" },
+    { "name": "depends_on", "type": "json" },
+    { "name": "related_to", "type": "json" },
+    { "name": "blocks", "type": "json" },
+    { "name": "archived_at", "type": "text" },
+    { "name": "meta", "type": "json" }
+  ],
+  "reef_sprints": [
+    { "name": "name", "type": "text", "required": true },
+    { "name": "status", "type": "text", "required": true },
+    { "name": "start_date", "type": "text" },
+    { "name": "end_date", "type": "text" },
+    { "name": "goal", "type": "text" },
+    { "name": "capacity_points", "type": "number" },
+    { "name": "meta", "type": "json" }
+  ],
+  "reef_milestones": [
+    { "name": "name", "type": "text", "required": true },
+    { "name": "status", "type": "text", "required": true },
+    { "name": "target_date", "type": "text" },
+    { "name": "description", "type": "text" },
+    { "name": "meta", "type": "json" }
+  ],
+  "reef_releases": [
+    { "name": "name", "type": "text", "required": true },
+    { "name": "status", "type": "text", "required": true },
+    { "name": "target_date", "type": "text" },
+    { "name": "released_at", "type": "text" },
+    { "name": "notes", "type": "text" },
+    { "name": "meta", "type": "json" }
+  ],
+  "reef_templates": [
+    { "name": "name", "type": "text", "required": true },
+    { "name": "label", "type": "text", "required": true },
+    { "name": "description", "type": "text" },
+    { "name": "title_prefix", "type": "text" },
+    { "name": "priority", "type": "text" },
+    { "name": "default_labels", "type": "json" },
+    { "name": "body", "type": "text" },
+    { "name": "meta", "type": "json" }
+  ],
+  "reef_activity_suggestions": [
+    { "name": "document_uri", "type": "text", "required": true },
+    { "name": "suggestion_id", "type": "text", "required": true },
+    { "name": "kind", "type": "text", "required": true },
+    { "name": "status", "type": "text", "required": true },
+    { "name": "fingerprint", "type": "text", "required": true },
+    { "name": "repo", "type": "text", "required": true },
+    { "name": "issue_id", "type": "text" },
+    { "name": "title", "type": "text" },
+    { "name": "summary", "type": "text" },
+    { "name": "source_type", "type": "text" },
+    { "name": "source_ref", "type": "text" },
+    { "name": "actor", "type": "text" },
+    { "name": "detected_at", "type": "text", "required": true },
+    { "name": "reviewed_at", "type": "text" },
+    { "name": "reviewed_by", "type": "text" },
+    { "name": "meta", "type": "json" }
+  ],
+  "reef_comments": [
+    { "name": "reef_id", "type": "text", "required": true },
+    { "name": "body", "type": "text", "required": true },
+    { "name": "meta", "type": "json" }
+  ],
+  "reef_attachments": [
+    { "name": "reef_id", "type": "text", "required": true },
+    { "name": "file_uri", "type": "text", "required": true },
+    { "name": "filename", "type": "text", "required": true },
+    { "name": "mime_type", "type": "text", "required": true },
+    { "name": "size_bytes", "type": "number", "required": true },
+    { "name": "author", "type": "text", "required": true },
+    { "name": "source", "type": "text", "required": true },
+    { "name": "inline", "type": "boolean" },
+    { "name": "original_jira_attachment_id", "type": "text" },
+    { "name": "meta", "type": "json" }
+  ],
+  "reef_activity": [
+    { "name": "reef_id", "type": "text", "required": true },
+    { "name": "event_type", "type": "text", "required": true },
+    { "name": "event_key", "type": "text", "required": true },
+    { "name": "payload", "type": "json" },
+    { "name": "meta", "type": "json" }
+  ]
+}

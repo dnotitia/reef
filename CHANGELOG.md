@@ -87,8 +87,11 @@ explicitly in the entries below.
   `REEF_SCHEMA_MIGRATION_KEY` only to the startup migrator. Kubernetes now uses
   `Recreate` plus an init container backed by the external
   `reef-schema-migrator-secret`; local `pnpm dev` reads the key from
-  `.env.migration.local` and strips it before Next.js starts. This release adds
-  no migration operation, schema-version bump, or data backfill. (REEF-414)
+  `.env.migration.local` and strips it before Next.js starts. Before rollout,
+  owner/admin inventory must backfill a ready lifecycle marker and exact writer
+  membership for every existing configured workspace, then prove the same
+  inventory through the service key. This release adds no table migration
+  operation, schema-version bump, or Reef table data backfill. (REEF-414)
 
 - **Migrate existing Kubernetes LLM settings before deploying REEF-413.** The
   base ConfigMap no longer supplies OpenRouter URL/model defaults. To keep AI

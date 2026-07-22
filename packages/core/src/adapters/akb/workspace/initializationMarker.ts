@@ -40,9 +40,6 @@ function parseMarker(
     const parsed = WorkspaceInitializationMarkerSchema.parse(
       JSON.parse(content ?? ""),
     );
-    if (parsed.schema_version !== REEF_SCHEMA_VERSION) {
-      throw new Error("schema version mismatch");
-    }
     return parsed;
   } catch {
     throw new SchemaLifecycleError({
@@ -50,6 +47,73 @@ function parseMarker(
       vault,
     });
   }
+}
+
+/**
+ * Advance the ready marker's workspace schema version after migration and
+ * final manifest verification. The marker format is version-independent, so
+ * an older workspace remains readable by the release that must migrate it.
+ */
+export async function updateWorkspaceInitializationSchemaVersion(
+  adapter: AkbAdapter,
+  vault: string,
+  current: StoredWorkspaceInitializationMarker,
+  schemaVersion: number,
+): Promise<StoredWorkspaceInitializationMarker> {
+  if (
+    current.marker.state !== "ready" ||
+    !Number.isInteger(schemaVersion) ||
+    schemaVersion <= current.marker.schema_version
+  ) {
+    throw new SchemaLifecycleError({
+      reason: "initialization_state_invalid",
+      vault,
+    });
+  }
+  const next: WorkspaceInitializationMarker = {
+    ...current.marker,
+    schema_version: schemaVersion,
+  };
+  try {
+    await adapter.request(
+      `/api/v1/documents/${encodeURIComponent(vault)}/${current.path}`,
+      {
+        method: "PATCH",
+        body: {
+          content: markerBody(next),
+          expected_commit: current.currentCommit,
+          message: `chore(reef): advance schema to v${schemaVersion}`,
+        },
+        resource: `workspace initialization marker in ${vault}`,
+      },
+    );
+  } catch (error) {
+    const readback = await readWorkspaceInitializationMarker(adapter, vault);
+    if (
+      readback &&
+      readback.marker.state === "ready" &&
+      readback.marker.request_fingerprint ===
+        current.marker.request_fingerprint &&
+      readback.marker.schema_version >= schemaVersion
+    ) {
+      return readback;
+    }
+    throw error;
+  }
+  const readback = await readWorkspaceInitializationMarker(adapter, vault);
+  if (
+    !readback ||
+    readback.marker.state !== "ready" ||
+    readback.marker.request_fingerprint !==
+      current.marker.request_fingerprint ||
+    readback.marker.schema_version < schemaVersion
+  ) {
+    throw new SchemaLifecycleError({
+      reason: "initialization_state_invalid",
+      vault,
+    });
+  }
+  return readback;
 }
 
 export async function readWorkspaceInitializationMarker(

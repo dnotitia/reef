@@ -179,6 +179,38 @@ initialization request; later routine config edits do not rewrite it.
 Marker-only, member-only, or non-ready workspaces fail the full preflight before any mutation;
 unregistered vaults are counted and skipped.
 
+Before the first REEF-414 rollout, an owner/admin must perform a one-time
+lifecycle registration audit from an inventory that is independent of the
+migration service membership:
+
+1. Enumerate every existing vault with a Reef config and record its canonical
+   vault name. Do not use the service key's `/my/vaults` result as this source.
+2. Verify the complete Reef table manifest and stored schema version read-only,
+   install the current vault skill if required, and read the durable config.
+3. Grant the configured migration identity exactly `writer` and read the member
+   roster back. Never compensate by revoking or restoring a previous role.
+4. Create `overview/reef-initialization.md` through the initialization marker
+   primitives, using the canonical URI returned by AKB and a fingerprint of the
+   canonical vault name plus normalized existing config. Advance each state
+   with `expected_commit` only after its corresponding observable is verified;
+   finish at `ready`. Do not send the vault through `POST /api/vaults`, which
+   intentionally rejects config-without-marker as an initialization conflict.
+5. Re-enumerate with the service key and require every audited vault to appear
+   with exact writer membership, a ready marker, readable config, and verified
+   schema. Stop the rollout if the owner inventory and service inventory differ.
+
+This registration backfill changes lifecycle metadata and membership, not Reef
+table data. The release runner deliberately does not auto-adopt config-only
+vaults because it cannot distinguish them safely from partial or unrelated
+state.
+
+AKB v1 `/my/vaults` is membership-scoped. A private registered vault becomes
+invisible if the service membership is removed completely, so the runner cannot
+detect that missing member by itself. Keep the owner/admin inventory and the
+successful readback audit as rollout evidence, repeat that audit after service
+credential or membership changes, and treat any inventory difference as a
+deployment blocker.
+
 ### Kubernetes and local development
 
 The Kubernetes reference implementation runs the gate in an `initContainer` so
@@ -227,7 +259,9 @@ vault-skill reinstall, or no action. A policy-only change that executes none of
 these must say so explicitly in `CHANGELOG.md`.
 
 REEF-414 implements the runner and ownership boundary without adding a catalog
-operation, changing `REEF_SCHEMA_VERSION`, or running a data backfill.
+operation, changing `REEF_SCHEMA_VERSION`, or running a Reef table data
+backfill. Existing configured workspaces still require the lifecycle
+marker/membership registration procedure above before rollout.
 
 ## Vault Skill Documents
 

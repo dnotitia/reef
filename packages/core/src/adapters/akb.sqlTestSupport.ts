@@ -5,6 +5,7 @@ import {
   REEF_ACTIVITY_TABLE,
   REEF_ATTACHMENTS_TABLE,
   REEF_COMMENTS_TABLE,
+  REEF_DESIRED_TABLES,
   REEF_ISSUES_TABLE,
   REEF_MILESTONES_TABLE,
   REEF_RELEASES_TABLE,
@@ -67,7 +68,10 @@ export function makeListTablesResponse(names: string[]): unknown {
   return {
     kind: "table",
     vault: "reef-sample",
-    items: names.map((name) => ({ name })),
+    items: names.map((name) => {
+      const manifest = REEF_DESIRED_TABLES.find((table) => table.name === name);
+      return { name, ...(manifest ? { columns: manifest.columns } : {}) };
+    }),
   };
 }
 

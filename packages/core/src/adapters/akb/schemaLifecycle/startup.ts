@@ -7,7 +7,11 @@ import {
   verifyWorkspaceSchema,
 } from "../core/tables";
 import { readConfig } from "../workspace/config";
-import { readWorkspaceInitializationMarker } from "../workspace/initializationMarker";
+import {
+  type StoredWorkspaceInitializationMarker,
+  readWorkspaceInitializationMarker,
+  updateWorkspaceInitializationSchemaVersion,
+} from "../workspace/initializationMarker";
 import { listVaultMembers, listVaults } from "../workspace/vaults";
 import {
   WORKSPACE_MIGRATION_CATALOG,
@@ -52,6 +56,7 @@ export interface StartupMigrationOperatorReport {
 
 interface RegisteredWorkspace {
   vault: string;
+  marker: StoredWorkspaceInitializationMarker;
 }
 
 function scopesAreExactReadWrite(scopes: readonly string[]): boolean {
@@ -136,9 +141,30 @@ async function preflightInventory(
         vault: vault.name,
       });
     }
-    registered.push({ vault: vault.name });
+    registered.push({ vault: vault.name, marker });
   }
   return { registered, skipped };
+}
+
+function pendingEntries(
+  catalog: WorkspaceMigrationCatalog,
+  currentVersion: number,
+) {
+  if (currentVersion === catalog.targetVersion) return [];
+  if (currentVersion > catalog.targetVersion) {
+    throw new SchemaLifecycleError({ reason: "migration_catalog_invalid" });
+  }
+  const start = catalog.entries.findIndex(
+    (entry) => entry.fromVersion === currentVersion,
+  );
+  if (start < 0) {
+    throw new SchemaLifecycleError({ reason: "migration_catalog_invalid" });
+  }
+  const pending = catalog.entries.slice(start);
+  if (pending.at(-1)?.toVersion !== catalog.targetVersion) {
+    throw new SchemaLifecycleError({ reason: "migration_catalog_invalid" });
+  }
+  return pending;
 }
 
 export interface RunStartupWorkspaceMigrationsParams {
@@ -160,16 +186,20 @@ export async function runStartupWorkspaceMigrations(
   const catalog = params.catalog ?? WORKSPACE_MIGRATION_CATALOG;
   await preflightIdentity(params.adapter, apiKey, serviceUsername);
   const inventory = await preflightInventory(params.adapter, serviceUsername);
+  const planned = inventory.registered.map((workspace) => ({
+    ...workspace,
+    pending: pendingEntries(catalog, workspace.marker.marker.schema_version),
+  }));
 
   const workspaces: StartupMigrationWorkspaceReport[] = [];
-  for (const workspace of inventory.registered) {
+  for (const workspace of planned) {
     const report: StartupMigrationWorkspaceReport = {
       vault: workspace.vault,
       appliedPhases: 0,
       replayedPhases: 0,
       checksums: [],
     };
-    for (const entry of catalog.entries) {
+    for (const entry of workspace.pending) {
       try {
         const result = await applyAkbTableMigration({
           adapter: params.adapter,
@@ -193,10 +223,27 @@ export async function runStartupWorkspaceMigrations(
         adapter: params.adapter,
         vault: workspace.vault,
       });
-      await verifyWorkspaceSchema({
+      const verification = await verifyWorkspaceSchema({
         adapter: params.adapter,
         vault: workspace.vault,
       });
+      if (
+        !verification.manifestVerified ||
+        verification.schemaVersion !== catalog.targetVersion
+      ) {
+        throw new SchemaLifecycleError({
+          reason: "schema_mismatch",
+          vault: workspace.vault,
+        });
+      }
+      if (workspace.marker.marker.schema_version < catalog.targetVersion) {
+        await updateWorkspaceInitializationSchemaVersion(
+          params.adapter,
+          workspace.vault,
+          workspace.marker,
+          catalog.targetVersion,
+        );
+      }
     } catch (error) {
       if (error instanceof SchemaLifecycleError) throw error;
       throw new SchemaLifecycleError({

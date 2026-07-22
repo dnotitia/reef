@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mockOpenTelemetry } from "../../../agents/tools/__test-helpers__/otelMock";
 import {
+  REEF_DESIRED_TABLES,
+  REEF_SCHEMA_VERSION,
+  REEF_SETTINGS_SCHEMA_VERSION_KEY,
   REEF_VAULT_SKILL_VERSION,
   buildReefVaultSkillDocuments,
   createAkbAdapter,
@@ -33,6 +36,32 @@ function setupFetch(responses: FetchResponseSpec[]): FetchCall[] {
   const calls: FetchCall[] = [];
   const queue = [...responses];
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    const body =
+      typeof init?.body === "string"
+        ? (JSON.parse(init.body) as { sql?: unknown })
+        : null;
+    if (
+      typeof body?.sql === "string" &&
+      body.sql.startsWith("SELECT ") &&
+      body.sql.includes(`'${REEF_SETTINGS_SCHEMA_VERSION_KEY}'`)
+    ) {
+      return new Response(
+        JSON.stringify({
+          kind: "table_query",
+          columns: ["value"],
+          items: [
+            {
+              value: JSON.stringify({
+                version: REEF_SCHEMA_VERSION,
+                applied_at: "2026-07-22T00:00:00.000Z",
+              }),
+            },
+          ],
+          total: 1,
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
     calls.push({ url, init });
     const next = queue.shift();
     if (!next) {
@@ -83,7 +112,11 @@ function stampResponses(): FetchResponseSpec[] {
       body: {
         kind: "table",
         vault: "reef-new",
-        items: ALL_REEF_TABLES.map((name) => ({ name })),
+        items: ALL_REEF_TABLES.map((name) => ({
+          name,
+          columns: REEF_DESIRED_TABLES.find((table) => table.name === name)
+            ?.columns,
+        })),
       },
     },
     { body: { kind: "table_sql", result: "DELETE 0" } },

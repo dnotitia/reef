@@ -84,10 +84,12 @@ describe("ensureReefTables", () => {
       { status: 201, body: { name: REEF_ATTACHMENTS_TABLE } },
       { status: 201, body: { name: REEF_ACTIVITY_TABLE } },
       { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { body: makeSqlMutationResponse("DELETE 0") },
+      { body: makeSqlMutationResponse("INSERT 0 1") },
     ]);
     const adapter = makeAdapter();
     await ensureReefTables({ adapter, vault: "reef-sample" });
-    expect(calls).toHaveLength(13);
+    expect(calls).toHaveLength(15);
     expect(calls[0]?.url).toBe("https://akb.test/api/v1/tables/reef-sample");
     expect(calls[0]?.init?.method ?? "GET").toBe("GET");
     const firstCreate = JSON.parse(calls[1]?.init?.body as string);
@@ -317,10 +319,12 @@ describe("ensureReefTables", () => {
       { status: 201, body: { name: REEF_ATTACHMENTS_TABLE } },
       { status: 201, body: { name: REEF_ACTIVITY_TABLE } },
       { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { body: makeSqlMutationResponse("DELETE 0") },
+      { body: makeSqlMutationResponse("INSERT 0 1") },
     ]);
     const adapter = makeAdapter();
     await ensureReefTables({ adapter, vault: "reef-sample" });
-    expect(calls).toHaveLength(12);
+    expect(calls).toHaveLength(14);
     const createdNames = calls
       .slice(1, 11)
       .map((c) => JSON.parse(c.init?.body as string).name);

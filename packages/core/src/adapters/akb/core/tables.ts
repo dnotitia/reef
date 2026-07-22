@@ -627,10 +627,9 @@ export async function reconcileWorkspaceSchema(
 /**
  * Read and validate a workspace schema without creating, altering, or stamping.
  *
- * Older AKB list responses did not include column metadata. That compatibility
- * shape can prove table presence only, so it returns `manifestVerified: false`;
- * current AKB responses are checked against the complete manifest and exact
- * release schema version.
+ * AKB responses without column metadata cannot prove compatibility and fail
+ * closed. Current responses are checked against the complete manifest and
+ * exact release schema version.
  */
 export async function verifyWorkspaceSchema(
   params: WorkspaceSchemaParams,
@@ -648,7 +647,7 @@ export async function verifyWorkspaceSchema(
 
     if (!canVerifySchema(tables)) {
       span.setAttribute("manifest_verified", false);
-      return { schemaVersion: null, manifestVerified: false };
+      throw new SchemaLifecycleError({ reason: "schema_mismatch", vault });
     }
 
     try {

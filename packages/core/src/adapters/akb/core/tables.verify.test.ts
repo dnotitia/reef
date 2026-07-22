@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
+import { SchemaLifecycleError } from "../../../errors";
 import { REEF_DESIRED_TABLES, REEF_SCHEMA_VERSION } from "./tableManifest";
 import { verifyWorkspaceSchema } from "./tables";
 
@@ -41,5 +42,19 @@ describe("verifyWorkspaceSchema", () => {
     expect(request.mock.calls[1]?.[1]?.body).toMatchObject({
       sql: expect.stringMatching(/^SELECT /),
     });
+  });
+
+  it("fails closed when AKB omits column metadata", async () => {
+    const request = vi.fn().mockResolvedValue({
+      kind: "table",
+      vault: "reef-sample",
+      items: REEF_DESIRED_TABLES.map((table) => ({ name: table.name })),
+    });
+
+    await expect(
+      verifyWorkspaceSchema({ adapter: { request }, vault: "reef-sample" }),
+    ).rejects.toBeInstanceOf(SchemaLifecycleError);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request.mock.calls[0]?.[1]?.method).toBeUndefined();
   });
 });

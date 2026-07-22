@@ -1,5 +1,8 @@
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
+import reefTableManifest from "./reef-table-manifest.json" with {
+  type: "json",
+};
 
 const PORT = Number(process.env.REEF_E2E_MOCK_PORT ?? 7354);
 const HOST = process.env.REEF_E2E_MOCK_HOST ?? "127.0.0.1";
@@ -310,6 +313,10 @@ function configuredVault(name) {
     settings: new Map([
       ["project_prefix", "REEF"],
       ["ai_scanning_enabled", true],
+      [
+        "schema_version",
+        { version: 1, applied_at: "2026-07-22T00:00:00.000Z" },
+      ],
     ]),
     monitoredRepos: [],
     issues,
@@ -993,14 +1000,22 @@ async function handleAkb(req, res, url) {
     return json(res, 200, {
       kind: "table",
       vault: vault.name,
-      items: [...vault.tables].map((name) => ({ name })),
+      items: [...vault.tables].map((name) => ({
+        name,
+        columns: reefTableManifest[name],
+      })),
     });
   }
   if (tablesMatch && req.method === "POST") {
     const vault = getVault(decodeURIComponent(tablesMatch[1]), res);
     if (!vault) return;
     const body = await readJson(req);
-    if (typeof body?.name === "string") vault.tables.add(body.name);
+    if (typeof body?.name === "string") {
+      vault.tables.add(body.name);
+      if (Array.isArray(body.columns)) {
+        reefTableManifest[body.name] = body.columns;
+      }
+    }
     return json(res, 200, { ok: true });
   }
 

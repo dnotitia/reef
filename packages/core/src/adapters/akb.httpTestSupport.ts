@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, vi } from "vitest";
-import { createAkbAdapter } from "./akb";
+import {
+  REEF_SCHEMA_VERSION,
+  REEF_SETTINGS_SCHEMA_VERSION_KEY,
+  createAkbAdapter,
+} from "./akb";
 
 // ── OTel passthrough (mirrors github.test.ts) ────────────────────────────────
 type SpanMock = {
@@ -56,6 +60,40 @@ export function setupFetch(responses: FetchResponseSpec[]): {
   const calls: FetchCall[] = [];
   const queue = [...responses];
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    const requestBody =
+      typeof init?.body === "string"
+        ? (JSON.parse(init.body) as { sql?: unknown })
+        : null;
+    const isSchemaVersionRead =
+      typeof requestBody?.sql === "string" &&
+      requestBody.sql.startsWith("SELECT ") &&
+      requestBody.sql.includes(`'${REEF_SETTINGS_SCHEMA_VERSION_KEY}'`);
+    const queuedBody = queue[0]?.body as
+      | { kind?: unknown; columns?: unknown }
+      | undefined;
+    const hasExplicitVersionResponse =
+      queuedBody?.kind === "table_query" &&
+      Array.isArray(queuedBody.columns) &&
+      queuedBody.columns.includes("value");
+    if (isSchemaVersionRead && !hasExplicitVersionResponse) {
+      return new Response(
+        JSON.stringify({
+          kind: "table_query",
+          vaults: ["reef-sample"],
+          columns: ["value"],
+          items: [
+            {
+              value: JSON.stringify({
+                version: REEF_SCHEMA_VERSION,
+                applied_at: "2026-07-22T00:00:00.000Z",
+              }),
+            },
+          ],
+          total: 1,
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
     calls.push({ url, init });
     const next = queue.shift();
     if (!next) {

@@ -5,6 +5,8 @@ import {
   REEF_INITIALIZATION_MARKER_PATH,
   advanceWorkspaceInitializationMarker,
   createWorkspaceInitializationMarker,
+  readWorkspaceInitializationMarker,
+  updateWorkspaceInitializationSchemaVersion,
 } from "./initializationMarker";
 
 const fingerprint = "a".repeat(64);
@@ -27,6 +29,22 @@ function document(state: string, commit: string) {
 }
 
 describe("workspace initialization marker", () => {
+  it("reads an older workspace schema version for startup migration", async () => {
+    const older = document("ready", "c1");
+    older.content = JSON.stringify({
+      schema_version: 1,
+      state: "ready",
+      request_fingerprint: fingerprint,
+    });
+
+    await expect(
+      readWorkspaceInitializationMarker(
+        { request: vi.fn().mockResolvedValue(older) },
+        "reef-sample",
+      ),
+    ).resolves.toMatchObject({ marker: { schema_version: 1 } });
+  });
+
   it("uses the canonical create-response URI after durable readback", async () => {
     const request = vi
       .fn()
@@ -118,5 +136,39 @@ describe("workspace initialization marker", () => {
       ),
     ).rejects.toBeInstanceOf(SchemaLifecycleError);
     expect(request).not.toHaveBeenCalled();
+  });
+
+  it("advances a ready marker schema version with OCC and durable readback", async () => {
+    const current = {
+      uri: document("ready", "c1").uri,
+      path: REEF_INITIALIZATION_MARKER_PATH,
+      currentCommit: "c1",
+      marker: {
+        schema_version: 1,
+        state: "ready" as const,
+        request_fingerprint: fingerprint,
+      },
+    };
+    const migrated = document("ready", "c2");
+    migrated.content = JSON.stringify({
+      ...current.marker,
+      schema_version: 2,
+    });
+    const request = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("response lost"))
+      .mockResolvedValueOnce(migrated);
+
+    await expect(
+      updateWorkspaceInitializationSchemaVersion(
+        { request },
+        "reef-sample",
+        current,
+        2,
+      ),
+    ).resolves.toMatchObject({ marker: { schema_version: 2 } });
+    expect(request.mock.calls[0]?.[1]?.body).toMatchObject({
+      expected_commit: "c1",
+    });
   });
 });
