@@ -189,15 +189,22 @@ scope and an exact configured username. Registered workspaces are those with
 both that exact writer membership and a fixed, ready lifecycle marker, plus a
 readable durable config. The marker fingerprint identifies the immutable
 initialization request; later routine config edits do not rewrite it.
-Marker-only, member-only, or non-ready workspaces fail the full preflight before any mutation;
-unregistered vaults are counted and skipped.
+Marker-only, member-only, or non-ready workspaces fail the full preflight before
+any mutation; unregistered vaults are counted and skipped.
 
-Before the first REEF-414 rollout, an owner/admin must perform a one-time
-lifecycle registration audit from an inventory that is independent of the
-migration service membership:
+The deployment must provide `REEF_SCHEMA_EXPECTED_WORKSPACES` as a JSON array of
+canonical Reef vault names. This is the authoritative inventory because it is
+independent of the migration service membership. The runner compares it with the
+complete ready workspace set visible through the service key on every start and
+fails before mutation when a name is missing or unexpected. `[]` is the explicit
+empty deployment, not an omitted default.
+
+Before the first REEF-414 rollout, an owner/admin must perform a lifecycle
+registration audit that establishes this inventory:
 
 1. Enumerate every existing vault with a Reef config and record its canonical
-   vault name. Do not use the service key's `/my/vaults` result as this source.
+   vault name in `REEF_SCHEMA_EXPECTED_WORKSPACES`. Do not use the service key's
+   `/my/vaults` result as this source.
 2. Verify the complete Reef table manifest and stored schema version read-only,
    install the current vault skill if required, and read the durable config.
 3. Grant the configured migration identity exactly `writer` and read the member
@@ -208,9 +215,9 @@ migration service membership:
    with `expected_commit` only after its corresponding observable is verified;
    finish at `ready`. Do not send the vault through `POST /api/vaults`, which
    intentionally rejects config-without-marker as an initialization conflict.
-5. Re-enumerate with the service key and require every audited vault to appear
-   with exact writer membership, a ready marker, readable config, and verified
-   schema. Stop the rollout if the owner inventory and service inventory differ.
+5. Re-enumerate with the service key and require the ready workspace names to
+   equal the deployment inventory, with exact writer membership, readable config,
+   and verified schema for each. Stop the rollout if the inventories differ.
 
 This registration backfill changes lifecycle metadata and membership, not Reef
 table data. The release runner deliberately does not auto-adopt config-only
@@ -218,11 +225,10 @@ vaults because it cannot distinguish them safely from partial or unrelated
 state.
 
 AKB v1 `/my/vaults` is membership-scoped. A private registered vault becomes
-invisible if the service membership is removed completely, so the runner cannot
-detect that missing member by itself. Keep the owner/admin inventory and the
-successful readback audit as rollout evidence, repeat that audit after service
-credential or membership changes, and treat any inventory difference as a
-deployment blocker.
+invisible if the service membership is removed completely; its deployment-owned
+name remains in the expected inventory, so the next startup fails closed. Update
+the inventory whenever a workspace is initialized or retired, and retain the
+owner/admin source plus successful startup report as rollout evidence.
 
 ### Kubernetes and local development
 

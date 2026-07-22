@@ -172,6 +172,7 @@ describe("startup migrations for a future release catalog", () => {
       adapter: adapterWithIdentity(),
       apiKey: "secret-value",
       serviceUsername: "reef-schema",
+      expectedWorkspaces: ["current", "older"],
       catalog,
     });
 
@@ -196,6 +197,7 @@ describe("startup migrations for a future release catalog", () => {
       adapter: adapterWithIdentity(),
       apiKey: "secret-value",
       serviceUsername: "reef-schema",
+      expectedWorkspaces: ["older"],
       catalog: reconcileOnlyCatalog,
     });
 
@@ -251,6 +253,7 @@ describe("startup migrations for a future release catalog", () => {
       adapter: adapterWithIdentity(),
       apiKey: "secret-value",
       serviceUsername: "reef-schema",
+      expectedWorkspaces: ["older"],
       catalog: catchUpCatalog,
     });
 
@@ -273,6 +276,7 @@ describe("startup migrations for a future release catalog", () => {
         adapter: adapterWithIdentity(),
         apiKey: "secret-value",
         serviceUsername: "reef-schema",
+        expectedWorkspaces: ["alpha", "beta"],
         catalog,
       }),
     ).rejects.toMatchObject({

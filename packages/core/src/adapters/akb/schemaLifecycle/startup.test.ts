@@ -134,6 +134,7 @@ describe("startup workspace migrations", () => {
           adapter,
           apiKey: "secret-value",
           serviceUsername: "reef-schema",
+          expectedWorkspaces: [],
         }),
       ).rejects.toBeInstanceOf(SchemaLifecycleError);
       expect(mocks.listVaults).not.toHaveBeenCalled();
@@ -162,6 +163,7 @@ describe("startup workspace migrations", () => {
         adapter: adapterWithIdentity(),
         apiKey: "secret-value",
         serviceUsername: "reef-schema",
+        expectedWorkspaces: ["alpha", "beta"],
       }),
     ).rejects.toBeInstanceOf(SchemaLifecycleError);
     expect(mocks.applyMigration).not.toHaveBeenCalled();
@@ -188,6 +190,7 @@ describe("startup workspace migrations", () => {
           adapter: adapterWithIdentity(),
           apiKey: "secret-value",
           serviceUsername: "reef-schema",
+          expectedWorkspaces: ["misconfigured"],
         }),
       ).rejects.toMatchObject({
         context: {
@@ -205,6 +208,7 @@ describe("startup workspace migrations", () => {
       adapter: adapterWithIdentity(),
       apiKey: "secret-value",
       serviceUsername: "reef-schema",
+      expectedWorkspaces: ["alpha", "zeta"],
     });
 
     expect(mocks.applyMigration).not.toHaveBeenCalled();
@@ -225,6 +229,7 @@ describe("startup workspace migrations", () => {
         adapter,
         apiKey: "secret-value",
         serviceUsername: "reef-schema",
+        expectedWorkspaces: [],
         catalog,
       }),
     ).rejects.toMatchObject({
@@ -271,6 +276,7 @@ describe("startup workspace migrations", () => {
         adapter: adapterWithIdentity(),
         apiKey: "secret-value",
         serviceUsername: "reef-schema",
+        expectedWorkspaces: ["too-old"],
         catalog,
       }),
     ).rejects.toMatchObject({
@@ -279,4 +285,27 @@ describe("startup workspace migrations", () => {
     expect(mocks.applyMigration).not.toHaveBeenCalled();
     expect(mocks.reconcile).not.toHaveBeenCalled();
   });
+
+  it.each([
+    { visible: ["alpha"], expected: ["alpha", "missing"] },
+    { visible: ["alpha", "unexpected"], expected: ["alpha"] },
+  ])(
+    "rejects service-visible inventory that differs from deployment inventory",
+    async ({ visible, expected }) => {
+      readyInventory(visible);
+
+      await expect(
+        runStartupWorkspaceMigrations({
+          adapter: adapterWithIdentity(),
+          apiKey: "secret-value",
+          serviceUsername: "reef-schema",
+          expectedWorkspaces: expected,
+        }),
+      ).rejects.toMatchObject({
+        context: { reason: "migration_inventory_invalid" },
+      });
+      expect(mocks.applyMigration).not.toHaveBeenCalled();
+      expect(mocks.reconcile).not.toHaveBeenCalled();
+    },
+  );
 });

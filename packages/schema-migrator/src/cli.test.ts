@@ -90,6 +90,7 @@ describe("schema migrator public projection", () => {
       AKB_BACKEND_URL: "https://akb.example",
       REEF_SCHEMA_MIGRATION_KEY: "DO_NOT_LEAK_SECRET",
       REEF_SCHEMA_SERVICE_USERNAME: "reef-schema",
+      REEF_SCHEMA_EXPECTED_WORKSPACES: '["reef-alpha"]',
     });
 
     expect(mocks.createAdapter).toHaveBeenCalledWith({
@@ -100,6 +101,7 @@ describe("schema migrator public projection", () => {
       adapter,
       apiKey: "DO_NOT_LEAK_SECRET",
       serviceUsername: "reef-schema",
+      expectedWorkspaces: ["reef-alpha"],
     });
     expect(JSON.stringify(result)).not.toContain("DO_NOT_LEAK_SECRET");
   });
@@ -119,6 +121,7 @@ describe("schema migrator public projection", () => {
       AKB_BACKEND_URL: "https://akb.example",
       REEF_SCHEMA_MIGRATION_KEY: apiKey,
       REEF_SCHEMA_SERVICE_USERNAME: "reef-schema",
+      REEF_SCHEMA_EXPECTED_WORKSPACES: "[]",
     });
 
     expect(mocks.createAdapter).toHaveBeenCalledWith({
@@ -138,4 +141,27 @@ describe("schema migrator public projection", () => {
     });
     expect(mocks.createAdapter).not.toHaveBeenCalled();
   });
+
+  it.each([
+    undefined,
+    "not-json",
+    "{}",
+    '["", "reef-alpha"]',
+    '["reef-alpha", "reef-alpha"]',
+  ])(
+    "rejects an invalid authoritative workspace inventory",
+    async (inventory) => {
+      await expect(
+        runCli({
+          AKB_BACKEND_URL: "https://akb.example",
+          REEF_SCHEMA_MIGRATION_KEY: "secret-value",
+          REEF_SCHEMA_SERVICE_USERNAME: "reef-schema",
+          REEF_SCHEMA_EXPECTED_WORKSPACES: inventory,
+        }),
+      ).rejects.toMatchObject({
+        context: { reason: "migration_config_invalid" },
+      });
+      expect(mocks.createAdapter).not.toHaveBeenCalled();
+    },
+  );
 });
