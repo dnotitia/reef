@@ -107,7 +107,6 @@ async function preflightIdentity(
 async function preflightInventory(
   adapter: AkbAdapter,
   serviceUsername: string,
-  expectedWorkspaces: readonly string[],
 ): Promise<{ registered: RegisteredWorkspace[]; skipped: number }> {
   const { vaults } = await listVaults({ adapter });
   const registered: RegisteredWorkspace[] = [];
@@ -145,15 +144,6 @@ async function preflightInventory(
     }
     registered.push({ vault: vault.name, marker });
   }
-
-  const actualNames = registered.map(({ vault }) => vault).sort();
-  const expectedNames = [...expectedWorkspaces].sort();
-  if (
-    actualNames.length !== expectedNames.length ||
-    actualNames.some((vault, index) => vault !== expectedNames[index])
-  ) {
-    throw new SchemaLifecycleError({ reason: "migration_inventory_invalid" });
-  }
   return { registered, skipped };
 }
 
@@ -182,8 +172,6 @@ export interface RunStartupWorkspaceMigrationsParams {
   adapter: AkbAdapter;
   apiKey: string;
   serviceUsername: string;
-  /** Deployment-owned canonical names, independent of service membership. */
-  expectedWorkspaces: readonly string[];
   catalog?: WorkspaceMigrationCatalog;
 }
 
@@ -193,15 +181,7 @@ export async function runStartupWorkspaceMigrations(
 ): Promise<StartupMigrationOperatorReport> {
   const apiKey = params.apiKey;
   const serviceUsername = params.serviceUsername.trim();
-  const expectedWorkspaces = params.expectedWorkspaces.map((vault) =>
-    vault.trim(),
-  );
-  if (
-    !apiKey.trim() ||
-    !serviceUsername ||
-    expectedWorkspaces.some((vault) => !vault) ||
-    new Set(expectedWorkspaces).size !== expectedWorkspaces.length
-  ) {
+  if (!apiKey.trim() || !serviceUsername) {
     throw new SchemaLifecycleError({ reason: "migration_config_invalid" });
   }
   const catalog = params.catalog ?? WORKSPACE_MIGRATION_CATALOG;
@@ -212,11 +192,7 @@ export async function runStartupWorkspaceMigrations(
     throw new SchemaLifecycleError({ reason: "migration_catalog_invalid" });
   }
   await preflightIdentity(params.adapter, apiKey, serviceUsername);
-  const inventory = await preflightInventory(
-    params.adapter,
-    serviceUsername,
-    expectedWorkspaces,
-  );
+  const inventory = await preflightInventory(params.adapter, serviceUsername);
   const planned = inventory.registered.map((workspace) => ({
     ...workspace,
     pending: pendingEntries(catalog, workspace.marker.marker.schema_version),

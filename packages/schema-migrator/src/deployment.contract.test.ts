@@ -40,10 +40,5 @@ describe("schema migration deployment contract", () => {
     const appContainer = deployment.split("      containers:")[1] ?? "";
     expect(appContainer).not.toContain("reef-schema-migrator-secret");
     expect(deployment).not.toMatch(/^kind: Job$/m);
-    const configMap = readFileSync(
-      join(repoRoot, "deploy/k8s/base/configmap.yaml"),
-      "utf8",
-    );
-    expect(configMap).toContain('REEF_SCHEMA_EXPECTED_WORKSPACES: "[]"');
   });
 });

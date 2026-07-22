@@ -11,6 +11,5 @@ data:
   # if yours differs), e.g. http://backend.<akb-namespace>.svc.cluster.local:8000.
   AKB_BACKEND_URL: "http://akb-backend.example.svc.cluster.local:8000"
   REEF_SCHEMA_SERVICE_USERNAME: "reef-schema-migrator"
-  REEF_SCHEMA_EXPECTED_WORKSPACES: "[]"
   # reef-web's canonical public origin. Must match the ingress host below.
   REEF_PUBLIC_ORIGIN: "https://reef.example.com"

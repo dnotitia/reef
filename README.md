@@ -77,8 +77,7 @@ cp .env.migration.example .env.migration.local
 pnpm dev
 ```
 
-Set the development-only migration PAT and the JSON
-`REEF_SCHEMA_EXPECTED_WORKSPACES` inventory in `.env.migration.local`; the root
+Set the development-only migration PAT in `.env.migration.local`; the root
 wrapper runs the schema gate once and will not start Next.js if it fails. The
 wrapper removes `REEF_SCHEMA_MIGRATION_KEY` from the long-running web process.
 By default, `packages/web/.env.local` points `AKB_BACKEND_URL` at

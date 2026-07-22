@@ -13,8 +13,7 @@
   workspace initialization and the release pre-start migration service.
   `verifyWorkspaceSchema` is the read-only consumer for every feature path.
   Existing-table evolution runs only in the release pre-start gate: enumerate
-  every registered workspace and require its marker/member set to equal the
-  deployment-owned canonical inventory,
+  every registered workspace from the authoritative marker/member inventory,
   apply operation phases through `akbApplyTableMigration`, execute manifest-only
   phases through explicit reconciliation, then verify the exact
   manifest/version. Any workspace failure blocks

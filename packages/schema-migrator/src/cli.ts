@@ -9,25 +9,6 @@ import {
 
 const PUBLIC_ERROR_CODE = "schema_migration_failed";
 
-function parseExpectedWorkspaces(raw: string | undefined): string[] {
-  try {
-    const value: unknown = JSON.parse(raw ?? "");
-    if (!Array.isArray(value)) throw new Error("not an array");
-    const workspaces = value.map((item) =>
-      typeof item === "string" ? item.trim() : "",
-    );
-    if (
-      workspaces.some((vault) => !vault) ||
-      new Set(workspaces).size !== workspaces.length
-    ) {
-      throw new Error("invalid workspace inventory");
-    }
-    return workspaces;
-  } catch {
-    throw new SchemaLifecycleError({ reason: "migration_config_invalid" });
-  }
-}
-
 export interface PublicMigrationReport {
   status: "completed";
   workspace_count: number;
@@ -84,15 +65,11 @@ export async function runCli(
   if (!baseUrl || !apiKey.trim() || !serviceUsername) {
     throw new SchemaLifecycleError({ reason: "migration_config_invalid" });
   }
-  const expectedWorkspaces = parseExpectedWorkspaces(
-    env.REEF_SCHEMA_EXPECTED_WORKSPACES,
-  );
   const adapter = createAkbAdapter({ baseUrl, jwt: apiKey });
   const report = await runStartupWorkspaceMigrations({
     adapter,
     apiKey,
     serviceUsername,
-    expectedWorkspaces,
   });
   return projectPublicMigrationReport(report);
 }

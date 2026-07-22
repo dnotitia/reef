@@ -97,14 +97,6 @@ kubectl create secret generic reef-schema-migrator-secret \
   --from-literal=REEF_SCHEMA_MIGRATION_KEY='<service-pat>'
 ```
 
-Set `REEF_SCHEMA_EXPECTED_WORKSPACES` in the same ConfigMap to a JSON array of
-every canonical Reef workspace vault name, for example
-`["reef-platform","reef-mobile"]`. Use `[]` only when the deployment has no Reef
-workspaces. Add a newly initialized workspace before the next rollout and remove
-a deleted workspace in the same operator change that retires it. Startup compares
-this deployment-owned inventory with the complete ready workspace set visible to
-the service identity and fails before mutation on any missing or unexpected name.
-
 The `Recreate` Deployment runs the bundled schema runner as an init container.
 Its full inventory preflight and every registered workspace migration must pass
 before reef-web starts. The application container does not receive this Secret.
