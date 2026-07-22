@@ -1,13 +1,23 @@
 "use client";
 
 import { LoginForm } from "@/features/auth/components/LoginForm";
+import {
+  type PendingAkbAccountErrorSnapshot,
+  consumePendingAkbAccountError,
+  isAkbAccountDenialTokenCleared,
+  peekPendingAkbAccountError,
+  snapshotPendingAkbAccountError,
+  subscribeAkbAccountDenialCleared,
+  subscribeAkbAccountDenied,
+} from "@/lib/akb/accountDenialClient";
 import { normalizeSafeRedirect } from "@/lib/akb/safeRedirect";
 import { apiFetch } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
-import { AkbAuthConfigSchema } from "@reef/core";
+import { AkbAuthConfigSchema, isAkbAccountErrorCode } from "@reef/core";
 import { Building2, KeyRound, ShieldCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 export interface LoginPanelProps {
   redirectTo?: string;
@@ -23,11 +33,107 @@ function akbPlatformToken(chunks: ReactNode) {
 }
 
 export function LoginPanel({ redirectTo = "/" }: LoginPanelProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const safeRedirect = normalizeSafeRedirect(redirectTo);
   const [capabilities, setCapabilities] = useState<AuthCapabilities | null>(
     null,
   );
+  const pendingReplacementTokenRef = useRef<string | undefined>(undefined);
   const t = useTranslations("auth.panel");
+
+  useEffect(() => {
+    const replaceSearchParams = (nextParams: URLSearchParams) => {
+      const query = nextParams.toString();
+      router.replace(query ? `/login?${query}` : "/login");
+    };
+
+    const replaceAccountError = (code: string, token?: string) => {
+      const nextParams = new URLSearchParams(searchParams.toString());
+      nextParams.set("sso_error", code);
+      if (token) nextParams.set("sso_error_token", token);
+      else nextParams.delete("sso_error_token");
+      pendingReplacementTokenRef.current = token;
+      replaceSearchParams(nextParams);
+    };
+
+    const clearAccountError = (token: string) => {
+      if (
+        searchParams.get("sso_error_token") !== token &&
+        pendingReplacementTokenRef.current !== token
+      ) {
+        return;
+      }
+      pendingReplacementTokenRef.current = undefined;
+      const nextParams = new URLSearchParams(searchParams.toString());
+      nextParams.delete("sso_error");
+      nextParams.delete("sso_error_token");
+      replaceSearchParams(nextParams);
+    };
+
+    const restoreAccountError = (
+      accountError?: string,
+      eventSnapshot?: PendingAkbAccountErrorSnapshot,
+    ) => {
+      const explicitAccountError = searchParams.get("sso_error");
+      const explicitToken = searchParams.get("sso_error_token");
+      const pending = snapshotPendingAkbAccountError();
+      if (accountError !== undefined) {
+        const liveSnapshot =
+          eventSnapshot ??
+          (pending?.code === accountError ? pending : undefined);
+        if (
+          eventSnapshot &&
+          pending &&
+          (pending.code !== eventSnapshot.code ||
+            pending.token !== eventSnapshot.token)
+        ) {
+          consumePendingAkbAccountError();
+        }
+        if (
+          explicitAccountError !== accountError ||
+          explicitToken !== liveSnapshot?.token
+        ) {
+          replaceAccountError(accountError, liveSnapshot?.token);
+        }
+        return;
+      }
+
+      if (isAkbAccountErrorCode(explicitAccountError)) {
+        if (
+          explicitToken &&
+          !pending &&
+          isAkbAccountDenialTokenCleared(explicitToken)
+        ) {
+          clearAccountError(explicitToken);
+          return;
+        }
+        if (
+          pending &&
+          (!explicitToken ||
+            explicitToken !== pending.token ||
+            explicitAccountError !== pending.code)
+        ) {
+          replaceAccountError(pending.code, pending.token);
+        }
+        return;
+      }
+      const pendingAccountError = peekPendingAkbAccountError();
+      if (pendingAccountError && !searchParams.has("sso_error")) {
+        replaceAccountError(pendingAccountError, pending?.token);
+      }
+    };
+
+    restoreAccountError();
+    const unsubscribeDenied = subscribeAkbAccountDenied(restoreAccountError);
+    const unsubscribeCleared = subscribeAkbAccountDenialCleared(({ token }) =>
+      clearAccountError(token),
+    );
+    return () => {
+      unsubscribeDenied();
+      unsubscribeCleared();
+    };
+  }, [router, searchParams]);
 
   useEffect(() => {
     const controller = new AbortController();
