@@ -48,9 +48,12 @@ test.describe("AKB account denial", () => {
     await setAkbAccountDenial(request, "membership_required");
     await page.reload();
 
-    await expect(page).toHaveURL(/\/login\?sso_error=membership_required$/, {
+    await expect(page).toHaveURL(/\/login\?/, {
       timeout: 15_000,
     });
+    const loginUrl = new URL(page.url());
+    expect(loginUrl.pathname).toBe("/login");
+    expect(loginUrl.searchParams.get("sso_error")).toBe("membership_required");
     await expect(page.locator("p[role='alert']")).toContainText(
       "does not have workspace access",
     );

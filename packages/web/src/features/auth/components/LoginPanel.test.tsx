@@ -1,15 +1,26 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const push = vi.fn();
-const refresh = vi.fn();
+const { push, refresh, replace, searchParamsState } = vi.hoisted(() => ({
+  push: vi.fn(),
+  refresh: vi.fn(),
+  replace: vi.fn(),
+  searchParamsState: { value: "" },
+}));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push, refresh }),
+  useRouter: () => ({ push, refresh, replace }),
+  useSearchParams: () => new URLSearchParams(searchParamsState.value),
 }));
 
+import {
+  consumePendingAkbAccountErrorIfUnchanged,
+  recordAkbAccountDenial,
+  snapshotPendingAkbAccountError,
+  subscribeAkbAccountDenied,
+} from "@/lib/akb/accountDenialClient";
 import { LoginPanel } from "./LoginPanel";
 
 function renderWithQueryClient(ui: ReactElement) {
@@ -22,6 +33,17 @@ function renderWithQueryClient(ui: ReactElement) {
     </QueryClientProvider>,
   );
   return { queryClient };
+}
+
+function expectLatestDenialRedirect(expected: Record<string, string>) {
+  const target = replace.mock.calls.at(-1)?.[0];
+  expect(typeof target).toBe("string");
+  const url = new URL(target as string, "https://reef.test");
+  expect(url.pathname).toBe("/login");
+  for (const [key, value] of Object.entries(expected)) {
+    expect(url.searchParams.get(key)).toBe(value);
+  }
+  expect(url.searchParams.get("sso_error_token")).toMatch(/^[0-9a-f-]{36}$/);
 }
 
 function configResponse(
@@ -46,6 +68,241 @@ describe("LoginPanel", () => {
     vi.unstubAllGlobals();
     push.mockClear();
     refresh.mockClear();
+    replace.mockClear();
+    searchParamsState.value = "";
+    sessionStorage.clear();
+  });
+
+  it("preserves redirect and password query state when restoring a denial", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(configResponse(false)));
+    searchParamsState.value = "redirect=%2Fissues&password=1";
+    recordAkbAccountDenial("membership_required");
+
+    renderWithQueryClient(<LoginPanel redirectTo="/issues" />);
+
+    await waitFor(() =>
+      expectLatestDenialRedirect({
+        redirect: "/issues",
+        password: "1",
+        sso_error: "membership_required",
+      }),
+    );
+  });
+
+  it("preserves a pending denial when the URL has no ordering token", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(configResponse(false)));
+    searchParamsState.value = "sso_error=account_suspended&redirect=%2Fissues";
+    recordAkbAccountDenial("membership_required");
+
+    renderWithQueryClient(<LoginPanel redirectTo="/issues" />);
+
+    await waitFor(() =>
+      expectLatestDenialRedirect({
+        sso_error: "membership_required",
+        redirect: "/issues",
+      }),
+    );
+  });
+
+  it("restores a pending account-denial query after a late plain-login redirect", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(configResponse(false)));
+    recordAkbAccountDenial("membership_required");
+
+    renderWithQueryClient(<LoginPanel />);
+
+    await waitFor(() =>
+      expectLatestDenialRedirect({ sso_error: "membership_required" }),
+    );
+  });
+
+  it("adds ordering provenance to a matching un-tokenized denial URL", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise(() => undefined)),
+    );
+    searchParamsState.value = "sso_error=membership_required";
+    recordAkbAccountDenial("membership_required");
+
+    renderWithQueryClient(<LoginPanel />);
+
+    await waitFor(() =>
+      expectLatestDenialRedirect({ sso_error: "membership_required" }),
+    );
+  });
+
+  it("restores a denial recorded after the login panel mounts", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(configResponse(false)));
+
+    renderWithQueryClient(<LoginPanel />);
+    await waitFor(() =>
+      expect(screen.getByTestId("login-username")).toBeVisible(),
+    );
+
+    act(() => recordAkbAccountDenial("membership_required"));
+
+    await waitFor(() =>
+      expectLatestDenialRedirect({ sso_error: "membership_required" }),
+    );
+  });
+
+  it("replaces an older URL denial when a newer live denial arrives", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(configResponse(false)));
+    searchParamsState.value = "sso_error=account_suspended&redirect=%2Fissues";
+
+    renderWithQueryClient(<LoginPanel redirectTo="/issues" />);
+    await waitFor(() =>
+      expect(screen.getByTestId("login-username")).toBeVisible(),
+    );
+
+    act(() => recordAkbAccountDenial("membership_required"));
+
+    await waitFor(() =>
+      expectLatestDenialRedirect({
+        sso_error: "membership_required",
+        redirect: "/issues",
+      }),
+    );
+  });
+
+  it("restores a newer pending denial recorded during login navigation", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(configResponse(false)));
+    recordAkbAccountDenial("account_suspended");
+    const olderToken = snapshotPendingAkbAccountError()?.token;
+    expect(olderToken).toBeDefined();
+    searchParamsState.value = `sso_error=account_suspended&sso_error_token=${olderToken}`;
+    recordAkbAccountDenial("membership_required");
+
+    renderWithQueryClient(<LoginPanel redirectTo="/issues" />);
+
+    await waitFor(() =>
+      expectLatestDenialRedirect({ sso_error: "membership_required" }),
+    );
+  });
+
+  it("restores pending state when a URL pairs its token with the wrong code", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise(() => undefined)),
+    );
+    recordAkbAccountDenial("membership_required");
+    const token = snapshotPendingAkbAccountError()?.token;
+    expect(token).toBeDefined();
+    searchParamsState.value = `sso_error=account_suspended&sso_error_token=${token}`;
+
+    renderWithQueryClient(<LoginPanel />);
+
+    await waitFor(() =>
+      expectLatestDenialRedirect({ sso_error: "membership_required" }),
+    );
+  });
+
+  it("clears a tokenized denial URL after a successful probe", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise(() => undefined)),
+    );
+    recordAkbAccountDenial("membership_required");
+    const snapshot = snapshotPendingAkbAccountError();
+    expect(snapshot).toBeDefined();
+    searchParamsState.value = `redirect=%2Fissues&sso_error=membership_required&sso_error_token=${snapshot?.token}`;
+
+    renderWithQueryClient(<LoginPanel redirectTo="/issues" />);
+    expect(snapshotPendingAkbAccountError()).toEqual(snapshot);
+    replace.mockClear();
+
+    act(() => consumePendingAkbAccountErrorIfUnchanged(snapshot));
+
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/login?redirect=%2Fissues"),
+    );
+  });
+
+  it("clears a denial while its tokenized URL replacement is still pending", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise(() => undefined)),
+    );
+    recordAkbAccountDenial("membership_required");
+    const snapshot = snapshotPendingAkbAccountError();
+
+    renderWithQueryClient(<LoginPanel />);
+    await waitFor(() =>
+      expectLatestDenialRedirect({ sso_error: "membership_required" }),
+    );
+    replace.mockClear();
+
+    act(() => consumePendingAkbAccountErrorIfUnchanged(snapshot));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/login"));
+  });
+
+  it("clears a tokenized denial URL when its pending record is already gone", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(configResponse(false)));
+    recordAkbAccountDenial("membership_required");
+    const snapshot = snapshotPendingAkbAccountError();
+    consumePendingAkbAccountErrorIfUnchanged(snapshot);
+    searchParamsState.value = `redirect=%2Fissues&sso_error=membership_required&sso_error_token=${snapshot?.token}`;
+
+    renderWithQueryClient(<LoginPanel redirectTo="/issues" />);
+
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/login?redirect=%2Fissues"),
+    );
+  });
+
+  it("keeps a live denial authoritative when storage cannot replace stale state", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise(() => undefined)),
+    );
+    recordAkbAccountDenial("membership_required");
+    const stale = snapshotPendingAkbAccountError();
+    searchParamsState.value = `sso_error=membership_required&sso_error_token=${stale?.token}`;
+    renderWithQueryClient(<LoginPanel />);
+    replace.mockClear();
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("quota exceeded", "QuotaExceededError");
+    });
+
+    act(() => recordAkbAccountDenial("account_suspended"));
+
+    await waitFor(() =>
+      expectLatestDenialRedirect({ sso_error: "account_suspended" }),
+    );
+    const liveSnapshot = snapshotPendingAkbAccountError();
+    expect(liveSnapshot).toEqual(
+      expect.objectContaining({ code: "account_suspended" }),
+    );
+    consumePendingAkbAccountErrorIfUnchanged(liveSnapshot);
+  });
+
+  it("keeps a tokenized live denial authoritative after cross-navigation", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise(() => undefined)),
+    );
+    recordAkbAccountDenial("membership_required");
+    let liveToken: string | undefined;
+    const unsubscribe = subscribeAkbAccountDenied((_code, snapshot) => {
+      liveToken = snapshot?.token;
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("quota exceeded", "QuotaExceededError");
+    });
+    recordAkbAccountDenial("account_suspended");
+    unsubscribe();
+    expect(liveToken).toBeDefined();
+    searchParamsState.value = `sso_error=account_suspended&sso_error_token=${liveToken}`;
+
+    renderWithQueryClient(<LoginPanel />);
+
+    const liveSnapshot = snapshotPendingAkbAccountError();
+    expect(liveSnapshot).toEqual({
+      code: "account_suspended",
+      token: liveToken,
+    });
+    expect(replace).not.toHaveBeenCalled();
+    consumePendingAkbAccountErrorIfUnchanged(liveSnapshot);
   });
 
   it("does not flash password fields while auth policy is loading", () => {

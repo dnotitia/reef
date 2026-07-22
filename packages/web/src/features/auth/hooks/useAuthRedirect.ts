@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  consumePendingAkbAccountError,
+  type PendingAkbAccountErrorSnapshot,
   subscribeAkbAccountDenied,
 } from "@/lib/akb/accountDenialClient";
 import { getAkbSessionStatus } from "@/lib/akb/checkAkbSession";
@@ -49,14 +49,19 @@ export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
         | "membership_required"
         | "account_suspended"
         | "identity_conflict",
+      pending?: PendingAkbAccountErrorSnapshot,
     ) => {
       if (redirectCommitted || controller.signal.aborted) return;
       redirectCommitted = true;
       setStatus("inactive");
-      if (accountError) consumePendingAkbAccountError();
       router.replace(
         accountError
-          ? buildPathWithParams("/login", { sso_error: accountError })
+          ? buildPathWithParams("/login", {
+              sso_error: accountError,
+              ...(pending?.code === accountError
+                ? { sso_error_token: pending.token }
+                : {}),
+            })
           : "/login",
       );
     };
@@ -68,7 +73,15 @@ export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
         if (controller.signal.aborted) return;
 
         if (!session.active) {
-          redirectToLogin(session.accountError);
+          redirectToLogin(
+            session.accountError,
+            session.accountError && session.accountErrorToken
+              ? {
+                  code: session.accountError,
+                  token: session.accountErrorToken,
+                }
+              : undefined,
+          );
           return;
         }
 
