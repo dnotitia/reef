@@ -1,0 +1,288 @@
+import { fingerprintJiraState } from "../execution/diff.js";
+import { JIRA_MAX_ATTACHMENT_BUFFER_BYTES } from "../jira/client.js";
+import {
+  type JiraMigrationLedgerV1,
+  clearJiraCommentQuarantine,
+  jiraCommentSourceIdentity,
+  quarantineJiraCommentSource,
+  removeJiraMigrationBindings,
+} from "../ledger.js";
+import type {
+  JiraCommentPayload,
+  JiraIssuePayload,
+  JiraRemoteLinkPayload,
+  NormalizedJiraAttachment,
+} from "../payloads.js";
+import { normalizeJiraIssue } from "../payloads.js";
+import { importAttachments } from "./attachmentImport.js";
+import { importComments } from "./commentImport.js";
+import { jiraCommentVisibility, revokeCommentTargets } from "./comments.js";
+import type {
+  AttachmentBinding,
+  JiraImportedCommentInput,
+  JiraLinkMapping,
+  JiraRelatedImportFailure,
+  JiraRelatedImportInput,
+  JiraRelatedImportReport,
+  JiraRelatedImportResult,
+  JiraRelatedImportTarget,
+  JiraRelationKind,
+} from "./contracts.js";
+import { updateDescriptionMedia } from "./descriptionMedia.js";
+import { importIssueLinks } from "./issueLinks.js";
+import { importRemoteLinks } from "./remoteLinks.js";
+import { failure, reportTemplate } from "./reporting.js";
+
+export type {
+  JiraImportedAttachmentInput,
+  JiraImportedCommentInput,
+  JiraLinkMapping,
+  JiraRelatedImportFailure,
+  JiraRelatedImportInput,
+  JiraRelatedImportReport,
+  JiraRelatedImportResult,
+  JiraRelatedImportTarget,
+  JiraRelationKind,
+} from "./contracts.js";
+export {
+  resolveJiraMediaReference,
+  type JiraMediaResolutionStrategy,
+} from "./media.js";
+export { canonicalizeJiraRelation } from "./links.js";
+
+export async function importJiraRelatedData(
+  input: JiraRelatedImportInput,
+): Promise<JiraRelatedImportResult> {
+  const report = reportTemplate(input.mode);
+  const issue = normalizeJiraIssue(input.issue);
+  let ledger = input.ledger;
+  const [commentsRead, remoteRead] = await Promise.allSettled([
+    input.client.readComments(issue.key),
+    input.client.listRemoteLinks(issue.key),
+  ]);
+  const returnedComments =
+    commentsRead.status === "fulfilled" ? commentsRead.value.items : [];
+  const commentsById = new Map<string, JiraCommentPayload>();
+  const conflictingCommentIds = new Set<string>();
+  for (const comment of returnedComments) {
+    if (conflictingCommentIds.has(comment.id)) continue;
+    const existing = commentsById.get(comment.id);
+    if (
+      existing &&
+      fingerprintJiraState(existing) !== fingerprintJiraState(comment)
+    ) {
+      commentsById.delete(comment.id);
+      conflictingCommentIds.add(comment.id);
+      failure(
+        report.failures,
+        "comment",
+        comment.id,
+        "resolve",
+        "jira_comment_duplicate_conflict",
+      );
+      continue;
+    }
+    commentsById.set(comment.id, comment);
+  }
+  const comments = [...commentsById.values()];
+  const returnedCommentIds = new Set(
+    returnedComments.map((comment) => comment.id),
+  );
+  const unsafeVisibilityCommentIds = new Set(
+    returnedComments
+      .filter((comment) => jiraCommentVisibility(comment) !== "safe")
+      .map((comment) => comment.id),
+  );
+  for (const commentId of conflictingCommentIds)
+    unsafeVisibilityCommentIds.add(commentId);
+  const safeReturnedCommentIds = new Set(
+    comments
+      .filter(
+        (comment) =>
+          jiraCommentVisibility(comment) === "safe" &&
+          !unsafeVisibilityCommentIds.has(comment.id),
+      )
+      .map((comment) => comment.id),
+  );
+  if (input.mode === "apply") {
+    ledger = clearJiraCommentQuarantine(
+      ledger,
+      [...safeReturnedCommentIds].map(
+        (commentId) =>
+          jiraCommentSourceIdentity(input.jiraCloudId, issue.id, commentId).key,
+      ),
+    );
+  }
+  const missingCommentBindings = input.ledger.bindings.filter(
+    (binding) =>
+      binding.source_identity.entity_kind === "comment" &&
+      binding.source_identity.jira_cloud_id === input.jiraCloudId &&
+      binding.source_identity.issue_id === issue.id &&
+      (commentsRead.status === "rejected" ||
+        !returnedCommentIds.has(binding.source_identity.comment_id)),
+  );
+  const unsafeCommentIds = new Set([
+    ...missingCommentBindings.flatMap((binding) =>
+      binding.source_identity.entity_kind === "comment"
+        ? [binding.source_identity.comment_id]
+        : [],
+    ),
+    ...unsafeVisibilityCommentIds,
+    ...ledger.comment_quarantines.flatMap((quarantine) =>
+      quarantine.jira_cloud_id === input.jiraCloudId &&
+      quarantine.issue_id === issue.id &&
+      !safeReturnedCommentIds.has(quarantine.comment_id)
+        ? [quarantine.comment_id]
+        : [],
+    ),
+  ]);
+  for (const comment of comments) {
+    if (
+      jiraCommentVisibility(comment) !== "safe" ||
+      (comment.parentId !== null &&
+        comment.parentId !== undefined &&
+        !returnedCommentIds.has(comment.parentId))
+    )
+      unsafeCommentIds.add(comment.id);
+  }
+  let unsafeCommentCount = -1;
+  while (unsafeCommentCount !== unsafeCommentIds.size) {
+    unsafeCommentCount = unsafeCommentIds.size;
+    for (const comment of comments) {
+      if (comment.parentId && unsafeCommentIds.has(comment.parentId))
+        unsafeCommentIds.add(comment.id);
+    }
+  }
+  if (input.mode === "apply") {
+    for (const commentId of unsafeCommentIds) {
+      ledger = quarantineJiraCommentSource(
+        ledger,
+        jiraCommentSourceIdentity(input.jiraCloudId, issue.id, commentId),
+      );
+    }
+  }
+  const attachmentBytePolicyInvalid =
+    input.attachmentPolicy !== undefined &&
+    (!Number.isSafeInteger(input.attachmentPolicy.maxBytes) ||
+      input.attachmentPolicy.maxBytes <= 0 ||
+      input.attachmentPolicy.maxBytes > JIRA_MAX_ATTACHMENT_BUFFER_BYTES);
+  const attachmentAclEstablished =
+    input.attachmentPolicy?.commentVisibilityCompleteness === "verified" &&
+    commentsRead.status === "fulfilled" &&
+    unsafeCommentIds.size === 0 &&
+    comments.every((comment) => jiraCommentVisibility(comment) === "safe");
+  if (commentsRead.status === "rejected") {
+    failure(
+      report.failures,
+      "comment",
+      issue.id,
+      "read",
+      "comment_catalog_read_failed",
+      commentsRead.reason,
+    );
+  }
+  const remoteLinks =
+    remoteRead.status === "fulfilled" ? remoteRead.value.items : [];
+  if (remoteRead.status === "rejected") {
+    failure(
+      report.failures,
+      "remote_link",
+      issue.id,
+      "read",
+      "remote_link_catalog_read_failed",
+      remoteRead.reason,
+    );
+  }
+  const attachments = issue.attachments;
+  const attachmentCatalogPresent = input.issue.fields.attachment !== undefined;
+  const links = issue.links;
+  const returnedAttachmentIds = new Set(
+    attachments.map((attachment) => attachment.id),
+  );
+  const missingAttachmentBindings = input.ledger.bindings.filter(
+    (binding) =>
+      binding.source_identity.entity_kind === "attachment" &&
+      binding.source_identity.jira_cloud_id === input.jiraCloudId &&
+      (binding.source_identity.issue_id === undefined ||
+        binding.source_identity.issue_id === issue.id) &&
+      (!attachmentAclEstablished ||
+        (attachmentCatalogPresent &&
+          !returnedAttachmentIds.has(binding.source_identity.attachment_id))),
+  );
+  report.comments.total = comments.length;
+  report.comments.roots = comments.filter(
+    (item) => item.parentId == null,
+  ).length;
+  report.comments.replies = comments.length - report.comments.roots;
+  report.attachments.total = attachments.length;
+  report.links.entries = links.length;
+  report.remote_links.total = remoteLinks.length;
+  const plannedCommentTargets = new Map<string, string>();
+  const now = input.now ?? (() => new Date().toISOString());
+  const unsafeCommentSourceKeys = new Set(
+    [...unsafeCommentIds].map(
+      (commentId) =>
+        jiraCommentSourceIdentity(input.jiraCloudId, issue.id, commentId).key,
+    ),
+  );
+  const attachmentResult = await importAttachments({
+    migration: input,
+    issueId: issue.id,
+    comments,
+    unsafeCommentIds,
+    attachments,
+    attachmentAclEstablished,
+    attachmentBytePolicyInvalid,
+    attachmentCatalogPresent,
+    sourceLedger: input.ledger,
+    ledger,
+    report,
+    now,
+  });
+  ledger = attachmentResult.ledger;
+  const attachmentBindings = attachmentResult.attachmentBindings;
+
+  await updateDescriptionMedia({
+    migration: input,
+    issueId: issue.id,
+    descriptionAdf: issue.description,
+    attachments,
+    attachmentBindings,
+    report,
+  });
+
+  ledger = await importComments({
+    migration: input,
+    issueId: issue.id,
+    comments,
+    unsafeVisibilityCommentIds,
+    unsafeCommentSourceKeys,
+    plannedCommentTargets,
+    attachmentBindings,
+    attachments,
+    ledger,
+    report,
+    now,
+  });
+
+  ledger = await importIssueLinks({
+    migration: input,
+    issueId: issue.id,
+    issueKey: issue.key,
+    linkCatalogPresent: input.issue.fields.issuelinks !== undefined,
+    links,
+    ledger,
+    report,
+    now,
+  });
+
+  await importRemoteLinks({
+    migration: input,
+    issueId: issue.id,
+    catalogReadSucceeded: remoteRead.status === "fulfilled",
+    remoteLinks,
+    report,
+  });
+
+  return { ledger, report };
+}

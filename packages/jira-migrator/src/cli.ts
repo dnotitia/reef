@@ -5,7 +5,7 @@ import {
   JiraMigratorConfigError,
   loadJiraMigratorConfig,
   publicJiraMigratorConfig,
-} from "./config.js";
+} from "./cli/config.js";
 
 const USAGE = `reef-jira-migrator
 
