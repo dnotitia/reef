@@ -4,7 +4,11 @@ import {
   ConfigSchema,
   type MonitoredRepo,
 } from "../../../schemas/workspace/config";
-import type { WorkspaceInitializationResult } from "../../../schemas/workspace/initialization";
+import {
+  WORKSPACE_INITIALIZATION_STATES,
+  type WorkspaceInitializationResult,
+  type WorkspaceInitializationState,
+} from "../../../schemas/workspace/initialization";
 import type { AkbAdapter } from "../core/http";
 import {
   reconcileWorkspaceSchema,
@@ -17,6 +21,7 @@ import {
 } from "../vaultSkill/vaultSkill";
 import { readConfig, writeInitialConfig } from "./config";
 import {
+  type StoredWorkspaceInitializationMarker,
   advanceWorkspaceInitializationMarker,
   createWorkspaceInitializationMarker,
   readWorkspaceInitializationMarker,
@@ -78,6 +83,44 @@ function configsEqual(left: Config, right: Config): boolean {
     canonicalInitializationRequest("workspace", left) ===
     canonicalInitializationRequest("workspace", right)
   );
+}
+
+function hasReached(
+  stored: StoredWorkspaceInitializationMarker,
+  state: WorkspaceInitializationState,
+): boolean {
+  return (
+    WORKSPACE_INITIALIZATION_STATES.indexOf(stored.marker.state) >=
+    WORKSPACE_INITIALIZATION_STATES.indexOf(state)
+  );
+}
+
+async function verifyDurableProgress(
+  adapter: AkbAdapter,
+  vault: string,
+  stored: StoredWorkspaceInitializationMarker,
+): Promise<void> {
+  if (hasReached(stored, "schema_provisioned")) {
+    await verifyWorkspaceSchema({ adapter, vault });
+  }
+  if (hasReached(stored, "skill_installed")) {
+    const skill = await getVaultSkillStatus({ adapter, vault });
+    if (!skill.up_to_date) {
+      throw new SchemaLifecycleError({
+        reason: "initialization_state_invalid",
+        vault,
+      });
+    }
+  }
+  if (stored.marker.state === "ready") {
+    const config = await readConfig({ adapter, vault });
+    if (!config.exists) {
+      throw new SchemaLifecycleError({
+        reason: "initialization_state_invalid",
+        vault,
+      });
+    }
+  }
 }
 
 async function exactWriterExists(
@@ -172,6 +215,7 @@ export async function initializeWorkspace(
   // side effect. Restore/recheck it on every replay before later stages can
   // advance, including a ready retry after an operator removed the grant.
   await ensureExactWriterMembership(adapter, name, serviceUsername);
+  await verifyDurableProgress(adapter, name, stored);
 
   if (stored.marker.state === "initializing") {
     stored = await advanceWorkspaceInitializationMarker(
@@ -180,6 +224,7 @@ export async function initializeWorkspace(
       stored,
       "writer_registered",
     );
+    await verifyDurableProgress(adapter, name, stored);
   }
 
   if (stored.marker.state === "writer_registered") {
@@ -191,6 +236,7 @@ export async function initializeWorkspace(
       stored,
       "schema_provisioned",
     );
+    await verifyDurableProgress(adapter, name, stored);
   }
 
   if (stored.marker.state === "schema_provisioned") {
@@ -209,6 +255,7 @@ export async function initializeWorkspace(
       stored,
       "skill_installed",
     );
+    await verifyDurableProgress(adapter, name, stored);
   }
 
   if (stored.marker.state === "skill_installed") {
@@ -235,6 +282,7 @@ export async function initializeWorkspace(
       stored,
       "ready",
     );
+    await verifyDurableProgress(adapter, name, stored);
   }
 
   const configReadback = await readConfig({ adapter, vault: name });

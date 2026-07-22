@@ -101,6 +101,11 @@ export async function POST(request: Request): Promise<Response> {
   const { adapter } = adapterResult;
 
   try {
+    // The initialization contract deliberately uses the requesting owner's
+    // user JWT: it creates that user's raw vault and marker, then provisions
+    // the brand-new vault through the sole explicit initialization application
+    // service. The deployment migration PAT remains init-only and is never
+    // available to this long-running process.
     const result = await initializeWorkspace({
       adapter,
       request: { name, description, config },

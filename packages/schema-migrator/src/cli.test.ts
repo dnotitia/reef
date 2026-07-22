@@ -104,6 +104,32 @@ describe("schema migrator public projection", () => {
     expect(JSON.stringify(result)).not.toContain("DO_NOT_LEAK_SECRET");
   });
 
+  it("passes opaque credential whitespace through unchanged", async () => {
+    const adapter = { request: vi.fn() };
+    mocks.createAdapter.mockReturnValue(adapter);
+    mocks.runMigrations.mockResolvedValue({
+      status: "completed",
+      workspaceCount: 0,
+      skippedVaultCount: 0,
+      workspaces: [],
+    });
+    const apiKey = "  opaque-service-token  ";
+
+    await runCli({
+      AKB_BACKEND_URL: "https://akb.example",
+      REEF_SCHEMA_MIGRATION_KEY: apiKey,
+      REEF_SCHEMA_SERVICE_USERNAME: "reef-schema",
+    });
+
+    expect(mocks.createAdapter).toHaveBeenCalledWith({
+      baseUrl: "https://akb.example",
+      jwt: apiKey,
+    });
+    expect(mocks.runMigrations).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey }),
+    );
+  });
+
   it("fails closed when any required deployment configuration is absent", async () => {
     await expect(
       runCli({ AKB_BACKEND_URL: "https://akb.example" }),

@@ -227,6 +227,28 @@ describe("initializeWorkspace", () => {
     expect(mocks.listMembers.mock.calls.length).toBeGreaterThanOrEqual(4);
   });
 
+  it("verifies every durable prerequisite after an OCC winner fast-forwards the marker", async () => {
+    const fingerprint = await workspaceInitializationFingerprint(
+      "reef-sample",
+      config,
+    );
+    mocks.readMarker.mockResolvedValue(stored("initializing", fingerprint));
+    mocks.advanceMarker.mockResolvedValueOnce(stored("ready", fingerprint));
+
+    await initializeWorkspace({
+      adapter: { request: vi.fn() },
+      request: { name: "reef-sample", config },
+      serviceUsername: "reef-schema",
+    });
+
+    expect(mocks.reconcile).not.toHaveBeenCalled();
+    expect(mocks.installSkillDocuments).not.toHaveBeenCalled();
+    expect(mocks.writeInitialConfig).not.toHaveBeenCalled();
+    expect(mocks.verify).toHaveBeenCalled();
+    expect(mocks.skillStatus).toHaveBeenCalled();
+    expect(mocks.readConfig).toHaveBeenCalled();
+  });
+
   it("requires a configured service username before creating a vault", async () => {
     await expect(
       initializeWorkspace({

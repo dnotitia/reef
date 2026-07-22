@@ -179,9 +179,9 @@ export interface RunStartupWorkspaceMigrationsParams {
 export async function runStartupWorkspaceMigrations(
   params: RunStartupWorkspaceMigrationsParams,
 ): Promise<StartupMigrationOperatorReport> {
-  const apiKey = params.apiKey.trim();
+  const apiKey = params.apiKey;
   const serviceUsername = params.serviceUsername.trim();
-  if (!apiKey || !serviceUsername) {
+  if (!apiKey.trim() || !serviceUsername) {
     throw new SchemaLifecycleError({ reason: "migration_config_invalid" });
   }
   const catalog = params.catalog ?? WORKSPACE_MIGRATION_CATALOG;

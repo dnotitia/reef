@@ -60,9 +60,9 @@ export async function runCli(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<PublicMigrationReport> {
   const baseUrl = env.AKB_BACKEND_URL?.trim() ?? "";
-  const apiKey = env.REEF_SCHEMA_MIGRATION_KEY?.trim() ?? "";
+  const apiKey = env.REEF_SCHEMA_MIGRATION_KEY ?? "";
   const serviceUsername = env.REEF_SCHEMA_SERVICE_USERNAME?.trim() ?? "";
-  if (!baseUrl || !apiKey || !serviceUsername) {
+  if (!baseUrl || !apiKey.trim() || !serviceUsername) {
     throw new SchemaLifecycleError({ reason: "migration_config_invalid" });
   }
   const adapter = createAkbAdapter({ baseUrl, jwt: apiKey });
