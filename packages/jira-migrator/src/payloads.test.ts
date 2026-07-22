@@ -14,6 +14,7 @@ import {
   JiraCommentPageSchema,
   JiraFieldCatalogSchema,
   JiraIssueSchema,
+  JiraRemoteLinkListSchema,
   JiraSearchResponseSchema,
   JiraSprintPageSchema,
   JiraVersionPageSchema,
@@ -25,6 +26,58 @@ import {
 } from "./payloads.js";
 
 describe("Jira payload schemas and normalizers", () => {
+  it("normalizes numeric comment and parent identifiers consistently", () => {
+    const page = JiraCommentPageSchema.parse({
+      startAt: 0,
+      maxResults: 2,
+      total: 2,
+      comments: [
+        { id: "0009", properties: [] },
+        { id: "0010", parentId: "0009", properties: [] },
+      ],
+    });
+    expect(page.comments.map(({ id, parentId }) => ({ id, parentId }))).toEqual(
+      [
+        { id: "9", parentId: undefined },
+        { id: "10", parentId: "9" },
+      ],
+    );
+  });
+
+  it("normalizes nullable optional remote-link fields", () => {
+    expect(
+      JiraRemoteLinkListSchema.parse([
+        {
+          id: null,
+          globalId: null,
+          application: null,
+          relationship: null,
+          object: {
+            url: "https://example.com/reference",
+            title: null,
+            summary: null,
+            icon: null,
+            status: null,
+          },
+        },
+      ]),
+    ).toEqual([
+      {
+        id: undefined,
+        globalId: undefined,
+        application: undefined,
+        relationship: undefined,
+        object: {
+          url: "https://example.com/reference",
+          title: undefined,
+          summary: undefined,
+          icon: undefined,
+          status: undefined,
+        },
+      },
+    ]);
+  });
+
   it("parses expanded issue fields without treating source timestamps as Reef timestamps", () => {
     const issue = JiraIssueSchema.parse({
       ...jiraIssueFixture,
@@ -168,6 +221,27 @@ describe("Jira payload schemas and normalizers", () => {
     expect(JiraChangelogItemSchema.parse({ field: "description" })).toEqual({
       field: "description",
     });
+  });
+
+  it("normalizes numeric, string, null, and absent comment parent ids", () => {
+    const base = { body: { type: "doc", version: 1, content: [] } };
+    const comments = JiraCommentPageSchema.parse({
+      startAt: 0,
+      maxResults: 4,
+      total: 4,
+      comments: [
+        { ...base, id: 1, parentId: 9 },
+        { ...base, id: "2", parentId: "0009" },
+        { ...base, id: 3, parentId: null },
+        { ...base, id: 4 },
+      ],
+    }).comments;
+    expect(comments.map((item) => item.parentId)).toEqual([
+      "9",
+      "9",
+      null,
+      undefined,
+    ]);
   });
 
   it("normalizes Version and Sprint catalogs without retaining unrelated wire fields", () => {

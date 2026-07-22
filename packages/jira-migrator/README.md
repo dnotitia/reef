@@ -5,8 +5,10 @@ intentionally outside `@reef/web`: Jira credentials are deployment/operator
 secrets, not user state in the product runtime.
 
 The CLI still validates migration configuration and prints a redacted public
-config. The library additionally builds immutable Jira issue import plans; it
-does not apply those plans or write to Jira or Reef.
+config. The library additionally builds immutable Jira issue import plans and
+exposes a dependency-injected related-data stage for comments,
+attachments/media, and links. Final project traversal and CLI orchestration
+remain separate.
 
 ## Documentation Policy
 
@@ -61,6 +63,50 @@ The package exports:
   source identities, readback-confirmed target bindings, shared diff decisions,
   entity-key checkpoints, deterministic reports, and guarded atomic file I/O.
 - Jira Rank import planning helpers.
+- `importJiraRelatedData`, which supports mutation-free dry runs and idempotent
+  apply/readback for threaded comments, controlled attachment downloads, ADF
+  media rewrites, standard issue links, and remote links through an isolated
+  Reef target implementation. Role/group-restricted and Jira Service
+  Management internal comments are isolated instead of being published without
+  their source ACL; missing or malformed expanded comment properties fail
+  closed. If visibility becomes unsafe on a rerun, imported comments are
+  deleted and attachment bytes are revoked with readback. Attachment bindings
+  are removed, while deleted comment bindings remain as quarantine tombstones
+  until that source ID returns with safe visibility. The same reconciliation
+  applies when a previously imported comment disappears from the readable
+  catalog or the catalog read fails; per-issue attachment bindings also revoke
+  bytes for attachments that disappear from the later issue payload. Attachment
+  import requires an
+  explicit operator attestation that the comment catalog is complete plus a
+  positive byte limit; without it, or when any comment restriction is visible,
+  issue attachments are isolated because Jira does not expose a reliable
+  attachment-to-comment ACL association through this stage's source contract.
+  Both declared sizes and streamed response bytes are bounded by that limit;
+  limits above 256 MiB are rejected before fetch so a policy value cannot force
+  an impractical allocation. The Node 22 implementation grows one resizable
+  buffer with received bytes instead of preallocating the limit or retaining a
+  second full-size copy.
+  Lowering the limit on a rerun revokes attachments that no longer satisfy the
+  policy, replaces their generated description/comment file references with a
+  stable private placeholder, and verifies that neither bytes nor stale file
+  references remain. A later eligible rerun reconciles that placeholder to the
+  newly stored file URI. Edited Jira comments update their existing Reef
+  comment and ledger binding with readback instead of being duplicated or
+  permanently rejected. Existing V1 attachment ledger identities without an
+  issue ID remain readable and are attributed through target readback when
+  reconciliation is required.
+  Dry-run performs the same bounded source reads and validations as apply while
+  keeping Reef target mutations at zero. When the issue description was first
+  projected with raw-archive or account-mapping options, pass the same options
+  as `descriptionConversionOptions`; legacy and current media placeholders are
+  then both accepted by the description precondition.
+  Standard link mappings must resolve to exactly one configured rule;
+  overlapping matches are isolated as ambiguous rather than selected by array
+  order. Successful explicit standard-link and remote-link catalogs also
+  reconcile target relations/refs that disappeared or changed identity; an
+  omitted standard-link field or failed remote-link read is not treated as an
+  empty catalog. A returned remote identity without a usable URL invalidates
+  and removes its prior ref while recording an isolated entity failure.
 - Tenant field-catalog resolution, ADF-to-Markdown conversion, and immutable
   `JiraIssueImportPlan` builders that combine configurable enum policies,
   account mappings, planning bindings, parents, Rank, compact provenance, and

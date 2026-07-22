@@ -6,6 +6,7 @@ import {
 } from "./checkpoint.js";
 import { classifyJiraMigrationDiff, fingerprintJiraState } from "./diff.js";
 import {
+  JiraMigrationLedgerV1Schema,
   confirmJiraMigrationBinding,
   createJiraMigrationLedger,
   getJiraCommentTargetId,
@@ -16,6 +17,7 @@ import {
   jiraCommentSourceIdentity,
   jiraIssueSourceIdentity,
   jiraRelationSourceIdentity,
+  legacyJiraRelationSourceKey,
   openJiraMigrationRun,
 } from "./ledger.js";
 import {
@@ -29,6 +31,42 @@ const sourceFingerprint = fingerprintJiraState({ source: "stable" });
 const mappedStateFingerprint = fingerprintJiraState({ mapped: "stable" });
 
 describe("Jira migration ledger", () => {
+  it("keeps V1 attachment identities without issue_id readable", () => {
+    const ledger = confirmJiraMigrationBinding(
+      createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "target-vault",
+      }),
+      {
+        sourceIdentity: jiraAttachmentSourceIdentity(
+          "cloud-1",
+          "issue-1",
+          "attachment-1",
+        ),
+        target: {
+          target_kind: "attachment",
+          file_uri: "akb://target-vault/coll/files/file/1",
+        },
+        sourceFingerprint: "a".repeat(64),
+        mappedStateFingerprint: "b".repeat(64),
+        lastAppliedAt: "2026-01-01T00:00:00.000Z",
+        writeSucceeded: true,
+        readbackSucceeded: true,
+      },
+    );
+    const persisted = structuredClone(ledger);
+    const identity = persisted.bindings[0]?.source_identity;
+    if (identity?.entity_kind !== "attachment")
+      throw new Error("expected attachment binding");
+    Reflect.deleteProperty(identity, "issue_id");
+    expect(
+      JiraMigrationLedgerV1Schema.parse(persisted).bindings[0]?.source_identity,
+    ).toMatchObject({
+      entity_kind: "attachment",
+      attachment_id: "attachment-1",
+    });
+  });
+
   it("builds collision-safe stable identities independent of display names and keys", () => {
     expect(jiraIssueSourceIdentity("cloud:a", "project/b", "100").key).toBe(
       "issue:cloud%3Aa:project%2Fb:100",
@@ -36,7 +74,7 @@ describe("Jira migration ledger", () => {
     expect(jiraCommentSourceIdentity("cloud:a", "100", "c/1").key).toBe(
       "comment:cloud%3Aa:100:c%2F1",
     );
-    expect(jiraAttachmentSourceIdentity("cloud:a", "a:1").key).toBe(
+    expect(jiraAttachmentSourceIdentity("cloud:a", "issue:1", "a:1").key).toBe(
       "attachment:cloud%3Aa:a%3A1",
     );
     expect(jiraChangelogSourceIdentity("cloud:a", "100", "h 1").key).toBe(
@@ -51,7 +89,51 @@ describe("Jira migration ledger", () => {
         "outward",
         "7",
       ).key,
-    ).toContain("relation:cloud%3Aa:100:200:blocks:outward:7");
+    ).toBe("relation:cloud%3Aa:7");
+  });
+
+  it("continues to accept persisted V1 relation bindings that use the legacy endpoint key", () => {
+    const legacyKey = legacyJiraRelationSourceKey(
+      "cloud-1",
+      "100",
+      "200",
+      "blocks",
+      "outward",
+      "7",
+    );
+    const ledger = createJiraMigrationLedger({
+      jiraCloudId: "cloud-1",
+      targetVault: "reef-target",
+    });
+    expect(
+      JiraMigrationLedgerV1Schema.parse({
+        ...ledger,
+        bindings: [
+          {
+            source_key: legacyKey,
+            entity_kind: "relation",
+            source_identity: {
+              entity_kind: "relation",
+              jira_cloud_id: "cloud-1",
+              source_issue_id: "100",
+              target_issue_id: "200",
+              link_type: "blocks",
+              direction: "outward",
+              link_id: "7",
+              key: legacyKey,
+            },
+            target: {
+              target_kind: "relation",
+              idempotency_key: legacyKey,
+            },
+            source_fingerprint: sourceFingerprint,
+            mapped_state_fingerprint: mappedStateFingerprint,
+            last_applied_at: at,
+            raw_archive_reference: null,
+          },
+        ],
+      }).bindings[0]?.source_key,
+    ).toBe(legacyKey);
   });
 
   it("confirms bindings only after target identity readback and exposes planning/issue/comment lookups", () => {
@@ -159,7 +241,7 @@ describe("Jira migration ledger", () => {
         },
       ],
       [
-        jiraAttachmentSourceIdentity("cloud-1", "a-1"),
+        jiraAttachmentSourceIdentity("cloud-1", "issue-1", "a-1"),
         {
           target_kind: "attachment",
           file_uri: "akb://other-vault/issues/file/file-1",

@@ -114,7 +114,17 @@ describe("uploadIssueAttachment", () => {
       },
       {
         body: makeSqlQueryResponse(
-          [makeAttachmentRow({ size_bytes: 4 })],
+          [
+            makeAttachmentRow({
+              size_bytes: 4,
+              source: "jira_import",
+              original_jira_attachment_id: "source-42",
+              meta: {
+                source: "jira",
+                created_at: "2026-01-01T00:00:00.000Z",
+              },
+            }),
+          ],
           ATTACHMENT_ROW_COLUMNS,
         ),
       },
@@ -130,8 +140,11 @@ describe("uploadIssueAttachment", () => {
       mimeType: "image/png",
       bytes: new Uint8Array([1, 2, 3, 4]),
       author: "alice",
-      source: "issue_body",
+      source: "jira_import",
       inline: true,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      originalJiraAttachmentId: "source-42",
+      meta: { source: "jira" },
     });
 
     expect(attachment).toMatchObject({
@@ -147,6 +160,8 @@ describe("uploadIssueAttachment", () => {
       '"created_at"',
     );
     expect(insertSql).toContain('"created_at":');
+    expect(insertSql).toContain('"source":"jira"');
+    expect(insertSql).toContain("'source-42'");
     expect(insertSql).toContain("'REEF-349'");
     expect(insertSql).toContain("'akb://reef-sample/issues/file/file-1'");
     const activitySql = lastSql(calls[5]?.init?.body);

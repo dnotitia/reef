@@ -112,6 +112,7 @@ describe("JiraReadClient", () => {
         expect.stringContaining("/rest/api/3/issue/ALPHA-1/changelog"),
       ]),
     );
+    expect(String(fetchImpl.mock.calls[1]?.[0])).toContain("expand=properties");
   });
 
   it("classifies rate limits and transient API failures as retryable without leaking secrets", async () => {
@@ -173,6 +174,139 @@ describe("JiraReadClient", () => {
     expect(String(fetchImpl.mock.calls[0]?.[0])).not.toContain(
       "cloud-abc///rest",
     );
+  });
+
+  it("reads remote links and downloads attachment bytes only from the configured origin without redirects", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        jsonResponse([
+          {
+            id: 1,
+            globalId: "remote-1",
+            object: { url: "https://example.com/reference", title: "Ref" },
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1, 2, 3]), {
+          headers: {
+            "content-type": "application/octet-stream",
+            "content-length": "3",
+          },
+        }),
+      );
+    const client = makeClient(fetchImpl);
+
+    await expect(client.listRemoteLinks("ALPHA-1")).resolves.toMatchObject({
+      items: [{ globalId: "remote-1" }],
+    });
+    await expect(
+      client.downloadAttachmentContent("42", 1024),
+    ).resolves.toMatchObject({
+      bytes: new Uint8Array([1, 2, 3]),
+      contentLength: 3,
+    });
+
+    const [remoteUrl] = fetchImpl.mock.calls[0] ?? [];
+    const [downloadUrl, downloadInit] = fetchImpl.mock.calls[1] ?? [];
+    expect(String(remoteUrl)).toContain("/issue/ALPHA-1/remotelink");
+    expect(String(downloadUrl)).toBe(
+      "https://example.atlassian.net/rest/api/3/attachment/content/42?redirect=false",
+    );
+    expect(downloadInit).toMatchObject({ method: "GET", redirect: "error" });
+  });
+
+  it("stops reading attachment bodies that exceed the configured limit", async () => {
+    const client = makeClient(
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(new Uint8Array([1, 2, 3, 4]), {
+          headers: { "content-type": "application/octet-stream" },
+        }),
+      ),
+    );
+
+    await expect(client.downloadAttachmentContent("42", 3)).rejects.toThrow(
+      "jira_attachment_size_limit_exceeded",
+    );
+  });
+
+  it("rejects impractical attachment buffer limits before fetching", async () => {
+    const fetchImpl = vi.fn<typeof fetch>();
+    const client = makeClient(fetchImpl);
+    await expect(
+      client.downloadAttachmentContent("42", 256 * 1024 * 1024 + 1),
+    ).rejects.toThrow("jira_attachment_size_limit_invalid");
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("marks attachment transport failures as retryable", async () => {
+    const fetchFailure = makeClient(
+      vi.fn<typeof fetch>().mockRejectedValue(new TypeError("network failed")),
+    );
+    await expect(
+      fetchFailure.downloadAttachmentContent("42", 3),
+    ).rejects.toMatchObject({ retryable: true });
+
+    const interrupted = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.error(new TypeError("stream interrupted"));
+      },
+    });
+    const streamFailure = makeClient(
+      vi.fn<typeof fetch>().mockResolvedValue(new Response(interrupted)),
+    );
+    await expect(
+      streamFailure.downloadAttachmentContent("42", 3),
+    ).rejects.toMatchObject({ retryable: true });
+  });
+
+  it("rejects attachment bodies shorter than the declared content length", async () => {
+    const client = makeClient(
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(new Uint8Array([1, 2, 3]), {
+          headers: { "content-length": "4" },
+        }),
+      ),
+    );
+
+    await expect(client.downloadAttachmentContent("42", 1024)).rejects.toThrow(
+      "jira_attachment_content_length_mismatch",
+    );
+  });
+
+  it("does not compare decoded bytes with a compressed wire length", async () => {
+    const client = makeClient(
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(new Uint8Array([1, 2, 3]), {
+          headers: {
+            "content-encoding": "gzip",
+            "content-length": "4",
+          },
+        }),
+      ),
+    );
+
+    await expect(
+      client.downloadAttachmentContent("42", 3),
+    ).resolves.toMatchObject({ bytes: new Uint8Array([1, 2, 3]) });
+  });
+
+  it("cancels unsuccessful attachment response bodies", async () => {
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({ cancel });
+    const client = makeClient(
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(
+          new Response(body, { status: 403, statusText: "Forbidden" }),
+        ),
+    );
+
+    await expect(client.downloadAttachmentContent("42", 1024)).rejects.toThrow(
+      "jira_api_request_failed",
+    );
+    expect(cancel).toHaveBeenCalledOnce();
   });
 
   it("returns the pre-validation JSON value without schema coercion or stripping", async () => {

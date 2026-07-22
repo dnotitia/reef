@@ -15,6 +15,7 @@ export type JiraActorMappingContext =
   | "creator"
   | "mention"
   | "comment_author"
+  | "attachment_author"
   | "changelog_actor";
 
 export type JiraActorMappingStrategy =
@@ -287,7 +288,7 @@ export const resolveJiraActor = (
   },
 ): JiraActorMappingResult => {
   const jiraUser = toNormalizedJiraUser(user);
-  if (!jiraUser?.accountId) {
+  if (!jiraUser) {
     return {
       context,
       actor: null,
@@ -297,7 +298,9 @@ export const resolveJiraActor = (
     };
   }
 
-  const override = options.artifact.overrides[jiraUser.accountId];
+  const override = jiraUser.accountId
+    ? options.artifact.overrides[jiraUser.accountId]
+    : undefined;
   if (override) {
     return {
       context,
@@ -317,6 +320,16 @@ export const resolveJiraActor = (
       context,
       actor: emailActor,
       strategy: "email",
+      jiraUser,
+      overrideReason: null,
+    };
+  }
+
+  if (!jiraUser.accountId) {
+    return {
+      context,
+      actor: null,
+      strategy: "missing",
       jiraUser,
       overrideReason: null,
     };

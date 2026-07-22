@@ -9,6 +9,21 @@ const rawRef = {
 };
 
 describe("ADF to Markdown", () => {
+  it("isolates malformed UTF-16 in media identifiers without throwing", () => {
+    const result = convertAdfToMarkdown({
+      type: "doc",
+      version: 1,
+      content: [
+        {
+          type: "media",
+          attrs: { id: "broken-\ud800-id", type: "file" },
+        },
+      ],
+    });
+    expect(result.media).toHaveLength(1);
+    expect(result.media[0]?.placeholder).toContain("broken-%EF%BF%BD-id");
+  });
+
   it("preserves node/mark order and resolves mentions through the account resolver", () => {
     const result = convertAdfToMarkdown(
       {
@@ -347,9 +362,8 @@ describe("ADF to Markdown", () => {
         reason: "description_node_unsupported",
       }),
     );
-    expect(first.markdown).toContain(
-      `\\[Jira media media\\-1 \\(file\\) raw:run\\-1/entry\\-media@${rawRef.contentSha256}\\]`,
-    );
+    expect(first.markdown).toContain(first.media[0]?.placeholder);
+    expect(first.media[0]?.placeholder).toContain("jira-media:");
     expect(JSON.stringify(first)).not.toContain('"type":"doc"');
   });
 });

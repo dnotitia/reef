@@ -637,3 +637,49 @@ both fields before apply write projection. Original Jira `created` and
 automatic timestamps. Ledger/checkpoint decisions, comments/files/link
 rewrites, changelog import, and apply execution remain separate migration
 responsibilities.
+
+## Comments, Attachments, Media, And Links
+
+`importJiraRelatedData()` is the exported per-issue stage used after the issue
+itself has a Reef target. It does not enumerate projects or provide the final
+CLI runner. Dry-run reads Jira and returns a structured report but invokes no
+target mutation. Apply handles each entity independently and confirms ledger
+bindings only after target readback.
+
+Comment pages always request `expand=properties`. A top-level `parentId` may be
+a number or string and is normalized to one decimal string identity. Roots are
+written before replies; a reply resolves its parent through the comment ledger
+and uses Reef's threaded-comment contract. Missing parents are isolated as
+entity failures and never become flat comments. Source author mapping and
+created/edited timestamps are preserved.
+
+Attachments are downloaded only with a GET to the configured Jira origin at
+`/rest/api/3/attachment/content/{id}?redirect=false`. The importer never follows
+the payload's arbitrary `content` URL with Jira credentials. It verifies source
+size, stored file bytes, attachment metadata, original Jira id, and file URI
+readback before confirming the ledger binding.
+
+ADF `media` and `mediaInline` nodes resolve after attachment import in this
+fixed order: unique filename on the issue, the issue's sole attachment, a
+rendered-field element that pairs the media id with an attachment, then a
+rendered-field unique filename. Zero or multiple candidates remain unresolved;
+the importer never guesses from numeric equality or array order.
+
+Standard links deduplicate on Jira link id. Operators configure an exact link
+type triple (`id`, `name`, `inward`, `outward`) as directional or symmetric;
+tenant labels are not built into the package. Directional mappings explicitly
+declare the Reef relation for both the outward and inward side rather than
+inferring meaning from display labels; symmetric mappings produce `related_to`.
+The importer canonicalizes each directional edge as Jira outward endpoint to
+inward endpoint before applying both relations, so project traversal order
+cannot choose the stored orientation.
+Unknown or not-yet-migrated endpoints remain Jira external refs
+with reconciliation provenance. Remote links are a separate reader and use
+`globalId`, or a canonical content hash when absent, while preserving URL,
+title, application, relationship, and object provenance.
+
+Reports contain only aggregate counts and safe source identities, phase,
+retryability, and reason. They must not contain credentials, source response
+bodies, account details, filenames, or authorization headers. Jira remains
+GET-only. This change requires no AKB schema migration or backfill; it reuses
+the existing threaded-comment and attachment metadata envelopes.

@@ -7,6 +7,8 @@ import {
   JiraFieldCatalogSchema,
   type JiraFieldPayload,
   JiraIssueSchema,
+  JiraRemoteLinkListSchema,
+  type JiraRemoteLinkPayload,
   JiraSearchResponseSchema,
   JiraSprintPageSchema,
   JiraVersionPageSchema,
@@ -59,6 +61,13 @@ export interface JiraIssueCollectionResult<T> {
   items: T[];
   rateLimit: JiraRateLimit;
   raw: unknown;
+}
+
+export interface JiraBinaryResult {
+  bytes: Uint8Array;
+  contentType: string | null;
+  contentLength: number | null;
+  rateLimit: JiraRateLimit;
 }
 
 export interface JiraCatalogResult<T> {
@@ -143,6 +152,19 @@ export class JiraApiError extends Error {
   }
 }
 
+const jiraTransportError = (
+  path: string,
+  rateLimit: JiraRateLimit = readJiraRateLimit(new Headers()),
+): JiraApiError =>
+  new JiraApiError({
+    status: 0,
+    statusText: "Transport Error",
+    method: "GET",
+    path,
+    retryable: true,
+    rateLimit,
+  });
+
 const readIntegerHeader = (headers: Headers, name: string): number | null => {
   const raw = headers.get(name);
   if (!raw) return null;
@@ -162,6 +184,18 @@ export const readJiraRateLimit = (headers: Headers): JiraRateLimit => {
 };
 
 const retryableStatuses = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
+export const JIRA_MAX_ATTACHMENT_BUFFER_BYTES = 256 * 1024 * 1024;
+
+interface ResizableArrayBuffer extends ArrayBuffer {
+  resize(newByteLength: number): void;
+}
+
+const ResizableArrayBufferConstructor = ArrayBuffer as typeof ArrayBuffer & {
+  new (
+    byteLength: number,
+    options: { maxByteLength: number },
+  ): ResizableArrayBuffer;
+};
 
 export const isRetryableJiraStatus = (status: number): boolean =>
   retryableStatuses.has(status);
@@ -266,6 +300,7 @@ export class JiraReadClient {
     const body = await this.getJson(issuePath(issueIdOrKey, "/comment"), {
       startAt: options.startAt ?? 0,
       maxResults: options.maxResults ?? 50,
+      expand: "properties,renderedBody",
     });
     const payload = JiraCommentPageSchema.parse(body.json);
     return {
@@ -278,6 +313,37 @@ export class JiraReadClient {
       isLast:
         nextOffsetCursor(payload.startAt, payload.maxResults, payload.total) ===
         null,
+      rateLimit: body.rateLimit,
+      raw: body.json,
+    };
+  }
+
+  async readComments(
+    issueIdOrKey: string,
+    options: Omit<OffsetPageOptions, "startAt"> = {},
+  ): Promise<JiraCatalogResult<JiraCommentPayload>> {
+    return this.readOffsetCatalog((startAt) =>
+      this.listComments(issueIdOrKey, { ...options, startAt }),
+    );
+  }
+
+  async downloadAttachmentContent(
+    attachmentId: string | number,
+    maxBytes: number,
+  ): Promise<JiraBinaryResult> {
+    return this.getBinary(
+      `/rest/api/3/attachment/content/${encodeURIComponent(String(attachmentId))}`,
+      maxBytes,
+      { redirect: false },
+    );
+  }
+
+  async listRemoteLinks(
+    issueIdOrKey: string,
+  ): Promise<JiraIssueCollectionResult<JiraRemoteLinkPayload>> {
+    const body = await this.getJson(issuePath(issueIdOrKey, "/remotelink"));
+    return {
+      items: JiraRemoteLinkListSchema.parse(body.json),
       rateLimit: body.rateLimit,
       raw: body.json,
     };
@@ -490,6 +556,103 @@ export class JiraReadClient {
 
     return {
       json: await response.json(),
+      rateLimit,
+    };
+  }
+
+  private async getBinary(
+    path: string,
+    maxBytes: number,
+    query: Record<string, string | number | boolean | null | undefined> = {},
+  ): Promise<JiraBinaryResult> {
+    if (
+      !Number.isSafeInteger(maxBytes) ||
+      maxBytes <= 0 ||
+      maxBytes > JIRA_MAX_ATTACHMENT_BUFFER_BYTES
+    )
+      throw new Error("jira_attachment_size_limit_invalid");
+    const url = this.buildUrl(path, query);
+    let response: Response;
+    try {
+      response = await this.fetchImpl(url, {
+        method: "GET",
+        headers: {
+          Accept: "*/*",
+          Authorization: jiraAuthHeader(this.auth),
+        },
+        redirect: "error",
+      });
+    } catch {
+      throw jiraTransportError(path);
+    }
+    const rateLimit = readJiraRateLimit(response.headers);
+    if (!response.ok) {
+      await response.body?.cancel();
+      throw new JiraApiError({
+        status: response.status,
+        statusText: response.statusText,
+        method: "GET",
+        path,
+        retryable: isRetryableJiraStatus(response.status),
+        rateLimit,
+      });
+    }
+    const rawLength = response.headers.get("content-length");
+    const contentLength = rawLength === null ? null : Number(rawLength);
+    const declaredContentLength =
+      contentLength !== null &&
+      Number.isSafeInteger(contentLength) &&
+      contentLength >= 0
+        ? contentLength
+        : null;
+    const contentEncoding = response.headers
+      .get("content-encoding")
+      ?.trim()
+      .toLowerCase();
+    if (
+      declaredContentLength !== null &&
+      (!contentEncoding || contentEncoding === "identity") &&
+      declaredContentLength > maxBytes
+    ) {
+      await response.body?.cancel();
+      throw new Error("jira_attachment_size_limit_exceeded");
+    }
+    const reader = response.body?.getReader();
+    const buffer = new ResizableArrayBufferConstructor(0, {
+      maxByteLength: maxBytes,
+    });
+    let byteLength = 0;
+    if (reader) {
+      try {
+        while (true) {
+          const result = await reader
+            .read()
+            .catch(() => Promise.reject(jiraTransportError(path, rateLimit)));
+          const { done, value } = result;
+          if (done) break;
+          const nextByteLength = byteLength + value.byteLength;
+          if (nextByteLength > maxBytes) {
+            await reader.cancel();
+            throw new Error("jira_attachment_size_limit_exceeded");
+          }
+          buffer.resize(nextByteLength);
+          new Uint8Array(buffer, byteLength, value.byteLength).set(value);
+          byteLength = nextByteLength;
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    }
+    if (
+      declaredContentLength !== null &&
+      (!contentEncoding || contentEncoding === "identity") &&
+      byteLength !== declaredContentLength
+    )
+      throw new Error("jira_attachment_content_length_mismatch");
+    return {
+      bytes: new Uint8Array(buffer, 0, byteLength),
+      contentType: response.headers.get("content-type"),
+      contentLength: declaredContentLength,
       rateLimit,
     };
   }

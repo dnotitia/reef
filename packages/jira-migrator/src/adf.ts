@@ -19,8 +19,10 @@ export interface AdfMediaReference {
   mediaId: string;
   mediaType: string | null;
   collection: string | null;
+  filename: string | null;
   rawArchiveReference: RawArchiveReference | null;
   placeholder: string;
+  legacyPlaceholder: string;
 }
 
 export interface AdfToMarkdownResult {
@@ -348,18 +350,35 @@ const renderMedia = (
   const type = typeof mediaAttrs.type === "string" ? mediaAttrs.type : null;
   const collection =
     typeof mediaAttrs.collection === "string" ? mediaAttrs.collection : null;
+  const filename =
+    typeof mediaAttrs.filename === "string" && mediaAttrs.filename.trim()
+      ? mediaAttrs.filename.trim()
+      : null;
   const reference = context.options.mediaRawArchiveReferences?.[id] ?? null;
   const token = reference ? rawReferenceToken(reference) : "missing";
-  const placeholder = escapeInlineSourceText(
+  const legacyPlaceholder = escapeInlineSourceText(
     `[Jira media ${id} (${type ?? "unknown"}) raw:${token}]`,
   );
+  const safeEncode = (value: string): string =>
+    encodeURIComponent(
+      Array.from(value, (character) =>
+        character.length === 1 &&
+        character.charCodeAt(0) >= 0xd800 &&
+        character.charCodeAt(0) <= 0xdfff
+          ? "\ufffd"
+          : character,
+      ).join(""),
+    );
+  const placeholder = `\u{e000}jira-media:${safeEncode(path)}:${safeEncode(id)}:${safeEncode(token)}\u{e001}`;
   context.media.push({
     path,
     mediaId: id,
     mediaType: type,
     collection,
+    filename,
     rawArchiveReference: reference,
     placeholder,
+    legacyPlaceholder,
   });
   context.reports.push({
     classification: "preserved",
