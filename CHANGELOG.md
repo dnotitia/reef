@@ -33,7 +33,8 @@ explicitly in the entries below.
   durable, fingerprinted AKB marker with optimistic concurrency and forward-only
   replay, while release startup uses a strict service identity, authoritative
   full-inventory preflight, immutable migration catalog, deterministic
-  reconciliation, and bounded public reports. Ordinary feature paths only
+  reconciliation (including explicit manifest-only version steps), and bounded
+  public reports. Ordinary feature paths only
   verify schema and never provision it lazily. (REEF-414)
 
 - **Jira changelog histories can be planned as auditable Reef activity.** The

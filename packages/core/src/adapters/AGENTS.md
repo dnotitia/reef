@@ -14,8 +14,9 @@
   `verifyWorkspaceSchema` is the read-only consumer for every feature path.
   Existing-table evolution runs only in the release pre-start gate: enumerate
   every registered workspace from the authoritative marker/member inventory,
-  apply pending phases through `akbApplyTableMigration`, reconcile missing
-  tables, then verify the exact manifest/version. Any workspace failure blocks
+  apply operation phases through `akbApplyTableMigration`, execute manifest-only
+  phases through explicit reconciliation, then verify the exact
+  manifest/version. Any workspace failure blocks
   startup/readiness. Never reconcile or migrate from issue, comment, activity,
   config, template, workspace-entry, or hot-reload paths; `akbAlterTable` stays
   a low-level primitive. The architecture guard test owns the two-call-site

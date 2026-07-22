@@ -24,7 +24,6 @@ import {
   AkbTableColumnTypeSchema,
   REEF_DESIRED_TABLES,
   REEF_SCHEMA_VERSION,
-  type ReefTableManifest,
 } from "./tableManifest";
 import { withSpan } from "./tracing";
 
@@ -314,6 +313,23 @@ export interface WorkspaceSchemaParams {
   vault: string;
 }
 
+export type WorkspaceSchemaReconcileParams = WorkspaceSchemaParams &
+  (
+    | {
+        desiredTables?: never;
+        schemaVersion?: never;
+        allowAdditionalColumns?: never;
+      }
+    | {
+        /** Historical create-time manifests for a catalog reconcile-only phase. */
+        desiredTables: readonly AkbCreateTableRequest[];
+        /** Version stamped after the selected manifests are durably verified. */
+        schemaVersion: number;
+        /** Later catalog phases may already have added columns during replay. */
+        allowAdditionalColumns: true;
+      }
+  );
+
 export interface WorkspaceSchemaVerification {
   schemaVersion: number | null;
   manifestVerified: boolean;
@@ -431,9 +447,12 @@ function canonicalColumnType(type: AkbTableColumn["type"]): string {
 function columnsMatch(
   expected: readonly AkbTableColumn[],
   actual: readonly AkbTableColumn[] | undefined,
+  allowAdditionalColumns = false,
 ): boolean {
   if (!actual) return true;
-  if (actual.length !== expected.length) return false;
+  if (!allowAdditionalColumns && actual.length !== expected.length)
+    return false;
+  if (allowAdditionalColumns && actual.length < expected.length) return false;
   const actualByName = new Map(actual.map((col) => [col.name, col]));
   return expected.every((expectedColumn) => {
     const actualColumn = actualByName.get(expectedColumn.name);
@@ -447,43 +466,56 @@ function columnsMatch(
 }
 
 function manifestMatchesTable(
-  manifest: ReefTableManifest,
+  manifest: AkbCreateTableRequest,
   table: AkbTableSummary | undefined,
+  allowAdditionalColumns = false,
 ): boolean {
   return (
     table?.name === manifest.name &&
     tableHasColumnMetadata(table) &&
-    columnsMatch(manifest.columns, table.columns)
+    columnsMatch(manifest.columns, table.columns, allowAdditionalColumns)
   );
 }
 
 function assertManifestMatches(
-  manifest: ReefTableManifest,
+  manifest: AkbCreateTableRequest,
   table: AkbTableSummary | undefined,
+  allowAdditionalColumns = false,
 ): void {
   if (!table) {
     throw new SchemaValidationError({
       issues: [`Missing Reef table: ${manifest.name}`],
     });
   }
-  if (!columnsMatch(manifest.columns, table.columns)) {
+  if (!columnsMatch(manifest.columns, table.columns, allowAdditionalColumns)) {
     throw new SchemaValidationError({
       issues: [`Reef table schema mismatch: ${manifest.name}`],
     });
   }
 }
 
-function canVerifySchema(tables: AkbTableSummary[]): boolean {
+function canVerifySchema(
+  tables: AkbTableSummary[],
+  desiredTables: readonly AkbCreateTableRequest[],
+): boolean {
   const byName = tableMap(tables);
-  return REEF_DESIRED_TABLES.every((manifest) =>
+  return desiredTables.every((manifest) =>
     tableHasColumnMetadata(byName.get(manifest.name)),
   );
 }
 
-function assertDesiredTablesMatch(tables: AkbTableSummary[]): void {
+function assertDesiredTablesMatch(
+  tables: AkbTableSummary[],
+  desiredTables: readonly AkbCreateTableRequest[],
+  allowAdditionalColumns = false,
+): void {
   const byName = tableMap(tables);
-  for (const manifest of REEF_DESIRED_TABLES) {
-    assertManifestMatches(manifest, byName.get(manifest.name));
+  for (const manifest of desiredTables) {
+    assertManifestMatches(
+      manifest,
+      byName.get(manifest.name),
+      allowAdditionalColumns,
+    );
   }
 }
 
@@ -523,9 +555,10 @@ async function readStoredSchemaVersion(
 async function stampSchemaVersion(
   adapter: AkbAdapter,
   vault: string,
+  schemaVersion: number,
 ): Promise<void> {
   const stamp = {
-    version: REEF_SCHEMA_VERSION,
+    version: schemaVersion,
     applied_at: new Date().toISOString(),
   };
   await runSql(
@@ -549,41 +582,52 @@ async function stampSchemaVersion(
 async function createMissingTable(
   adapter: AkbAdapter,
   vault: string,
-  manifest: ReefTableManifest,
+  manifest: AkbCreateTableRequest,
+  allowAdditionalColumns: boolean,
 ): Promise<void> {
   try {
     await createAkbTable(adapter, vault, manifest);
   } catch (err) {
     if (!(err instanceof ConflictError)) throw err;
     const refreshed = tableMap(await listAkbTables(adapter, vault));
-    if (!manifestMatchesTable(manifest, refreshed.get(manifest.name))) {
+    if (
+      !manifestMatchesTable(
+        manifest,
+        refreshed.get(manifest.name),
+        allowAdditionalColumns,
+      )
+    ) {
       throw err;
     }
   }
 }
 
 /**
- * Reconcile the vault's Reef tables against `REEF_DESIRED_TABLES`.
+ * Reconcile the vault's Reef tables against the current desired manifest or an
+ * immutable historical manifest snapshot selected by the startup catalog.
  *
  * Missing tables are created. Existing tables with column metadata are verified
  * before the `schema_version` stamp is written; a mismatch fails hard instead of
  * pretending runtime ALTER/DROP will repair it.
  */
 export async function reconcileWorkspaceSchema(
-  params: WorkspaceSchemaParams,
+  params: WorkspaceSchemaReconcileParams,
 ): Promise<void> {
   const { adapter, vault } = params;
+  const desiredTables = params.desiredTables ?? REEF_DESIRED_TABLES;
+  const desiredSchemaVersion = params.schemaVersion ?? REEF_SCHEMA_VERSION;
+  const allowAdditionalColumns = params.allowAdditionalColumns ?? false;
   return withSpan("akb.tables.reconcile", { vault }, async (span) => {
-    for (const manifest of REEF_DESIRED_TABLES) {
+    for (const manifest of desiredTables) {
       assertNoAkbManagedColumns(manifest);
     }
     let tables = await listAkbTables(adapter, vault);
     const initial = tableMap(tables);
     span.setAttribute("existing_table_count", initial.size);
 
-    const supportsSchemaVerification = canVerifySchema(tables);
+    const supportsSchemaVerification = canVerifySchema(tables, desiredTables);
     if (supportsSchemaVerification) {
-      assertDesiredTablesMatch(tables);
+      assertDesiredTablesMatch(tables, desiredTables, allowAdditionalColumns);
     }
     const storedVersion = supportsSchemaVerification
       ? await readStoredSchemaVersion(
@@ -592,18 +636,18 @@ export async function reconcileWorkspaceSchema(
           initial.has(REEF_SETTINGS_TABLE),
         )
       : 0;
-    const missing = REEF_DESIRED_TABLES.filter(
+    const missing = desiredTables.filter(
       (manifest) => !initial.has(manifest.name),
     );
     if (!supportsSchemaVerification && missing.length === 0) {
       span.setAttribute("schema_version", 0);
-      span.setAttribute("desired_schema_version", REEF_SCHEMA_VERSION);
+      span.setAttribute("desired_schema_version", desiredSchemaVersion);
       span.setAttribute("created_table_count", 0);
       return;
     }
-    const schemaUpToDate = storedVersion >= REEF_SCHEMA_VERSION;
+    const schemaUpToDate = storedVersion >= desiredSchemaVersion;
     span.setAttribute("schema_version", storedVersion);
-    span.setAttribute("desired_schema_version", REEF_SCHEMA_VERSION);
+    span.setAttribute("desired_schema_version", desiredSchemaVersion);
 
     if (schemaUpToDate && missing.length === 0) {
       span.setAttribute("created_table_count", 0);
@@ -611,13 +655,19 @@ export async function reconcileWorkspaceSchema(
     }
 
     await Promise.all(
-      missing.map((manifest) => createMissingTable(adapter, vault, manifest)),
+      missing.map((manifest) =>
+        createMissingTable(adapter, vault, manifest, allowAdditionalColumns),
+      ),
     );
 
     tables = await listAkbTables(adapter, vault);
-    if (canVerifySchema(tables)) {
-      assertDesiredTablesMatch(tables);
-      await stampSchemaVersion(adapter, vault);
+    if (canVerifySchema(tables, desiredTables)) {
+      assertDesiredTablesMatch(tables, desiredTables, allowAdditionalColumns);
+      await stampSchemaVersion(
+        adapter,
+        vault,
+        Math.max(storedVersion, desiredSchemaVersion),
+      );
     }
 
     span.setAttribute("created_table_count", missing.length);
@@ -645,13 +695,13 @@ export async function verifyWorkspaceSchema(
       throw new SchemaLifecycleError({ reason: "schema_not_ready", vault });
     }
 
-    if (!canVerifySchema(tables)) {
+    if (!canVerifySchema(tables, REEF_DESIRED_TABLES)) {
       span.setAttribute("manifest_verified", false);
       throw new SchemaLifecycleError({ reason: "schema_mismatch", vault });
     }
 
     try {
-      assertDesiredTablesMatch(tables);
+      assertDesiredTablesMatch(tables, REEF_DESIRED_TABLES);
     } catch (error) {
       if (!(error instanceof SchemaValidationError)) throw error;
       throw new SchemaLifecycleError({ reason: "schema_mismatch", vault });

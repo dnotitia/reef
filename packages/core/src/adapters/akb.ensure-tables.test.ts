@@ -24,7 +24,10 @@ import {
   makeSqlQueryResponse,
   setupFetch,
 } from "./akb.testSupport";
-import { assertNoAkbManagedColumns } from "./akb/core/tables";
+import {
+  assertNoAkbManagedColumns,
+  reconcileWorkspaceSchema,
+} from "./akb/core/tables";
 
 function makeDesiredTablesResponse(
   overrides: Record<string, unknown> = {},
@@ -340,6 +343,94 @@ describe("ensureReefTables", () => {
       REEF_ATTACHMENTS_TABLE,
       REEF_ACTIVITY_TABLE,
     ]);
+  });
+
+  it("creates and stamps an immutable historical manifest snapshot", async () => {
+    const historicalManifest = {
+      name: "reef_new_table",
+      description: "introduced at schema version 2",
+      columns: [{ name: "value", type: "text" as const, required: true }],
+    };
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse([REEF_SETTINGS_TABLE]) },
+      { status: 201, body: { name: historicalManifest.name } },
+      {
+        body: {
+          kind: "table",
+          vault: "reef-sample",
+          items: [
+            {
+              name: REEF_SETTINGS_TABLE,
+              columns: REEF_DESIRED_TABLES.find(
+                (table) => table.name === REEF_SETTINGS_TABLE,
+              )?.columns,
+            },
+            {
+              name: historicalManifest.name,
+              columns: historicalManifest.columns,
+            },
+          ],
+        },
+      },
+      { body: makeSqlMutationResponse("DELETE 0") },
+      { body: makeSqlMutationResponse("INSERT 0 1") },
+    ]);
+
+    await reconcileWorkspaceSchema({
+      adapter: makeAdapter(),
+      vault: "reef-sample",
+      desiredTables: [historicalManifest],
+      schemaVersion: 2,
+      allowAdditionalColumns: true,
+    });
+
+    expect(calls).toHaveLength(5);
+    expect(JSON.parse(calls[1]?.init?.body as string)).toMatchObject(
+      historicalManifest,
+    );
+    const insertSql = JSON.parse(calls[4]?.init?.body as string).sql as string;
+    expect(insertSql).toContain('"version":2');
+  });
+
+  it("accepts later columns when replaying a historical manifest snapshot", async () => {
+    const historicalManifest = {
+      name: "reef_new_table",
+      columns: [{ name: "value", type: "text" as const }],
+    };
+    const { calls } = setupFetch([
+      {
+        body: {
+          kind: "table",
+          vault: "reef-sample",
+          items: [
+            {
+              name: REEF_SETTINGS_TABLE,
+              columns: REEF_DESIRED_TABLES.find(
+                (table) => table.name === REEF_SETTINGS_TABLE,
+              )?.columns,
+            },
+            {
+              name: historicalManifest.name,
+              columns: [
+                ...historicalManifest.columns,
+                { name: "later_column", type: "text" },
+              ],
+            },
+          ],
+        },
+      },
+      { body: makeSchemaVersionResponse(2) },
+    ]);
+
+    await reconcileWorkspaceSchema({
+      adapter: makeAdapter(),
+      vault: "reef-sample",
+      desiredTables: [historicalManifest],
+      schemaVersion: 2,
+      allowAdditionalColumns: true,
+    });
+
+    expect(calls).toHaveLength(2);
   });
 
   it("is a no-op when all tables already exist", async () => {

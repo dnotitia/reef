@@ -68,6 +68,19 @@ assuming the upstream role is an administrator role. Service-identity wiring is
 a separate security concern and must not be improvised as part of a schema
 change.
 
+Every schema-version increment must also append one continuous immutable entry
+to `WORKSPACE_MIGRATION_CATALOG`. Use `kind: "operations"` for an existing-table
+change and `kind: "reconcile_only"` when the version only adds tables through
+the desired manifest. A reconcile-only entry stores immutable create-time
+manifest snapshots for the tables introduced by that version, so a workspace
+catching up across later ALTER phases creates the historical shape before those
+operations run. Historical replay accepts later additive columns already applied
+by a subsequent phase, while the final release verification remains an exact
+manifest check. A reconcile-only step never calls AKB's table migration
+endpoint: the startup owner reconciles the snapshot, verifies the final release
+manifest, and advances the durable marker only after readback succeeds. Keep its
+stable phase UUID even though it has no ordered ALTER operation list.
+
 Do not commit ad hoc PostgreSQL migration files for akb-owned tables in this
 repository. Do not perform DDL with the DML backfill path, and do not hide an
 existing-table mismatch by teaching reconciliation to alter it.

@@ -250,6 +250,7 @@ describe("startup workspace migrations", () => {
     const catalog = createWorkspaceMigrationCatalog(
       [
         {
+          kind: "operations",
           fromVersion: 2,
           toVersion: 3,
           phaseId: "11111111-1111-4111-8111-111111111111",

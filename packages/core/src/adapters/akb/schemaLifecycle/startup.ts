@@ -206,7 +206,30 @@ export async function runStartupWorkspaceMigrations(
       replayedPhases: 0,
       checksums: [],
     };
+    let manifestReconciledAfterLastOperation = false;
     for (const entry of workspace.pending) {
+      // A manifest-only version step has no AKB ALTER operation. Its durable
+      // effect starts with reconciliation at this exact catalog position. That
+      // ordering matters when a later phase alters a table introduced here.
+      if (entry.kind === "reconcile_only") {
+        try {
+          await reconcileWorkspaceSchema({
+            adapter: params.adapter,
+            vault: workspace.vault,
+            desiredTables: entry.manifests,
+            schemaVersion: entry.toVersion,
+            allowAdditionalColumns: true,
+          });
+          manifestReconciledAfterLastOperation = true;
+        } catch {
+          throw new SchemaLifecycleError({
+            reason: "migration_execution_failed",
+            vault: workspace.vault,
+            phaseId: entry.phaseId,
+          });
+        }
+        continue;
+      }
       try {
         const result = await applyAkbTableMigration({
           adapter: params.adapter,
@@ -217,6 +240,7 @@ export async function runStartupWorkspaceMigrations(
         report.checksums.push(result.checksum);
         if (result.applied) report.appliedPhases += 1;
         else report.replayedPhases += 1;
+        manifestReconciledAfterLastOperation = false;
       } catch {
         throw new SchemaLifecycleError({
           reason: "migration_execution_failed",
@@ -226,10 +250,12 @@ export async function runStartupWorkspaceMigrations(
       }
     }
     try {
-      await reconcileWorkspaceSchema({
-        adapter: params.adapter,
-        vault: workspace.vault,
-      });
+      if (!manifestReconciledAfterLastOperation) {
+        await reconcileWorkspaceSchema({
+          adapter: params.adapter,
+          vault: workspace.vault,
+        });
+      }
       const verification = await verifyWorkspaceSchema({
         adapter: params.adapter,
         vault: workspace.vault,
