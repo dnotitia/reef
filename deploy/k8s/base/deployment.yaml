@@ -10,10 +10,7 @@ spec:
     matchLabels:
       app: reef-web
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
+    type: Recreate
   template:
     metadata:
       labels:
@@ -25,6 +22,18 @@ spec:
       terminationGracePeriodSeconds: 90
       securityContext:
         runAsNonRoot: true
+      initContainers:
+        - name: reef-schema-migrator
+          image: reef-web:latest
+          imagePullPolicy: Always
+          command: ["node", "/app/schema-migrator/cli.mjs"]
+          envFrom:
+            - configMapRef:
+                name: reef-web-config
+            - secretRef:
+                name: reef-schema-migrator-secret
+          securityContext:
+            allowPrivilegeEscalation: false
       containers:
         - name: reef-web
           image: reef-web:latest

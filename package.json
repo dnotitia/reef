@@ -17,7 +17,7 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "pnpm --filter @reef/web dev",
+    "dev": "node --experimental-strip-types --env-file-if-exists=.env.migration.local scripts/dev.ts",
     "build": "pnpm --filter @reef/web build",
     "lint": "biome check .",
     "check:release": "node scripts/check-release-policy.mjs",

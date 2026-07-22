@@ -8,6 +8,10 @@ data:
   # overlay with the real Service DNS (namespace + Service name differ per
   # cluster), e.g. http://backend.<akb-namespace>.svc.cluster.local:8000.
   AKB_BACKEND_URL: "http://akb-backend.example.svc.cluster.local:8000"
+  # Non-secret AKB service-account username shared by explicit workspace
+  # initialization and the startup migration identity preflight. The matching
+  # REEF_SCHEMA_MIGRATION_KEY is injected only into the initContainer.
+  REEF_SCHEMA_SERVICE_USERNAME: "reef-schema-migrator"
   # reef-web's own canonical public origin (REEF-137). Sent to akb as the
   # absolute SSO callback base so it survives akb's redirect allowlist when reef
   # runs alongside akb's own frontend. Bare origin only (no path/query/fragment),
