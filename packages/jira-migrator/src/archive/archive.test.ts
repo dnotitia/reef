@@ -6,6 +6,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  realpath,
   rm,
   symlink,
   writeFile,
@@ -31,7 +32,9 @@ const FUTURE = "2999-01-01T00:00:00.000Z";
 const NOW = "2026-07-10T12:00:00.000Z";
 
 const makeBase = async (): Promise<string> => {
-  const path = await mkdtemp(join(tmpdir(), "reef-raw-archive-test-"));
+  const path = await mkdtemp(
+    join(await realpath(tmpdir()), "reef-raw-archive-test-"),
+  );
   tempDirectories.push(path);
   return path;
 };
@@ -391,6 +394,49 @@ describe("RawArchive", () => {
     const symlinkArchive = createRawArchive(options(symlinkRoot));
     expect(await errorCode(symlinkArchive.verify())).toBe(
       "symlink_not_allowed",
+    );
+
+    const realParent = join(base, "real-parent");
+    const symlinkParent = join(base, "symlink-parent");
+    await mkdir(realParent, { mode: 0o700 });
+    await symlink(realParent, symlinkParent, "dir");
+    const nestedRoot = join(symlinkParent, "nested-archive");
+    const nestedArchive = createRawArchive(options(nestedRoot));
+    expect(await errorCode(nestedArchive.archive(input()))).toBe(
+      "symlink_not_allowed",
+    );
+    await expect(
+      lstat(join(realParent, "nested-archive")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+
+    if (process.platform !== "win32") {
+      const writableParent = join(base, "world-writable-parent");
+      await mkdir(writableParent, { mode: 0o700 });
+      await chmod(writableParent, 0o777);
+      const writableArchive = createRawArchive(
+        options(join(writableParent, "nested-archive")),
+      );
+      expect(await errorCode(writableArchive.archive(input()))).toBe(
+        "permission_violation",
+      );
+
+      const stickyParent = join(base, "sticky-shared-parent");
+      await mkdir(stickyParent, { mode: 0o700 });
+      await chmod(stickyParent, 0o1777);
+      const unreservedArchive = createRawArchive(
+        options(join(stickyParent, "unreserved-archive")),
+      );
+      expect(await errorCode(unreservedArchive.archive(input()))).toBe(
+        "permission_violation",
+      );
+    }
+
+    const dotSegmentRoot = `${base}/trusted/link/../nested-archive`;
+    expect(() => createRawArchive(options(dotSegmentRoot))).toThrowError(
+      expect.objectContaining({ code: "invalid_archive_configuration" }),
+    );
+    expect(() => createRawArchive(options("C:..\\archive"))).toThrowError(
+      expect.objectContaining({ code: "invalid_archive_configuration" }),
     );
   });
 

@@ -27,7 +27,7 @@ export function redactUnknown<T>(value: T, secrets: readonly string[]): T {
   if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value).map(([key, entry]) => [
-        key,
+        redactString(key, secrets),
         redactUnknown(entry, secrets),
       ]),
     ) as T;

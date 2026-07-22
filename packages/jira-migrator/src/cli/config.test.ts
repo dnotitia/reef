@@ -109,6 +109,60 @@ describe("loadJiraMigratorConfig", () => {
     } catch (error) {
       expect(JSON.stringify(error)).not.toContain("jira-secret-token");
     }
+
+    expect(() =>
+      loadJiraMigratorConfig({
+        env: {
+          ...env,
+          REEF_JIRA_BASE_URL:
+            "https://embedded-user:embedded-secret@example.atlassian.net",
+        },
+      }),
+    ).toThrow(JiraMigratorConfigError);
+
+    try {
+      loadJiraMigratorConfig({
+        env: {
+          ...env,
+          REEF_JIRA_BASE_URL:
+            "https://embedded-user:embedded-secret@example.atlassian.net",
+        },
+      });
+    } catch (error) {
+      expect(JSON.stringify(error)).not.toContain("embedded-user");
+      expect(JSON.stringify(error)).not.toContain("embedded-secret");
+    }
+
+    for (const baseUrl of [
+      "https://@example.atlassian.net",
+      "https://:@example.atlassian.net",
+      "https:@example.atlassian.net",
+      "https:\\@example.atlassian.net",
+      "ht\ntps://@example.atlassian.net",
+    ]) {
+      expect(() =>
+        loadJiraMigratorConfig({
+          env: { ...env, REEF_JIRA_BASE_URL: baseUrl },
+        }),
+      ).toThrow(JiraMigratorConfigError);
+    }
+
+    expect(
+      loadJiraMigratorConfig({
+        env: {
+          ...env,
+          REEF_JIRA_BASE_URL: "https://example.atlassian.net/path@segment",
+        },
+      }).jira.baseUrl,
+    ).toBe("https://example.atlassian.net/path@segment");
+    expect(
+      loadJiraMigratorConfig({
+        env: {
+          ...env,
+          REEF_JIRA_BASE_URL: "https://example.atlassian.net\\path@segment",
+        },
+      }).jira.baseUrl,
+    ).toBe("https://example.atlassian.net/path@segment");
   });
 
   it("parses CLI flags without accepting secret values on the command line", () => {

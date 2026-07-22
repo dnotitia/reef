@@ -1,4 +1,12 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -52,7 +60,7 @@ describe("Jira account mapping file", () => {
       directory: [],
       observedAt: "2026-07-09T08:00:00.000Z",
     }).artifact;
-    await writeJiraAccountMappingArtifact(path, {
+    const artifact = {
       ...upserted,
       overrides: {
         ...upserted.overrides,
@@ -61,11 +69,18 @@ describe("Jira account mapping file", () => {
           reason: "operator confirmed requester account",
         },
       },
-    });
+    };
+    await writeJiraAccountMappingArtifact(path, artifact);
 
     const raw = await readFile(path, "utf8");
     expect(raw).toContain('"overrides"');
     expect(raw).toContain('"acct-reporter"');
+    if (process.platform !== "win32") {
+      expect((await stat(path)).mode & 0o777).toBe(0o600);
+      await chmod(path, 0o644);
+      await writeJiraAccountMappingArtifact(path, artifact);
+      expect((await stat(path)).mode & 0o777).toBe(0o600);
+    }
 
     const reloaded = await loadJiraAccountMappingArtifact({
       path,
@@ -117,5 +132,24 @@ describe("Jira account mapping file", () => {
     ).rejects.toMatchObject({
       issues: [expect.stringContaining("does not match")],
     });
+  });
+
+  it("replaces a mapping symlink without modifying its target", async () => {
+    const dir = await makeTempDir();
+    const target = join(dir, "target.json");
+    const path = join(dir, "mapping.json");
+    await writeFile(target, "unchanged\n", { mode: 0o600 });
+    await symlink(target, path);
+
+    await writeJiraAccountMappingArtifact(path, {
+      version: 1,
+      jiraCloudId: "cloud-abc",
+      accounts: {},
+      overrides: {},
+    });
+
+    expect(await readFile(target, "utf8")).toBe("unchanged\n");
+    expect((await stat(path)).isFile()).toBe(true);
+    expect(await readFile(path, "utf8")).toContain('"jiraCloudId"');
   });
 });

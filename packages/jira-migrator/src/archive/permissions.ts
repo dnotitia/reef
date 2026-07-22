@@ -1,4 +1,5 @@
 import { chmod, lstat, mkdir } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 import {
   RawArchiveError,
   type RawArchiveErrorCode,
@@ -31,11 +32,83 @@ const assertIso = (value: string): void => {
 
 const modeBits = (mode: number): number => mode & 0o777;
 
+export const assertSafeArchivePathSyntax = (path: string): void => {
+  const pathWithoutDrive = path.replace(/^[a-z]:/iu, "");
+  if (
+    pathWithoutDrive
+      .split(/[\\/]/u)
+      .some((segment) => segment === "." || segment === "..")
+  ) {
+    fail("invalid_archive_configuration");
+  }
+};
+
+const assertStablePosixDirectory = (
+  stat: Awaited<ReturnType<typeof lstat>>,
+): void => {
+  if (!stat.isDirectory()) return;
+  const effectiveUserId = process.geteuid?.();
+  if (
+    effectiveUserId !== undefined &&
+    Number(stat.uid) !== 0 &&
+    Number(stat.uid) !== effectiveUserId
+  ) {
+    fail("permission_violation");
+  }
+  const mode = Number(stat.mode);
+  const writableByOtherPrincipal = (mode & 0o022) !== 0;
+  const stickyDirectory = (mode & 0o1000) !== 0;
+  if (writableByOtherPrincipal && !stickyDirectory) {
+    fail("permission_violation");
+  }
+};
+
+const assertSecurePathComponents = async (
+  path: string,
+  permissionModel: "posix" | "windows",
+): Promise<void> => {
+  assertSafeArchivePathSyntax(path);
+  const components: string[] = [];
+  let current = resolve(path);
+  while (true) {
+    components.push(current);
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+
+  let nearestExistingDirectoryIsSharedWritable = false;
+  for (const component of components.reverse()) {
+    try {
+      const stat = await lstat(component);
+      if (stat.isSymbolicLink()) fail("symlink_not_allowed");
+      // POSIX ownership and mode checks make the validated parent chain stable
+      // against replacement by a different OS principal. Same-user processes
+      // already have the archive operator's effective filesystem privilege.
+      if (permissionModel === "posix") assertStablePosixDirectory(stat);
+      nearestExistingDirectoryIsSharedWritable =
+        permissionModel === "posix" &&
+        stat.isDirectory() &&
+        (Number(stat.mode) & 0o022) !== 0;
+    } catch (error) {
+      if (error instanceof RawArchiveError) throw error;
+      if (isNodeError(error) && error.code === "ENOENT") {
+        if (nearestExistingDirectoryIsSharedWritable) {
+          fail("permission_violation");
+        }
+        return;
+      }
+      fail("archive_io_failed");
+    }
+  }
+};
+
 export const assertSecureNode = async (
   path: string,
   kind: "directory" | "file",
   permissionModel: "posix" | "windows",
 ): Promise<void> => {
+  await assertSecurePathComponents(path, permissionModel);
   let stat: Awaited<ReturnType<typeof lstat>>;
   try {
     stat = await lstat(path);
@@ -59,6 +132,7 @@ export const ensureSecureDirectory = async (
   path: string,
   permissionModel: "posix" | "windows",
 ): Promise<void> => {
+  await assertSecurePathComponents(path, permissionModel);
   let created = false;
   try {
     await lstat(path);
