@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   installSkillDocuments: vi.fn(),
   stampSkill: vi.fn(),
   readConfig: vi.fn(),
-  writeConfig: vi.fn(),
+  writeInitialConfig: vi.fn(),
   advanceMarker: vi.fn(),
   createMarker: vi.fn(),
   readMarker: vi.fn(),
@@ -31,7 +31,7 @@ vi.mock("../vaultSkill/vaultSkill", () => ({
 }));
 vi.mock("./config", () => ({
   readConfig: mocks.readConfig,
-  writeConfig: mocks.writeConfig,
+  writeInitialConfig: mocks.writeInitialConfig,
 }));
 vi.mock("./initializationMarker", () => ({
   advanceWorkspaceInitializationMarker: mocks.advanceMarker,
@@ -112,7 +112,7 @@ describe("initializeWorkspace", () => {
     expect(mocks.grantMember).not.toHaveBeenCalled();
     expect(mocks.reconcile).not.toHaveBeenCalled();
     expect(mocks.installSkillDocuments).not.toHaveBeenCalled();
-    expect(mocks.writeConfig).not.toHaveBeenCalled();
+    expect(mocks.writeInitialConfig).not.toHaveBeenCalled();
   });
 
   it("returns durable current config on an original-request retry after routine edits", async () => {
@@ -131,7 +131,7 @@ describe("initializeWorkspace", () => {
         serviceUsername: "reef-schema",
       }),
     ).resolves.toMatchObject({ config: editedConfig, state: "ready" });
-    expect(mocks.writeConfig).not.toHaveBeenCalled();
+    expect(mocks.writeInitialConfig).not.toHaveBeenCalled();
   });
 
   it("rejects a different-fingerprint retry before lifecycle mutation", async () => {
@@ -173,7 +173,7 @@ describe("initializeWorkspace", () => {
       ).resolves.toMatchObject({ state: "ready" });
       expect(mocks.reconcile).toHaveBeenCalledTimes(reconcileCount);
       expect(mocks.installSkillDocuments).toHaveBeenCalledTimes(skillCount);
-      expect(mocks.writeConfig).toHaveBeenCalledTimes(configCount);
+      expect(mocks.writeInitialConfig).toHaveBeenCalledTimes(configCount);
     },
   );
 
@@ -197,6 +197,34 @@ describe("initializeWorkspace", () => {
     expect(mocks.advanceMarker).not.toHaveBeenCalled();
     expect(mocks.grantMember).not.toHaveBeenCalled();
     expect(mocks.createVault).not.toHaveBeenCalled();
+  });
+
+  it("restores and rechecks writer membership before advancing ready", async () => {
+    const fingerprint = await workspaceInitializationFingerprint(
+      "reef-sample",
+      config,
+    );
+    mocks.readMarker.mockResolvedValue(stored("skill_installed", fingerprint));
+    mocks.listMembers.mockResolvedValueOnce({ members: [] }).mockResolvedValue({
+      members: [{ username: "reef-schema", role: "writer" }],
+    });
+
+    await initializeWorkspace({
+      adapter: { request: vi.fn() },
+      request: { name: "reef-sample", config },
+      serviceUsername: "reef-schema",
+    });
+
+    expect(mocks.grantMember).toHaveBeenCalledOnce();
+    expect(mocks.advanceMarker).toHaveBeenCalledWith(
+      expect.anything(),
+      "reef-sample",
+      expect.objectContaining({
+        marker: expect.objectContaining({ state: "skill_installed" }),
+      }),
+      "ready",
+    );
+    expect(mocks.listMembers.mock.calls.length).toBeGreaterThanOrEqual(4);
   });
 
   it("requires a configured service username before creating a vault", async () => {

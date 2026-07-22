@@ -15,7 +15,7 @@ import {
   installReefVaultSkillDocuments,
   stampReefVaultSkillVersion,
 } from "../vaultSkill/vaultSkill";
-import { readConfig, writeConfig } from "./config";
+import { readConfig, writeInitialConfig } from "./config";
 import {
   advanceWorkspaceInitializationMarker,
   createWorkspaceInitializationMarker,
@@ -90,6 +90,32 @@ async function exactWriterExists(
   return exact.length === 1 && exact[0]?.role === "writer";
 }
 
+async function ensureExactWriterMembership(
+  adapter: AkbAdapter,
+  vault: string,
+  serviceUsername: string,
+): Promise<void> {
+  if (await exactWriterExists(adapter, vault, serviceUsername)) return;
+  try {
+    await grantVaultMember({
+      adapter,
+      vault,
+      user: serviceUsername,
+      role: "writer",
+    });
+  } catch (error) {
+    if (!(await exactWriterExists(adapter, vault, serviceUsername))) {
+      throw error;
+    }
+  }
+  if (!(await exactWriterExists(adapter, vault, serviceUsername))) {
+    throw new SchemaLifecycleError({
+      reason: "initialization_state_invalid",
+      vault,
+    });
+  }
+}
+
 async function ensureRawVault(
   adapter: AkbAdapter,
   name: string,
@@ -142,27 +168,12 @@ export async function initializeWorkspace(
     });
   }
 
+  // Membership is durable lifecycle state, not merely an initializing-stage
+  // side effect. Restore/recheck it on every replay before later stages can
+  // advance, including a ready retry after an operator removed the grant.
+  await ensureExactWriterMembership(adapter, name, serviceUsername);
+
   if (stored.marker.state === "initializing") {
-    if (!(await exactWriterExists(adapter, name, serviceUsername))) {
-      try {
-        await grantVaultMember({
-          adapter,
-          vault: name,
-          user: serviceUsername,
-          role: "writer",
-        });
-      } catch (error) {
-        if (!(await exactWriterExists(adapter, name, serviceUsername))) {
-          throw error;
-        }
-      }
-    }
-    if (!(await exactWriterExists(adapter, name, serviceUsername))) {
-      throw new SchemaLifecycleError({
-        reason: "initialization_state_invalid",
-        vault: name,
-      });
-    }
     stored = await advanceWorkspaceInitializationMarker(
       adapter,
       name,
@@ -201,11 +212,11 @@ export async function initializeWorkspace(
   }
 
   if (stored.marker.state === "skill_installed") {
-    await writeConfig({
+    await writeInitialConfig({
       adapter,
       vault: name,
       config,
-      message: "Initialize reef workspace config",
+      fingerprint,
     });
     const configReadback = await readConfig({ adapter, vault: name });
     if (
@@ -217,6 +228,7 @@ export async function initializeWorkspace(
         vault: name,
       });
     }
+    await ensureExactWriterMembership(adapter, name, serviceUsername);
     stored = await advanceWorkspaceInitializationMarker(
       adapter,
       name,

@@ -13,6 +13,7 @@ import {
   MonitoredRepoSchema,
   StaleHideDaysSchema,
 } from "../../../schemas/workspace/config";
+import type { AkbAdapter } from "../core/http";
 import {
   type AkbSqlResponse,
   MONITORED_REPOS_TABLE,
@@ -53,6 +54,120 @@ import type {
 // across statements. The brief window with empty rows is observable to a
 // concurrent read. Acceptable for solo-dev pre-release; a future move to
 // app-level diffing or akb-side transactions is left as a separate change.
+
+async function deterministicInitializationRowId(seed: string): Promise<string> {
+  const digest = new Uint8Array(
+    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(seed)),
+  );
+  // AKB's managed id is a UUID primary key. Derive a stable RFC 4122-shaped
+  // value so concurrent/retried writes for one initialization fingerprint hit
+  // the same row instead of creating duplicates.
+  digest[6] = ((digest[6] ?? 0) & 0x0f) | 0x50;
+  digest[8] = ((digest[8] ?? 0) & 0x3f) | 0x80;
+  const hex = Array.from(digest.slice(0, 16), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(
+    12,
+    16,
+  )}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+async function upsertInitialSetting(
+  adapter: AkbAdapter,
+  vault: string,
+  fingerprint: string,
+  key: string,
+  value: unknown,
+): Promise<void> {
+  const id = await deterministicInitializationRowId(
+    `reef-workspace-initialization:${fingerprint}:setting:${key}`,
+  );
+  await runSql(
+    adapter,
+    vault,
+    `INSERT INTO ${tableRef(REEF_SETTINGS_TABLE)} (id, key, value) VALUES (${quoteText(
+      id,
+      "initialization row id",
+    )}, ${quoteText(key, "settings key")}, ${quoteJson(
+      value,
+    )}) ON CONFLICT (id) DO UPDATE SET key = EXCLUDED.key, value = EXCLUDED.value WHERE ${tableRef(
+      REEF_SETTINGS_TABLE,
+    )}.key = EXCLUDED.key`,
+  );
+}
+
+/**
+ * Idempotent initial projection for a workspace whose config was proven absent.
+ *
+ * Unlike routine Settings edits, this uses deterministic AKB-managed row ids
+ * and primary-key upserts. Identical concurrent/restarted initialization
+ * requests therefore converge without a process-local lock. This function must
+ * not be used to replace an existing config because it intentionally performs
+ * no destructive cleanup.
+ */
+export async function writeInitialConfig(params: {
+  adapter: AkbAdapter;
+  vault: string;
+  config: Config;
+  fingerprint: string;
+}): Promise<void> {
+  const { adapter, vault, config, fingerprint } = params;
+  return withSpan("akb.write_initial_config", { vault }, async (span) => {
+    span.setAttribute("write_strategy", "deterministic_id_upsert");
+    span.setAttribute("monitored_repo_count", config.monitored_repos.length);
+    await verifyWorkspaceSchema({ adapter, vault });
+
+    const settings: ReadonlyArray<readonly [string, unknown]> = [
+      [REEF_SETTINGS_PROJECT_PREFIX_KEY, config.project_prefix],
+      [
+        REEF_SETTINGS_STALE_HIDE_COMPLETED_DAYS_KEY,
+        config.stale_hide_completed_days,
+      ],
+      [
+        REEF_SETTINGS_STALE_HIDE_CANCELED_DAYS_KEY,
+        config.stale_hide_canceled_days,
+      ],
+      [REEF_SETTINGS_AI_SCANNING_ENABLED_KEY, config.ai_scanning_enabled],
+    ];
+    for (const [key, value] of settings) {
+      await upsertInitialSetting(adapter, vault, fingerprint, key, value);
+    }
+    if (config.authoring_language != null) {
+      await upsertInitialSetting(
+        adapter,
+        vault,
+        fingerprint,
+        REEF_SETTINGS_AUTHORING_LANGUAGE_KEY,
+        config.authoring_language,
+      );
+    }
+
+    for (const repo of config.monitored_repos) {
+      const id = await deterministicInitializationRowId(
+        `reef-workspace-initialization:${fingerprint}:repo:${repo.github_id}`,
+      );
+      await runSql(
+        adapter,
+        vault,
+        `INSERT INTO ${tableRef(
+          MONITORED_REPOS_TABLE,
+        )} (id, github_id, owner, name, description) VALUES (${quoteText(
+          id,
+          "initialization row id",
+        )}, ${quoteIntOrNull(repo.github_id)}, ${quoteText(
+          repo.owner,
+          "monitored_repo owner",
+        )}, ${quoteText(repo.name, "monitored_repo name")}, ${quoteTextOrNull(
+          repo.description,
+          "monitored_repo description",
+        )}) ON CONFLICT (id) DO UPDATE SET github_id = EXCLUDED.github_id, owner = EXCLUDED.owner, name = EXCLUDED.name, description = EXCLUDED.description WHERE ${tableRef(
+          MONITORED_REPOS_TABLE,
+        )}.github_id = EXCLUDED.github_id`,
+      );
+    }
+  });
+}
 
 /**
  * Index `reef_settings` (key, value) rows by key, decoding each value. JSON/JSONB
