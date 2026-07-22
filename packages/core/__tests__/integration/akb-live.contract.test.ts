@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   type AkbAdapter,
+  akbReconcileWorkspaceSchema,
   buildIssueMetadataFromCreateInput,
   createAkbAdapter,
   createVault,
-  ensureReefTables,
   login,
   readIssue,
   searchDocuments,
@@ -107,7 +107,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
       name: vault,
       description: "REEF-056 live contract smoke (throwaway)",
     });
-    await ensureReefTables({ adapter, vault });
+    await akbReconcileWorkspaceSchema({ adapter, vault });
 
     // Seed one issue through reef's REAL write path (doc PUT + reef_issues row).
     const issue = buildIssueMetadataFromCreateInput({

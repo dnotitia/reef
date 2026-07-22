@@ -18,7 +18,7 @@ import {
   tableRef,
   withSpan,
 } from "../core/shared";
-import { ensureReefTables } from "../core/shared";
+import { verifyWorkspaceSchema } from "../core/shared";
 import type {
   DeleteTemplateParams,
   ListTemplatesParams,
@@ -118,11 +118,8 @@ export async function readTemplate(
  * akb-auto `created_at`) and INSERT otherwise. Last-write-wins, non-
  * transactional.
  *
- * Provisions `reef_templates` lazily via `ensureReefTables` (mirroring
- * `writeConfig`, NOT `writeIssue`): `listTemplates` treats a missing table as
- * an empty list, so the Settings "add a template" flow is a legitimate path
- * even on a vault that predates the table — the first write should create it
- * rather than 500.
+ * Requires `reef_templates` to have been provisioned by explicit initialization
+ * or startup reconciliation. Feature writes never mutate schema.
  */
 export async function writeTemplate(
   params: WriteTemplateParams,
@@ -132,7 +129,7 @@ export async function writeTemplate(
     "akb.write_template",
     { vault, name: template.name },
     async (span) => {
-      await ensureReefTables({ adapter, vault });
+      await verifyWorkspaceSchema({ adapter, vault });
       const nameLiteral = quoteText(template.name, "template name");
       const existing = await selectTemplateRows(
         adapter,

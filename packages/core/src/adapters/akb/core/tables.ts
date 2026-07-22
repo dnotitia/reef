@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { ConflictError, SchemaValidationError } from "../../../errors";
+import {
+  ConflictError,
+  SchemaLifecycleError,
+  SchemaValidationError,
+} from "../../../errors";
 import {
   REEF_SETTINGS_SCHEMA_VERSION_KEY,
   REEF_SETTINGS_TABLE,
@@ -305,9 +309,14 @@ export async function applyAkbTableMigration(
   );
 }
 
-export interface EnsureReefTablesParams {
+export interface WorkspaceSchemaParams {
   adapter: AkbAdapter;
   vault: string;
+}
+
+export interface WorkspaceSchemaVerification {
+  schemaVersion: number | null;
+  manifestVerified: boolean;
 }
 
 export function assertNoAkbManagedColumns(table: AkbCreateTableRequest): void {
@@ -560,11 +569,11 @@ async function createMissingTable(
  * before the `schema_version` stamp is written; a mismatch fails hard instead of
  * pretending runtime ALTER/DROP will repair it.
  */
-export async function ensureReefTables(
-  params: EnsureReefTablesParams,
+export async function reconcileWorkspaceSchema(
+  params: WorkspaceSchemaParams,
 ): Promise<void> {
   const { adapter, vault } = params;
-  return withSpan("akb.tables.ensure", { vault }, async (span) => {
+  return withSpan("akb.tables.reconcile", { vault }, async (span) => {
     for (const manifest of REEF_DESIRED_TABLES) {
       assertNoAkbManagedColumns(manifest);
     }
@@ -612,5 +621,48 @@ export async function ensureReefTables(
     }
 
     span.setAttribute("created_table_count", missing.length);
+  });
+}
+
+/**
+ * Read and validate a workspace schema without creating, altering, or stamping.
+ *
+ * Older AKB list responses did not include column metadata. That compatibility
+ * shape can prove table presence only, so it returns `manifestVerified: false`;
+ * current AKB responses are checked against the complete manifest and exact
+ * release schema version.
+ */
+export async function verifyWorkspaceSchema(
+  params: WorkspaceSchemaParams,
+): Promise<WorkspaceSchemaVerification> {
+  const { adapter, vault } = params;
+  return withSpan("akb.tables.verify", { vault }, async (span) => {
+    const tables = await listAkbTables(adapter, vault);
+    const byName = tableMap(tables);
+    const missing = REEF_DESIRED_TABLES.filter(
+      (manifest) => !byName.has(manifest.name),
+    );
+    if (missing.length > 0) {
+      throw new SchemaLifecycleError({ reason: "schema_not_ready", vault });
+    }
+
+    if (!canVerifySchema(tables)) {
+      span.setAttribute("manifest_verified", false);
+      return { schemaVersion: null, manifestVerified: false };
+    }
+
+    try {
+      assertDesiredTablesMatch(tables);
+    } catch (error) {
+      if (!(error instanceof SchemaValidationError)) throw error;
+      throw new SchemaLifecycleError({ reason: "schema_mismatch", vault });
+    }
+    const schemaVersion = await readStoredSchemaVersion(adapter, vault, true);
+    if (schemaVersion !== REEF_SCHEMA_VERSION) {
+      throw new SchemaLifecycleError({ reason: "schema_mismatch", vault });
+    }
+    span.setAttribute("manifest_verified", true);
+    span.setAttribute("schema_version", schemaVersion);
+    return { schemaVersion, manifestVerified: true };
   });
 }

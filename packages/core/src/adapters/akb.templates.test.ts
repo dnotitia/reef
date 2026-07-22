@@ -14,6 +14,7 @@ import {
   REEF_SPRINTS_TABLE,
   REEF_TEMPLATES_TABLE,
   SAMPLE_TEMPLATE,
+  type SchemaLifecycleError,
   TEMPLATE_ROW_COLUMNS,
   deleteTemplate,
   ensureReefTables,
@@ -92,27 +93,8 @@ describe("templates", () => {
     expect(insertSql).toContain("## Repro");
   });
 
-  it("provisions reef_templates then INSERTs when the table is missing", async () => {
-    const { calls } = setupFetch([
-      // ensureReefTables: nothing exists yet → creates all reef tables.
-      { body: makeListTablesResponse([]) },
-      { status: 201, body: { name: REEF_SETTINGS_TABLE } },
-      { status: 201, body: { name: MONITORED_REPOS_TABLE } },
-      { status: 201, body: { name: REEF_ISSUES_TABLE } },
-      { status: 201, body: { name: REEF_SPRINTS_TABLE } },
-      { status: 201, body: { name: REEF_MILESTONES_TABLE } },
-      { status: 201, body: { name: REEF_RELEASES_TABLE } },
-      { status: 201, body: { name: REEF_TEMPLATES_TABLE } },
-      { status: 201, body: { name: REEF_ACTIVITY_SUGGESTIONS_TABLE } },
-      { status: 201, body: { name: REEF_COMMENTS_TABLE } },
-      { status: 201, body: { name: REEF_ATTACHMENTS_TABLE } },
-      { status: 201, body: { name: REEF_ACTIVITY_TABLE } },
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
-      // probe SELECT: empty (table now exists)
-      { body: makeSqlQueryResponse([], TEMPLATE_ROW_COLUMNS) },
-      // INSERT
-      { body: makeSqlMutationResponse("INSERT 0 1") },
-    ]);
+  it("fails boundedly without provisioning when the table is missing", async () => {
+    const { calls } = setupFetch([{ body: makeListTablesResponse([]) }]);
     const adapter = makeAdapter();
     await expect(
       writeTemplate({
@@ -120,14 +102,12 @@ describe("templates", () => {
         vault: "reef-sample",
         template: SAMPLE_TEMPLATE,
       }),
-    ).resolves.toBeUndefined();
-    expect(calls).toHaveLength(15);
-    const createNames = calls
-      .slice(1, 12)
-      .map((c) => JSON.parse(c.init?.body as string).name);
-    expect(createNames).toEqual(ALL_REEF_TABLES);
-    const insertSql = JSON.parse(calls[14]?.init?.body as string).sql;
-    expect(insertSql).toContain("INSERT INTO reef_templates");
+    ).rejects.toMatchObject({
+      name: "SchemaLifecycleError",
+      context: { reason: "schema_not_ready", vault: "reef-sample" },
+    } satisfies Partial<SchemaLifecycleError>);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.init?.method).toBe("GET");
   });
 
   it("UPDATEs an existing template (preserving the row) when the name probe finds a row", async () => {

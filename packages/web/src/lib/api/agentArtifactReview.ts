@@ -1,8 +1,8 @@
 import {
   AgentArtifactSchema,
-  akbEnsureReefTables,
   akbUpdateActivitySuggestion,
   akbUpdateActivitySuggestionStatus,
+  akbVerifyWorkspaceSchema,
 } from "@reef/core";
 import {
   approveActivitySuggestionArtifact,
@@ -45,7 +45,7 @@ export async function approveAgentArtifact({
   artifact,
   prefix,
 }: ApproveAgentArtifactParams): Promise<AgentArtifactCommandResult> {
-  await akbEnsureReefTables({ adapter, vault });
+  await akbVerifyWorkspaceSchema({ adapter, vault });
   const lookup = await findActivitySuggestion(adapter, vault, artifact);
   if (lookup?.suggestion) {
     return approveActivitySuggestionArtifact({
@@ -114,7 +114,7 @@ export async function editAgentArtifact({
 
   if (!context) return { artifact: next };
 
-  await akbEnsureReefTables({
+  await akbVerifyWorkspaceSchema({
     adapter: context.adapter,
     vault: context.vault,
   });
@@ -218,7 +218,7 @@ export async function dismissAgentArtifact({
   context,
 }: DismissAgentArtifactParams): Promise<AgentArtifactCommandResult> {
   if (context) {
-    await akbEnsureReefTables({
+    await akbVerifyWorkspaceSchema({
       adapter: context.adapter,
       vault: context.vault,
     });

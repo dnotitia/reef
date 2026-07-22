@@ -23,7 +23,6 @@ import {
   REEF_SETTINGS_STALE_HIDE_COMPLETED_DAYS_KEY,
   REEF_SETTINGS_TABLE,
   decodeSettingsValue,
-  ensureReefTables,
   isMissingTableError,
   quoteIntOrNull,
   quoteJson,
@@ -31,6 +30,7 @@ import {
   quoteTextOrNull,
   runSql,
   tableRef,
+  verifyWorkspaceSchema,
   withSpan,
 } from "../core/shared";
 import type {
@@ -46,9 +46,8 @@ import type {
 // `project_prefix` row holds the prefix; `monitored_repos` is a typed table
 // of GitHub repos addressed by `github_id`.
 //
-// The akb tables themselves are created lazily by `ensureReefTables` from the
-// `POST /api/vaults` route. `writeConfig` assumes they already exist and will
-// fail loudly if they don't — auto-healing on write would mask corruption.
+// Tables are provisioned by explicit initialization/startup owners. Config
+// reads/writes never repair schema from a feature request.
 //
 // Concurrency: writes are replace-all (DELETE + INSERT), non-transactional
 // across statements. The brief window with empty rows is observable to a
@@ -215,11 +214,8 @@ export async function readConfig(
 /**
  * Replace-all write of the workspace config.
  *
- * Calls `ensureReefTables` lazily so both entry points — `POST /api/vaults`
- * (greenfield + brownfield onboarding) and `PATCH /api/config` (Settings
- * editing a does not-configured workspace) — provision the tables uniformly.
- * `ensureReefTables` is idempotent (listTables first), so the redundant call
- * during onboarding costs one extra round-trip but does not duplicates work.
+ * Requires a reconciled workspace schema. Explicit initialization and startup
+ * own provisioning; ordinary Settings writes only verify the prerequisite.
  *
  * Single-row `reef_settings` upsert is implemented as DELETE+INSERT for
  * symmetry with the `monitored_repos` replace; both are non-transactional,
@@ -231,7 +227,7 @@ export async function writeConfig(params: WriteConfigParams): Promise<void> {
     span.setAttribute("write_strategy", "replace_all");
     span.setAttribute("monitored_repo_count", config.monitored_repos.length);
 
-    await ensureReefTables({ adapter, vault });
+    await verifyWorkspaceSchema({ adapter, vault });
 
     // (1) Replace the project_prefix row in reef_settings.
     await runSql(

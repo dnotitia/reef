@@ -15,6 +15,15 @@ export {
   type GitHubAppConfig,
   type Config,
 } from "./config";
+export {
+  WorkspaceInitializationMarkerSchema,
+  WorkspaceInitializationResultSchema,
+  WorkspaceInitializationStateSchema,
+  WORKSPACE_INITIALIZATION_STATES,
+  type WorkspaceInitializationMarker,
+  type WorkspaceInitializationResult,
+  type WorkspaceInitializationState,
+} from "./initialization";
 
 export {
   AuthoringLanguageSchema,

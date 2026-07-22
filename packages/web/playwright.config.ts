@@ -23,6 +23,8 @@ function buildWebServerEnv(): Record<string, string> {
 
   return {
     AKB_BACKEND_URL: process.env.AKB_BACKEND_URL ?? `${E2E_MOCK_URL}/akb`,
+    REEF_SCHEMA_SERVICE_USERNAME:
+      process.env.REEF_SCHEMA_SERVICE_USERNAME ?? "reef-schema-migrator",
     // Keep the hermetic server pinned to canonical names when a developer shell
     // exports the supported OpenRouter compatibility aliases.
     OPENROUTER_API_KEY: "",

@@ -13,7 +13,6 @@ import {
   REEF_ISSUES_TABLE,
   decodeSettingsValue,
   downloadAkbFile,
-  ensureReefTables,
   isMissingTableError,
   quoteIdent,
   quoteJson,
@@ -23,6 +22,7 @@ import {
   runSql,
   tableRef,
   uploadAkbFile,
+  verifyWorkspaceSchema,
   withSpan,
 } from "../core/shared";
 import { appendActivityEvents } from "./activity";
@@ -246,7 +246,7 @@ export async function uploadIssueAttachment(
     "akb.upload_issue_attachment",
     { vault, reef_id: reefId },
     async () => {
-      await ensureReefTables({ adapter, vault });
+      await verifyWorkspaceSchema({ adapter, vault });
       await assertIssueExists(adapter, vault, reefId);
       const uploaded = await uploadAkbFile({
         adapter,
@@ -288,7 +288,7 @@ export async function createIssueAttachmentRecord(
     "akb.create_issue_attachment_record",
     { vault, reef_id: input.reef_id },
     async () => {
-      await ensureReefTables({ adapter, vault });
+      await verifyWorkspaceSchema({ adapter, vault });
       await assertIssueExists(adapter, vault, input.reef_id);
       const attachment = await insertAttachmentRow(adapter, vault, input);
       await appendAttachmentAddedEvent(adapter, vault, attachment).catch(

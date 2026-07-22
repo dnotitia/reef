@@ -6,12 +6,12 @@ vi.mock("@/lib/logging/logger", () => ({
 }));
 
 const {
-  mockAkbEnsureReefTables,
+  mockAkbVerifyWorkspaceSchema,
   mockAkbReadActivitySuggestion,
   mockAkbUpdateActivitySuggestion,
   mockGetAkbAdapter,
 } = vi.hoisted(() => ({
-  mockAkbEnsureReefTables: vi.fn(),
+  mockAkbVerifyWorkspaceSchema: vi.fn(),
   mockAkbReadActivitySuggestion: vi.fn(),
   mockAkbUpdateActivitySuggestion: vi.fn(),
   mockGetAkbAdapter: vi.fn(),
@@ -30,7 +30,7 @@ vi.mock("@reef/core", async (importOriginal) => {
   const original = await importOriginal<typeof import("@reef/core")>();
   return {
     ...original,
-    akbEnsureReefTables: mockAkbEnsureReefTables,
+    akbVerifyWorkspaceSchema: mockAkbVerifyWorkspaceSchema,
     akbReadActivitySuggestion: mockAkbReadActivitySuggestion,
     akbUpdateActivitySuggestion: mockAkbUpdateActivitySuggestion,
   };
@@ -53,7 +53,7 @@ describe("PATCH /api/activity/suggestions/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetAkbAdapter.mockReturnValue({ adapter: { request: vi.fn() } });
-    mockAkbEnsureReefTables.mockResolvedValue(undefined);
+    mockAkbVerifyWorkspaceSchema.mockResolvedValue(undefined);
     mockAkbReadActivitySuggestion.mockResolvedValue({
       suggestion: {
         id: DRAFT_ID,

@@ -1,9 +1,9 @@
 import {
   type AkbAdapter,
-  akbEnsureReefTables,
   akbListActivitySuggestions,
   akbReadAuthoringLanguage,
   akbReadConfig,
+  akbVerifyWorkspaceSchema,
   akbWriteActivitySuggestion,
 } from "../adapters";
 import type { GitHubAdapter } from "../adapters/github";
@@ -101,7 +101,7 @@ export async function scanAndPersistActivitySuggestions(
   assertRepoMonitored(config, owner, repo);
   if (isAborted?.()) return { ...empty, status: "aborted" };
 
-  await akbEnsureReefTables({ adapter: akbAdapter, vault });
+  await akbVerifyWorkspaceSchema({ adapter: akbAdapter, vault });
   if (isAborted?.()) return { ...empty, status: "aborted" };
 
   const existing = await akbListActivitySuggestions({

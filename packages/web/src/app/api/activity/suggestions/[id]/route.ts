@@ -10,9 +10,9 @@ import { logger } from "@/lib/logging/logger";
 import {
   IssueCreateInputSchema,
   StatusEnum,
-  akbEnsureReefTables,
   akbReadActivitySuggestion,
   akbUpdateActivitySuggestion,
+  akbVerifyWorkspaceSchema,
 } from "@reef/core";
 import { z } from "zod";
 
@@ -70,7 +70,7 @@ export async function PATCH(
   const { adapter } = adapterResult;
 
   try {
-    await akbEnsureReefTables({ adapter, vault });
+    await akbVerifyWorkspaceSchema({ adapter, vault });
     const current = await akbReadActivitySuggestion({ adapter, vault, id });
     if (current.suggestion.status !== "pending") {
       return localizedErrorResponse("suggestionAlreadyReviewed", 409);

@@ -4,7 +4,7 @@ import { vi } from "vitest";
 const {
   mockAllocateNextIssueId,
   mockBuildIssueMetadataFromCreateInput,
-  mockEnsureReefTables,
+  mockVerifyWorkspaceSchema,
   mockGetAkbAdapter,
   mockGetAkbCurrentActor,
   mockListIssues,
@@ -18,7 +18,7 @@ const {
 } = vi.hoisted(() => ({
   mockAllocateNextIssueId: vi.fn(),
   mockBuildIssueMetadataFromCreateInput: vi.fn(),
-  mockEnsureReefTables: vi.fn(),
+  mockVerifyWorkspaceSchema: vi.fn(),
   mockGetAkbAdapter: vi.fn(),
   mockGetAkbCurrentActor: vi.fn(),
   mockListIssues: vi.fn(),
@@ -36,7 +36,7 @@ vi.mock("@reef/core", async (importOriginal) => {
   return {
     ...original,
     akbAllocateNextIssueId: mockAllocateNextIssueId,
-    akbEnsureReefTables: mockEnsureReefTables,
+    akbVerifyWorkspaceSchema: mockVerifyWorkspaceSchema,
     akbListIssues: mockListIssues,
     akbReadActivitySuggestion: mockReadActivitySuggestion,
     akbReadIssue: mockReadIssue,
@@ -217,7 +217,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 export {
   mockAllocateNextIssueId,
   mockBuildIssueMetadataFromCreateInput,
-  mockEnsureReefTables,
+  mockVerifyWorkspaceSchema,
   mockGetAkbAdapter,
   mockGetAkbCurrentActor,
   mockListIssues,
@@ -237,7 +237,7 @@ export function resetArtifactRouteMocks() {
   mockRespondWithError.mockReturnValue(
     Response.json({ error: "Workspace backend error." }, { status: 502 }),
   );
-  mockEnsureReefTables.mockResolvedValue(undefined);
+  mockVerifyWorkspaceSchema.mockResolvedValue(undefined);
   mockAllocateNextIssueId.mockResolvedValue("REEF-099");
   mockListIssues.mockResolvedValue({ issues: [] });
   mockReadActivitySuggestion.mockRejectedValue(

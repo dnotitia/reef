@@ -23,7 +23,8 @@ export {
   AkbTableMigrationResultSchema,
   alterAkbTable,
   applyAkbTableMigration,
-  ensureReefTables,
+  reconcileWorkspaceSchema,
+  verifyWorkspaceSchema,
   resolveDocumentTitles,
   searchDocuments,
   issueDocumentUri,
@@ -132,6 +133,8 @@ export {
 export {
   buildReefVaultSkillDocuments,
   installReefVaultSkill,
+  installReefVaultSkillDocuments,
+  stampReefVaultSkillVersion,
   getVaultSkillStatus,
   REEF_VAULT_SKILL_VERSION,
   type InstallReefVaultSkillParams,
@@ -143,6 +146,31 @@ export {
   writeConfig,
   readAuthoringLanguage,
 } from "./workspace/config";
+export {
+  initializeWorkspace,
+  isWorkspaceInitializationReady,
+  workspaceInitializationFingerprint,
+  type InitializeWorkspaceParams,
+} from "./workspace/initialization";
+export {
+  readWorkspaceInitializationMarker,
+  REEF_INITIALIZATION_MARKER_COLLECTION,
+  REEF_INITIALIZATION_MARKER_PATH,
+  REEF_INITIALIZATION_MARKER_SLUG,
+  type StoredWorkspaceInitializationMarker,
+} from "./workspace/initializationMarker";
+export {
+  createWorkspaceMigrationCatalog,
+  WORKSPACE_MIGRATION_CATALOG,
+  type WorkspaceMigrationCatalog,
+  type WorkspaceMigrationCatalogEntry,
+} from "./schemaLifecycle/catalog";
+export {
+  runStartupWorkspaceMigrations,
+  type RunStartupWorkspaceMigrationsParams,
+  type StartupMigrationOperatorReport,
+  type StartupMigrationWorkspaceReport,
+} from "./schemaLifecycle/startup";
 export {
   login,
   getAuthConfig,

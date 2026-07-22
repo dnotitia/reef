@@ -11,11 +11,11 @@ import {
   CreateVaultRequestSchema,
   type EnrichedVaultSummary,
   EnrichedVaultSummarySchema,
-  akbCreateVault as createVault,
-  akbInstallReefVaultSkill as installReefVaultSkill,
+  WorkspaceInitializationResultSchema,
+  akbInitializeWorkspace as initializeWorkspace,
+  akbIsWorkspaceInitializationReady as isWorkspaceInitializationReady,
   akbListVaults as listVaults,
   akbReadConfig as readConfig,
-  akbWriteConfig as writeConfig,
 } from "@reef/core";
 import { z } from "zod";
 
@@ -32,11 +32,6 @@ const VaultsResponseSchema = z.object({
   vaults: z.array(EnrichedVaultSummarySchema),
 });
 
-const CreateVaultResponseSchema = z.object({
-  name: z.string().min(1),
-  config: ConfigSchema,
-});
-
 export async function GET(request: Request): Promise<Response> {
   const adapterResult = getAkbAdapter(request);
   if ("response" in adapterResult) return adapterResult.response;
@@ -45,14 +40,18 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const { vaults } = await listVaults({ adapter });
 
-    const configChecks = await Promise.allSettled(
-      vaults.map((v) => readConfig({ adapter, vault: v.name })),
+    const readinessChecks = await Promise.allSettled(
+      vaults.map(async (v) => {
+        const config = await readConfig({ adapter, vault: v.name });
+        if (!config.exists) return false;
+        return isWorkspaceInitializationReady(adapter, v.name);
+      }),
     );
 
     const enriched: EnrichedVaultSummary[] = vaults.map((v, idx) => {
-      const check = configChecks[idx];
+      const check = readinessChecks[idx];
       if (check.status === "fulfilled") {
-        return { ...v, has_reef_config: check.value.exists };
+        return { ...v, has_reef_config: check.value };
       }
       // One failing vault should not blow up the whole list — fall back to
       // `false` (treated as "not configured for reef") and log for
@@ -61,7 +60,7 @@ export async function GET(request: Request): Promise<Response> {
       // network, schema).
       logger.error(
         { err: check.reason, vault: v.name },
-        "readConfig failed during /api/vaults fan-out",
+        "workspace readiness check failed during /api/vaults fan-out",
       );
       return { ...v, has_reef_config: false };
     });
@@ -102,34 +101,12 @@ export async function POST(request: Request): Promise<Response> {
   const { adapter } = adapterResult;
 
   try {
-    const { vaults } = await listVaults({ adapter });
-    const existing = vaults.find((v) => v.name === name);
-
-    if (existing) {
-      const current = await readConfig({ adapter, vault: name });
-      if (current.exists) {
-        return Response.json(
-          { error: "A workspace with that name is already configured." },
-          { status: 409 },
-        );
-      }
-    } else {
-      await createVault({ adapter, name, description });
-    }
-
-    await installReefVaultSkill({ adapter, vault: name });
-
-    // writeConfig provisions the reef tables lazily (idempotent), so the
-    // brownfield/greenfield branches and the Settings PATCH path all reach a
-    // ready vault through one code path.
-    await writeConfig({
+    const result = await initializeWorkspace({
       adapter,
-      vault: name,
-      config,
-      message: "Initialize reef workspace config",
+      request: { name, description, config },
+      serviceUsername: process.env.REEF_SCHEMA_SERVICE_USERNAME ?? "",
     });
-
-    return Response.json(CreateVaultResponseSchema.parse({ name, config }));
+    return Response.json(WorkspaceInitializationResultSchema.parse(result));
   } catch (err) {
     logger.error({ err, vault: name }, "create_vault failed");
     return respondWithError(err, { resourceKind: "workspace" });

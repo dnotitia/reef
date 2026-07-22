@@ -8,8 +8,8 @@ import {
 } from "@/lib/api/requestHelpers";
 import { logger } from "@/lib/logging/logger";
 import {
-  akbEnsureReefTables,
   akbUpdateActivitySuggestionStatus,
+  akbVerifyWorkspaceSchema,
 } from "@reef/core";
 import { z } from "zod";
 
@@ -47,7 +47,7 @@ export async function POST(
   const { adapter } = adapterResult;
 
   try {
-    await akbEnsureReefTables({ adapter, vault });
+    await akbVerifyWorkspaceSchema({ adapter, vault });
     const result = await akbUpdateActivitySuggestionStatus({
       adapter,
       vault,

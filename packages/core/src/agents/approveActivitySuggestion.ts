@@ -3,12 +3,12 @@ import type { AkbAdapter } from "../adapters/akb";
 import {
   allocateNextIssueId,
   buildIssueMetadataFromCreateInput,
-  ensureReefTables,
   listIssues,
   readActivitySuggestion,
   readIssue,
   updateActivitySuggestionStatus,
   updateIssue,
+  verifyWorkspaceSchema,
   writeIssue,
 } from "../adapters/akb";
 import { ActivitySuggestionError } from "../errors";
@@ -67,7 +67,7 @@ export async function approveActivitySuggestion(
       span.setAttribute("vault", vault);
       span.setAttribute("suggestion_id", id);
       try {
-        await ensureReefTables({ adapter, vault });
+        await verifyWorkspaceSchema({ adapter, vault });
         const { suggestion } = await readActivitySuggestion({
           adapter,
           vault,

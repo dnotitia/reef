@@ -11,12 +11,12 @@ import {
   REEF_SETTINGS_VAULT_SKILL_KEY,
   decodeSettingsValue,
   ensureDocumentPutResponse,
-  ensureReefTables,
   isMissingTableError,
   quoteJson,
   quoteText,
   runSql,
   tableRef,
+  verifyWorkspaceSchema,
   withSpan,
 } from "../core/shared";
 import {
@@ -117,13 +117,12 @@ async function upsertDocument(
 /**
  * Record the installed skill version in `reef_settings` as a single
  * `vault_skill` row (DELETE+INSERT upsert, mirroring `writeConfig`'s
- * `project_prefix` write). `ensureReefTables` is idempotent, so this is safe
- * both from vault creation (tables provisioned moments later by `writeConfig`)
- * and from the re-apply path (tables already exist). The `synced_at` ISO
+ * `project_prefix` write). Schema lifecycle owners provision first; this
+ * feature path verifies the prerequisite without mutating schema. The `synced_at` ISO
  * timestamp is JS-side (`…T…Z`), not akb's `now()::text`, so it round-trips
  * cleanly through display.
  */
-async function stampVaultSkillVersion(
+export async function stampReefVaultSkillVersion(
   adapter: AkbAdapter,
   vault: string,
 ): Promise<StoredVaultSkill> {
@@ -131,7 +130,7 @@ async function stampVaultSkillVersion(
     version: REEF_VAULT_SKILL_VERSION,
     synced_at: new Date().toISOString(),
   };
-  await ensureReefTables({ adapter, vault });
+  await verifyWorkspaceSchema({ adapter, vault });
   await runSql(
     adapter,
     vault,
@@ -191,7 +190,7 @@ async function readInstalledVaultSkill(
  * converges. This is the single write path for both vault creation and the
  * Settings "update instructions" action.
  */
-export async function installReefVaultSkill(
+export async function installReefVaultSkillDocuments(
   params: InstallReefVaultSkillParams,
 ): Promise<void> {
   const { adapter, vault } = params;
@@ -201,9 +200,14 @@ export async function installReefVaultSkill(
     for (const doc of docs) {
       await upsertDocument(adapter, vault, doc);
     }
-    await stampVaultSkillVersion(adapter, vault);
-    span.setAttribute("skill_version", REEF_VAULT_SKILL_VERSION);
   });
+}
+
+export async function installReefVaultSkill(
+  params: InstallReefVaultSkillParams,
+): Promise<void> {
+  await installReefVaultSkillDocuments(params);
+  await stampReefVaultSkillVersion(params.adapter, params.vault);
 }
 
 /**

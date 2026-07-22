@@ -10,13 +10,13 @@ import {
   REEF_COMMENTS_TABLE,
   REEF_ISSUES_TABLE,
   decodeSettingsValue,
-  ensureReefTables,
   isMissingTableError,
   quoteIdent,
   quoteJson,
   quoteText,
   runSql,
   tableRef,
+  verifyWorkspaceSchema,
   withSpan,
 } from "../core/shared";
 
@@ -145,9 +145,9 @@ export async function listComments(
  * (mirrors `insertAndReadPlanningRow`). `author` is the session actor resolved
  * by the route — not client-supplied — and is stored in `meta` (REEF-125).
  *
- * Provisions `reef_comments` lazily via `ensureReefTables` so the first comment
- * on a vault that predates the table self-heals instead of 500-ing (REEF-125
- * write-path gating).
+ * Verifies `reef_comments` read-only before writing. A workspace that predates
+ * the table fails with a bounded schema lifecycle error and must be reconciled
+ * by an explicit lifecycle owner (REEF-414 supersedes REEF-125 lazy repair).
  */
 export async function createComment(
   adapter: AkbAdapter,
@@ -162,7 +162,7 @@ export async function createComment(
     "akb.create_comment",
     { vault, reef_id: reefId },
     async () => {
-      await ensureReefTables({ adapter, vault });
+      await verifyWorkspaceSchema({ adapter, vault });
       const createdAt = preserved?.createdAt ?? new Date().toISOString();
       const editedAt = preserved?.editedAt ?? null;
       const meta = {
@@ -260,7 +260,7 @@ export async function updateComment(
     "akb.update_comment",
     { vault, reef_id: reefId, comment_id: commentId },
     async () => {
-      await ensureReefTables({ adapter, vault });
+      await verifyWorkspaceSchema({ adapter, vault });
       const editedAt = new Date().toISOString();
       const res = await runSql(
         adapter,

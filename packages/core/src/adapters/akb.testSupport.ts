@@ -4,6 +4,7 @@ export {
   ConflictError,
   NotFoundError,
   SchemaValidationError,
+  SchemaLifecycleError,
 } from "../errors";
 export type { IssueMetadata } from "../schemas/issues/metadata";
 export type { Template } from "../schemas/issues/template";
@@ -41,7 +42,8 @@ export {
   deleteVault,
   detachReef,
   diffFieldActivityEvents,
-  ensureReefTables,
+  reconcileWorkspaceSchema as ensureReefTables,
+  verifyWorkspaceSchema,
   grantVaultMember,
   listActivitySuggestions,
   listComments,

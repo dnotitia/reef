@@ -6,18 +6,16 @@ vi.mock("@/lib/logging/logger", () => ({
 }));
 
 const {
-  mockAkbCreateVault,
-  mockAkbInstallReefVaultSkill,
+  mockAkbInitializeWorkspace,
+  mockAkbIsWorkspaceInitializationReady,
   mockAkbListVaults,
   mockAkbReadConfig,
-  mockAkbWriteConfig,
   mockCreateAkbAdapter,
 } = vi.hoisted(() => ({
-  mockAkbCreateVault: vi.fn(),
-  mockAkbInstallReefVaultSkill: vi.fn(),
+  mockAkbInitializeWorkspace: vi.fn(),
+  mockAkbIsWorkspaceInitializationReady: vi.fn(),
   mockAkbListVaults: vi.fn(),
   mockAkbReadConfig: vi.fn(),
-  mockAkbWriteConfig: vi.fn(),
   mockCreateAkbAdapter: vi.fn(),
 }));
 
@@ -26,11 +24,10 @@ vi.mock("@reef/core", async () => {
     await vi.importActual<typeof import("@reef/core")>("@reef/core");
   return {
     ...actual,
-    akbCreateVault: mockAkbCreateVault,
-    akbInstallReefVaultSkill: mockAkbInstallReefVaultSkill,
+    akbInitializeWorkspace: mockAkbInitializeWorkspace,
+    akbIsWorkspaceInitializationReady: mockAkbIsWorkspaceInitializationReady,
     akbListVaults: mockAkbListVaults,
     akbReadConfig: mockAkbReadConfig,
-    akbWriteConfig: mockAkbWriteConfig,
     createAkbAdapter: mockCreateAkbAdapter,
   };
 });
@@ -41,6 +38,7 @@ import {
   AuthError,
   type Config,
   DEFAULT_CONFIG,
+  SchemaLifecycleError,
   type VaultSummary,
 } from "@reef/core";
 import { VALID_JWT, makeJwt } from "../__test-helpers__/jwt";
@@ -88,6 +86,7 @@ describe("GET /api/vaults", () => {
     vi.clearAllMocks();
     vi.stubEnv("AKB_BACKEND_URL", "http://akb.test");
     mockCreateAkbAdapter.mockReturnValue({ request: vi.fn() });
+    mockAkbIsWorkspaceInitializationReady.mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -124,6 +123,9 @@ describe("GET /api/vaults", () => {
               config: { project_prefix: "REEF", monitored_repos: [] },
             },
     );
+    mockAkbIsWorkspaceInitializationReady
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
     const req = new Request("http://localhost/api/vaults", {
       headers: authedHeaders(),
     });
@@ -154,6 +156,7 @@ describe("GET /api/vaults", () => {
         throw new Error("network blip");
       },
     );
+    mockAkbIsWorkspaceInitializationReady.mockResolvedValue(true);
     const req = new Request("http://localhost/api/vaults", {
       headers: authedHeaders(),
     });
@@ -201,7 +204,14 @@ describe("POST /api/vaults", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("AKB_BACKEND_URL", "http://akb.test");
+    vi.stubEnv("REEF_SCHEMA_SERVICE_USERNAME", "reef-schema");
     mockCreateAkbAdapter.mockReturnValue({ request: vi.fn() });
+    mockAkbInitializeWorkspace.mockImplementation(async ({ request }) => ({
+      name: request.name,
+      config: request.config,
+      state: "ready",
+      marker_uri: `akb://${request.name}/coll/overview/doc/reef-initialization.md`,
+    }));
   });
 
   afterEach(() => {
@@ -209,17 +219,7 @@ describe("POST /api/vaults", () => {
     vi.restoreAllMocks();
   });
 
-  it("creates a new akb vault, writes reef config, and returns the config", async () => {
-    mockAkbListVaults.mockResolvedValueOnce({ vaults: SAMPLE_VAULTS });
-    mockAkbCreateVault.mockResolvedValueOnce({
-      vault_id: "v1",
-      name: "reef-new",
-      template: null,
-      public_access: "none",
-    });
-    mockAkbWriteConfig.mockResolvedValueOnce(undefined);
-    mockAkbInstallReefVaultSkill.mockResolvedValueOnce(undefined);
-
+  it("delegates creation to the explicit initialization owner and returns durable readiness", async () => {
     const req = new Request("http://localhost/api/vaults", {
       method: "POST",
       headers: authedHeaders(),
@@ -232,44 +232,21 @@ describe("POST /api/vaults", () => {
     expect(await res.json()).toEqual({
       name: "reef-new",
       config: GREENFIELD_CONFIG,
+      state: "ready",
+      marker_uri: "akb://reef-new/coll/overview/doc/reef-initialization.md",
     });
-    expect(mockAkbCreateVault).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(mockAkbInitializeWorkspace).toHaveBeenCalledWith({
+      adapter: expect.any(Object),
+      request: {
         name: "reef-new",
         description: "Fresh start",
-      }),
-    );
-    expect(mockAkbWriteConfig).toHaveBeenCalledWith(
-      expect.objectContaining({
-        vault: "reef-new",
         config: GREENFIELD_CONFIG,
-        message: "Initialize reef workspace config",
-      }),
-    );
-    expect(mockAkbInstallReefVaultSkill).toHaveBeenCalledWith(
-      expect.objectContaining({
-        vault: "reef-new",
-      }),
-    );
-    expect(mockAkbCreateVault.mock.invocationCallOrder[0]).toBeLessThan(
-      mockAkbInstallReefVaultSkill.mock.invocationCallOrder[0],
-    );
-    expect(
-      mockAkbInstallReefVaultSkill.mock.invocationCallOrder[0],
-    ).toBeLessThan(mockAkbWriteConfig.mock.invocationCallOrder[0]);
+      },
+      serviceUsername: "reef-schema",
+    });
   });
 
   it("threads a provided authoring_language into the written config (REEF-160)", async () => {
-    mockAkbListVaults.mockResolvedValueOnce({ vaults: SAMPLE_VAULTS });
-    mockAkbCreateVault.mockResolvedValueOnce({
-      vault_id: "v1",
-      name: "reef-new",
-      template: null,
-      public_access: "none",
-    });
-    mockAkbInstallReefVaultSkill.mockResolvedValueOnce(undefined);
-    mockAkbWriteConfig.mockResolvedValueOnce(undefined);
-
     const req = new Request("http://localhost/api/vaults", {
       method: "POST",
       headers: authedHeaders(),
@@ -282,26 +259,19 @@ describe("POST /api/vaults", () => {
     expect(await res.json()).toEqual({
       name: "reef-new",
       config: { ...GREENFIELD_CONFIG, authoring_language: "ko" },
+      state: "ready",
+      marker_uri: "akb://reef-new/coll/overview/doc/reef-initialization.md",
     });
-    expect(mockAkbWriteConfig).toHaveBeenCalledWith(
+    expect(mockAkbInitializeWorkspace).toHaveBeenCalledWith(
       expect.objectContaining({
-        vault: "reef-new",
-        config: expect.objectContaining({ authoring_language: "ko" }),
+        request: expect.objectContaining({
+          config: expect.objectContaining({ authoring_language: "ko" }),
+        }),
       }),
     );
   });
 
   it("defaults authoring_language to null when the field is omitted (REEF-160)", async () => {
-    mockAkbListVaults.mockResolvedValueOnce({ vaults: SAMPLE_VAULTS });
-    mockAkbCreateVault.mockResolvedValueOnce({
-      vault_id: "v1",
-      name: "reef-new",
-      template: null,
-      public_access: "none",
-    });
-    mockAkbInstallReefVaultSkill.mockResolvedValueOnce(undefined);
-    mockAkbWriteConfig.mockResolvedValueOnce(undefined);
-
     const req = new Request("http://localhost/api/vaults", {
       method: "POST",
       headers: authedHeaders(),
@@ -311,9 +281,11 @@ describe("POST /api/vaults", () => {
     const res = await POST(req);
 
     expect(res.status).toBe(200);
-    expect(mockAkbWriteConfig).toHaveBeenCalledWith(
+    expect(mockAkbInitializeWorkspace).toHaveBeenCalledWith(
       expect.objectContaining({
-        config: expect.objectContaining({ authoring_language: null }),
+        request: expect.objectContaining({
+          config: expect.objectContaining({ authoring_language: null }),
+        }),
       }),
     );
   });
@@ -328,8 +300,7 @@ describe("POST /api/vaults", () => {
     const res = await POST(req);
 
     expect(res.status).toBe(400);
-    expect(mockAkbCreateVault).not.toHaveBeenCalled();
-    expect(mockAkbWriteConfig).not.toHaveBeenCalled();
+    expect(mockAkbInitializeWorkspace).not.toHaveBeenCalled();
   });
 
   it("returns 400 for invalid vault names and prefixes", async () => {
@@ -349,8 +320,7 @@ describe("POST /api/vaults", () => {
     const badPrefixRes = await POST(badPrefixReq);
     expect(badPrefixRes.status).toBe(400);
 
-    expect(mockAkbCreateVault).not.toHaveBeenCalled();
-    expect(mockAkbWriteConfig).not.toHaveBeenCalled();
+    expect(mockAkbInitializeWorkspace).not.toHaveBeenCalled();
   });
 
   it("returns 401 when session cookie is missing", async () => {
@@ -364,14 +334,13 @@ describe("POST /api/vaults", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 409 when an accessible vault is already configured for reef", async () => {
-    mockAkbListVaults.mockResolvedValueOnce({
-      vaults: [{ name: "reef-new", role: "owner" }],
-    });
-    mockAkbReadConfig.mockResolvedValueOnce({
-      config: GREENFIELD_CONFIG,
-      exists: true,
-    });
+  it("returns 409 for a different-fingerprint initialization conflict", async () => {
+    mockAkbInitializeWorkspace.mockRejectedValueOnce(
+      new SchemaLifecycleError({
+        reason: "initialization_conflict",
+        vault: "reef-new",
+      }),
+    );
 
     const req = new Request("http://localhost/api/vaults", {
       method: "POST",
@@ -382,22 +351,9 @@ describe("POST /api/vaults", () => {
     const res = await POST(req);
 
     expect(res.status).toBe(409);
-    expect(mockAkbCreateVault).not.toHaveBeenCalled();
-    expect(mockAkbInstallReefVaultSkill).not.toHaveBeenCalled();
-    expect(mockAkbWriteConfig).not.toHaveBeenCalled();
   });
 
-  it("initializes reef config on an accessible raw vault instead of creating it again", async () => {
-    mockAkbListVaults.mockResolvedValueOnce({
-      vaults: [{ name: "reef-new", role: "owner" }],
-    });
-    mockAkbReadConfig.mockResolvedValueOnce({
-      config: { project_prefix: "REEF", monitored_repos: [] },
-      exists: false,
-    });
-    mockAkbInstallReefVaultSkill.mockResolvedValueOnce(undefined);
-    mockAkbWriteConfig.mockResolvedValueOnce(undefined);
-
+  it("allows the initialization owner to converge an accessible raw vault", async () => {
     const req = new Request("http://localhost/api/vaults", {
       method: "POST",
       headers: authedHeaders(),
@@ -410,32 +366,14 @@ describe("POST /api/vaults", () => {
     expect(await res.json()).toEqual({
       name: "reef-new",
       config: GREENFIELD_CONFIG,
+      state: "ready",
+      marker_uri: "akb://reef-new/coll/overview/doc/reef-initialization.md",
     });
-    expect(mockAkbCreateVault).not.toHaveBeenCalled();
-    expect(mockAkbInstallReefVaultSkill).toHaveBeenCalledWith(
-      expect.objectContaining({
-        vault: "reef-new",
-      }),
-    );
-    expect(mockAkbWriteConfig).toHaveBeenCalledWith(
-      expect.objectContaining({
-        vault: "reef-new",
-        config: GREENFIELD_CONFIG,
-      }),
-    );
+    expect(mockAkbInitializeWorkspace).toHaveBeenCalledTimes(1);
   });
 
-  it("does not write config when reef vault skill installation fails", async () => {
-    mockAkbListVaults.mockResolvedValueOnce({ vaults: SAMPLE_VAULTS });
-    mockAkbCreateVault.mockResolvedValueOnce({
-      vault_id: "v1",
-      name: "reef-new",
-      template: null,
-      public_access: "none",
-    });
-    mockAkbInstallReefVaultSkill.mockRejectedValueOnce(
-      new Error("skill install failed"),
-    );
+  it("does not flatten an initialization stage failure into a false success", async () => {
+    mockAkbInitializeWorkspace.mockRejectedValueOnce(new Error("stage failed"));
 
     const req = new Request("http://localhost/api/vaults", {
       method: "POST",
@@ -449,10 +387,6 @@ describe("POST /api/vaults", () => {
     expect(await res.json()).toEqual({
       error: "An unexpected error occurred.",
     });
-    expect(mockAkbCreateVault).toHaveBeenCalled();
-    expect(mockAkbInstallReefVaultSkill).toHaveBeenCalledWith(
-      expect.objectContaining({ vault: "reef-new" }),
-    );
-    expect(mockAkbWriteConfig).not.toHaveBeenCalled();
+    expect(mockAkbInitializeWorkspace).toHaveBeenCalledTimes(1);
   });
 });

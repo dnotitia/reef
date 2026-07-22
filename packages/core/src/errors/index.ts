@@ -69,6 +69,20 @@ export const ERROR_MESSAGES_EN = {
     config:
       "The project config could not be saved because some fields were invalid.",
     workspace: "The workspace document is malformed.",
+    workspaceNotReady:
+      "This workspace is not ready for Reef yet. Ask an operator to initialize or migrate it.",
+    workspaceMismatch:
+      "This workspace schema does not match this Reef release. Ask an operator to run the startup migration.",
+  },
+  workspaceInitialization: {
+    conflict:
+      "This workspace is already being initialized with different settings.",
+    invalidState:
+      "This workspace has an invalid initialization state. Ask an operator to inspect it.",
+  },
+  migration: {
+    unavailable:
+      "Workspace migration failed. Ask an operator to inspect the startup migration report.",
   },
   github: {
     auth: "GitHub authentication failed. Please ask an operator to check the GitHub App installation.",
@@ -300,6 +314,62 @@ export class ConflictError extends ReefError {
   }
 }
 
+export type SchemaLifecycleErrorReason =
+  | "schema_not_ready"
+  | "schema_mismatch"
+  | "initialization_conflict"
+  | "initialization_state_invalid"
+  | "migration_config_invalid"
+  | "migration_identity_invalid"
+  | "migration_inventory_invalid"
+  | "migration_catalog_invalid"
+  | "migration_execution_failed";
+
+const SCHEMA_LIFECYCLE_ERROR_SPECS: Record<
+  SchemaLifecycleErrorReason,
+  { code: ErrorCode; status: number }
+> = {
+  schema_not_ready: { code: "schema.workspaceNotReady", status: 409 },
+  schema_mismatch: { code: "schema.workspaceMismatch", status: 409 },
+  initialization_conflict: {
+    code: "workspaceInitialization.conflict",
+    status: 409,
+  },
+  initialization_state_invalid: {
+    code: "workspaceInitialization.invalidState",
+    status: 409,
+  },
+  migration_config_invalid: { code: "migration.unavailable", status: 503 },
+  migration_identity_invalid: { code: "migration.unavailable", status: 503 },
+  migration_inventory_invalid: { code: "migration.unavailable", status: 503 },
+  migration_catalog_invalid: { code: "migration.unavailable", status: 503 },
+  migration_execution_failed: { code: "migration.unavailable", status: 503 },
+};
+
+export interface SchemaLifecycleErrorContext {
+  reason: SchemaLifecycleErrorReason;
+  vault?: string;
+  phaseId?: string;
+}
+
+/** Credential-free, bounded lifecycle failure shared by web and the operator CLI. */
+export class SchemaLifecycleError extends ReefError {
+  readonly context: SchemaLifecycleErrorContext;
+  readonly httpStatus: number;
+
+  constructor(context: SchemaLifecycleErrorContext) {
+    const spec = SCHEMA_LIFECYCLE_ERROR_SPECS[context.reason];
+    super(resolveEnMessage(spec.code));
+    this.name = "SchemaLifecycleError";
+    this.context = context;
+    this.httpStatus = spec.status;
+  }
+
+  toUserMessage(): string {
+    return this.message;
+  }
+}
+
 export interface AuthErrorContext {
   message?: string;
   origin?: "akb" | "github";
@@ -455,6 +525,10 @@ function resolveApiHttpStatus(
  *  - carries no message text, just a stable code the locale resolves
  */
 export function describeError(err: unknown): ErrorDescriptor {
+  if (err instanceof SchemaLifecycleError) {
+    const spec = SCHEMA_LIFECYCLE_ERROR_SPECS[err.context.reason];
+    return { code: spec.code, status: spec.status };
+  }
   if (err instanceof ActivitySuggestionError) {
     return {
       code: ACTIVITY_SUGGESTION_ERROR_SPECS[err.reason].code,

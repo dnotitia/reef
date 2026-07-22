@@ -8,8 +8,8 @@ import {
 import { logger } from "@/lib/logging/logger";
 import {
   ActivitySuggestionStatusSchema,
-  akbEnsureReefTables,
   akbListActivitySuggestions,
+  akbVerifyWorkspaceSchema,
 } from "@reef/core";
 
 export async function GET(request: Request): Promise<Response> {
@@ -29,7 +29,7 @@ export async function GET(request: Request): Promise<Response> {
   const { adapter } = adapterResult;
 
   try {
-    await akbEnsureReefTables({ adapter, vault });
+    await akbVerifyWorkspaceSchema({ adapter, vault });
     const result = await akbListActivitySuggestions({
       adapter,
       vault,

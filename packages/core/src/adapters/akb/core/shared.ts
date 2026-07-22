@@ -10,7 +10,7 @@
 //   paths.ts      — slugify / path / resource-label helpers
 //   http.ts       — `AkbAdapter`, request factory, document/search envelopes
 //   sql.ts        — SQL quoting, `runSql`, response schemas, value decode
-//   tables.ts     — table provisioning (`ensureReefTables`)
+//   tables.ts     — schema reconciliation and read-only verification
 //   issueRows.ts  — `reef_issues` row ↔ Issue mapping + row reads/writes
 //   issueQuery.ts — issue-list WHERE / ORDER BY / keyset cursor / default view
 //   documents.ts  — akb document search / delete / put-body / response guards

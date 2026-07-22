@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
-  mockEnsureReefTables,
+  mockVerifyWorkspaceSchema,
   mockListActivitySuggestions,
   mockReadAuthoringLanguage,
   mockReadConfig,
   mockScanActivity,
   mockWriteActivitySuggestion,
 } = vi.hoisted(() => ({
-  mockEnsureReefTables: vi.fn(),
+  mockVerifyWorkspaceSchema: vi.fn(),
   mockListActivitySuggestions: vi.fn(),
   mockReadAuthoringLanguage: vi.fn(),
   mockReadConfig: vi.fn(),
@@ -20,7 +20,7 @@ vi.mock("../adapters", async (importOriginal) => {
   const original = await importOriginal<typeof import("../adapters")>();
   return {
     ...original,
-    akbEnsureReefTables: mockEnsureReefTables,
+    akbVerifyWorkspaceSchema: mockVerifyWorkspaceSchema,
     akbListActivitySuggestions: mockListActivitySuggestions,
     akbReadAuthoringLanguage: mockReadAuthoringLanguage,
     akbReadConfig: mockReadConfig,
@@ -177,7 +177,7 @@ const dismissedStatusSuggestion: ActivitySuggestion = {
 describe("scanAndPersistActivitySuggestions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockEnsureReefTables.mockResolvedValue(undefined);
+    mockVerifyWorkspaceSchema.mockResolvedValue(undefined);
     mockListActivitySuggestions.mockResolvedValue({ suggestions: [] });
     mockReadAuthoringLanguage.mockResolvedValue(null);
     mockReadConfig.mockResolvedValue(monitoredConfig());
@@ -212,7 +212,7 @@ describe("scanAndPersistActivitySuggestions", () => {
     expect(result.status).toBe("completed");
     expect(result.addedDrafts).toBe(1);
     expect(result.addedStatusChanges).toBe(0);
-    expect(mockEnsureReefTables).toHaveBeenCalledWith({
+    expect(mockVerifyWorkspaceSchema).toHaveBeenCalledWith({
       adapter: akbAdapter,
       vault: "reef-test",
     });
@@ -286,7 +286,7 @@ describe("scanAndPersistActivitySuggestions", () => {
 
     // No GitHub read and no akb write happen for an unmonitored repo.
     expect(mockScanActivity).not.toHaveBeenCalled();
-    expect(mockEnsureReefTables).not.toHaveBeenCalled();
+    expect(mockVerifyWorkspaceSchema).not.toHaveBeenCalled();
     expect(mockWriteActivitySuggestion).not.toHaveBeenCalled();
   });
 
@@ -313,7 +313,7 @@ describe("scanAndPersistActivitySuggestions", () => {
     expect(result.persistedSuggestions).toEqual([]);
     // No GitHub scan, no table provisioning, no akb write happen when disabled.
     expect(mockScanActivity).not.toHaveBeenCalled();
-    expect(mockEnsureReefTables).not.toHaveBeenCalled();
+    expect(mockVerifyWorkspaceSchema).not.toHaveBeenCalled();
     expect(mockListActivitySuggestions).not.toHaveBeenCalled();
     expect(mockWriteActivitySuggestion).not.toHaveBeenCalled();
   });
@@ -338,7 +338,7 @@ describe("scanAndPersistActivitySuggestions", () => {
     expect(result.status).toBe("completed");
     expect(result.addedDrafts).toBe(0);
     expect(mockScanActivity).not.toHaveBeenCalled();
-    expect(mockEnsureReefTables).not.toHaveBeenCalled();
+    expect(mockVerifyWorkspaceSchema).not.toHaveBeenCalled();
   });
 
   it("rejects when the vault monitors no repos", async () => {

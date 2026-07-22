@@ -63,13 +63,13 @@ import {
   type AkbAdapter,
   REEF_ACTIVITY_TABLE,
   decodeSettingsValue,
-  ensureReefTables,
   isMissingTableError,
   quoteIdent,
   quoteJson,
   quoteText,
   runSql,
   tableRef,
+  verifyWorkspaceSchema,
   withSpan,
 } from "../core/shared";
 
@@ -275,8 +275,9 @@ interface ActivityRowInput {
  * That needs concurrent
  * retries of the very same update; it is de-duplicated downstream on `event_key`
  * by the timeline (REEF-064). A DB-enforced unique index is an akb-layer
- * follow-up. Callers `ensureReefTables` first so a vault predating the table
- * self-heals on first write (REEF-125 AC7).
+ * follow-up. Callers perform read-only schema verification; provisioning is
+ * owned by explicit initialization/startup services (REEF-414 supersedes the
+ * REEF-125 lazy write-path policy).
  */
 async function insertActivityEventRow(
   adapter: AkbAdapter,
@@ -326,7 +327,7 @@ export async function appendStatusChangeEvent(
     "akb.append_status_change_event",
     { vault, reef_id: event.reefId },
     async (span) => {
-      await ensureReefTables({ adapter, vault });
+      await verifyWorkspaceSchema({ adapter, vault });
       const appended = await insertActivityEventRow(adapter, vault, {
         reefId: event.reefId,
         eventType: ACTIVITY_EVENT_STATUS_CHANGE,
@@ -378,7 +379,7 @@ export async function appendActivityEvents(
     "akb.append_activity_events",
     { vault, reef_id: first.reefId, count: events.length },
     async (span) => {
-      await ensureReefTables({ adapter, vault });
+      await verifyWorkspaceSchema({ adapter, vault });
       let appended = 0;
       for (const [index, event] of events.entries()) {
         const ok = await insertActivityEventRow(adapter, vault, {

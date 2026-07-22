@@ -17,6 +17,14 @@ import {
 
 const AKB_DOCUMENT_URI_PARTS_RE =
   /^akb:\/\/([^/]+)\/(?:(?:coll\/(.+)\/doc\/(.+))|(?:doc\/(.+)))$/;
+const INTERNAL_INITIALIZATION_MARKER_URI_SUFFIX =
+  "/coll/overview/doc/reef-initialization.md";
+
+function publicSearchHits(hits: AkbSearchHit[]): AkbSearchHit[] {
+  return hits.filter(
+    (hit) => !hit.uri.endsWith(INTERNAL_INITIALIZATION_MARKER_URI_SUFFIX),
+  );
+}
 
 function documentPathFromUri(
   expectedVault: string,
@@ -59,10 +67,10 @@ export async function searchDocuments({
     },
   });
   if (Array.isArray(payload)) {
-    return z.array(AkbSearchHitSchema).parse(payload);
+    return publicSearchHits(z.array(AkbSearchHitSchema).parse(payload));
   }
   const parsed = AkbSearchResponseSchema.parse(payload);
-  return parsed.results ?? parsed.items ?? [];
+  return publicSearchHits(parsed.results ?? parsed.items ?? []);
 }
 
 /**

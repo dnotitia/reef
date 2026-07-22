@@ -85,8 +85,8 @@ export async function writeIssue(
 ): Promise<WriteIssueResult> {
   const { adapter, vault, issue, content = "" } = params;
   return withSpan("akb.write_issue", { vault, id: issue.id }, async () => {
-    // Assumes `reef_issues` exists (provisioned by `ensureReefTables` at vault
-    // creation / config write), mirroring `writeConfig`. A missing table
+    // Assumes `reef_issues` exists (provisioned by explicit initialization or
+    // startup reconciliation). A missing table
     // surfaces loudly from the INSERT rather than being silently auto-healed.
     const body = buildPutRequestBody(vault, issue, content);
     const payload = await adapter.request("/api/v1/documents", {

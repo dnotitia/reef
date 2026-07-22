@@ -3,7 +3,7 @@ import {
   makeTestAkbAdapter,
   setupFetch,
 } from "../../../agents/tools/__test-helpers__/fetchMock";
-import { resolveDocumentTitles } from "./documents";
+import { resolveDocumentTitles, searchDocuments } from "./documents";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -74,5 +74,41 @@ describe("resolveDocumentTitles", () => {
       title: null,
       resource_type: "doc",
     });
+  });
+});
+
+describe("searchDocuments", () => {
+  it("never exposes the internal initialization marker", async () => {
+    setupFetch([
+      {
+        body: {
+          results: [
+            {
+              uri: "akb://reef-test/coll/overview/doc/reef-initialization.md",
+              title: "Reef workspace initialization",
+            },
+            {
+              uri: "akb://reef-test/coll/docs/doc/spec.md",
+              title: "Spec",
+            },
+          ],
+        },
+      },
+    ]);
+
+    await expect(
+      searchDocuments({
+        adapter: makeTestAkbAdapter(),
+        vault: "reef-test",
+        query: "reef",
+        limit: 10,
+      }),
+    ).resolves.toEqual([
+      {
+        uri: "akb://reef-test/coll/docs/doc/spec.md",
+        title: "Spec",
+        tags: [],
+      },
+    ]);
   });
 });

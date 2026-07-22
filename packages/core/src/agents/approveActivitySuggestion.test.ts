@@ -5,7 +5,7 @@ import { approveActivitySuggestion } from "./approveActivitySuggestion";
 
 const {
   mockAllocateNextIssueId,
-  mockEnsureReefTables,
+  mockVerifyWorkspaceSchema,
   mockListIssues,
   mockReadActivitySuggestion,
   mockReadIssue,
@@ -14,7 +14,7 @@ const {
   mockWriteIssue,
 } = vi.hoisted(() => ({
   mockAllocateNextIssueId: vi.fn(),
-  mockEnsureReefTables: vi.fn(),
+  mockVerifyWorkspaceSchema: vi.fn(),
   mockListIssues: vi.fn(),
   mockReadActivitySuggestion: vi.fn(),
   mockReadIssue: vi.fn(),
@@ -29,7 +29,7 @@ vi.mock("../adapters/akb", async (importOriginal) => {
     ...original,
     // buildIssueMetadataFromCreateInput stays real (pure metadata builder).
     allocateNextIssueId: mockAllocateNextIssueId,
-    ensureReefTables: mockEnsureReefTables,
+    verifyWorkspaceSchema: mockVerifyWorkspaceSchema,
     listIssues: mockListIssues,
     readActivitySuggestion: mockReadActivitySuggestion,
     readIssue: mockReadIssue,
@@ -45,7 +45,7 @@ const DRAFT_ID = "reef-draft-0123456789abcdef";
 describe("approveActivitySuggestion", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockEnsureReefTables.mockResolvedValue(undefined);
+    mockVerifyWorkspaceSchema.mockResolvedValue(undefined);
     mockListIssues.mockResolvedValue({ issues: [] });
     mockAllocateNextIssueId.mockResolvedValue("REEF-123");
     mockWriteIssue.mockResolvedValue({

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 
 const PORT = Number(process.env.REEF_E2E_MOCK_PORT ?? 7354);
@@ -377,7 +378,7 @@ function configuredVault(name) {
       {
         id: uuidFor(41),
         reef_id: "REEF-001",
-        body: "Agreed. Pushed the schema_version stamp:\n\n```ts\nawait ensureReefTables({ adapter, vault });\n```",
+        body: "Agreed. Verified the workspace schema version before the write.",
         meta: {
           author: "alice",
           created_at: "2026-06-16T10:30:00.000Z",
@@ -444,7 +445,51 @@ function configuredVault(name) {
       "Spec overview for the hermetic Ask AI tool transparency workflow.",
     tags: ["docs", "ask-ai", "e2e"],
   });
+  seedInitializationMarker(vault);
   return vault;
+}
+
+function seedInitializationMarker(vault) {
+  const canonicalRequest = JSON.stringify({
+    name: vault.name,
+    config: {
+      project_prefix: String(vault.settings.get("project_prefix") ?? "REEF"),
+      monitored_repos: [...vault.monitoredRepos].sort(
+        (left, right) =>
+          left.github_id - right.github_id ||
+          left.owner.localeCompare(right.owner) ||
+          left.name.localeCompare(right.name),
+      ),
+      authoring_language: vault.settings.get("authoring_language") ?? null,
+      stale_hide_completed_days:
+        vault.settings.get("stale_hide_completed_days") ?? 28,
+      stale_hide_canceled_days:
+        vault.settings.get("stale_hide_canceled_days") ?? 7,
+      ai_scanning_enabled: vault.settings.get("ai_scanning_enabled") === true,
+    },
+  });
+  const requestFingerprint = createHash("sha256")
+    .update(canonicalRequest)
+    .digest("hex");
+  const path = "overview/reef-initialization.md";
+  vault.documents.set(path, {
+    uri: docUri(vault.name, path),
+    vault: vault.name,
+    path,
+    title: "Reef workspace initialization",
+    type: "reference",
+    status: "active",
+    summary: "Durable Reef workspace initialization state",
+    content: `${JSON.stringify({
+      schema_version: 1,
+      state: "ready",
+      request_fingerprint: requestFingerprint,
+    })}\n`,
+    tags: ["reef:initialization"],
+    created_at: NOW,
+    updated_at: NOW,
+    current_commit: "e2e-seed-reef-initialization",
+  });
 }
 
 function demoBoardVault(name) {
@@ -678,6 +723,7 @@ function demoBoardVault(name) {
     );
   }
   seedDemoBoardActivitySuggestions(vault);
+  seedInitializationMarker(vault);
   return vault;
 }
 
@@ -875,6 +921,18 @@ async function handleAkb(req, res, url) {
     const vault = getVault(decodeURIComponent(membersMatch[1]), res);
     if (!vault) return;
     return json(res, 200, { members: vault.members });
+  }
+
+  const grantMatch = path.match(/^\/api\/v1\/vaults\/([^/]+)\/grant$/);
+  if (grantMatch && req.method === "POST") {
+    const vault = getVault(decodeURIComponent(grantMatch[1]), res);
+    if (!vault) return;
+    const body = await readJson(req);
+    const user = String(body?.user ?? "");
+    const role = String(body?.role ?? "");
+    vault.members = vault.members.filter((member) => member.username !== user);
+    vault.members.push({ username: user, role, since: NOW });
+    return json(res, 200, { vault: vault.name, user, role, granted: true });
   }
 
   if (path === "/api/v1/files" && req.method === "POST") {

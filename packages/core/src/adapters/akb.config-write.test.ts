@@ -12,6 +12,7 @@ import {
   REEF_SETTINGS_TABLE,
   REEF_SPRINTS_TABLE,
   REEF_TEMPLATES_TABLE,
+  type SchemaLifecycleError,
   SchemaValidationError,
   ensureReefTables,
   makeAdapter,
@@ -141,51 +142,29 @@ describe("writeConfig (tables)", () => {
     expect(sqls[10]).toBe(`DELETE FROM ${MONITORED_REPOS_TABLE}`);
   });
 
-  it("creates missing tables on first write (lazy provisioning)", async () => {
-    const { calls } = setupFetch([
-      { body: makeListTablesResponse([]) },
-      { status: 201, body: { name: REEF_SETTINGS_TABLE } },
-      { status: 201, body: { name: MONITORED_REPOS_TABLE } },
-      { status: 201, body: { name: REEF_ISSUES_TABLE } },
-      { status: 201, body: { name: REEF_SPRINTS_TABLE } },
-      { status: 201, body: { name: REEF_MILESTONES_TABLE } },
-      { status: 201, body: { name: REEF_RELEASES_TABLE } },
-      { status: 201, body: { name: REEF_TEMPLATES_TABLE } },
-      { status: 201, body: { name: REEF_ACTIVITY_SUGGESTIONS_TABLE } },
-      { status: 201, body: { name: REEF_COMMENTS_TABLE } },
-      { status: 201, body: { name: REEF_ATTACHMENTS_TABLE } },
-      { status: 201, body: { name: REEF_ACTIVITY_TABLE } },
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
-      { body: makeSqlMutationResponse("DELETE 0") }, // DELETE project_prefix
-      { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT project_prefix
-      { body: makeSqlMutationResponse("DELETE 0") }, // DELETE authoring_language
-      { body: makeSqlMutationResponse("DELETE 0") }, // DELETE stale_hide_completed_days
-      { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT stale_hide_completed_days
-      { body: makeSqlMutationResponse("DELETE 0") }, // DELETE stale_hide_canceled_days
-      { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT stale_hide_canceled_days
-      { body: makeSqlMutationResponse("DELETE 0") }, // DELETE ai_scanning_enabled
-      { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT ai_scanning_enabled
-      { body: makeSqlMutationResponse("DELETE 0") }, // DELETE monitored_repos
-    ]);
+  it("fails boundedly without creating tables when schema is missing", async () => {
+    const { calls } = setupFetch([{ body: makeListTablesResponse([]) }]);
     const adapter = makeAdapter();
-    await writeConfig({
-      adapter,
-      vault: "reef-sample",
-      config: {
-        project_prefix: "REEF",
-        monitored_repos: [],
-        authoring_language: null,
-        stale_hide_completed_days: 28,
-        stale_hide_canceled_days: 7,
-        ai_scanning_enabled: false,
-      },
-    });
-    expect(calls).toHaveLength(23);
+    await expect(
+      writeConfig({
+        adapter,
+        vault: "reef-sample",
+        config: {
+          project_prefix: "REEF",
+          monitored_repos: [],
+          authoring_language: null,
+          stale_hide_completed_days: 28,
+          stale_hide_canceled_days: 7,
+          ai_scanning_enabled: false,
+        },
+      }),
+    ).rejects.toMatchObject({
+      name: "SchemaLifecycleError",
+      context: { reason: "schema_not_ready", vault: "reef-sample" },
+    } satisfies Partial<SchemaLifecycleError>);
+    expect(calls).toHaveLength(1);
     expect(calls[0]?.url).toBe("https://akb.test/api/v1/tables/reef-sample");
-    const createNames = calls
-      .slice(1, 12)
-      .map((c) => JSON.parse(c.init?.body as string).name);
-    expect(createNames).toEqual(ALL_REEF_TABLES);
+    expect(calls[0]?.init?.method).toBe("GET");
   });
 
   it("emits multi-row INSERT when monitored_repos is non-empty", async () => {
