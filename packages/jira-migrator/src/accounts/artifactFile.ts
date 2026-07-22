@@ -1,5 +1,7 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { randomUUID } from "node:crypto";
+import { constants } from "node:fs";
+import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import type { ZodError } from "zod";
 import {
   type JiraAccountMappingArtifact,
@@ -80,5 +82,38 @@ export async function writeJiraAccountMappingArtifact(
   }
 
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(parsed.data, null, 2)}\n`, "utf8");
+  const temporary = join(
+    dirname(path),
+    `.${basename(path)}.${randomUUID()}.tmp`,
+  );
+  try {
+    const handle = await open(
+      temporary,
+      constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL,
+      0o600,
+    );
+    try {
+      await handle.chmod(0o600);
+      await handle.writeFile(
+        `${JSON.stringify(parsed.data, null, 2)}\n`,
+        "utf8",
+      );
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    // Renaming a private same-directory file replaces the path entry itself,
+    // so existing symlinks are never opened, truncated, or followed.
+    await rename(temporary, path);
+    if (process.platform !== "win32") {
+      const directoryHandle = await open(dirname(path), constants.O_RDONLY);
+      try {
+        await directoryHandle.sync();
+      } finally {
+        await directoryHandle.close();
+      }
+    }
+  } finally {
+    await rm(temporary, { force: true }).catch(() => undefined);
+  }
 }

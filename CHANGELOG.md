@@ -83,6 +83,14 @@ explicitly in the entries below.
   canonical-JSON, and related-reconciliation helpers are no longer re-exported
   from the package root.
 
+### Fixed
+
+- **Jira migration artifacts and configuration now reject additional credential
+  exposure paths.** Raw archives reject symlinks in every existing path
+  component, account-mapping artifacts are written with private file modes,
+  Jira base URLs cannot contain embedded credentials, and report redaction
+  removes configured secrets from object keys before JSON escaping.
+
 ### Migration
 
 - **Migrate existing Kubernetes LLM settings before deploying REEF-413.** The

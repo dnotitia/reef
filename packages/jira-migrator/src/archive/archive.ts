@@ -29,6 +29,7 @@ import {
   type RawArchiveVersionV1,
 } from "./model.js";
 import {
+  assertSafeArchivePathSyntax,
   assertSecureNode,
   ensureSecureDirectory,
   validateRawArchivePermissionVerification,
@@ -391,6 +392,7 @@ export class RawArchive {
   private readonly permissionModel: "posix" | "windows";
 
   constructor(options: CreateRawArchiveOptions) {
+    assertSafeArchivePathSyntax(options.root);
     const permissionVerification: RawArchivePermissionVerification =
       options.permissionVerification.kind === "external_acl"
         ? {

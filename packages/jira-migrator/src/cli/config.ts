@@ -206,9 +206,21 @@ const parseBaseUrl = (raw: string | null, cloudId: string | null): string => {
   }
 
   try {
-    const url = new URL(candidate);
+    const normalizedCandidate = candidate.trim().replace(/[\t\n\r]/gu, "");
+    const url = new URL(normalizedCandidate);
     if (url.protocol !== "https:") {
       throw new Error("non_https");
+    }
+    const authority = normalizedCandidate
+      .replace(/^https:/iu, "")
+      .replaceAll("\\", "/")
+      .replace(/^\/+/, "")
+      .split(/[/?#]/u, 1)[0];
+    if (authority?.includes("@")) {
+      throw new Error("userinfo_not_allowed");
+    }
+    if (url.username || url.password) {
+      throw new Error("userinfo_not_allowed");
     }
     url.pathname = trimTrailingSlashes(url.pathname);
     url.search = "";
