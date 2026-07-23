@@ -62,6 +62,27 @@ describe("retryOperation", () => {
     expect(operation).toHaveBeenCalledTimes(1);
   });
 
+  it("clamps jitter to the configured retry maximum", async () => {
+    const sleep = vi.fn(async () => undefined);
+    const operation = vi
+      .fn()
+      .mockRejectedValueOnce(
+        Object.assign(new Error("retry"), { retryable: true }),
+      )
+      .mockResolvedValue("ok");
+
+    await expect(
+      retryOperation(operation, {
+        maxRetries: 1,
+        baseDelayMs: 10_000,
+        maxDelayMs: 10_000,
+        sleep,
+        random: () => 1,
+      }),
+    ).resolves.toBe("ok");
+    expect(sleep).toHaveBeenCalledWith(10_000);
+  });
+
   it("aborts an in-flight Retry-After wait immediately", async () => {
     const controller = new AbortController();
     const operation = vi.fn().mockRejectedValue(

@@ -312,6 +312,9 @@ describe("updateIssue → document OCC (REEF-227)", () => {
       .at(-1);
     expect(updateSql).toContain("updated_at =");
     expect(updateSql).toContain("RETURNING reef_id");
+    expect(updateSql?.slice(0, updateSql.indexOf(" WHERE "))).not.toContain(
+      "updated_at",
+    );
     expect(patchCalls(calls)).toHaveLength(0);
   });
 });

@@ -454,7 +454,8 @@ export function createAkbJiraMigrationTarget(
           attachment: result.attachment,
           bytes: new Uint8Array(result.body),
         };
-      } catch {
+      } catch (error) {
+        if (!(error instanceof NotFoundError)) throw error;
         return null;
       }
     },

@@ -89,7 +89,10 @@ export async function retryOperation<T>(
         options.maxDelayMs,
         options.baseDelayMs * 2 ** attempt,
       );
-      const jittered = Math.round(exponential * (0.5 + random()));
+      const jittered = Math.min(
+        options.maxDelayMs,
+        Math.round(exponential * (0.5 + random())),
+      );
       await sleepWithSignal(Math.max(retryAfterMs(error), jittered), options);
     }
   }

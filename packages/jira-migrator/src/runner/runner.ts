@@ -409,9 +409,14 @@ const snapshotJiraClient = (
             (snapshot.comments[issueKey] as
               | { items?: unknown[]; pages?: unknown[] }
               | undefined) ?? {};
+          const rawFallback =
+            "raw" in result && result.raw !== undefined ? [result.raw] : [];
           snapshot.comments[issueKey] = {
             items: [...(previous.items ?? []), ...result.items],
-            pages: [...(previous.pages ?? []), ...(result.pages ?? [])],
+            pages: [
+              ...(previous.pages ?? []),
+              ...(result.pages ?? rawFallback),
+            ],
           };
           comments.set(cacheKey, result);
           return result;

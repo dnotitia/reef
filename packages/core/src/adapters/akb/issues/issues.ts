@@ -361,7 +361,12 @@ export async function updateIssue(
         adapter,
         vault,
         expectedUpdatedAt
-          ? `WITH upd AS (UPDATE ${tableRef(
+          ? // `updated_at` is an AKB-reserved dynamic-table column: AKB
+            // atomically advances it after every successful UPDATE and rejects
+            // callers that try to assign it directly. The predicate therefore
+            // checks the pre-write token, while the same statement produces the
+            // next token for subsequent OCC callers.
+            `WITH upd AS (UPDATE ${tableRef(
               REEF_ISSUES_TABLE,
             )} SET ${buildRowAssignments(
               issueRowMutableFields(
