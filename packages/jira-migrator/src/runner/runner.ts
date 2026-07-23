@@ -398,6 +398,19 @@ const semanticRelatedReport = (report: JiraRelatedImportReport): unknown => ({
   failures: report.failures,
 });
 
+const approvalRelevantReport = (report: JiraRunnerReport): unknown => ({
+  ...report,
+  run: {
+    ...report.run,
+    started_at: null,
+    ended_at: null,
+  },
+  approval: {
+    ...report.approval,
+    dry_run_completed_at: null,
+  },
+});
+
 const issueReadbackApprovalState = (
   plan: JiraIssueImportPlan,
   readback: Awaited<ReturnType<AkbJiraMigrationTarget["readIssue"]>> | null,
@@ -3048,16 +3061,8 @@ async function runJiraMigrationUnlocked(
     if (await fileExists(approvalPath)) {
       const existingApproval = await loadJiraRunnerReport(approvalPath);
       const sameApproval =
-        existingApproval.run.run_id === report.run.run_id &&
-        existingApproval.run.mode === "dry-run" &&
-        existingApproval.run.status === "completed" &&
-        fingerprintJiraState(existingApproval.run.source) ===
-          fingerprintJiraState(report.run.source) &&
-        fingerprintJiraState(existingApproval.run.target) ===
-          fingerprintJiraState(report.run.target) &&
-        existingApproval.plan_sha256 === report.plan_sha256 &&
-        existingApproval.approval.dry_run_plan_sha256 ===
-          report.approval.dry_run_plan_sha256;
+        fingerprintJiraState(approvalRelevantReport(existingApproval)) ===
+        fingerprintJiraState(approvalRelevantReport(report));
       if (!sameApproval) {
         throw new JiraRunnerError("dry_run_scope_mismatch");
       }

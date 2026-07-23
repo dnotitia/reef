@@ -1,5 +1,9 @@
 import { ZodError } from "zod";
-import { NotFoundError, SchemaValidationError } from "../../../errors";
+import {
+  ConflictError,
+  NotFoundError,
+  SchemaValidationError,
+} from "../../../errors";
 import { filterValidCommentThreadMembers } from "../../../models/commentThreads";
 import {
   type Comment,
@@ -234,7 +238,21 @@ export async function createComment(
           ? new NotFoundError({ resourceKind: "commentParent" })
           : new NotFoundError({ resource: `issue ${reefId}` });
       }
-      return rowToComment(row);
+      const comment = rowToComment(row);
+      const compatible =
+        comment.reef_id === reefId &&
+        comment.body === body &&
+        comment.author === author &&
+        comment.created_at === createdAt &&
+        comment.edited_at === editedAt &&
+        (comment.parent_comment_id ?? null) === (parentCommentId ?? null) &&
+        (parentCommentId
+          ? comment.thread_root_id != null
+          : comment.thread_root_id == null);
+      if (!compatible) {
+        throw new ConflictError({ path: `comment:${comment.id}` });
+      }
+      return comment;
     },
   );
 }

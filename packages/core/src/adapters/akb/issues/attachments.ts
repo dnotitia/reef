@@ -1,5 +1,10 @@
+import { isDeepStrictEqual } from "node:util";
 import { ZodError } from "zod";
-import { NotFoundError, SchemaValidationError } from "../../../errors";
+import {
+  ConflictError,
+  NotFoundError,
+  SchemaValidationError,
+} from "../../../errors";
 import { ACTIVITY_EVENT_ATTACHMENT_ADDED } from "../../../schemas/issues/activity";
 import {
   type IssueAttachment,
@@ -293,7 +298,29 @@ export async function uploadIssueAttachment(
         meta: params.meta ?? null,
       });
       if (attachment.file_uri !== uploaded.uri) {
+        const existing = await downloadAkbFile(
+          adapter,
+          vault,
+          attachment.file_uri,
+        );
+        const existingBytes = new Uint8Array(existing.body);
+        const compatible =
+          attachment.reef_id === reefId &&
+          attachment.filename === uploaded.filename &&
+          attachment.mime_type === uploaded.mimeType &&
+          attachment.size_bytes === uploaded.sizeBytes &&
+          attachment.author === author &&
+          attachment.source === source &&
+          attachment.inline === (params.inline ?? false) &&
+          attachment.original_jira_attachment_id ===
+            (params.originalJiraAttachmentId ?? null) &&
+          isDeepStrictEqual(attachment.meta, params.meta ?? null) &&
+          existingBytes.length === bytes.length &&
+          existingBytes.every((value, index) => value === bytes[index]);
         await deleteAkbFile(adapter, vault, uploaded.uri);
+        if (!compatible) {
+          throw new ConflictError({ path: attachment.file_uri });
+        }
       }
       await appendAttachmentAddedEvent(adapter, vault, attachment).catch(() => {
         // Best effort: the upload + row are the user-visible work; activity is
