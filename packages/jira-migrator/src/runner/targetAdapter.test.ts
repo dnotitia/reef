@@ -80,6 +80,16 @@ describe("AKB Jira migration target", () => {
         created_by: "operator",
         updated_at: "2026-07-23T00:00:00.000Z",
         updated_by: "operator",
+        custom_fields: {
+          jira_migration: {
+            owner: {
+              jira_cloud_id: "cloud-1",
+              project_key: "ALPHA",
+              issue_id: "10001",
+              issue_key: "ALPHA-1",
+            },
+          },
+        },
       },
       content: "body",
       path: "issues/reef-010.md",
@@ -91,7 +101,16 @@ describe("AKB Jira migration target", () => {
         ...baseIssueReadback.issue,
         custom_fields: {
           target_authored: { keep: true },
-          jira_migration: { relations: [], external_refs: [] },
+          jira_migration: {
+            owner: {
+              jira_cloud_id: "cloud-1",
+              project_key: "ALPHA",
+              issue_id: "10001",
+              issue_key: "ALPHA-1",
+            },
+            relations: [],
+            external_refs: [],
+          },
         },
       },
     } as unknown as AkbReadIssueResult;
@@ -258,6 +277,7 @@ describe("AKB Jira migration target", () => {
           created_by: "operator",
           updated_at: "2026-07-23T00:00:00.000Z",
           updated_by: "operator",
+          custom_fields: baseIssueReadback.issue.custom_fields,
         },
         content: "body",
       },
@@ -305,6 +325,25 @@ describe("AKB Jira migration target", () => {
         }),
       }),
     );
+    const updateCalls = updateIssue.mock.calls.length;
+    readIssue.mockResolvedValueOnce({
+      ...targetAuthoredReadback,
+      issue: {
+        ...targetAuthoredReadback.issue,
+        custom_fields: {
+          jira_migration: {
+            owner: {
+              jira_cloud_id: "other-cloud",
+              issue_id: "99999",
+            },
+          },
+        },
+      },
+    } as unknown as AkbReadIssueResult);
+    await expect(target.applyIssue(updatedPlan, "update")).rejects.toThrow(
+      "target_issue_id_conflict",
+    );
+    expect(updateIssue).toHaveBeenCalledTimes(updateCalls);
   });
 
   it("rejects a reused planning target that disappeared after preflight", async () => {

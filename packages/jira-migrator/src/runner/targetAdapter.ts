@@ -1255,6 +1255,19 @@ export function createAkbJiraMigrationTarget(
           vault,
           id: desired.id,
         });
+        const desiredOwner = parseMeta(
+          parseMeta(desired.custom_fields).jira_migration,
+        ).owner;
+        const currentOwner = parseMeta(
+          parseMeta(current.issue.custom_fields).jira_migration,
+        ).owner;
+        const desiredOwnerIdentity = jiraOwnerIdentity(desiredOwner);
+        if (
+          !desiredOwnerIdentity ||
+          jiraOwnerIdentity(currentOwner) !== desiredOwnerIdentity
+        ) {
+          throw new JiraTargetConflictError();
+        }
         expectedIssue = {
           ...desired,
           depends_on: current.issue.depends_on,
