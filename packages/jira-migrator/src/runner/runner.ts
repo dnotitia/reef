@@ -1021,6 +1021,9 @@ async function runJiraMigrationUnlocked(
       issue.projectKey ?? issue.key.split("-")[0] ?? "",
     );
     if (!client) throw new Error("jira_client_missing");
+    // `readComments` returns a complete JiraCatalogResult: JiraReadClient
+    // drains every startAt cursor internally, and the snapshot proxy caches
+    // that full catalog for the later related-data planning/apply pass.
     const comments = await client.readComments(issue.key);
     commentsByIssue.set(issue.key, comments.items);
   }

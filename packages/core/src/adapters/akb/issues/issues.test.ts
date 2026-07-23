@@ -543,7 +543,14 @@ describe("born-correct backlog rank (REEF-176)", () => {
       { status: 409, body: { error: "duplicate reef_id" } },
       { body: rowsFor(reservation) },
       { body: ROW_UPDATE_OK },
-      { body: rowsFor(desiredIssue) },
+      {
+        body: rowsFor(
+          makeIssue({
+            ...desiredIssue,
+            updated_at: "2026-05-01T00:00:01.000Z",
+          }),
+        ),
+      },
       { body: putResponse("commit-1") },
     ]);
 

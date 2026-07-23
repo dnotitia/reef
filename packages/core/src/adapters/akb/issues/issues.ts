@@ -144,7 +144,9 @@ export async function writeIssue(
         )?.owner;
         const relationKeys = new Set(["depends_on", "blocks", "related_to"]);
         const desiredKeys = Object.keys(issue).filter(
-          (key) => issue[key as keyof IssueMetadata] !== undefined,
+          (key) =>
+            key !== "updated_at" &&
+            issue[key as keyof IssueMetadata] !== undefined,
         );
         const desiredProjection = Object.fromEntries(
           desiredKeys.map((key) => [key, issue[key as keyof IssueMetadata]]),
