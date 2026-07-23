@@ -156,6 +156,35 @@ describe("useIssueUrlSync", () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
+  it("applies a query-only history navigation instead of overwriting it from stale store state", async () => {
+    navigationState.searchParams = new URLSearchParams("status=todo");
+    const { rerender } = render(<Harness />);
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.status).toEqual(["todo"]);
+    });
+    mockPush.mockClear();
+    mockReplace.mockClear();
+
+    navigationState.searchParams = new URLSearchParams(
+      "priority=high&view=list",
+    );
+    rerender(<Harness />);
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.priority).toEqual(["high"]);
+    });
+    expect(useIssueStore.getState().filter.status).toBeUndefined();
+    expect(mockPush).not.toHaveBeenCalledWith(
+      expect.stringContaining("status=todo"),
+      expect.anything(),
+    );
+    expect(mockReplace).not.toHaveBeenCalledWith(
+      expect.stringContaining("status=todo"),
+      expect.anything(),
+    );
+  });
+
   it("ignores an orphaned order param with no sort field (REEF-059)", async () => {
     // A fieldless `order` should not restore `sortOrder`: it would otherwise sit
     // orphaned in the store and re-serialize to the URL / IndexedDB, leaving the

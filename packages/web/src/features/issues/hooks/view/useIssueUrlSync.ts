@@ -65,6 +65,15 @@ export function useIssueUrlSync(
   const pathname = usePathname();
   const currentIssueQuery = useRef(canonicalIssueQuery(searchParams));
   currentIssueQuery.current = canonicalIssueQuery(searchParams);
+  const lastObservedIssueQuery = useRef(currentIssueQuery.current);
+  // Store→URL writes are already represented by the current store. Remember
+  // their destination so the reactive URL observer below does not echo them
+  // back as an external history navigation.
+  const pendingIssueQuery = useRef<string | null>(null);
+  // Holds an external query transition through the first store→URL effect run.
+  // React effects in the same commit still see the pre-transition store props,
+  // so this prevents that stale render from immediately overwriting Back.
+  const applyingIssueQuery = useRef<string | null>(null);
 
   // Gates URL writeback. Set as soon as the hydration source is decided
   // (synchronously, before any async restore settles) so a user filter change —
@@ -229,6 +238,7 @@ export function useIssueUrlSync(
                   ...state,
                   filterVault: restoringVault,
                 });
+                pendingIssueQuery.current = canonicalIssueQuery(params);
                 router.replace(
                   savedIssueViewHref(restoringVault, defaultView.payload),
                   {
@@ -294,11 +304,45 @@ export function useIssueUrlSync(
   /* eslint-enable react-hooks/exhaustive-deps */
 
   useEffect(() => {
+    const nextIssueQuery = canonicalIssueQuery(searchParams);
+    if (nextIssueQuery === lastObservedIssueQuery.current) return;
+    lastObservedIssueQuery.current = nextIssueQuery;
+
+    if (pendingIssueQuery.current === nextIssueQuery) {
+      pendingIssueQuery.current = null;
+      return;
+    }
+    // A different navigation supersedes an unobserved internal destination.
+    pendingIssueQuery.current = null;
+    if (!initialized.current) return;
+
+    const issuesPath = withVault(vault, ISSUES_LIST_BASE);
+    const browserPathname =
+      typeof window !== "undefined" &&
+      window.location.pathname.startsWith("/workspace/")
+        ? window.location.pathname
+        : pathname;
+    if (pathname !== issuesPath || browserPathname !== issuesPath) return;
+
+    applyingIssueQuery.current = nextIssueQuery;
+    skipNextWrite.current = true;
+    useIssueStore.setState({
+      ...readIssueUrlState(searchParams),
+      filterVault: vault || null,
+    });
+  }, [pathname, searchParams, vault]);
+
+  useEffect(() => {
     // The revision reruns this effect when an async bare-landing lookup settles
     // without changing the store (for example, no default and no persisted
     // filter), so the retained same-vault baseline can then mirror normally.
     void restoreRevision;
     if (!initialized.current) return;
+    const observedIssueQuery = canonicalIssueQuery(searchParams);
+    if (applyingIssueQuery.current === observedIssueQuery) {
+      applyingIssueQuery.current = null;
+      return;
+    }
     const baseline = restoreBaseline.current;
     if (
       baseline?.vault === vault &&
@@ -348,6 +392,7 @@ export function useIssueUrlSync(
       const useReplace = replaceNextWrite.current;
       replaceNextWrite.current = false;
       const href = `${pathname}${paramString ? `?${paramString}` : ""}`;
+      pendingIssueQuery.current = canonicalIssueQuery(paramString);
       if (useReplace) {
         router.replace(href, { scroll: false });
       } else {
