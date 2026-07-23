@@ -530,6 +530,30 @@ describe("ensureReefTables", () => {
     expect(calls).toHaveLength(3);
   });
 
+  it("reports constraint drift after a concurrent views-table create", async () => {
+    const driftedViews = makeDesiredTablesResponse({
+      [REEF_VIEWS_TABLE]: {
+        unique_keys: [{ columns: ["name"] }],
+        indexes: [{ columns: ["name_key"] }],
+      },
+    });
+    const { calls } = setupFetch([
+      { body: makeDesiredTablesResponseExcept(REEF_VIEWS_TABLE) },
+      { status: 409, body: { detail: "already exists" } },
+      { body: driftedViews },
+      { body: driftedViews },
+    ]);
+
+    await expect(
+      ensureReefTables({ adapter: makeAdapter(), vault: "reef-sample" }),
+    ).rejects.toMatchObject({
+      context: {
+        issues: [`Reef table constraint mismatch: ${REEF_VIEWS_TABLE}`],
+      },
+    });
+    expect(calls).toHaveLength(4);
+  });
+
   it("accepts the older { tables: [...] } shape as a parser fallback", async () => {
     const { calls } = setupFetch([
       {

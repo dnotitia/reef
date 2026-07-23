@@ -49,7 +49,7 @@ export function IssuesWorkspace() {
   const savedViews = useSavedIssueViews(vault);
   const { skipNextSave } = useIssueUrlSync(
     savedViews.data,
-    !savedViews.isPending,
+    savedViews.isSuccess,
   );
   useIssueFilterPersistence(vault, skipNextSave);
 

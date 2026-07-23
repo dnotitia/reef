@@ -1,5 +1,6 @@
 import { withVault } from "@/lib/workspaceHref";
 import {
+  type SavedIssueView,
   type SavedIssueViewPayload,
   StatusEnum,
   USER_SORT_FIELDS,
@@ -30,6 +31,23 @@ export const ISSUE_QUERY_KEYS = [
 
 const FILTER_QUERY_KEYS = ISSUE_QUERY_KEYS.filter((key) => key !== "view");
 const VIEW_MODES = new Set(["board", "list", "timeline", "backlog"]);
+
+export function isIssuesListPath(pathname: string, vault: string): boolean {
+  return pathname === withVault(vault, "/issues");
+}
+
+export function savedIssueViewDefaultIsStale(
+  defaultId: string | undefined,
+  views: SavedIssueView[] | undefined,
+  readSucceeded: boolean,
+): boolean {
+  return (
+    !!defaultId &&
+    readSucceeded &&
+    !!views &&
+    !views.some((view) => view.id === defaultId)
+  );
+}
 
 export interface IssueUrlState {
   filter: IssueFilter;

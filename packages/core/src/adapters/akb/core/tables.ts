@@ -463,8 +463,7 @@ function manifestMatchesTable(
   return (
     table?.name === manifest.name &&
     tableHasColumnMetadata(table) &&
-    columnsMatch(manifest.columns, table.columns) &&
-    tableConstraintsMatch(manifest, table)
+    columnsMatch(manifest.columns, table.columns)
   );
 }
 

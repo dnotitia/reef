@@ -23,6 +23,8 @@ import {
 import { useSavedIssueViews } from "@/features/issues/hooks/queries/useSavedIssueViews";
 import {
   createSavedIssueViewPayload,
+  isIssuesListPath,
+  savedIssueViewDefaultIsStale,
   savedIssueViewHref,
   savedIssueViewIsActive,
 } from "@/features/issues/lib/issueViewCodec";
@@ -67,12 +69,11 @@ export function SavedViewsNav({ vault }: { vault: string }) {
   }, [vault]);
 
   useEffect(() => {
-    if (!defaultId || query.isPending) return;
-    if (!(query.data ?? []).some((view) => view.id === defaultId)) {
+    if (savedIssueViewDefaultIsStale(defaultId, query.data, query.isSuccess)) {
       void clearDefaultIssueViewId(vault);
       setDefaultId(undefined);
     }
-  }, [defaultId, query.data, query.isPending, vault]);
+  }, [defaultId, query.data, query.isSuccess, vault]);
 
   if (query.isPending) {
     return (
@@ -87,6 +88,7 @@ export function SavedViewsNav({ vault }: { vault: string }) {
 
   const report = (error: unknown) =>
     toast.error(error instanceof Error ? error.message : t("error"));
+  const isIssuesList = isIssuesListPath(pathname, vault);
 
   return (
     <>
@@ -100,7 +102,7 @@ export function SavedViewsNav({ vault }: { vault: string }) {
         <ul className="space-y-0.5">
           {query.data.map((view) => {
             const active =
-              pathname.endsWith("/issues") &&
+              isIssuesList &&
               savedIssueViewIsActive(view.payload, searchParams);
             return (
               <li key={view.id} className="group flex items-center">
@@ -131,24 +133,26 @@ export function SavedViewsNav({ vault }: { vault: string }) {
                     <MoreHorizontal className="size-3.5" aria-hidden="true" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="right-0 left-auto">
-                    <DropdownMenuItem
-                      onSelect={() =>
-                        update
-                          .mutateAsync({
-                            id: view.id,
-                            patch: {
-                              payload: createSavedIssueViewPayload(
-                                filter,
-                                searchQuery,
-                                searchParams.get("view") ?? "board",
-                              ),
-                            },
-                          })
-                          .catch(report)
-                      }
-                    >
-                      {t("updateCurrent")}
-                    </DropdownMenuItem>
+                    {isIssuesList ? (
+                      <DropdownMenuItem
+                        onSelect={() =>
+                          update
+                            .mutateAsync({
+                              id: view.id,
+                              patch: {
+                                payload: createSavedIssueViewPayload(
+                                  filter,
+                                  searchQuery,
+                                  searchParams.get("view") ?? "board",
+                                ),
+                              },
+                            })
+                            .catch(report)
+                        }
+                      >
+                        {t("updateCurrent")}
+                      </DropdownMenuItem>
+                    ) : null}
                     <DropdownMenuItem
                       onSelect={() => {
                         setRename(view);
