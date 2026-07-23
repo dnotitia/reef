@@ -1,85 +1,19 @@
 import { createHash } from "node:crypto";
-import { readFile, realpath, rm } from "node:fs/promises";
+import { realpath, rm } from "node:fs/promises";
 import { tmpdir, userInfo } from "node:os";
 import { dirname, join } from "node:path";
-import {
-  loadJiraAccountMappingArtifact,
-  writeJiraAccountMappingArtifact,
-} from "../accounts/artifactFile.js";
-import {
-  buildJiraAccountMigrationReport,
-  collectJiraUserObservations,
-  upsertJiraAccountMappingArtifact,
-} from "../accounts/mapping.js";
 import {
   type JiraMigratorConfig,
   secretValuesForConfig,
 } from "../cli/config.js";
-import {
-  finalizeJiraMigrationPhase,
-  recordJiraMigrationResult,
-} from "../execution/checkpoint.js";
 import { fingerprintJiraState } from "../execution/diff.js";
 import {
   loadJiraMigrationLedger,
   writeJiraMigrationLedger,
 } from "../execution/ledgerFile.js";
-import {
-  type JiraChangelogPlan,
-  buildJiraChangelogPlan,
-} from "../issues/changelog.js";
-import type {
-  JiraIssueDeferredItem,
-  JiraIssueImportPlan,
-} from "../issues/importPlan.js";
-import { buildJiraIssueImportPlan } from "../issues/mapping.js";
 import { JiraReadClient } from "../jira/client.js";
-import { buildJiraFieldCatalog } from "../jira/fieldCatalog.js";
-import {
-  type JiraMigrationAction,
-  JiraMigrationBindingSchema,
-  type JiraMigrationEntityResult,
-  type JiraMigrationLedgerV1,
-  type JiraMigrationPhase,
-  confirmJiraMigrationBinding,
-  getJiraPlanningLedgerBindings,
-  jiraAttachmentSourceIdentity,
-  jiraIssueSourceIdentity,
-  openJiraMigrationRun,
-  removeJiraMigrationBindings,
-} from "../ledger.js";
-import type { NormalizedJiraIssue } from "../payloads.js";
-import {
-  type JiraIssuePayload,
-  normalizeIssueSprintReferences,
-} from "../payloads.js";
-import {
-  type JiraPlanningAction,
-  type JiraPlanningTargetResolution,
-  buildJiraPlanningMigrationPlan,
-  buildJiraPlanningTargetMappings,
-} from "../planning/entities.js";
-import { type RawArchiveReference, createRawArchive } from "../rawArchive.js";
-import {
-  type JiraRelatedImportReport,
-  importJiraRelatedData,
-} from "../related/import.js";
-import { rewriteMedia } from "../related/media.js";
-import { reportTemplate } from "../related/reporting.js";
-import {
-  approvalRelevantReport,
-  baseIssueReadbackMatches,
-  canRecoverApprovedPlanningCreate,
-  issueOwnerMatches,
-  issueReadbackApprovalFingerprint,
-  mappedFingerprintForPlanning,
-  planningResolutionsForApproval,
-  planningSourceProjection,
-  safePlanningAction,
-  semanticIssuePlan,
-  semanticRelatedReport,
-  sourceFingerprintForPlanning,
-} from "./approval.js";
+import type { JiraMigrationLedgerV1 } from "../ledger.js";
+import { approvalRelevantReport, safePlanningAction } from "./approval.js";
 import { loadJiraApprovalArtifacts } from "./approvalArtifacts.js";
 import {
   ensurePrivateDirectory,
@@ -89,19 +23,6 @@ import {
   requireArtifactPaths,
   targetEndpointFingerprint,
 } from "./artifacts.js";
-import {
-  actionForIssuePlan,
-  actionForPlanning,
-  actionForRelatedReport,
-  inferRelationSourceProjectKey,
-  legacyMappedFingerprintForChangelog,
-  mappedFingerprintForChangelog,
-  mergePlanningActions,
-  projectId,
-  reconciliationAction,
-  resultFor,
-  safeMigrationFailureReason,
-} from "./decisions.js";
 import { JiraRunnerError } from "./errors.js";
 import { executeJiraMigrationPlan } from "./execution.js";
 import {
@@ -119,23 +40,14 @@ import {
   loadJiraRunnerReport,
   writeJiraRunnerReport,
 } from "./report.js";
-import { retryOperation } from "./retry.js";
-import {
-  assertUniqueJiraIssues,
-  readAllChangelog,
-  readAllProjectIssues,
-  readBoardSprints,
-} from "./source.js";
 import { archiveJiraMigrationSource } from "./sourceArchive.js";
 import { discoverJiraMigrationSource } from "./sourceDiscovery.js";
 import {
   type RelatedSourceSnapshot,
-  getRelatedBinarySpools,
   snapshotJiraClient,
 } from "./sourceSnapshot.js";
 import {
   type AkbJiraMigrationTarget,
-  JiraTargetConflictError,
   createAkbJiraMigrationTarget,
 } from "./targetAdapter.js";
 
@@ -316,25 +228,7 @@ async function runJiraMigrationUnlocked(
     approvedPayload,
     accountMappingPath: paths.accountMappingPath,
   });
-  const {
-    fieldResult,
-    fieldCatalog,
-    boardCatalogs,
-    versionsByProject,
-    projectDetailsByProject,
-    issuesByProject,
-    versionPagesByProject,
-    issuePagesByProject,
-    allIssues,
-    approvedCommentBindingPreconditions,
-    approvedCommentBindings,
-    absentSourceRelationPlan,
-    targetIdsByJiraKey,
-    changelogByIssue,
-    changelogPagesByIssue,
-    accountMapping,
-    accountReport,
-  } = discovery;
+  const { absentSourceRelationPlan, accountReport } = discovery;
   const archive = await archiveJiraMigrationSource({
     config,
     archiveRoot: paths.archiveRoot,
@@ -342,12 +236,7 @@ async function runJiraMigrationUnlocked(
     targetActor: targetPreflight.actor,
     discovery,
   });
-  const {
-    archiveReferences,
-    changelogArchiveReferences,
-    archiveSummaries,
-    archivesByProject,
-  } = archive;
+  const { archiveSummaries } = archive;
   const plan = await buildJiraMigrationPlan({
     config,
     accountMappingPath: paths.accountMappingPath,
@@ -366,15 +255,9 @@ async function runJiraMigrationUnlocked(
   ledger = plan.ledger;
   const {
     planningActions,
-    existingPlanningResolutions,
-    approvedPlanningResolutions,
-    buildIssuePlans,
     dryIssuePlans,
-    targetIssuePreconditions,
-    issueBindings,
     changelogPlans,
     relatedPlanningReports,
-    postRelatedContentByReefId,
     planPayload,
     planSha256,
   } = plan;

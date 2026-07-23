@@ -49,7 +49,6 @@ export async function executeJiraDryRun(input: {
   persistLedger: JiraExecutionInput["persistLedger"];
 }): Promise<void> {
   const {
-    config,
     target,
     runAt,
     plan,

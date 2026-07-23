@@ -117,12 +117,12 @@ export const removeValue = (
   value: string,
 ) => (values ?? []).filter((candidate) => candidate !== value).sort();
 
-export const relationshipKeys = new Set<keyof IssueMetadata>([
+const relationshipKeys = new Set<keyof IssueMetadata>([
   "depends_on",
   "blocks",
   "related_to",
 ]);
-export const targetManagedIssueKeys = new Set<keyof IssueMetadata>([
+const targetManagedIssueKeys = new Set<keyof IssueMetadata>([
   "created_at",
   "updated_at",
 ]);

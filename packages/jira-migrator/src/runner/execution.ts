@@ -3,16 +3,13 @@ import {
   recordJiraMigrationResult,
 } from "../execution/checkpoint.js";
 import { fingerprintJiraState } from "../execution/diff.js";
-import type { JiraChangelogPlan } from "../issues/changelog.js";
 import type { JiraIssueImportPlan } from "../issues/importPlan.js";
 import {
   type JiraMigrationAction,
   type JiraMigrationEntityResult,
-  type JiraMigrationLedgerV1,
   type JiraMigrationPhase,
   confirmJiraMigrationBinding,
   jiraIssueSourceIdentity,
-  removeJiraMigrationBindings,
 } from "../ledger.js";
 import type { NormalizedJiraIssue } from "../payloads.js";
 import type { JiraPlanningTargetResolution } from "../planning/entities.js";
@@ -22,7 +19,6 @@ import {
 } from "../related/import.js";
 import {
   baseIssueReadbackMatches,
-  issueOwnerMatches,
   issueReadbackApprovalFingerprint,
   mappedFingerprintForPlanning,
   semanticIssuePlan,
@@ -31,7 +27,6 @@ import {
 import {
   actionForChangelogPlan,
   actionForIssuePlan,
-  actionForPlanning,
   actionForRelatedReport,
   legacyMappedFingerprintForChangelog,
   mappedFingerprintForChangelog,
@@ -43,7 +38,6 @@ import {
 import { executeJiraDryRun } from "./dryRunExecution.js";
 import { JiraRunnerError } from "./errors.js";
 import type { JiraExecutionInput } from "./executionContext.js";
-import type { LoadedJiraMappingPolicy } from "./mappingPolicy.js";
 import type { JiraRunnerReport } from "./report.js";
 import {
   type AkbJiraMigrationTarget,
@@ -58,7 +52,6 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
     now,
     clients,
     policies,
-    approval,
     discovery,
     archive,
     plan,
@@ -79,7 +72,6 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
   const { archiveReferences } = archive;
   const {
     planningActions,
-    existingPlanningResolutions,
     approvedPlanningResolutions,
     buildIssuePlans,
     dryIssuePlans,

@@ -21,7 +21,6 @@ export async function archiveJiraMigrationSource(input: {
     versionPagesByProject,
     issuePagesByProject,
     issuesByProject,
-    projectDetailsByProject,
     changelogPagesByIssue,
     changelogByIssue,
   } = discovery;

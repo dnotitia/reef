@@ -66,7 +66,7 @@ export interface LoadedJiraMappingPolicy extends JiraIssueMappingPolicy {
   linkMappings: readonly JiraLinkMapping[];
 }
 
-export class JiraMappingPolicyError extends Error {
+class JiraMappingPolicyError extends Error {
   constructor(readonly code: "missing" | "unsafe_file" | "invalid") {
     super(`jira_mapping_policy_${code}`);
     this.name = "JiraMappingPolicyError";
