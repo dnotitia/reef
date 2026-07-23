@@ -8,11 +8,13 @@ import {
   type ExternalRef,
   type IssueAttachment,
   type IssueMetadata,
+  NotFoundError,
   type PlanningCatalog,
   type Release,
   type Sprint,
   akbAllocateNextIssueId,
   akbAppendActivityEvents,
+  akbClaimIssueId,
   akbCreateComment,
   akbCreateRelease,
   akbCreateSprint,
@@ -80,6 +82,7 @@ interface TargetCore {
     vault: string;
     issue: IssueMetadata;
     content?: string;
+    claimFirst?: boolean;
   }): Promise<AkbWriteIssueResult>;
   updateIssue(input: {
     adapter: AkbAdapter;
@@ -95,6 +98,11 @@ interface TargetCore {
     vault: string;
     id: string;
   }): Promise<AkbReadIssueResult>;
+  claimIssueId(input: {
+    adapter: AkbAdapter;
+    vault: string;
+    issue: IssueMetadata;
+  }): Promise<void>;
 }
 
 const defaultCore: TargetCore = {
@@ -107,19 +115,20 @@ const defaultCore: TargetCore = {
   writeIssue: akbWriteIssue,
   updateIssue: akbUpdateIssue,
   readIssue: akbReadIssue,
-};
-
-const incrementIssueId = (first: string, offset: number): string => {
-  const match = /^(.*?)-(\d+)$/u.exec(first);
-  if (!match?.[1] || !match[2]) throw new Error("target_issue_id_invalid");
-  const number = Number(match[2]) + offset;
-  return `${match[1]}-${String(number).padStart(match[2].length, "0")}`;
+  claimIssueId: akbClaimIssueId,
 };
 
 export interface JiraIssueApplyReadback {
   reefId: string;
   documentUri: string;
   commitHash: string;
+}
+
+export interface JiraIssueTargetOwner {
+  jira_cloud_id: string;
+  project_key: string;
+  issue_id: string;
+  issue_key: string;
 }
 
 export interface AkbJiraMigrationTarget {
@@ -129,7 +138,7 @@ export interface AkbJiraMigrationTarget {
     vault: string;
     planning: PlanningCatalog;
   }>;
-  reserveIssueIds(count: number): Promise<string[]>;
+  planIssueIds(owners: readonly JiraIssueTargetOwner[]): Promise<string[]>;
   applyPlanning(
     action: JiraPlanningAction,
   ): Promise<JiraPlanningTargetResolution>;
@@ -138,6 +147,7 @@ export interface AkbJiraMigrationTarget {
     action: "create" | "update",
   ): Promise<JiraIssueApplyReadback>;
   readIssue(id: string): Promise<AkbReadIssueResult>;
+  claimIssue(plan: JiraIssueImportPlan): Promise<void>;
   relatedTarget(): JiraRelatedImportTarget;
   appendActivity(events: readonly ActivityEventInput[]): Promise<void>;
   activityMatches(events: readonly ActivityEventInput[]): Promise<boolean>;
@@ -231,6 +241,41 @@ const addUnique = (values: readonly string[] | undefined, value: string) =>
 const removeValue = (values: readonly string[] | undefined, value: string) =>
   (values ?? []).filter((candidate) => candidate !== value).sort();
 
+const relationshipKeys = new Set<keyof IssueMetadata>([
+  "depends_on",
+  "blocks",
+  "related_to",
+]);
+
+const issueProjectionKeys = (
+  issue: IssueMetadata,
+): Array<keyof IssueMetadata> =>
+  (Object.keys(issue) as Array<keyof IssueMetadata>).filter(
+    (key) => issue[key] !== undefined,
+  );
+
+const issueProjection = (
+  issue: IssueMetadata,
+  keys: readonly (keyof IssueMetadata)[],
+) =>
+  Object.fromEntries(
+    keys.map((key) => [
+      key,
+      relationshipKeys.has(key) && issue[key] === undefined ? [] : issue[key],
+    ]),
+  );
+
+const jiraOwnerIdentity = (owner: unknown): string | null => {
+  const parsed = parseMeta(owner);
+  return typeof parsed.jira_cloud_id === "string" &&
+    typeof parsed.issue_id === "string"
+    ? canonicalizeJson({
+        jira_cloud_id: parsed.jira_cloud_id,
+        issue_id: parsed.issue_id,
+      })
+    : null;
+};
+
 export function createAkbJiraMigrationTarget(
   config: AkbJiraMigrationTargetConfig,
   core: TargetCore = defaultCore,
@@ -254,9 +299,11 @@ export function createAkbJiraMigrationTarget(
       ...(content !== undefined ? { content } : {}),
       message: `Reconcile ${id} Jira migration data`,
     });
+  const allIssueRows = () =>
+    sql(adapter, vault, "SELECT reef_id, meta FROM reef_issues");
   const allIssueIds = async (): Promise<string[]> =>
-    (await sql(adapter, vault, "SELECT reef_id FROM reef_issues")).flatMap(
-      (row) => (typeof row.reef_id === "string" ? [row.reef_id] : []),
+    (await allIssueRows()).flatMap((row) =>
+      typeof row.reef_id === "string" ? [row.reef_id] : [],
     );
   const findRelation = async (idempotencyKey: string) => {
     for (const id of await allIssueIds()) {
@@ -303,6 +350,11 @@ export function createAkbJiraMigrationTarget(
         commentId,
         input.body,
         input.author,
+        {
+          createdAt: input.createdAt,
+          editedAt: input.editedAt,
+          metadata: { jira_idempotency_key: input.idempotencyKey },
+        },
       );
     },
     async readComment(commentId) {
@@ -647,19 +699,62 @@ export function createAkbJiraMigrationTarget(
       if (!actor) throw new Error("target_identity_unavailable");
       return { actor, vault, planning };
     },
-    async reserveIssueIds(count) {
-      if (!Number.isSafeInteger(count) || count < 0) {
-        throw new Error("target_issue_reservation_count_invalid");
-      }
-      if (count === 0) return [];
-      const first = await core.allocateNextIssueId({
-        adapter,
-        vault,
-        prefix: config.issuePrefix ?? "REEF",
-      });
-      return Array.from({ length: count }, (_, index) =>
-        incrementIssueId(first, index),
+    async planIssueIds(owners) {
+      if (owners.length === 0) return [];
+      const prefix = config.issuePrefix ?? "REEF";
+      const rows = await allIssueRows();
+      const existing = new Set(
+        rows.flatMap((row) =>
+          typeof row.reef_id === "string" ? [row.reef_id] : [],
+        ),
       );
+      const ownedIds = new Map<string, string>();
+      for (const row of rows) {
+        if (typeof row.reef_id !== "string") continue;
+        const meta = parseMeta(row.meta);
+        const customFields = parseMeta(meta.custom_fields);
+        const migration = parseMeta(customFields.jira_migration);
+        const owner = migration.owner;
+        const key = jiraOwnerIdentity(owner);
+        if (!key) continue;
+        if (ownedIds.has(key)) {
+          throw new Error("target_issue_owner_claim_ambiguous");
+        }
+        ownedIds.set(key, row.reef_id);
+      }
+      const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+      const pattern = new RegExp(`^${escapedPrefix}-(\\d+)$`, "u");
+      let next = [...existing].reduce((maximum, id) => {
+        const match = pattern.exec(id);
+        return match?.[1]
+          ? Math.max(maximum, Number.parseInt(match[1], 10))
+          : maximum;
+      }, 0);
+      const width = Math.max(
+        3,
+        ...[...existing].flatMap((id) => {
+          const match = pattern.exec(id);
+          return match?.[1] ? [match[1].length] : [];
+        }),
+      );
+      const candidates: string[] = [];
+      for (const owner of owners) {
+        const ownerIdentity = jiraOwnerIdentity(owner);
+        if (!ownerIdentity) throw new Error("target_issue_owner_invalid");
+        const ownedId = ownedIds.get(ownerIdentity);
+        if (ownedId) {
+          candidates.push(ownedId);
+          continue;
+        }
+        let candidate: string;
+        do {
+          next += 1;
+          candidate = `${prefix}-${String(next).padStart(width, "0")}`;
+        } while (existing.has(candidate));
+        candidates.push(candidate);
+        existing.add(candidate);
+      }
+      return candidates;
     },
     async applyPlanning(action) {
       if (action.classification === "conflict") {
@@ -724,11 +819,37 @@ export function createAkbJiraMigrationTarget(
       let commitHash: string;
       let expectedIssue = desired;
       if (action === "create") {
+        let current: AkbReadIssueResult | null = null;
+        try {
+          current = await core.readIssue({
+            adapter,
+            vault,
+            id: desired.id,
+          });
+        } catch (error) {
+          if (!(error instanceof NotFoundError)) throw error;
+        }
+        if (current) {
+          const desiredKeys = issueProjectionKeys(desired);
+          if (
+            canonicalizeJson(issueProjection(current.issue, desiredKeys)) !==
+              canonicalizeJson(issueProjection(desired, desiredKeys)) ||
+            current.content !== plan.desired.content
+          ) {
+            throw new Error("target_issue_id_conflict");
+          }
+          return {
+            reefId: desired.id,
+            documentUri: akbIssueDocumentUri(vault, desired.id),
+            commitHash: current.commit_hash ?? "",
+          };
+        }
         const result = await core.writeIssue({
           adapter,
           vault,
           issue: desired,
           content: plan.desired.content,
+          claimFirst: true,
         });
         commitHash = result.commit_hash;
       } else {
@@ -766,15 +887,9 @@ export function createAkbJiraMigrationTarget(
         vault,
         id: desired.id,
       });
-      const desiredKeys = (
-        Object.keys(expectedIssue) as Array<keyof IssueMetadata>
-      ).filter((key) => expectedIssue[key] !== undefined);
-      const desiredProjection = Object.fromEntries(
-        desiredKeys.map((key) => [key, expectedIssue[key]]),
-      );
-      const projectedReadback = Object.fromEntries(
-        desiredKeys.map((key) => [key, readback.issue[key]]),
-      );
+      const desiredKeys = issueProjectionKeys(expectedIssue);
+      const desiredProjection = issueProjection(expectedIssue, desiredKeys);
+      const projectedReadback = issueProjection(readback.issue, desiredKeys);
       if (
         canonicalizeJson(projectedReadback) !==
           canonicalizeJson(desiredProjection) ||
@@ -790,6 +905,16 @@ export function createAkbJiraMigrationTarget(
     },
     readIssue(id) {
       return core.readIssue({ adapter, vault, id });
+    },
+    async claimIssue(plan) {
+      const desired = plan.desired.issue;
+      if (
+        !desired ||
+        (plan.status !== "ready" && plan.status !== "ready_with_warnings")
+      ) {
+        throw new Error("jira_issue_plan_not_claimable");
+      }
+      await core.claimIssueId({ adapter, vault, issue: desired });
     },
     relatedTarget() {
       return related;

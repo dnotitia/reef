@@ -17,6 +17,7 @@ export {
 export {
   createAkbAdapter,
   readIssue as akbReadIssue,
+  claimIssueId as akbClaimIssueId,
   writeIssue as akbWriteIssue,
   updateIssue as akbUpdateIssue,
   reorderBacklogIssues as akbReorderBacklogIssues,

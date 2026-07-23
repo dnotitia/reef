@@ -162,7 +162,10 @@ const server = createServer(async (request, response) => {
   if (url.pathname === "/akb/issues" && request.method === "POST") {
     const body = await readBody(request);
     state.mutationLog.push(`issue:${body.action}:${body.issue.id}`);
-    state.issues.set(body.issue.id, body.issue);
+    state.issues.set(body.issue.id, {
+      issue: body.issue,
+      content: body.content,
+    });
     return respond(response, {
       reefId: body.issue.id,
       documentUri: `akb://reef-contract/coll/issues/doc/${body.issue.id.toLowerCase()}.md`,
@@ -171,9 +174,11 @@ const server = createServer(async (request, response) => {
   }
   if (url.pathname.startsWith("/akb/issues/")) {
     const id = decodeURIComponent(url.pathname.slice("/akb/issues/".length));
+    const stored = state.issues.get(id);
+    if (!stored) return respond(response, { error: "not_found" }, 404);
     return respond(response, {
-      issue: state.issues.get(id),
-      content: "",
+      issue: stored?.issue,
+      content: stored?.content ?? "",
       commit_hash: `commit-${id}`,
     });
   }

@@ -877,7 +877,14 @@ async function runJiraMigrationUnlocked(
         }
         return id;
       })
-    : await target.reserveIssueIds(allIssues.length);
+    : await target.planIssueIds(
+        allIssues.map((issue) => ({
+          jira_cloud_id: config.jira.cloudId,
+          project_key: issue.projectKey ?? issue.key.split("-")[0] ?? issue.key,
+          issue_id: issue.id,
+          issue_key: issue.key,
+        })),
+      );
   const targetIdsByJiraKey = Object.fromEntries(
     allIssues.map((issue, index) => [issue.key, issueIds[index] as string]),
   );
@@ -1713,6 +1720,77 @@ async function runJiraMigrationUnlocked(
         ),
       ]),
     );
+    const recoverCreatedIssue = async (
+      plan: JiraIssueImportPlan,
+    ): Promise<{
+      applied: Awaited<ReturnType<AkbJiraMigrationTarget["applyIssue"]>> | null;
+      readbackFound: boolean;
+    }> => {
+      const desired = plan.desired.issue;
+      const readback = desired
+        ? await target.readIssue(desired.id).catch(() => null)
+        : null;
+      const desiredKeys = desired
+        ? Object.keys(desired).filter(
+            (key) => desired[key as keyof typeof desired] !== undefined,
+          )
+        : [];
+      const relationshipKeys = new Set(["depends_on", "blocks", "related_to"]);
+      const recoveredProjection =
+        desired && readback
+          ? Object.fromEntries(
+              desiredKeys.map((key) => [
+                key,
+                relationshipKeys.has(key) &&
+                readback.issue[key as keyof typeof readback.issue] === undefined
+                  ? []
+                  : readback.issue[key as keyof typeof readback.issue],
+              ]),
+            )
+          : null;
+      const desiredProjection = desired
+        ? Object.fromEntries(
+            desiredKeys.map((key) => [
+              key,
+              desired[key as keyof typeof desired],
+            ]),
+          )
+        : null;
+      if (
+        !desired ||
+        !readback ||
+        fingerprintJiraState(recoveredProjection) !==
+          fingerprintJiraState(desiredProjection) ||
+        readback.content !== plan.desired.content
+      ) {
+        return { applied: null, readbackFound: readback !== null };
+      }
+      return {
+        applied: {
+          reefId: desired.id,
+          documentUri: `akb://${config.target.vault}/coll/issues/doc/${desired.id.toLowerCase()}.md`,
+          commitHash: readback.commit_hash ?? "",
+        },
+        readbackFound: true,
+      };
+    };
+    let issueClaimBatchFailed = false;
+    for (const plan of applyIssuePlans) {
+      assertNotAborted();
+      if (
+        actionForIssuePlan(plan, ledger) !== "create" ||
+        fingerprintJiraState(
+          semanticIssuePlan(plan, planningResolutions, planningActions),
+        ) !== approvedIssueFingerprints.get(plan.source.issueKey)
+      ) {
+        continue;
+      }
+      try {
+        await target.claimIssue(plan);
+      } catch {
+        issueClaimBatchFailed = true;
+      }
+    }
     const confirmedIssueSourceKeys = new Set<string>();
     for (const plan of applyIssuePlans) {
       assertNotAborted();
@@ -1757,6 +1835,27 @@ async function runJiraMigrationUnlocked(
             action: "conflict",
             at: now(),
             readback: true,
+          }),
+        );
+        await checkpoint();
+        continue;
+      }
+      if (
+        issueClaimBatchFailed &&
+        (action === "create" || action === "update")
+      ) {
+        record(
+          "issues",
+          resultFor({
+            sourceKey: identity.key,
+            entityKind: "issue",
+            sourceFingerprint,
+            mappedFingerprint,
+            action: "failed",
+            at: now(),
+            readback: false,
+            retryable: true,
+            reconciliationState: "pending_target_migration",
           }),
         );
         await checkpoint();
@@ -1828,40 +1927,11 @@ async function runJiraMigrationUnlocked(
       try {
         applied ??= await target.applyIssue(plan, action);
       } catch {
-        const desired = plan.desired.issue;
-        const readback = desired
-          ? await target.readIssue(desired.id).catch(() => null)
-          : null;
-        const desiredKeys = desired
-          ? Object.keys(desired).filter(
-              (key) => desired[key as keyof typeof desired] !== undefined,
-            )
-          : [];
-        const recoveredProjection =
-          desired && readback
-            ? Object.fromEntries(
-                desiredKeys.map((key) => [
-                  key,
-                  readback.issue[key as keyof typeof readback.issue],
-                ]),
-              )
-            : null;
-        const desiredProjection = desired
-          ? Object.fromEntries(
-              desiredKeys.map((key) => [
-                key,
-                desired[key as keyof typeof desired],
-              ]),
-            )
-          : null;
-        const recoveredCreate =
-          action === "create" &&
-          desired !== null &&
-          readback !== null &&
-          fingerprintJiraState(recoveredProjection) ===
-            fingerprintJiraState(desiredProjection) &&
-          readback.content === plan.desired.content;
-        if (!recoveredCreate) {
+        const recovered =
+          action === "create"
+            ? await recoverCreatedIssue(plan)
+            : { applied: null, readbackFound: false };
+        if (!recovered.applied) {
           record(
             "issues",
             resultFor({
@@ -1871,7 +1941,7 @@ async function runJiraMigrationUnlocked(
               mappedFingerprint,
               action: "failed",
               at: now(),
-              readback: Boolean(readback),
+              readback: recovered.readbackFound,
               retryable: true,
               reconciliationState: "pending_target_migration",
             }),
@@ -1879,14 +1949,7 @@ async function runJiraMigrationUnlocked(
           await checkpoint();
           continue;
         }
-        if (!desired || !readback) {
-          throw new Error("target_issue_recovery_invariant");
-        }
-        applied = {
-          reefId: desired.id,
-          documentUri: `akb://${config.target.vault}/coll/issues/doc/${desired.id.toLowerCase()}.md`,
-          commitHash: readback.commit_hash ?? "",
-        };
+        applied = recovered.applied;
       }
       if (!applied) throw new Error("target_issue_apply_unresolved");
       ledger = confirmJiraMigrationBinding(ledger, {

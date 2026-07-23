@@ -8,7 +8,13 @@ import {
 import { mockOpenTelemetry } from "../../../agents/tools/__test-helpers__/otelMock";
 import { AkbApiError, ConflictError } from "../../../errors";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
-import { reorderBacklogIssues, updateIssue, writeIssue } from "./issues";
+import { rowToIssue } from "./issueRows";
+import {
+  claimIssueId,
+  reorderBacklogIssues,
+  updateIssue,
+  writeIssue,
+} from "./issues";
 
 mockOpenTelemetry();
 
@@ -353,6 +359,193 @@ describe("born-correct backlog rank (REEF-176)", () => {
     const insert = sqlStatements(calls)[0];
     expect(insert).toContain("INSERT INTO reef_issues");
     expect(insert).toContain(TAIL_EXPR);
+  });
+
+  it("atomically claims a migration issue id before creating its document", async () => {
+    const { calls } = setupFetch([
+      { body: ROW_UPDATE_OK }, // insertIssueRow claim
+      { body: putResponse("commit-1") }, // POST /documents
+    ]);
+    await writeIssue({
+      adapter: makeTestAkbAdapter(),
+      vault: VAULT,
+      issue: makeIssue({ status: "todo" }),
+      content: "migrated",
+      claimFirst: true,
+    });
+    expect(calls[0]?.url).toContain("/sql");
+    expect(String(bodyOf(calls[0]).sql)).toContain("INSERT INTO reef_issues");
+    expect(calls[1]?.url).toContain("/documents");
+    expect(sqlStatements(calls)).toHaveLength(1);
+  });
+
+  it("claims a migration id without creating a document or relationships", async () => {
+    const issue = makeIssue({
+      parent_id: "REEF-099",
+      depends_on: ["REEF-098"],
+      custom_fields: {
+        jira_migration: {
+          owner: { jira_cloud_id: "cloud-1", issue_id: "10001" },
+        },
+      },
+    });
+    const { calls } = setupFetch([{ body: ROW_UPDATE_OK }]);
+    await claimIssueId({
+      adapter: makeTestAkbAdapter(),
+      vault: VAULT,
+      issue,
+    });
+    expect(calls).toHaveLength(1);
+    const sql = String(bodyOf(calls[0]).sql);
+    expect(sql).toContain("INSERT INTO reef_issues");
+    expect(sql).not.toContain("REEF-099");
+    expect(sql).not.toContain("REEF-098");
+  });
+
+  it("completes an exact owned row claim left without a document", async () => {
+    const claimedIssue = makeIssue({
+      status: "todo",
+      custom_fields: {
+        jira_migration: {
+          owner: {
+            jira_cloud_id: "cloud-1",
+            issue_id: "10001",
+          },
+        },
+      },
+    });
+    const claimedRows = makeIssueQueryResponse([claimedIssue]) as {
+      items: Array<Record<string, unknown>>;
+    };
+    claimedRows.items[0] = {
+      ...claimedRows.items[0],
+      document_uri: `akb://${VAULT}/coll/issues/doc/reef-001.md`,
+      meta: {
+        author: claimedIssue.created_by,
+        last_editor: claimedIssue.updated_by,
+        source: claimedIssue.source ?? null,
+        last_status_change: claimedIssue.last_status_change ?? null,
+        custom_fields: claimedIssue.custom_fields,
+      },
+    };
+    const recoveredIssue = rowToIssue(claimedRows.items[0]);
+    const desiredKeys = Object.keys(claimedIssue).filter(
+      (key) =>
+        claimedIssue[key as keyof IssueMetadata] !== undefined &&
+        !(
+          ["depends_on", "blocks", "related_to"].includes(key) &&
+          Array.isArray(claimedIssue[key as keyof IssueMetadata]) &&
+          (claimedIssue[key as keyof IssueMetadata] as unknown[]).length === 0
+        ),
+    );
+    expect(
+      Object.fromEntries(
+        desiredKeys.map((key) => [
+          key,
+          recoveredIssue[key as keyof IssueMetadata],
+        ]),
+      ),
+    ).toEqual(
+      Object.fromEntries(
+        desiredKeys.map((key) => [
+          key,
+          claimedIssue[key as keyof IssueMetadata],
+        ]),
+      ),
+    );
+    const { calls } = setupFetch([
+      { status: 409, body: { error: "duplicate reef_id" } },
+      { body: claimedRows },
+      { body: putResponse("commit-1") },
+    ]);
+    await expect(
+      writeIssue({
+        adapter: makeTestAkbAdapter(),
+        vault: VAULT,
+        issue: claimedIssue,
+        content: "migrated",
+        claimFirst: true,
+      }),
+    ).resolves.toMatchObject({ commit_hash: "commit-1" });
+    expect(calls[2]?.url).toContain("/documents");
+  });
+
+  it("restores desired relationships while completing an owned claim", async () => {
+    const owner = { jira_cloud_id: "cloud-1", issue_id: "10001" };
+    const desiredIssue = makeIssue({
+      status: "todo",
+      parent_id: "REEF-099",
+      depends_on: ["REEF-098"],
+      related_to: ["REEF-097"],
+      blocks: ["REEF-096"],
+      custom_fields: { jira_migration: { owner } },
+    });
+    const reservation = makeIssue({
+      status: "todo",
+      custom_fields: { jira_migration: { owner } },
+    });
+    const rowsFor = (issue: IssueMetadata) => {
+      const response = makeIssueQueryResponse([issue]) as {
+        items: Array<Record<string, unknown>>;
+      };
+      response.items[0] = {
+        ...response.items[0],
+        document_uri: `akb://${VAULT}/coll/issues/doc/reef-001.md`,
+        parent_id: issue.parent_id ?? null,
+        related_to: issue.related_to ?? [],
+        meta: {
+          author: issue.created_by,
+          last_editor: issue.updated_by,
+          source: issue.source ?? null,
+          last_status_change: issue.last_status_change ?? null,
+          custom_fields: issue.custom_fields,
+        },
+      };
+      return response;
+    };
+    const { calls } = setupFetch([
+      { status: 409, body: { error: "duplicate reef_id" } },
+      { body: rowsFor(reservation) },
+      { body: ROW_UPDATE_OK },
+      { body: rowsFor(desiredIssue) },
+      { body: putResponse("commit-1") },
+    ]);
+
+    await expect(
+      writeIssue({
+        adapter: makeTestAkbAdapter(),
+        vault: VAULT,
+        issue: desiredIssue,
+        content: "migrated",
+        claimFirst: true,
+      }),
+    ).resolves.toMatchObject({ commit_hash: "commit-1" });
+
+    const update = sqlStatements(calls).find((statement) =>
+      statement.startsWith("UPDATE reef_issues"),
+    );
+    expect(update).toContain("REEF-098");
+    expect(update).toContain("REEF-097");
+    expect(update).toContain("REEF-096");
+    expect(update).toContain("REEF-099");
+    expect(calls[4]?.url).toContain("/documents");
+  });
+
+  it("preserves an owned row claim after an ambiguous document failure", async () => {
+    const { calls } = setupFetch([
+      { body: ROW_UPDATE_OK },
+      { status: 500, body: { error: "response lost" } },
+    ]);
+    await expect(
+      writeIssue({
+        adapter: makeTestAkbAdapter(),
+        vault: VAULT,
+        issue: makeIssue({ status: "todo" }),
+        content: "migrated",
+        claimFirst: true,
+      }),
+    ).rejects.toBeInstanceOf(AkbApiError);
+    expect(calls).toHaveLength(2);
   });
 
   it("leaves rank NULL when the new issue is not in the backlog", async () => {

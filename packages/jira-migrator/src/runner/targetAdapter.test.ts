@@ -1,4 +1,8 @@
-import type { AkbReadIssueResult, Release } from "@reef/core";
+import {
+  type AkbReadIssueResult,
+  NotFoundError,
+  type Release,
+} from "@reef/core";
 import { describe, expect, it, vi } from "vitest";
 import type { JiraIssueImportPlan } from "../issues/importPlan.js";
 import type { JiraPlanningAction } from "../planning/entities.js";
@@ -57,27 +61,28 @@ describe("AKB Jira migration target", () => {
             : {}),
         }) as Release,
     );
-    const readIssue = vi.fn(
-      async () =>
-        ({
-          issue: {
-            id: "REEF-010",
-            title: "Alpha issue",
-            status: "todo",
-            created_at: "2026-07-23T00:00:00.000Z",
-            created_by: "operator",
-            updated_at: "2026-07-23T00:00:00.000Z",
-            updated_by: "operator",
-          },
-          content: "body",
-          path: "issues/reef-010.md",
-          commit_hash: "commit-1",
-        }) as unknown as AkbReadIssueResult,
-    );
+    const readIssue = vi
+      .fn()
+      .mockRejectedValueOnce(new NotFoundError({ resource: "REEF-010" }))
+      .mockResolvedValue({
+        issue: {
+          id: "REEF-010",
+          title: "Alpha issue",
+          status: "todo",
+          created_at: "2026-07-23T00:00:00.000Z",
+          created_by: "operator",
+          updated_at: "2026-07-23T00:00:00.000Z",
+          updated_by: "operator",
+        },
+        content: "body",
+        path: "issues/reef-010.md",
+        commit_hash: "commit-1",
+      } as unknown as AkbReadIssueResult);
     const writeIssue = vi.fn(async () => ({
       path: "issues/reef-010.md",
       commit_hash: "commit-1",
     }));
+    const claimIssueId = vi.fn();
     const listPlanningCatalog = vi
       .fn()
       .mockResolvedValueOnce({
@@ -104,7 +109,28 @@ describe("AKB Jira migration target", () => {
         vault: "reef-test",
       },
       {
-        createAdapter: () => ({ request: vi.fn() }),
+        createAdapter: () => ({
+          request: vi.fn(async () => ({
+            kind: "table_query",
+            items: [
+              {
+                reef_id: "REEF-009",
+                meta: {
+                  custom_fields: {
+                    jira_migration: {
+                      owner: {
+                        jira_cloud_id: "cloud-1",
+                        project_key: "LEGACY",
+                        issue_id: "10001",
+                        issue_key: "LEGACY-1",
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          })),
+        }),
         getCurrentActor: async () => ({ actor: "operator" }),
         listPlanningCatalog,
         createRelease,
@@ -113,6 +139,7 @@ describe("AKB Jira migration target", () => {
         writeIssue,
         updateIssue: vi.fn(),
         readIssue,
+        claimIssueId,
       },
     );
 
@@ -120,7 +147,22 @@ describe("AKB Jira migration target", () => {
       actor: "operator",
       vault: "reef-test",
     });
-    expect(await target.reserveIssueIds(2)).toEqual(["REEF-010", "REEF-011"]);
+    expect(
+      await target.planIssueIds([
+        {
+          jira_cloud_id: "cloud-1",
+          project_key: "ALPHA",
+          issue_id: "10001",
+          issue_key: "ALPHA-1",
+        },
+        {
+          jira_cloud_id: "cloud-1",
+          project_key: "BETA",
+          issue_id: "20001",
+          issue_key: "BETA-1",
+        },
+      ]),
+    ).toEqual(["REEF-009", "REEF-010"]);
     expect(await target.applyPlanning(releaseAction)).toMatchObject({
       targetKind: "release",
       targetId: "11111111-1111-4111-8111-111111111111",
@@ -141,8 +183,17 @@ describe("AKB Jira migration target", () => {
       },
       status: "ready",
     } as JiraIssueImportPlan;
+    await target.claimIssue(issuePlan);
+    expect(claimIssueId).toHaveBeenCalledWith(
+      expect.objectContaining({
+        issue: expect.objectContaining({ id: "REEF-010" }),
+      }),
+    );
     const applied = await target.applyIssue(issuePlan, "create");
     expect(writeIssue).toHaveBeenCalledTimes(1);
+    expect(writeIssue).toHaveBeenCalledWith(
+      expect.objectContaining({ claimFirst: true }),
+    );
     expect(readIssue).toHaveBeenCalledWith(
       expect.objectContaining({ id: "REEF-010" }),
     );
@@ -164,6 +215,7 @@ describe("AKB Jira migration target", () => {
         writeIssue: vi.fn(),
         updateIssue: vi.fn(),
         readIssue: vi.fn(),
+        claimIssueId: vi.fn(),
       },
     );
     await expect(

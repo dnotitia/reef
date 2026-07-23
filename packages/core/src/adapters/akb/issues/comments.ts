@@ -240,13 +240,46 @@ export async function updateComment(
   commentId: string,
   body: string,
   editor: string,
+  preserved?: {
+    createdAt: string;
+    editedAt: string | null;
+    metadata?: Record<string, unknown>;
+  },
 ): Promise<Comment> {
   return withSpan(
     "akb.update_comment",
     { vault, reef_id: reefId, comment_id: commentId },
     async () => {
       await ensureReefTables({ adapter, vault });
-      const editedAt = new Date().toISOString();
+      const editedAt = preserved?.editedAt ?? new Date().toISOString();
+      const preservedMetadata = preserved
+        ? {
+            ...Object.fromEntries(
+              Object.entries(preserved.metadata ?? {}).filter(
+                ([key]) =>
+                  ![
+                    "author",
+                    "created_at",
+                    "edited_at",
+                    "parent_comment_id",
+                    "thread_root_id",
+                  ].includes(key),
+              ),
+            ),
+            author: editor,
+            created_at: preserved.createdAt,
+            edited_at: preserved.editedAt,
+          }
+        : null;
+      const metaUpdate = preservedMetadata
+        ? `meta::jsonb || ${quoteJson(preservedMetadata)}::jsonb`
+        : `jsonb_set(meta::jsonb, '{edited_at}', to_jsonb(${quoteText(
+            editedAt,
+            "comment edited_at",
+          )}::text))`;
+      const metaAssignment = preservedMetadata
+        ? `(${metaUpdate})::json`
+        : `${metaUpdate}::json`;
       const res = await runSql(
         adapter,
         vault,
@@ -255,10 +288,7 @@ export async function updateComment(
         )} SET body = ${quoteText(
           body,
           "comment body",
-        )}, meta = jsonb_set(meta::jsonb, '{edited_at}', to_jsonb(${quoteText(
-          editedAt,
-          "comment edited_at",
-        )}::text))::json WHERE id = ${quoteText(
+        )}, meta = ${metaAssignment} WHERE id = ${quoteText(
           commentId,
           "comment id",
         )} AND reef_id = ${quoteText(

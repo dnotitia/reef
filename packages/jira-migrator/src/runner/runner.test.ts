@@ -150,9 +150,12 @@ describe("runJiraMigration", () => {
         vault: "reef-test",
         planning: { releases: [], sprints: [], milestones: [] },
       })),
-      reserveIssueIds: vi.fn(async () => ["REEF-001", "REEF-002"]),
+      planIssueIds: vi.fn(async () => ["REEF-001", "REEF-002"]),
       applyPlanning: vi.fn(),
       applyIssue: vi.fn(async (plan) => {
+        if (writtenIssues.has(plan.desired.issue.id)) {
+          throw new Error("target_issue_already_exists");
+        }
         mutations.push(plan.desired.issue.id);
         writtenIssues.set(plan.desired.issue.id, {
           issue: plan.desired.issue,
@@ -169,6 +172,7 @@ describe("runJiraMigration", () => {
         if (!written) throw new Error("issue_missing");
         return { ...written, commit_hash: "commit" };
       }),
+      claimIssue: vi.fn(),
       relatedTarget: vi.fn(() => ({})),
       appendActivity: vi.fn(),
     } as never;

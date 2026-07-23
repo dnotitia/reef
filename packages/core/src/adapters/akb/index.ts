@@ -51,6 +51,7 @@ export {
 export { deleteVault, detachReef } from "./workspace/workspaceDeletion";
 export {
   readIssue,
+  claimIssueId,
   writeIssue,
   updateIssue,
   reorderBacklogIssues,

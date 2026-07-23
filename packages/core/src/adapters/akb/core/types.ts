@@ -45,6 +45,17 @@ export interface WriteIssueParams {
   issue: IssueMetadata;
   /** Plain markdown issue content stored in the akb document body. */
   content?: string;
+  /**
+   * Claim the unique reef_issues key before creating the document. Migration
+   * callers use this to make a planned issue id an atomic target-side claim.
+   */
+  claimFirst?: boolean;
+}
+
+export interface ClaimIssueIdParams {
+  adapter: AkbAdapter;
+  vault: string;
+  issue: IssueMetadata;
 }
 
 export interface WriteIssueResult {

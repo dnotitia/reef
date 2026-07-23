@@ -65,11 +65,11 @@ const related = {
 const target = {
   adapter: {},
   preflight: () => json("/preflight"),
-  reserveIssueIds: (count) =>
+  planIssueIds: (owners) =>
     json("/reserve", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ count }),
+      body: JSON.stringify({ count: owners.length }),
     }),
   applyPlanning: async () => {
     throw new Error("unexpected_planning_write");
@@ -79,7 +79,11 @@ const target = {
     const written = await json("/issues", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ action, issue: desired }),
+      body: JSON.stringify({
+        action,
+        issue: desired,
+        content: plan.desired.content,
+      }),
     });
     const readback = await json(`/issues/${encodeURIComponent(desired.id)}`);
     if (
@@ -91,6 +95,7 @@ const target = {
     return written;
   },
   readIssue: (id) => json(`/issues/${encodeURIComponent(id)}`),
+  claimIssue: async () => undefined,
   relatedTarget: () => related,
   appendActivity: (events) =>
     json("/activity", {

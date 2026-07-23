@@ -206,6 +206,7 @@ export {
   type CreateLlmAdapterParams,
   createAkbAdapter,
   akbReadIssue,
+  akbClaimIssueId,
   akbWriteIssue,
   akbUpdateIssue,
   akbReorderBacklogIssues,

@@ -408,4 +408,46 @@ describe("updateComment", () => {
       ),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
+
+  it("atomically preserves imported timestamps and idempotency metadata", async () => {
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      {
+        body: makeSqlQueryResponse(
+          [
+            makeCommentRow({
+              id: "c1",
+              body: "imported edit",
+              meta: {
+                author: "alice",
+                created_at: "2020-01-01T00:00:00.000Z",
+                edited_at: "2020-01-02T00:00:00.000Z",
+              },
+            }),
+          ],
+          COMMENT_ROW_COLUMNS,
+        ),
+      },
+    ]);
+
+    await updateComment(
+      makeAdapter(),
+      "reef-sample",
+      "REEF-062",
+      "c1",
+      "imported edit",
+      "alice",
+      {
+        createdAt: "2020-01-01T00:00:00.000Z",
+        editedAt: "2020-01-02T00:00:00.000Z",
+        metadata: { jira_idempotency_key: "jira:comment:10001" },
+      },
+    );
+
+    const sql = lastSql(calls[1]?.init?.body);
+    expect(sql).toContain('"created_at":"2020-01-01T00:00:00.000Z"');
+    expect(sql).toContain('"edited_at":"2020-01-02T00:00:00.000Z"');
+    expect(sql).toContain('"jira_idempotency_key":"jira:comment:10001"');
+    expect(sql).toContain("meta::jsonb ||");
+  });
 });
