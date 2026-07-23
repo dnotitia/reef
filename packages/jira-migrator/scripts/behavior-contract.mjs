@@ -101,17 +101,19 @@ const targetStateSha256 = () =>
         externalRefs: [...state.externalRefs].sort(([left], [right]) =>
           left.localeCompare(right),
         ),
+        mutationLog: state.mutationLog,
       }),
     )
     .digest("hex");
 const targetMutationAttempts = () =>
   state.akbRequests.filter(
     (entry) =>
-      (entry.path === "/akb/api/v1/documents" && entry.method === "POST") ||
-      (entry.path.startsWith("/akb/api/v1/documents/reef-contract/issues/") &&
-        entry.method === "PATCH") ||
-      (entry.path === "/akb/api/v1/tables/reef-contract/sql" &&
-        /^(?:INSERT|UPDATE|WITH\s+\w+\s+AS\s+\(UPDATE)/u.test(entry.sql ?? "")),
+      entry.method === "PATCH" ||
+      entry.method === "PUT" ||
+      entry.method === "DELETE" ||
+      (entry.method === "POST" &&
+        (entry.path !== "/akb/api/v1/tables/reef-contract/sql" ||
+          !/^\s*SELECT\b/u.test(entry.sql ?? ""))),
   ).length;
 const readBody = async (request) => {
   const chunks = [];

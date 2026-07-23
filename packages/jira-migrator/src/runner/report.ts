@@ -8,7 +8,7 @@ import {
   rename,
   rm,
 } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname, join, parse as parsePath, resolve, sep } from "node:path";
 import { lock } from "proper-lockfile";
 import { z } from "zod";
 import { canonicalizeJson } from "../archive/canonicalJson.js";
@@ -137,6 +137,30 @@ const exists = async (path: string): Promise<boolean> => {
   }
 };
 
+const assertNoSymlinkPathComponents = async (path: string): Promise<void> => {
+  const absolute = resolve(path);
+  const root = parsePath(absolute).root;
+  let current = root;
+  for (const segment of absolute
+    .slice(root.length)
+    .split(sep)
+    .filter(Boolean)) {
+    current = join(current, segment);
+    try {
+      if ((await lstat(current)).isSymbolicLink()) fail("symlink_not_allowed");
+    } catch (error) {
+      if (isNodeError(error) && error.code === "ENOENT") return;
+      if (
+        error instanceof JiraMigrationReportError &&
+        error.code === "symlink_not_allowed"
+      ) {
+        throw error;
+      }
+      fail("report_io_failed");
+    }
+  }
+};
+
 const assertPrivate = async (
   path: string,
   kind: "file" | "directory",
@@ -144,6 +168,7 @@ const assertPrivate = async (
   if (process.platform === "win32") {
     fail("permission_violation");
   }
+  await assertNoSymlinkPathComponents(path);
   const stat = await lstat(path).catch(() => fail("report_io_failed"));
   if (stat.isSymbolicLink()) fail("symlink_not_allowed");
   if (kind === "file" ? !stat.isFile() : !stat.isDirectory()) {
@@ -155,6 +180,7 @@ const assertPrivate = async (
 };
 
 const ensureDirectory = async (path: string): Promise<void> => {
+  await assertNoSymlinkPathComponents(path);
   if (!(await exists(path))) {
     await mkdir(path, { recursive: true, mode: 0o700 }).catch(() =>
       fail("report_io_failed"),
@@ -265,6 +291,7 @@ export async function loadJiraRunnerReport(
   path: string,
 ): Promise<JiraRunnerReport> {
   const absolute = resolve(path);
+  await assertNoSymlinkPathComponents(absolute);
   const release = await acquireReportLock(absolute);
   try {
     await assertPrivate(dirname(absolute), "directory");
@@ -300,6 +327,7 @@ export async function writeJiraRunnerReport(input: {
     fail("secret_material_detected");
   }
   const absolute = resolve(input.path);
+  await assertNoSymlinkPathComponents(absolute);
   await ensureDirectory(dirname(absolute));
   const temporary = `${absolute}.${randomUUID()}.tmp`;
   const release = await acquireReportLock(absolute);

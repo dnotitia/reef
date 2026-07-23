@@ -1,4 +1,13 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, utimes } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  utimes,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -96,7 +105,9 @@ describe("Jira runner report", () => {
   });
 
   it("writes a private atomic report and rejects secret canaries", async () => {
-    directory = await mkdtemp(join(tmpdir(), "reef-jira-report-"));
+    directory = await realpath(
+      await mkdtemp(join(tmpdir(), "reef-jira-report-")),
+    );
     await chmod(directory, 0o700);
     const path = join(directory, "report.json");
     await writeJiraRunnerReport({
@@ -141,4 +152,27 @@ describe("Jira runner report", () => {
       code: "secret_material_detected",
     } satisfies Partial<JiraMigrationReportError>);
   });
+
+  it.runIf(process.platform !== "win32")(
+    "rejects a symlink in a report path ancestor",
+    async () => {
+      directory = await realpath(
+        await mkdtemp(join(tmpdir(), "reef-jira-report-")),
+      );
+      await chmod(directory, 0o700);
+      const realDirectory = join(directory, "real");
+      const linkedDirectory = join(directory, "linked");
+      await mkdir(realDirectory, { mode: 0o700 });
+      await symlink(realDirectory, linkedDirectory, "dir");
+
+      await expect(
+        writeJiraRunnerReport({
+          path: join(linkedDirectory, "report.json"),
+          report: report(),
+        }),
+      ).rejects.toMatchObject({
+        code: "symlink_not_allowed",
+      } satisfies Partial<JiraMigrationReportError>);
+    },
+  );
 });
