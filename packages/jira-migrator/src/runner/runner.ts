@@ -121,6 +121,49 @@ export class JiraRunnerError extends Error {
   }
 }
 
+type JiraMigrationBinding = JiraMigrationLedgerV1["bindings"][number];
+
+export const inferRelationSourceProjectKey = (input: {
+  binding: JiraMigrationBinding;
+  ledger: JiraMigrationLedgerV1;
+  currentIssues: readonly NormalizedJiraIssue[];
+  configuredProjectKeys: readonly string[];
+  projectKeyById: ReadonlyMap<string, string>;
+}): string | undefined => {
+  const { binding } = input;
+  if (binding.source_identity.entity_kind !== "relation") return undefined;
+  const relationIdentity = binding.source_identity;
+  if (relationIdentity.source_project_key) {
+    return relationIdentity.source_project_key;
+  }
+  const sourceIssue = input.currentIssues.find(
+    (issue) =>
+      issue.id === relationIdentity.source_issue_id ||
+      issue.key === relationIdentity.source_issue_id,
+  );
+  if (sourceIssue) {
+    return (
+      sourceIssue.projectKey ??
+      input.projectKeyById.get(projectId(sourceIssue)) ??
+      sourceIssue.key.split("-")[0]
+    );
+  }
+  const projectKeyFromIssueKey = [...input.configuredProjectKeys]
+    .sort((left, right) => right.length - left.length)
+    .find((key) => relationIdentity.source_issue_id.startsWith(`${key}-`));
+  if (projectKeyFromIssueKey) return projectKeyFromIssueKey;
+  const issueBinding = input.ledger.bindings.find(
+    (candidate) =>
+      candidate.source_identity.entity_kind === "issue" &&
+      candidate.source_identity.jira_cloud_id ===
+        relationIdentity.jira_cloud_id &&
+      candidate.source_identity.issue_id === relationIdentity.source_issue_id,
+  );
+  return issueBinding?.source_identity.entity_kind === "issue"
+    ? input.projectKeyById.get(issueBinding.source_identity.project_id)
+    : undefined;
+};
+
 const requireArtifactPaths = (config: JiraMigratorConfig) => {
   const { ledgerPath, archiveRoot, accountMappingPath, reportPath } =
     config.artifacts;
@@ -575,6 +618,26 @@ const legacyMappedFingerprintForPlanning = (
     classification,
   });
 
+export const canRecoverApprovedPlanningCreate = (
+  action: JiraPlanningAction,
+  ledger: JiraMigrationLedgerV1,
+): boolean => {
+  if (action.classification !== "reuse" || action.reason !== "ledger_binding") {
+    return false;
+  }
+  const binding = ledger.bindings.find(
+    (candidate) => candidate.source_key === action.sourceIdentity.key,
+  );
+  return (
+    binding !== undefined &&
+    binding.source_fingerprint === sourceFingerprintForPlanning(action) &&
+    (binding.mapped_state_fingerprint ===
+      mappedFingerprintForPlanning(action) ||
+      binding.mapped_state_fingerprint ===
+        legacyMappedFingerprintForPlanning(action, "create"))
+  );
+};
+
 const mappedFingerprintForChangelog = (plan: JiraChangelogPlan): string =>
   fingerprintJiraState({
     report: plan.report,
@@ -968,18 +1031,41 @@ async function runJiraMigrationUnlocked(
   const allIssues = [...issuesByProject.values()]
     .flat()
     .sort((left, right) => left.key.localeCompare(right.key));
+  const projectKeyById = new Map<string, string>();
+  for (const [projectKey, issues] of issuesByProject) {
+    for (const issue of issues) {
+      projectKeyById.set(projectId(issue), projectKey);
+    }
+  }
+  for (const [projectKey, versions] of versionsByProject) {
+    for (const version of versions) {
+      projectKeyById.set(version.projectId, projectKey);
+    }
+  }
   const currentIssueSourceIds = new Set(
     allIssues.flatMap((issue) => [issue.id, issue.key]),
   );
   const discoveredAbsentSourceRelationBindings = ledger.bindings.filter(
-    (binding) =>
-      binding.source_identity.entity_kind === "relation" &&
-      binding.source_identity.jira_cloud_id === config.jira.cloudId &&
-      binding.source_identity.source_project_key !== undefined &&
-      config.jira.projectKeys.includes(
-        binding.source_identity.source_project_key,
-      ) &&
-      !currentIssueSourceIds.has(binding.source_identity.source_issue_id),
+    (binding) => {
+      if (
+        binding.source_identity.entity_kind !== "relation" ||
+        binding.source_identity.jira_cloud_id !== config.jira.cloudId
+      ) {
+        return false;
+      }
+      const projectKey = inferRelationSourceProjectKey({
+        binding,
+        ledger,
+        currentIssues: allIssues,
+        configuredProjectKeys: config.jira.projectKeys,
+        projectKeyById,
+      });
+      return (
+        projectKey !== undefined &&
+        config.jira.projectKeys.includes(projectKey) &&
+        !currentIssueSourceIds.has(binding.source_identity.source_issue_id)
+      );
+    },
   );
   const approvedPayload =
     approvedPlanArtifact?.payload &&
@@ -1512,26 +1598,8 @@ async function runJiraMigrationUnlocked(
       }
       if (
         approved.classification === "create" &&
-        action.classification === "reuse" &&
-        (action.reason === "ledger_binding" ||
-          action.reason === "compatible_exact_name")
+        canRecoverApprovedPlanningCreate(action, ledger)
       ) {
-        const binding = ledger.bindings.find(
-          (candidate) => candidate.source_key === action.sourceIdentity.key,
-        );
-        const ledgerMatches =
-          binding !== undefined &&
-          binding.source_fingerprint === sourceFingerprintForPlanning(action) &&
-          (binding.mapped_state_fingerprint ===
-            mappedFingerprintForPlanning(action) ||
-            binding.mapped_state_fingerprint ===
-              legacyMappedFingerprintForPlanning(action, "create"));
-        // Planning names are target-unique and classify as compatible only
-        // after every mapped field matches. That natural key is the recovery
-        // seam for a crash after target create but before ledger checkpoint.
-        if (action.reason === "ledger_binding" ? !ledgerMatches : binding) {
-          throw new JiraRunnerError("plan_fingerprint_mismatch");
-        }
         continue;
       }
       if (action.classification !== approved.classification) {

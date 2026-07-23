@@ -5,7 +5,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { JiraMigratorConfig, NormalizedJiraIssue } from "../index.js";
 import { jiraIssueFixture } from "../jira/fixtures.js";
 import { JiraIssueSchema, normalizeJiraIssue } from "../payloads.js";
-import { runJiraMigration } from "./runner.js";
+import {
+  canRecoverApprovedPlanningCreate,
+  inferRelationSourceProjectKey,
+  runJiraMigration,
+} from "./runner.js";
 
 let root: string | null = null;
 afterEach(async () => {
@@ -44,6 +48,83 @@ const policy = {
 };
 
 describe("runJiraMigration", () => {
+  it("does not adopt an unowned exact-name planning entity after approval", () => {
+    expect(
+      canRecoverApprovedPlanningCreate(
+        {
+          classification: "reuse",
+          reason: "compatible_exact_name",
+          sourceIdentity: {
+            kind: "version",
+            jiraCloudId: "cloud-1",
+            projectId: "100",
+            versionId: "70001",
+            key: "version:cloud-1:100:70001",
+          },
+        } as never,
+        { bindings: [] } as never,
+      ),
+    ).toBe(false);
+  });
+
+  it("infers a legacy relation project from its persisted issue identity", () => {
+    const issueBinding = {
+      source_key: "issue:cloud-1:100:10001",
+      source_identity: {
+        entity_kind: "issue",
+        jira_cloud_id: "cloud-1",
+        project_id: "100",
+        issue_id: "10001",
+        key: "issue:cloud-1:100:10001",
+      },
+      source_fingerprint: "source",
+      mapped_state_fingerprint: "mapped",
+      target: {
+        target_kind: "issue",
+        reef_id: "REEF-001",
+        document_uri: "akb://reef-test/coll/issues/doc/reef-001.md",
+      },
+      confirmed_at: "2026-07-23T00:00:00.000Z",
+    };
+    const relationBinding = {
+      source_key: "relation:cloud-1:10001:20001:blocks:outward:42",
+      source_identity: {
+        entity_kind: "relation",
+        jira_cloud_id: "cloud-1",
+        source_issue_id: "10001",
+        target_issue_id: "20001",
+        link_type: "blocks",
+        direction: "outward",
+        link_id: "42",
+        key: "relation:cloud-1:10001:20001:blocks:outward:42",
+      },
+      source_fingerprint: "source",
+      mapped_state_fingerprint: "mapped",
+      target: {
+        target_kind: "relation",
+        idempotency_key: "relation:cloud-1:42",
+      },
+      confirmed_at: "2026-07-23T00:00:00.000Z",
+    };
+    expect(
+      inferRelationSourceProjectKey({
+        binding: relationBinding as never,
+        ledger: {
+          version: 1,
+          scope: {
+            jira_cloud_id: "cloud-1",
+            target_vault: "reef-test",
+          },
+          runs: [],
+          bindings: [issueBinding, relationBinding],
+        } as never,
+        currentIssues: [],
+        configuredProjectKeys: ["ALPHA"],
+        projectKeyById: new Map([["100", "ALPHA"]]),
+      }),
+    ).toBe("ALPHA");
+  });
+
   it("runs dry-run then approved apply with the same plan and zero dry-run mutation", async () => {
     root = await realpath(await mkdtemp(join(tmpdir(), "reef-jira-runner-")));
     await chmod(root, 0o700);
