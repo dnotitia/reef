@@ -174,7 +174,10 @@ export function buildIssueSearchParams(
   if (filter.sortField) params.set("sort", filter.sortField);
   if (filter.sortOrder) params.set("order", filter.sortOrder);
   if (searchQuery) params.set("q", searchQuery);
-  if (preserveExplicitEmpty) {
+  if (
+    preserveExplicitEmpty &&
+    !FILTER_QUERY_KEYS.some((key) => params.has(key))
+  ) {
     params.set(EMPTY_FILTER_MARKER_KEY, EMPTY_FILTER_MARKER_VALUE);
   }
   return params.toString();
@@ -193,7 +196,10 @@ export function canonicalIssueQuery(query: string | URLSearchParams): string {
   if (view && view !== "board" && VIEW_MODES.has(view)) {
     parsed.set("view", view);
   }
-  if (input.get(EMPTY_FILTER_MARKER_KEY) === EMPTY_FILTER_MARKER_VALUE) {
+  if (
+    input.get(EMPTY_FILTER_MARKER_KEY) === EMPTY_FILTER_MARKER_VALUE &&
+    !FILTER_QUERY_KEYS.some((key) => parsed.has(key))
+  ) {
     parsed.set(EMPTY_FILTER_MARKER_KEY, EMPTY_FILTER_MARKER_VALUE);
   }
   const canonical = new URLSearchParams();

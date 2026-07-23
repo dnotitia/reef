@@ -1,4 +1,5 @@
 // @vitest-environment node
+import type { SavedIssueViewPayload } from "@reef/core";
 import { describe, expect, it } from "vitest";
 import {
   buildIssueSearchParams,
@@ -68,7 +69,7 @@ describe("issueViewCodec", () => {
         order: ["desc"],
         unknown: ["value"],
       },
-    });
+    } as unknown as SavedIssueViewPayload);
     expect(params.toString()).toBe("due=overdue&status=todo");
   });
 
@@ -103,7 +104,7 @@ describe("issueViewCodec", () => {
           new URLSearchParams("filter=none&view=list"),
         ),
       ),
-    ).toBe("filter=none&status=todo&view=list");
+    ).toBe("status=todo&view=list");
   });
 
   it("canonicalizes explicit board mode to the saved default representation", () => {

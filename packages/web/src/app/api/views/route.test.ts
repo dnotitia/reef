@@ -97,4 +97,23 @@ describe("/api/views", () => {
       error: "A view with that name already exists.",
     });
   });
+
+  it("rejects non-canonical payloads before the AKB write boundary", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/views?vault=reef-acme", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          name: "Broken",
+          payload: {
+            version: 1,
+            query: { status: ["removed-status"], unknown: ["value"] },
+          },
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(mockCreateView).not.toHaveBeenCalled();
+  });
 });

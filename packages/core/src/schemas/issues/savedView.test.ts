@@ -29,5 +29,23 @@ describe("saved issue views", () => {
         query: { status: ["todo", 42] },
       }).success,
     ).toBe(false);
+    expect(
+      SavedIssueViewPayloadSchema.safeParse({
+        version: 1,
+        query: { status: ["removed-status"] },
+      }).success,
+    ).toBe(false);
+    expect(
+      SavedIssueViewPayloadSchema.safeParse({
+        version: 1,
+        query: { unknown: ["value"] },
+      }).success,
+    ).toBe(false);
+    expect(
+      SavedIssueViewPayloadSchema.safeParse({
+        version: 1,
+        query: { q: [""] },
+      }).success,
+    ).toBe(false);
   });
 });
