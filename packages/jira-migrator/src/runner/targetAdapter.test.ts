@@ -239,6 +239,8 @@ describe("AKB Jira migration target", () => {
             created_by: "operator",
             updated_at: "2026-07-23T00:00:00.000Z",
             updated_by: "operator",
+            ...(id === "REEF-001" ? { blocks: ["REEF-002"] } : {}),
+            ...(id === "REEF-002" ? { depends_on: ["REEF-001"] } : {}),
           },
           content: "",
           path: `issues/${id.toLowerCase()}.md`,
@@ -325,6 +327,31 @@ describe("AKB Jira migration target", () => {
     await expect(
       target.relatedTarget().readRelation("relation:cloud-1:100"),
     ).resolves.toBeNull();
+    await target.relatedTarget().putRelation({
+      idempotencyKey: "relation:cloud-1:created",
+      sourceReefId: "REEF-001",
+      targetReefId: "REEF-002",
+      relation: "related_to",
+      inverseRelation: "related_to",
+      provenance: { jira_issue_link_id: "created" },
+    });
+    await target.relatedTarget().deleteRelation("relation:cloud-1:created");
+    expect(issues.get("REEF-001")?.issue.related_to ?? []).toEqual([]);
+    expect(issues.get("REEF-002")?.issue.related_to ?? []).toEqual([]);
+    await target.relatedTarget().putRelation({
+      idempotencyKey: "relation:cloud-1:100",
+      sourceReefId: "REEF-001",
+      targetReefId: "REEF-002",
+      relation: "blocks",
+      inverseRelation: "depends_on",
+      provenance: { jira_issue_link_id: "100" },
+    });
+    await target.relatedTarget().deleteRelation("relation:cloud-1:100");
+    expect(issues.get("REEF-001")?.issue.blocks).toEqual(["REEF-002"]);
+    expect(issues.get("REEF-002")?.issue.depends_on).toEqual(["REEF-001"]);
+    await expect(
+      target.relatedTarget().readRelation("relation:cloud-1:100"),
+    ).resolves.toBeNull();
 
     const sourceWithSidecar = issues.get("REEF-001");
     if (!sourceWithSidecar) throw new Error("missing test source");
@@ -364,5 +391,46 @@ describe("AKB Jira migration target", () => {
     await expect(
       target.relatedTarget().readExternalRef("external:cloud-1:1"),
     ).resolves.toMatchObject({ reefId: "REEF-001", ref });
+
+    const manualRef = {
+      type: "jira" as const,
+      url: "https://jira.test/browse/MANUAL-1",
+    };
+    const sourceBeforeManualRef = issues.get("REEF-001");
+    if (!sourceBeforeManualRef) throw new Error("missing test source");
+    issues.set("REEF-001", {
+      ...sourceBeforeManualRef,
+      issue: {
+        ...sourceBeforeManualRef.issue,
+        external_refs: [
+          ...(sourceBeforeManualRef.issue.external_refs ?? []),
+          manualRef,
+        ],
+      },
+    });
+    await target.relatedTarget().putExternalRef({
+      idempotencyKey: "external:cloud-1:manual",
+      reefId: "REEF-001",
+      ref: manualRef,
+      provenance: { source: "jira" },
+    });
+    await target.relatedTarget().deleteExternalRef("external:cloud-1:manual");
+    expect(issues.get("REEF-001")?.issue.external_refs).toContainEqual(
+      manualRef,
+    );
+    const createdRef = {
+      type: "jira" as const,
+      url: "https://jira.test/browse/CREATED-1",
+    };
+    await target.relatedTarget().putExternalRef({
+      idempotencyKey: "external:cloud-1:created",
+      reefId: "REEF-001",
+      ref: createdRef,
+      provenance: { source: "jira" },
+    });
+    await target.relatedTarget().deleteExternalRef("external:cloud-1:created");
+    expect(issues.get("REEF-001")?.issue.external_refs).not.toContainEqual(
+      createdRef,
+    );
   });
 });

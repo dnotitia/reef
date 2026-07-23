@@ -199,12 +199,15 @@ interface MigrationSidecar {
     relation: JiraRelationKind;
     inverseRelation: JiraRelationKind;
     provenance: Record<string, unknown>;
+    sourceCreatedByMigration?: boolean;
+    targetCreatedByMigration?: boolean;
   }>;
   externalRefs: Array<{
     idempotencyKey: string;
     reefId: string;
     ref: ExternalRef;
     provenance: Record<string, unknown>;
+    createdByMigration?: boolean;
   }>;
 }
 
@@ -569,9 +572,35 @@ export function createAkbJiraMigrationTarget(
       const sourceBefore = source[input.relation] ?? [];
       const targetBefore = targetIssue[input.inverseRelation] ?? [];
       const sourceSidecar = sidecarFor(source);
+      const previous = sourceSidecar.relations.find(
+        (record) => record.idempotencyKey === input.idempotencyKey,
+      );
+      const sameEdgeRecords = sourceSidecar.relations.filter(
+        (record) =>
+          record.sourceReefId === input.sourceReefId &&
+          record.targetReefId === input.targetReefId &&
+          record.relation === input.relation &&
+          record.inverseRelation === input.inverseRelation,
+      );
+      const sourceCreatedByMigration =
+        previous?.sourceCreatedByMigration ??
+        (sameEdgeRecords.some(
+          (record) => record.sourceCreatedByMigration === true,
+        ) ||
+          !sourceBefore.includes(input.targetReefId));
+      const targetCreatedByMigration =
+        previous?.targetCreatedByMigration ??
+        (sameEdgeRecords.some(
+          (record) => record.targetCreatedByMigration === true,
+        ) ||
+          !targetBefore.includes(input.sourceReefId));
       sourceSidecar.relations = sourceSidecar.relations
         .filter((record) => record.idempotencyKey !== input.idempotencyKey)
-        .concat({ ...input });
+        .concat({
+          ...input,
+          sourceCreatedByMigration,
+          targetCreatedByMigration,
+        });
       try {
         await updateIssue(
           input.sourceReefId,
@@ -720,6 +749,7 @@ export function createAkbJiraMigrationTarget(
       );
       const targetHadInverse =
         !relationStillReferenced &&
+        record.targetCreatedByMigration === true &&
         (targetIssue[record.inverseRelation] ?? []).includes(
           record.sourceReefId,
         );
@@ -745,7 +775,9 @@ export function createAkbJiraMigrationTarget(
           {
             [record.relation]: relationStillReferenced
               ? issue[record.relation]
-              : removeValue(issue[record.relation], record.targetReefId),
+              : record.sourceCreatedByMigration === true
+                ? removeValue(issue[record.relation], record.targetReefId)
+                : issue[record.relation],
             custom_fields: customFieldsWithSidecar(issue, sidecar),
           },
           undefined,
@@ -788,20 +820,38 @@ export function createAkbJiraMigrationTarget(
       const previous = sidecar.externalRefs.find(
         (record) => record.idempotencyKey === input.idempotencyKey,
       );
+      const refFingerprint = canonicalizeJson(input.ref);
+      const previousOwnsSameRef =
+        previous !== undefined &&
+        canonicalizeJson(previous.ref) === refFingerprint
+          ? previous.createdByMigration
+          : undefined;
+      const createdByMigration =
+        previousOwnsSameRef ??
+        (sidecar.externalRefs.some(
+          (record) =>
+            canonicalizeJson(record.ref) === refFingerprint &&
+            record.createdByMigration === true,
+        ) ||
+          !(issue.external_refs ?? []).some(
+            (candidate) => canonicalizeJson(candidate) === refFingerprint,
+          ));
       sidecar.externalRefs = sidecar.externalRefs
         .filter((record) => record.idempotencyKey !== input.idempotencyKey)
-        .concat({ ...input });
+        .concat({ ...input, createdByMigration });
       const previousStillReferenced =
         previous !== undefined &&
         sidecar.externalRefs.some(
           (record) =>
             canonicalizeJson(record.ref) === canonicalizeJson(previous.ref),
         );
+      const removePrevious =
+        previous?.createdByMigration === true && !previousStillReferenced;
       const refs = [
         ...(issue.external_refs ?? []).filter(
           (candidate) =>
-            canonicalizeJson(candidate) !== canonicalizeJson(input.ref) &&
-            (previousStillReferenced ||
+            canonicalizeJson(candidate) !== refFingerprint &&
+            (!removePrevious ||
               canonicalizeJson(candidate) !== canonicalizeJson(previous?.ref)),
         ),
         input.ref,
@@ -862,10 +912,13 @@ export function createAkbJiraMigrationTarget(
         {
           external_refs: refStillReferenced
             ? issue.external_refs
-            : (issue.external_refs ?? []).filter(
-                (candidate) =>
-                  canonicalizeJson(candidate) !== canonicalizeJson(record.ref),
-              ),
+            : record.createdByMigration === true
+              ? (issue.external_refs ?? []).filter(
+                  (candidate) =>
+                    canonicalizeJson(candidate) !==
+                    canonicalizeJson(record.ref),
+                )
+              : issue.external_refs,
           custom_fields: customFieldsWithSidecar(issue, sidecar),
         },
         undefined,

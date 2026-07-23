@@ -44,6 +44,7 @@ import {
   getJiraPlanningLedgerBindings,
   jiraIssueSourceIdentity,
   openJiraMigrationRun,
+  removeJiraMigrationBindings,
 } from "../ledger.js";
 import type { NormalizedJiraIssue } from "../payloads.js";
 import {
@@ -967,12 +968,50 @@ async function runJiraMigrationUnlocked(
   const allIssues = [...issuesByProject.values()]
     .flat()
     .sort((left, right) => left.key.localeCompare(right.key));
+  const currentIssueSourceIds = new Set(
+    allIssues.flatMap((issue) => [issue.id, issue.key]),
+  );
+  const discoveredAbsentSourceRelationBindings = ledger.bindings.filter(
+    (binding) =>
+      binding.source_identity.entity_kind === "relation" &&
+      binding.source_identity.jira_cloud_id === config.jira.cloudId &&
+      !currentIssueSourceIds.has(binding.source_identity.source_issue_id),
+  );
   const approvedPayload =
     approvedPlanArtifact?.payload &&
     typeof approvedPlanArtifact.payload === "object" &&
     !Array.isArray(approvedPlanArtifact.payload)
       ? (approvedPlanArtifact.payload as Record<string, unknown>)
       : null;
+  const approvedAbsentSourceRelations = Array.isArray(
+    approvedPayload?.absent_source_relations,
+  )
+    ? approvedPayload.absent_source_relations.map((value) => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
+          throw new JiraRunnerError("dry_run_scope_mismatch");
+        }
+        const relation = value as Record<string, unknown>;
+        if (
+          typeof relation.source_key !== "string" ||
+          (relation.target !== null && typeof relation.target !== "string")
+        ) {
+          throw new JiraRunnerError("dry_run_scope_mismatch");
+        }
+        return {
+          source_key: relation.source_key,
+          target: relation.target as string | null,
+        };
+      })
+    : null;
+  const absentSourceRelationPlan =
+    approvedAbsentSourceRelations ??
+    discoveredAbsentSourceRelationBindings.map((binding) => ({
+      source_key: binding.source_key,
+      target:
+        binding.target.target_kind === "relation"
+          ? binding.target.idempotency_key
+          : null,
+    }));
   const approvedIssueIds =
     approvedPayload?.issue_ids &&
     typeof approvedPayload.issue_ids === "object" &&
@@ -1516,6 +1555,7 @@ async function runJiraMigrationUnlocked(
       endpoint_fingerprint: endpointFingerprint,
     },
     issue_ids: targetIdsByJiraKey,
+    absent_source_relations: absentSourceRelationPlan,
     planning: approvedPlanningPayload ?? currentPlanningPayload,
     issues: dryIssuePlans.map((plan) =>
       semanticIssuePlan(plan, approvedPlanningResolutions, planningActions),
@@ -1659,6 +1699,13 @@ async function runJiraMigrationUnlocked(
         "related",
         `related:${related.issue_key}`,
         related.report.failures.length > 0 ? "failed" : "skip",
+      );
+    }
+    for (const binding of absentSourceRelationPlan) {
+      recordReportOnly(
+        "related",
+        `related:absent-source:${binding.source_key}`,
+        "update",
       );
     }
     for (const plan of changelogPlans) {
@@ -2245,6 +2292,48 @@ async function runJiraMigrationUnlocked(
       await checkpoint();
     }
     finalRelatedReports = relatedApplyReports;
+    for (const plannedBinding of absentSourceRelationPlan) {
+      assertNotAborted();
+      const binding = ledger.bindings.find(
+        (candidate) => candidate.source_key === plannedBinding.source_key,
+      );
+      const classificationKey = `related:absent-source:${plannedBinding.source_key}`;
+      if (!binding) {
+        recordReportOnly("related", classificationKey, "skip");
+        await checkpoint();
+        continue;
+      }
+      if (binding.target.target_kind !== "relation") {
+        recordReportOnly("related", classificationKey, "conflict");
+        await checkpoint();
+        continue;
+      }
+      if (
+        plannedBinding.target === null ||
+        binding.target.idempotency_key !== plannedBinding.target
+      ) {
+        recordReportOnly("related", classificationKey, "conflict");
+        await checkpoint();
+        continue;
+      }
+      try {
+        await target
+          .relatedTarget()
+          .deleteRelation(binding.target.idempotency_key);
+        if (
+          (await target
+            .relatedTarget()
+            .readRelation(binding.target.idempotency_key)) !== null
+        ) {
+          throw new Error("relation_absent_source_delete_readback_mismatch");
+        }
+        ledger = removeJiraMigrationBindings(ledger, [binding.source_key]);
+        recordReportOnly("related", classificationKey, "update");
+      } catch {
+        recordReportOnly("related", classificationKey, "failed", true);
+      }
+      await checkpoint();
+    }
     for (const plan of changelogPlans) {
       assertNotAborted();
       const parentIssue = allIssues.find(
@@ -2475,7 +2564,14 @@ async function runJiraMigrationUnlocked(
         failure_reason:
           changelogFailureReasons.get(plan.sourceIdentity.key) ?? null,
       })),
-      reconciliation: dryIssuePlans.flatMap((plan) => plan.deferred),
+      reconciliation: [
+        ...dryIssuePlans.flatMap((plan) => plan.deferred),
+        ...absentSourceRelationPlan.map((binding) => ({
+          kind: "relation",
+          reason: "source_issue_absent",
+          source_key: binding.source_key,
+        })),
+      ],
       raw_archive: [
         ...archiveSummaries,
         {
@@ -2503,6 +2599,7 @@ async function runJiraMigrationUnlocked(
       planningActions.length +
       dryIssuePlans.length +
       relatedPlanningReports.length +
+      absentSourceRelationPlan.length +
       changelogPlans.length +
       dryIssuePlans.reduce((total, plan) => total + plan.deferred.length, 0),
     ...(approvedReport
