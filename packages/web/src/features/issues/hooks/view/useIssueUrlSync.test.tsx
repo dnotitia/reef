@@ -84,6 +84,7 @@ describe("useIssueUrlSync", () => {
     navigationState.pathname = "/workspace/reef-acme/issues";
     navigationState.searchParams = new URLSearchParams();
     vaultState.value = "reef-acme";
+    window.history.replaceState({}, "", "/");
     useIssueStore.setState({
       filter: {},
       filterVault: null,
@@ -328,6 +329,31 @@ describe("useIssueUrlSync", () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
+  it("does not overwrite a cross-route navigation when search params update before pathname", async () => {
+    navigationState.searchParams = new URLSearchParams("status=todo&view=list");
+    const { rerender } = render(<Harness />);
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.status).toEqual(["todo"]);
+    });
+    mockPush.mockClear();
+    mockReplace.mockClear();
+
+    // Model Next's transient split render during Issues → Settings: the
+    // destination has no query, while usePathname still reports Issues.
+    window.history.pushState({}, "", "/workspace/reef-acme/settings");
+    navigationState.searchParams = new URLSearchParams();
+    rerender(<Harness />);
+    await Promise.resolve();
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+
+    navigationState.pathname = "/workspace/reef-acme/settings";
+    rerender(<Harness />);
+    await Promise.resolve();
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
   it("preserves the ?view= param when a filter changes", async () => {
     navigationState.searchParams = new URLSearchParams("view=list");
     render(<Harness />);
@@ -482,6 +508,37 @@ describe("useIssueUrlSync", () => {
       { scroll: false },
     );
     expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it("applies the default on a same-vault bare Issues remount", async () => {
+    const view: SavedIssueView = {
+      id: "11111111-1111-4111-8111-111111111111",
+      name: "My work",
+      name_key: "my work",
+      owner: "alice",
+      payload: { version: 1, query: { assignee: ["alice"] } },
+    };
+    await setDefaultIssueViewId("reef-acme", view.id);
+    useIssueStore.setState({
+      filter: { status: ["in_review"] },
+      filterVault: "reef-acme",
+      searchQuery: "",
+    });
+
+    render(<Harness savedViews={[view]} />);
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.assignee).toEqual(["alice"]);
+    });
+    expect(useIssueStore.getState().filter.status).toBeUndefined();
+    expect(mockReplace).toHaveBeenCalledWith(
+      "/workspace/reef-acme/issues?assignee=alice",
+      { scroll: false },
+    );
+    expect(mockPush).not.toHaveBeenCalledWith(
+      expect.stringContaining("status=in_review"),
+      expect.anything(),
+    );
   });
 
   it("materializes an empty default as an explicit clear-all board view", async () => {

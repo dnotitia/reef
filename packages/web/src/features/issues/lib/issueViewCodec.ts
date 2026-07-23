@@ -269,7 +269,11 @@ export function savedIssueViewHref(
   vault: string,
   payload: SavedIssueViewPayload,
 ): string {
-  const query = savedIssueViewPayloadToSearchParams(payload).toString();
+  const params = savedIssueViewPayloadToSearchParams(payload);
+  if (params.size === 0 && Object.keys(payload.query).length > 0) {
+    params.set(EMPTY_FILTER_MARKER_KEY, EMPTY_FILTER_MARKER_VALUE);
+  }
+  const query = params.toString();
   const path = withVault(vault, "/issues");
   return query ? `${path}?${query}` : path;
 }

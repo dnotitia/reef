@@ -27,11 +27,22 @@ export function SearchBar() {
     useIssueStore.getState().searchQuery,
   );
   const inputRef = useRef<HTMLInputElement>(null);
+  const userEdited = useRef(false);
 
   // Push the settled value into the store so the list query re-runs on it.
   useEffect(() => {
+    const current = useIssueStore.getState().searchQuery;
+    // URL/default hydration is owned by the parent hook and can run before
+    // this mount effect. Do not publish SearchBar's stale initial empty value
+    // over that external state; re-seed the debounce instead. A real input
+    // edit is marked synchronously and remains authoritative when it settles.
+    if (!userEdited.current && current !== debounced) {
+      reset(current);
+      return;
+    }
+    userEdited.current = false;
     setSearchQuery(debounced);
-  }, [debounced, setSearchQuery]);
+  }, [debounced, reset, setSearchQuery]);
 
   // Reflect an external store change (a restored/persisted filter, or a clear
   // from elsewhere) back into the input.
@@ -44,6 +55,7 @@ export function SearchBar() {
   }, [reset]);
 
   const handleClear = useCallback(() => {
+    userEdited.current = false;
     reset("");
     setSearchQuery("");
     inputRef.current?.blur();
@@ -66,7 +78,10 @@ export function SearchBar() {
         className="pl-9 pr-8 h-9"
         placeholder={t("searchPlaceholder")}
         value={localValue}
-        onChange={(e) => handleChange(e.target.value)}
+        onChange={(e) => {
+          userEdited.current = true;
+          handleChange(e.target.value);
+        }}
         onKeyDown={handleKeyDown}
         data-testid="search-input"
       />

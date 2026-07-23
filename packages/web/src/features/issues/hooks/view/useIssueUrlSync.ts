@@ -9,7 +9,7 @@ import {
 import { withVault } from "@/lib/workspaceHref";
 import type { SavedIssueView } from "@reef/core";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { type RefObject, useEffect, useRef } from "react";
+import { type RefObject, useEffect, useRef, useState } from "react";
 import {
   buildIssueSearchParams,
   canonicalIssueQuery,
@@ -82,6 +82,16 @@ export function useIssueUrlSync(
   // REPLACE the current history entry (hydration, not navigation) so no bare
   // /issues entry is stacked behind the restored filter (REEF-010).
   const replaceNextWrite = useRef(false);
+  // A fresh mount on the same vault can inherit the previous Issues store
+  // state. Hold only that baseline out of store→URL mirroring until the bare
+  // landing's default/last-used lookup settles; a user edit changes object
+  // identity and remains eligible to mirror immediately.
+  const restoreBaseline = useRef<{
+    filter: typeof filter;
+    searchQuery: string;
+    vault: string;
+  } | null>(null);
+  const [restoreRevision, setRestoreRevision] = useState(0);
 
   // searchParams is read for the hydration decision (URL-wins vs
   // IndexedDB restore) and the stale-URL clear on a vault switch. Re-running on the
@@ -169,6 +179,12 @@ export function useIssueUrlSync(
     const restoringState = useIssueStore.getState();
     const restoringFilter = restoringState.filter;
     const restoringSearchQuery = restoringState.searchQuery;
+    const restoreToken = {
+      filter: restoringFilter,
+      searchQuery: restoringSearchQuery,
+      vault: restoringVault,
+    };
+    restoreBaseline.current = restoreToken;
     let aborted = false;
     let settled = false;
     void (async () => {
@@ -253,11 +269,18 @@ export function useIssueUrlSync(
         }
       } finally {
         settled = true;
+        if (!aborted && restoreBaseline.current === restoreToken) {
+          restoreBaseline.current = null;
+          setRestoreRevision((revision) => revision + 1);
+        }
       }
     })();
 
     return () => {
       aborted = true;
+      if (restoreBaseline.current === restoreToken) {
+        restoreBaseline.current = null;
+      }
       // React Strict Effects intentionally cleans up and replays a newly
       // mounted effect. If that interrupts this async read, make the replay
       // eligible to start it again instead of leaving initialized=true with no
@@ -271,7 +294,19 @@ export function useIssueUrlSync(
   /* eslint-enable react-hooks/exhaustive-deps */
 
   useEffect(() => {
+    // The revision reruns this effect when an async bare-landing lookup settles
+    // without changing the store (for example, no default and no persisted
+    // filter), so the retained same-vault baseline can then mirror normally.
+    void restoreRevision;
     if (!initialized.current) return;
+    const baseline = restoreBaseline.current;
+    if (
+      baseline?.vault === vault &&
+      baseline.filter === filter &&
+      baseline.searchQuery === searchQuery
+    ) {
+      return;
+    }
     if (skipNextWrite.current) {
       skipNextWrite.current = false;
       return;
@@ -280,7 +315,17 @@ export function useIssueUrlSync(
     // the workspace is the backdrop and `pathname` is `.../issues/[id]`;
     // writing the filter query there pollutes history and bounces `router.back()`
     // straight back to the detail URL, keeping the sheet open.
-    if (pathname !== withVault(vault, ISSUES_LIST_BASE)) return;
+    const issuesPath = withVault(vault, ISSUES_LIST_BASE);
+    // During a cross-route transition Next can publish the destination search
+    // params one render before usePathname. The browser location is already
+    // authoritative then; checking it prevents the stale Issues hook from
+    // pushing its filters over the destination navigation.
+    const browserPathname =
+      typeof window !== "undefined" &&
+      window.location.pathname.startsWith("/workspace/")
+        ? window.location.pathname
+        : pathname;
+    if (pathname !== issuesPath || browserPathname !== issuesPath) return;
 
     const currentParams = searchParams.toString();
     const paramString = buildIssueSearchParams(
@@ -309,7 +354,15 @@ export function useIssueUrlSync(
         router.push(href, { scroll: false });
       }
     }
-  }, [filter, pathname, router, searchParams, searchQuery, vault]);
+  }, [
+    filter,
+    pathname,
+    restoreRevision,
+    router,
+    searchParams,
+    searchQuery,
+    vault,
+  ]);
 
   return { skipNextSave };
 }

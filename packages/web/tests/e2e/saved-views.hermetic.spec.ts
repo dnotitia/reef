@@ -44,6 +44,9 @@ test.describe("Hermetic saved issue views", () => {
       "href",
       "/workspace/reef-e2e/issues?order=desc&q=Alpha&sort=priority&status=todo&view=list",
     );
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get("q"))
+      .toBe("Alpha");
     await expect(viewLink).toHaveAttribute("aria-current", "page");
 
     await page.goto("/workspace/reef-e2e/issues?priority=high&view=list");
@@ -95,6 +98,20 @@ test.describe("Hermetic saved issue views", () => {
       .poll(() => readIndexedDbConfig(page, DEFAULT_POINTER_KEY))
       .toMatch(/^[0-9a-f-]{36}$/);
 
+    // Leave the Issues store on a different explicit view before navigating
+    // away. A fresh same-vault bare Issues mount must still re-evaluate the
+    // named default instead of mirroring this retained in-memory filter.
+    await page.goto("/workspace/reef-e2e/issues?status=todo&view=list");
+    await expect(
+      page.locator('[data-testid="issue-list-row"]').first(),
+    ).toBeVisible();
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get("q"))
+      .toBeNull();
+    // Let the warm search debounce finish reconciling the previous explicit
+    // query before starting a cross-route navigation. This models a settled
+    // view B instead of racing a hard page.goto against its hydration.
+    await page.waitForTimeout(200);
     await page.getByRole("link", { name: "Settings" }).click();
     await page.waitForURL(/\/settings$/);
     await page.getByRole("link", { name: "Issues" }).click();

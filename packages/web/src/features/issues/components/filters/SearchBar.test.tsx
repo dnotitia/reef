@@ -1,5 +1,6 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useIssueStore } from "../../stores/useIssueStore";
 import { SearchBar } from "./SearchBar";
@@ -39,6 +40,24 @@ describe("SearchBar", () => {
         expect(useIssueStore.getState().searchQuery).toBe("dep");
       },
       { timeout: 500 },
+    );
+  });
+
+  it("does not overwrite a parent URL hydration with its initial empty value", async () => {
+    function HydratingParent() {
+      useEffect(() => {
+        useIssueStore.getState().setSearchQuery("Alpha");
+      }, []);
+      return <SearchBar />;
+    }
+
+    render(<HydratingParent />);
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().searchQuery).toBe("Alpha");
+    });
+    expect((screen.getByTestId("search-input") as HTMLInputElement).value).toBe(
+      "Alpha",
     );
   });
 

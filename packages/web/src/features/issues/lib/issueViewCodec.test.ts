@@ -58,10 +58,18 @@ describe("issueViewCodec", () => {
     expect(savedIssueViewHref("reef-e2e", payload)).toBe(
       "/workspace/reef-e2e/issues?labels=backend&order=desc&q=schema&sort=priority&status=in_progress&status=todo&view=list",
     );
+    expect(
+      savedIssueViewIsActive(
+        payload,
+        new URLSearchParams(
+          "status=todo&status=in_progress&labels=backend&q=schema&sort=priority&order=desc&view=list",
+        ),
+      ),
+    ).toBe(true);
   });
 
   it("drops invalid members, unknown keys, and fieldless order independently", () => {
-    const params = savedIssueViewPayloadToSearchParams({
+    const payload = {
       version: 1,
       query: {
         status: ["todo", "not-a-status", ""],
@@ -72,9 +80,25 @@ describe("issueViewCodec", () => {
         order: ["desc"],
         unknown: ["value"],
       },
-    } as unknown as SavedIssueViewPayload);
+    } as unknown as SavedIssueViewPayload;
+    const params = savedIssueViewPayloadToSearchParams(payload);
     expect(params.toString()).toBe(
       "due=overdue&priority=high&severity=critical&status=todo&type=task",
+    );
+    expect(savedIssueViewHref("reef-e2e", payload)).toContain("status=todo");
+  });
+
+  it("links a fully inapplicable legacy payload to an explicit empty view", () => {
+    const payload = {
+      version: 1,
+      query: {
+        status: ["removed-status"],
+        unknown: ["value"],
+      },
+    } as unknown as SavedIssueViewPayload;
+    expect(savedIssueViewPayloadToSearchParams(payload).toString()).toBe("");
+    expect(savedIssueViewHref("reef-e2e", payload)).toBe(
+      "/workspace/reef-e2e/issues?filter=none",
     );
   });
 
