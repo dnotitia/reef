@@ -26,6 +26,7 @@ import {
   akbListIssueAttachments,
   akbListPlanningCatalog,
   akbReadIssue,
+  akbReadPlanningCreateClaim,
   akbUpdateComment,
   akbUpdateIssue,
   akbUploadIssueAttachment,
@@ -66,12 +67,20 @@ interface TargetCore {
     adapter: AkbAdapter;
     vault: string;
     item: Omit<Release, "id">;
+    idempotencyKey?: string;
   }): Promise<Release>;
   createSprint(input: {
     adapter: AkbAdapter;
     vault: string;
     item: Omit<Sprint, "id">;
+    idempotencyKey?: string;
   }): Promise<Sprint>;
+  readPlanningCreateClaim(input: {
+    adapter: AkbAdapter;
+    vault: string;
+    kind: "release" | "sprint";
+    idempotencyKey: string;
+  }): Promise<Release | Sprint | null>;
   allocateNextIssueId(input: {
     adapter: AkbAdapter;
     vault: string;
@@ -112,6 +121,7 @@ const defaultCore: TargetCore = {
   listPlanningCatalog: akbListPlanningCatalog,
   createRelease: akbCreateRelease,
   createSprint: akbCreateSprint,
+  readPlanningCreateClaim: akbReadPlanningCreateClaim,
   allocateNextIssueId: akbAllocateNextIssueId,
   writeIssue: akbWriteIssue,
   updateIssue: akbUpdateIssue,
@@ -143,6 +153,9 @@ export interface AkbJiraMigrationTarget {
   applyPlanning(
     action: JiraPlanningAction,
   ): Promise<JiraPlanningTargetResolution>;
+  readPlanningClaim(
+    action: JiraPlanningAction,
+  ): Promise<JiraPlanningTargetResolution | null>;
   applyIssue(
     plan: JiraIssueImportPlan,
     action: "create" | "update",
@@ -1073,11 +1086,13 @@ export function createAkbJiraMigrationTarget(
               adapter,
               vault,
               item: action.target.item,
+              idempotencyKey: action.sourceIdentity.key,
             })
           : await core.createSprint({
               adapter,
               vault,
               item: action.target.item,
+              idempotencyKey: action.sourceIdentity.key,
             });
       const planning = await core.listPlanningCatalog({ adapter, vault });
       const readback =
@@ -1101,6 +1116,32 @@ export function createAkbJiraMigrationTarget(
         sourceIdentity: action.sourceIdentity,
         targetKind: action.target.kind,
         targetId: item.id,
+      };
+    },
+    async readPlanningClaim(action) {
+      if (!action.target) return null;
+      const claimed = await core.readPlanningCreateClaim({
+        adapter,
+        vault,
+        kind: action.target.kind,
+        idempotencyKey: action.sourceIdentity.key,
+      });
+      if (!claimed) return null;
+      const projection = Object.fromEntries(
+        Object.keys(action.target.item).map((key) => [
+          key,
+          claimed[key as keyof typeof claimed],
+        ]),
+      );
+      if (
+        canonicalizeJson(projection) !== canonicalizeJson(action.target.item)
+      ) {
+        return null;
+      }
+      return {
+        sourceIdentity: action.sourceIdentity,
+        targetKind: action.target.kind,
+        targetId: claimed.id,
       };
     },
     async applyIssue(plan, action) {

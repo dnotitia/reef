@@ -20,6 +20,7 @@ import {
   makeListTablesResponse,
   makeSqlMutationResponse,
   makeSqlQueryResponse,
+  readPlanningCreateClaim,
   setupFetch,
   updateRelease,
 } from "./akb.testSupport";
@@ -133,6 +134,59 @@ describe("planning metadata", () => {
     expect(insertSql).toContain("RETURNING *");
     expect(insertSql).toContain("'Sprint 12'");
     expect(insertSql).not.toContain('"id"'); // id is does not written
+  });
+
+  it("recovers a planning create only through its durable idempotency claim", async () => {
+    const claimedRow = {
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      name: "Claimed Sprint",
+      status: "planned",
+      start_date: null,
+      end_date: null,
+      goal: "",
+      capacity_points: null,
+      meta: { create_idempotency_key: "sprint:cloud-1:42" },
+    };
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { body: makeSqlQueryResponse([], SPRINT_ROW_COLUMNS) },
+      { body: makeSqlQueryResponse([], SPRINT_ROW_COLUMNS) },
+      { body: makeSqlQueryResponse([claimedRow], SPRINT_ROW_COLUMNS) },
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { body: makeSqlQueryResponse([claimedRow], SPRINT_ROW_COLUMNS) },
+      { body: makeSqlQueryResponse([claimedRow], SPRINT_ROW_COLUMNS) },
+    ]);
+    const adapter = makeAdapter();
+    const input = {
+      adapter,
+      vault: "reef-sample",
+      item: {
+        name: "Claimed Sprint",
+        status: "planned" as const,
+        start_date: null,
+        end_date: null,
+        goal: "",
+        capacity_points: null,
+      },
+      idempotencyKey: "sprint:cloud-1:42",
+    };
+    await expect(createSprint(input)).resolves.toMatchObject({
+      id: claimedRow.id,
+    });
+    await expect(createSprint(input)).resolves.toMatchObject({
+      id: claimedRow.id,
+    });
+    await expect(
+      readPlanningCreateClaim({
+        adapter,
+        vault: "reef-sample",
+        kind: "sprint",
+        idempotencyKey: "sprint:cloud-1:42",
+      }),
+    ).resolves.toMatchObject({ id: claimedRow.id });
+    const insertSql = JSON.parse(calls[3]?.init?.body as string).sql;
+    expect(insertSql).toContain("create_idempotency_key");
+    expect(insertSql).toContain("sprint:cloud-1:42");
   });
 
   it("rejects an invalid sprint before inserting", async () => {

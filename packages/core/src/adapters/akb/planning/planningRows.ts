@@ -138,6 +138,7 @@ export async function assertUniquePlanningName(
 
 export function sprintRowFields(
   item: Omit<Sprint, "id">,
+  meta: Record<string, unknown> = {},
 ): Array<[string, string]> {
   return [
     ["name", quoteText(item.name, "sprint name")],
@@ -146,7 +147,7 @@ export function sprintRowFields(
     ["end_date", quoteOptionalText(item.end_date, "sprint end_date")],
     ["goal", quoteText(item.goal ?? "", "sprint goal")],
     ["capacity_points", quoteNumberOrNull(item.capacity_points)],
-    ["meta", quoteJson({})],
+    ["meta", quoteJson(meta)],
   ];
 }
 
@@ -167,6 +168,7 @@ export function milestoneRowFields(
 
 export function releaseRowFields(
   item: Omit<Release, "id">,
+  meta: Record<string, unknown> = {},
 ): Array<[string, string]> {
   return [
     ["name", quoteText(item.name, "release name")],
@@ -174,7 +176,7 @@ export function releaseRowFields(
     ["target_date", quoteOptionalText(item.target_date, "release target_date")],
     ["released_at", quoteOptionalText(item.released_at, "release released_at")],
     ["notes", quoteText(item.notes ?? "", "release notes")],
-    ["meta", quoteJson({})],
+    ["meta", quoteJson(meta)],
   ];
 }
 

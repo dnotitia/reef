@@ -61,6 +61,15 @@ describe("AKB Jira migration target", () => {
             : {}),
         }) as Release,
     );
+    const readPlanningCreateClaim = vi.fn(
+      async () =>
+        ({
+          id: "11111111-1111-4111-8111-111111111111",
+          ...(releaseAction.target?.kind === "release"
+            ? releaseAction.target.item
+            : {}),
+        }) as Release,
+    );
     const baseIssueReadback = {
       issue: {
         id: "REEF-010",
@@ -146,6 +155,7 @@ describe("AKB Jira migration target", () => {
         listPlanningCatalog,
         createRelease,
         createSprint: vi.fn(),
+        readPlanningCreateClaim,
         allocateNextIssueId: async () => "REEF-010",
         writeIssue,
         updateIssue,
@@ -175,6 +185,22 @@ describe("AKB Jira migration target", () => {
       ]),
     ).toEqual(["REEF-009", "REEF-010"]);
     expect(await target.applyPlanning(releaseAction)).toMatchObject({
+      targetKind: "release",
+      targetId: "11111111-1111-4111-8111-111111111111",
+    });
+    expect(createRelease).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idempotencyKey: releaseAction.sourceIdentity.key,
+      }),
+    );
+    await expect(
+      target.readPlanningClaim({
+        ...releaseAction,
+        classification: "reuse",
+        reason: "compatible_exact_name",
+        targetId: "11111111-1111-4111-8111-111111111111",
+      }),
+    ).resolves.toMatchObject({
       targetKind: "release",
       targetId: "11111111-1111-4111-8111-111111111111",
     });
@@ -229,6 +255,7 @@ describe("AKB Jira migration target", () => {
         listPlanningCatalog: vi.fn(),
         createRelease: vi.fn(),
         createSprint: vi.fn(),
+        readPlanningCreateClaim: vi.fn(async () => null),
         allocateNextIssueId: vi.fn(),
         writeIssue: vi.fn(),
         updateIssue: vi.fn(),
@@ -298,6 +325,7 @@ describe("AKB Jira migration target", () => {
         listPlanningCatalog: vi.fn(),
         createRelease: vi.fn(),
         createSprint: vi.fn(),
+        readPlanningCreateClaim: vi.fn(async () => null),
         allocateNextIssueId: vi.fn(),
         writeIssue: vi.fn(),
         updateIssue,

@@ -1602,6 +1602,14 @@ async function runJiraMigrationUnlocked(
       ) {
         continue;
       }
+      if (
+        approved.classification === "create" &&
+        action.classification === "reuse" &&
+        action.reason === "compatible_exact_name"
+      ) {
+        const claimed = await target.readPlanningClaim(action);
+        if (claimed?.targetId === action.targetId) continue;
+      }
       if (action.classification !== approved.classification) {
         throw new JiraRunnerError("plan_fingerprint_mismatch");
       }

@@ -319,6 +319,8 @@ describe("createComment", () => {
     expect(sql).toContain("WITH RECURSIVE target_issue");
     expect(sql).toContain("WHERE reef_id = 'REEF-062' LIMIT 1");
     expect(sql).toContain("parent_chain AS");
+    expect(sql).toContain("jsonb_build_object");
+    expect(sql).not.toMatch(/\bjson_build_object\b/u);
     expect(sql).toContain('"jira_idempotency_key":"jira:reply:10002"');
     expect(sql.match(/INSERT INTO reef_comments/g)).toHaveLength(1);
     expect(calls).toHaveLength(2);

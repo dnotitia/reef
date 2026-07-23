@@ -264,6 +264,7 @@ export interface CreateSprintParams {
   adapter: AkbAdapter;
   vault: string;
   item: Omit<Sprint, "id">;
+  idempotencyKey?: string;
 }
 
 export interface UpdateSprintParams {
@@ -302,6 +303,14 @@ export interface CreateReleaseParams {
   adapter: AkbAdapter;
   vault: string;
   item: Omit<Release, "id">;
+  idempotencyKey?: string;
+}
+
+export interface ReadPlanningCreateClaimParams {
+  adapter: AkbAdapter;
+  vault: string;
+  kind: "release" | "sprint";
+  idempotencyKey: string;
 }
 
 export interface UpdateReleaseParams {
