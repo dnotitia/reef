@@ -38,8 +38,8 @@ const mergeRecords = (
 
 /**
  * Immutably deep-merges compact Jira provenance into IssueMetadata custom fields.
- * Arrays are atomic values so account/planning/rank producers cannot accidentally
- * concatenate duplicate observations.
+ * Arrays are atomic values, preventing account/planning/rank producers from
+ * accidentally concatenating duplicate observations.
  */
 export const mergeJiraCustomFields = (
   existing: unknown,

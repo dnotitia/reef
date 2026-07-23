@@ -21,7 +21,7 @@ import { getActiveVault } from "./storage/config";
 export const apiClient = {
   async fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     // Browser-local context is optional request decoration. IndexedDB can be
-    // unavailable (private mode, denied storage, startup failure); that must not
+    // unavailable (private mode, denied storage, startup failure); that does not
     // turn login or an otherwise valid BFF request into a network error.
     const vault = await getActiveVault().catch(() => "");
 

@@ -593,8 +593,8 @@ export const buildJiraChangelogPlan = (
     input.rawArchiveReference,
   );
   // Raw archival precedes schema normalization. Fingerprint the exact Jira
-  // payload so number-to-string coercions and omitted/null distinctions cannot
-  // make a verified archive reference appear to point at different bytes.
+  // payload, preserving number-to-string coercions and omitted/null distinctions
+  // when comparing the verified archive reference with the source bytes.
   const sourceFingerprint = sha256CanonicalJson(input.history);
   if (rawArchiveReference.contentSha256 !== sourceFingerprint) {
     throw new Error("raw archive checksum does not match changelog history");

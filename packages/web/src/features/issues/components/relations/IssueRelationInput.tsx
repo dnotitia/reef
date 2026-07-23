@@ -626,7 +626,7 @@ export function IssueRelationInput({
             // Detail panel (REEF-268/284): selected targets drill in place
             // through the same nav model as the parent breadcrumb and
             // Sub-issues. Isolated in its own component so the drill hook
-            // (router/searchParams) only runs on the detail path.
+            // (router/searchParams) runs on the detail path.
             <NavigableRelationRows
               value={value}
               currentIssueId={currentIssueId}
@@ -671,8 +671,8 @@ export function IssueRelationInput({
  * target so removing does not navigate.
  *
  * Split out of `IssueRelationInput` on purpose: the drill hook reads the router
- * and search params, so keeping it in its own component means it runs only
- * where selected relation rows are navigable (the detail panel).
+ * and search params, so keeping it in its own component scopes it to selected
+ * navigable relation rows in the detail panel.
  */
 function NavigableRelationRows({
   value,

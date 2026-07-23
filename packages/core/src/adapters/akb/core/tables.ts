@@ -80,7 +80,7 @@ const AkbIndexSchema = z
   })
   .passthrough();
 
-export const AkbAlterTableChangesSchema = z
+const AkbAlterTableChangesSchema = z
   .object({
     add_columns: z.array(AkbAddedColumnSchema).optional(),
     alter_columns: z.array(AkbAlteredColumnSchema).optional(),
@@ -109,7 +109,7 @@ export const AkbAlterTableChangesSchema = z
 
 const MigrationBaseSchema = z.object({ table: NonEmptyStringSchema });
 
-export const AkbTableMigrationOperationSchema = z.discriminatedUnion("op", [
+const AkbTableMigrationOperationSchema = z.discriminatedUnion("op", [
   MigrationBaseSchema.extend({
     op: z.literal("add_column"),
     column: AkbAddedColumnSchema,
@@ -145,7 +145,7 @@ export const AkbTableMigrationOperationSchema = z.discriminatedUnion("op", [
   }).strict(),
 ]);
 
-export const AkbTableMigrationOperationsSchema = z
+const AkbTableMigrationOperationsSchema = z
   .array(AkbTableMigrationOperationSchema)
   .min(1);
 
@@ -156,7 +156,7 @@ const AkbTableResponseColumnSchema = z
   })
   .passthrough();
 
-export const AkbTableResultSchema = z
+const AkbTableResultSchema = z
   .object({
     kind: z.literal("table"),
     uri: NonEmptyStringSchema,
@@ -177,7 +177,7 @@ const AkbTableMigrationStepResultSchema = z
   })
   .passthrough();
 
-export const AkbTableMigrationResultSchema = z
+const AkbTableMigrationResultSchema = z
   .object({
     kind: z.literal("table_migration"),
     id: z.string().uuid().optional(),

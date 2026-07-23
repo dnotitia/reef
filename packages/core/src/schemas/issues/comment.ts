@@ -6,11 +6,11 @@ import { IsoDateFieldSchema } from "../common/date";
  * REEF-125).
  *
  * akb auto-injects `id`/`created_by`/`created_at`/`updated_at` on the row, but
- * those are the akb auth principal and akb bookkeeping — NOT reef's source of
- * truth for the comment author or the "edited" signal (REEF-125 decision). The
+ * those identify the akb auth principal and akb bookkeeping rather than reef's
+ * canonical comment author or "edited" signal (REEF-125 decision). The
  * reef-semantic actor and the edit time live here in `meta` so the create-time
- * table schema stays a compatibility envelope before an explicit operator
- * migration is applied, or when one cannot run.
+ * table schema stays an extension envelope pending an explicit operator
+ * migration, including environments where migration execution is unavailable.
  *
  *   author     — reef semantic actor (akb username) who wrote the comment.
  *   created_at — ISO-8601 write time; the thread's displayed + sort time.

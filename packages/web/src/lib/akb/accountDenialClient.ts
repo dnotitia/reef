@@ -119,7 +119,7 @@ export function recordAkbAccountDenial(value: unknown): void {
   }
 }
 
-/** Read and remove the pending denial so it cannot leak into a later session. */
+/** Read and remove the pending denial, preventing it from leaking into a later session. */
 export function consumePendingAkbAccountError():
   | AkbAccountErrorCode
   | undefined {
@@ -158,7 +158,7 @@ export function isAkbAccountDenialTokenCleared(token: string): boolean {
   return invalidatedAccountErrorTokens.has(token);
 }
 
-/** Clear only the record observed by the successful session probe. */
+/** Clear the record observed by the successful session probe. */
 export function consumePendingAkbAccountErrorIfUnchanged(
   snapshot: PendingAkbAccountErrorSnapshot | undefined,
 ): AkbAccountErrorCode | undefined {

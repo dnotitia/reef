@@ -28,9 +28,7 @@ export {
 
 export {
   AddIssueReferenceRequestSchema,
-  AKB_DOCUMENT_URI_RE,
   ResolveDocumentTitlesRequestSchema,
-  ResolveDocumentTitlesResponseSchema,
   type AkbDocumentReference,
   type DocumentSearchHit,
 } from "./references";
@@ -42,20 +40,15 @@ export {
 } from "./comment";
 
 export {
-  IssueAttachmentCreateInputSchema,
-  IssueAttachmentSchema,
   IssueAttachmentSourceEnum,
   type IssueAttachment,
   type IssueAttachmentCreateInput,
   type IssueAttachmentSource,
 } from "./attachment";
 
-export {
-  buildJiraAttachmentCreateInput,
-  jiraAttachmentIdFromUrl,
-  rewriteJiraAttachmentReferences,
-  type JiraAttachmentImportInput,
-  type JiraAttachmentRewriteTarget,
+export type {
+  JiraAttachmentImportInput,
+  JiraAttachmentRewriteTarget,
 } from "./jiraAttachments";
 
 export {
@@ -75,9 +68,6 @@ export {
   ACTIVITY_EVENT_ATTACHMENT_REMOVED,
   ACTIVITY_EVENT_ISSUE_TYPE_CHANGE,
   ACTIVITY_EVENT_START_DATE_CHANGE,
-  JiraChangelogActivityEventKeySchema,
-  IssueTypeChangePayloadSchema,
-  StartDateChangePayloadSchema,
   type ActivityEventType,
   type ActivityEventPayload,
   type AssigneeChangePayload,

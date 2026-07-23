@@ -17,7 +17,7 @@ import {
  * POST /api/documents/resolve?vault={vault}
  *
  * Resolves markdown `akb://` document links through the server-side AKB adapter
- * so the browser never calls AKB directly or sees raw credentials.
+ * so the browser does not call AKB directly or receive raw credentials.
  */
 export async function POST(request: Request): Promise<Response> {
   const vault = parseVaultParam(request);

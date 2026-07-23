@@ -38,7 +38,6 @@ export type {
 } from "./framework/runtime";
 export {
   createWorkspaceChatAgentResponse,
-  getWorkspaceChatTaskConfig,
   type CreateChatAgentToolsParams,
   type CreateWorkspaceChatAgentResponseParams,
   type WorkspaceChatStepSummary,

@@ -262,15 +262,15 @@ interface ActivityRowInput {
 }
 
 /**
- * Append one immutable event row to `reef_activity`, idempotent on
+ * Append an immutable event row to `reef_activity`, idempotent on
  * `(reef_id, event_key)` (REEF-125 AC8). The `NOT EXISTS` probe and the insert
- * share ONE statement, so the check and the insert see one snapshot — no
- * two-round-trip time-of-check/time-of-use window — and a sequential retry of
- * the same logical change finds the committed row and adds nothing. Append path:
- * there is no update path for an event row. Returns whether a row was added.
+ * share a single statement, so the check and insert see the same snapshot and
+ * avoid a two-round-trip time-of-check/time-of-use window. A sequential retry
+ * of the same logical change finds the committed row and adds nothing. Event
+ * rows have an append path without an update path. Returns whether a row was added.
  *
  * Residual: until an explicit operator migration installs the unique key (or
- * when that migration cannot run), the compatibility envelope lets two
+ * where migration execution is unavailable), the extension envelope lets two
  * *simultaneous* inserts of the identical event_key both pass `NOT EXISTS`.
  * That needs concurrent
  * retries of the very same update; it is de-duplicated downstream on `event_key`

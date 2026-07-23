@@ -125,7 +125,7 @@ function LabelBulkAction({
 }
 
 /**
- * List-only selection toolbar. It lives in the document flow directly above
+ * List selection toolbar. It lives in the document flow directly above
  * the table, so bulk editing reads as a focused list mode instead of a floating
  * form competing with Ask AI or covering issue content.
  */
@@ -137,11 +137,12 @@ export function IssueBulkActionBar({ vault }: IssueBulkActionBarProps) {
   const fieldNames = useFieldNameLabels();
   const empty = useEnrichmentEmptyLabels();
   const runner = useBulkUpdateIssues(vault);
+  const resetRunner = runner.reset;
   const [pendingClose, setPendingClose] = useState(false);
 
   useEffect(() => {
-    if (ids.length === 0) runner.reset();
-  }, [ids.length, runner.reset]);
+    if (ids.length === 0) resetRunner();
+  }, [ids.length, resetRunner]);
 
   if (ids.length === 0) return null;
 

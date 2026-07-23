@@ -97,7 +97,7 @@ describe("issue workflows — field-change activity invariant (REEF-126)", () =>
   });
 });
 
-// REEF-395: the issue-creation runbook must tell agents how to write links in
+// REEF-395: the issue-creation runbook needs to tell agents how to write links in
 // generated Markdown bodies and when to use structured relationship fields.
 describe("issue workflows — issue body link syntax (REEF-395)", () => {
   const content = issueWorkflowsContent();

@@ -42,10 +42,6 @@ export const ResolveDocumentTitlesRequestSchema = z.object({
   uris: z.array(z.string().regex(AKB_DOCUMENT_URI_RE)).min(1).max(50),
 });
 
-export const ResolveDocumentTitlesResponseSchema = z.object({
-  documents: z.array(AkbDocumentReferenceSchema),
-});
-
 /**
  * Request body to add an issue → document reference. `target_uri` is the
  * canonical `akb://` document URI to link (taken verbatim from a search hit).

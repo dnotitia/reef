@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -286,7 +292,6 @@ describe("NewIssueDialog", () => {
   });
 
   it("creates a parent-locked sub-issue with inherited defaults and keeps adding", async () => {
-    const user = userEvent.setup();
     mockViewStore.state.newIssueDialogOpen = true;
     mockViewStore.state.newIssueDialogContext = {
       kind: "subIssue",
@@ -307,14 +312,15 @@ describe("NewIssueDialog", () => {
     expect(screen.getByTestId("new-issue-parent-locked")).toHaveTextContent(
       "Parent story",
     );
-    await user.type(screen.getByTestId("new-issue-title-input"), "Child work");
-    await user.click(await screen.findByRole("button", { name: "Source" }));
-    await user.type(
-      screen.getByTestId("markdown-source-textarea"),
-      "Draft body",
-    );
-    await user.click(screen.getByTestId("create-and-add-another"));
-    await user.click(screen.getByTestId("new-issue-submit"));
+    fireEvent.change(screen.getByTestId("new-issue-title-input"), {
+      target: { value: "Child work" },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Source" }));
+    fireEvent.change(screen.getByTestId("markdown-source-textarea"), {
+      target: { value: "Draft body" },
+    });
+    fireEvent.click(screen.getByTestId("create-and-add-another"));
+    fireEvent.click(screen.getByTestId("new-issue-submit"));
 
     await waitFor(() =>
       expect(
@@ -403,11 +409,10 @@ describe("NewIssueDialog", () => {
     await screen.findByText("New sub-issue");
     await user.click(await screen.findByLabelText("Sprint: Sprint 6"));
     await user.click(await screen.findByRole("option", { name: /No sprint/i }));
-    await user.type(
-      screen.getByTestId("new-issue-title-input"),
-      "Backlog child",
-    );
-    await user.click(screen.getByTestId("new-issue-submit"));
+    fireEvent.change(screen.getByTestId("new-issue-title-input"), {
+      target: { value: "Backlog child" },
+    });
+    fireEvent.click(screen.getByTestId("new-issue-submit"));
 
     await waitFor(() =>
       expect(

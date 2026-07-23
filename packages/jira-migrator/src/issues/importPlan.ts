@@ -137,8 +137,8 @@ export type JiraIssueEventualWriteProjection = Omit<
 >;
 
 /**
- * Removes validation-only timestamps before REEF-321 projects the plan onto
- * AKB document/table writes. Jira source timestamps remain provenance only.
+ * Removes validation-stage timestamps before REEF-321 projects the plan onto
+ * AKB document/table writes. Jira source timestamps remain provenance metadata.
  */
 export const projectJiraIssueEventualWrite = (
   issue: IssueMetadata,

@@ -157,8 +157,8 @@ describe("IssueOptionRow", () => {
   it.each(IssueTypeEnum.options)(
     "renders %s as a chrome-less glyph-only type marker (REEF-376)",
     (issueType) => {
-      // Every type drops the pill chrome and keeps only the existing TypePill
-      // shape + color glyph. The label is sr-only so assistive tech still gets
+      // Each type drops the pill chrome and keeps the existing TypePill
+      // shape + color glyph. The label remains screen-reader text so assistive tech gets
       // the type name while the decorative glyph stays aria-hidden.
       render(<IssueOptionRow issue={{ ...ISSUE, issue_type: issueType }} />);
       const typeLabel = screen.getByText(TYPE_LABELS[issueType]);

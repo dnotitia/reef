@@ -11,8 +11,8 @@ export const VAULT_HEADER = "X-Reef-Vault";
 
 /**
  * Server-owned signal that an established AKB session was rejected and every
- * account-scoped browser cache must be discarded. Status alone is insufficient:
- * an ordinary workspace permission 403 must keep the current session intact.
+ * account-scoped browser cache is discarded. Status alone is insufficient:
+ * an ordinary workspace permission 403 retains the current session.
  */
 export const AUTH_INVALIDATED_HEADER = "X-Reef-Auth-Invalidated";
 

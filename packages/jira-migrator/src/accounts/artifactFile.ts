@@ -103,7 +103,7 @@ export async function writeJiraAccountMappingArtifact(
       await handle.close();
     }
     // Renaming a private same-directory file replaces the path entry itself,
-    // so existing symlinks are never opened, truncated, or followed.
+    // which avoids opening, truncating, or following an existing symlink.
     await rename(temporary, path);
     if (process.platform !== "win32") {
       const directoryHandle = await open(dirname(path), constants.O_RDONLY);

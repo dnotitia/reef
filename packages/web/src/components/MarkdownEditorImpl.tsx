@@ -49,6 +49,7 @@ import { useTranslations } from "next-intl";
 import {
   type ClipboardEvent,
   type DragEvent,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -99,9 +100,9 @@ export interface MarkdownEditorProps {
   /** Active AKB vault. Enables akb:// document title resolution when supplied. */
   vault?: string;
   /**
-   * Optional file upload hook for issue-owned editor surfaces. The editor only
-   * mutates markdown after this resolves, so failed uploads never leave broken
-   * local links behind.
+   * Optional file upload hook for issue-owned editor surfaces. The editor
+   * mutates markdown after this resolves, leaving it unchanged when an upload
+   * fails instead of inserting a broken local link.
    */
   onUploadFiles?: (files: File[]) => Promise<AttachmentMarkdownUploadResult[]>;
   /** Resolve stored image URLs (for example akb:// file URIs) for WYSIWYG paint. */
@@ -322,6 +323,18 @@ function ToolbarDivider() {
   return <Separator orientation="vertical" className="mx-0.5 h-4" />;
 }
 
+function syncEditorMarkdown(
+  editor: Editor | null | undefined,
+  markdown: string,
+) {
+  if (!editor || editor.isDestroyed) return;
+  if (editor.getMarkdown() === markdown) return;
+  editor.commands.setContent(markdown, {
+    contentType: "markdown",
+    emitUpdate: false,
+  });
+}
+
 /**
  * WYSIWYG markdown editor backed by Tiptap.
  *
@@ -370,6 +383,7 @@ export function MarkdownEditor({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const readOnlyRef = useRef(readOnly);
   const resolveImageSrcRef = useRef(resolveImageSrc);
+  const editorRef = useRef<Editor | null>(null);
   const resolvedTitleMapRef = useRef(new Map<string, string | null>());
   const pendingTitleUrisRef = useRef(new Set<string>());
   const previousVaultRef = useRef(vault);
@@ -389,46 +403,36 @@ export function MarkdownEditor({
     pendingTitleUrisRef.current.clear();
   });
 
-  function rootContainsFocus(): boolean {
-    const root = rootRef.current;
-    return !!root && root.contains(document.activeElement);
-  }
-
-  function syncEditorMarkdown(ed: Editor | null | undefined, markdown: string) {
-    if (!ed || ed.isDestroyed) return;
-    if (ed.getMarkdown() === markdown) return;
-    ed.commands.setContent(markdown, {
-      contentType: "markdown",
-      emitUpdate: false,
-    });
-  }
-
-  function queueAkbTitleResolution(markdown: string, ed?: Editor | null) {
-    if (!vault) return;
-    const unresolved = extractAkbDocumentUris(markdown).filter(
-      (uri) =>
-        !resolvedTitleMapRef.current.has(uri) &&
-        !pendingTitleUrisRef.current.has(uri),
-    );
-    if (unresolved.length === 0) return;
-
-    for (const uri of unresolved) pendingTitleUrisRef.current.add(uri);
-    void resolveAkbDocumentTitles(vault, unresolved).then((titles) => {
-      for (const uri of unresolved) {
-        pendingTitleUrisRef.current.delete(uri);
-        resolvedTitleMapRef.current.set(uri, titles.get(uri) ?? null);
-      }
-      const next = normalizeAkbDocumentMarkdownLinks(
-        latestValueRef.current,
-        resolvedTitleMapRef.current,
+  const queueAkbTitleResolution = useCallback(
+    (markdown: string, ed?: Editor | null) => {
+      if (!vault) return;
+      const unresolved = extractAkbDocumentUris(markdown).filter(
+        (uri) =>
+          !resolvedTitleMapRef.current.has(uri) &&
+          !pendingTitleUrisRef.current.has(uri),
       );
-      if (next === latestValueRef.current) return;
-      latestValueRef.current = next;
-      onChangeRef.current(next);
-      syncEditorMarkdown(ed ?? editor, next);
-      if (!rootContainsFocus()) onBlurRef.current?.(next);
-    });
-  }
+      if (unresolved.length === 0) return;
+
+      for (const uri of unresolved) pendingTitleUrisRef.current.add(uri);
+      void resolveAkbDocumentTitles(vault, unresolved).then((titles) => {
+        for (const uri of unresolved) {
+          pendingTitleUrisRef.current.delete(uri);
+          resolvedTitleMapRef.current.set(uri, titles.get(uri) ?? null);
+        }
+        const next = normalizeAkbDocumentMarkdownLinks(
+          latestValueRef.current,
+          resolvedTitleMapRef.current,
+        );
+        if (next === latestValueRef.current) return;
+        latestValueRef.current = next;
+        onChangeRef.current(next);
+        syncEditorMarkdown(ed ?? editorRef.current, next);
+        const root = rootRef.current;
+        if (!root?.contains(document.activeElement)) onBlurRef.current?.(next);
+      });
+    },
+    [vault],
+  );
 
   function publishMarkdown(rawMarkdown: string, ed?: Editor | null) {
     const markdown = normalizeAkbDocumentMarkdownLinks(
@@ -445,9 +449,11 @@ export function MarkdownEditor({
     // Tiptap v3 requires this explicit opt-out under Next.js to avoid an SSR
     // hydration mismatch — the editor mounts on the client just.
     immediatelyRender: false,
+    /* eslint-disable react-hooks/refs -- Tiptap invokes this renderer after React render; the effect-updated ref preserves the latest attachment resolver without recreating the editor. */
     extensions: createMarkdownEditorExtensions(placeholder, (src) => {
       return resolveImageSrcRef.current?.(src) ?? src;
     }),
+    /* eslint-enable react-hooks/refs */
     content: value,
     contentType: "markdown",
     editable: !readOnly,
@@ -518,6 +524,10 @@ export function MarkdownEditor({
   }, [readOnly]);
 
   useEffect(() => {
+    editorRef.current = editor;
+  }, [editor]);
+
+  useEffect(() => {
     resolveImageSrcRef.current = resolveImageSrc;
   }, [resolveImageSrc]);
 
@@ -548,7 +558,6 @@ export function MarkdownEditor({
     }) ?? NO_ACTIVE;
 
   // Sync external value changes without moving the cursor.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: queueAkbTitleResolution reads mutable refs; rerunning this effect for that function identity would re-arm setContent on unrelated selection rerenders.
   useEffect(() => {
     const normalized = normalizeAkbDocumentMarkdownLinks(
       value,
@@ -570,7 +579,7 @@ export function MarkdownEditor({
     }
     lastSyncedValueRef.current = normalized;
     queueAkbTitleResolution(normalized, editor);
-  }, [editor, value]);
+  }, [editor, queueAkbTitleResolution, value]);
 
   useEffect(() => {
     if (rootRef.current) {
