@@ -3,9 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { JiraMigratorConfig, NormalizedJiraIssue } from "../index.js";
+import type { JiraIssueImportPlan } from "../issues/importPlan.js";
 import { jiraIssueFixture } from "../jira/fixtures.js";
 import { JiraIssueSchema, normalizeJiraIssue } from "../payloads.js";
 import {
+  baseIssueReadbackMatches,
   canRecoverApprovedPlanningCreate,
   inferRelationSourceProjectKey,
   runJiraMigration,
@@ -48,6 +50,47 @@ const policy = {
 };
 
 describe("runJiraMigration", () => {
+  it("accepts a verified post-related description rewrite on rerun", () => {
+    const issue = {
+      id: "REEF-001",
+      title: "Migrated",
+      status: "todo",
+      created_at: "2026-07-23T00:00:00.000Z",
+      created_by: "operator",
+      updated_at: "2026-07-23T00:00:00.000Z",
+      updated_by: "operator",
+      source: "jira-migration",
+      custom_fields: {
+        jira_migration: {
+          owner: {
+            jira_cloud_id: "cloud-1",
+            project_key: "ALPHA",
+            issue_id: "10001",
+            issue_key: "ALPHA-1",
+          },
+        },
+      },
+    };
+    const plan = {
+      desired: { issue, content: "pre-rewrite markdown" },
+    } as unknown as JiraIssueImportPlan;
+    const readback = {
+      issue,
+      content: "markdown with akb://reef-test/file/attachment",
+      path: "issues/reef-001.md",
+      commit_hash: "commit",
+    } as never;
+
+    expect(baseIssueReadbackMatches(plan, readback)).toBe(false);
+    expect(
+      baseIssueReadbackMatches(
+        plan,
+        readback,
+        "markdown with akb://reef-test/file/attachment",
+      ),
+    ).toBe(true);
+  });
+
   it("does not adopt an unowned exact-name planning entity after approval", () => {
     expect(
       canRecoverApprovedPlanningCreate(

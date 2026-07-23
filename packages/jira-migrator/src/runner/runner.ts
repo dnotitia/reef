@@ -42,6 +42,7 @@ import {
   type JiraMigrationPhase,
   confirmJiraMigrationBinding,
   getJiraPlanningLedgerBindings,
+  jiraAttachmentSourceIdentity,
   jiraIssueSourceIdentity,
   openJiraMigrationRun,
   removeJiraMigrationBindings,
@@ -62,6 +63,8 @@ import {
   type JiraRelatedImportReport,
   importJiraRelatedData,
 } from "../related/import.js";
+import { rewriteMedia } from "../related/media.js";
+import { reportTemplate } from "../related/reporting.js";
 import {
   type LoadedJiraMappingPolicy,
   loadJiraMappingPolicy,
@@ -383,9 +386,10 @@ const semanticRelatedReport = (report: JiraRelatedImportReport): unknown => ({
   failures: report.failures,
 });
 
-const baseIssueReadbackMatches = (
+export const baseIssueReadbackMatches = (
   plan: JiraIssueImportPlan,
   readback: Awaited<ReturnType<AkbJiraMigrationTarget["readIssue"]>> | null,
+  postRelatedContent?: string,
 ): boolean => {
   const desired = plan.desired.issue;
   if (!desired || !readback || desired.source !== "jira-migration")
@@ -454,7 +458,8 @@ const baseIssueReadbackMatches = (
       fingerprintJiraState(actualMigration.owner) &&
     fingerprintJiraState(desiredProjection) ===
       fingerprintJiraState(actualProjection) &&
-    readback.content === plan.desired.content
+    (readback.content === plan.desired.content ||
+      readback.content === postRelatedContent)
   );
 };
 
@@ -1548,6 +1553,39 @@ async function runJiraMigrationUnlocked(
       report: result.report,
     });
   }
+  const postRelatedContentByReefId = new Map<string, string>();
+  for (const issue of allIssues) {
+    const attachments = issue.attachments ?? [];
+    const bindings = attachments.flatMap((attachment) => {
+      const sourceKey = jiraAttachmentSourceIdentity(
+        config.jira.cloudId,
+        issue.id,
+        attachment.id,
+      ).key;
+      const binding = ledger.bindings.find(
+        (candidate) => candidate.source_key === sourceKey,
+      );
+      return binding?.target.target_kind === "attachment"
+        ? [{ source: attachment, fileUri: binding.target.file_uri }]
+        : [];
+    });
+    const rewritten = rewriteMedia(
+      issue.description,
+      bindings,
+      typeof issue.raw.renderedFields?.description === "string"
+        ? issue.raw.renderedFields.description
+        : "",
+      reportTemplate("dry-run"),
+      issue.id,
+      attachments,
+    );
+    if (rewritten.resolved && rewritten.changed) {
+      postRelatedContentByReefId.set(
+        targetIdsByJiraKey[issue.key] as string,
+        rewritten.markdown,
+      );
+    }
+  }
   for (const key of config.jira.projectKeys) {
     const archive = archivesByProject.get(key);
     const snapshot = relatedSourceSnapshots.get(key);
@@ -1842,7 +1880,11 @@ async function runJiraMigrationUnlocked(
         readbackSucceeded = readback !== null;
         const matches =
           action === "skip"
-            ? baseIssueReadbackMatches(plan, readback)
+            ? baseIssueReadbackMatches(
+                plan,
+                readback,
+                postRelatedContentByReefId.get(plan.desired.issue.id),
+              )
             : issueOwnerMatches(plan, readback);
         if (!matches) action = "conflict";
       }
@@ -2034,8 +2076,11 @@ async function runJiraMigrationUnlocked(
       if (
         !desired ||
         !readback ||
-        !baseIssueReadbackMatches(plan, readback) ||
-        readback.content !== plan.desired.content
+        !baseIssueReadbackMatches(
+          plan,
+          readback,
+          postRelatedContentByReefId.get(desired.id),
+        )
       ) {
         return { applied: null, readbackFound: readback !== null };
       }
@@ -2230,7 +2275,13 @@ async function runJiraMigrationUnlocked(
             continue;
           }
         }
-        if (!baseIssueReadbackMatches(plan, readback)) {
+        if (
+          !baseIssueReadbackMatches(
+            plan,
+            readback,
+            desired ? postRelatedContentByReefId.get(desired.id) : undefined,
+          )
+        ) {
           record(
             "issues",
             resultFor({
