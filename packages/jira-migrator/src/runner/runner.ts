@@ -1774,7 +1774,7 @@ async function runJiraMigrationUnlocked(
         ),
       ]),
     );
-    const recoverCreatedIssue = async (
+    const recoverAppliedIssue = async (
       plan: JiraIssueImportPlan,
     ): Promise<{
       applied: Awaited<ReturnType<AkbJiraMigrationTarget["applyIssue"]>> | null;
@@ -2011,10 +2011,7 @@ async function runJiraMigrationUnlocked(
       try {
         applied ??= await target.applyIssue(plan, action);
       } catch {
-        const recovered =
-          action === "create"
-            ? await recoverCreatedIssue(plan)
-            : { applied: null, readbackFound: false };
+        const recovered = await recoverAppliedIssue(plan);
         if (!recovered.applied) {
           record(
             "issues",
