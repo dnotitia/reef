@@ -1,7 +1,10 @@
 import { withVault } from "@/lib/workspaceHref";
 import {
+  IssueTypeEnum,
+  PriorityEnum,
   type SavedIssueView,
   type SavedIssueViewPayload,
+  SeverityEnum,
   StatusEnum,
   USER_SORT_FIELDS,
 } from "@reef/core";
@@ -88,9 +91,15 @@ export function readIssueUrlState(
     (value) => value === "blocked" || value === "blocking",
   );
   if (status.length) filter.status = status;
-  const issueType = addMany("type");
+  const issueType = addMany(
+    "type",
+    (value) => IssueTypeEnum.safeParse(value).success,
+  );
   if (issueType.length) filter.issueType = issueType;
-  const priority = addMany("priority");
+  const priority = addMany(
+    "priority",
+    (value) => PriorityEnum.safeParse(value).success,
+  );
   if (priority.length) filter.priority = priority;
   const assignee = addMany("assignee");
   if (assignee.length) filter.assignee = assignee;
@@ -102,7 +111,10 @@ export function readIssueUrlState(
   if (milestoneId) filter.milestone_id = milestoneId;
   const releaseId = addMany("release_id");
   if (releaseId.length) filter.release_id = releaseId;
-  const severity = addMany("severity");
+  const severity = addMany(
+    "severity",
+    (value) => SeverityEnum.safeParse(value).success,
+  );
   if (severity.length) filter.severity = severity;
   if (due.length) filter.due = due as NonNullable<IssueFilter["due"]>;
   const label = searchParams.get("labels")?.trim();

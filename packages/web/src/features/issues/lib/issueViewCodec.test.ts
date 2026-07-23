@@ -65,12 +65,17 @@ describe("issueViewCodec", () => {
       version: 1,
       query: {
         status: ["todo", "not-a-status", ""],
+        type: ["task", "not-a-type"],
+        priority: ["high", "not-a-priority"],
+        severity: ["critical", "not-a-severity"],
         due: ["overdue", "later"],
         order: ["desc"],
         unknown: ["value"],
       },
     } as unknown as SavedIssueViewPayload);
-    expect(params.toString()).toBe("due=overdue&status=todo");
+    expect(params.toString()).toBe(
+      "due=overdue&priority=high&severity=critical&status=todo&type=task",
+    );
   });
 
   it("backfills the natural direction for a valid orderless sort", () => {

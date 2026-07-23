@@ -47,5 +47,23 @@ describe("saved issue views", () => {
         query: { q: [""] },
       }).success,
     ).toBe(false);
+    expect(
+      SavedIssueViewPayloadSchema.safeParse({
+        version: 1,
+        query: { status: [] },
+      }).success,
+    ).toBe(false);
+    expect(
+      SavedIssueViewPayloadSchema.safeParse({
+        version: 1,
+        query: { view: ["list", "board"] },
+      }).success,
+    ).toBe(false);
+    expect(
+      SavedIssueViewPayloadSchema.safeParse({
+        version: 1,
+        query: { order: ["desc"] },
+      }).success,
+    ).toBe(false);
   });
 });

@@ -7,30 +7,53 @@ import {
 } from "./metadata";
 import { USER_SORT_FIELDS } from "./requests";
 
-const NonEmptyStringArraySchema = z.array(z.string().trim().min(1));
+const NonEmptyStringArraySchema = z.array(z.string().trim().min(1)).min(1);
+const SingularNonEmptyStringArraySchema = NonEmptyStringArraySchema.length(1);
 
 const SavedIssueViewWriteQuerySchema = z
   .object({
-    status: z.array(StatusEnum).optional(),
-    type: z.array(IssueTypeEnum).optional(),
-    priority: z.array(PriorityEnum).optional(),
+    status: z.array(StatusEnum).min(1).optional(),
+    type: z.array(IssueTypeEnum).min(1).optional(),
+    priority: z.array(PriorityEnum).min(1).optional(),
     assignee: NonEmptyStringArraySchema.optional(),
     requester: NonEmptyStringArraySchema.optional(),
     sprint_id: NonEmptyStringArraySchema.optional(),
-    milestone_id: NonEmptyStringArraySchema.optional(),
+    milestone_id: SingularNonEmptyStringArraySchema.optional(),
     release_id: NonEmptyStringArraySchema.optional(),
-    severity: z.array(SeverityEnum).optional(),
-    due: z.array(z.enum(["overdue", "due_soon"])).optional(),
-    labels: NonEmptyStringArraySchema.optional(),
-    dep: z.array(z.enum(["blocked", "blocking"])).optional(),
-    archived: z.array(z.enum(["1", "true"])).optional(),
-    stale: z.array(z.enum(["1", "true"])).optional(),
-    sort: z.array(z.enum(USER_SORT_FIELDS)).optional(),
-    order: z.array(z.enum(["asc", "desc"])).optional(),
-    q: NonEmptyStringArraySchema.optional(),
-    view: z.array(z.enum(["board", "list", "timeline", "backlog"])).optional(),
+    severity: z.array(SeverityEnum).min(1).optional(),
+    due: z
+      .array(z.enum(["overdue", "due_soon"]))
+      .min(1)
+      .optional(),
+    labels: SingularNonEmptyStringArraySchema.optional(),
+    dep: z
+      .array(z.enum(["blocked", "blocking"]))
+      .min(1)
+      .optional(),
+    archived: z
+      .array(z.enum(["1", "true"]))
+      .length(1)
+      .optional(),
+    stale: z
+      .array(z.enum(["1", "true"]))
+      .length(1)
+      .optional(),
+    sort: z.array(z.enum(USER_SORT_FIELDS)).length(1).optional(),
+    order: z
+      .array(z.enum(["asc", "desc"]))
+      .length(1)
+      .optional(),
+    q: SingularNonEmptyStringArraySchema.optional(),
+    view: z
+      .array(z.enum(["board", "list", "timeline", "backlog"]))
+      .length(1)
+      .optional(),
   })
-  .strict();
+  .strict()
+  .refine((query) => query.order === undefined || query.sort !== undefined, {
+    message: "Saved-view sort order requires a sort field",
+    path: ["order"],
+  });
 
 export const SavedIssueViewPayloadSchema = z.object({
   version: z.literal(1),
