@@ -374,6 +374,7 @@ const semanticIssuePlan = (
 };
 
 const semanticRelatedReport = (report: JiraRelatedImportReport): unknown => ({
+  deletions: report.deletions,
   comments: {
     total: report.comments.total,
     roots: report.comments.roots,
@@ -838,7 +839,7 @@ export const actionForRelatedReport = (
   ) {
     return "create";
   }
-  return report.comments.updated > 0 ? "update" : "skip";
+  return report.comments.updated + report.deletions > 0 ? "update" : "skip";
 };
 
 const mergePlanningActions = (

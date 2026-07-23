@@ -67,6 +67,9 @@ describe("runJiraMigration", () => {
     report.comments.created = 0;
     report.comments.updated = 1;
     expect(actionForRelatedReport(report)).toBe("update");
+    report.comments.updated = 0;
+    report.deletions = 1;
+    expect(actionForRelatedReport(report)).toBe("update");
     report.failures.push({
       source_kind: "comment",
       source_id: "1",

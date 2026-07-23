@@ -54,6 +54,27 @@ export async function importJiraRelatedData(
   input: JiraRelatedImportInput,
 ): Promise<JiraRelatedImportResult> {
   const report = reportTemplate(input.mode);
+  const countDeletion = async (
+    operation: () => Promise<void>,
+  ): Promise<void> => {
+    await operation();
+    report.deletions += 1;
+  };
+  const migration = {
+    ...input,
+    target: {
+      ...input.target,
+      deleteComment: (commentId: string) =>
+        countDeletion(() => input.target.deleteComment(commentId)),
+      revokeAttachment: (
+        attachment: Parameters<typeof input.target.revokeAttachment>[0],
+      ) => countDeletion(() => input.target.revokeAttachment(attachment)),
+      deleteRelation: (idempotencyKey: string) =>
+        countDeletion(() => input.target.deleteRelation(idempotencyKey)),
+      deleteExternalRef: (idempotencyKey: string) =>
+        countDeletion(() => input.target.deleteExternalRef(idempotencyKey)),
+    },
+  };
   const issue = normalizeJiraIssue(input.issue);
   let ledger = input.ledger;
   const [commentsRead, remoteRead] = await Promise.allSettled([
@@ -274,7 +295,7 @@ export async function importJiraRelatedData(
     ),
   );
   const attachmentResult = await importAttachments({
-    migration: input,
+    migration,
     issueId: issue.id,
     comments,
     unsafeCommentIds,
@@ -294,7 +315,7 @@ export async function importJiraRelatedData(
   }
 
   await updateDescriptionMedia({
-    migration: input,
+    migration,
     issueId: issue.id,
     descriptionAdf: issue.description,
     attachments,
@@ -303,7 +324,7 @@ export async function importJiraRelatedData(
   });
 
   ledger = await importComments({
-    migration: input,
+    migration,
     issueId: issue.id,
     comments,
     unsafeVisibilityCommentIds,
@@ -317,7 +338,7 @@ export async function importJiraRelatedData(
   });
 
   ledger = await importIssueLinks({
-    migration: input,
+    migration,
     issueId: issue.id,
     issueKey: issue.key,
     projectKey: issue.projectKey ?? issue.key.split("-", 1)[0] ?? issue.key,
@@ -329,7 +350,7 @@ export async function importJiraRelatedData(
   });
 
   await importRemoteLinks({
-    migration: input,
+    migration,
     issueId: issue.id,
     catalogReadSucceeded: remoteRead.status === "fulfilled",
     remoteLinks,

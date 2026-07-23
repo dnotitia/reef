@@ -30,6 +30,7 @@ export const reportTemplate = (
   mode: "dry-run" | "apply",
 ): JiraRelatedImportReport => ({
   mode,
+  deletions: 0,
   comments: {
     total: 0,
     roots: 0,

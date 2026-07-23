@@ -148,6 +148,7 @@ export interface JiraRelatedImportInput {
 
 export interface JiraRelatedImportReport {
   mode: "dry-run" | "apply";
+  deletions: number;
   comments: {
     total: number;
     roots: number;

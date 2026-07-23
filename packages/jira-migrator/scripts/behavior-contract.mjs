@@ -355,6 +355,23 @@ const server = createServer(async (request, response) => {
     return respond(response, { username: "contract-operator" });
   }
   if (
+    url.pathname === "/akb/api/v1/tables/reef-contract" &&
+    request.method === "GET"
+  ) {
+    return respond(response, {
+      items: [
+        "reef_issues",
+        "reef_sprints",
+        "reef_milestones",
+        "reef_releases",
+        "reef_comments",
+        "reef_attachments",
+        "reef_activity",
+      ].map((name) => ({ name })),
+      total: 7,
+    });
+  }
+  if (
     url.pathname === "/akb/api/v1/tables/reef-contract/sql" &&
     request.method === "POST"
   ) {
