@@ -109,6 +109,20 @@ export const legacyMappedFingerprintForChangelog = (
   plan: JiraChangelogPlan,
 ): string => fingerprintJiraState(plan.report);
 
+export const actionForChangelogPlan = (
+  plan: JiraChangelogPlan,
+  ledger: JiraMigrationLedgerV1,
+): "create" | "skip" | "conflict" => {
+  if (plan.report.totals.failed > 0) return "conflict";
+  const binding = ledger.bindings.find(
+    (candidate) => candidate.source_key === plan.sourceIdentity.key,
+  );
+  return binding?.source_fingerprint === plan.sourceFingerprint &&
+    binding.mapped_state_fingerprint === mappedFingerprintForChangelog(plan)
+    ? "skip"
+    : "create";
+};
+
 export const safeMigrationFailureReason = (
   error: unknown,
   fallback: string,

@@ -1,4 +1,3 @@
-import type { JiraMigratorConfig } from "../cli/config.js";
 import {
   finalizeJiraMigrationPhase,
   recordJiraMigrationResult,
@@ -6,7 +5,6 @@ import {
 import { fingerprintJiraState } from "../execution/diff.js";
 import type { JiraChangelogPlan } from "../issues/changelog.js";
 import type { JiraIssueImportPlan } from "../issues/importPlan.js";
-import type { JiraReadClient } from "../jira/client.js";
 import {
   type JiraMigrationAction,
   type JiraMigrationEntityResult,
@@ -30,8 +28,8 @@ import {
   semanticIssuePlan,
   sourceFingerprintForPlanning,
 } from "./approval.js";
-import type { JiraApprovalArtifacts } from "./approvalArtifacts.js";
 import {
+  actionForChangelogPlan,
   actionForIssuePlan,
   actionForPlanning,
   actionForRelatedReport,
@@ -42,34 +40,17 @@ import {
   resultFor,
   safeMigrationFailureReason,
 } from "./decisions.js";
+import { executeJiraDryRun } from "./dryRunExecution.js";
 import { JiraRunnerError } from "./errors.js";
+import type { JiraExecutionInput } from "./executionContext.js";
 import type { LoadedJiraMappingPolicy } from "./mappingPolicy.js";
-import type { buildJiraMigrationPlan } from "./plan.js";
 import type { JiraRunnerReport } from "./report.js";
-import type { archiveJiraMigrationSource } from "./sourceArchive.js";
-import type { discoverJiraMigrationSource } from "./sourceDiscovery.js";
 import {
   type AkbJiraMigrationTarget,
   JiraTargetConflictError,
 } from "./targetAdapter.js";
 
-export async function executeJiraMigrationPlan(input: {
-  config: JiraMigratorConfig;
-  target: AkbJiraMigrationTarget;
-  runAt: string;
-  now: () => string;
-  ledger: JiraMigrationLedgerV1;
-  clients: ReadonlyMap<string, JiraReadClient>;
-  policies: ReadonlyMap<string, LoadedJiraMappingPolicy>;
-  approval: JiraApprovalArtifacts;
-  discovery: Awaited<ReturnType<typeof discoverJiraMigrationSource>>;
-  archive: Awaited<ReturnType<typeof archiveJiraMigrationSource>>;
-  plan: Awaited<ReturnType<typeof buildJiraMigrationPlan>>;
-  assertNotAborted: () => void;
-  persistLedger: (ledger: JiraMigrationLedgerV1) => Promise<void>;
-  failAfterConfirmedEntities?: number;
-  signal?: AbortSignal;
-}) {
+export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
   const {
     config,
     target,
@@ -141,132 +122,28 @@ export async function executeJiraMigrationPlan(input: {
       retryable,
     });
   };
-  const changelogAction = (
-    plan: JiraChangelogPlan,
-  ): "create" | "skip" | "conflict" => {
-    if (plan.report.totals.failed > 0) return "conflict";
-    const binding = ledger.bindings.find(
-      (candidate) => candidate.source_key === plan.sourceIdentity.key,
-    );
-    return binding?.source_fingerprint === plan.sourceFingerprint &&
-      binding.mapped_state_fingerprint === mappedFingerprintForChangelog(plan)
-      ? "skip"
-      : "create";
+  const finalizePhase = (phase: JiraMigrationPhase): void => {
+    ledger = finalizeJiraMigrationPhase(ledger, {
+      runId: config.artifacts.runId,
+      phase,
+      at: runAt,
+    });
   };
 
   if (config.mode === "dry-run") {
-    for (const action of planningActions) {
-      assertNotAborted();
-      record(
-        "planning",
-        resultFor({
-          sourceKey: action.sourceIdentity.key,
-          entityKind: action.sourceIdentity.kind,
-          sourceFingerprint: sourceFingerprintForPlanning(action),
-          mappedFingerprint: mappedFingerprintForPlanning(action),
-          action: actionForPlanning(action.classification),
-          at: runAt,
-          readback: true,
-        }),
-      );
-    }
-    ledger = finalizeJiraMigrationPhase(ledger, {
-      runId: config.artifacts.runId,
-      phase: "planning",
-      at: runAt,
+    await executeJiraDryRun({
+      config,
+      target,
+      runAt,
+      plan,
+      discovery,
+      assertNotAborted,
+      getLedger: () => ledger,
+      record,
+      recordReportOnly,
+      finalizePhase,
+      persistLedger,
     });
-    for (const plan of dryIssuePlans) {
-      assertNotAborted();
-      const identity = jiraIssueSourceIdentity(
-        plan.source.jiraCloudId,
-        plan.source.projectId ?? plan.source.projectKey,
-        plan.source.issueId,
-      );
-      let action = actionForIssuePlan(plan, ledger);
-      let readbackSucceeded = false;
-      if (plan.desired.issue && (action === "skip" || action === "update")) {
-        const readback = await target
-          .readIssue(plan.desired.issue.id)
-          .catch(() => null);
-        readbackSucceeded = readback !== null;
-        const matches =
-          action === "skip"
-            ? baseIssueReadbackMatches(
-                plan,
-                readback,
-                postRelatedContentByReefId.get(plan.desired.issue.id),
-              )
-            : issueOwnerMatches(plan, readback);
-        if (!matches) action = "conflict";
-      }
-      record(
-        "issues",
-        resultFor({
-          sourceKey: identity.key,
-          entityKind: "issue",
-          sourceFingerprint: fingerprintJiraState(
-            allIssues.find((issue) => issue.id === plan.source.issueId)?.raw,
-          ),
-          mappedFingerprint: fingerprintJiraState(plan.desired),
-          action,
-          at: runAt,
-          readback: readbackSucceeded,
-        }),
-      );
-    }
-    ledger = finalizeJiraMigrationPhase(ledger, {
-      runId: config.artifacts.runId,
-      phase: "issues",
-      at: runAt,
-    });
-    for (const related of relatedPlanningReports) {
-      recordReportOnly(
-        "related",
-        `related:${related.issue_key}`,
-        actionForRelatedReport(related.report),
-      );
-    }
-    for (const binding of absentSourceRelationPlan) {
-      recordReportOnly(
-        "related",
-        `related:absent-source:${binding.source_key}`,
-        "conflict",
-      );
-    }
-    for (const plan of changelogPlans) {
-      recordReportOnly(
-        "changelog",
-        plan.sourceIdentity.key,
-        changelogAction(plan),
-      );
-    }
-    ledger = finalizeJiraMigrationPhase(ledger, {
-      runId: config.artifacts.runId,
-      phase: "related",
-      at: runAt,
-    });
-    for (const [index, deferred] of dryIssuePlans
-      .flatMap((plan) => plan.deferred.map((item) => ({ plan, item })))
-      .entries()) {
-      const relatedReport = finalRelatedReports.find(
-        (candidate) => candidate.issue_key === deferred.plan.source.issueKey,
-      )?.report;
-      recordReportOnly(
-        "reconciliation",
-        `reconciliation:${deferred.plan.source.issueKey}:${index}`,
-        reconciliationAction(
-          deferred.item,
-          relatedReport,
-          approvedPlanningResolutions,
-        ),
-      );
-    }
-    ledger = finalizeJiraMigrationPhase(ledger, {
-      runId: config.artifacts.runId,
-      phase: "reconciliation",
-      at: runAt,
-    });
-    await persistLedger(ledger);
   } else {
     let confirmed = 0;
     const checkpoint = async (): Promise<void> => {
@@ -932,7 +809,7 @@ export async function executeJiraMigrationPlan(input: {
         await checkpoint();
         continue;
       }
-      let action = changelogAction(plan);
+      let action = actionForChangelogPlan(plan, ledger);
       const existingBinding = ledger.bindings.find(
         (candidate) => candidate.source_key === plan.sourceIdentity.key,
       );
