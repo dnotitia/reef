@@ -343,6 +343,27 @@ export function createAkbJiraMigrationTarget(
     }
     return null;
   };
+  const readVerifiedRelation = async (idempotencyKey: string) => {
+    const found = await findRelation(idempotencyKey);
+    if (!found) return null;
+    const { issue, record } = found;
+    if (
+      issue.id !== record.sourceReefId ||
+      !(issue[record.relation] ?? []).includes(record.targetReefId)
+    ) {
+      return null;
+    }
+    const target = await readDocumentedIssue(record.targetReefId);
+    if (
+      !target ||
+      !(target.issue[record.inverseRelation] ?? []).includes(
+        record.sourceReefId,
+      )
+    ) {
+      return null;
+    }
+    return record;
+  };
   const related: JiraRelatedImportTarget = {
     async createComment(input: JiraImportedCommentInput): Promise<Comment> {
       const comment = await akbCreateComment(
@@ -648,12 +669,11 @@ export function createAkbJiraMigrationTarget(
       }
     },
     async hasRelation(idempotencyKey) {
-      return (await findRelation(idempotencyKey)) !== null;
+      return (await readVerifiedRelation(idempotencyKey)) !== null;
     },
     async readRelation(idempotencyKey) {
-      const found = await findRelation(idempotencyKey);
-      if (!found) return null;
-      const { record } = found;
+      const record = await readVerifiedRelation(idempotencyKey);
+      if (!record) return null;
       return {
         sourceReefId: record.sourceReefId,
         targetReefId: record.targetReefId,

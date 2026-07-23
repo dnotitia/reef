@@ -2272,10 +2272,8 @@ async function runJiraMigrationUnlocked(
           }
         } catch (changelogError) {
           if (
-            typeof changelogError !== "object" ||
-            changelogError === null ||
-            !("retryable" in changelogError) ||
-            changelogError.retryable !== true
+            changelogError instanceof JiraRunnerError ||
+            dependencies.signal?.aborted
           ) {
             throw changelogError;
           }
@@ -2283,7 +2281,7 @@ async function runJiraMigrationUnlocked(
             plan.sourceIdentity.key,
             safeMigrationFailureReason(
               changelogError,
-              "changelog_target_retryable_failure",
+              "changelog_target_failure",
             ),
           );
           failed = true;
@@ -2323,10 +2321,8 @@ async function runJiraMigrationUnlocked(
             }
           } catch (changelogError) {
             if (
-              typeof changelogError !== "object" ||
-              changelogError === null ||
-              !("retryable" in changelogError) ||
-              changelogError.retryable !== true
+              changelogError instanceof JiraRunnerError ||
+              dependencies.signal?.aborted
             ) {
               throw changelogError;
             }
@@ -2334,7 +2330,7 @@ async function runJiraMigrationUnlocked(
               plan.sourceIdentity.key,
               safeMigrationFailureReason(
                 changelogError,
-                "changelog_target_retryable_failure",
+                "changelog_target_failure",
               ),
             );
             failed = true;

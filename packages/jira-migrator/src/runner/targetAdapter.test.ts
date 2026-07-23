@@ -268,7 +268,12 @@ describe("AKB Jira migration target", () => {
     const target = createAkbJiraMigrationTarget(
       { baseUrl: "https://akb.test", jwt: "jwt", vault: "reef-test" },
       {
-        createAdapter: () => ({ request: vi.fn() }),
+        createAdapter: () => ({
+          request: vi.fn(async () => ({
+            kind: "table_query",
+            items: [...issues.keys()].map((reef_id) => ({ reef_id })),
+          })),
+        }),
         getCurrentActor: async () => ({ actor: "operator" }),
         listPlanningCatalog: vi.fn(),
         createRelease: vi.fn(),
@@ -307,5 +312,18 @@ describe("AKB Jira migration target", () => {
     ).toContainEqual(
       expect.objectContaining({ idempotencyKey: "relation:cloud-1:100" }),
     );
+    await expect(
+      target.relatedTarget().hasRelation("relation:cloud-1:100"),
+    ).resolves.toBe(true);
+
+    const driftedTarget = issues.get("REEF-002");
+    if (!driftedTarget) throw new Error("missing test target");
+    issues.set("REEF-002", {
+      ...driftedTarget,
+      issue: { ...driftedTarget.issue, depends_on: [] },
+    });
+    await expect(
+      target.relatedTarget().readRelation("relation:cloud-1:100"),
+    ).resolves.toBeNull();
   });
 });
