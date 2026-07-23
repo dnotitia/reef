@@ -1,15 +1,7 @@
 import { createHash } from "node:crypto";
-import {
-  chmod,
-  lstat,
-  mkdir,
-  readFile,
-  realpath,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir, userInfo } from "node:os";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, join } from "node:path";
 import {
   loadJiraAccountMappingArtifact,
   writeJiraAccountMappingArtifact,
@@ -19,7 +11,6 @@ import {
   collectJiraUserObservations,
   upsertJiraAccountMappingArtifact,
 } from "../accounts/mapping.js";
-import { canonicalizeJson } from "../archive/canonicalJson.js";
 import {
   type JiraMigratorConfig,
   secretValuesForConfig,
@@ -76,13 +67,21 @@ import {
 import { rewriteMedia } from "../related/media.js";
 import { reportTemplate } from "../related/reporting.js";
 import {
+  ensurePrivateDirectory,
+  fileExists,
+  jiraEndpointFingerprint,
+  privateSpoolSegment,
+  requireArtifactPaths,
+  targetEndpointFingerprint,
+} from "./artifacts.js";
+import { JiraRunnerError } from "./errors.js";
+import {
   type LoadedJiraMappingPolicy,
   loadJiraMappingPolicy,
 } from "./mappingPolicy.js";
 import { jiraOwnerIdentity } from "./ownership.js";
 import {
   acquireMigrationRunLock,
-  assertNoSymlinkPathComponents,
   readPrivatePlanArtifact,
   writePrivatePlanArtifact,
 } from "./privateArtifact.js";
@@ -99,6 +98,11 @@ import {
   readAllProjectIssues,
   readBoardSprints,
 } from "./source.js";
+import {
+  type RelatedSourceSnapshot,
+  getRelatedBinarySpools,
+  snapshotJiraClient,
+} from "./sourceSnapshot.js";
 import {
   type AkbJiraMigrationTarget,
   JiraTargetConflictError,
@@ -121,21 +125,7 @@ export interface JiraRunnerResult {
   ledger: JiraMigrationLedgerV1;
 }
 
-export class JiraRunnerError extends Error {
-  constructor(
-    readonly code:
-      | "artifact_paths_required"
-      | "mapping_policy_required"
-      | "dry_run_approval_required"
-      | "dry_run_scope_mismatch"
-      | "plan_fingerprint_mismatch"
-      | "interrupted"
-      | "failpoint",
-  ) {
-    super(code);
-    this.name = "JiraRunnerError";
-  }
-}
+export { JiraRunnerError } from "./errors.js";
 
 type JiraMigrationBinding = JiraMigrationLedgerV1["bindings"][number];
 
@@ -180,51 +170,6 @@ export const inferRelationSourceProjectKey = (input: {
     : undefined;
 };
 
-const requireArtifactPaths = (config: JiraMigratorConfig) => {
-  const { ledgerPath, archiveRoot, accountMappingPath, reportPath } =
-    config.artifacts;
-  if (!ledgerPath || !archiveRoot || !accountMappingPath || !reportPath) {
-    throw new JiraRunnerError("artifact_paths_required");
-  }
-  const resolved = {
-    ledgerPath: resolve(ledgerPath),
-    archiveRoot: resolve(archiveRoot),
-    accountMappingPath: resolve(accountMappingPath),
-    reportPath: resolve(reportPath),
-  };
-  const files = [
-    resolved.ledgerPath,
-    resolved.accountMappingPath,
-    resolved.reportPath,
-    `${resolved.reportPath}.plan.json`,
-    `${resolved.reportPath}.approval.json`,
-  ];
-  const lockPath = `${resolved.ledgerPath}.run.lock`;
-  if (new Set([...files, lockPath]).size !== files.length + 1) {
-    throw new JiraRunnerError("artifact_paths_required");
-  }
-  const containsPath = (parent: string, candidate: string): boolean => {
-    const pathFromParent = relative(parent, candidate);
-    return (
-      pathFromParent === "" ||
-      (pathFromParent !== ".." &&
-        !pathFromParent.startsWith(`..${sep}`) &&
-        !isAbsolute(pathFromParent))
-    );
-  };
-  if (
-    files.some((file) => containsPath(resolved.archiveRoot, file)) ||
-    [...files, resolved.archiveRoot].some(
-      (artifactPath) =>
-        containsPath(lockPath, artifactPath) ||
-        containsPath(artifactPath, lockPath),
-    )
-  ) {
-    throw new JiraRunnerError("artifact_paths_required");
-  }
-  return resolved;
-};
-
 const reconciliationAction = (
   item: JiraIssueDeferredItem,
   relatedReport: JiraRelatedImportReport | undefined,
@@ -261,25 +206,6 @@ const reconciliationAction = (
 
 const projectId = (issue: NormalizedJiraIssue): string =>
   String(issue.raw.fields.project?.id ?? issue.projectKey ?? "unknown");
-
-const privateSpoolSegment = (value: string): string =>
-  createHash("sha256").update(value).digest("hex");
-
-const targetEndpointFingerprint = (baseUrl: string): string => {
-  const normalized = new URL(baseUrl).toString().replace(/\/$/u, "");
-  return createHash("sha256")
-    .update("reef:jira-migrator:akb-endpoint:v1\0")
-    .update(normalized)
-    .digest("hex");
-};
-
-const jiraEndpointFingerprint = (baseUrl: string): string => {
-  const normalized = new URL(baseUrl).toString().replace(/\/$/u, "");
-  return createHash("sha256")
-    .update("reef:jira-migrator:jira-endpoint:v1\0")
-    .update(normalized)
-    .digest("hex");
-};
 
 const safePlanningAction = (action: JiraPlanningAction) => ({
   classification: action.classification,
@@ -545,171 +471,6 @@ const issueOwnerMatches = (
   );
 };
 
-interface RelatedSourceSnapshot {
-  comments: Record<string, unknown>;
-  remote_links: Record<string, unknown>;
-  attachments: Record<
-    string,
-    {
-      sha256: string;
-      content_type: string | null;
-      content_length: number | null;
-    }
-  >;
-}
-
-interface RelatedBinarySpool {
-  path: string;
-  contentType: string | null;
-  contentLength: number | null;
-  rateLimit: Awaited<
-    ReturnType<JiraReadClient["downloadAttachmentContent"]>
-  >["rateLimit"];
-}
-
-const relatedBinarySpools = new WeakMap<
-  RelatedSourceSnapshot,
-  Map<string, RelatedBinarySpool>
->();
-
-const snapshotJiraClient = (
-  client: JiraReadClient,
-  snapshot: RelatedSourceSnapshot,
-  spoolRoot: string,
-  retry: Parameters<typeof retryOperation>[1],
-): JiraReadClient => {
-  const binaries = new Map<string, RelatedBinarySpool>();
-  const comments = new Map<
-    string,
-    Awaited<ReturnType<JiraReadClient["readComments"]>>
-  >();
-  const remoteLinks = new Map<
-    string,
-    Awaited<ReturnType<JiraReadClient["listRemoteLinks"]>>
-  >();
-  relatedBinarySpools.set(snapshot, binaries);
-  return new Proxy(client, {
-    get(target, property) {
-      if (property === "readComments") {
-        return async (
-          issueKey: string,
-          options?: Parameters<JiraReadClient["readComments"]>[1],
-        ) => {
-          const cacheKey = canonicalizeJson({
-            issue_key: issueKey,
-            options: options ?? {},
-          });
-          const cached = comments.get(cacheKey);
-          if (cached) return cached;
-          const result = await retryOperation(
-            () => target.readComments(issueKey, options),
-            { ...retry, operationKind: "read" },
-          );
-          const previous =
-            (snapshot.comments[issueKey] as
-              | { items?: unknown[]; pages?: unknown[] }
-              | undefined) ?? {};
-          const rawFallback =
-            "raw" in result && result.raw !== undefined ? [result.raw] : [];
-          snapshot.comments[issueKey] = {
-            items: [...(previous.items ?? []), ...result.items],
-            pages: [
-              ...(previous.pages ?? []),
-              ...(result.pages ?? rawFallback),
-            ],
-          };
-          comments.set(cacheKey, result);
-          return result;
-        };
-      }
-      if (property === "listRemoteLinks") {
-        return async (issueKey: string) => {
-          const cached = remoteLinks.get(issueKey);
-          if (cached) return cached;
-          const result = await retryOperation(
-            () => target.listRemoteLinks(issueKey),
-            { ...retry, operationKind: "read" },
-          );
-          snapshot.remote_links[issueKey] = {
-            items: result.items,
-            raw: result.raw,
-          };
-          remoteLinks.set(issueKey, result);
-          return result;
-        };
-      }
-      if (property === "downloadAttachmentContent") {
-        return async (attachmentId: string | number, maxBytes: number) => {
-          const cacheKey = String(attachmentId);
-          const cached = binaries.get(cacheKey);
-          if (cached) {
-            return {
-              bytes: new Uint8Array(await readFile(cached.path)),
-              contentType: cached.contentType,
-              contentLength: cached.contentLength,
-              rateLimit: cached.rateLimit,
-            };
-          }
-          const result = await retryOperation(
-            () => target.downloadAttachmentContent(attachmentId, maxBytes),
-            { ...retry, operationKind: "read" },
-          );
-          const digest = createHash("sha256")
-            .update(result.bytes)
-            .digest("hex");
-          const observed = {
-            sha256: digest,
-            content_type: result.contentType,
-            content_length: result.contentLength,
-          };
-          const current = snapshot.attachments[cacheKey];
-          if (
-            current &&
-            fingerprintJiraState(current) !== fingerprintJiraState(observed)
-          ) {
-            throw new JiraRunnerError("plan_fingerprint_mismatch");
-          }
-          snapshot.attachments[cacheKey] = observed;
-          await ensurePrivateDirectory(spoolRoot);
-          const spoolPath = join(
-            spoolRoot,
-            `${createHash("sha256").update(cacheKey).digest("hex")}.bin`,
-          );
-          try {
-            await writeFile(spoolPath, result.bytes, {
-              flag: "wx",
-              mode: 0o600,
-            });
-          } catch (error) {
-            if (
-              !(error instanceof Error) ||
-              !("code" in error) ||
-              error.code !== "EEXIST"
-            ) {
-              throw error;
-            }
-            const existing = await readFile(spoolPath);
-            if (
-              createHash("sha256").update(existing).digest("hex") !== digest
-            ) {
-              throw new JiraRunnerError("plan_fingerprint_mismatch");
-            }
-          }
-          binaries.set(cacheKey, {
-            path: spoolPath,
-            contentType: result.contentType,
-            contentLength: result.contentLength,
-            rateLimit: result.rateLimit,
-          });
-          return result;
-        };
-      }
-      const value = Reflect.get(target, property, target);
-      return typeof value === "function" ? value.bind(target) : value;
-    },
-  });
-};
-
 const sourceFingerprintForPlanning = (action: JiraPlanningAction): string =>
   fingerprintJiraState(action.provenance.source);
 
@@ -887,41 +648,6 @@ const mergePlanningActions = (
     .sort((left, right) =>
       left.sourceIdentity.key.localeCompare(right.sourceIdentity.key),
     );
-};
-
-const fileExists = async (path: string): Promise<boolean> => {
-  try {
-    await lstat(path);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-const ensurePrivateDirectory = async (path: string): Promise<void> => {
-  if (process.platform === "win32") {
-    throw new Error("artifact_acl_verification_unsupported");
-  }
-  await assertNoSymlinkPathComponents(path);
-  try {
-    const stat = await lstat(path);
-    if (
-      stat.isSymbolicLink() ||
-      !stat.isDirectory() ||
-      (stat.mode & 0o777) !== 0o700
-    ) {
-      throw new Error("artifact_directory_permission_violation");
-    }
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message === "artifact_directory_permission_violation"
-    ) {
-      throw error;
-    }
-    await mkdir(path, { recursive: true, mode: 0o700 });
-    await chmod(path, 0o700);
-  }
 };
 
 const reportMatchesConfig = (
@@ -1779,8 +1505,7 @@ async function runJiraMigrationUnlocked(
         ]),
       ),
     );
-    for (const [attachmentId, response] of relatedBinarySpools.get(snapshot) ??
-      []) {
+    for (const [attachmentId, response] of getRelatedBinarySpools(snapshot)) {
       const bytes = await readFile(response.path);
       await archive.archive({
         entityKind: "attachment_content",
