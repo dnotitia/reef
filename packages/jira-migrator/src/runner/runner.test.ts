@@ -190,6 +190,11 @@ describe("runJiraMigration", () => {
             pages: [],
             rateLimits: [],
           })),
+          getProject: vi.fn(async () => ({
+            project: { id: issue.raw.fields.project?.id ?? key, key },
+            rateLimit: {},
+            raw: { id: issue.raw.fields.project?.id ?? key, key },
+          })),
           listChangelog: vi.fn(async () => ({
             items: [],
             cursor: null,

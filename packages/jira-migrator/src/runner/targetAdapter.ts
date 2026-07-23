@@ -5,6 +5,7 @@ import {
   type AkbUpdateIssueResult,
   type AkbWriteIssueResult,
   type Comment,
+  ConflictError,
   type ExternalRef,
   type IssueAttachment,
   type IssueMetadata,
@@ -133,6 +134,15 @@ export interface JiraIssueApplyReadback {
   reefId: string;
   documentUri: string;
   commitHash: string;
+}
+
+export class JiraTargetConflictError extends Error {
+  readonly code = "target_issue_id_conflict";
+
+  constructor() {
+    super("target_issue_id_conflict");
+    this.name = "JiraTargetConflictError";
+  }
 }
 
 export interface JiraIssueTargetOwner {
@@ -1172,7 +1182,7 @@ export function createAkbJiraMigrationTarget(
               canonicalizeJson(issueProjection(desired, desiredKeys)) ||
             current.content !== plan.desired.content
           ) {
-            throw new Error("target_issue_id_conflict");
+            throw new JiraTargetConflictError();
           }
           return {
             reefId: desired.id,
@@ -1263,7 +1273,12 @@ export function createAkbJiraMigrationTarget(
       ) {
         throw new Error("jira_issue_plan_not_claimable");
       }
-      await core.claimIssueId({ adapter, vault, issue: desired });
+      try {
+        await core.claimIssueId({ adapter, vault, issue: desired });
+      } catch (error) {
+        if (error instanceof ConflictError) throw new JiraTargetConflictError();
+        throw error;
+      }
     },
     relatedTarget() {
       return related;

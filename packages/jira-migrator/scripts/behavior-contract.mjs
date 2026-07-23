@@ -103,6 +103,13 @@ const server = createServer(async (request, response) => {
   if (url.pathname.startsWith("/jira/")) {
     state.jiraRequests.push({ method: request.method, path: url.pathname });
     if (url.pathname === "/jira/rest/api/3/field") return respond(response, []);
+    const projectMatch = /^\/jira\/rest\/api\/3\/project\/([^/]+)$/u.exec(
+      url.pathname,
+    );
+    if (projectMatch) {
+      const key = decodeURIComponent(projectMatch[1] ?? "");
+      return respond(response, { id: key === "ALPHA" ? "100" : "200", key });
+    }
     if (url.pathname.includes("/version"))
       return respond(response, {
         startAt: 0,

@@ -86,6 +86,7 @@ import {
 } from "./source.js";
 import {
   type AkbJiraMigrationTarget,
+  JiraTargetConflictError,
   createAkbJiraMigrationTarget,
 } from "./targetAdapter.js";
 
@@ -1010,19 +1011,28 @@ async function runJiraMigrationUnlocked(
     retry,
   );
   const versionsByProject = new Map();
+  const projectDetailsByProject = new Map<
+    string,
+    Awaited<ReturnType<JiraReadClient["getProject"]>>
+  >();
   const issuesByProject = new Map<string, NormalizedJiraIssue[]>();
   const versionPagesByProject = new Map<string, unknown[]>();
   const issuePagesByProject = new Map<string, unknown[]>();
   for (const key of config.jira.projectKeys) {
     const client = clients.get(key);
     if (!client) throw new Error("jira_client_missing");
-    const [versions, issues] = await Promise.all([
+    const [project, versions, issues] = await Promise.all([
+      retryOperation(() => client.getProject(key), {
+        ...retry,
+        operationKind: "read",
+      }),
       retryOperation(
         () => client.readProjectVersionCatalog({ projectIdOrKey: key }),
         { ...retry, operationKind: "read" },
       ),
       readAllProjectIssues(client, key, retry),
     ]);
+    projectDetailsByProject.set(key, project);
     versionsByProject.set(key, versions.items);
     versionPagesByProject.set(key, versions.pages);
     issuesByProject.set(key, issues.items);
@@ -1032,6 +1042,9 @@ async function runJiraMigrationUnlocked(
     .flat()
     .sort((left, right) => left.key.localeCompare(right.key));
   const projectKeyById = new Map<string, string>();
+  for (const [projectKey, detail] of projectDetailsByProject) {
+    projectKeyById.set(detail.project.id, projectKey);
+  }
   for (const [projectKey, issues] of issuesByProject) {
     for (const issue of issues) {
       projectKeyById.set(projectId(issue), projectKey);
@@ -1619,6 +1632,9 @@ async function runJiraMigrationUnlocked(
     source: {
       jira_cloud_id: config.jira.cloudId,
       project_keys: config.jira.projectKeys,
+      projects: Object.fromEntries(
+        [...projectDetailsByProject].map(([key, detail]) => [key, detail.raw]),
+      ),
       board_ids: config.jira.boardIds,
       fields: fieldResult.raw,
       board_pages: Object.fromEntries(
@@ -1957,6 +1973,7 @@ async function runJiraMigrationUnlocked(
       };
     };
     const failedIssueClaimIds = new Set<string>();
+    const conflictedIssueClaimIds = new Set<string>();
     for (const plan of applyIssuePlans) {
       assertNotAborted();
       if (
@@ -1969,9 +1986,15 @@ async function runJiraMigrationUnlocked(
       }
       try {
         await target.claimIssue(plan);
-      } catch {
+      } catch (error) {
         const reefId = plan.desired.issue?.id;
-        if (reefId) failedIssueClaimIds.add(reefId);
+        if (reefId) {
+          if (error instanceof JiraTargetConflictError) {
+            conflictedIssueClaimIds.add(reefId);
+          } else {
+            failedIssueClaimIds.add(reefId);
+          }
+        }
       }
     }
     const issueReferences = (plan: JiraIssueImportPlan): string[] => {
@@ -2055,6 +2078,29 @@ async function runJiraMigrationUnlocked(
           )) ||
         (action === "update" &&
           issueReferences(plan).some((id) => failedIssueClaimIds.has(id)));
+      const claimConflicted =
+        action === "create" &&
+        Boolean(
+          plan.desired.issue &&
+            conflictedIssueClaimIds.has(plan.desired.issue.id),
+        );
+      if (claimConflicted) {
+        record(
+          "issues",
+          resultFor({
+            sourceKey: identity.key,
+            entityKind: "issue",
+            sourceFingerprint,
+            mappedFingerprint,
+            action: "conflict",
+            at: now(),
+            readback: true,
+            retryable: false,
+          }),
+        );
+        await checkpoint();
+        continue;
+      }
       if (claimBlocked) {
         record(
           "issues",
@@ -2138,9 +2184,10 @@ async function runJiraMigrationUnlocked(
         | undefined;
       try {
         applied ??= await target.applyIssue(plan, action);
-      } catch {
+      } catch (error) {
         const recovered = await recoverAppliedIssue(plan);
         if (!recovered.applied) {
+          const conflict = error instanceof JiraTargetConflictError;
           record(
             "issues",
             resultFor({
@@ -2148,11 +2195,15 @@ async function runJiraMigrationUnlocked(
               entityKind: "issue",
               sourceFingerprint,
               mappedFingerprint,
-              action: "failed",
+              action: conflict ? "conflict" : "failed",
               at: now(),
               readback: recovered.readbackFound,
-              retryable: true,
-              reconciliationState: "pending_target_migration",
+              retryable: !conflict,
+              ...(conflict
+                ? {}
+                : {
+                    reconciliationState: "pending_target_migration" as const,
+                  }),
             }),
           );
           await checkpoint();

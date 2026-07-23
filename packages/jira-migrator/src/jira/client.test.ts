@@ -35,6 +35,21 @@ const makeClient = (fetchImpl: typeof fetch) =>
   });
 
 describe("JiraReadClient", () => {
+  it("reads configured project identity with GET", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(jsonResponse({ id: 100, key: "ALPHA" }));
+    const client = makeClient(fetchImpl);
+
+    await expect(client.getProject()).resolves.toMatchObject({
+      project: { id: "100", key: "ALPHA" },
+    });
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain(
+      "/rest/api/3/project/ALPHA",
+    );
+    expect(fetchImpl.mock.calls[0]?.[1]?.method).toBe("GET");
+  });
+
   it("searches project issues read-only through enhanced JQL pagination", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
       jsonResponse(jiraSearchFixture, {
