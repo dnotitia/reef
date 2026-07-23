@@ -22,6 +22,7 @@ export async function importIssueLinks(options: {
   migration: JiraRelatedImportInput;
   issueId: string;
   issueKey: string;
+  projectKey: string;
   linkCatalogPresent: boolean;
   links: readonly NormalizedJiraIssueLink[];
   ledger: JiraMigrationLedgerV1;
@@ -32,6 +33,7 @@ export async function importIssueLinks(options: {
     migration,
     issueId,
     issueKey,
+    projectKey,
     linkCatalogPresent,
     links,
     report,
@@ -275,6 +277,7 @@ export async function importIssueLinks(options: {
         linkType,
         link.direction,
         linkId,
+        projectKey,
       );
       const legacyKey = legacyJiraRelationSourceKey(
         migration.jiraCloudId,

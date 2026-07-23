@@ -72,6 +72,7 @@ export const JiraMigrationSourceIdentitySchema = z.discriminatedUnion(
       .object({
         ...sourceIdentityBase,
         entity_kind: z.literal("relation"),
+        source_project_key: z.string().min(1).optional(),
         source_issue_id: z.string().min(1),
         target_issue_id: z.string().min(1),
         link_type: z.string().min(1),
@@ -197,9 +198,11 @@ export const jiraRelationSourceIdentity = (
   linkType: string,
   direction: string,
   linkId: string,
+  sourceProjectKey?: string,
 ) => ({
   entity_kind: "relation" as const,
   jira_cloud_id: jiraCloudId,
+  ...(sourceProjectKey ? { source_project_key: sourceProjectKey } : {}),
   source_issue_id: sourceIssueId,
   target_issue_id: targetIssueId,
   link_type: linkType,

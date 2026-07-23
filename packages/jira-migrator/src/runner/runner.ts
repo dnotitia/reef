@@ -975,6 +975,10 @@ async function runJiraMigrationUnlocked(
     (binding) =>
       binding.source_identity.entity_kind === "relation" &&
       binding.source_identity.jira_cloud_id === config.jira.cloudId &&
+      binding.source_identity.source_project_key !== undefined &&
+      config.jira.projectKeys.includes(
+        binding.source_identity.source_project_key,
+      ) &&
       !currentIssueSourceIds.has(binding.source_identity.source_issue_id),
   );
   const approvedPayload =

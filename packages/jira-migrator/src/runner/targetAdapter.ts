@@ -1155,6 +1155,18 @@ export function createAkbJiraMigrationTarget(
             sidecarFor(current.issue),
           ),
         };
+        const expectedKeys = issueProjectionKeys(expectedIssue);
+        if (
+          canonicalizeJson(issueProjection(current.issue, expectedKeys)) ===
+            canonicalizeJson(issueProjection(expectedIssue, expectedKeys)) &&
+          current.content === plan.desired.content
+        ) {
+          return {
+            reefId: desired.id,
+            documentUri: akbIssueDocumentUri(vault, desired.id),
+            commitHash: current.commit_hash ?? "",
+          };
+        }
         const result = await core.updateIssue({
           adapter,
           vault,

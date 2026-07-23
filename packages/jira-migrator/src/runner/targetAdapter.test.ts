@@ -61,27 +61,38 @@ describe("AKB Jira migration target", () => {
             : {}),
         }) as Release,
     );
+    const baseIssueReadback = {
+      issue: {
+        id: "REEF-010",
+        title: "Alpha issue",
+        status: "todo",
+        created_at: "2026-07-23T00:00:00.000Z",
+        created_by: "operator",
+        updated_at: "2026-07-23T00:00:00.000Z",
+        updated_by: "operator",
+      },
+      content: "body",
+      path: "issues/reef-010.md",
+      commit_hash: "commit-1",
+    } as unknown as AkbReadIssueResult;
     const readIssue = vi
       .fn()
       .mockRejectedValueOnce(new NotFoundError({ resource: "REEF-010" }))
+      .mockResolvedValueOnce(baseIssueReadback)
       .mockResolvedValue({
+        ...baseIssueReadback,
         issue: {
-          id: "REEF-010",
-          title: "Alpha issue",
-          status: "todo",
-          created_at: "2026-07-23T00:00:00.000Z",
-          created_by: "operator",
-          updated_at: "2026-07-23T00:00:00.000Z",
-          updated_by: "operator",
+          ...baseIssueReadback.issue,
+          custom_fields: {
+            jira_migration: { relations: [], external_refs: [] },
+          },
         },
-        content: "body",
-        path: "issues/reef-010.md",
-        commit_hash: "commit-1",
       } as unknown as AkbReadIssueResult);
     const writeIssue = vi.fn(async () => ({
       path: "issues/reef-010.md",
       commit_hash: "commit-1",
     }));
+    const updateIssue = vi.fn();
     const claimIssueId = vi.fn();
     const listPlanningCatalog = vi
       .fn()
@@ -137,7 +148,7 @@ describe("AKB Jira migration target", () => {
         createSprint: vi.fn(),
         allocateNextIssueId: async () => "REEF-010",
         writeIssue,
-        updateIssue: vi.fn(),
+        updateIssue,
         readIssue,
         claimIssueId,
       },
@@ -200,6 +211,13 @@ describe("AKB Jira migration target", () => {
     expect(applied.documentUri).toBe(
       "akb://reef-test/coll/issues/doc/reef-010.md",
     );
+    await expect(target.applyIssue(issuePlan, "update")).resolves.toMatchObject(
+      {
+        reefId: "REEF-010",
+        commitHash: "commit-1",
+      },
+    );
+    expect(updateIssue).not.toHaveBeenCalled();
   });
 
   it("does not write blocked issue plans", async () => {

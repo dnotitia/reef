@@ -269,6 +269,7 @@ export async function importJiraRelatedData(
     migration: input,
     issueId: issue.id,
     issueKey: issue.key,
+    projectKey: issue.projectKey ?? issue.key.split("-", 1)[0] ?? issue.key,
     linkCatalogPresent: input.issue.fields.issuelinks !== undefined,
     links,
     ledger,
