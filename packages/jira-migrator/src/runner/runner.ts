@@ -107,6 +107,7 @@ import {
   type LoadedJiraMappingPolicy,
   loadJiraMappingPolicy,
 } from "./mappingPolicy.js";
+import { buildJiraMigrationPlan } from "./plan.js";
 import {
   acquireMigrationRunLock,
   writePrivatePlanArtifact,
@@ -216,17 +217,18 @@ async function runJiraMigrationUnlocked(
     policies.set(key, await loadJiraMappingPolicy(path));
   }
 
-  const {
-    approvedReport,
-    approvedPlanArtifact,
-    approvedPayload,
-    approvedRelatedSnapshots,
-  } = await loadJiraApprovalArtifacts({
+  const approval = await loadJiraApprovalArtifacts({
     config,
     paths,
     sourceEndpointFingerprint,
     targetEndpointFingerprint: endpointFingerprint,
   });
+  const {
+    approvedReport,
+    approvedPlanArtifact,
+    approvedPayload,
+    approvedRelatedSnapshots,
+  } = approval;
   const retry = {
     maxRetries: config.control.retryCount,
     baseDelayMs: config.control.retryBaseDelayMs,
@@ -332,475 +334,50 @@ async function runJiraMigrationUnlocked(
     accountMapping,
     accountReport,
   } = discovery;
-  const {
-    archiveReferences,
-    changelogArchiveReferences,
-    archiveSummaries,
-    archivesByProject,
-  } = await archiveJiraMigrationSource({
+  const archive = await archiveJiraMigrationSource({
     config,
     archiveRoot: paths.archiveRoot,
     runAt,
     targetActor: targetPreflight.actor,
     discovery,
   });
-  const planningActions = mergePlanningActions(
-    config.jira.projectKeys.flatMap((key, index) => {
-      const issueSprints = (issuesByProject.get(key) ?? []).flatMap((issue) =>
-        normalizeIssueSprintReferences(issue.raw, fieldCatalog.fields),
-      );
-      return buildJiraPlanningMigrationPlan({
-        jiraCloudId: config.jira.cloudId,
-        projectKey: key,
-        versions: versionsByProject.get(key) ?? [],
-        issueSprints,
-        configuredBoards:
-          index === 0
-            ? boardCatalogs.map(({ boardId, catalog }) => ({
-                boardId,
-                sprints: catalog.items,
-              }))
-            : [],
-        existingReleases: targetPreflight.planning.releases,
-        existingSprints: targetPreflight.planning.sprints,
-        ledgerBindings: getJiraPlanningLedgerBindings(ledger),
-      }).actions;
-    }),
-  );
-  const existingPlanningResolutions: JiraPlanningTargetResolution[] =
-    planningActions.flatMap((action) =>
-      action.classification === "reuse" && action.targetId
-        ? [
-            {
-              sourceIdentity: action.sourceIdentity,
-              targetKind:
-                action.sourceIdentity.kind === "version"
-                  ? ("release" as const)
-                  : ("sprint" as const),
-              targetId: action.targetId,
-            },
-          ]
-        : [],
-    );
-  const approvedPlanningResolutions =
-    planningResolutionsForApproval(planningActions);
-  const buildIssuePlans = (
-    resolutions: readonly JiraPlanningTargetResolution[],
-  ): JiraIssueImportPlan[] => {
-    const mappings = buildJiraPlanningTargetMappings(resolutions);
-    return allIssues.map((issue) => {
-      const key = issue.projectKey ?? issue.key.split("-")[0] ?? "unknown";
-      const policy = policies.get(key);
-      if (!policy) throw new JiraRunnerError("mapping_policy_required");
-      return buildJiraIssueImportPlan({
-        issue: issue.raw as JiraIssuePayload,
-        targetReefId: targetIdsByJiraKey[issue.key] as string,
-        jiraCloudId: config.jira.cloudId,
-        targetVault: config.target.vault,
-        runAt,
-        migrationActor: targetPreflight.actor,
-        fieldCatalog,
-        policy,
-        accountMapping: { artifact: accountMapping },
-        planningMappings: mappings,
-        targetIdsByJiraKey,
-        rawArchiveReferences: archiveReferences.get(issue.key) ?? {},
-      });
-    });
-  };
-  const dryIssuePlans = buildIssuePlans(approvedPlanningResolutions);
-  const approvedTargetIssuePreconditions =
-    approvedPayload?.target_issue_preconditions &&
-    typeof approvedPayload.target_issue_preconditions === "object" &&
-    !Array.isArray(approvedPayload.target_issue_preconditions)
-      ? (approvedPayload.target_issue_preconditions as Record<string, unknown>)
-      : null;
-  const targetIssuePreconditions: Record<string, string | null> =
-    approvedTargetIssuePreconditions
-      ? Object.fromEntries(
-          dryIssuePlans.map((plan) => {
-            const value =
-              approvedTargetIssuePreconditions[plan.source.issueKey];
-            if (value !== null && typeof value !== "string") {
-              throw new JiraRunnerError("plan_fingerprint_mismatch");
-            }
-            return [plan.source.issueKey, value ?? null];
-          }),
-        )
-      : Object.fromEntries(
-          await Promise.all(
-            dryIssuePlans.map(async (plan) => {
-              if (actionForIssuePlan(plan, ledger) === "create") {
-                return [plan.source.issueKey, null] as const;
-              }
-              const id = plan.desired.issue?.id;
-              const readback = id
-                ? await target.readIssue(id).catch(() => null)
-                : null;
-              return [
-                plan.source.issueKey,
-                issueReadbackApprovalFingerprint(plan, readback),
-              ] as const;
-            }),
-          ),
-        );
-  const issueBindings = Object.fromEntries(
-    allIssues.flatMap((issue) => [
-      [issue.id, targetIdsByJiraKey[issue.key] as string],
-      [issue.key, targetIdsByJiraKey[issue.key] as string],
-    ]),
-  );
-  const actorBindings = Object.fromEntries(
-    Object.values(accountMapping.accounts).map((account) => [
-      account.accountId,
-      account.actor,
-    ]),
-  );
-  const changelogPlans: JiraChangelogPlan[] = [];
-  for (const issue of allIssues) {
-    const key = issue.projectKey ?? issue.key.split("-")[0] ?? "";
-    const policy = policies.get(key);
-    if (!policy) throw new JiraRunnerError("mapping_policy_required");
-    const statusMappings = Object.fromEntries(
-      policy.statuses.flatMap((mapping) =>
-        [mapping.id, mapping.name]
-          .filter((value): value is string => Boolean(value))
-          .map((value) => [value, mapping.status]),
-      ),
-    );
-    const issueTypeMappings = Object.fromEntries(
-      policy.issueTypes.flatMap((mapping) =>
-        [mapping.id, mapping.name]
-          .filter((value): value is string => Boolean(value))
-          .map((value) => [value, mapping.issueType]),
-      ),
-    );
-    for (const history of changelogByIssue.get(issue.key) ?? []) {
-      changelogPlans.push(
-        buildJiraChangelogPlan({
-          jiraCloudId: config.jira.cloudId,
-          issueId: issue.id,
-          reefId: targetIdsByJiraKey[issue.key] as string,
-          history,
-          rawArchiveReference: changelogArchiveReferences.get(
-            `${issue.id}:${history.id}`,
-          ),
-          fieldCatalog,
-          actorBindings,
-          statusMappings,
-          issueTypeMappings,
-          issueBindings,
-        }),
-      );
-    }
-  }
-  const relatedPlanningReports: Array<{
-    issue_key: string;
-    report: JiraRelatedImportReport;
-  }> = [];
-  for (const issue of allIssues) {
-    const key = issue.projectKey ?? issue.key.split("-")[0] ?? "";
-    const client = clients.get(key);
-    const policy = policies.get(key);
-    if (!client || !policy) throw new Error("jira_client_missing");
-    const result = await importJiraRelatedData({
-      jiraCloudId: config.jira.cloudId,
-      issue: issue.raw,
-      reefId: targetIdsByJiraKey[issue.key] as string,
-      client,
-      target: target.relatedTarget(),
-      ledger,
-      accountMapping,
-      linkMappings: policy.linkMappings,
-      attachmentPolicy: config.control.commentCatalogComplete
-        ? {
-            maxBytes: 20 * 1024 * 1024,
-            commentVisibilityCompleteness: "verified" as const,
-          }
-        : undefined,
-      resolveIssueTarget(sourceIdOrKey) {
-        const reefId = issueBindings[sourceIdOrKey];
-        return reefId
-          ? {
-              reefId,
-              documentUri: `akb://${config.target.vault}/coll/issues/doc/${reefId.toLowerCase()}.md`,
-            }
-          : null;
-      },
-      mode: "dry-run",
-      now: () => runAt,
-    });
-    relatedPlanningReports.push({
-      issue_key: issue.key,
-      report: result.report,
-    });
-  }
-  const postRelatedContentByReefId = new Map<string, string>();
-  for (const issue of allIssues) {
-    const attachments = issue.attachments ?? [];
-    const bindings = attachments.flatMap((attachment) => {
-      const sourceKey = jiraAttachmentSourceIdentity(
-        config.jira.cloudId,
-        issue.id,
-        attachment.id,
-      ).key;
-      const binding = ledger.bindings.find(
-        (candidate) => candidate.source_key === sourceKey,
-      );
-      return binding?.target.target_kind === "attachment"
-        ? [{ source: attachment, fileUri: binding.target.file_uri }]
-        : [];
-    });
-    const rewritten = rewriteMedia(
-      issue.description,
-      bindings,
-      typeof issue.raw.renderedFields?.description === "string"
-        ? issue.raw.renderedFields.description
-        : "",
-      reportTemplate("dry-run"),
-      issue.id,
-      attachments,
-    );
-    if (rewritten.resolved && rewritten.changed) {
-      postRelatedContentByReefId.set(
-        targetIdsByJiraKey[issue.key] as string,
-        rewritten.markdown,
-      );
-    }
-  }
-  for (const key of config.jira.projectKeys) {
-    const archive = archivesByProject.get(key);
-    const snapshot = relatedSourceSnapshots.get(key);
-    if (!archive || !snapshot) continue;
-    let pageIndex = 0;
-    for (const [issueKey, response] of Object.entries(snapshot.comments)) {
-      await archive.archive({
-        entityKind: "response_page",
-        sourceIdentity: {
-          cloud_id: config.jira.cloudId,
-          project_key: key,
-          endpoint_kind: `comments:${issueKey}`,
-          page_index: String(pageIndex++),
-        },
-        sourceEndpoint: {
-          method: "GET",
-          pathname: `/rest/api/3/issue/${encodeURIComponent(issueKey)}/comment`,
-        },
-        classification: "restricted_pii",
-        fetchedAt: runAt,
-        payload: response,
-      });
-    }
-    for (const [issueKey, response] of Object.entries(snapshot.remote_links)) {
-      await archive.archive({
-        entityKind: "response_page",
-        sourceIdentity: {
-          cloud_id: config.jira.cloudId,
-          project_key: key,
-          endpoint_kind: `remote_links:${issueKey}`,
-          page_index: String(pageIndex++),
-        },
-        sourceEndpoint: {
-          method: "GET",
-          pathname: `/rest/api/3/issue/${encodeURIComponent(issueKey)}/remotelink`,
-        },
-        classification: "restricted_pii",
-        fetchedAt: runAt,
-        payload: response,
-      });
-    }
-    const issueByAttachmentId = new Map(
-      (issuesByProject.get(key) ?? []).flatMap((issue) =>
-        (issue.attachments ?? []).map((attachment) => [
-          attachment.id,
-          issue.id,
-        ]),
-      ),
-    );
-    for (const [attachmentId, response] of getRelatedBinarySpools(snapshot)) {
-      const bytes = await readFile(response.path);
-      await archive.archive({
-        entityKind: "attachment_content",
-        sourceIdentity: {
-          cloud_id: config.jira.cloudId,
-          issue_id: issueByAttachmentId.get(attachmentId) ?? "unknown",
-          attachment_id: attachmentId,
-        },
-        sourceEndpoint: {
-          method: "GET",
-          pathname: `/rest/api/3/attachment/content/${encodeURIComponent(attachmentId)}`,
-        },
-        classification: "restricted_pii",
-        fetchedAt: runAt,
-        payload: {
-          content_base64: bytes.toString("base64"),
-          content_type: response.contentType,
-          content_length: response.contentLength,
-        },
-      });
-    }
-    archiveSummaries.push({ project_key: key, ...(await archive.verify()) });
-  }
-  let finalRelatedReports = relatedPlanningReports;
-  const currentPlanningPayload = planningActions.map(safePlanningAction);
-  const approvedPlanningPayload = Array.isArray(approvedPayload?.planning)
-    ? approvedPayload.planning
-    : null;
-  if (
-    approvedPlanningPayload &&
-    fingerprintJiraState(
-      approvedPlanningPayload.map(planningSourceProjection),
-    ) !==
-      fingerprintJiraState(currentPlanningPayload.map(planningSourceProjection))
-  ) {
-    throw new JiraRunnerError("plan_fingerprint_mismatch");
-  }
-  if (approvedPlanningPayload) {
-    const approvedBySource = new Map(
-      approvedPlanningPayload.flatMap((value) => {
-        if (!value || typeof value !== "object" || Array.isArray(value)) {
-          return [];
-        }
-        const record = value as Record<string, unknown>;
-        const sourceIdentity = record.source_identity;
-        if (
-          !sourceIdentity ||
-          typeof sourceIdentity !== "object" ||
-          Array.isArray(sourceIdentity) ||
-          typeof (sourceIdentity as Record<string, unknown>).key !== "string"
-        ) {
-          return [];
-        }
-        return [
-          [
-            (sourceIdentity as Record<string, unknown>).key as string,
-            record,
-          ] as const,
-        ];
-      }),
-    );
-    for (const action of planningActions) {
-      const approved = approvedBySource.get(action.sourceIdentity.key);
-      if (!approved) throw new JiraRunnerError("plan_fingerprint_mismatch");
-      if (approved.classification === "reuse") {
-        if (
-          action.classification !== "reuse" ||
-          action.targetId !== approved.target_id
-        ) {
-          throw new JiraRunnerError("plan_fingerprint_mismatch");
-        }
-        continue;
-      }
-      if (
-        approved.classification === "create" &&
-        canRecoverApprovedPlanningCreate(action, ledger)
-      ) {
-        continue;
-      }
-      if (
-        approved.classification === "create" &&
-        action.classification === "reuse" &&
-        action.reason === "compatible_exact_name"
-      ) {
-        const claimed = await target.readPlanningClaim(action);
-        if (claimed?.targetId === action.targetId) continue;
-      }
-      if (action.classification !== approved.classification) {
-        throw new JiraRunnerError("plan_fingerprint_mismatch");
-      }
-    }
-  }
-  const planPayload = {
-    control: {
-      comment_catalog_complete: config.control.commentCatalogComplete === true,
-    },
-    source: {
-      jira_cloud_id: config.jira.cloudId,
-      project_keys: config.jira.projectKeys,
-      projects: Object.fromEntries(
-        [...projectDetailsByProject].map(([key, detail]) => [key, detail.raw]),
-      ),
-      board_ids: config.jira.boardIds,
-      fields: fieldResult.raw,
-      board_pages: Object.fromEntries(
-        boardCatalogs.map(({ boardId, catalog }) => [boardId, catalog.pages]),
-      ),
-      version_pages: Object.fromEntries(versionPagesByProject),
-      issue_pages: Object.fromEntries(issuePagesByProject),
-      changelog_pages: Object.fromEntries(changelogPagesByIssue),
-      related: Object.fromEntries(relatedSourceSnapshots),
-    },
-    target: {
-      vault: config.target.vault,
-      actor: targetPreflight.actor,
-      endpoint_fingerprint: endpointFingerprint,
-    },
-    issue_ids: targetIdsByJiraKey,
-    target_issue_preconditions: targetIssuePreconditions,
-    absent_source_relations: absentSourceRelationPlan,
-    planning: approvedPlanningPayload ?? currentPlanningPayload,
-    issues: dryIssuePlans.map((plan) =>
-      semanticIssuePlan(plan, approvedPlanningResolutions, planningActions),
-    ),
-    related_mapping: {
-      accounts: accountMapping.accounts,
-      link_mappings: Object.fromEntries(
-        [...policies].map(([key, policy]) => [key, policy.linkMappings]),
-      ),
-    },
-    comment_binding_preconditions:
-      approvedCommentBindingPreconditions ??
-      Object.fromEntries(
-        allIssues.map((issue) => [
-          issue.key,
-          ledger.bindings
-            .filter(
-              (binding) =>
-                binding.source_identity.entity_kind === "comment" &&
-                binding.source_identity.jira_cloud_id === config.jira.cloudId &&
-                binding.source_identity.issue_id === issue.id,
-            )
-            .sort((left, right) =>
-              left.source_identity.key.localeCompare(right.source_identity.key),
-            )
-            .map((binding) => JiraMigrationBindingSchema.parse(binding)),
-        ]),
-      ),
-    related_plan: relatedPlanningReports.map((item) => ({
-      issue_key: item.issue_key,
-      report: semanticRelatedReport(item.report),
-    })),
-    changelog: changelogPlans.map((plan) => ({
-      source_identity: plan.sourceIdentity,
-      source_fingerprint: plan.sourceFingerprint,
-      report: plan.report,
-      items: plan.items,
-    })),
-  };
-  const planSha256 = fingerprintJiraState(planPayload);
-  if (config.expectedPlanSha256 && config.expectedPlanSha256 !== planSha256) {
-    throw new JiraRunnerError("plan_fingerprint_mismatch");
-  }
-  if (approvedReport && approvedReport.plan_sha256 !== planSha256) {
-    throw new JiraRunnerError("plan_fingerprint_mismatch");
-  }
-  if (
-    approvedPlanArtifact &&
-    fingerprintJiraState(approvedPlanArtifact.payload) !== planSha256
-  ) {
-    throw new JiraRunnerError("plan_fingerprint_mismatch");
-  }
-  await writeJiraAccountMappingArtifact(
-    paths.accountMappingPath,
-    accountMapping,
-  );
-  ledger = openJiraMigrationRun(ledger, {
-    runId: config.artifacts.runId,
-    projectKeys: config.jira.projectKeys,
-    planFingerprint: planSha256,
-    at: runAt,
+  const {
+    archiveReferences,
+    changelogArchiveReferences,
+    archiveSummaries,
+    archivesByProject,
+  } = archive;
+  const plan = await buildJiraMigrationPlan({
+    config,
+    accountMappingPath: paths.accountMappingPath,
+    endpointFingerprint,
+    runAt,
+    ledger,
+    target,
+    targetPreflight,
+    clients,
+    policies,
+    relatedSourceSnapshots,
+    discovery,
+    archive,
+    approval,
   });
-
+  ledger = plan.ledger;
+  const {
+    planningActions,
+    existingPlanningResolutions,
+    approvedPlanningResolutions,
+    buildIssuePlans,
+    dryIssuePlans,
+    targetIssuePreconditions,
+    issueBindings,
+    changelogPlans,
+    relatedPlanningReports,
+    postRelatedContentByReefId,
+    planPayload,
+    planSha256,
+  } = plan;
+  let { finalRelatedReports } = plan;
   const terminalClassifications: JiraRunnerReport["terminal_classifications"] =
     [];
   const changelogFailureReasons = new Map<string, string>();
