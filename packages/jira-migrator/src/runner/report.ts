@@ -168,10 +168,21 @@ const containsSecret = (
   value: unknown,
   secrets: readonly string[],
 ): boolean => {
-  const serialized = canonicalizeJson(value);
-  return secrets.some(
-    (secret) => secret.length > 0 && serialized.includes(secret),
-  );
+  const forbidden = secrets.filter((secret) => secret.length > 0);
+  if (forbidden.length === 0) return false;
+  if (typeof value === "string") {
+    return forbidden.some((secret) => value.includes(secret));
+  }
+  if (Array.isArray(value)) {
+    return value.some((item) => containsSecret(item, forbidden));
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.entries(value).some(
+      ([key, item]) =>
+        containsSecret(key, forbidden) || containsSecret(item, forbidden),
+    );
+  }
+  return false;
 };
 
 export function buildJiraRunnerReport(input: {

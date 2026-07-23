@@ -63,6 +63,33 @@ describe("runner source traversal", () => {
     ).rejects.toThrow("jira_issue_pagination_token_repeated");
   });
 
+  it("rejects inconsistent enhanced-JQL terminal state", async () => {
+    const retry = { maxRetries: 0, baseDelayMs: 0, maxDelayMs: 0 };
+    const searchProjectIssues = vi.fn();
+
+    searchProjectIssues.mockResolvedValueOnce({
+      items: [],
+      cursor: null,
+      isLast: false,
+      rateLimit,
+      raw: {},
+    });
+    await expect(
+      readAllProjectIssues({ searchProjectIssues } as never, "ALPHA", retry),
+    ).rejects.toThrow("jira_issue_pagination_cursor_missing");
+
+    searchProjectIssues.mockResolvedValueOnce({
+      items: [],
+      cursor: { kind: "nextPageToken", value: "unexpected" },
+      isLast: true,
+      rateLimit,
+      raw: {},
+    });
+    await expect(
+      readAllProjectIssues({ searchProjectIssues } as never, "ALPHA", retry),
+    ).rejects.toThrow("jira_issue_pagination_terminal_with_cursor");
+  });
+
   it("reads only explicit boards and preserves their selection provenance", async () => {
     const readBoardSprintCatalog = vi.fn(async (boardId: string) => ({
       items: [{ id: boardId, name: `Sprint ${boardId}` }],
@@ -122,5 +149,32 @@ describe("runner source traversal", () => {
         maxDelayMs: 0,
       }),
     ).rejects.toThrow("jira_changelog_pagination_did_not_advance");
+  });
+
+  it("rejects inconsistent changelog terminal state", async () => {
+    const retry = { maxRetries: 0, baseDelayMs: 0, maxDelayMs: 0 };
+    const listChangelog = vi.fn();
+
+    listChangelog.mockResolvedValueOnce({
+      items: [],
+      cursor: null,
+      isLast: false,
+      rateLimit,
+      raw: {},
+    });
+    await expect(
+      readAllChangelog({ listChangelog } as never, "ALPHA-1", retry),
+    ).rejects.toThrow("jira_changelog_pagination_cursor_missing");
+
+    listChangelog.mockResolvedValueOnce({
+      items: [],
+      cursor: { kind: "startAt", value: 1 },
+      isLast: true,
+      rateLimit,
+      raw: {},
+    });
+    await expect(
+      readAllChangelog({ listChangelog } as never, "ALPHA-1", retry),
+    ).rejects.toThrow("jira_changelog_pagination_terminal_with_cursor");
   });
 });

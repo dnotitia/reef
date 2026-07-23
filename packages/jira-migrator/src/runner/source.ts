@@ -39,7 +39,15 @@ export async function readAllChangelog(
     items.push(...page.items);
     pages.push(page.raw);
     rateLimits.push(page.rateLimit);
-    if (!page.cursor) break;
+    if (page.isLast) {
+      if (page.cursor) {
+        throw new Error("jira_changelog_pagination_terminal_with_cursor");
+      }
+      break;
+    }
+    if (!page.cursor) {
+      throw new Error("jira_changelog_pagination_cursor_missing");
+    }
     if (page.cursor.kind !== "startAt" || page.cursor.value <= startAt) {
       throw new Error("jira_changelog_pagination_did_not_advance");
     }
@@ -69,7 +77,15 @@ export async function readAllProjectIssues(
     );
     items.push(...page.items);
     pages.push(page.raw);
-    if (!page.cursor) break;
+    if (page.isLast) {
+      if (page.cursor) {
+        throw new Error("jira_issue_pagination_terminal_with_cursor");
+      }
+      break;
+    }
+    if (!page.cursor) {
+      throw new Error("jira_issue_pagination_cursor_missing");
+    }
     if (page.cursor.kind !== "nextPageToken") {
       throw new Error("jira_issue_pagination_cursor_invalid");
     }

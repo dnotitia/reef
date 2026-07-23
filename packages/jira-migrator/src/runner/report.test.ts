@@ -125,5 +125,20 @@ describe("Jira runner report", () => {
     ).rejects.toMatchObject({
       code: "secret_material_detected",
     } satisfies Partial<JiraMigrationReportError>);
+
+    const escapedSecret = 'jira-"canary\\line\nbreak';
+    await expect(
+      writeJiraRunnerReport({
+        path,
+        report: {
+          ...report(),
+          sections: { ...report().sections, issues: [escapedSecret] },
+        },
+        expectedReport: report(),
+        forbiddenSecretValues: [escapedSecret],
+      }),
+    ).rejects.toMatchObject({
+      code: "secret_material_detected",
+    } satisfies Partial<JiraMigrationReportError>);
   });
 });
