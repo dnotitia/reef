@@ -383,6 +383,87 @@ export function createAkbJiraMigrationTarget(
     }
     return record;
   };
+  const deleteOwnedRelation = async (idempotencyKey: string): Promise<void> => {
+    const found = await findRelation(idempotencyKey);
+    if (!found) return;
+    const { issue, readback, record } = found;
+    const targetReadback = await readIssue(record.targetReefId);
+    const targetIssue = targetReadback.issue;
+    const sidecar = sidecarFor(issue);
+    sidecar.relations = sidecar.relations.filter(
+      (candidate) => candidate.idempotencyKey !== idempotencyKey,
+    );
+    const relationStillReferenced = sidecar.relations.some(
+      (candidate) =>
+        candidate.sourceReefId === record.sourceReefId &&
+        candidate.targetReefId === record.targetReefId &&
+        candidate.relation === record.relation &&
+        candidate.inverseRelation === record.inverseRelation,
+    );
+    const targetHadInverse =
+      !relationStillReferenced &&
+      record.targetCreatedByMigration === true &&
+      (targetIssue[record.inverseRelation] ?? []).includes(record.sourceReefId);
+    if (targetHadInverse) {
+      await updateIssue(
+        record.targetReefId,
+        {
+          [record.inverseRelation]: removeValue(
+            targetIssue[record.inverseRelation],
+            record.sourceReefId,
+          ),
+        },
+        undefined,
+        {
+          commit: targetReadback.commit_hash,
+          updatedAt: targetIssue.updated_at,
+        },
+      );
+    }
+    try {
+      await updateIssue(
+        record.sourceReefId,
+        {
+          [record.relation]: relationStillReferenced
+            ? issue[record.relation]
+            : record.sourceCreatedByMigration === true
+              ? removeValue(issue[record.relation], record.targetReefId)
+              : issue[record.relation],
+          custom_fields: customFieldsWithSidecar(issue, sidecar),
+        },
+        undefined,
+        {
+          commit: readback.commit_hash,
+          updatedAt: issue.updated_at,
+        },
+      );
+    } catch (error) {
+      const currentSource = await readIssue(record.sourceReefId);
+      const sourceStillOwnsRecord = sidecarFor(
+        currentSource.issue,
+      ).relations.some(
+        (candidate) => candidate.idempotencyKey === idempotencyKey,
+      );
+      if (targetHadInverse && sourceStillOwnsRecord) {
+        const currentTarget = await readIssue(record.targetReefId);
+        await updateIssue(
+          record.targetReefId,
+          {
+            [record.inverseRelation]: addUnique(
+              currentTarget.issue[record.inverseRelation],
+              record.sourceReefId,
+            ),
+          },
+          undefined,
+          {
+            commit: currentTarget.commit_hash,
+            updatedAt: currentTarget.issue.updated_at,
+          },
+        ).catch(() => undefined);
+      }
+      if (sourceStillOwnsRecord) throw error;
+    }
+  };
   const related: JiraRelatedImportTarget = {
     async createComment(input: JiraImportedCommentInput): Promise<Comment> {
       const comment = await akbCreateComment(
@@ -565,6 +646,16 @@ export function createAkbJiraMigrationTarget(
       });
     },
     async putRelation(input) {
+      const existing = await findRelation(input.idempotencyKey);
+      if (
+        existing &&
+        (existing.record.sourceReefId !== input.sourceReefId ||
+          existing.record.targetReefId !== input.targetReefId ||
+          existing.record.relation !== input.relation ||
+          existing.record.inverseRelation !== input.inverseRelation)
+      ) {
+        await deleteOwnedRelation(input.idempotencyKey);
+      }
       const sourceReadback = await readIssue(input.sourceReefId);
       const targetReadback = await readIssue(input.targetReefId);
       const source = sourceReadback.issue;
@@ -730,89 +821,7 @@ export function createAkbJiraMigrationTarget(
         inverseRelation: record.inverseRelation,
       };
     },
-    async deleteRelation(idempotencyKey) {
-      const found = await findRelation(idempotencyKey);
-      if (!found) return;
-      const { issue, readback, record } = found;
-      const targetReadback = await readIssue(record.targetReefId);
-      const targetIssue = targetReadback.issue;
-      const sidecar = sidecarFor(issue);
-      sidecar.relations = sidecar.relations.filter(
-        (candidate) => candidate.idempotencyKey !== idempotencyKey,
-      );
-      const relationStillReferenced = sidecar.relations.some(
-        (candidate) =>
-          candidate.sourceReefId === record.sourceReefId &&
-          candidate.targetReefId === record.targetReefId &&
-          candidate.relation === record.relation &&
-          candidate.inverseRelation === record.inverseRelation,
-      );
-      const targetHadInverse =
-        !relationStillReferenced &&
-        record.targetCreatedByMigration === true &&
-        (targetIssue[record.inverseRelation] ?? []).includes(
-          record.sourceReefId,
-        );
-      if (targetHadInverse) {
-        await updateIssue(
-          record.targetReefId,
-          {
-            [record.inverseRelation]: removeValue(
-              targetIssue[record.inverseRelation],
-              record.sourceReefId,
-            ),
-          },
-          undefined,
-          {
-            commit: targetReadback.commit_hash,
-            updatedAt: targetIssue.updated_at,
-          },
-        );
-      }
-      try {
-        await updateIssue(
-          record.sourceReefId,
-          {
-            [record.relation]: relationStillReferenced
-              ? issue[record.relation]
-              : record.sourceCreatedByMigration === true
-                ? removeValue(issue[record.relation], record.targetReefId)
-                : issue[record.relation],
-            custom_fields: customFieldsWithSidecar(issue, sidecar),
-          },
-          undefined,
-          {
-            commit: readback.commit_hash,
-            updatedAt: issue.updated_at,
-          },
-        );
-      } catch (error) {
-        const currentSource = await readIssue(record.sourceReefId);
-        const sourceStillOwnsRecord = sidecarFor(
-          currentSource.issue,
-        ).relations.some(
-          (candidate) => candidate.idempotencyKey === idempotencyKey,
-        );
-        if (targetHadInverse && sourceStillOwnsRecord) {
-          const currentTarget = await readIssue(record.targetReefId);
-          await updateIssue(
-            record.targetReefId,
-            {
-              [record.inverseRelation]: addUnique(
-                currentTarget.issue[record.inverseRelation],
-                record.sourceReefId,
-              ),
-            },
-            undefined,
-            {
-              commit: currentTarget.commit_hash,
-              updatedAt: currentTarget.issue.updated_at,
-            },
-          ).catch(() => undefined);
-        }
-        if (sourceStillOwnsRecord) throw error;
-      }
-    },
+    deleteRelation: deleteOwnedRelation,
     async putExternalRef(input) {
       const readback = await readIssue(input.reefId);
       const issue = readback.issue;

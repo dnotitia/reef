@@ -353,9 +353,21 @@ describe("AKB Jira migration target", () => {
       inverseRelation: "related_to",
       provenance: { jira_issue_link_id: "created" },
     });
-    await target.relatedTarget().deleteRelation("relation:cloud-1:created");
+    await target.relatedTarget().putRelation({
+      idempotencyKey: "relation:cloud-1:created",
+      sourceReefId: "REEF-001",
+      targetReefId: "REEF-002",
+      relation: "depends_on",
+      inverseRelation: "blocks",
+      provenance: { jira_issue_link_id: "created" },
+    });
     expect(issues.get("REEF-001")?.issue.related_to ?? []).toEqual([]);
     expect(issues.get("REEF-002")?.issue.related_to ?? []).toEqual([]);
+    expect(issues.get("REEF-001")?.issue.depends_on).toEqual(["REEF-002"]);
+    expect(issues.get("REEF-002")?.issue.blocks).toEqual(["REEF-001"]);
+    await target.relatedTarget().deleteRelation("relation:cloud-1:created");
+    expect(issues.get("REEF-001")?.issue.depends_on ?? []).toEqual([]);
+    expect(issues.get("REEF-002")?.issue.blocks ?? []).toEqual([]);
     await target.relatedTarget().putRelation({
       idempotencyKey: "relation:cloud-1:100",
       sourceReefId: "REEF-001",
