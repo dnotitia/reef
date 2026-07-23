@@ -2009,15 +2009,21 @@ async function runJiraMigrationUnlocked(
         : [];
     };
     let blockedClaimCount = -1;
-    while (blockedClaimCount !== failedIssueClaimIds.size) {
-      blockedClaimCount = failedIssueClaimIds.size;
+    while (
+      blockedClaimCount !==
+      failedIssueClaimIds.size + conflictedIssueClaimIds.size
+    ) {
+      blockedClaimCount =
+        failedIssueClaimIds.size + conflictedIssueClaimIds.size;
       for (const plan of applyIssuePlans) {
-        if (
-          actionForIssuePlan(plan, ledger) === "create" &&
-          issueReferences(plan).some((id) => failedIssueClaimIds.has(id))
-        ) {
-          const reefId = plan.desired.issue?.id;
-          if (reefId) failedIssueClaimIds.add(reefId);
+        if (actionForIssuePlan(plan, ledger) !== "create") continue;
+        const reefId = plan.desired.issue?.id;
+        if (!reefId) continue;
+        const references = issueReferences(plan);
+        if (references.some((id) => conflictedIssueClaimIds.has(id))) {
+          conflictedIssueClaimIds.add(reefId);
+        } else if (references.some((id) => failedIssueClaimIds.has(id))) {
+          failedIssueClaimIds.add(reefId);
         }
       }
     }
@@ -2079,11 +2085,13 @@ async function runJiraMigrationUnlocked(
         (action === "update" &&
           issueReferences(plan).some((id) => failedIssueClaimIds.has(id)));
       const claimConflicted =
-        action === "create" &&
-        Boolean(
-          plan.desired.issue &&
-            conflictedIssueClaimIds.has(plan.desired.issue.id),
-        );
+        (action === "create" &&
+          Boolean(
+            plan.desired.issue &&
+              conflictedIssueClaimIds.has(plan.desired.issue.id),
+          )) ||
+        (action === "update" &&
+          issueReferences(plan).some((id) => conflictedIssueClaimIds.has(id)));
       if (claimConflicted) {
         record(
           "issues",

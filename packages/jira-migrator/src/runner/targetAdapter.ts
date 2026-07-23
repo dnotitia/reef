@@ -416,13 +416,20 @@ export function createAkbJiraMigrationTarget(
     sidecar.relations = sidecar.relations.filter(
       (candidate) => candidate.idempotencyKey !== idempotencyKey,
     );
-    const relationStillReferenced = sidecar.relations.some(
-      (candidate) =>
-        candidate.sourceReefId === record.sourceReefId &&
+    const ownsSamePhysicalEdge = (
+      candidate: MigrationSidecar["relations"][number],
+    ): boolean =>
+      (candidate.sourceReefId === record.sourceReefId &&
         candidate.targetReefId === record.targetReefId &&
         candidate.relation === record.relation &&
-        candidate.inverseRelation === record.inverseRelation,
-    );
+        candidate.inverseRelation === record.inverseRelation) ||
+      (candidate.sourceReefId === record.targetReefId &&
+        candidate.targetReefId === record.sourceReefId &&
+        candidate.relation === record.inverseRelation &&
+        candidate.inverseRelation === record.relation);
+    const relationStillReferenced =
+      sidecar.relations.some(ownsSamePhysicalEdge) ||
+      sidecarFor(targetIssue).relations.some(ownsSamePhysicalEdge);
     const targetHadInverse =
       !relationStillReferenced &&
       record.targetCreatedByMigration === true &&
@@ -686,27 +693,41 @@ export function createAkbJiraMigrationTarget(
       const sourceBefore = source[input.relation] ?? [];
       const targetBefore = targetIssue[input.inverseRelation] ?? [];
       const sourceSidecar = sidecarFor(source);
+      const targetSidecar = sidecarFor(targetIssue);
       const previous = sourceSidecar.relations.find(
         (record) => record.idempotencyKey === input.idempotencyKey,
       );
-      const sameEdgeRecords = sourceSidecar.relations.filter(
+      const directEdgeRecords = sourceSidecar.relations.filter(
         (record) =>
           record.sourceReefId === input.sourceReefId &&
           record.targetReefId === input.targetReefId &&
           record.relation === input.relation &&
           record.inverseRelation === input.inverseRelation,
       );
+      const reverseEdgeRecords = targetSidecar.relations.filter(
+        (record) =>
+          record.sourceReefId === input.targetReefId &&
+          record.targetReefId === input.sourceReefId &&
+          record.relation === input.inverseRelation &&
+          record.inverseRelation === input.relation,
+      );
       const sourceCreatedByMigration =
         previous?.sourceCreatedByMigration ??
-        (sameEdgeRecords.some(
+        (directEdgeRecords.some(
           (record) => record.sourceCreatedByMigration === true,
         ) ||
+          reverseEdgeRecords.some(
+            (record) => record.targetCreatedByMigration === true,
+          ) ||
           !sourceBefore.includes(input.targetReefId));
       const targetCreatedByMigration =
         previous?.targetCreatedByMigration ??
-        (sameEdgeRecords.some(
+        (directEdgeRecords.some(
           (record) => record.targetCreatedByMigration === true,
         ) ||
+          reverseEdgeRecords.some(
+            (record) => record.sourceCreatedByMigration === true,
+          ) ||
           !targetBefore.includes(input.sourceReefId));
       sourceSidecar.relations = sourceSidecar.relations
         .filter((record) => record.idempotencyKey !== input.idempotencyKey)
