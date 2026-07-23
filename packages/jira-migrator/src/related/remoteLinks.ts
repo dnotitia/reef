@@ -17,7 +17,7 @@ export async function importRemoteLinks(input: {
   const { migration, issueId, catalogReadSucceeded, remoteLinks, report } =
     input;
   const remotePrefix = `jira-remote:${migration.jiraCloudId}:${issueId}:`;
-  if (migration.mode === "apply" && catalogReadSucceeded) {
+  if (catalogReadSucceeded) {
     const currentRemoteKeys = new Set(
       remoteLinks.flatMap((remote) =>
         safeRemoteLinkUrl(remote.object.url)
@@ -43,7 +43,10 @@ export async function importRemoteLinks(input: {
       if (currentRemoteKeys.has(existingKey)) continue;
       try {
         await migration.target.deleteExternalRef(existingKey);
-        if ((await migration.target.readExternalRef(existingKey)) !== null)
+        if (
+          migration.mode === "apply" &&
+          (await migration.target.readExternalRef(existingKey)) !== null
+        )
           throw new Error("remote_link_delete_readback_mismatch");
       } catch (error) {
         failure(

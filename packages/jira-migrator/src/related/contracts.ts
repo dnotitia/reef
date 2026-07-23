@@ -168,6 +168,7 @@ export interface JiraRelatedImportReport {
     total: number;
     rewritten: number;
     unresolved: number;
+    description_updated: boolean;
     by_strategy: Record<string, number>;
   };
   links: {

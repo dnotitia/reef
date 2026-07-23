@@ -97,12 +97,15 @@ export async function importAttachments(options: {
         fileUri,
         replacement: revokedAttachmentPlaceholder(attachmentId),
       });
-      if ((await migration.target.readAttachment(fileUri)) !== null)
-        throw new Error("attachment_revocation_readback_mismatch");
-      if (await migration.target.hasMediaReference(migration.reefId, fileUri))
-        throw new Error("attachment_reference_revocation_readback_mismatch");
+      if (migration.mode === "apply") {
+        if ((await migration.target.readAttachment(fileUri)) !== null)
+          throw new Error("attachment_revocation_readback_mismatch");
+        if (await migration.target.hasMediaReference(migration.reefId, fileUri))
+          throw new Error("attachment_reference_revocation_readback_mismatch");
+      }
     }
-    ledger = removeJiraMigrationBindings(ledger, [identity.key]);
+    if (migration.mode === "apply")
+      ledger = removeJiraMigrationBindings(ledger, [identity.key]);
   };
   const commentById = new Map(comments.map((comment) => [comment.id, comment]));
   const commentDepth = (commentId: string): number => {
@@ -121,7 +124,7 @@ export async function importAttachments(options: {
       commentDepth(right) - commentDepth(left) || left.localeCompare(right),
   );
 
-  if (migration.mode === "apply") {
+  {
     let pendingCommentRevocations = unsafeCommentRevokeOrder;
     const commentRevocationErrors = new Map<string, unknown>();
     while (pendingCommentRevocations.length > 0) {
@@ -140,13 +143,18 @@ export async function importAttachments(options: {
           const recovered = await migration.target.findCommentByIdempotencyKey(
             identity.key,
           );
-          await revokeCommentTargets(migration.target, [
-            binding?.target.target_kind === "comment"
-              ? binding.target.comment_id
-              : null,
-            recovered?.id,
-          ]);
-          ledger = removeJiraMigrationBindings(ledger, [identity.key]);
+          await revokeCommentTargets(
+            migration.target,
+            [
+              binding?.target.target_kind === "comment"
+                ? binding.target.comment_id
+                : null,
+              recovered?.id,
+            ],
+            migration.mode,
+          );
+          if (migration.mode === "apply")
+            ledger = removeJiraMigrationBindings(ledger, [identity.key]);
           commentRevocationErrors.delete(commentId);
           progress = true;
         } catch (error) {
@@ -218,19 +226,17 @@ export async function importAttachments(options: {
       attachment.id,
     );
     if (!attachmentAclEstablished) {
-      if (migration.mode === "apply") {
-        try {
-          await revokeAttachmentBinding(identity, attachment.id);
-        } catch (error) {
-          failure(
-            report.failures,
-            "attachment",
-            attachment.id,
-            String(error).includes("readback") ? "readback" : "write",
-            "attachment_visibility_revocation_failed",
-            error,
-          );
-        }
+      try {
+        await revokeAttachmentBinding(identity, attachment.id);
+      } catch (error) {
+        failure(
+          report.failures,
+          "attachment",
+          attachment.id,
+          String(error).includes("readback") ? "readback" : "write",
+          "attachment_visibility_revocation_failed",
+          error,
+        );
       }
       failure(
         report.failures,
@@ -256,19 +262,17 @@ export async function importAttachments(options: {
       maxAttachmentBytes === undefined ||
       (attachment.size !== null && attachment.size > maxAttachmentBytes)
     ) {
-      if (migration.mode === "apply") {
-        try {
-          await revokeAttachmentBinding(identity, attachment.id);
-        } catch (error) {
-          failure(
-            report.failures,
-            "attachment",
-            attachment.id,
-            String(error).includes("readback") ? "readback" : "write",
-            "attachment_size_policy_revocation_failed",
-            error,
-          );
-        }
+      try {
+        await revokeAttachmentBinding(identity, attachment.id);
+      } catch (error) {
+        failure(
+          report.failures,
+          "attachment",
+          attachment.id,
+          String(error).includes("readback") ? "readback" : "write",
+          "attachment_size_policy_revocation_failed",
+          error,
+        );
       }
       failure(
         report.failures,

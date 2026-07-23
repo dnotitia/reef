@@ -662,6 +662,7 @@ describe("Jira related-data import stage", () => {
       mode: "apply",
     });
     expect(result.report.failures).toEqual([]);
+    expect(result.report.media.description_updated).toBe(true);
     expect(state.description).toContain("akb://isolated/");
   });
 
@@ -1174,6 +1175,17 @@ describe("Jira related-data import stage", () => {
       ]),
     );
 
+    const dryRun = await importJiraRelatedData({
+      ...base,
+      issue: filteredIssue,
+      client: filteredClient,
+      ledger: applied.ledger,
+      mode: "dry-run",
+    });
+    expect(dryRun.report.deletions).toBe(3);
+    expect(state.comments.size).toBe(2);
+    expect(state.attachments.size).toBe(1);
+
     const reconciled = await importJiraRelatedData({
       ...base,
       issue: filteredIssue,
@@ -1188,6 +1200,7 @@ describe("Jira related-data import stage", () => {
       ),
     ).toBe(false);
     expect(reconciled.ledger.comment_quarantines).toHaveLength(2);
+    expect(reconciled.report.deletions).toBe(3);
     expect(
       reconciled.ledger.bindings.some(
         (binding) => binding.entity_kind === "attachment",
@@ -1474,6 +1487,18 @@ describe("Jira related-data import stage", () => {
       ),
     ).toBe(true);
 
+    const dryRestricted = await importJiraRelatedData({
+      ...base,
+      attachmentPolicy: {
+        commentVisibilityCompleteness: "verified",
+        maxBytes: 2,
+      },
+      ledger: applied.ledger,
+      mode: "dry-run",
+    });
+    expect(dryRestricted.report.deletions).toBe(1);
+    expect(state.attachments.size).toBe(1);
+
     const restricted = await importJiraRelatedData({
       ...base,
       attachmentPolicy: {
@@ -1492,6 +1517,7 @@ describe("Jira related-data import stage", () => {
         (binding) => binding.entity_kind === "attachment",
       ),
     ).toBe(false);
+    expect(restricted.report.deletions).toBe(1);
 
     const restored = await importJiraRelatedData({
       ...base,
@@ -1851,11 +1877,20 @@ describe("Jira related-data import stage", () => {
     expect(state.relations.size).toBe(1);
     const withoutLinks = issueFixture();
     withoutLinks.fields.issuelinks = [];
+    const dryRun = await importJiraRelatedData({
+      ...base,
+      issue: withoutLinks,
+      ledger: applied.ledger,
+      mode: "dry-run",
+    });
+    expect(dryRun.report.deletions).toBe(1);
+    expect(state.relations.size).toBe(1);
     const reconciled = await importJiraRelatedData({
       ...base,
       issue: withoutLinks,
       ledger: applied.ledger,
     });
+    expect(reconciled.report.deletions).toBe(1);
     expect(state.relations.size).toBe(0);
     expect(
       reconciled.ledger.bindings.some(
@@ -1947,6 +1982,16 @@ describe("Jira related-data import stage", () => {
     ).toBe(true);
     const withoutLinks = issueFixture();
     withoutLinks.fields.issuelinks = [];
+    const dryRun = await importJiraRelatedData({
+      ...base,
+      issue: withoutLinks,
+      ledger: applied.ledger,
+      mode: "dry-run",
+    });
+    expect(dryRun.report.deletions).toBe(1);
+    expect(
+      [...state.refs.keys()].some((key) => key.startsWith("jira-link:")),
+    ).toBe(true);
     await importJiraRelatedData({
       ...base,
       issue: withoutLinks,
@@ -1996,10 +2041,18 @@ describe("Jira related-data import stage", () => {
       },
       raw: [],
     });
+    const dryRun = await importJiraRelatedData({
+      ...base,
+      ledger: applied.ledger,
+      mode: "dry-run",
+    });
+    expect(dryRun.report.deletions).toBe(2);
+    expect(state.refs.size).toBe(2);
     const malformed = await importJiraRelatedData({
       ...base,
       ledger: applied.ledger,
     });
+    expect(malformed.report.deletions).toBe(2);
     expect(state.refs.size).toBe(0);
     expect(malformed.report.failures).toContainEqual(
       expect.objectContaining({ reason: "remote_link_url_missing" }),

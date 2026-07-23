@@ -205,7 +205,10 @@ export const actionForRelatedReport = (
   ) {
     return "create";
   }
-  return report.comments.updated + report.deletions > 0 ? "update" : "skip";
+  return report.comments.updated + report.deletions > 0 ||
+    report.media.description_updated
+    ? "update"
+    : "skip";
 };
 
 export const mergePlanningActions = (

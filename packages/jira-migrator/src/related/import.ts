@@ -54,9 +54,17 @@ export async function importJiraRelatedData(
   input: JiraRelatedImportInput,
 ): Promise<JiraRelatedImportResult> {
   const report = reportTemplate(input.mode);
+  const plannedDeletionKeys = new Set<string>();
   const countDeletion = async (
+    key: string,
     operation: () => Promise<void>,
   ): Promise<void> => {
+    if (input.mode === "dry-run") {
+      if (plannedDeletionKeys.has(key)) return;
+      plannedDeletionKeys.add(key);
+      report.deletions += 1;
+      return;
+    }
     await operation();
     report.deletions += 1;
   };
@@ -65,14 +73,23 @@ export async function importJiraRelatedData(
     target: {
       ...input.target,
       deleteComment: (commentId: string) =>
-        countDeletion(() => input.target.deleteComment(commentId)),
+        countDeletion(`comment:${commentId}`, () =>
+          input.target.deleteComment(commentId),
+        ),
       revokeAttachment: (
         attachment: Parameters<typeof input.target.revokeAttachment>[0],
-      ) => countDeletion(() => input.target.revokeAttachment(attachment)),
+      ) =>
+        countDeletion(`attachment:${attachment.fileUri}`, () =>
+          input.target.revokeAttachment(attachment),
+        ),
       deleteRelation: (idempotencyKey: string) =>
-        countDeletion(() => input.target.deleteRelation(idempotencyKey)),
+        countDeletion(`relation:${idempotencyKey}`, () =>
+          input.target.deleteRelation(idempotencyKey),
+        ),
       deleteExternalRef: (idempotencyKey: string) =>
-        countDeletion(() => input.target.deleteExternalRef(idempotencyKey)),
+        countDeletion(`external-ref:${idempotencyKey}`, () =>
+          input.target.deleteExternalRef(idempotencyKey),
+        ),
     },
   };
   const issue = normalizeJiraIssue(input.issue);

@@ -139,7 +139,10 @@ edited mapped fields are not overwritten.
 The report contains safe identities, fingerprints, counts, opaque archive
 references, classifications, and approval metadata. It omits raw payloads,
 credentials, email/display-name account data, internal hostnames, and local
-archive paths. Validate the built contract with:
+archive paths. Related-data dry-run reports count each planned target deletion
+without performing it, and classify a planned description media rewrite as an
+update; apply counts only deletions that completed successfully. Validate the
+built contract with:
 
 ```bash
 pnpm --filter @reef/jira-migrator run test:behavior

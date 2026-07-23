@@ -56,13 +56,18 @@ export async function importIssueLinks(options: {
     );
     for (const relationKey of staleRelationKeys) {
       await migration.target.deleteRelation(relationKey);
-      if ((await migration.target.readRelation(relationKey)) !== null)
+      if (
+        migration.mode === "apply" &&
+        (await migration.target.readRelation(relationKey)) !== null
+      )
         throw new Error("relation_mapping_removal_readback_mismatch");
     }
-    ledger = removeJiraMigrationBindings(
-      ledger,
-      staleRelationBindings.map((binding) => binding.source_key),
-    );
+    if (migration.mode === "apply") {
+      ledger = removeJiraMigrationBindings(
+        ledger,
+        staleRelationBindings.map((binding) => binding.source_key),
+      );
+    }
   };
   const uniqueLinks = new Map<string, NormalizedJiraIssueLink>();
   const conflictingLinkIds = new Set<string>();
@@ -97,28 +102,27 @@ export async function importIssueLinks(options: {
     uniqueLinks.set(link.id, link);
   }
   report.links.unique = uniqueLinks.size;
-  if (migration.mode === "apply") {
-    for (const linkId of conflictingLinkIds) {
-      try {
-        await removeStaleRelationBindings(linkId);
-        await reconcileProvisionalLinkRefs(
-          migration.target,
-          migration.jiraCloudId,
-          linkId,
-        );
-      } catch (error) {
-        failure(
-          report.failures,
-          "link",
-          linkId,
-          String(error).includes("readback") ? "readback" : "write",
-          "link_source_reconciliation_failed",
-          error,
-        );
-      }
+  for (const linkId of conflictingLinkIds) {
+    try {
+      await removeStaleRelationBindings(linkId);
+      await reconcileProvisionalLinkRefs(
+        migration.target,
+        migration.jiraCloudId,
+        linkId,
+        migration.mode,
+      );
+    } catch (error) {
+      failure(
+        report.failures,
+        "link",
+        linkId,
+        String(error).includes("readback") ? "readback" : "write",
+        "link_source_reconciliation_failed",
+        error,
+      );
     }
   }
-  if (migration.mode === "apply" && linkCatalogPresent) {
+  if (linkCatalogPresent) {
     const provisionalPrefix = `jira-link:${migration.jiraCloudId}:${issueId}:`;
     const currentProvisionalKeys = new Set(
       [...uniqueLinks.keys()].map((linkId) => `${provisionalPrefix}${linkId}`),
@@ -148,7 +152,10 @@ export async function importIssueLinks(options: {
         )
           throw new Error("external_ref_reconciliation_mismatch");
         if (existing) await migration.target.deleteExternalRef(existingKey);
-        if ((await migration.target.readExternalRef(existingKey)) !== null)
+        if (
+          migration.mode === "apply" &&
+          (await migration.target.readExternalRef(existingKey)) !== null
+        )
           throw new Error("external_ref_delete_readback_mismatch");
       } catch (error) {
         failure(
@@ -178,6 +185,7 @@ export async function importIssueLinks(options: {
           migration.target,
           migration.jiraCloudId,
           linkId,
+          migration.mode,
         );
       } catch (error) {
         failure(
@@ -200,8 +208,7 @@ export async function importIssueLinks(options: {
         mappingMatches.length === 1 ? mappingMatches[0] : undefined;
       if (mappingMatches.length > 1) {
         report.links.unresolved += 1;
-        if (migration.mode === "apply")
-          await removeStaleRelationBindings(linkId);
+        await removeStaleRelationBindings(linkId);
         failure(
           report.failures,
           "link",
@@ -216,8 +223,8 @@ export async function importIssueLinks(options: {
       );
       if (!mapping || !targetIssue) {
         report.links.unresolved += 1;
+        await removeStaleRelationBindings(linkId);
         if (migration.mode === "apply") {
-          await removeStaleRelationBindings(linkId);
           const externalKey = `jira-link:${migration.jiraCloudId}:${issueId}:${linkId}`;
           const externalValue = {
             reefId: migration.reefId,

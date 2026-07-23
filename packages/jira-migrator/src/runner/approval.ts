@@ -119,6 +119,7 @@ export const semanticRelatedReport = (
   media: {
     total: report.media.total,
     unresolved: report.media.unresolved,
+    description_updated: report.media.description_updated,
     by_strategy: report.media.by_strategy,
   },
   links: {

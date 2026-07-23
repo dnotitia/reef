@@ -70,6 +70,9 @@ describe("runJiraMigration", () => {
     report.comments.updated = 0;
     report.deletions = 1;
     expect(actionForRelatedReport(report)).toBe("update");
+    report.deletions = 0;
+    report.media.description_updated = true;
+    expect(actionForRelatedReport(report)).toBe("update");
     report.failures.push({
       source_kind: "comment",
       source_id: "1",
@@ -375,7 +378,9 @@ describe("runJiraMigration", () => {
       }),
       readIssue,
       claimIssue: vi.fn(),
-      relatedTarget: vi.fn(() => ({})),
+      relatedTarget: vi.fn(() => ({
+        listExternalRefKeys: vi.fn(async () => []),
+      })),
       appendActivity: vi.fn(),
     } as never;
     const times = [
@@ -548,7 +553,7 @@ describe("runJiraMigration", () => {
     expect(apply.planSha256).toBe(dryRun.planSha256);
     expect(mutations).toEqual(["REEF-001", "REEF-002"]);
     expect(apply.report.totals.created).toBe(1);
-    expect(apply.report.totals.skipped).toBe(1);
+    expect(apply.report.totals.skipped).toBe(3);
 
     for (const [id, written] of writtenIssues) {
       const customFields =
@@ -575,7 +580,7 @@ describe("runJiraMigration", () => {
     });
     expect(mutations).toEqual(["REEF-001", "REEF-002"]);
     expect(rerun.report.totals.created).toBe(0);
-    expect(rerun.report.totals.skipped).toBe(2);
+    expect(rerun.report.totals.skipped).toBe(4);
 
     const alpha = writtenIssues.get("REEF-001");
     if (!alpha) throw new Error("alpha_issue_missing");

@@ -27,6 +27,7 @@ export async function updateDescriptionMedia(options: {
     typeof migration.issue.renderedFields?.description === "string"
       ? migration.issue.renderedFields.description
       : "";
+  const rewrittenBefore = report.media.rewritten;
   const description = rewriteMedia(
     descriptionAdf,
     attachmentBindings,
@@ -36,22 +37,25 @@ export async function updateDescriptionMedia(options: {
     attachments,
     migration.descriptionConversionOptions,
   );
-  if (
-    migration.mode === "apply" &&
-    description.resolved &&
-    description.changed
-  ) {
+  const rewroteDescriptionMedia = report.media.rewritten > rewrittenBefore;
+  if (rewroteDescriptionMedia && description.resolved && description.changed) {
+    if (migration.mode === "dry-run") {
+      report.media.description_updated = true;
+      return;
+    }
     try {
       const existingDescription = await migration.target.readDescription(
         migration.reefId,
       );
-      if (description.matchesPreRewriteMarkdown(existingDescription))
+      if (description.matchesPreRewriteMarkdown(existingDescription)) {
+        report.media.description_updated = true;
         await migration.target.updateDescription(
           migration.reefId,
           description.markdown,
         );
-      else if (existingDescription !== description.markdown)
+      } else if (existingDescription !== description.markdown) {
         throw new Error("description_precondition_failed");
+      }
       const readback = await migration.target.readDescription(migration.reefId);
       if (readback !== description.markdown)
         throw new Error("description_readback_mismatch");
