@@ -37,6 +37,56 @@ function makeIssue(over: Partial<IssueMetadata> = {}): IssueMetadata {
   };
 }
 
+function makeMigrationIssue(over: Partial<IssueMetadata> = {}): IssueMetadata {
+  return makeIssue({
+    custom_fields: {
+      jira_migration: {
+        owner: { jira_cloud_id: "cloud-1", issue_id: "10001" },
+      },
+    },
+    ...over,
+  });
+}
+
+function makeReservation(issue: IssueMetadata): IssueMetadata {
+  return {
+    ...issue,
+    archived_at: issue.updated_at,
+    parent_id: undefined,
+    depends_on: [],
+    related_to: [],
+    blocks: [],
+    custom_fields: {
+      ...issue.custom_fields,
+      jira_migration: {
+        ...((issue.custom_fields?.jira_migration as Record<string, unknown>) ??
+          {}),
+        reservation: true,
+      },
+    },
+  };
+}
+
+function rowsForIssue(issue: IssueMetadata): unknown {
+  const response = makeIssueQueryResponse([issue]) as {
+    items: Array<Record<string, unknown>>;
+  };
+  response.items[0] = {
+    ...response.items[0],
+    document_uri: `akb://${VAULT}/coll/issues/doc/reef-001.md`,
+    parent_id: issue.parent_id ?? null,
+    related_to: issue.related_to ?? [],
+    meta: {
+      author: issue.created_by,
+      last_editor: issue.updated_by,
+      source: issue.source ?? null,
+      last_status_change: issue.last_status_change ?? null,
+      custom_fields: issue.custom_fields,
+    },
+  };
+  return response;
+}
+
 /** The `GET /documents/{vault}/{path}` payload `readIssue` reads for the body. */
 function docGetResponse(content: string): unknown {
   return {
@@ -398,21 +448,27 @@ describe("born-correct backlog rank (REEF-176)", () => {
   });
 
   it("atomically claims a migration issue id before creating its document", async () => {
+    const issue = makeMigrationIssue({ status: "todo" });
     const { calls } = setupFetch([
-      { body: ROW_UPDATE_OK }, // insertIssueRow claim
+      { body: ROW_UPDATE_OK }, // insert archived reservation
       { body: putResponse("commit-1") }, // POST /documents
+      { body: rowsForIssue(makeReservation(issue)) }, // reservation readback
+      { body: ROW_UPDATE_OK }, // promote reservation
+      { body: rowsForIssue(issue) }, // finalized readback
     ]);
     await writeIssue({
       adapter: makeTestAkbAdapter(),
       vault: VAULT,
-      issue: makeIssue({ status: "todo" }),
+      issue,
       content: "migrated",
       claimFirst: true,
     });
     expect(calls[0]?.url).toContain("/sql");
     expect(String(bodyOf(calls[0]).sql)).toContain("INSERT INTO reef_issues");
+    expect(String(bodyOf(calls[0]).sql)).toContain('"reservation":true');
+    expect(String(bodyOf(calls[0]).sql)).toContain('"archived_at"');
     expect(calls[1]?.url).toContain("/documents");
-    expect(sqlStatements(calls)).toHaveLength(1);
+    expect(String(bodyOf(calls[3]).sql)).toContain("UPDATE reef_issues");
   });
 
   it("claims a migration id without creating a document or relationships", async () => {
@@ -493,20 +549,12 @@ describe("born-correct backlog rank (REEF-176)", () => {
         },
       },
     });
-    const claimedRows = makeIssueQueryResponse([claimedIssue]) as {
+    const claimedRows = rowsForIssue(claimedIssue) as {
       items: Array<Record<string, unknown>>;
     };
     claimedRows.items[0] = {
       ...claimedRows.items[0],
       created_at: "2026-05-01T00:00:01.000Z",
-      document_uri: `akb://${VAULT}/coll/issues/doc/reef-001.md`,
-      meta: {
-        author: claimedIssue.created_by,
-        last_editor: claimedIssue.updated_by,
-        source: claimedIssue.source ?? null,
-        last_status_change: claimedIssue.last_status_change ?? null,
-        custom_fields: claimedIssue.custom_fields,
-      },
     };
     const recoveredIssue = rowToIssue(claimedRows.items[0]);
     const desiredKeys = Object.keys(claimedIssue).filter(
@@ -539,6 +587,9 @@ describe("born-correct backlog rank (REEF-176)", () => {
       { status: 409, body: { error: "duplicate reef_id" } },
       { body: claimedRows },
       { body: putResponse("commit-1") },
+      { body: claimedRows },
+      { body: ROW_UPDATE_OK },
+      { body: rowsForIssue(claimedIssue) },
     ]);
     await expect(
       writeIssue({
@@ -562,43 +613,26 @@ describe("born-correct backlog rank (REEF-176)", () => {
       blocks: ["REEF-096"],
       custom_fields: { jira_migration: { owner } },
     });
-    const reservation = makeIssue({
+    const reservation = makeReservation(
+      makeIssue({
+        status: "backlog",
+        rank: 4096,
+        custom_fields: { jira_migration: { owner } },
+      }),
+    );
+    const finalized = makeIssue({
+      ...desiredIssue,
       status: "backlog",
       rank: 4096,
-      custom_fields: { jira_migration: { owner } },
+      updated_at: "2026-05-01T00:00:01.000Z",
     });
-    const rowsFor = (issue: IssueMetadata) => {
-      const response = makeIssueQueryResponse([issue]) as {
-        items: Array<Record<string, unknown>>;
-      };
-      response.items[0] = {
-        ...response.items[0],
-        document_uri: `akb://${VAULT}/coll/issues/doc/reef-001.md`,
-        parent_id: issue.parent_id ?? null,
-        related_to: issue.related_to ?? [],
-        meta: {
-          author: issue.created_by,
-          last_editor: issue.updated_by,
-          source: issue.source ?? null,
-          last_status_change: issue.last_status_change ?? null,
-          custom_fields: issue.custom_fields,
-        },
-      };
-      return response;
-    };
     const { calls } = setupFetch([
       { status: 409, body: { error: "duplicate reef_id" } },
-      { body: rowsFor(reservation) },
-      { body: ROW_UPDATE_OK },
-      {
-        body: rowsFor(
-          makeIssue({
-            ...desiredIssue,
-            updated_at: "2026-05-01T00:00:01.000Z",
-          }),
-        ),
-      },
+      { body: rowsForIssue(reservation) },
       { body: putResponse("commit-1") },
+      { body: rowsForIssue(reservation) },
+      { body: ROW_UPDATE_OK },
+      { body: rowsForIssue(finalized) },
     ]);
 
     await expect(
@@ -619,10 +653,11 @@ describe("born-correct backlog rank (REEF-176)", () => {
     expect(update).toContain("REEF-096");
     expect(update).toContain("REEF-099");
     expect(update).toContain('"rank" = 4096');
-    expect(calls[4]?.url).toContain("/documents");
+    expect(calls[2]?.url).toContain("/documents");
   });
 
   it("preserves an owned row claim after an ambiguous document failure", async () => {
+    const issue = makeMigrationIssue({ status: "todo" });
     const { calls } = setupFetch([
       { body: ROW_UPDATE_OK },
       { status: 500, body: { error: "response lost" } },
@@ -631,7 +666,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
       writeIssue({
         adapter: makeTestAkbAdapter(),
         vault: VAULT,
-        issue: makeIssue({ status: "todo" }),
+        issue,
         content: "migrated",
         claimFirst: true,
       }),

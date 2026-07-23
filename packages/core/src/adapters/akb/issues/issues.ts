@@ -115,110 +115,10 @@ export async function writeIssue(
     // surfaces loudly from the INSERT rather than being silently auto-healed.
     const body = buildPutRequestBody(vault, issue, content);
     if (claimFirst) {
-      try {
-        await insertIssueRow(
-          adapter,
-          vault,
-          issue,
-          issueDocumentUri(vault, issue.id),
-          { assignBacklogRank: true },
-        );
-      } catch (error) {
-        const existing = (
-          await selectIssueRows(
-            adapter,
-            vault,
-            `reef_id = ${quoteText(issue.id, "reef_id")}`,
-          )
-        )[0];
-        const existingIssue = existing ? rowToIssue(existing) : null;
-        const owner = (
-          issue.custom_fields?.jira_migration as
-            | Record<string, unknown>
-            | undefined
-        )?.owner;
-        const existingOwner = (
-          existingIssue?.custom_fields?.jira_migration as
-            | Record<string, unknown>
-            | undefined
-        )?.owner;
-        const relationKeys = new Set(["depends_on", "blocks", "related_to"]);
-        const desiredKeys = Object.keys(issue).filter(
-          (key) =>
-            key !== "created_at" &&
-            key !== "updated_at" &&
-            issue[key as keyof IssueMetadata] !== undefined,
-        );
-        const desiredProjection = Object.fromEntries(
-          desiredKeys.map((key) => [key, issue[key as keyof IssueMetadata]]),
-        );
-        const existingProjection = existingIssue
-          ? Object.fromEntries(
-              desiredKeys.map((key) => [
-                key,
-                relationKeys.has(key) &&
-                existingIssue[key as keyof IssueMetadata] === undefined
-                  ? []
-                  : issue[key as keyof IssueMetadata] === null &&
-                      existingIssue[key as keyof IssueMetadata] === undefined
-                    ? null
-                    : existingIssue[key as keyof IssueMetadata],
-              ]),
-            )
-          : null;
-        if (
-          !existingIssue ||
-          existing.document_uri !== issueDocumentUri(vault, issue.id) ||
-          owner === undefined ||
-          !sameJiraMigrationOwner(existingOwner, owner)
-        ) {
-          throw error;
-        }
-        if (!isDeepStrictEqual(existingProjection, desiredProjection)) {
-          await runSql(
-            adapter,
-            vault,
-            `UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET ${buildRowAssignments(
-              issueRowMutableFields(
-                issue,
-                issue.rank == null && existingIssue.rank != null
-                  ? { rankExpr: quoteNumberOrNull(existingIssue.rank) }
-                  : undefined,
-              ),
-            )} WHERE reef_id = ${quoteText(
-              issue.id,
-              "reef_id",
-            )} AND meta::jsonb->'custom_fields'->'jira_migration'->'owner' = ${quoteJson(
-              existingOwner,
-            )}::jsonb`,
-          );
-          const refreshed = (
-            await selectIssueRows(
-              adapter,
-              vault,
-              `reef_id = ${quoteText(issue.id, "reef_id")}`,
-            )
-          )[0];
-          const refreshedIssue = refreshed ? rowToIssue(refreshed) : null;
-          const refreshedProjection = refreshedIssue
-            ? Object.fromEntries(
-                desiredKeys.map((key) => [
-                  key,
-                  relationKeys.has(key) &&
-                  refreshedIssue[key as keyof IssueMetadata] === undefined
-                    ? []
-                    : issue[key as keyof IssueMetadata] === null &&
-                        refreshedIssue[key as keyof IssueMetadata] === undefined
-                      ? null
-                      : refreshedIssue[key as keyof IssueMetadata],
-                ]),
-              )
-            : null;
-          if (!isDeepStrictEqual(refreshedProjection, desiredProjection)) {
-            throw error;
-          }
-        }
-      }
+      // Keep the pre-document claim archived and therefore invisible to issue
+      // reads. A failed or ambiguously acknowledged document POST can then be
+      // retried without exposing a row whose backing document does not exist.
+      await claimIssueId({ adapter, vault, issue });
     }
     const payload = await adapter.request("/api/v1/documents", {
       method: "POST",
@@ -232,7 +132,86 @@ export async function writeIssue(
     // row is invisible to the board, so we do not leave that orphan behind.
     // `assignBacklogRank` appends a new backlog issue to the manual-order tail
     // (REEF-176) so the backlog does not gain an unranked row.
-    if (!claimFirst) {
+    if (claimFirst) {
+      const existing = (
+        await selectIssueRows(
+          adapter,
+          vault,
+          `reef_id = ${quoteText(issue.id, "reef_id")}`,
+        )
+      )[0];
+      const existingIssue = existing ? rowToIssue(existing) : null;
+      const owner = (
+        issue.custom_fields?.jira_migration as
+          | Record<string, unknown>
+          | undefined
+      )?.owner;
+      const existingOwner = (
+        existingIssue?.custom_fields?.jira_migration as
+          | Record<string, unknown>
+          | undefined
+      )?.owner;
+      if (
+        !existingIssue ||
+        existing.document_uri !== issueDocumentUri(vault, issue.id) ||
+        owner === undefined ||
+        !sameJiraMigrationOwner(existingOwner, owner)
+      ) {
+        throw new ConflictError({ path: issueDocumentUri(vault, issue.id) });
+      }
+      await runSql(
+        adapter,
+        vault,
+        `UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET ${buildRowAssignments(
+          issueRowMutableFields(
+            issue,
+            issue.rank == null && existingIssue.rank != null
+              ? { rankExpr: quoteNumberOrNull(existingIssue.rank) }
+              : undefined,
+          ),
+        )} WHERE reef_id = ${quoteText(
+          issue.id,
+          "reef_id",
+        )} AND meta::jsonb->'custom_fields'->'jira_migration'->'owner' = ${quoteJson(
+          existingOwner,
+        )}::jsonb`,
+      );
+      const refreshed = (
+        await selectIssueRows(
+          adapter,
+          vault,
+          `reef_id = ${quoteText(issue.id, "reef_id")}`,
+        )
+      )[0];
+      const refreshedIssue = refreshed ? rowToIssue(refreshed) : null;
+      const relationKeys = new Set(["depends_on", "blocks", "related_to"]);
+      const desiredKeys = Object.keys(issue).filter(
+        (key) =>
+          key !== "created_at" &&
+          key !== "updated_at" &&
+          issue[key as keyof IssueMetadata] !== undefined,
+      );
+      const desiredProjection = Object.fromEntries(
+        desiredKeys.map((key) => [key, issue[key as keyof IssueMetadata]]),
+      );
+      const refreshedProjection = refreshedIssue
+        ? Object.fromEntries(
+            desiredKeys.map((key) => [
+              key,
+              relationKeys.has(key) &&
+              refreshedIssue[key as keyof IssueMetadata] === undefined
+                ? []
+                : issue[key as keyof IssueMetadata] === null &&
+                    refreshedIssue[key as keyof IssueMetadata] === undefined
+                  ? null
+                  : refreshedIssue[key as keyof IssueMetadata],
+            ]),
+          )
+        : null;
+      if (!isDeepStrictEqual(refreshedProjection, desiredProjection)) {
+        throw new ConflictError({ path: issueDocumentUri(vault, issue.id) });
+      }
+    } else {
       try {
         await insertIssueRow(adapter, vault, issue, put.uri, {
           assignBacklogRank: true,
