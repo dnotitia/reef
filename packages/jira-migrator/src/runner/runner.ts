@@ -8,7 +8,7 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { tmpdir, userInfo } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
   loadJiraAccountMappingArtifact,
@@ -3130,7 +3130,14 @@ export async function runJiraMigration(
   });
   const lockPath = join(
     await realpath(tmpdir()),
-    "reef-jira-migrator-locks",
+    `reef-jira-migrator-locks-${createHash("sha256")
+      .update(
+        typeof process.getuid === "function"
+          ? String(process.getuid())
+          : userInfo().username,
+      )
+      .digest("hex")
+      .slice(0, 16)}`,
     `${lockIdentity}.lock`,
   );
   await ensurePrivateDirectory(dirname(lockPath));

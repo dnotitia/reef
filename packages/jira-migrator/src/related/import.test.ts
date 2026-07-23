@@ -1145,12 +1145,12 @@ describe("Jira related-data import stage", () => {
     });
     const filteredIssue = issueFixture();
     const approvedCommentBindings = applied.ledger.bindings.filter(
-      (binding) => binding.entity_kind === "comment",
+      (binding) => binding.source_identity.entity_kind === "comment",
     );
     const driftedLedger = {
       ...applied.ledger,
       bindings: applied.ledger.bindings.map((binding) =>
-        binding.entity_kind === "comment"
+        binding.source_identity.entity_kind === "comment"
           ? { ...binding, mapped_state_fingerprint: "0".repeat(64) }
           : binding,
       ),
