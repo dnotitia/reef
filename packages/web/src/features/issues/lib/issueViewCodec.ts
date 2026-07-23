@@ -41,24 +41,6 @@ export function isIssuesListPath(pathname: string, vault: string): boolean {
   return pathname === withVault(vault, "/issues");
 }
 
-export function shouldApplySavedIssueViewClick(event: {
-  button: number;
-  defaultPrevented: boolean;
-  metaKey: boolean;
-  ctrlKey: boolean;
-  shiftKey: boolean;
-  altKey: boolean;
-}): boolean {
-  return (
-    !event.defaultPrevented &&
-    event.button === 0 &&
-    !event.metaKey &&
-    !event.ctrlKey &&
-    !event.shiftKey &&
-    !event.altKey
-  );
-}
-
 export function savedIssueViewDefaultIsStale(
   defaultId: string | undefined,
   views: SavedIssueView[] | undefined,
@@ -182,6 +164,7 @@ export function buildIssueSearchParams(
   const params = new URLSearchParams(base);
   const preserveExplicitEmpty =
     params.get(EMPTY_FILTER_MARKER_KEY) === EMPTY_FILTER_MARKER_VALUE;
+  const clearedManagedFilter = FILTER_QUERY_KEYS.some((key) => params.has(key));
   params.delete(EMPTY_FILTER_MARKER_KEY);
   for (const key of FILTER_QUERY_KEYS) params.delete(key);
   const append = (key: string, values?: readonly string[]) => {
@@ -205,7 +188,7 @@ export function buildIssueSearchParams(
   if (filter.sortOrder) params.set("order", filter.sortOrder);
   if (searchQuery) params.set("q", searchQuery);
   if (
-    preserveExplicitEmpty &&
+    (preserveExplicitEmpty || clearedManagedFilter) &&
     !FILTER_QUERY_KEYS.some((key) => params.has(key))
   ) {
     params.set(EMPTY_FILTER_MARKER_KEY, EMPTY_FILTER_MARKER_VALUE);

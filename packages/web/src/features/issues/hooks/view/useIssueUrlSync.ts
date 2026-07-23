@@ -91,6 +91,10 @@ export function useIssueUrlSync(
   // REPLACE the current history entry (hydration, not navigation) so no bare
   // /issues entry is stacked behind the restored filter (REEF-010).
   const replaceNextWrite = useRef(false);
+  // A vault switch clears the previous vault's mirrored query as hydration,
+  // not as the user's explicit "show all" choice. Keep that destination bare
+  // so the new vault can retain its normal default-landing semantics.
+  const omitEmptyMarkerNextWrite = useRef(false);
   // A fresh mount on the same vault can inherit the previous Issues store
   // state. Hold only that baseline out of store→URL mirroring until the bare
   // landing's default/last-used lookup settles; a user edit changes object
@@ -171,6 +175,7 @@ export function useIssueUrlSync(
       // re-run it and abort the restore started below.)
       if (hasIssueQueryParams(searchParams)) {
         replaceNextWrite.current = true;
+        omitEmptyMarkerNextWrite.current = true;
       } else {
         skipNextWrite.current = true;
       }
@@ -372,11 +377,16 @@ export function useIssueUrlSync(
     if (pathname !== issuesPath || browserPathname !== issuesPath) return;
 
     const currentParams = searchParams.toString();
-    const paramString = buildIssueSearchParams(
+    let paramString = buildIssueSearchParams(
       filter,
       searchQuery,
       new URLSearchParams(currentParams),
     );
+    if (omitEmptyMarkerNextWrite.current) {
+      const params = new URLSearchParams(paramString);
+      params.delete("filter");
+      paramString = params.toString();
+    }
     // Compare order-insensitively: merging from `base` can reorder keys
     // without changing meaning, and we don't want a pure reorder to trigger
     // a redundant navigation.
@@ -391,6 +401,7 @@ export function useIssueUrlSync(
       // render of a vault switch) does not swallow the flag before the real write.
       const useReplace = replaceNextWrite.current;
       replaceNextWrite.current = false;
+      omitEmptyMarkerNextWrite.current = false;
       const href = `${pathname}${paramString ? `?${paramString}` : ""}`;
       pendingIssueQuery.current = canonicalIssueQuery(paramString);
       if (useReplace) {

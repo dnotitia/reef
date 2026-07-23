@@ -91,9 +91,6 @@ export function useDeleteSavedIssueView(vault: string) {
           `Failed to delete saved view: ${response.status}`,
         );
       }
-      if ((await getDefaultIssueViewId(vault)) === id) {
-        await clearDefaultIssueViewId(vault);
-      }
       return id;
     },
     onSuccess: (id) => {
@@ -101,6 +98,14 @@ export function useDeleteSavedIssueView(vault: string) {
         savedIssueViewsKey(vault),
         (current) => (current ?? []).filter((item) => item.id !== id),
       );
+      // The server deletion is already complete. Reconcile the browser-only
+      // pointer without turning a local IndexedDB failure into a failed
+      // mutation or leaving the successfully deleted row in query cache.
+      void getDefaultIssueViewId(vault)
+        .then(async (defaultId) => {
+          if (defaultId === id) await clearDefaultIssueViewId(vault);
+        })
+        .catch(() => undefined);
     },
   });
 }

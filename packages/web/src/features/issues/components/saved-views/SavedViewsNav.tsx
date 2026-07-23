@@ -24,12 +24,9 @@ import { useSavedIssueViews } from "@/features/issues/hooks/queries/useSavedIssu
 import {
   createSavedIssueViewPayload,
   isIssuesListPath,
-  readIssueUrlState,
   savedIssueViewDefaultIsStale,
   savedIssueViewHref,
   savedIssueViewIsActive,
-  savedIssueViewPayloadToSearchParams,
-  shouldApplySavedIssueViewClick,
 } from "@/features/issues/lib/issueViewCodec";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import {
@@ -122,16 +119,6 @@ export function SavedViewsNav({ vault }: { vault: string }) {
               <li key={view.id} className="group flex items-center">
                 <Link
                   href={savedIssueViewHref(vault, view.payload)}
-                  onClick={(event) => {
-                    if (!shouldApplySavedIssueViewClick(event)) return;
-                    const state = readIssueUrlState(
-                      savedIssueViewPayloadToSearchParams(view.payload),
-                    );
-                    useIssueStore.setState({
-                      ...state,
-                      filterVault: vault,
-                    });
-                  }}
                   className={cn(
                     "min-w-0 flex-1 truncate rounded-md px-3 py-1 text-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
                     active

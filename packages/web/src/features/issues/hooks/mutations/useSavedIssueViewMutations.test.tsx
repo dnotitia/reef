@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -129,6 +129,26 @@ describe("saved-view mutations", () => {
     expect(queryClient.getQueryData(savedIssueViewsKey("reef-zen"))).toEqual([
       view(zenId, "Zen"),
     ]);
-    expect(mockClearDefault).toHaveBeenCalledWith("reef-acme");
+    await waitFor(() => {
+      expect(mockClearDefault).toHaveBeenCalledWith("reef-acme");
+    });
+  });
+
+  it("keeps a completed deletion successful when local default reconciliation fails", async () => {
+    mockApiFetch.mockResolvedValue(new Response(null, { status: 204 }));
+    mockGetDefault.mockRejectedValue(new Error("IndexedDB unavailable"));
+    const { queryClient, wrapper } = harness();
+    const { result } = renderHook(() => useDeleteSavedIssueView("reef-acme"), {
+      wrapper,
+    });
+
+    await act(async () => {
+      await expect(result.current.mutateAsync(acmeId)).resolves.toBe(acmeId);
+    });
+
+    expect(queryClient.getQueryData(savedIssueViewsKey("reef-acme"))).toEqual(
+      [],
+    );
+    expect(result.current.isError).toBe(false);
   });
 });
