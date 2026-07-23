@@ -56,11 +56,13 @@ vi.mock("@/features/settings/hooks/useActiveVault", () => ({
 function Harness({
   savedViews,
   savedViewsReady,
+  savedViewsFailed,
 }: {
   savedViews?: SavedIssueView[];
   savedViewsReady?: boolean;
+  savedViewsFailed?: boolean;
 } = {}) {
-  useIssueUrlSync(savedViews, savedViewsReady);
+  useIssueUrlSync(savedViews, savedViewsReady, savedViewsFailed);
   const setFilter = useIssueStore((state) => state.setFilter);
 
   return (
@@ -497,6 +499,25 @@ describe("useIssueUrlSync", () => {
     await waitFor(() => {
       expect(useIssueStore.getState().filter.status).toEqual(["todo"]);
     });
+  });
+
+  it("falls back without clearing the default after a saved-view read failure", async () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    await setDefaultIssueViewId("reef-acme", id);
+    await setPersistedIssueFilter("reef-acme", { status: ["closed"] });
+
+    render(
+      <Harness
+        savedViews={undefined}
+        savedViewsReady={false}
+        savedViewsFailed
+      />,
+    );
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.status).toEqual(["closed"]);
+    });
+    expect(await getDefaultIssueViewId("reef-acme")).toBe(id);
   });
 
   it("clears a stale or inapplicable default pointer and safely falls back", async () => {

@@ -55,6 +55,7 @@ const ISSUES_LIST_BASE = "/issues";
 export function useIssueUrlSync(
   savedViews?: SavedIssueView[],
   savedViewsReady = true,
+  savedViewsFailed = false,
 ): { skipNextSave: RefObject<boolean> } {
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
@@ -175,36 +176,40 @@ export function useIssueUrlSync(
           ? undefined
           : await getDefaultIssueViewId(restoringVault);
         if (!aborted && defaultId) {
-          if (!savedViewsReady) {
+          if (!savedViewsReady && !savedViewsFailed) {
             initialized.current = false;
             restoreStarted.current = false;
             return;
           }
-          const defaultView = savedViews?.find((view) => view.id === defaultId);
-          if (defaultView) {
-            const params = savedIssueViewPayloadToSearchParams(
-              defaultView.payload,
+          if (savedViewsReady) {
+            const defaultView = savedViews?.find(
+              (view) => view.id === defaultId,
             );
-            if (params.size === 0) {
-              await clearDefaultIssueViewId(restoringVault);
-            } else {
-              const state = readIssueUrlState(params);
-              skipNextSave.current = true;
-              skipNextWrite.current = true;
-              useIssueStore.setState({
-                ...state,
-                filterVault: restoringVault,
-              });
-              router.replace(
-                savedIssueViewHref(restoringVault, defaultView.payload),
-                {
-                  scroll: false,
-                },
+            if (defaultView) {
+              const params = savedIssueViewPayloadToSearchParams(
+                defaultView.payload,
               );
-              return;
+              if (params.size === 0) {
+                await clearDefaultIssueViewId(restoringVault);
+              } else {
+                const state = readIssueUrlState(params);
+                skipNextSave.current = true;
+                skipNextWrite.current = true;
+                useIssueStore.setState({
+                  ...state,
+                  filterVault: restoringVault,
+                });
+                router.replace(
+                  savedIssueViewHref(restoringVault, defaultView.payload),
+                  {
+                    scroll: false,
+                  },
+                );
+                return;
+              }
             }
+            await clearDefaultIssueViewId(restoringVault);
           }
-          await clearDefaultIssueViewId(restoringVault);
         }
         const stored = await getPersistedIssueFilter(restoringVault);
         // Apply if this read wasn't superseded (a vault switch aborts it; URL
@@ -248,7 +253,7 @@ export function useIssueUrlSync(
         restoreStarted.current = false;
       }
     };
-  }, [savedViews, savedViewsReady, vault]);
+  }, [savedViews, savedViewsFailed, savedViewsReady, vault]);
   /* eslint-enable react-hooks/exhaustive-deps */
 
   useEffect(() => {

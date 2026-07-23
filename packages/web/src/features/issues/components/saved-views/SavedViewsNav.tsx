@@ -24,9 +24,11 @@ import { useSavedIssueViews } from "@/features/issues/hooks/queries/useSavedIssu
 import {
   createSavedIssueViewPayload,
   isIssuesListPath,
+  readIssueUrlState,
   savedIssueViewDefaultIsStale,
   savedIssueViewHref,
   savedIssueViewIsActive,
+  savedIssueViewPayloadToSearchParams,
 } from "@/features/issues/lib/issueViewCodec";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import {
@@ -51,17 +53,22 @@ export function SavedViewsNav({ vault }: { vault: string }) {
   const searchQuery = useIssueStore((state) => state.searchQuery);
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const [defaultId, setDefaultId] = useState<string>();
+  const [defaultSelection, setDefaultSelection] = useState<{
+    vault: string;
+    id?: string;
+  }>();
   const [rename, setRename] = useState<SavedIssueView | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deleting, setDeleting] = useState<SavedIssueView | null>(null);
   const t = useTranslations("issues.savedViews");
   const c = useTranslations("common");
+  const defaultId =
+    defaultSelection?.vault === vault ? defaultSelection.id : undefined;
 
   useEffect(() => {
     let live = true;
     void getDefaultIssueViewId(vault).then((value) => {
-      if (live) setDefaultId(value);
+      if (live) setDefaultSelection({ vault, id: value });
     });
     return () => {
       live = false;
@@ -71,7 +78,7 @@ export function SavedViewsNav({ vault }: { vault: string }) {
   useEffect(() => {
     if (savedIssueViewDefaultIsStale(defaultId, query.data, query.isSuccess)) {
       void clearDefaultIssueViewId(vault);
-      setDefaultId(undefined);
+      setDefaultSelection({ vault });
     }
   }, [defaultId, query.data, query.isSuccess, vault]);
 
@@ -108,6 +115,15 @@ export function SavedViewsNav({ vault }: { vault: string }) {
               <li key={view.id} className="group flex items-center">
                 <Link
                   href={savedIssueViewHref(vault, view.payload)}
+                  onClick={() => {
+                    const state = readIssueUrlState(
+                      savedIssueViewPayloadToSearchParams(view.payload),
+                    );
+                    useIssueStore.setState({
+                      ...state,
+                      filterVault: vault,
+                    });
+                  }}
                   className={cn(
                     "min-w-0 flex-1 truncate rounded-md px-3 py-1 text-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
                     active
@@ -169,7 +185,7 @@ export function SavedViewsNav({ vault }: { vault: string }) {
                           ? setDefaultIssueViewId(vault, next)
                           : clearDefaultIssueViewId(vault);
                         void operation
-                          .then(() => setDefaultId(next))
+                          .then(() => setDefaultSelection({ vault, id: next }))
                           .catch(report);
                       }}
                     >
@@ -268,7 +284,9 @@ export function SavedViewsNav({ vault }: { vault: string }) {
                 void remove
                   .mutateAsync(deleting.id)
                   .then(() => {
-                    if (defaultId === deleting.id) setDefaultId(undefined);
+                    if (defaultId === deleting.id) {
+                      setDefaultSelection({ vault });
+                    }
                     setDeleting(null);
                   })
                   .catch(() => undefined);

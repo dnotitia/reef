@@ -48,6 +48,21 @@ test.describe("Hermetic saved issue views", () => {
 
     await page.goto("/workspace/reef-e2e/issues?priority=high&view=list");
     await expect(viewLink).not.toHaveAttribute("aria-current", "page");
+    await viewLink.click();
+    await expect(viewLink).toHaveAttribute("aria-current", "page");
+    await expect
+      .poll(() =>
+        Object.fromEntries(new URL(page.url()).searchParams.entries()),
+      )
+      .toEqual({
+        order: "desc",
+        q: "Alpha",
+        sort: "priority",
+        status: "todo",
+        view: "list",
+      });
+
+    await page.goto("/workspace/reef-e2e/issues?priority=high&view=list");
     await page.getByRole("button", { name: "Actions for Alpha todo" }).click();
     await page
       .getByRole("menuitem", {
