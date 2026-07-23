@@ -1,8 +1,10 @@
 import { ZodError } from "zod";
 import { NotFoundError, SchemaValidationError } from "../../../errors";
 import {
+  CreateSavedIssueViewSchema,
   type SavedIssueView,
   SavedIssueViewSchema,
+  UpdateSavedIssueViewSchema,
   normalizeSavedIssueViewName,
 } from "../../../schemas/issues/savedView";
 import {
@@ -42,6 +44,22 @@ function rowToSavedView(row: Record<string, unknown>): SavedIssueView {
               (issue) => `${issue.path.join(".")}: ${issue.message}`,
             )
           : ["Saved view row validation failed"],
+    });
+  }
+}
+
+function parseSavedViewWrite<T>(parse: () => T, fallbackMessage: string): T {
+  try {
+    return parse();
+  } catch (error) {
+    throw new SchemaValidationError({
+      clientValidated: false,
+      issues:
+        error instanceof ZodError
+          ? error.issues.map(
+              (issue) => `${issue.path.join(".")}: ${issue.message}`,
+            )
+          : [fallbackMessage],
     });
   }
 }
@@ -94,8 +112,12 @@ export async function createSavedIssueView(
     "akb.create_saved_issue_view",
     { vault: params.vault },
     async () => {
+      const view = parseSavedViewWrite(
+        () => CreateSavedIssueViewSchema.parse(params.view),
+        "Saved view create validation failed",
+      );
       await ensureReefTables({ adapter: params.adapter, vault: params.vault });
-      const name = params.view.name.trim();
+      const name = view.name;
       const fields: Array<[string, string]> = [
         ["name", quoteText(name, "saved view name")],
         [
@@ -103,7 +125,7 @@ export async function createSavedIssueView(
           quoteText(normalizeSavedIssueViewName(name), "saved view name key"),
         ],
         ["owner", quoteText(params.owner, "saved view owner")],
-        ["payload", quoteJson(params.view.payload)],
+        ["payload", quoteJson(view.payload)],
       ];
       const result = await runSql(
         params.adapter,
@@ -131,10 +153,14 @@ export async function updateSavedIssueView(
     "akb.update_saved_issue_view",
     { vault: params.vault },
     async () => {
+      const patch = parseSavedViewWrite(
+        () => UpdateSavedIssueViewSchema.parse(params.patch),
+        "Saved view update validation failed",
+      );
       await ensureReefTables({ adapter: params.adapter, vault: params.vault });
       const fields: Array<[string, string]> = [];
-      if (params.patch.name !== undefined) {
-        const name = params.patch.name.trim();
+      if (patch.name !== undefined) {
+        const name = patch.name;
         fields.push(
           ["name", quoteText(name, "saved view name")],
           [
@@ -143,8 +169,8 @@ export async function updateSavedIssueView(
           ],
         );
       }
-      if (params.patch.payload !== undefined) {
-        fields.push(["payload", quoteJson(params.patch.payload)]);
+      if (patch.payload !== undefined) {
+        fields.push(["payload", quoteJson(patch.payload)]);
       }
       const result = await runSql(
         params.adapter,

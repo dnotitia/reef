@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   ALL_REEF_TABLES,
   ConflictError,
@@ -154,6 +154,33 @@ describe("saved issue views", () => {
         },
       }),
     ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("rejects invalid create and update inputs before AKB I/O", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    await expect(
+      createSavedIssueView({
+        adapter: makeAdapter(),
+        vault: "reef-sample",
+        owner: "alice",
+        view: {
+          name: "   ",
+          payload: { version: 1, query: { status: ["todo"] } },
+        },
+      }),
+    ).rejects.toMatchObject({ name: "SchemaValidationError" });
+
+    await expect(
+      updateSavedIssueView({
+        adapter: makeAdapter(),
+        vault: "reef-sample",
+        id: SAVED_VIEW_ROW.id,
+        patch: {},
+      }),
+    ).rejects.toMatchObject({ name: "SchemaValidationError" });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("updates by UUID and rejects a deleted row", async () => {
