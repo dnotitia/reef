@@ -11,7 +11,14 @@ export function commentsKey(vault: string, issueId: string) {
   return ["issues", "comments", vault, issueId] as const;
 }
 
-/** Load an issue's flat comment thread, oldest-first (server-ordered). */
+/**
+ * Load an issue's flat comment thread, oldest-first (server-ordered).
+ *
+ * The persisted query cache may lag a just-completed mutation by one async
+ * storage write. Always revalidate when the timeline mounts so a hard reload
+ * renders the cached thread immediately, then converges on the server instead
+ * of treating that possibly older snapshot as fresh for 30 seconds.
+ */
 export function useComments(issueId: string, vault: string) {
   return useQuery({
     queryKey: commentsKey(vault, issueId),
@@ -29,5 +36,6 @@ export function useComments(issueId: string, vault: string) {
     },
     enabled: !!issueId && !!vault,
     staleTime: 30_000,
+    refetchOnMount: "always",
   });
 }
