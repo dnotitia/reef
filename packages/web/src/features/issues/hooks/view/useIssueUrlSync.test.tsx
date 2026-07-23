@@ -594,10 +594,22 @@ describe("useIssueUrlSync", () => {
     await setPersistedIssueFilter("reef-acme", { status: ["closed"] });
 
     const { rerender } = render(
-      <Harness savedViews={undefined} savedViewsReady={false} />,
+      <Harness
+        savedViews={[
+          {
+            id: "22222222-2222-4222-8222-222222222222",
+            name: "Stale cached view",
+            name_key: "stale cached view",
+            owner: "alice",
+            payload: { version: 1, query: { priority: ["low"] } },
+          },
+        ]}
+        savedViewsReady={false}
+      />,
     );
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(useIssueStore.getState().filter.status).toBeUndefined();
+    expect(await getDefaultIssueViewId("reef-acme")).toBe(id);
 
     rerender(
       <Harness

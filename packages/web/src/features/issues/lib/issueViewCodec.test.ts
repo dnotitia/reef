@@ -10,6 +10,7 @@ import {
   savedIssueViewHref,
   savedIssueViewIsActive,
   savedIssueViewPayloadToSearchParams,
+  shouldApplySavedIssueViewClick,
 } from "./issueViewCodec";
 
 describe("issueViewCodec", () => {
@@ -41,6 +42,33 @@ describe("issueViewCodec", () => {
         ],
         true,
       ),
+    ).toBe(false);
+  });
+
+  it("only applies an ordinary primary saved-view link activation to the current store", () => {
+    const ordinary = {
+      button: 0,
+      defaultPrevented: false,
+      metaKey: false,
+      ctrlKey: false,
+      shiftKey: false,
+      altKey: false,
+    };
+    expect(shouldApplySavedIssueViewClick(ordinary)).toBe(true);
+    expect(shouldApplySavedIssueViewClick({ ...ordinary, metaKey: true })).toBe(
+      false,
+    );
+    expect(shouldApplySavedIssueViewClick({ ...ordinary, ctrlKey: true })).toBe(
+      false,
+    );
+    expect(
+      shouldApplySavedIssueViewClick({ ...ordinary, shiftKey: true }),
+    ).toBe(false);
+    expect(shouldApplySavedIssueViewClick({ ...ordinary, button: 1 })).toBe(
+      false,
+    );
+    expect(
+      shouldApplySavedIssueViewClick({ ...ordinary, defaultPrevented: true }),
     ).toBe(false);
   });
 

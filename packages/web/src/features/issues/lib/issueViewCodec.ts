@@ -41,6 +41,24 @@ export function isIssuesListPath(pathname: string, vault: string): boolean {
   return pathname === withVault(vault, "/issues");
 }
 
+export function shouldApplySavedIssueViewClick(event: {
+  button: number;
+  defaultPrevented: boolean;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  shiftKey: boolean;
+  altKey: boolean;
+}): boolean {
+  return (
+    !event.defaultPrevented &&
+    event.button === 0 &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.shiftKey &&
+    !event.altKey
+  );
+}
+
 export function savedIssueViewDefaultIsStale(
   defaultId: string | undefined,
   views: SavedIssueView[] | undefined,

@@ -29,6 +29,7 @@ import {
   savedIssueViewHref,
   savedIssueViewIsActive,
   savedIssueViewPayloadToSearchParams,
+  shouldApplySavedIssueViewClick,
 } from "@/features/issues/lib/issueViewCodec";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import {
@@ -76,11 +77,17 @@ export function SavedViewsNav({ vault }: { vault: string }) {
   }, [vault]);
 
   useEffect(() => {
-    if (savedIssueViewDefaultIsStale(defaultId, query.data, query.isSuccess)) {
+    if (
+      savedIssueViewDefaultIsStale(
+        defaultId,
+        query.data,
+        query.isSuccess && !query.isFetching,
+      )
+    ) {
       void clearDefaultIssueViewId(vault);
       setDefaultSelection({ vault });
     }
-  }, [defaultId, query.data, query.isSuccess, vault]);
+  }, [defaultId, query.data, query.isFetching, query.isSuccess, vault]);
 
   if (query.isPending) {
     return (
@@ -115,7 +122,8 @@ export function SavedViewsNav({ vault }: { vault: string }) {
               <li key={view.id} className="group flex items-center">
                 <Link
                   href={savedIssueViewHref(vault, view.payload)}
-                  onClick={() => {
+                  onClick={(event) => {
+                    if (!shouldApplySavedIssueViewClick(event)) return;
                     const state = readIssueUrlState(
                       savedIssueViewPayloadToSearchParams(view.payload),
                     );
