@@ -245,10 +245,20 @@ export async function claimIssueId(params: ClaimIssueIdParams): Promise<void> {
   if (owner === undefined) throw new Error("issue_claim_owner_required");
   const reservation: IssueMetadata = {
     ...issue,
+    archived_at: issue.updated_at,
     parent_id: undefined,
     depends_on: [],
     related_to: [],
     blocks: [],
+    custom_fields: {
+      ...issue.custom_fields,
+      jira_migration: {
+        ...((issue.custom_fields?.jira_migration as
+          | Record<string, unknown>
+          | undefined) ?? {}),
+        reservation: true,
+      },
+    },
   };
   try {
     await insertIssueRow(

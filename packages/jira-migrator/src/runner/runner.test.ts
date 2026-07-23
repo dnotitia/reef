@@ -350,6 +350,24 @@ describe("runJiraMigration", () => {
     expect(mutations).toEqual([]);
 
     await expect(
+      runJiraMigration(
+        {
+          ...applyConfig,
+          jira: {
+            ...applyConfig.jira,
+            baseUrl: "https://different-jira.test",
+          },
+        },
+        {
+          target,
+          createJiraClient: (key) => clients.get(key) as never,
+          now,
+        },
+      ),
+    ).rejects.toMatchObject({ code: "dry_run_scope_mismatch" });
+    expect(mutations).toEqual([]);
+
+    await expect(
       runJiraMigration(applyConfig, {
         target,
         createJiraClient: (key) => clients.get(key) as never,

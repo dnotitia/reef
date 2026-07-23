@@ -141,15 +141,15 @@ const assertPrivate = async (
   path: string,
   kind: "file" | "directory",
 ): Promise<void> => {
+  if (process.platform === "win32") {
+    fail("permission_violation");
+  }
   const stat = await lstat(path).catch(() => fail("report_io_failed"));
   if (stat.isSymbolicLink()) fail("symlink_not_allowed");
   if (kind === "file" ? !stat.isFile() : !stat.isDirectory()) {
     fail("report_io_failed");
   }
-  if (
-    process.platform !== "win32" &&
-    (stat.mode & 0o777) !== (kind === "file" ? 0o600 : 0o700)
-  ) {
+  if ((stat.mode & 0o777) !== (kind === "file" ? 0o600 : 0o700)) {
     fail("permission_violation");
   }
 };
@@ -159,7 +159,7 @@ const ensureDirectory = async (path: string): Promise<void> => {
     await mkdir(path, { recursive: true, mode: 0o700 }).catch(() =>
       fail("report_io_failed"),
     );
-    if (process.platform !== "win32") await chmod(path, 0o700);
+    await chmod(path, 0o700);
   }
   await assertPrivate(path, "directory");
 };

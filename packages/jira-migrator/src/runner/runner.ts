@@ -258,6 +258,14 @@ const targetEndpointFingerprint = (baseUrl: string): string => {
     .digest("hex");
 };
 
+const jiraEndpointFingerprint = (baseUrl: string): string => {
+  const normalized = new URL(baseUrl).toString().replace(/\/$/u, "");
+  return createHash("sha256")
+    .update("reef:jira-migrator:jira-endpoint:v1\0")
+    .update(normalized)
+    .digest("hex");
+};
+
 const safePlanningAction = (action: JiraPlanningAction) => ({
   classification: action.classification,
   source_identity: action.sourceIdentity,
@@ -774,13 +782,16 @@ const fileExists = async (path: string): Promise<boolean> => {
 };
 
 const ensurePrivateDirectory = async (path: string): Promise<void> => {
+  if (process.platform === "win32") {
+    throw new Error("artifact_acl_verification_unsupported");
+  }
   await assertNoSymlinkPathComponents(path);
   try {
     const stat = await lstat(path);
     if (
       stat.isSymbolicLink() ||
       !stat.isDirectory() ||
-      (process.platform !== "win32" && (stat.mode & 0o777) !== 0o700)
+      (stat.mode & 0o777) !== 0o700
     ) {
       throw new Error("artifact_directory_permission_violation");
     }
@@ -792,7 +803,7 @@ const ensurePrivateDirectory = async (path: string): Promise<void> => {
       throw error;
     }
     await mkdir(path, { recursive: true, mode: 0o700 });
-    if (process.platform !== "win32") await chmod(path, 0o700);
+    await chmod(path, 0o700);
   }
 };
 
@@ -832,6 +843,9 @@ async function runJiraMigrationUnlocked(
   const now = dependencies.now ?? (() => new Date().toISOString());
   const startedAt = now();
   const endpointFingerprint = targetEndpointFingerprint(config.target.baseUrl);
+  const sourceEndpointFingerprint = jiraEndpointFingerprint(
+    config.jira.baseUrl,
+  );
   const target =
     dependencies.target ??
     createAkbJiraMigrationTarget({
@@ -881,6 +895,8 @@ async function runJiraMigrationUnlocked(
         JSON.stringify(config.jira.projectKeys) ||
       JSON.stringify(approvedPlanArtifact.source.board_ids) !==
         JSON.stringify(config.jira.boardIds) ||
+      approvedPlanArtifact.source.endpoint_fingerprint !==
+        sourceEndpointFingerprint ||
       approvedPlanArtifact.target.vault !== config.target.vault ||
       approvedPlanArtifact.target.endpoint_fingerprint !==
         endpointFingerprint ||
@@ -899,6 +915,8 @@ async function runJiraMigrationUnlocked(
         JSON.stringify(config.jira.projectKeys) ||
       JSON.stringify(approvedPlanArtifact.source.board_ids) !==
         JSON.stringify(config.jira.boardIds) ||
+      approvedPlanArtifact.source.endpoint_fingerprint !==
+        sourceEndpointFingerprint ||
       approvedPlanArtifact.target.vault !== config.target.vault ||
       approvedPlanArtifact.target.endpoint_fingerprint !== endpointFingerprint
     ) {
@@ -2710,12 +2728,6 @@ async function runJiraMigrationUnlocked(
   const expectedReport = (await fileExists(outputReportPath))
     ? await loadJiraRunnerReport(outputReportPath)
     : undefined;
-  await writeJiraRunnerReport({
-    path: outputReportPath,
-    report,
-    ...(expectedReport ? { expectedReport } : {}),
-    forbiddenSecretValues: secretValuesForConfig(config),
-  });
   if (config.mode === "dry-run" && report.run.status === "completed") {
     await writePrivatePlanArtifact(`${paths.reportPath}.plan.json`, {
       schema_version: 1,
@@ -2724,6 +2736,7 @@ async function runJiraMigrationUnlocked(
         jira_cloud_id: config.jira.cloudId,
         project_keys: config.jira.projectKeys,
         board_ids: config.jira.boardIds,
+        endpoint_fingerprint: sourceEndpointFingerprint,
       },
       target: {
         vault: config.target.vault,
@@ -2758,6 +2771,12 @@ async function runJiraMigrationUnlocked(
       });
     }
   }
+  await writeJiraRunnerReport({
+    path: outputReportPath,
+    report,
+    ...(expectedReport ? { expectedReport } : {}),
+    forbiddenSecretValues: secretValuesForConfig(config),
+  });
   return {
     runId: config.artifacts.runId,
     mode: config.mode,

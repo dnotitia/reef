@@ -36,6 +36,7 @@ describe("private migration artifacts", () => {
         jira_cloud_id: "cloud-1",
         project_keys: ["ALPHA"],
         board_ids: [],
+        endpoint_fingerprint: "c".repeat(64),
       },
       target: {
         vault: "reef-test",

@@ -28,6 +28,7 @@ const PrivatePlanArtifactSchema = z
         jira_cloud_id: z.string().min(1),
         project_keys: z.array(z.string().min(1)).min(1),
         board_ids: z.array(z.string().min(1)),
+        endpoint_fingerprint: z.string().regex(/^[a-f0-9]{64}$/u),
       })
       .strict(),
     target: z
@@ -91,16 +92,16 @@ const assertPrivate = async (
   path: string,
   kind: "file" | "directory",
 ): Promise<void> => {
+  if (process.platform === "win32") {
+    throw new Error("private_artifact_acl_verification_unsupported");
+  }
   await assertNoSymlinkPathComponents(path);
   const stat = await lstat(path);
   if (stat.isSymbolicLink()) throw new Error("private_artifact_symlink");
   if (kind === "file" ? !stat.isFile() : !stat.isDirectory()) {
     throw new Error("private_artifact_type");
   }
-  if (
-    process.platform !== "win32" &&
-    (stat.mode & 0o777) !== (kind === "file" ? 0o600 : 0o700)
-  ) {
+  if ((stat.mode & 0o777) !== (kind === "file" ? 0o600 : 0o700)) {
     throw new Error("private_artifact_permission");
   }
 };
@@ -109,7 +110,7 @@ const ensureDirectory = async (path: string): Promise<void> => {
   await assertNoSymlinkPathComponents(path);
   if (!(await exists(path))) {
     await mkdir(path, { recursive: true, mode: 0o700 });
-    if (process.platform !== "win32") await chmod(path, 0o700);
+    await chmod(path, 0o700);
   }
   await assertPrivate(path, "directory");
 };

@@ -436,6 +436,8 @@ describe("born-correct backlog rank (REEF-176)", () => {
     expect(sql).toContain("INSERT INTO reef_issues");
     expect(sql).not.toContain("REEF-099");
     expect(sql).not.toContain("REEF-098");
+    expect(sql).toContain('"archived_at"');
+    expect(sql).toContain('"reservation":true');
   });
 
   it("normalizes a foreign-owner issue claim collision to ConflictError", async () => {
