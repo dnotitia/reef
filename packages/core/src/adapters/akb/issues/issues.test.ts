@@ -131,6 +131,13 @@ describe("updateIssue → row-update compensation", () => {
       { body: makeIssueQueryResponse([makeIssue()]) }, // readIssue selectIssueRows
       { body: putResponse("commit-new") }, // forward doc PATCH (succeeds)
       { status: 500, body: { error: "sql boom" } }, // row UPDATE (fails)
+      {
+        body: {
+          ...(docGetResponse("new body") as Record<string, unknown>),
+          current_commit: "commit-new",
+        },
+      }, // ambiguous-write recovery document readback
+      { body: makeIssueQueryResponse([makeIssue()]) }, // row did not commit
       { body: putResponse("commit-revert") }, // compensating re-PATCH
     ]);
 
@@ -155,6 +162,7 @@ describe("updateIssue → row-update compensation", () => {
     expect(bodyOf(patches[1]).message).toBe(
       "Revert REEF-001 document: row update failed",
     );
+    expect(bodyOf(patches[1]).expected_commit).toBe("commit-new");
   });
 
   it("does not touch the document when a clean status edit's row UPDATE fails", async () => {
@@ -162,6 +170,8 @@ describe("updateIssue → row-update compensation", () => {
       { body: docGetResponse("body") }, // readIssue GET
       { body: makeIssueQueryResponse([makeIssue()]) }, // readIssue selectIssueRows
       { status: 500, body: { error: "sql boom" } }, // row UPDATE (fails)
+      { body: docGetResponse("body") }, // ambiguous-write recovery readback
+      { body: makeIssueQueryResponse([makeIssue()]) },
     ]);
 
     const err = await updateIssue({
@@ -204,6 +214,13 @@ describe("updateIssue → row-update compensation", () => {
       { body: makeIssueQueryResponse([makeIssue()]) },
       { body: putResponse("commit-new") }, // forward PATCH ok
       { status: 500, body: { error: "sql boom" } }, // row UPDATE fails
+      {
+        body: {
+          ...(docGetResponse("new body") as Record<string, unknown>),
+          current_commit: "commit-new",
+        },
+      },
+      { body: makeIssueQueryResponse([makeIssue()]) },
       { status: 503, body: { error: "revert boom" } }, // re-PATCH also fails
     ]);
 

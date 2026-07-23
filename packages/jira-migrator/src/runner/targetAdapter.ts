@@ -657,6 +657,13 @@ export function createAkbJiraMigrationTarget(
         );
       }
       const fileId = /\/file\/([^/]+)$/u.exec(fileUri)?.[1];
+      await sql(
+        adapter,
+        vault,
+        `DELETE FROM reef_attachments WHERE reef_id = ${quote(
+          reefId,
+        )} AND file_uri = ${quote(fileUri)}`,
+      );
       if (fileId) {
         try {
           await adapter.request(
@@ -667,13 +674,6 @@ export function createAkbJiraMigrationTarget(
           if (!(error instanceof NotFoundError)) throw error;
         }
       }
-      await sql(
-        adapter,
-        vault,
-        `DELETE FROM reef_attachments WHERE reef_id = ${quote(
-          reefId,
-        )} AND file_uri = ${quote(fileUri)}`,
-      );
     },
     async hasMediaReference(reefId, fileUri) {
       return (await readIssue(reefId)).content.includes(fileUri);

@@ -516,7 +516,11 @@ export async function updateIssue(
       }
     } catch (err) {
       let committed = false;
-      if (!(err instanceof AkbApiError) || err.status === 0) {
+      if (
+        !(err instanceof AkbApiError) ||
+        err.status === 0 ||
+        err.status >= 500
+      ) {
         try {
           const recovered = await readIssue({ adapter, vault, id });
           const expectedRecoveredIssue = {
@@ -527,6 +531,7 @@ export async function updateIssue(
           committed =
             recovered.commit_hash === commitHash &&
             recovered.content === mergedBody &&
+            recovered.issue.updated_at !== current.issue.updated_at &&
             isDeepStrictEqual(recovered.issue, expectedRecoveredIssue);
           if (committed) {
             mergedIssue.updated_at = recovered.issue.updated_at;
@@ -545,17 +550,19 @@ export async function updateIssue(
             current.content,
           );
           revertBody.message = `Revert ${id} document: row update failed`;
-          await adapter
-            .request(docPath, {
+          revertBody.expected_commit = commitHash;
+          try {
+            await adapter.request(docPath, {
               method: "PATCH",
               body: revertBody,
               resource: makeIssueResourceLabel(id),
-            })
-            .catch(() => {
-              // Best-effort compensation; the original row-update error takes
-              // precedence. If this re-PATCH also fails the stores stay diverged,
-              // same contract as the other two sagas' best-effort compensations.
             });
+          } catch (revertError) {
+            if (revertError instanceof ConflictError) throw revertError;
+            // Best-effort compensation; the original row-update error takes
+            // precedence. If this re-PATCH also fails the stores stay diverged,
+            // same contract as the other two sagas' best-effort compensations.
+          }
         }
         throw err;
       }
