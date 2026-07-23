@@ -1854,66 +1854,22 @@ async function runJiraMigrationUnlocked(
       try {
         resolution = await target.applyPlanning(action);
       } catch {
-        const targetCandidate = action.target;
-        if (!targetCandidate) {
-          record(
-            "planning",
-            resultFor({
-              sourceKey: action.sourceIdentity.key,
-              entityKind: action.sourceIdentity.kind,
-              sourceFingerprint,
-              mappedFingerprint,
-              action: "failed",
-              at: now(),
-              readback: false,
-              retryable: false,
-            }),
-          );
-          await checkpoint();
-          continue;
-        }
-        const current = await target.preflight();
-        const catalog =
-          targetCandidate.kind === "release"
-            ? current.planning.releases
-            : current.planning.sprints;
-        const recovered = catalog?.find((candidate) => {
-          const projection = Object.fromEntries(
-            Object.keys(targetCandidate.item).map((key) => [
-              key,
-              candidate[key as keyof typeof candidate],
-            ]),
-          );
-          return (
-            candidate.name.trim().toLowerCase() ===
-              targetCandidate.item.name.trim().toLowerCase() &&
-            fingerprintJiraState(projection) ===
-              fingerprintJiraState(targetCandidate.item)
-          );
-        });
-        if (!recovered) {
-          record(
-            "planning",
-            resultFor({
-              sourceKey: action.sourceIdentity.key,
-              entityKind: action.sourceIdentity.kind,
-              sourceFingerprint,
-              mappedFingerprint,
-              action: "failed",
-              at: now(),
-              readback: Boolean(current),
-              retryable: true,
-              reconciliationState: "pending_target_migration",
-            }),
-          );
-          await checkpoint();
-          continue;
-        }
-        resolution = {
-          sourceIdentity: action.sourceIdentity,
-          targetKind: targetCandidate.kind,
-          targetId: recovered.id,
-        };
+        record(
+          "planning",
+          resultFor({
+            sourceKey: action.sourceIdentity.key,
+            entityKind: action.sourceIdentity.kind,
+            sourceFingerprint,
+            mappedFingerprint,
+            action: "failed",
+            at: now(),
+            readback: false,
+            retryable: true,
+            reconciliationState: "pending_target_migration",
+          }),
+        );
+        await checkpoint();
+        continue;
       }
       if (
         !planningResolutions.some(
