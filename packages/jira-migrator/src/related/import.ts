@@ -116,12 +116,18 @@ export async function importJiraRelatedData(
   const commentCatalogAuthoritative =
     input.attachmentPolicy?.commentVisibilityCompleteness === "verified" &&
     commentsRead.status === "fulfilled";
+  const approvedCommentBindingKeys = input.attachmentPolicy
+    ?.approvedCommentBindingKeys
+    ? new Set(input.attachmentPolicy.approvedCommentBindingKeys)
+    : null;
   const missingCommentBindings = commentCatalogAuthoritative
     ? input.ledger.bindings.filter(
         (binding) =>
           binding.source_identity.entity_kind === "comment" &&
           binding.source_identity.jira_cloud_id === input.jiraCloudId &&
           binding.source_identity.issue_id === issue.id &&
+          (approvedCommentBindingKeys === null ||
+            approvedCommentBindingKeys.has(binding.source_key)) &&
           !returnedCommentIds.has(binding.source_identity.comment_id),
       )
     : [];

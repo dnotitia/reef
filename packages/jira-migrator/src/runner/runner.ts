@@ -1207,6 +1207,35 @@ async function runJiraMigrationUnlocked(
     !Array.isArray(approvedPlanArtifact.payload)
       ? (approvedPlanArtifact.payload as Record<string, unknown>)
       : null;
+  const approvedCommentBindingPreconditions =
+    approvedPayload?.comment_binding_preconditions &&
+    typeof approvedPayload.comment_binding_preconditions === "object" &&
+    !Array.isArray(approvedPayload.comment_binding_preconditions)
+      ? (approvedPayload.comment_binding_preconditions as Record<
+          string,
+          unknown
+        >)
+      : null;
+  const approvedCommentBindingKeys = (
+    issueKey: string,
+  ): string[] | undefined => {
+    if (!approvedCommentBindingPreconditions) return undefined;
+    const bindings = approvedCommentBindingPreconditions[issueKey];
+    if (!Array.isArray(bindings)) {
+      throw new JiraRunnerError("dry_run_scope_mismatch");
+    }
+    return bindings.map((binding) => {
+      if (
+        !binding ||
+        typeof binding !== "object" ||
+        Array.isArray(binding) ||
+        typeof (binding as Record<string, unknown>).source_key !== "string"
+      ) {
+        throw new JiraRunnerError("dry_run_scope_mismatch");
+      }
+      return (binding as Record<string, unknown>).source_key as string;
+    });
+  };
   const approvedAbsentSourceRelations = Array.isArray(
     approvedPayload?.absent_source_relations,
   )
@@ -1821,7 +1850,7 @@ async function runJiraMigrationUnlocked(
   }
   const planPayload = {
     control: {
-      comment_catalog_complete: config.control.commentCatalogComplete,
+      comment_catalog_complete: config.control.commentCatalogComplete === true,
     },
     source: {
       jira_cloud_id: config.jira.cloudId,
@@ -1857,21 +1886,29 @@ async function runJiraMigrationUnlocked(
         [...policies].map(([key, policy]) => [key, policy.linkMappings]),
       ),
     },
-    comment_binding_preconditions: Object.fromEntries(
-      allIssues.map((issue) => [
-        issue.key,
-        ledger.bindings
-          .filter(
-            (binding) =>
-              binding.source_identity.entity_kind === "comment" &&
-              binding.source_identity.jira_cloud_id === config.jira.cloudId &&
-              binding.source_identity.issue_id === issue.id,
-          )
-          .sort((left, right) =>
-            left.source_identity.key.localeCompare(right.source_identity.key),
-          ),
-      ]),
-    ),
+    comment_binding_preconditions:
+      approvedCommentBindingPreconditions ??
+      Object.fromEntries(
+        allIssues.map((issue) => [
+          issue.key,
+          ledger.bindings
+            .filter(
+              (binding) =>
+                binding.source_identity.entity_kind === "comment" &&
+                binding.source_identity.jira_cloud_id === config.jira.cloudId &&
+                binding.source_identity.issue_id === issue.id,
+            )
+            .sort((left, right) =>
+              left.source_identity.key.localeCompare(right.source_identity.key),
+            )
+            .map((binding) => ({
+              source_key: binding.source_key,
+              target: binding.target,
+              source_fingerprint: binding.source_fingerprint,
+              mapped_state_fingerprint: binding.mapped_state_fingerprint,
+            })),
+        ]),
+      ),
     related_plan: relatedPlanningReports.map((item) => ({
       issue_key: item.issue_key,
       report: semanticRelatedReport(item.report),
@@ -2612,6 +2649,13 @@ async function runJiraMigrationUnlocked(
             maxBytes: 20 * 1024 * 1024,
             ...(config.control.commentCatalogComplete
               ? { commentVisibilityCompleteness: "verified" as const }
+              : {}),
+            ...(approvedCommentBindingPreconditions
+              ? {
+                  approvedCommentBindingKeys: approvedCommentBindingKeys(
+                    issue.key,
+                  ),
+                }
               : {}),
           },
           resolveIssueTarget(sourceIdOrKey) {
