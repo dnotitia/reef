@@ -27,13 +27,12 @@ export function SaveIssueViewDialog() {
   const searchParams = useSearchParams();
   const view = searchParams?.get("view") ?? "board";
   const payload = createSavedIssueViewPayload(filter, searchQuery, view);
-  const hasState = Object.keys(payload.query).length > 0;
   const mutation = useCreateSavedIssueView(vault);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const t = useTranslations("issues.savedViews");
   const c = useTranslations("common");
-  if (!hasState || !vault) return null;
+  if (!vault) return null;
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();

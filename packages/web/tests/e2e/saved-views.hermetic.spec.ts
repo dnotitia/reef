@@ -158,5 +158,8 @@ test.describe("Hermetic saved issue views", () => {
     );
     await page.keyboard.press("Escape");
     await expect(page.getByRole("button", { name: "Save view" })).toBeFocused();
+
+    await page.goto("/workspace/reef-e2e/issues?filter=none");
+    await expect(page.getByRole("button", { name: "Save view" })).toBeVisible();
   });
 });
