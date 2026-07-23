@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   acquireMigrationRunLock,
   assertNoSymlinkPathComponents,
+  processIdentityMayOwnLiveLock,
   readPrivatePlanArtifact,
   writePrivatePlanArtifact,
 } from "./privateArtifact.js";
@@ -27,6 +28,26 @@ afterEach(async () => {
 });
 
 describe("private migration artifacts", () => {
+  it("does not reclaim a live lock when strong process identity is unavailable", () => {
+    expect(
+      processIdentityMayOwnLiveLock(
+        42,
+        "darwin:42:strong-start-time",
+        "pid:42",
+      ),
+    ).toBe(true);
+    expect(
+      processIdentityMayOwnLiveLock(
+        42,
+        "darwin:42:old-start-time",
+        "darwin:42:new-start-time",
+      ),
+    ).toBe(false);
+    expect(
+      processIdentityMayOwnLiveLock(42, "darwin:42:old-start-time", null),
+    ).toBe(false);
+  });
+
   it("writes an immutable private plan with verified readback", async () => {
     const path = join(await temporaryDirectory(), "report.plan.json");
     const artifact = {

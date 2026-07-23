@@ -22,6 +22,20 @@ export interface JiraIssueCatalog {
   pages: unknown[];
 }
 
+export function assertUniqueJiraIssues(
+  issues: readonly NormalizedJiraIssue[],
+): void {
+  const ids = new Set<string>();
+  const keys = new Set<string>();
+  for (const issue of issues) {
+    if (ids.has(issue.id) || keys.has(issue.key)) {
+      throw new Error("jira_issue_catalog_duplicate");
+    }
+    ids.add(issue.id);
+    keys.add(issue.key);
+  }
+}
+
 export async function readAllChangelog(
   client: Pick<JiraReadClient, "listChangelog">,
   issueKey: string,
@@ -76,6 +90,7 @@ export async function readAllProjectIssues(
       { ...retry, operationKind: "read" },
     );
     items.push(...page.items);
+    assertUniqueJiraIssues(items);
     pages.push(page.raw);
     if (page.isLast) {
       if (page.cursor) {

@@ -84,6 +84,7 @@ import {
 } from "./report.js";
 import { retryOperation } from "./retry.js";
 import {
+  assertUniqueJiraIssues,
   readAllChangelog,
   readAllProjectIssues,
   readBoardSprints,
@@ -1160,6 +1161,7 @@ async function runJiraMigrationUnlocked(
   const allIssues = [...issuesByProject.values()]
     .flat()
     .sort((left, right) => left.key.localeCompare(right.key));
+  assertUniqueJiraIssues(allIssues);
   const projectKeyById = new Map<string, string>();
   for (const [projectKey, detail] of projectDetailsByProject) {
     projectKeyById.set(detail.project.id, projectKey);

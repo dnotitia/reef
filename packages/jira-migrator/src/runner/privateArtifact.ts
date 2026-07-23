@@ -19,6 +19,16 @@ import { canonicalizeJson } from "../archive/canonicalJson.js";
 
 const execFileAsync = promisify(execFile);
 
+export function processIdentityMayOwnLiveLock(
+  pid: number,
+  expectedIdentity: string,
+  observedIdentity: string | null,
+): boolean {
+  return (
+    observedIdentity === expectedIdentity || observedIdentity === `pid:${pid}`
+  );
+}
+
 const PrivatePlanArtifactSchema = z
   .object({
     schema_version: z.literal(1),
@@ -300,7 +310,13 @@ export async function acquireMigrationRunLock(
         if (!owner) {
           throw new Error("migration_run_lock_conflict");
         }
-        if (owner && (await processIdentity(owner.pid)) === owner.identity) {
+        if (
+          processIdentityMayOwnLiveLock(
+            owner.pid,
+            owner.identity,
+            await processIdentity(owner.pid),
+          )
+        ) {
           throw new Error("migration_run_lock_conflict");
         }
         const stalePath = `${absolute}.stale.${randomUUID()}`;

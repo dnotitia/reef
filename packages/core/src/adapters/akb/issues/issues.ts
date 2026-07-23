@@ -220,14 +220,15 @@ export async function writeIssue(
           | Record<string, unknown>
           | undefined
       )?.owner;
-      const existingOwner = (
-        existingIssue?.custom_fields?.jira_migration as
-          | Record<string, unknown>
-          | undefined
-      )?.owner;
+      const existingMigration = existingIssue?.custom_fields?.jira_migration as
+        | Record<string, unknown>
+        | undefined;
+      const existingOwner = existingMigration?.owner;
       if (
         !existingIssue ||
         existing.document_uri !== issueDocumentUri(vault, issue.id) ||
+        existingIssue.archived_at == null ||
+        existingMigration?.reservation !== true ||
         owner === undefined ||
         !sameJiraMigrationOwner(existingOwner, owner)
       ) {
@@ -248,7 +249,10 @@ export async function writeIssue(
           "reef_id",
         )} AND meta::jsonb->'custom_fields'->'jira_migration'->'owner' = ${quoteJson(
           existingOwner,
-        )}::jsonb`,
+        )}::jsonb AND archived_at IS NOT NULL AND meta::jsonb->'custom_fields'->'jira_migration'->'reservation' = 'true'::jsonb AND updated_at = ${quoteText(
+          existingIssue.updated_at,
+          "expected updated_at",
+        )}`,
       );
       const refreshed = (
         await selectIssueRows(

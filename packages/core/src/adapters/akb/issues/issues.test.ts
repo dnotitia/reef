@@ -469,6 +469,13 @@ describe("born-correct backlog rank (REEF-176)", () => {
     expect(String(bodyOf(calls[0]).sql)).toContain('"archived_at"');
     expect(calls[2]?.url).toContain("/documents");
     expect(String(bodyOf(calls[4]).sql)).toContain("UPDATE reef_issues");
+    expect(String(bodyOf(calls[4]).sql)).toContain("archived_at IS NOT NULL");
+    expect(String(bodyOf(calls[4]).sql)).toContain(
+      "'reservation' = 'true'::jsonb",
+    );
+    expect(String(bodyOf(calls[4]).sql)).toContain(
+      "updated_at = '2026-05-01T00:00:00.000Z'",
+    );
   });
 
   it("claims a migration id without creating a document or relationships", async () => {

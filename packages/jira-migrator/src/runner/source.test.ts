@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { JiraPage, JiraRateLimit } from "../jira/client.js";
 import {
+  assertUniqueJiraIssues,
   readAllChangelog,
   readAllProjectIssues,
   readBoardSprints,
@@ -15,18 +16,33 @@ const rateLimit: JiraRateLimit = {
 };
 
 describe("runner source traversal", () => {
+  it("rejects duplicate Jira issue ids or keys across source catalogs", () => {
+    expect(() =>
+      assertUniqueJiraIssues([
+        { id: "10001", key: "ALPHA-1" },
+        { id: "10001", key: "BETA-1" },
+      ] as never),
+    ).toThrow("jira_issue_catalog_duplicate");
+    expect(() =>
+      assertUniqueJiraIssues([
+        { id: "10001", key: "ALPHA-1" },
+        { id: "20001", key: "ALPHA-1" },
+      ] as never),
+    ).toThrow("jira_issue_catalog_duplicate");
+  });
+
   it("follows enhanced-JQL nextPageToken once and rejects repeated tokens", async () => {
     const searchProjectIssues = vi
       .fn()
       .mockResolvedValueOnce({
-        items: [{ key: "ALPHA-1" }],
+        items: [{ id: "10001", key: "ALPHA-1" }],
         cursor: { kind: "nextPageToken", value: "next-1" },
         isLast: false,
         rateLimit,
         raw: { issues: [] },
       })
       .mockResolvedValueOnce({
-        items: [{ key: "ALPHA-2" }],
+        items: [{ id: "10002", key: "ALPHA-2" }],
         cursor: null,
         isLast: true,
         rateLimit,
