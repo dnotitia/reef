@@ -1012,6 +1012,18 @@ async function runJiraMigrationUnlocked(
     changelogByIssue.set(issue.key, changelog.items);
     changelogPagesByIssue.set(issue.key, changelog.pages);
   }
+  const commentsByIssue = new Map<
+    string,
+    Awaited<ReturnType<JiraReadClient["readComments"]>>["items"]
+  >();
+  for (const issue of allIssues) {
+    const client = clients.get(
+      issue.projectKey ?? issue.key.split("-")[0] ?? "",
+    );
+    if (!client) throw new Error("jira_client_missing");
+    const comments = await client.readComments(issue.key);
+    commentsByIssue.set(issue.key, comments.items);
+  }
 
   let accountMapping = await loadJiraAccountMappingArtifact({
     path: paths.accountMappingPath,
@@ -1022,6 +1034,7 @@ async function runJiraMigrationUnlocked(
     observations: allIssues.flatMap((issue) =>
       collectJiraUserObservations({
         issue: issue.raw,
+        comments: commentsByIssue.get(issue.key) ?? [],
         changelog: changelogByIssue.get(issue.key) ?? [],
       }),
     ),
