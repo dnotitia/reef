@@ -438,6 +438,47 @@ describe("born-correct backlog rank (REEF-176)", () => {
     expect(sql).not.toContain("REEF-098");
   });
 
+  it("normalizes a foreign-owner issue claim collision to ConflictError", async () => {
+    const desired = makeIssue({
+      custom_fields: {
+        jira_migration: {
+          owner: { jira_cloud_id: "cloud-1", issue_id: "10001" },
+        },
+      },
+    });
+    const foreign = makeIssue({
+      custom_fields: {
+        jira_migration: {
+          owner: { jira_cloud_id: "cloud-1", issue_id: "different" },
+        },
+      },
+    });
+    const rows = makeIssueQueryResponse([foreign]) as {
+      items: Array<Record<string, unknown>>;
+    };
+    rows.items[0] = {
+      ...rows.items[0],
+      document_uri: `akb://${VAULT}/coll/issues/doc/reef-001.md`,
+      meta: {
+        author: foreign.created_by,
+        last_editor: foreign.updated_by,
+        custom_fields: foreign.custom_fields,
+      },
+    };
+    setupFetch([
+      { status: 409, body: { error: "duplicate reef_id" } },
+      { body: rows },
+    ]);
+
+    await expect(
+      claimIssueId({
+        adapter: makeTestAkbAdapter(),
+        vault: VAULT,
+        issue: desired,
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+  });
+
   it("completes an exact owned row claim left without a document", async () => {
     const claimedIssue = makeIssue({
       status: "todo",

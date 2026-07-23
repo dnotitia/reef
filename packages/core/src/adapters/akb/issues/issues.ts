@@ -277,6 +277,9 @@ export async function claimIssueId(params: ClaimIssueIdParams): Promise<void> {
       existing.document_uri !== issueDocumentUri(vault, issue.id) ||
       !sameJiraMigrationOwner(existingOwner, owner)
     ) {
+      if (existingIssue) {
+        throw new ConflictError({ path: issueDocumentUri(vault, issue.id) });
+      }
       throw error;
     }
   }
