@@ -474,6 +474,24 @@ describe("runJiraMigration", () => {
       runJiraMigration(
         {
           ...applyConfig,
+          control: {
+            ...applyConfig.control,
+            commentCatalogComplete: true,
+          },
+        },
+        {
+          target,
+          createJiraClient: (key) => clients.get(key) as never,
+          now,
+        },
+      ),
+    ).rejects.toMatchObject({ code: "plan_fingerprint_mismatch" });
+    expect(mutations).toEqual([]);
+
+    await expect(
+      runJiraMigration(
+        {
+          ...applyConfig,
           target: {
             ...applyConfig.target,
             baseUrl: "https://different-akb.test",

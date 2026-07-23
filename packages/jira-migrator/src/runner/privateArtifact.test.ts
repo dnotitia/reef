@@ -44,6 +44,13 @@ describe("private migration artifacts", () => {
       ),
     ).toBe(false);
     expect(
+      processIdentityMayOwnLiveLock(
+        42,
+        "pid:42",
+        "darwin:42:strong-start-time",
+      ),
+    ).toBe(true);
+    expect(
       processIdentityMayOwnLiveLock(42, "darwin:42:old-start-time", null),
     ).toBe(false);
   });

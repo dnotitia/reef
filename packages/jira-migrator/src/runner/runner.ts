@@ -1820,6 +1820,9 @@ async function runJiraMigrationUnlocked(
     }
   }
   const planPayload = {
+    control: {
+      comment_catalog_complete: config.control.commentCatalogComplete,
+    },
     source: {
       jira_cloud_id: config.jira.cloudId,
       project_keys: config.jira.projectKeys,
@@ -1854,6 +1857,21 @@ async function runJiraMigrationUnlocked(
         [...policies].map(([key, policy]) => [key, policy.linkMappings]),
       ),
     },
+    comment_binding_preconditions: Object.fromEntries(
+      allIssues.map((issue) => [
+        issue.key,
+        ledger.bindings
+          .filter(
+            (binding) =>
+              binding.source_identity.entity_kind === "comment" &&
+              binding.source_identity.jira_cloud_id === config.jira.cloudId &&
+              binding.source_identity.issue_id === issue.id,
+          )
+          .sort((left, right) =>
+            left.source_identity.key.localeCompare(right.source_identity.key),
+          ),
+      ]),
+    ),
     related_plan: relatedPlanningReports.map((item) => ({
       issue_key: item.issue_key,
       report: semanticRelatedReport(item.report),

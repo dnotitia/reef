@@ -25,7 +25,10 @@ export function processIdentityMayOwnLiveLock(
   observedIdentity: string | null,
 ): boolean {
   return (
-    observedIdentity === expectedIdentity || observedIdentity === `pid:${pid}`
+    observedIdentity !== null &&
+    (expectedIdentity === `pid:${pid}` ||
+      observedIdentity === `pid:${pid}` ||
+      observedIdentity === expectedIdentity)
   );
 }
 
