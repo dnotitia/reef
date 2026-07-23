@@ -170,8 +170,29 @@ export async function createComment(
       const issueGuard = `SELECT reef_id FROM ${tableRef(
         REEF_ISSUES_TABLE,
       )} WHERE reef_id = ${quoteText(reefId, "comment reef_id")} LIMIT 1`;
+      const idempotencyKey =
+        typeof metadata.jira_idempotency_key === "string"
+          ? metadata.jira_idempotency_key
+          : null;
+      const claimCtes = idempotencyKey
+        ? `claim_lock AS (SELECT pg_advisory_xact_lock(hashtextextended(${quoteText(
+            idempotencyKey,
+            "comment idempotency key",
+          )}, 0))), existing AS (SELECT comment.* FROM ${tableRef(
+            REEF_COMMENTS_TABLE,
+          )} comment CROSS JOIN claim_lock WHERE comment.meta->>'jira_idempotency_key' = ${quoteText(
+            idempotencyKey,
+            "comment idempotency key",
+          )} LIMIT 1), `
+        : "";
+      const resultSelection = idempotencyKey
+        ? "SELECT * FROM ins UNION ALL SELECT * FROM existing LIMIT 1"
+        : "SELECT * FROM ins";
+      const claimJoin = idempotencyKey
+        ? " CROSS JOIN claim_lock WHERE NOT EXISTS (SELECT 1 FROM existing)"
+        : "";
       const sql = parentCommentId
-        ? `WITH RECURSIVE target_issue AS (${issueGuard}), direct_parent AS (SELECT * FROM ${tableRef(
+        ? `WITH RECURSIVE ${claimCtes}target_issue AS (${issueGuard}), direct_parent AS (SELECT * FROM ${tableRef(
             REEF_COMMENTS_TABLE,
           )} WHERE id = ${quoteText(
             parentCommentId,
@@ -202,10 +223,10 @@ export async function createComment(
           )}, 'created_at', ${quoteText(
             createdAt,
             "comment created_at",
-          )}, 'edited_at', ${editedAt === null ? "NULL" : quoteText(editedAt, "comment edited_at")}, 'parent_comment_id', valid_reply.parent_id, 'thread_root_id', valid_reply.root_id) || ${quoteJson(metadata)}::jsonb FROM target_issue CROSS JOIN valid_reply RETURNING *) SELECT * FROM ins`
-        : `WITH target_issue AS (${issueGuard}), ins AS (INSERT INTO ${tableRef(
+          )}, 'edited_at', ${editedAt === null ? "NULL" : quoteText(editedAt, "comment edited_at")}, 'parent_comment_id', valid_reply.parent_id, 'thread_root_id', valid_reply.root_id) || ${quoteJson(metadata)}::jsonb FROM target_issue CROSS JOIN valid_reply${claimJoin} RETURNING *) ${resultSelection}`
+        : `WITH ${claimCtes}target_issue AS (${issueGuard}), ins AS (INSERT INTO ${tableRef(
             REEF_COMMENTS_TABLE,
-          )} (${columns}) SELECT ${values} FROM target_issue RETURNING *) SELECT * FROM ins`;
+          )} (${columns}) SELECT ${values} FROM target_issue${claimJoin} RETURNING *) ${resultSelection}`;
       const res = await runSql(adapter, vault, sql);
       const row = res.kind === "table_query" ? res.items[0] : undefined;
       if (!row) {

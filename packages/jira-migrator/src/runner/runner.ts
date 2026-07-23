@@ -1,5 +1,14 @@
 import { createHash } from "node:crypto";
-import { chmod, lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  lstat,
+  mkdir,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
   loadJiraAccountMappingArtifact,
@@ -3107,7 +3116,25 @@ export async function runJiraMigration(
   ])) {
     await ensurePrivateDirectory(directory);
   }
-  const release = await acquireMigrationRunLock(`${paths.ledgerPath}.run.lock`);
+  const lockIdentity = fingerprintJiraState({
+    run_id: config.artifacts.runId,
+    source: {
+      endpoint: jiraEndpointFingerprint(config.jira.baseUrl),
+      cloud_id: config.jira.cloudId,
+      project_keys: [...config.jira.projectKeys].sort(),
+    },
+    target: {
+      endpoint: targetEndpointFingerprint(config.target.baseUrl),
+      vault: config.target.vault,
+    },
+  });
+  const lockPath = join(
+    await realpath(tmpdir()),
+    "reef-jira-migrator-locks",
+    `${lockIdentity}.lock`,
+  );
+  await ensurePrivateDirectory(dirname(lockPath));
+  const release = await acquireMigrationRunLock(lockPath);
   try {
     return await runJiraMigrationUnlocked(config, dependencies);
   } finally {

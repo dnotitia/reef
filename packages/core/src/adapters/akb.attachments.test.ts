@@ -144,7 +144,10 @@ describe("uploadIssueAttachment", () => {
       inline: true,
       createdAt: "2026-01-01T00:00:00.000Z",
       originalJiraAttachmentId: "source-42",
-      meta: { source: "jira" },
+      meta: {
+        source: "jira",
+        jira_idempotency_key: "attachment:cloud-1:source-42",
+      },
     });
 
     expect(attachment).toMatchObject({
@@ -156,11 +159,18 @@ describe("uploadIssueAttachment", () => {
     expect(calls[2]?.init?.body).toBeInstanceOf(FormData);
     const insertSql = lastSql(calls[3]?.init?.body);
     expect(insertSql).toContain(`INSERT INTO ${REEF_ATTACHMENTS_TABLE}`);
-    expect(insertSql.slice(0, insertSql.indexOf(" VALUES "))).not.toContain(
-      '"created_at"',
-    );
+    expect(
+      insertSql.slice(
+        insertSql.indexOf(`INSERT INTO ${REEF_ATTACHMENTS_TABLE}`),
+        insertSql.indexOf(") SELECT "),
+      ),
+    ).not.toContain('"created_at"');
     expect(insertSql).toContain('"created_at":');
     expect(insertSql).toContain('"source":"jira"');
+    expect(insertSql).toContain("pg_advisory_xact_lock");
+    expect(insertSql).toContain(
+      '"jira_idempotency_key":"attachment:cloud-1:source-42"',
+    );
     expect(insertSql).toContain("'source-42'");
     expect(insertSql).toContain("'REEF-349'");
     expect(insertSql).toContain("'akb://reef-sample/issues/file/file-1'");

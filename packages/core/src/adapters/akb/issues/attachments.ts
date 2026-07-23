@@ -12,6 +12,7 @@ import {
   REEF_ATTACHMENTS_TABLE,
   REEF_ISSUES_TABLE,
   decodeSettingsValue,
+  deleteAkbFile,
   downloadAkbFile,
   ensureReefTables,
   isMissingTableError,
@@ -165,12 +166,33 @@ async function insertAttachmentRow(
     .map(quoteIdent)
     .join(", ");
   const values = fields.map(([, value]) => value).join(", ");
+  const idempotencyKey =
+    typeof input.meta?.jira_idempotency_key === "string"
+      ? input.meta.jira_idempotency_key
+      : null;
+  const claimCtes = idempotencyKey
+    ? `claim_lock AS (SELECT pg_advisory_xact_lock(hashtextextended(${quoteText(
+        idempotencyKey,
+        "attachment idempotency key",
+      )}, 0))), existing AS (SELECT attachment.* FROM ${tableRef(
+        REEF_ATTACHMENTS_TABLE,
+      )} attachment CROSS JOIN claim_lock WHERE attachment.meta->>'jira_idempotency_key' = ${quoteText(
+        idempotencyKey,
+        "attachment idempotency key",
+      )} LIMIT 1), `
+    : "";
+  const insertSource = idempotencyKey
+    ? `SELECT ${values} FROM claim_lock WHERE NOT EXISTS (SELECT 1 FROM existing)`
+    : `VALUES (${values})`;
+  const resultSelection = idempotencyKey
+    ? "SELECT * FROM ins UNION ALL SELECT * FROM existing LIMIT 1"
+    : "SELECT * FROM ins";
   const res = await runSql(
     adapter,
     vault,
-    `WITH ins AS (INSERT INTO ${tableRef(
+    `WITH ${claimCtes}ins AS (INSERT INTO ${tableRef(
       REEF_ATTACHMENTS_TABLE,
-    )} (${columns}) VALUES (${values}) RETURNING *) SELECT * FROM ins`,
+    )} (${columns}) ${insertSource} RETURNING *) ${resultSelection}`,
   );
   const row = res.kind === "table_query" ? res.items[0] : undefined;
   if (!row) {
@@ -270,6 +292,9 @@ export async function uploadIssueAttachment(
         original_jira_attachment_id: params.originalJiraAttachmentId ?? null,
         meta: params.meta ?? null,
       });
+      if (attachment.file_uri !== uploaded.uri) {
+        await deleteAkbFile(adapter, vault, uploaded.uri);
+      }
       await appendAttachmentAddedEvent(adapter, vault, attachment).catch(() => {
         // Best effort: the upload + row are the user-visible work; activity is
         // a timeline projection and can be repaired by a future scan/backfill.

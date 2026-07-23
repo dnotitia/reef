@@ -237,7 +237,9 @@ describe("createComment", () => {
     expect(sql).toContain(`INSERT INTO ${REEF_COMMENTS_TABLE}`);
     // Declared columns are used; akb reserved/auto columns are excluded.
     expect(sql).toContain(`("reef_id", "body", "meta")`);
-    expect(sql).toContain("WITH target_issue AS");
+    expect(sql).toContain("target_issue AS");
+    expect(sql).toContain("pg_advisory_xact_lock");
+    expect(sql).toContain("jira_idempotency_key");
     expect(sql).toContain("WHERE reef_id = 'REEF-062' LIMIT 1");
     expect(sql).toContain("SELECT 'REEF-062', 'hello $1 it''s me'");
     expect(sql).not.toContain("created_by");
@@ -316,7 +318,9 @@ describe("createComment", () => {
     expect(sql).toContain("direct_parent AS");
     expect(sql).toContain("valid_reply AS");
     expect(sql).toContain("CROSS JOIN valid_reply");
-    expect(sql).toContain("WITH RECURSIVE target_issue");
+    expect(sql).toContain("WITH RECURSIVE");
+    expect(sql).toContain("target_issue AS");
+    expect(sql).toContain("pg_advisory_xact_lock");
     expect(sql).toContain("WHERE reef_id = 'REEF-062' LIMIT 1");
     expect(sql).toContain("parent_chain AS");
     expect(sql).toContain("jsonb_build_object");
