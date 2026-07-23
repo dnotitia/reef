@@ -149,8 +149,6 @@ describe("planning metadata", () => {
     };
     const { calls } = setupFetch([
       { body: makeListTablesResponse(ALL_REEF_TABLES) },
-      { body: makeSqlQueryResponse([], SPRINT_ROW_COLUMNS) },
-      { body: makeSqlQueryResponse([], SPRINT_ROW_COLUMNS) },
       { body: makeSqlQueryResponse([claimedRow], SPRINT_ROW_COLUMNS) },
       { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([claimedRow], SPRINT_ROW_COLUMNS) },
@@ -184,7 +182,10 @@ describe("planning metadata", () => {
         idempotencyKey: "sprint:cloud-1:42",
       }),
     ).resolves.toMatchObject({ id: claimedRow.id });
-    const insertSql = JSON.parse(calls[3]?.init?.body as string).sql;
+    const insertSql = JSON.parse(calls[1]?.init?.body as string).sql;
+    expect(insertSql).toContain("pg_advisory_xact_lock");
+    expect(insertSql).toContain("claim_lock AS MATERIALIZED");
+    expect(insertSql).toContain("name_conflict AS MATERIALIZED");
     expect(insertSql).toContain("create_idempotency_key");
     expect(insertSql).toContain("sprint:cloud-1:42");
   });

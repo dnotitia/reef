@@ -220,6 +220,54 @@ export async function insertAndReadPlanningRow<T>(
   return toItem(row);
 }
 
+export async function claimAndReadPlanningRow<T>(input: {
+  adapter: AkbAdapter;
+  vault: string;
+  table: ReefTableName;
+  fields: Array<[string, string]>;
+  name: string;
+  idempotencyKey: string;
+  idempotencyMetaKey: string;
+  toItem: (row: Record<string, unknown>) => T;
+}): Promise<T> {
+  const columns = input.fields.map(([column]) => quoteIdent(column)).join(", ");
+  const values = input.fields.map(([, value]) => value).join(", ");
+  const idempotencyLock = `reef:planning:idempotency:${input.idempotencyKey}`;
+  const nameLock = `reef:planning:name:${input.table}:${input.name.trim().toLowerCase()}`;
+  const statement = `WITH claim_lock AS MATERIALIZED (SELECT pg_advisory_xact_lock(hashtext(lock_key)) FROM (VALUES (${quoteText(
+    idempotencyLock,
+    "planning idempotency lock",
+  )}), (${quoteText(
+    nameLock,
+    "planning name lock",
+  )})) AS locks(lock_key) ORDER BY lock_key), lock_barrier AS MATERIALIZED (SELECT count(*) FROM claim_lock), existing_claim AS MATERIALIZED (SELECT planning.* FROM ${tableRef(
+    input.table,
+  )} planning CROSS JOIN lock_barrier WHERE planning.meta->>${quoteText(
+    input.idempotencyMetaKey,
+    "planning claim field",
+  )} = ${quoteText(
+    input.idempotencyKey,
+    "planning idempotency key",
+  )}), name_conflict AS MATERIALIZED (SELECT 1 FROM ${tableRef(
+    input.table,
+  )} planning CROSS JOIN lock_barrier WHERE lower(planning.name) = lower(${quoteText(
+    input.name,
+    "planning name",
+  )}) AND NOT EXISTS (SELECT 1 FROM existing_claim) LIMIT 1), ins AS (INSERT INTO ${tableRef(
+    input.table,
+  )} (${columns}) SELECT ${values} FROM lock_barrier WHERE NOT EXISTS (SELECT 1 FROM existing_claim) AND NOT EXISTS (SELECT 1 FROM name_conflict) RETURNING *), resolved AS (SELECT * FROM existing_claim UNION ALL SELECT * FROM ins) SELECT * FROM resolved`;
+  const res = await runSql(input.adapter, input.vault, statement);
+  const rows = res.kind === "table_query" ? res.items : [];
+  if (rows.length > 1) {
+    throw new SchemaValidationError({
+      issues: ["planning idempotency claim is ambiguous"],
+    });
+  }
+  const row = rows[0];
+  if (!row) throw new ConflictError();
+  return input.toItem(row);
+}
+
 export async function updatePlanningRow(
   adapter: AkbAdapter,
   vault: string,

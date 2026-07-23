@@ -38,6 +38,7 @@ import type {
 import {
   assertPlanningItemNotReferenced,
   assertUniquePlanningName,
+  claimAndReadPlanningRow,
   deletePlanningRow,
   insertAndReadPlanningRow,
   milestoneRowFields,
@@ -113,13 +114,18 @@ export async function createSprint(
     // fields should be checked here so an invalid row does not persists.
     const validated = SprintCreateSchema.parse(item);
     if (idempotencyKey) {
-      const claimed = await readPlanningCreateClaim({
+      return claimAndReadPlanningRow({
         adapter,
         vault,
-        kind: "sprint",
+        table: REEF_SPRINTS_TABLE,
+        fields: sprintRowFields(validated, {
+          [CREATE_IDEMPOTENCY_META_KEY]: idempotencyKey,
+        }),
+        name: validated.name,
         idempotencyKey,
+        idempotencyMetaKey: CREATE_IDEMPOTENCY_META_KEY,
+        toItem: rowToSprint,
       });
-      if (claimed) return SprintSchema.parse(claimed);
     }
     await assertUniquePlanningName(
       adapter,
@@ -249,13 +255,18 @@ export async function createRelease(
     await ensureReefTables({ adapter, vault });
     const validated = ReleaseCreateSchema.parse(item);
     if (idempotencyKey) {
-      const claimed = await readPlanningCreateClaim({
+      return claimAndReadPlanningRow({
         adapter,
         vault,
-        kind: "release",
+        table: REEF_RELEASES_TABLE,
+        fields: releaseRowFields(validated, {
+          [CREATE_IDEMPOTENCY_META_KEY]: idempotencyKey,
+        }),
+        name: validated.name,
         idempotencyKey,
+        idempotencyMetaKey: CREATE_IDEMPOTENCY_META_KEY,
+        toItem: rowToRelease,
       });
-      if (claimed) return ReleaseSchema.parse(claimed);
     }
     await assertUniquePlanningName(
       adapter,
