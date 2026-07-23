@@ -88,6 +88,31 @@ const state = {
   relations: new Map(),
   externalRefs: new Map(),
 };
+const targetStateSha256 = () =>
+  createHash("sha256")
+    .update(
+      JSON.stringify({
+        issues: [...state.issues].sort(([left], [right]) =>
+          left.localeCompare(right),
+        ),
+        relations: [...state.relations].sort(([left], [right]) =>
+          left.localeCompare(right),
+        ),
+        externalRefs: [...state.externalRefs].sort(([left], [right]) =>
+          left.localeCompare(right),
+        ),
+      }),
+    )
+    .digest("hex");
+const targetMutationAttempts = () =>
+  state.akbRequests.filter(
+    (entry) =>
+      (entry.path === "/akb/api/v1/documents" && entry.method === "POST") ||
+      (entry.path.startsWith("/akb/api/v1/documents/reef-contract/issues/") &&
+        entry.method === "PATCH") ||
+      (entry.path === "/akb/api/v1/tables/reef-contract/sql" &&
+        /^(?:INSERT|UPDATE|WITH\s+\w+\s+AS\s+\(UPDATE)/u.test(entry.sql ?? "")),
+  ).length;
 const readBody = async (request) => {
   const chunks = [];
   for await (const chunk of request) chunks.push(chunk);
@@ -601,6 +626,8 @@ try {
   const before = {
     mutations: state.mutationLog.length,
     issues: state.issues.size,
+    state_sha256: targetStateSha256(),
+    mutation_attempts: targetMutationAttempts(),
   };
   const dry = await run(baseConfig);
   if (dry.code !== 0 || !dry.result?.ok) {
@@ -611,6 +638,8 @@ try {
   const afterDry = {
     mutations: state.mutationLog.length,
     issues: state.issues.size,
+    state_sha256: targetStateSha256(),
+    mutation_attempts: targetMutationAttempts(),
   };
   const applyConfig = {
     ...baseConfig,
@@ -618,6 +647,24 @@ try {
     dryRun: false,
     expectedPlanSha256: dry.result.plan_sha256,
   };
+  const wrongHashState = targetStateSha256();
+  const wrongHashMutationAttempts = targetMutationAttempts();
+  const wrongHash = await run({
+    ...applyConfig,
+    expectedPlanSha256: "0".repeat(64),
+  });
+  if (
+    wrongHash.code === 0 ||
+    wrongHash.result?.code !== "plan_fingerprint_mismatch"
+  ) {
+    throw new Error("plan_hash_rejection_missing");
+  }
+  const wrongHashTargetUnchanged =
+    targetStateSha256() === wrongHashState &&
+    targetMutationAttempts() === wrongHashMutationAttempts;
+  if (!wrongHashTargetUnchanged) {
+    throw new Error("plan_hash_rejection_mutated_target");
+  }
   const interrupted = await run(applyConfig, 1);
   if (interrupted.result?.code !== "failpoint")
     throw new Error("failpoint_missing");
@@ -636,8 +683,15 @@ try {
     dry_run: {
       ...afterDry,
       target_mutations: afterDry.mutations - before.mutations,
+      target_state_unchanged:
+        afterDry.state_sha256 === before.state_sha256 &&
+        afterDry.mutation_attempts === before.mutation_attempts,
       plan_sha256: dry.result.plan_sha256,
       conservation: dry.result.conservation,
+    },
+    plan_hash_rejection: {
+      code: wrongHash.result.code,
+      target_unchanged: wrongHashTargetUnchanged,
     },
     apply_resume: {
       interrupted_after_confirmed_entity: interrupted.result.code,
@@ -666,6 +720,9 @@ try {
   };
   if (
     proof.dry_run.target_mutations !== 0 ||
+    !proof.dry_run.target_state_unchanged ||
+    proof.plan_hash_rejection.code !== "plan_fingerprint_mismatch" ||
+    !proof.plan_hash_rejection.target_unchanged ||
     proof.apply_resume.issues !== 2 ||
     proof.apply_resume.relations !== 1 ||
     proof.rerun.duplicate_mutations !== 0 ||

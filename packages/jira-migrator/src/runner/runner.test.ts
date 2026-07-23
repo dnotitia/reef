@@ -229,6 +229,11 @@ describe("runJiraMigration", () => {
       string,
       { issue: Record<string, unknown>; content: string }
     >();
+    const readIssue = vi.fn(async (id: string) => {
+      const written = writtenIssues.get(id);
+      if (!written) throw new Error("issue_missing");
+      return { ...written, commit_hash: "commit" };
+    });
     const target = {
       adapter: { request: vi.fn() },
       preflight: vi.fn(async () => ({
@@ -253,11 +258,7 @@ describe("runJiraMigration", () => {
           commitHash: "commit",
         };
       }),
-      readIssue: vi.fn(async (id) => {
-        const written = writtenIssues.get(id);
-        if (!written) throw new Error("issue_missing");
-        return { ...written, commit_hash: "commit" };
-      }),
+      readIssue,
       claimIssue: vi.fn(),
       relatedTarget: vi.fn(() => ({})),
       appendActivity: vi.fn(),
@@ -395,5 +396,29 @@ describe("runJiraMigration", () => {
     expect(mutations).toEqual(["REEF-001", "REEF-002"]);
     expect(rerun.report.totals.created).toBe(0);
     expect(rerun.report.totals.skipped).toBe(2);
+
+    const alpha = writtenIssues.get("REEF-001");
+    if (!alpha) throw new Error("alpha_issue_missing");
+    writtenIssues.set("REEF-001", {
+      ...alpha,
+      issue: { ...alpha.issue, title: "Target-authored drift" },
+    });
+    const readCallsBeforeDriftCheck = readIssue.mock.calls.length;
+    const driftedDryRun = await runJiraMigration(config, {
+      target,
+      createJiraClient: (key) => clients.get(key) as never,
+      now,
+    });
+    expect(readIssue.mock.calls.length).toBeGreaterThan(
+      readCallsBeforeDriftCheck,
+    );
+    expect(driftedDryRun.report.run.status).toBe("blocked");
+    expect(driftedDryRun.report.terminal_classifications).toContainEqual(
+      expect.objectContaining({
+        phase: "issues",
+        source_key: "issue:cloud-1:100:10001",
+        action: "conflict",
+      }),
+    );
   });
 });

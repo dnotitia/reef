@@ -447,6 +447,38 @@ const baseIssueReadbackMatches = (
   );
 };
 
+const issueOwnerMatches = (
+  plan: JiraIssueImportPlan,
+  readback: Awaited<ReturnType<AkbJiraMigrationTarget["readIssue"]>> | null,
+): boolean => {
+  const desiredCustom = plan.desired.issue?.custom_fields;
+  const actualCustom = readback?.issue.custom_fields;
+  const desiredMigration =
+    desiredCustom &&
+    typeof desiredCustom === "object" &&
+    !Array.isArray(desiredCustom) &&
+    desiredCustom.jira_migration &&
+    typeof desiredCustom.jira_migration === "object" &&
+    !Array.isArray(desiredCustom.jira_migration)
+      ? (desiredCustom.jira_migration as Record<string, unknown>)
+      : null;
+  const actualMigration =
+    actualCustom &&
+    typeof actualCustom === "object" &&
+    !Array.isArray(actualCustom) &&
+    actualCustom.jira_migration &&
+    typeof actualCustom.jira_migration === "object" &&
+    !Array.isArray(actualCustom.jira_migration)
+      ? (actualCustom.jira_migration as Record<string, unknown>)
+      : null;
+  return (
+    desiredMigration?.owner !== undefined &&
+    actualMigration?.owner !== undefined &&
+    fingerprintJiraState(desiredMigration.owner) ===
+      fingerprintJiraState(actualMigration.owner)
+  );
+};
+
 interface RelatedSourceSnapshot {
   comments: Record<string, unknown>;
   remote_links: Record<string, unknown>;
@@ -822,8 +854,7 @@ const reportMatchesConfig = (
     JSON.stringify(config.jira.projectKeys) &&
   JSON.stringify(report.run.source.board_ids) ===
     JSON.stringify(config.jira.boardIds) &&
-  report.run.target.vault === config.target.vault &&
-  report.approval.dry_run_plan_sha256 === config.expectedPlanSha256;
+  report.run.target.vault === config.target.vault;
 
 async function runJiraMigrationUnlocked(
   config: JiraMigratorConfig,
@@ -1791,6 +1822,19 @@ async function runJiraMigrationUnlocked(
         plan.source.projectId ?? plan.source.projectKey,
         plan.source.issueId,
       );
+      let action = actionForIssuePlan(plan, ledger);
+      let readbackSucceeded = false;
+      if (plan.desired.issue && (action === "skip" || action === "update")) {
+        const readback = await target
+          .readIssue(plan.desired.issue.id)
+          .catch(() => null);
+        readbackSucceeded = readback !== null;
+        const matches =
+          action === "skip"
+            ? baseIssueReadbackMatches(plan, readback)
+            : issueOwnerMatches(plan, readback);
+        if (!matches) action = "conflict";
+      }
       record(
         "issues",
         resultFor({
@@ -1800,9 +1844,9 @@ async function runJiraMigrationUnlocked(
             allIssues.find((issue) => issue.id === plan.source.issueId)?.raw,
           ),
           mappedFingerprint: fingerprintJiraState(plan.desired),
-          action: actionForIssuePlan(plan, ledger),
+          action,
           at: runAt,
-          readback: true,
+          readback: readbackSucceeded,
         }),
       );
     }
