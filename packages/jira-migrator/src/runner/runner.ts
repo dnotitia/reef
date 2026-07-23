@@ -401,6 +401,15 @@ const baseIssueReadbackMatches = (
   const keys = Object.keys(desired).filter(
     (key) => !downstreamManagedKeys.has(key),
   );
+  const desiredCustomFields =
+    desired.custom_fields &&
+    typeof desired.custom_fields === "object" &&
+    !Array.isArray(desired.custom_fields)
+      ? (desired.custom_fields as Record<string, unknown>)
+      : {};
+  const ownedCustomFieldKeys = Object.keys(desiredCustomFields).filter(
+    (key) => key !== "jira_migration",
+  );
   const normalize = (
     issue: Record<string, unknown>,
   ): Record<string, unknown> => {
@@ -421,7 +430,9 @@ const baseIssueReadbackMatches = (
         : null;
     if (!migration?.owner) return projection;
     projection.custom_fields = {
-      ...customFields,
+      ...Object.fromEntries(
+        ownedCustomFieldKeys.map((key) => [key, customFields?.[key] ?? null]),
+      ),
       jira_migration: { owner: migration.owner },
     };
     return projection;

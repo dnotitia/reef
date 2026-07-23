@@ -388,6 +388,24 @@ describe("runJiraMigration", () => {
     expect(apply.report.totals.created).toBe(1);
     expect(apply.report.totals.skipped).toBe(1);
 
+    for (const [id, written] of writtenIssues) {
+      const customFields =
+        written.issue.custom_fields &&
+        typeof written.issue.custom_fields === "object" &&
+        !Array.isArray(written.issue.custom_fields)
+          ? (written.issue.custom_fields as Record<string, unknown>)
+          : {};
+      writtenIssues.set(id, {
+        ...written,
+        issue: {
+          ...written.issue,
+          custom_fields: {
+            ...customFields,
+            target_authored: { keep: true },
+          },
+        },
+      });
+    }
     const rerun = await runJiraMigration(applyConfig, {
       target,
       createJiraClient: (key) => clients.get(key) as never,
