@@ -247,12 +247,13 @@ const relationshipKeys = new Set<keyof IssueMetadata>([
   "blocks",
   "related_to",
 ]);
+const targetManagedIssueKeys = new Set<keyof IssueMetadata>(["updated_at"]);
 
 const issueProjectionKeys = (
   issue: IssueMetadata,
 ): Array<keyof IssueMetadata> =>
   (Object.keys(issue) as Array<keyof IssueMetadata>).filter(
-    (key) => issue[key] !== undefined,
+    (key) => issue[key] !== undefined && !targetManagedIssueKeys.has(key),
   );
 
 const issueProjection = (

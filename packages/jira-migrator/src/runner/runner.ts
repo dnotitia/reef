@@ -297,6 +297,7 @@ const baseIssueReadbackMatches = (
     "depends_on",
     "blocks",
     "related_to",
+    "updated_at",
   ]);
   const keys = Object.keys(desired).filter(
     (key) => !downstreamManagedKeys.has(key),
@@ -981,10 +982,6 @@ async function runJiraMigrationUnlocked(
     ),
     observedAt: runAt,
   }).artifact;
-  await writeJiraAccountMappingArtifact(
-    paths.accountMappingPath,
-    accountMapping,
-  );
   const accountReport = buildJiraAccountMigrationReport(accountMapping);
 
   const archiveReferences = new Map<
@@ -1492,6 +1489,10 @@ async function runJiraMigrationUnlocked(
   ) {
     throw new JiraRunnerError("plan_fingerprint_mismatch");
   }
+  await writeJiraAccountMappingArtifact(
+    paths.accountMappingPath,
+    accountMapping,
+  );
   ledger = openJiraMigrationRun(ledger, {
     runId: config.artifacts.runId,
     projectKeys: config.jira.projectKeys,
@@ -1786,7 +1787,9 @@ async function runJiraMigrationUnlocked(
         : null;
       const desiredKeys = desired
         ? Object.keys(desired).filter(
-            (key) => desired[key as keyof typeof desired] !== undefined,
+            (key) =>
+              key !== "updated_at" &&
+              desired[key as keyof typeof desired] !== undefined,
           )
         : [];
       const relationshipKeys = new Set(["depends_on", "blocks", "related_to"]);
