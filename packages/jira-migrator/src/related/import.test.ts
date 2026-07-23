@@ -2072,6 +2072,47 @@ describe("Jira related-data import stage", () => {
     expect(state.refs.size).toBe(0);
   });
 
+  it("preserves prototype target methods and their receiver", async () => {
+    const state = makeTarget();
+    const listExternalRefKeys = vi.fn(function (
+      this: { delegate: typeof state.target },
+      prefix: string,
+    ) {
+      return this.delegate.listExternalRefKeys(prefix);
+    });
+    const target = Object.assign(
+      Object.create({ listExternalRefKeys }),
+      Object.fromEntries(
+        Object.entries(state.target).filter(
+          ([key]) => key !== "listExternalRefKeys",
+        ),
+      ),
+      { delegate: state.target },
+    ) as typeof state.target;
+    const issue = issueFixture();
+    issue.fields.issuelinks = [];
+    const result = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue,
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client: makeClient([]),
+      target,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [],
+      resolveIssueTarget: () => null,
+      mode: "dry-run",
+    });
+    expect(result.report.failures).toEqual([]);
+    expect(listExternalRefKeys).toHaveBeenCalled();
+  });
+
   it("rejects non-http remote-link URLs", async () => {
     const state = makeTarget();
     const client = makeClient([]);

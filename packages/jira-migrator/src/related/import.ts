@@ -68,29 +68,44 @@ export async function importJiraRelatedData(
     await operation();
     report.deletions += 1;
   };
+  const deletionOverrides: Pick<
+    JiraRelatedImportTarget,
+    | "deleteComment"
+    | "revokeAttachment"
+    | "deleteRelation"
+    | "deleteExternalRef"
+  > = {
+    deleteComment: (commentId: string) =>
+      countDeletion(`comment:${commentId}`, () =>
+        input.target.deleteComment(commentId),
+      ),
+    revokeAttachment: (
+      attachment: Parameters<typeof input.target.revokeAttachment>[0],
+    ) =>
+      countDeletion(`attachment:${attachment.fileUri}`, () =>
+        input.target.revokeAttachment(attachment),
+      ),
+    deleteRelation: (idempotencyKey: string) =>
+      countDeletion(`relation:${idempotencyKey}`, () =>
+        input.target.deleteRelation(idempotencyKey),
+      ),
+    deleteExternalRef: (idempotencyKey: string) =>
+      countDeletion(`external-ref:${idempotencyKey}`, () =>
+        input.target.deleteExternalRef(idempotencyKey),
+      ),
+  };
+  const target = new Proxy(input.target, {
+    get(target, property) {
+      if (property in deletionOverrides) {
+        return deletionOverrides[property as keyof typeof deletionOverrides];
+      }
+      const value = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
   const migration = {
     ...input,
-    target: {
-      ...input.target,
-      deleteComment: (commentId: string) =>
-        countDeletion(`comment:${commentId}`, () =>
-          input.target.deleteComment(commentId),
-        ),
-      revokeAttachment: (
-        attachment: Parameters<typeof input.target.revokeAttachment>[0],
-      ) =>
-        countDeletion(`attachment:${attachment.fileUri}`, () =>
-          input.target.revokeAttachment(attachment),
-        ),
-      deleteRelation: (idempotencyKey: string) =>
-        countDeletion(`relation:${idempotencyKey}`, () =>
-          input.target.deleteRelation(idempotencyKey),
-        ),
-      deleteExternalRef: (idempotencyKey: string) =>
-        countDeletion(`external-ref:${idempotencyKey}`, () =>
-          input.target.deleteExternalRef(idempotencyKey),
-        ),
-    },
+    target,
   };
   const issue = normalizeJiraIssue(input.issue);
   let ledger = input.ledger;
