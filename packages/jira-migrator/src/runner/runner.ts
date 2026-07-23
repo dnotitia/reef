@@ -64,6 +64,7 @@ import {
 } from "./mappingPolicy.js";
 import {
   acquireMigrationRunLock,
+  assertNoSymlinkPathComponents,
   readPrivatePlanArtifact,
   writePrivatePlanArtifact,
 } from "./privateArtifact.js";
@@ -657,6 +658,7 @@ const fileExists = async (path: string): Promise<boolean> => {
 };
 
 const ensurePrivateDirectory = async (path: string): Promise<void> => {
+  await assertNoSymlinkPathComponents(path);
   try {
     const stat = await lstat(path);
     if (

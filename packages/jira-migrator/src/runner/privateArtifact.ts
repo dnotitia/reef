@@ -11,7 +11,7 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname, join, parse as parsePath, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { lock } from "proper-lockfile";
 import { z } from "zod";
@@ -56,10 +56,42 @@ const exists = async (path: string): Promise<boolean> => {
   }
 };
 
+export const assertNoSymlinkPathComponents = async (
+  path: string,
+): Promise<void> => {
+  if (path.split(/[\\/]/u).includes("..")) {
+    throw new Error("private_artifact_parent_segment");
+  }
+  const absolute = resolve(path);
+  const root = parsePath(absolute).root;
+  let current = root;
+  for (const segment of absolute
+    .slice(root.length)
+    .split(sep)
+    .filter(Boolean)) {
+    current = join(current, segment);
+    try {
+      if ((await lstat(current)).isSymbolicLink()) {
+        throw new Error("private_artifact_symlink");
+      }
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ) {
+        return;
+      }
+      throw error;
+    }
+  }
+};
+
 const assertPrivate = async (
   path: string,
   kind: "file" | "directory",
 ): Promise<void> => {
+  await assertNoSymlinkPathComponents(path);
   const stat = await lstat(path);
   if (stat.isSymbolicLink()) throw new Error("private_artifact_symlink");
   if (kind === "file" ? !stat.isFile() : !stat.isDirectory()) {
@@ -74,6 +106,7 @@ const assertPrivate = async (
 };
 
 const ensureDirectory = async (path: string): Promise<void> => {
+  await assertNoSymlinkPathComponents(path);
   if (!(await exists(path))) {
     await mkdir(path, { recursive: true, mode: 0o700 });
     if (process.platform !== "win32") await chmod(path, 0o700);

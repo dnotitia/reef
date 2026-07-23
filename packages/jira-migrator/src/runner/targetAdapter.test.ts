@@ -225,4 +225,87 @@ describe("AKB Jira migration target", () => {
       ),
     ).rejects.toThrow("jira_issue_plan_not_writable");
   });
+
+  it("recovers an ambiguously acknowledged inverse relation write", async () => {
+    const issues = new Map(
+      ["REEF-001", "REEF-002"].map((id) => [
+        id,
+        {
+          issue: {
+            id,
+            title: id,
+            status: "todo",
+            created_at: "2026-07-23T00:00:00.000Z",
+            created_by: "operator",
+            updated_at: "2026-07-23T00:00:00.000Z",
+            updated_by: "operator",
+          },
+          content: "",
+          path: `issues/${id.toLowerCase()}.md`,
+          commit_hash: `${id}-commit-0`,
+        } as unknown as AkbReadIssueResult,
+      ]),
+    );
+    let targetAttempts = 0;
+    const updateIssue = vi.fn(async ({ id, partial }) => {
+      const current = issues.get(id);
+      if (!current) throw new NotFoundError({ resource: id });
+      const next = {
+        ...current,
+        issue: { ...current.issue, ...partial },
+        commit_hash: `${id}-commit-${updateIssue.mock.calls.length}`,
+      } as AkbReadIssueResult;
+      issues.set(id, next);
+      if (id === "REEF-002" && targetAttempts++ === 0) {
+        throw new Error("response_lost_after_commit");
+      }
+      return {
+        commit_hash: next.commit_hash ?? "commit",
+        issue: next.issue,
+        content: next.content,
+      };
+    });
+    const target = createAkbJiraMigrationTarget(
+      { baseUrl: "https://akb.test", jwt: "jwt", vault: "reef-test" },
+      {
+        createAdapter: () => ({ request: vi.fn() }),
+        getCurrentActor: async () => ({ actor: "operator" }),
+        listPlanningCatalog: vi.fn(),
+        createRelease: vi.fn(),
+        createSprint: vi.fn(),
+        allocateNextIssueId: vi.fn(),
+        writeIssue: vi.fn(),
+        updateIssue,
+        readIssue: vi.fn(async ({ id }) => {
+          const issue = issues.get(id);
+          if (!issue) throw new NotFoundError({ resource: id });
+          return structuredClone(issue);
+        }),
+        claimIssueId: vi.fn(),
+      },
+    );
+
+    await expect(
+      target.relatedTarget().putRelation({
+        idempotencyKey: "relation:cloud-1:100",
+        sourceReefId: "REEF-001",
+        targetReefId: "REEF-002",
+        relation: "blocks",
+        inverseRelation: "depends_on",
+        provenance: { jira_issue_link_id: "100" },
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(issues.get("REEF-001")?.issue.blocks).toEqual(["REEF-002"]);
+    expect(issues.get("REEF-002")?.issue.depends_on).toEqual(["REEF-001"]);
+    expect(
+      (
+        issues.get("REEF-001")?.issue.custom_fields as {
+          jira_migration: { relations: Array<{ idempotencyKey: string }> };
+        }
+      ).jira_migration.relations,
+    ).toContainEqual(
+      expect.objectContaining({ idempotencyKey: "relation:cloud-1:100" }),
+    );
+  });
 });

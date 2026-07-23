@@ -1,9 +1,10 @@
-import { chmod, mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   acquireMigrationRunLock,
+  assertNoSymlinkPathComponents,
   readPrivatePlanArtifact,
   writePrivatePlanArtifact,
 } from "./privateArtifact.js";
@@ -14,7 +15,7 @@ const temporaryDirectory = async (): Promise<string> => {
   const directory = await mkdtemp(join(tmpdir(), "reef-private-plan-"));
   directories.push(directory);
   if (process.platform !== "win32") await chmod(directory, 0o700);
-  return directory;
+  return realpath(directory);
 };
 
 afterEach(async () => {
@@ -64,5 +65,30 @@ describe("private migration artifacts", () => {
     await release();
     const releaseNext = await acquireMigrationRunLock(path);
     await releaseNext();
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "rejects a symlink in an artifact path ancestor",
+    async () => {
+      const root = await temporaryDirectory();
+      const target = join(root, "target");
+      const link = join(root, "redirect");
+      await mkdir(target, { mode: 0o700 });
+      await symlink(target, link, "dir");
+
+      await expect(
+        assertNoSymlinkPathComponents(join(link, "report.plan.json")),
+      ).rejects.toThrow("private_artifact_symlink");
+    },
+  );
+
+  it("rejects parent traversal before normalizing an artifact path", async () => {
+    const root = await temporaryDirectory();
+
+    await expect(
+      assertNoSymlinkPathComponents(
+        `${root}/untrusted-link/../report.plan.json`,
+      ),
+    ).rejects.toThrow("private_artifact_parent_segment");
   });
 });
