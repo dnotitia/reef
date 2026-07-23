@@ -5,15 +5,24 @@
 
 ## Package Role
 
-- `jira-migrator` owns operator-run Jira read paths, migration config loading,
-  dry-run/report helpers, and Jira payload normalization for generic Jira
-  projects. Project keys are operator inputs, not API naming boundaries.
-- Keep the package read-only against Jira until a later issue explicitly adds a
-  write/import mapping phase.
+- `jira-migrator` owns operator-run Jira discovery, migration config, payload
+  normalization, private raw archives and account mappings, immutable import
+  plans, durable local ledgers/checkpoints, deterministic reports, and
+  dependency-injected Reef related-data apply/readback. Project keys are
+  operator inputs, not API naming boundaries.
+- Jira is always a read-only source: Jira HTTP traffic stays GET-only. Apply
+  means writing or reconciling Reef targets through an explicit target contract;
+  it never means mutating Jira.
+- Keep dry-run mutation-free. Apply paths must be idempotent, read back target
+  state before confirming ledger bindings, isolate independent entity failures,
+  and preserve the source visibility restrictions for comments and attachments.
 - Use `@reef/core` for shared Reef contracts where available. Do not import
   `@reef/web`, Next.js, React, DOM APIs, Route Handlers, or browser storage.
 - Credentials come only from environment variables or local secret files. Never
   print, log, serialize to reports, or include Jira credentials in AKB payloads.
+- Raw archives, ledgers, reports, and account mappings are operator-owned local
+  artifacts. Preserve their private-permission, symlink, lock, atomic-write,
+  secret-redaction, scope, and integrity checks.
 
 ## Documentation Policy
 
@@ -36,3 +45,6 @@
   migration shapes.
 - Client tests must assert read-only HTTP methods, pagination cursors,
   rate-limit metadata, retryable error classification, and secret redaction.
+- Apply/reconciliation tests must cover mutation-free dry runs, idempotent
+  reruns, target readback before binding confirmation, visibility revocation,
+  bounded attachment handling, and partial-failure recovery.

@@ -38,9 +38,11 @@
   capability akb already provides — it is not new row/cross-store plumbing.
   Row-only scalar fields (status, priority, assignee, dates, planning ids,
   estimate, severity, parent) stay last-write-wins with server-side read-merge.
-- `createAkbAdapter({ ... })` is constructed per request from the
-  `__reef_session` cookie and forwards `Authorization: Bearer <pat>` to
-  `AKB_BACKEND_URL`.
+- In the web request path, `createAkbAdapter({ ... })` is constructed per
+  request from the `__reef_session` cookie and forwards
+  `Authorization: Bearer <pat>` to `AKB_BACKEND_URL`. Operator and worker
+  runtimes may construct the same public adapter from deployment-managed
+  credentials; they must not import web cookie helpers.
 
 ## GitHub Adapter (`github.ts`)
 
@@ -52,8 +54,9 @@
 - The deployment-managed GitHub App credential provider lives in
   `github/appAuth.ts` and exports `createGitHubAppInstallationTokenProvider`
   (App JWT → installation token). It feeds the same `createGitHubAdapter`
-  via a token string; it is an alternative token source to the per-user browser
-  PAT, not a second adapter. The minted token is down-scoped to read-only
+  via a token string; the only fallback is the deployment-managed
+  `REEF_GITHUB_PAT` used for dev/CI, not a per-user browser PAT or a second
+  adapter. The minted token is down-scoped to read-only
   permissions (`contents`/`metadata`/`pull_requests` read) so it stays read-only
   even if the App was granted write — the App permission set is not the only
   guardrail. The private key, App JWT, and minted token must stay out of logs,

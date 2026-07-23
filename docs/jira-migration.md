@@ -6,20 +6,25 @@ one-shot Jira-to-Reef migrations. Package-local orientation stays in
 
 ## Scope And Status
 
-`@reef/jira-migrator` owns operator-run Jira read paths, migration config
-loading, dry-run/report helpers, Jira payload normalization, local account
-mapping artifacts, source-system ordering plans, and immutable issue import
-plans for generic Jira projects. Project keys are operator inputs rather than
-API naming boundaries.
+`@reef/jira-migrator` owns operator-run Jira discovery, migration config,
+payload normalization, private raw archives and account mappings, source-system
+ordering, immutable import plans, durable local ledgers/checkpoints,
+deterministic reports, and dependency-injected related-data apply/readback for
+generic Jira projects. Project keys are operator inputs rather than API naming
+boundaries.
 
 The package is intentionally outside `@reef/web`: Jira credentials are
-deployment/operator secrets, not user state in the product runtime. Keep the
-package read-only against Jira unless a later issue explicitly adds a write or
-import mapping phase.
+deployment/operator secrets, not user state in the product runtime. Jira is
+always a read-only source: its client uses GET-only HTTP operations. An apply
+stage writes or reconciles Reef targets through an explicit target contract; it
+never mutates Jira.
 
 The CLI validates configuration and prints a redacted public config. The
-library can build issue import plans, but it does not apply them or write to
-Jira or Reef.
+library can build issue import plans and apply related comments, attachments,
+media rewrites, relations, and external references through a
+dependency-injected Reef target. Final project traversal and CLI apply
+composition are not yet implemented; the current CLI remains a dry-run
+configuration scaffold.
 
 ## Documentation Placement
 

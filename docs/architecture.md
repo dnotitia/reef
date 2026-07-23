@@ -30,6 +30,15 @@ reef has three runtime tiers:
   Route Handlers validate input, extract credentials, call `core`, and translate
   errors. It persists no user-specific server state.
 
+Two auxiliary runtimes stay outside the interactive web request path:
+
+- **`@reef/orchestrator`** owns long-running worker scheduling, polling, and
+  graceful shutdown. It consumes domain contracts from `core`; worker loops do
+  not run inside reef-web.
+- **`@reef/jira-migrator`** is an operator-run, one-shot Jira-to-Reef migration
+  package. Jira is a read-only source, while explicitly selected apply stages
+  may reconcile Reef targets.
+
 ```
 Browser (React UI, Zustand, TanStack Query, Dexie)
    │  apiFetch → /api/* Route Handlers
@@ -40,11 +49,13 @@ reef-web (stateless Next.js BFF)
    └── OpenAI-compatible LLM endpoint                       — chat + agents
 ```
 
-The repository is a pnpm workspace with two private, unpublished packages under
-`packages/`: `core` (`@reef/core`) and `web` (`@reef/web`). The root
-`package.json` is the single product version source of truth. New product
-behavior that touches schemas, adapters, agents, or shared contracts starts in
-`core` and then surfaces through `web`.
+The repository is a pnpm workspace with four private, unpublished packages
+under `packages/`: `core` (`@reef/core`), `web` (`@reef/web`), `orchestrator`
+(`@reef/orchestrator`), and `jira-migrator` (`@reef/jira-migrator`). The root
+`package.json` is the single product version source of truth. New interactive
+product behavior that touches schemas, adapters, agents, or shared contracts
+starts in `core` and then surfaces through `web`; background and operator
+processes consume the same core contracts from their separate runtimes.
 
 ## The core/web boundary and thin Route Handlers
 
@@ -108,23 +119,24 @@ Supporting state lives in sibling tables provisioned when a vault is set up:
 `reef_settings`, and `monitored_repos`. The issue id prefix is the
 `project_prefix` value in `reef_settings` (uppercase A–Z, default `REEF`).
 
-**Writes are last-write-wins** and span two stores (document + row)
-non-transactionally. There is no compare-and-swap, no `sha`, no
-`expectedHeadOid`, and no diff/merge UI. The write path deletes a
-just-created document if the row insert fails, so it leaves no orphans. A
-`ConflictError` (AKB's HTTP 409) is exceptional — surfaced to the user as a
-retryable "save conflict", not a routine save race. This keeps boards fast and
-issue bodies reusable as knowledge; the cost is a partial-failure window and the
-possibility of silently overwriting a concurrent edit, which is acceptable for
-PM metadata.
+Writes span the document and row non-transactionally, with a compensation saga
+for partial failure. Row-only scalar fields remain last-write-wins: there is no
+row `sha`, `expectedHeadOid`, version column, or cross-store CAS transaction.
+Document-projected edits are the one exception. When the caller supplies the
+base document commit, `updateIssue` forwards it as AKB's `expected_commit`
+precondition; a concurrent change to body, title, tags, or relations becomes a
+retryable `ConflictError` instead of a silent overwrite. There is no diff/merge
+UI. This keeps queryable PM metadata fast while protecting externally editable
+document content from known stale-base writes.
 
 ## Stateless web tier and credential placement
 
-reef-web is the only server reef operates. To keep data ownership with the team
-and avoid per-user storage, **reef-web persists nothing that belongs to a
-specific user**: no database, no server-side session store, no Redis, no
-per-user cache, no KMS. Per-user state lives at the edges. The three credentials
-the system needs are each placed deliberately:
+reef-web is Reef's interactive server; the optional orchestrator is a separate
+worker process and the Jira migrator is an operator-run process. To keep data
+ownership with the team and avoid per-user storage, **reef-web persists nothing
+that belongs to a specific user**: no database, no server-side session store, no
+Redis, no per-user cache, no KMS. Per-user state lives at the edges. The three
+credentials the web product needs are each placed deliberately:
 
 - **AKB session** — a JWT inside the `__reef_session` httpOnly cookie. It is
   decoded read-only per request and forwarded to AKB as
@@ -227,15 +239,20 @@ schema at the Route Handler boundary, and schema names use PascalCase plus the
 
 ## Field-display ownership: core metadata, web leaves
 
-Issue fields appear on many surfaces — board cards, list rows, detail panes,
-dialogs — carrying both semantic metadata (labels, options, sort order) and
-visual style. reef splits ownership so that `core` never becomes bound to React
-or Tailwind and so that no single configuration-driven mega-view emerges:
+Issue and planning fields appear on many surfaces — board cards, list rows,
+detail panes, dialogs, and planning catalogs — carrying both semantic metadata
+(labels, options, sort order) and visual style. reef splits ownership so that
+`core` never becomes bound to React or Tailwind and so that no single
+configuration-driven mega-view emerges:
 
-- **Field metadata lives in `core`** (`schemas/issues/fieldRegistry.ts`,
-  exported as `@reef/core/fields`) as **pure TypeScript — no React, no
+- **Field metadata lives in `core`**: issue metadata is exported from
+  `schemas/issues/fieldRegistry.ts` as `@reef/core/fields`, and planning
+  metadata from `schemas/planning/fieldRegistry.ts` as
+  `@reef/core/fields/planning`. Both are **pure TypeScript — no React, no
   Tailwind**.
-- **Tailwind color classes live in `web`** (`components/fields/fieldKit.ts`).
+- **Tailwind color classes live in `web`**: issue fields use
+  `components/fields/fieldKit.ts`, while planning statuses use
+  `components/fields/planningFieldKit.ts`.
 - **Shared field "leaves"** live in `packages/web/src/components/fields/` and are
   imported by file, directly. There is deliberately **no barrel `index.ts`** and
   **no configuration-driven `<UnifiedIssueView variant>` mega-view**. Each
@@ -302,12 +319,15 @@ preserves Server-Sent Events.
 | GitHub adapter | `packages/core/src/adapters/github.ts` (read-only) |
 | LLM adapter | `packages/core/src/adapters/llm.ts` |
 | AI agents and tools | `packages/core/src/agents/` (`chatAgent`, `enrichIssue`, `scanActivity`, `framework`, `prompts`, `tools`) |
+| Core observability seam | `packages/core/src/observability/index.ts` |
 | Error types | `packages/core/src/errors/` |
 | Route Handlers (BFF) | `packages/web/src/app/api/*/route.ts` |
 | UI features | `packages/web/src/features/` |
 | Field leaves and styling | `packages/web/src/components/fields/` |
 | Browser state and storage | `packages/web/src/lib/` (`storage`, `api`, `github`, `llm`) |
 | CSP / security headers | `packages/web/src/proxy.ts` |
+| Background orchestrator | `packages/orchestrator/src/` |
+| Jira migration runtime | `packages/jira-migrator/src/` |
 
 ## Related documentation
 
@@ -316,3 +336,5 @@ preserves Server-Sent Events.
 - [Release policy](release-policy.md) and [migration policy](migration-policy.md)
 - [Core package README](../packages/core/README.md) and
   [`@reef/web` package README](../packages/web/README.md)
+- [`@reef/orchestrator` package README](../packages/orchestrator/README.md)
+- [`@reef/jira-migrator` package README](../packages/jira-migrator/README.md)

@@ -1,11 +1,15 @@
 # Release Policy
 
-reef is released as a single product: the deployed `reef-web` application and
-its bundled private workspace packages.
+reef is versioned as a single repository product: the deployed `reef-web`
+application plus its private core, worker, and operator packages.
 
-The repository uses a pnpm workspace with `packages/web` and `packages/core`, but neither package
-is published independently. Versioning therefore follows the deployed product,
-not per-package library compatibility.
+The pnpm workspace contains `packages/web`, `packages/core`,
+`packages/orchestrator`, and `packages/jira-migrator`. None is published or
+versioned independently. Repository versioning therefore follows the product
+release, not per-package library compatibility. A release may ship reef-web as
+a container while distributing the orchestrator or Jira migrator from source or
+build artifacts; those packages still follow the same root version and
+changelog.
 
 ## Version Source
 
@@ -14,9 +18,9 @@ not per-package library compatibility.
 - The root `package.json` is the product version source of truth.
 - The user-visible application version and telemetry service version should read
   from the root `package.json`.
-- `packages/web/package.json` and `packages/core/package.json` are private package manifests and
-  must not define their own product versions while they remain unpublished
-  workspace packages.
+- Every `packages/*/package.json` is a private package manifest and must not
+  define its own product version while it remains an unpublished workspace
+  package.
 
 If release automation later injects a build-time `REEF_VERSION`, that mechanism
 may become the version source, but the policy should be updated in the same
@@ -114,6 +118,8 @@ Before creating a release tag:
    - `pnpm run check:release`
    - `pnpm -r run typecheck`
    - `pnpm -r run test`
+   - `pnpm --filter @reef/orchestrator run build`
+   - `pnpm --filter @reef/jira-migrator run build`
    - `pnpm --filter @reef/web run test:e2e` when the required environment is available.
 5. Confirm Docker image build and size checks pass.
 6. Confirm streaming routes still pass the SSE smoke test for the target
