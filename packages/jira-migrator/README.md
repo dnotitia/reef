@@ -43,6 +43,11 @@ pnpm --filter @reef/jira-migrator run start -- \
   --report-path /private/jira/report.json
 ```
 
+The configured report path always contains the latest command result. A
+completed dry run also seals immutable approval and private plan artifacts at
+`<report-path>.approval.json` and `<report-path>.plan.json`; apply validates
+those sidecars before replacing the configured report with the apply outcome.
+
 Credentials come from environment variables or private regular files, never
 from raw argv values:
 

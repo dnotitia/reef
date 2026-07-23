@@ -60,7 +60,15 @@ describe("AKB Jira migration target", () => {
     const readIssue = vi.fn(
       async () =>
         ({
-          issue: { id: "REEF-010", title: "Alpha issue" },
+          issue: {
+            id: "REEF-010",
+            title: "Alpha issue",
+            status: "todo",
+            created_at: "2026-07-23T00:00:00.000Z",
+            created_by: "operator",
+            updated_at: "2026-07-23T00:00:00.000Z",
+            updated_by: "operator",
+          },
           content: "body",
           path: "issues/reef-010.md",
           commit_hash: "commit-1",

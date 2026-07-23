@@ -88,7 +88,7 @@ Credentials come only from environment variables or local secret files.
 | `--run-id` | — | Stable execution identity shared by dry-run/apply/resume. |
 | `--ledger-path` | `REEF_JIRA_LEDGER_PATH` | Required private checkpoint ledger. |
 | `--archive-root` | `REEF_JIRA_ARCHIVE_ROOT` | Required private raw archive root. |
-| `--report-path` | `REEF_JIRA_MIGRATOR_REPORT_PATH` | Required private approval/report path. |
+| `--report-path` | `REEF_JIRA_MIGRATOR_REPORT_PATH` | Required private latest-result path; dry-run seals immutable `.approval.json` and `.plan.json` sidecars for apply validation. |
 | `--account-mapping-path` | `REEF_JIRA_ACCOUNT_MAPPING_PATH` | Required private Jira account mapping artifact. |
 | `--resume` | — | Resume the named run from confirmed entity checkpoints. |
 | `--expected-plan-sha256` | — | Required apply approval hash from the dry-run report. |

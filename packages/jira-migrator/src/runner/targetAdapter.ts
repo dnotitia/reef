@@ -20,6 +20,7 @@ import {
   akbGetCurrentActor,
   akbIssueDocumentUri,
   akbListComments,
+  akbListIssueActivity,
   akbListIssueAttachments,
   akbListPlanningCatalog,
   akbReadIssue,
@@ -34,6 +35,7 @@ import type {
   JiraPlanningAction,
   JiraPlanningTargetResolution,
 } from "../planning/entities.js";
+import { canonicalizeJson } from "../rawArchive.js";
 import type {
   JiraImportedAttachmentInput,
   JiraImportedCommentInput,
@@ -138,6 +140,7 @@ export interface AkbJiraMigrationTarget {
   readIssue(id: string): Promise<AkbReadIssueResult>;
   relatedTarget(): JiraRelatedImportTarget;
   appendActivity(events: readonly ActivityEventInput[]): Promise<void>;
+  activityMatches(events: readonly ActivityEventInput[]): Promise<boolean>;
 }
 
 const quote = (value: string): string => `'${value.replaceAll("'", "''")}'`;
@@ -210,13 +213,17 @@ const sidecarFor = (issue: IssueMetadata): MigrationSidecar => {
 const customFieldsWithSidecar = (
   issue: IssueMetadata,
   sidecar: MigrationSidecar,
-): Record<string, unknown> => ({
-  ...parseMeta(issue.custom_fields),
-  jira_migration: {
-    relations: sidecar.relations,
-    external_refs: sidecar.externalRefs,
-  },
-});
+): Record<string, unknown> => {
+  const customFields = parseMeta(issue.custom_fields);
+  return {
+    ...customFields,
+    jira_migration: {
+      ...parseMeta(customFields.jira_migration),
+      relations: sidecar.relations,
+      external_refs: sidecar.externalRefs,
+    },
+  };
+};
 
 const addUnique = (values: readonly string[] | undefined, value: string) =>
   [...new Set([...(values ?? []), value])].sort();
@@ -506,13 +513,24 @@ export function createAkbJiraMigrationTarget(
     async putExternalRef(input) {
       const issue = (await readIssue(input.reefId)).issue;
       const sidecar = sidecarFor(issue);
+      const previous = sidecar.externalRefs.find(
+        (record) => record.idempotencyKey === input.idempotencyKey,
+      );
       sidecar.externalRefs = sidecar.externalRefs
         .filter((record) => record.idempotencyKey !== input.idempotencyKey)
         .concat({ ...input });
+      const previousStillReferenced =
+        previous !== undefined &&
+        sidecar.externalRefs.some(
+          (record) =>
+            JSON.stringify(record.ref) === JSON.stringify(previous.ref),
+        );
       const refs = [
         ...(issue.external_refs ?? []).filter(
           (candidate) =>
-            JSON.stringify(candidate) !== JSON.stringify(input.ref),
+            JSON.stringify(candidate) !== JSON.stringify(input.ref) &&
+            (previousStillReferenced ||
+              JSON.stringify(candidate) !== JSON.stringify(previous?.ref)),
         ),
         input.ref,
       ];
@@ -561,6 +579,52 @@ export function createAkbJiraMigrationTarget(
         custom_fields: customFieldsWithSidecar(issue, sidecar),
       });
     },
+  };
+  const activityMatches = async (
+    events: readonly ActivityEventInput[],
+  ): Promise<boolean> => {
+    const byIssue = new Map<string, ActivityEventInput[]>();
+    for (const event of events) {
+      if (!event.eventKey) return false;
+      const issueEvents = byIssue.get(event.reefId) ?? [];
+      issueEvents.push(event);
+      byIssue.set(event.reefId, issueEvents);
+    }
+    for (const [reefId, expectedEvents] of byIssue) {
+      const actualEvents = await akbListIssueActivity(adapter, vault, reefId);
+      for (const expected of expectedEvents) {
+        const actual = actualEvents.find(
+          (event) => event.event_key === expected.eventKey,
+        );
+        const expectedProjection = {
+          reef_id: expected.reefId,
+          event_type: expected.eventType,
+          event_key: expected.eventKey,
+          actor: expected.actor,
+          at: expected.at,
+          source: expected.source,
+          payload: expected.payload,
+        };
+        const actualProjection = actual
+          ? {
+              reef_id: actual.reef_id,
+              event_type: actual.event_type,
+              event_key: actual.event_key,
+              actor: actual.actor,
+              at: actual.at,
+              source: actual.source,
+              payload: actual.payload,
+            }
+          : null;
+        if (
+          canonicalizeJson(actualProjection) !==
+          canonicalizeJson(expectedProjection)
+        ) {
+          return false;
+        }
+      }
+    }
+    return true;
   };
   return {
     adapter,
@@ -635,6 +699,7 @@ export function createAkbJiraMigrationTarget(
         throw new Error("jira_issue_plan_not_writable");
       }
       let commitHash: string;
+      let expectedIssue = desired;
       if (action === "create") {
         const result = await core.writeIssue({
           adapter,
@@ -649,11 +714,22 @@ export function createAkbJiraMigrationTarget(
           vault,
           id: desired.id,
         });
+        expectedIssue = {
+          ...desired,
+          depends_on: current.issue.depends_on,
+          blocks: current.issue.blocks,
+          related_to: current.issue.related_to,
+          external_refs: current.issue.external_refs,
+          custom_fields: customFieldsWithSidecar(
+            desired,
+            sidecarFor(current.issue),
+          ),
+        };
         const result = await core.updateIssue({
           adapter,
           vault,
           id: desired.id,
-          partial: desired,
+          partial: expectedIssue,
           content: plan.desired.content,
           message: `Update ${desired.id} from Jira migration`,
           ...(current.commit_hash
@@ -667,9 +743,19 @@ export function createAkbJiraMigrationTarget(
         vault,
         id: desired.id,
       });
+      const desiredKeys = (
+        Object.keys(expectedIssue) as Array<keyof IssueMetadata>
+      ).filter((key) => expectedIssue[key] !== undefined);
+      const desiredProjection = Object.fromEntries(
+        desiredKeys.map((key) => [key, expectedIssue[key]]),
+      );
+      const projectedReadback = Object.fromEntries(
+        desiredKeys.map((key) => [key, readback.issue[key]]),
+      );
       if (
-        readback.issue.id !== desired.id ||
-        readback.issue.title !== desired.title
+        canonicalizeJson(projectedReadback) !==
+          canonicalizeJson(desiredProjection) ||
+        readback.content !== plan.desired.content
       ) {
         throw new Error("target_issue_readback_failed");
       }
@@ -686,7 +772,16 @@ export function createAkbJiraMigrationTarget(
       return related;
     },
     async appendActivity(events) {
+      for (const event of events) {
+        if (!event.eventKey) {
+          throw new Error("target_activity_event_key_required");
+        }
+      }
       await akbAppendActivityEvents(adapter, vault, [...events]);
+      if (!(await activityMatches(events))) {
+        throw new Error("target_activity_readback_failed");
+      }
     },
+    activityMatches,
   };
 }

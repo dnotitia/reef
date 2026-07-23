@@ -139,6 +139,10 @@ describe("runJiraMigration", () => {
       ]),
     );
     const mutations: string[] = [];
+    const writtenIssues = new Map<
+      string,
+      { issue: Record<string, unknown>; content: string }
+    >();
     const target = {
       adapter: { request: vi.fn() },
       preflight: vi.fn(async () => ({
@@ -150,13 +154,21 @@ describe("runJiraMigration", () => {
       applyPlanning: vi.fn(),
       applyIssue: vi.fn(async (plan) => {
         mutations.push(plan.desired.issue.id);
+        writtenIssues.set(plan.desired.issue.id, {
+          issue: plan.desired.issue,
+          content: plan.desired.content,
+        });
         return {
           reefId: plan.desired.issue.id,
           documentUri: `akb://reef-test/coll/issues/doc/${plan.desired.issue.id.toLowerCase()}.md`,
           commitHash: "commit",
         };
       }),
-      readIssue: vi.fn(),
+      readIssue: vi.fn(async (id) => {
+        const written = writtenIssues.get(id);
+        if (!written) throw new Error("issue_missing");
+        return { ...written, commit_hash: "commit" };
+      }),
       relatedTarget: vi.fn(() => ({})),
       appendActivity: vi.fn(),
     } as never;
