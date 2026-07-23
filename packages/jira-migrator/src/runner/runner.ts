@@ -80,6 +80,7 @@ import {
   semanticRelatedReport,
   sourceFingerprintForPlanning,
 } from "./approval.js";
+import { loadJiraApprovalArtifacts } from "./approvalArtifacts.js";
 import {
   ensurePrivateDirectory,
   fileExists,
@@ -108,7 +109,6 @@ import {
 } from "./mappingPolicy.js";
 import {
   acquireMigrationRunLock,
-  readPrivatePlanArtifact,
   writePrivatePlanArtifact,
 } from "./privateArtifact.js";
 import {
@@ -162,20 +162,6 @@ export {
   inferRelationSourceProjectKey,
 } from "./decisions.js";
 
-const reportMatchesConfig = (
-  report: JiraRunnerReport,
-  config: JiraMigratorConfig,
-): boolean =>
-  report.run.mode === "dry-run" &&
-  report.run.status === "completed" &&
-  report.run.run_id === config.artifacts.runId &&
-  report.run.source.jira_cloud_id === config.jira.cloudId &&
-  JSON.stringify(report.run.source.project_keys) ===
-    JSON.stringify(config.jira.projectKeys) &&
-  JSON.stringify(report.run.source.board_ids) ===
-    JSON.stringify(config.jira.boardIds) &&
-  report.run.target.vault === config.target.vault;
-
 async function runJiraMigrationUnlocked(
   config: JiraMigratorConfig,
   dependencies: JiraRunnerDependencies = {},
@@ -228,81 +214,17 @@ async function runJiraMigrationUnlocked(
     policies.set(key, await loadJiraMappingPolicy(path));
   }
 
-  let approvedReport: JiraRunnerReport | null = null;
-  let approvedPlanArtifact: Awaited<
-    ReturnType<typeof readPrivatePlanArtifact>
-  > | null = null;
-  if (config.mode === "apply") {
-    const approvalReportPath = `${paths.reportPath}.approval.json`;
-    if (!(await fileExists(approvalReportPath))) {
-      throw new JiraRunnerError("dry_run_approval_required");
-    }
-    approvedReport = await loadJiraRunnerReport(approvalReportPath);
-    if (!reportMatchesConfig(approvedReport, config)) {
-      throw new JiraRunnerError("dry_run_scope_mismatch");
-    }
-    try {
-      approvedPlanArtifact = await readPrivatePlanArtifact(
-        `${paths.reportPath}.plan.json`,
-      );
-    } catch {
-      throw new JiraRunnerError("dry_run_approval_required");
-    }
-    if (
-      approvedPlanArtifact.approval_report_sha256 !==
-      fingerprintJiraState(approvedReport)
-    ) {
-      throw new JiraRunnerError("plan_fingerprint_mismatch");
-    }
-    if (
-      approvedPlanArtifact.run_id !== config.artifacts.runId ||
-      approvedPlanArtifact.source.jira_cloud_id !== config.jira.cloudId ||
-      JSON.stringify(approvedPlanArtifact.source.project_keys) !==
-        JSON.stringify(config.jira.projectKeys) ||
-      JSON.stringify(approvedPlanArtifact.source.board_ids) !==
-        JSON.stringify(config.jira.boardIds) ||
-      approvedPlanArtifact.source.endpoint_fingerprint !==
-        sourceEndpointFingerprint ||
-      approvedPlanArtifact.target.vault !== config.target.vault ||
-      approvedPlanArtifact.target.endpoint_fingerprint !==
-        endpointFingerprint ||
-      approvedPlanArtifact.plan_sha256 !== approvedReport.plan_sha256
-    ) {
-      throw new JiraRunnerError("dry_run_scope_mismatch");
-    }
-  } else if (await fileExists(`${paths.reportPath}.plan.json`)) {
-    approvedPlanArtifact = await readPrivatePlanArtifact(
-      `${paths.reportPath}.plan.json`,
-    );
-    if (
-      approvedPlanArtifact.run_id !== config.artifacts.runId ||
-      approvedPlanArtifact.source.jira_cloud_id !== config.jira.cloudId ||
-      JSON.stringify(approvedPlanArtifact.source.project_keys) !==
-        JSON.stringify(config.jira.projectKeys) ||
-      JSON.stringify(approvedPlanArtifact.source.board_ids) !==
-        JSON.stringify(config.jira.boardIds) ||
-      approvedPlanArtifact.source.endpoint_fingerprint !==
-        sourceEndpointFingerprint ||
-      approvedPlanArtifact.target.vault !== config.target.vault ||
-      approvedPlanArtifact.target.endpoint_fingerprint !== endpointFingerprint
-    ) {
-      throw new JiraRunnerError("dry_run_scope_mismatch");
-    }
-  }
-  const approvedRelatedSnapshots = (() => {
-    const payload = approvedPlanArtifact?.payload;
-    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-      return null;
-    }
-    const source = (payload as Record<string, unknown>).source;
-    if (!source || typeof source !== "object" || Array.isArray(source)) {
-      return null;
-    }
-    const related = (source as Record<string, unknown>).related;
-    return related && typeof related === "object" && !Array.isArray(related)
-      ? (related as Record<string, unknown>)
-      : null;
-  })();
+  const {
+    approvedReport,
+    approvedPlanArtifact,
+    approvedPayload,
+    approvedRelatedSnapshots,
+  } = await loadJiraApprovalArtifacts({
+    config,
+    paths,
+    sourceEndpointFingerprint,
+    targetEndpointFingerprint: endpointFingerprint,
+  });
   const retry = {
     maxRetries: config.control.retryCount,
     baseDelayMs: config.control.retryBaseDelayMs,
@@ -465,12 +387,6 @@ async function runJiraMigrationUnlocked(
       );
     },
   );
-  const approvedPayload =
-    approvedPlanArtifact?.payload &&
-    typeof approvedPlanArtifact.payload === "object" &&
-    !Array.isArray(approvedPlanArtifact.payload)
-      ? (approvedPlanArtifact.payload as Record<string, unknown>)
-      : null;
   const approvedCommentBindingPreconditions =
     approvedPayload?.comment_binding_preconditions &&
     typeof approvedPayload.comment_binding_preconditions === "object" &&
