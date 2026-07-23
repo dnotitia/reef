@@ -31,6 +31,8 @@ export const ISSUE_QUERY_KEYS = [
 
 const FILTER_QUERY_KEYS = ISSUE_QUERY_KEYS.filter((key) => key !== "view");
 const VIEW_MODES = new Set(["board", "list", "timeline", "backlog"]);
+const EMPTY_FILTER_MARKER_KEY = "filter";
+const EMPTY_FILTER_MARKER_VALUE = "none";
 
 export function isIssuesListPath(pathname: string, vault: string): boolean {
   return pathname === withVault(vault, "/issues");
@@ -127,13 +129,19 @@ export function readIssueUrlState(
 }
 
 export function hasIssueQueryParams(searchParams: URLSearchParams): boolean {
-  return ISSUE_QUERY_KEYS.some((key) => searchParams.has(key));
+  return (
+    searchParams.get(EMPTY_FILTER_MARKER_KEY) === EMPTY_FILTER_MARKER_VALUE ||
+    ISSUE_QUERY_KEYS.some((key) => searchParams.has(key))
+  );
 }
 
 export function hasIssueFilterQueryParams(
   searchParams: URLSearchParams,
 ): boolean {
-  return FILTER_QUERY_KEYS.some((key) => searchParams.has(key));
+  return (
+    searchParams.get(EMPTY_FILTER_MARKER_KEY) === EMPTY_FILTER_MARKER_VALUE ||
+    FILTER_QUERY_KEYS.some((key) => searchParams.has(key))
+  );
 }
 
 export function buildIssueSearchParams(
@@ -142,6 +150,9 @@ export function buildIssueSearchParams(
   base = new URLSearchParams(),
 ): string {
   const params = new URLSearchParams(base);
+  const preserveExplicitEmpty =
+    params.get(EMPTY_FILTER_MARKER_KEY) === EMPTY_FILTER_MARKER_VALUE;
+  params.delete(EMPTY_FILTER_MARKER_KEY);
   for (const key of FILTER_QUERY_KEYS) params.delete(key);
   const append = (key: string, values?: readonly string[]) => {
     for (const value of values ?? []) if (value) params.append(key, value);
@@ -163,6 +174,9 @@ export function buildIssueSearchParams(
   if (filter.sortField) params.set("sort", filter.sortField);
   if (filter.sortOrder) params.set("order", filter.sortOrder);
   if (searchQuery) params.set("q", searchQuery);
+  if (preserveExplicitEmpty) {
+    params.set(EMPTY_FILTER_MARKER_KEY, EMPTY_FILTER_MARKER_VALUE);
+  }
   return params.toString();
 }
 
@@ -176,9 +190,14 @@ export function canonicalIssueQuery(query: string | URLSearchParams): string {
   const parsed = new URLSearchParams(
     buildIssueSearchParams(filter, searchQuery),
   );
-  if (view && VIEW_MODES.has(view)) parsed.set("view", view);
+  if (view && view !== "board" && VIEW_MODES.has(view)) {
+    parsed.set("view", view);
+  }
+  if (input.get(EMPTY_FILTER_MARKER_KEY) === EMPTY_FILTER_MARKER_VALUE) {
+    parsed.set(EMPTY_FILTER_MARKER_KEY, EMPTY_FILTER_MARKER_VALUE);
+  }
   const canonical = new URLSearchParams();
-  for (const key of [...ISSUE_QUERY_KEYS].sort()) {
+  for (const key of [...ISSUE_QUERY_KEYS, EMPTY_FILTER_MARKER_KEY].sort()) {
     for (const value of parsed.getAll(key).sort()) canonical.append(key, value);
   }
   return canonical.toString();
@@ -213,7 +232,19 @@ export function savedIssueViewPayloadToSearchParams(
     for (const value of values)
       if (typeof value === "string") raw.append(key, value);
   }
-  return new URLSearchParams(canonicalIssueQuery(raw));
+  const params = new URLSearchParams(canonicalIssueQuery(raw));
+  const inputKeys = Object.keys(payload.query);
+  const hasExplicitBoard = payload.query.view?.some(
+    (value) => value === "board",
+  );
+  const hasCanonicalState = params.size > 0;
+  if (!hasCanonicalState && inputKeys.length > 0 && !hasExplicitBoard) {
+    return params;
+  }
+  if (!FILTER_QUERY_KEYS.some((key) => params.has(key))) {
+    params.set(EMPTY_FILTER_MARKER_KEY, EMPTY_FILTER_MARKER_VALUE);
+  }
+  return new URLSearchParams(canonicalIssueQuery(params));
 }
 
 export function savedIssueViewHref(

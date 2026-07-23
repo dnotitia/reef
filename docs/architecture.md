@@ -126,7 +126,10 @@ only auth/vault boundaries, and TanStack Query owns the client-side server
 state. A user's default view is only a vault-scoped row-id pointer in the
 existing browser Dexie `config` store. Opening a view materializes its validated
 payload into the ordinary `/issues?...` URL, so shared links remain transparent
-and do not depend on an opaque view id.
+and do not depend on an opaque view id. A saved view whose result set is
+intentionally unfiltered uses the semantic `filter=none` URL marker; this keeps
+layout-only and all-issues links distinct from the legacy `?view=list` route,
+which still restores the user's last-used filter.
 
 Writes span the document and row non-transactionally, with a compensation saga
 for partial failure. Row-only scalar fields remain last-write-wins: there is no

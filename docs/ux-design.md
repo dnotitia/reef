@@ -168,7 +168,9 @@ differentiator.
   whole workspace. The expanded sidebar exposes stable links and compact row
   actions; the collapsed rail stays focused on primary navigation. A personal
   default only chooses the bare-Issues landing and never overrides an explicit
-  URL.
+  URL. Layout-only and all-issues views use `filter=none` so their shared links
+  explicitly clear personal filters while a plain `?view=list` keeps its
+  established last-used-filter behavior.
 - Inline, low-ceremony editing in the detail panel (inline auto-save) —
   no Save button, no dirty state.
 - Agent transparency for every AI proposal — reasoning, confidence, and

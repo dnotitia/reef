@@ -1,11 +1,13 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import {
+  buildIssueSearchParams,
   canonicalIssueQuery,
   createSavedIssueViewPayload,
   isIssuesListPath,
   savedIssueViewDefaultIsStale,
   savedIssueViewHref,
+  savedIssueViewIsActive,
   savedIssueViewPayloadToSearchParams,
 } from "./issueViewCodec";
 
@@ -74,5 +76,43 @@ describe("issueViewCodec", () => {
     expect(canonicalIssueQuery("sort=updated_at")).toBe(
       "order=desc&sort=updated_at",
     );
+  });
+
+  it("uses an explicit empty-filter marker for layout-only and empty views", () => {
+    expect(
+      savedIssueViewHref("reef-e2e", {
+        version: 1,
+        query: { view: ["list"] },
+      }),
+    ).toBe("/workspace/reef-e2e/issues?filter=none&view=list");
+    expect(savedIssueViewHref("reef-e2e", { version: 1, query: {} })).toBe(
+      "/workspace/reef-e2e/issues?filter=none",
+    );
+    expect(
+      buildIssueSearchParams(
+        {},
+        "",
+        new URLSearchParams("filter=none&view=list"),
+      ),
+    ).toBe("view=list&filter=none");
+    expect(
+      canonicalIssueQuery(
+        buildIssueSearchParams(
+          { status: ["todo"] },
+          "",
+          new URLSearchParams("filter=none&view=list"),
+        ),
+      ),
+    ).toBe("filter=none&status=todo&view=list");
+  });
+
+  it("canonicalizes explicit board mode to the saved default representation", () => {
+    expect(canonicalIssueQuery("status=todo&view=board")).toBe("status=todo");
+    expect(
+      savedIssueViewIsActive(
+        { version: 1, query: { status: ["todo"] } },
+        new URLSearchParams("view=board&status=todo"),
+      ),
+    ).toBe(true);
   });
 });

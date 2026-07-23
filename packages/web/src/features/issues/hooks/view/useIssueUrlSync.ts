@@ -63,6 +63,8 @@ export function useIssueUrlSync(
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const currentIssueQuery = useRef(canonicalIssueQuery(searchParams));
+  currentIssueQuery.current = canonicalIssueQuery(searchParams);
 
   // Gates URL writeback. Set as soon as the hydration source is decided
   // (synchronously, before any async restore settles) so a user filter change —
@@ -163,6 +165,10 @@ export function useIssueUrlSync(
     }
 
     const restoringVault = vault;
+    const restoringQuery = currentIssueQuery.current;
+    const restoringState = useIssueStore.getState();
+    const restoringFilter = restoringState.filter;
+    const restoringSearchQuery = restoringState.searchQuery;
     let aborted = false;
     let settled = false;
     void (async () => {
@@ -176,6 +182,14 @@ export function useIssueUrlSync(
           ? undefined
           : await getDefaultIssueViewId(restoringVault);
         if (!aborted && defaultId) {
+          const currentState = useIssueStore.getState();
+          if (
+            currentIssueQuery.current !== restoringQuery ||
+            currentState.filter !== restoringFilter ||
+            currentState.searchQuery !== restoringSearchQuery
+          ) {
+            return;
+          }
           if (!savedViewsReady && !savedViewsFailed) {
             initialized.current = false;
             restoreStarted.current = false;

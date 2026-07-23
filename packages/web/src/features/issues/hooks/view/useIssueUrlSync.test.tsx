@@ -440,6 +440,19 @@ describe("useIssueUrlSync", () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
+  it("honors an explicit empty-filter saved link without restoring personal filters", async () => {
+    await setPersistedIssueFilter("reef-acme", { status: ["closed"] });
+    navigationState.searchParams = new URLSearchParams("filter=none&view=list");
+
+    render(<Harness />);
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filterVault).toBe("reef-acme");
+    });
+    expect(useIssueStore.getState().filter).toEqual({});
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
   it("materializes a valid personal default view before the last-used filter", async () => {
     const view: SavedIssueView = {
       id: "11111111-1111-4111-8111-111111111111",
@@ -469,6 +482,53 @@ describe("useIssueUrlSync", () => {
       { scroll: false },
     );
     expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it("materializes an empty default as an explicit clear-all board view", async () => {
+    const view: SavedIssueView = {
+      id: "11111111-1111-4111-8111-111111111111",
+      name: "All issues",
+      name_key: "all issues",
+      owner: "alice",
+      payload: { version: 1, query: {} },
+    };
+    await setDefaultIssueViewId("reef-acme", view.id);
+    await setPersistedIssueFilter("reef-acme", { status: ["closed"] });
+
+    render(<Harness savedViews={[view]} />);
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/workspace/reef-acme/issues?filter=none",
+        { scroll: false },
+      );
+    });
+    expect(useIssueStore.getState().filter).toEqual({});
+    expect(await getDefaultIssueViewId("reef-acme")).toBe(view.id);
+  });
+
+  it("does not let a delayed default overwrite a newer user filter", async () => {
+    const view: SavedIssueView = {
+      id: "11111111-1111-4111-8111-111111111111",
+      name: "Closed",
+      name_key: "closed",
+      owner: "alice",
+      payload: { version: 1, query: { status: ["closed"] } },
+    };
+    await setDefaultIssueViewId("reef-acme", view.id);
+
+    render(<Harness savedViews={[view]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Set priority" }));
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.priority).toEqual(["high"]);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(useIssueStore.getState().filter.status).toBeUndefined();
+    expect(mockReplace).not.toHaveBeenCalledWith(
+      expect.stringContaining("status=closed"),
+      expect.anything(),
+    );
   });
 
   it("waits for the saved-view query instead of falling through to the last-used filter", async () => {
