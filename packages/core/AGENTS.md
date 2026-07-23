@@ -8,15 +8,17 @@
 - `core` owns framework-agnostic schemas, models, adapters, agents, errors, and
   utilities. Do not import Next.js, React, DOM APIs, or browser storage here.
 - Data-plane access to akb, GitHub, and LLM providers originates here. `web`
-  calls `core` through thin Route Handlers.
+  calls `core` through thin Route Handlers, while operator and worker packages
+  consume its public contracts without importing web.
 - Adapter and agent diagnostics that should appear in both traces and optional
-  backend logs use `src/observability/observe`. Keep logged/span fields
+  backend logs use `observe` from `src/observability/index.ts`. Keep logged/span fields
   credential-safe and operational: status, duration, counts, provider, repo, and
   similar bounded values.
 - Do not import pino, `@/lib/logging/logger`, or Next.js instrumentation in
   `core`; `web` decides whether core measurements are also emitted to stdout.
 - Domain layout is
-  `packages/core/src/{schemas,models,adapters,agents,errors,utils,index}/`.
+  `packages/core/src/{schemas,models,adapters,agents,errors,observability,utils}/`,
+  with the public package surface in `src/index.ts`.
 
 ## Subtree Rules
 
@@ -24,6 +26,8 @@
 - Agent and AI SDK tool rules live in `packages/core/src/agents/AGENTS.md`.
 - Issue schema and field registry rules live in
   `packages/core/src/schemas/issues/AGENTS.md`.
+- Planning schema and field registry rules live in
+  `packages/core/src/schemas/planning/AGENTS.md`.
 
 ## Testing And Layout
 

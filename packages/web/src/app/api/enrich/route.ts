@@ -123,15 +123,14 @@ export async function POST(request: Request): Promise<Response> {
       authoringLanguage,
       onEvent: logEnrichmentEvent,
     });
-    console.log(
-      "[reef]",
-      JSON.stringify({
+    logger.info(
+      {
         route: "POST /api/enrich",
         event: "enrich.result",
         issueId: body.issueId,
         suggestion_count: result.suggestions.length,
-        timestamp: new Date().toISOString(),
-      }),
+      },
+      "enrich_result",
     );
     return Response.json(result, { status: 200 });
   } catch (err) {
@@ -193,13 +192,12 @@ function logEnrichmentEvent(event: AgentRunEvent): void {
   const summary = summarizeEnrichmentEvent(event);
   if (!summary) return;
 
-  console.log(
-    "[reef]",
-    JSON.stringify({
+  logger.info(
+    {
       route: "POST /api/enrich",
-      timestamp: new Date().toISOString(),
       ...summary,
-    }),
+    },
+    "enrich_event",
   );
 }
 

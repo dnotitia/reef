@@ -4,11 +4,11 @@ Operator-run package for one-shot Jira migrations into Reef. The package is
 intentionally outside `@reef/web`: Jira credentials are deployment/operator
 secrets, not user state in the product runtime.
 
-The CLI still validates migration configuration and prints a redacted public
-config. The library additionally builds immutable Jira issue import plans and
-exposes a dependency-injected related-data stage for comments,
-attachments/media, and links. Final project traversal and CLI orchestration
-remain separate.
+The CLI validates migration configuration and prints a redacted public config.
+The library builds immutable Jira issue import plans and exposes a
+dependency-injected Reef apply/readback stage for comments, attachments/media,
+and links. Jira access remains GET-only. Final project traversal and CLI apply
+orchestration remain separate.
 
 ## Documentation Policy
 
