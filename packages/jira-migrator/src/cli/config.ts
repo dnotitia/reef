@@ -45,6 +45,7 @@ export interface JiraMigratorConfig {
     retryCount: number;
     retryBaseDelayMs: number;
     retryMaxDelayMs: number;
+    commentCatalogComplete: boolean;
   };
 }
 
@@ -84,6 +85,7 @@ export interface PublicJiraMigratorConfig {
 interface ParsedArgs {
   dryRun: boolean;
   apply: boolean;
+  commentCatalogComplete: boolean;
   jiraBaseUrl: string | null;
   cloudId: string | null;
   projectKeys: string[];
@@ -151,6 +153,7 @@ const valueFromEquals = (arg: string, flag: string): string | null =>
 const emptyParsedArgs = (): ParsedArgs => ({
   dryRun: false,
   apply: false,
+  commentCatalogComplete: false,
   jiraBaseUrl: null,
   cloudId: null,
   projectKeys: [],
@@ -177,7 +180,12 @@ const singleFlags: Record<
   string,
   Exclude<
     keyof ParsedArgs,
-    "dryRun" | "apply" | "projectKeys" | "boardIds" | "mappingPolicies"
+    | "dryRun"
+    | "apply"
+    | "commentCatalogComplete"
+    | "projectKeys"
+    | "boardIds"
+    | "mappingPolicies"
   >
 > = {
   "--jira-base-url": "jiraBaseUrl",
@@ -212,6 +220,10 @@ export function parseJiraMigratorArgs(argv: readonly string[]): ParsedArgs {
     }
     if (arg === "--apply") {
       parsed.apply = true;
+      continue;
+    }
+    if (arg === "--attest-comment-catalog-complete") {
+      parsed.commentCatalogComplete = true;
       continue;
     }
     const repeated = [
@@ -626,7 +638,12 @@ export function loadJiraMigratorConfig({
       firstValue(parsed.expectedPlanSha256),
       mode,
     ),
-    control: { retryCount, retryBaseDelayMs, retryMaxDelayMs },
+    control: {
+      retryCount,
+      retryBaseDelayMs,
+      retryMaxDelayMs,
+      commentCatalogComplete: parsed.commentCatalogComplete,
+    },
   };
 }
 

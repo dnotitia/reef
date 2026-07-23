@@ -93,6 +93,7 @@ Credentials come only from environment variables or local secret files.
 | `--account-mapping-path` | `REEF_JIRA_ACCOUNT_MAPPING_PATH` | Required private Jira account mapping artifact. |
 | `--resume` | — | Resume the named run from confirmed entity checkpoints. |
 | `--expected-plan-sha256` | — | Required apply approval hash from the dry-run report. |
+| `--attest-comment-catalog-complete` | — | Explicitly attest that the Jira credential sees the complete comment catalog. Required for attachment import and destructive reconciliation of omitted comments; repeat on dry-run and apply. |
 | `--api-token-file` | `REEF_JIRA_API_TOKEN_FILE` or `JIRA_API_TOKEN_FILE` | Local secret file containing a Jira API token for basic auth. |
 | `--bearer-token-file` | `REEF_JIRA_BEARER_TOKEN_FILE` or `JIRA_BEARER_TOKEN_FILE` | Local secret file containing a Jira bearer token. |
 | `--akb-jwt-file` | `REEF_AKB_JWT_FILE` | Local secret file containing the AKB JWT. |
@@ -128,6 +129,12 @@ issue whose explicit link catalog contained it; processing the other endpoint
 must not delete that source-owned binding. Changelog histories are always
 preserved raw, with only lossless mapped items promoted to idempotent activity
 or external references.
+
+Enhanced-JQL absence alone never authorizes relation deletion because issue
+security, credential changes, or project movement can produce the same absence.
+The runner preserves that relation and reports a conflict. Apply also validates
+the approval-time target projection before an issue update, so independently
+edited mapped fields are not overwritten.
 
 The report contains safe identities, fingerprints, counts, opaque archive
 references, classifications, and approval metadata. It omits raw payloads,

@@ -25,7 +25,11 @@ const env = {
 describe("loadJiraMigratorConfig", () => {
   it("loads operator config and keeps public config secret-free", () => {
     const config = loadJiraMigratorConfig({
-      argv: ["--dry-run", "--report=reports/alpha.json"],
+      argv: [
+        "--dry-run",
+        "--report=reports/alpha.json",
+        "--attest-comment-catalog-complete",
+      ],
       env,
     });
 
@@ -45,6 +49,7 @@ describe("loadJiraMigratorConfig", () => {
         baseUrl: "https://akb.example.test",
         vault: "reef-test",
       },
+      control: { commentCatalogComplete: true },
     });
     expect(config.jira.auth).toMatchObject({
       mode: "basic",
@@ -297,6 +302,7 @@ describe("loadJiraMigratorConfig", () => {
       retryCount: 4,
       retryBaseDelayMs: 100,
       retryMaxDelayMs: 4000,
+      commentCatalogComplete: false,
     });
 
     const publicJson = JSON.stringify(publicJiraMigratorConfig(config));

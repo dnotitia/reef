@@ -387,14 +387,15 @@ const semanticRelatedReport = (report: JiraRelatedImportReport): unknown => ({
   failures: report.failures,
 });
 
-export const baseIssueReadbackMatches = (
+const issueReadbackApprovalState = (
   plan: JiraIssueImportPlan,
   readback: Awaited<ReturnType<AkbJiraMigrationTarget["readIssue"]>> | null,
-  postRelatedContent?: string,
-): boolean => {
+): {
+  desired: Record<string, unknown>;
+  actual: Record<string, unknown>;
+} | null => {
   const desired = plan.desired.issue;
-  if (!desired || !readback || desired.source !== "jira-migration")
-    return false;
+  if (!desired || !readback || desired.source !== "jira-migration") return null;
   const downstreamManagedKeys = new Set([
     "external_refs",
     "depends_on",
@@ -442,10 +443,34 @@ export const baseIssueReadbackMatches = (
     };
     return projection;
   };
-  const desiredProjection = normalize(desired as Record<string, unknown>);
-  const actualProjection = normalize(
-    readback.issue as unknown as Record<string, unknown>,
-  );
+  return {
+    desired: normalize(desired as Record<string, unknown>),
+    actual: normalize(readback.issue as unknown as Record<string, unknown>),
+  };
+};
+
+export const issueReadbackApprovalFingerprint = (
+  plan: JiraIssueImportPlan,
+  readback: Awaited<ReturnType<AkbJiraMigrationTarget["readIssue"]>> | null,
+): string | null => {
+  const state = issueReadbackApprovalState(plan, readback);
+  return state
+    ? fingerprintJiraState({
+        issue: state.actual,
+        content: readback?.content ?? "",
+      })
+    : null;
+};
+
+export const baseIssueReadbackMatches = (
+  plan: JiraIssueImportPlan,
+  readback: Awaited<ReturnType<AkbJiraMigrationTarget["readIssue"]>> | null,
+  postRelatedContent?: string,
+): boolean => {
+  const state = issueReadbackApprovalState(plan, readback);
+  if (!state || !readback) return false;
+  const desiredProjection = state.desired;
+  const actualProjection = state.actual;
   const desiredMigration = (
     desiredProjection.custom_fields as Record<string, unknown>
   )?.jira_migration as Record<string, unknown> | undefined;
@@ -1490,6 +1515,41 @@ async function runJiraMigrationUnlocked(
     });
   };
   const dryIssuePlans = buildIssuePlans(approvedPlanningResolutions);
+  const approvedTargetIssuePreconditions =
+    approvedPayload?.target_issue_preconditions &&
+    typeof approvedPayload.target_issue_preconditions === "object" &&
+    !Array.isArray(approvedPayload.target_issue_preconditions)
+      ? (approvedPayload.target_issue_preconditions as Record<string, unknown>)
+      : null;
+  const targetIssuePreconditions: Record<string, string | null> =
+    approvedTargetIssuePreconditions
+      ? Object.fromEntries(
+          dryIssuePlans.map((plan) => {
+            const value =
+              approvedTargetIssuePreconditions[plan.source.issueKey];
+            if (value !== null && typeof value !== "string") {
+              throw new JiraRunnerError("plan_fingerprint_mismatch");
+            }
+            return [plan.source.issueKey, value ?? null];
+          }),
+        )
+      : Object.fromEntries(
+          await Promise.all(
+            dryIssuePlans.map(async (plan) => {
+              if (actionForIssuePlan(plan, ledger) === "create") {
+                return [plan.source.issueKey, null] as const;
+              }
+              const id = plan.desired.issue?.id;
+              const readback = id
+                ? await target.readIssue(id).catch(() => null)
+                : null;
+              return [
+                plan.source.issueKey,
+                issueReadbackApprovalFingerprint(plan, readback),
+              ] as const;
+            }),
+          ),
+        );
   const issueBindings = Object.fromEntries(
     allIssues.flatMap((issue) => [
       [issue.id, targetIdsByJiraKey[issue.key] as string],
@@ -1559,8 +1619,10 @@ async function runJiraMigrationUnlocked(
       accountMapping,
       linkMappings: policy.linkMappings,
       attachmentPolicy: {
-        commentVisibilityCompleteness: "verified",
         maxBytes: 20 * 1024 * 1024,
+        ...(config.control.commentCatalogComplete
+          ? { commentVisibilityCompleteness: "verified" as const }
+          : {}),
       },
       resolveIssueTarget(sourceIdOrKey) {
         const reefId = issueBindings[sourceIdOrKey];
@@ -1778,6 +1840,7 @@ async function runJiraMigrationUnlocked(
       endpoint_fingerprint: endpointFingerprint,
     },
     issue_ids: targetIdsByJiraKey,
+    target_issue_preconditions: targetIssuePreconditions,
     absent_source_relations: absentSourceRelationPlan,
     planning: approvedPlanningPayload ?? currentPlanningPayload,
     issues: dryIssuePlans.map((plan) =>
@@ -1945,7 +2008,7 @@ async function runJiraMigrationUnlocked(
       recordReportOnly(
         "related",
         `related:absent-source:${binding.source_key}`,
-        "update",
+        "conflict",
       );
     }
     for (const plan of changelogPlans) {
@@ -2343,6 +2406,45 @@ async function runJiraMigrationUnlocked(
       let applied:
         | Awaited<ReturnType<AkbJiraMigrationTarget["applyIssue"]>>
         | undefined;
+      if (action === "update") {
+        const desired = plan.desired.issue;
+        const current = desired
+          ? await target.readIssue(desired.id).catch(() => null)
+          : null;
+        if (
+          desired &&
+          baseIssueReadbackMatches(
+            plan,
+            current,
+            postRelatedContentByReefId.get(desired.id),
+          )
+        ) {
+          applied = {
+            reefId: desired.id,
+            documentUri: `akb://${config.target.vault}/coll/issues/doc/${desired.id.toLowerCase()}.md`,
+            commitHash: current?.commit_hash ?? "",
+          };
+        } else if (
+          issueReadbackApprovalFingerprint(plan, current) !==
+          targetIssuePreconditions[plan.source.issueKey]
+        ) {
+          record(
+            "issues",
+            resultFor({
+              sourceKey: identity.key,
+              entityKind: "issue",
+              sourceFingerprint,
+              mappedFingerprint,
+              action: "conflict",
+              at: now(),
+              readback: current !== null,
+              retryable: false,
+            }),
+          );
+          await checkpoint();
+          continue;
+        }
+      }
       try {
         applied ??= await target.applyIssue(plan, action);
       } catch (error) {
@@ -2464,8 +2566,10 @@ async function runJiraMigrationUnlocked(
           accountMapping,
           linkMappings: policy.linkMappings,
           attachmentPolicy: {
-            commentVisibilityCompleteness: "verified",
             maxBytes: 20 * 1024 * 1024,
+            ...(config.control.commentCatalogComplete
+              ? { commentVisibilityCompleteness: "verified" as const }
+              : {}),
           },
           resolveIssueTarget(sourceIdOrKey) {
             const peer = allIssues.find(
@@ -2559,22 +2663,10 @@ async function runJiraMigrationUnlocked(
         await checkpoint();
         continue;
       }
-      try {
-        await target
-          .relatedTarget()
-          .deleteRelation(binding.target.idempotency_key);
-        if (
-          (await target
-            .relatedTarget()
-            .readRelation(binding.target.idempotency_key)) !== null
-        ) {
-          throw new Error("relation_absent_source_delete_readback_mismatch");
-        }
-        ledger = removeJiraMigrationBindings(ledger, [binding.source_key]);
-        recordReportOnly("related", classificationKey, "update");
-      } catch {
-        recordReportOnly("related", classificationKey, "failed", true);
-      }
+      // Enhanced JQL absence cannot distinguish deletion from issue-security,
+      // credential, or project-scope changes. Preserve the owned relation until
+      // a future source contract can prove deletion authoritatively.
+      recordReportOnly("related", classificationKey, "conflict");
       await checkpoint();
     }
     for (const plan of changelogPlans) {

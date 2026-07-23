@@ -113,14 +113,18 @@ export async function importJiraRelatedData(
       ),
     );
   }
-  const missingCommentBindings = input.ledger.bindings.filter(
-    (binding) =>
-      binding.source_identity.entity_kind === "comment" &&
-      binding.source_identity.jira_cloud_id === input.jiraCloudId &&
-      binding.source_identity.issue_id === issue.id &&
-      (commentsRead.status === "rejected" ||
-        !returnedCommentIds.has(binding.source_identity.comment_id)),
-  );
+  const commentCatalogAuthoritative =
+    input.attachmentPolicy?.commentVisibilityCompleteness === "verified" &&
+    commentsRead.status === "fulfilled";
+  const missingCommentBindings = commentCatalogAuthoritative
+    ? input.ledger.bindings.filter(
+        (binding) =>
+          binding.source_identity.entity_kind === "comment" &&
+          binding.source_identity.jira_cloud_id === input.jiraCloudId &&
+          binding.source_identity.issue_id === issue.id &&
+          !returnedCommentIds.has(binding.source_identity.comment_id),
+      )
+    : [];
   const unsafeCommentIds = new Set([
     ...missingCommentBindings.flatMap((binding) =>
       binding.source_identity.entity_kind === "comment"

@@ -51,6 +51,7 @@ Artifacts:
 Control:
   --resume RUN_ID
   --expected-plan-sha256 SHA256
+  --attest-comment-catalog-complete
   --retry-count N
   --retry-base-delay-ms N
   --retry-max-delay-ms N

@@ -132,7 +132,7 @@ export interface JiraRelatedImportInput {
   actorDirectory?: readonly ReefActorDirectoryEntry[];
   linkMappings: readonly JiraLinkMapping[];
   attachmentPolicy?: {
-    commentVisibilityCompleteness: "verified";
+    commentVisibilityCompleteness?: "verified";
     maxBytes: number;
   };
   descriptionConversionOptions?: AdfToMarkdownOptions;

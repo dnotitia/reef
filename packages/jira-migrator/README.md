@@ -70,6 +70,12 @@ An interrupted apply is restarted with the same run/artifact paths and
 `--resume jira-2026-07-23`. The runner rejects source, target actor/vault, run,
 or plan drift before mutating AKB.
 
+Attachment import and destructive reconciliation of comments omitted from a
+later catalog require the operator to repeat
+`--attest-comment-catalog-complete` on dry-run and apply. Use it only when the
+Jira credential is known to see the complete comment catalog; without it the
+runner preserves unseen target data and isolates attachments.
+
 See `../../docs/jira-migration.md` for the full configuration matrix and
 operator procedure.
 

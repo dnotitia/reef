@@ -19,6 +19,7 @@ import {
   baseIssueReadbackMatches,
   canRecoverApprovedPlanningCreate,
   inferRelationSourceProjectKey,
+  issueReadbackApprovalFingerprint,
   runJiraMigration,
 } from "./runner.js";
 
@@ -112,6 +113,47 @@ describe("runJiraMigration", () => {
         "markdown with akb://reef-test/file/attachment",
       ),
     ).toBe(true);
+  });
+
+  it("fingerprints approval-time mapped target drift", () => {
+    const issue = {
+      id: "REEF-001",
+      title: "Migrated",
+      status: "todo",
+      created_at: "2026-07-23T00:00:00.000Z",
+      created_by: "operator",
+      updated_at: "2026-07-23T00:00:00.000Z",
+      updated_by: "operator",
+      source: "jira-migration",
+      custom_fields: {
+        jira_migration: {
+          owner: {
+            jira_cloud_id: "cloud-1",
+            project_key: "ALPHA",
+            issue_id: "10001",
+            issue_key: "ALPHA-1",
+          },
+        },
+      },
+    };
+    const plan = {
+      source: { issueKey: "ALPHA-1" },
+      desired: { issue, content: "body" },
+    } as unknown as JiraIssueImportPlan;
+    const approved = {
+      issue,
+      content: "body",
+      path: "issues/reef-001.md",
+      commit_hash: "commit",
+    };
+    const drifted = {
+      ...approved,
+      issue: { ...issue, title: "Independent target edit" },
+    };
+
+    expect(issueReadbackApprovalFingerprint(plan, approved as never)).not.toBe(
+      issueReadbackApprovalFingerprint(plan, drifted as never),
+    );
   });
 
   it("does not adopt an unowned exact-name planning entity after approval", () => {
@@ -235,6 +277,7 @@ describe("runJiraMigration", () => {
         retryCount: 0,
         retryBaseDelayMs: 0,
         retryMaxDelayMs: 0,
+        commentCatalogComplete: false,
       },
     };
     const issues = {
