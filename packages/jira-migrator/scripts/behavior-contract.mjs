@@ -409,6 +409,47 @@ const server = createServer(async (request, response) => {
         ),
       );
     }
+    if (
+      statement.includes("jsonb_array_elements") &&
+      statement.includes("record->>'idempotencyKey' =")
+    ) {
+      const key = /record->>'idempotencyKey' = '([^']+)'/u.exec(statement)?.[1];
+      const field = statement.includes("'external_refs'")
+        ? "external_refs"
+        : "relations";
+      const matches = [...state.issues.keys()].flatMap((id) => {
+        const migration =
+          issueRow(id).meta?.custom_fields?.jira_migration ?? {};
+        const records = Array.isArray(migration[field]) ? migration[field] : [];
+        return records.some((record) => record.idempotencyKey === key)
+          ? [{ reef_id: id }]
+          : [];
+      });
+      return respond(response, sqlResult(matches.slice(0, 2)));
+    }
+    if (
+      statement.startsWith(
+        "SELECT DISTINCT record->>'idempotencyKey' AS idempotency_key",
+      )
+    ) {
+      const prefix =
+        /= '([^']+)' ORDER BY idempotency_key$/u.exec(statement)?.[1] ?? "";
+      const keys = new Set();
+      for (const id of state.issues.keys()) {
+        const migration =
+          issueRow(id).meta?.custom_fields?.jira_migration ?? {};
+        for (const record of migration.external_refs ?? []) {
+          if (record.idempotencyKey.startsWith(prefix))
+            keys.add(record.idempotencyKey);
+        }
+      }
+      return respond(
+        response,
+        sqlResult(
+          [...keys].sort().map((idempotency_key) => ({ idempotency_key })),
+        ),
+      );
+    }
     if (statement.includes("FROM reef_issues")) {
       const id = /"?reef_id"? = '(REEF-\d+)'/u.exec(statement)?.[1];
       return respond(

@@ -9,6 +9,29 @@ import type { JiraIssueImportPlan } from "../issues/importPlan.js";
 import type { JiraPlanningAction } from "../planning/entities.js";
 import { createAkbJiraMigrationTarget } from "./targetAdapter.js";
 
+const sidecarForTest = (issue: AkbReadIssueResult["issue"]) => {
+  const customFields =
+    issue.custom_fields &&
+    typeof issue.custom_fields === "object" &&
+    !Array.isArray(issue.custom_fields)
+      ? (issue.custom_fields as Record<string, unknown>)
+      : {};
+  const migration =
+    customFields.jira_migration &&
+    typeof customFields.jira_migration === "object" &&
+    !Array.isArray(customFields.jira_migration)
+      ? (customFields.jira_migration as Record<string, unknown>)
+      : {};
+  return {
+    relations: Array.isArray(migration.relations)
+      ? (migration.relations as Array<{ idempotencyKey: string }>)
+      : [],
+    externalRefs: Array.isArray(migration.external_refs)
+      ? (migration.external_refs as Array<{ idempotencyKey: string }>)
+      : [],
+  };
+};
+
 const releaseAction: JiraPlanningAction = {
   classification: "create",
   reason: "no_exact_name_candidate",
@@ -489,10 +512,28 @@ describe("AKB Jira migration target", () => {
       { baseUrl: "https://akb.test", jwt: "jwt", vault: "reef-test" },
       {
         createAdapter: () => ({
-          request: vi.fn(async () => ({
-            kind: "table_query",
-            items: [...issues.keys()].map((reef_id) => ({ reef_id })),
-          })),
+          request: vi.fn(async (_path, init) => {
+            const statement = (init?.body as { sql?: string } | undefined)?.sql;
+            const idempotencyKey =
+              statement &&
+              /record->>'idempotencyKey' = '([^']+)'/u.exec(statement)?.[1];
+            const field = statement?.includes("'external_refs'")
+              ? "externalRefs"
+              : "relations";
+            const matchingIds = idempotencyKey
+              ? [...issues.entries()].flatMap(([reefId, readback]) =>
+                  sidecarForTest(readback.issue)[field].some(
+                    (record) => record.idempotencyKey === idempotencyKey,
+                  )
+                    ? [reefId]
+                    : [],
+                )
+              : [...issues.keys()];
+            return {
+              kind: "table_query",
+              items: matchingIds.map((reef_id) => ({ reef_id })),
+            };
+          }),
         }),
         getCurrentActor: async () => ({ actor: "operator" }),
         listPlanningCatalog: vi.fn(),
@@ -676,5 +717,19 @@ describe("AKB Jira migration target", () => {
     expect(issues.get("REEF-001")?.issue.external_refs).not.toContainEqual(
       createdRef,
     );
+    const sidecarQueries = vi
+      .mocked(target.adapter.request)
+      .mock.calls.flatMap(([, init]) => {
+        const statement = (init?.body as { sql?: unknown } | undefined)?.sql;
+        return typeof statement === "string" ? [statement] : [];
+      });
+    expect(sidecarQueries).not.toContain(
+      "SELECT reef_id, meta FROM reef_issues",
+    );
+    expect(
+      sidecarQueries.some((statement) =>
+        statement.includes("jsonb_array_elements"),
+      ),
+    ).toBe(true);
   });
 });

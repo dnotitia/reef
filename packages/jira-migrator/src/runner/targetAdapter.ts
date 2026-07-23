@@ -331,10 +331,6 @@ export function createAkbJiraMigrationTarget(
     });
   const allIssueRows = () =>
     sql(adapter, vault, "SELECT reef_id, meta FROM reef_issues");
-  const allIssueIds = async (): Promise<string[]> =>
-    (await allIssueRows()).flatMap((row) =>
-      typeof row.reef_id === "string" ? [row.reef_id] : [],
-    );
   const readDocumentedIssue = async (
     id: string,
   ): Promise<AkbReadIssueResult | null> => {
@@ -345,29 +341,46 @@ export function createAkbJiraMigrationTarget(
       throw error;
     }
   };
-  const findRelation = async (idempotencyKey: string) => {
-    for (const id of await allIssueIds()) {
-      const readback = await readDocumentedIssue(id);
-      if (!readback) continue;
-      const issue = readback.issue;
-      const record = sidecarFor(issue).relations.find(
-        (candidate) => candidate.idempotencyKey === idempotencyKey,
-      );
-      if (record) return { issue, readback, record };
+  const sidecarIssueId = async (
+    field: "relations" | "external_refs",
+    idempotencyKey: string,
+  ): Promise<string | null> => {
+    const rows = await sql(
+      adapter,
+      vault,
+      `SELECT reef_id FROM reef_issues WHERE EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(meta::jsonb->'custom_fields'->'jira_migration'->'${field}', '[]'::jsonb)) AS record WHERE record->>'idempotencyKey' = ${quote(
+        idempotencyKey,
+      )}) LIMIT 2`,
+    );
+    const ids = rows.flatMap((row) =>
+      typeof row.reef_id === "string" ? [row.reef_id] : [],
+    );
+    if (ids.length > 1) {
+      throw new Error(`target_${field}_idempotency_key_ambiguous`);
     }
-    return null;
+    return ids[0] ?? null;
+  };
+  const findRelation = async (idempotencyKey: string) => {
+    const id = await sidecarIssueId("relations", idempotencyKey);
+    if (!id) return null;
+    const readback = await readDocumentedIssue(id);
+    if (!readback) return null;
+    const issue = readback.issue;
+    const record = sidecarFor(issue).relations.find(
+      (candidate) => candidate.idempotencyKey === idempotencyKey,
+    );
+    return record ? { issue, readback, record } : null;
   };
   const findExternalRef = async (idempotencyKey: string) => {
-    for (const id of await allIssueIds()) {
-      const readback = await readDocumentedIssue(id);
-      if (!readback) continue;
-      const issue = readback.issue;
-      const record = sidecarFor(issue).externalRefs.find(
-        (candidate) => candidate.idempotencyKey === idempotencyKey,
-      );
-      if (record) return { issue, readback, record };
-    }
-    return null;
+    const id = await sidecarIssueId("external_refs", idempotencyKey);
+    if (!id) return null;
+    const readback = await readDocumentedIssue(id);
+    if (!readback) return null;
+    const issue = readback.issue;
+    const record = sidecarFor(issue).externalRefs.find(
+      (candidate) => candidate.idempotencyKey === idempotencyKey,
+    );
+    return record ? { issue, readback, record } : null;
   };
   const readVerifiedRelation = async (idempotencyKey: string) => {
     const found = await findRelation(idempotencyKey);
@@ -934,18 +947,16 @@ export function createAkbJiraMigrationTarget(
       };
     },
     async listExternalRefKeys(prefix) {
-      const keys: string[] = [];
-      for (const id of await allIssueIds()) {
-        const readback = await readDocumentedIssue(id);
-        if (!readback) continue;
-        const issue = readback.issue;
-        keys.push(
-          ...sidecarFor(issue)
-            .externalRefs.map((record) => record.idempotencyKey)
-            .filter((key) => key.startsWith(prefix)),
-        );
-      }
-      return [...new Set(keys)].sort();
+      const rows = await sql(
+        adapter,
+        vault,
+        `SELECT DISTINCT record->>'idempotencyKey' AS idempotency_key FROM reef_issues CROSS JOIN LATERAL jsonb_array_elements(COALESCE(meta::jsonb->'custom_fields'->'jira_migration'->'external_refs', '[]'::jsonb)) AS record WHERE LEFT(record->>'idempotencyKey', ${
+          prefix.length
+        }) = ${quote(prefix)} ORDER BY idempotency_key`,
+      );
+      return rows.flatMap((row) =>
+        typeof row.idempotency_key === "string" ? [row.idempotency_key] : [],
+      );
     },
     async deleteExternalRef(idempotencyKey) {
       const found = await findExternalRef(idempotencyKey);
