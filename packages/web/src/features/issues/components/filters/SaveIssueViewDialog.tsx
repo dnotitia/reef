@@ -11,14 +11,19 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { useCreateSavedIssueView } from "@/features/issues/hooks/mutations/useSavedIssueViewMutations";
-import { createSavedIssueViewPayload } from "@/features/issues/lib/issueViewCodec";
+import {
+  createSavedIssueViewPayload,
+  hasSavableIssueViewState,
+} from "@/features/issues/lib/issueViewCodec";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { Save } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 
 export function SaveIssueViewDialog() {
   const { vault } = useActiveVault();
@@ -32,7 +37,13 @@ export function SaveIssueViewDialog() {
   const [name, setName] = useState("");
   const t = useTranslations("issues.savedViews");
   const c = useTranslations("common");
-  if (!vault) return null;
+  if (!vault || !hasSavableIssueViewState(payload, searchParams)) return null;
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (nextOpen) mutation.reset();
+    if (!nextOpen && !mutation.isPending) setName("");
+  };
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -41,13 +52,14 @@ export function SaveIssueViewDialog() {
       await mutation.mutateAsync({ name, payload });
       setOpen(false);
       setName("");
+      toast.success(t("created"));
     } catch {
       // The mutation error is rendered inline and remains editable.
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button
           type="button"
@@ -92,12 +104,25 @@ export function SaveIssueViewDialog() {
             <Button
               type="button"
               variant="outline"
+              size="sm"
               onClick={() => setOpen(false)}
+              disabled={mutation.isPending}
             >
               {c("cancel")}
             </Button>
-            <Button type="submit" disabled={!name.trim() || mutation.isPending}>
-              {mutation.isPending ? t("saving") : t("save")}
+            <Button
+              type="submit"
+              size="sm"
+              disabled={!name.trim() || mutation.isPending}
+            >
+              {mutation.isPending ? (
+                <>
+                  <Spinner className="size-3.5" aria-hidden="true" />
+                  {t("saving")}
+                </>
+              ) : (
+                t("save")
+              )}
             </Button>
           </DialogFooter>
         </form>

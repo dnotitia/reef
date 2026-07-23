@@ -5,6 +5,7 @@ import {
   buildIssueSearchParams,
   canonicalIssueQuery,
   createSavedIssueViewPayload,
+  hasSavableIssueViewState,
   isIssuesListPath,
   savedIssueViewDefaultIsStale,
   savedIssueViewHref,
@@ -13,6 +14,26 @@ import {
 } from "./issueViewCodec";
 
 describe("issueViewCodec", () => {
+  it("only offers save for non-default state or an explicit all-issues URL", () => {
+    const empty = createSavedIssueViewPayload({}, "", "board");
+    expect(hasSavableIssueViewState(empty, new URLSearchParams())).toBe(false);
+    expect(
+      hasSavableIssueViewState(empty, new URLSearchParams("filter=none")),
+    ).toBe(true);
+    expect(
+      hasSavableIssueViewState(
+        createSavedIssueViewPayload({ status: ["todo"] }, "", "board"),
+        new URLSearchParams(),
+      ),
+    ).toBe(true);
+    expect(
+      hasSavableIssueViewState(
+        createSavedIssueViewPayload({}, "", "list"),
+        new URLSearchParams(),
+      ),
+    ).toBe(true);
+  });
+
   it("only permits current-state updates on the exact vault issues list", () => {
     expect(isIssuesListPath("/workspace/reef-e2e/issues", "reef-e2e")).toBe(
       true,

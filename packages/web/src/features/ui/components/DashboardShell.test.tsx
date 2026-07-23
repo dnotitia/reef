@@ -59,6 +59,10 @@ vi.mock("@/features/issues/components/saved-views/SavedViewsNav", () => ({
   SavedViewsNav: () => null,
 }));
 
+vi.mock("@/features/issues/hooks/queries/useSavedIssueViews", () => ({
+  useSavedIssueViews: () => savedViewsState,
+}));
+
 vi.mock("@/features/preferences/hooks/useThemeSync", () => ({
   useThemeSync: vi.fn(),
 }));
@@ -75,9 +79,11 @@ const {
   unreadInboxState,
   myWorkAttentionState,
   skillStatusState,
+  savedViewsState,
 } = vi.hoisted(() => ({
   navigationState: {
     pathname: "/workspace/reef-acme/issues",
+    search: "",
   },
   unreadInboxState: {
     count: 0,
@@ -90,12 +96,19 @@ const {
   skillStatusState: {
     data: undefined as { up_to_date: boolean } | undefined,
   },
+  savedViewsState: {
+    data: undefined as
+      | Array<{
+          payload: { version: 1; query: Record<string, string[]> };
+        }>
+      | undefined,
+  },
 }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => navigationState.pathname,
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(navigationState.search),
 }));
 
 import { useViewStore } from "../stores/useViewStore";
@@ -142,11 +155,13 @@ describe("DashboardShell", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     navigationState.pathname = "/workspace/reef-acme/issues";
+    navigationState.search = "";
     unreadInboxState.count = 0;
     myWorkAttentionState.attention = 0;
     myWorkAttentionState.overdue = 0;
     myWorkAttentionState.dueSoon = 0;
     skillStatusState.data = undefined;
+    savedViewsState.data = undefined;
     useViewStore.setState({
       sidebarCollapsed: false,
       newIssueDialogOpen: false,
@@ -664,6 +679,44 @@ describe("DashboardShell", () => {
 
   it("keeps Issues active on the /issues/[id] detail route", () => {
     navigationState.pathname = "/workspace/reef-acme/issues/REEF-001";
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+
+    expect(screen.getByRole("link", { name: "Issues" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  it("leaves the Issues parent contextual when a query-backed subview owns the current page", () => {
+    navigationState.pathname = "/workspace/reef-acme/issues";
+    navigationState.search = "status=todo";
+    savedViewsState.data = [
+      { payload: { version: 1, query: { status: ["todo"] } } },
+    ];
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+
+    expect(screen.getByRole("link", { name: "Issues" })).not.toHaveAttribute(
+      "aria-current",
+    );
+  });
+
+  it("keeps Issues current for an unmatched filtered view", () => {
+    navigationState.search = "status=todo";
+    savedViewsState.data = [
+      { payload: { version: 1, query: { priority: ["high"] } } },
+    ];
     render(
       wrap(
         <DashboardShell appVersion="0.0.0">

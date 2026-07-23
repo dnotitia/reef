@@ -18,7 +18,9 @@ import { SidebarAccount } from "@/features/auth/components/SidebarAccount";
 import { SidebarWorkspace } from "@/features/auth/components/SidebarWorkspace";
 import { NewIssueDialog } from "@/features/issues/components/create/NewIssueDialog";
 import { SavedViewsNav } from "@/features/issues/components/saved-views/SavedViewsNav";
+import { useSavedIssueViews } from "@/features/issues/hooks/queries/useSavedIssueViews";
 import { buildOpenIssueHref } from "@/features/issues/lib/issueHref";
+import { savedIssueViewIsActive } from "@/features/issues/lib/issueViewCodec";
 import {
   type IssueKeyboardScope,
   type IssueQuickEditField,
@@ -64,7 +66,7 @@ import {
 import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Fragment,
   useCallback,
@@ -203,6 +205,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   useLocaleSync();
   const t = useTranslations("nav");
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   // Keep the assistant message count in DashboardShell so the FAB can show
   // an unread dot without subscribing to the chat runtime itself.
@@ -239,6 +242,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   // keeps its own mutation for the manual refresh button (separate instance,
   // same AKB activity inbox, same invalidation channel).
   const { vault } = useActiveVault();
+  const savedViews = useSavedIssueViews(vault);
   const queryClient = useQueryClient();
 
   // Prime the `['config', vault]` query cache for the active vault. Other
@@ -656,6 +660,13 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
               // keeps Settings active across the scope tabs (REEF-183).
               const isActive =
                 pathname === fullHref || pathname.startsWith(`${fullHref}/`);
+              const hasActiveIssuesSubview =
+                href === "/issues" &&
+                pathname === fullHref &&
+                savedViews.data?.some((view) =>
+                  savedIssueViewIsActive(view.payload, searchParams),
+                );
+              const isCurrentPage = isActive && !hasActiveIssuesSubview;
               const badge = navBadgeFor(href, isActive);
               return (
                 <Fragment key={href}>
@@ -672,12 +683,14 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                       title={sidebarCollapsed ? label : undefined}
                       className={cn(
                         "flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
-                        isActive
+                        isCurrentPage
                           ? "bg-surface-hover text-foreground font-medium"
-                          : "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
+                          : isActive
+                            ? "text-foreground hover:bg-surface-hover"
+                            : "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
                         sidebarCollapsed && "h-9 justify-center px-0",
                       )}
-                      aria-current={isActive ? "page" : undefined}
+                      aria-current={isCurrentPage ? "page" : undefined}
                     >
                       {sidebarCollapsed ? (
                         <>

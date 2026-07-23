@@ -21,6 +21,10 @@ test.describe("Hermetic saved issue views", () => {
     request,
   }) => {
     await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues");
+    await expect(page.getByRole("button", { name: "Save view" })).toHaveCount(
+      0,
+    );
     await page.goto(
       "/workspace/reef-e2e/issues?status=todo&q=Alpha&sort=priority&order=desc&view=list",
     );
@@ -48,6 +52,7 @@ test.describe("Hermetic saved issue views", () => {
       .poll(() => new URL(page.url()).searchParams.get("q"))
       .toBe("Alpha");
     await expect(viewLink).toHaveAttribute("aria-current", "page");
+    await expect(page.locator('[aria-current="page"]')).toHaveCount(1);
 
     await page.goto("/workspace/reef-e2e/issues?priority=high&view=list");
     await expect(viewLink).not.toHaveAttribute("aria-current", "page");
@@ -94,6 +99,9 @@ test.describe("Hermetic saved issue views", () => {
       .getByRole("button", { name: "Actions for High priority" })
       .click();
     await page.getByRole("menuitem", { name: "Set as default" }).click();
+    await expect(renamedLink).toHaveAccessibleName(
+      "Default view High priority",
+    );
     await expect
       .poll(() => readIndexedDbConfig(page, DEFAULT_POINTER_KEY))
       .toMatch(/^[0-9a-f-]{36}$/);

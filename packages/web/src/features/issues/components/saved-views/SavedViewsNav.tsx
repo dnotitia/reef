@@ -13,9 +13,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import {
   useDeleteSavedIssueView,
   useUpdateSavedIssueView,
@@ -88,14 +92,46 @@ export function SavedViewsNav({ vault }: { vault: string }) {
 
   if (query.isPending) {
     return (
-      <li>
-        <p className="px-3 py-1 text-[11px] text-muted-foreground">
-          {c("loading")}
+      <li
+        className="ml-4 mt-1"
+        data-testid="saved-views-loading"
+        aria-label={t("loading")}
+      >
+        <p className="px-2 pb-1 text-xs font-medium text-muted-foreground">
+          {t("views")}
         </p>
+        <div className="space-y-1 px-2" aria-hidden="true">
+          {[0, 1].map((index) => (
+            <Skeleton
+              key={index}
+              data-testid="saved-view-skeleton"
+              className="h-6 w-full"
+              style={{ "--i": index } as React.CSSProperties}
+            />
+          ))}
+        </div>
       </li>
     );
   }
-  if (query.isError || !query.data?.length) return null;
+  if (query.isError) {
+    return (
+      <li className="ml-4 mt-1 px-2">
+        <p className="text-xs text-muted-foreground" role="alert">
+          {t("loadError")}
+        </p>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="mt-0.5 h-7 px-1.5 text-xs"
+          onClick={() => void query.refetch()}
+        >
+          {c("retry")}
+        </Button>
+      </li>
+    );
+  }
+  if (!query.data?.length) return null;
 
   const report = (error: unknown) =>
     toast.error(error instanceof Error ? error.message : t("error"));
@@ -103,14 +139,11 @@ export function SavedViewsNav({ vault }: { vault: string }) {
 
   return (
     <>
-      <li
-        className="mt-2 border-t border-border-subtle pt-2"
-        data-testid="saved-views-nav"
-      >
-        <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <li className="ml-4 mt-1 min-w-0" data-testid="saved-views-nav">
+        <p className="px-2 pb-1 text-xs font-medium text-muted-foreground">
           {t("views")}
         </p>
-        <ul className="space-y-0.5">
+        <ul className="max-h-48 space-y-0.5 overflow-y-auto overscroll-contain pr-0.5">
           {query.data.map((view) => {
             const active =
               isIssuesList &&
@@ -120,7 +153,7 @@ export function SavedViewsNav({ vault }: { vault: string }) {
                 <Link
                   href={savedIssueViewHref(vault, view.payload)}
                   className={cn(
-                    "min-w-0 flex-1 truncate rounded-md px-3 py-1 text-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+                    "min-w-0 flex-1 truncate rounded-md px-2 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
                     active
                       ? "bg-surface-hover font-medium text-foreground"
                       : "text-muted-foreground hover:text-foreground",
@@ -129,16 +162,19 @@ export function SavedViewsNav({ vault }: { vault: string }) {
                   title={view.name}
                 >
                   {defaultId === view.id ? (
-                    <Star
-                      className="mr-1 inline size-3 fill-current"
-                      aria-hidden="true"
-                    />
+                    <>
+                      <span className="sr-only">{t("default")}</span>
+                      <Star
+                        className="mr-1 inline size-3 fill-current"
+                        aria-hidden="true"
+                      />
+                    </>
                   ) : null}
                   {view.name}
                 </Link>
                 <DropdownMenu>
                   <DropdownMenuTrigger
-                    className="size-7 justify-center rounded-md text-muted-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+                    className="size-7 justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-surface-hover group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 [@media(hover:none)]:opacity-100 motion-reduce:transition-none"
                     aria-label={t("actions", { name: view.name })}
                   >
                     <MoreHorizontal className="size-3.5" aria-hidden="true" />
@@ -146,8 +182,9 @@ export function SavedViewsNav({ vault }: { vault: string }) {
                   <DropdownMenuContent className="right-0 left-auto">
                     {isIssuesList ? (
                       <DropdownMenuItem
-                        onSelect={() =>
-                          update
+                        onSelect={() => {
+                          update.reset();
+                          void update
                             .mutateAsync({
                               id: view.id,
                               patch: {
@@ -158,14 +195,16 @@ export function SavedViewsNav({ vault }: { vault: string }) {
                                 ),
                               },
                             })
-                            .catch(report)
-                        }
+                            .then(() => toast.success(t("updated")))
+                            .catch(report);
+                        }}
                       >
                         {t("updateCurrent")}
                       </DropdownMenuItem>
                     ) : null}
                     <DropdownMenuItem
                       onSelect={() => {
+                        update.reset();
                         setRename(view);
                         setRenameValue(view.name);
                       }}
@@ -180,7 +219,12 @@ export function SavedViewsNav({ vault }: { vault: string }) {
                           ? setDefaultIssueViewId(vault, next)
                           : clearDefaultIssueViewId(vault);
                         void operation
-                          .then(() => setDefaultSelection({ vault, id: next }))
+                          .then(() => {
+                            setDefaultSelection({ vault, id: next });
+                            toast.success(
+                              next ? t("defaultSet") : t("defaultCleared"),
+                            );
+                          })
                           .catch(report);
                       }}
                     >
@@ -190,13 +234,17 @@ export function SavedViewsNav({ vault }: { vault: string }) {
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       className="text-destructive"
-                      onSelect={() => setDeleting(view)}
+                      onSelect={() => {
+                        remove.reset();
+                        setDeleting(view);
+                      }}
                     >
                       {c("delete")}
                     </DropdownMenuItem>
-                    <p className="px-2 py-1 text-[10px] text-muted-foreground">
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-xs font-normal normal-case tracking-normal text-muted-foreground">
                       {t("owner", { owner: view.owner })}
-                    </p>
+                    </DropdownMenuLabel>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </li>
@@ -207,51 +255,91 @@ export function SavedViewsNav({ vault }: { vault: string }) {
 
       <Dialog
         open={rename !== null}
-        onOpenChange={(open) => !open && setRename(null)}
+        onOpenChange={(open) => !open && !update.isPending && setRename(null)}
       >
         <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{t("rename")}</DialogTitle>
-            <DialogDescription>{t("renameDescription")}</DialogDescription>
-          </DialogHeader>
-          <Input
-            autoFocus
-            aria-label={t("name")}
-            name="saved-view-rename"
-            autoComplete="off"
-            value={renameValue}
-            onChange={(event) => setRenameValue(event.target.value)}
-          />
-          {update.error ? (
-            <p role="alert" className="text-xs text-destructive">
-              {update.error.message}
-            </p>
-          ) : null}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRename(null)}>
-              {c("cancel")}
-            </Button>
-            <Button
-              disabled={!renameValue.trim() || update.isPending}
-              onClick={() => {
-                if (!rename) return;
-                void update
-                  .mutateAsync({ id: rename.id, patch: { name: renameValue } })
-                  .then(() => setRename(null))
-                  .catch(() => undefined);
-              }}
-            >
-              {update.isPending ? t("saving") : c("save")}
-            </Button>
-          </DialogFooter>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!rename) return;
+              void update
+                .mutateAsync({ id: rename.id, patch: { name: renameValue } })
+                .then(() => {
+                  setRename(null);
+                  toast.success(t("renamed"));
+                })
+                .catch(() => undefined);
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>{t("rename")}</DialogTitle>
+              <DialogDescription>{t("renameDescription")}</DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <label
+                htmlFor="saved-view-rename"
+                className="mb-1.5 block text-xs font-medium"
+              >
+                {t("name")}
+              </label>
+              <Input
+                id="saved-view-rename"
+                autoFocus
+                name="saved-view-rename"
+                autoComplete="off"
+                maxLength={120}
+                value={renameValue}
+                onChange={(event) => setRenameValue(event.target.value)}
+                aria-invalid={update.isError}
+              />
+              {update.error ? (
+                <p role="alert" className="mt-1.5 text-xs text-destructive">
+                  {update.error.message}
+                </p>
+              ) : null}
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={update.isPending}
+                onClick={() => setRename(null)}
+              >
+                {c("cancel")}
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={!renameValue.trim() || update.isPending}
+              >
+                {update.isPending ? (
+                  <>
+                    <Spinner className="size-3.5" aria-hidden="true" />
+                    {t("saving")}
+                  </>
+                ) : (
+                  c("save")
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
       <Dialog
         open={deleting !== null}
-        onOpenChange={(open) => !open && setDeleting(null)}
+        onOpenChange={(open) => !open && !remove.isPending && setDeleting(null)}
       >
-        <DialogContent className="max-w-sm">
+        <DialogContent
+          className="max-w-sm"
+          onEscapeKeyDown={(event) => {
+            if (remove.isPending) event.preventDefault();
+          }}
+          onInteractOutside={(event) => {
+            if (remove.isPending) event.preventDefault();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>{t("deleteTitle")}</DialogTitle>
             <DialogDescription>
@@ -266,13 +354,16 @@ export function SavedViewsNav({ vault }: { vault: string }) {
           <DialogFooter>
             <Button
               variant="outline"
+              size="sm"
               autoFocus
+              disabled={remove.isPending}
               onClick={() => setDeleting(null)}
             >
               {c("cancel")}
             </Button>
             <Button
               variant="destructive"
+              size="sm"
               disabled={remove.isPending}
               onClick={() => {
                 if (!deleting) return;
@@ -283,11 +374,19 @@ export function SavedViewsNav({ vault }: { vault: string }) {
                       setDefaultSelection({ vault });
                     }
                     setDeleting(null);
+                    toast.success(t("deleted"));
                   })
                   .catch(() => undefined);
               }}
             >
-              {c("delete")}
+              {remove.isPending ? (
+                <>
+                  <Spinner className="size-3.5" aria-hidden="true" />
+                  {t("deleting")}
+                </>
+              ) : (
+                c("delete")
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

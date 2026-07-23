@@ -923,8 +923,11 @@
     },
     "savedViews": {
       "views": "뷰",
+      "loading": "저장 뷰 불러오는 중",
+      "loadError": "저장 뷰를 불러오지 못했습니다.",
       "save": "뷰 저장",
       "saving": "저장 중…",
+      "deleting": "삭제 중…",
       "saveTitle": "현재 뷰 저장",
       "saveDescription": "현재 필터, 검색, 정렬, 보기 방식을 워크스페이스에 저장합니다.",
       "name": "뷰 이름",
@@ -934,10 +937,17 @@
       "renameDescription": "공유 뷰의 새 이름을 입력하세요.",
       "setDefault": "기본뷰로 지정",
       "unsetDefault": "기본뷰 해제",
+      "default": "기본뷰",
       "owner": "소유자: {owner}",
       "deleteTitle": "저장 뷰를 삭제할까요?",
       "deleteDescription": "\"{name}\" 뷰가 이 워크스페이스의 모든 사용자에게서 제거됩니다.",
-      "error": "저장 뷰 작업에 실패했습니다."
+      "error": "저장 뷰 작업에 실패했습니다.",
+      "created": "뷰를 저장했습니다.",
+      "updated": "현재 상태로 뷰를 업데이트했습니다.",
+      "renamed": "뷰 이름을 변경했습니다.",
+      "defaultSet": "기본뷰로 지정했습니다.",
+      "defaultCleared": "기본뷰를 해제했습니다.",
+      "deleted": "뷰를 삭제했습니다."
     },
     "refs": {
       "openInAkb": "akb에서 문서 열기",

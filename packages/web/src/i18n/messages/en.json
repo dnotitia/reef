@@ -736,8 +736,11 @@
     },
     "savedViews": {
       "views": "Views",
+      "loading": "Loading saved views",
+      "loadError": "Saved views couldn't load.",
       "save": "Save view",
       "saving": "Saving…",
+      "deleting": "Deleting…",
       "saveTitle": "Save current view",
       "saveDescription": "Save these filters, search, sort, and layout for the workspace.",
       "name": "View name",
@@ -747,10 +750,17 @@
       "renameDescription": "Choose a new name for this shared view.",
       "setDefault": "Set as default",
       "unsetDefault": "Clear default",
+      "default": "Default view",
       "owner": "Owner: {owner}",
       "deleteTitle": "Delete saved view?",
       "deleteDescription": "\"{name}\" will be removed for everyone in this workspace.",
-      "error": "The saved view action failed."
+      "error": "The saved view action failed.",
+      "created": "View saved.",
+      "updated": "View updated with the current state.",
+      "renamed": "View renamed.",
+      "defaultSet": "Default view set.",
+      "defaultCleared": "Default view cleared.",
+      "deleted": "View deleted."
     },
     "refs": {
       "openInAkb": "Open document in akb",

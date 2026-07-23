@@ -241,6 +241,16 @@ export function createSavedIssueViewPayload(
   return { version: 1, query };
 }
 
+export function hasSavableIssueViewState(
+  payload: SavedIssueViewPayload,
+  searchParams: Pick<URLSearchParams, "get"> | null,
+): boolean {
+  return (
+    Object.keys(payload.query).length > 0 ||
+    searchParams?.get(EMPTY_FILTER_MARKER_KEY) === EMPTY_FILTER_MARKER_VALUE
+  );
+}
+
 export function savedIssueViewPayloadToSearchParams(
   payload: SavedIssueViewPayload,
 ): URLSearchParams {
