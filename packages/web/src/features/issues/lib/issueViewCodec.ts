@@ -283,8 +283,9 @@ export function savedIssueViewIsActive(
   payload: SavedIssueViewPayload,
   searchParams: URLSearchParams,
 ): boolean {
-  return (
-    savedIssueViewPayloadToSearchParams(payload).toString() ===
-    canonicalIssueQuery(searchParams)
-  );
+  const effective = savedIssueViewPayloadToSearchParams(payload);
+  if (effective.size === 0 && Object.keys(payload.query).length > 0) {
+    effective.set(EMPTY_FILTER_MARKER_KEY, EMPTY_FILTER_MARKER_VALUE);
+  }
+  return canonicalIssueQuery(effective) === canonicalIssueQuery(searchParams);
 }

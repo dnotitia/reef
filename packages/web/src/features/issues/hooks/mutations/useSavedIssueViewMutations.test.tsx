@@ -66,6 +66,8 @@ describe("saved-view mutations", () => {
       new Response(JSON.stringify({ view: created }), { status: 201 }),
     );
     const { queryClient, wrapper } = harness();
+    const cancel = vi.spyOn(queryClient, "cancelQueries");
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
     const { result } = renderHook(() => useCreateSavedIssueView("reef-acme"), {
       wrapper,
     });
@@ -85,6 +87,14 @@ describe("saved-view mutations", () => {
     expect(queryClient.getQueryData(savedIssueViewsKey("reef-zen"))).toEqual([
       view(zenId, "Zen"),
     ]);
+    expect(cancel).toHaveBeenCalledWith({
+      queryKey: savedIssueViewsKey("reef-acme"),
+      exact: true,
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: savedIssueViewsKey("reef-acme"),
+      exact: true,
+    });
   });
 
   it("leaves every cache unchanged when an update fails", async () => {

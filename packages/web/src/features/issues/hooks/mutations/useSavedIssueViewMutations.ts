@@ -24,6 +24,12 @@ async function parseView(response: Response): Promise<SavedIssueView> {
 export function useCreateSavedIssueView(vault: string) {
   const queryClient = useQueryClient();
   return useMutation({
+    onMutate: async () => {
+      await queryClient.cancelQueries({
+        queryKey: savedIssueViewsKey(vault),
+        exact: true,
+      });
+    },
     mutationFn: async (view: CreateSavedIssueView) =>
       parseView(
         await apiFetch(`/api/views?vault=${encodeURIComponent(vault)}`, {
@@ -42,12 +48,24 @@ export function useCreateSavedIssueView(vault: string) {
           ].toSorted((a, b) => a.name_key.localeCompare(b.name_key)),
       );
     },
+    onSettled: () => {
+      void queryClient.invalidateQueries({
+        queryKey: savedIssueViewsKey(vault),
+        exact: true,
+      });
+    },
   });
 }
 
 export function useUpdateSavedIssueView(vault: string) {
   const queryClient = useQueryClient();
   return useMutation({
+    onMutate: async () => {
+      await queryClient.cancelQueries({
+        queryKey: savedIssueViewsKey(vault),
+        exact: true,
+      });
+    },
     mutationFn: async ({
       id,
       patch,
@@ -74,12 +92,24 @@ export function useUpdateSavedIssueView(vault: string) {
             .toSorted((a, b) => a.name_key.localeCompare(b.name_key)),
       );
     },
+    onSettled: () => {
+      void queryClient.invalidateQueries({
+        queryKey: savedIssueViewsKey(vault),
+        exact: true,
+      });
+    },
   });
 }
 
 export function useDeleteSavedIssueView(vault: string) {
   const queryClient = useQueryClient();
   return useMutation({
+    onMutate: async () => {
+      await queryClient.cancelQueries({
+        queryKey: savedIssueViewsKey(vault),
+        exact: true,
+      });
+    },
     mutationFn: async (id: string) => {
       const response = await apiFetch(
         `/api/views/${encodeURIComponent(id)}?vault=${encodeURIComponent(vault)}`,
@@ -106,6 +136,12 @@ export function useDeleteSavedIssueView(vault: string) {
           if (defaultId === id) await clearDefaultIssueViewId(vault);
         })
         .catch(() => undefined);
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({
+        queryKey: savedIssueViewsKey(vault),
+        exact: true,
+      });
     },
   });
 }

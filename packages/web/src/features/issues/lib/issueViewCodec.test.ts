@@ -100,6 +100,9 @@ describe("issueViewCodec", () => {
     expect(savedIssueViewHref("reef-e2e", payload)).toBe(
       "/workspace/reef-e2e/issues?filter=none",
     );
+    expect(
+      savedIssueViewIsActive(payload, new URLSearchParams("filter=none")),
+    ).toBe(true);
   });
 
   it("backfills the natural direction for a valid orderless sort", () => {
