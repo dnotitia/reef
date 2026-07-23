@@ -44,6 +44,7 @@ describe("private migration artifacts", () => {
         endpoint_fingerprint: "b".repeat(64),
       },
       plan_sha256: "a".repeat(64),
+      approval_report_sha256: "d".repeat(64),
       payload: { exact: ["write", "plan"] },
     };
     await writePrivatePlanArtifact(path, artifact);

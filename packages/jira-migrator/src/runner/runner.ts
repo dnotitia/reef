@@ -939,6 +939,12 @@ async function runJiraMigrationUnlocked(
       throw new JiraRunnerError("dry_run_approval_required");
     }
     if (
+      approvedPlanArtifact.approval_report_sha256 !==
+      fingerprintJiraState(approvedReport)
+    ) {
+      throw new JiraRunnerError("plan_fingerprint_mismatch");
+    }
+    if (
       approvedPlanArtifact.run_id !== config.artifacts.runId ||
       approvedPlanArtifact.source.jira_cloud_id !== config.jira.cloudId ||
       JSON.stringify(approvedPlanArtifact.source.project_keys) !==
@@ -1968,7 +1974,7 @@ async function runJiraMigrationUnlocked(
         throw new JiraRunnerError("failpoint");
       }
     };
-    const planningResolutions = [...existingPlanningResolutions];
+    const planningResolutions: JiraPlanningTargetResolution[] = [];
     for (const action of planningActions) {
       assertNotAborted();
       const sourceFingerprint = sourceFingerprintForPlanning(action);
@@ -2838,24 +2844,8 @@ async function runJiraMigrationUnlocked(
     ? await loadJiraRunnerReport(outputReportPath)
     : undefined;
   if (config.mode === "dry-run" && report.run.status === "completed") {
-    await writePrivatePlanArtifact(`${paths.reportPath}.plan.json`, {
-      schema_version: 1,
-      run_id: config.artifacts.runId,
-      source: {
-        jira_cloud_id: config.jira.cloudId,
-        project_keys: config.jira.projectKeys,
-        board_ids: config.jira.boardIds,
-        endpoint_fingerprint: sourceEndpointFingerprint,
-      },
-      target: {
-        vault: config.target.vault,
-        actor: targetPreflight.actor,
-        endpoint_fingerprint: endpointFingerprint,
-      },
-      plan_sha256: planSha256,
-      payload: planPayload,
-    });
     const approvalPath = `${paths.reportPath}.approval.json`;
+    let approvalReport = report;
     if (await fileExists(approvalPath)) {
       const existingApproval = await loadJiraRunnerReport(approvalPath);
       const sameApproval =
@@ -2872,6 +2862,7 @@ async function runJiraMigrationUnlocked(
       if (!sameApproval) {
         throw new JiraRunnerError("dry_run_scope_mismatch");
       }
+      approvalReport = existingApproval;
     } else {
       await writeJiraRunnerReport({
         path: approvalPath,
@@ -2879,6 +2870,24 @@ async function runJiraMigrationUnlocked(
         forbiddenSecretValues: secretValuesForConfig(config),
       });
     }
+    await writePrivatePlanArtifact(`${paths.reportPath}.plan.json`, {
+      schema_version: 1,
+      run_id: config.artifacts.runId,
+      source: {
+        jira_cloud_id: config.jira.cloudId,
+        project_keys: config.jira.projectKeys,
+        board_ids: config.jira.boardIds,
+        endpoint_fingerprint: sourceEndpointFingerprint,
+      },
+      target: {
+        vault: config.target.vault,
+        actor: targetPreflight.actor,
+        endpoint_fingerprint: endpointFingerprint,
+      },
+      plan_sha256: planSha256,
+      approval_report_sha256: fingerprintJiraState(approvalReport),
+      payload: planPayload,
+    });
   }
   await writeJiraRunnerReport({
     path: outputReportPath,

@@ -1,4 +1,11 @@
-import { chmod, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -375,6 +382,23 @@ describe("runJiraMigration", () => {
       dryRun: false,
       expectedPlanSha256: dryRun.planSha256,
     };
+    const approvalPath = `${config.artifacts.reportPath}.approval.json`;
+    const approvalBytes = await readFile(approvalPath);
+    const editedApproval = JSON.parse(approvalBytes.toString("utf8"));
+    editedApproval.totals.created += 1;
+    await writeFile(approvalPath, JSON.stringify(editedApproval), {
+      mode: 0o600,
+    });
+    await expect(
+      runJiraMigration(applyConfig, {
+        target,
+        createJiraClient: (key) => clients.get(key) as never,
+        now,
+      }),
+    ).rejects.toMatchObject({ code: "plan_fingerprint_mismatch" });
+    expect(mutations).toEqual([]);
+    await writeFile(approvalPath, approvalBytes, { mode: 0o600 });
+
     await expect(
       runJiraMigration(
         {

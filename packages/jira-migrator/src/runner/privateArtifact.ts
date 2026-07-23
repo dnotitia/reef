@@ -39,6 +39,7 @@ const PrivatePlanArtifactSchema = z
       })
       .strict(),
     plan_sha256: z.string().regex(/^[a-f0-9]{64}$/u),
+    approval_report_sha256: z.string().regex(/^[a-f0-9]{64}$/u),
     payload: z.unknown(),
   })
   .strict();
