@@ -383,6 +383,32 @@ describe("useIssueUrlSync", () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
+  it("waits for the Issues pathname before hydrating a split destination query", async () => {
+    navigationState.pathname = "/workspace/reef-acme/issues/REEF-001";
+    navigationState.searchParams = new URLSearchParams("status=todo");
+    const { rerender } = render(<Harness />);
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.status).toEqual(["todo"]);
+    });
+
+    window.history.pushState(
+      {},
+      "",
+      "/workspace/reef-acme/issues?priority=high",
+    );
+    navigationState.searchParams = new URLSearchParams("priority=high");
+    rerender(<Harness />);
+    expect(useIssueStore.getState().filter.status).toEqual(["todo"]);
+    expect(useIssueStore.getState().filter.priority).toBeUndefined();
+
+    navigationState.pathname = "/workspace/reef-acme/issues";
+    rerender(<Harness />);
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.priority).toEqual(["high"]);
+    });
+    expect(useIssueStore.getState().filter.status).toBeUndefined();
+  });
+
   it("preserves the ?view= param when a filter changes", async () => {
     navigationState.searchParams = new URLSearchParams("view=list");
     render(<Harness />);
@@ -432,6 +458,47 @@ describe("useIssueUrlSync", () => {
       "/workspace/reef-acme/issues?view=list&status=todo",
       { scroll: false },
     );
+  });
+
+  it("routes same-page bare navigation back through the named default landing", async () => {
+    const view: SavedIssueView = {
+      id: "11111111-1111-4111-8111-111111111111",
+      name: "High priority",
+      name_key: "high priority",
+      owner: "alice",
+      payload: { version: 1, query: { priority: ["high"] } },
+    };
+    await setDefaultIssueViewId("reef-acme", view.id);
+    navigationState.searchParams = new URLSearchParams("status=todo");
+    const { rerender } = render(<Harness savedViews={[view]} />);
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.status).toEqual(["todo"]);
+    });
+
+    navigationState.searchParams = new URLSearchParams();
+    rerender(<Harness savedViews={[view]} />);
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.priority).toEqual(["high"]);
+    });
+    expect(useIssueStore.getState().filter.status).toBeUndefined();
+  });
+
+  it("routes same-page view-only navigation through the last-used landing", async () => {
+    await setPersistedIssueFilter("reef-acme", { status: ["in_progress"] });
+    navigationState.searchParams = new URLSearchParams("priority=low");
+    const { rerender } = render(<Harness />);
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.priority).toEqual(["low"]);
+    });
+
+    navigationState.searchParams = new URLSearchParams("view=list");
+    rerender(<Harness />);
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.status).toEqual(["in_progress"]);
+    });
+    expect(useIssueStore.getState().filter.priority).toBeUndefined();
   });
 
   it("mirrors the restored filter + sort onto the URL via replace (REEF-010)", async () => {

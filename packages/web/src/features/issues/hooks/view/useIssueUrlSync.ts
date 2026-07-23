@@ -105,6 +105,7 @@ export function useIssueUrlSync(
     vault: string;
   } | null>(null);
   const [restoreRevision, setRestoreRevision] = useState(0);
+  const [landingRevision, setLandingRevision] = useState(0);
 
   // searchParams is read for the hydration decision (URL-wins vs
   // IndexedDB restore) and the stale-URL clear on a vault switch. Re-running on the
@@ -114,6 +115,7 @@ export function useIssueUrlSync(
   /* eslint-disable react-hooks/exhaustive-deps -- searchParams is read at hydration; self-written URL changes should not abort the restore. */
   // biome-ignore lint/correctness/useExhaustiveDependencies: searchParams is read once at hydration; re-running on self-written URL changes would abort the in-flight restore (REEF-010).
   useEffect(() => {
+    void landingRevision;
     // `filterVault` (in the module-level store) tags which vault the current
     // store filter belongs to. The store survives `/issues` unmounts but the
     // refs above do not, so comparing the tag to the active vault detects a
@@ -305,21 +307,12 @@ export function useIssueUrlSync(
         restoreStarted.current = false;
       }
     };
-  }, [savedViews, savedViewsFailed, savedViewsReady, vault]);
+  }, [landingRevision, savedViews, savedViewsFailed, savedViewsReady, vault]);
   /* eslint-enable react-hooks/exhaustive-deps */
 
   useEffect(() => {
     const nextIssueQuery = canonicalIssueQuery(searchParams);
     if (nextIssueQuery === lastObservedIssueQuery.current) return;
-    lastObservedIssueQuery.current = nextIssueQuery;
-
-    if (pendingIssueQuery.current === nextIssueQuery) {
-      pendingIssueQuery.current = null;
-      return;
-    }
-    // A different navigation supersedes an unobserved internal destination.
-    pendingIssueQuery.current = null;
-    if (!initialized.current) return;
 
     const issuesPath = withVault(vault, ISSUES_LIST_BASE);
     const browserPathname =
@@ -329,7 +322,38 @@ export function useIssueUrlSync(
         : pathname;
     if (pathname !== issuesPath || browserPathname !== issuesPath) return;
 
+    // Consume a query transition only once both Next's pathname and the
+    // browser location agree that the Issues list owns it. A split transition
+    // can publish the destination query first.
+    lastObservedIssueQuery.current = nextIssueQuery;
+    if (pendingIssueQuery.current === nextIssueQuery) {
+      pendingIssueQuery.current = null;
+      return;
+    }
+    // A different navigation supersedes an unobserved internal destination.
+    pendingIssueQuery.current = null;
+    if (!initialized.current) return;
+
     applyingIssueQuery.current = nextIssueQuery;
+    if (!hasIssueFilterQueryParams(searchParams)) {
+      // Bare and view-only external navigation is a landing, not an explicit
+      // clear. Reuse the initial default/last-used restoration policy. Links
+      // that intentionally mean "show all" carry `filter=none` and take the
+      // direct URL→store branch below.
+      initialized.current = false;
+      restoreStarted.current = false;
+      // Drop the previous explicit URL state before the async landing lookup.
+      // Mark the internal clear so persistence cannot overwrite the last-used
+      // value that this same landing is about to read.
+      skipNextSave.current = true;
+      useIssueStore.setState({
+        filter: {},
+        searchQuery: "",
+        filterVault: vault || null,
+      });
+      setLandingRevision((revision) => revision + 1);
+      return;
+    }
     skipNextWrite.current = true;
     useIssueStore.setState({
       ...readIssueUrlState(searchParams),
