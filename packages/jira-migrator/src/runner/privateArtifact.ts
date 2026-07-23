@@ -208,7 +208,14 @@ export async function acquireMigrationRunLock(
               "-Command",
               `(Get-Process -Id ${pid}).StartTime.ToUniversalTime().Ticks`,
             ])
-          : await execFileAsync("ps", ["-o", "lstart=", "-p", String(pid)]);
+          : await execFileAsync("ps", ["-o", "lstart=", "-p", String(pid)], {
+              env: {
+                PATH: process.env.PATH ?? "/usr/bin:/bin",
+                LC_ALL: "C",
+                LANG: "C",
+                TZ: "UTC",
+              },
+            });
       const identity = stdout.trim();
       if (identity.length > 0) {
         return `${process.platform}:${pid}:${identity}`;

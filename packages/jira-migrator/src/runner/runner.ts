@@ -776,6 +776,20 @@ const actionForIssuePlan = (
     : "update";
 };
 
+export const actionForRelatedReport = (
+  report: JiraRelatedImportReport,
+): "create" | "skip" | "failed" => {
+  if (report.failures.length > 0) return "failed";
+  return report.comments.created +
+    report.comments.updated +
+    report.attachments.created +
+    report.links.applied +
+    report.remote_links.applied >
+    0
+    ? "create"
+    : "skip";
+};
+
 const mergePlanningActions = (
   actions: readonly JiraPlanningAction[],
 ): JiraPlanningAction[] => {
@@ -876,6 +890,12 @@ async function runJiraMigrationUnlocked(
   config: JiraMigratorConfig,
   dependencies: JiraRunnerDependencies = {},
 ): Promise<JiraRunnerResult> {
+  if (
+    config.mode === "apply" &&
+    !/^[a-f0-9]{64}$/u.test(config.expectedPlanSha256 ?? "")
+  ) {
+    throw new JiraRunnerError("dry_run_approval_required");
+  }
   const assertNotAborted = (): void => {
     if (dependencies.signal?.aborted) {
       throw new JiraRunnerError("interrupted");
@@ -1918,7 +1938,7 @@ async function runJiraMigrationUnlocked(
       recordReportOnly(
         "related",
         `related:${related.issue_key}`,
-        related.report.failures.length > 0 ? "failed" : "skip",
+        actionForRelatedReport(related.report),
       );
     }
     for (const binding of absentSourceRelationPlan) {
@@ -2505,16 +2525,7 @@ async function runJiraMigrationUnlocked(
       recordReportOnly(
         "related",
         `related:${issue.key}`,
-        result.report.failures.length > 0
-          ? "failed"
-          : result.report.comments.created +
-                result.report.comments.updated +
-                result.report.attachments.created +
-                result.report.links.applied +
-                result.report.remote_links.applied >
-              0
-            ? "create"
-            : "skip",
+        actionForRelatedReport(result.report),
         result.report.failures.some((failure) => failure.retryable),
       );
       await checkpoint();

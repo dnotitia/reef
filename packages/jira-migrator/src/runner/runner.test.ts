@@ -13,7 +13,9 @@ import type { JiraMigratorConfig, NormalizedJiraIssue } from "../index.js";
 import type { JiraIssueImportPlan } from "../issues/importPlan.js";
 import { jiraIssueFixture } from "../jira/fixtures.js";
 import { JiraIssueSchema, normalizeJiraIssue } from "../payloads.js";
+import { reportTemplate } from "../related/reporting.js";
 import {
+  actionForRelatedReport,
   baseIssueReadbackMatches,
   canRecoverApprovedPlanningCreate,
   inferRelationSourceProjectKey,
@@ -57,6 +59,20 @@ const policy = {
 };
 
 describe("runJiraMigration", () => {
+  it("reports planned related writes as creates", () => {
+    const report = reportTemplate("dry-run");
+    report.comments.created = 1;
+    expect(actionForRelatedReport(report)).toBe("create");
+    report.failures.push({
+      source_kind: "comment",
+      source_id: "1",
+      phase: "write",
+      reason: "failed",
+      retryable: false,
+    });
+    expect(actionForRelatedReport(report)).toBe("failed");
+  });
+
   it("accepts a verified post-related description rewrite on rerun", () => {
     const issue = {
       id: "REEF-001",
@@ -324,6 +340,18 @@ describe("runJiraMigration", () => {
       "2026-07-23T00:07:00.000Z",
     ];
     const now = () => times.shift() ?? "2026-07-23T00:08:00.000Z";
+    await expect(
+      runJiraMigration(
+        { ...config, mode: "apply", dryRun: false },
+        {
+          target,
+          createJiraClient: (key) => clients.get(key) as never,
+          now,
+        },
+      ),
+    ).rejects.toMatchObject({ code: "dry_run_approval_required" });
+    expect(mutations).toEqual([]);
+
     await expect(
       runJiraMigration(
         {
