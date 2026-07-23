@@ -351,15 +351,13 @@ describe("AKB Jira migration target", () => {
       },
     );
     expect(writeIssue).toHaveBeenCalledTimes(2);
-    readIssue
-      .mockResolvedValueOnce(targetAuthoredReadback)
-      .mockResolvedValueOnce({
-        ...targetAuthoredReadback,
-        issue: {
-          ...targetAuthoredReadback.issue,
-          title: "Updated Alpha issue",
-        },
-      } as unknown as AkbReadIssueResult);
+    readIssue.mockResolvedValueOnce({
+      ...targetAuthoredReadback,
+      issue: {
+        ...targetAuthoredReadback.issue,
+        title: "Updated Alpha issue",
+      },
+    } as unknown as AkbReadIssueResult);
     const updatedPlan = {
       ...issuePlan,
       desired: {
@@ -371,7 +369,7 @@ describe("AKB Jira migration target", () => {
       },
     } as JiraIssueImportPlan;
     await expect(
-      target.applyIssue(updatedPlan, "update"),
+      target.applyIssue(updatedPlan, "update", targetAuthoredReadback),
     ).resolves.toMatchObject({
       reefId: "REEF-010",
       commitHash: "commit-1",

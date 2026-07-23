@@ -2084,7 +2084,17 @@ async function runJiraMigrationUnlocked(
       let resolution: JiraPlanningTargetResolution;
       try {
         resolution = await target.applyPlanning(action);
-      } catch {
+      } catch (error) {
+        assertNotAborted();
+        const deterministicConflict =
+          error instanceof JiraTargetConflictError ||
+          (error instanceof Error &&
+            new Set([
+              "jira_planning_conflict",
+              "jira_planning_unsupported",
+              "jira_planning_target_missing",
+              "target_planning_readback_failed",
+            ]).has(error.message));
         record(
           "planning",
           resultFor({
@@ -2092,11 +2102,15 @@ async function runJiraMigrationUnlocked(
             entityKind: action.sourceIdentity.kind,
             sourceFingerprint,
             mappedFingerprint,
-            action: "failed",
+            action: deterministicConflict ? "conflict" : "failed",
             at: now(),
             readback: false,
-            retryable: true,
-            reconciliationState: "pending_target_migration",
+            retryable: !deterministicConflict,
+            ...(deterministicConflict
+              ? {}
+              : {
+                  reconciliationState: "pending_target_migration" as const,
+                }),
           }),
         );
         await checkpoint();
@@ -2406,6 +2420,9 @@ async function runJiraMigrationUnlocked(
       let applied:
         | Awaited<ReturnType<AkbJiraMigrationTarget["applyIssue"]>>
         | undefined;
+      let approvedUpdateReadback:
+        | Awaited<ReturnType<AkbJiraMigrationTarget["readIssue"]>>
+        | undefined;
       if (action === "update") {
         const desired = plan.desired.issue;
         const current = desired
@@ -2443,10 +2460,16 @@ async function runJiraMigrationUnlocked(
           );
           await checkpoint();
           continue;
+        } else if (current) {
+          approvedUpdateReadback = current;
         }
       }
       try {
-        applied ??= await target.applyIssue(plan, action);
+        applied ??= await target.applyIssue(
+          plan,
+          action,
+          approvedUpdateReadback,
+        );
       } catch (error) {
         const recovered = await recoverAppliedIssue(plan);
         if (!recovered.applied) {
@@ -2863,6 +2886,7 @@ async function runJiraMigrationUnlocked(
     await persistLedger(ledger);
   }
 
+  assertNotAborted();
   const report = buildJiraRunnerReport({
     runId: config.artifacts.runId,
     mode: config.mode,

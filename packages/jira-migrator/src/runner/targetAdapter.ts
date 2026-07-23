@@ -170,6 +170,7 @@ export interface AkbJiraMigrationTarget {
   applyIssue(
     plan: JiraIssueImportPlan,
     action: "create" | "update",
+    approvedReadback?: AkbReadIssueResult,
   ): Promise<JiraIssueApplyReadback>;
   readIssue(id: string): Promise<AkbReadIssueResult>;
   claimIssue(plan: JiraIssueImportPlan): Promise<void>;
@@ -1206,7 +1207,7 @@ export function createAkbJiraMigrationTarget(
         targetId: claimed.id,
       };
     },
-    async applyIssue(plan, action) {
+    async applyIssue(plan, action, approvedReadback) {
       const desired = plan.desired.issue;
       if (
         !desired ||
@@ -1276,11 +1277,13 @@ export function createAkbJiraMigrationTarget(
           commitHash = result.commit_hash;
         }
       } else {
-        const current = await core.readIssue({
-          adapter,
-          vault,
-          id: desired.id,
-        });
+        const current =
+          approvedReadback ??
+          (await core.readIssue({
+            adapter,
+            vault,
+            id: desired.id,
+          }));
         const desiredOwner = parseMeta(
           parseMeta(desired.custom_fields).jira_migration,
         ).owner;
