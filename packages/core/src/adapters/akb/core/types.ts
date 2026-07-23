@@ -8,6 +8,11 @@ import type {
   IssueUpdateInput,
 } from "../../../schemas/issues/metadata";
 import type { IssueListQuery } from "../../../schemas/issues/requests";
+import type {
+  CreateSavedIssueView,
+  SavedIssueView,
+  UpdateSavedIssueView,
+} from "../../../schemas/issues/savedView";
 import type { Template } from "../../../schemas/issues/template";
 import type {
   Milestone,
@@ -237,6 +242,35 @@ export interface DeleteTemplateParams {
   adapter: AkbAdapter;
   vault: string;
   name: string;
+}
+
+export interface ListSavedIssueViewsParams {
+  adapter: AkbAdapter;
+  vault: string;
+}
+
+export interface CreateSavedIssueViewParams {
+  adapter: AkbAdapter;
+  vault: string;
+  owner: string;
+  view: CreateSavedIssueView;
+}
+
+export interface UpdateSavedIssueViewParams {
+  adapter: AkbAdapter;
+  vault: string;
+  id: string;
+  patch: UpdateSavedIssueView;
+}
+
+export interface DeleteSavedIssueViewParams {
+  adapter: AkbAdapter;
+  vault: string;
+  id: string;
+}
+
+export interface SavedIssueViewResult {
+  view: SavedIssueView;
 }
 
 export interface ListPlanningCatalogParams {

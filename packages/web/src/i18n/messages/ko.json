@@ -315,6 +315,8 @@
     "invalidMilestoneId": "잘못된 마일스톤 ID입니다.",
     "invalidSprintId": "잘못된 스프린트 ID입니다.",
     "invalidReleaseId": "잘못된 릴리스 ID입니다.",
+    "invalidSavedViewId": "잘못된 저장 뷰 ID입니다.",
+    "savedViewDuplicate": "같은 이름의 뷰가 이미 있습니다.",
     "invalidCommentId": "잘못된 댓글 ID입니다.",
     "suggestionAlreadyReviewed": "이미 검토한 제안입니다.",
     "suggestionDraftRequiresCreate": "초안 제안은 생성 제안 업데이트가 필요합니다.",
@@ -918,6 +920,24 @@
       "displayOptions": "표시 옵션",
       "showArchived": "보관 항목 표시",
       "showCompleted": "완료 항목 표시"
+    },
+    "savedViews": {
+      "views": "뷰",
+      "save": "뷰 저장",
+      "saving": "저장 중…",
+      "saveTitle": "현재 뷰 저장",
+      "saveDescription": "현재 필터, 검색, 정렬, 보기 방식을 워크스페이스에 저장합니다.",
+      "name": "뷰 이름",
+      "actions": "{name} 작업",
+      "updateCurrent": "현재 상태로 업데이트",
+      "rename": "이름 변경",
+      "renameDescription": "공유 뷰의 새 이름을 입력하세요.",
+      "setDefault": "기본뷰로 지정",
+      "unsetDefault": "기본뷰 해제",
+      "owner": "소유자: {owner}",
+      "deleteTitle": "저장 뷰를 삭제할까요?",
+      "deleteDescription": "\"{name}\" 뷰가 이 워크스페이스의 모든 사용자에게서 제거됩니다.",
+      "error": "저장 뷰 작업에 실패했습니다."
     },
     "refs": {
       "openInAkb": "akb에서 문서 열기",

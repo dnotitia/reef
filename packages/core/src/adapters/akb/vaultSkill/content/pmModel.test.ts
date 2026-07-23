@@ -19,6 +19,13 @@ describe("pm-model data-model manifest (REEF-252)", () => {
     );
   });
 
+  it("documents the shared saved-view table and browser-local default boundary", () => {
+    expect(content).toContain("- reef_views: team-shared named issue views");
+    expect(content).toContain("## reef_views columns and ownership");
+    expect(content).toContain("table-level unique key");
+    expect(content).toContain("browser Dexie config store");
+  });
+
   it("documents reef_comments columns including the meta shape", () => {
     expect(content).toContain("## reef_comments columns");
     expect(content).toContain(

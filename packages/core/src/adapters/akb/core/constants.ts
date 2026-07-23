@@ -27,6 +27,7 @@ export const ACTIVITY_INBOX_COLLECTION = "_reef/activity-inbox";
  *                 (status/priority/assigned_to/...) plus a denormalized copy of
  *                 the fields the board needs so listing is a single SELECT.
  *   reef_templates — one row per issue template, addressed by its `name` stem.
+ *   reef_views — one row per team-shared named issue view.
  *                 Self-contained (no backing document): the template body is a
  *                 plain `text` column, so list/read/write are single SQL
  *                 statements. Mirrors the config/settings table model rather
@@ -48,6 +49,7 @@ export const REEF_SETTINGS_TABLE = "reef_settings";
 export const MONITORED_REPOS_TABLE = "monitored_repos";
 export const REEF_ISSUES_TABLE = "reef_issues";
 export const REEF_TEMPLATES_TABLE = "reef_templates";
+export const REEF_VIEWS_TABLE = "reef_views";
 export const REEF_ACTIVITY_SUGGESTIONS_TABLE = "reef_activity_suggestions";
 export const REEF_COMMENTS_TABLE = "reef_comments";
 export const REEF_ATTACHMENTS_TABLE = "reef_attachments";
@@ -96,6 +98,7 @@ export const REEF_TABLE_NAMES = [
   MONITORED_REPOS_TABLE,
   REEF_ISSUES_TABLE,
   REEF_TEMPLATES_TABLE,
+  REEF_VIEWS_TABLE,
   REEF_ACTIVITY_SUGGESTIONS_TABLE,
   REEF_COMMENTS_TABLE,
   REEF_ATTACHMENTS_TABLE,

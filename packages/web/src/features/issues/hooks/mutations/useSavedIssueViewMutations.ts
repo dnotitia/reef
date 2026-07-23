@@ -1,0 +1,106 @@
+import { apiFetch, throwHttpError } from "@/lib/apiClient";
+import {
+  clearDefaultIssueViewId,
+  getDefaultIssueViewId,
+} from "@/lib/storage/config";
+import type {
+  CreateSavedIssueView,
+  SavedIssueView,
+  UpdateSavedIssueView,
+} from "@reef/core";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { savedIssueViewsKey } from "../queries/useSavedIssueViews";
+
+async function parseView(response: Response): Promise<SavedIssueView> {
+  if (!response.ok) {
+    await throwHttpError(
+      response,
+      `Saved view request failed: ${response.status}`,
+    );
+  }
+  return ((await response.json()) as { view: SavedIssueView }).view;
+}
+
+export function useCreateSavedIssueView(vault: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (view: CreateSavedIssueView) =>
+      parseView(
+        await apiFetch(`/api/views?vault=${encodeURIComponent(vault)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(view),
+        }),
+      ),
+    onSuccess: (view) => {
+      queryClient.setQueryData<SavedIssueView[]>(
+        savedIssueViewsKey(vault),
+        (current) =>
+          [
+            ...(current ?? []).filter((item) => item.id !== view.id),
+            view,
+          ].toSorted((a, b) => a.name_key.localeCompare(b.name_key)),
+      );
+    },
+  });
+}
+
+export function useUpdateSavedIssueView(vault: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      patch,
+    }: {
+      id: string;
+      patch: UpdateSavedIssueView;
+    }) =>
+      parseView(
+        await apiFetch(
+          `/api/views/${encodeURIComponent(id)}?vault=${encodeURIComponent(vault)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(patch),
+          },
+        ),
+      ),
+    onSuccess: (view) => {
+      queryClient.setQueryData<SavedIssueView[]>(
+        savedIssueViewsKey(vault),
+        (current) =>
+          (current ?? [])
+            .map((item) => (item.id === view.id ? view : item))
+            .toSorted((a, b) => a.name_key.localeCompare(b.name_key)),
+      );
+    },
+  });
+}
+
+export function useDeleteSavedIssueView(vault: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiFetch(
+        `/api/views/${encodeURIComponent(id)}?vault=${encodeURIComponent(vault)}`,
+        { method: "DELETE" },
+      );
+      if (!response.ok) {
+        await throwHttpError(
+          response,
+          `Failed to delete saved view: ${response.status}`,
+        );
+      }
+      if ((await getDefaultIssueViewId(vault)) === id) {
+        await clearDefaultIssueViewId(vault);
+      }
+      return id;
+    },
+    onSuccess: (id) => {
+      queryClient.setQueryData<SavedIssueView[]>(
+        savedIssueViewsKey(vault),
+        (current) => (current ?? []).filter((item) => item.id !== id),
+      );
+    },
+  });
+}

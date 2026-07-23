@@ -164,6 +164,11 @@ differentiator.
 
 - Status-column Kanban and a compact sortable list as peer views of one data
   set (also a Timeline view) — familiarity is the advantage.
+- Named issue views preserve a canonical filter/search/sort/layout URL for the
+  whole workspace. The expanded sidebar exposes stable links and compact row
+  actions; the collapsed rail stays focused on primary navigation. A personal
+  default only chooses the bare-Issues landing and never overrides an explicit
+  URL.
 - Inline, low-ceremony editing in the detail panel (inline auto-save) —
   no Save button, no dirty state.
 - Agent transparency for every AI proposal — reasoning, confidence, and

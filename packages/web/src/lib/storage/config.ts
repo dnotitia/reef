@@ -283,6 +283,35 @@ export async function clearAllIssueFilters(): Promise<void> {
   return clearConfigByPrefix("filter:");
 }
 
+function defaultIssueViewStorageKey(vault: string): string {
+  return `default_issue_view:${vault}`;
+}
+
+export async function getDefaultIssueViewId(
+  vault: string,
+): Promise<string | undefined> {
+  if (!vault) return undefined;
+  return getConfigValue(defaultIssueViewStorageKey(vault));
+}
+
+export async function setDefaultIssueViewId(
+  vault: string,
+  id: string,
+): Promise<void> {
+  if (!vault) throw new TypeError("setDefaultIssueViewId: vault is required");
+  if (!id) return clearDefaultIssueViewId(vault);
+  return setConfigValue(defaultIssueViewStorageKey(vault), id);
+}
+
+export async function clearDefaultIssueViewId(vault: string): Promise<void> {
+  if (!vault) return;
+  return clearConfigKey(defaultIssueViewStorageKey(vault));
+}
+
+export async function clearAllDefaultIssueViews(): Promise<void> {
+  return clearConfigByPrefix("default_issue_view:");
+}
+
 /**
  * Deletes every persisted scan-target pointer (`activity_repo:*`) across all
  * vaults. Account-scoped (a different account sees different vaults), so the

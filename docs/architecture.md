@@ -116,8 +116,17 @@ trigger in `reef_issues.meta.source`.
 
 Supporting state lives in sibling tables provisioned when a vault is set up:
 `reef_templates` (templates addressed by name, not searchable documents),
-`reef_settings`, and `monitored_repos`. The issue id prefix is the
+`reef_views` (team-shared named issue-query payloads), `reef_settings`, and
+`monitored_repos`. The issue id prefix is the
 `project_prefix` value in `reef_settings` (uppercase A–Z, default `REEF`).
+
+Saved views deliberately split shared and personal state. Core owns the
+versioned canonical query payload and AKB `reef_views` CRUD; thin web routes own
+only auth/vault boundaries, and TanStack Query owns the client-side server
+state. A user's default view is only a vault-scoped row-id pointer in the
+existing browser Dexie `config` store. Opening a view materializes its validated
+payload into the ordinary `/issues?...` URL, so shared links remain transparent
+and do not depend on an opaque view id.
 
 Writes span the document and row non-transactionally, with a compensation saga
 for partial failure. Row-only scalar fields remain last-write-wins: there is no

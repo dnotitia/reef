@@ -12,6 +12,7 @@ import {
   REEF_SETTINGS_TABLE,
   REEF_SPRINTS_TABLE,
   REEF_TEMPLATES_TABLE,
+  REEF_VIEWS_TABLE,
 } from "./akb";
 
 export function makeSqlQueryResponse(
@@ -96,6 +97,7 @@ export const ALL_REEF_TABLES = [
   REEF_COMMENTS_TABLE,
   REEF_ATTACHMENTS_TABLE,
   REEF_ACTIVITY_TABLE,
+  REEF_VIEWS_TABLE,
 ];
 
 export const SPRINT_ROW_COLUMNS = [

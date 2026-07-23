@@ -13,6 +13,7 @@ This vault, ${vault}, stores Reef PM work as AKB documents plus AKB tables.
 - reef_releases: release metadata.
 - reef_activity_suggestions: AI activity inbox projection.
 - reef_templates: issue templates.
+- reef_views: team-shared named issue views.
 - reef_comments: per-issue discussion thread (one row per comment).
 - reef_activity: per-issue immutable activity/audit log (one row per recorded change).
 
@@ -33,6 +34,17 @@ severity is for bugs and uses blocker, critical, major, minor, trivial; it descr
 AKB manages id, created_at, updated_at, and created_by automatically. Never set them. Any UPDATE on the row bumps updated_at for free, so a plain SQL UPDATE is enough to record a change.
 
 The reef_issues row is the source of truth for status and every queryable field. A document without a matching row is invisible to the board.
+
+## reef_views columns and ownership
+
+reef_views stores the workspace's shared named issue views. Columns:
+
+- name: the display name.
+- name_key: trim, Unicode NFKC normalization, then locale-independent lowercase. It has a table-level unique key, so names are case-insensitively unique within the vault.
+- owner: the akb username that created the row. This is attribution, not an owner-only edit boundary; any workspace writer may update the row.
+- payload (json): the versioned canonical issue-query envelope, currently {version: 1, query: {<known URL key>: [<value>, ...]}}.
+
+AKB manages id (the stable row uuid), created_at, updated_at, and created_by; never set them. Reef's UI is the normal write path because it validates and canonicalizes the URL payload, maps duplicate-name conflicts, and keeps a user's browser-local default pointer consistent. Agents may read reef_views for context, but should not improvise payload fields or use this table as an issue query source. The personal default view is not team data: Reef stores only the selected row id in the existing browser Dexie config store.
 
 ## reef_comments columns
 

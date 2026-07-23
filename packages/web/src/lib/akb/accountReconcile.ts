@@ -3,6 +3,7 @@ import { clearAuthScopedClientCache } from "@/lib/storage/clientCache";
 import {
   clearAkbUserId,
   clearAllActivityRepos,
+  clearAllDefaultIssueViews,
   clearAllIssueFilters,
   clearLastVisitAt,
   getAkbUserId,
@@ -39,6 +40,7 @@ export async function wipeAkbScopedBrowserState(): Promise<void> {
   await Promise.all([
     setActiveVault(""),
     clearAllIssueFilters(),
+    clearAllDefaultIssueViews(),
     clearAkbUserId(),
     clearAllActivityRepos(),
     clearLastVisitAt(),

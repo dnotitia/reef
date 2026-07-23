@@ -55,6 +55,10 @@ vi.mock("@/features/settings/hooks/useWorkspaceSkillStatus", () => ({
   useWorkspaceSkillStatus: () => skillStatusState,
 }));
 
+vi.mock("@/features/issues/components/saved-views/SavedViewsNav", () => ({
+  SavedViewsNav: () => null,
+}));
+
 vi.mock("@/features/preferences/hooks/useThemeSync", () => ({
   useThemeSync: vi.fn(),
 }));

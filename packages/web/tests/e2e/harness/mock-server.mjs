@@ -129,6 +129,13 @@ const server = createServer(async (req, res) => {
     if (url.pathname === "/__e2e/state") {
       return json(res, 200, publicState());
     }
+    if (url.pathname === "/__e2e/drop-table" && req.method === "POST") {
+      const body = await readJson(req);
+      const vault = state.vaults.get(String(body?.vault ?? ""));
+      if (!vault) return json(res, 404, { error: "vault_not_found" });
+      vault.tables.delete(String(body?.table ?? ""));
+      return json(res, 200, { ok: true });
+    }
     if (url.pathname.startsWith("/akb")) {
       return handleAkb(req, res, url);
     }
@@ -205,6 +212,7 @@ function makeState(scenario) {
     accountDenialCode: null,
     commitSeq: 0,
     planningSeq: 10,
+    savedViewSeq: 20,
     githubRepos: [
       {
         id: 1001,
@@ -295,6 +303,7 @@ function configuredVault(name) {
       "monitored_repos",
       "reef_issues",
       "reef_templates",
+      "reef_views",
       "reef_activity_suggestions",
       "reef_comments",
       "reef_attachments",
@@ -357,6 +366,7 @@ function configuredVault(name) {
       },
     ],
     templates: [],
+    savedViews: [],
     activitySuggestions: [],
     attachments: [],
     files: new Map(),
@@ -699,6 +709,7 @@ function rawVault(name) {
     milestones: [],
     releases: [],
     templates: [],
+    savedViews: [],
     activitySuggestions: [],
     attachments: [],
     files: new Map(),
@@ -961,7 +972,11 @@ async function handleAkb(req, res, url) {
     const vault = getVault(decodeURIComponent(sqlMatch[1]), res);
     if (!vault) return;
     const body = await readJson(req);
-    return json(res, 200, handleSql(vault, String(body?.sql ?? "")));
+    const result = handleSql(vault, String(body?.sql ?? ""));
+    if (result?.__status) {
+      return json(res, result.__status, result.body);
+    }
+    return json(res, 200, result);
   }
 
   if (path === "/api/v1/documents" && req.method === "POST") {
@@ -1231,6 +1246,58 @@ function handleSql(vault, sql) {
     vault.templates = vault.templates.filter(
       (template) => template.name !== name,
     );
+    return tableSql();
+  }
+
+  if (lower.startsWith("select * from reef_views")) {
+    return tableQuery(
+      savedViewColumns(),
+      [...vault.savedViews].sort(
+        (a, b) =>
+          a.name_key.localeCompare(b.name_key) || a.id.localeCompare(b.id),
+      ),
+    );
+  }
+  if (lower.startsWith("insert into reef_views")) {
+    const insert = parseInsert(normalized);
+    if (!insert) return tableQuery(savedViewColumns(), []);
+    const row = objectFromColumns(insert.columns, insert.values);
+    if (
+      vault.savedViews.some((view) => view.name_key === String(row.name_key))
+    ) {
+      return uniqueViolation("reef_views_name_key_key");
+    }
+    Object.assign(row, {
+      id: uuidFor(++state.savedViewSeq),
+      created_at: NOW,
+      updated_at: NOW,
+      created_by: String(row.owner),
+    });
+    vault.savedViews.push(row);
+    return tableQuery(savedViewColumns(), [row]);
+  }
+  if (lower.startsWith("update reef_views")) {
+    const update = parseUpdate(normalized);
+    const id = matchSqlString(normalized, /where "?id"?\s*=\s*'([^']+)'/i);
+    const row = vault.savedViews.find((view) => view.id === id);
+    if (!row || !update) return tableQuery(savedViewColumns(), []);
+    const nameKey =
+      typeof update.values.name_key === "string"
+        ? update.values.name_key
+        : row.name_key;
+    if (
+      vault.savedViews.some(
+        (view) => view.id !== id && view.name_key === nameKey,
+      )
+    ) {
+      return uniqueViolation("reef_views_name_key_key");
+    }
+    Object.assign(row, update.values, { updated_at: nextEditTimestamp() });
+    return tableQuery(savedViewColumns(), [row]);
+  }
+  if (lower.startsWith("delete from reef_views")) {
+    const id = matchSqlString(normalized, /where "?id"?\s*=\s*'([^']+)'/i);
+    vault.savedViews = vault.savedViews.filter((view) => view.id !== id);
     return tableSql();
   }
 
@@ -1754,6 +1821,7 @@ function tableNamesInSql(lowerSql) {
     "monitored_repos",
     "reef_issues",
     "reef_templates",
+    "reef_views",
     "reef_activity_suggestions",
     "reef_attachments",
     "reef_sprints",
@@ -1773,6 +1841,31 @@ function tableQuery(columns, items) {
 
 function tableSql() {
   return { kind: "table_sql", result: "OK" };
+}
+
+function savedViewColumns() {
+  return [
+    "id",
+    "name",
+    "name_key",
+    "owner",
+    "payload",
+    "created_at",
+    "updated_at",
+    "created_by",
+  ];
+}
+
+function uniqueViolation(constraint) {
+  return {
+    __status: 409,
+    body: {
+      detail: {
+        code: "unique_violation",
+        message: `duplicate key violates unique constraint "${constraint}"`,
+      },
+    },
+  };
 }
 
 async function handleOpenRouter(req, res) {
@@ -2487,6 +2580,7 @@ function publicState() {
       milestones: vault.milestones,
       releases: vault.releases,
       templates: vault.templates,
+      saved_views: vault.savedViews,
       activity_suggestions: vault.activitySuggestions.map((item) => ({
         id: item.suggestion_id,
         kind: item.kind,

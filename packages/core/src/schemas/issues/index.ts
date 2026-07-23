@@ -113,3 +113,15 @@ export {
   PersistedIssueFilterEnvelopeSchema,
   type PersistedIssueFilter,
 } from "./persistedIssueFilter";
+
+export {
+  SavedIssueViewPayloadSchema,
+  SavedIssueViewSchema,
+  CreateSavedIssueViewSchema,
+  UpdateSavedIssueViewSchema,
+  normalizeSavedIssueViewName,
+  type SavedIssueViewPayload,
+  type SavedIssueView,
+  type CreateSavedIssueView,
+  type UpdateSavedIssueView,
+} from "./savedView";

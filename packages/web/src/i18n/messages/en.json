@@ -272,6 +272,8 @@
     "invalidMilestoneId": "Invalid milestone id.",
     "invalidSprintId": "Invalid sprint id.",
     "invalidReleaseId": "Invalid release id.",
+    "invalidSavedViewId": "Invalid saved view id.",
+    "savedViewDuplicate": "A view with that name already exists.",
     "invalidCommentId": "Invalid comment id.",
     "suggestionAlreadyReviewed": "This suggestion has already been reviewed.",
     "suggestionDraftRequiresCreate": "Draft suggestions require a create proposal update.",
@@ -731,6 +733,24 @@
       "displayOptions": "Display options",
       "showArchived": "Show archived",
       "showCompleted": "Show completed"
+    },
+    "savedViews": {
+      "views": "Views",
+      "save": "Save view",
+      "saving": "Saving…",
+      "saveTitle": "Save current view",
+      "saveDescription": "Save these filters, search, sort, and layout for the workspace.",
+      "name": "View name",
+      "actions": "Actions for {name}",
+      "updateCurrent": "Update with current view",
+      "rename": "Rename",
+      "renameDescription": "Choose a new name for this shared view.",
+      "setDefault": "Set as default",
+      "unsetDefault": "Clear default",
+      "owner": "Owner: {owner}",
+      "deleteTitle": "Delete saved view?",
+      "deleteDescription": "\"{name}\" will be removed for everyone in this workspace.",
+      "error": "The saved view action failed."
     },
     "refs": {
       "openInAkb": "Open document in akb",

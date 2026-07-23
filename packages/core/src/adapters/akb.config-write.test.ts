@@ -12,6 +12,7 @@ import {
   REEF_SETTINGS_TABLE,
   REEF_SPRINTS_TABLE,
   REEF_TEMPLATES_TABLE,
+  REEF_VIEWS_TABLE,
   SchemaValidationError,
   ensureReefTables,
   makeAdapter,
@@ -155,6 +156,7 @@ describe("writeConfig (tables)", () => {
       { status: 201, body: { name: REEF_COMMENTS_TABLE } },
       { status: 201, body: { name: REEF_ATTACHMENTS_TABLE } },
       { status: 201, body: { name: REEF_ACTIVITY_TABLE } },
+      { status: 201, body: { name: REEF_VIEWS_TABLE } },
       { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlMutationResponse("DELETE 0") }, // DELETE project_prefix
       { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT project_prefix
@@ -180,10 +182,10 @@ describe("writeConfig (tables)", () => {
         ai_scanning_enabled: false,
       },
     });
-    expect(calls).toHaveLength(23);
+    expect(calls).toHaveLength(24);
     expect(calls[0]?.url).toBe("https://akb.test/api/v1/tables/reef-sample");
     const createNames = calls
-      .slice(1, 12)
+      .slice(1, 13)
       .map((c) => JSON.parse(c.init?.body as string).name);
     expect(createNames).toEqual(ALL_REEF_TABLES);
   });

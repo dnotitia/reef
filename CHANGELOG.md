@@ -14,6 +14,14 @@ explicitly in the entries below.
 
 ### Added
 
+- **Issue filters can be saved as shared named views.** A compact issue-toolbar
+  action stores the current filters, search, sort, and layout in the workspace;
+  expanded sidebars expose stable links plus update, rename, default, and delete
+  actions. The team definition lives in a new additive `reef_views` AKB table,
+  while each account's default is only a vault-scoped pointer in the existing
+  browser config store. Explicit issue URLs continue to win over personal
+  defaults. (REEF-340)
+
 - **Jira migrations preserve issue discussion and related artifacts.** The
   operator package now exposes a dry-run/apply stage for root-first threaded
   comments, redirect-safe attachment downloads, deterministic ADF media
@@ -96,6 +104,17 @@ explicitly in the entries below.
   removes configured secrets from object keys before JSON escaping.
 
 ### Migration
+
+- **Provision the additive saved-view table and update workspace instructions.**
+  `REEF_SCHEMA_VERSION` is now 2. Existing vaults create `reef_views` on the
+  first saved-view write; list reads remain DDL-free and degrade to an empty
+  section before that write. The table creates a unique `name_key` and a name
+  index at creation time. Update the Reef workspace skill/runbooks to version
+  18 so agents see the shared-row and browser-local default boundary. Browser
+  storage keeps the existing Dexie schema and `config` store; the new
+  vault-scoped default pointer is only another config key, so no IndexedDB
+  version bump, data migration, or backfill is required.
+  (REEF-340)
 
 - **Migrate existing Kubernetes LLM settings before deploying REEF-413.** The
   base ConfigMap no longer supplies OpenRouter URL/model defaults. To keep AI

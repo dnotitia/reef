@@ -66,6 +66,7 @@ const ALL_REEF_TABLES = [
   "reef_milestones",
   "reef_releases",
   "reef_templates",
+  "reef_views",
   "reef_activity_suggestions",
   "reef_comments",
   "reef_attachments",

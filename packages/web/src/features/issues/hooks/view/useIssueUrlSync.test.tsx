@@ -2,8 +2,13 @@
 // persisted filter from the Dexie config store.
 import "fake-indexeddb/auto";
 
-import { setPersistedIssueFilter } from "@/lib/storage/config";
+import {
+  getDefaultIssueViewId,
+  setDefaultIssueViewId,
+  setPersistedIssueFilter,
+} from "@/lib/storage/config";
 import { db } from "@/lib/storage/db";
+import type { SavedIssueView } from "@reef/core";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -48,8 +53,14 @@ vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   }),
 }));
 
-function Harness() {
-  useIssueUrlSync();
+function Harness({
+  savedViews,
+  savedViewsReady,
+}: {
+  savedViews?: SavedIssueView[];
+  savedViewsReady?: boolean;
+} = {}) {
+  useIssueUrlSync(savedViews, savedViewsReady);
   const setFilter = useIssueStore((state) => state.setFilter);
 
   return (
@@ -333,6 +344,39 @@ describe("useIssueUrlSync", () => {
     expect(pushed.get("status")).toBe("todo");
   });
 
+  it("restores the last-used filter beside an explicit view mode without applying the named-view default", async () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    navigationState.searchParams = new URLSearchParams("view=list");
+    await setDefaultIssueViewId("reef-acme", id);
+    await setPersistedIssueFilter("reef-acme", { status: ["todo"] });
+
+    render(
+      <Harness
+        savedViews={[
+          {
+            id,
+            name: "My work",
+            name_key: "my work",
+            owner: "alice",
+            payload: {
+              version: 1,
+              query: { assignee: ["alice"], view: ["timeline"] },
+            },
+          },
+        ]}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.status).toEqual(["todo"]);
+    });
+    expect(useIssueStore.getState().filter.assignee).toBeUndefined();
+    expect(mockReplace).toHaveBeenCalledWith(
+      "/workspace/reef-acme/issues?view=list&status=todo",
+      { scroll: false },
+    );
+  });
+
   it("mirrors the restored filter + sort onto the URL via replace (REEF-010)", async () => {
     await setPersistedIssueFilter("reef-acme", {
       status: ["in_review"],
@@ -392,6 +436,95 @@ describe("useIssueUrlSync", () => {
     expect(useIssueStore.getState().filter.status).toEqual(["todo"]);
     expect(mockPush).not.toHaveBeenCalled();
     expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it("materializes a valid personal default view before the last-used filter", async () => {
+    const view: SavedIssueView = {
+      id: "11111111-1111-4111-8111-111111111111",
+      name: "My work",
+      name_key: "my work",
+      owner: "alice",
+      payload: {
+        version: 1,
+        query: {
+          assignee: ["alice"],
+          sort: ["updated_at"],
+          view: ["list"],
+        },
+      },
+    };
+    await setDefaultIssueViewId("reef-acme", view.id);
+    await setPersistedIssueFilter("reef-acme", { status: ["closed"] });
+
+    render(<Harness savedViews={[view]} />);
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.assignee).toEqual(["alice"]);
+    });
+    expect(useIssueStore.getState().filter.status).toBeUndefined();
+    expect(mockReplace).toHaveBeenCalledWith(
+      "/workspace/reef-acme/issues?assignee=alice&order=desc&sort=updated_at&view=list",
+      { scroll: false },
+    );
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it("waits for the saved-view query instead of falling through to the last-used filter", async () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    await setDefaultIssueViewId("reef-acme", id);
+    await setPersistedIssueFilter("reef-acme", { status: ["closed"] });
+
+    const { rerender } = render(
+      <Harness savedViews={undefined} savedViewsReady={false} />,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(useIssueStore.getState().filter.status).toBeUndefined();
+
+    rerender(
+      <Harness
+        savedViews={[
+          {
+            id,
+            name: "Todo",
+            name_key: "todo",
+            owner: "alice",
+            payload: { version: 1, query: { status: ["todo"] } },
+          },
+        ]}
+        savedViewsReady
+      />,
+    );
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.status).toEqual(["todo"]);
+    });
+  });
+
+  it("clears a stale or inapplicable default pointer and safely falls back", async () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    await setDefaultIssueViewId("reef-acme", id);
+    await setPersistedIssueFilter("reef-acme", { priority: ["high"] });
+
+    render(
+      <Harness
+        savedViews={[
+          {
+            id,
+            name: "Broken",
+            name_key: "broken",
+            owner: "alice",
+            payload: {
+              version: 1,
+              query: { status: ["removed-status"], unknown: ["x"] },
+            },
+          },
+        ]}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.priority).toEqual(["high"]);
+    });
+    expect(await getDefaultIssueViewId("reef-acme")).toBeUndefined();
   });
 
   it("restores per-vault and re-restores on a mid-session vault switch", async () => {

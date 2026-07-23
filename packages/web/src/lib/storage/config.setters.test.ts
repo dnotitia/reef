@@ -8,9 +8,11 @@ import {
   getActiveVault,
   getActivityRepo,
   getConfigValue,
+  getDefaultIssueViewId,
   setActiveVault,
   setActivityRepo,
   setConfigValue,
+  setDefaultIssueViewId,
 } from "./config";
 import { db } from "./db";
 
@@ -93,6 +95,15 @@ describe("config setters — vault + activityRepo (akb pivot)", () => {
     it("uses the canonical `activity_repo:{vault}` key in the config store", async () => {
       await setActivityRepo("reef-acme", "octo/cat");
       expect(await getConfigValue("activity_repo:reef-acme")).toBe("octo/cat");
+    });
+  });
+
+  describe("saved issue view default pointer", () => {
+    it("stores exactly one vault-scoped row id without changing the Dexie schema", async () => {
+      const id = "11111111-1111-4111-8111-111111111111";
+      await setDefaultIssueViewId("reef-acme", id);
+      expect(await getDefaultIssueViewId("reef-acme")).toBe(id);
+      expect(await getConfigValue("default_issue_view:reef-acme")).toBe(id);
     });
   });
 

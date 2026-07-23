@@ -332,6 +332,8 @@ export function assertNoAkbManagedColumns(table: AkbCreateTableRequest): void {
 interface AkbTableSummary {
   name: string;
   columns?: AkbTableColumn[];
+  unique_keys?: Array<Record<string, unknown>>;
+  indexes?: Array<Record<string, unknown>>;
 }
 
 async function listAkbTables(
@@ -356,7 +358,12 @@ async function listAkbTables(
   })();
   return items.flatMap((item) => {
     if (!item || typeof item !== "object" || !("name" in item)) return [];
-    const obj = item as { name: unknown; columns?: unknown };
+    const obj = item as {
+      name: unknown;
+      columns?: unknown;
+      unique_keys?: unknown;
+      indexes?: unknown;
+    };
     const table: AkbTableSummary = { name: String(obj.name) };
     if (Array.isArray(obj.columns)) {
       table.columns = obj.columns.flatMap((col) => {
@@ -369,6 +376,18 @@ async function listAkbTables(
           .safeParse(col);
         return parsed.success ? [parsed.data] : [];
       });
+    }
+    if (Array.isArray(obj.unique_keys)) {
+      table.unique_keys = obj.unique_keys.filter(
+        (value): value is Record<string, unknown> =>
+          value != null && typeof value === "object",
+      );
+    }
+    if (Array.isArray(obj.indexes)) {
+      table.indexes = obj.indexes.filter(
+        (value): value is Record<string, unknown> =>
+          value != null && typeof value === "object",
+      );
     }
     return [table];
   });
@@ -444,7 +463,54 @@ function manifestMatchesTable(
   return (
     table?.name === manifest.name &&
     tableHasColumnMetadata(table) &&
-    columnsMatch(manifest.columns, table.columns)
+    columnsMatch(manifest.columns, table.columns) &&
+    tableConstraintsMatch(manifest, table)
+  );
+}
+
+function constraintColumns(value: Record<string, unknown>): string[] {
+  if (!Array.isArray(value.columns)) return [];
+  return value.columns.flatMap((column) => {
+    if (typeof column === "string") return [column];
+    if (
+      column &&
+      typeof column === "object" &&
+      "name" in column &&
+      typeof column.name === "string"
+    ) {
+      return [column.name];
+    }
+    return [];
+  });
+}
+
+function includesColumns(
+  actual: Array<Record<string, unknown>> | undefined,
+  expected: ReadonlyArray<string | { name: string }>,
+): boolean {
+  if (!actual) return false;
+  const names = expected.map((column) =>
+    typeof column === "string" ? column : column.name,
+  );
+  return actual.some(
+    (entry) =>
+      JSON.stringify(constraintColumns(entry)) === JSON.stringify(names),
+  );
+}
+
+function tableConstraintsMatch(
+  manifest: ReefTableManifest,
+  table: AkbTableSummary,
+): boolean {
+  return (
+    (table.unique_keys === undefined ||
+      (manifest.unique_keys ?? []).every((key) =>
+        includesColumns(table.unique_keys, key.columns),
+      )) &&
+    (table.indexes === undefined ||
+      (manifest.indexes ?? []).every((index) =>
+        includesColumns(table.indexes, index.columns),
+      ))
   );
 }
 
@@ -460,6 +526,11 @@ function assertManifestMatches(
   if (!columnsMatch(manifest.columns, table.columns)) {
     throw new SchemaValidationError({
       issues: [`Reef table schema mismatch: ${manifest.name}`],
+    });
+  }
+  if (!tableConstraintsMatch(manifest, table)) {
+    throw new SchemaValidationError({
+      issues: [`Reef table constraint mismatch: ${manifest.name}`],
     });
   }
 }

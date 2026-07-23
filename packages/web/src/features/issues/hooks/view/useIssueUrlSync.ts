@@ -1,13 +1,26 @@
 "use client";
 
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
-import { getPersistedIssueFilter } from "@/lib/storage/config";
+import {
+  clearDefaultIssueViewId,
+  getDefaultIssueViewId,
+  getPersistedIssueFilter,
+} from "@/lib/storage/config";
 import { withVault } from "@/lib/workspaceHref";
-import { StatusEnum, USER_SORT_FIELDS } from "@reef/core";
-import { type UserSortField, naturalSortOrder } from "@reef/core/fields";
+import type { SavedIssueView } from "@reef/core";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type RefObject, useEffect, useRef } from "react";
-import { type IssueFilter, useIssueStore } from "../../stores/useIssueStore";
+import {
+  buildIssueSearchParams,
+  canonicalIssueQuery,
+  hasIssueFilterQueryParams,
+  hasIssueQueryParams,
+  normalizeRestoredSort,
+  readIssueUrlState,
+  savedIssueViewHref,
+  savedIssueViewPayloadToSearchParams,
+} from "../../lib/issueViewCodec";
+import { useIssueStore } from "../../stores/useIssueStore";
 
 /**
  * The list/board workspace is scoped to the vault's issues list
@@ -20,190 +33,6 @@ import { type IssueFilter, useIssueStore } from "../../stores/useIssueStore";
  * (REEF-315).
  */
 const ISSUES_LIST_BASE = "/issues";
-
-const ISSUE_QUERY_KEYS = [
-  "status",
-  "type",
-  "priority",
-  "assignee",
-  "requester",
-  "sprint_id",
-  "milestone_id",
-  "release_id",
-  "severity",
-  "due",
-  "labels",
-  "dep",
-  "archived",
-  "stale",
-  "sort",
-  "order",
-  "q",
-] as const;
-
-function readIssueUrlState(searchParams: URLSearchParams): {
-  filter: IssueFilter;
-  searchQuery: string;
-} {
-  const filter: IssueFilter = {};
-
-  // Multi-select facets (REEF-031) read every repeated param; compatible with
-  // older single-value shared URLs. Status values are validated against
-  // the enum and unknown members dropped — so a stale shared/bookmarked
-  // `?status=open` (the value renamed to `todo` in REEF-139) is ignored rather
-  // than left in client state where `filterIssues` would match it against no
-  // issue and empty the list. Mirrors `buildIssueQuery`'s server-side drop and
-  // the `due`/`dep` facet validation below.
-  const status = searchParams
-    .getAll("status")
-    .filter((s) => StatusEnum.safeParse(s).success);
-  const issueType = searchParams.getAll("type");
-  const priority = searchParams.getAll("priority");
-  // assignee/requester/sprint/release are multi-select (REEF-267): read every
-  // repeated param, compatible with older single-value shared URLs. Blank members
-  // (a hand-edited `?assignee=`) are dropped so the store does not carry an empty
-  // value that would inflate the active-filter count or be sent to the server.
-  // milestone stays single (a bare `?milestone_id=` is already falsy below).
-  const assignee = searchParams.getAll("assignee").filter((v) => v.trim());
-  const requester = searchParams.getAll("requester").filter((v) => v.trim());
-  const sprintId = searchParams.getAll("sprint_id").filter((v) => v.trim());
-  const milestoneId = searchParams.get("milestone_id");
-  const releaseId = searchParams.getAll("release_id").filter((v) => v.trim());
-  const severity = searchParams.getAll("severity");
-  const due = searchParams
-    .getAll("due")
-    .filter(
-      (d): d is "overdue" | "due_soon" => d === "overdue" || d === "due_soon",
-    );
-  const label = searchParams.get("labels");
-  const dep = searchParams
-    .getAll("dep")
-    .filter(
-      (d): d is "blocked" | "blocking" => d === "blocked" || d === "blocking",
-    );
-  const sort = searchParams.get("sort");
-  const order = searchParams.get("order");
-  const archived = searchParams.get("archived");
-  const stale = searchParams.get("stale");
-
-  if (status.length) filter.status = status;
-  if (issueType.length) filter.issueType = issueType;
-  if (priority.length) filter.priority = priority;
-  if (assignee.length) filter.assignee = assignee;
-  if (requester.length) filter.requester = requester;
-  if (sprintId.length) filter.sprint_id = sprintId;
-  if (milestoneId) filter.milestone_id = milestoneId;
-  if (releaseId.length) filter.release_id = releaseId;
-  if (severity.length) filter.severity = severity;
-  if (due.length) filter.due = due;
-  if (label) filter.label = label;
-  if (dep.length) filter.dependencyFilter = dep;
-  // Validate against the single source (USER_SORT_FIELDS) so a new sort field
-  // is restorable from a shared URL without editing this guard. Order is read
-  // read alongside a valid field (a fieldless `order` is dropped here); an
-  // orderless field is backfilled by normalizeRestoredSort below. Together they
-  // keep the store's sort invariant: field ⟺ order.
-  if (sort && (USER_SORT_FIELDS as readonly string[]).includes(sort)) {
-    filter.sortField = sort as UserSortField;
-    if (order === "asc" || order === "desc") {
-      filter.sortOrder = order;
-    }
-  }
-  // REEF-010: a link may carry our emitted `archived=1`, or `archived=true`
-  // (tolerated for hand-written/externally-shared links). Absence ⇒ key omitted
-  // => store default; this reader leaves showArchived=false to the store.
-  if (archived === "1" || archived === "true") {
-    filter.showArchived = true;
-  }
-  // REEF-275: same tolerant codec as `archived` — `stale=1` (our emitted form)
-  // or `stale=true` (hand-written links) reveals the auto-hidden resolved issues.
-  if (stale === "1" || stale === "true") {
-    filter.showStale = true;
-  }
-
-  return {
-    filter: normalizeRestoredSort(filter),
-    searchQuery: searchParams.get("q") ?? "",
-  };
-}
-
-/**
- * Backfill a RESTORED filter (URL or saved) so `sortField` carries an
- * order. A field without an order (a hand-edited / older shared URL, or a
- * partial saved filter) is filled with that field's natural direction so the
- * sort control's label matches the rendered board/list order (REEF-059) — the
- * display, the client `sortIssues`, and the server `buildIssueQuery` otherwise
- * resolve a missing order three different ways, so the control could show one
- * direction while the rows render another. The URL reader drops fieldless order
- * params, and the store/persistence path avoids producing them, so this fills
- * the missing half when present.
- */
-function normalizeRestoredSort(filter: IssueFilter): IssueFilter {
-  if (
-    filter.sortField &&
-    filter.sortOrder !== "asc" &&
-    filter.sortOrder !== "desc"
-  ) {
-    return { ...filter, sortOrder: naturalSortOrder(filter.sortField) };
-  }
-  return filter;
-}
-
-function hasIssueQueryParams(searchParams: URLSearchParams): boolean {
-  return ISSUE_QUERY_KEYS.some((key) => searchParams.has(key));
-}
-
-function buildIssueSearchParams(
-  filter: IssueFilter,
-  searchQuery: string,
-  base: URLSearchParams,
-): string {
-  // Merge into the existing query string: clear the keys this hook manages so
-  // unrelated params (notably `?view=`, owned by the workspace ViewSwitcher)
-  // survive a filter change.
-  const params = new URLSearchParams(base);
-  for (const key of ISSUE_QUERY_KEYS) params.delete(key);
-  // Multi-select facets (REEF-031) emit one repeated param per selected value.
-  if (filter.status) for (const v of filter.status) params.append("status", v);
-  if (filter.issueType)
-    for (const v of filter.issueType) params.append("type", v);
-  if (filter.priority)
-    for (const v of filter.priority) params.append("priority", v);
-  // Multi-select people/planning facets (REEF-267) emit one repeated param per
-  // value; milestone stays a single param.
-  if (filter.assignee)
-    for (const v of filter.assignee) params.append("assignee", v);
-  if (filter.requester)
-    for (const v of filter.requester) params.append("requester", v);
-  if (filter.sprint_id)
-    for (const v of filter.sprint_id) params.append("sprint_id", v);
-  if (filter.milestone_id) params.set("milestone_id", filter.milestone_id);
-  if (filter.release_id)
-    for (const v of filter.release_id) params.append("release_id", v);
-  if (filter.severity)
-    for (const v of filter.severity) params.append("severity", v);
-  if (filter.due) for (const v of filter.due) params.append("due", v);
-  if (filter.label) params.set("labels", filter.label);
-  if (filter.dependencyFilter)
-    for (const v of filter.dependencyFilter) params.append("dep", v);
-  // REEF-010: emit `archived=1` when the toggle is on. FilterBar stores
-  // `undefined` when off, so a default landing URL stays
-  // bare. NOTE: the wire codec (buildIssueQuery) sends `archived=true` to the
-  // server — a separate codec; do not unify the two.
-  if (filter.showArchived) params.set("archived", "1");
-  if (filter.showStale) params.set("stale", "1");
-  if (filter.sortField) params.set("sort", filter.sortField);
-  if (filter.sortOrder) params.set("order", filter.sortOrder);
-  if (searchQuery) params.set("q", searchQuery);
-  return params.toString();
-}
-
-/** Sort params into a canonical order so reordering diffs compare equal. */
-function normalizeParams(query: string): string {
-  const params = new URLSearchParams(query);
-  params.sort();
-  return params.toString();
-}
 
 /**
  * Mirrors issue list/board filters via URL query params, and restores
@@ -223,7 +52,10 @@ function normalizeParams(query: string): string {
  * the restore's own write is marked; user edits (including ones made while the
  * restore is still in flight) are left unmarked and saved normally.
  */
-export function useIssueUrlSync(): { skipNextSave: RefObject<boolean> } {
+export function useIssueUrlSync(
+  savedViews?: SavedIssueView[],
+  savedViewsReady = true,
+): { skipNextSave: RefObject<boolean> } {
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
   const { vault } = useActiveVault();
@@ -284,7 +116,7 @@ export function useIssueUrlSync(): { skipNextSave: RefObject<boolean> } {
     // restored params; treating those as an explicit "URL wins" filter would leak
     // the old vault's personal filter into the new vault (and re-apply it on a
     // reload). A genuine vault switch re-restores from the new vault's slot.
-    if (!vaultChanged && hasIssueQueryParams(searchParams)) {
+    if (!vaultChanged && hasIssueFilterQueryParams(searchParams)) {
       skipNextWrite.current = true;
       useIssueStore.setState({
         ...readIssueUrlState(searchParams),
@@ -334,6 +166,46 @@ export function useIssueUrlSync(): { skipNextSave: RefObject<boolean> } {
     let settled = false;
     void (async () => {
       try {
+        // A view-mode-only URL still allows the legacy last-used filter to
+        // restore, but it is explicit navigation and must not be replaced by a
+        // personal named-view default. This preserves the established
+        // `?view=list` restore contract while keeping explicit URLs ahead of
+        // the default pointer.
+        const defaultId = hasIssueQueryParams(searchParams)
+          ? undefined
+          : await getDefaultIssueViewId(restoringVault);
+        if (!aborted && defaultId) {
+          if (!savedViewsReady) {
+            initialized.current = false;
+            restoreStarted.current = false;
+            return;
+          }
+          const defaultView = savedViews?.find((view) => view.id === defaultId);
+          if (defaultView) {
+            const params = savedIssueViewPayloadToSearchParams(
+              defaultView.payload,
+            );
+            if (params.size === 0) {
+              await clearDefaultIssueViewId(restoringVault);
+            } else {
+              const state = readIssueUrlState(params);
+              skipNextSave.current = true;
+              skipNextWrite.current = true;
+              useIssueStore.setState({
+                ...state,
+                filterVault: restoringVault,
+              });
+              router.replace(
+                savedIssueViewHref(restoringVault, defaultView.payload),
+                {
+                  scroll: false,
+                },
+              );
+              return;
+            }
+          }
+          await clearDefaultIssueViewId(restoringVault);
+        }
         const stored = await getPersistedIssueFilter(restoringVault);
         // Apply if this read wasn't superseded (a vault switch aborts it; URL
         // changes do NOT, since this effect no longer depends on searchParams) AND
@@ -376,7 +248,7 @@ export function useIssueUrlSync(): { skipNextSave: RefObject<boolean> } {
         restoreStarted.current = false;
       }
     };
-  }, [vault]);
+  }, [savedViews, savedViewsReady, vault]);
   /* eslint-enable react-hooks/exhaustive-deps */
 
   useEffect(() => {
@@ -400,7 +272,9 @@ export function useIssueUrlSync(): { skipNextSave: RefObject<boolean> } {
     // Compare order-insensitively: merging from `base` can reorder keys
     // without changing meaning, and we don't want a pure reorder to trigger
     // a redundant navigation.
-    if (normalizeParams(paramString) !== normalizeParams(currentParams)) {
+    if (
+      canonicalIssueQuery(paramString) !== canonicalIssueQuery(currentParams)
+    ) {
       // REEF-010: a restore/vault-switch-clear mirror REPLACES the current
       // history entry (hydration, not navigation); a user edit PUSHES a
       // shareable/back-able entry. Read and clear the one-shot flag here, when

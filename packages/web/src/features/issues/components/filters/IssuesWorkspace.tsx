@@ -7,6 +7,7 @@ import { IssueFilterToolbar } from "@/features/issues/components/filters/IssueFi
 import { SortControl } from "@/features/issues/components/filters/SortControl";
 import { ViewSwitcher } from "@/features/issues/components/filters/ViewSwitcher";
 import { IssueListTable } from "@/features/issues/components/list/IssueListTable";
+import { useSavedIssueViews } from "@/features/issues/hooks/queries/useSavedIssueViews";
 import { useIssueFilterPersistence } from "@/features/issues/hooks/view/useIssueFilterPersistence";
 import { useIssueUrlSync } from "@/features/issues/hooks/view/useIssueUrlSync";
 import { parseViewParam } from "@/features/issues/lib/viewMode";
@@ -45,7 +46,11 @@ export function IssuesWorkspace() {
   const selectionContext = JSON.stringify({ filter, searchQuery, vault, view });
   const previousSelectionContext = useRef<string | null>(null);
 
-  const { skipNextSave } = useIssueUrlSync();
+  const savedViews = useSavedIssueViews(vault);
+  const { skipNextSave } = useIssueUrlSync(
+    savedViews.data,
+    !savedViews.isPending,
+  );
   useIssueFilterPersistence(vault, skipNextSave);
 
   useEffect(() => {

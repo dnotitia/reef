@@ -55,6 +55,13 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
     milestones: Array<{ id: string; name: string; status: string }>;
     releases: Array<{ id: string; name: string; status: string }>;
     templates: Array<{ name: string; label: string }>;
+    saved_views: Array<{
+      id: string;
+      name: string;
+      name_key: string;
+      owner: string;
+      payload: unknown;
+    }>;
     activity_suggestions: Array<{
       id: string;
       kind: string;
@@ -120,6 +127,17 @@ export async function removeFixtureIssue(
 ): Promise<void> {
   const response = await request.post(`${E2E_MOCK_URL}/__e2e/remove-issue`, {
     data: { id, vault },
+  });
+  expect(response.ok()).toBeTruthy();
+}
+
+export async function dropFixtureTable(
+  request: APIRequestContext,
+  table: string,
+  vault = REEF_E2E_VAULT,
+): Promise<void> {
+  const response = await request.post(`${E2E_MOCK_URL}/__e2e/drop-table`, {
+    data: { table, vault },
   });
   expect(response.ok()).toBeTruthy();
 }

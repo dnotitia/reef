@@ -11,6 +11,7 @@ import {
   REEF_SETTINGS_TABLE,
   REEF_SPRINTS_TABLE,
   REEF_TEMPLATES_TABLE,
+  REEF_VIEWS_TABLE,
 } from "./constants";
 
 export const AkbTableColumnTypeSchema = z.enum([
@@ -34,6 +35,11 @@ export interface AkbCreateTableRequest {
   description?: string;
   columns: AkbTableColumn[];
   collection?: string | null;
+  unique_keys?: Array<{ name?: string; columns: string[] }>;
+  indexes?: Array<{
+    name?: string;
+    columns: Array<string | { name: string }>;
+  }>;
 }
 
 export interface ReefTableManifest extends AkbCreateTableRequest {
@@ -48,11 +54,12 @@ export interface ReefTableManifest extends AkbCreateTableRequest {
     | typeof REEF_ACTIVITY_SUGGESTIONS_TABLE
     | typeof REEF_COMMENTS_TABLE
     | typeof REEF_ATTACHMENTS_TABLE
-    | typeof REEF_ACTIVITY_TABLE;
+    | typeof REEF_ACTIVITY_TABLE
+    | typeof REEF_VIEWS_TABLE;
   columns: AkbTableColumn[];
 }
 
-export const REEF_SCHEMA_VERSION = 1;
+export const REEF_SCHEMA_VERSION = 2;
 
 /** Columns injected and owned by AKB for every dynamic table. */
 export const AKB_MANAGED_TABLE_COLUMNS = [
@@ -245,5 +252,17 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
       { name: "payload", type: "json" },
       { name: "meta", type: "json" },
     ],
+  },
+  {
+    name: REEF_VIEWS_TABLE,
+    description: "Team-shared named issue views for this reef workspace",
+    columns: [
+      { name: "name", type: "text", required: true },
+      { name: "name_key", type: "text", required: true },
+      { name: "owner", type: "text", required: true },
+      { name: "payload", type: "json", required: true },
+    ],
+    unique_keys: [{ columns: ["name_key"] }],
+    indexes: [{ columns: ["name"] }],
   },
 ];

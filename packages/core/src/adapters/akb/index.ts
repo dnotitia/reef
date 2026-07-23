@@ -6,6 +6,7 @@ export {
   MONITORED_REPOS_TABLE,
   REEF_ISSUES_TABLE,
   REEF_TEMPLATES_TABLE,
+  REEF_VIEWS_TABLE,
   REEF_ACTIVITY_SUGGESTIONS_TABLE,
   REEF_COMMENTS_TABLE,
   REEF_ATTACHMENTS_TABLE,
@@ -108,6 +109,12 @@ export {
   deleteTemplate,
   listTemplates,
 } from "./workspace/templates";
+export {
+  listSavedIssueViews,
+  createSavedIssueView,
+  updateSavedIssueView,
+  deleteSavedIssueView,
+} from "./workspace/savedViews";
 export {
   getWorkspaceSummary,
   type GetWorkspaceSummaryParams,

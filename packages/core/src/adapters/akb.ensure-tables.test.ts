@@ -16,6 +16,7 @@ import {
   REEF_SETTINGS_TABLE,
   REEF_SPRINTS_TABLE,
   REEF_TEMPLATES_TABLE,
+  REEF_VIEWS_TABLE,
   ensureReefTables,
   makeAdapter,
   makeListTablesResponse,
@@ -83,11 +84,12 @@ describe("ensureReefTables", () => {
       { status: 201, body: { name: REEF_COMMENTS_TABLE } },
       { status: 201, body: { name: REEF_ATTACHMENTS_TABLE } },
       { status: 201, body: { name: REEF_ACTIVITY_TABLE } },
+      { status: 201, body: { name: REEF_VIEWS_TABLE } },
       { body: makeListTablesResponse(ALL_REEF_TABLES) },
     ]);
     const adapter = makeAdapter();
     await ensureReefTables({ adapter, vault: "reef-sample" });
-    expect(calls).toHaveLength(13);
+    expect(calls).toHaveLength(14);
     expect(calls[0]?.url).toBe("https://akb.test/api/v1/tables/reef-sample");
     expect(calls[0]?.init?.method ?? "GET").toBe("GET");
     const firstCreate = JSON.parse(calls[1]?.init?.body as string);
@@ -274,6 +276,12 @@ describe("ensureReefTables", () => {
     expect(activityColumnNames).not.toContain("created_at");
     expect(activityColumnNames).not.toContain("updated_at");
     expect(activityColumnNames).not.toContain("created_by");
+    const twelfthCreate = JSON.parse(calls[12]?.init?.body as string);
+    expect(twelfthCreate).toMatchObject({
+      name: REEF_VIEWS_TABLE,
+      unique_keys: [{ columns: ["name_key"] }],
+      indexes: [{ columns: ["name"] }],
+    });
   });
 
   it("never declares AKB-managed columns in a desired table manifest", () => {
@@ -287,6 +295,27 @@ describe("ensureReefTables", () => {
         );
       }
     }
+  });
+
+  it("rejects a views table whose reported unique/index contract drifts", async () => {
+    const { calls } = setupFetch([
+      {
+        body: makeDesiredTablesResponse({
+          [REEF_VIEWS_TABLE]: {
+            unique_keys: [{ columns: ["name"] }],
+            indexes: [{ columns: ["name_key"] }],
+          },
+        }),
+      },
+    ]);
+    await expect(
+      ensureReefTables({ adapter: makeAdapter(), vault: "reef-sample" }),
+    ).rejects.toMatchObject({
+      context: {
+        issues: [`Reef table constraint mismatch: ${REEF_VIEWS_TABLE}`],
+      },
+    });
+    expect(calls).toHaveLength(1);
   });
 
   it.each(["id", "created_at", "updated_at", "created_by"])(
@@ -316,13 +345,14 @@ describe("ensureReefTables", () => {
       { status: 201, body: { name: REEF_COMMENTS_TABLE } },
       { status: 201, body: { name: REEF_ATTACHMENTS_TABLE } },
       { status: 201, body: { name: REEF_ACTIVITY_TABLE } },
+      { status: 201, body: { name: REEF_VIEWS_TABLE } },
       { body: makeListTablesResponse(ALL_REEF_TABLES) },
     ]);
     const adapter = makeAdapter();
     await ensureReefTables({ adapter, vault: "reef-sample" });
-    expect(calls).toHaveLength(12);
+    expect(calls).toHaveLength(13);
     const createdNames = calls
-      .slice(1, 11)
+      .slice(1, 12)
       .map((c) => JSON.parse(c.init?.body as string).name);
     expect(createdNames).toEqual([
       MONITORED_REPOS_TABLE,
@@ -335,6 +365,7 @@ describe("ensureReefTables", () => {
       REEF_COMMENTS_TABLE,
       REEF_ATTACHMENTS_TABLE,
       REEF_ACTIVITY_TABLE,
+      REEF_VIEWS_TABLE,
     ]);
   });
 
