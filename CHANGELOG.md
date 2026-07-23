@@ -94,6 +94,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Comment threads revalidate after a hard reload.** A fresh persisted browser
+  cache can render immediately, but the activity timeline now always reconciles
+  it with the server so recently posted replies cannot disappear temporarily.
+
 - **Jira migration artifacts and configuration now reject additional credential
   exposure paths.** Raw archives reject symlinks in every existing path
   component, account-mapping artifacts are written with private file modes,

@@ -25,7 +25,7 @@ package.
 
 ## Repository layout
 
-reef is a monorepo with two private, non-published packages:
+reef is a monorepo with four private, non-published packages:
 
 - **`packages/core`** — framework-agnostic TypeScript library (`@reef/core`).
   No Next.js imports, no DOM APIs. All GitHub, AKB, and LLM I/O originates here.
@@ -35,10 +35,17 @@ reef is a monorepo with two private, non-published packages:
   stateless BFF. Route Handlers under `src/app/api/*` are thin wrappers that
   validate requests, manage the session cookie, call `core`, and translate
   errors.
+- **`packages/orchestrator` (`@reef/orchestrator`)** — the long-running
+  background runtime for worker scheduling, polling, and graceful shutdown
+  outside the web process.
+- **`packages/jira-migrator` (`@reef/jira-migrator`)** — the operator-run,
+  one-shot Jira-to-Reef migration package. Jira access stays read-only; apply
+  stages reconcile Reef targets through explicit target contracts.
 
 Cross-cutting engineering rules live in [`AGENTS.md`](AGENTS.md), with
-package-local rules in `packages/core/AGENTS.md` and `packages/web/AGENTS.md`.
-Please read the relevant `AGENTS.md` before making changes in that area.
+package-local rules in each `packages/*/AGENTS.md` and implementation rules in
+nested `AGENTS.md` files. Please read the relevant `AGENTS.md` before making
+changes in that area.
 
 ## Gates to run before opening a PR
 

@@ -33,7 +33,7 @@ test.describe("Search progress hairline (REEF-369)", () => {
     await openExistingWorkspace(page);
     await delaySearchResponses(page);
 
-    await page.keyboard.press("Control+KeyK");
+    await page.keyboard.press("Control+K");
     const input = page.locator('[data-testid="global-search-input"]');
     await expect(input).toBeVisible();
     await input.fill("blocker");

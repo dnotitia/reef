@@ -2,16 +2,16 @@
 
 > Root-level, cross-cutting rules for reef. Package-local rules live in
 > `packages/core/AGENTS.md`, `packages/web/AGENTS.md`,
-> `packages/jira-migrator/AGENTS.md`, and nested `AGENTS.md` files under those
-> package trees; the `CLAUDE.md` files only point back to these `AGENTS.md`
-> files.
+> `packages/jira-migrator/AGENTS.md`, `packages/orchestrator/AGENTS.md`, and
+> nested `AGENTS.md` files under those package trees; the `CLAUDE.md` files only
+> point back to these `AGENTS.md` files.
 
 ## Rule Placement
 
 - Keep this root file for repo-wide contracts that cross package boundaries:
   security, persistence, issue data model, schema ownership, release gates, and
-  workflows that must stay consistent between `core` and `web`.
-- Put package defaults in `packages/core/AGENTS.md` or `packages/web/AGENTS.md`.
+  workflows that must stay consistent across packages.
+- Put package defaults in the matching `packages/*/AGENTS.md`.
 - Put implementation rules in the nearest subtree `AGENTS.md` so agents editing
   that code see the rule without carrying unrelated context. Examples:
   `packages/core/src/adapters/AGENTS.md`, `packages/core/src/agents/AGENTS.md`,
@@ -26,7 +26,8 @@
 - This is a pnpm workspace with private packages. Product runtime behavior
   starts in `core` when it touches schemas, adapters, agents, or shared
   contracts, then surfaces through `web`. Operator-run migration behavior for
-  Jira lives in `packages/jira-migrator`.
+  Jira lives in `packages/jira-migrator`; long-running background scheduling
+  and worker lifecycle live in `packages/orchestrator`.
 - `core` is framework-agnostic: no Next.js imports, no DOM APIs, and no Node-only
   globals where avoidable.
 
@@ -114,10 +115,10 @@ metadata.
 
 ## Field Display Rules
 
-- Issue field display is a cross-package contract: core owns pure metadata,
-  while web owns Tailwind classes and field leaf components.
-- Core-side field metadata rules live in
-  `packages/core/src/schemas/issues/AGENTS.md`.
+- Issue and planning field display are cross-package contracts: core owns pure
+  metadata, while web owns Tailwind classes and field leaf components.
+- Core-side rules live in `packages/core/src/schemas/issues/AGENTS.md` and
+  `packages/core/src/schemas/planning/AGENTS.md`.
 - Web-side field leaf rules live in
   `packages/web/src/components/fields/AGENTS.md`.
 
@@ -144,8 +145,9 @@ metadata.
   not just the focused spec for the path you changed. A change to shared
   fixtures or the vault-skill version can break a sibling hermetic spec you
   never opened, and that only surfaces in the sharded CI run otherwise.
-- Release, migration, Docker, changelog, and deployment rules live in
-  `docs/release-policy.md` and `docs/migration-policy.md`. Release-impacting
-  changes update `CHANGELOG.md` under `Unreleased`.
+- Release and changelog rules live in `docs/release-policy.md`; storage and AKB
+  evolution rules live in `docs/migration-policy.md`; Docker and deployment
+  rules live in `docs/deployment.md`. Release-impacting changes update
+  `CHANGELOG.md` under `Unreleased`.
 - Streaming changes must preserve `/api/agents/runs` SSE delivery; nginx/K8s
   proxy buffering must remain disabled for streaming routes.

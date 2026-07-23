@@ -14,9 +14,10 @@ sanitized conservation reporting. Project keys remain operator inputs rather
 than API naming boundaries.
 
 The package is intentionally outside `@reef/web`: Jira credentials are
-deployment/operator secrets, not user state in the product runtime. Keep the
-package read-only against Jira unless a later issue explicitly adds a write or
-import mapping phase.
+deployment/operator secrets, not user state in the product runtime. Jira is
+always a read-only source: its client uses GET-only HTTP operations. An apply
+stage writes or reconciles Reef targets through an explicit target contract; it
+never mutates Jira.
 
 The CLI never writes Jira. In `--apply` it writes Reef only through the public
 `@reef/core` AKB adapter and only for the exact plan hash approved by a
