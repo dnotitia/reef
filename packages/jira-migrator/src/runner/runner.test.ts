@@ -231,6 +231,13 @@ describe("runJiraMigration", () => {
     expect(JSON.stringify(dryRun.report)).not.toMatch(
       /jira-canary|akb-canary|operator@example\.com/u,
     );
+    const repeatedDryRun = await runJiraMigration(config, {
+      target,
+      createJiraClient: (key) => clients.get(key) as never,
+      now,
+    });
+    expect(repeatedDryRun.planSha256).toBe(dryRun.planSha256);
+    expect(mutations).toEqual([]);
 
     const applyConfig = {
       ...config,

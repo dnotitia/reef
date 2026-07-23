@@ -1561,17 +1561,20 @@ async function runJiraMigrationUnlocked(
       phase,
       source_key: result.source_key,
       action: result.action,
+      retryable: result.retryable,
     });
   };
   const recordReportOnly = (
     phase: JiraRunnerReport["terminal_classifications"][number]["phase"],
     sourceKey: string,
     action: JiraMigrationAction,
+    retryable = false,
   ): void => {
     terminalClassifications.push({
       phase,
       source_key: sourceKey,
       action,
+      retryable,
     });
   };
   const changelogAction = (
@@ -1837,39 +1840,10 @@ async function runJiraMigrationUnlocked(
       const readback = desired
         ? await target.readIssue(desired.id).catch(() => null)
         : null;
-      const desiredKeys = desired
-        ? Object.keys(desired).filter(
-            (key) =>
-              key !== "updated_at" &&
-              desired[key as keyof typeof desired] !== undefined,
-          )
-        : [];
-      const relationshipKeys = new Set(["depends_on", "blocks", "related_to"]);
-      const recoveredProjection =
-        desired && readback
-          ? Object.fromEntries(
-              desiredKeys.map((key) => [
-                key,
-                relationshipKeys.has(key) &&
-                readback.issue[key as keyof typeof readback.issue] === undefined
-                  ? []
-                  : readback.issue[key as keyof typeof readback.issue],
-              ]),
-            )
-          : null;
-      const desiredProjection = desired
-        ? Object.fromEntries(
-            desiredKeys.map((key) => [
-              key,
-              desired[key as keyof typeof desired],
-            ]),
-          )
-        : null;
       if (
         !desired ||
         !readback ||
-        fingerprintJiraState(recoveredProjection) !==
-          fingerprintJiraState(desiredProjection) ||
+        !baseIssueReadbackMatches(plan, readback) ||
         readback.content !== plan.desired.content
       ) {
         return { applied: null, readbackFound: readback !== null };
@@ -2231,7 +2205,7 @@ async function runJiraMigrationUnlocked(
           ],
         } as JiraRelatedImportReport;
         relatedApplyReports.push({ issue_key: issue.key, report });
-        recordReportOnly("related", `related:${issue.key}`, "failed");
+        recordReportOnly("related", `related:${issue.key}`, "failed", true);
         await checkpoint();
         continue;
       }
@@ -2250,6 +2224,7 @@ async function runJiraMigrationUnlocked(
               0
             ? "create"
             : "skip",
+        result.report.failures.some((failure) => failure.retryable),
       );
       await checkpoint();
     }
@@ -2268,11 +2243,19 @@ async function runJiraMigrationUnlocked(
       const existingBinding = ledger.bindings.find(
         (candidate) => candidate.source_key === plan.sourceIdentity.key,
       );
-      if (
-        action === "create" &&
-        existingBinding?.source_fingerprint === plan.sourceFingerprint &&
+      const bindingMatchesSource =
+        existingBinding?.source_fingerprint === plan.sourceFingerprint;
+      const bindingUsesCurrentFingerprint =
+        bindingMatchesSource &&
         existingBinding.mapped_state_fingerprint ===
-          legacyMappedFingerprintForChangelog(plan)
+          mappedFingerprintForChangelog(plan);
+      const bindingUsesLegacyFingerprint =
+        bindingMatchesSource &&
+        existingBinding.mapped_state_fingerprint ===
+          legacyMappedFingerprintForChangelog(plan);
+      if (
+        action !== "conflict" &&
+        (bindingUsesCurrentFingerprint || bindingUsesLegacyFingerprint)
       ) {
         const activities = plan.items.flatMap((item) =>
           item.activity ? [item.activity] : [],
@@ -2300,17 +2283,21 @@ async function runJiraMigrationUnlocked(
               });
         }
         if (readbackMatches) {
-          ledger = confirmJiraMigrationBinding(ledger, {
-            sourceIdentity: plan.sourceIdentity,
-            target: existingBinding.target,
-            sourceFingerprint: plan.sourceFingerprint,
-            mappedStateFingerprint: mappedFingerprintForChangelog(plan),
-            lastAppliedAt: now(),
-            writeSucceeded: true,
-            readbackSucceeded: true,
-            rawArchiveReference: plan.rawArchiveReference,
-          });
+          if (bindingUsesLegacyFingerprint) {
+            ledger = confirmJiraMigrationBinding(ledger, {
+              sourceIdentity: plan.sourceIdentity,
+              target: existingBinding.target,
+              sourceFingerprint: plan.sourceFingerprint,
+              mappedStateFingerprint: mappedFingerprintForChangelog(plan),
+              lastAppliedAt: now(),
+              writeSucceeded: true,
+              readbackSucceeded: true,
+              rawArchiveReference: plan.rawArchiveReference,
+            });
+          }
           action = "skip";
+        } else {
+          action = "create";
         }
       }
       if (action === "create") {
@@ -2538,11 +2525,30 @@ async function runJiraMigrationUnlocked(
       plan_sha256: planSha256,
       payload: planPayload,
     });
-    await writeJiraRunnerReport({
-      path: `${paths.reportPath}.approval.json`,
-      report,
-      forbiddenSecretValues: secretValuesForConfig(config),
-    });
+    const approvalPath = `${paths.reportPath}.approval.json`;
+    if (await fileExists(approvalPath)) {
+      const existingApproval = await loadJiraRunnerReport(approvalPath);
+      const sameApproval =
+        existingApproval.run.run_id === report.run.run_id &&
+        existingApproval.run.mode === "dry-run" &&
+        existingApproval.run.status === "completed" &&
+        fingerprintJiraState(existingApproval.run.source) ===
+          fingerprintJiraState(report.run.source) &&
+        fingerprintJiraState(existingApproval.run.target) ===
+          fingerprintJiraState(report.run.target) &&
+        existingApproval.plan_sha256 === report.plan_sha256 &&
+        existingApproval.approval.dry_run_plan_sha256 ===
+          report.approval.dry_run_plan_sha256;
+      if (!sameApproval) {
+        throw new JiraRunnerError("dry_run_scope_mismatch");
+      }
+    } else {
+      await writeJiraRunnerReport({
+        path: approvalPath,
+        report,
+        forbiddenSecretValues: secretValuesForConfig(config),
+      });
+    }
   }
   return {
     runId: config.artifacts.runId,

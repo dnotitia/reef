@@ -15,10 +15,10 @@ afterEach(async () => {
   directory = null;
 });
 
-const report = () =>
-  buildJiraRunnerReport({
+const reportInput = () =>
+  ({
     runId: "run-1",
-    mode: "dry-run",
+    mode: "dry-run" as const,
     source: {
       jira_cloud_id: "cloud-1",
       project_keys: ["ALPHA", "BETA"],
@@ -42,7 +42,9 @@ const report = () =>
       { phase: "issues", source_key: "issue:cloud-1:2:2", action: "skip" },
     ],
     inputCount: 2,
-  });
+  }) satisfies Parameters<typeof buildJiraRunnerReport>[0];
+
+const report = () => buildJiraRunnerReport(reportInput());
 
 describe("Jira runner report", () => {
   it("enforces conservation and rejects non-terminal or duplicate inputs", () => {
@@ -67,6 +69,30 @@ describe("Jira runner report", () => {
     ).toThrowError(
       expect.objectContaining({ code: "report_conservation_failed" }),
     );
+  });
+
+  it("counts failed entities marked retryable", () => {
+    const retryable = buildJiraRunnerReport({
+      ...reportInput(),
+      terminalClassifications: [
+        {
+          phase: "issues",
+          source_key: "issue:cloud-1:1:1",
+          action: "failed",
+          retryable: true,
+        },
+        {
+          phase: "issues",
+          source_key: "issue:cloud-1:2:2",
+          action: "skip",
+        },
+      ],
+      inputCount: 2,
+    });
+    expect(retryable.totals).toMatchObject({
+      failed: 1,
+      retryable: 1,
+    });
   });
 
   it("writes a private atomic report and rejects secret canaries", async () => {

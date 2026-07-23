@@ -28,6 +28,7 @@ const TerminalClassificationSchema = z
     ]),
     source_key: z.string().min(1),
     action: JiraMigrationActionSchema,
+    retryable: z.boolean().optional(),
   })
   .strict();
 
@@ -213,7 +214,12 @@ export function buildJiraRunnerReport(input: {
     if (classification.action === "skip") totals.skipped += 1;
     if (classification.action === "conflict") totals.conflict += 1;
     if (classification.action === "failed") totals.failed += 1;
-    if (classification.action === "retry") totals.retryable += 1;
+    if (
+      classification.action === "retry" ||
+      classification.retryable === true
+    ) {
+      totals.retryable += 1;
+    }
   }
   const parsed = JiraRunnerReportSchema.safeParse({
     schema_version: 1,
