@@ -215,6 +215,21 @@ describe("loadJiraMigratorConfig", () => {
     });
   });
 
+  it("does not echo unknown inline argument values", () => {
+    const credential = "operator-secret";
+    let error: unknown;
+    try {
+      parseJiraMigratorArgs([`--bearer-token=${credential}`]);
+    } catch (candidate) {
+      error = candidate;
+    }
+    expect(error).toBeInstanceOf(JiraMigratorConfigError);
+    expect(error).toMatchObject({
+      issues: ["Unknown argument: --bearer-token"],
+    });
+    expect(JSON.stringify(error)).not.toContain(credential);
+  });
+
   it("requires exactly one mode before any target can be constructed", () => {
     expect(() => loadJiraMigratorConfig({ argv: [], env })).toThrowError(
       expect.objectContaining({

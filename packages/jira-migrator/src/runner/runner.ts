@@ -1612,10 +1612,31 @@ async function runJiraMigrationUnlocked(
     for (const [index, deferred] of dryIssuePlans
       .flatMap((plan) => plan.deferred.map((item) => ({ plan, item })))
       .entries()) {
+      const relatedReport = finalRelatedReports.find(
+        (candidate) => candidate.issue_key === deferred.plan.source.issueKey,
+      )?.report;
+      const reconciled =
+        (deferred.item.kind === "relation" &&
+          relatedReport !== undefined &&
+          relatedReport.links.unique > 0 &&
+          relatedReport.links.unresolved === 0 &&
+          !relatedReport.failures.some(
+            (failure) => failure.source_kind === "link",
+          )) ||
+        (deferred.item.kind === "description_media" &&
+          relatedReport !== undefined &&
+          relatedReport.media.total > 0 &&
+          relatedReport.media.unresolved === 0 &&
+          !relatedReport.failures.some(
+            (failure) => failure.source_kind === "media",
+          )) ||
+        ((deferred.item.kind === "release" ||
+          deferred.item.kind === "sprint") &&
+          deferred.item.targetId !== null);
       recordReportOnly(
         "reconciliation",
         `reconciliation:${deferred.plan.source.issueKey}:${index}`,
-        "skip",
+        reconciled ? "skip" : "conflict",
       );
     }
     ledger = finalizeJiraMigrationPhase(ledger, {

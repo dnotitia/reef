@@ -254,7 +254,12 @@ export function parseJiraMigratorArgs(argv: readonly string[]): ParsedArgs {
       }
     }
     if (!matched) {
-      throw new JiraMigratorConfigError([`Unknown argument: ${arg}`]);
+      const optionName = arg?.startsWith("-")
+        ? arg.split("=", 1)[0]
+        : undefined;
+      throw new JiraMigratorConfigError([
+        optionName ? `Unknown argument: ${optionName}` : "Unknown argument",
+      ]);
     }
   }
   return parsed;
