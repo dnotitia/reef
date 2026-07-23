@@ -356,6 +356,14 @@ describe("AKB Jira migration target", () => {
       issue: {
         ...targetAuthoredReadback.issue,
         title: "Updated Alpha issue",
+        custom_fields: {
+          ...targetAuthoredReadback.issue.custom_fields,
+          jira_migration: {
+            ...(targetAuthoredReadback.issue.custom_fields
+              ?.jira_migration as Record<string, unknown>),
+            managed_custom_field_keys: [],
+          },
+        },
       },
     } as unknown as AkbReadIssueResult);
     const updatedPlan = {

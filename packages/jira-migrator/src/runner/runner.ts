@@ -1674,12 +1674,12 @@ async function runJiraMigrationUnlocked(
       ledger,
       accountMapping,
       linkMappings: policy.linkMappings,
-      attachmentPolicy: {
-        maxBytes: 20 * 1024 * 1024,
-        ...(config.control.commentCatalogComplete
-          ? { commentVisibilityCompleteness: "verified" as const }
-          : {}),
-      },
+      attachmentPolicy: config.control.commentCatalogComplete
+        ? {
+            maxBytes: 20 * 1024 * 1024,
+            commentVisibilityCompleteness: "verified" as const,
+          }
+        : undefined,
       resolveIssueTarget(sourceIdOrKey) {
         const reefId = issueBindings[sourceIdOrKey];
         return reefId
@@ -2665,18 +2665,20 @@ async function runJiraMigrationUnlocked(
           ledger,
           accountMapping,
           linkMappings: policy.linkMappings,
-          attachmentPolicy: {
-            maxBytes: 20 * 1024 * 1024,
-            ...(config.control.commentCatalogComplete
-              ? { commentVisibilityCompleteness: "verified" as const }
-              : {}),
-            ...(approvedCommentBindingPreconditions
-              ? {
-                  approvedCommentBindings: approvedCommentBindings(issue.key),
-                  approvedCommentBindingsAppliedAfter: runAt,
-                }
-              : {}),
-          },
+          attachmentPolicy: config.control.commentCatalogComplete
+            ? {
+                maxBytes: 20 * 1024 * 1024,
+                commentVisibilityCompleteness: "verified" as const,
+                ...(approvedCommentBindingPreconditions
+                  ? {
+                      approvedCommentBindings: approvedCommentBindings(
+                        issue.key,
+                      ),
+                      approvedCommentBindingsAppliedAfter: runAt,
+                    }
+                  : {}),
+              }
+            : undefined,
           resolveIssueTarget(sourceIdOrKey) {
             const peer = allIssues.find(
               (candidate) =>
@@ -3151,21 +3153,25 @@ export async function runJiraMigration(
     ...new Set([`${paths.ledgerPath}.run.lock`, lockPath]),
   ].sort((left, right) => left.localeCompare(right));
   const releases: Array<() => Promise<void>> = [];
+  let ownsRunArtifacts = false;
   try {
     for (const path of lockPaths) {
       await ensurePrivateDirectory(dirname(path));
       releases.push(await acquireMigrationRunLock(path));
     }
+    ownsRunArtifacts = true;
     return await runJiraMigrationUnlocked(config, dependencies);
   } finally {
-    await rm(
-      join(
-        paths.archiveRoot,
-        ".spool",
-        privateSpoolSegment(config.artifacts.runId),
-      ),
-      { recursive: true, force: true },
-    ).catch(() => undefined);
+    if (ownsRunArtifacts) {
+      await rm(
+        join(
+          paths.archiveRoot,
+          ".spool",
+          privateSpoolSegment(config.artifacts.runId),
+        ),
+        { recursive: true, force: true },
+      ).catch(() => undefined);
+    }
     for (const release of releases.reverse()) {
       await release();
     }

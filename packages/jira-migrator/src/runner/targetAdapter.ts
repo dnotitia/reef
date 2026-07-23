@@ -256,14 +256,30 @@ const customFieldsWithSidecar = (
 ): Record<string, unknown> => {
   const customFields = parseMeta(issue.custom_fields);
   const preserved = parseMeta(preservedCustomFields);
+  const preservedMigration = parseMeta(preserved.jira_migration);
+  const previouslyManaged = Array.isArray(
+    preservedMigration.managed_custom_field_keys,
+  )
+    ? preservedMigration.managed_custom_field_keys.filter(
+        (key): key is string => typeof key === "string",
+      )
+    : [];
+  const preservedWithoutStaleManaged = { ...preserved };
+  for (const key of previouslyManaged) delete preservedWithoutStaleManaged[key];
+  const managedCustomFieldKeys = Object.keys(customFields)
+    .filter((key) => key !== "jira_migration")
+    .sort();
   return {
-    ...preserved,
+    ...preservedWithoutStaleManaged,
     ...customFields,
     jira_migration: {
-      ...parseMeta(preserved.jira_migration),
+      ...preservedMigration,
       ...parseMeta(customFields.jira_migration),
       relations: sidecar.relations,
       external_refs: sidecar.externalRefs,
+      ...(preservedCustomFields
+        ? { managed_custom_field_keys: managedCustomFieldKeys }
+        : {}),
     },
   };
 };
