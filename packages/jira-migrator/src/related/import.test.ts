@@ -466,11 +466,25 @@ describe("Jira related-data import stage", () => {
         state.refs.size,
     ).toBe(0);
 
+    const attachmentCheckpoint = vi.fn(
+      async (checkpointLedger: typeof dry.ledger) => {
+        expect(
+          checkpointLedger.bindings.some(
+            (binding) =>
+              binding.source_identity.entity_kind === "attachment" &&
+              binding.source_identity.attachment_id === "30001",
+          ),
+        ).toBe(true);
+        expect(state.description).not.toContain("akb://isolated/");
+      },
+    );
     const applied = await importJiraRelatedData({
       ...base,
       ledger: dry.ledger,
       mode: "apply",
+      checkpointLedger: attachmentCheckpoint,
     });
+    expect(attachmentCheckpoint).toHaveBeenCalledTimes(1);
     expect(applied.report.failures).toEqual([]);
     expect(state.comments.get(replyId)).toMatchObject({
       parent_comment_id: rootId,

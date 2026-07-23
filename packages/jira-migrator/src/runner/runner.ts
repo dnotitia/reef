@@ -2483,6 +2483,10 @@ async function runJiraMigrationUnlocked(
           },
           mode: "apply",
           now,
+          async checkpointLedger(attachmentLedger) {
+            ledger = attachmentLedger;
+            await checkpoint();
+          },
         });
       } catch (relatedError) {
         if (

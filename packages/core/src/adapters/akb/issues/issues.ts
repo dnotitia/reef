@@ -309,7 +309,18 @@ async function claimIssueIdInternal(
   const owner = (
     issue.custom_fields?.jira_migration as Record<string, unknown> | undefined
   )?.owner;
-  if (owner === undefined) throw new Error("issue_claim_owner_required");
+  if (
+    !owner ||
+    typeof owner !== "object" ||
+    Array.isArray(owner) ||
+    typeof (owner as Record<string, unknown>).jira_cloud_id !== "string" ||
+    typeof (owner as Record<string, unknown>).issue_id !== "string"
+  ) {
+    throw new Error("issue_claim_owner_required");
+  }
+  const jiraCloudId = (owner as Record<string, unknown>)
+    .jira_cloud_id as string;
+  const jiraIssueId = (owner as Record<string, unknown>).issue_id as string;
   const reservation: IssueMetadata = {
     ...issue,
     archived_at: issue.updated_at,
@@ -327,41 +338,54 @@ async function claimIssueIdInternal(
       },
     },
   };
+  let created = false;
+  let insertError: unknown;
   try {
-    await insertIssueRow(
+    const inserted = await insertIssueRow(
       adapter,
       vault,
       reservation,
       issueDocumentUri(vault, issue.id),
-      { assignBacklogRank: true },
+      {
+        assignBacklogRank: true,
+        uniqueJiraOwner: { jiraCloudId, issueId: jiraIssueId },
+      },
     );
-    return "created";
+    created =
+      inserted.kind !== "table_query" ||
+      inserted.items.some(
+        (item) =>
+          typeof item === "object" &&
+          item !== null &&
+          (item as Record<string, unknown>).reef_id === issue.id,
+      );
   } catch (error) {
-    const existing = (
-      await selectIssueRows(
-        adapter,
-        vault,
-        `reef_id = ${quoteText(issue.id, "reef_id")}`,
-      )
-    )[0];
-    const existingIssue = existing ? rowToIssue(existing) : null;
-    const existingOwner = (
-      existingIssue?.custom_fields?.jira_migration as
-        | Record<string, unknown>
-        | undefined
-    )?.owner;
-    if (
-      !existingIssue ||
-      existing.document_uri !== issueDocumentUri(vault, issue.id) ||
-      !sameJiraMigrationOwner(existingOwner, owner)
-    ) {
-      if (existingIssue) {
-        throw new ConflictError({ path: issueDocumentUri(vault, issue.id) });
-      }
-      throw error;
-    }
-    return "existing";
+    insertError = error;
   }
+  const existing = (
+    await selectIssueRows(
+      adapter,
+      vault,
+      `reef_id = ${quoteText(issue.id, "reef_id")}`,
+    )
+  )[0];
+  const existingIssue = existing ? rowToIssue(existing) : null;
+  const existingOwner = (
+    existingIssue?.custom_fields?.jira_migration as
+      | Record<string, unknown>
+      | undefined
+  )?.owner;
+  if (
+    !existingIssue ||
+    existing.document_uri !== issueDocumentUri(vault, issue.id) ||
+    !sameJiraMigrationOwner(existingOwner, owner)
+  ) {
+    if (existingIssue || !insertError) {
+      throw new ConflictError({ path: issueDocumentUri(vault, issue.id) });
+    }
+    throw insertError;
+  }
+  return created ? "created" : "existing";
 }
 
 export async function claimIssueId(params: ClaimIssueIdParams): Promise<void> {

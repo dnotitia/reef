@@ -141,6 +141,7 @@ export interface JiraRelatedImportInput {
   ): { reefId: string; documentUri: string } | null;
   mode: "dry-run" | "apply";
   now?: () => string;
+  checkpointLedger?(ledger: JiraMigrationLedgerV1): Promise<void>;
 }
 
 export interface JiraRelatedImportReport {

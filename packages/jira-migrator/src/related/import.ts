@@ -241,6 +241,9 @@ export async function importJiraRelatedData(
   });
   ledger = attachmentResult.ledger;
   const attachmentBindings = attachmentResult.attachmentBindings;
+  if (input.mode === "apply" && input.checkpointLedger) {
+    await input.checkpointLedger(ledger);
+  }
 
   await updateDescriptionMedia({
     migration: input,

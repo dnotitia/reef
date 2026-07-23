@@ -450,6 +450,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
     const issue = makeMigrationIssue({ status: "todo" });
     const { calls } = setupFetch([
       { body: ROW_UPDATE_OK }, // insert archived reservation
+      { body: rowsForIssue(makeReservation(issue)) }, // claim readback
       { body: putResponse("commit-1") }, // POST /documents
       { body: rowsForIssue(makeReservation(issue)) }, // reservation readback
       { body: ROW_UPDATE_OK }, // promote reservation
@@ -466,8 +467,8 @@ describe("born-correct backlog rank (REEF-176)", () => {
     expect(String(bodyOf(calls[0]).sql)).toContain("INSERT INTO reef_issues");
     expect(String(bodyOf(calls[0]).sql)).toContain('"reservation":true');
     expect(String(bodyOf(calls[0]).sql)).toContain('"archived_at"');
-    expect(calls[1]?.url).toContain("/documents");
-    expect(String(bodyOf(calls[3]).sql)).toContain("UPDATE reef_issues");
+    expect(calls[2]?.url).toContain("/documents");
+    expect(String(bodyOf(calls[4]).sql)).toContain("UPDATE reef_issues");
   });
 
   it("claims a migration id without creating a document or relationships", async () => {
@@ -480,13 +481,17 @@ describe("born-correct backlog rank (REEF-176)", () => {
         },
       },
     });
-    const { calls } = setupFetch([{ body: ROW_UPDATE_OK }]);
+    const reservation = makeReservation(issue);
+    const { calls } = setupFetch([
+      { body: ROW_UPDATE_OK },
+      { body: rowsForIssue(reservation) },
+    ]);
     await claimIssueId({
       adapter: makeTestAkbAdapter(),
       vault: VAULT,
       issue,
     });
-    expect(calls).toHaveLength(1);
+    expect(calls).toHaveLength(2);
     const sql = String(bodyOf(calls[0]).sql);
     expect(sql).toContain("INSERT INTO reef_issues");
     expect(sql).not.toContain("REEF-099");
@@ -534,6 +539,34 @@ describe("born-correct backlog rank (REEF-176)", () => {
         issue: desired,
       }),
     ).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("rejects an owner atomically claimed under a different Reef id", async () => {
+    const desired = makeMigrationIssue();
+    const { calls } = setupFetch([
+      {
+        body: {
+          kind: "table_query",
+          columns: ["reef_id"],
+          items: [],
+          total: 0,
+        },
+      },
+      { body: makeIssueQueryResponse([]) },
+    ]);
+
+    await expect(
+      claimIssueId({
+        adapter: makeTestAkbAdapter(),
+        vault: VAULT,
+        issue: desired,
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    const claimSql = String(bodyOf(calls[0]).sql);
+    expect(claimSql).toContain("pg_advisory_xact_lock");
+    expect(claimSql).toContain("WHERE NOT EXISTS");
+    expect(claimSql).toContain("jira_cloud_id");
+    expect(claimSql).toContain("issue_id");
   });
 
   it("completes an exact owned row claim left without a document", async () => {
@@ -639,6 +672,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
     const reservation = makeReservation(issue);
     const { calls } = setupFetch([
       { body: ROW_UPDATE_OK },
+      { body: rowsForIssue(reservation) },
       { status: 500, body: { error: "response lost" } },
       { body: rowsForIssue(reservation) },
       { status: 404, body: { error: "not found" } },
@@ -652,7 +686,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
         claimFirst: true,
       }),
     ).rejects.toBeInstanceOf(AkbApiError);
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(5);
   });
 
   it("adopts a committed document after its POST response is lost", async () => {
@@ -660,6 +694,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
     const reservation = makeReservation(issue);
     const { calls } = setupFetch([
       { body: ROW_UPDATE_OK },
+      { body: rowsForIssue(reservation) },
       { status: 500, body: { error: "response lost" } },
       { body: rowsForIssue(reservation) },
       { body: docGetResponse("migrated") },
