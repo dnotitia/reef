@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
-import { NotFoundError } from "../../../errors";
+import { ConflictError, NotFoundError } from "../../../errors";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import {
   REEF_ISSUES_TABLE,
@@ -283,8 +283,16 @@ export async function claimIssueId(params: ClaimIssueIdParams): Promise<void> {
 export async function updateIssue(
   params: UpdateIssueParams,
 ): Promise<UpdateIssueResult> {
-  const { adapter, vault, id, partial, content, message, expectedCommit } =
-    params;
+  const {
+    adapter,
+    vault,
+    id,
+    partial,
+    content,
+    message,
+    expectedCommit,
+    expectedUpdatedAt,
+  } = params;
   return withSpan("akb.update_issue", { vault, id }, async (span) => {
     const current = await readIssue({ adapter, vault, id });
     const mergedIssue = mergeIssue(current.issue, partial);
@@ -349,16 +357,42 @@ export async function updateIssue(
       current.issue.status !== "backlog" &&
       mergedIssue.rank == null;
     try {
-      await runSql(
+      const rowUpdate = await runSql(
         adapter,
         vault,
-        `UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET ${buildRowAssignments(
-          issueRowMutableFields(
-            mergedIssue,
-            enteringBacklog ? { rankExpr: backlogTailRankExpr() } : undefined,
-          ),
-        )} WHERE reef_id = ${quoteText(id, "reef_id")}`,
+        expectedUpdatedAt
+          ? `WITH upd AS (UPDATE ${tableRef(
+              REEF_ISSUES_TABLE,
+            )} SET ${buildRowAssignments(
+              issueRowMutableFields(
+                mergedIssue,
+                enteringBacklog
+                  ? { rankExpr: backlogTailRankExpr() }
+                  : undefined,
+              ),
+            )} WHERE reef_id = ${quoteText(
+              id,
+              "reef_id",
+            )} AND updated_at = ${quoteText(
+              expectedUpdatedAt,
+              "expected updated_at",
+            )} RETURNING reef_id) SELECT reef_id FROM upd`
+          : `UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET ${buildRowAssignments(
+              issueRowMutableFields(
+                mergedIssue,
+                enteringBacklog
+                  ? { rankExpr: backlogTailRankExpr() }
+                  : undefined,
+              ),
+            )} WHERE reef_id = ${quoteText(id, "reef_id")}`,
       );
+      if (
+        expectedUpdatedAt &&
+        rowUpdate.kind === "table_query" &&
+        rowUpdate.items.length === 0
+      ) {
+        throw new ConflictError({ path: issuePathFor(id) });
+      }
     } catch (err) {
       if (docDirty) {
         const revertBody = buildIssueDocPatchBody(

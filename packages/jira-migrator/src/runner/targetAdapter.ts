@@ -92,6 +92,7 @@ interface TargetCore {
     content?: string;
     message?: string;
     expectedCommit?: string;
+    expectedUpdatedAt?: string;
   }): Promise<AkbUpdateIssueResult>;
   readIssue(input: {
     adapter: AkbAdapter;
@@ -290,6 +291,7 @@ export function createAkbJiraMigrationTarget(
     id: string,
     partial: Partial<IssueMetadata>,
     content?: string,
+    expected?: { commit: string | null; updatedAt: string },
   ) =>
     core.updateIssue({
       adapter,
@@ -297,6 +299,8 @@ export function createAkbJiraMigrationTarget(
       id,
       partial,
       ...(content !== undefined ? { content } : {}),
+      ...(expected?.commit ? { expectedCommit: expected.commit } : {}),
+      ...(expected ? { expectedUpdatedAt: expected.updatedAt } : {}),
       message: `Reconcile ${id} Jira migration data`,
     });
   const allIssueRows = () =>
@@ -307,21 +311,23 @@ export function createAkbJiraMigrationTarget(
     );
   const findRelation = async (idempotencyKey: string) => {
     for (const id of await allIssueIds()) {
-      const issue = (await readIssue(id)).issue;
+      const readback = await readIssue(id);
+      const issue = readback.issue;
       const record = sidecarFor(issue).relations.find(
         (candidate) => candidate.idempotencyKey === idempotencyKey,
       );
-      if (record) return { issue, record };
+      if (record) return { issue, readback, record };
     }
     return null;
   };
   const findExternalRef = async (idempotencyKey: string) => {
     for (const id of await allIssueIds()) {
-      const issue = (await readIssue(id)).issue;
+      const readback = await readIssue(id);
+      const issue = readback.issue;
       const record = sidecarFor(issue).externalRefs.find(
         (candidate) => candidate.idempotencyKey === idempotencyKey,
       );
-      if (record) return { issue, record };
+      if (record) return { issue, readback, record };
     }
     return null;
   };
@@ -467,6 +473,10 @@ export function createAkbJiraMigrationTarget(
           reefId,
           {},
           current.content.replaceAll(fileUri, replacement),
+          {
+            commit: current.commit_hash,
+            updatedAt: current.issue.updated_at,
+          },
         );
       }
       const fileId = /\/file\/([^/]+)$/u.exec(fileUri)?.[1];
@@ -491,34 +501,99 @@ export function createAkbJiraMigrationTarget(
       return (await readIssue(reefId)).content;
     },
     async updateDescription(reefId, markdown) {
-      await updateIssue(reefId, {}, markdown);
+      const current = await readIssue(reefId);
+      await updateIssue(reefId, {}, markdown, {
+        commit: current.commit_hash,
+        updatedAt: current.issue.updated_at,
+      });
     },
     async putRelation(input) {
-      const source = (await readIssue(input.sourceReefId)).issue;
-      const targetIssue = (await readIssue(input.targetReefId)).issue;
+      const sourceReadback = await readIssue(input.sourceReefId);
+      const targetReadback = await readIssue(input.targetReefId);
+      const source = sourceReadback.issue;
+      const targetIssue = targetReadback.issue;
       const sourceBefore = source[input.relation] ?? [];
       const targetBefore = targetIssue[input.inverseRelation] ?? [];
-      await updateIssue(input.sourceReefId, {
-        [input.relation]: addUnique(sourceBefore, input.targetReefId),
-      });
+      await updateIssue(
+        input.sourceReefId,
+        {
+          [input.relation]: addUnique(sourceBefore, input.targetReefId),
+        },
+        undefined,
+        {
+          commit: sourceReadback.commit_hash,
+          updatedAt: source.updated_at,
+        },
+      );
+      let targetRelationAdded = false;
       try {
-        await updateIssue(input.targetReefId, {
-          [input.inverseRelation]: addUnique(targetBefore, input.sourceReefId),
-        });
-        const sidecar = sidecarFor(source);
+        await updateIssue(
+          input.targetReefId,
+          {
+            [input.inverseRelation]: addUnique(
+              targetBefore,
+              input.sourceReefId,
+            ),
+          },
+          undefined,
+          {
+            commit: targetReadback.commit_hash,
+            updatedAt: targetIssue.updated_at,
+          },
+        );
+        targetRelationAdded = !targetBefore.includes(input.sourceReefId);
+        const refreshedSource = await readIssue(input.sourceReefId);
+        const sidecar = sidecarFor(refreshedSource.issue);
         sidecar.relations = sidecar.relations
           .filter((record) => record.idempotencyKey !== input.idempotencyKey)
           .concat({ ...input });
-        await updateIssue(input.sourceReefId, {
-          custom_fields: customFieldsWithSidecar(source, sidecar),
-        });
+        await updateIssue(
+          input.sourceReefId,
+          {
+            custom_fields: customFieldsWithSidecar(
+              refreshedSource.issue,
+              sidecar,
+            ),
+          },
+          undefined,
+          {
+            commit: refreshedSource.commit_hash,
+            updatedAt: refreshedSource.issue.updated_at,
+          },
+        );
       } catch (error) {
-        await updateIssue(input.sourceReefId, {
-          [input.relation]: sourceBefore,
-        }).catch(() => undefined);
-        await updateIssue(input.targetReefId, {
-          [input.inverseRelation]: targetBefore,
-        }).catch(() => undefined);
+        const rollback = async (
+          reefId: string,
+          relation: JiraRelationKind,
+          counterpartId: string,
+        ) => {
+          const current = await readIssue(reefId);
+          await updateIssue(
+            reefId,
+            {
+              [relation]: removeValue(current.issue[relation], counterpartId),
+            },
+            undefined,
+            {
+              commit: current.commit_hash,
+              updatedAt: current.issue.updated_at,
+            },
+          );
+        };
+        if (!sourceBefore.includes(input.targetReefId)) {
+          await rollback(
+            input.sourceReefId,
+            input.relation,
+            input.targetReefId,
+          ).catch(() => undefined);
+        }
+        if (targetRelationAdded) {
+          await rollback(
+            input.targetReefId,
+            input.inverseRelation,
+            input.sourceReefId,
+          ).catch(() => undefined);
+        }
         throw error;
       }
     },
@@ -539,8 +614,9 @@ export function createAkbJiraMigrationTarget(
     async deleteRelation(idempotencyKey) {
       const found = await findRelation(idempotencyKey);
       if (!found) return;
-      const { issue, record } = found;
-      const targetIssue = (await readIssue(record.targetReefId)).issue;
+      const { issue, readback, record } = found;
+      const targetReadback = await readIssue(record.targetReefId);
+      const targetIssue = targetReadback.issue;
       const sidecar = sidecarFor(issue);
       sidecar.relations = sidecar.relations.filter(
         (candidate) => candidate.idempotencyKey !== idempotencyKey,
@@ -552,23 +628,72 @@ export function createAkbJiraMigrationTarget(
           candidate.relation === record.relation &&
           candidate.inverseRelation === record.inverseRelation,
       );
-      await updateIssue(record.sourceReefId, {
-        [record.relation]: relationStillReferenced
-          ? issue[record.relation]
-          : removeValue(issue[record.relation], record.targetReefId),
-        custom_fields: customFieldsWithSidecar(issue, sidecar),
-      });
-      if (!relationStillReferenced) {
-        await updateIssue(record.targetReefId, {
-          [record.inverseRelation]: removeValue(
-            targetIssue[record.inverseRelation],
-            record.sourceReefId,
-          ),
-        });
+      const targetHadInverse =
+        !relationStillReferenced &&
+        (targetIssue[record.inverseRelation] ?? []).includes(
+          record.sourceReefId,
+        );
+      if (targetHadInverse) {
+        await updateIssue(
+          record.targetReefId,
+          {
+            [record.inverseRelation]: removeValue(
+              targetIssue[record.inverseRelation],
+              record.sourceReefId,
+            ),
+          },
+          undefined,
+          {
+            commit: targetReadback.commit_hash,
+            updatedAt: targetIssue.updated_at,
+          },
+        );
+      }
+      try {
+        await updateIssue(
+          record.sourceReefId,
+          {
+            [record.relation]: relationStillReferenced
+              ? issue[record.relation]
+              : removeValue(issue[record.relation], record.targetReefId),
+            custom_fields: customFieldsWithSidecar(issue, sidecar),
+          },
+          undefined,
+          {
+            commit: readback.commit_hash,
+            updatedAt: issue.updated_at,
+          },
+        );
+      } catch (error) {
+        const currentSource = await readIssue(record.sourceReefId);
+        const sourceStillOwnsRecord = sidecarFor(
+          currentSource.issue,
+        ).relations.some(
+          (candidate) => candidate.idempotencyKey === idempotencyKey,
+        );
+        if (targetHadInverse && sourceStillOwnsRecord) {
+          const currentTarget = await readIssue(record.targetReefId);
+          await updateIssue(
+            record.targetReefId,
+            {
+              [record.inverseRelation]: addUnique(
+                currentTarget.issue[record.inverseRelation],
+                record.sourceReefId,
+              ),
+            },
+            undefined,
+            {
+              commit: currentTarget.commit_hash,
+              updatedAt: currentTarget.issue.updated_at,
+            },
+          ).catch(() => undefined);
+        }
+        if (sourceStillOwnsRecord) throw error;
       }
     },
     async putExternalRef(input) {
-      const issue = (await readIssue(input.reefId)).issue;
+      const readback = await readIssue(input.reefId);
+      const issue = readback.issue;
       const sidecar = sidecarFor(issue);
       const previous = sidecar.externalRefs.find(
         (record) => record.idempotencyKey === input.idempotencyKey,
@@ -591,10 +716,18 @@ export function createAkbJiraMigrationTarget(
         ),
         input.ref,
       ];
-      await updateIssue(input.reefId, {
-        external_refs: refs,
-        custom_fields: customFieldsWithSidecar(issue, sidecar),
-      });
+      await updateIssue(
+        input.reefId,
+        {
+          external_refs: refs,
+          custom_fields: customFieldsWithSidecar(issue, sidecar),
+        },
+        undefined,
+        {
+          commit: readback.commit_hash,
+          updatedAt: issue.updated_at,
+        },
+      );
     },
     async hasExternalRef(idempotencyKey) {
       return (await findExternalRef(idempotencyKey)) !== null;
@@ -623,7 +756,7 @@ export function createAkbJiraMigrationTarget(
     async deleteExternalRef(idempotencyKey) {
       const found = await findExternalRef(idempotencyKey);
       if (!found) return;
-      const { issue, record } = found;
+      const { issue, readback, record } = found;
       const sidecar = sidecarFor(issue);
       sidecar.externalRefs = sidecar.externalRefs.filter(
         (candidate) => candidate.idempotencyKey !== idempotencyKey,
@@ -632,15 +765,23 @@ export function createAkbJiraMigrationTarget(
         (candidate) =>
           JSON.stringify(candidate.ref) === JSON.stringify(record.ref),
       );
-      await updateIssue(record.reefId, {
-        external_refs: refStillReferenced
-          ? issue.external_refs
-          : (issue.external_refs ?? []).filter(
-              (candidate) =>
-                JSON.stringify(candidate) !== JSON.stringify(record.ref),
-            ),
-        custom_fields: customFieldsWithSidecar(issue, sidecar),
-      });
+      await updateIssue(
+        record.reefId,
+        {
+          external_refs: refStillReferenced
+            ? issue.external_refs
+            : (issue.external_refs ?? []).filter(
+                (candidate) =>
+                  JSON.stringify(candidate) !== JSON.stringify(record.ref),
+              ),
+          custom_fields: customFieldsWithSidecar(issue, sidecar),
+        },
+        undefined,
+        {
+          commit: readback.commit_hash,
+          updatedAt: issue.updated_at,
+        },
+      );
     },
   };
   const activityMatches = async (

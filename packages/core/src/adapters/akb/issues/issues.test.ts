@@ -281,6 +281,39 @@ describe("updateIssue → document OCC (REEF-227)", () => {
     // attempted — no row write, no compensating re-PATCH, nothing to diverge.
     expect(patchCalls(calls)).toHaveLength(1);
   });
+
+  it("rejects a stale row snapshot before overwriting row-only fields", async () => {
+    const { calls } = setupFetch([
+      { body: docGetResponse("body") },
+      { body: makeIssueQueryResponse([makeIssue()]) },
+      {
+        body: {
+          kind: "table_query",
+          columns: ["reef_id"],
+          items: [],
+          total: 0,
+        },
+      },
+    ]);
+
+    await expect(
+      updateIssue({
+        adapter: makeTestAkbAdapter(),
+        vault: VAULT,
+        id: "REEF-001",
+        partial: { priority: "high" },
+        expectedUpdatedAt: "2026-05-01T00:00:00.000Z",
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+
+    const updateSql = calls
+      .filter((call) => call.url.includes("/sql"))
+      .map((call) => String(bodyOf(call).sql))
+      .at(-1);
+    expect(updateSql).toContain("updated_at =");
+    expect(updateSql).toContain("RETURNING reef_id");
+    expect(patchCalls(calls)).toHaveLength(0);
+  });
 });
 
 describe("reorderBacklogIssues (REEF-129)", () => {

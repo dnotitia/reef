@@ -206,6 +206,24 @@ describe("runJiraMigration", () => {
       expectedPlanSha256: dryRun.planSha256,
     };
     await expect(
+      runJiraMigration(
+        {
+          ...applyConfig,
+          target: {
+            ...applyConfig.target,
+            baseUrl: "https://different-akb.test",
+          },
+        },
+        {
+          target,
+          createJiraClient: (key) => clients.get(key) as never,
+          now,
+        },
+      ),
+    ).rejects.toMatchObject({ code: "dry_run_scope_mismatch" });
+    expect(mutations).toEqual([]);
+
+    await expect(
       runJiraMigration(applyConfig, {
         target,
         createJiraClient: (key) => clients.get(key) as never,

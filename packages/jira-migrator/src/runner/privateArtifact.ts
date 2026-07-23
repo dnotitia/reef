@@ -34,6 +34,7 @@ const PrivatePlanArtifactSchema = z
       .object({
         vault: z.string().min(1),
         actor: z.string().min(1),
+        endpoint_fingerprint: z.string().regex(/^[a-f0-9]{64}$/u),
       })
       .strict(),
     plan_sha256: z.string().regex(/^[a-f0-9]{64}$/u),

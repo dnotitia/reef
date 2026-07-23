@@ -36,7 +36,11 @@ describe("private migration artifacts", () => {
         project_keys: ["ALPHA"],
         board_ids: [],
       },
-      target: { vault: "reef-test", actor: "operator" },
+      target: {
+        vault: "reef-test",
+        actor: "operator",
+        endpoint_fingerprint: "b".repeat(64),
+      },
       plan_sha256: "a".repeat(64),
       payload: { exact: ["write", "plan"] },
     };

@@ -130,6 +130,14 @@ const projectId = (issue: NormalizedJiraIssue): string =>
 const privateSpoolSegment = (value: string): string =>
   createHash("sha256").update(value).digest("hex");
 
+const targetEndpointFingerprint = (baseUrl: string): string => {
+  const normalized = new URL(baseUrl).toString().replace(/\/$/u, "");
+  return createHash("sha256")
+    .update("reef:jira-migrator:akb-endpoint:v1\0")
+    .update(normalized)
+    .digest("hex");
+};
+
 const safePlanningAction = (action: JiraPlanningAction) => ({
   classification: action.classification,
   source_identity: action.sourceIdentity,
@@ -669,6 +677,7 @@ async function runJiraMigrationUnlocked(
   }
   const now = dependencies.now ?? (() => new Date().toISOString());
   const startedAt = now();
+  const endpointFingerprint = targetEndpointFingerprint(config.target.baseUrl);
   const target =
     dependencies.target ??
     createAkbJiraMigrationTarget({
@@ -719,6 +728,8 @@ async function runJiraMigrationUnlocked(
       JSON.stringify(approvedPlanArtifact.source.board_ids) !==
         JSON.stringify(config.jira.boardIds) ||
       approvedPlanArtifact.target.vault !== config.target.vault ||
+      approvedPlanArtifact.target.endpoint_fingerprint !==
+        endpointFingerprint ||
       approvedPlanArtifact.plan_sha256 !== approvedReport.plan_sha256
     ) {
       throw new JiraRunnerError("dry_run_scope_mismatch");
@@ -734,7 +745,8 @@ async function runJiraMigrationUnlocked(
         JSON.stringify(config.jira.projectKeys) ||
       JSON.stringify(approvedPlanArtifact.source.board_ids) !==
         JSON.stringify(config.jira.boardIds) ||
-      approvedPlanArtifact.target.vault !== config.target.vault
+      approvedPlanArtifact.target.vault !== config.target.vault ||
+      approvedPlanArtifact.target.endpoint_fingerprint !== endpointFingerprint
     ) {
       throw new JiraRunnerError("dry_run_scope_mismatch");
     }
@@ -1388,7 +1400,11 @@ async function runJiraMigrationUnlocked(
       changelog_pages: Object.fromEntries(changelogPagesByIssue),
       related: Object.fromEntries(relatedSourceSnapshots),
     },
-    target: { vault: config.target.vault, actor: targetPreflight.actor },
+    target: {
+      vault: config.target.vault,
+      actor: targetPreflight.actor,
+      endpoint_fingerprint: endpointFingerprint,
+    },
     issue_ids: targetIdsByJiraKey,
     planning: approvedPlanningPayload ?? currentPlanningPayload,
     issues: dryIssuePlans.map((plan) =>
@@ -1433,7 +1449,11 @@ async function runJiraMigrationUnlocked(
         project_keys: config.jira.projectKeys,
         board_ids: config.jira.boardIds,
       },
-      target: { vault: config.target.vault, actor: targetPreflight.actor },
+      target: {
+        vault: config.target.vault,
+        actor: targetPreflight.actor,
+        endpoint_fingerprint: endpointFingerprint,
+      },
       plan_sha256: planSha256,
       payload: planPayload,
     });
@@ -1774,7 +1794,7 @@ async function runJiraMigrationUnlocked(
         readbackFound: true,
       };
     };
-    let issueClaimBatchFailed = false;
+    const failedIssueClaimIds = new Set<string>();
     for (const plan of applyIssuePlans) {
       assertNotAborted();
       if (
@@ -1788,7 +1808,32 @@ async function runJiraMigrationUnlocked(
       try {
         await target.claimIssue(plan);
       } catch {
-        issueClaimBatchFailed = true;
+        const reefId = plan.desired.issue?.id;
+        if (reefId) failedIssueClaimIds.add(reefId);
+      }
+    }
+    const issueReferences = (plan: JiraIssueImportPlan): string[] => {
+      const desired = plan.desired.issue;
+      return desired
+        ? [
+            desired.parent_id,
+            ...(desired.depends_on ?? []),
+            ...(desired.blocks ?? []),
+            ...(desired.related_to ?? []),
+          ].filter((id): id is string => typeof id === "string")
+        : [];
+    };
+    let blockedClaimCount = -1;
+    while (blockedClaimCount !== failedIssueClaimIds.size) {
+      blockedClaimCount = failedIssueClaimIds.size;
+      for (const plan of applyIssuePlans) {
+        if (
+          actionForIssuePlan(plan, ledger) === "create" &&
+          issueReferences(plan).some((id) => failedIssueClaimIds.has(id))
+        ) {
+          const reefId = plan.desired.issue?.id;
+          if (reefId) failedIssueClaimIds.add(reefId);
+        }
       }
     }
     const confirmedIssueSourceKeys = new Set<string>();
@@ -1840,10 +1885,15 @@ async function runJiraMigrationUnlocked(
         await checkpoint();
         continue;
       }
-      if (
-        issueClaimBatchFailed &&
-        (action === "create" || action === "update")
-      ) {
+      const claimBlocked =
+        (action === "create" &&
+          Boolean(
+            plan.desired.issue &&
+              failedIssueClaimIds.has(plan.desired.issue.id),
+          )) ||
+        (action === "update" &&
+          issueReferences(plan).some((id) => failedIssueClaimIds.has(id)));
+      if (claimBlocked) {
         record(
           "issues",
           resultFor({

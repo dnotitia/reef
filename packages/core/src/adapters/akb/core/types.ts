@@ -84,6 +84,11 @@ export interface UpdateIssueParams {
    * for row-edits, which stay last-write-wins.
    */
   expectedCommit?: string;
+  /**
+   * Row-level OCC base for trusted read-modify-write callers. The update is
+   * applied only while the persisted row still has this `updated_at` value.
+   */
+  expectedUpdatedAt?: string;
 }
 
 export interface UpdateIssueResult {
