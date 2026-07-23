@@ -552,7 +552,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
   it("restores desired relationships while completing an owned claim", async () => {
     const owner = { jira_cloud_id: "cloud-1", issue_id: "10001" };
     const desiredIssue = makeIssue({
-      status: "todo",
+      status: "backlog",
       parent_id: "REEF-099",
       depends_on: ["REEF-098"],
       related_to: ["REEF-097"],
@@ -560,7 +560,8 @@ describe("born-correct backlog rank (REEF-176)", () => {
       custom_fields: { jira_migration: { owner } },
     });
     const reservation = makeIssue({
-      status: "todo",
+      status: "backlog",
+      rank: 4096,
       custom_fields: { jira_migration: { owner } },
     });
     const rowsFor = (issue: IssueMetadata) => {
@@ -614,6 +615,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
     expect(update).toContain("REEF-097");
     expect(update).toContain("REEF-096");
     expect(update).toContain("REEF-099");
+    expect(update).toContain('"rank" = 4096');
     expect(calls[4]?.url).toContain("/documents");
   });
 

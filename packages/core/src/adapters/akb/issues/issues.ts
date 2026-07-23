@@ -175,7 +175,12 @@ export async function writeIssue(
             adapter,
             vault,
             `UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET ${buildRowAssignments(
-              issueRowMutableFields(issue),
+              issueRowMutableFields(
+                issue,
+                issue.rank == null && existingIssue.rank != null
+                  ? { rankExpr: quoteNumberOrNull(existingIssue.rank) }
+                  : undefined,
+              ),
             )} WHERE reef_id = ${quoteText(
               issue.id,
               "reef_id",
