@@ -395,6 +395,7 @@ const baseIssueReadbackMatches = (
     "depends_on",
     "blocks",
     "related_to",
+    "created_at",
     "updated_at",
   ]);
   const keys = Object.keys(desired).filter(
@@ -403,7 +404,9 @@ const baseIssueReadbackMatches = (
   const normalize = (
     issue: Record<string, unknown>,
   ): Record<string, unknown> => {
-    const projection = Object.fromEntries(keys.map((key) => [key, issue[key]]));
+    const projection = Object.fromEntries(
+      keys.map((key) => [key, issue[key] ?? null]),
+    );
     const customFields =
       projection.custom_fields &&
       typeof projection.custom_fields === "object" &&

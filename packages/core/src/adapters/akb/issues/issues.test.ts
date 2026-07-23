@@ -498,6 +498,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
     };
     claimedRows.items[0] = {
       ...claimedRows.items[0],
+      created_at: "2026-05-01T00:00:01.000Z",
       document_uri: `akb://${VAULT}/coll/issues/doc/reef-001.md`,
       meta: {
         author: claimedIssue.created_by,
@@ -510,6 +511,8 @@ describe("born-correct backlog rank (REEF-176)", () => {
     const recoveredIssue = rowToIssue(claimedRows.items[0]);
     const desiredKeys = Object.keys(claimedIssue).filter(
       (key) =>
+        key !== "created_at" &&
+        key !== "updated_at" &&
         claimedIssue[key as keyof IssueMetadata] !== undefined &&
         !(
           ["depends_on", "blocks", "related_to"].includes(key) &&

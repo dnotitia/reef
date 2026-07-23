@@ -145,6 +145,7 @@ export async function writeIssue(
         const relationKeys = new Set(["depends_on", "blocks", "related_to"]);
         const desiredKeys = Object.keys(issue).filter(
           (key) =>
+            key !== "created_at" &&
             key !== "updated_at" &&
             issue[key as keyof IssueMetadata] !== undefined,
         );
@@ -158,7 +159,10 @@ export async function writeIssue(
                 relationKeys.has(key) &&
                 existingIssue[key as keyof IssueMetadata] === undefined
                   ? []
-                  : existingIssue[key as keyof IssueMetadata],
+                  : issue[key as keyof IssueMetadata] === null &&
+                      existingIssue[key as keyof IssueMetadata] === undefined
+                    ? null
+                    : existingIssue[key as keyof IssueMetadata],
               ]),
             )
           : null;
@@ -203,7 +207,10 @@ export async function writeIssue(
                   relationKeys.has(key) &&
                   refreshedIssue[key as keyof IssueMetadata] === undefined
                     ? []
-                    : refreshedIssue[key as keyof IssueMetadata],
+                    : issue[key as keyof IssueMetadata] === null &&
+                        refreshedIssue[key as keyof IssueMetadata] === undefined
+                      ? null
+                      : refreshedIssue[key as keyof IssueMetadata],
                 ]),
               )
             : null;

@@ -226,29 +226,29 @@ export async function claimAndReadPlanningRow<T>(input: {
   table: ReefTableName;
   fields: Array<[string, string]>;
   name: string;
-  idempotencyKey: string;
+  idempotencyKey?: string;
   idempotencyMetaKey: string;
   toItem: (row: Record<string, unknown>) => T;
 }): Promise<T> {
   const columns = input.fields.map(([column]) => quoteIdent(column)).join(", ");
   const values = input.fields.map(([, value]) => value).join(", ");
-  const idempotencyLock = `reef:planning:idempotency:${input.idempotencyKey}`;
+  const idempotencyLock = input.idempotencyKey
+    ? `reef:planning:idempotency:${input.idempotencyKey}`
+    : null;
   const nameLock = `reef:planning:name:${input.table}:${input.name.trim().toLowerCase()}`;
-  const statement = `WITH claim_lock AS MATERIALIZED (SELECT pg_advisory_xact_lock(hashtext(lock_key)) FROM (VALUES (${quoteText(
-    idempotencyLock,
-    "planning idempotency lock",
-  )}), (${quoteText(
-    nameLock,
-    "planning name lock",
-  )})) AS locks(lock_key) ORDER BY lock_key), lock_barrier AS MATERIALIZED (SELECT count(*) FROM claim_lock), existing_claim AS MATERIALIZED (SELECT planning.* FROM ${tableRef(
+  const lockValues = [idempotencyLock, nameLock]
+    .filter((value): value is string => value !== null)
+    .map((value) => `(${quoteText(value, "planning lock")})`)
+    .join(", ");
+  const existingClaimPredicate = input.idempotencyKey
+    ? `planning.meta->>${quoteText(
+        input.idempotencyMetaKey,
+        "planning claim field",
+      )} = ${quoteText(input.idempotencyKey, "planning idempotency key")}`
+    : "FALSE";
+  const statement = `WITH claim_lock AS MATERIALIZED (SELECT pg_advisory_xact_lock(hashtext(lock_key)) FROM (VALUES ${lockValues}) AS locks(lock_key) ORDER BY lock_key), lock_barrier AS MATERIALIZED (SELECT count(*) FROM claim_lock), existing_claim AS MATERIALIZED (SELECT planning.* FROM ${tableRef(
     input.table,
-  )} planning CROSS JOIN lock_barrier WHERE planning.meta->>${quoteText(
-    input.idempotencyMetaKey,
-    "planning claim field",
-  )} = ${quoteText(
-    input.idempotencyKey,
-    "planning idempotency key",
-  )}), name_conflict AS MATERIALIZED (SELECT 1 FROM ${tableRef(
+  )} planning CROSS JOIN lock_barrier WHERE ${existingClaimPredicate}), name_conflict AS MATERIALIZED (SELECT 1 FROM ${tableRef(
     input.table,
   )} planning CROSS JOIN lock_barrier WHERE lower(planning.name) = lower(${quoteText(
     input.name,

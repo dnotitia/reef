@@ -94,7 +94,6 @@ describe("planning metadata", () => {
   it("inserts a sprint atomically and returns it with the akb-assigned uuid", async () => {
     const { calls } = setupFetch([
       { body: makeListTablesResponse(ALL_REEF_TABLES) },
-      { body: makeSqlQueryResponse([], SPRINT_ROW_COLUMNS) }, // unique-name check
       {
         body: makeSqlQueryResponse(
           [
@@ -129,8 +128,8 @@ describe("planning metadata", () => {
     // akb assigns the uuid id and returns the row in one statement via the
     // data-modifying CTE — no separate read-back to race.
     expect(sprint.id).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
-    const insertSql = JSON.parse(calls[2]?.init?.body as string).sql;
-    expect(insertSql).toMatch(/^WITH ins AS \(INSERT INTO /);
+    const insertSql = JSON.parse(calls[1]?.init?.body as string).sql;
+    expect(insertSql).toContain("claim_lock AS MATERIALIZED");
     expect(insertSql).toContain("RETURNING *");
     expect(insertSql).toContain("'Sprint 12'");
     expect(insertSql).not.toContain('"id"'); // id is does not written

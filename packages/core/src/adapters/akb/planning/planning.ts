@@ -113,36 +113,19 @@ export async function createSprint(
     // Validate before the insert — akb assigns the uuid id, but the other
     // fields should be checked here so an invalid row does not persists.
     const validated = SprintCreateSchema.parse(item);
-    if (idempotencyKey) {
-      return claimAndReadPlanningRow({
-        adapter,
-        vault,
-        table: REEF_SPRINTS_TABLE,
-        fields: sprintRowFields(validated, {
-          [CREATE_IDEMPOTENCY_META_KEY]: idempotencyKey,
-        }),
-        name: validated.name,
-        idempotencyKey,
-        idempotencyMetaKey: CREATE_IDEMPOTENCY_META_KEY,
-        toItem: rowToSprint,
-      });
-    }
-    await assertUniquePlanningName(
+    return claimAndReadPlanningRow({
       adapter,
       vault,
-      REEF_SPRINTS_TABLE,
-      validated.name,
-    );
-    return insertAndReadPlanningRow(
-      adapter,
-      vault,
-      REEF_SPRINTS_TABLE,
-      sprintRowFields(
+      table: REEF_SPRINTS_TABLE,
+      fields: sprintRowFields(
         validated,
         idempotencyKey ? { [CREATE_IDEMPOTENCY_META_KEY]: idempotencyKey } : {},
       ),
-      rowToSprint,
-    );
+      name: validated.name,
+      idempotencyKey,
+      idempotencyMetaKey: CREATE_IDEMPOTENCY_META_KEY,
+      toItem: rowToSprint,
+    });
   });
 }
 
@@ -254,36 +237,19 @@ export async function createRelease(
   return withSpan("akb.create_release", { vault }, async () => {
     await ensureReefTables({ adapter, vault });
     const validated = ReleaseCreateSchema.parse(item);
-    if (idempotencyKey) {
-      return claimAndReadPlanningRow({
-        adapter,
-        vault,
-        table: REEF_RELEASES_TABLE,
-        fields: releaseRowFields(validated, {
-          [CREATE_IDEMPOTENCY_META_KEY]: idempotencyKey,
-        }),
-        name: validated.name,
-        idempotencyKey,
-        idempotencyMetaKey: CREATE_IDEMPOTENCY_META_KEY,
-        toItem: rowToRelease,
-      });
-    }
-    await assertUniquePlanningName(
+    return claimAndReadPlanningRow({
       adapter,
       vault,
-      REEF_RELEASES_TABLE,
-      validated.name,
-    );
-    return insertAndReadPlanningRow(
-      adapter,
-      vault,
-      REEF_RELEASES_TABLE,
-      releaseRowFields(
+      table: REEF_RELEASES_TABLE,
+      fields: releaseRowFields(
         validated,
         idempotencyKey ? { [CREATE_IDEMPOTENCY_META_KEY]: idempotencyKey } : {},
       ),
-      rowToRelease,
-    );
+      name: validated.name,
+      idempotencyKey,
+      idempotencyMetaKey: CREATE_IDEMPOTENCY_META_KEY,
+      toItem: rowToRelease,
+    });
   });
 }
 
