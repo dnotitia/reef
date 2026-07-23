@@ -2672,6 +2672,7 @@ async function runJiraMigrationUnlocked(
             ...(approvedCommentBindingPreconditions
               ? {
                   approvedCommentBindings: approvedCommentBindings(issue.key),
+                  approvedCommentBindingsAppliedAfter: runAt,
                 }
               : {}),
           },

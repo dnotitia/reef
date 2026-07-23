@@ -144,7 +144,11 @@ export async function importJiraRelatedData(
       binding.source_identity.jira_cloud_id === input.jiraCloudId &&
       binding.source_identity.issue_id === issue.id &&
       approvedCommentBindings?.has(binding.source_key) &&
-      !commentBindingMatchesApproval(binding)
+      !commentBindingMatchesApproval(binding) &&
+      (input.attachmentPolicy?.approvedCommentBindingsAppliedAfter ===
+        undefined ||
+        binding.last_applied_at <
+          input.attachmentPolicy.approvedCommentBindingsAppliedAfter)
     ) {
       failure(
         report.failures,

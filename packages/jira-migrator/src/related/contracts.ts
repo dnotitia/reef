@@ -134,6 +134,7 @@ export interface JiraRelatedImportInput {
   attachmentPolicy?: {
     commentVisibilityCompleteness?: "verified";
     approvedCommentBindings?: readonly JiraMigrationLedgerV1["bindings"][number][];
+    approvedCommentBindingsAppliedAfter?: string;
     maxBytes: number;
   };
   descriptionConversionOptions?: AdfToMarkdownOptions;

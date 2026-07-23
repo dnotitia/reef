@@ -229,6 +229,7 @@ export async function claimAndReadPlanningRow<T>(input: {
   idempotencyKey?: string;
   idempotencyMetaKey: string;
   toItem: (row: Record<string, unknown>) => T;
+  isCompatible: (item: T) => boolean;
 }): Promise<T> {
   const columns = input.fields.map(([column]) => quoteIdent(column)).join(", ");
   const values = input.fields.map(([, value]) => value).join(", ");
@@ -265,7 +266,9 @@ export async function claimAndReadPlanningRow<T>(input: {
   }
   const row = rows[0];
   if (!row) throw new ConflictError();
-  return input.toItem(row);
+  const item = input.toItem(row);
+  if (!input.isCompatible(item)) throw new ConflictError();
+  return item;
 }
 
 export async function updatePlanningRow(

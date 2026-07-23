@@ -125,6 +125,13 @@ export async function createSprint(
       idempotencyKey,
       idempotencyMetaKey: CREATE_IDEMPOTENCY_META_KEY,
       toItem: rowToSprint,
+      isCompatible: (item) =>
+        item.name === validated.name &&
+        item.status === validated.status &&
+        (item.start_date ?? null) === (validated.start_date ?? null) &&
+        (item.end_date ?? null) === (validated.end_date ?? null) &&
+        item.goal === validated.goal &&
+        (item.capacity_points ?? null) === (validated.capacity_points ?? null),
     });
   });
 }
@@ -249,6 +256,12 @@ export async function createRelease(
       idempotencyKey,
       idempotencyMetaKey: CREATE_IDEMPOTENCY_META_KEY,
       toItem: rowToRelease,
+      isCompatible: (item) =>
+        item.name === validated.name &&
+        item.status === validated.status &&
+        (item.target_date ?? null) === (validated.target_date ?? null) &&
+        (item.released_at ?? null) === (validated.released_at ?? null) &&
+        item.notes === validated.notes,
     });
   });
 }
