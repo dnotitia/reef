@@ -287,14 +287,11 @@ export function createAkbJiraMigrationTarget(
         input.body,
         input.author,
         input.parentCommentId,
-        { createdAt: input.createdAt, editedAt: input.editedAt },
-      );
-      await sql(
-        adapter,
-        vault,
-        `UPDATE reef_comments SET meta = jsonb_set(meta::jsonb, '{jira_idempotency_key}', to_jsonb(${quote(
-          input.idempotencyKey,
-        )}::text))::json WHERE id = ${quote(comment.id)}`,
+        {
+          createdAt: input.createdAt,
+          editedAt: input.editedAt,
+          metadata: { jira_idempotency_key: input.idempotencyKey },
+        },
       );
       return comment;
     },
@@ -496,19 +493,27 @@ export function createAkbJiraMigrationTarget(
       sidecar.relations = sidecar.relations.filter(
         (candidate) => candidate.idempotencyKey !== idempotencyKey,
       );
+      const relationStillReferenced = sidecar.relations.some(
+        (candidate) =>
+          candidate.sourceReefId === record.sourceReefId &&
+          candidate.targetReefId === record.targetReefId &&
+          candidate.relation === record.relation &&
+          candidate.inverseRelation === record.inverseRelation,
+      );
       await updateIssue(record.sourceReefId, {
-        [record.relation]: removeValue(
-          issue[record.relation],
-          record.targetReefId,
-        ),
+        [record.relation]: relationStillReferenced
+          ? issue[record.relation]
+          : removeValue(issue[record.relation], record.targetReefId),
         custom_fields: customFieldsWithSidecar(issue, sidecar),
       });
-      await updateIssue(record.targetReefId, {
-        [record.inverseRelation]: removeValue(
-          targetIssue[record.inverseRelation],
-          record.sourceReefId,
-        ),
-      });
+      if (!relationStillReferenced) {
+        await updateIssue(record.targetReefId, {
+          [record.inverseRelation]: removeValue(
+            targetIssue[record.inverseRelation],
+            record.sourceReefId,
+          ),
+        });
+      }
     },
     async putExternalRef(input) {
       const issue = (await readIssue(input.reefId)).issue;
@@ -571,11 +576,17 @@ export function createAkbJiraMigrationTarget(
       sidecar.externalRefs = sidecar.externalRefs.filter(
         (candidate) => candidate.idempotencyKey !== idempotencyKey,
       );
+      const refStillReferenced = sidecar.externalRefs.some(
+        (candidate) =>
+          JSON.stringify(candidate.ref) === JSON.stringify(record.ref),
+      );
       await updateIssue(record.reefId, {
-        external_refs: (issue.external_refs ?? []).filter(
-          (candidate) =>
-            JSON.stringify(candidate) !== JSON.stringify(record.ref),
-        ),
+        external_refs: refStillReferenced
+          ? issue.external_refs
+          : (issue.external_refs ?? []).filter(
+              (candidate) =>
+                JSON.stringify(candidate) !== JSON.stringify(record.ref),
+            ),
         custom_fields: customFieldsWithSidecar(issue, sidecar),
       });
     },
@@ -684,6 +695,18 @@ export function createAkbJiraMigrationTarget(
           ? planning.releases.find((candidate) => candidate.id === item.id)
           : planning.sprints.find((candidate) => candidate.id === item.id);
       if (!readback) throw new Error("target_planning_readback_failed");
+      const readbackProjection = Object.fromEntries(
+        Object.keys(action.target.item).map((key) => [
+          key,
+          readback[key as keyof typeof readback],
+        ]),
+      );
+      if (
+        canonicalizeJson(readbackProjection) !==
+        canonicalizeJson(action.target.item)
+      ) {
+        throw new Error("target_planning_readback_failed");
+      }
       return {
         sourceIdentity: action.sourceIdentity,
         targetKind: action.target.kind,

@@ -1,3 +1,6 @@
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   JiraMigratorConfigError,
@@ -310,5 +313,31 @@ describe("loadJiraMigratorConfig", () => {
     expect(config.expectedPlanSha256).toBe(hash);
     expect(config.resumeRunId).toBe("run-123");
     expect(config.artifacts.runId).toBe("run-123");
+  });
+
+  it("recovers the apply run identity from the sealed approval report", () => {
+    const directory = mkdtempSync(join(tmpdir(), "reef-jira-config-"));
+    chmodSync(directory, 0o700);
+    const reportPath = join(directory, "report.json");
+    writeFileSync(
+      `${reportPath}.approval.json`,
+      JSON.stringify({ run: { run_id: "sealed-run", mode: "dry-run" } }),
+      { mode: 0o600 },
+    );
+    try {
+      const config = loadJiraMigratorConfig({
+        argv: [
+          "--apply",
+          "--expected-plan-sha256",
+          "a".repeat(64),
+          "--report-path",
+          reportPath,
+        ],
+        env,
+      });
+      expect(config.artifacts.runId).toBe("sealed-run");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });

@@ -10,6 +10,7 @@ import {
   collectJiraUserObservations,
   upsertJiraAccountMappingArtifact,
 } from "../accounts/mapping.js";
+import { canonicalizeJson } from "../archive/canonicalJson.js";
 import {
   type JiraMigratorConfig,
   secretValuesForConfig,
@@ -133,14 +134,14 @@ const safePlanningAction = (action: JiraPlanningAction) => ({
   classification: action.classification,
   source_identity: action.sourceIdentity,
   selection: [...action.selection],
-  source: action.provenance.source,
+  source_fingerprint: fingerprintJiraState(action.provenance.source),
   target:
     action.target === null
       ? null
       : {
           kind: action.target.kind,
           name: action.target.item.name,
-          state: action.target.item,
+          state_fingerprint: fingerprintJiraState(action.target.item),
         },
   target_id: action.classification === "reuse" ? action.targetId : null,
 });
@@ -351,15 +352,26 @@ const snapshotJiraClient = (
   return new Proxy(client, {
     get(target, property) {
       if (property === "readComments") {
-        return async (issueKey: string) => {
-          const cached = comments.get(issueKey);
+        return async (
+          issueKey: string,
+          options?: Parameters<JiraReadClient["readComments"]>[1],
+        ) => {
+          const cacheKey = canonicalizeJson({
+            issue_key: issueKey,
+            options: options ?? {},
+          });
+          const cached = comments.get(cacheKey);
           if (cached) return cached;
-          const result = await target.readComments(issueKey);
+          const result = await target.readComments(issueKey, options);
+          const previous =
+            (snapshot.comments[issueKey] as
+              | { items?: unknown[]; pages?: unknown[] }
+              | undefined) ?? {};
           snapshot.comments[issueKey] = {
-            items: result.items,
-            pages: result.pages ?? [],
+            items: [...(previous.items ?? []), ...result.items],
+            pages: [...(previous.pages ?? []), ...(result.pages ?? [])],
           };
-          comments.set(issueKey, result);
+          comments.set(cacheKey, result);
           return result;
         };
       }

@@ -470,6 +470,24 @@ const parseMappingPolicies = (
   return result;
 };
 
+const approvalRunId = (reportPath: string | null): string | null => {
+  if (!reportPath) return null;
+  try {
+    const parsed = JSON.parse(
+      readFileSync(`${reportPath}.approval.json`, "utf8"),
+    ) as {
+      run?: { run_id?: unknown; mode?: unknown };
+    };
+    return parsed.run?.mode === "dry-run" &&
+      typeof parsed.run.run_id === "string" &&
+      parsed.run.run_id.length > 0
+      ? parsed.run.run_id
+      : null;
+  } catch {
+    return null;
+  }
+};
+
 export function loadJiraMigratorConfig({
   argv = [],
   env = process.env,
@@ -504,7 +522,22 @@ export function loadJiraMigratorConfig({
     env.REEF_JIRA_ACCOUNT_MAPPING_PATH,
   );
   const resumeRunId = firstValue(parsed.resumeRunId);
-  const runId = resumeRunId ?? firstValue(parsed.runId) ?? randomUUID();
+  const explicitRunId = resumeRunId ?? firstValue(parsed.runId);
+  const recoveredRunId =
+    mode === "apply" && firstValue(parsed.expectedPlanSha256)
+      ? approvalRunId(reportPath)
+      : null;
+  if (
+    mode === "apply" &&
+    firstValue(parsed.expectedPlanSha256) &&
+    !explicitRunId &&
+    !recoveredRunId
+  ) {
+    throw new JiraMigratorConfigError([
+      "--run-id is required with --apply when no sealed approval report is available",
+    ]);
+  }
+  const runId = explicitRunId ?? recoveredRunId ?? randomUUID();
   const targetJwt = resolveSecret(
     firstValue(env.REEF_AKB_JWT),
     firstValue(parsed.akbJwtFile, env.REEF_AKB_JWT_FILE),

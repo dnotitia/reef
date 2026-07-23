@@ -9,6 +9,7 @@ import {
   rm,
 } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { lock } from "proper-lockfile";
 import { z } from "zod";
 import { canonicalizeJson } from "../archive/canonicalJson.js";
 import { JiraMigrationActionSchema } from "../ledger.js";
@@ -247,20 +248,14 @@ export async function loadJiraRunnerReport(
   path: string,
 ): Promise<JiraRunnerReport> {
   const absolute = resolve(path);
-  if (await exists(`${absolute}.lock`)) fail("lock_conflict");
-  await assertPrivate(dirname(absolute), "directory");
-  await assertPrivate(absolute, "file");
-  const raw = await readFile(absolute, "utf8").catch(() =>
-    fail("report_io_failed"),
-  );
-  let value: unknown;
+  const release = await acquireReportLock(absolute);
   try {
-    value = JSON.parse(raw);
-  } catch {
-    return fail("report_schema_invalid");
+    await assertPrivate(dirname(absolute), "directory");
+    await assertPrivate(absolute, "file");
+    return await loadReportAllowLock(absolute);
+  } finally {
+    await release();
   }
-  const parsed = JiraRunnerReportSchema.safeParse(value);
-  return parsed.success ? parsed.data : fail("report_schema_invalid");
 }
 
 const writeExclusive = async (path: string, value: string): Promise<void> => {
@@ -289,9 +284,8 @@ export async function writeJiraRunnerReport(input: {
   }
   const absolute = resolve(input.path);
   await ensureDirectory(dirname(absolute));
-  const lock = `${absolute}.lock`;
   const temporary = `${absolute}.${randomUUID()}.tmp`;
-  await writeExclusive(lock, "locked\n");
+  const release = await acquireReportLock(absolute);
   try {
     if (await exists(absolute)) {
       if (!input.expectedReport) fail("stale_report");
@@ -311,9 +305,24 @@ export async function writeJiraRunnerReport(input: {
     }
   } finally {
     await rm(temporary, { force: true }).catch(() => undefined);
-    await rm(lock, { force: true }).catch(() => undefined);
+    await release();
   }
 }
+
+const acquireReportLock = async (
+  path: string,
+): Promise<() => Promise<void>> => {
+  try {
+    return await lock(path, {
+      realpath: false,
+      stale: 10_000,
+      update: 2_000,
+      retries: 0,
+    });
+  } catch {
+    return fail("lock_conflict");
+  }
+};
 
 const loadReportAllowLock = async (path: string): Promise<JiraRunnerReport> => {
   const raw = await readFile(path, "utf8").catch(() =>

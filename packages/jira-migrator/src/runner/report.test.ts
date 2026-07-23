@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, readFile, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -79,6 +79,11 @@ describe("Jira runner report", () => {
       forbiddenSecretValues: ["jira-canary", "akb-canary"],
     });
     expect(JSON.parse(await readFile(path, "utf8"))).toEqual(report());
+    expect(await loadJiraRunnerReport(path)).toEqual(report());
+
+    await mkdir(`${path}.lock`);
+    const staleAt = new Date(Date.now() - 60_000);
+    await utimes(`${path}.lock`, staleAt, staleAt);
     expect(await loadJiraRunnerReport(path)).toEqual(report());
 
     await expect(

@@ -219,6 +219,7 @@ describe("createComment", () => {
       {
         createdAt: "2026-06-18T04:00:00.000Z",
         editedAt: "2026-06-18T05:00:00.000Z",
+        metadata: { jira_idempotency_key: "jira:comment:10001" },
       },
     );
 
@@ -246,6 +247,7 @@ describe("createComment", () => {
     // Semantic author lives in meta.
     expect(sql).toContain('"author":"alice"');
     expect(sql).toContain('"edited_at":"2026-06-18T05:00:00.000Z"');
+    expect(sql).toContain('"jira_idempotency_key":"jira:comment:10001"');
   });
 
   it("404s a comment on a non-existent issue (no orphan row)", async () => {
@@ -298,6 +300,11 @@ describe("createComment", () => {
         "reply",
         "alice",
         rootId,
+        {
+          createdAt: "2026-06-18T04:00:00.000Z",
+          editedAt: null,
+          metadata: { jira_idempotency_key: "jira:reply:10002" },
+        },
       ),
     ).resolves.toMatchObject({
       id: replyId,
@@ -312,6 +319,7 @@ describe("createComment", () => {
     expect(sql).toContain("WITH RECURSIVE target_issue");
     expect(sql).toContain("WHERE reef_id = 'REEF-062' LIMIT 1");
     expect(sql).toContain("parent_chain AS");
+    expect(sql).toContain('"jira_idempotency_key":"jira:reply:10002"');
     expect(sql.match(/INSERT INTO reef_comments/g)).toHaveLength(1);
     expect(calls).toHaveLength(2);
   });
