@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
-import { ConflictError, NotFoundError } from "../../../errors";
+import { AkbApiError, ConflictError, NotFoundError } from "../../../errors";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import {
   REEF_ISSUES_TABLE,
@@ -515,25 +515,50 @@ export async function updateIssue(
         throw new ConflictError({ path: issuePathFor(id) });
       }
     } catch (err) {
-      if (docDirty) {
-        const revertBody = buildIssueDocPatchBody(
-          current.issue,
-          current.content,
-        );
-        revertBody.message = `Revert ${id} document: row update failed`;
-        await adapter
-          .request(docPath, {
-            method: "PATCH",
-            body: revertBody,
-            resource: makeIssueResourceLabel(id),
-          })
-          .catch(() => {
-            // Best-effort compensation; the original row-update error takes
-            // precedence. If this re-PATCH also fails the stores stay diverged,
-            // same contract as the other two sagas' best-effort compensations.
-          });
+      let committed = false;
+      if (!(err instanceof AkbApiError) || err.status === 0) {
+        try {
+          const recovered = await readIssue({ adapter, vault, id });
+          const expectedRecoveredIssue = {
+            ...mergedIssue,
+            updated_at: recovered.issue.updated_at,
+            ...(enteringBacklog ? { rank: recovered.issue.rank } : {}),
+          };
+          committed =
+            recovered.commit_hash === commitHash &&
+            recovered.content === mergedBody &&
+            isDeepStrictEqual(recovered.issue, expectedRecoveredIssue);
+          if (committed) {
+            mergedIssue.updated_at = recovered.issue.updated_at;
+            if (enteringBacklog) mergedIssue.rank = recovered.issue.rank;
+          }
+        } catch {
+          committed = false;
+        }
       }
-      throw err;
+      if (committed) {
+        span.setAttribute("row_update_recovered", true);
+      } else {
+        if (docDirty) {
+          const revertBody = buildIssueDocPatchBody(
+            current.issue,
+            current.content,
+          );
+          revertBody.message = `Revert ${id} document: row update failed`;
+          await adapter
+            .request(docPath, {
+              method: "PATCH",
+              body: revertBody,
+              resource: makeIssueResourceLabel(id),
+            })
+            .catch(() => {
+              // Best-effort compensation; the original row-update error takes
+              // precedence. If this re-PATCH also fails the stores stay diverged,
+              // same contract as the other two sagas' best-effort compensations.
+            });
+        }
+        throw err;
+      }
     }
 
     // The tail rank was assigned by an in-statement subquery, so its value is

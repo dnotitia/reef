@@ -221,6 +221,40 @@ describe("updateIssue → row-update compensation", () => {
     expect(patchCalls(calls)).toHaveLength(2); // revert was still attempted
   });
 
+  it("adopts an ambiguously acknowledged row update after exact readback", async () => {
+    const recoveredIssue = makeIssue({
+      updated_at: "2026-05-01T00:00:01.000Z",
+    });
+    const { calls } = setupFetch([
+      { body: docGetResponse("old body") },
+      { body: makeIssueQueryResponse([makeIssue()]) },
+      { body: putResponse("commit-new") },
+      { error: new TypeError("connection reset after commit") },
+      {
+        body: {
+          ...(docGetResponse("new body") as Record<string, unknown>),
+          current_commit: "commit-new",
+        },
+      },
+      { body: makeIssueQueryResponse([recoveredIssue]) },
+    ]);
+
+    await expect(
+      updateIssue({
+        adapter: makeTestAkbAdapter(),
+        vault: VAULT,
+        id: "REEF-001",
+        partial: {},
+        content: "new body",
+      }),
+    ).resolves.toMatchObject({
+      commit_hash: "commit-new",
+      content: "new body",
+      issue: { updated_at: "2026-05-01T00:00:01.000Z" },
+    });
+    expect(patchCalls(calls)).toHaveLength(1);
+  });
+
   it("commits both stores and skips compensation on the happy path", async () => {
     const { calls } = setupFetch([
       { body: docGetResponse("old body") },

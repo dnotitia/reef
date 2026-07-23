@@ -3140,9 +3140,15 @@ export async function runJiraMigration(
       .slice(0, 16)}`,
     `${lockIdentity}.lock`,
   );
-  await ensurePrivateDirectory(dirname(lockPath));
-  const release = await acquireMigrationRunLock(lockPath);
+  const lockPaths = [
+    ...new Set([`${paths.ledgerPath}.run.lock`, lockPath]),
+  ].sort((left, right) => left.localeCompare(right));
+  const releases: Array<() => Promise<void>> = [];
   try {
+    for (const path of lockPaths) {
+      await ensurePrivateDirectory(dirname(path));
+      releases.push(await acquireMigrationRunLock(path));
+    }
     return await runJiraMigrationUnlocked(config, dependencies);
   } finally {
     await rm(
@@ -3153,6 +3159,8 @@ export async function runJiraMigration(
       ),
       { recursive: true, force: true },
     ).catch(() => undefined);
-    await release();
+    for (const release of releases.reverse()) {
+      await release();
+    }
   }
 }
