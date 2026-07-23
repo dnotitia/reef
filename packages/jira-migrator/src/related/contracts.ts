@@ -133,7 +133,7 @@ export interface JiraRelatedImportInput {
   linkMappings: readonly JiraLinkMapping[];
   attachmentPolicy?: {
     commentVisibilityCompleteness?: "verified";
-    approvedCommentBindingKeys?: readonly string[];
+    approvedCommentBindings?: readonly JiraMigrationLedgerV1["bindings"][number][];
     maxBytes: number;
   };
   descriptionConversionOptions?: AdfToMarkdownOptions;

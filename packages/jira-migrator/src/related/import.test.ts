@@ -1144,6 +1144,36 @@ describe("Jira related-data import stage", () => {
       rateLimits: [],
     });
     const filteredIssue = issueFixture();
+    const approvedCommentBindings = applied.ledger.bindings.filter(
+      (binding) => binding.entity_kind === "comment",
+    );
+    const driftedLedger = {
+      ...applied.ledger,
+      bindings: applied.ledger.bindings.map((binding) =>
+        binding.entity_kind === "comment"
+          ? { ...binding, mapped_state_fingerprint: "0".repeat(64) }
+          : binding,
+      ),
+    };
+    const drifted = await importJiraRelatedData({
+      ...base,
+      attachmentPolicy: {
+        ...attachmentPolicy,
+        approvedCommentBindings,
+      },
+      issue: filteredIssue,
+      client: filteredClient,
+      ledger: driftedLedger,
+    });
+    expect(state.comments.size).toBe(2);
+    expect(drifted.report.failures).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          reason: "comment_binding_precondition_failed",
+        }),
+      ]),
+    );
+
     const reconciled = await importJiraRelatedData({
       ...base,
       issue: filteredIssue,

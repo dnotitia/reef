@@ -37,6 +37,7 @@ import { JiraReadClient } from "../jira/client.js";
 import { buildJiraFieldCatalog } from "../jira/fieldCatalog.js";
 import {
   type JiraMigrationAction,
+  JiraMigrationBindingSchema,
   type JiraMigrationEntityResult,
   type JiraMigrationLedgerV1,
   type JiraMigrationPhase,
@@ -804,16 +805,18 @@ const actionForIssuePlan = (
 
 export const actionForRelatedReport = (
   report: JiraRelatedImportReport,
-): "create" | "skip" | "failed" => {
+): "create" | "update" | "skip" | "failed" => {
   if (report.failures.length > 0) return "failed";
-  return report.comments.created +
-    report.comments.updated +
-    report.attachments.created +
-    report.links.applied +
-    report.remote_links.applied >
+  if (
+    report.comments.created +
+      report.attachments.created +
+      report.links.applied +
+      report.remote_links.applied >
     0
-    ? "create"
-    : "skip";
+  ) {
+    return "create";
+  }
+  return report.comments.updated > 0 ? "update" : "skip";
 };
 
 const mergePlanningActions = (
@@ -1216,24 +1219,23 @@ async function runJiraMigrationUnlocked(
           unknown
         >)
       : null;
-  const approvedCommentBindingKeys = (
+  const approvedCommentBindings = (
     issueKey: string,
-  ): string[] | undefined => {
+  ): JiraMigrationLedgerV1["bindings"] | undefined => {
     if (!approvedCommentBindingPreconditions) return undefined;
     const bindings = approvedCommentBindingPreconditions[issueKey];
     if (!Array.isArray(bindings)) {
       throw new JiraRunnerError("dry_run_scope_mismatch");
     }
     return bindings.map((binding) => {
+      const parsed = JiraMigrationBindingSchema.safeParse(binding);
       if (
-        !binding ||
-        typeof binding !== "object" ||
-        Array.isArray(binding) ||
-        typeof (binding as Record<string, unknown>).source_key !== "string"
+        !parsed.success ||
+        parsed.data.source_identity.entity_kind !== "comment"
       ) {
         throw new JiraRunnerError("dry_run_scope_mismatch");
       }
-      return (binding as Record<string, unknown>).source_key as string;
+      return parsed.data;
     });
   };
   const approvedAbsentSourceRelations = Array.isArray(
@@ -1901,12 +1903,7 @@ async function runJiraMigrationUnlocked(
             .sort((left, right) =>
               left.source_identity.key.localeCompare(right.source_identity.key),
             )
-            .map((binding) => ({
-              source_key: binding.source_key,
-              target: binding.target,
-              source_fingerprint: binding.source_fingerprint,
-              mapped_state_fingerprint: binding.mapped_state_fingerprint,
-            })),
+            .map((binding) => JiraMigrationBindingSchema.parse(binding)),
         ]),
       ),
     related_plan: relatedPlanningReports.map((item) => ({
@@ -2652,9 +2649,7 @@ async function runJiraMigrationUnlocked(
               : {}),
             ...(approvedCommentBindingPreconditions
               ? {
-                  approvedCommentBindingKeys: approvedCommentBindingKeys(
-                    issue.key,
-                  ),
+                  approvedCommentBindings: approvedCommentBindings(issue.key),
                 }
               : {}),
           },

@@ -64,6 +64,9 @@ describe("runJiraMigration", () => {
     const report = reportTemplate("dry-run");
     report.comments.created = 1;
     expect(actionForRelatedReport(report)).toBe("create");
+    report.comments.created = 0;
+    report.comments.updated = 1;
+    expect(actionForRelatedReport(report)).toBe("update");
     report.failures.push({
       source_kind: "comment",
       source_id: "1",

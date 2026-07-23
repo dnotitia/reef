@@ -116,18 +116,52 @@ export async function importJiraRelatedData(
   const commentCatalogAuthoritative =
     input.attachmentPolicy?.commentVisibilityCompleteness === "verified" &&
     commentsRead.status === "fulfilled";
-  const approvedCommentBindingKeys = input.attachmentPolicy
-    ?.approvedCommentBindingKeys
-    ? new Set(input.attachmentPolicy.approvedCommentBindingKeys)
+  const approvedCommentBindings = input.attachmentPolicy
+    ?.approvedCommentBindings
+    ? new Map(
+        input.attachmentPolicy.approvedCommentBindings.map((binding) => [
+          binding.source_key,
+          binding,
+        ]),
+      )
     : null;
+  const commentBindingMatchesApproval = (
+    binding: JiraMigrationLedgerV1["bindings"][number],
+  ): boolean => {
+    if (approvedCommentBindings === null) return true;
+    const approved = approvedCommentBindings.get(binding.source_key);
+    return (
+      approved !== undefined &&
+      approved.source_fingerprint === binding.source_fingerprint &&
+      approved.mapped_state_fingerprint === binding.mapped_state_fingerprint &&
+      fingerprintJiraState(approved.target) ===
+        fingerprintJiraState(binding.target)
+    );
+  };
+  for (const binding of input.ledger.bindings) {
+    if (
+      binding.source_identity.entity_kind === "comment" &&
+      binding.source_identity.jira_cloud_id === input.jiraCloudId &&
+      binding.source_identity.issue_id === issue.id &&
+      approvedCommentBindings?.has(binding.source_key) &&
+      !commentBindingMatchesApproval(binding)
+    ) {
+      failure(
+        report.failures,
+        "comment",
+        binding.source_identity.comment_id,
+        "resolve",
+        "comment_binding_precondition_failed",
+      );
+    }
+  }
   const missingCommentBindings = commentCatalogAuthoritative
     ? input.ledger.bindings.filter(
         (binding) =>
           binding.source_identity.entity_kind === "comment" &&
           binding.source_identity.jira_cloud_id === input.jiraCloudId &&
           binding.source_identity.issue_id === issue.id &&
-          (approvedCommentBindingKeys === null ||
-            approvedCommentBindingKeys.has(binding.source_key)) &&
+          commentBindingMatchesApproval(binding) &&
           !returnedCommentIds.has(binding.source_identity.comment_id),
       )
     : [];
