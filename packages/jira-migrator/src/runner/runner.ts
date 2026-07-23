@@ -69,6 +69,7 @@ import {
   type LoadedJiraMappingPolicy,
   loadJiraMappingPolicy,
 } from "./mappingPolicy.js";
+import { jiraOwnerIdentity } from "./ownership.js";
 import {
   acquireMigrationRunLock,
   assertNoSymlinkPathComponents,
@@ -487,11 +488,10 @@ const issueOwnerMatches = (
     !Array.isArray(actualCustom.jira_migration)
       ? (actualCustom.jira_migration as Record<string, unknown>)
       : null;
+  const desiredOwner = jiraOwnerIdentity(desiredMigration?.owner);
   return (
-    desiredMigration?.owner !== undefined &&
-    actualMigration?.owner !== undefined &&
-    fingerprintJiraState(desiredMigration.owner) ===
-      fingerprintJiraState(actualMigration.owner)
+    desiredOwner !== null &&
+    jiraOwnerIdentity(actualMigration?.owner) === desiredOwner
   );
 };
 

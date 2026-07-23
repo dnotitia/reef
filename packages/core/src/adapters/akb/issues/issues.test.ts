@@ -8,7 +8,6 @@ import {
 import { mockOpenTelemetry } from "../../../agents/tools/__test-helpers__/otelMock";
 import { AkbApiError, ConflictError } from "../../../errors";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
-import { rowToIssue } from "./issueRows";
 import {
   claimIssueId,
   reorderBacklogIssues,
@@ -549,43 +548,19 @@ describe("born-correct backlog rank (REEF-176)", () => {
         },
       },
     });
-    const claimedRows = rowsForIssue(claimedIssue) as {
+    const reservation = makeReservation(claimedIssue);
+    const claimedRows = rowsForIssue(reservation) as {
       items: Array<Record<string, unknown>>;
     };
     claimedRows.items[0] = {
       ...claimedRows.items[0],
       created_at: "2026-05-01T00:00:01.000Z",
     };
-    const recoveredIssue = rowToIssue(claimedRows.items[0]);
-    const desiredKeys = Object.keys(claimedIssue).filter(
-      (key) =>
-        key !== "created_at" &&
-        key !== "updated_at" &&
-        claimedIssue[key as keyof IssueMetadata] !== undefined &&
-        !(
-          ["depends_on", "blocks", "related_to"].includes(key) &&
-          Array.isArray(claimedIssue[key as keyof IssueMetadata]) &&
-          (claimedIssue[key as keyof IssueMetadata] as unknown[]).length === 0
-        ),
-    );
-    expect(
-      Object.fromEntries(
-        desiredKeys.map((key) => [
-          key,
-          recoveredIssue[key as keyof IssueMetadata],
-        ]),
-      ),
-    ).toEqual(
-      Object.fromEntries(
-        desiredKeys.map((key) => [
-          key,
-          claimedIssue[key as keyof IssueMetadata],
-        ]),
-      ),
-    );
     const { calls } = setupFetch([
       { status: 409, body: { error: "duplicate reef_id" } },
       { body: claimedRows },
+      { body: claimedRows },
+      { status: 404, body: { error: "not found" } },
       { body: putResponse("commit-1") },
       { body: claimedRows },
       { body: ROW_UPDATE_OK },
@@ -600,7 +575,8 @@ describe("born-correct backlog rank (REEF-176)", () => {
         claimFirst: true,
       }),
     ).resolves.toMatchObject({ commit_hash: "commit-1" });
-    expect(calls[2]?.url).toContain("/documents");
+    expect(calls[3]?.init?.method).not.toBe("POST");
+    expect(calls[4]?.init?.method).toBe("POST");
   });
 
   it("restores desired relationships while completing an owned claim", async () => {
@@ -629,6 +605,8 @@ describe("born-correct backlog rank (REEF-176)", () => {
     const { calls } = setupFetch([
       { status: 409, body: { error: "duplicate reef_id" } },
       { body: rowsForIssue(reservation) },
+      { body: rowsForIssue(reservation) },
+      { status: 404, body: { error: "not found" } },
       { body: putResponse("commit-1") },
       { body: rowsForIssue(reservation) },
       { body: ROW_UPDATE_OK },
@@ -653,14 +631,17 @@ describe("born-correct backlog rank (REEF-176)", () => {
     expect(update).toContain("REEF-096");
     expect(update).toContain("REEF-099");
     expect(update).toContain('"rank" = 4096');
-    expect(calls[2]?.url).toContain("/documents");
+    expect(calls[4]?.init?.method).toBe("POST");
   });
 
   it("preserves an owned row claim after an ambiguous document failure", async () => {
     const issue = makeMigrationIssue({ status: "todo" });
+    const reservation = makeReservation(issue);
     const { calls } = setupFetch([
       { body: ROW_UPDATE_OK },
       { status: 500, body: { error: "response lost" } },
+      { body: rowsForIssue(reservation) },
+      { status: 404, body: { error: "not found" } },
     ]);
     await expect(
       writeIssue({
@@ -671,7 +652,38 @@ describe("born-correct backlog rank (REEF-176)", () => {
         claimFirst: true,
       }),
     ).rejects.toBeInstanceOf(AkbApiError);
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(4);
+  });
+
+  it("adopts a committed document after its POST response is lost", async () => {
+    const issue = makeMigrationIssue({ status: "todo" });
+    const reservation = makeReservation(issue);
+    const { calls } = setupFetch([
+      { body: ROW_UPDATE_OK },
+      { status: 500, body: { error: "response lost" } },
+      { body: rowsForIssue(reservation) },
+      { body: docGetResponse("migrated") },
+      { body: rowsForIssue(reservation) },
+      { body: ROW_UPDATE_OK },
+      { body: rowsForIssue(issue) },
+    ]);
+
+    await expect(
+      writeIssue({
+        adapter: makeTestAkbAdapter(),
+        vault: VAULT,
+        issue,
+        content: "migrated",
+        claimFirst: true,
+      }),
+    ).resolves.toMatchObject({ commit_hash: "commit-old" });
+    expect(
+      calls.filter(
+        (call) =>
+          call.init?.method === "POST" &&
+          call.url.endsWith("/api/v1/documents"),
+      ),
+    ).toHaveLength(1);
   });
 
   it("leaves rank NULL when the new issue is not in the backlog", async () => {

@@ -114,18 +114,92 @@ export async function writeIssue(
     // creation / config write), mirroring `writeConfig`. A missing table
     // surfaces loudly from the INSERT rather than being silently auto-healed.
     const body = buildPutRequestBody(vault, issue, content);
+    let claimDisposition: "created" | "existing" | null = null;
     if (claimFirst) {
       // Keep the pre-document claim archived and therefore invisible to issue
       // reads. A failed or ambiguously acknowledged document POST can then be
       // retried without exposing a row whose backing document does not exist.
-      await claimIssueId({ adapter, vault, issue });
+      claimDisposition = await claimIssueIdInternal({ adapter, vault, issue });
     }
-    const payload = await adapter.request("/api/v1/documents", {
-      method: "POST",
-      body,
-      resource: makeIssueResourceLabel(issue.id),
-    });
-    const put = ensureDocumentPutResponse(payload);
+    const readCommittedClaimDocument = async () => {
+      const claimed = (
+        await selectIssueRows(
+          adapter,
+          vault,
+          `reef_id = ${quoteText(issue.id, "reef_id")}`,
+        )
+      )[0];
+      const claimedIssue = claimed ? rowToIssue(claimed) : null;
+      const owner = (
+        issue.custom_fields?.jira_migration as
+          | Record<string, unknown>
+          | undefined
+      )?.owner;
+      const claimedMigration = claimedIssue?.custom_fields?.jira_migration as
+        | Record<string, unknown>
+        | undefined;
+      if (
+        !claimedIssue ||
+        claimed.document_uri !== issueDocumentUri(vault, issue.id) ||
+        claimedIssue.archived_at == null ||
+        claimedMigration?.reservation !== true ||
+        owner === undefined ||
+        !sameJiraMigrationOwner(claimedMigration.owner, owner)
+      ) {
+        throw new ConflictError({ path: issueDocumentUri(vault, issue.id) });
+      }
+      let payload: unknown;
+      try {
+        payload = await adapter.request(
+          `/api/v1/documents/${encodeURIComponent(vault)}/${issuePathFor(
+            issue.id,
+          )}`,
+          { resource: makeIssueResourceLabel(issue.id) },
+        );
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
+      const document = ensureDocumentResponse(payload);
+      if (
+        document.uri !== issueDocumentUri(vault, issue.id) ||
+        document.vault !== vault ||
+        document.path !== issuePathFor(issue.id) ||
+        document.title !== body.title ||
+        document.type !== body.type ||
+        document.status !== body.status ||
+        (document.summary ?? null) !== body.summary ||
+        !isDeepStrictEqual(document.tags, body.tags) ||
+        (document.content ?? "") !== content
+      ) {
+        throw new ConflictError({ path: issueDocumentUri(vault, issue.id) });
+      }
+      return {
+        uri: document.uri,
+        vault: document.vault,
+        path: document.path,
+        commit_hash: document.current_commit ?? "",
+      };
+    };
+    let put =
+      claimDisposition === "existing"
+        ? await readCommittedClaimDocument()
+        : null;
+    if (!put) {
+      try {
+        const payload = await adapter.request("/api/v1/documents", {
+          method: "POST",
+          body,
+          resource: makeIssueResourceLabel(issue.id),
+        });
+        put = ensureDocumentPutResponse(payload);
+      } catch (error) {
+        if (!claimFirst) throw error;
+        const recovered = await readCommittedClaimDocument();
+        if (!recovered) throw error;
+        put = recovered;
+      }
+    }
 
     // Insert the queryable projection row keyed to the document. On failure,
     // compensate by deleting the document we created — a doc without a
@@ -228,7 +302,9 @@ export async function writeIssue(
   });
 }
 
-export async function claimIssueId(params: ClaimIssueIdParams): Promise<void> {
+async function claimIssueIdInternal(
+  params: ClaimIssueIdParams,
+): Promise<"created" | "existing"> {
   const { adapter, vault, issue } = params;
   const owner = (
     issue.custom_fields?.jira_migration as Record<string, unknown> | undefined
@@ -259,6 +335,7 @@ export async function claimIssueId(params: ClaimIssueIdParams): Promise<void> {
       issueDocumentUri(vault, issue.id),
       { assignBacklogRank: true },
     );
+    return "created";
   } catch (error) {
     const existing = (
       await selectIssueRows(
@@ -283,7 +360,12 @@ export async function claimIssueId(params: ClaimIssueIdParams): Promise<void> {
       }
       throw error;
     }
+    return "existing";
   }
+}
+
+export async function claimIssueId(params: ClaimIssueIdParams): Promise<void> {
+  await claimIssueIdInternal(params);
 }
 
 export async function updateIssue(

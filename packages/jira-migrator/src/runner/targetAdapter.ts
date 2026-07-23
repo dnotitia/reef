@@ -46,6 +46,7 @@ import type {
   JiraRelatedImportTarget,
   JiraRelationKind,
 } from "../related/contracts.js";
+import { jiraOwnerIdentity } from "./ownership.js";
 
 export interface AkbJiraMigrationTargetConfig {
   baseUrl: string;
@@ -301,17 +302,6 @@ const issueProjection = (
         : (issue[key] ?? null),
     ]),
   );
-
-const jiraOwnerIdentity = (owner: unknown): string | null => {
-  const parsed = parseMeta(owner);
-  return typeof parsed.jira_cloud_id === "string" &&
-    typeof parsed.issue_id === "string"
-    ? canonicalizeJson({
-        jira_cloud_id: parsed.jira_cloud_id,
-        issue_id: parsed.issue_id,
-      })
-    : null;
-};
 
 export function createAkbJiraMigrationTarget(
   config: AkbJiraMigrationTargetConfig,
@@ -1227,28 +1217,53 @@ export function createAkbJiraMigrationTarget(
           if (!(error instanceof NotFoundError)) throw error;
         }
         if (current) {
-          const desiredKeys = issueProjectionKeys(desired);
+          const desiredOwner = parseMeta(
+            parseMeta(desired.custom_fields).jira_migration,
+          ).owner;
+          const currentMigration = parseMeta(
+            parseMeta(current.issue.custom_fields).jira_migration,
+          );
+          const desiredOwnerIdentity = jiraOwnerIdentity(desiredOwner);
           if (
-            canonicalizeJson(issueProjection(current.issue, desiredKeys)) !==
-              canonicalizeJson(issueProjection(desired, desiredKeys)) ||
-            current.content !== plan.desired.content
+            desiredOwnerIdentity &&
+            jiraOwnerIdentity(currentMigration.owner) ===
+              desiredOwnerIdentity &&
+            currentMigration.reservation === true &&
+            current.issue.archived_at != null
           ) {
-            throw new JiraTargetConflictError();
+            const result = await core.writeIssue({
+              adapter,
+              vault,
+              issue: desired,
+              content: plan.desired.content,
+              claimFirst: true,
+            });
+            commitHash = result.commit_hash;
+          } else {
+            const desiredKeys = issueProjectionKeys(desired);
+            if (
+              canonicalizeJson(issueProjection(current.issue, desiredKeys)) !==
+                canonicalizeJson(issueProjection(desired, desiredKeys)) ||
+              current.content !== plan.desired.content
+            ) {
+              throw new JiraTargetConflictError();
+            }
+            return {
+              reefId: desired.id,
+              documentUri: akbIssueDocumentUri(vault, desired.id),
+              commitHash: current.commit_hash ?? "",
+            };
           }
-          return {
-            reefId: desired.id,
-            documentUri: akbIssueDocumentUri(vault, desired.id),
-            commitHash: current.commit_hash ?? "",
-          };
+        } else {
+          const result = await core.writeIssue({
+            adapter,
+            vault,
+            issue: desired,
+            content: plan.desired.content,
+            claimFirst: true,
+          });
+          commitHash = result.commit_hash;
         }
-        const result = await core.writeIssue({
-          adapter,
-          vault,
-          issue: desired,
-          content: plan.desired.content,
-          claimFirst: true,
-        });
-        commitHash = result.commit_hash;
       } else {
         const current = await core.readIssue({
           adapter,

@@ -300,6 +300,43 @@ describe("AKB Jira migration target", () => {
     expect(applied.documentUri).toBe(
       "akb://reef-test/coll/issues/doc/reef-010.md",
     );
+    readIssue.mockReset();
+    readIssue
+      .mockResolvedValueOnce({
+        ...baseIssueReadback,
+        issue: {
+          ...baseIssueReadback.issue,
+          archived_at: "2026-07-23T00:00:00.000Z",
+          custom_fields: {
+            jira_migration: {
+              owner: {
+                jira_cloud_id: "cloud-1",
+                project_key: "LEGACY",
+                issue_id: "10001",
+                issue_key: "LEGACY-1",
+              },
+              reservation: true,
+            },
+          },
+        },
+      } as unknown as AkbReadIssueResult)
+      .mockResolvedValueOnce(baseIssueReadback);
+    await expect(target.applyIssue(issuePlan, "create")).resolves.toMatchObject(
+      {
+        reefId: "REEF-010",
+        commitHash: "commit-1",
+      },
+    );
+    expect(writeIssue).toHaveBeenCalledTimes(2);
+    readIssue
+      .mockResolvedValueOnce(targetAuthoredReadback)
+      .mockResolvedValueOnce({
+        ...targetAuthoredReadback,
+        issue: {
+          ...targetAuthoredReadback.issue,
+          title: "Updated Alpha issue",
+        },
+      } as unknown as AkbReadIssueResult);
     const updatedPlan = {
       ...issuePlan,
       desired: {
