@@ -187,6 +187,23 @@ describe("runJiraMigration", () => {
       "2026-07-23T00:07:00.000Z",
     ];
     const now = () => times.shift() ?? "2026-07-23T00:08:00.000Z";
+    await expect(
+      runJiraMigration(
+        {
+          ...config,
+          artifacts: {
+            ...config.artifacts,
+            ledgerPath: config.artifacts.reportPath,
+          },
+        },
+        {
+          target,
+          createJiraClient: (key) => clients.get(key) as never,
+          now,
+        },
+      ),
+    ).rejects.toMatchObject({ code: "artifact_paths_required" });
+
     const dryRun = await runJiraMigration(config, {
       target,
       createJiraClient: (key) => clients.get(key) as never,

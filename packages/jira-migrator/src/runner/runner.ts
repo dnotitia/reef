@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { chmod, lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
   loadJiraAccountMappingArtifact,
   writeJiraAccountMappingArtifact,
@@ -73,6 +73,7 @@ import {
   loadJiraRunnerReport,
   writeJiraRunnerReport,
 } from "./report.js";
+import { retryOperation } from "./retry.js";
 import {
   readAllChangelog,
   readAllProjectIssues,
@@ -121,7 +122,35 @@ const requireArtifactPaths = (config: JiraMigratorConfig) => {
   if (!ledgerPath || !archiveRoot || !accountMappingPath || !reportPath) {
     throw new JiraRunnerError("artifact_paths_required");
   }
-  return { ledgerPath, archiveRoot, accountMappingPath, reportPath };
+  const resolved = {
+    ledgerPath: resolve(ledgerPath),
+    archiveRoot: resolve(archiveRoot),
+    accountMappingPath: resolve(accountMappingPath),
+    reportPath: resolve(reportPath),
+  };
+  const files = [
+    resolved.ledgerPath,
+    resolved.accountMappingPath,
+    resolved.reportPath,
+    `${resolved.reportPath}.plan.json`,
+    `${resolved.reportPath}.approval.json`,
+  ];
+  if (new Set(files).size !== files.length) {
+    throw new JiraRunnerError("artifact_paths_required");
+  }
+  if (
+    files.some((file) => {
+      const pathFromArchive = relative(resolved.archiveRoot, file);
+      const outsideArchive =
+        pathFromArchive === ".." ||
+        pathFromArchive.startsWith(`..${sep}`) ||
+        isAbsolute(pathFromArchive);
+      return pathFromArchive === "" || !outsideArchive;
+    })
+  ) {
+    throw new JiraRunnerError("artifact_paths_required");
+  }
+  return resolved;
 };
 
 const projectId = (issue: NormalizedJiraIssue): string =>
@@ -346,6 +375,7 @@ const snapshotJiraClient = (
   client: JiraReadClient,
   snapshot: RelatedSourceSnapshot,
   spoolRoot: string,
+  retry: Parameters<typeof retryOperation>[1],
 ): JiraReadClient => {
   const binaries = new Map<string, RelatedBinarySpool>();
   const comments = new Map<
@@ -370,7 +400,10 @@ const snapshotJiraClient = (
           });
           const cached = comments.get(cacheKey);
           if (cached) return cached;
-          const result = await target.readComments(issueKey, options);
+          const result = await retryOperation(
+            () => target.readComments(issueKey, options),
+            { ...retry, operationKind: "read" },
+          );
           const previous =
             (snapshot.comments[issueKey] as
               | { items?: unknown[]; pages?: unknown[] }
@@ -387,7 +420,10 @@ const snapshotJiraClient = (
         return async (issueKey: string) => {
           const cached = remoteLinks.get(issueKey);
           if (cached) return cached;
-          const result = await target.listRemoteLinks(issueKey);
+          const result = await retryOperation(
+            () => target.listRemoteLinks(issueKey),
+            { ...retry, operationKind: "read" },
+          );
           snapshot.remote_links[issueKey] = {
             items: result.items,
             raw: result.raw,
@@ -408,9 +444,9 @@ const snapshotJiraClient = (
               rateLimit: cached.rateLimit,
             };
           }
-          const result = await target.downloadAttachmentContent(
-            attachmentId,
-            maxBytes,
+          const result = await retryOperation(
+            () => target.downloadAttachmentContent(attachmentId, maxBytes),
+            { ...retry, operationKind: "read" },
           );
           const digest = createHash("sha256")
             .update(result.bytes)
@@ -765,6 +801,13 @@ async function runJiraMigrationUnlocked(
       ? (related as Record<string, unknown>)
       : null;
   })();
+  const retry = {
+    maxRetries: config.control.retryCount,
+    baseDelayMs: config.control.retryBaseDelayMs,
+    maxDelayMs: config.control.retryMaxDelayMs,
+    signal: dependencies.signal,
+    abortError: () => new JiraRunnerError("interrupted"),
+  };
   const relatedSourceSnapshots = new Map<string, RelatedSourceSnapshot>();
   const clients = new Map(
     config.jira.projectKeys.map((key) => {
@@ -799,6 +842,7 @@ async function runJiraMigrationUnlocked(
             privateSpoolSegment(config.artifacts.runId),
             privateSpoolSegment(key),
           ),
+          retry,
         ),
       ] as const;
     }),
@@ -835,12 +879,10 @@ async function runJiraMigrationUnlocked(
   }
   const firstClient = clients.get(config.jira.projectKeys[0] as string);
   if (!firstClient) throw new Error("jira_client_missing");
-  const retry = {
-    maxRetries: config.control.retryCount,
-    baseDelayMs: config.control.retryBaseDelayMs,
-    maxDelayMs: config.control.retryMaxDelayMs,
-  };
-  const fieldResult = await firstClient.listFields();
+  const fieldResult = await retryOperation(() => firstClient.listFields(), {
+    ...retry,
+    operationKind: "read",
+  });
   const fieldCatalog = buildJiraFieldCatalog({
     fields: fieldResult.items,
     retrievedAt: runAt,
@@ -858,7 +900,10 @@ async function runJiraMigrationUnlocked(
     const client = clients.get(key);
     if (!client) throw new Error("jira_client_missing");
     const [versions, issues] = await Promise.all([
-      client.readProjectVersionCatalog({ projectIdOrKey: key }),
+      retryOperation(
+        () => client.readProjectVersionCatalog({ projectIdOrKey: key }),
+        { ...retry, operationKind: "read" },
+      ),
       readAllProjectIssues(client, key, retry),
     ]);
     versionsByProject.set(key, versions.items);
@@ -1439,24 +1484,6 @@ async function runJiraMigrationUnlocked(
     fingerprintJiraState(approvedPlanArtifact.payload) !== planSha256
   ) {
     throw new JiraRunnerError("plan_fingerprint_mismatch");
-  }
-  if (config.mode === "dry-run") {
-    await writePrivatePlanArtifact(`${paths.reportPath}.plan.json`, {
-      schema_version: 1,
-      run_id: config.artifacts.runId,
-      source: {
-        jira_cloud_id: config.jira.cloudId,
-        project_keys: config.jira.projectKeys,
-        board_ids: config.jira.boardIds,
-      },
-      target: {
-        vault: config.target.vault,
-        actor: targetPreflight.actor,
-        endpoint_fingerprint: endpointFingerprint,
-      },
-      plan_sha256: planSha256,
-      payload: planPayload,
-    });
   }
   ledger = openJiraMigrationRun(ledger, {
     runId: config.artifacts.runId,
@@ -2435,7 +2462,23 @@ async function runJiraMigrationUnlocked(
     ...(expectedReport ? { expectedReport } : {}),
     forbiddenSecretValues: secretValuesForConfig(config),
   });
-  if (config.mode === "dry-run") {
+  if (config.mode === "dry-run" && report.run.status === "completed") {
+    await writePrivatePlanArtifact(`${paths.reportPath}.plan.json`, {
+      schema_version: 1,
+      run_id: config.artifacts.runId,
+      source: {
+        jira_cloud_id: config.jira.cloudId,
+        project_keys: config.jira.projectKeys,
+        board_ids: config.jira.boardIds,
+      },
+      target: {
+        vault: config.target.vault,
+        actor: targetPreflight.actor,
+        endpoint_fingerprint: endpointFingerprint,
+      },
+      plan_sha256: planSha256,
+      payload: planPayload,
+    });
     await writeJiraRunnerReport({
       path: `${paths.reportPath}.approval.json`,
       report,

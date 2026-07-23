@@ -1020,6 +1020,7 @@ export function createAkbJiraMigrationTarget(
           ...(current.commit_hash
             ? { expectedCommit: current.commit_hash }
             : {}),
+          expectedUpdatedAt: current.issue.updated_at,
         });
         commitHash = result.commit_hash;
       }

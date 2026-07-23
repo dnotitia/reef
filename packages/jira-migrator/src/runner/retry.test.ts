@@ -61,4 +61,30 @@ describe("retryOperation", () => {
     ).rejects.toThrow("ambiguous");
     expect(operation).toHaveBeenCalledTimes(1);
   });
+
+  it("aborts an in-flight Retry-After wait immediately", async () => {
+    const controller = new AbortController();
+    const operation = vi.fn().mockRejectedValue(
+      new JiraApiError({
+        status: 429,
+        statusText: "Too Many Requests",
+        method: "GET",
+        path: "/rest/api/3/search/jql",
+        retryable: true,
+        rateLimit: rateLimit(3_600),
+      }),
+    );
+    const pending = retryOperation(operation, {
+      maxRetries: 3,
+      baseDelayMs: 100,
+      maxDelayMs: 5_000,
+      signal: controller.signal,
+      abortError: () => new Error("interrupted"),
+    });
+    await Promise.resolve();
+    controller.abort();
+
+    await expect(pending).rejects.toThrow("interrupted");
+    expect(operation).toHaveBeenCalledTimes(1);
+  });
 });

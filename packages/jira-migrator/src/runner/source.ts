@@ -8,7 +8,13 @@ import { type RetryOperationOptions, retryOperation } from "./retry.js";
 
 type RetryConfig = Pick<
   RetryOperationOptions,
-  "maxRetries" | "baseDelayMs" | "maxDelayMs" | "sleep" | "random"
+  | "maxRetries"
+  | "baseDelayMs"
+  | "maxDelayMs"
+  | "sleep"
+  | "random"
+  | "signal"
+  | "abortError"
 >;
 
 export interface JiraIssueCatalog {
