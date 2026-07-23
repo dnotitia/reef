@@ -28,7 +28,10 @@ import {
   type JiraChangelogPlan,
   buildJiraChangelogPlan,
 } from "../issues/changelog.js";
-import type { JiraIssueImportPlan } from "../issues/importPlan.js";
+import type {
+  JiraIssueDeferredItem,
+  JiraIssueImportPlan,
+} from "../issues/importPlan.js";
 import { buildJiraIssueImportPlan } from "../issues/mapping.js";
 import { JiraReadClient } from "../jira/client.js";
 import { buildJiraFieldCatalog } from "../jira/fieldCatalog.js";
@@ -136,22 +139,64 @@ const requireArtifactPaths = (config: JiraMigratorConfig) => {
     `${resolved.reportPath}.plan.json`,
     `${resolved.reportPath}.approval.json`,
   ];
-  if (new Set(files).size !== files.length) {
+  const lockPath = `${resolved.ledgerPath}.run.lock`;
+  if (new Set([...files, lockPath]).size !== files.length + 1) {
     throw new JiraRunnerError("artifact_paths_required");
   }
+  const containsPath = (parent: string, candidate: string): boolean => {
+    const pathFromParent = relative(parent, candidate);
+    return (
+      pathFromParent === "" ||
+      (pathFromParent !== ".." &&
+        !pathFromParent.startsWith(`..${sep}`) &&
+        !isAbsolute(pathFromParent))
+    );
+  };
   if (
-    files.some((file) => {
-      const pathFromArchive = relative(resolved.archiveRoot, file);
-      const outsideArchive =
-        pathFromArchive === ".." ||
-        pathFromArchive.startsWith(`..${sep}`) ||
-        isAbsolute(pathFromArchive);
-      return pathFromArchive === "" || !outsideArchive;
-    })
+    files.some((file) => containsPath(resolved.archiveRoot, file)) ||
+    [...files, resolved.archiveRoot].some(
+      (artifactPath) =>
+        containsPath(lockPath, artifactPath) ||
+        containsPath(artifactPath, lockPath),
+    )
   ) {
     throw new JiraRunnerError("artifact_paths_required");
   }
   return resolved;
+};
+
+const reconciliationAction = (
+  item: JiraIssueDeferredItem,
+  relatedReport: JiraRelatedImportReport | undefined,
+  planningResolutions: readonly JiraPlanningTargetResolution[],
+): "skip" | "conflict" | "failed" => {
+  if (item.kind === "release" || item.kind === "sprint") {
+    if (item.reason === "owner_decision_required") return "conflict";
+    return planningResolutions.some(
+      (resolution) =>
+        resolution.sourceIdentity.key === item.sourceKey &&
+        resolution.targetKind === item.kind,
+    )
+      ? "skip"
+      : "conflict";
+  }
+  if (item.kind === "parent") return "conflict";
+  if (!relatedReport) return "conflict";
+  const sourceKind = item.kind === "relation" ? "link" : "media";
+  if (
+    relatedReport.failures.some((failure) => failure.source_kind === sourceKind)
+  ) {
+    return "failed";
+  }
+  if (item.kind === "relation") {
+    return relatedReport.links.unique > 0 &&
+      relatedReport.links.unresolved === 0
+      ? "skip"
+      : "conflict";
+  }
+  return relatedReport.media.total > 0 && relatedReport.media.unresolved === 0
+    ? "skip"
+    : "conflict";
 };
 
 const projectId = (issue: NormalizedJiraIssue): string =>
@@ -1615,28 +1660,14 @@ async function runJiraMigrationUnlocked(
       const relatedReport = finalRelatedReports.find(
         (candidate) => candidate.issue_key === deferred.plan.source.issueKey,
       )?.report;
-      const reconciled =
-        (deferred.item.kind === "relation" &&
-          relatedReport !== undefined &&
-          relatedReport.links.unique > 0 &&
-          relatedReport.links.unresolved === 0 &&
-          !relatedReport.failures.some(
-            (failure) => failure.source_kind === "link",
-          )) ||
-        (deferred.item.kind === "description_media" &&
-          relatedReport !== undefined &&
-          relatedReport.media.total > 0 &&
-          relatedReport.media.unresolved === 0 &&
-          !relatedReport.failures.some(
-            (failure) => failure.source_kind === "media",
-          )) ||
-        ((deferred.item.kind === "release" ||
-          deferred.item.kind === "sprint") &&
-          deferred.item.targetId !== null);
       recordReportOnly(
         "reconciliation",
         `reconciliation:${deferred.plan.source.issueKey}:${index}`,
-        reconciled ? "skip" : "conflict",
+        reconciliationAction(
+          deferred.item,
+          relatedReport,
+          approvedPlanningResolutions,
+        ),
       );
     }
     ledger = finalizeJiraMigrationPhase(ledger, {
@@ -2387,11 +2418,15 @@ async function runJiraMigrationUnlocked(
     for (const [index, deferred] of dryIssuePlans
       .flatMap((plan) => plan.deferred.map((item) => ({ plan, item })))
       .entries()) {
+      const relatedReport = finalRelatedReports.find(
+        (candidate) => candidate.issue_key === deferred.plan.source.issueKey,
+      )?.report;
       recordReportOnly(
         "reconciliation",
         `reconciliation:${deferred.plan.source.issueKey}:${index}`,
-        "skip",
+        reconciliationAction(deferred.item, relatedReport, planningResolutions),
       );
+      await checkpoint();
     }
     ledger = finalizeJiraMigrationPhase(ledger, {
       runId: config.artifacts.runId,

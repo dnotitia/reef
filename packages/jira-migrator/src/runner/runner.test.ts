@@ -203,6 +203,22 @@ describe("runJiraMigration", () => {
         },
       ),
     ).rejects.toMatchObject({ code: "artifact_paths_required" });
+    await expect(
+      runJiraMigration(
+        {
+          ...config,
+          artifacts: {
+            ...config.artifacts,
+            archiveRoot: `${config.artifacts.ledgerPath}.run.lock`,
+          },
+        },
+        {
+          target,
+          createJiraClient: (key) => clients.get(key) as never,
+          now,
+        },
+      ),
+    ).rejects.toMatchObject({ code: "artifact_paths_required" });
 
     const dryRun = await runJiraMigration(config, {
       target,
