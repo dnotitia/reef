@@ -325,5 +325,44 @@ describe("AKB Jira migration target", () => {
     await expect(
       target.relatedTarget().readRelation("relation:cloud-1:100"),
     ).resolves.toBeNull();
+
+    const sourceWithSidecar = issues.get("REEF-001");
+    if (!sourceWithSidecar) throw new Error("missing test source");
+    const ref = { type: "jira" as const, url: "https://jira.test/browse/X-1" };
+    const customFields = sourceWithSidecar.issue.custom_fields as {
+      jira_migration: Record<string, unknown>;
+    };
+    issues.set("REEF-001", {
+      ...sourceWithSidecar,
+      issue: {
+        ...sourceWithSidecar.issue,
+        external_refs: [],
+        custom_fields: {
+          jira_migration: {
+            ...customFields.jira_migration,
+            external_refs: [
+              {
+                idempotencyKey: "external:cloud-1:1",
+                reefId: "REEF-001",
+                ref,
+                provenance: {},
+              },
+            ],
+          },
+        },
+      },
+    });
+    await expect(
+      target.relatedTarget().hasExternalRef("external:cloud-1:1"),
+    ).resolves.toBe(false);
+    const sourceWithRef = issues.get("REEF-001");
+    if (!sourceWithRef) throw new Error("missing test source");
+    issues.set("REEF-001", {
+      ...sourceWithRef,
+      issue: { ...sourceWithRef.issue, external_refs: [ref] },
+    });
+    await expect(
+      target.relatedTarget().readExternalRef("external:cloud-1:1"),
+    ).resolves.toMatchObject({ reefId: "REEF-001", ref });
   });
 });

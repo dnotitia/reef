@@ -365,6 +365,21 @@ export function createAkbJiraMigrationTarget(
     }
     return record;
   };
+  const readVerifiedExternalRef = async (idempotencyKey: string) => {
+    const found = await findExternalRef(idempotencyKey);
+    if (!found) return null;
+    const { issue, record } = found;
+    if (
+      issue.id !== record.reefId ||
+      !(issue.external_refs ?? []).some(
+        (candidate) =>
+          canonicalizeJson(candidate) === canonicalizeJson(record.ref),
+      )
+    ) {
+      return null;
+    }
+    return record;
+  };
   const related: JiraRelatedImportTarget = {
     async createComment(input: JiraImportedCommentInput): Promise<Comment> {
       const comment = await akbCreateComment(
@@ -516,10 +531,14 @@ export function createAkbJiraMigrationTarget(
       }
       const fileId = /\/file\/([^/]+)$/u.exec(fileUri)?.[1];
       if (fileId) {
-        await adapter.request(
-          `/api/v1/files/${encodeURIComponent(vault)}/${encodeURIComponent(fileId)}`,
-          { method: "DELETE", resource: `Jira attachment ${fileId}` },
-        );
+        try {
+          await adapter.request(
+            `/api/v1/files/${encodeURIComponent(vault)}/${encodeURIComponent(fileId)}`,
+            { method: "DELETE", resource: `Jira attachment ${fileId}` },
+          );
+        } catch (error) {
+          if (!(error instanceof NotFoundError)) throw error;
+        }
       }
       await sql(
         adapter,
@@ -801,15 +820,15 @@ export function createAkbJiraMigrationTarget(
       );
     },
     async hasExternalRef(idempotencyKey) {
-      return (await findExternalRef(idempotencyKey)) !== null;
+      return (await readVerifiedExternalRef(idempotencyKey)) !== null;
     },
     async readExternalRef(idempotencyKey) {
-      const found = await findExternalRef(idempotencyKey);
-      if (!found) return null;
+      const record = await readVerifiedExternalRef(idempotencyKey);
+      if (!record) return null;
       return {
-        reefId: found.record.reefId,
-        ref: found.record.ref,
-        provenance: found.record.provenance,
+        reefId: record.reefId,
+        ref: record.ref,
+        provenance: record.provenance,
       };
     },
     async listExternalRefKeys(prefix) {
