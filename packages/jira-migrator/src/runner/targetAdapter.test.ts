@@ -1,5 +1,6 @@
 import {
   type AkbReadIssueResult,
+  type AkbUpdateIssueResult,
   NotFoundError,
   type Release,
 } from "@reef/core";
@@ -84,24 +85,42 @@ describe("AKB Jira migration target", () => {
       path: "issues/reef-010.md",
       commit_hash: "commit-1",
     } as unknown as AkbReadIssueResult;
+    const targetAuthoredReadback = {
+      ...baseIssueReadback,
+      issue: {
+        ...baseIssueReadback.issue,
+        custom_fields: {
+          target_authored: { keep: true },
+          jira_migration: { relations: [], external_refs: [] },
+        },
+      },
+    } as unknown as AkbReadIssueResult;
     const readIssue = vi
       .fn()
       .mockRejectedValueOnce(new NotFoundError({ resource: "REEF-010" }))
       .mockResolvedValueOnce(baseIssueReadback)
-      .mockResolvedValue({
-        ...baseIssueReadback,
+      .mockResolvedValueOnce(targetAuthoredReadback)
+      .mockResolvedValueOnce({
+        ...targetAuthoredReadback,
         issue: {
-          ...baseIssueReadback.issue,
-          custom_fields: {
-            jira_migration: { relations: [], external_refs: [] },
-          },
+          ...targetAuthoredReadback.issue,
+          title: "Updated Alpha issue",
         },
       } as unknown as AkbReadIssueResult);
     const writeIssue = vi.fn(async () => ({
       path: "issues/reef-010.md",
       commit_hash: "commit-1",
     }));
-    const updateIssue = vi.fn();
+    const updateIssue = vi.fn(
+      async (): Promise<AkbUpdateIssueResult> => ({
+        ...targetAuthoredReadback,
+        commit_hash: "commit-1",
+        issue: {
+          ...targetAuthoredReadback.issue,
+          title: "Updated Alpha issue",
+        },
+      }),
+    );
     const claimIssueId = vi.fn();
     const listPlanningCatalog = vi
       .fn()
@@ -111,6 +130,18 @@ describe("AKB Jira migration target", () => {
         milestones: [],
       })
       .mockResolvedValueOnce({
+        releases: [
+          {
+            id: "11111111-1111-4111-8111-111111111111",
+            ...(releaseAction.target?.kind === "release"
+              ? releaseAction.target.item
+              : {}),
+          },
+        ],
+        sprints: [],
+        milestones: [],
+      })
+      .mockResolvedValue({
         releases: [
           {
             id: "11111111-1111-4111-8111-111111111111",
@@ -194,6 +225,17 @@ describe("AKB Jira migration target", () => {
       }),
     );
     await expect(
+      target.applyPlanning({
+        ...releaseAction,
+        classification: "reuse",
+        reason: "compatible_exact_name",
+        targetId: "11111111-1111-4111-8111-111111111111",
+      }),
+    ).resolves.toMatchObject({
+      targetKind: "release",
+      targetId: "11111111-1111-4111-8111-111111111111",
+    });
+    await expect(
       target.readPlanningClaim({
         ...releaseAction,
         classification: "reuse",
@@ -238,13 +280,67 @@ describe("AKB Jira migration target", () => {
     expect(applied.documentUri).toBe(
       "akb://reef-test/coll/issues/doc/reef-010.md",
     );
-    await expect(target.applyIssue(issuePlan, "update")).resolves.toMatchObject(
+    const updatedPlan = {
+      ...issuePlan,
+      desired: {
+        ...issuePlan.desired,
+        issue: {
+          ...issuePlan.desired.issue,
+          title: "Updated Alpha issue",
+        },
+      },
+    } as JiraIssueImportPlan;
+    await expect(
+      target.applyIssue(updatedPlan, "update"),
+    ).resolves.toMatchObject({
+      reefId: "REEF-010",
+      commitHash: "commit-1",
+    });
+    expect(updateIssue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        partial: expect.objectContaining({
+          custom_fields: expect.objectContaining({
+            target_authored: { keep: true },
+          }),
+        }),
+      }),
+    );
+  });
+
+  it("rejects a reused planning target that disappeared after preflight", async () => {
+    const target = createAkbJiraMigrationTarget(
       {
-        reefId: "REEF-010",
-        commitHash: "commit-1",
+        baseUrl: "https://akb.test",
+        jwt: "jwt",
+        vault: "reef-test",
+      },
+      {
+        createAdapter: () => ({ request: vi.fn() }),
+        getCurrentActor: async () => ({ actor: "operator" }),
+        listPlanningCatalog: vi.fn(async () => ({
+          releases: [],
+          sprints: [],
+          milestones: [],
+        })),
+        createRelease: vi.fn(),
+        createSprint: vi.fn(),
+        readPlanningCreateClaim: vi.fn(),
+        allocateNextIssueId: vi.fn(),
+        writeIssue: vi.fn(),
+        updateIssue: vi.fn(),
+        readIssue: vi.fn(),
+        claimIssueId: vi.fn(),
       },
     );
-    expect(updateIssue).not.toHaveBeenCalled();
+
+    await expect(
+      target.applyPlanning({
+        ...releaseAction,
+        classification: "reuse",
+        reason: "compatible_exact_name",
+        targetId: "11111111-1111-4111-8111-111111111111",
+      }),
+    ).rejects.toThrow("target_planning_readback_failed");
   });
 
   it("does not write blocked issue plans", async () => {

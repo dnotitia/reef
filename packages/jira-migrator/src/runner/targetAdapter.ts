@@ -250,11 +250,15 @@ const sidecarFor = (issue: IssueMetadata): MigrationSidecar => {
 const customFieldsWithSidecar = (
   issue: IssueMetadata,
   sidecar: MigrationSidecar,
+  preservedCustomFields?: Record<string, unknown>,
 ): Record<string, unknown> => {
   const customFields = parseMeta(issue.custom_fields);
+  const preserved = parseMeta(preservedCustomFields);
   return {
+    ...preserved,
     ...customFields,
     jira_migration: {
+      ...parseMeta(preserved.jira_migration),
       ...parseMeta(customFields.jira_migration),
       relations: sidecar.relations,
       external_refs: sidecar.externalRefs,
@@ -1109,10 +1113,31 @@ export function createAkbJiraMigrationTarget(
       }
       if (action.classification === "reuse") {
         if (!action.targetId) throw new Error("jira_planning_target_missing");
+        const planning = await core.listPlanningCatalog({ adapter, vault });
+        const readback =
+          action.target.kind === "release"
+            ? planning.releases.find(
+                (candidate) => candidate.id === action.targetId,
+              )
+            : planning.sprints.find(
+                (candidate) => candidate.id === action.targetId,
+              );
+        if (!readback) throw new Error("target_planning_readback_failed");
+        const readbackProjection = Object.fromEntries(
+          Object.keys(action.target.item).map((key) => [
+            key,
+            readback[key as keyof typeof readback],
+          ]),
+        );
+        if (
+          canonicalizeJson(readbackProjection) !==
+          canonicalizeJson(action.target.item)
+        ) {
+          throw new Error("target_planning_readback_failed");
+        }
         return {
           sourceIdentity: action.sourceIdentity,
-          targetKind:
-            action.sourceIdentity.kind === "version" ? "release" : "sprint",
+          targetKind: action.target.kind,
           targetId: action.targetId,
         };
       }
@@ -1239,6 +1264,7 @@ export function createAkbJiraMigrationTarget(
           custom_fields: customFieldsWithSidecar(
             desired,
             sidecarFor(current.issue),
+            current.issue.custom_fields,
           ),
         };
         const expectedKeys = issueProjectionKeys(expectedIssue);
