@@ -224,6 +224,7 @@ export {
   akbDownloadIssueAttachment,
   akbDownloadIssueAttachmentByFileUri,
   akbListIssueActivity,
+  akbAppendActivityEvents,
   akbSearchDocuments,
   akbResolveDocumentTitles,
   akbIssueDocumentUri,

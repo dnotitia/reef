@@ -35,6 +35,7 @@ export {
   downloadIssueAttachment as akbDownloadIssueAttachment,
   downloadIssueAttachmentByFileUri as akbDownloadIssueAttachmentByFileUri,
   listIssueActivity as akbListIssueActivity,
+  appendActivityEvents as akbAppendActivityEvents,
   type ActivityEventInput,
   searchDocuments as akbSearchDocuments,
   resolveDocumentTitles as akbResolveDocumentTitles,
