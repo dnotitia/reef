@@ -1820,7 +1820,7 @@ describe("Jira related-data import stage", () => {
     ).toBe(false);
   });
 
-  it("removes a disappeared relation when the other endpoint is processed", async () => {
+  it("preserves a source-owned relation when the other endpoint has an empty catalog", async () => {
     const state = makeTarget();
     const client = makeClient([]);
     const base = {
@@ -1872,7 +1872,7 @@ describe("Jira related-data import stage", () => {
       reefId: "REEF-2",
       ledger: applied.ledger,
     });
-    expect(state.relations.size).toBe(0);
+    expect(state.relations.size).toBe(1);
   });
 
   it("removes a provisional ref whose standard link disappears", async () => {

@@ -18,6 +18,7 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:behavior": "pnpm run build && node scripts/behavior-contract.mjs",
     "start": "tsx src/cli.ts",
     "smoke:dry-run": "tsx src/cli.ts --dry-run"
   },

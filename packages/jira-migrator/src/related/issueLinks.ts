@@ -164,9 +164,7 @@ export async function importIssueLinks(options: {
         binding.source_identity.entity_kind === "relation" &&
         binding.source_identity.jira_cloud_id === migration.jiraCloudId &&
         (binding.source_identity.source_issue_id === issueId ||
-          binding.source_identity.source_issue_id === issueKey ||
-          binding.source_identity.target_issue_id === issueId ||
-          binding.source_identity.target_issue_id === issueKey) &&
+          binding.source_identity.source_issue_id === issueKey) &&
         !uniqueLinks.has(binding.source_identity.link_id),
     );
     for (const binding of missingRelationBindings) {

@@ -4,11 +4,10 @@ Operator-run package for one-shot Jira migrations into Reef. The package is
 intentionally outside `@reef/web`: Jira credentials are deployment/operator
 secrets, not user state in the product runtime.
 
-The CLI still validates migration configuration and prints a redacted public
-config. The library additionally builds immutable Jira issue import plans and
-exposes a dependency-injected related-data stage for comments,
-attachments/media, and links. Final project traversal and CLI orchestration
-remain separate.
+The CLI is the end-to-end composition root: it performs read-only Jira
+discovery, archives source payloads, produces an approval-bound dry-run report,
+and applies/resumes idempotent writes through the public `@reef/core` AKB
+adapter. The library surfaces the same runner for controlled automation.
 
 ## Documentation Policy
 
@@ -22,25 +21,49 @@ remain separate.
 
 ## Quick Start
 
-Run the scaffolded dry-run from the repository root:
+Create one private mapping policy per selected project, then run from the
+repository root:
 
 ```bash
 pnpm --filter @reef/jira-migrator run start -- \
+  --dry-run \
   --jira-base-url https://example.atlassian.net \
-  --project-key PROJECT \
+  --jira-cloud-id cloud-id \
+  --project-key ALPHA \
+  --project-key BETA \
+  --mapping-policy ALPHA=/private/alpha-policy.json \
+  --mapping-policy BETA=/private/beta-policy.json \
+  --board-id 42 \
+  --akb-base-url https://akb.example.internal \
   --vault reef-test \
-  --dry-run
+  --run-id jira-2026-07-23 \
+  --ledger-path /private/jira/ledger.json \
+  --archive-root /private/jira/archive \
+  --account-mapping-path /private/jira/accounts.json \
+  --report-path /private/jira/report.json
 ```
 
-Credentials come from environment variables or local secret files:
+Credentials come from environment variables or private regular files, never
+from raw argv values:
 
 ```bash
 export REEF_JIRA_EMAIL=operator@example.com
 export REEF_JIRA_API_TOKEN_FILE=./secrets/jira-api-token
+export REEF_AKB_JWT_FILE=./secrets/akb-jwt
 ```
 
-`publicJiraMigratorConfig` and `redactForConfig` are the only supported ways to
-serialize config/report data; they omit or redact secret values.
+After reviewing the completed dry-run report, copy its `plan_sha256` exactly:
+
+```bash
+pnpm --filter @reef/jira-migrator run start -- \
+  --apply \
+  ...the-identical-source-target-and-artifact-scope... \
+  --expected-plan-sha256 <approved-sha256>
+```
+
+An interrupted apply is restarted with the same run/artifact paths and
+`--resume jira-2026-07-23`. The runner rejects source, target actor/vault, run,
+or plan drift before mutating AKB.
 
 See `../../docs/jira-migration.md` for the full configuration matrix and
 operator procedure.
@@ -50,6 +73,8 @@ operator procedure.
 The package exports:
 
 - CLI/config loading helpers that keep secrets out of public output.
+- `runJiraMigration`, the planning-first dry-run/apply/checkpoint/report
+  composition root, and the public AKB target adapter.
 - A read-only Jira REST client and Jira payload schemas/normalizers.
 - Generic Jira Version and board/Sprint catalog readers with pagination, plus
   field-catalog-based Sprint reference discovery.
@@ -220,11 +245,15 @@ Run from the repository root:
 ```bash
 pnpm --filter @reef/jira-migrator run typecheck
 pnpm --filter @reef/jira-migrator run test
-pnpm --filter @reef/jira-migrator run smoke:dry-run
+pnpm --filter @reef/jira-migrator run build
+pnpm --filter @reef/jira-migrator run test:behavior
 ```
 
-`smoke:dry-run` requires the same Jira, vault, and credential settings as the
-CLI quick start.
+`test:behavior` builds the package and runs a source-blind ALPHA/BETA contract
+against mock Jira and isolated mock AKB HTTP services. It proves GET-only Jira
+traffic, dry-run target mutation zero, plan-hash approval, write/readback
+checkpoint ordering, fresh-process resume, cross-project relation
+reconciliation, rerun duplicate zero, conservation, and report redaction.
 
 Workspace-wide gates:
 

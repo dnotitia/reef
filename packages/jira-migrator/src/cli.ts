@@ -4,55 +4,130 @@ import { pathToFileURL } from "node:url";
 import {
   JiraMigratorConfigError,
   loadJiraMigratorConfig,
-  publicJiraMigratorConfig,
+  redactForConfig,
 } from "./cli/config.js";
+import {
+  type JiraRunnerDependencies,
+  JiraRunnerError,
+  type JiraRunnerResult,
+  runJiraMigration,
+} from "./runner/runner.js";
 
 const USAGE = `reef-jira-migrator
 
 Usage:
-  reef-jira-migrator --project-key PROJECT --vault <vault> [--jira-base-url <url>] [--dry-run]
+  reef-jira-migrator (--dry-run | --apply) --project-key PROJECT [--project-key PROJECT ...]
+    --jira-cloud-id ID --vault VAULT --mapping-policy PROJECT=PATH
+    --ledger-path PATH --archive-root PATH --account-mapping-path PATH --report-path PATH
+    [--board-id ID ...] [--run-id ID] [--resume ID]
+    [--expected-plan-sha256 SHA256]
 
-Options:
-  --dry-run                 Load config and report readiness without migrating.
-  --jira-base-url <url>     Jira tenant URL. Can also use REEF_JIRA_BASE_URL.
-  --jira-cloud-id <id>      Atlassian cloud id. Can derive the API gateway URL.
-  --project-key <key>       Jira project key, for example PROJECT.
-  --vault <vault>           Target Reef workspace vault.
-  --report <path>           Optional local dry-run/report path.
-  --account-mapping <path>  Local Jira account mapping artifact JSON path.
-  --api-token-file <path>   Local Jira API-token secret file.
-  --bearer-token-file <path> Local Jira bearer-token secret file.
+Safety:
+  Exactly one mode is required. Apply requires --expected-plan-sha256 from a
+  successful dry-run report. Jira and AKB secrets are accepted only through
+  environment variables or private secret files; secret values are never argv.
+
+Source:
+  --jira-base-url URL       Jira tenant URL (or REEF_JIRA_BASE_URL).
+  --jira-cloud-id ID        Stable Jira cloud scope.
+  --project-key KEY         Repeatable Jira project scope.
+  --board-id ID             Repeatable explicit Jira board scope.
+  --mapping-policy P=PATH   Repeat once per project.
+  --api-token-file PATH     Private Jira API-token file.
+  --bearer-token-file PATH  Private Jira bearer-token file.
+
+Target:
+  --akb-base-url URL        AKB URL (or AKB_BACKEND_URL).
+  --vault VAULT             Target Reef vault.
+  --akb-jwt-file PATH       Private AKB JWT file (or REEF_AKB_JWT).
+
+Artifacts:
+  --run-id ID
+  --ledger-path PATH
+  --archive-root PATH
+  --account-mapping-path PATH
+  --report-path PATH
+
+Control:
+  --resume RUN_ID
+  --expected-plan-sha256 SHA256
+  --retry-count N
+  --retry-base-delay-ms N
+  --retry-max-delay-ms N
 `;
 
 const isHelp = (argv: readonly string[]) =>
   argv.includes("--help") || argv.includes("-h");
 
-const formatError = (error: unknown): string => {
+const safeError = (error: unknown): Record<string, unknown> => {
   if (error instanceof JiraMigratorConfigError) {
-    return `${error.message}: ${error.issues.join("; ")}\n`;
+    return { code: error.message, issues: error.issues };
   }
-  if (error instanceof Error) return `${error.name}: ${error.message}\n`;
-  return `${String(error)}\n`;
+  if (error instanceof JiraRunnerError) {
+    return { code: error.code };
+  }
+  if (error instanceof Error) {
+    const code =
+      "code" in error && typeof error.code === "string"
+        ? error.code
+        : error.name;
+    return { code };
+  }
+  return { code: "unknown_error" };
 };
+
+export interface JiraCliDependencies {
+  run?: (
+    config: ReturnType<typeof loadJiraMigratorConfig>,
+    dependencies?: JiraRunnerDependencies,
+  ) => Promise<JiraRunnerResult>;
+  runnerDependencies?: JiraRunnerDependencies;
+}
 
 export async function main(
   argv: readonly string[] = process.argv.slice(2),
   env: NodeJS.ProcessEnv = process.env,
+  dependencies: JiraCliDependencies = {},
 ): Promise<number> {
   if (isHelp(argv)) {
     process.stdout.write(USAGE);
     return 0;
   }
 
+  let config: ReturnType<typeof loadJiraMigratorConfig> | null = null;
+  const controller = new AbortController();
+  const interrupt = () => controller.abort();
+  process.once("SIGINT", interrupt);
+  process.once("SIGTERM", interrupt);
   try {
-    const config = loadJiraMigratorConfig({ argv, env });
+    config = loadJiraMigratorConfig({ argv, env });
+    const run = dependencies.run ?? runJiraMigration;
+    const result = await run(config, {
+      ...dependencies.runnerDependencies,
+      signal: controller.signal,
+    });
     process.stdout.write(
-      `${JSON.stringify(publicJiraMigratorConfig(config))}\n`,
+      `${JSON.stringify({
+        run_id: result.runId,
+        mode: result.mode,
+        plan_sha256: result.planSha256,
+        report_path: config.artifacts.reportPath,
+        status: result.report.run.status,
+      })}\n`,
     );
-    return 0;
+    return result.report.run.status === "completed" ? 0 : 1;
   } catch (error) {
-    process.stderr.write(formatError(error));
-    return 1;
+    const safe = config
+      ? redactForConfig(config, safeError(error))
+      : safeError(error);
+    process.stderr.write(`${JSON.stringify(safe)}\n`);
+    if (error instanceof JiraRunnerError && error.code === "interrupted") {
+      return 130;
+    }
+    return error instanceof JiraMigratorConfigError ? 2 : 1;
+  } finally {
+    process.removeListener("SIGINT", interrupt);
+    process.removeListener("SIGTERM", interrupt);
   }
 }
 
