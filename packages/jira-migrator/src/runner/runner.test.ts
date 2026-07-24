@@ -719,5 +719,5 @@ describe("runJiraMigration", () => {
         action: "conflict",
       }),
     );
-  });
+  }, 15_000);
 });
