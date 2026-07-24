@@ -49,9 +49,11 @@ describe("SavedViewActions", () => {
       </IntlTestProvider>,
     );
 
-    await user.click(
-      screen.getByRole("button", { name: "Todo launch review, Changed" }),
-    );
+    const trigger = screen.getByRole("button", {
+      name: "Todo launch review, Changed",
+    });
+    expect(trigger).toHaveClass("h-8", "w-56");
+    await user.click(trigger);
 
     expect(screen.getByRole("menu")).toHaveClass("w-56");
   });

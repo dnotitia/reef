@@ -17,11 +17,14 @@ import { SavedViewActions } from "./SavedViewActions";
 
 function ViewsPageSkeleton() {
   return (
-    <div className="space-y-2" data-testid="saved-views-page-loading">
+    <div
+      className="divide-y divide-border-subtle overflow-hidden rounded-lg border border-border-subtle bg-elevated"
+      data-testid="saved-views-page-loading"
+    >
       {[0, 1, 2].map((index) => (
         <Skeleton
           key={index}
-          className="h-14 w-full"
+          className="h-16 w-full rounded-none"
           style={{ "--i": index } as React.CSSProperties}
         />
       ))}

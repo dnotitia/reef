@@ -18,7 +18,7 @@ import { ChevronDown, Circle } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { SavedViewActions } from "./SavedViewActions";
+import { SAVED_VIEW_ACTION_WIDTH, SavedViewActions } from "./SavedViewActions";
 
 export function ActiveSavedViewControl() {
   const { vault } = useActiveVault();
@@ -93,7 +93,8 @@ export function ActiveSavedViewControl() {
       triggerClassName={cn(
         CBX_TRIGGER_CHIP,
         CBX_TRIGGER_CHIP_ACTIVE,
-        "size-auto max-w-[15rem] px-2.5",
+        SAVED_VIEW_ACTION_WIDTH,
+        "max-w-[15rem] px-2.5",
       )}
       triggerLabel={t("contextLabel", {
         name: contextView.name,

@@ -49,15 +49,22 @@ vi.mock("@/features/issues/hooks/useSavedIssueViewPreferences", () => ({
 }));
 
 vi.mock("./SavedViewActions", () => ({
+  SAVED_VIEW_ACTION_WIDTH: "w-56",
   SavedViewActions: ({
+    triggerClassName,
     triggerLabel,
     updatePayload,
   }: {
+    triggerClassName?: string;
     triggerLabel?: string;
     updatePayload?: { query: Record<string, string[]> };
   }) => (
     <div>
-      <button type="button" aria-label={triggerLabel}>
+      <button
+        type="button"
+        aria-label={triggerLabel}
+        className={triggerClassName}
+      >
         Context
       </button>
       <output data-testid="update-payload">
@@ -98,9 +105,12 @@ describe("ActiveSavedViewControl", () => {
       </IntlTestProvider>,
     );
 
-    expect(
-      screen.getByRole("button", { name: "Alpha todo, Active" }),
-    ).toBeVisible();
+    const trigger = screen.getByRole("button", {
+      name: "Alpha todo, Active",
+    });
+    expect(trigger).toBeVisible();
+    expect(trigger).toHaveClass("w-56");
+    expect(trigger).not.toHaveClass("size-auto");
   });
 
   it("retains context after filters diverge and exposes the current payload", () => {

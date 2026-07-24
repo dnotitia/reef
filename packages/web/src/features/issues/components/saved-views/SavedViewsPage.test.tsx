@@ -114,4 +114,29 @@ describe("SavedViewsPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(mockRefetch).toHaveBeenCalledOnce();
   });
+
+  it("matches the loaded list chrome while loading", () => {
+    queryState.data = undefined;
+    queryState.isPending = true;
+    queryState.isSuccess = false;
+
+    render(
+      <IntlTestProvider>
+        <SavedViewsPage />
+      </IntlTestProvider>,
+    );
+
+    const loading = screen.getByTestId("saved-views-page-loading");
+    expect(loading).toHaveClass(
+      "divide-y",
+      "overflow-hidden",
+      "rounded-lg",
+      "border",
+      "bg-elevated",
+    );
+    expect([...loading.children]).toHaveLength(3);
+    for (const row of loading.children) {
+      expect(row).toHaveClass("h-16", "rounded-none");
+    }
+  });
 });

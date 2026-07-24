@@ -45,6 +45,8 @@ interface SavedViewActionsProps {
   triggerLabel?: string;
 }
 
+export const SAVED_VIEW_ACTION_WIDTH = "w-56";
+
 export function SavedViewActions({
   vault,
   view,
@@ -75,7 +77,8 @@ export function SavedViewActions({
       <DropdownMenu>
         <DropdownMenuTrigger
           className={cn(
-            "size-8 justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+            "inline-flex h-8 items-center rounded-md text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+            triggerContent ? SAVED_VIEW_ACTION_WIDTH : "w-8 justify-center",
             triggerClassName,
           )}
           aria-label={triggerLabel ?? t("actions", { name: view.name })}
@@ -84,7 +87,9 @@ export function SavedViewActions({
             <MoreHorizontal className="size-4" aria-hidden="true" />
           )}
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="right-0 left-auto w-56">
+        <DropdownMenuContent
+          className={cn("right-0 left-auto", SAVED_VIEW_ACTION_WIDTH)}
+        >
           {updatePayload ? (
             <DropdownMenuItem
               onSelect={() => {
