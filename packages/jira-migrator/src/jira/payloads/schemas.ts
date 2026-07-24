@@ -19,6 +19,13 @@ const JiraCommentIdSchema = z
 
 const UnknownRecordSchema = z.record(z.unknown());
 
+export const JiraProjectSchema = z
+  .object({
+    id: StringOrNumberAsStringSchema,
+    key: z.string().min(1),
+  })
+  .passthrough();
+
 export const JiraUserSchema = z
   .object({
     accountId: z.string().optional(),

@@ -16,12 +16,14 @@ import {
   reconcileProvisionalLinkRefs,
   sameLinkMapping,
 } from "./links.js";
+import { recordRelatedOperation } from "./operations.js";
 import { failure } from "./reporting.js";
 
 export async function importIssueLinks(options: {
   migration: JiraRelatedImportInput;
   issueId: string;
   issueKey: string;
+  projectKey: string;
   linkCatalogPresent: boolean;
   links: readonly NormalizedJiraIssueLink[];
   ledger: JiraMigrationLedgerV1;
@@ -32,6 +34,7 @@ export async function importIssueLinks(options: {
     migration,
     issueId,
     issueKey,
+    projectKey,
     linkCatalogPresent,
     links,
     report,
@@ -54,13 +57,18 @@ export async function importIssueLinks(options: {
     );
     for (const relationKey of staleRelationKeys) {
       await migration.target.deleteRelation(relationKey);
-      if ((await migration.target.readRelation(relationKey)) !== null)
+      if (
+        migration.mode === "apply" &&
+        (await migration.target.readRelation(relationKey)) !== null
+      )
         throw new Error("relation_mapping_removal_readback_mismatch");
     }
-    ledger = removeJiraMigrationBindings(
-      ledger,
-      staleRelationBindings.map((binding) => binding.source_key),
-    );
+    if (migration.mode === "apply") {
+      ledger = removeJiraMigrationBindings(
+        ledger,
+        staleRelationBindings.map((binding) => binding.source_key),
+      );
+    }
   };
   const uniqueLinks = new Map<string, NormalizedJiraIssueLink>();
   const conflictingLinkIds = new Set<string>();
@@ -95,31 +103,12 @@ export async function importIssueLinks(options: {
     uniqueLinks.set(link.id, link);
   }
   report.links.unique = uniqueLinks.size;
-  if (migration.mode === "apply") {
-    for (const linkId of conflictingLinkIds) {
-      try {
-        await removeStaleRelationBindings(linkId);
-        await reconcileProvisionalLinkRefs(
-          migration.target,
-          migration.jiraCloudId,
-          linkId,
-        );
-      } catch (error) {
-        failure(
-          report.failures,
-          "link",
-          linkId,
-          String(error).includes("readback") ? "readback" : "write",
-          "link_source_reconciliation_failed",
-          error,
-        );
-      }
-    }
-  }
-  if (migration.mode === "apply" && linkCatalogPresent) {
+  if (linkCatalogPresent) {
     const provisionalPrefix = `jira-link:${migration.jiraCloudId}:${issueId}:`;
     const currentProvisionalKeys = new Set(
-      [...uniqueLinks.keys()].map((linkId) => `${provisionalPrefix}${linkId}`),
+      [...uniqueLinks.keys(), ...conflictingLinkIds].map(
+        (linkId) => `${provisionalPrefix}${linkId}`,
+      ),
     );
     let existingProvisionalKeys: string[] = [];
     try {
@@ -146,7 +135,10 @@ export async function importIssueLinks(options: {
         )
           throw new Error("external_ref_reconciliation_mismatch");
         if (existing) await migration.target.deleteExternalRef(existingKey);
-        if ((await migration.target.readExternalRef(existingKey)) !== null)
+        if (
+          migration.mode === "apply" &&
+          (await migration.target.readExternalRef(existingKey)) !== null
+        )
           throw new Error("external_ref_delete_readback_mismatch");
       } catch (error) {
         failure(
@@ -164,10 +156,9 @@ export async function importIssueLinks(options: {
         binding.source_identity.entity_kind === "relation" &&
         binding.source_identity.jira_cloud_id === migration.jiraCloudId &&
         (binding.source_identity.source_issue_id === issueId ||
-          binding.source_identity.source_issue_id === issueKey ||
-          binding.source_identity.target_issue_id === issueId ||
-          binding.source_identity.target_issue_id === issueKey) &&
-        !uniqueLinks.has(binding.source_identity.link_id),
+          binding.source_identity.source_issue_id === issueKey) &&
+        !uniqueLinks.has(binding.source_identity.link_id) &&
+        !conflictingLinkIds.has(binding.source_identity.link_id),
     );
     for (const binding of missingRelationBindings) {
       if (binding.source_identity.entity_kind !== "relation") continue;
@@ -178,6 +169,7 @@ export async function importIssueLinks(options: {
           migration.target,
           migration.jiraCloudId,
           linkId,
+          migration.mode,
         );
       } catch (error) {
         failure(
@@ -200,8 +192,6 @@ export async function importIssueLinks(options: {
         mappingMatches.length === 1 ? mappingMatches[0] : undefined;
       if (mappingMatches.length > 1) {
         report.links.unresolved += 1;
-        if (migration.mode === "apply")
-          await removeStaleRelationBindings(linkId);
         failure(
           report.failures,
           "link",
@@ -214,39 +204,65 @@ export async function importIssueLinks(options: {
       const targetIssue = migration.resolveIssueTarget(
         link.issueId ?? link.issueKey,
       );
+      const linkedSource = link.issueId ?? link.issueKey;
+      const hasExistingRelationBinding = ledger.bindings.some(
+        (binding) =>
+          binding.source_identity.entity_kind === "relation" &&
+          binding.source_identity.jira_cloud_id === migration.jiraCloudId &&
+          binding.source_identity.link_id === linkId &&
+          binding.target.target_kind === "relation",
+      );
+      if (
+        !targetIssue &&
+        (hasExistingRelationBinding ||
+          migration.preserveUnresolvedIssueTargets?.has(linkedSource))
+      ) {
+        failure(
+          report.failures,
+          "link",
+          linkId,
+          "resolve",
+          "linked_issue_not_confirmed",
+        );
+        continue;
+      }
       if (!mapping || !targetIssue) {
         report.links.unresolved += 1;
-        if (migration.mode === "apply") {
-          await removeStaleRelationBindings(linkId);
-          const externalKey = `jira-link:${migration.jiraCloudId}:${issueId}:${linkId}`;
-          const externalValue = {
-            reefId: migration.reefId,
-            ref: {
-              type: "jira" as const,
-              ref: link.issueKey,
-              label: "Jira issue link",
+        await removeStaleRelationBindings(linkId);
+        const externalKey = `jira-link:${migration.jiraCloudId}:${issueId}:${linkId}`;
+        const externalValue = {
+          reefId: migration.reefId,
+          ref: {
+            type: "jira" as const,
+            ref: link.issueKey,
+            label: "Jira issue link",
+          },
+          provenance: {
+            source: "jira",
+            link_id: linkId,
+            type: {
+              id: link.typeId,
+              name: link.type,
+              inward: link.inward,
+              outward: link.outward,
             },
-            provenance: {
-              source: "jira",
-              link_id: linkId,
-              type: {
-                id: link.typeId,
-                name: link.type,
-                inward: link.inward,
-                outward: link.outward,
-              },
-              unresolved: true,
-            },
-          };
-          const existing = await migration.target.readExternalRef(externalKey);
-          if (
-            existing &&
-            fingerprintJiraState(existing) ===
-              fingerprintJiraState(externalValue)
-          ) {
-            report.links.skipped += 1;
-            continue;
-          }
+            unresolved: true,
+          },
+        };
+        const existing = await migration.target.readExternalRef(externalKey);
+        if (
+          existing &&
+          fingerprintJiraState(existing) === fingerprintJiraState(externalValue)
+        ) {
+          report.links.skipped += 1;
+          continue;
+        }
+        if (migration.mode === "dry-run") {
+          recordRelatedOperation(report, "put_external_ref", externalKey, {
+            idempotencyKey: externalKey,
+            ...externalValue,
+          });
+        } else {
           await migration.target.putExternalRef({
             idempotencyKey: externalKey,
             ...externalValue,
@@ -260,7 +276,6 @@ export async function importIssueLinks(options: {
         }
         continue;
       }
-      if (migration.mode === "dry-run") continue;
       const { relation, inverseRelation, sourceReefId, targetReefId } =
         canonicalizeJiraRelation(
           mapping,
@@ -277,6 +292,7 @@ export async function importIssueLinks(options: {
         linkType,
         link.direction,
         linkId,
+        projectKey,
       );
       const legacyKey = legacyJiraRelationSourceKey(
         migration.jiraCloudId,
@@ -325,17 +341,44 @@ export async function importIssueLinks(options: {
             migration.target,
             migration.jiraCloudId,
             linkId,
+            migration.mode,
           );
           report.links.skipped += 1;
           continue;
         }
       }
       const relationKey = identity.key;
-      await migration.target.putRelation({
+      const relationInput = {
         idempotencyKey: relationKey,
         ...expectedRelation,
         provenance: { source: "jira", link_id: linkId },
-      });
+      };
+      if (migration.mode === "dry-run") {
+        recordRelatedOperation(
+          report,
+          "put_relation",
+          relationKey,
+          relationInput,
+        );
+        await reconcileProvisionalLinkRefs(
+          migration.target,
+          migration.jiraCloudId,
+          linkId,
+          "dry-run",
+        );
+        for (const legacyBinding of semanticBindings) {
+          if (
+            legacyBinding.target.target_kind !== "relation" ||
+            legacyBinding.target.idempotency_key === relationKey
+          )
+            continue;
+          await migration.target.deleteRelation(
+            legacyBinding.target.idempotency_key,
+          );
+        }
+        continue;
+      }
+      await migration.target.putRelation(relationInput);
       const relationReadback = await migration.target.readRelation(relationKey);
       if (
         fingerprintJiraState(relationReadback) !==

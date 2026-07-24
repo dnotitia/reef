@@ -19,6 +19,7 @@ import {
   REEF_SPRINTS_TABLE,
   ensureReefTables,
   isMissingTableError,
+  quoteText,
   withSpan,
 } from "../core/shared";
 import type {
@@ -29,6 +30,7 @@ import type {
   DeleteReleaseParams,
   DeleteSprintParams,
   ListPlanningCatalogParams,
+  ReadPlanningCreateClaimParams,
   UpdateMilestoneParams,
   UpdateReleaseParams,
   UpdateSprintParams,
@@ -36,6 +38,7 @@ import type {
 import {
   assertPlanningItemNotReferenced,
   assertUniquePlanningName,
+  claimAndReadPlanningRow,
   deletePlanningRow,
   insertAndReadPlanningRow,
   milestoneRowFields,
@@ -47,6 +50,29 @@ import {
   sprintRowFields,
   updatePlanningRow,
 } from "./planningRows";
+
+const CREATE_IDEMPOTENCY_META_KEY = "create_idempotency_key";
+
+export async function readPlanningCreateClaim(
+  params: ReadPlanningCreateClaimParams,
+): Promise<Release | Sprint | null> {
+  const { adapter, vault, kind, idempotencyKey } = params;
+  const table = kind === "release" ? REEF_RELEASES_TABLE : REEF_SPRINTS_TABLE;
+  const rows = await selectPlanningRows(
+    adapter,
+    vault,
+    table,
+    `meta->>${quoteText(CREATE_IDEMPOTENCY_META_KEY, "planning claim field")} = ${quoteText(idempotencyKey, "planning idempotency key")}`,
+  );
+  if (rows.length > 1) {
+    throw new SchemaValidationError({
+      issues: ["planning idempotency claim is ambiguous"],
+    });
+  }
+  const row = rows[0];
+  if (!row) return null;
+  return kind === "release" ? rowToRelease(row) : rowToSprint(row);
+}
 
 export async function listPlanningCatalog(
   params: ListPlanningCatalogParams,
@@ -81,25 +107,32 @@ export async function listPlanningCatalog(
 export async function createSprint(
   params: CreateSprintParams,
 ): Promise<Sprint> {
-  const { adapter, vault, item } = params;
+  const { adapter, vault, item, idempotencyKey } = params;
   return withSpan("akb.create_sprint", { vault }, async () => {
     await ensureReefTables({ adapter, vault });
     // Validate before the insert — akb assigns the uuid id, but the other
     // fields should be checked here so an invalid row does not persists.
     const validated = SprintCreateSchema.parse(item);
-    await assertUniquePlanningName(
+    return claimAndReadPlanningRow({
       adapter,
       vault,
-      REEF_SPRINTS_TABLE,
-      validated.name,
-    );
-    return insertAndReadPlanningRow(
-      adapter,
-      vault,
-      REEF_SPRINTS_TABLE,
-      sprintRowFields(validated),
-      rowToSprint,
-    );
+      table: REEF_SPRINTS_TABLE,
+      fields: sprintRowFields(
+        validated,
+        idempotencyKey ? { [CREATE_IDEMPOTENCY_META_KEY]: idempotencyKey } : {},
+      ),
+      name: validated.name,
+      idempotencyKey,
+      idempotencyMetaKey: CREATE_IDEMPOTENCY_META_KEY,
+      toItem: rowToSprint,
+      isCompatible: (item) =>
+        item.name === validated.name &&
+        item.status === validated.status &&
+        (item.start_date ?? null) === (validated.start_date ?? null) &&
+        (item.end_date ?? null) === (validated.end_date ?? null) &&
+        item.goal === validated.goal &&
+        (item.capacity_points ?? null) === (validated.capacity_points ?? null),
+    });
   });
 }
 
@@ -207,23 +240,29 @@ export async function deleteMilestone(
 export async function createRelease(
   params: CreateReleaseParams,
 ): Promise<Release> {
-  const { adapter, vault, item } = params;
+  const { adapter, vault, item, idempotencyKey } = params;
   return withSpan("akb.create_release", { vault }, async () => {
     await ensureReefTables({ adapter, vault });
     const validated = ReleaseCreateSchema.parse(item);
-    await assertUniquePlanningName(
+    return claimAndReadPlanningRow({
       adapter,
       vault,
-      REEF_RELEASES_TABLE,
-      validated.name,
-    );
-    return insertAndReadPlanningRow(
-      adapter,
-      vault,
-      REEF_RELEASES_TABLE,
-      releaseRowFields(validated),
-      rowToRelease,
-    );
+      table: REEF_RELEASES_TABLE,
+      fields: releaseRowFields(
+        validated,
+        idempotencyKey ? { [CREATE_IDEMPOTENCY_META_KEY]: idempotencyKey } : {},
+      ),
+      name: validated.name,
+      idempotencyKey,
+      idempotencyMetaKey: CREATE_IDEMPOTENCY_META_KEY,
+      toItem: rowToRelease,
+      isCompatible: (item) =>
+        item.name === validated.name &&
+        item.status === validated.status &&
+        (item.target_date ?? null) === (validated.target_date ?? null) &&
+        (item.released_at ?? null) === (validated.released_at ?? null) &&
+        item.notes === validated.notes,
+    });
   });
 }
 

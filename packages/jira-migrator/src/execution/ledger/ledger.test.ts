@@ -88,8 +88,20 @@ describe("Jira migration ledger", () => {
         "blocks",
         "outward",
         "7",
+        "ALPHA",
       ).key,
     ).toBe("relation:cloud%3Aa:7");
+    expect(
+      jiraRelationSourceIdentity(
+        "cloud:a",
+        "100",
+        "200",
+        "blocks",
+        "outward",
+        "7",
+        "ALPHA",
+      ).source_project_key,
+    ).toBe("ALPHA");
   });
 
   it("continues to accept persisted V1 relation bindings that use the legacy endpoint key", () => {

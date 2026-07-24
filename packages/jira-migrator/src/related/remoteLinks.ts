@@ -5,6 +5,7 @@ import type {
   JiraRelatedImportReport,
 } from "./contracts.js";
 import { canonicalRemoteLinkIdentity, safeRemoteLinkUrl } from "./links.js";
+import { recordRelatedOperation } from "./operations.js";
 import { failure } from "./reporting.js";
 
 export async function importRemoteLinks(input: {
@@ -17,7 +18,7 @@ export async function importRemoteLinks(input: {
   const { migration, issueId, catalogReadSucceeded, remoteLinks, report } =
     input;
   const remotePrefix = `jira-remote:${migration.jiraCloudId}:${issueId}:`;
-  if (migration.mode === "apply" && catalogReadSucceeded) {
+  if (catalogReadSucceeded) {
     const currentRemoteKeys = new Set(
       remoteLinks.flatMap((remote) =>
         safeRemoteLinkUrl(remote.object.url)
@@ -43,7 +44,10 @@ export async function importRemoteLinks(input: {
       if (currentRemoteKeys.has(existingKey)) continue;
       try {
         await migration.target.deleteExternalRef(existingKey);
-        if ((await migration.target.readExternalRef(existingKey)) !== null)
+        if (
+          migration.mode === "apply" &&
+          (await migration.target.readExternalRef(existingKey)) !== null
+        )
           throw new Error("remote_link_delete_readback_mismatch");
       } catch (error) {
         failure(
@@ -73,29 +77,34 @@ export async function importRemoteLinks(input: {
       );
       continue;
     }
-    if (migration.mode === "apply") {
-      try {
-        const idempotencyKey = `${remotePrefix}${remoteId}`;
-        const remoteValue = {
-          reefId: migration.reefId,
-          ref: { type: "url" as const, url, label: remote.object.title },
-          provenance: {
-            source: "jira",
-            remote_identity: remoteId,
-            global_id: remote.globalId ?? null,
-            application: remote.application ?? null,
-            relationship: remote.relationship ?? null,
-            object: remote.object,
-          },
-        };
-        const existing = await migration.target.readExternalRef(idempotencyKey);
-        if (
-          existing &&
-          fingerprintJiraState(existing) === fingerprintJiraState(remoteValue)
-        ) {
-          report.remote_links.skipped += 1;
-          continue;
-        }
+    try {
+      const idempotencyKey = `${remotePrefix}${remoteId}`;
+      const remoteValue = {
+        reefId: migration.reefId,
+        ref: { type: "url" as const, url, label: remote.object.title },
+        provenance: {
+          source: "jira",
+          remote_identity: remoteId,
+          global_id: remote.globalId ?? null,
+          application: remote.application ?? null,
+          relationship: remote.relationship ?? null,
+          object: remote.object,
+        },
+      };
+      const existing = await migration.target.readExternalRef(idempotencyKey);
+      if (
+        existing &&
+        fingerprintJiraState(existing) === fingerprintJiraState(remoteValue)
+      ) {
+        report.remote_links.skipped += 1;
+        continue;
+      }
+      if (migration.mode === "dry-run") {
+        recordRelatedOperation(report, "put_external_ref", idempotencyKey, {
+          idempotencyKey,
+          ...remoteValue,
+        });
+      } else {
         await migration.target.putExternalRef({
           idempotencyKey,
           ...remoteValue,
@@ -106,16 +115,16 @@ export async function importRemoteLinks(input: {
         )
           throw new Error("external_ref_readback_missing");
         report.remote_links.applied += 1;
-      } catch (error) {
-        failure(
-          report.failures,
-          "remote_link",
-          remoteReportId,
-          String(error).includes("readback") ? "readback" : "write",
-          "remote_link_import_failed",
-          error,
-        );
       }
+    } catch (error) {
+      failure(
+        report.failures,
+        "remote_link",
+        remoteReportId,
+        String(error).includes("readback") ? "readback" : "write",
+        "remote_link_import_failed",
+        error,
+      );
     }
   }
 }

@@ -35,6 +35,21 @@ const makeClient = (fetchImpl: typeof fetch) =>
   });
 
 describe("JiraReadClient", () => {
+  it("reads configured project identity with GET", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(jsonResponse({ id: 100, key: "ALPHA" }));
+    const client = makeClient(fetchImpl);
+
+    await expect(client.getProject()).resolves.toMatchObject({
+      project: { id: "100", key: "ALPHA" },
+    });
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain(
+      "/rest/api/3/project/ALPHA",
+    );
+    expect(fetchImpl.mock.calls[0]?.[1]?.method).toBe("GET");
+  });
+
   it("searches project issues read-only through enhanced JQL pagination", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
       jsonResponse(jiraSearchFixture, {
@@ -113,6 +128,42 @@ describe("JiraReadClient", () => {
       ]),
     );
     expect(String(fetchImpl.mock.calls[1]?.[0])).toContain("expand=properties");
+  });
+
+  it("reads every comment page before returning the catalog", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse(jiraCommentPageFixture))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ...jiraCommentPageFixture,
+          startAt: 1,
+          comments: [
+            {
+              ...jiraCommentPageFixture.comments[0],
+              id: "50002",
+              author: {
+                ...jiraCommentPageFixture.comments[0].author,
+                accountId: "acct-later-commenter",
+              },
+            },
+          ],
+        }),
+      );
+    const client = makeClient(fetchImpl);
+
+    const catalog = await client.readComments("ALPHA-1", { maxResults: 1 });
+
+    expect(catalog.items.map((comment) => comment.id)).toEqual([
+      "50001",
+      "50002",
+    ]);
+    expect(catalog.pages).toHaveLength(2);
+    expect(fetchImpl.mock.calls.map(([, init]) => init?.method)).toEqual([
+      "GET",
+      "GET",
+    ]);
+    expect(String(fetchImpl.mock.calls[1]?.[0])).toContain("startAt=1");
   });
 
   it("classifies rate limits and transient API failures as retryable without leaking secrets", async () => {

@@ -45,6 +45,17 @@ export interface WriteIssueParams {
   issue: IssueMetadata;
   /** Plain markdown issue content stored in the akb document body. */
   content?: string;
+  /**
+   * Claim the unique reef_issues key before creating the document. Migration
+   * callers use this to make a planned issue id an atomic target-side claim.
+   */
+  claimFirst?: boolean;
+}
+
+export interface ClaimIssueIdParams {
+  adapter: AkbAdapter;
+  vault: string;
+  issue: IssueMetadata;
 }
 
 export interface WriteIssueResult {
@@ -73,6 +84,11 @@ export interface UpdateIssueParams {
    * for row-edits, which stay last-write-wins.
    */
   expectedCommit?: string;
+  /**
+   * Row-level OCC base for trusted read-modify-write callers. The update is
+   * applied only while the persisted row still has this `updated_at` value.
+   */
+  expectedUpdatedAt?: string;
 }
 
 export interface UpdateIssueResult {
@@ -248,6 +264,7 @@ export interface CreateSprintParams {
   adapter: AkbAdapter;
   vault: string;
   item: Omit<Sprint, "id">;
+  idempotencyKey?: string;
 }
 
 export interface UpdateSprintParams {
@@ -286,6 +303,14 @@ export interface CreateReleaseParams {
   adapter: AkbAdapter;
   vault: string;
   item: Omit<Release, "id">;
+  idempotencyKey?: string;
+}
+
+export interface ReadPlanningCreateClaimParams {
+  adapter: AkbAdapter;
+  vault: string;
+  kind: "release" | "sprint";
+  idempotencyKey: string;
 }
 
 export interface UpdateReleaseParams {

@@ -6,12 +6,12 @@ one-shot Jira-to-Reef migrations. Package-local orientation stays in
 
 ## Scope And Status
 
-`@reef/jira-migrator` owns operator-run Jira discovery, migration config,
-payload normalization, private raw archives and account mappings, source-system
-ordering, immutable import plans, durable local ledgers/checkpoints,
-deterministic reports, and dependency-injected related-data apply/readback for
-generic Jira projects. Project keys are operator inputs rather than API naming
-boundaries.
+`@reef/jira-migrator` owns the complete operator-run, planning-first Jira
+migration: read-only multi-project Jira discovery, private raw archives and
+account mapping, dry-run approval reports, AKB apply/readback, durable
+checkpoint/resume, related-data reconciliation, changelog promotion, and
+sanitized conservation reporting. Project keys remain operator inputs rather
+than API naming boundaries.
 
 The package is intentionally outside `@reef/web`: Jira credentials are
 deployment/operator secrets, not user state in the product runtime. Jira is
@@ -19,12 +19,9 @@ always a read-only source: its client uses GET-only HTTP operations. An apply
 stage writes or reconciles Reef targets through an explicit target contract; it
 never mutates Jira.
 
-The CLI validates configuration and prints a redacted public config. The
-library can build issue import plans and apply related comments, attachments,
-media rewrites, relations, and external references through a
-dependency-injected Reef target. Final project traversal and CLI apply
-composition are not yet implemented; the current CLI remains a dry-run
-configuration scaffold.
+The CLI never writes Jira. In `--apply` it writes Reef only through the public
+`@reef/core` AKB adapter and only for the exact plan hash approved by a
+completed dry run.
 
 ## Documentation Placement
 
@@ -40,20 +37,34 @@ configuration scaffold.
 
 ## Operator Runbook
 
-Run the current dry-run scaffold from the repository root:
+Use private `0700` artifact directories and `0600` policy/secret files. Run the
+dry run from the repository root:
 
 ```bash
 pnpm --filter @reef/jira-migrator run start -- \
   --jira-base-url https://example.atlassian.net \
-  --project-key PROJECT \
+  --jira-cloud-id cloud-id \
+  --project-key ALPHA \
+  --project-key BETA \
+  --mapping-policy ALPHA=/private/jira/alpha-policy.json \
+  --mapping-policy BETA=/private/jira/beta-policy.json \
+  --board-id 42 \
+  --akb-base-url https://akb.example.internal \
   --vault reef-test \
-  --account-mapping ./artifacts/jira-account-mapping.cloud-abc.json \
-  --report ./artifacts/jira-migration-report.json \
+  --run-id jira-2026-07-23 \
+  --ledger-path /private/jira/ledger.json \
+  --archive-root /private/jira/archive \
+  --account-mapping-path /private/jira/accounts.json \
+  --report-path /private/jira/report.json \
   --dry-run
 ```
 
-The scaffolded CLI prints `publicJiraMigratorConfig(config)` as JSON. That
-output is safe for logs and reports because it omits secret values.
+Review the report, retain its checksum, and run `--apply` with the identical
+scope plus `--expected-plan-sha256 <report plan_sha256>`. To resume, use the
+same files and `--resume <run-id>` in a fresh process. Never edit a report,
+ledger, or archive between approval and apply; stale content, a sibling lock,
+unsafe permissions, a symlink, target actor/vault drift, or a changed plan
+fails closed.
 
 When an installed build is used, the binary name is:
 
@@ -70,13 +81,23 @@ Credentials come only from environment variables or local secret files.
 | --- | --- | --- |
 | `--jira-base-url` | `REEF_JIRA_BASE_URL` or `JIRA_BASE_URL` | Jira tenant URL. Must be HTTPS. |
 | `--jira-cloud-id` | `REEF_JIRA_CLOUD_ID` or `JIRA_CLOUD_ID` | Atlassian Cloud id. When no base URL is supplied, it derives `https://api.atlassian.com/ex/jira/<cloudId>`. |
-| `--project-key` | `REEF_JIRA_PROJECT_KEY` or `JIRA_PROJECT_KEY` | Jira project key, normalized to uppercase. |
+| `--project-key` | `REEF_JIRA_PROJECT_KEY` or `JIRA_PROJECT_KEY` | Repeatable Jira project key, normalized to uppercase. |
+| `--board-id` | — | Repeatable explicit board selection; no board inference. |
+| `--mapping-policy PROJECT=PATH` | — | Required private JSON mapping policy for every selected project. |
+| `--akb-base-url` | `AKB_BACKEND_URL` | HTTPS AKB API origin. |
 | `--vault` | `REEF_JIRA_MIGRATOR_VAULT`, `REEF_ORCHESTRATOR_VAULT`, or `REEF_VAULT` | Target Reef workspace vault. |
-| `--report` | `REEF_JIRA_MIGRATOR_REPORT_PATH` | Optional local report path. |
-| `--account-mapping` | `REEF_JIRA_ACCOUNT_MAPPING_PATH` | Optional local Jira account mapping artifact path. |
+| `--run-id` | — | Stable execution identity shared by dry-run/apply/resume. |
+| `--ledger-path` | `REEF_JIRA_LEDGER_PATH` | Required private checkpoint ledger. |
+| `--archive-root` | `REEF_JIRA_ARCHIVE_ROOT` | Required private raw archive root. |
+| `--report-path` | `REEF_JIRA_MIGRATOR_REPORT_PATH` | Required private latest-result path; dry-run seals immutable `.approval.json` and `.plan.json` sidecars for apply validation. |
+| `--account-mapping-path` | `REEF_JIRA_ACCOUNT_MAPPING_PATH` | Required private Jira account mapping artifact. |
+| `--resume` | — | Resume the named run from confirmed entity checkpoints. |
+| `--expected-plan-sha256` | — | Required apply approval hash from the dry-run report. |
+| `--attest-comment-catalog-complete` | — | Explicitly attest that the Jira credential sees the complete comment catalog. Required for attachment import and destructive reconciliation of omitted comments; repeat on dry-run and apply. |
 | `--api-token-file` | `REEF_JIRA_API_TOKEN_FILE` or `JIRA_API_TOKEN_FILE` | Local secret file containing a Jira API token for basic auth. |
 | `--bearer-token-file` | `REEF_JIRA_BEARER_TOKEN_FILE` or `JIRA_BEARER_TOKEN_FILE` | Local secret file containing a Jira bearer token. |
-| `--dry-run` | `REEF_JIRA_MIGRATOR_DRY_RUN` | Load config and report readiness without migrating. |
+| `--akb-jwt-file` | `REEF_AKB_JWT_FILE` | Local secret file containing the AKB JWT. |
+| `--dry-run` / `--apply` | — | Exactly one execution mode is mandatory. |
 
 Basic auth uses `REEF_JIRA_EMAIL` or `JIRA_EMAIL` plus one of
 `REEF_JIRA_API_TOKEN`, `JIRA_API_TOKEN`, `REEF_JIRA_API_TOKEN_FILE`, or
@@ -86,6 +107,53 @@ Bearer auth uses one of `REEF_JIRA_BEARER_TOKEN`, `JIRA_BEARER_TOKEN`,
 `REEF_JIRA_BEARER_TOKEN_FILE`, or `JIRA_BEARER_TOKEN_FILE`.
 
 Configure either basic auth or bearer auth, not both.
+
+## Execution And Report Contract
+
+The runner reads enhanced JQL pages by `nextPageToken`, only the explicitly
+selected boards, project Versions, comments, remote links, and every changelog
+page. Jira requests are GET-only. It archives exact source JSON before
+normalization, maps accounts and planning entities, reserves deterministic
+target issue identities, then fingerprints the complete issue/related/changelog
+plan.
+
+Dry-run performs the same bounded source reads and validation as apply but
+makes zero target mutations. Apply revalidates source scope, target vault and
+actor, report approval, and the plan SHA-256. Each successful target write is
+read back before its binding and entity checkpoint are atomically persisted.
+Independent entity failures remain isolated and reports classify every input
+exactly once; `conservation.balanced` must be true.
+
+The private plan seals an ordered, hashed related-operation manifest covering
+comment, attachment, description, relation, and external-reference writes and
+deletions. A freshly computed apply plan must be a subset of that manifest:
+different operation identities or mapped inputs fail before mutation. Missing
+operations are accepted only as resume convergence when the same importer
+readback classifies the approved operation as already complete.
+
+Related data is reconciled after issue creation. A relation is owned by the Jira
+issue whose explicit link catalog contained it; processing the other endpoint
+must not delete that source-owned binding. Changelog histories are always
+preserved raw, with only lossless mapped items promoted to idempotent activity
+or external references.
+
+Enhanced-JQL absence alone never authorizes relation deletion because issue
+security, credential changes, or project movement can produce the same absence.
+The runner preserves that relation and reports a conflict. Apply also validates
+the approval-time target projection before an issue update, so independently
+edited mapped fields are not overwritten.
+
+The report contains safe identities, fingerprints, counts, opaque archive
+references, classifications, and approval metadata. It omits raw payloads,
+credentials, email/display-name account data, internal hostnames, and local
+archive paths. Related-data dry-run reports count each planned target deletion
+without performing it, and classify a planned description media rewrite as an
+update; apply counts only deletions that completed successfully. Validate the
+built contract with:
+
+```bash
+pnpm --filter @reef/jira-migrator run test:behavior
+```
 
 ## Secret And Report Handling
 
@@ -120,6 +188,8 @@ array order remains significant.
 - On Windows, configure a dedicated-user ACL first and supply the verifier name
   and timestamp through the `external_acl` acknowledgement. The writer refuses
   to start without it because Node file modes cannot prove the Windows ACL.
+  The bundled Jira CLI has no attestation input and therefore refuses Windows
+  archive creation instead of manufacturing this acknowledgement.
 - `/artifacts/` is ignored at the repository root as a secondary commit guard.
   It is not the recommended archive root.
 

@@ -6,6 +6,7 @@ import {
   JiraFieldCatalogSchema,
   type JiraFieldPayload,
   JiraIssueSchema,
+  JiraProjectSchema,
   JiraRemoteLinkListSchema,
   type JiraRemoteLinkPayload,
   JiraSearchResponseSchema,
@@ -53,6 +54,12 @@ export interface JiraPage<T> {
 
 export interface JiraIssueResult {
   issue: NormalizedJiraIssue;
+  rateLimit: JiraRateLimit;
+  raw: unknown;
+}
+
+export interface JiraProjectResult {
+  project: { id: string; key: string };
   rateLimit: JiraRateLimit;
   raw: unknown;
 }
@@ -288,6 +295,20 @@ export class JiraReadClient {
     const payload = JiraIssueSchema.parse(body.json);
     return {
       issue: normalizeJiraIssue(payload),
+      rateLimit: body.rateLimit,
+      raw: body.json,
+    };
+  }
+
+  async getProject(
+    projectIdOrKey = this.projectKey,
+  ): Promise<JiraProjectResult> {
+    const body = await this.getJson(
+      `/rest/api/3/project/${encodeURIComponent(projectIdOrKey)}`,
+    );
+    const project = JiraProjectSchema.parse(body.json);
+    return {
+      project: { id: project.id, key: project.key },
       rateLimit: body.rateLimit,
       raw: body.json,
     };

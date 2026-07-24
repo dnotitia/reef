@@ -49,6 +49,7 @@ export {
   listIssueActivity,
   listIssues,
   listPlanningCatalog,
+  readPlanningCreateClaim,
   listTemplates,
   listVaultMembers,
   listVaults,

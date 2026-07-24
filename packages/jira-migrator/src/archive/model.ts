@@ -13,6 +13,8 @@ export const RAW_ARCHIVE_ENTITY_KINDS = [
   "attachment_source",
   "remote_link",
   "custom_field",
+  "response_page",
+  "attachment_content",
 ] as const;
 
 export type RawArchiveEntityKind = (typeof RAW_ARCHIVE_ENTITY_KINDS)[number];
@@ -56,6 +58,15 @@ export interface RawArchiveSourceIdentityByKind {
     entity_kind: "custom_field";
     field_id: string;
   };
+  response_page: RawArchiveSourceIdentityBase & {
+    project_key: string;
+    endpoint_kind: string;
+    page_index: string;
+  };
+  attachment_content: RawArchiveSourceIdentityBase & {
+    issue_id: string;
+    attachment_id: string;
+  };
 }
 
 export type RawArchiveSourceIdentity<
@@ -71,6 +82,8 @@ export const RAW_ARCHIVE_SOURCE_IDENTITY_REQUIRED_KEYS = {
   attachment_source: ["cloud_id", "attachment_id"],
   remote_link: ["cloud_id", "issue_id", "remote_link_id"],
   custom_field: ["cloud_id", "issue_id", "entity_kind", "field_id"],
+  response_page: ["cloud_id", "project_key", "endpoint_kind", "page_index"],
+  attachment_content: ["cloud_id", "issue_id", "attachment_id"],
 } as const satisfies Record<RawArchiveEntityKind, readonly string[]>;
 
 export interface RawArchiveSourceScope {

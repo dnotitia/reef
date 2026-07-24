@@ -98,11 +98,37 @@ export {
   parseJiraMigratorArgs,
   publicJiraMigratorConfig,
   redactForConfig,
+  secretValuesForConfig,
   type JiraConfig,
   type JiraMigratorConfig,
+  type JiraMigratorMode,
   type LoadJiraMigratorConfigOptions,
   type PublicJiraMigratorConfig,
 } from "./cli/config.js";
+export {
+  JiraRunnerError,
+  runJiraMigration,
+  type JiraRunnerDependencies,
+  type JiraRunnerResult,
+} from "./runner/runner.js";
+export {
+  createAkbJiraMigrationTarget,
+  type AkbJiraMigrationTarget,
+  type AkbJiraMigrationTargetConfig,
+  type JiraIssueApplyReadback,
+} from "./runner/targetAdapter.js";
+export {
+  JiraMigrationReportError,
+  JiraRunnerReportSchema,
+  buildJiraRunnerReport,
+  loadJiraRunnerReport,
+  writeJiraRunnerReport,
+  type JiraRunnerReport,
+} from "./runner/report.js";
+export {
+  retryOperation,
+  type RetryOperationOptions,
+} from "./runner/retry.js";
 export type { JiraAuthSecret } from "./jira/auth.js";
 export {
   JiraApiError,

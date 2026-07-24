@@ -30,6 +30,7 @@ export const reportTemplate = (
   mode: "dry-run" | "apply",
 ): JiraRelatedImportReport => ({
   mode,
+  deletions: 0,
   comments: {
     total: 0,
     roots: 0,
@@ -40,8 +41,15 @@ export const reportTemplate = (
     flat_fallback: 0,
   },
   attachments: { total: 0, created: 0, skipped: 0, bytes: 0 },
-  media: { total: 0, rewritten: 0, unresolved: 0, by_strategy: {} },
+  media: {
+    total: 0,
+    rewritten: 0,
+    unresolved: 0,
+    description_updated: false,
+    by_strategy: {},
+  },
   links: { entries: 0, unique: 0, applied: 0, skipped: 0, unresolved: 0 },
   remote_links: { total: 0, applied: 0, skipped: 0 },
+  operations: [],
   failures: [],
 });

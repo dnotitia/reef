@@ -21,6 +21,7 @@ import type {
   JiraRelatedImportReport,
 } from "./contracts.js";
 import { revokedAttachmentPlaceholder } from "./media.js";
+import { recordRelatedOperation } from "./operations.js";
 import { failure } from "./reporting.js";
 
 export async function importAttachments(options: {
@@ -64,7 +65,8 @@ export async function importAttachments(options: {
       binding.source_identity.jira_cloud_id === migration.jiraCloudId &&
       (binding.source_identity.issue_id === undefined ||
         binding.source_identity.issue_id === issueId) &&
-      (!attachmentAclEstablished ||
+      ((migration.attachmentPolicy !== undefined &&
+        !attachmentAclEstablished) ||
         (attachmentCatalogPresent &&
           !returnedAttachmentIds.has(binding.source_identity.attachment_id))),
   );
@@ -97,12 +99,15 @@ export async function importAttachments(options: {
         fileUri,
         replacement: revokedAttachmentPlaceholder(attachmentId),
       });
-      if ((await migration.target.readAttachment(fileUri)) !== null)
-        throw new Error("attachment_revocation_readback_mismatch");
-      if (await migration.target.hasMediaReference(migration.reefId, fileUri))
-        throw new Error("attachment_reference_revocation_readback_mismatch");
+      if (migration.mode === "apply") {
+        if ((await migration.target.readAttachment(fileUri)) !== null)
+          throw new Error("attachment_revocation_readback_mismatch");
+        if (await migration.target.hasMediaReference(migration.reefId, fileUri))
+          throw new Error("attachment_reference_revocation_readback_mismatch");
+      }
     }
-    ledger = removeJiraMigrationBindings(ledger, [identity.key]);
+    if (migration.mode === "apply")
+      ledger = removeJiraMigrationBindings(ledger, [identity.key]);
   };
   const commentById = new Map(comments.map((comment) => [comment.id, comment]));
   const commentDepth = (commentId: string): number => {
@@ -121,7 +126,7 @@ export async function importAttachments(options: {
       commentDepth(right) - commentDepth(left) || left.localeCompare(right),
   );
 
-  if (migration.mode === "apply") {
+  {
     let pendingCommentRevocations = unsafeCommentRevokeOrder;
     const commentRevocationErrors = new Map<string, unknown>();
     while (pendingCommentRevocations.length > 0) {
@@ -140,13 +145,18 @@ export async function importAttachments(options: {
           const recovered = await migration.target.findCommentByIdempotencyKey(
             identity.key,
           );
-          await revokeCommentTargets(migration.target, [
-            binding?.target.target_kind === "comment"
-              ? binding.target.comment_id
-              : null,
-            recovered?.id,
-          ]);
-          ledger = removeJiraMigrationBindings(ledger, [identity.key]);
+          await revokeCommentTargets(
+            migration.target,
+            [
+              binding?.target.target_kind === "comment"
+                ? binding.target.comment_id
+                : null,
+              recovered?.id,
+            ],
+            migration.mode,
+          );
+          if (migration.mode === "apply")
+            ledger = removeJiraMigrationBindings(ledger, [identity.key]);
           commentRevocationErrors.delete(commentId);
           progress = true;
         } catch (error) {
@@ -217,20 +227,28 @@ export async function importAttachments(options: {
       issueId,
       attachment.id,
     );
+    if (migration.attachmentPolicy === undefined) {
+      failure(
+        report.failures,
+        "attachment",
+        attachment.id,
+        "resolve",
+        "attachment_visibility_unverifiable",
+      );
+      continue;
+    }
     if (!attachmentAclEstablished) {
-      if (migration.mode === "apply") {
-        try {
-          await revokeAttachmentBinding(identity, attachment.id);
-        } catch (error) {
-          failure(
-            report.failures,
-            "attachment",
-            attachment.id,
-            String(error).includes("readback") ? "readback" : "write",
-            "attachment_visibility_revocation_failed",
-            error,
-          );
-        }
+      try {
+        await revokeAttachmentBinding(identity, attachment.id);
+      } catch (error) {
+        failure(
+          report.failures,
+          "attachment",
+          attachment.id,
+          String(error).includes("readback") ? "readback" : "write",
+          "attachment_visibility_revocation_failed",
+          error,
+        );
       }
       failure(
         report.failures,
@@ -253,22 +271,21 @@ export async function importAttachments(options: {
     }
     const maxAttachmentBytes = migration.attachmentPolicy?.maxBytes;
     if (
-      maxAttachmentBytes === undefined ||
-      (attachment.size !== null && attachment.size > maxAttachmentBytes)
+      maxAttachmentBytes !== undefined &&
+      attachment.size !== null &&
+      attachment.size > maxAttachmentBytes
     ) {
-      if (migration.mode === "apply") {
-        try {
-          await revokeAttachmentBinding(identity, attachment.id);
-        } catch (error) {
-          failure(
-            report.failures,
-            "attachment",
-            attachment.id,
-            String(error).includes("readback") ? "readback" : "write",
-            "attachment_size_policy_revocation_failed",
-            error,
-          );
-        }
+      try {
+        await revokeAttachmentBinding(identity, attachment.id);
+      } catch (error) {
+        failure(
+          report.failures,
+          "attachment",
+          attachment.id,
+          String(error).includes("readback") ? "readback" : "write",
+          "attachment_size_policy_revocation_failed",
+          error,
+        );
       }
       failure(
         report.failures,
@@ -406,32 +423,39 @@ export async function importAttachments(options: {
         download.bytes.byteLength !== attachment.size
       )
         throw new Error("attachment_size_mismatch");
+      const mimeType =
+        attachment.mimeType ??
+        download.contentType ??
+        "application/octet-stream";
+      const createInput = {
+        idempotencyKey: identity.key,
+        reefId: migration.reefId,
+        filename: attachment.filename,
+        mimeType,
+        bytes: download.bytes,
+        author: mappedAuthor ?? "jira-import",
+        createdAt: expectedAttachmentBase.createdAt,
+        originalJiraAttachmentId: attachment.id,
+        meta: { source: "jira", jira_cloud_id: migration.jiraCloudId },
+      };
       if (migration.mode === "dry-run") {
+        recordRelatedOperation(
+          report,
+          "create_attachment",
+          identity.key,
+          createInput,
+        );
         attachmentBindings.push({
           source: attachment,
           fileUri: `dry-run://attachment/${encodeURIComponent(attachment.id)}`,
         });
         continue;
       }
-      const mimeType =
-        attachment.mimeType ??
-        download.contentType ??
-        "application/octet-stream";
       const expectedAttachment = { ...expectedAttachmentBase, mimeType };
       const sourceFingerprint = fingerprintJiraState(attachment);
       attachmentPhase = "write";
       try {
-        const created = await migration.target.createAttachment({
-          idempotencyKey: identity.key,
-          reefId: migration.reefId,
-          filename: attachment.filename,
-          mimeType,
-          bytes: download.bytes,
-          author: mappedAuthor ?? "jira-import",
-          createdAt: expectedAttachmentBase.createdAt,
-          originalJiraAttachmentId: attachment.id,
-          meta: { source: "jira", jira_cloud_id: migration.jiraCloudId },
-        });
+        const created = await migration.target.createAttachment(createInput);
         attachmentPhase = "readback";
         const readback = await migration.target.readAttachment(
           created.file_uri,

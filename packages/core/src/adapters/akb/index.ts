@@ -51,6 +51,7 @@ export {
 export { deleteVault, detachReef } from "./workspace/workspaceDeletion";
 export {
   readIssue,
+  claimIssueId,
   writeIssue,
   updateIssue,
   reorderBacklogIssues,
@@ -114,6 +115,7 @@ export {
 } from "./workspace/workspaceSummary";
 export {
   listPlanningCatalog,
+  readPlanningCreateClaim,
   createSprint,
   updateSprint,
   deleteSprint,

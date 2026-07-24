@@ -36,12 +36,13 @@ export const validCommentReadback = (
 export const revokeCommentTargets = async (
   target: JiraRelatedImportTarget,
   commentIds: Iterable<string | null | undefined>,
+  mode: "dry-run" | "apply" = "apply",
 ): Promise<void> => {
   for (const commentId of new Set(
     [...commentIds].filter((id): id is string => id != null),
   )) {
     await target.deleteComment(commentId);
-    if ((await target.readComment(commentId)) !== null)
+    if (mode === "apply" && (await target.readComment(commentId)) !== null)
       throw new Error("comment_revocation_readback_mismatch");
   }
 };

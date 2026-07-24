@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
+import { lstat, mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import type { ZodError } from "zod";
 import {
@@ -36,6 +36,27 @@ export async function loadJiraAccountMappingArtifact({
 }: LoadJiraAccountMappingArtifactOptions): Promise<JiraAccountMappingArtifact> {
   if (!path) {
     return createJiraAccountMappingArtifact({ jiraCloudId });
+  }
+
+  try {
+    const stat = await lstat(path);
+    if (
+      stat.isSymbolicLink() ||
+      !stat.isFile() ||
+      (process.platform !== "win32" && (stat.mode & 0o777) !== 0o600)
+    ) {
+      throw new JiraAccountMappingFileError([
+        `Jira account mapping file must be a private regular file: ${path}`,
+      ]);
+    }
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      return createJiraAccountMappingArtifact({ jiraCloudId });
+    }
+    if (error instanceof JiraAccountMappingFileError) throw error;
+    throw new JiraAccountMappingFileError([
+      `Could not inspect Jira account mapping file: ${path}`,
+    ]);
   }
 
   let raw: string;

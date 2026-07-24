@@ -1,5 +1,10 @@
+import { isDeepStrictEqual } from "node:util";
 import { ZodError } from "zod";
-import { NotFoundError, SchemaValidationError } from "../../../errors";
+import {
+  ConflictError,
+  NotFoundError,
+  SchemaValidationError,
+} from "../../../errors";
 import { ACTIVITY_EVENT_ATTACHMENT_ADDED } from "../../../schemas/issues/activity";
 import {
   type IssueAttachment,
@@ -12,6 +17,7 @@ import {
   REEF_ATTACHMENTS_TABLE,
   REEF_ISSUES_TABLE,
   decodeSettingsValue,
+  deleteAkbFile,
   downloadAkbFile,
   ensureReefTables,
   isMissingTableError,
@@ -165,12 +171,33 @@ async function insertAttachmentRow(
     .map(quoteIdent)
     .join(", ");
   const values = fields.map(([, value]) => value).join(", ");
+  const idempotencyKey =
+    typeof input.meta?.jira_idempotency_key === "string"
+      ? input.meta.jira_idempotency_key
+      : null;
+  const claimCtes = idempotencyKey
+    ? `claim_lock AS (SELECT pg_advisory_xact_lock(hashtextextended(${quoteText(
+        idempotencyKey,
+        "attachment idempotency key",
+      )}, 0))), existing AS (SELECT attachment.* FROM ${tableRef(
+        REEF_ATTACHMENTS_TABLE,
+      )} attachment CROSS JOIN claim_lock WHERE attachment.meta->>'jira_idempotency_key' = ${quoteText(
+        idempotencyKey,
+        "attachment idempotency key",
+      )} LIMIT 1), `
+    : "";
+  const insertSource = idempotencyKey
+    ? `SELECT ${values} FROM claim_lock WHERE NOT EXISTS (SELECT 1 FROM existing)`
+    : `VALUES (${values})`;
+  const resultSelection = idempotencyKey
+    ? "SELECT * FROM ins UNION ALL SELECT * FROM existing LIMIT 1"
+    : "SELECT * FROM ins";
   const res = await runSql(
     adapter,
     vault,
-    `WITH ins AS (INSERT INTO ${tableRef(
+    `WITH ${claimCtes}ins AS (INSERT INTO ${tableRef(
       REEF_ATTACHMENTS_TABLE,
-    )} (${columns}) VALUES (${values}) RETURNING *) SELECT * FROM ins`,
+    )} (${columns}) ${insertSource} RETURNING *) ${resultSelection}`,
   );
   const row = res.kind === "table_query" ? res.items[0] : undefined;
   if (!row) {
@@ -179,6 +206,63 @@ async function insertAttachmentRow(
     });
   }
   return rowToAttachment(row);
+}
+
+async function attachmentByIdempotencyKey(
+  adapter: AkbAdapter,
+  vault: string,
+  key: string,
+): Promise<IssueAttachment | null> {
+  const result = await runSql(
+    adapter,
+    vault,
+    `SELECT * FROM ${tableRef(
+      REEF_ATTACHMENTS_TABLE,
+    )} WHERE meta->>'jira_idempotency_key' = ${quoteText(
+      key,
+      "attachment idempotency key",
+    )} LIMIT 2`,
+  );
+  const rows = result.kind === "table_query" ? result.items : [];
+  if (rows.length > 1) {
+    throw new ConflictError({ path: `attachment:${key}` });
+  }
+  return rows[0] ? rowToAttachment(rows[0]) : null;
+}
+
+async function isCompatibleAttachment(
+  adapter: AkbAdapter,
+  vault: string,
+  attachment: IssueAttachment,
+  expected: {
+    reefId: string;
+    filename: string;
+    mimeType: string;
+    sizeBytes: number;
+    author: string;
+    source: IssueAttachmentSource;
+    inline: boolean;
+    originalJiraAttachmentId: string | null;
+    meta: Record<string, unknown> | null;
+    bytes: Uint8Array;
+  },
+): Promise<boolean> {
+  const existing = await downloadAkbFile(adapter, vault, attachment.file_uri);
+  const existingBytes = new Uint8Array(existing.body);
+  return (
+    attachment.reef_id === expected.reefId &&
+    attachment.filename === expected.filename &&
+    attachment.mime_type === expected.mimeType &&
+    attachment.size_bytes === expected.sizeBytes &&
+    attachment.author === expected.author &&
+    attachment.source === expected.source &&
+    attachment.inline === expected.inline &&
+    attachment.original_jira_attachment_id ===
+      expected.originalJiraAttachmentId &&
+    isDeepStrictEqual(attachment.meta, expected.meta) &&
+    existingBytes.length === expected.bytes.length &&
+    existingBytes.every((value, index) => value === expected.bytes[index])
+  );
 }
 
 async function appendAttachmentAddedEvent(
@@ -248,6 +332,40 @@ export async function uploadIssueAttachment(
     async () => {
       await ensureReefTables({ adapter, vault });
       await assertIssueExists(adapter, vault, reefId);
+      const idempotencyKey =
+        typeof params.meta?.jira_idempotency_key === "string"
+          ? params.meta.jira_idempotency_key
+          : null;
+      if (idempotencyKey) {
+        const existing = await attachmentByIdempotencyKey(
+          adapter,
+          vault,
+          idempotencyKey,
+        );
+        if (existing) {
+          const compatible = await isCompatibleAttachment(
+            adapter,
+            vault,
+            existing,
+            {
+              reefId,
+              filename,
+              mimeType,
+              sizeBytes: bytes.byteLength,
+              author,
+              source,
+              inline: params.inline ?? false,
+              originalJiraAttachmentId: params.originalJiraAttachmentId ?? null,
+              meta: params.meta ?? null,
+              bytes,
+            },
+          );
+          if (!compatible) {
+            throw new ConflictError({ path: existing.file_uri });
+          }
+          return existing;
+        }
+      }
       const uploaded = await uploadAkbFile({
         adapter,
         vault,
@@ -270,6 +388,32 @@ export async function uploadIssueAttachment(
         original_jira_attachment_id: params.originalJiraAttachmentId ?? null,
         meta: params.meta ?? null,
       });
+      if (attachment.file_uri !== uploaded.uri) {
+        try {
+          const compatible = await isCompatibleAttachment(
+            adapter,
+            vault,
+            attachment,
+            {
+              reefId,
+              filename: uploaded.filename,
+              mimeType: uploaded.mimeType,
+              sizeBytes: uploaded.sizeBytes,
+              author,
+              source,
+              inline: params.inline ?? false,
+              originalJiraAttachmentId: params.originalJiraAttachmentId ?? null,
+              meta: params.meta ?? null,
+              bytes,
+            },
+          );
+          if (!compatible) {
+            throw new ConflictError({ path: attachment.file_uri });
+          }
+        } finally {
+          await deleteAkbFile(adapter, vault, uploaded.uri);
+        }
+      }
       await appendAttachmentAddedEvent(adapter, vault, attachment).catch(() => {
         // Best effort: the upload + row are the user-visible work; activity is
         // a timeline projection and can be repaired by a future scan/backfill.
