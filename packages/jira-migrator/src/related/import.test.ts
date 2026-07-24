@@ -1899,6 +1899,47 @@ describe("Jira related-data import stage", () => {
     ).toBe(false);
   });
 
+  it("preserves a relation when its in-scope peer is not confirmed", async () => {
+    const state = makeTarget();
+    const base = {
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client: makeClient([]),
+      target: state.target,
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [{ typeId: "1", kind: "symmetric" as const }],
+      resolveIssueTarget: () => ({
+        reefId: "REEF-2",
+        documentUri: "akb://isolated/coll/issues/doc/reef-2.md",
+      }),
+      mode: "apply" as const,
+    };
+    const applied = await importJiraRelatedData({
+      ...base,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+    });
+    expect(state.relations.size).toBe(1);
+
+    const blocked = await importJiraRelatedData({
+      ...base,
+      ledger: applied.ledger,
+      resolveIssueTarget: () => null,
+      preserveUnresolvedIssueTargets: new Set(["10002", "DEMO-2"]),
+    });
+    expect(blocked.report.deletions).toBe(0);
+    expect(state.relations.size).toBe(1);
+    expect(blocked.report.failures).toContainEqual(
+      expect.objectContaining({ reason: "linked_issue_not_confirmed" }),
+    );
+  });
+
   it("preserves a source-owned relation when the other endpoint has an empty catalog", async () => {
     const state = makeTarget();
     const client = makeClient([]);

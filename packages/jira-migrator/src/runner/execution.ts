@@ -639,6 +639,11 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
       );
     };
     const relatedApplyReports: typeof relatedPlanningReports = [];
+    const unconfirmedIssueTargets = new Set(
+      allIssues
+        .filter((issue) => !confirmedIssueBinding(issue))
+        .flatMap((issue) => [issue.id, issue.key]),
+    );
     for (const issue of allIssues) {
       assertNotAborted();
       if (!confirmedIssueBinding(issue)) {
@@ -707,6 +712,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
                 }
               : null;
           },
+          preserveUnresolvedIssueTargets: unconfirmedIssueTargets,
           mode: "apply",
           now,
           async checkpointLedger(attachmentLedger) {

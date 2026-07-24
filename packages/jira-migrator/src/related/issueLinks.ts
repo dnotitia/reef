@@ -221,6 +221,20 @@ export async function importIssueLinks(options: {
       const targetIssue = migration.resolveIssueTarget(
         link.issueId ?? link.issueKey,
       );
+      const linkedSource = link.issueId ?? link.issueKey;
+      if (
+        !targetIssue &&
+        migration.preserveUnresolvedIssueTargets?.has(linkedSource)
+      ) {
+        failure(
+          report.failures,
+          "link",
+          linkId,
+          "resolve",
+          "linked_issue_not_confirmed",
+        );
+        continue;
+      }
       if (!mapping || !targetIssue) {
         report.links.unresolved += 1;
         await removeStaleRelationBindings(linkId);

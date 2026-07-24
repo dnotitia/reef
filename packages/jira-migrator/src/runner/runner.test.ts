@@ -21,6 +21,7 @@ import {
   canRecoverApprovedPlanningCreate,
   inferRelationSourceProjectKey,
   issueReadbackApprovalFingerprint,
+  migrationScopeLockIdentity,
   runJiraMigration,
 } from "./runner.js";
 
@@ -61,6 +62,24 @@ const policy = {
 };
 
 describe("runJiraMigration", () => {
+  it("serializes different run ids over the same migration scope", () => {
+    const base = {
+      jira: {
+        baseUrl: "https://jira.test",
+        cloudId: "cloud-1",
+        projectKeys: ["BETA", "ALPHA"],
+      },
+      target: { baseUrl: "https://akb.test", vault: "reef-test" },
+      artifacts: { runId: "run-1" },
+    } as JiraMigratorConfig;
+    expect(migrationScopeLockIdentity(base)).toBe(
+      migrationScopeLockIdentity({
+        ...base,
+        artifacts: { ...base.artifacts, runId: "run-2" },
+      }),
+    );
+  });
+
   it("keeps the approved related plan stable after target reconciliation", () => {
     const currentReport = reportTemplate("dry-run");
     expect(

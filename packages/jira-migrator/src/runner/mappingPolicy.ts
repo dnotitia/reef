@@ -85,7 +85,7 @@ export async function loadJiraMappingPolicy(
   if (
     stat.isSymbolicLink() ||
     !stat.isFile() ||
-    (process.platform !== "win32" && (stat.mode & 0o022) !== 0)
+    (process.platform !== "win32" && (stat.mode & 0o777) !== 0o600)
   ) {
     throw new JiraMappingPolicyError("unsafe_file");
   }

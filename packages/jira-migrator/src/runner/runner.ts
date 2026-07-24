@@ -78,6 +78,21 @@ export {
   inferRelationSourceProjectKey,
 } from "./decisions.js";
 
+export const migrationScopeLockIdentity = (
+  config: JiraMigratorConfig,
+): string =>
+  fingerprintJiraState({
+    source: {
+      endpoint: jiraEndpointFingerprint(config.jira.baseUrl),
+      cloud_id: config.jira.cloudId,
+      project_keys: [...config.jira.projectKeys].sort(),
+    },
+    target: {
+      endpoint: targetEndpointFingerprint(config.target.baseUrl),
+      vault: config.target.vault,
+    },
+  });
+
 async function runJiraMigrationUnlocked(
   config: JiraMigratorConfig,
   dependencies: JiraRunnerDependencies = {},
@@ -439,18 +454,7 @@ export async function runJiraMigration(
   ])) {
     await ensurePrivateDirectory(directory);
   }
-  const lockIdentity = fingerprintJiraState({
-    run_id: config.artifacts.runId,
-    source: {
-      endpoint: jiraEndpointFingerprint(config.jira.baseUrl),
-      cloud_id: config.jira.cloudId,
-      project_keys: [...config.jira.projectKeys].sort(),
-    },
-    target: {
-      endpoint: targetEndpointFingerprint(config.target.baseUrl),
-      vault: config.target.vault,
-    },
-  });
+  const lockIdentity = migrationScopeLockIdentity(config);
   const lockPath = join(
     await realpath(tmpdir()),
     `reef-jira-migrator-locks-${createHash("sha256")
