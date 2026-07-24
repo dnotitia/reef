@@ -265,16 +265,21 @@ export function useIssueUrlSync(
         const stored = await getPersistedIssueFilter(restoringVault);
         // Apply if this read wasn't superseded (a vault switch aborts it; URL
         // changes do NOT, since this effect no longer depends on searchParams) AND
-        // the user hasn't started filtering during the await — a live user action
-        // takes precedence over the saved value. When the user did edit mid-await
-        // the store is non-pristine, so this branch is skipped and the mirror effect
-        // has already pushed their edit to the URL; the empty-vault case has its
-        // stale URL cleared by the vault-switch clear above.
+        // the user hasn't started filtering during the await. A same-vault bare
+        // remount legitimately begins with the prior in-memory filter, so identity
+        // against the captured baseline is the concurrency guard; a live edit
+        // replaces that object and still wins over the saved value.
         if (!aborted) {
           const state = useIssueStore.getState();
           const pristine =
             Object.keys(state.filter).length === 0 && state.searchQuery === "";
-          if (pristine && Object.keys(stored).length > 0) {
+          const unchangedBaseline =
+            state.filter === restoringFilter &&
+            state.searchQuery === restoringSearchQuery;
+          if (
+            (pristine || unchangedBaseline) &&
+            Object.keys(stored).length > 0
+          ) {
             // REEF-010: mirror the restored filter onto the URL, but as a REPLACE
             // (hydration, not navigation) so the bare /issues entry is rewritten in
             // place rather than a new history entry being stacked. (This branch

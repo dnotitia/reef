@@ -637,6 +637,26 @@ describe("useIssueUrlSync", () => {
     );
   });
 
+  it("materializes the last-used filter on a same-vault bare remount", async () => {
+    await setPersistedIssueFilter("reef-acme", { status: ["todo"] });
+    const first = render(<Harness />);
+    await waitFor(() => {
+      expect(navigationState.searchParams.get("status")).toBe("todo");
+    });
+    first.unmount();
+
+    navigationState.searchParams = new URLSearchParams();
+    mockReplace.mockClear();
+    render(<Harness />);
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/workspace/reef-acme/issues?status=todo",
+        { scroll: false },
+      );
+    });
+  });
+
   it("materializes an empty default as an explicit clear-all board view", async () => {
     const view: SavedIssueView = {
       id: "11111111-1111-4111-8111-111111111111",

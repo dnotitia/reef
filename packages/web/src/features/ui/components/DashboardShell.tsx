@@ -675,6 +675,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                 SAVED_ISSUE_VIEW_CONTEXT_PARAM,
               );
               const hasActiveIssuesSubview =
+                !sidebarCollapsed &&
                 href === "/issues" &&
                 pathname === fullHref &&
                 savedViews.data?.some(

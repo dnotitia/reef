@@ -765,6 +765,34 @@ describe("DashboardShell", () => {
     );
   });
 
+  it("keeps Issues current when favorite shortcuts are collapsed", () => {
+    navigationState.pathname = "/workspace/reef-acme/issues";
+    navigationState.search = "status=todo";
+    savedViewsState.data = [
+      {
+        id: "11111111-1111-4111-8111-111111111111",
+        payload: { version: 1, query: { status: ["todo"] } },
+      },
+    ];
+    savedViewPreferencesState.favoriteIds = [
+      "11111111-1111-4111-8111-111111111111",
+    ];
+    useViewStore.setState({ sidebarCollapsed: true });
+
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+
+    expect(screen.getByRole("link", { name: "Issues" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
   it("keeps Issues current for an unmatched filtered view", () => {
     navigationState.search = "status=todo";
     savedViewsState.data = [
