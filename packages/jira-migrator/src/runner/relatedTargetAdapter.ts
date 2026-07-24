@@ -360,6 +360,16 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
       };
     },
     async revokeAttachment({ reefId, fileUri, replacement }) {
+      const owners = await sql(
+        adapter,
+        vault,
+        `SELECT reef_id FROM reef_attachments WHERE file_uri = ${quote(
+          fileUri,
+        )} LIMIT 1`,
+      );
+      if (owners[0]?.reef_id !== reefId) {
+        throw new Error("attachment_ownership_mismatch");
+      }
       const current = await readIssue(reefId);
       if (current.content.includes(fileUri)) {
         await updateIssue(
@@ -380,6 +390,16 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
           reefId,
         )} AND file_uri = ${quote(fileUri)}`,
       );
+      const remainingOwners = await sql(
+        adapter,
+        vault,
+        `SELECT reef_id FROM reef_attachments WHERE file_uri = ${quote(
+          fileUri,
+        )} LIMIT 1`,
+      );
+      if (remainingOwners.length > 0) {
+        throw new Error("attachment_delete_readback_mismatch");
+      }
       if (fileId) {
         try {
           await adapter.request(

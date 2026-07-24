@@ -473,6 +473,46 @@ describe("AKB Jira migration target", () => {
     ).rejects.toThrow("jira_issue_plan_not_writable");
   });
 
+  it("does not revoke an attachment owned by another issue", async () => {
+    const deleteFile = vi.fn();
+    const request = vi.fn(async (_path: string, init?: { body?: unknown }) => {
+      const statement = (init?.body as { sql?: string } | undefined)?.sql;
+      if (statement?.startsWith("SELECT reef_id FROM reef_attachments")) {
+        return {
+          kind: "table_query",
+          items: [{ reef_id: "REEF-OTHER" }],
+        };
+      }
+      deleteFile();
+      return { kind: "table_query", items: [] };
+    });
+    const target = createAkbJiraMigrationTarget(
+      { baseUrl: "https://akb.test", jwt: "jwt", vault: "reef-test" },
+      {
+        createAdapter: () => ({ request }),
+        getCurrentActor: async () => ({ actor: "operator" }),
+        listPlanningCatalog: vi.fn(),
+        createRelease: vi.fn(),
+        createSprint: vi.fn(),
+        readPlanningCreateClaim: vi.fn(async () => null),
+        allocateNextIssueId: vi.fn(),
+        writeIssue: vi.fn(),
+        updateIssue: vi.fn(),
+        readIssue: vi.fn(),
+        claimIssueId: vi.fn(),
+      },
+    );
+
+    await expect(
+      target.relatedTarget().revokeAttachment({
+        reefId: "REEF-001",
+        fileUri: "akb://reef-test/issues/file/shared",
+        replacement: "[revoked]",
+      }),
+    ).rejects.toThrow("attachment_ownership_mismatch");
+    expect(deleteFile).not.toHaveBeenCalled();
+  });
+
   it("recovers an ambiguously acknowledged inverse relation write", async () => {
     const issues = new Map(
       ["REEF-001", "REEF-002"].map((id) => [
