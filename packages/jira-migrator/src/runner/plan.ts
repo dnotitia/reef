@@ -52,6 +52,20 @@ import {
 } from "./sourceSnapshot.js";
 import type { AkbJiraMigrationTarget } from "./targetAdapter.js";
 
+export const relatedPlanForApproval = (
+  approvedPayload: Record<string, unknown> | null,
+  relatedPlanningReports: readonly {
+    issue_key: string;
+    report: JiraRelatedImportReport;
+  }[],
+): unknown[] =>
+  Array.isArray(approvedPayload?.related_plan)
+    ? approvedPayload.related_plan
+    : relatedPlanningReports.map((item) => ({
+        issue_key: item.issue_key,
+        report: semanticRelatedReport(item.report),
+      }));
+
 export async function buildJiraMigrationPlan(input: {
   config: JiraMigratorConfig;
   accountMappingPath: string;
@@ -528,10 +542,10 @@ export async function buildJiraMigrationPlan(input: {
             .map((binding) => JiraMigrationBindingSchema.parse(binding)),
         ]),
       ),
-    related_plan: relatedPlanningReports.map((item) => ({
-      issue_key: item.issue_key,
-      report: semanticRelatedReport(item.report),
-    })),
+    related_plan: relatedPlanForApproval(
+      approvedPayload,
+      relatedPlanningReports,
+    ),
     changelog: changelogPlans.map((plan) => ({
       source_identity: plan.sourceIdentity,
       source_fingerprint: plan.sourceFingerprint,

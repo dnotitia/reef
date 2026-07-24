@@ -14,6 +14,7 @@ import type { JiraIssueImportPlan } from "../issues/importPlan.js";
 import { jiraIssueFixture } from "../jira/fixtures.js";
 import { JiraIssueSchema, normalizeJiraIssue } from "../payloads.js";
 import { reportTemplate } from "../related/reporting.js";
+import { relatedPlanForApproval } from "./plan.js";
 import {
   actionForRelatedReport,
   baseIssueReadbackMatches,
@@ -60,6 +61,34 @@ const policy = {
 };
 
 describe("runJiraMigration", () => {
+  it("keeps the approved related plan stable after target reconciliation", () => {
+    const currentReport = reportTemplate("dry-run");
+    expect(
+      relatedPlanForApproval(
+        {
+          related_plan: [
+            {
+              issue_key: "ALPHA-1",
+              report: {
+                deletions: 1,
+                media: { description_updated: true },
+              },
+            },
+          ],
+        },
+        [{ issue_key: "ALPHA-1", report: currentReport }],
+      ),
+    ).toEqual([
+      {
+        issue_key: "ALPHA-1",
+        report: {
+          deletions: 1,
+          media: { description_updated: true },
+        },
+      },
+    ]);
+  });
+
   it("reports planned related writes as creates", () => {
     const report = reportTemplate("dry-run");
     report.comments.created = 1;
