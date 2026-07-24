@@ -150,4 +150,24 @@ describe("ActiveSavedViewControl", () => {
       screen.getByRole("button", { name: "Another todo, Active" }),
     ).toBeVisible();
   });
+
+  it("restores a requested row as changed after a divergent URL reload", () => {
+    const id = queryState.data[0].id;
+    navigation.search = `priority=high&view=list&saved_view=${id}`;
+    useIssueStore.setState({
+      filter: { priority: ["high"] },
+      searchQuery: "",
+      selectedIssueId: null,
+    });
+
+    render(
+      <IntlTestProvider>
+        <ActiveSavedViewControl />
+      </IntlTestProvider>,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Alpha todo, Changed" }),
+    ).toBeVisible();
+  });
 });

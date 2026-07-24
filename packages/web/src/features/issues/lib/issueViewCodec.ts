@@ -78,7 +78,11 @@ export function readIssueUrlState(
   const addMany = (
     key: string,
     validate = (value: string) => value.trim().length > 0,
-  ) => searchParams.getAll(key).filter(validate);
+  ) =>
+    searchParams
+      .getAll(key)
+      .map((value) => value.trim())
+      .filter(validate);
   const status = addMany(
     "status",
     (value) => StatusEnum.safeParse(value).success,
@@ -137,7 +141,7 @@ export function readIssueUrlState(
   if (stale === "1" || stale === "true") filter.showStale = true;
   return {
     filter: normalizeRestoredSort(filter),
-    searchQuery: searchParams.get("q") ?? "",
+    searchQuery: searchParams.get("q")?.trim() ?? "",
   };
 }
 
@@ -236,7 +240,8 @@ export function createSavedIssueViewPayload(
   for (const key of ISSUE_QUERY_KEYS) {
     const values = params
       .getAll(key)
-      .filter((value) => value.trim().length > 0);
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
     if (values.length) query[key] = [...values].sort();
   }
   return { version: 1, query };

@@ -33,16 +33,11 @@ export function ActiveSavedViewControl() {
   const searchParams = useSearchParams();
   const t = useTranslations("issues.savedViews");
   const requestedId = searchParams.get(SAVED_ISSUE_VIEW_CONTEXT_PARAM);
-  const exactView = useMemo(() => {
+  const identifiedView = useMemo(() => {
     const requestedView = requestedId
       ? query.data?.find((view) => view.id === requestedId)
       : undefined;
-    if (
-      requestedView &&
-      savedIssueViewIsActive(requestedView.payload, searchParams)
-    ) {
-      return requestedView;
-    }
+    if (requestedView) return requestedView;
     return query.data?.find((view) =>
       savedIssueViewIsActive(view.payload, searchParams),
     );
@@ -57,8 +52,8 @@ export function ActiveSavedViewControl() {
       setContext(undefined);
       return;
     }
-    if (exactView) {
-      setContext({ vault, id: exactView.id });
+    if (identifiedView) {
+      setContext({ vault, id: identifiedView.id });
       return;
     }
     setContext((current) => {
@@ -66,16 +61,16 @@ export function ActiveSavedViewControl() {
       if (!query.data?.some((view) => view.id === current.id)) return undefined;
       return current;
     });
-  }, [exactView, query.data, vault]);
+  }, [identifiedView, query.data, vault]);
 
   const contextView =
-    exactView ??
+    identifiedView ??
     query.data?.find(
       (view) => context?.vault === vault && view.id === context.id,
     );
   if (!contextView || preferences.isLoading) return null;
 
-  const changed = exactView?.id !== contextView.id;
+  const changed = !savedIssueViewIsActive(contextView.payload, searchParams);
   const payload = createSavedIssueViewPayload(
     filter,
     searchQuery,

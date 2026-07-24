@@ -104,6 +104,29 @@ describe("issueViewCodec", () => {
     expect(canonicalIssueQuery(href.split("?")[1])).toBe("status=todo");
   });
 
+  it("trims free-form values before deciding or constructing saved state", () => {
+    expect(createSavedIssueViewPayload({}, "   ", "board").query).toEqual({});
+    expect(
+      createSavedIssueViewPayload(
+        {
+          assignee: [" alice "],
+          requester: [" bob "],
+          label: " frontend ",
+        },
+        " Alpha ",
+        "board",
+      ).query,
+    ).toEqual({
+      assignee: ["alice"],
+      labels: ["frontend"],
+      q: ["Alpha"],
+      requester: ["bob"],
+    });
+    expect(canonicalIssueQuery("assignee=%20alice%20&q=%20Alpha%20")).toBe(
+      "assignee=alice&q=Alpha",
+    );
+  });
+
   it("drops invalid members, unknown keys, and fieldless order independently", () => {
     const payload = {
       version: 1,

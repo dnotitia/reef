@@ -32,6 +32,9 @@ vi.mock("@/features/settings/hooks/useActiveVault", async () => {
 vi.mock("../saved-views/ActiveSavedViewControl", () => ({
   ActiveSavedViewControl: () => null,
 }));
+vi.mock("./SaveIssueViewDialog", () => ({
+  SaveIssueViewDialog: () => null,
+}));
 
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { apiFetch } from "@/lib/apiClient";

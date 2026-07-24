@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { useCreateSavedIssueView } from "@/features/issues/hooks/mutations/useSavedIssueViewMutations";
 import {
+  SAVED_ISSUE_VIEW_CONTEXT_PARAM,
   createSavedIssueViewPayload,
   hasSavableIssueViewState,
 } from "@/features/issues/lib/issueViewCodec";
@@ -26,7 +27,7 @@ import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { cn } from "@/lib/utils";
 import { Save } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -35,6 +36,8 @@ export function SaveIssueViewDialog() {
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
   const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
   const view = searchParams?.get("view") ?? "board";
   const payload = createSavedIssueViewPayload(filter, searchQuery, view);
   const mutation = useCreateSavedIssueView(vault);
@@ -54,7 +57,10 @@ export function SaveIssueViewDialog() {
     event.preventDefault();
     if (!name.trim()) return;
     try {
-      await mutation.mutateAsync({ name, payload });
+      const created = await mutation.mutateAsync({ name, payload });
+      const params = new URLSearchParams(searchParams);
+      params.set(SAVED_ISSUE_VIEW_CONTEXT_PARAM, created.id);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
       setOpen(false);
       setName("");
       toast.success(t("created"));

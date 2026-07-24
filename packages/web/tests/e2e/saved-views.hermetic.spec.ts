@@ -43,6 +43,9 @@ test.describe("Hermetic saved issue views", () => {
     await saveDialog.getByRole("button", { name: "Save view" }).click();
 
     // Saving creates a shared team view but never favorites it implicitly.
+    await expect
+      .poll(() => new URL(page.url()).searchParams.get("saved_view"))
+      .toMatch(/^[0-9a-f-]{36}$/);
     await expect(page.getByTestId("favorite-views-nav")).toHaveCount(0);
     await expect
       .poll(() => readIndexedDbConfig(page, FAVORITES_KEY))
