@@ -183,4 +183,25 @@ describe("ActiveSavedViewControl", () => {
 
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
+
+  it("clears retained context when navigation supplies a stale explicit id", () => {
+    const { rerender } = render(
+      <IntlTestProvider>
+        <ActiveSavedViewControl />
+      </IntlTestProvider>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Alpha todo, Active" }),
+    ).toBeVisible();
+
+    navigation.search =
+      "status=todo&view=list&saved_view=99999999-9999-4999-8999-999999999999";
+    rerender(
+      <IntlTestProvider>
+        <ActiveSavedViewControl />
+      </IntlTestProvider>,
+    );
+
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
 });

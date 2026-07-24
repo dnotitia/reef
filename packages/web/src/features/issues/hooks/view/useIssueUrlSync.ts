@@ -333,10 +333,7 @@ export function useIssueUrlSync(
 
     const issuesPath = withVault(vault, ISSUES_LIST_BASE);
     const browserPathname =
-      typeof window !== "undefined" &&
-      window.location.pathname.startsWith("/workspace/")
-        ? window.location.pathname
-        : pathname;
+      typeof window !== "undefined" ? window.location.pathname : pathname;
     if (pathname !== issuesPath || browserPathname !== issuesPath) return;
 
     // Consume a query transition only once both Next's pathname and the
@@ -411,10 +408,7 @@ export function useIssueUrlSync(
     // authoritative then; checking it prevents the stale Issues hook from
     // pushing its filters over the destination navigation.
     const browserPathname =
-      typeof window !== "undefined" &&
-      window.location.pathname.startsWith("/workspace/")
-        ? window.location.pathname
-        : pathname;
+      typeof window !== "undefined" ? window.location.pathname : pathname;
     if (pathname !== issuesPath || browserPathname !== issuesPath) return;
 
     const currentParams = searchParams.toString();

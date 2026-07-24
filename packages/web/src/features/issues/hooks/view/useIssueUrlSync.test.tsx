@@ -84,7 +84,7 @@ describe("useIssueUrlSync", () => {
     navigationState.pathname = "/workspace/reef-acme/issues";
     navigationState.searchParams = new URLSearchParams();
     vaultState.value = "reef-acme";
-    window.history.replaceState({}, "", "/");
+    window.history.replaceState({}, "", "/workspace/reef-acme/issues");
     useIssueStore.setState({
       filter: {},
       filterVault: null,
@@ -379,6 +379,24 @@ describe("useIssueUrlSync", () => {
     navigationState.pathname = "/workspace/reef-acme/settings";
     rerender(<Harness />);
     await Promise.resolve();
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it("does not overwrite a non-workspace navigation while pathname is stale", async () => {
+    navigationState.searchParams = new URLSearchParams("status=todo&view=list");
+    const { rerender } = render(<Harness />);
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.status).toEqual(["todo"]);
+    });
+    mockPush.mockClear();
+    mockReplace.mockClear();
+
+    window.history.pushState({}, "", "/login");
+    navigationState.searchParams = new URLSearchParams();
+    rerender(<Harness />);
+    await Promise.resolve();
+
     expect(mockPush).not.toHaveBeenCalled();
     expect(mockReplace).not.toHaveBeenCalled();
   });
@@ -829,6 +847,7 @@ describe("useIssueUrlSync", () => {
     // A vault switch navigates the URL to the new workspace (REEF-315); the hook
     // derives the vault from that same path, so move the pathname in step.
     navigationState.pathname = "/workspace/reef-zen/issues";
+    window.history.pushState({}, "", "/workspace/reef-zen/issues");
     rerender(<Harness />);
 
     await waitFor(() => {
@@ -859,6 +878,7 @@ describe("useIssueUrlSync", () => {
     // A vault switch navigates the URL to the new workspace (REEF-315); the hook
     // derives the vault from that same path, so move the pathname in step.
     navigationState.pathname = "/workspace/reef-zen/issues";
+    window.history.pushState({}, "", "/workspace/reef-zen/issues");
     rerender(<Harness />);
 
     // zen has no saved filter → the store empties AND the stale acme URL is
@@ -892,6 +912,7 @@ describe("useIssueUrlSync", () => {
     // A vault switch navigates the URL to the new workspace (REEF-315); the hook
     // derives the vault from that same path, so move the pathname in step.
     navigationState.pathname = "/workspace/reef-zen/issues";
+    window.history.pushState({}, "", "/workspace/reef-zen/issues");
     rerender(<Harness />);
 
     // The new vault's saved filter is restored; the stale-URL clear should not

@@ -55,18 +55,24 @@ export function ActiveSavedViewControl() {
       setContext({ vault, id: identifiedView.id });
       return;
     }
+    if (requestedId) {
+      setContext(undefined);
+      return;
+    }
     setContext((current) => {
       if (current?.vault !== vault) return undefined;
       if (!query.data?.some((view) => view.id === current.id)) return undefined;
       return current;
     });
-  }, [identifiedView, query.data, vault]);
+  }, [identifiedView, query.data, requestedId, vault]);
 
   const contextView =
     identifiedView ??
-    query.data?.find(
-      (view) => context?.vault === vault && view.id === context.id,
-    );
+    (requestedId
+      ? undefined
+      : query.data?.find(
+          (view) => context?.vault === vault && view.id === context.id,
+        ));
   if (!contextView || preferences.isLoading) return null;
 
   const changed = !savedIssueViewIsActive(contextView.payload, searchParams);
