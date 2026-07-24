@@ -104,6 +104,7 @@ describe("uploadIssueAttachment", () => {
     const { calls } = setupFetch([
       { body: makeListTablesResponse(ALL_REEF_TABLES) },
       { body: makeSqlQueryResponse([{ reef_id: "REEF-349" }], ["reef_id"]) },
+      { body: makeSqlQueryResponse([], ATTACHMENT_ROW_COLUMNS) },
       {
         body: {
           uri: "akb://reef-sample/issues/file/file-1",
@@ -144,7 +145,10 @@ describe("uploadIssueAttachment", () => {
       inline: true,
       createdAt: "2026-01-01T00:00:00.000Z",
       originalJiraAttachmentId: "source-42",
-      meta: { source: "jira" },
+      meta: {
+        source: "jira",
+        jira_idempotency_key: "attachment:cloud-1:source-42",
+      },
     });
 
     expect(attachment).toMatchObject({
@@ -152,21 +156,82 @@ describe("uploadIssueAttachment", () => {
       file_uri: "akb://reef-sample/issues/file/file-1",
       size_bytes: 4,
     });
-    expect(calls[2]?.url).toBe("https://akb.test/api/v1/files");
-    expect(calls[2]?.init?.body).toBeInstanceOf(FormData);
-    const insertSql = lastSql(calls[3]?.init?.body);
+    expect(calls[3]?.url).toBe("https://akb.test/api/v1/files");
+    expect(calls[3]?.init?.body).toBeInstanceOf(FormData);
+    const insertSql = lastSql(calls[4]?.init?.body);
     expect(insertSql).toContain(`INSERT INTO ${REEF_ATTACHMENTS_TABLE}`);
-    expect(insertSql.slice(0, insertSql.indexOf(" VALUES "))).not.toContain(
-      '"created_at"',
-    );
+    expect(
+      insertSql.slice(
+        insertSql.indexOf(`INSERT INTO ${REEF_ATTACHMENTS_TABLE}`),
+        insertSql.indexOf(") SELECT "),
+      ),
+    ).not.toContain('"created_at"');
     expect(insertSql).toContain('"created_at":');
     expect(insertSql).toContain('"source":"jira"');
+    expect(insertSql).toContain("pg_advisory_xact_lock");
+    expect(insertSql).toContain(
+      '"jira_idempotency_key":"attachment:cloud-1:source-42"',
+    );
     expect(insertSql).toContain("'source-42'");
     expect(insertSql).toContain("'REEF-349'");
     expect(insertSql).toContain("'akb://reef-sample/issues/file/file-1'");
-    const activitySql = lastSql(calls[5]?.init?.body);
+    const activitySql = lastSql(calls[6]?.init?.body);
     expect(activitySql).toContain("'attachment_added'");
     expect(activitySql).toContain('"attachment_id":"att-1"');
+  });
+
+  it("returns a compatible idempotent attachment before uploading", async () => {
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { body: makeSqlQueryResponse([{ reef_id: "REEF-349" }], ["reef_id"]) },
+      {
+        body: makeSqlQueryResponse(
+          [
+            makeAttachmentRow({
+              size_bytes: 4,
+              source: "jira_import",
+              original_jira_attachment_id: "source-42",
+              meta: {
+                source: "jira",
+                jira_idempotency_key: "attachment:cloud-1:source-42",
+                created_at: "2026-01-01T00:00:00.000Z",
+              },
+            }),
+          ],
+          ATTACHMENT_ROW_COLUMNS,
+        ),
+      },
+      {
+        rawBody: new Uint8Array([1, 2, 3, 4]).buffer,
+        headers: { "content-type": "image/png" },
+      },
+    ]);
+
+    await expect(
+      uploadIssueAttachment({
+        adapter: makeAdapter(),
+        vault: "reef-sample",
+        reefId: "REEF-349",
+        filename: "screenshot.png",
+        mimeType: "image/png",
+        bytes: new Uint8Array([1, 2, 3, 4]),
+        author: "alice",
+        source: "jira_import",
+        inline: true,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        originalJiraAttachmentId: "source-42",
+        meta: {
+          source: "jira",
+          jira_idempotency_key: "attachment:cloud-1:source-42",
+        },
+      }),
+    ).resolves.toMatchObject({ id: "att-1" });
+    expect(
+      calls.some(
+        (call) =>
+          call.url.endsWith("/api/v1/files") && call.init?.method === "POST",
+      ),
+    ).toBe(false);
   });
 });
 

@@ -310,7 +310,10 @@ export function insertIssueRow(
   vault: string,
   issue: IssueMetadata,
   documentUri: string,
-  opts?: { assignBacklogRank?: boolean },
+  opts?: {
+    assignBacklogRank?: boolean;
+    uniqueJiraOwner?: { jiraCloudId: string; issueId: string };
+  },
 ): Promise<AkbSqlResponse> {
   // Born-correct: an issue entering the backlog with no explicit rank gets the
   // tail subquery, so the backlog is does not partially unranked and a filtered
@@ -331,6 +334,28 @@ export function insertIssueRow(
     quoteText(issue.id, "reef_id"),
     ...fields.map(([, v]) => v),
   ].join(", ");
+  if (opts?.uniqueJiraOwner) {
+    const { jiraCloudId, issueId } = opts.uniqueJiraOwner;
+    const ownerLockIdentity = JSON.stringify([jiraCloudId, issueId]);
+    return runSql(
+      adapter,
+      vault,
+      `WITH owner_lock AS MATERIALIZED (SELECT pg_advisory_xact_lock(hashtextextended(${quoteText(
+        ownerLockIdentity,
+        "Jira owner lock identity",
+      )}, 0))), inserted AS (INSERT INTO ${tableRef(
+        REEF_ISSUES_TABLE,
+      )} (${columns}) SELECT ${values} FROM owner_lock WHERE NOT EXISTS (SELECT 1 FROM ${tableRef(
+        REEF_ISSUES_TABLE,
+      )} WHERE meta::jsonb->'custom_fields'->'jira_migration'->'owner'->>'jira_cloud_id' = ${quoteText(
+        jiraCloudId,
+        "Jira cloud id",
+      )} AND meta::jsonb->'custom_fields'->'jira_migration'->'owner'->>'issue_id' = ${quoteText(
+        issueId,
+        "Jira issue id",
+      )}) RETURNING reef_id) SELECT reef_id FROM inserted`,
+    );
+  }
   return runSql(
     adapter,
     vault,

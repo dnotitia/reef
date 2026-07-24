@@ -26,10 +26,12 @@ import type {
   JiraRelatedImportReport,
   JiraRelatedImportResult,
   JiraRelatedImportTarget,
+  JiraRelatedOperationKind,
   JiraRelationKind,
 } from "./contracts.js";
 import { updateDescriptionMedia } from "./descriptionMedia.js";
 import { importIssueLinks } from "./issueLinks.js";
+import { recordRelatedOperation, sameRelatedOperation } from "./operations.js";
 import { importRemoteLinks } from "./remoteLinks.js";
 import { failure, reportTemplate } from "./reporting.js";
 
@@ -53,7 +55,128 @@ export { canonicalizeJiraRelation } from "./links.js";
 export async function importJiraRelatedData(
   input: JiraRelatedImportInput,
 ): Promise<JiraRelatedImportResult> {
+  if (input.mode === "apply" && input.approvedOperations) {
+    const {
+      approvedOperations,
+      checkpointLedger: _checkpointLedger,
+      ...preflightInput
+    } = input;
+    const preflight = await importJiraRelatedData({
+      ...preflightInput,
+      mode: "dry-run",
+    });
+    if (preflight.report.failures.length > 0) {
+      throw new Error("related_operation_preflight_failed");
+    }
+    let approvedIndex = 0;
+    for (const operation of preflight.report.operations) {
+      const relativeIndex = approvedOperations
+        .slice(approvedIndex)
+        .findIndex((approved) => sameRelatedOperation(approved, operation));
+      if (relativeIndex < 0) {
+        throw new Error(`related_operation_not_approved:${operation.kind}`);
+      }
+      approvedIndex += relativeIndex + 1;
+    }
+  }
   const report = reportTemplate(input.mode);
+  const approvalViolations = new Set<JiraRelatedOperationKind>();
+  const recordOperation = (
+    kind: JiraRelatedOperationKind,
+    key: string,
+    value: unknown,
+  ): void => {
+    const operation = recordRelatedOperation(report, kind, key, value);
+    if (
+      input.mode === "apply" &&
+      input.approvedOperations &&
+      !input.approvedOperations.some((approved) =>
+        sameRelatedOperation(approved, operation),
+      )
+    ) {
+      approvalViolations.add(kind);
+      throw new Error("related_operation_not_approved");
+    }
+  };
+  const plannedDeletionKeys = new Set<string>();
+  const countDeletion = async (
+    key: string,
+    operation: () => Promise<void>,
+  ): Promise<void> => {
+    if (input.mode === "dry-run") {
+      if (plannedDeletionKeys.has(key)) return;
+      plannedDeletionKeys.add(key);
+      report.deletions += 1;
+      return;
+    }
+    await operation();
+    report.deletions += 1;
+  };
+  const deletionOverrides: Pick<
+    JiraRelatedImportTarget,
+    | "deleteComment"
+    | "revokeAttachment"
+    | "deleteRelation"
+    | "deleteExternalRef"
+  > = {
+    deleteComment: (commentId: string) => {
+      recordOperation("delete_comment", commentId, null);
+      return countDeletion(`comment:${commentId}`, () =>
+        input.target.deleteComment(commentId),
+      );
+    },
+    revokeAttachment: (
+      attachment: Parameters<typeof input.target.revokeAttachment>[0],
+    ) => {
+      recordOperation("revoke_attachment", attachment.fileUri, attachment);
+      return countDeletion(`attachment:${attachment.fileUri}`, () =>
+        input.target.revokeAttachment(attachment),
+      );
+    },
+    deleteRelation: (idempotencyKey: string) => {
+      recordOperation("delete_relation", idempotencyKey, null);
+      return countDeletion(`relation:${idempotencyKey}`, () =>
+        input.target.deleteRelation(idempotencyKey),
+      );
+    },
+    deleteExternalRef: (idempotencyKey: string) => {
+      recordOperation("delete_external_ref", idempotencyKey, null);
+      return countDeletion(`external-ref:${idempotencyKey}`, () =>
+        input.target.deleteExternalRef(idempotencyKey),
+      );
+    },
+  };
+  const mutationOverrides: Pick<
+    JiraRelatedImportTarget,
+    "createAttachment" | "putRelation" | "putExternalRef"
+  > = {
+    createAttachment: (value) => {
+      recordOperation("create_attachment", value.idempotencyKey, value);
+      return input.target.createAttachment(value);
+    },
+    putRelation: (value) => {
+      recordOperation("put_relation", value.idempotencyKey, value);
+      return input.target.putRelation(value);
+    },
+    putExternalRef: (value) => {
+      recordOperation("put_external_ref", value.idempotencyKey, value);
+      return input.target.putExternalRef(value);
+    },
+  };
+  const overrides = { ...deletionOverrides, ...mutationOverrides };
+  const target = new Proxy(input.target, {
+    get(target, property) {
+      if (property in overrides) {
+        return overrides[property as keyof typeof overrides];
+      }
+      const value = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  const migration = {
+    ...input,
+    target,
+  };
   const issue = normalizeJiraIssue(input.issue);
   let ledger = input.ledger;
   const [commentsRead, remoteRead] = await Promise.allSettled([
@@ -113,14 +236,62 @@ export async function importJiraRelatedData(
       ),
     );
   }
-  const missingCommentBindings = input.ledger.bindings.filter(
-    (binding) =>
+  const commentCatalogAuthoritative =
+    input.attachmentPolicy?.commentVisibilityCompleteness === "verified" &&
+    commentsRead.status === "fulfilled";
+  const approvedCommentBindings = input.attachmentPolicy
+    ?.approvedCommentBindings
+    ? new Map(
+        input.attachmentPolicy.approvedCommentBindings.map((binding) => [
+          binding.source_key,
+          binding,
+        ]),
+      )
+    : null;
+  const commentBindingMatchesApproval = (
+    binding: JiraMigrationLedgerV1["bindings"][number],
+  ): boolean => {
+    if (approvedCommentBindings === null) return true;
+    const approved = approvedCommentBindings.get(binding.source_key);
+    return (
+      approved !== undefined &&
+      approved.source_fingerprint === binding.source_fingerprint &&
+      approved.mapped_state_fingerprint === binding.mapped_state_fingerprint &&
+      fingerprintJiraState(approved.target) ===
+        fingerprintJiraState(binding.target)
+    );
+  };
+  for (const binding of input.ledger.bindings) {
+    if (
       binding.source_identity.entity_kind === "comment" &&
       binding.source_identity.jira_cloud_id === input.jiraCloudId &&
       binding.source_identity.issue_id === issue.id &&
-      (commentsRead.status === "rejected" ||
-        !returnedCommentIds.has(binding.source_identity.comment_id)),
-  );
+      approvedCommentBindings?.has(binding.source_key) &&
+      !commentBindingMatchesApproval(binding) &&
+      (input.attachmentPolicy?.approvedCommentBindingsAppliedAfter ===
+        undefined ||
+        binding.last_applied_at <
+          input.attachmentPolicy.approvedCommentBindingsAppliedAfter)
+    ) {
+      failure(
+        report.failures,
+        "comment",
+        binding.source_identity.comment_id,
+        "resolve",
+        "comment_binding_precondition_failed",
+      );
+    }
+  }
+  const missingCommentBindings = commentCatalogAuthoritative
+    ? input.ledger.bindings.filter(
+        (binding) =>
+          binding.source_identity.entity_kind === "comment" &&
+          binding.source_identity.jira_cloud_id === input.jiraCloudId &&
+          binding.source_identity.issue_id === issue.id &&
+          commentBindingMatchesApproval(binding) &&
+          !returnedCommentIds.has(binding.source_identity.comment_id),
+      )
+    : [];
   const unsafeCommentIds = new Set([
     ...missingCommentBindings.flatMap((binding) =>
       binding.source_identity.entity_kind === "comment"
@@ -196,19 +367,6 @@ export async function importJiraRelatedData(
   const attachments = issue.attachments;
   const attachmentCatalogPresent = input.issue.fields.attachment !== undefined;
   const links = issue.links;
-  const returnedAttachmentIds = new Set(
-    attachments.map((attachment) => attachment.id),
-  );
-  const missingAttachmentBindings = input.ledger.bindings.filter(
-    (binding) =>
-      binding.source_identity.entity_kind === "attachment" &&
-      binding.source_identity.jira_cloud_id === input.jiraCloudId &&
-      (binding.source_identity.issue_id === undefined ||
-        binding.source_identity.issue_id === issue.id) &&
-      (!attachmentAclEstablished ||
-        (attachmentCatalogPresent &&
-          !returnedAttachmentIds.has(binding.source_identity.attachment_id))),
-  );
   report.comments.total = comments.length;
   report.comments.roots = comments.filter(
     (item) => item.parentId == null,
@@ -226,7 +384,7 @@ export async function importJiraRelatedData(
     ),
   );
   const attachmentResult = await importAttachments({
-    migration: input,
+    migration,
     issueId: issue.id,
     comments,
     unsafeCommentIds,
@@ -241,18 +399,22 @@ export async function importJiraRelatedData(
   });
   ledger = attachmentResult.ledger;
   const attachmentBindings = attachmentResult.attachmentBindings;
+  if (input.mode === "apply" && input.checkpointLedger) {
+    await input.checkpointLedger(ledger);
+  }
 
   await updateDescriptionMedia({
-    migration: input,
+    migration,
     issueId: issue.id,
     descriptionAdf: issue.description,
     attachments,
     attachmentBindings,
+    recordOperation,
     report,
   });
 
   ledger = await importComments({
-    migration: input,
+    migration,
     issueId: issue.id,
     comments,
     unsafeVisibilityCommentIds,
@@ -261,14 +423,16 @@ export async function importJiraRelatedData(
     attachmentBindings,
     attachments,
     ledger,
+    recordOperation,
     report,
     now,
   });
 
   ledger = await importIssueLinks({
-    migration: input,
+    migration,
     issueId: issue.id,
     issueKey: issue.key,
+    projectKey: issue.projectKey ?? issue.key.split("-", 1)[0] ?? issue.key,
     linkCatalogPresent: input.issue.fields.issuelinks !== undefined,
     links,
     ledger,
@@ -277,12 +441,17 @@ export async function importJiraRelatedData(
   });
 
   await importRemoteLinks({
-    migration: input,
+    migration,
     issueId: issue.id,
     catalogReadSucceeded: remoteRead.status === "fulfilled",
     remoteLinks,
     report,
   });
 
+  if (approvalViolations.size > 0) {
+    throw new Error(
+      `related_operation_not_approved:${[...approvalViolations].join(",")}`,
+    );
+  }
   return { ledger, report };
 }

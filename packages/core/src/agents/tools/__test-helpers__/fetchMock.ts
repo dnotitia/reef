@@ -10,6 +10,7 @@ export interface FetchCall {
 export interface FetchResponseSpec {
   status?: number;
   body?: unknown;
+  error?: unknown;
 }
 
 /**
@@ -32,6 +33,7 @@ export function setupFetch(responses: FetchResponseSpec[]): {
     calls.push({ url, init });
     const next = queue.shift();
     if (!next) throw new Error(`No mocked response for ${url}`);
+    if (next.error !== undefined) throw next.error;
     const status = next.status ?? 200;
     return new Response(JSON.stringify(next.body ?? {}), {
       status,

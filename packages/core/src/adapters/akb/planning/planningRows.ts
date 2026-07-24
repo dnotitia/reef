@@ -138,6 +138,7 @@ export async function assertUniquePlanningName(
 
 export function sprintRowFields(
   item: Omit<Sprint, "id">,
+  meta: Record<string, unknown> = {},
 ): Array<[string, string]> {
   return [
     ["name", quoteText(item.name, "sprint name")],
@@ -146,7 +147,7 @@ export function sprintRowFields(
     ["end_date", quoteOptionalText(item.end_date, "sprint end_date")],
     ["goal", quoteText(item.goal ?? "", "sprint goal")],
     ["capacity_points", quoteNumberOrNull(item.capacity_points)],
-    ["meta", quoteJson({})],
+    ["meta", quoteJson(meta)],
   ];
 }
 
@@ -167,6 +168,7 @@ export function milestoneRowFields(
 
 export function releaseRowFields(
   item: Omit<Release, "id">,
+  meta: Record<string, unknown> = {},
 ): Array<[string, string]> {
   return [
     ["name", quoteText(item.name, "release name")],
@@ -174,7 +176,7 @@ export function releaseRowFields(
     ["target_date", quoteOptionalText(item.target_date, "release target_date")],
     ["released_at", quoteOptionalText(item.released_at, "release released_at")],
     ["notes", quoteText(item.notes ?? "", "release notes")],
-    ["meta", quoteJson({})],
+    ["meta", quoteJson(meta)],
   ];
 }
 
@@ -216,6 +218,57 @@ export async function insertAndReadPlanningRow<T>(
     });
   }
   return toItem(row);
+}
+
+export async function claimAndReadPlanningRow<T>(input: {
+  adapter: AkbAdapter;
+  vault: string;
+  table: ReefTableName;
+  fields: Array<[string, string]>;
+  name: string;
+  idempotencyKey?: string;
+  idempotencyMetaKey: string;
+  toItem: (row: Record<string, unknown>) => T;
+  isCompatible: (item: T) => boolean;
+}): Promise<T> {
+  const columns = input.fields.map(([column]) => quoteIdent(column)).join(", ");
+  const values = input.fields.map(([, value]) => value).join(", ");
+  const idempotencyLock = input.idempotencyKey
+    ? `reef:planning:idempotency:${input.idempotencyKey}`
+    : null;
+  const nameLock = `reef:planning:name:${input.table}:${input.name.trim().toLowerCase()}`;
+  const lockValues = [idempotencyLock, nameLock]
+    .filter((value): value is string => value !== null)
+    .map((value) => `(${quoteText(value, "planning lock")})`)
+    .join(", ");
+  const existingClaimPredicate = input.idempotencyKey
+    ? `planning.meta->>${quoteText(
+        input.idempotencyMetaKey,
+        "planning claim field",
+      )} = ${quoteText(input.idempotencyKey, "planning idempotency key")}`
+    : "FALSE";
+  const statement = `WITH claim_lock AS MATERIALIZED (SELECT pg_advisory_xact_lock(hashtext(lock_key)) FROM (VALUES ${lockValues}) AS locks(lock_key) ORDER BY lock_key), lock_barrier AS MATERIALIZED (SELECT count(*) FROM claim_lock), existing_claim AS MATERIALIZED (SELECT planning.* FROM ${tableRef(
+    input.table,
+  )} planning CROSS JOIN lock_barrier WHERE ${existingClaimPredicate}), name_conflict AS MATERIALIZED (SELECT 1 FROM ${tableRef(
+    input.table,
+  )} planning CROSS JOIN lock_barrier WHERE lower(planning.name) = lower(${quoteText(
+    input.name,
+    "planning name",
+  )}) AND NOT EXISTS (SELECT 1 FROM existing_claim) LIMIT 1), ins AS (INSERT INTO ${tableRef(
+    input.table,
+  )} (${columns}) SELECT ${values} FROM lock_barrier WHERE NOT EXISTS (SELECT 1 FROM existing_claim) AND NOT EXISTS (SELECT 1 FROM name_conflict) RETURNING *), resolved AS (SELECT * FROM existing_claim UNION ALL SELECT * FROM ins) SELECT * FROM resolved`;
+  const res = await runSql(input.adapter, input.vault, statement);
+  const rows = res.kind === "table_query" ? res.items : [];
+  if (rows.length > 1) {
+    throw new SchemaValidationError({
+      issues: ["planning idempotency claim is ambiguous"],
+    });
+  }
+  const row = rows[0];
+  if (!row) throw new ConflictError();
+  const item = input.toItem(row);
+  if (!input.isCompatible(item)) throw new ConflictError();
+  return item;
 }
 
 export async function updatePlanningRow(

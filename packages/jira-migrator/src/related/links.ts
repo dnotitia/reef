@@ -73,6 +73,7 @@ export const reconcileProvisionalLinkRefs = async (
   target: JiraRelatedImportTarget,
   jiraCloudId: string,
   linkId: string,
+  mode: "dry-run" | "apply" = "apply",
 ): Promise<void> => {
   const keys = new Set(
     (await target.listExternalRefKeys(`jira-link:${jiraCloudId}:`)).filter(
@@ -89,7 +90,7 @@ export const reconcileProvisionalLinkRefs = async (
     )
       throw new Error("external_ref_reconciliation_mismatch");
     await target.deleteExternalRef(key);
-    if ((await target.readExternalRef(key)) !== null)
+    if (mode === "apply" && (await target.readExternalRef(key)) !== null)
       throw new Error("external_ref_delete_readback_mismatch");
   }
 };

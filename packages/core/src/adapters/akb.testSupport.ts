@@ -50,6 +50,7 @@ export {
   listIssueActivity,
   listIssues,
   listPlanningCatalog,
+  readPlanningCreateClaim,
   listTemplates,
   listSavedIssueViews,
   createSavedIssueView,

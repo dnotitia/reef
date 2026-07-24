@@ -1,51 +1,111 @@
-import { readFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { lstatSync, readFileSync } from "node:fs";
 import { VaultNameSchema } from "@reef/core";
 import { type JiraAuthSecret, jiraAuthHeader } from "../jira/auth.js";
 import { redactUnknown } from "../shared/redaction.js";
 import { trimTrailingSlashes } from "../shared/url.js";
 
+export type JiraMigratorMode = "dry-run" | "apply";
+
 export interface JiraConfig {
   baseUrl: string;
-  cloudId: string | null;
+  cloudId: string;
+  /** Compatibility alias for single-project callers. */
   projectKey: string;
+  projectKeys: string[];
+  boardIds: string[];
+  mappingPolicyPaths: Record<string, string>;
   auth: JiraAuthSecret;
 }
 
 export interface JiraMigratorConfig {
+  mode: JiraMigratorMode;
+  /** Compatibility alias retained for existing consumers. */
   dryRun: boolean;
   jira: JiraConfig;
+  target: {
+    baseUrl: string;
+    vault: string;
+    jwt: string;
+  };
+  /** Compatibility aliases retained for existing consumers. */
   targetVault: string;
   reportPath: string | null;
   accountMappingPath: string | null;
+  artifacts: {
+    runId: string;
+    ledgerPath: string | null;
+    archiveRoot: string | null;
+    accountMappingPath: string | null;
+    reportPath: string | null;
+  };
+  resumeRunId: string | null;
+  expectedPlanSha256: string | null;
+  control: {
+    retryCount: number;
+    retryBaseDelayMs: number;
+    retryMaxDelayMs: number;
+    commentCatalogComplete: boolean;
+  };
 }
 
 export interface PublicJiraMigratorConfig {
-  dryRun: boolean;
+  mode: JiraMigratorMode;
   jira: {
     baseUrl: string;
-    cloudId: string | null;
-    projectKey: string;
+    cloudId: string;
+    projectKeys: string[];
+    boardIds: string[];
+    mappingPolicyProjects: string[];
     auth: {
       mode: JiraAuthSecret["mode"];
       isConfigured: true;
       email: string | null;
     };
   };
-  targetVault: string;
+  target: {
+    baseUrl: string;
+    vault: string;
+    auth: { isConfigured: true };
+  };
+  artifacts: {
+    runId: string;
+    ledgerConfigured: boolean;
+    archiveConfigured: boolean;
+    accountMappingConfigured: boolean;
+    reportConfigured: boolean;
+  };
+  resumeRunId: string | null;
+  expectedPlanSha256: string | null;
+  control: JiraMigratorConfig["control"];
   reportPath: string | null;
   accountMappingPath: string | null;
 }
 
 interface ParsedArgs {
   dryRun: boolean;
+  apply: boolean;
+  commentCatalogComplete: boolean;
   jiraBaseUrl: string | null;
   cloudId: string | null;
-  projectKey: string | null;
+  projectKeys: string[];
+  boardIds: string[];
+  mappingPolicies: string[];
   vault: string | null;
+  akbBaseUrl: string | null;
   reportPath: string | null;
+  ledgerPath: string | null;
+  archiveRoot: string | null;
   accountMappingPath: string | null;
+  runId: string | null;
+  resumeRunId: string | null;
+  expectedPlanSha256: string | null;
+  retryCount: string | null;
+  retryBaseDelayMs: string | null;
+  retryMaxDelayMs: string | null;
   apiTokenFile: string | null;
   bearerTokenFile: string | null;
+  akbJwtFile: string | null;
 }
 
 export interface LoadJiraMigratorConfigOptions {
@@ -75,7 +135,7 @@ const firstValue = (
   return null;
 };
 
-const readFlagValue = (
+const valueAt = (
   argv: readonly string[],
   index: number,
   flag: string,
@@ -87,29 +147,70 @@ const readFlagValue = (
   return value;
 };
 
-const parseBooleanEnv = (value: string | undefined): boolean | null => {
-  const normalized = value?.trim().toLowerCase();
-  if (!normalized) return null;
-  if (["1", "true", "yes", "on"].includes(normalized)) return true;
-  if (["0", "false", "no", "off"].includes(normalized)) return false;
-  throw new JiraMigratorConfigError([
-    "REEF_JIRA_MIGRATOR_DRY_RUN must be a boolean value",
-  ]);
+const valueFromEquals = (arg: string, flag: string): string | null =>
+  arg.startsWith(`${flag}=`) ? arg.slice(flag.length + 1) : null;
+
+const emptyParsedArgs = (): ParsedArgs => ({
+  dryRun: false,
+  apply: false,
+  commentCatalogComplete: false,
+  jiraBaseUrl: null,
+  cloudId: null,
+  projectKeys: [],
+  boardIds: [],
+  mappingPolicies: [],
+  vault: null,
+  akbBaseUrl: null,
+  reportPath: null,
+  ledgerPath: null,
+  archiveRoot: null,
+  accountMappingPath: null,
+  runId: null,
+  resumeRunId: null,
+  expectedPlanSha256: null,
+  retryCount: null,
+  retryBaseDelayMs: null,
+  retryMaxDelayMs: null,
+  apiTokenFile: null,
+  bearerTokenFile: null,
+  akbJwtFile: null,
+});
+
+const singleFlags: Record<
+  string,
+  Exclude<
+    keyof ParsedArgs,
+    | "dryRun"
+    | "apply"
+    | "commentCatalogComplete"
+    | "projectKeys"
+    | "boardIds"
+    | "mappingPolicies"
+  >
+> = {
+  "--jira-base-url": "jiraBaseUrl",
+  "--jira-cloud-id": "cloudId",
+  "--vault": "vault",
+  "--akb-base-url": "akbBaseUrl",
+  "--report": "reportPath",
+  "--report-path": "reportPath",
+  "--ledger-path": "ledgerPath",
+  "--archive-root": "archiveRoot",
+  "--account-mapping": "accountMappingPath",
+  "--account-mapping-path": "accountMappingPath",
+  "--run-id": "runId",
+  "--resume": "resumeRunId",
+  "--expected-plan-sha256": "expectedPlanSha256",
+  "--retry-count": "retryCount",
+  "--retry-base-delay-ms": "retryBaseDelayMs",
+  "--retry-max-delay-ms": "retryMaxDelayMs",
+  "--api-token-file": "apiTokenFile",
+  "--bearer-token-file": "bearerTokenFile",
+  "--akb-jwt-file": "akbJwtFile",
 };
 
 export function parseJiraMigratorArgs(argv: readonly string[]): ParsedArgs {
-  const parsed: ParsedArgs = {
-    dryRun: false,
-    jiraBaseUrl: null,
-    cloudId: null,
-    projectKey: null,
-    vault: null,
-    reportPath: null,
-    accountMappingPath: null,
-    apiTokenFile: null,
-    bearerTokenFile: null,
-  };
-
+  const parsed = emptyParsedArgs();
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--") continue;
@@ -117,135 +218,118 @@ export function parseJiraMigratorArgs(argv: readonly string[]): ParsedArgs {
       parsed.dryRun = true;
       continue;
     }
-    if (arg === "--jira-base-url") {
-      parsed.jiraBaseUrl = readFlagValue(argv, index, arg);
-      index += 1;
+    if (arg === "--apply") {
+      parsed.apply = true;
       continue;
     }
-    if (arg?.startsWith("--jira-base-url=")) {
-      parsed.jiraBaseUrl = arg.slice("--jira-base-url=".length);
+    if (arg === "--attest-comment-catalog-complete") {
+      parsed.commentCatalogComplete = true;
       continue;
     }
-    if (arg === "--jira-cloud-id") {
-      parsed.cloudId = readFlagValue(argv, index, arg);
-      index += 1;
-      continue;
+    const repeated = [
+      ["--project-key", "projectKeys"],
+      ["--board-id", "boardIds"],
+      ["--mapping-policy", "mappingPolicies"],
+    ] as const;
+    let matched = false;
+    for (const [flag, key] of repeated) {
+      if (arg === flag) {
+        parsed[key].push(valueAt(argv, index, flag));
+        index += 1;
+        matched = true;
+        break;
+      }
+      const inline = arg ? valueFromEquals(arg, flag) : null;
+      if (inline !== null) {
+        if (!inline)
+          throw new JiraMigratorConfigError([`${flag} requires a value`]);
+        parsed[key].push(inline);
+        matched = true;
+        break;
+      }
     }
-    if (arg?.startsWith("--jira-cloud-id=")) {
-      parsed.cloudId = arg.slice("--jira-cloud-id=".length);
-      continue;
+    if (matched) continue;
+    for (const [flag, key] of Object.entries(singleFlags)) {
+      if (arg === flag) {
+        parsed[key] = valueAt(argv, index, flag);
+        index += 1;
+        matched = true;
+        break;
+      }
+      const inline = arg ? valueFromEquals(arg, flag) : null;
+      if (inline !== null) {
+        if (!inline)
+          throw new JiraMigratorConfigError([`${flag} requires a value`]);
+        parsed[key] = inline;
+        matched = true;
+        break;
+      }
     }
-    if (arg === "--project-key") {
-      parsed.projectKey = readFlagValue(argv, index, arg);
-      index += 1;
-      continue;
+    if (!matched) {
+      const optionName = arg?.startsWith("-")
+        ? arg.split("=", 1)[0]
+        : undefined;
+      throw new JiraMigratorConfigError([
+        optionName ? `Unknown argument: ${optionName}` : "Unknown argument",
+      ]);
     }
-    if (arg?.startsWith("--project-key=")) {
-      parsed.projectKey = arg.slice("--project-key=".length);
-      continue;
-    }
-    if (arg === "--vault") {
-      parsed.vault = readFlagValue(argv, index, arg);
-      index += 1;
-      continue;
-    }
-    if (arg?.startsWith("--vault=")) {
-      parsed.vault = arg.slice("--vault=".length);
-      continue;
-    }
-    if (arg === "--report") {
-      parsed.reportPath = readFlagValue(argv, index, arg);
-      index += 1;
-      continue;
-    }
-    if (arg?.startsWith("--report=")) {
-      parsed.reportPath = arg.slice("--report=".length);
-      continue;
-    }
-    if (arg === "--account-mapping") {
-      parsed.accountMappingPath = readFlagValue(argv, index, arg);
-      index += 1;
-      continue;
-    }
-    if (arg?.startsWith("--account-mapping=")) {
-      parsed.accountMappingPath = arg.slice("--account-mapping=".length);
-      continue;
-    }
-    if (arg === "--api-token-file") {
-      parsed.apiTokenFile = readFlagValue(argv, index, arg);
-      index += 1;
-      continue;
-    }
-    if (arg?.startsWith("--api-token-file=")) {
-      parsed.apiTokenFile = arg.slice("--api-token-file=".length);
-      continue;
-    }
-    if (arg === "--bearer-token-file") {
-      parsed.bearerTokenFile = readFlagValue(argv, index, arg);
-      index += 1;
-      continue;
-    }
-    if (arg?.startsWith("--bearer-token-file=")) {
-      parsed.bearerTokenFile = arg.slice("--bearer-token-file=".length);
-      continue;
-    }
-
-    throw new JiraMigratorConfigError([`Unknown argument: ${arg}`]);
   }
-
   return parsed;
 }
 
-const parseBaseUrl = (raw: string | null, cloudId: string | null): string => {
-  const candidate =
-    raw ?? (cloudId ? `https://api.atlassian.com/ex/jira/${cloudId}` : null);
-  if (!candidate) {
-    throw new JiraMigratorConfigError([
-      "REEF_JIRA_BASE_URL, JIRA_BASE_URL, or REEF_JIRA_CLOUD_ID is required",
-    ]);
-  }
-
+const parseHttpsUrl = (candidate: string | null, label: string): string => {
+  if (!candidate) throw new JiraMigratorConfigError([`${label} is required`]);
   try {
-    const normalizedCandidate = candidate.trim().replace(/[\t\n\r]/gu, "");
-    const url = new URL(normalizedCandidate);
-    if (url.protocol !== "https:") {
-      throw new Error("non_https");
-    }
-    const authority = normalizedCandidate
+    const normalized = candidate.trim().replace(/[\t\n\r]/gu, "");
+    const url = new URL(normalized);
+    const authority = normalized
       .replace(/^https:/iu, "")
       .replaceAll("\\", "/")
       .replace(/^\/+/, "")
       .split(/[/?#]/u, 1)[0];
-    if (authority?.includes("@")) {
-      throw new Error("userinfo_not_allowed");
-    }
-    if (url.username || url.password) {
-      throw new Error("userinfo_not_allowed");
+    if (
+      url.protocol !== "https:" ||
+      authority?.includes("@") ||
+      url.username ||
+      url.password
+    ) {
+      throw new Error("unsafe_url");
     }
     url.pathname = trimTrailingSlashes(url.pathname);
     url.search = "";
     url.hash = "";
     return trimTrailingSlashes(url.toString());
   } catch {
-    throw new JiraMigratorConfigError([
-      "Jira base URL must be a valid HTTPS URL",
-    ]);
+    throw new JiraMigratorConfigError([`${label} must be a valid HTTPS URL`]);
   }
 };
 
-const parseProjectKey = (value: string | null): string => {
-  if (!value) {
-    throw new JiraMigratorConfigError([
-      "REEF_JIRA_PROJECT_KEY or --project-key is required",
-    ]);
-  }
+const parseProjectKey = (value: string): string => {
   const normalized = value.trim().toUpperCase();
-  if (!/^[A-Z][A-Z0-9_]+$/.test(normalized)) {
+  if (!/^[A-Z][A-Z0-9_]+$/u.test(normalized)) {
     throw new JiraMigratorConfigError([
       "Jira project key must contain uppercase letters, digits, or underscores",
     ]);
   }
   return normalized;
+};
+
+const parseProjects = (
+  parsed: ParsedArgs,
+  env: Record<string, string | undefined>,
+): string[] => {
+  const values =
+    parsed.projectKeys.length > 0
+      ? parsed.projectKeys
+      : [firstValue(env.REEF_JIRA_PROJECT_KEY, env.JIRA_PROJECT_KEY)].filter(
+          (value): value is string => value !== null,
+        );
+  if (values.length === 0) {
+    throw new JiraMigratorConfigError([
+      "REEF_JIRA_PROJECT_KEY or --project-key is required",
+    ]);
+  }
+  return [...new Set(values.map(parseProjectKey))].sort();
 };
 
 const parseVault = (value: string | null): string => {
@@ -263,14 +347,24 @@ const parseVault = (value: string | null): string => {
   return parsed.data;
 };
 
-const readSecretFile = (path: string, label: string): string => {
+const readPrivateSecretFile = (path: string, label: string): string => {
   try {
+    const stat = lstatSync(path);
+    if (
+      stat.isSymbolicLink() ||
+      !stat.isFile() ||
+      (process.platform !== "win32" && (stat.mode & 0o077) !== 0)
+    ) {
+      throw new Error("unsafe_secret_file");
+    }
     const value = readFileSync(path, "utf8").trim();
     if (value) return value;
   } catch {
-    // Fall through to the generic, value-safe error below.
+    // Fall through to the generic, value-safe error.
   }
-  throw new JiraMigratorConfigError([`${label} secret file could not be read`]);
+  throw new JiraMigratorConfigError([
+    `${label} secret file must be a private regular file`,
+  ]);
 };
 
 const resolveSecret = (
@@ -278,12 +372,17 @@ const resolveSecret = (
   filePath: string | null,
   label: string,
 ): string | null => {
+  if (envValue && filePath) {
+    throw new JiraMigratorConfigError([
+      `${label} must use either environment or secret file, not both`,
+    ]);
+  }
   if (envValue) return envValue;
-  if (filePath) return readSecretFile(filePath, label);
+  if (filePath) return readPrivateSecretFile(filePath, label);
   return null;
 };
 
-const resolveAuth = (
+const resolveJiraAuth = (
   env: Record<string, string | undefined>,
   parsed: ParsedArgs,
 ): JiraAuthSecret => {
@@ -306,22 +405,104 @@ const resolveAuth = (
     ),
     "Jira bearer token",
   );
-
   if (bearerToken && (email || apiToken)) {
     throw new JiraMigratorConfigError([
       "Configure either Jira bearer auth or Jira basic auth, not both",
     ]);
   }
-  if (bearerToken) {
-    return { mode: "bearer", token: bearerToken };
-  }
-  if (email && apiToken) {
-    return { mode: "basic", email, apiToken };
-  }
-
+  if (bearerToken) return { mode: "bearer", token: bearerToken };
+  if (email && apiToken) return { mode: "basic", email, apiToken };
   throw new JiraMigratorConfigError([
     "Jira credentials are required via environment variables or local secret files",
   ]);
+};
+
+const parseMode = (parsed: ParsedArgs): JiraMigratorMode => {
+  if (Number(parsed.dryRun) + Number(parsed.apply) !== 1) {
+    throw new JiraMigratorConfigError([
+      "Exactly one of --dry-run or --apply is required",
+    ]);
+  }
+  return parsed.dryRun ? "dry-run" : "apply";
+};
+
+const parseSha256 = (
+  value: string | null,
+  mode: JiraMigratorMode,
+): string | null => {
+  if (mode === "apply" && !value) {
+    throw new JiraMigratorConfigError([
+      "--expected-plan-sha256 is required with --apply",
+    ]);
+  }
+  if (value && !/^[a-f0-9]{64}$/u.test(value)) {
+    throw new JiraMigratorConfigError([
+      "--expected-plan-sha256 must be a lowercase SHA-256",
+    ]);
+  }
+  return value;
+};
+
+const parseInteger = (
+  raw: string | null,
+  fallback: number,
+  label: string,
+  minimum: number,
+): number => {
+  if (raw === null) return fallback;
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < minimum) {
+    throw new JiraMigratorConfigError([
+      `${label} must be an integer >= ${minimum}`,
+    ]);
+  }
+  return value;
+};
+
+const parseMappingPolicies = (
+  values: readonly string[],
+  projects: readonly string[],
+): Record<string, string> => {
+  const result: Record<string, string> = {};
+  for (const value of values) {
+    const separator = value.indexOf("=");
+    if (separator < 1 || separator === value.length - 1) {
+      throw new JiraMigratorConfigError([
+        "--mapping-policy must use PROJECT=/path/to/policy.json",
+      ]);
+    }
+    const project = parseProjectKey(value.slice(0, separator));
+    if (!projects.includes(project)) {
+      throw new JiraMigratorConfigError([
+        `Mapping policy project ${project} is outside configured project scope`,
+      ]);
+    }
+    if (result[project]) {
+      throw new JiraMigratorConfigError([
+        `Mapping policy for ${project} was provided more than once`,
+      ]);
+    }
+    result[project] = value.slice(separator + 1);
+  }
+  return result;
+};
+
+const approvalRunId = (reportPath: string | null): string | null => {
+  if (!reportPath) return null;
+  try {
+    const parsed = JSON.parse(
+      readFileSync(`${reportPath}.approval.json`, "utf8"),
+    ) as {
+      run?: { run_id?: unknown; mode?: unknown };
+    };
+    return parsed.run?.mode === "dry-run" &&
+      typeof parsed.run.run_id === "string" &&
+      parsed.run.run_id.length > 0
+      ? parsed.run.run_id
+      : null;
+  } catch {
+    return null;
+  }
 };
 
 export function loadJiraMigratorConfig({
@@ -329,51 +510,140 @@ export function loadJiraMigratorConfig({
   env = process.env,
 }: LoadJiraMigratorConfigOptions = {}): JiraMigratorConfig {
   const parsed = parseJiraMigratorArgs(argv);
+  const mode = parseMode(parsed);
   const cloudId = firstValue(
     parsed.cloudId,
     env.REEF_JIRA_CLOUD_ID,
     env.JIRA_CLOUD_ID,
   );
-  const dryRun =
-    parsed.dryRun || parseBooleanEnv(env.REEF_JIRA_MIGRATOR_DRY_RUN) === true;
-
+  if (!cloudId) {
+    throw new JiraMigratorConfigError([
+      "REEF_JIRA_CLOUD_ID or --jira-cloud-id is required",
+    ]);
+  }
+  const projectKeys = parseProjects(parsed, env);
+  const vault = parseVault(
+    firstValue(
+      parsed.vault,
+      env.REEF_JIRA_MIGRATOR_VAULT,
+      env.REEF_ORCHESTRATOR_VAULT,
+      env.REEF_VAULT,
+    ),
+  );
+  const reportPath = firstValue(
+    parsed.reportPath,
+    env.REEF_JIRA_MIGRATOR_REPORT_PATH,
+  );
+  const accountMappingPath = firstValue(
+    parsed.accountMappingPath,
+    env.REEF_JIRA_ACCOUNT_MAPPING_PATH,
+  );
+  const resumeRunId = firstValue(parsed.resumeRunId);
+  const explicitRunId = resumeRunId ?? firstValue(parsed.runId);
+  const recoveredRunId =
+    mode === "apply" && firstValue(parsed.expectedPlanSha256)
+      ? approvalRunId(reportPath)
+      : null;
+  if (
+    mode === "apply" &&
+    firstValue(parsed.expectedPlanSha256) &&
+    !explicitRunId &&
+    !recoveredRunId
+  ) {
+    throw new JiraMigratorConfigError([
+      "--run-id is required with --apply when no sealed approval report is available",
+    ]);
+  }
+  const runId = explicitRunId ?? recoveredRunId ?? randomUUID();
+  const targetJwt = resolveSecret(
+    firstValue(env.REEF_AKB_JWT),
+    firstValue(parsed.akbJwtFile, env.REEF_AKB_JWT_FILE),
+    "AKB JWT",
+  );
+  if (!targetJwt) {
+    throw new JiraMigratorConfigError([
+      "REEF_AKB_JWT or --akb-jwt-file is required",
+    ]);
+  }
+  const retryCount = parseInteger(
+    firstValue(parsed.retryCount, env.REEF_JIRA_RETRY_COUNT),
+    3,
+    "retry count",
+    0,
+  );
+  const retryBaseDelayMs = parseInteger(
+    firstValue(parsed.retryBaseDelayMs, env.REEF_JIRA_RETRY_BASE_DELAY_MS),
+    250,
+    "retry base delay",
+    0,
+  );
+  const retryMaxDelayMs = parseInteger(
+    firstValue(parsed.retryMaxDelayMs, env.REEF_JIRA_RETRY_MAX_DELAY_MS),
+    10_000,
+    "retry max delay",
+    0,
+  );
+  if (retryMaxDelayMs < retryBaseDelayMs) {
+    throw new JiraMigratorConfigError([
+      "retry max delay must be greater than or equal to retry base delay",
+    ]);
+  }
   return {
-    dryRun,
+    mode,
+    dryRun: mode === "dry-run",
     jira: {
-      baseUrl: parseBaseUrl(
+      baseUrl: parseHttpsUrl(
         firstValue(
           parsed.jiraBaseUrl,
           env.REEF_JIRA_BASE_URL,
           env.JIRA_BASE_URL,
+          `https://api.atlassian.com/ex/jira/${cloudId}`,
         ),
-        cloudId,
+        "Jira base URL",
       ),
       cloudId,
-      projectKey: parseProjectKey(
-        firstValue(
-          parsed.projectKey,
-          env.REEF_JIRA_PROJECT_KEY,
-          env.JIRA_PROJECT_KEY,
+      projectKey: projectKeys[0] as string,
+      projectKeys,
+      boardIds: [...new Set(parsed.boardIds.map((value) => value.trim()))]
+        .filter(Boolean)
+        .sort((left, right) =>
+          left.localeCompare(right, "en", { numeric: true }),
         ),
+      mappingPolicyPaths: parseMappingPolicies(
+        parsed.mappingPolicies,
+        projectKeys,
       ),
-      auth: resolveAuth(env, parsed),
+      auth: resolveJiraAuth(env, parsed),
     },
-    targetVault: parseVault(
-      firstValue(
-        parsed.vault,
-        env.REEF_JIRA_MIGRATOR_VAULT,
-        env.REEF_ORCHESTRATOR_VAULT,
-        env.REEF_VAULT,
+    target: {
+      baseUrl: parseHttpsUrl(
+        firstValue(parsed.akbBaseUrl, env.AKB_BACKEND_URL),
+        "AKB base URL",
       ),
+      vault,
+      jwt: targetJwt,
+    },
+    targetVault: vault,
+    reportPath,
+    accountMappingPath,
+    artifacts: {
+      runId,
+      ledgerPath: firstValue(parsed.ledgerPath, env.REEF_JIRA_LEDGER_PATH),
+      archiveRoot: firstValue(parsed.archiveRoot, env.REEF_JIRA_ARCHIVE_ROOT),
+      accountMappingPath,
+      reportPath,
+    },
+    resumeRunId,
+    expectedPlanSha256: parseSha256(
+      firstValue(parsed.expectedPlanSha256),
+      mode,
     ),
-    reportPath: firstValue(
-      parsed.reportPath,
-      env.REEF_JIRA_MIGRATOR_REPORT_PATH,
-    ),
-    accountMappingPath: firstValue(
-      parsed.accountMappingPath,
-      env.REEF_JIRA_ACCOUNT_MAPPING_PATH,
-    ),
+    control: {
+      retryCount,
+      retryBaseDelayMs,
+      retryMaxDelayMs,
+      commentCatalogComplete: parsed.commentCatalogComplete,
+    },
   };
 }
 
@@ -381,11 +651,13 @@ export function publicJiraMigratorConfig(
   config: JiraMigratorConfig,
 ): PublicJiraMigratorConfig {
   return {
-    dryRun: config.dryRun,
+    mode: config.mode,
     jira: {
       baseUrl: config.jira.baseUrl,
       cloudId: config.jira.cloudId,
-      projectKey: config.jira.projectKey,
+      projectKeys: [...config.jira.projectKeys],
+      boardIds: [...config.jira.boardIds],
+      mappingPolicyProjects: Object.keys(config.jira.mappingPolicyPaths).sort(),
       auth: {
         mode: config.jira.auth.mode,
         isConfigured: true,
@@ -393,7 +665,21 @@ export function publicJiraMigratorConfig(
           config.jira.auth.mode === "basic" ? config.jira.auth.email : null,
       },
     },
-    targetVault: config.targetVault,
+    target: {
+      baseUrl: config.target.baseUrl,
+      vault: config.target.vault,
+      auth: { isConfigured: true },
+    },
+    artifacts: {
+      runId: config.artifacts.runId,
+      ledgerConfigured: config.artifacts.ledgerPath !== null,
+      archiveConfigured: config.artifacts.archiveRoot !== null,
+      accountMappingConfigured: config.artifacts.accountMappingPath !== null,
+      reportConfigured: config.artifacts.reportPath !== null,
+    },
+    resumeRunId: config.resumeRunId,
+    expectedPlanSha256: config.expectedPlanSha256,
+    control: { ...config.control },
     reportPath: config.reportPath,
     accountMappingPath: config.accountMappingPath,
   };
@@ -401,10 +687,16 @@ export function publicJiraMigratorConfig(
 
 export function secretValuesForConfig(config: JiraMigratorConfig): string[] {
   const authHeader = jiraAuthHeader(config.jira.auth);
-  if (config.jira.auth.mode === "bearer") {
-    return [config.jira.auth.token, authHeader];
-  }
-  return [config.jira.auth.apiToken, authHeader];
+  const jiraSecrets =
+    config.jira.auth.mode === "bearer"
+      ? [config.jira.auth.token]
+      : [config.jira.auth.apiToken];
+  return [
+    ...jiraSecrets,
+    authHeader,
+    config.target.jwt,
+    `Bearer ${config.target.jwt}`,
+  ];
 }
 
 export function redactForConfig<T>(config: JiraMigratorConfig, value: T): T {

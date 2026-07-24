@@ -1,4 +1,5 @@
-import { NotFoundError } from "../../../errors";
+import { isDeepStrictEqual } from "node:util";
+import { AkbApiError, ConflictError, NotFoundError } from "../../../errors";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import {
   REEF_ISSUES_TABLE,
@@ -10,9 +11,11 @@ import {
   ensureDocumentPutResponse,
   ensureDocumentResponse,
   insertIssueRow,
+  issueDocumentUri,
   issuePathFor,
   issueRowMutableFields,
   makeIssueResourceLabel,
+  quoteJson,
   quoteNumberOrNull,
   quoteText,
   rowToIssue,
@@ -24,6 +27,7 @@ import {
 } from "../core/shared";
 import type {
   AllocateNextIssueIdParams,
+  ClaimIssueIdParams,
   DeleteIssueParams,
   ReadIssueParams,
   ReadIssueResult,
@@ -48,6 +52,27 @@ export {
   searchSimilarIssues,
   type SearchSimilarIssuesParams,
 } from "./similarIssues";
+
+const sameJiraMigrationOwner = (left: unknown, right: unknown): boolean => {
+  if (
+    !left ||
+    typeof left !== "object" ||
+    Array.isArray(left) ||
+    !right ||
+    typeof right !== "object" ||
+    Array.isArray(right)
+  ) {
+    return false;
+  }
+  const leftOwner = left as Record<string, unknown>;
+  const rightOwner = right as Record<string, unknown>;
+  return (
+    typeof leftOwner.jira_cloud_id === "string" &&
+    typeof leftOwner.issue_id === "string" &&
+    leftOwner.jira_cloud_id === rightOwner.jira_cloud_id &&
+    leftOwner.issue_id === rightOwner.issue_id
+  );
+};
 
 export async function readIssue(
   params: ReadIssueParams,
@@ -83,31 +108,202 @@ export async function readIssue(
 export async function writeIssue(
   params: WriteIssueParams,
 ): Promise<WriteIssueResult> {
-  const { adapter, vault, issue, content = "" } = params;
+  const { adapter, vault, issue, content = "", claimFirst = false } = params;
   return withSpan("akb.write_issue", { vault, id: issue.id }, async () => {
     // Assumes `reef_issues` exists (provisioned by `ensureReefTables` at vault
     // creation / config write), mirroring `writeConfig`. A missing table
     // surfaces loudly from the INSERT rather than being silently auto-healed.
     const body = buildPutRequestBody(vault, issue, content);
-    const payload = await adapter.request("/api/v1/documents", {
-      method: "POST",
-      body,
-      resource: makeIssueResourceLabel(issue.id),
-    });
-    const put = ensureDocumentPutResponse(payload);
+    let claimDisposition: "created" | "existing" | null = null;
+    if (claimFirst) {
+      // Keep the pre-document claim archived and therefore invisible to issue
+      // reads. A failed or ambiguously acknowledged document POST can then be
+      // retried without exposing a row whose backing document does not exist.
+      claimDisposition = await claimIssueIdInternal({ adapter, vault, issue });
+    }
+    const readCommittedClaimDocument = async () => {
+      const claimed = (
+        await selectIssueRows(
+          adapter,
+          vault,
+          `reef_id = ${quoteText(issue.id, "reef_id")}`,
+        )
+      )[0];
+      const claimedIssue = claimed ? rowToIssue(claimed) : null;
+      const owner = (
+        issue.custom_fields?.jira_migration as
+          | Record<string, unknown>
+          | undefined
+      )?.owner;
+      const claimedMigration = claimedIssue?.custom_fields?.jira_migration as
+        | Record<string, unknown>
+        | undefined;
+      if (
+        !claimedIssue ||
+        claimed.document_uri !== issueDocumentUri(vault, issue.id) ||
+        claimedIssue.archived_at == null ||
+        claimedMigration?.reservation !== true ||
+        owner === undefined ||
+        !sameJiraMigrationOwner(claimedMigration.owner, owner)
+      ) {
+        throw new ConflictError({ path: issueDocumentUri(vault, issue.id) });
+      }
+      let payload: unknown;
+      try {
+        payload = await adapter.request(
+          `/api/v1/documents/${encodeURIComponent(vault)}/${issuePathFor(
+            issue.id,
+          )}`,
+          { resource: makeIssueResourceLabel(issue.id) },
+        );
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
+      const document = ensureDocumentResponse(payload);
+      if (
+        document.uri !== issueDocumentUri(vault, issue.id) ||
+        document.vault !== vault ||
+        document.path !== issuePathFor(issue.id) ||
+        document.title !== body.title ||
+        document.type !== body.type ||
+        document.status !== body.status ||
+        (document.summary ?? null) !== body.summary ||
+        !isDeepStrictEqual(document.tags, body.tags) ||
+        (document.content ?? "") !== content
+      ) {
+        throw new ConflictError({ path: issueDocumentUri(vault, issue.id) });
+      }
+      return {
+        uri: document.uri,
+        vault: document.vault,
+        path: document.path,
+        commit_hash: document.current_commit ?? "",
+      };
+    };
+    let put =
+      claimDisposition === "existing"
+        ? await readCommittedClaimDocument()
+        : null;
+    if (!put) {
+      try {
+        const payload = await adapter.request("/api/v1/documents", {
+          method: "POST",
+          body,
+          resource: makeIssueResourceLabel(issue.id),
+        });
+        put = ensureDocumentPutResponse(payload);
+      } catch (error) {
+        const ambiguousAcknowledgement =
+          error instanceof AkbApiError &&
+          (error.status === 0 ||
+            error.status === 408 ||
+            error.status === 429 ||
+            error.status >= 500);
+        if (!claimFirst || !ambiguousAcknowledgement) throw error;
+        const recovered = await readCommittedClaimDocument();
+        if (!recovered) throw error;
+        put = recovered;
+      }
+    }
 
     // Insert the queryable projection row keyed to the document. On failure,
     // compensate by deleting the document we created — a doc without a
     // row is invisible to the board, so we do not leave that orphan behind.
     // `assignBacklogRank` appends a new backlog issue to the manual-order tail
     // (REEF-176) so the backlog does not gain an unranked row.
-    try {
-      await insertIssueRow(adapter, vault, issue, put.uri, {
-        assignBacklogRank: true,
-      });
-    } catch (err) {
-      await deleteDocumentQuietly(adapter, vault, put.path);
-      throw err;
+    if (claimFirst) {
+      const existing = (
+        await selectIssueRows(
+          adapter,
+          vault,
+          `reef_id = ${quoteText(issue.id, "reef_id")}`,
+        )
+      )[0];
+      const existingIssue = existing ? rowToIssue(existing) : null;
+      const owner = (
+        issue.custom_fields?.jira_migration as
+          | Record<string, unknown>
+          | undefined
+      )?.owner;
+      const existingMigration = existingIssue?.custom_fields?.jira_migration as
+        | Record<string, unknown>
+        | undefined;
+      const existingOwner = existingMigration?.owner;
+      if (
+        !existingIssue ||
+        existing.document_uri !== issueDocumentUri(vault, issue.id) ||
+        existingIssue.archived_at == null ||
+        existingMigration?.reservation !== true ||
+        owner === undefined ||
+        !sameJiraMigrationOwner(existingOwner, owner)
+      ) {
+        throw new ConflictError({ path: issueDocumentUri(vault, issue.id) });
+      }
+      await runSql(
+        adapter,
+        vault,
+        `UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET ${buildRowAssignments(
+          issueRowMutableFields(
+            issue,
+            issue.rank == null && existingIssue.rank != null
+              ? { rankExpr: quoteNumberOrNull(existingIssue.rank) }
+              : undefined,
+          ),
+        )} WHERE reef_id = ${quoteText(
+          issue.id,
+          "reef_id",
+        )} AND meta::jsonb->'custom_fields'->'jira_migration'->'owner' = ${quoteJson(
+          existingOwner,
+        )}::jsonb AND archived_at IS NOT NULL AND meta::jsonb->'custom_fields'->'jira_migration'->'reservation' = 'true'::jsonb AND updated_at = ${quoteText(
+          existingIssue.updated_at,
+          "expected updated_at",
+        )}`,
+      );
+      const refreshed = (
+        await selectIssueRows(
+          adapter,
+          vault,
+          `reef_id = ${quoteText(issue.id, "reef_id")}`,
+        )
+      )[0];
+      const refreshedIssue = refreshed ? rowToIssue(refreshed) : null;
+      const relationKeys = new Set(["depends_on", "blocks", "related_to"]);
+      const desiredKeys = Object.keys(issue).filter(
+        (key) =>
+          key !== "created_at" &&
+          key !== "updated_at" &&
+          issue[key as keyof IssueMetadata] !== undefined,
+      );
+      const desiredProjection = Object.fromEntries(
+        desiredKeys.map((key) => [key, issue[key as keyof IssueMetadata]]),
+      );
+      const refreshedProjection = refreshedIssue
+        ? Object.fromEntries(
+            desiredKeys.map((key) => [
+              key,
+              relationKeys.has(key) &&
+              refreshedIssue[key as keyof IssueMetadata] === undefined
+                ? []
+                : issue[key as keyof IssueMetadata] === null &&
+                    refreshedIssue[key as keyof IssueMetadata] === undefined
+                  ? null
+                  : refreshedIssue[key as keyof IssueMetadata],
+            ]),
+          )
+        : null;
+      if (!isDeepStrictEqual(refreshedProjection, desiredProjection)) {
+        throw new ConflictError({ path: issueDocumentUri(vault, issue.id) });
+      }
+    } else {
+      try {
+        await insertIssueRow(adapter, vault, issue, put.uri, {
+          assignBacklogRank: true,
+        });
+      } catch (err) {
+        await deleteDocumentQuietly(adapter, vault, put.path);
+        throw err;
+      }
     }
     return {
       path: put.path,
@@ -116,11 +312,109 @@ export async function writeIssue(
   });
 }
 
+async function claimIssueIdInternal(
+  params: ClaimIssueIdParams,
+): Promise<"created" | "existing"> {
+  const { adapter, vault, issue } = params;
+  const owner = (
+    issue.custom_fields?.jira_migration as Record<string, unknown> | undefined
+  )?.owner;
+  if (
+    !owner ||
+    typeof owner !== "object" ||
+    Array.isArray(owner) ||
+    typeof (owner as Record<string, unknown>).jira_cloud_id !== "string" ||
+    typeof (owner as Record<string, unknown>).issue_id !== "string"
+  ) {
+    throw new Error("issue_claim_owner_required");
+  }
+  const jiraCloudId = (owner as Record<string, unknown>)
+    .jira_cloud_id as string;
+  const jiraIssueId = (owner as Record<string, unknown>).issue_id as string;
+  const reservation: IssueMetadata = {
+    ...issue,
+    archived_at: issue.updated_at,
+    parent_id: undefined,
+    depends_on: [],
+    related_to: [],
+    blocks: [],
+    custom_fields: {
+      ...issue.custom_fields,
+      jira_migration: {
+        ...((issue.custom_fields?.jira_migration as
+          | Record<string, unknown>
+          | undefined) ?? {}),
+        reservation: true,
+      },
+    },
+  };
+  let created = false;
+  let insertError: unknown;
+  try {
+    const inserted = await insertIssueRow(
+      adapter,
+      vault,
+      reservation,
+      issueDocumentUri(vault, issue.id),
+      {
+        assignBacklogRank: true,
+        uniqueJiraOwner: { jiraCloudId, issueId: jiraIssueId },
+      },
+    );
+    created =
+      inserted.kind !== "table_query" ||
+      inserted.items.some(
+        (item) =>
+          typeof item === "object" &&
+          item !== null &&
+          (item as Record<string, unknown>).reef_id === issue.id,
+      );
+  } catch (error) {
+    insertError = error;
+  }
+  const existing = (
+    await selectIssueRows(
+      adapter,
+      vault,
+      `reef_id = ${quoteText(issue.id, "reef_id")}`,
+    )
+  )[0];
+  const existingIssue = existing ? rowToIssue(existing) : null;
+  const existingOwner = (
+    existingIssue?.custom_fields?.jira_migration as
+      | Record<string, unknown>
+      | undefined
+  )?.owner;
+  if (
+    !existingIssue ||
+    existing.document_uri !== issueDocumentUri(vault, issue.id) ||
+    !sameJiraMigrationOwner(existingOwner, owner)
+  ) {
+    if (existingIssue || !insertError) {
+      throw new ConflictError({ path: issueDocumentUri(vault, issue.id) });
+    }
+    throw insertError;
+  }
+  return created ? "created" : "existing";
+}
+
+export async function claimIssueId(params: ClaimIssueIdParams): Promise<void> {
+  await claimIssueIdInternal(params);
+}
+
 export async function updateIssue(
   params: UpdateIssueParams,
 ): Promise<UpdateIssueResult> {
-  const { adapter, vault, id, partial, content, message, expectedCommit } =
-    params;
+  const {
+    adapter,
+    vault,
+    id,
+    partial,
+    content,
+    message,
+    expectedCommit,
+    expectedUpdatedAt,
+  } = params;
   return withSpan("akb.update_issue", { vault, id }, async (span) => {
     const current = await readIssue({ adapter, vault, id });
     const mergedIssue = mergeIssue(current.issue, partial);
@@ -185,36 +479,101 @@ export async function updateIssue(
       current.issue.status !== "backlog" &&
       mergedIssue.rank == null;
     try {
-      await runSql(
+      const rowUpdate = await runSql(
         adapter,
         vault,
-        `UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET ${buildRowAssignments(
-          issueRowMutableFields(
-            mergedIssue,
-            enteringBacklog ? { rankExpr: backlogTailRankExpr() } : undefined,
-          ),
-        )} WHERE reef_id = ${quoteText(id, "reef_id")}`,
+        expectedUpdatedAt
+          ? // `updated_at` is an AKB-reserved dynamic-table column: AKB
+            // atomically advances it after every successful UPDATE and rejects
+            // callers that try to assign it directly. The predicate therefore
+            // checks the pre-write token, while the same statement produces the
+            // next token for subsequent OCC callers.
+            `WITH upd AS (UPDATE ${tableRef(
+              REEF_ISSUES_TABLE,
+            )} SET ${buildRowAssignments(
+              issueRowMutableFields(
+                mergedIssue,
+                enteringBacklog
+                  ? { rankExpr: backlogTailRankExpr() }
+                  : undefined,
+              ),
+            )} WHERE reef_id = ${quoteText(
+              id,
+              "reef_id",
+            )} AND updated_at = ${quoteText(
+              expectedUpdatedAt,
+              "expected updated_at",
+            )} RETURNING reef_id) SELECT reef_id FROM upd`
+          : `UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET ${buildRowAssignments(
+              issueRowMutableFields(
+                mergedIssue,
+                enteringBacklog
+                  ? { rankExpr: backlogTailRankExpr() }
+                  : undefined,
+              ),
+            )} WHERE reef_id = ${quoteText(id, "reef_id")}`,
       );
+      if (
+        expectedUpdatedAt &&
+        rowUpdate.kind === "table_query" &&
+        rowUpdate.items.length === 0
+      ) {
+        throw new ConflictError({ path: issuePathFor(id) });
+      }
     } catch (err) {
-      if (docDirty) {
-        const revertBody = buildIssueDocPatchBody(
-          current.issue,
-          current.content,
-        );
-        revertBody.message = `Revert ${id} document: row update failed`;
-        await adapter
-          .request(docPath, {
-            method: "PATCH",
-            body: revertBody,
-            resource: makeIssueResourceLabel(id),
-          })
-          .catch(() => {
+      let committed = false;
+      if (
+        err instanceof AkbApiError &&
+        (err.status === 0 ||
+          err.status === 408 ||
+          err.status === 429 ||
+          err.status >= 500)
+      ) {
+        try {
+          const recovered = await readIssue({ adapter, vault, id });
+          const expectedRecoveredIssue = {
+            ...mergedIssue,
+            updated_at: recovered.issue.updated_at,
+            ...(enteringBacklog ? { rank: recovered.issue.rank } : {}),
+          };
+          committed =
+            recovered.commit_hash === commitHash &&
+            recovered.content === mergedBody &&
+            recovered.issue.updated_at !== current.issue.updated_at &&
+            isDeepStrictEqual(recovered.issue, expectedRecoveredIssue);
+          if (committed) {
+            mergedIssue.updated_at = recovered.issue.updated_at;
+            if (enteringBacklog) mergedIssue.rank = recovered.issue.rank;
+          }
+        } catch {
+          committed = false;
+        }
+      }
+      if (committed) {
+        span.setAttribute("row_update_recovered", true);
+      } else {
+        if (docDirty) {
+          const revertBody = buildIssueDocPatchBody(
+            current.issue,
+            current.content,
+          );
+          revertBody.message = `Revert ${id} document: row update failed`;
+          revertBody.expected_commit = commitHash;
+          try {
+            await adapter.request(docPath, {
+              method: "PATCH",
+              body: revertBody,
+              resource: makeIssueResourceLabel(id),
+            });
+          } catch (revertError) {
+            if (revertError instanceof ConflictError) throw revertError;
             // Best-effort compensation; the original row-update error takes
             // precedence. If this re-PATCH also fails the stores stay diverged,
             // same contract as the other two sagas' best-effort compensations.
-          });
+          }
+        }
+        throw err;
       }
-      throw err;
     }
 
     // The tail rank was assigned by an in-statement subquery, so its value is

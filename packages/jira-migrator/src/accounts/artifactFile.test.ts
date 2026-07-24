@@ -103,7 +103,7 @@ describe("Jira account mapping file", () => {
   it("rejects invalid JSON and cloud-id mismatches before applying overrides", async () => {
     const dir = await makeTempDir();
     const invalidPath = join(dir, "invalid.json");
-    await writeFile(invalidPath, "{", "utf8");
+    await writeFile(invalidPath, "{", { encoding: "utf8", mode: 0o600 });
 
     await expect(
       loadJiraAccountMappingArtifact({
@@ -121,7 +121,7 @@ describe("Jira account mapping file", () => {
         accounts: {},
         overrides: {},
       }),
-      "utf8",
+      { encoding: "utf8", mode: 0o600 },
     );
 
     await expect(
@@ -140,6 +140,15 @@ describe("Jira account mapping file", () => {
     const path = join(dir, "mapping.json");
     await writeFile(target, "unchanged\n", { mode: 0o600 });
     await symlink(target, path);
+
+    await expect(
+      loadJiraAccountMappingArtifact({
+        path,
+        jiraCloudId: "cloud-abc",
+      }),
+    ).rejects.toMatchObject({
+      issues: [expect.stringContaining("private regular file")],
+    });
 
     await writeJiraAccountMappingArtifact(path, {
       version: 1,

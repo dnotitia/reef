@@ -1,3 +1,6 @@
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   JiraMigratorConfigError,
@@ -15,16 +18,23 @@ const env = {
   REEF_JIRA_EMAIL: "operator@example.com",
   REEF_JIRA_API_TOKEN: "jira-secret-token",
   REEF_JIRA_MIGRATOR_VAULT: "reef-test",
+  AKB_BACKEND_URL: "https://akb.example.test",
+  REEF_AKB_JWT: "akb-secret-token",
 };
 
 describe("loadJiraMigratorConfig", () => {
   it("loads operator config and keeps public config secret-free", () => {
     const config = loadJiraMigratorConfig({
-      argv: ["--dry-run", "--report=reports/alpha.json"],
+      argv: [
+        "--dry-run",
+        "--report=reports/alpha.json",
+        "--attest-comment-catalog-complete",
+      ],
       env,
     });
 
     expect(config).toMatchObject({
+      mode: "dry-run",
       dryRun: true,
       targetVault: "reef-test",
       reportPath: "reports/alpha.json",
@@ -33,7 +43,13 @@ describe("loadJiraMigratorConfig", () => {
         baseUrl: "https://example.atlassian.net",
         cloudId: "cloud-1",
         projectKey: "ALPHA",
+        projectKeys: ["ALPHA"],
       },
+      target: {
+        baseUrl: "https://akb.example.test",
+        vault: "reef-test",
+      },
+      control: { commentCatalogComplete: true },
     });
     expect(config.jira.auth).toMatchObject({
       mode: "basic",
@@ -50,6 +66,7 @@ describe("loadJiraMigratorConfig", () => {
   it("can derive an Atlassian API gateway base URL from cloud id", () => {
     const config = loadJiraMigratorConfig({
       argv: [
+        "--dry-run",
         "--project-key",
         "BETA",
         "--vault",
@@ -60,6 +77,8 @@ describe("loadJiraMigratorConfig", () => {
       env: {
         REEF_JIRA_CLOUD_ID: "cloud-abc",
         REEF_JIRA_BEARER_TOKEN: "bearer-secret",
+        AKB_BACKEND_URL: "https://akb.example.test",
+        REEF_AKB_JWT: "akb-secret-token",
       },
     });
 
@@ -77,7 +96,7 @@ describe("loadJiraMigratorConfig", () => {
   });
 
   it("redacts raw token values and derived auth headers from arbitrary reports", () => {
-    const config = loadJiraMigratorConfig({ env });
+    const config = loadJiraMigratorConfig({ argv: ["--dry-run"], env });
     const secrets = secretValuesForConfig(config);
     const report = redactForConfig(config, {
       note: "jira-secret-token",
@@ -92,6 +111,7 @@ describe("loadJiraMigratorConfig", () => {
   it("keeps validation errors free of credential values", () => {
     expect(() =>
       loadJiraMigratorConfig({
+        argv: ["--dry-run"],
         env: {
           ...env,
           REEF_JIRA_BASE_URL: "http://not-allowed.example",
@@ -101,6 +121,7 @@ describe("loadJiraMigratorConfig", () => {
 
     try {
       loadJiraMigratorConfig({
+        argv: ["--dry-run"],
         env: {
           ...env,
           REEF_JIRA_BASE_URL: "http://not-allowed.example",
@@ -142,6 +163,7 @@ describe("loadJiraMigratorConfig", () => {
     ]) {
       expect(() =>
         loadJiraMigratorConfig({
+          argv: ["--dry-run"],
           env: { ...env, REEF_JIRA_BASE_URL: baseUrl },
         }),
       ).toThrow(JiraMigratorConfigError);
@@ -149,6 +171,7 @@ describe("loadJiraMigratorConfig", () => {
 
     expect(
       loadJiraMigratorConfig({
+        argv: ["--dry-run"],
         env: {
           ...env,
           REEF_JIRA_BASE_URL: "https://example.atlassian.net/path@segment",
@@ -157,6 +180,7 @@ describe("loadJiraMigratorConfig", () => {
     ).toBe("https://example.atlassian.net/path@segment");
     expect(
       loadJiraMigratorConfig({
+        argv: ["--dry-run"],
         env: {
           ...env,
           REEF_JIRA_BASE_URL: "https://example.atlassian.net\\path@segment",
@@ -182,16 +206,159 @@ describe("loadJiraMigratorConfig", () => {
         "--api-token-file",
         ".secrets/jira-token",
       ]),
-    ).toEqual({
+    ).toMatchObject({
       dryRun: true,
+      apply: false,
       jiraBaseUrl: "https://example.atlassian.net",
       cloudId: "cloud-1",
-      projectKey: "ALPHA",
+      projectKeys: ["ALPHA"],
       vault: "reef-test",
       reportPath: "reports/out.json",
       accountMappingPath: "artifacts/accounts.json",
       apiTokenFile: ".secrets/jira-token",
       bearerTokenFile: null,
     });
+  });
+
+  it("does not echo unknown inline argument values", () => {
+    const credential = "operator-secret";
+    let error: unknown;
+    try {
+      parseJiraMigratorArgs([`--bearer-token=${credential}`]);
+    } catch (candidate) {
+      error = candidate;
+    }
+    expect(error).toBeInstanceOf(JiraMigratorConfigError);
+    expect(error).toMatchObject({
+      issues: ["Unknown argument: --bearer-token"],
+    });
+    expect(JSON.stringify(error)).not.toContain(credential);
+  });
+
+  it("requires exactly one mode before any target can be constructed", () => {
+    expect(() => loadJiraMigratorConfig({ argv: [], env })).toThrowError(
+      expect.objectContaining({
+        issues: expect.arrayContaining([
+          "Exactly one of --dry-run or --apply is required",
+        ]),
+      }),
+    );
+    expect(() =>
+      loadJiraMigratorConfig({
+        argv: ["--dry-run", "--apply"],
+        env,
+      }),
+    ).toThrowError(
+      expect.objectContaining({
+        issues: expect.arrayContaining([
+          "Exactly one of --dry-run or --apply is required",
+        ]),
+      }),
+    );
+  });
+
+  it("uses one schema for repeated projects, boards, and mapping policies", () => {
+    const config = loadJiraMigratorConfig({
+      argv: [
+        "--dry-run",
+        "--project-key",
+        "beta",
+        "--project-key=ALPHA",
+        "--board-id",
+        "42",
+        "--board-id=7",
+        "--mapping-policy",
+        "ALPHA=/private/policies/alpha.json",
+        "--mapping-policy=BETA=/private/policies/beta.json",
+        "--run-id",
+        "run-alpha-beta",
+        "--ledger-path",
+        "/private/artifacts/ledger.json",
+        "--archive-root",
+        "/private/artifacts/archive",
+        "--report-path",
+        "/private/artifacts/report.json",
+        "--retry-count",
+        "4",
+        "--retry-base-delay-ms",
+        "100",
+        "--retry-max-delay-ms",
+        "4000",
+      ],
+      env: {
+        ...env,
+        REEF_JIRA_PROJECT_KEY: undefined,
+      },
+    });
+
+    expect(config.jira.projectKeys).toEqual(["ALPHA", "BETA"]);
+    expect(config.jira.boardIds).toEqual(["7", "42"]);
+    expect(config.jira.mappingPolicyPaths).toEqual({
+      ALPHA: "/private/policies/alpha.json",
+      BETA: "/private/policies/beta.json",
+    });
+    expect(config.artifacts.runId).toBe("run-alpha-beta");
+    expect(config.control).toEqual({
+      retryCount: 4,
+      retryBaseDelayMs: 100,
+      retryMaxDelayMs: 4000,
+      commentCatalogComplete: false,
+    });
+
+    const publicJson = JSON.stringify(publicJiraMigratorConfig(config));
+    expect(publicJson).not.toContain("akb-secret-token");
+    expect(publicJson).not.toContain("jira-secret-token");
+    expect(publicJson).not.toContain("/private/policies");
+  });
+
+  it("requires the reviewed dry-run plan hash for apply and validates resume identity", () => {
+    expect(() =>
+      loadJiraMigratorConfig({
+        argv: ["--apply"],
+        env,
+      }),
+    ).toThrowError(
+      expect.objectContaining({
+        issues: expect.arrayContaining([
+          "--expected-plan-sha256 is required with --apply",
+        ]),
+      }),
+    );
+
+    const hash = "a".repeat(64);
+    const config = loadJiraMigratorConfig({
+      argv: ["--apply", "--expected-plan-sha256", hash, "--resume", "run-123"],
+      env,
+    });
+    expect(config.mode).toBe("apply");
+    expect(config.expectedPlanSha256).toBe(hash);
+    expect(config.resumeRunId).toBe("run-123");
+    expect(config.artifacts.runId).toBe("run-123");
+  });
+
+  it("recovers the apply run identity from the sealed approval report", () => {
+    const directory = mkdtempSync(join(tmpdir(), "reef-jira-config-"));
+    chmodSync(directory, 0o700);
+    const reportPath = join(directory, "report.json");
+    writeFileSync(
+      `${reportPath}.approval.json`,
+      JSON.stringify({ run: { run_id: "sealed-run", mode: "dry-run" } }),
+      { mode: 0o600 },
+    );
+    try {
+      const config = loadJiraMigratorConfig({
+        argv: [
+          "--apply",
+          "--expected-plan-sha256",
+          "a".repeat(64),
+          "--report-path",
+          reportPath,
+        ],
+        env,
+      });
+      expect(config.artifacts.runId).toBe("sealed-run");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });

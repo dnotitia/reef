@@ -1,5 +1,9 @@
 import { ZodError } from "zod";
-import { NotFoundError, SchemaValidationError } from "../../../errors";
+import {
+  ConflictError,
+  NotFoundError,
+  SchemaValidationError,
+} from "../../../errors";
 import { filterValidCommentThreadMembers } from "../../../models/commentThreads";
 import {
   type Comment,
@@ -124,7 +128,11 @@ export async function createComment(
   body: string,
   author: string,
   parentCommentId?: string,
-  preserved?: { createdAt: string; editedAt: string | null },
+  preserved?: {
+    createdAt: string;
+    editedAt: string | null;
+    metadata?: Record<string, unknown>;
+  },
 ): Promise<Comment> {
   return withSpan(
     "akb.create_comment",
@@ -133,7 +141,20 @@ export async function createComment(
       await ensureReefTables({ adapter, vault });
       const createdAt = preserved?.createdAt ?? new Date().toISOString();
       const editedAt = preserved?.editedAt ?? null;
+      const metadata = Object.fromEntries(
+        Object.entries(preserved?.metadata ?? {}).filter(
+          ([key]) =>
+            ![
+              "author",
+              "created_at",
+              "edited_at",
+              "parent_comment_id",
+              "thread_root_id",
+            ].includes(key),
+        ),
+      );
       const meta = {
+        ...metadata,
         author,
         created_at: createdAt,
         edited_at: editedAt,
@@ -153,8 +174,29 @@ export async function createComment(
       const issueGuard = `SELECT reef_id FROM ${tableRef(
         REEF_ISSUES_TABLE,
       )} WHERE reef_id = ${quoteText(reefId, "comment reef_id")} LIMIT 1`;
+      const idempotencyKey =
+        typeof metadata.jira_idempotency_key === "string"
+          ? metadata.jira_idempotency_key
+          : null;
+      const claimCtes = idempotencyKey
+        ? `claim_lock AS (SELECT pg_advisory_xact_lock(hashtextextended(${quoteText(
+            idempotencyKey,
+            "comment idempotency key",
+          )}, 0))), existing AS (SELECT comment.* FROM ${tableRef(
+            REEF_COMMENTS_TABLE,
+          )} comment CROSS JOIN claim_lock WHERE comment.meta->>'jira_idempotency_key' = ${quoteText(
+            idempotencyKey,
+            "comment idempotency key",
+          )} LIMIT 1), `
+        : "";
+      const resultSelection = idempotencyKey
+        ? "SELECT * FROM ins UNION ALL SELECT * FROM existing LIMIT 1"
+        : "SELECT * FROM ins";
+      const claimJoin = idempotencyKey
+        ? " CROSS JOIN claim_lock WHERE NOT EXISTS (SELECT 1 FROM existing)"
+        : "";
       const sql = parentCommentId
-        ? `WITH RECURSIVE target_issue AS (${issueGuard}), direct_parent AS (SELECT * FROM ${tableRef(
+        ? `WITH RECURSIVE ${claimCtes}target_issue AS (${issueGuard}), direct_parent AS (SELECT * FROM ${tableRef(
             REEF_COMMENTS_TABLE,
           )} WHERE id = ${quoteText(
             parentCommentId,
@@ -185,10 +227,10 @@ export async function createComment(
           )}, 'created_at', ${quoteText(
             createdAt,
             "comment created_at",
-          )}, 'edited_at', ${editedAt === null ? "NULL" : quoteText(editedAt, "comment edited_at")}, 'parent_comment_id', valid_reply.parent_id, 'thread_root_id', valid_reply.root_id) FROM target_issue CROSS JOIN valid_reply RETURNING *) SELECT * FROM ins`
-        : `WITH target_issue AS (${issueGuard}), ins AS (INSERT INTO ${tableRef(
+          )}, 'edited_at', ${editedAt === null ? "NULL" : quoteText(editedAt, "comment edited_at")}, 'parent_comment_id', valid_reply.parent_id, 'thread_root_id', valid_reply.root_id) || ${quoteJson(metadata)}::jsonb FROM target_issue CROSS JOIN valid_reply${claimJoin} RETURNING *) ${resultSelection}`
+        : `WITH ${claimCtes}target_issue AS (${issueGuard}), ins AS (INSERT INTO ${tableRef(
             REEF_COMMENTS_TABLE,
-          )} (${columns}) SELECT ${values} FROM target_issue RETURNING *) SELECT * FROM ins`;
+          )} (${columns}) SELECT ${values} FROM target_issue${claimJoin} RETURNING *) ${resultSelection}`;
       const res = await runSql(adapter, vault, sql);
       const row = res.kind === "table_query" ? res.items[0] : undefined;
       if (!row) {
@@ -196,7 +238,21 @@ export async function createComment(
           ? new NotFoundError({ resourceKind: "commentParent" })
           : new NotFoundError({ resource: `issue ${reefId}` });
       }
-      return rowToComment(row);
+      const comment = rowToComment(row);
+      const compatible =
+        comment.reef_id === reefId &&
+        comment.body === body &&
+        comment.author === author &&
+        comment.created_at === createdAt &&
+        comment.edited_at === editedAt &&
+        (comment.parent_comment_id ?? null) === (parentCommentId ?? null) &&
+        (parentCommentId
+          ? comment.thread_root_id != null
+          : comment.thread_root_id == null);
+      if (!compatible) {
+        throw new ConflictError({ path: `comment:${comment.id}` });
+      }
+      return comment;
     },
   );
 }
@@ -223,13 +279,46 @@ export async function updateComment(
   commentId: string,
   body: string,
   editor: string,
+  preserved?: {
+    createdAt: string;
+    editedAt: string | null;
+    metadata?: Record<string, unknown>;
+  },
 ): Promise<Comment> {
   return withSpan(
     "akb.update_comment",
     { vault, reef_id: reefId, comment_id: commentId },
     async () => {
       await ensureReefTables({ adapter, vault });
-      const editedAt = new Date().toISOString();
+      const editedAt = preserved?.editedAt ?? new Date().toISOString();
+      const preservedMetadata = preserved
+        ? {
+            ...Object.fromEntries(
+              Object.entries(preserved.metadata ?? {}).filter(
+                ([key]) =>
+                  ![
+                    "author",
+                    "created_at",
+                    "edited_at",
+                    "parent_comment_id",
+                    "thread_root_id",
+                  ].includes(key),
+              ),
+            ),
+            author: editor,
+            created_at: preserved.createdAt,
+            edited_at: preserved.editedAt,
+          }
+        : null;
+      const metaUpdate = preservedMetadata
+        ? `meta::jsonb || ${quoteJson(preservedMetadata)}::jsonb`
+        : `jsonb_set(meta::jsonb, '{edited_at}', to_jsonb(${quoteText(
+            editedAt,
+            "comment edited_at",
+          )}::text))`;
+      const metaAssignment = preservedMetadata
+        ? `(${metaUpdate})::json`
+        : `${metaUpdate}::json`;
       const res = await runSql(
         adapter,
         vault,
@@ -238,10 +327,7 @@ export async function updateComment(
         )} SET body = ${quoteText(
           body,
           "comment body",
-        )}, meta = jsonb_set(meta::jsonb, '{edited_at}', to_jsonb(${quoteText(
-          editedAt,
-          "comment edited_at",
-        )}::text))::json WHERE id = ${quoteText(
+        )}, meta = ${metaAssignment} WHERE id = ${quoteText(
           commentId,
           "comment id",
         )} AND reef_id = ${quoteText(

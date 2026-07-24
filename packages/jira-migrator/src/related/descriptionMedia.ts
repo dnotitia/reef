@@ -3,8 +3,10 @@ import type {
   AttachmentBinding,
   JiraRelatedImportInput,
   JiraRelatedImportReport,
+  JiraRelatedOperationKind,
 } from "./contracts.js";
 import { rewriteMedia } from "./media.js";
+import { descriptionOperationInput } from "./operations.js";
 import { failure } from "./reporting.js";
 
 export async function updateDescriptionMedia(options: {
@@ -13,6 +15,11 @@ export async function updateDescriptionMedia(options: {
   descriptionAdf: unknown;
   attachments: readonly NormalizedJiraAttachment[];
   attachmentBindings: readonly AttachmentBinding[];
+  recordOperation(
+    kind: JiraRelatedOperationKind,
+    key: string,
+    value: unknown,
+  ): void;
   report: JiraRelatedImportReport;
 }): Promise<void> {
   const {
@@ -21,12 +28,14 @@ export async function updateDescriptionMedia(options: {
     descriptionAdf,
     attachments,
     attachmentBindings,
+    recordOperation,
     report,
   } = options;
   const renderedDescription =
     typeof migration.issue.renderedFields?.description === "string"
       ? migration.issue.renderedFields.description
       : "";
+  const rewrittenBefore = report.media.rewritten;
   const description = rewriteMedia(
     descriptionAdf,
     attachmentBindings,
@@ -36,22 +45,31 @@ export async function updateDescriptionMedia(options: {
     attachments,
     migration.descriptionConversionOptions,
   );
-  if (
-    migration.mode === "apply" &&
-    description.resolved &&
-    description.changed
-  ) {
+  const rewroteDescriptionMedia = report.media.rewritten > rewrittenBefore;
+  if (rewroteDescriptionMedia && description.resolved && description.changed) {
     try {
-      const existingDescription = await migration.target.readDescription(
-        migration.reefId,
-      );
-      if (description.matchesPreRewriteMarkdown(existingDescription))
-        await migration.target.updateDescription(
+      const existingDescription =
+        migration.mode === "dry-run" &&
+        migration.plannedDescription !== undefined
+          ? migration.plannedDescription
+          : await migration.target.readDescription(migration.reefId);
+      if (description.matchesPreRewriteMarkdown(existingDescription)) {
+        report.media.description_updated = true;
+        recordOperation(
+          "update_description",
           migration.reefId,
-          description.markdown,
+          descriptionOperationInput(description.markdown, attachmentBindings),
         );
-      else if (existingDescription !== description.markdown)
+        if (migration.mode === "apply") {
+          await migration.target.updateDescription(
+            migration.reefId,
+            description.markdown,
+          );
+        }
+      } else if (existingDescription !== description.markdown) {
         throw new Error("description_precondition_failed");
+      }
+      if (migration.mode === "dry-run") return;
       const readback = await migration.target.readDescription(migration.reefId);
       if (readback !== description.markdown)
         throw new Error("description_readback_mismatch");

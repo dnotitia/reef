@@ -24,6 +24,21 @@ explicitly in the entries below.
   are vault-scoped pointers in the existing browser config store. Explicit issue
   URLs continue to win over personal defaults. (REEF-340)
 
+- **The Jira migrator now has an end-to-end operator CLI.** Multi-project
+  enhanced-JQL and explicit-board reads feed planning-first dry runs, private
+  raw/account/ledger/report artifacts, approval-bound apply, per-entity
+  write/readback checkpoints, fresh-process resume, related/changelog
+  reconciliation, and deterministic sanitized conservation reports. A built
+  ALPHA/BETA HTTP contract proves dry-run target mutation zero, Jira GET-only
+  traffic, cross-project relation stability, plan-hash enforcement, duplicate
+  zero on rerun, and secret redaction. Related writes and deletions are sealed
+  by source-identity-preserving hashed operation manifests, so redirected
+  mutations fail before target I/O while completed resume operations converge
+  by readback. Attachment revocation is retry-safe across file-delete failures,
+  cached downloads retain their byte limits, and unverifiable Windows archive
+  ACLs fail closed.
+  (REEF-321)
+
 - **Jira migrations preserve issue discussion and related artifacts.** The
   operator package now exposes a dry-run/apply stage for root-first threaded
   comments, redirect-safe attachment downloads, deterministic ADF media

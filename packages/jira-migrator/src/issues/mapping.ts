@@ -604,7 +604,19 @@ export const buildJiraIssueImportPlan = (
       related_to: [],
       blocks: [],
       source: "jira-migration",
-      custom_fields: customFields,
+      custom_fields: {
+        ...customFields,
+        jira_migration: {
+          owner: {
+            jira_cloud_id: input.jiraCloudId,
+            project_key: issue.projectKey,
+            issue_id: issue.id,
+            issue_key: issue.key,
+          },
+          relations: [],
+          external_refs: [],
+        },
+      },
     };
     const validation = IssueMetadataSchema.safeParse(candidate);
     if (validation.success) {
