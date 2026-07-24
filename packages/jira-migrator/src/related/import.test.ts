@@ -2359,6 +2359,78 @@ describe("Jira related-data import stage", () => {
     expect(rerun.report.links.skipped).toBe(1);
     expect(await state.target.readExternalRef(otherKey)).toBeNull();
   });
+
+  it("keeps one canonical relation when both Jira endpoints expose the link", async () => {
+    const state = makeTarget();
+    const client = makeClient([]);
+    const mapping = {
+      typeId: "1",
+      kind: "directional" as const,
+      outwardRelation: "depends_on" as const,
+      inwardRelation: "blocks" as const,
+    };
+    const base = {
+      jiraCloudId: "cloud-1",
+      attachmentPolicy,
+      client,
+      target: state.target,
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [mapping],
+      resolveIssueTarget: (value: string) =>
+        value === "10001"
+          ? {
+              reefId: "REEF-1",
+              documentUri: "akb://isolated/coll/issues/doc/reef-1.md",
+            }
+          : value === "10002"
+            ? {
+                reefId: "REEF-2",
+                documentUri: "akb://isolated/coll/issues/doc/reef-2.md",
+              }
+            : null,
+      mode: "apply" as const,
+    };
+    const outward = await importJiraRelatedData({
+      ...base,
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+    });
+    const inwardIssue = issueFixture();
+    inwardIssue.id = "10002";
+    inwardIssue.key = "DEMO-2";
+    inwardIssue.fields.issuelinks = [
+      {
+        id: "40001",
+        type: {
+          id: "1",
+          name: "Dependency",
+          inward: "is required by",
+          outward: "requires",
+        },
+        inwardIssue: { id: "10001", key: "DEMO-1" },
+      },
+    ];
+    const inward = await importJiraRelatedData({
+      ...base,
+      issue: inwardIssue,
+      reefId: "REEF-2",
+      ledger: outward.ledger,
+    });
+
+    expect(inward.report.links.skipped).toBe(1);
+    expect(state.relations.size).toBe(1);
+    expect(
+      inward.ledger.bindings.filter(
+        (binding) => binding.entity_kind === "relation",
+      ),
+    ).toHaveLength(1);
+  });
 });
 
 describe("media crosswalk", () => {

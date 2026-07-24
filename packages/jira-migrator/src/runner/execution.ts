@@ -44,6 +44,44 @@ import {
   JiraTargetConflictError,
 } from "./targetAdapter.js";
 
+export function scheduleIssuePlansForApply(
+  plans: readonly JiraIssueImportPlan[],
+): {
+  plans: JiraIssueImportPlan[];
+  blockedIssueIds: Set<string>;
+} {
+  const planByIssueId = new Map(
+    plans.flatMap((plan) =>
+      plan.desired.issue ? [[plan.desired.issue.id, plan] as const] : [],
+    ),
+  );
+  const pending = new Set(planByIssueId.keys());
+  const scheduled: JiraIssueImportPlan[] = [];
+  while (pending.size > 0) {
+    let progressed = false;
+    for (const plan of plans) {
+      const desired = plan.desired.issue;
+      if (!desired || !pending.has(desired.id)) continue;
+      const dependencies = [desired.parent_id].filter(
+        (id): id is string => typeof id === "string" && planByIssueId.has(id),
+      );
+      if (dependencies.some((id) => pending.has(id))) continue;
+      scheduled.push(plan);
+      pending.delete(desired.id);
+      progressed = true;
+    }
+    if (!progressed) break;
+  }
+  const blockedIssueIds = new Set(pending);
+  scheduled.push(
+    ...plans.filter(
+      (plan) =>
+        !plan.desired.issue || blockedIssueIds.has(plan.desired.issue.id),
+    ),
+  );
+  return { plans: scheduled, blockedIssueIds };
+}
+
 export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
   const {
     config,
@@ -248,7 +286,10 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
     });
     await persistLedger(ledger);
 
-    const applyIssuePlans = buildIssuePlans(planningResolutions);
+    const issueSchedule = scheduleIssuePlansForApply(
+      buildIssuePlans(planningResolutions),
+    );
+    const applyIssuePlans = issueSchedule.plans;
     const approvedIssueFingerprints = new Map(
       dryIssuePlans.map((plan) => [
         plan.source.issueKey,
@@ -287,7 +328,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
         readbackFound: true,
       };
     };
-    const failedIssueClaimIds = new Set<string>();
+    const failedIssueClaimIds = new Set(issueSchedule.blockedIssueIds);
     const conflictedIssueClaimIds = new Set<string>();
     for (const plan of applyIssuePlans) {
       assertNotAborted();
@@ -565,6 +606,11 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
         const recovered = await recoverAppliedIssue(plan);
         if (!recovered.applied) {
           const conflict = error instanceof JiraTargetConflictError;
+          if (action === "create" && plan.desired.issue) {
+            (conflict ? conflictedIssueClaimIds : failedIssueClaimIds).add(
+              plan.desired.issue.id,
+            );
+          }
           record(
             "issues",
             resultFor({

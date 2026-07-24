@@ -14,6 +14,7 @@ import type { JiraIssueImportPlan } from "../issues/importPlan.js";
 import { jiraIssueFixture } from "../jira/fixtures.js";
 import { JiraIssueSchema, normalizeJiraIssue } from "../payloads.js";
 import { reportTemplate } from "../related/reporting.js";
+import { scheduleIssuePlansForApply } from "./execution.js";
 import { relatedPlanForApproval } from "./plan.js";
 import {
   actionForRelatedReport,
@@ -62,6 +63,35 @@ const policy = {
 };
 
 describe("runJiraMigration", () => {
+  it("schedules referenced issue creates first and blocks dependency cycles", () => {
+    const issuePlan = (id: string, parentId?: string) =>
+      ({
+        desired: {
+          issue: {
+            id,
+            parent_id: parentId ?? null,
+            depends_on: [],
+            blocks: [],
+            related_to: [],
+          },
+        },
+      }) as unknown as JiraIssueImportPlan;
+    const parent = issuePlan("REEF-001");
+    const child = issuePlan("REEF-002", "REEF-001");
+    const cycleA = issuePlan("REEF-003", "REEF-004");
+    const cycleB = issuePlan("REEF-004", "REEF-003");
+
+    const scheduled = scheduleIssuePlansForApply([
+      child,
+      cycleA,
+      parent,
+      cycleB,
+    ]);
+
+    expect(scheduled.plans).toEqual([parent, child, cycleA, cycleB]);
+    expect([...scheduled.blockedIssueIds]).toEqual(["REEF-003", "REEF-004"]);
+  });
+
   it("serializes different run ids over the same migration scope", () => {
     const base = {
       jira: {
