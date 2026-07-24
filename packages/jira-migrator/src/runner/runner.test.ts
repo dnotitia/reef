@@ -14,8 +14,11 @@ import type { JiraIssueImportPlan } from "../issues/importPlan.js";
 import { jiraIssueFixture } from "../jira/fixtures.js";
 import { JiraIssueSchema, normalizeJiraIssue } from "../payloads.js";
 import { reportTemplate } from "../related/reporting.js";
-import { scheduleIssuePlansForApply } from "./execution.js";
-import { relatedPlanForApproval } from "./plan.js";
+import { scheduleIssuePlansForApply } from "./issueSchedule.js";
+import {
+  assertRelatedOperationSubset,
+  relatedPlanForApproval,
+} from "./plan.js";
 import {
   actionForRelatedReport,
   baseIssueReadbackMatches,
@@ -136,6 +139,25 @@ describe("runJiraMigration", () => {
         },
       },
     ]);
+  });
+
+  it("rejects a redirected related mutation while allowing completed resume operations", () => {
+    const approved = [
+      {
+        kind: "revoke_attachment" as const,
+        key_sha256: "approved-file",
+        input_sha256: "approved-input",
+      },
+    ];
+    expect(() =>
+      assertRelatedOperationSubset(approved, [
+        {
+          ...approved[0],
+          key_sha256: "redirected-file",
+        },
+      ]),
+    ).toThrow("plan_fingerprint_mismatch");
+    expect(() => assertRelatedOperationSubset(approved, [])).not.toThrow();
   });
 
   it("reports planned related writes as creates", () => {

@@ -50,5 +50,6 @@ export const reportTemplate = (
   },
   links: { entries: 0, unique: 0, applied: 0, skipped: 0, unresolved: 0 },
   remote_links: { total: 0, applied: 0, skipped: 0 },
+  operations: [],
   failures: [],
 });

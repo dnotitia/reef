@@ -25,11 +25,16 @@ import {
   buildJiraPlanningMigrationPlan,
   buildJiraPlanningTargetMappings,
 } from "../planning/entities.js";
+import type {
+  JiraRelatedOperation,
+  JiraRelatedOperationKind,
+} from "../related/contracts.js";
 import {
   type JiraRelatedImportReport,
   importJiraRelatedData,
 } from "../related/import.js";
 import { rewriteMedia } from "../related/media.js";
+import { sameRelatedOperation } from "../related/operations.js";
 import { reportTemplate } from "../related/reporting.js";
 import {
   canRecoverApprovedPlanningCreate,
@@ -65,6 +70,84 @@ export const relatedPlanForApproval = (
         issue_key: item.issue_key,
         report: semanticRelatedReport(item.report),
       }));
+
+const relatedOperationKinds = new Set<JiraRelatedOperationKind>([
+  "create_comment",
+  "update_comment",
+  "delete_comment",
+  "create_attachment",
+  "revoke_attachment",
+  "update_description",
+  "put_relation",
+  "delete_relation",
+  "put_external_ref",
+  "delete_external_ref",
+]);
+
+const parseRelatedOperations = (value: unknown): JiraRelatedOperation[] => {
+  if (!Array.isArray(value))
+    throw new JiraRunnerError("plan_fingerprint_mismatch");
+  return value.map((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw new JiraRunnerError("plan_fingerprint_mismatch");
+    }
+    const operation = item as Record<string, unknown>;
+    if (
+      typeof operation.kind !== "string" ||
+      !relatedOperationKinds.has(operation.kind as JiraRelatedOperationKind) ||
+      typeof operation.key_sha256 !== "string" ||
+      typeof operation.input_sha256 !== "string"
+    ) {
+      throw new JiraRunnerError("plan_fingerprint_mismatch");
+    }
+    return {
+      kind: operation.kind as JiraRelatedOperationKind,
+      key_sha256: operation.key_sha256,
+      input_sha256: operation.input_sha256,
+    };
+  });
+};
+
+const relatedOperationsByIssue = (
+  relatedPlan: readonly unknown[],
+): Map<string, JiraRelatedOperation[]> =>
+  new Map(
+    relatedPlan.map((value) => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) {
+        throw new JiraRunnerError("plan_fingerprint_mismatch");
+      }
+      const item = value as Record<string, unknown>;
+      const report =
+        item.report &&
+        typeof item.report === "object" &&
+        !Array.isArray(item.report)
+          ? (item.report as Record<string, unknown>)
+          : null;
+      if (typeof item.issue_key !== "string" || !report) {
+        throw new JiraRunnerError("plan_fingerprint_mismatch");
+      }
+      return [
+        item.issue_key,
+        parseRelatedOperations(report.operations),
+      ] as const;
+    }),
+  );
+
+export const assertRelatedOperationSubset = (
+  approved: readonly JiraRelatedOperation[],
+  current: readonly JiraRelatedOperation[],
+): void => {
+  let approvedIndex = 0;
+  for (const operation of current) {
+    const relativeIndex = approved
+      .slice(approvedIndex)
+      .findIndex((candidate) => sameRelatedOperation(candidate, operation));
+    if (relativeIndex < 0) {
+      throw new JiraRunnerError("plan_fingerprint_mismatch");
+    }
+    approvedIndex += relativeIndex + 1;
+  }
+};
 
 export async function buildJiraMigrationPlan(input: {
   config: JiraMigratorConfig;
@@ -418,6 +501,21 @@ export async function buildJiraMigrationPlan(input: {
     archiveSummaries.push({ project_key: key, ...(await archive.verify()) });
   }
   const finalRelatedReports = relatedPlanningReports;
+  const sealedRelatedPlan = relatedPlanForApproval(
+    approvedPayload,
+    relatedPlanningReports,
+  );
+  const approvedRelatedOperationsByIssue =
+    relatedOperationsByIssue(sealedRelatedPlan);
+  if (approvedPayload) {
+    for (const current of relatedPlanningReports) {
+      const approved = approvedRelatedOperationsByIssue.get(current.issue_key);
+      if (!approved) {
+        throw new JiraRunnerError("plan_fingerprint_mismatch");
+      }
+      assertRelatedOperationSubset(approved, current.report.operations);
+    }
+  }
   const currentPlanningPayload = planningActions.map(safePlanningAction);
   const approvedPlanningPayload = Array.isArray(approvedPayload?.planning)
     ? approvedPayload.planning
@@ -542,10 +640,7 @@ export async function buildJiraMigrationPlan(input: {
             .map((binding) => JiraMigrationBindingSchema.parse(binding)),
         ]),
       ),
-    related_plan: relatedPlanForApproval(
-      approvedPayload,
-      relatedPlanningReports,
-    ),
+    related_plan: sealedRelatedPlan,
     changelog: changelogPlans.map((plan) => ({
       source_identity: plan.sourceIdentity,
       source_fingerprint: plan.sourceFingerprint,
@@ -585,6 +680,7 @@ export async function buildJiraMigrationPlan(input: {
     issueBindings,
     changelogPlans,
     relatedPlanningReports,
+    approvedRelatedOperationsByIssue,
     postRelatedContentByReefId,
     finalRelatedReports,
     planPayload,

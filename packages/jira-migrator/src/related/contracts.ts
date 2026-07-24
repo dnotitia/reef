@@ -38,6 +38,24 @@ export interface JiraRelatedImportFailure {
   reason: string;
 }
 
+export type JiraRelatedOperationKind =
+  | "create_comment"
+  | "update_comment"
+  | "delete_comment"
+  | "create_attachment"
+  | "revoke_attachment"
+  | "update_description"
+  | "put_relation"
+  | "delete_relation"
+  | "put_external_ref"
+  | "delete_external_ref";
+
+export interface JiraRelatedOperation {
+  kind: JiraRelatedOperationKind;
+  key_sha256: string;
+  input_sha256: string;
+}
+
 export interface JiraImportedCommentInput {
   idempotencyKey: string;
   reefId: string;
@@ -145,6 +163,7 @@ export interface JiraRelatedImportInput {
   mode: "dry-run" | "apply";
   now?: () => string;
   checkpointLedger?(ledger: JiraMigrationLedgerV1): Promise<void>;
+  approvedOperations?: readonly JiraRelatedOperation[];
 }
 
 export interface JiraRelatedImportReport {
@@ -180,6 +199,7 @@ export interface JiraRelatedImportReport {
     unresolved: number;
   };
   remote_links: { total: number; applied: number; skipped: number };
+  operations: JiraRelatedOperation[];
   failures: JiraRelatedImportFailure[];
 }
 

@@ -38,49 +38,15 @@ import {
 import { executeJiraDryRun } from "./dryRunExecution.js";
 import { JiraRunnerError } from "./errors.js";
 import type { JiraExecutionInput } from "./executionContext.js";
+import {
+  issueReferences,
+  scheduleIssuePlansForApply,
+} from "./issueSchedule.js";
 import type { JiraRunnerReport } from "./report.js";
 import {
   type AkbJiraMigrationTarget,
   JiraTargetConflictError,
 } from "./targetAdapter.js";
-
-export function scheduleIssuePlansForApply(
-  plans: readonly JiraIssueImportPlan[],
-): {
-  plans: JiraIssueImportPlan[];
-  blockedIssueIds: Set<string>;
-} {
-  const planByIssueId = new Map(
-    plans.flatMap((plan) =>
-      plan.desired.issue ? [[plan.desired.issue.id, plan] as const] : [],
-    ),
-  );
-  const pending = new Set(planByIssueId.keys());
-  const scheduled: JiraIssueImportPlan[] = [];
-  while (pending.size > 0) {
-    let progressed = false;
-    for (const plan of plans) {
-      const desired = plan.desired.issue;
-      if (!desired || !pending.has(desired.id)) continue;
-      const dependencies = [desired.parent_id].filter(
-        (id): id is string => typeof id === "string" && planByIssueId.has(id),
-      );
-      if (dependencies.some((id) => pending.has(id))) continue;
-      scheduled.push(plan);
-      pending.delete(desired.id);
-      progressed = true;
-    }
-    if (!progressed) break;
-  }
-  const blockedIssueIds = new Set(pending);
-  scheduled.push(
-    ...plans.filter(
-      (plan) =>
-        !plan.desired.issue || blockedIssueIds.has(plan.desired.issue.id),
-    ),
-  );
-  return { plans: scheduled, blockedIssueIds };
-}
 
 export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
   const {
@@ -117,6 +83,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
     issueBindings,
     changelogPlans,
     relatedPlanningReports,
+    approvedRelatedOperationsByIssue,
     postRelatedContentByReefId,
   } = plan;
   let { finalRelatedReports } = plan;
@@ -353,17 +320,6 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
         }
       }
     }
-    const issueReferences = (plan: JiraIssueImportPlan): string[] => {
-      const desired = plan.desired.issue;
-      return desired
-        ? [
-            desired.parent_id,
-            ...(desired.depends_on ?? []),
-            ...(desired.blocks ?? []),
-            ...(desired.related_to ?? []),
-          ].filter((id): id is string => typeof id === "string")
-        : [];
-    };
     let blockedClaimCount = -1;
     while (
       blockedClaimCount !==
@@ -759,6 +715,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
               : null;
           },
           preserveUnresolvedIssueTargets: unconfirmedIssueTargets,
+          approvedOperations: approvedRelatedOperationsByIssue.get(issue.key),
           mode: "apply",
           now,
           async checkpointLedger(attachmentLedger) {

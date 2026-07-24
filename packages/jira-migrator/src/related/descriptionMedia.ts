@@ -5,6 +5,7 @@ import type {
   JiraRelatedImportReport,
 } from "./contracts.js";
 import { rewriteMedia } from "./media.js";
+import { recordRelatedOperation } from "./operations.js";
 import { failure } from "./reporting.js";
 
 export async function updateDescriptionMedia(options: {
@@ -39,23 +40,29 @@ export async function updateDescriptionMedia(options: {
   );
   const rewroteDescriptionMedia = report.media.rewritten > rewrittenBefore;
   if (rewroteDescriptionMedia && description.resolved && description.changed) {
-    if (migration.mode === "dry-run") {
-      report.media.description_updated = true;
-      return;
-    }
     try {
       const existingDescription = await migration.target.readDescription(
         migration.reefId,
       );
       if (description.matchesPreRewriteMarkdown(existingDescription)) {
         report.media.description_updated = true;
-        await migration.target.updateDescription(
-          migration.reefId,
-          description.markdown,
-        );
+        if (migration.mode === "dry-run") {
+          recordRelatedOperation(
+            report,
+            "update_description",
+            migration.reefId,
+            description.markdown,
+          );
+        } else {
+          await migration.target.updateDescription(
+            migration.reefId,
+            description.markdown,
+          );
+        }
       } else if (existingDescription !== description.markdown) {
         throw new Error("description_precondition_failed");
       }
+      if (migration.mode === "dry-run") return;
       const readback = await migration.target.readDescription(migration.reefId);
       if (readback !== description.markdown)
         throw new Error("description_readback_mismatch");

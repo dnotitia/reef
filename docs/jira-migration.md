@@ -124,6 +124,13 @@ read back before its binding and entity checkpoint are atomically persisted.
 Independent entity failures remain isolated and reports classify every input
 exactly once; `conservation.balanced` must be true.
 
+The private plan seals an ordered, hashed related-operation manifest covering
+comment, attachment, description, relation, and external-reference writes and
+deletions. A freshly computed apply plan must be a subset of that manifest:
+different operation identities or mapped inputs fail before mutation. Missing
+operations are accepted only as resume convergence when the same importer
+readback classifies the approved operation as already complete.
+
 Related data is reconciled after issue creation. A relation is owned by the Jira
 issue whose explicit link catalog contained it; processing the other endpoint
 must not delete that source-owned binding. Changelog histories are always

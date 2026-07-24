@@ -26,10 +26,12 @@ import type {
   JiraRelatedImportReport,
   JiraRelatedImportResult,
   JiraRelatedImportTarget,
+  JiraRelatedOperationKind,
   JiraRelationKind,
 } from "./contracts.js";
 import { updateDescriptionMedia } from "./descriptionMedia.js";
 import { importIssueLinks } from "./issueLinks.js";
+import { recordRelatedOperation, sameRelatedOperation } from "./operations.js";
 import { importRemoteLinks } from "./remoteLinks.js";
 import { failure, reportTemplate } from "./reporting.js";
 
@@ -54,6 +56,24 @@ export async function importJiraRelatedData(
   input: JiraRelatedImportInput,
 ): Promise<JiraRelatedImportResult> {
   const report = reportTemplate(input.mode);
+  const approvalViolations = new Set<JiraRelatedOperationKind>();
+  const recordOperation = (
+    kind: JiraRelatedOperationKind,
+    key: string,
+    value: unknown,
+  ): void => {
+    const operation = recordRelatedOperation(report, kind, key, value);
+    if (
+      input.mode === "apply" &&
+      input.approvedOperations &&
+      !input.approvedOperations.some((approved) =>
+        sameRelatedOperation(approved, operation),
+      )
+    ) {
+      approvalViolations.add(kind);
+      throw new Error("related_operation_not_approved");
+    }
+  };
   const plannedDeletionKeys = new Set<string>();
   const countDeletion = async (
     key: string,
@@ -75,29 +95,72 @@ export async function importJiraRelatedData(
     | "deleteRelation"
     | "deleteExternalRef"
   > = {
-    deleteComment: (commentId: string) =>
-      countDeletion(`comment:${commentId}`, () =>
+    deleteComment: (commentId: string) => {
+      recordOperation("delete_comment", commentId, null);
+      return countDeletion(`comment:${commentId}`, () =>
         input.target.deleteComment(commentId),
-      ),
+      );
+    },
     revokeAttachment: (
       attachment: Parameters<typeof input.target.revokeAttachment>[0],
-    ) =>
-      countDeletion(`attachment:${attachment.fileUri}`, () =>
+    ) => {
+      recordOperation("revoke_attachment", attachment.fileUri, attachment);
+      return countDeletion(`attachment:${attachment.fileUri}`, () =>
         input.target.revokeAttachment(attachment),
-      ),
-    deleteRelation: (idempotencyKey: string) =>
-      countDeletion(`relation:${idempotencyKey}`, () =>
+      );
+    },
+    deleteRelation: (idempotencyKey: string) => {
+      recordOperation("delete_relation", idempotencyKey, null);
+      return countDeletion(`relation:${idempotencyKey}`, () =>
         input.target.deleteRelation(idempotencyKey),
-      ),
-    deleteExternalRef: (idempotencyKey: string) =>
-      countDeletion(`external-ref:${idempotencyKey}`, () =>
+      );
+    },
+    deleteExternalRef: (idempotencyKey: string) => {
+      recordOperation("delete_external_ref", idempotencyKey, null);
+      return countDeletion(`external-ref:${idempotencyKey}`, () =>
         input.target.deleteExternalRef(idempotencyKey),
-      ),
+      );
+    },
   };
+  const mutationOverrides: Pick<
+    JiraRelatedImportTarget,
+    | "createComment"
+    | "updateComment"
+    | "createAttachment"
+    | "updateDescription"
+    | "putRelation"
+    | "putExternalRef"
+  > = {
+    createComment: (value) => {
+      recordOperation("create_comment", value.idempotencyKey, value);
+      return input.target.createComment(value);
+    },
+    updateComment: (commentId, value) => {
+      recordOperation("update_comment", commentId, value);
+      return input.target.updateComment(commentId, value);
+    },
+    createAttachment: (value) => {
+      recordOperation("create_attachment", value.idempotencyKey, value);
+      return input.target.createAttachment(value);
+    },
+    updateDescription: (reefId, markdown) => {
+      recordOperation("update_description", reefId, markdown);
+      return input.target.updateDescription(reefId, markdown);
+    },
+    putRelation: (value) => {
+      recordOperation("put_relation", value.idempotencyKey, value);
+      return input.target.putRelation(value);
+    },
+    putExternalRef: (value) => {
+      recordOperation("put_external_ref", value.idempotencyKey, value);
+      return input.target.putExternalRef(value);
+    },
+  };
+  const overrides = { ...deletionOverrides, ...mutationOverrides };
   const target = new Proxy(input.target, {
     get(target, property) {
-      if (property in deletionOverrides) {
-        return deletionOverrides[property as keyof typeof deletionOverrides];
+      if (property in overrides) {
+        return overrides[property as keyof typeof overrides];
       }
       const value = Reflect.get(target, property, target);
       return typeof value === "function" ? value.bind(target) : value;
@@ -389,5 +452,10 @@ export async function importJiraRelatedData(
     report,
   });
 
+  if (approvalViolations.size > 0) {
+    throw new Error(
+      `related_operation_not_approved:${[...approvalViolations].join(",")}`,
+    );
+  }
   return { ledger, report };
 }

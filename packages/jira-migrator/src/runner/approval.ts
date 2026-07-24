@@ -105,6 +105,7 @@ export const semanticIssuePlan = (
 export const semanticRelatedReport = (
   report: JiraRelatedImportReport,
 ): unknown => ({
+  operations: report.operations,
   deletions: report.deletions,
   comments: {
     total: report.comments.total,

@@ -21,6 +21,7 @@ import type {
   JiraRelatedImportReport,
 } from "./contracts.js";
 import { revokedAttachmentPlaceholder } from "./media.js";
+import { recordRelatedOperation } from "./operations.js";
 import { failure } from "./reporting.js";
 
 export async function importAttachments(options: {
@@ -410,32 +411,39 @@ export async function importAttachments(options: {
         download.bytes.byteLength !== attachment.size
       )
         throw new Error("attachment_size_mismatch");
+      const mimeType =
+        attachment.mimeType ??
+        download.contentType ??
+        "application/octet-stream";
+      const createInput = {
+        idempotencyKey: identity.key,
+        reefId: migration.reefId,
+        filename: attachment.filename,
+        mimeType,
+        bytes: download.bytes,
+        author: mappedAuthor ?? "jira-import",
+        createdAt: expectedAttachmentBase.createdAt,
+        originalJiraAttachmentId: attachment.id,
+        meta: { source: "jira", jira_cloud_id: migration.jiraCloudId },
+      };
       if (migration.mode === "dry-run") {
+        recordRelatedOperation(
+          report,
+          "create_attachment",
+          identity.key,
+          createInput,
+        );
         attachmentBindings.push({
           source: attachment,
           fileUri: `dry-run://attachment/${encodeURIComponent(attachment.id)}`,
         });
         continue;
       }
-      const mimeType =
-        attachment.mimeType ??
-        download.contentType ??
-        "application/octet-stream";
       const expectedAttachment = { ...expectedAttachmentBase, mimeType };
       const sourceFingerprint = fingerprintJiraState(attachment);
       attachmentPhase = "write";
       try {
-        const created = await migration.target.createAttachment({
-          idempotencyKey: identity.key,
-          reefId: migration.reefId,
-          filename: attachment.filename,
-          mimeType,
-          bytes: download.bytes,
-          author: mappedAuthor ?? "jira-import",
-          createdAt: expectedAttachmentBase.createdAt,
-          originalJiraAttachmentId: attachment.id,
-          meta: { source: "jira", jira_cloud_id: migration.jiraCloudId },
-        });
+        const created = await migration.target.createAttachment(createInput);
         attachmentPhase = "readback";
         const readback = await migration.target.readAttachment(
           created.file_uri,

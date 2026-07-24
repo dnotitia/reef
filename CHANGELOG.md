@@ -21,7 +21,10 @@ explicitly in the entries below.
   reconciliation, and deterministic sanitized conservation reports. A built
   ALPHA/BETA HTTP contract proves dry-run target mutation zero, Jira GET-only
   traffic, cross-project relation stability, plan-hash enforcement, duplicate
-  zero on rerun, and secret redaction. (REEF-321)
+  zero on rerun, and secret redaction. Related writes and deletions are sealed
+  by hashed operation identity/input manifests, so redirected mutations fail
+  before target I/O while completed resume operations converge by readback.
+  (REEF-321)
 
 - **Jira migrations preserve issue discussion and related artifacts.** The
   operator package now exposes a dry-run/apply stage for root-first threaded

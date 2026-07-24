@@ -465,6 +465,29 @@ describe("Jira related-data import stage", () => {
         state.relations.size +
         state.refs.size,
     ).toBe(0);
+    expect(dry.report.operations.map((operation) => operation.kind)).toEqual(
+      expect.arrayContaining([
+        "create_attachment",
+        "update_description",
+        "create_comment",
+        "put_relation",
+        "put_external_ref",
+      ]),
+    );
+    await expect(
+      importJiraRelatedData({
+        ...base,
+        ledger: dry.ledger,
+        mode: "apply",
+        approvedOperations: [],
+      }),
+    ).rejects.toThrow("related_operation_not_approved");
+    expect(
+      state.comments.size +
+        state.attachments.size +
+        state.relations.size +
+        state.refs.size,
+    ).toBe(0);
 
     const attachmentCheckpoint = vi.fn(
       async (checkpointLedger: typeof dry.ledger) => {
@@ -482,6 +505,7 @@ describe("Jira related-data import stage", () => {
       ...base,
       ledger: dry.ledger,
       mode: "apply",
+      approvedOperations: dry.report.operations,
       checkpointLedger: attachmentCheckpoint,
     });
     expect(attachmentCheckpoint).toHaveBeenCalledTimes(1);
@@ -519,6 +543,7 @@ describe("Jira related-data import stage", () => {
       ...base,
       ledger: applied.ledger,
       mode: "apply",
+      approvedOperations: dry.report.operations,
     });
     expect(uriMismatch.report.failures).toContainEqual(
       expect.objectContaining({

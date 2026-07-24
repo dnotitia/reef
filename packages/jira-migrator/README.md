@@ -47,6 +47,10 @@ The configured report path always contains the latest command result. A
 completed dry run also seals immutable approval and private plan artifacts at
 `<report-path>.approval.json` and `<report-path>.plan.json`; apply validates
 those sidecars before replacing the configured report with the apply outcome.
+The sealed related-data plan contains hashed operation identities and inputs
+for every comment, attachment, description, relation, and external-reference
+mutation. Apply rejects operations outside that manifest; resume may omit an
+approved operation only after its target readback already reflects completion.
 
 Credentials come from environment variables or private regular files, never
 from raw argv values:

@@ -25,6 +25,7 @@ import type {
   JiraRelatedImportReport,
 } from "./contracts.js";
 import { rewriteMedia } from "./media.js";
+import { recordRelatedOperation } from "./operations.js";
 import { failure } from "./reporting.js";
 
 export async function importComments(options: {
@@ -160,6 +161,12 @@ export async function importComments(options: {
         const existing = await migration.target.readComment(existingTarget);
         if (existing === null) {
           if (migration.mode === "dry-run") {
+            recordRelatedOperation(
+              report,
+              "update_comment",
+              existingTarget,
+              commentInput,
+            );
             plannedCommentTargets.set(
               comment.id,
               `dry-run-comment:${comment.id}`,
@@ -195,6 +202,12 @@ export async function importComments(options: {
           report.comments.skipped += 1;
           continue;
         } else if (migration.mode === "dry-run") {
+          recordRelatedOperation(
+            report,
+            "update_comment",
+            existingTarget,
+            commentInput,
+          );
           report.comments.updated += 1;
           continue;
         } else {
@@ -251,10 +264,26 @@ export async function importComments(options: {
           }
         }
         if (matches) report.comments.skipped += 1;
-        else report.comments.updated += 1;
+        else {
+          if (migration.mode === "dry-run") {
+            recordRelatedOperation(
+              report,
+              "update_comment",
+              recovered.id,
+              commentInput,
+            );
+          }
+          report.comments.updated += 1;
+        }
         continue;
       }
       if (migration.mode === "dry-run") {
+        recordRelatedOperation(
+          report,
+          "create_comment",
+          identity.key,
+          commentInput,
+        );
         plannedCommentTargets.set(comment.id, `dry-run-comment:${comment.id}`);
         continue;
       }
