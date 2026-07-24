@@ -372,7 +372,7 @@ export function createAkbJiraMigrationTarget(
         targetId: claimed.id,
       };
     },
-    async applyIssue(plan, action, _approvedReadback) {
+    async applyIssue(plan, action, approvedReadback) {
       const desired = plan.desired.issue;
       if (
         !desired ||
@@ -447,6 +447,21 @@ export function createAkbJiraMigrationTarget(
           vault,
           id: desired.id,
         });
+        if (
+          approvedReadback &&
+          canonicalizeJson({
+            issue: current.issue,
+            content: current.content,
+            commit_hash: current.commit_hash ?? null,
+          }) !==
+            canonicalizeJson({
+              issue: approvedReadback.issue,
+              content: approvedReadback.content,
+              commit_hash: approvedReadback.commit_hash ?? null,
+            })
+        ) {
+          throw new JiraTargetConflictError();
+        }
         const desiredOwner = parseMeta(
           parseMeta(desired.custom_fields).jira_migration,
         ).owner;

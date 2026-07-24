@@ -23,6 +23,7 @@ import {
   requireArtifactPaths,
   targetEndpointFingerprint,
 } from "./artifacts.js";
+import { finalizeJiraCleanup } from "./cleanup.js";
 import { JiraRunnerError } from "./errors.js";
 import { executeJiraMigrationPlan } from "./execution.js";
 import {
@@ -472,6 +473,7 @@ export async function runJiraMigration(
   ].sort((left, right) => left.localeCompare(right));
   const releases: Array<() => Promise<void>> = [];
   let ownsRunArtifacts = false;
+  let primaryError: unknown;
   try {
     for (const path of lockPaths) {
       await ensurePrivateDirectory(dirname(path));
@@ -479,19 +481,28 @@ export async function runJiraMigration(
     }
     ownsRunArtifacts = true;
     return await runJiraMigrationUnlocked(config, dependencies);
+  } catch (error) {
+    primaryError = error;
+    throw error;
   } finally {
-    if (ownsRunArtifacts) {
-      await rm(
-        join(
-          paths.archiveRoot,
-          ".spool",
-          privateSpoolSegment(config.artifacts.runId),
-        ),
-        { recursive: true, force: true },
-      ).catch(() => undefined);
-    }
-    for (const release of releases.reverse()) {
-      await release();
-    }
+    await finalizeJiraCleanup({
+      steps: [
+        ...(ownsRunArtifacts
+          ? [
+              () =>
+                rm(
+                  join(
+                    paths.archiveRoot,
+                    ".spool",
+                    privateSpoolSegment(config.artifacts.runId),
+                  ),
+                  { recursive: true, force: true },
+                ),
+            ]
+          : []),
+        ...[...releases].reverse(),
+      ],
+      ...(primaryError === undefined ? {} : { primaryError }),
+    });
   }
 }

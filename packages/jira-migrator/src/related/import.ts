@@ -367,19 +367,6 @@ export async function importJiraRelatedData(
   const attachments = issue.attachments;
   const attachmentCatalogPresent = input.issue.fields.attachment !== undefined;
   const links = issue.links;
-  const returnedAttachmentIds = new Set(
-    attachments.map((attachment) => attachment.id),
-  );
-  const missingAttachmentBindings = input.ledger.bindings.filter(
-    (binding) =>
-      binding.source_identity.entity_kind === "attachment" &&
-      binding.source_identity.jira_cloud_id === input.jiraCloudId &&
-      (binding.source_identity.issue_id === undefined ||
-        binding.source_identity.issue_id === issue.id) &&
-      (!attachmentAclEstablished ||
-        (attachmentCatalogPresent &&
-          !returnedAttachmentIds.has(binding.source_identity.attachment_id))),
-  );
   report.comments.total = comments.length;
   report.comments.roots = comments.filter(
     (item) => item.parentId == null,

@@ -65,7 +65,8 @@ export async function importAttachments(options: {
       binding.source_identity.jira_cloud_id === migration.jiraCloudId &&
       (binding.source_identity.issue_id === undefined ||
         binding.source_identity.issue_id === issueId) &&
-      (!attachmentAclEstablished ||
+      ((migration.attachmentPolicy !== undefined &&
+        !attachmentAclEstablished) ||
         (attachmentCatalogPresent &&
           !returnedAttachmentIds.has(binding.source_identity.attachment_id))),
   );
@@ -226,6 +227,16 @@ export async function importAttachments(options: {
       issueId,
       attachment.id,
     );
+    if (migration.attachmentPolicy === undefined) {
+      failure(
+        report.failures,
+        "attachment",
+        attachment.id,
+        "resolve",
+        "attachment_visibility_unverifiable",
+      );
+      continue;
+    }
     if (!attachmentAclEstablished) {
       try {
         await revokeAttachmentBinding(identity, attachment.id);
@@ -260,8 +271,9 @@ export async function importAttachments(options: {
     }
     const maxAttachmentBytes = migration.attachmentPolicy?.maxBytes;
     if (
-      maxAttachmentBytes === undefined ||
-      (attachment.size !== null && attachment.size > maxAttachmentBytes)
+      maxAttachmentBytes !== undefined &&
+      attachment.size !== null &&
+      attachment.size > maxAttachmentBytes
     ) {
       try {
         await revokeAttachmentBinding(identity, attachment.id);

@@ -103,30 +103,12 @@ export async function importIssueLinks(options: {
     uniqueLinks.set(link.id, link);
   }
   report.links.unique = uniqueLinks.size;
-  for (const linkId of conflictingLinkIds) {
-    try {
-      await removeStaleRelationBindings(linkId);
-      await reconcileProvisionalLinkRefs(
-        migration.target,
-        migration.jiraCloudId,
-        linkId,
-        migration.mode,
-      );
-    } catch (error) {
-      failure(
-        report.failures,
-        "link",
-        linkId,
-        String(error).includes("readback") ? "readback" : "write",
-        "link_source_reconciliation_failed",
-        error,
-      );
-    }
-  }
   if (linkCatalogPresent) {
     const provisionalPrefix = `jira-link:${migration.jiraCloudId}:${issueId}:`;
     const currentProvisionalKeys = new Set(
-      [...uniqueLinks.keys()].map((linkId) => `${provisionalPrefix}${linkId}`),
+      [...uniqueLinks.keys(), ...conflictingLinkIds].map(
+        (linkId) => `${provisionalPrefix}${linkId}`,
+      ),
     );
     let existingProvisionalKeys: string[] = [];
     try {
@@ -175,7 +157,8 @@ export async function importIssueLinks(options: {
         binding.source_identity.jira_cloud_id === migration.jiraCloudId &&
         (binding.source_identity.source_issue_id === issueId ||
           binding.source_identity.source_issue_id === issueKey) &&
-        !uniqueLinks.has(binding.source_identity.link_id),
+        !uniqueLinks.has(binding.source_identity.link_id) &&
+        !conflictingLinkIds.has(binding.source_identity.link_id),
     );
     for (const binding of missingRelationBindings) {
       if (binding.source_identity.entity_kind !== "relation") continue;
@@ -209,7 +192,6 @@ export async function importIssueLinks(options: {
         mappingMatches.length === 1 ? mappingMatches[0] : undefined;
       if (mappingMatches.length > 1) {
         report.links.unresolved += 1;
-        await removeStaleRelationBindings(linkId);
         failure(
           report.failures,
           "link",
@@ -223,9 +205,17 @@ export async function importIssueLinks(options: {
         link.issueId ?? link.issueKey,
       );
       const linkedSource = link.issueId ?? link.issueKey;
+      const hasExistingRelationBinding = ledger.bindings.some(
+        (binding) =>
+          binding.source_identity.entity_kind === "relation" &&
+          binding.source_identity.jira_cloud_id === migration.jiraCloudId &&
+          binding.source_identity.link_id === linkId &&
+          binding.target.target_kind === "relation",
+      );
       if (
         !targetIssue &&
-        migration.preserveUnresolvedIssueTargets?.has(linkedSource)
+        (hasExistingRelationBinding ||
+          migration.preserveUnresolvedIssueTargets?.has(linkedSource))
       ) {
         failure(
           report.failures,

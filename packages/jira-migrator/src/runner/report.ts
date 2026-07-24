@@ -13,6 +13,7 @@ import { lock } from "proper-lockfile";
 import { z } from "zod";
 import { canonicalizeJson } from "../archive/canonicalJson.js";
 import { JiraMigrationActionSchema } from "../ledger.js";
+import { finalizeJiraCleanup } from "./cleanup.js";
 
 const iso = z.string().datetime({ offset: true });
 const sha256 = z.string().regex(/^[a-f0-9]{64}$/u);
@@ -331,6 +332,7 @@ export async function writeJiraRunnerReport(input: {
   await ensureDirectory(dirname(absolute));
   const temporary = `${absolute}.${randomUUID()}.tmp`;
   const release = await acquireReportLock(absolute);
+  let primaryError: unknown;
   try {
     if (await exists(absolute)) {
       if (!input.expectedReport) fail("stale_report");
@@ -348,9 +350,14 @@ export async function writeJiraRunnerReport(input: {
     if (canonicalizeJson(readback) !== canonicalizeJson(parsed.data)) {
       fail("report_io_failed");
     }
+  } catch (error) {
+    primaryError = error;
+    throw error;
   } finally {
-    await rm(temporary, { force: true }).catch(() => undefined);
-    await release();
+    await finalizeJiraCleanup({
+      steps: [() => rm(temporary, { force: true }), release],
+      ...(primaryError === undefined ? {} : { primaryError }),
+    });
   }
 }
 

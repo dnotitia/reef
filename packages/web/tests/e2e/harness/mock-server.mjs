@@ -2646,7 +2646,18 @@ function parseInsert(sql) {
   );
   const valueRows = [];
   let searchFrom = sql.toLowerCase().indexOf(" values ", columnsEnd);
-  if (searchFrom < 0) return null;
+  if (searchFrom < 0) {
+    const selectStart = sql.toLowerCase().indexOf(" select ", columnsEnd);
+    const fromStart =
+      selectStart < 0
+        ? -1
+        : sql.toLowerCase().indexOf(" from ", selectStart + 8);
+    if (selectStart < 0 || fromStart < 0) return null;
+    const values = splitSqlCsv(sql.slice(selectStart + 8, fromStart)).map(
+      parseSqlValue,
+    );
+    return { columns, values, valueRows: [values] };
+  }
   searchFrom += " values ".length;
   while (searchFrom < sql.length) {
     const valuesStart = sql.indexOf("(", searchFrom);

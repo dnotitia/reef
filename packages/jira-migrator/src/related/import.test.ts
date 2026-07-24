@@ -635,7 +635,7 @@ describe("Jira related-data import stage", () => {
     const remapped = await importJiraRelatedData({
       ...base,
       ledger: rerun.ledger,
-      linkMappings: [{ typeId: "1", kind: "symmetric" }],
+      linkMappings: [{ typeId: "1", kind: "symmetric" as const }],
       mode: "apply",
     });
     expect(remapped.report.links.applied).toBe(1);
@@ -1308,6 +1308,50 @@ describe("Jira related-data import stage", () => {
     ).toBe(false);
   });
 
+  it("preserves an existing attachment when completeness attestation is omitted", async () => {
+    const state = makeTarget();
+    const base = {
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      client: makeClient([]),
+      target: state.target,
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [] as const,
+      resolveIssueTarget: () => null,
+      mode: "apply" as const,
+    };
+    const applied = await importJiraRelatedData({
+      ...base,
+      attachmentPolicy,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+    });
+    const existingFileUri = [...state.attachments.keys()][0];
+
+    const unverified = await importJiraRelatedData({
+      ...base,
+      ledger: applied.ledger,
+    });
+
+    expect(state.attachments.has(existingFileUri ?? "")).toBe(true);
+    expect(unverified.report.deletions).toBe(0);
+    expect(
+      unverified.ledger.bindings.some(
+        (binding) => binding.entity_kind === "attachment",
+      ),
+    ).toBe(true);
+    expect(unverified.report.failures).toContainEqual(
+      expect.objectContaining({
+        reason: "attachment_visibility_unverifiable",
+      }),
+    );
+  });
+
   it("validates attachment bytes during dry-run without target mutation", async () => {
     const requests: string[] = [];
     const state = makeTarget();
@@ -1864,12 +1908,12 @@ describe("Jira related-data import stage", () => {
     expect(result.report.failures).toContainEqual(
       expect.objectContaining({ reason: "jira_link_mapping_ambiguous" }),
     );
-    expect(state.relations.size).toBe(0);
+    expect(state.relations.size).toBe(1);
     expect(
       result.ledger.bindings.some(
         (binding) => binding.entity_kind === "relation",
       ),
-    ).toBe(false);
+    ).toBe(true);
     expect(result.report.links.unresolved).toBe(1);
   });
 
@@ -1879,9 +1923,8 @@ describe("Jira related-data import stage", () => {
     const conflicting = issue.fields.issuelinks?.[1];
     if (conflicting?.outwardIssue)
       conflicting.outwardIssue = { id: "10003", key: "DEMO-3" };
-    const result = await importJiraRelatedData({
+    const base = {
       jiraCloudId: "cloud-1",
-      issue,
       reefId: "REEF-1",
       attachmentPolicy,
       client: makeClient([]),
@@ -1893,17 +1936,35 @@ describe("Jira related-data import stage", () => {
       accountMapping: createJiraAccountMappingArtifact({
         jiraCloudId: "cloud-1",
       }),
-      linkMappings: [{ typeId: "1", kind: "symmetric" }],
+      linkMappings: [{ typeId: "1", kind: "symmetric" as const }],
       resolveIssueTarget: () => ({
         reefId: "REEF-2",
         documentUri: "akb://isolated/coll/issues/doc/reef-2.md",
       }),
-      mode: "apply",
+      mode: "apply" as const,
+    };
+    const applied = await importJiraRelatedData({
+      ...base,
+      issue: issueFixture(),
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+    });
+    const result = await importJiraRelatedData({
+      ...base,
+      issue,
+      ledger: applied.ledger,
     });
     expect(result.report.failures).toContainEqual(
       expect.objectContaining({ reason: "jira_link_duplicate_conflict" }),
     );
-    expect(state.relations.size).toBe(0);
+    expect(state.relations.size).toBe(1);
+    expect(
+      result.ledger.bindings.some(
+        (binding) => binding.entity_kind === "relation",
+      ),
+    ).toBe(true);
   });
 
   it("removes a relation whose Jira link disappears from an explicit catalog", async () => {
@@ -1991,6 +2052,46 @@ describe("Jira related-data import stage", () => {
       resolveIssueTarget: () => null,
       preserveUnresolvedIssueTargets: new Set(["10002", "DEMO-2"]),
     });
+    expect(blocked.report.deletions).toBe(0);
+    expect(state.relations.size).toBe(1);
+    expect(blocked.report.failures).toContainEqual(
+      expect.objectContaining({ reason: "linked_issue_not_confirmed" }),
+    );
+  });
+
+  it("preserves a relation when its linked issue is absent from discovery", async () => {
+    const state = makeTarget();
+    const base = {
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client: makeClient([]),
+      target: state.target,
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [{ typeId: "1", kind: "symmetric" as const }],
+      resolveIssueTarget: () => ({
+        reefId: "REEF-2",
+        documentUri: "akb://isolated/coll/issues/doc/reef-2.md",
+      }),
+      mode: "apply" as const,
+    };
+    const applied = await importJiraRelatedData({
+      ...base,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+    });
+
+    const blocked = await importJiraRelatedData({
+      ...base,
+      ledger: applied.ledger,
+      resolveIssueTarget: () => null,
+    });
+
     expect(blocked.report.deletions).toBe(0);
     expect(state.relations.size).toBe(1);
     expect(blocked.report.failures).toContainEqual(

@@ -359,14 +359,31 @@ describe("AKB Jira migration target", () => {
       },
     );
     expect(writeIssue).toHaveBeenCalledTimes(2);
-    readIssue
-      .mockResolvedValueOnce({
-        ...targetAuthoredReadback,
+    const updatedPlan = {
+      ...issuePlan,
+      desired: {
+        ...issuePlan.desired,
         issue: {
-          ...targetAuthoredReadback.issue,
-          title: "Drifted Alpha issue",
+          ...issuePlan.desired.issue,
+          title: "Updated Alpha issue",
         },
-      } as unknown as AkbReadIssueResult)
+      },
+    } as JiraIssueImportPlan;
+    readIssue.mockReset();
+    readIssue.mockResolvedValueOnce({
+      ...targetAuthoredReadback,
+      issue: {
+        ...targetAuthoredReadback.issue,
+        title: "Drifted Alpha issue",
+      },
+    } as unknown as AkbReadIssueResult);
+    await expect(
+      target.applyIssue(updatedPlan, "update", targetAuthoredReadback),
+    ).rejects.toThrow("target_issue_id_conflict");
+    expect(updateIssue).not.toHaveBeenCalled();
+
+    readIssue
+      .mockResolvedValueOnce(targetAuthoredReadback)
       .mockResolvedValueOnce({
         ...targetAuthoredReadback,
         issue: {
@@ -382,16 +399,6 @@ describe("AKB Jira migration target", () => {
           },
         },
       } as unknown as AkbReadIssueResult);
-    const updatedPlan = {
-      ...issuePlan,
-      desired: {
-        ...issuePlan.desired,
-        issue: {
-          ...issuePlan.desired.issue,
-          title: "Updated Alpha issue",
-        },
-      },
-    } as JiraIssueImportPlan;
     await expect(
       target.applyIssue(updatedPlan, "update", targetAuthoredReadback),
     ).resolves.toMatchObject({

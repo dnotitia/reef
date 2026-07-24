@@ -16,6 +16,7 @@ import { promisify } from "node:util";
 import { lock } from "proper-lockfile";
 import { z } from "zod";
 import { canonicalizeJson } from "../archive/canonicalJson.js";
+import { finalizeJiraCleanup } from "./cleanup.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -160,14 +161,15 @@ export async function writePrivatePlanArtifact(
     return;
   }
   const temporary = `${absolute}.${randomUUID()}.tmp`;
-  const handle = await open(temporary, "wx", 0o600);
+  let primaryError: unknown;
   try {
-    await handle.writeFile(canonicalizeJson(parsed), "utf8");
-    await handle.sync();
-  } finally {
-    await handle.close();
-  }
-  try {
+    const handle = await open(temporary, "wx", 0o600);
+    try {
+      await handle.writeFile(canonicalizeJson(parsed), "utf8");
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
     try {
       await link(temporary, absolute);
     } catch (error) {
@@ -189,8 +191,14 @@ export async function writePrivatePlanArtifact(
     if (canonicalizeJson(readback) !== canonicalizeJson(parsed)) {
       throw new Error("private_plan_artifact_readback");
     }
+  } catch (error) {
+    primaryError = error;
+    throw error;
   } finally {
-    await rm(temporary, { force: true }).catch(() => undefined);
+    await finalizeJiraCleanup({
+      steps: [() => rm(temporary, { force: true })],
+      ...(primaryError === undefined ? {} : { primaryError }),
+    });
   }
 }
 
