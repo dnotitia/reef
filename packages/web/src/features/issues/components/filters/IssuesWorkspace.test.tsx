@@ -78,6 +78,7 @@ describe("IssuesWorkspace", () => {
     vi.clearAllMocks();
     navigationState.pathname = "/workspace/reef-acme/issues";
     navigationState.searchParams = new URLSearchParams();
+    window.history.replaceState({}, "", "/workspace/reef-acme/issues");
     mockUseActiveVault.mockReturnValue({
       vault: "reef-acme",
       isLoading: false,
