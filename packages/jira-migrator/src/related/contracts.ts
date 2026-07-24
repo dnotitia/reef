@@ -161,6 +161,7 @@ export interface JiraRelatedImportInput {
   ): { reefId: string; documentUri: string } | null;
   preserveUnresolvedIssueTargets?: ReadonlySet<string>;
   mode: "dry-run" | "apply";
+  plannedDescription?: string;
   now?: () => string;
   checkpointLedger?(ledger: JiraMigrationLedgerV1): Promise<void>;
   approvedOperations?: readonly JiraRelatedOperation[];

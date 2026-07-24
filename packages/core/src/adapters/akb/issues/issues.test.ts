@@ -779,6 +779,27 @@ describe("born-correct backlog rank (REEF-176)", () => {
     ).toHaveLength(1);
   });
 
+  it("does not adopt a pre-existing document after a deterministic conflict", async () => {
+    const issue = makeMigrationIssue({ status: "todo" });
+    const reservation = makeReservation(issue);
+    const { calls } = setupFetch([
+      { body: ROW_UPDATE_OK },
+      { body: rowsForIssue(reservation) },
+      { status: 409, body: { error: "document already exists" } },
+    ]);
+
+    await expect(
+      writeIssue({
+        adapter: makeTestAkbAdapter(),
+        vault: VAULT,
+        issue,
+        content: "migrated",
+        claimFirst: true,
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    expect(calls).toHaveLength(3);
+  });
+
   it("leaves rank NULL when the new issue is not in the backlog", async () => {
     const { calls } = setupFetch([
       { body: putResponse("commit-1") },

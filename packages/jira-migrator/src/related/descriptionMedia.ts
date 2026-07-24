@@ -48,9 +48,11 @@ export async function updateDescriptionMedia(options: {
   const rewroteDescriptionMedia = report.media.rewritten > rewrittenBefore;
   if (rewroteDescriptionMedia && description.resolved && description.changed) {
     try {
-      const existingDescription = await migration.target.readDescription(
-        migration.reefId,
-      );
+      const existingDescription =
+        migration.mode === "dry-run" &&
+        migration.plannedDescription !== undefined
+          ? migration.plannedDescription
+          : await migration.target.readDescription(migration.reefId);
       if (description.matchesPreRewriteMarkdown(existingDescription)) {
         report.media.description_updated = true;
         recordOperation(

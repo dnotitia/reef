@@ -448,6 +448,27 @@ describe("Jira related-data import stage", () => {
       targetVault: "isolated",
     });
 
+    const missingDescriptionRead = vi.fn(async () => {
+      throw new Error("issue_not_created");
+    });
+    const plannedCreate = await importJiraRelatedData({
+      ...base,
+      target: {
+        ...state.target,
+        readDescription: missingDescriptionRead,
+      },
+      plannedDescription: state.description,
+      ledger: initial,
+      mode: "dry-run",
+    });
+    expect(missingDescriptionRead).not.toHaveBeenCalled();
+    expect(plannedCreate.report.failures).not.toContainEqual(
+      expect.objectContaining({ source_kind: "media" }),
+    );
+    expect(plannedCreate.report.operations).toContainEqual(
+      expect.objectContaining({ kind: "update_description" }),
+    );
+
     const dry = await importJiraRelatedData({
       ...base,
       ledger: initial,

@@ -203,29 +203,39 @@ export async function buildJiraMigrationPlan(input: {
     archivesByProject,
   } = archive;
   const { approvedPayload, approvedReport, approvedPlanArtifact } = approval;
-  const planningActions = mergePlanningActions(
-    config.jira.projectKeys.flatMap((key, index) => {
-      const issueSprints = (issuesByProject.get(key) ?? []).flatMap((issue) =>
-        normalizeIssueSprintReferences(issue.raw, fieldCatalog.fields),
-      );
-      return buildJiraPlanningMigrationPlan({
-        jiraCloudId: config.jira.cloudId,
-        projectKey: key,
-        versions: versionsByProject.get(key) ?? [],
-        issueSprints,
-        configuredBoards:
-          index === 0
-            ? boardCatalogs.map(({ boardId, catalog }) => ({
-                boardId,
-                sprints: catalog.items,
-              }))
-            : [],
-        existingReleases: targetPreflight.planning.releases,
-        existingSprints: targetPreflight.planning.sprints,
-        ledgerBindings: getJiraPlanningLedgerBindings(ledger),
-      }).actions;
-    }),
+  const issueSprints = config.jira.projectKeys.flatMap((key) =>
+    (issuesByProject.get(key) ?? []).flatMap((issue) =>
+      normalizeIssueSprintReferences(issue.raw, fieldCatalog.fields),
+    ),
   );
+  const planningActions = mergePlanningActions([
+    ...config.jira.projectKeys.flatMap(
+      (key) =>
+        buildJiraPlanningMigrationPlan({
+          jiraCloudId: config.jira.cloudId,
+          projectKey: key,
+          versions: versionsByProject.get(key) ?? [],
+          issueSprints: [],
+          configuredBoards: [],
+          existingReleases: targetPreflight.planning.releases,
+          existingSprints: targetPreflight.planning.sprints,
+          ledgerBindings: getJiraPlanningLedgerBindings(ledger),
+        }).actions,
+    ),
+    ...buildJiraPlanningMigrationPlan({
+      jiraCloudId: config.jira.cloudId,
+      projectKey: config.jira.projectKeys[0] as string,
+      versions: [],
+      issueSprints,
+      configuredBoards: boardCatalogs.map(({ boardId, catalog }) => ({
+        boardId,
+        sprints: catalog.items,
+      })),
+      existingReleases: targetPreflight.planning.releases,
+      existingSprints: targetPreflight.planning.sprints,
+      ledgerBindings: getJiraPlanningLedgerBindings(ledger),
+    }).actions,
+  ]);
   const existingPlanningResolutions: JiraPlanningTargetResolution[] =
     planningActions.flatMap((action) =>
       action.classification === "reuse" && action.targetId
@@ -268,6 +278,9 @@ export async function buildJiraMigrationPlan(input: {
     });
   };
   const dryIssuePlans = buildIssuePlans(approvedPlanningResolutions);
+  const dryIssuePlansByKey = new Map(
+    dryIssuePlans.map((plan) => [plan.source.issueKey, plan]),
+  );
   const approvedTargetIssuePreconditions =
     approvedPayload?.target_issue_preconditions &&
     typeof approvedPayload.target_issue_preconditions === "object" &&
@@ -362,6 +375,7 @@ export async function buildJiraMigrationPlan(input: {
     const client = clients.get(key);
     const policy = policies.get(key);
     if (!client || !policy) throw new Error("jira_client_missing");
+    const dryIssuePlan = dryIssuePlansByKey.get(issue.key);
     const result = await importJiraRelatedData({
       jiraCloudId: config.jira.cloudId,
       issue: issue.raw,
@@ -386,6 +400,12 @@ export async function buildJiraMigrationPlan(input: {
             }
           : null;
       },
+      plannedDescription:
+        dryIssuePlan &&
+        actionForIssuePlan(dryIssuePlan, ledger) === "create" &&
+        dryIssuePlan.desired.issue
+          ? dryIssuePlan.desired.content
+          : undefined,
       mode: "dry-run",
       now: () => runAt,
     });

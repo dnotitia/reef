@@ -194,7 +194,13 @@ export async function writeIssue(
         });
         put = ensureDocumentPutResponse(payload);
       } catch (error) {
-        if (!claimFirst) throw error;
+        const ambiguousAcknowledgement =
+          error instanceof AkbApiError &&
+          (error.status === 0 ||
+            error.status === 408 ||
+            error.status === 429 ||
+            error.status >= 500);
+        if (!claimFirst || !ambiguousAcknowledgement) throw error;
         const recovered = await readCommittedClaimDocument();
         if (!recovered) throw error;
         put = recovered;
