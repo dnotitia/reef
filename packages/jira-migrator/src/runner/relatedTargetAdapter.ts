@@ -616,6 +616,10 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
     },
     deleteRelation: deleteOwnedRelation,
     async putExternalRef(input) {
+      const existingOwner = await findExternalRef(input.idempotencyKey);
+      if (existingOwner && existingOwner.issue.id !== input.reefId) {
+        throw new Error("external_ref_ownership_mismatch");
+      }
       const readback = await readIssue(input.reefId);
       const issue = readback.issue;
       const sidecar = sidecarFor(issue);

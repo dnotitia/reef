@@ -147,6 +147,14 @@ describe("AKB Jira migration target", () => {
         issue: {
           ...targetAuthoredReadback.issue,
           title: "Updated Alpha issue",
+          custom_fields: {
+            ...targetAuthoredReadback.issue.custom_fields,
+            jira_migration: {
+              ...(targetAuthoredReadback.issue.custom_fields
+                ?.jira_migration as Record<string, unknown>),
+              managed_custom_field_keys: [],
+            },
+          },
         },
       } as unknown as AkbReadIssueResult);
     const writeIssue = vi.fn(async () => ({
@@ -351,21 +359,29 @@ describe("AKB Jira migration target", () => {
       },
     );
     expect(writeIssue).toHaveBeenCalledTimes(2);
-    readIssue.mockResolvedValueOnce({
-      ...targetAuthoredReadback,
-      issue: {
-        ...targetAuthoredReadback.issue,
-        title: "Updated Alpha issue",
-        custom_fields: {
-          ...targetAuthoredReadback.issue.custom_fields,
-          jira_migration: {
-            ...(targetAuthoredReadback.issue.custom_fields
-              ?.jira_migration as Record<string, unknown>),
-            managed_custom_field_keys: [],
+    readIssue
+      .mockResolvedValueOnce({
+        ...targetAuthoredReadback,
+        issue: {
+          ...targetAuthoredReadback.issue,
+          title: "Drifted Alpha issue",
+        },
+      } as unknown as AkbReadIssueResult)
+      .mockResolvedValueOnce({
+        ...targetAuthoredReadback,
+        issue: {
+          ...targetAuthoredReadback.issue,
+          title: "Updated Alpha issue",
+          custom_fields: {
+            ...targetAuthoredReadback.issue.custom_fields,
+            jira_migration: {
+              ...(targetAuthoredReadback.issue.custom_fields
+                ?.jira_migration as Record<string, unknown>),
+              managed_custom_field_keys: [],
+            },
           },
         },
-      },
-    } as unknown as AkbReadIssueResult);
+      } as unknown as AkbReadIssueResult);
     const updatedPlan = {
       ...issuePlan,
       desired: {
@@ -572,6 +588,64 @@ describe("AKB Jira migration target", () => {
     ).resolves.toBeUndefined();
     expect(rowExists).toBe(false);
     expect(fileAttempts).toBe(2);
+  });
+
+  it("rejects an external-reference key owned by another issue", async () => {
+    const ref = { type: "jira" as const, ref: "ALPHA-1" };
+    const request = vi.fn(async () => ({
+      kind: "table_query",
+      items: [{ reef_id: "REEF-OTHER" }],
+    }));
+    const updateIssue = vi.fn();
+    const target = createAkbJiraMigrationTarget(
+      { baseUrl: "https://akb.test", jwt: "jwt", vault: "reef-test" },
+      {
+        createAdapter: () => ({ request }),
+        getCurrentActor: async () => ({ actor: "operator" }),
+        listPlanningCatalog: vi.fn(),
+        createRelease: vi.fn(),
+        createSprint: vi.fn(),
+        readPlanningCreateClaim: vi.fn(async () => null),
+        allocateNextIssueId: vi.fn(),
+        writeIssue: vi.fn(),
+        updateIssue,
+        readIssue: vi.fn(
+          async () =>
+            ({
+              issue: {
+                id: "REEF-OTHER",
+                external_refs: [ref],
+                custom_fields: {
+                  jira_migration: {
+                    external_refs: [
+                      {
+                        idempotencyKey: "jira-ref:key",
+                        reefId: "REEF-OTHER",
+                        ref,
+                        provenance: { source: "jira" },
+                        createdByMigration: true,
+                      },
+                    ],
+                  },
+                },
+              },
+              content: "",
+              commit_hash: "commit-other",
+            }) as unknown as AkbReadIssueResult,
+        ),
+        claimIssueId: vi.fn(),
+      },
+    );
+
+    await expect(
+      target.relatedTarget().putExternalRef({
+        idempotencyKey: "jira-ref:key",
+        reefId: "REEF-001",
+        ref,
+        provenance: { source: "jira" },
+      }),
+    ).rejects.toThrow("external_ref_ownership_mismatch");
+    expect(updateIssue).not.toHaveBeenCalled();
   });
 
   it("recovers an ambiguously acknowledged inverse relation write", async () => {

@@ -372,7 +372,7 @@ export function createAkbJiraMigrationTarget(
         targetId: claimed.id,
       };
     },
-    async applyIssue(plan, action, approvedReadback) {
+    async applyIssue(plan, action, _approvedReadback) {
       const desired = plan.desired.issue;
       if (
         !desired ||
@@ -442,13 +442,11 @@ export function createAkbJiraMigrationTarget(
           commitHash = result.commit_hash;
         }
       } else {
-        const current =
-          approvedReadback ??
-          (await core.readIssue({
-            adapter,
-            vault,
-            id: desired.id,
-          }));
+        const current = await core.readIssue({
+          adapter,
+          vault,
+          id: desired.id,
+        });
         const desiredOwner = parseMeta(
           parseMeta(desired.custom_fields).jira_migration,
         ).owner;

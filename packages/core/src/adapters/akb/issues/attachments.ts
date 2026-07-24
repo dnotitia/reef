@@ -208,6 +208,63 @@ async function insertAttachmentRow(
   return rowToAttachment(row);
 }
 
+async function attachmentByIdempotencyKey(
+  adapter: AkbAdapter,
+  vault: string,
+  key: string,
+): Promise<IssueAttachment | null> {
+  const result = await runSql(
+    adapter,
+    vault,
+    `SELECT * FROM ${tableRef(
+      REEF_ATTACHMENTS_TABLE,
+    )} WHERE meta->>'jira_idempotency_key' = ${quoteText(
+      key,
+      "attachment idempotency key",
+    )} LIMIT 2`,
+  );
+  const rows = result.kind === "table_query" ? result.items : [];
+  if (rows.length > 1) {
+    throw new ConflictError({ path: `attachment:${key}` });
+  }
+  return rows[0] ? rowToAttachment(rows[0]) : null;
+}
+
+async function isCompatibleAttachment(
+  adapter: AkbAdapter,
+  vault: string,
+  attachment: IssueAttachment,
+  expected: {
+    reefId: string;
+    filename: string;
+    mimeType: string;
+    sizeBytes: number;
+    author: string;
+    source: IssueAttachmentSource;
+    inline: boolean;
+    originalJiraAttachmentId: string | null;
+    meta: Record<string, unknown> | null;
+    bytes: Uint8Array;
+  },
+): Promise<boolean> {
+  const existing = await downloadAkbFile(adapter, vault, attachment.file_uri);
+  const existingBytes = new Uint8Array(existing.body);
+  return (
+    attachment.reef_id === expected.reefId &&
+    attachment.filename === expected.filename &&
+    attachment.mime_type === expected.mimeType &&
+    attachment.size_bytes === expected.sizeBytes &&
+    attachment.author === expected.author &&
+    attachment.source === expected.source &&
+    attachment.inline === expected.inline &&
+    attachment.original_jira_attachment_id ===
+      expected.originalJiraAttachmentId &&
+    isDeepStrictEqual(attachment.meta, expected.meta) &&
+    existingBytes.length === expected.bytes.length &&
+    existingBytes.every((value, index) => value === expected.bytes[index])
+  );
+}
+
 async function appendAttachmentAddedEvent(
   adapter: AkbAdapter,
   vault: string,
@@ -275,6 +332,40 @@ export async function uploadIssueAttachment(
     async () => {
       await ensureReefTables({ adapter, vault });
       await assertIssueExists(adapter, vault, reefId);
+      const idempotencyKey =
+        typeof params.meta?.jira_idempotency_key === "string"
+          ? params.meta.jira_idempotency_key
+          : null;
+      if (idempotencyKey) {
+        const existing = await attachmentByIdempotencyKey(
+          adapter,
+          vault,
+          idempotencyKey,
+        );
+        if (existing) {
+          const compatible = await isCompatibleAttachment(
+            adapter,
+            vault,
+            existing,
+            {
+              reefId,
+              filename,
+              mimeType,
+              sizeBytes: bytes.byteLength,
+              author,
+              source,
+              inline: params.inline ?? false,
+              originalJiraAttachmentId: params.originalJiraAttachmentId ?? null,
+              meta: params.meta ?? null,
+              bytes,
+            },
+          );
+          if (!compatible) {
+            throw new ConflictError({ path: existing.file_uri });
+          }
+          return existing;
+        }
+      }
       const uploaded = await uploadAkbFile({
         adapter,
         vault,
@@ -299,25 +390,23 @@ export async function uploadIssueAttachment(
       });
       if (attachment.file_uri !== uploaded.uri) {
         try {
-          const existing = await downloadAkbFile(
+          const compatible = await isCompatibleAttachment(
             adapter,
             vault,
-            attachment.file_uri,
+            attachment,
+            {
+              reefId,
+              filename: uploaded.filename,
+              mimeType: uploaded.mimeType,
+              sizeBytes: uploaded.sizeBytes,
+              author,
+              source,
+              inline: params.inline ?? false,
+              originalJiraAttachmentId: params.originalJiraAttachmentId ?? null,
+              meta: params.meta ?? null,
+              bytes,
+            },
           );
-          const existingBytes = new Uint8Array(existing.body);
-          const compatible =
-            attachment.reef_id === reefId &&
-            attachment.filename === uploaded.filename &&
-            attachment.mime_type === uploaded.mimeType &&
-            attachment.size_bytes === uploaded.sizeBytes &&
-            attachment.author === author &&
-            attachment.source === source &&
-            attachment.inline === (params.inline ?? false) &&
-            attachment.original_jira_attachment_id ===
-              (params.originalJiraAttachmentId ?? null) &&
-            isDeepStrictEqual(attachment.meta, params.meta ?? null) &&
-            existingBytes.length === bytes.length &&
-            existingBytes.every((value, index) => value === bytes[index]);
           if (!compatible) {
             throw new ConflictError({ path: attachment.file_uri });
           }
