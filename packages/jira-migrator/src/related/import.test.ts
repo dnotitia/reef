@@ -500,6 +500,22 @@ describe("Jira related-data import stage", () => {
         ...base,
         ledger: dry.ledger,
         mode: "apply",
+        approvedOperations: dry.report.operations.filter(
+          ({ kind }) => kind === "create_attachment",
+        ),
+      }),
+    ).rejects.toThrow("related_operation_not_approved");
+    expect(
+      state.comments.size +
+        state.attachments.size +
+        state.relations.size +
+        state.refs.size,
+    ).toBe(0);
+    await expect(
+      importJiraRelatedData({
+        ...base,
+        ledger: dry.ledger,
+        mode: "apply",
         approvedOperations: [],
       }),
     ).rejects.toThrow("related_operation_not_approved");
@@ -560,18 +576,14 @@ describe("Jira related-data import stage", () => {
         file_uri: "akb://isolated/coll/files/file/alias",
       },
     });
-    const uriMismatch = await importJiraRelatedData({
-      ...base,
-      ledger: applied.ledger,
-      mode: "apply",
-      approvedOperations: dry.report.operations,
-    });
-    expect(uriMismatch.report.failures).toContainEqual(
-      expect.objectContaining({
-        source_kind: "attachment",
-        phase: "readback",
+    await expect(
+      importJiraRelatedData({
+        ...base,
+        ledger: applied.ledger,
+        mode: "apply",
+        approvedOperations: dry.report.operations,
       }),
-    );
+    ).rejects.toThrow("related_operation_preflight_failed");
     state.attachments.set(boundUri, boundAttachment);
 
     const rerun = await importJiraRelatedData({

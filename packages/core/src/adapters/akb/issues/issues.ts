@@ -523,9 +523,11 @@ export async function updateIssue(
     } catch (err) {
       let committed = false;
       if (
-        !(err instanceof AkbApiError) ||
-        err.status === 0 ||
-        err.status >= 500
+        err instanceof AkbApiError &&
+        (err.status === 0 ||
+          err.status === 408 ||
+          err.status === 429 ||
+          err.status >= 500)
       ) {
         try {
           const recovered = await readIssue({ adapter, vault, id });

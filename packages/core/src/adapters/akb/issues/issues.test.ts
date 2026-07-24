@@ -416,6 +416,7 @@ describe("updateIssue → document OCC (REEF-227)", () => {
       "updated_at",
     );
     expect(patchCalls(calls)).toHaveLength(0);
+    expect(calls).toHaveLength(3);
   });
 });
 

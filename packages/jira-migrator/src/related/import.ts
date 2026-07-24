@@ -55,6 +55,30 @@ export { canonicalizeJiraRelation } from "./links.js";
 export async function importJiraRelatedData(
   input: JiraRelatedImportInput,
 ): Promise<JiraRelatedImportResult> {
+  if (input.mode === "apply" && input.approvedOperations) {
+    const {
+      approvedOperations,
+      checkpointLedger: _checkpointLedger,
+      ...preflightInput
+    } = input;
+    const preflight = await importJiraRelatedData({
+      ...preflightInput,
+      mode: "dry-run",
+    });
+    if (preflight.report.failures.length > 0) {
+      throw new Error("related_operation_preflight_failed");
+    }
+    let approvedIndex = 0;
+    for (const operation of preflight.report.operations) {
+      const relativeIndex = approvedOperations
+        .slice(approvedIndex)
+        .findIndex((approved) => sameRelatedOperation(approved, operation));
+      if (relativeIndex < 0) {
+        throw new Error(`related_operation_not_approved:${operation.kind}`);
+      }
+      approvedIndex += relativeIndex + 1;
+    }
+  }
   const report = reportTemplate(input.mode);
   const approvalViolations = new Set<JiraRelatedOperationKind>();
   const recordOperation = (
