@@ -55,12 +55,16 @@ vi.mock("@/features/settings/hooks/useWorkspaceSkillStatus", () => ({
   useWorkspaceSkillStatus: () => skillStatusState,
 }));
 
-vi.mock("@/features/issues/components/saved-views/SavedViewsNav", () => ({
-  SavedViewsNav: () => null,
+vi.mock("@/features/issues/components/saved-views/FavoriteViewsNav", () => ({
+  FavoriteViewsNav: () => <div data-testid="favorite-views-nav" />,
 }));
 
 vi.mock("@/features/issues/hooks/queries/useSavedIssueViews", () => ({
   useSavedIssueViews: () => savedViewsState,
+}));
+
+vi.mock("@/features/issues/hooks/useSavedIssueViewPreferences", () => ({
+  useSavedIssueViewPreferences: () => savedViewPreferencesState,
 }));
 
 vi.mock("@/features/preferences/hooks/useThemeSync", () => ({
@@ -80,6 +84,7 @@ const {
   myWorkAttentionState,
   skillStatusState,
   savedViewsState,
+  savedViewPreferencesState,
 } = vi.hoisted(() => ({
   navigationState: {
     pathname: "/workspace/reef-acme/issues",
@@ -99,9 +104,15 @@ const {
   savedViewsState: {
     data: undefined as
       | Array<{
+          id: string;
           payload: { version: 1; query: Record<string, string[]> };
         }>
       | undefined,
+    isSuccess: true,
+    isFetching: false,
+  },
+  savedViewPreferencesState: {
+    favoriteIds: [] as string[],
   },
 }));
 
@@ -162,6 +173,7 @@ describe("DashboardShell", () => {
     myWorkAttentionState.dueSoon = 0;
     skillStatusState.data = undefined;
     savedViewsState.data = undefined;
+    savedViewPreferencesState.favoriteIds = [];
     useViewStore.setState({
       sidebarCollapsed: false,
       newIssueDialogOpen: false,
@@ -213,7 +225,7 @@ describe("DashboardShell", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the navigation links (Issues, Planning, Activity, Reports, Settings)", () => {
+  it("renders Views as a top-level workspace navigation link", () => {
     render(
       wrap(
         <DashboardShell appVersion="0.0.0">
@@ -222,10 +234,45 @@ describe("DashboardShell", () => {
       ),
     );
     expect(screen.getByRole("link", { name: "Issues" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Views" })).toHaveAttribute(
+      "href",
+      "/workspace/reef-acme/views",
+    );
     expect(screen.getByRole("link", { name: "Planning" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Activity" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Reports" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
+  });
+
+  it("shows Favorite shortcuts only in the expanded sidebar", () => {
+    savedViewsState.data = [
+      {
+        id: "11111111-1111-4111-8111-111111111111",
+        payload: { version: 1, query: { status: ["todo"] } },
+      },
+    ];
+    savedViewPreferencesState.favoriteIds = [
+      "11111111-1111-4111-8111-111111111111",
+    ];
+    const { rerender } = render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div />
+        </DashboardShell>,
+      ),
+    );
+    expect(screen.getByTestId("favorite-views-nav")).toBeVisible();
+
+    useViewStore.setState({ sidebarCollapsed: true });
+    rerender(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div />
+        </DashboardShell>,
+      ),
+    );
+    expect(screen.queryByTestId("favorite-views-nav")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Views" })).toBeInTheDocument();
   });
 
   it("places My Work right after Issues in the nav (REEF-204)", () => {
@@ -697,7 +744,13 @@ describe("DashboardShell", () => {
     navigationState.pathname = "/workspace/reef-acme/issues";
     navigationState.search = "status=todo";
     savedViewsState.data = [
-      { payload: { version: 1, query: { status: ["todo"] } } },
+      {
+        id: "11111111-1111-4111-8111-111111111111",
+        payload: { version: 1, query: { status: ["todo"] } },
+      },
+    ];
+    savedViewPreferencesState.favoriteIds = [
+      "11111111-1111-4111-8111-111111111111",
     ];
     render(
       wrap(
@@ -715,7 +768,10 @@ describe("DashboardShell", () => {
   it("keeps Issues current for an unmatched filtered view", () => {
     navigationState.search = "status=todo";
     savedViewsState.data = [
-      { payload: { version: 1, query: { priority: ["high"] } } },
+      {
+        id: "11111111-1111-4111-8111-111111111111",
+        payload: { version: 1, query: { priority: ["high"] } },
+      },
     ];
     render(
       wrap(

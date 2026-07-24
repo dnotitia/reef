@@ -165,12 +165,15 @@ differentiator.
 - Status-column Kanban and a compact sortable list as peer views of one data
   set (also a Timeline view) — familiarity is the advantage.
 - Named issue views preserve a canonical filter/search/sort/layout URL for the
-  whole workspace. The expanded sidebar exposes stable links and compact row
-  actions; the collapsed rail stays focused on primary navigation. A personal
-  default only chooses the bare-Issues landing and never overrides an explicit
-  URL. Layout-only and all-issues views use `filter=none` so their shared links
-  explicitly clear personal filters while a plain `?view=list` keeps its
-  established last-used-filter behavior.
+  whole workspace. A top-level Views surface lists and manages every team view;
+  only views a person explicitly Favorites become shortcuts in the expanded
+  sidebar, while the collapsed rail keeps only the top-level Views destination.
+  Issues shows the active named view beside the filters and marks it Changed
+  when the ordinary filter state diverges, so updating the shared definition is
+  an explicit action. A personal default independently chooses the bare-Issues
+  landing and never overrides an explicit URL. Layout-only and all-issues views
+  use `filter=none` so their shared links explicitly clear personal filters
+  while a plain `?view=list` keeps its established last-used-filter behavior.
 - Inline, low-ceremony editing in the detail panel (inline auto-save) —
   no Save button, no dirty state.
 - Agent transparency for every AI proposal — reasoning, confidence, and

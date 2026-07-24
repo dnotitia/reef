@@ -124,12 +124,16 @@ Saved views deliberately split shared and personal state. Core owns the
 versioned canonical query payload and AKB `reef_views` CRUD; thin web routes own
 only auth/vault boundaries, and TanStack Query owns the client-side server
 state. A user's default view is only a vault-scoped row-id pointer in the
-existing browser Dexie `config` store. Opening a view materializes its validated
-payload into the ordinary `/issues?...` URL, so shared links remain transparent
-and do not depend on an opaque view id. A saved view whose result set is
-intentionally unfiltered uses the semantic `filter=none` URL marker; this keeps
-layout-only and all-issues links distinct from the legacy `?view=list` route,
-which still restores the user's last-used filter.
+existing browser Dexie `config` store; their explicitly selected Favorites are
+an independent vault-scoped list of row-id pointers in that same store. The
+browser-only preference mirror is excluded from the persisted TanStack Query
+snapshot so Dexie remains authoritative across reloads. Opening a view
+materializes its validated payload into the ordinary `/issues?...` URL, so
+shared links remain transparent and do not depend on an opaque view id. A saved
+view whose result set is intentionally unfiltered uses the semantic
+`filter=none` URL marker; this keeps layout-only and all-issues links distinct
+from the legacy `?view=list` route, which still restores the user's last-used
+filter.
 
 Writes span the document and row non-transactionally, with a compensation saga
 for partial failure. Row-only scalar fields remain last-write-wins: there is no
@@ -225,10 +229,11 @@ emerge:
   loading flag.
 - **Dexie / IndexedDB** — per-user persistent browser state only, in one live
   store. `config` holds the active `vault`, theme, AKB user id, and per-vault UI
-  preferences (active scan repo, saved issue filters). Monitored repos,
-  `project_prefix`, GitHub credentials, and LLM settings are *not* in
-  `config` — they are AKB or deployment state. The AKB session is not browser
-  JavaScript state at all; it is the `__reef_session` cookie.
+  preferences (active scan repo, saved issue filters, default saved view, and
+  Favorite saved-view ids). Monitored repos, `project_prefix`, GitHub
+  credentials, and LLM settings are *not* in `config` — they are AKB or
+  deployment state. The AKB session is not browser JavaScript state at all; it
+  is the `__reef_session` cookie.
 
 Changing a Dexie store layout requires a version bump plus a migration closure,
 and changing a persisted query shape may require a TanStack Query buster bump.

@@ -2,6 +2,8 @@ import { apiFetch, throwHttpError } from "@/lib/apiClient";
 import {
   clearDefaultIssueViewId,
   getDefaultIssueViewId,
+  getFavoriteIssueViewIds,
+  setFavoriteIssueViewIds,
 } from "@/lib/storage/config";
 import type {
   CreateSavedIssueView,
@@ -10,6 +12,10 @@ import type {
 } from "@reef/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { savedIssueViewsKey } from "../queries/useSavedIssueViews";
+import {
+  type SavedIssueViewPreferences,
+  savedIssueViewPreferencesKey,
+} from "../useSavedIssueViewPreferences";
 
 async function parseView(response: Response): Promise<SavedIssueView> {
   if (!response.ok) {
@@ -134,6 +140,24 @@ export function useDeleteSavedIssueView(vault: string) {
       void getDefaultIssueViewId(vault)
         .then(async (defaultId) => {
           if (defaultId === id) await clearDefaultIssueViewId(vault);
+        })
+        .catch(() => undefined);
+      void getFavoriteIssueViewIds(vault)
+        .then(async (favoriteIds) => {
+          const next = favoriteIds.filter((favoriteId) => favoriteId !== id);
+          if (next.length !== favoriteIds.length) {
+            await setFavoriteIssueViewIds(vault, next);
+          }
+          queryClient.setQueryData<SavedIssueViewPreferences>(
+            savedIssueViewPreferencesKey(vault),
+            (current) => ({
+              defaultId:
+                current?.defaultId === id ? undefined : current?.defaultId,
+              favoriteIds: (current?.favoriteIds ?? next).filter(
+                (favoriteId) => favoriteId !== id,
+              ),
+            }),
+          );
         })
         .catch(() => undefined);
     },

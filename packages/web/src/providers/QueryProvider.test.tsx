@@ -1,7 +1,7 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { QueryClient, useQueryClient } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { QueryProvider } from "./QueryProvider";
+import { QueryProvider, shouldPersistQuery } from "./QueryProvider";
 
 function QueryClientConsumer() {
   const client = useQueryClient();
@@ -38,5 +38,21 @@ describe("QueryProvider", () => {
     expect(screen.getByTestId("has-client").textContent).toBe(
       "client-available",
     );
+  });
+
+  it("excludes browser-only query mirrors from the persisted cache", () => {
+    const client = new QueryClient();
+    client.setQueryDefaults(["browser-preference"], {
+      meta: { persist: false },
+    });
+    client.setQueryData(["browser-preference"], { favoriteIds: ["view-1"] });
+    const query = client.getQueryCache().find({
+      queryKey: ["browser-preference"],
+      exact: true,
+    });
+
+    expect(query).toBeDefined();
+    if (!query) throw new Error("Expected browser preference query");
+    expect(shouldPersistQuery(query)).toBe(false);
   });
 });

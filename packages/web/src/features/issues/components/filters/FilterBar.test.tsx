@@ -26,6 +26,13 @@ vi.mock("@/features/settings/hooks/useActiveVault", async () => {
   return { ...actual, useActiveVault: vi.fn() };
 });
 
+// The contextual saved-view control has its own focused coverage. Keep this
+// suite scoped to FilterBar's facets and action-cluster layout without issuing
+// a saved-view query for every filter test.
+vi.mock("../saved-views/ActiveSavedViewControl", () => ({
+  ActiveSavedViewControl: () => null,
+}));
+
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { apiFetch } from "@/lib/apiClient";
 

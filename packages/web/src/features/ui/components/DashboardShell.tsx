@@ -17,8 +17,9 @@ import { useAskAiStore } from "@/features/ai/stores/useAskAiStore";
 import { SidebarAccount } from "@/features/auth/components/SidebarAccount";
 import { SidebarWorkspace } from "@/features/auth/components/SidebarWorkspace";
 import { NewIssueDialog } from "@/features/issues/components/create/NewIssueDialog";
-import { SavedViewsNav } from "@/features/issues/components/saved-views/SavedViewsNav";
+import { FavoriteViewsNav } from "@/features/issues/components/saved-views/FavoriteViewsNav";
 import { useSavedIssueViews } from "@/features/issues/hooks/queries/useSavedIssueViews";
+import { useSavedIssueViewPreferences } from "@/features/issues/hooks/useSavedIssueViewPreferences";
 import { buildOpenIssueHref } from "@/features/issues/lib/issueHref";
 import { savedIssueViewIsActive } from "@/features/issues/lib/issueViewCodec";
 import {
@@ -57,6 +58,7 @@ import {
   ChevronLeft,
   CircleUser,
   Inbox,
+  Library,
   ListTodo,
   type LucideIcon,
   Milestone,
@@ -68,7 +70,6 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
-  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -112,6 +113,7 @@ const navLinks: ReadonlyArray<{
   href: string;
   labelKey:
     | "issues"
+    | "views"
     | "myWork"
     | "planning"
     | "activity"
@@ -124,6 +126,7 @@ const navLinks: ReadonlyArray<{
   // My Work sits right after Issues (REEF-204 / REEF-181 AC1) — a personal lens
   // on the same work, distinct from the board's `ListTodo` via `CircleUser`.
   { href: "/my-work", labelKey: "myWork", testId: "my work", icon: CircleUser },
+  { href: "/views", labelKey: "views", testId: "views", icon: Library },
   {
     href: "/planning",
     labelKey: "planning",
@@ -243,6 +246,11 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   // same AKB activity inbox, same invalidation channel).
   const { vault } = useActiveVault();
   const savedViews = useSavedIssueViews(vault);
+  const savedViewPreferences = useSavedIssueViewPreferences(
+    vault,
+    savedViews.data,
+    savedViews.isSuccess && !savedViews.isFetching,
+  );
   const queryClient = useQueryClient();
 
   // Prime the `['config', vault]` query cache for the active vault. Other
@@ -663,94 +671,98 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
               const hasActiveIssuesSubview =
                 href === "/issues" &&
                 pathname === fullHref &&
-                savedViews.data?.some((view) =>
-                  savedIssueViewIsActive(view.payload, searchParams),
+                savedViews.data?.some(
+                  (view) =>
+                    savedViewPreferences.favoriteIds.includes(view.id) &&
+                    savedIssueViewIsActive(view.payload, searchParams),
                 );
               const isCurrentPage = isActive && !hasActiveIssuesSubview;
               const badge = navBadgeFor(href, isActive);
               return (
-                <Fragment key={href}>
-                  <li className="relative">
-                    {/* Active rail */}
-                    {isActive && (
-                      <span
-                        className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-brand"
-                        aria-hidden="true"
-                      />
+                <li className="relative" key={href}>
+                  {/* Active rail */}
+                  {isActive && (
+                    <span
+                      className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-brand"
+                      aria-hidden="true"
+                    />
+                  )}
+                  <Link
+                    href={fullHref}
+                    title={sidebarCollapsed ? label : undefined}
+                    className={cn(
+                      "flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+                      isCurrentPage
+                        ? "bg-surface-hover text-foreground font-medium"
+                        : isActive
+                          ? "text-foreground hover:bg-surface-hover"
+                          : "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
+                      sidebarCollapsed && "h-9 justify-center px-0",
                     )}
-                    <Link
-                      href={fullHref}
-                      title={sidebarCollapsed ? label : undefined}
-                      className={cn(
-                        "flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
-                        isCurrentPage
-                          ? "bg-surface-hover text-foreground font-medium"
-                          : isActive
-                            ? "text-foreground hover:bg-surface-hover"
-                            : "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
-                        sidebarCollapsed && "h-9 justify-center px-0",
-                      )}
-                      aria-current={isCurrentPage ? "page" : undefined}
-                    >
-                      {sidebarCollapsed ? (
-                        <>
-                          <span className="sr-only">{label}</span>
-                          <Icon
-                            aria-hidden="true"
-                            data-testid={`sidebar-nav-icon-${testId}`}
-                            className="h-[18px] w-[18px] shrink-0 stroke-[1.9]"
+                    aria-current={isCurrentPage ? "page" : undefined}
+                  >
+                    {sidebarCollapsed ? (
+                      <>
+                        <span className="sr-only">{label}</span>
+                        <Icon
+                          aria-hidden="true"
+                          data-testid={`sidebar-nav-icon-${testId}`}
+                          className="h-[18px] w-[18px] shrink-0 stroke-[1.9]"
+                        />
+                        {badge && (
+                          <span
+                            data-testid={badge.dotTestId}
+                            className={cn(
+                              "absolute right-1 top-1 h-1.5 w-1.5 rounded-full",
+                              NAV_BADGE_DOT[badge.tone],
+                            )}
+                            aria-label={badge.label}
                           />
-                          {badge && (
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <span className="flex-1">{label}</span>
+                        {badge &&
+                          (badge.kind === "state" ? (
+                            // A count-less state shows the same dot as the
+                            // collapsed layout, parked in the badge gutter where
+                            // the count pills sit so the right edge stays a single
+                            // scan column (REEF-257).
                             <span
-                              data-testid={badge.dotTestId}
+                              data-testid={badge.badgeTestId}
+                              aria-label={badge.label}
                               className={cn(
-                                "absolute right-1 top-1 h-1.5 w-1.5 rounded-full",
+                                "ml-auto inline-block h-1.5 w-1.5 rounded-full",
                                 NAV_BADGE_DOT[badge.tone],
                               )}
-                              aria-label={badge.label}
                             />
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          <span className="flex-1">{label}</span>
-                          {badge &&
-                            (badge.kind === "state" ? (
-                              // A count-less state shows the same dot as the
-                              // collapsed layout, parked in the badge gutter where
-                              // the count pills sit so the right edge stays a single
-                              // scan column (REEF-257).
-                              <span
-                                data-testid={badge.badgeTestId}
-                                aria-label={badge.label}
-                                className={cn(
-                                  "ml-auto inline-block h-1.5 w-1.5 rounded-full",
-                                  NAV_BADGE_DOT[badge.tone],
-                                )}
-                              />
-                            ) : (
-                              <span
-                                data-testid={badge.badgeTestId}
-                                aria-label={badge.label}
-                                className={cn(
-                                  "ml-auto inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-semibold leading-none tabular-nums",
-                                  NAV_BADGE_PILL[badge.tone],
-                                )}
-                              >
-                                {badge.display}
-                              </span>
-                            ))}
-                        </>
-                      )}
-                    </Link>
-                  </li>
-                  {!sidebarCollapsed && vault && href === "/issues" ? (
-                    <SavedViewsNav vault={vault} />
-                  ) : null}
-                </Fragment>
+                          ) : (
+                            <span
+                              data-testid={badge.badgeTestId}
+                              aria-label={badge.label}
+                              className={cn(
+                                "ml-auto inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-semibold leading-none tabular-nums",
+                                NAV_BADGE_PILL[badge.tone],
+                              )}
+                            >
+                              {badge.display}
+                            </span>
+                          ))}
+                      </>
+                    )}
+                  </Link>
+                </li>
               );
             })}
           </ul>
+          {!sidebarCollapsed && vault && savedViews.data ? (
+            <FavoriteViewsNav
+              vault={vault}
+              views={savedViews.data}
+              favoriteIds={savedViewPreferences.favoriteIds}
+            />
+          ) : null}
         </nav>
 
         {/* Footer — one global utility row, then a two-tier identity block.

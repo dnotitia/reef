@@ -2,7 +2,7 @@ import Dexie, { type EntityTable } from "dexie";
 
 interface ConfigEntry {
   id?: number;
-  key: string; // e.g. 'vault', 'theme', 'activity_repo:{vault}', 'default_issue_view:{vault}'
+  key: string; // e.g. 'vault', 'theme', 'activity_repo:{vault}', 'default_issue_view:{vault}', 'favorite_issue_views:{vault}'
   value: string; // JSON-serialized for complex values
 }
 
@@ -12,7 +12,7 @@ interface ConfigEntry {
  * One live store:
  *  - `config` (key-value bag): client workspace state with no akb backend home
  *    — the active `vault`, `theme`, `activity_repo:{vault}`, `filter:{vault}`,
- *      `default_issue_view:{vault}`
+ *      `default_issue_view:{vault}`, `favorite_issue_views:{vault}`
  *    (the per-vault last-used issue filter, REEF-009), `last_visit_at`,
  *    `last_scan:{repo}`, and `akb_user_id` (the previously-signed-in account,
  *    read by `accountReconcile` to detect an account switch).

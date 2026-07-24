@@ -2,6 +2,10 @@
 
 import { Button } from "@/components/ui/button";
 import {
+  CBX_TRIGGER_CHIP,
+  CBX_TRIGGER_CHIP_INACTIVE,
+} from "@/components/ui/comboboxChrome";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -19,6 +23,7 @@ import {
 } from "@/features/issues/lib/issueViewCodec";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
+import { cn } from "@/lib/utils";
 import { Save } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
@@ -61,15 +66,13 @@ export function SaveIssueViewDialog() {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button
+        <button
           type="button"
-          variant="outline"
-          size="sm"
-          className="h-8 gap-1.5"
+          className={cn(CBX_TRIGGER_CHIP, CBX_TRIGGER_CHIP_INACTIVE, "gap-1.5")}
         >
           <Save className="size-3.5" aria-hidden="true" />
           {t("save")}
-        </Button>
+        </button>
       </DialogTrigger>
       <DialogContent className="max-w-sm" data-testid="save-view-dialog">
         <form onSubmit={submit}>

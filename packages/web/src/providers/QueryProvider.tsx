@@ -8,7 +8,11 @@ import {
   subscribeCrossTabAuthChange,
 } from "@/lib/storage/clientCache";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
-import { QueryClient } from "@tanstack/react-query";
+import {
+  type Query,
+  QueryClient,
+  defaultShouldDehydrateQuery,
+} from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { useEffect, useState } from "react";
 
@@ -23,6 +27,10 @@ import { useEffect, useState } from "react";
 // that is the render source for board/list rows; bump once so a stale snapshot
 // does not render against the old read path (one blank reload is accepted).
 const PERSIST_BUSTER = "reef-cache-v5";
+
+export function shouldPersistQuery(query: Query): boolean {
+  return defaultShouldDehydrateQuery(query) && query.meta?.persist !== false;
+}
 
 /**
  * Default staleTime / gcTime applied to every query.
@@ -115,7 +123,11 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
   return (
     <PersistQueryClientProvider
       client={queryClient}
-      persistOptions={{ persister, buster: PERSIST_BUSTER }}
+      persistOptions={{
+        persister,
+        buster: PERSIST_BUSTER,
+        dehydrateOptions: { shouldDehydrateQuery: shouldPersistQuery },
+      }}
     >
       {children}
     </PersistQueryClientProvider>

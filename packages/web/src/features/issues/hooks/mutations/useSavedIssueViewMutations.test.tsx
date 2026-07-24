@@ -3,10 +3,18 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockApiFetch, mockGetDefault, mockClearDefault } = vi.hoisted(() => ({
+const {
+  mockApiFetch,
+  mockGetDefault,
+  mockClearDefault,
+  mockGetFavorites,
+  mockSetFavorites,
+} = vi.hoisted(() => ({
   mockApiFetch: vi.fn(),
   mockGetDefault: vi.fn(),
   mockClearDefault: vi.fn(),
+  mockGetFavorites: vi.fn(),
+  mockSetFavorites: vi.fn(),
 }));
 
 vi.mock("@/lib/apiClient", async () => {
@@ -18,10 +26,16 @@ vi.mock("@/lib/apiClient", async () => {
 vi.mock("@/lib/storage/config", () => ({
   getDefaultIssueViewId: mockGetDefault,
   clearDefaultIssueViewId: mockClearDefault,
+  getFavoriteIssueViewIds: mockGetFavorites,
+  setFavoriteIssueViewIds: mockSetFavorites,
 }));
 
 import type { SavedIssueView } from "@reef/core";
 import { savedIssueViewsKey } from "../queries/useSavedIssueViews";
+import {
+  type SavedIssueViewPreferences,
+  savedIssueViewPreferencesKey,
+} from "../useSavedIssueViewPreferences";
 import {
   useCreateSavedIssueView,
   useDeleteSavedIssueView,
@@ -51,6 +65,10 @@ function harness() {
   queryClient.setQueryData(savedIssueViewsKey("reef-zen"), [
     view(zenId, "Zen"),
   ]);
+  queryClient.setQueryData<SavedIssueViewPreferences>(
+    savedIssueViewPreferencesKey("reef-acme"),
+    { defaultId: acmeId, favoriteIds: [acmeId] },
+  );
   return { queryClient, wrapper };
 }
 
@@ -58,6 +76,8 @@ describe("saved-view mutations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetDefault.mockResolvedValue(undefined);
+    mockGetFavorites.mockResolvedValue([]);
+    mockSetFavorites.mockResolvedValue(undefined);
   });
 
   it("updates and sorts only the exact vault cache after create", async () => {
@@ -121,9 +141,10 @@ describe("saved-view mutations", () => {
     ]);
   });
 
-  it("removes only the exact row and clears its matching default pointer", async () => {
+  it("removes only the exact row and clears matching default and favorite pointers", async () => {
     mockApiFetch.mockResolvedValue(new Response(null, { status: 204 }));
     mockGetDefault.mockResolvedValue(acmeId);
+    mockGetFavorites.mockResolvedValue([acmeId]);
     const { queryClient, wrapper } = harness();
     const { result } = renderHook(() => useDeleteSavedIssueView("reef-acme"), {
       wrapper,
@@ -141,6 +162,12 @@ describe("saved-view mutations", () => {
     ]);
     await waitFor(() => {
       expect(mockClearDefault).toHaveBeenCalledWith("reef-acme");
+      expect(mockSetFavorites).toHaveBeenCalledWith("reef-acme", []);
+      expect(
+        queryClient.getQueryData<SavedIssueViewPreferences>(
+          savedIssueViewPreferencesKey("reef-acme"),
+        ),
+      ).toEqual({ defaultId: undefined, favoriteIds: [] });
     });
   });
 

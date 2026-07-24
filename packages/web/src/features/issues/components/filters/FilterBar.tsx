@@ -37,6 +37,7 @@ import {
   SEVERITY_OPTIONS,
 } from "../../lib/metadataOptions";
 import { type IssueFilter, useIssueStore } from "../../stores/useIssueStore";
+import { ActiveSavedViewControl } from "../saved-views/ActiveSavedViewControl";
 import { DisplayOptionsFilter } from "./DisplayOptionsFilter";
 import { SaveIssueViewDialog } from "./SaveIssueViewDialog";
 
@@ -456,12 +457,15 @@ export function FilterBar({
         />
       </div>
 
-      <DisplayOptionsFilter
-        backlogScope={backlogScope}
-        filter={filter}
-        setFilter={setFilter}
-      />
-      <SaveIssueViewDialog />
+      <div className="flex items-center gap-2">
+        <DisplayOptionsFilter
+          backlogScope={backlogScope}
+          filter={filter}
+          setFilter={setFilter}
+        />
+        <ActiveSavedViewControl />
+        <SaveIssueViewDialog />
+      </div>
 
       {/* Active filter count + clear */}
       {hasActiveFilters && (

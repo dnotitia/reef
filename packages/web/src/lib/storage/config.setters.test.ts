@@ -9,10 +9,12 @@ import {
   getActivityRepo,
   getConfigValue,
   getDefaultIssueViewId,
+  getFavoriteIssueViewIds,
   setActiveVault,
   setActivityRepo,
   setConfigValue,
   setDefaultIssueViewId,
+  setFavoriteIssueViewIds,
 } from "./config";
 import { db } from "./db";
 
@@ -104,6 +106,55 @@ describe("config setters — vault + activityRepo (akb pivot)", () => {
       await setDefaultIssueViewId("reef-acme", id);
       expect(await getDefaultIssueViewId("reef-acme")).toBe(id);
       expect(await getConfigValue("default_issue_view:reef-acme")).toBe(id);
+    });
+  });
+
+  describe("saved issue view favorites", () => {
+    const firstId = "11111111-1111-4111-8111-111111111111";
+    const secondId = "22222222-2222-4222-8222-222222222222";
+
+    it("round-trips a versioned, deduped vault-scoped id list", async () => {
+      await setFavoriteIssueViewIds("reef-acme", [firstId, secondId, firstId]);
+
+      expect(await getFavoriteIssueViewIds("reef-acme")).toEqual([
+        firstId,
+        secondId,
+      ]);
+      expect(
+        JSON.parse(
+          (await getConfigValue("favorite_issue_views:reef-acme")) ?? "",
+        ),
+      ).toEqual({
+        version: 1,
+        ids: [firstId, secondId],
+      });
+    });
+
+    it("keeps favorites isolated by vault and independent from the default", async () => {
+      await setFavoriteIssueViewIds("reef-acme", [firstId]);
+      await setFavoriteIssueViewIds("reef-zen", [secondId]);
+      await setDefaultIssueViewId("reef-acme", secondId);
+
+      expect(await getFavoriteIssueViewIds("reef-acme")).toEqual([firstId]);
+      expect(await getFavoriteIssueViewIds("reef-zen")).toEqual([secondId]);
+      expect(await getDefaultIssueViewId("reef-acme")).toBe(secondId);
+    });
+
+    it("drops invalid json, invalid ids, empty ids, and duplicates on read", async () => {
+      await setConfigValue("favorite_issue_views:reef-acme", "{");
+      expect(await getFavoriteIssueViewIds("reef-acme")).toEqual([]);
+
+      await setConfigValue(
+        "favorite_issue_views:reef-acme",
+        JSON.stringify({
+          version: 1,
+          ids: ["", "not-a-uuid", firstId, firstId, secondId, 42],
+        }),
+      );
+      expect(await getFavoriteIssueViewIds("reef-acme")).toEqual([
+        firstId,
+        secondId,
+      ]);
     });
   });
 

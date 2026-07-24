@@ -3,6 +3,7 @@ import { VAULT_NAME_RE } from "@/lib/akb/vaultName";
 import {
   type PersistedIssueFilter,
   PersistedIssueFilterEnvelopeSchema,
+  SavedIssueViewSchema,
 } from "@reef/core";
 import Dexie from "dexie";
 import { db } from "./db";
@@ -310,6 +311,72 @@ export async function clearDefaultIssueViewId(vault: string): Promise<void> {
 
 export async function clearAllDefaultIssueViews(): Promise<void> {
   return clearConfigByPrefix("default_issue_view:");
+}
+
+interface FavoriteIssueViewsEnvelope {
+  version: 1;
+  ids: string[];
+}
+
+function favoriteIssueViewsStorageKey(vault: string): string {
+  return `favorite_issue_views:${vault}`;
+}
+
+function normalizeFavoriteIssueViewIds(ids: unknown): string[] {
+  if (!Array.isArray(ids)) return [];
+  const valid = ids.flatMap((id) => {
+    const parsed = SavedIssueViewSchema.shape.id.safeParse(id);
+    return parsed.success ? [parsed.data] : [];
+  });
+  return [...new Set(valid)];
+}
+
+export async function getFavoriteIssueViewIds(
+  vault: string,
+): Promise<string[]> {
+  if (!vault) return [];
+  const raw = await getConfigValue(favoriteIssueViewsStorageKey(vault));
+  if (!raw) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (
+    typeof parsed !== "object" ||
+    parsed === null ||
+    !("version" in parsed) ||
+    parsed.version !== 1 ||
+    !("ids" in parsed)
+  ) {
+    return [];
+  }
+  return normalizeFavoriteIssueViewIds(parsed.ids);
+}
+
+export async function setFavoriteIssueViewIds(
+  vault: string,
+  ids: readonly string[],
+): Promise<void> {
+  if (!vault) throw new TypeError("setFavoriteIssueViewIds: vault is required");
+  const envelope: FavoriteIssueViewsEnvelope = {
+    version: 1,
+    ids: normalizeFavoriteIssueViewIds(ids),
+  };
+  return setConfigValue(
+    favoriteIssueViewsStorageKey(vault),
+    JSON.stringify(envelope),
+  );
+}
+
+export async function clearFavoriteIssueViewIds(vault: string): Promise<void> {
+  if (!vault) return;
+  return clearConfigKey(favoriteIssueViewsStorageKey(vault));
+}
+
+export async function clearAllFavoriteIssueViews(): Promise<void> {
+  return clearConfigByPrefix("favorite_issue_views:");
 }
 
 /**

@@ -17,12 +17,14 @@ import {
   getAkbUserId,
   getConfigValue,
   getDefaultIssueViewId,
+  getFavoriteIssueViewIds,
   getPersistedIssueFilter,
   setActiveVault,
   setActivityRepo,
   setAkbUserId,
   setConfigValue,
   setDefaultIssueViewId,
+  setFavoriteIssueViewIds,
   setPersistedIssueFilter,
 } from "@/lib/storage/config";
 import { db } from "@/lib/storage/db";
@@ -84,6 +86,9 @@ describe("reconcileAkbAccount", () => {
       "reef-acme",
       "11111111-1111-4111-8111-111111111111",
     );
+    await setFavoriteIssueViewIds("reef-acme", [
+      "22222222-2222-4222-8222-222222222222",
+    ]);
     useIssueStore.setState({
       filter: { status: ["todo"] },
       filterVault: "reef-acme",
@@ -100,6 +105,7 @@ describe("reconcileAkbAccount", () => {
     expect(await getPersistedIssueFilter("reef-acme")).toEqual({});
     expect(await getPersistedIssueFilter("reef-zen")).toEqual({});
     expect(await getDefaultIssueViewId("reef-acme")).toBeUndefined();
+    expect(await getFavoriteIssueViewIds("reef-acme")).toEqual([]);
     // ...nor the previous account's in-memory filter (would otherwise leak if
     // the new account reselects the same vault slug).
     expect(useIssueStore.getState().filter).toEqual({});
