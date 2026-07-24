@@ -62,7 +62,7 @@ test.describe("Hermetic saved issue views", () => {
     const teamViewLink = viewsList.getByRole("link", { name: "Alpha todo" });
     await expect(teamViewLink).toHaveAttribute(
       "href",
-      "/workspace/reef-e2e/issues?order=desc&q=Alpha&sort=priority&status=todo&view=list",
+      /\/workspace\/reef-e2e\/issues\?order=desc&q=Alpha&sort=priority&status=todo&view=list&saved_view=[0-9a-f-]{36}$/,
     );
     await expect(viewsList.getByText("Owner: alice")).toBeVisible();
     await viewsList
@@ -79,9 +79,14 @@ test.describe("Hermetic saved issue views", () => {
 
     await favoriteLink.click();
     await expect
-      .poll(() =>
-        Object.fromEntries(new URL(page.url()).searchParams.entries()),
-      )
+      .poll(() => new URL(page.url()).searchParams.get("saved_view"))
+      .toMatch(/^[0-9a-f-]{36}$/);
+    await expect
+      .poll(() => {
+        const params = new URL(page.url()).searchParams;
+        params.delete("saved_view");
+        return Object.fromEntries(params.entries());
+      })
       .toEqual({
         order: "desc",
         q: "Alpha",
@@ -178,7 +183,7 @@ test.describe("Hermetic saved issue views", () => {
     await page.waitForURL(/\/settings$/);
     await page.getByRole("link", { name: "Issues", exact: true }).click();
     await page.waitForURL(
-      /\/issues\?order=desc&priority=high&q=Alpha&sort=priority&status=todo&view=list$/,
+      /\/issues\?order=desc&priority=high&q=Alpha&sort=priority&status=todo&view=list&saved_view=[0-9a-f-]{36}$/,
       { timeout: 10_000 },
     );
     await expect(

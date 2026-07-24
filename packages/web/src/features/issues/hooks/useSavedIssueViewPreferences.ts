@@ -138,7 +138,9 @@ export function useSavedIssueViewPreferences(
   return {
     defaultId: query.data?.defaultId,
     favoriteIds: query.data?.favoriteIds ?? [],
-    isLoading: vault.length > 0 && query.data === undefined,
+    // A failed IndexedDB read is settled: shared views remain usable with
+    // empty personal preferences instead of trapping the page in a skeleton.
+    isLoading: vault.length > 0 && query.isPending,
     setDefault: (id: string | undefined) => setDefault.mutateAsync(id),
     setFavorite: (id: string, favorite: boolean) =>
       setFavorite.mutateAsync({ id, favorite }),

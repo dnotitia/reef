@@ -79,7 +79,11 @@ export function SavedViewsPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex min-w-0 items-center gap-2">
                         <Link
-                          href={savedIssueViewHref(vault, view.payload)}
+                          href={savedIssueViewHref(
+                            vault,
+                            view.payload,
+                            view.id,
+                          )}
                           className="truncate text-[13px] font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
                           title={view.name}
                         >

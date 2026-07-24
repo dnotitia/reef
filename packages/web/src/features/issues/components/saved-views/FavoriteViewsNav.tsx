@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  SAVED_ISSUE_VIEW_CONTEXT_PARAM,
   isIssuesListPath,
   savedIssueViewHref,
   savedIssueViewIsActive,
@@ -28,6 +29,18 @@ export function FavoriteViewsNav({
     .filter((view) => favoriteIds.includes(view.id))
     .toSorted((a, b) => a.name_key.localeCompare(b.name_key));
   if (favorites.length === 0) return null;
+  const requestedId = searchParams.get(SAVED_ISSUE_VIEW_CONTEXT_PARAM);
+  const activeId = isIssuesListPath(pathname, vault)
+    ? requestedId
+      ? favorites.find(
+          (view) =>
+            view.id === requestedId &&
+            savedIssueViewIsActive(view.payload, searchParams),
+        )?.id
+      : favorites.find((view) =>
+          savedIssueViewIsActive(view.payload, searchParams),
+        )?.id
+    : undefined;
 
   return (
     <section className="mt-4 min-w-0" data-testid="favorite-views-nav">
@@ -36,13 +49,11 @@ export function FavoriteViewsNav({
       </h2>
       <ul className="space-y-0.5">
         {favorites.map((view) => {
-          const active =
-            isIssuesListPath(pathname, vault) &&
-            savedIssueViewIsActive(view.payload, searchParams);
+          const active = activeId === view.id;
           return (
             <li key={view.id}>
               <Link
-                href={savedIssueViewHref(vault, view.payload)}
+                href={savedIssueViewHref(vault, view.payload, view.id)}
                 className={cn(
                   "flex min-w-0 items-center gap-2 rounded-md px-3 py-1.5 text-[13px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
                   active

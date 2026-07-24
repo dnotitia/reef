@@ -54,11 +54,38 @@ describe("FavoriteViewsNav", () => {
     expect(screen.getByText("Favorites")).toBeVisible();
     expect(screen.getByRole("link", { name: "Todo" })).toHaveAttribute(
       "href",
-      "/workspace/reef-acme/issues?status=todo",
+      `/workspace/reef-acme/issues?status=todo&saved_view=${todo.id}`,
     );
     expect(
       screen.queryByRole("link", { name: "In progress" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("uses selected row identity when duplicate payloads are favorited", () => {
+    const duplicate = view(
+      "33333333-3333-4333-8333-333333333333",
+      "Another todo",
+      "todo",
+    );
+    navigation.search = `status=todo&saved_view=${duplicate.id}`;
+
+    render(
+      <IntlTestProvider>
+        <FavoriteViewsNav
+          vault="reef-acme"
+          views={[todo, duplicate]}
+          favoriteIds={[todo.id, duplicate.id]}
+        />
+      </IntlTestProvider>,
+    );
+
+    expect(screen.getByRole("link", { name: "Another todo" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "Todo" })).not.toHaveAttribute(
+      "aria-current",
+    );
   });
 
   it("marks a favorite active only when its canonical query matches", () => {

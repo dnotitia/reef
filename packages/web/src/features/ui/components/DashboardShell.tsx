@@ -21,7 +21,10 @@ import { FavoriteViewsNav } from "@/features/issues/components/saved-views/Favor
 import { useSavedIssueViews } from "@/features/issues/hooks/queries/useSavedIssueViews";
 import { useSavedIssueViewPreferences } from "@/features/issues/hooks/useSavedIssueViewPreferences";
 import { buildOpenIssueHref } from "@/features/issues/lib/issueHref";
-import { savedIssueViewIsActive } from "@/features/issues/lib/issueViewCodec";
+import {
+  SAVED_ISSUE_VIEW_CONTEXT_PARAM,
+  savedIssueViewIsActive,
+} from "@/features/issues/lib/issueViewCodec";
 import {
   type IssueKeyboardScope,
   type IssueQuickEditField,
@@ -668,12 +671,17 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
               // keeps Settings active across the scope tabs (REEF-183).
               const isActive =
                 pathname === fullHref || pathname.startsWith(`${fullHref}/`);
+              const requestedSavedViewId = searchParams.get(
+                SAVED_ISSUE_VIEW_CONTEXT_PARAM,
+              );
               const hasActiveIssuesSubview =
                 href === "/issues" &&
                 pathname === fullHref &&
                 savedViews.data?.some(
                   (view) =>
                     savedViewPreferences.favoriteIds.includes(view.id) &&
+                    (!requestedSavedViewId ||
+                      view.id === requestedSavedViewId) &&
                     savedIssueViewIsActive(view.payload, searchParams),
                 );
               const isCurrentPage = isActive && !hasActiveIssuesSubview;

@@ -247,7 +247,11 @@ export function useIssueUrlSync(
                 });
                 pendingIssueQuery.current = canonicalIssueQuery(params);
                 router.replace(
-                  savedIssueViewHref(restoringVault, defaultView.payload),
+                  savedIssueViewHref(
+                    restoringVault,
+                    defaultView.payload,
+                    defaultView.id,
+                  ),
                   {
                     scroll: false,
                   },

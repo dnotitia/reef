@@ -600,7 +600,7 @@ describe("useIssueUrlSync", () => {
     });
     expect(useIssueStore.getState().filter.status).toBeUndefined();
     expect(mockReplace).toHaveBeenCalledWith(
-      "/workspace/reef-acme/issues?assignee=alice&order=desc&sort=updated_at&view=list",
+      `/workspace/reef-acme/issues?assignee=alice&order=desc&sort=updated_at&view=list&saved_view=${view.id}`,
       { scroll: false },
     );
     expect(mockPush).not.toHaveBeenCalled();
@@ -628,7 +628,7 @@ describe("useIssueUrlSync", () => {
     });
     expect(useIssueStore.getState().filter.status).toBeUndefined();
     expect(mockReplace).toHaveBeenCalledWith(
-      "/workspace/reef-acme/issues?assignee=alice",
+      `/workspace/reef-acme/issues?assignee=alice&saved_view=${view.id}`,
       { scroll: false },
     );
     expect(mockPush).not.toHaveBeenCalledWith(
@@ -652,7 +652,7 @@ describe("useIssueUrlSync", () => {
 
     await waitFor(() => {
       expect(mockReplace).toHaveBeenCalledWith(
-        "/workspace/reef-acme/issues?filter=none",
+        `/workspace/reef-acme/issues?filter=none&saved_view=${view.id}`,
         { scroll: false },
       );
     });

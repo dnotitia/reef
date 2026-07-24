@@ -89,6 +89,21 @@ describe("issueViewCodec", () => {
     ).toBe(true);
   });
 
+  it("preserves selected row identity outside canonical filter matching", () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    const payload = createSavedIssueViewPayload(
+      { status: ["todo"] },
+      "",
+      "board",
+    );
+    const href = savedIssueViewHref("reef-e2e", payload, id);
+
+    expect(href).toBe(
+      `/workspace/reef-e2e/issues?status=todo&saved_view=${id}`,
+    );
+    expect(canonicalIssueQuery(href.split("?")[1])).toBe("status=todo");
+  });
+
   it("drops invalid members, unknown keys, and fieldless order independently", () => {
     const payload = {
       version: 1,

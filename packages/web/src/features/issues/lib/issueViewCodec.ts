@@ -36,6 +36,7 @@ const FILTER_QUERY_KEYS = ISSUE_QUERY_KEYS.filter((key) => key !== "view");
 const VIEW_MODES = new Set(["board", "list", "timeline", "backlog"]);
 const EMPTY_FILTER_MARKER_KEY = "filter";
 const EMPTY_FILTER_MARKER_VALUE = "none";
+export const SAVED_ISSUE_VIEW_CONTEXT_PARAM = "saved_view";
 
 export function isIssuesListPath(pathname: string, vault: string): boolean {
   return pathname === withVault(vault, "/issues");
@@ -279,11 +280,13 @@ export function savedIssueViewPayloadToSearchParams(
 export function savedIssueViewHref(
   vault: string,
   payload: SavedIssueViewPayload,
+  viewId?: string,
 ): string {
   const params = savedIssueViewPayloadToSearchParams(payload);
   if (params.size === 0 && Object.keys(payload.query).length > 0) {
     params.set(EMPTY_FILTER_MARKER_KEY, EMPTY_FILTER_MARKER_VALUE);
   }
+  if (viewId) params.set(SAVED_ISSUE_VIEW_CONTEXT_PARAM, viewId);
   const query = params.toString();
   const path = withVault(vault, "/issues");
   return query ? `${path}?${query}` : path;

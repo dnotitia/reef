@@ -107,4 +107,17 @@ describe("useSavedIssueViewPreferences", () => {
     });
     expect(result.current.favoriteIds).toEqual([]);
   });
+
+  it("settles with empty preferences when the Dexie read fails", async () => {
+    mockGetDefault.mockRejectedValue(new Error("IndexedDB unavailable"));
+    const { wrapper } = harness();
+    const { result } = renderHook(
+      () => useSavedIssueViewPreferences("reef-acme", [first], true),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.defaultId).toBeUndefined();
+    expect(result.current.favoriteIds).toEqual([]);
+  });
 });

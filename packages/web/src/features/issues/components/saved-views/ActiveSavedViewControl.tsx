@@ -7,6 +7,7 @@ import {
 import { useSavedIssueViews } from "@/features/issues/hooks/queries/useSavedIssueViews";
 import { useSavedIssueViewPreferences } from "@/features/issues/hooks/useSavedIssueViewPreferences";
 import {
+  SAVED_ISSUE_VIEW_CONTEXT_PARAM,
   createSavedIssueViewPayload,
   savedIssueViewIsActive,
 } from "@/features/issues/lib/issueViewCodec";
@@ -31,13 +32,21 @@ export function ActiveSavedViewControl() {
   const searchQuery = useIssueStore((state) => state.searchQuery);
   const searchParams = useSearchParams();
   const t = useTranslations("issues.savedViews");
-  const exactView = useMemo(
-    () =>
-      query.data?.find((view) =>
-        savedIssueViewIsActive(view.payload, searchParams),
-      ),
-    [query.data, searchParams],
-  );
+  const requestedId = searchParams.get(SAVED_ISSUE_VIEW_CONTEXT_PARAM);
+  const exactView = useMemo(() => {
+    const requestedView = requestedId
+      ? query.data?.find((view) => view.id === requestedId)
+      : undefined;
+    if (
+      requestedView &&
+      savedIssueViewIsActive(requestedView.payload, searchParams)
+    ) {
+      return requestedView;
+    }
+    return query.data?.find((view) =>
+      savedIssueViewIsActive(view.payload, searchParams),
+    );
+  }, [query.data, requestedId, searchParams]);
   const [context, setContext] = useState<{
     vault: string;
     id: string;

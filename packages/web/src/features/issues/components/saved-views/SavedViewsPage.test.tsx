@@ -80,7 +80,7 @@ describe("SavedViewsPage", () => {
     expect(screen.getByRole("heading", { name: "Views" })).toBeVisible();
     expect(screen.getByRole("link", { name: "My todo" })).toHaveAttribute(
       "href",
-      "/workspace/reef-acme/issues?status=todo",
+      `/workspace/reef-acme/issues?status=todo&saved_view=${savedView.id}`,
     );
     expect(screen.getByText("Owner: alice")).toBeVisible();
     expect(screen.getByText("Default view")).toBeVisible();

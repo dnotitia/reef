@@ -72,6 +72,18 @@ import { ActiveSavedViewControl } from "./ActiveSavedViewControl";
 describe("ActiveSavedViewControl", () => {
   beforeEach(() => {
     navigation.search = "status=todo&view=list";
+    queryState.data = [
+      {
+        id: "11111111-1111-4111-8111-111111111111",
+        name: "Alpha todo",
+        name_key: "alpha todo",
+        owner: "alice",
+        payload: {
+          version: 1 as const,
+          query: { status: ["todo"], view: ["list"] },
+        },
+      },
+    ];
     useIssueStore.setState({
       filter: { status: ["todo"] },
       searchQuery: "",
@@ -116,5 +128,26 @@ describe("ActiveSavedViewControl", () => {
     expect(screen.getByTestId("update-payload")).toHaveTextContent(
       '{"priority":["high"],"view":["list"]}',
     );
+  });
+
+  it("binds actions to the selected row when payloads are identical", () => {
+    const selected = {
+      ...queryState.data[0],
+      id: "22222222-2222-4222-8222-222222222222",
+      name: "Another todo",
+      name_key: "another todo",
+    };
+    queryState.data = [queryState.data[0], selected];
+    navigation.search = `status=todo&view=list&saved_view=${selected.id}`;
+
+    render(
+      <IntlTestProvider>
+        <ActiveSavedViewControl />
+      </IntlTestProvider>,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Another todo, Active" }),
+    ).toBeVisible();
   });
 });
