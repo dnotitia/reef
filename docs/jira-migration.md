@@ -188,6 +188,8 @@ array order remains significant.
 - On Windows, configure a dedicated-user ACL first and supply the verifier name
   and timestamp through the `external_acl` acknowledgement. The writer refuses
   to start without it because Node file modes cannot prove the Windows ACL.
+  The bundled Jira CLI has no attestation input and therefore refuses Windows
+  archive creation instead of manufacturing this acknowledgement.
 - `/artifacts/` is ignored at the repository root as a secondary commit guard.
   It is not the recommended archive root.
 

@@ -15,6 +15,7 @@ import type {
   JiraPlanningAction,
   JiraPlanningTargetResolution,
 } from "../planning/entities.js";
+import type { JiraRelatedOperationKind } from "../related/contracts.js";
 import type { JiraRelatedImportReport } from "../related/import.js";
 
 type JiraMigrationBinding = JiraMigrationLedgerV1["bindings"][number];
@@ -196,17 +197,26 @@ export const actionForRelatedReport = (
   report: JiraRelatedImportReport,
 ): "create" | "update" | "skip" | "failed" => {
   if (report.failures.length > 0) return "failed";
+  const plannedKinds = new Set(report.operations.map(({ kind }) => kind));
+  const plannedCreates: readonly JiraRelatedOperationKind[] = [
+    "create_comment",
+    "create_attachment",
+    "put_relation",
+    "put_external_ref",
+  ];
   if (
     report.comments.created +
       report.attachments.created +
       report.links.applied +
       report.remote_links.applied >
-    0
+      0 ||
+    plannedCreates.some((kind) => plannedKinds.has(kind))
   ) {
     return "create";
   }
   return report.comments.updated + report.deletions > 0 ||
-    report.media.description_updated
+    report.media.description_updated ||
+    plannedKinds.size > 0
     ? "update"
     : "skip";
 };

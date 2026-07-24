@@ -3,9 +3,10 @@ import type {
   AttachmentBinding,
   JiraRelatedImportInput,
   JiraRelatedImportReport,
+  JiraRelatedOperationKind,
 } from "./contracts.js";
 import { rewriteMedia } from "./media.js";
-import { recordRelatedOperation } from "./operations.js";
+import { descriptionOperationInput } from "./operations.js";
 import { failure } from "./reporting.js";
 
 export async function updateDescriptionMedia(options: {
@@ -14,6 +15,11 @@ export async function updateDescriptionMedia(options: {
   descriptionAdf: unknown;
   attachments: readonly NormalizedJiraAttachment[];
   attachmentBindings: readonly AttachmentBinding[];
+  recordOperation(
+    kind: JiraRelatedOperationKind,
+    key: string,
+    value: unknown,
+  ): void;
   report: JiraRelatedImportReport;
 }): Promise<void> {
   const {
@@ -22,6 +28,7 @@ export async function updateDescriptionMedia(options: {
     descriptionAdf,
     attachments,
     attachmentBindings,
+    recordOperation,
     report,
   } = options;
   const renderedDescription =
@@ -46,14 +53,12 @@ export async function updateDescriptionMedia(options: {
       );
       if (description.matchesPreRewriteMarkdown(existingDescription)) {
         report.media.description_updated = true;
-        if (migration.mode === "dry-run") {
-          recordRelatedOperation(
-            report,
-            "update_description",
-            migration.reefId,
-            description.markdown,
-          );
-        } else {
+        recordOperation(
+          "update_description",
+          migration.reefId,
+          descriptionOperationInput(description.markdown, attachmentBindings),
+        );
+        if (migration.mode === "apply") {
           await migration.target.updateDescription(
             migration.reefId,
             description.markdown,

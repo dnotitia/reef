@@ -513,6 +513,67 @@ describe("AKB Jira migration target", () => {
     expect(deleteFile).not.toHaveBeenCalled();
   });
 
+  it("retries attachment revocation after file deletion fails", async () => {
+    let rowExists = true;
+    let fileAttempts = 0;
+    const request = vi.fn(async (path: string, init?: { body?: unknown }) => {
+      if (path.startsWith("/api/v1/files/")) {
+        fileAttempts += 1;
+        if (fileAttempts === 1) throw new Error("temporary_file_failure");
+        return {};
+      }
+      const statement = (init?.body as { sql?: string } | undefined)?.sql ?? "";
+      if (statement.startsWith("SELECT reef_id FROM reef_attachments")) {
+        return {
+          kind: "table_query",
+          items: rowExists ? [{ reef_id: "REEF-001" }] : [],
+        };
+      }
+      if (statement.startsWith("DELETE FROM reef_attachments")) {
+        rowExists = false;
+      }
+      return { kind: "table_query", items: [] };
+    });
+    const target = createAkbJiraMigrationTarget(
+      { baseUrl: "https://akb.test", jwt: "jwt", vault: "reef-test" },
+      {
+        createAdapter: () => ({ request }),
+        getCurrentActor: async () => ({ actor: "operator" }),
+        listPlanningCatalog: vi.fn(),
+        createRelease: vi.fn(),
+        createSprint: vi.fn(),
+        readPlanningCreateClaim: vi.fn(async () => null),
+        allocateNextIssueId: vi.fn(),
+        writeIssue: vi.fn(),
+        updateIssue: vi.fn(),
+        readIssue: vi.fn(
+          async () =>
+            ({
+              issue: { id: "REEF-001", updated_at: "2026-07-23T00:00:00Z" },
+              content: "",
+              commit_hash: "commit-1",
+            }) as AkbReadIssueResult,
+        ),
+        claimIssueId: vi.fn(),
+      },
+    );
+    const revocation = {
+      reefId: "REEF-001",
+      fileUri: "akb://reef-test/issues/file/retry",
+      replacement: "[revoked]",
+    };
+
+    await expect(
+      target.relatedTarget().revokeAttachment(revocation),
+    ).rejects.toThrow("temporary_file_failure");
+    expect(rowExists).toBe(true);
+    await expect(
+      target.relatedTarget().revokeAttachment(revocation),
+    ).resolves.toBeUndefined();
+    expect(rowExists).toBe(false);
+    expect(fileAttempts).toBe(2);
+  });
+
   it("recovers an ambiguously acknowledged inverse relation write", async () => {
     const issues = new Map(
       ["REEF-001", "REEF-002"].map((id) => [

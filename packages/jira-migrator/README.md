@@ -199,8 +199,10 @@ generic identity record.
 Create the archive under an operator-owned, encrypted local volume outside the
 repository. POSIX roots and directories must be private (`0700`) and files use
 `0600`. Windows operators must establish a dedicated-user ACL and pass an
-`external_acl` acknowledgement. A retention owner, future expiry, and policy
-reference are required. Synchronized or network filesystems are unsupported.
+`external_acl` acknowledgement to the archive library; the bundled CLI fails
+closed on Windows because it has no trustworthy ACL-attestation input. A
+retention owner, future expiry, and policy reference are required. Synchronized
+or network filesystems are unsupported.
 
 The repository-level `/artifacts/` ignore rule is a last-resort commit guard,
 not an operational storage default. See the operator runbook for recovery,

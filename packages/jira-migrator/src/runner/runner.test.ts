@@ -165,6 +165,13 @@ describe("runJiraMigration", () => {
     report.comments.created = 1;
     expect(actionForRelatedReport(report)).toBe("create");
     report.comments.created = 0;
+    report.operations.push({
+      kind: "create_attachment",
+      key_sha256: "key",
+      input_sha256: "input",
+    });
+    expect(actionForRelatedReport(report)).toBe("create");
+    report.operations = [];
     report.comments.updated = 1;
     expect(actionForRelatedReport(report)).toBe("update");
     report.comments.updated = 0;
@@ -172,6 +179,13 @@ describe("runJiraMigration", () => {
     expect(actionForRelatedReport(report)).toBe("update");
     report.deletions = 0;
     report.media.description_updated = true;
+    expect(actionForRelatedReport(report)).toBe("update");
+    report.media.description_updated = false;
+    report.operations.push({
+      kind: "delete_relation",
+      key_sha256: "key",
+      input_sha256: "input",
+    });
     expect(actionForRelatedReport(report)).toBe("update");
     report.failures.push({
       source_kind: "comment",

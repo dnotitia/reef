@@ -22,8 +22,11 @@ explicitly in the entries below.
   ALPHA/BETA HTTP contract proves dry-run target mutation zero, Jira GET-only
   traffic, cross-project relation stability, plan-hash enforcement, duplicate
   zero on rerun, and secret redaction. Related writes and deletions are sealed
-  by hashed operation identity/input manifests, so redirected mutations fail
-  before target I/O while completed resume operations converge by readback.
+  by source-identity-preserving hashed operation manifests, so redirected
+  mutations fail before target I/O while completed resume operations converge
+  by readback. Attachment revocation is retry-safe across file-delete failures,
+  cached downloads retain their byte limits, and unverifiable Windows archive
+  ACLs fail closed.
   (REEF-321)
 
 - **Jira migrations preserve issue discussion and related artifacts.** The

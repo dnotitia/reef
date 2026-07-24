@@ -23,9 +23,10 @@ import type {
   JiraImportedCommentInput,
   JiraRelatedImportInput,
   JiraRelatedImportReport,
+  JiraRelatedOperationKind,
 } from "./contracts.js";
 import { rewriteMedia } from "./media.js";
-import { recordRelatedOperation } from "./operations.js";
+import { commentOperationInput } from "./operations.js";
 import { failure } from "./reporting.js";
 
 export async function importComments(options: {
@@ -38,6 +39,11 @@ export async function importComments(options: {
   attachmentBindings: readonly AttachmentBinding[];
   attachments: readonly NormalizedJiraAttachment[];
   ledger: JiraMigrationLedgerV1;
+  recordOperation(
+    kind: JiraRelatedOperationKind,
+    key: string,
+    value: unknown,
+  ): void;
   report: JiraRelatedImportReport;
   now: () => string;
 }): Promise<JiraMigrationLedgerV1> {
@@ -50,6 +56,7 @@ export async function importComments(options: {
     plannedCommentTargets,
     attachmentBindings,
     attachments,
+    recordOperation,
     report,
     now,
   } = options;
@@ -150,6 +157,16 @@ export async function importComments(options: {
         expectedThreadRootId,
         ...(parentTargetId ? { parentCommentId: parentTargetId } : {}),
       };
+      const recordCommentOperation = (
+        kind: "create_comment" | "update_comment",
+        key: string,
+      ): void => {
+        recordOperation(
+          kind,
+          key,
+          commentOperationInput(commentInput, parentSourceId),
+        );
+      };
       const sourceFingerprint = fingerprintJiraState(comment);
       const mappedStateFingerprint = fingerprintJiraState({
         body: body.markdown,
@@ -161,12 +178,7 @@ export async function importComments(options: {
         const existing = await migration.target.readComment(existingTarget);
         if (existing === null) {
           if (migration.mode === "dry-run") {
-            recordRelatedOperation(
-              report,
-              "update_comment",
-              existingTarget,
-              commentInput,
-            );
+            recordCommentOperation("update_comment", existingTarget);
             plannedCommentTargets.set(
               comment.id,
               `dry-run-comment:${comment.id}`,
@@ -202,15 +214,11 @@ export async function importComments(options: {
           report.comments.skipped += 1;
           continue;
         } else if (migration.mode === "dry-run") {
-          recordRelatedOperation(
-            report,
-            "update_comment",
-            existingTarget,
-            commentInput,
-          );
+          recordCommentOperation("update_comment", existingTarget);
           report.comments.updated += 1;
           continue;
         } else {
+          recordCommentOperation("update_comment", existingTarget);
           await migration.target.updateComment(existingTarget, commentInput);
           const readback = await migration.target.readComment(existingTarget);
           if (!validCommentReadback(readback, commentInput))
@@ -248,6 +256,7 @@ export async function importComments(options: {
             readbackSucceeded: true,
           });
           if (!matches) {
+            recordCommentOperation("update_comment", recovered.id);
             await migration.target.updateComment(recovered.id, commentInput);
             const readback = await migration.target.readComment(recovered.id);
             if (!validCommentReadback(readback, commentInput))
@@ -266,29 +275,20 @@ export async function importComments(options: {
         if (matches) report.comments.skipped += 1;
         else {
           if (migration.mode === "dry-run") {
-            recordRelatedOperation(
-              report,
-              "update_comment",
-              recovered.id,
-              commentInput,
-            );
+            recordCommentOperation("update_comment", recovered.id);
           }
           report.comments.updated += 1;
         }
         continue;
       }
       if (migration.mode === "dry-run") {
-        recordRelatedOperation(
-          report,
-          "create_comment",
-          identity.key,
-          commentInput,
-        );
+        recordCommentOperation("create_comment", identity.key);
         plannedCommentTargets.set(comment.id, `dry-run-comment:${comment.id}`);
         continue;
       }
       let createdTargetId: string | null = null;
       try {
+        recordCommentOperation("create_comment", identity.key);
         const created = await migration.target.createComment(commentInput);
         createdTargetId = created.id;
         const readback = await migration.target.readComment(created.id);

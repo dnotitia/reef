@@ -365,9 +365,9 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
         vault,
         `SELECT reef_id FROM reef_attachments WHERE file_uri = ${quote(
           fileUri,
-        )} LIMIT 1`,
+        )} ORDER BY reef_id`,
       );
-      if (owners[0]?.reef_id !== reefId) {
+      if (owners.length !== 1 || owners[0]?.reef_id !== reefId) {
         throw new Error("attachment_ownership_mismatch");
       }
       const current = await readIssue(reefId);
@@ -383,6 +383,16 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
         );
       }
       const fileId = /\/file\/([^/]+)$/u.exec(fileUri)?.[1];
+      if (fileId) {
+        try {
+          await adapter.request(
+            `/api/v1/files/${encodeURIComponent(vault)}/${encodeURIComponent(fileId)}`,
+            { method: "DELETE", resource: `Jira attachment ${fileId}` },
+          );
+        } catch (error) {
+          if (!(error instanceof NotFoundError)) throw error;
+        }
+      }
       await sql(
         adapter,
         vault,
@@ -399,16 +409,6 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
       );
       if (remainingOwners.length > 0) {
         throw new Error("attachment_delete_readback_mismatch");
-      }
-      if (fileId) {
-        try {
-          await adapter.request(
-            `/api/v1/files/${encodeURIComponent(vault)}/${encodeURIComponent(fileId)}`,
-            { method: "DELETE", resource: `Jira attachment ${fileId}` },
-          );
-        } catch (error) {
-          if (!(error instanceof NotFoundError)) throw error;
-        }
       }
     },
     async hasMediaReference(reefId, fileUri) {

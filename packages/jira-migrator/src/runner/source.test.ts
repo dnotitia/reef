@@ -6,6 +6,8 @@ import {
   readAllProjectIssues,
   readBoardSprints,
 } from "./source.js";
+import { runnerArchivePermissionVerification } from "./sourceArchive.js";
+import { assertCachedAttachmentWithinLimit } from "./sourceSnapshot.js";
 
 const rateLimit: JiraRateLimit = {
   limit: null,
@@ -16,6 +18,26 @@ const rateLimit: JiraRateLimit = {
 };
 
 describe("runner source traversal", () => {
+  it("fails closed without a verified Windows archive ACL", () => {
+    expect(() => runnerArchivePermissionVerification("win32")).toThrow(
+      "windows_external_acl_verification_required",
+    );
+    expect(runnerArchivePermissionVerification("linux")).toEqual({
+      kind: "posix_mode",
+      verified: true,
+    });
+  });
+
+  it("enforces attachment limits for cached source bytes", () => {
+    expect(() => assertCachedAttachmentWithinLimit(0, 0)).toThrow(
+      "jira_attachment_size_limit_invalid",
+    );
+    expect(() => assertCachedAttachmentWithinLimit(3, 2)).toThrow(
+      "jira_attachment_size_limit_exceeded",
+    );
+    expect(() => assertCachedAttachmentWithinLimit(2, 2)).not.toThrow();
+  });
+
   it("rejects duplicate Jira issue ids or keys across source catalogs", () => {
     expect(() =>
       assertUniqueJiraIssues([

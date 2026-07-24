@@ -7,6 +7,15 @@ import type { RawArchiveReference } from "../rawArchive.js";
 import { createRawArchive } from "../rawArchive.js";
 import type { discoverJiraMigrationSource } from "./sourceDiscovery.js";
 
+export const runnerArchivePermissionVerification = (
+  platform: NodeJS.Platform = process.platform,
+): { kind: "posix_mode"; verified: true } => {
+  if (platform === "win32") {
+    throw new Error("windows_external_acl_verification_required");
+  }
+  return { kind: "posix_mode", verified: true };
+};
+
 export async function archiveJiraMigrationSource(input: {
   config: JiraMigratorConfig;
   archiveRoot: string;
@@ -51,14 +60,7 @@ export async function archiveJiraMigrationSource(input: {
         ).toISOString(),
         policy_ref: "docs/jira-migration.md",
       },
-      permissionVerification:
-        process.platform === "win32"
-          ? {
-              kind: "external_acl",
-              verified_by: targetActor,
-              verified_at: runAt,
-            }
-          : { kind: "posix_mode", verified: true },
+      permissionVerification: runnerArchivePermissionVerification(),
       forbiddenSecretValues: secretValuesForConfig(config),
     });
     archivesByProject.set(key, archive);

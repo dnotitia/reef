@@ -124,28 +124,11 @@ export async function importJiraRelatedData(
   };
   const mutationOverrides: Pick<
     JiraRelatedImportTarget,
-    | "createComment"
-    | "updateComment"
-    | "createAttachment"
-    | "updateDescription"
-    | "putRelation"
-    | "putExternalRef"
+    "createAttachment" | "putRelation" | "putExternalRef"
   > = {
-    createComment: (value) => {
-      recordOperation("create_comment", value.idempotencyKey, value);
-      return input.target.createComment(value);
-    },
-    updateComment: (commentId, value) => {
-      recordOperation("update_comment", commentId, value);
-      return input.target.updateComment(commentId, value);
-    },
     createAttachment: (value) => {
       recordOperation("create_attachment", value.idempotencyKey, value);
       return input.target.createAttachment(value);
-    },
-    updateDescription: (reefId, markdown) => {
-      recordOperation("update_description", reefId, markdown);
-      return input.target.updateDescription(reefId, markdown);
     },
     putRelation: (value) => {
       recordOperation("put_relation", value.idempotencyKey, value);
@@ -415,6 +398,7 @@ export async function importJiraRelatedData(
     descriptionAdf: issue.description,
     attachments,
     attachmentBindings,
+    recordOperation,
     report,
   });
 
@@ -428,6 +412,7 @@ export async function importJiraRelatedData(
     attachmentBindings,
     attachments,
     ledger,
+    recordOperation,
     report,
     now,
   });

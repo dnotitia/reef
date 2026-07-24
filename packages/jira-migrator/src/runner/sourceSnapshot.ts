@@ -3,7 +3,10 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { canonicalizeJson } from "../archive/canonicalJson.js";
 import { fingerprintJiraState } from "../execution/diff.js";
-import type { JiraReadClient } from "../jira/client.js";
+import {
+  JIRA_MAX_ATTACHMENT_BUFFER_BYTES,
+  type JiraReadClient,
+} from "../jira/client.js";
 import { ensurePrivateDirectory } from "./artifacts.js";
 import { JiraRunnerError } from "./errors.js";
 import { retryOperation } from "./retry.js";
@@ -39,6 +42,22 @@ export const getRelatedBinarySpools = (
   snapshot: RelatedSourceSnapshot,
 ): ReadonlyMap<string, RelatedBinarySpool> =>
   binarySpools.get(snapshot) ?? new Map();
+
+export const assertCachedAttachmentWithinLimit = (
+  byteLength: number,
+  maxBytes: number,
+): void => {
+  if (
+    !Number.isSafeInteger(maxBytes) ||
+    maxBytes <= 0 ||
+    maxBytes > JIRA_MAX_ATTACHMENT_BUFFER_BYTES
+  ) {
+    throw new Error("jira_attachment_size_limit_invalid");
+  }
+  if (byteLength > maxBytes) {
+    throw new Error("jira_attachment_size_limit_exceeded");
+  }
+};
 
 export const snapshotJiraClient = (
   client: JiraReadClient,
@@ -111,8 +130,10 @@ export const snapshotJiraClient = (
           const cacheKey = String(attachmentId);
           const cached = binaries.get(cacheKey);
           if (cached) {
+            const bytes = new Uint8Array(await readFile(cached.path));
+            assertCachedAttachmentWithinLimit(bytes.byteLength, maxBytes);
             return {
-              bytes: new Uint8Array(await readFile(cached.path)),
+              bytes,
               contentType: cached.contentType,
               contentLength: cached.contentLength,
               rateLimit: cached.rateLimit,
