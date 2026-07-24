@@ -84,7 +84,7 @@ export function SavedViewActions({
             <MoreHorizontal className="size-4" aria-hidden="true" />
           )}
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="right-0 left-auto">
+        <DropdownMenuContent className="right-0 left-auto w-56">
           {updatePayload ? (
             <DropdownMenuItem
               onSelect={() => {
