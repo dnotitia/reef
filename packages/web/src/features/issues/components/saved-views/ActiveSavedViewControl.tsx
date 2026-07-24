@@ -34,10 +34,9 @@ export function ActiveSavedViewControl() {
   const t = useTranslations("issues.savedViews");
   const requestedId = searchParams.get(SAVED_ISSUE_VIEW_CONTEXT_PARAM);
   const identifiedView = useMemo(() => {
-    const requestedView = requestedId
-      ? query.data?.find((view) => view.id === requestedId)
-      : undefined;
-    if (requestedView) return requestedView;
+    if (requestedId) {
+      return query.data?.find((view) => view.id === requestedId);
+    }
     return query.data?.find((view) =>
       savedIssueViewIsActive(view.payload, searchParams),
     );

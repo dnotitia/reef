@@ -210,9 +210,17 @@ export function useIssueUrlSync(
         // personal named-view default. This preserves the established
         // `?view=list` restore contract while keeping explicit URLs ahead of
         // the default pointer.
-        const defaultId = hasIssueQueryParams(searchParams)
-          ? undefined
-          : await getDefaultIssueViewId(restoringVault);
+        let defaultId: string | undefined;
+        if (!hasIssueQueryParams(searchParams)) {
+          try {
+            defaultId = await getDefaultIssueViewId(restoringVault);
+          } catch {
+            // Browser storage is an optional personal layer. A failed default
+            // read must not reject the landing restore or block the independent
+            // last-used filter fallback below.
+            defaultId = undefined;
+          }
+        }
         if (!aborted && defaultId) {
           const currentState = useIssueStore.getState();
           if (

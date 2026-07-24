@@ -170,4 +170,17 @@ describe("ActiveSavedViewControl", () => {
       screen.getByRole("button", { name: "Alpha todo, Changed" }),
     ).toBeVisible();
   });
+
+  it("does not substitute another row for a stale explicit id", () => {
+    navigation.search =
+      "status=todo&view=list&saved_view=99999999-9999-4999-8999-999999999999";
+
+    render(
+      <IntlTestProvider>
+        <ActiveSavedViewControl />
+      </IntlTestProvider>,
+    );
+
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
 });

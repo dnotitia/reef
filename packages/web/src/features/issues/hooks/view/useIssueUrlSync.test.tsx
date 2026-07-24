@@ -657,6 +657,25 @@ describe("useIssueUrlSync", () => {
     });
   });
 
+  it("falls back to the last-used filter when the default read rejects", async () => {
+    await setPersistedIssueFilter("reef-acme", { status: ["todo"] });
+    vi.spyOn(db.config, "get").mockRejectedValueOnce(
+      new Error("IndexedDB unavailable"),
+    );
+
+    render(<Harness />);
+
+    await waitFor(() => {
+      expect(useIssueStore.getState().filter.status).toEqual(["todo"]);
+    });
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/workspace/reef-acme/issues?status=todo",
+        { scroll: false },
+      );
+    });
+  });
+
   it("materializes an empty default as an explicit clear-all board view", async () => {
     const view: SavedIssueView = {
       id: "11111111-1111-4111-8111-111111111111",
