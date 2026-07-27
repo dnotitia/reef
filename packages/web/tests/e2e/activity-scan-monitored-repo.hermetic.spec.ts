@@ -23,10 +23,12 @@ test.describe("Activity scan monitored-repo boundary (REEF-289)", () => {
     await resetFixture(request, "configured");
 
     // Real login → the httpOnly __reef_session cookie is set on the browser
-    // context and shared by page.request below. Waiting for the onboarding
-    // redirect guarantees the login response (and its cookie) landed.
+    // context and shared by page.request below. Waiting for the configured
+    // workspace redirect guarantees the login response (and its cookie) landed.
     await signInAsAlice(page);
-    await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+    await page.waitForURL(new RegExp(`/workspace/${REEF_E2E_VAULT}/issues$`), {
+      timeout: 10_000,
+    });
 
     // Seed monitored_repos through the real config route so the boundary has a
     // single monitored repo (octo/reef) to allow.

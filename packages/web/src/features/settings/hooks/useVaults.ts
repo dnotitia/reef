@@ -20,7 +20,7 @@ const VaultsResponseSchema = z.object({
  * config: both onboarding and the Settings active-workspace picker filter on it
  * (REEF-143).
  */
-export function useVaults() {
+export function useVaults({ enabled = true }: { enabled?: boolean } = {}) {
   const hydrated = useHydrated();
   const result = useQuery({
     queryKey: ["vaults"] as const,
@@ -34,6 +34,7 @@ export function useVaults() {
     },
     staleTime: 5 * 60 * 1000,
     retry: false,
+    enabled,
   });
 
   // The server has no persisted React Query cache, while the browser can

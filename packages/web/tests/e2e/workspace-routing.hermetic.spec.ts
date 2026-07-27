@@ -31,7 +31,9 @@ test.describe("workspace URL routing (REEF-315)", () => {
     page,
   }) => {
     await signInAsAlice(page);
-    await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+    await page.waitForURL(/\/workspace\/reef-e2e\/issues\/?$/, {
+      timeout: 15_000,
+    });
     // Point this browser's "last viewed" default at a DIFFERENT workspace, to
     // prove the path segment — not the pointer — decides what opens.
     await writeIndexedDbConfig(page, "vault", "raw-vault");
@@ -64,7 +66,9 @@ test.describe("workspace URL routing (REEF-315)", () => {
 
   test("AC4: a legacy link with no remembered workspace goes to onboarding", async ({
     page,
+    request,
   }) => {
+    await resetFixture(request, "empty");
     await signInAsAlice(page);
     await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
     // No workspace selected yet → no Dexie default.

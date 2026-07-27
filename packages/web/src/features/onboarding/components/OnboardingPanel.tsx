@@ -1,16 +1,9 @@
 "use client";
 
-import { VaultPickerInput } from "@/features/settings/components/VaultPickerInput";
-import {
-  useActiveVault,
-  useSetActiveVault,
-} from "@/features/settings/hooks/useActiveVault";
-import { useVaults } from "@/features/settings/hooks/useVaults";
-import { withVault } from "@/lib/workspaceHref";
+import { useWorkspaceAutoResume } from "@/features/onboarding/hooks/useWorkspaceAutoResume";
 import { useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
-import { useMemo } from "react";
 import { CreateWorkspaceForm } from "./CreateWorkspaceForm";
+import { WorkspaceResumeStatus } from "./WorkspaceResumeStatus";
 
 /**
  * Single-screen onboarding for new projects, with existing reef workspaces as
@@ -25,20 +18,13 @@ import { CreateWorkspaceForm } from "./CreateWorkspaceForm";
  */
 export function OnboardingPanel() {
   const t = useTranslations("onboarding");
-  const router = useRouter();
-  const vaultsQuery = useVaults();
-  const { vault: activeVault, isLoading: activeVaultLoading } =
-    useActiveVault();
-  const setActiveVault = useSetActiveVault();
+  const resume = useWorkspaceAutoResume();
 
-  const reefVaults = useMemo(
-    () => (vaultsQuery.data ?? []).filter((v) => v.has_reef_config),
-    [vaultsQuery.data],
-  );
-
-  const isLoading = vaultsQuery.isPending || activeVaultLoading;
-  const canContinueExisting =
-    activeVault.length > 0 && reefVaults.some((v) => v.name === activeVault);
+  if (resume.status !== "empty") {
+    return (
+      <WorkspaceResumeStatus status={resume.status} onRetry={resume.retry} />
+    );
+  }
 
   return (
     <div
@@ -55,46 +41,6 @@ export function OnboardingPanel() {
 
         <CreateWorkspaceForm idPrefix="greenfield" />
       </section>
-
-      <details
-        className="group rounded-md border border-border bg-elevated"
-        data-testid="onboarding-existing-section"
-      >
-        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-foreground">
-          {t("existingWorkspace")}
-        </summary>
-        <div className="flex flex-col gap-3 border-t border-border px-4 py-3">
-          <p className="text-sm text-muted-foreground">
-            {t("existingWorkspaceHint")}
-          </p>
-          {reefVaults.length === 0 && !isLoading && !vaultsQuery.isError ? (
-            <div
-              className="text-sm text-muted-foreground"
-              data-testid="onboarding-empty-state"
-            >
-              {t("existingWorkspaceEmpty")}
-            </div>
-          ) : (
-            <VaultPickerInput
-              vaults={reefVaults}
-              value={activeVault}
-              onChange={(next) => void setActiveVault.mutateAsync(next)}
-              isLoading={isLoading}
-              isError={vaultsQuery.isError}
-              placeholder={t("existingWorkspacePlaceholder")}
-            />
-          )}
-          <button
-            type="button"
-            disabled={!canContinueExisting}
-            onClick={() => router.push(withVault(activeVault, "/issues"))}
-            data-testid="onboarding-continue-btn"
-            className="w-fit rounded-md bg-foreground px-5 py-2 text-sm font-medium text-background transition-colors duration-150 hover:bg-foreground/90 disabled:opacity-50"
-          >
-            {t("continueToWorkspace")}
-          </button>
-        </div>
-      </details>
     </div>
   );
 }

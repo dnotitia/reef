@@ -6,6 +6,7 @@ export const E2E_MOCK_URL =
 export type FixtureScenario =
   | "empty"
   | "configured"
+  | "configured_multi"
   | "demo_board"
   | "raw_only"
   | "activity_suggestions"
@@ -99,6 +100,22 @@ export async function setIssueListFailure(
   expect(response.ok()).toBeTruthy();
 }
 
+export async function setVaultListControl(
+  request: APIRequestContext,
+  control: { delayMs?: number; failures?: number },
+): Promise<void> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/vault-list-control`,
+    {
+      data: {
+        delay_ms: control.delayMs ?? 0,
+        failures: control.failures ?? 0,
+      },
+    },
+  );
+  expect(response.ok()).toBeTruthy();
+}
+
 export async function setIssueUpdateFailure(
   request: APIRequestContext,
   id: string,
@@ -179,28 +196,16 @@ export async function signInAndSelectExistingWorkspace(
   vault = REEF_E2E_VAULT,
 ): Promise<void> {
   await signInAsAlice(page);
-  await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
-
-  await page.getByText("Use an existing reef workspace").click();
-  await page.locator('[data-testid="active-vault-trigger"]').click();
-  await expect(
-    page.locator(`[data-testid="active-vault-option-${vault}"]`),
-  ).toBeVisible();
-  await expect(
-    page.locator('[data-testid="active-vault-option-raw-vault"]'),
-  ).toHaveCount(0);
-  await page.locator(`[data-testid="active-vault-option-${vault}"]`).click();
-
-  await expect(
-    page.locator('[data-testid="onboarding-continue-btn"]'),
-  ).toBeEnabled();
+  await expect(page).toHaveURL(
+    new RegExp(`/workspace/${escapeRegExp(vault)}/issues/?$`),
+    { timeout: 15_000 },
+  );
 }
 
 export async function continueToWorkspace(
   page: Page,
   vault = REEF_E2E_VAULT,
 ): Promise<void> {
-  await page.locator('[data-testid="onboarding-continue-btn"]').click();
   await expect(page).toHaveURL(
     new RegExp(`/workspace/${escapeRegExp(vault)}/issues/?$`),
     { timeout: 15_000 },

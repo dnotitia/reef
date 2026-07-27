@@ -2,6 +2,8 @@
 
 import { AppShellSkeleton } from "@/components/AppShellSkeleton";
 import { useAuthRedirect } from "@/features/auth/hooks/useAuthRedirect";
+import { WorkspaceResumeStatus } from "@/features/onboarding/components/WorkspaceResumeStatus";
+import { useWorkspaceAutoResume } from "@/features/onboarding/hooks/useWorkspaceAutoResume";
 
 /**
  * Root route — gates on akb session and active workspace, then sends the
@@ -10,6 +12,18 @@ import { useAuthRedirect } from "@/features/auth/hooks/useAuthRedirect";
  * shell instead of a bare "Loading…" line (REEF-097 AC2).
  */
 export default function RootPage() {
-  useAuthRedirect("root");
-  return <AppShellSkeleton />;
+  const authStatus = useAuthRedirect("root");
+  const resume = useWorkspaceAutoResume({
+    enabled: authStatus === "active",
+    redirectWhenEmpty: true,
+  });
+
+  if (authStatus !== "active" || resume.status === "disabled") {
+    return <AppShellSkeleton />;
+  }
+  return (
+    <main className="flex min-h-screen items-center justify-center p-6">
+      <WorkspaceResumeStatus status={resume.status} onRetry={resume.retry} />
+    </main>
+  );
 }
