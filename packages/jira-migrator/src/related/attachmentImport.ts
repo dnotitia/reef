@@ -27,6 +27,29 @@ import { revokedAttachmentPlaceholder } from "./media.js";
 import { recordRelatedOperation } from "./operations.js";
 import { failure } from "./reporting.js";
 
+const attachmentFailureReason = (error: unknown): string => {
+  const rendered = String(error);
+  if (rendered.includes("attachment_readback_mismatch:"))
+    return rendered.slice(rendered.indexOf("attachment_readback_mismatch:"));
+  if (
+    rendered.includes("size_mismatch") ||
+    rendered.includes("content_length_mismatch")
+  )
+    return "attachment_size_mismatch";
+  if (rendered.includes("size_limit")) return "attachment_size_limit_exceeded";
+  if (!(error instanceof Error)) return "attachment_import_failed:unknown";
+  const safeName = error.name
+    .replace(/([a-z0-9])([A-Z])/gu, "$1_$2")
+    .toLowerCase();
+  const status =
+    "status" in error &&
+    typeof error.status === "number" &&
+    Number.isInteger(error.status)
+      ? `_${error.status}`
+      : "";
+  return `attachment_import_failed:${safeName}${status}`;
+};
+
 export async function importAttachments(options: {
   migration: JiraRelatedImportInput;
   issueId: string;
@@ -495,7 +518,10 @@ export async function importAttachments(options: {
           migration.jiraCloudId,
           attachment.id,
         );
-        if (!residual) throw writeError;
+        if (!residual) {
+          attachmentPhase = "write";
+          throw writeError;
+        }
         const residualIsValid = validAttachmentReadback(
           residual,
           attachment,
@@ -553,17 +579,7 @@ export async function importAttachments(options: {
         "attachment",
         attachment.id,
         attachmentPhase,
-        String(error).includes("attachment_readback_mismatch:")
-          ? String(error).slice(
-              String(error).indexOf("attachment_readback_mismatch:"),
-            )
-          : String(error).includes("size_mismatch")
-            ? "attachment_size_mismatch"
-            : String(error).includes("content_length_mismatch")
-              ? "attachment_size_mismatch"
-              : String(error).includes("size_limit")
-                ? "attachment_size_limit_exceeded"
-                : "attachment_import_failed",
+        attachmentFailureReason(error),
         error,
       );
     }
