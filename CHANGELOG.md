@@ -12,6 +12,14 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Fixed
+
+- **Reef workspace and issue ID prefixes now accept Jira-compatible project
+  keys.** Prefixes still begin with an uppercase ASCII letter, but may now
+  contain uppercase letters, digits, and underscores after it, allowing Jira
+  projects such as `SAASV31` to initialize a matching target workspace and
+  preserve their source project key during migration.
+
 ## v0.8.0 - 2026-07-27
 
 ### Added

@@ -80,7 +80,7 @@ describe("AKB Jira migration target", () => {
       {
         baseUrl: "https://akb.test",
         jwt: "jwt",
-        vault: "notebooklm-smoke",
+        vault: "saasv31-smoke",
       },
       {
         createAdapter: () => ({
@@ -90,7 +90,7 @@ describe("AKB Jira migration target", () => {
         readConfig: vi.fn(async () => ({
           exists: true,
           config: {
-            project_prefix: "NOTEBOOKLM",
+            project_prefix: "SAASV31",
             monitored_repos: [],
             authoring_language: "ko" as const,
             stale_hide_completed_days: 28,
@@ -125,7 +125,7 @@ describe("AKB Jira migration target", () => {
     );
 
     await expect(target.preflight()).resolves.toMatchObject({
-      projectPrefix: "NOTEBOOKLM",
+      projectPrefix: "SAASV31",
       actorDirectory: [
         {
           actor: "operator",
@@ -139,12 +139,12 @@ describe("AKB Jira migration target", () => {
       target.planIssueIds([
         {
           jira_cloud_id: "cloud-1",
-          project_key: "NOTEBOOKLM",
+          project_key: "SAASV31",
           issue_id: "29449",
-          issue_key: "NOTEBOOKLM-1",
+          issue_key: "SAASV31-1",
         },
       ]),
-    ).resolves.toEqual(["NOTEBOOKLM-001"]);
+    ).resolves.toEqual(["SAASV31-001"]);
   });
 
   it("uses core public planning and paired issue writes with readback", async () => {

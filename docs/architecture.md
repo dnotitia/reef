@@ -117,7 +117,8 @@ trigger in `reef_issues.meta.source`.
 Supporting state lives in sibling tables provisioned when a vault is set up:
 `reef_templates` (templates addressed by name, not searchable documents),
 `reef_settings`, and `monitored_repos`. The issue id prefix is the
-`project_prefix` value in `reef_settings` (uppercase A–Z, default `REEF`).
+`project_prefix` value in `reef_settings` (starts with uppercase A–Z, followed
+by uppercase A–Z, digits, or underscores; default `REEF`).
 
 Writes span the document and row non-transactionally, with a compensation saga
 for partial failure. Row-only scalar fields remain last-write-wins: there is no

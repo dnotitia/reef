@@ -285,10 +285,26 @@ describe("ConfigSchema (team-shared _reef/config.md in akb vault)", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects project_prefix with digits", () => {
+  it("accepts Jira-compatible project_prefix with digits", () => {
     const result = ConfigSchema.safeParse({
       ...validConfig,
-      project_prefix: "REEF2",
+      project_prefix: "SAASV31",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts project_prefix with an underscore after the first letter", () => {
+    const result = ConfigSchema.safeParse({
+      ...validConfig,
+      project_prefix: "TEAM_2",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects project_prefix starting with a digit", () => {
+    const result = ConfigSchema.safeParse({
+      ...validConfig,
+      project_prefix: "31SAASV",
     });
     expect(result.success).toBe(false);
   });
@@ -357,15 +373,17 @@ describe("StaleHideDaysSchema", () => {
 });
 
 describe("PROJECT_PREFIX_PATTERN", () => {
-  it("matches uppercase A-Z only", () => {
+  it("matches Jira-compatible uppercase project keys", () => {
     expect(PROJECT_PREFIX_PATTERN.test("REEF")).toBe(true);
     expect(PROJECT_PREFIX_PATTERN.test("A")).toBe(true);
     expect(PROJECT_PREFIX_PATTERN.test("PROJECT")).toBe(true);
+    expect(PROJECT_PREFIX_PATTERN.test("SAASV31")).toBe(true);
+    expect(PROJECT_PREFIX_PATTERN.test("TEAM_2")).toBe(true);
   });
 
-  it("rejects digits, hyphens, lowercase, empty", () => {
+  it("rejects leading digits, hyphens, lowercase, and empty values", () => {
     expect(PROJECT_PREFIX_PATTERN.test("reef")).toBe(false);
-    expect(PROJECT_PREFIX_PATTERN.test("REEF1")).toBe(false);
+    expect(PROJECT_PREFIX_PATTERN.test("31REEF")).toBe(false);
     expect(PROJECT_PREFIX_PATTERN.test("RE-EF")).toBe(false);
     expect(PROJECT_PREFIX_PATTERN.test("")).toBe(false);
   });

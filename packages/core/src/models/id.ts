@@ -1,18 +1,18 @@
 import { SchemaValidationError } from "../errors";
 
 export interface IssueIdParts {
-  /** Uppercase-alphabetic prefix, e.g. `"REEF"`. */
+  /** Jira-compatible uppercase project prefix, e.g. `"SAASV31"`. */
   prefix: string;
   /** Positive integer issue number (does not zero, does not negative). */
   number: number;
 }
 
 /**
- * Uppercase-alphabetic prefix pattern shared by `nextIssueId` and `parseIssueId`.
+ * Jira-compatible project prefix shared by `nextIssueId` and `parseIssueId`.
  * Guarantees a round-trip invariant: any ID produced by `nextIssueId` can be
  * parsed back by `parseIssueId` without error.
  */
-const PREFIX_PATTERN = /^[A-Z]+$/;
+const PREFIX_PATTERN = /^[A-Z][A-Z0-9_]*$/;
 
 /**
  * Computes the next sequential issue ID.
@@ -21,7 +21,8 @@ const PREFIX_PATTERN = /^[A-Z]+$/;
  * Examples: REEF-001, REEF-042, REEF-100, REEF-1000
  *
  * Input contract (enforced — throws {@link SchemaValidationError} on violation):
- *   - `prefix` should be a non-empty string of uppercase ASCII letters (matches
+ *   - `prefix` should start with an uppercase ASCII letter and then contain
+ *     only uppercase ASCII letters, digits, or underscores (matches
  *     {@link PREFIX_PATTERN}). Mirrors the invariant enforced by
  *     {@link parseIssueId}, guaranteeing round-trip safety.
  *   - `currentMax` should be a finite non-negative integer. Non-integer, negative,
@@ -50,7 +51,9 @@ export function nextIssueId({
     throw new SchemaValidationError({
       field: "prefix",
       received: prefix,
-      issues: ["prefix must be uppercase alphabetic characters only (A-Z)"],
+      issues: [
+        "prefix must start with uppercase A-Z and use only A-Z, 0-9, or underscore",
+      ],
     });
   }
   if (!Number.isInteger(currentMax) || currentMax < 0) {
@@ -67,8 +70,8 @@ export function nextIssueId({
 /**
  * Parses an issue ID string into its prefix and number components.
  *
- * Valid format: {UPPERCASE_ALPHA}-{POSITIVE_INTEGER}
- * Examples: "REEF-001" → { prefix: "REEF", number: 1 }
+ * Valid format: {JIRA_COMPATIBLE_PREFIX}-{POSITIVE_INTEGER}
+ * Examples: "SAASV31-001" → { prefix: "SAASV31", number: 1 }
  *
  * Throws SchemaValidationError on malformed input.
  */
@@ -90,7 +93,9 @@ export function parseIssueId(id: string): IssueIdParts {
     throw new SchemaValidationError({
       field: "id",
       received: id,
-      issues: ["issue ID prefix must be uppercase alphabetic characters only"],
+      issues: [
+        "issue ID prefix must start with uppercase A-Z and use only A-Z, 0-9, or underscore",
+      ],
     });
   }
 
