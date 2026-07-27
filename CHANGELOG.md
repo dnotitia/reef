@@ -20,6 +20,9 @@ explicitly in the entries below.
 - Batch raw-source archive writes per migration phase so a full Jira project
   performs one manifest/object verification per batch instead of re-verifying
   every prior object after each archived entity.
+- Exclude opaque enhanced-JQL pagination cursors and raw-archive run ids from
+  Jira approval fingerprints while retaining issue contents, archive entry
+  ids, and content digests.
 
 - **Reef workspace and issue ID prefixes now accept Jira-compatible project
   keys.** Prefixes still begin with an uppercase ASCII letter, but may now

@@ -60,6 +60,40 @@ describe("fingerprintJiraApprovalPlan", () => {
     );
   });
 
+  it("ignores opaque pagination cursors and raw archive run ids", () => {
+    const approved = {
+      source: {
+        fields: [],
+        issue_pages: {
+          ALPHA: [
+            {
+              nextPageToken: "opaque-approved",
+              issues: [{ id: "1", key: "ALPHA-1" }],
+            },
+          ],
+        },
+      },
+      issues: [],
+      related_mapping: { accounts: {} },
+      changelog: [
+        {
+          rawArchiveReference: {
+            runId: "approval-run",
+            entryId: "entry-1",
+            contentSha256: "content-1",
+          },
+        },
+      ],
+    };
+    const apply = structuredClone(approved);
+    apply.source.issue_pages.ALPHA[0].nextPageToken = "opaque-apply";
+    apply.changelog[0].rawArchiveReference.runId = "apply-run";
+
+    expect(fingerprintJiraApprovalPlan(apply)).toBe(
+      fingerprintJiraApprovalPlan(approved),
+    );
+  });
+
   it("treats an absent target labels array as an empty desired array", () => {
     const issue = {
       id: "NOTEBOOKLM-001",

@@ -649,8 +649,11 @@ the same normalized fingerprints and target readback evidence:
 Mapped-state fingerprints exclude runner-generated issue `created_at` and
 `updated_at` values. Changelog mapped-state fingerprints exclude the raw
 archive reference's run id while retaining source content identity and the
-semantic classification. A new run id or execution time must therefore remain
-`skip` when source state and target readback are unchanged.
+semantic classification. Approval fingerprints likewise normalize opaque
+enhanced-JQL `nextPageToken` values and raw archive run ids while retaining
+page contents, archive entry ids, and content digests. A new run id, pagination
+cursor, or execution time must therefore remain `skip` when source state and
+target readback are unchanged.
 
 Call `confirmJiraMigrationBinding` only after both the target write and target
 identity readback succeed. A failed write or readback belongs in the run result,

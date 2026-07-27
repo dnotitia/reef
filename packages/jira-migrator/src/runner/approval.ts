@@ -18,6 +18,27 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const migrationTimeToken = "<migration-time>";
 const retrievalTimeToken = "<retrieval-time>";
 const observationTimeToken = "<observation-time>";
+const paginationToken = "<pagination-token>";
+const archiveRunToken = "<archive-run>";
+
+const normalizeApprovalMetadata = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(normalizeApprovalMetadata);
+  if (!isRecord(value)) return value;
+  const isArchiveReference =
+    typeof value.runId === "string" &&
+    typeof value.entryId === "string" &&
+    typeof value.contentSha256 === "string";
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [
+      key,
+      key === "nextPageToken" && typeof item === "string"
+        ? paginationToken
+        : key === "runId" && isArchiveReference
+          ? archiveRunToken
+          : normalizeApprovalMetadata(item),
+    ]),
+  );
+};
 
 export const jiraApprovalPlanProjection = (value: unknown): unknown => {
   if (!isRecord(value)) return value;
@@ -89,7 +110,7 @@ export const jiraApprovalPlanProjection = (value: unknown): unknown => {
         )
       : null;
 
-  return {
+  return normalizeApprovalMetadata({
     ...value,
     source,
     issues,
@@ -97,7 +118,7 @@ export const jiraApprovalPlanProjection = (value: unknown): unknown => {
       relatedMapping && accounts
         ? { ...relatedMapping, accounts }
         : value.related_mapping,
-  };
+  });
 };
 
 export const fingerprintJiraApprovalPlan = (value: unknown): string =>
