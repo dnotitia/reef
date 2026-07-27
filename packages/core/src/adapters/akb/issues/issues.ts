@@ -1,6 +1,6 @@
-import { isDeepStrictEqual } from "node:util";
 import { AkbApiError, ConflictError, NotFoundError } from "../../../errors";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
+import { deepEqual } from "../../../utils/deepEqual";
 import {
   REEF_ISSUES_TABLE,
   backlogTailRankExpr,
@@ -169,7 +169,7 @@ export async function writeIssue(
         document.type !== body.type ||
         document.status !== body.status ||
         (document.summary ?? null) !== body.summary ||
-        !isDeepStrictEqual(document.tags, body.tags) ||
+        !deepEqual(document.tags, body.tags) ||
         (document.content ?? "") !== content
       ) {
         throw new ConflictError({ path: issueDocumentUri(vault, issue.id) });
@@ -292,7 +292,7 @@ export async function writeIssue(
             ]),
           )
         : null;
-      if (!isDeepStrictEqual(refreshedProjection, desiredProjection)) {
+      if (!deepEqual(refreshedProjection, desiredProjection)) {
         throw new ConflictError({ path: issueDocumentUri(vault, issue.id) });
       }
     } else {
@@ -540,7 +540,7 @@ export async function updateIssue(
             recovered.commit_hash === commitHash &&
             recovered.content === mergedBody &&
             recovered.issue.updated_at !== current.issue.updated_at &&
-            isDeepStrictEqual(recovered.issue, expectedRecoveredIssue);
+            deepEqual(recovered.issue, expectedRecoveredIssue);
           if (committed) {
             mergedIssue.updated_at = recovered.issue.updated_at;
             if (enteringBacklog) mergedIssue.rank = recovered.issue.rank;

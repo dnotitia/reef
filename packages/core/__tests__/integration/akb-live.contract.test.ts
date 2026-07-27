@@ -150,15 +150,15 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
     // Strip mode drops them, and we pin the dropped set so an akb-side ADD
     // breaks here and forces a conscious mirror update (REEF-050 axis 2).
     expect(parsed).not.toHaveProperty("content_hash");
-    // Pinned to LIVE akb 0.1.0 reality: `created_by_name` joined the document
-    // envelope after the REEF-050 capture (2026-06-04) without an akb version
-    // bump — exactly the within-version drift this smoke exists to surface.
+    // `kind` was added after the pinned compatibility ref. Accept its absence
+    // there while still pinning every key returned by current akb.
     expect(
       strippedKeys(raw, Object.keys(DocumentResponseSchema.shape)),
     ).toEqual([
       "content_hash",
       "created_by_name",
       "hash_algorithm",
+      ...("kind" in raw ? ["kind"] : []),
       "metadata_is_current",
     ]);
   });
@@ -190,6 +190,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
       "content_hash",
       "current_commit",
       "hash_algorithm",
+      ...("kind" in raw ? ["kind"] : []),
       "previous_commit",
       "previous_content_hash",
     ]);
@@ -257,7 +258,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
         rawMutation,
         Object.keys(AkbSqlMutationResponseSchema.shape),
       ),
-    ).toEqual([]);
+    ).toEqual("affected_rows" in rawMutation ? ["affected_rows"] : []);
 
     // reef's real SQL path (runSql) parses the same envelopes; drift throws.
     const viaRunSql = await runSql(
