@@ -1,12 +1,10 @@
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
 import {
+  IssueContentSearchRequestSchema,
   type IssueContentSearchResponse,
   IssueContentSearchResponseSchema,
 } from "@reef/core";
 import { useQuery } from "@tanstack/react-query";
-
-const hasMinimumQueryLength = (query: string): boolean =>
-  [...query.trim()].length >= 2;
 
 export interface IssueContentSearchData extends IssueContentSearchResponse {
   query: string;
@@ -19,6 +17,10 @@ export function useIssueContentSearch(
   limit: number,
 ) {
   const trimmedQuery = query.trim();
+  const isValidRequest = IssueContentSearchRequestSchema.safeParse({
+    q: trimmedQuery,
+    limit,
+  }).success;
   return useQuery({
     queryKey: ["issues", "search-content", vault, trimmedQuery, limit] as const,
     queryFn: async (): Promise<IssueContentSearchData> => {
@@ -41,7 +43,7 @@ export function useIssueContentSearch(
       );
       return { ...parsed, query: trimmedQuery, limit };
     },
-    enabled: !!vault && hasMinimumQueryLength(trimmedQuery),
+    enabled: !!vault && isValidRequest,
     retry: false,
     staleTime: 0,
     placeholderData: (previousData, previousQuery) => {

@@ -109,6 +109,7 @@ describe("GET /api/issues/search-content", () => {
     "/api/issues/search-content?vault=reef-test&q=okay&limit=11",
     "/api/issues/search-content?vault=reef-test&q=okay&limit=abc",
     "/api/issues/search-content?vault=reef-test&q=okay",
+    `/api/issues/search-content?vault=reef-test&q=${"a".repeat(181)}&limit=10`,
   ])(
     "returns 400 without touching core for invalid input: %s",
     async (path) => {

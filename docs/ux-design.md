@@ -717,11 +717,12 @@ interactive overlay has had the chance to consume it.
 The `⌘K` palette keeps metadata search authoritative: server order, canonical
 exact-ID promotion, recent issues, relation commands, `shouldFilter={false}`,
 and native modified-click behavior remain unchanged. Once a trimmed query has
-at least two Unicode code points, a second query searches issue task-document
-bodies semantically and comment bodies as case-insensitive literal text. Those
-hits appear in a separate **Body & comment matches** group below metadata, with
-a source badge, bounded snippet, and text-node-only literal highlighting.
-Issues already visible in metadata are omitted from the auxiliary group.
+at least two Unicode code points and fits the 180 UTF-16 code-unit
+content-search bound, a second query searches issue task-document bodies
+semantically and comment bodies as case-insensitive literal text. Those hits
+appear in a separate **Body & comment matches** group below metadata, with a
+source badge, bounded snippet, and text-node-only literal highlighting. Issues
+already visible in metadata are omitted from the auxiliary group.
 
 Content search owns no error or empty message. A failed, degraded, unsupported,
 or empty content response hides the entire auxiliary group without a toast and

@@ -16,6 +16,9 @@ export const IssueContentSearchRequestSchema = z.object({
     .transform((value) => value.trim())
     .refine((value) => unicodeCodePointLength(value) >= 2, {
       message: "Search query must contain at least two Unicode code points",
+    })
+    .refine((value) => value.length <= 180, {
+      message: "Search query must contain at most 180 UTF-16 code units",
     }),
   limit: IssueContentSearchLimitSchema,
 });

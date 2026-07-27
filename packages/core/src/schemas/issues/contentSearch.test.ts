@@ -16,6 +16,7 @@ describe("IssueContentSearchRequestSchema", () => {
     [{ q: "ok", limit: 11 }],
     [{ q: "ok", limit: 0 }],
     [{ q: "ok", limit: 60 }],
+    [{ q: "a".repeat(181), limit: 10 }],
   ])("rejects invalid input %#", (value) => {
     expect(IssueContentSearchRequestSchema.safeParse(value).success).toBe(
       false,

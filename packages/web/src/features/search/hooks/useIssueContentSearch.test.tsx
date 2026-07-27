@@ -36,6 +36,13 @@ describe("useIssueContentSearch", () => {
     expect(mockApiFetch).not.toHaveBeenCalled();
   });
 
+  it("does not request content when the query cannot fit a bounded snippet", () => {
+    renderHook(() => useIssueContentSearch("a".repeat(181), "reef-test", 10), {
+      wrapper: makeWrapper(),
+    });
+    expect(mockApiFetch).not.toHaveBeenCalled();
+  });
+
   it("uses a query-scoped key and parses the response", async () => {
     mockApiFetch.mockResolvedValue(
       new Response(JSON.stringify({ results: [], has_more: false })),
