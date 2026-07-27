@@ -1,4 +1,3 @@
-import { isDeepStrictEqual } from "node:util";
 import { ZodError } from "zod";
 import {
   ConflictError,
@@ -12,6 +11,7 @@ import {
   IssueAttachmentSchema,
   type IssueAttachmentSource,
 } from "../../../schemas/issues/attachment";
+import { deepEqual } from "../../../utils/deepEqual";
 import {
   type AkbAdapter,
   REEF_ATTACHMENTS_TABLE,
@@ -259,7 +259,7 @@ async function isCompatibleAttachment(
     attachment.inline === expected.inline &&
     attachment.original_jira_attachment_id ===
       expected.originalJiraAttachmentId &&
-    isDeepStrictEqual(attachment.meta, expected.meta) &&
+    deepEqual(attachment.meta, expected.meta) &&
     existingBytes.length === expected.bytes.length &&
     existingBytes.every((value, index) => value === expected.bytes[index])
   );

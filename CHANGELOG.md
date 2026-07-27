@@ -12,6 +12,8 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.8.0 - 2026-07-27
+
 ### Added
 
 - **The Jira migrator now has an end-to-end operator CLI.** Multi-project
@@ -88,18 +90,30 @@ explicitly in the entries below.
   root or another reply while the activity timeline keeps one visual depth,
   direct-parent context, stable reply ordering, and the root's global timeline
   position. (REEF-065)
+- **Select and edit multiple issues together in List.** List rows now expose
+  keyboard-accessible checkboxes, Shift+Click range selection, and an integrated
+  toolbar for status, assignee, priority, sprint, and label changes. Board stays
+  focused on drag-and-scan work; bulk editing remains available after switching
+  to List. Updates reuse the existing single-issue save path sequentially,
+  preserve successful items when one fails, and keep failed items selected for
+  recovery. Selection controls use full labeled hit targets, while the bounded
+  failure tray retries transient failures and removes stale not-found items
+  cleanly. (REEF-339, epic REEF-330)
 
 ### Changed
 
-- **The Jira migrator now has explicit internal module boundaries.** Jira wire
-  models, migration execution state, raw-archive security, issue planning, and
-  related-data import stages now have separate owners behind the unchanged
-  `@reef/jira-migrator` root import. Undocumented low-level object, redaction,
-  canonical-JSON, and related-reconciliation helpers are no longer re-exported
-  from the package root.
+- **Breaking (internal): the Jira migrator now has explicit module boundaries.**
+  Jira wire models, migration execution state, raw-archive security, issue
+  planning, and related-data import stages now have separate owners behind the
+  unchanged `@reef/jira-migrator` root import. Undocumented low-level object,
+  redaction, canonical-JSON, and related-reconciliation helpers are no longer
+  re-exported from the package root; internal consumers importing those helpers
+  must move to the owning module.
 
 ### Fixed
 
+- **Production web builds stay browser-compatible.** Core adapter equality
+  checks no longer pull the Node-only `node:util` module into client bundles.
 - **Comment threads revalidate after a hard reload.** A fresh persisted browser
   cache can render immediately, but the activity timeline now always reconciles
   it with the server so recently posted replies cannot disappear temporarily.
@@ -139,16 +153,14 @@ explicitly in the entries below.
   workspaces should use the normal skill-update prompt before generic AKB agents
   create replies. No AKB table migration or data backfill is required because
   both fields live in the existing `reef_comments.meta` JSON.
-- **Select and edit multiple issues together in List.** List rows now expose
-  keyboard-accessible checkboxes, Shift+Click range selection, and an integrated
-  toolbar for status, assignee, priority, sprint, and label changes. Board stays
-  focused on drag-and-scan work; bulk editing remains available after switching
-  to List.
-  Updates reuse the existing single-issue save path sequentially, preserve
-  successful items when one fails, and keep failed items selected for recovery.
-  Selection controls use full labeled hit targets, while the bounded failure
-  tray retries transient failures and removes stale not-found items cleanly.
-  (REEF-339, epic REEF-330)
+
+### Operational
+
+- **No Docker Hub image is published for v0.8.0.** This cut is distributed by
+  source and the annotated `v0.8.0` Git tag. Build and size verification still
+  apply locally. Deployments should build from the immutable tag; rollback uses
+  the previous `v0.7.0` tag and the compatibility window documented in the
+  migration notes above.
 
 ## v0.7.0 - 2026-07-10
 
