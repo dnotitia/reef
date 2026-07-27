@@ -316,6 +316,7 @@ export function GlobalSearchDialog() {
     contentQueryIsCurrent &&
     contentQuery.data?.has_more === true &&
     contentLimit < CONTENT_MAX_LIMIT;
+  const searchBusy = (isSearching && !resultsAreCurrent) || contentInFlight;
 
   function handleSelect(id: string) {
     // Ignore selection while the shown rows are stale for the live query — the
@@ -409,6 +410,7 @@ export function GlobalSearchDialog() {
       // which shadows a caller `aria-label`, so the name flows through here.
       // `shouldFilter={false}` keeps the server's result order.
       commandProps={{ shouldFilter: false, label: t("title") }}
+      ariaBusy={searchBusy}
       // The palette owns its input row, so suppress the inherited top-right close
       // X that would otherwise overlap it. Esc-to-close is unaffected.
       showCloseButton={false}
@@ -442,10 +444,7 @@ export function GlobalSearchDialog() {
       </div>
       {/* `overscroll-contain` keeps scroll chaining from leaking to the page
           behind the modal once the list reaches its top/bottom. */}
-      <CommandList
-        className="overscroll-contain"
-        aria-busy={(isSearching && !resultsAreCurrent) || contentInFlight}
-      >
+      <CommandList className="overscroll-contain" aria-busy={searchBusy}>
         {showResults ? (
           <CommandGroup
             heading={isSearching ? t("headingMatches") : t("headingRecent")}

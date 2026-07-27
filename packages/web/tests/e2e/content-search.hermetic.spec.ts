@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
   openExistingWorkspace,
   resetFixture,
+  setAkbAccountDenial,
   setContentSearchMode,
 } from "./harness/fixture";
 
@@ -62,6 +63,7 @@ test.describe("Global body and comment search (REEF-347)", () => {
   });
 
   test("shows an English comment hit and preserves modified and middle-click anchors", async ({
+    context,
     page,
   }) => {
     await openExistingWorkspace(page);
@@ -80,6 +82,27 @@ test.describe("Global body and comment search (REEF-347)", () => {
     );
     await expect(anchor).not.toHaveAttribute("target");
     expect(await anchor.evaluate((element) => element.tagName)).toBe("A");
+
+    const [modifiedPage] = await Promise.all([
+      context.waitForEvent("page"),
+      anchor.click({
+        modifiers: [process.platform === "darwin" ? "Meta" : "Control"],
+      }),
+    ]);
+    await expect(modifiedPage).toHaveURL(
+      /\/workspace\/reef-e2e\/issues\/REEF-003/,
+    );
+    await modifiedPage.close();
+
+    const [middlePage] = await Promise.all([
+      context.waitForEvent("page"),
+      anchor.click({ button: "middle" }),
+    ]);
+    await expect(middlePage).toHaveURL(
+      /\/workspace\/reef-e2e\/issues\/REEF-003/,
+    );
+    await middlePage.close();
+
     await expect(page.locator(inputSelector)).toBeVisible();
   });
 
@@ -136,6 +159,7 @@ test.describe("Global body and comment search (REEF-347)", () => {
       "aria-busy",
       "true",
     );
+    await expect(page.getByRole("dialog")).toHaveAttribute("aria-busy", "true");
     await expect(
       page.locator(`${contentItemSelector}[data-issue-id="REEF-002"]`),
     ).toHaveCount(0);
@@ -190,6 +214,10 @@ test.describe("Global body and comment search (REEF-347)", () => {
     await expect(
       page.locator(`${contentItemSelector}[data-source="comment"]`),
     ).toHaveCount(0);
+
+    await page.locator(inputSelector).fill("comment-only lighthouse");
+    await expect(page.locator(contentItemSelector)).toHaveCount(0);
+    await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
   });
 
   test("validates the real route and returns schema-conforming JSON", async ({
@@ -222,6 +250,40 @@ test.describe("Global body and comment search (REEF-347)", () => {
       ],
       has_more: false,
     });
+  });
+
+  test("exposes account denial through the real route and clears the session", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    const sessionCookie = (await context.cookies()).find(
+      (cookie) => cookie.name === "__reef_session",
+    );
+    if (!sessionCookie) throw new Error("Expected an authenticated session");
+    await setAkbAccountDenial(request, "membership_required");
+
+    const response = await request.get(
+      "/api/issues/search-content?vault=reef-e2e&q=comment-only%20lighthouse&limit=10",
+      {
+        headers: {
+          cookie: `${sessionCookie.name}=${sessionCookie.value}`,
+        },
+      },
+    );
+    const observation = {
+      status: response.status(),
+      accountError: response.headers()["x-reef-account-error"],
+      setCookie: response.headers()["set-cookie"],
+    };
+
+    expect(observation).toMatchObject({
+      status: 403,
+      accountError: "membership_required",
+    });
+    expect(observation.setCookie).toContain("__reef_session=");
+    expect(observation.setCookie).toContain("Max-Age=0");
   });
 
   test("selects each issue's latest matching comment before applying the limit", async ({

@@ -816,6 +816,7 @@ describe("GlobalSearchDialog", () => {
     await waitFor(() =>
       expect(screen.getByRole("listbox")).toHaveAttribute("aria-busy", "true"),
     );
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-busy", "true");
     expect(screen.getByTestId("search-progress-bar")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(
       "Searching issue content…",

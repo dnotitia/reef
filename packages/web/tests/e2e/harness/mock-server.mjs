@@ -1928,6 +1928,7 @@ function tableNamesInSql(lowerSql) {
     "reef_settings",
     "monitored_repos",
     "reef_issues",
+    "reef_comments",
     "reef_templates",
     "reef_activity_suggestions",
     "reef_attachments",
