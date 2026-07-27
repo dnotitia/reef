@@ -102,7 +102,7 @@ function makeAdapter(options?: {
 }
 
 describe("searchIssueContent", () => {
-  it("hydrates body relevance order, keeps the newest comment per issue, and strips index headings", async () => {
+  it("hydrates body relevance order, keeps the newest comment per issue, and normalizes heading markers", async () => {
     const { adapter, request } = makeAdapter();
     const result = await searchIssueContent({
       adapter,
@@ -116,7 +116,7 @@ describe("searchIssueContent", () => {
         {
           reef_id: "REEF-001",
           title: "Title REEF-001",
-          snippet: "한국어 시맨틱 본문 검색 문구입니다.",
+          snippet: "Internal heading 한국어 시맨틱 본문 검색 문구입니다.",
           source: "body",
           score: 0.8,
           match_id: "body:akb://reef/coll/issues/doc/reef-001.md",
@@ -158,6 +158,10 @@ describe("searchIssueContent", () => {
     expect(commentCall?.[1]?.body?.sql).toContain(
       "ILIKE '%\\%\\_\\\\[%' ESCAPE '\\'",
     );
+    expect(commentCall?.[1]?.body?.sql).toContain(
+      "ROW_NUMBER() OVER (\n                PARTITION BY reef_id",
+    );
+    expect(commentCall?.[1]?.body?.sql).toContain("WHERE issue_rank = 1");
   });
 
   it("drops missing, archived, and malformed issue rows without failing the response", async () => {
@@ -213,5 +217,11 @@ describe("searchIssueContent", () => {
     expect(snippet).toContain("Needle");
     expect(snippet.startsWith("…")).toBe(true);
     expect(snippet.endsWith("…")).toBe(true);
+  });
+
+  it("retains text that appears only in a Markdown heading", () => {
+    expect(buildContentSearchSnippet("## Deployment", "deployment")).toBe(
+      "Deployment",
+    );
   });
 });

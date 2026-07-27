@@ -15,7 +15,7 @@ const SNIPPET_CONTEXT = 90;
 
 function normalizeDisplayText(value: string): string {
   return value
-    .replace(/^\s{0,3}#{1,6}\s+.*$/gm, " ")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
     .replace(/\s+/gu, " ")
     .trim();
 }
@@ -142,12 +142,21 @@ async function searchCommentMatches(
         const response = await runSql(
           adapter,
           vault,
-          `SELECT id, reef_id, body, meta->>'created_at' AS created_at FROM ${tableRef(
-            REEF_COMMENTS_TABLE,
-          )} WHERE body ILIKE ${quoteText(
-            `%${escaped}%`,
-            "comment search pattern",
-          )} ESCAPE '\\' ORDER BY meta->>'created_at' DESC, id ASC LIMIT ${limit}`,
+          `SELECT id, reef_id, body, created_at FROM (
+            SELECT id, reef_id, body, meta->>'created_at' AS created_at,
+              ROW_NUMBER() OVER (
+                PARTITION BY reef_id
+                ORDER BY meta->>'created_at' DESC, id ASC
+              ) AS issue_rank
+            FROM ${tableRef(REEF_COMMENTS_TABLE)}
+            WHERE body ILIKE ${quoteText(
+              `%${escaped}%`,
+              "comment search pattern",
+            )} ESCAPE '\\'
+          ) AS ranked_comments
+          WHERE issue_rank = 1
+          ORDER BY created_at DESC, id ASC
+          LIMIT ${limit}`,
         );
         rows = response.kind === "table_query" ? response.items : [];
       } catch (error) {

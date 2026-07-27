@@ -357,7 +357,11 @@ export function GlobalSearchDialog() {
     (isLoading || isFetching || debouncePending)
   ) {
     statusMessage = t("searching");
-  } else if (results.length === 0) {
+  } else if (
+    results.length === 0 &&
+    contentResults.length === 0 &&
+    !canLoadMore
+  ) {
     statusMessage = isSearching ? t("noMatches") : t("empty");
   }
 
@@ -442,7 +446,7 @@ export function GlobalSearchDialog() {
             ))}
           </CommandGroup>
         ) : null}
-        {contentResults.length > 0 ? (
+        {contentResults.length > 0 || canLoadMore ? (
           <CommandGroup heading={t("headingContent")}>
             {contentResults.map((result) => (
               <CommandItem
@@ -514,7 +518,10 @@ export function GlobalSearchDialog() {
           aria-live="polite"
           className={cn(
             "block text-center text-sm",
-            statusMessage && !showResults && contentResults.length === 0
+            statusMessage &&
+              !showResults &&
+              contentResults.length === 0 &&
+              !canLoadMore
               ? "py-6"
               : "sr-only",
           )}

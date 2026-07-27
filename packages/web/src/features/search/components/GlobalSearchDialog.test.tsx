@@ -642,6 +642,46 @@ describe("GlobalSearchDialog", () => {
     expect(screen.queryByTestId("global-search-content-item")).toBeNull();
   });
 
+  it("keeps bounded expansion reachable when metadata hides the current content page", async () => {
+    useIssueContentSearchMock.mockImplementation(
+      (query: string, _vault: string, limit: number) => ({
+        data: query
+          ? {
+              query,
+              limit,
+              results: [
+                {
+                  reef_id: "REEF-001",
+                  title: "Fix login bug",
+                  snippet: "login body",
+                  source: "body",
+                  score: 0.8,
+                  match_id: "body:one",
+                },
+              ],
+              has_more: true,
+            }
+          : undefined,
+        isError: false,
+        isFetching: false,
+      }),
+    );
+    useGlobalSearchStore.setState({ isOpen: true });
+    renderDialog();
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("global-search-input"), "login");
+
+    expect(screen.queryByTestId("global-search-content-item")).toBeNull();
+    await user.click(await screen.findByTestId("global-search-content-more"));
+    await waitFor(() =>
+      expect(useIssueContentSearchMock).toHaveBeenLastCalledWith(
+        "login",
+        "reef-acme",
+        20,
+      ),
+    );
+  });
+
   it("hides stale or failed content without changing metadata usability", async () => {
     useIssueContentSearchMock.mockReturnValue({
       data: {
