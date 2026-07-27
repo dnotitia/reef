@@ -204,14 +204,14 @@ export async function createComment(
           )} AND reef_id = ${quoteText(
             reefId,
             "comment reef_id",
-          )}), reply_target AS (SELECT direct_parent.id AS parent_id, CASE WHEN direct_parent.meta->>'parent_comment_id' IS NULL AND direct_parent.meta->>'thread_root_id' IS NULL THEN direct_parent.id ELSE direct_parent.meta->>'thread_root_id' END AS root_id FROM direct_parent), parent_chain AS (SELECT direct_parent.id, direct_parent.reef_id, direct_parent.meta, 0 AS depth FROM direct_parent UNION ALL SELECT chain_parent.id, chain_parent.reef_id, chain_parent.meta, parent_chain.depth + 1 FROM parent_chain JOIN ${tableRef(
+          )}), reply_target AS (SELECT direct_parent.id::text AS parent_id, CASE WHEN direct_parent.meta->>'parent_comment_id' IS NULL AND direct_parent.meta->>'thread_root_id' IS NULL THEN direct_parent.id::text ELSE direct_parent.meta->>'thread_root_id' END AS root_id FROM direct_parent), parent_chain AS (SELECT direct_parent.id::text AS id, direct_parent.reef_id, direct_parent.meta, 0 AS depth FROM direct_parent UNION ALL SELECT chain_parent.id::text, chain_parent.reef_id, chain_parent.meta, parent_chain.depth + 1 FROM parent_chain JOIN ${tableRef(
             REEF_COMMENTS_TABLE,
-          )} chain_parent ON chain_parent.id = parent_chain.meta->>'parent_comment_id' AND chain_parent.reef_id = ${quoteText(
+          )} chain_parent ON chain_parent.id::text = parent_chain.meta->>'parent_comment_id' AND chain_parent.reef_id = ${quoteText(
             reefId,
             "comment reef_id",
           )} WHERE parent_chain.depth < 100), valid_reply AS (SELECT reply_target.parent_id, reply_target.root_id FROM reply_target JOIN ${tableRef(
             REEF_COMMENTS_TABLE,
-          )} root_comment ON root_comment.id = reply_target.root_id AND root_comment.reef_id = ${quoteText(
+          )} root_comment ON root_comment.id::text = reply_target.root_id AND root_comment.reef_id = ${quoteText(
             reefId,
             "comment reef_id",
           )} WHERE root_comment.meta->>'parent_comment_id' IS NULL AND root_comment.meta->>'thread_root_id' IS NULL AND EXISTS (SELECT 1 FROM parent_chain WHERE parent_chain.id = reply_target.root_id AND parent_chain.meta->>'parent_comment_id' IS NULL AND parent_chain.meta->>'thread_root_id' IS NULL) AND NOT EXISTS (SELECT 1 FROM parent_chain WHERE parent_chain.id <> reply_target.root_id AND (parent_chain.meta->>'parent_comment_id' IS NULL OR parent_chain.meta->>'thread_root_id' IS DISTINCT FROM reply_target.root_id))), ins AS (INSERT INTO ${tableRef(
