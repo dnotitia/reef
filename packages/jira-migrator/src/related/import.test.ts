@@ -674,7 +674,7 @@ describe("Jira related-data import stage", () => {
       expect.objectContaining({
         source_kind: "attachment",
         phase: "readback",
-        reason: "attachment_import_failed",
+        reason: "attachment_readback_mismatch:stored_size,source_size,bytes",
       }),
     );
   });

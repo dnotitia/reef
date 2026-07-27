@@ -11,7 +11,10 @@ import type {
   JiraCommentPayload,
   NormalizedJiraAttachment,
 } from "../payloads.js";
-import { validAttachmentReadback } from "./attachments.js";
+import {
+  attachmentReadbackMismatches,
+  validAttachmentReadback,
+} from "./attachments.js";
 import { revokeCommentTargets } from "./comments.js";
 import { MISSING_SOURCE_TIMESTAMP } from "./constants.js";
 import type {
@@ -41,6 +44,13 @@ export async function importAttachments(options: {
   ledger: JiraMigrationLedgerV1;
   attachmentBindings: AttachmentBinding[];
 }> {
+  const assertAttachmentReadback = (
+    ...args: Parameters<typeof attachmentReadbackMismatches>
+  ): void => {
+    const mismatches = attachmentReadbackMismatches(...args);
+    if (mismatches.length > 0)
+      throw new Error(`attachment_readback_mismatch:${mismatches.join(",")}`);
+  };
   const {
     migration,
     issueId,
@@ -336,15 +346,12 @@ export async function importAttachments(options: {
         const readback = await migration.target.readAttachment(
           existing.target.file_uri,
         );
-        if (
-          !validAttachmentReadback(
-            readback,
-            attachment,
-            { ...expectedAttachment, fileUri: existing.target.file_uri },
-            download.bytes,
-          )
-        )
-          throw new Error("attachment_readback_mismatch");
+        assertAttachmentReadback(
+          readback,
+          attachment,
+          { ...expectedAttachment, fileUri: existing.target.file_uri },
+          download.bytes,
+        );
         attachmentBindings.push({
           source: attachment,
           fileUri: existing.target.file_uri,
@@ -377,18 +384,15 @@ export async function importAttachments(options: {
             "application/octet-stream",
         };
         attachmentPhase = "readback";
-        if (
-          !validAttachmentReadback(
-            recovered,
-            attachment,
-            {
-              ...expectedAttachment,
-              fileUri: recovered.attachment.file_uri,
-            },
-            download.bytes,
-          )
-        )
-          throw new Error("attachment_readback_mismatch");
+        assertAttachmentReadback(
+          recovered,
+          attachment,
+          {
+            ...expectedAttachment,
+            fileUri: recovered.attachment.file_uri,
+          },
+          download.bytes,
+        );
         attachmentBindings.push({
           source: attachment,
           fileUri: recovered.attachment.file_uri,
@@ -460,15 +464,12 @@ export async function importAttachments(options: {
         const readback = await migration.target.readAttachment(
           created.file_uri,
         );
-        if (
-          !validAttachmentReadback(
-            readback,
-            attachment,
-            { ...expectedAttachment, fileUri: created.file_uri },
-            download.bytes,
-          )
-        )
-          throw new Error("attachment_readback_mismatch");
+        assertAttachmentReadback(
+          readback,
+          attachment,
+          { ...expectedAttachment, fileUri: created.file_uri },
+          download.bytes,
+        );
         report.attachments.bytes += download.bytes.byteLength;
         report.attachments.created += 1;
         attachmentBindings.push({
@@ -552,13 +553,17 @@ export async function importAttachments(options: {
         "attachment",
         attachment.id,
         attachmentPhase,
-        String(error).includes("size_mismatch")
-          ? "attachment_size_mismatch"
-          : String(error).includes("content_length_mismatch")
+        String(error).includes("attachment_readback_mismatch:")
+          ? String(error).slice(
+              String(error).indexOf("attachment_readback_mismatch:"),
+            )
+          : String(error).includes("size_mismatch")
             ? "attachment_size_mismatch"
-            : String(error).includes("size_limit")
-              ? "attachment_size_limit_exceeded"
-              : "attachment_import_failed",
+            : String(error).includes("content_length_mismatch")
+              ? "attachment_size_mismatch"
+              : String(error).includes("size_limit")
+                ? "attachment_size_limit_exceeded"
+                : "attachment_import_failed",
         error,
       );
     }
