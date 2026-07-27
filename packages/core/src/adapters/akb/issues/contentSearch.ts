@@ -124,6 +124,32 @@ interface SearchPart {
   mayHaveMore: boolean;
 }
 
+function mergeSearchParts(
+  body: readonly IssueContentSearchResult[],
+  comments: readonly IssueContentSearchResult[],
+  limit: number,
+): IssueContentSearchResult[] {
+  const results: IssueContentSearchResult[] = [];
+  let bodyIndex = 0;
+  let commentIndex = 0;
+  while (
+    results.length < limit &&
+    (bodyIndex < body.length || commentIndex < comments.length)
+  ) {
+    const bodyResult = body[bodyIndex];
+    if (bodyResult) {
+      results.push(bodyResult);
+      bodyIndex += 1;
+    }
+    const commentResult = comments[commentIndex];
+    if (results.length < limit && commentResult) {
+      results.push(commentResult);
+      commentIndex += 1;
+    }
+  }
+  return results;
+}
+
 async function hydrateIssuesByDocumentUri(
   adapter: AkbAdapter,
   vault: string,
@@ -320,7 +346,7 @@ export async function searchIssueContent({
   ]);
   const combined = [...body.results, ...comments.results];
   return IssueContentSearchResponseSchema.parse({
-    results: combined.slice(0, limit),
+    results: mergeSearchParts(body.results, comments.results, limit),
     has_more:
       combined.length > limit || body.mayHaveMore || comments.mayHaveMore,
   });

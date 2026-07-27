@@ -38,6 +38,12 @@ function table(items: Record<string, unknown>[]) {
 function makeAdapter(options?: {
   degraded?: boolean;
   missingComments?: boolean;
+  bodyHits?: Array<{
+    uri: string;
+    title: string;
+    score: number;
+    matched_section: string;
+  }>;
   bodyRows?: Record<string, unknown>[];
   commentRows?: Record<string, unknown>[];
 }): { adapter: AkbAdapter; request: ReturnType<typeof vi.fn> } {
@@ -45,20 +51,21 @@ function makeAdapter(options?: {
   const request = vi.fn(
     async (path: string, init?: AkbRequestInit): Promise<unknown> => {
       if (path === "/api/v1/search") {
+        const results = options?.bodyHits ?? [
+          {
+            uri: bodyUri,
+            title: "REEF-001",
+            score: 0.8,
+            matched_section:
+              "## Internal heading\n한국어 시맨틱 본문 검색 문구입니다.",
+          },
+        ];
         return {
           kind: "search",
-          returned: 1,
+          returned: results.length,
           truncated: false,
           degraded: options?.degraded ?? false,
-          results: [
-            {
-              uri: bodyUri,
-              title: "REEF-001",
-              score: 0.8,
-              matched_section:
-                "## Internal heading\n한국어 시맨틱 본문 검색 문구입니다.",
-            },
-          ],
+          results,
         };
       }
       const body =
@@ -194,6 +201,45 @@ describe("searchIssueContent", () => {
       limit: 10,
     });
     expect(result.results.map((item) => item.source)).toEqual(["body"]);
+  });
+
+  it("does not let a full body top-K starve comment matches", async () => {
+    const bodyHits = Array.from({ length: 10 }, (_, index) => ({
+      uri: `akb://reef/coll/issues/doc/reef-${100 + index}.md`,
+      title: `REEF-${100 + index}`,
+      score: 1 - index / 100,
+      matched_section: `Body needle ${index}`,
+    }));
+    const { adapter } = makeAdapter({
+      bodyHits,
+      bodyRows: bodyHits.map((hit, index) =>
+        issueRow(`REEF-${100 + index}`, hit.uri),
+      ),
+      commentRows: [
+        {
+          id: "comment-visible",
+          reef_id: "REEF-002",
+          body: "Comment needle remains visible",
+          created_at: "2026-07-03T00:00:00.000Z",
+        },
+      ],
+    });
+
+    const result = await searchIssueContent({
+      adapter,
+      vault: "reef",
+      query: "needle",
+      limit: 10,
+    });
+
+    expect(result.results).toHaveLength(10);
+    expect(result.results.map((item) => item.source).slice(0, 2)).toEqual([
+      "body",
+      "comment",
+    ]);
+    expect(result.results).toContainEqual(
+      expect.objectContaining({ match_id: "comment:comment-visible" }),
+    );
   });
 
   it("fails the whole content search when AKB hybrid search is degraded", async () => {
