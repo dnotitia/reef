@@ -223,4 +223,33 @@ test.describe("Global body and comment search (REEF-347)", () => {
       has_more: false,
     });
   });
+
+  test("selects each issue's latest matching comment before applying the limit", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    const response = await page.evaluate(async () => {
+      const result = await fetch(
+        "/api/issues/search-content?vault=reef-e2e&q=dedupe-before-limit&limit=10",
+      );
+      return { status: result.status, body: await result.json() };
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      results: [
+        expect.objectContaining({
+          reef_id: "REEF-003",
+          source: "comment",
+          snippet: "Dedupe-before-limit comment 10",
+        }),
+        expect.objectContaining({
+          reef_id: "REEF-001",
+          source: "comment",
+          snippet: "Dedupe-before-limit other issue",
+        }),
+      ],
+      has_more: false,
+    });
+  });
 });

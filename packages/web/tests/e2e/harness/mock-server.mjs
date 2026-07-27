@@ -517,6 +517,35 @@ function contentSearchVault(name) {
       created_by: "alice",
     },
   );
+  for (let index = 0; index < 11; index += 1) {
+    const createdAt = `2026-06-18T11:${String(index).padStart(2, "0")}:00.000Z`;
+    vault.comments.push({
+      id: uuidFor(100 + index),
+      reef_id: "REEF-003",
+      body: `Dedupe-before-limit comment ${index}`,
+      meta: {
+        author: "alice",
+        created_at: createdAt,
+        edited_at: null,
+      },
+      created_at: createdAt,
+      updated_at: createdAt,
+      created_by: "alice",
+    });
+  }
+  vault.comments.push({
+    id: uuidFor(120),
+    reef_id: "REEF-001",
+    body: "Dedupe-before-limit other issue",
+    meta: {
+      author: "alice",
+      created_at: "2026-06-18T10:00:00.000Z",
+      edited_at: null,
+    },
+    created_at: "2026-06-18T10:00:00.000Z",
+    updated_at: "2026-06-18T10:00:00.000Z",
+    created_by: "alice",
+  });
   for (let index = 0; index < 12; index += 1) {
     const id = `REEF-${String(200 + index).padStart(3, "0")}`;
     vault.issues.push(
@@ -1413,7 +1442,7 @@ function handleSql(vault, sql) {
     );
     const literal = decodeEscapedLikePattern(pattern ?? "");
     const limit = Number(normalized.match(/\blimit\s+(\d+)/i)?.[1] ?? 10);
-    const rows = vault.comments
+    const matching = vault.comments
       .filter((comment) =>
         comment.body.toLowerCase().includes(literal.toLowerCase()),
       )
@@ -1422,14 +1451,20 @@ function handleSql(vault, sql) {
           String(right.meta?.created_at ?? "").localeCompare(
             String(left.meta?.created_at ?? ""),
           ) || String(left.id).localeCompare(String(right.id)),
-      )
-      .slice(0, limit)
-      .map((comment) => ({
-        id: comment.id,
-        reef_id: comment.reef_id,
-        body: comment.body,
-        created_at: comment.meta?.created_at ?? null,
-      }));
+      );
+    const latestPerIssue = [];
+    const seenIssues = new Set();
+    for (const comment of matching) {
+      if (seenIssues.has(comment.reef_id)) continue;
+      seenIssues.add(comment.reef_id);
+      latestPerIssue.push(comment);
+    }
+    const rows = latestPerIssue.slice(0, limit).map((comment) => ({
+      id: comment.id,
+      reef_id: comment.reef_id,
+      body: comment.body,
+      created_at: comment.meta?.created_at ?? null,
+    }));
     return tableQuery(["id", "reef_id", "body", "created_at"], rows);
   }
   if (lower.startsWith("select * from reef_comments")) {
