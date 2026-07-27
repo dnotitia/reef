@@ -167,7 +167,13 @@ KUSTOMIZE_DIR=deploy/k8s/overlays/my-cluster \
 ```
 
 `deploy.sh` defaults `KUSTOMIZE_DIR` to `overlays/example` and `NAMESPACE` to
-`reef`; point them at your own overlay/namespace.
+`reef`; point them at your own overlay/namespace. Before restarting the
+Deployment, it also records a `kubernetes.io/change-cause` annotation so
+`kubectl rollout history deployment/reef-web` identifies the deployed Reef
+version and Git commit. The version defaults to the root package version and
+the commit defaults to the current short `HEAD`; set `DEPLOY_VERSION`,
+`DEPLOY_COMMIT`, or the complete `CHANGE_CAUSE` when deploying a different
+artifact provenance.
 
 ---
 
