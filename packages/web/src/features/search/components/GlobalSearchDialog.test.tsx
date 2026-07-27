@@ -604,6 +604,37 @@ describe("GlobalSearchDialog", () => {
     expect(items[0]?.querySelector("a")).toHaveAttribute("tabindex", "-1");
   });
 
+  it("highlights with source offsets after length-changing Unicode folds", async () => {
+    useIssueContentSearchMock.mockImplementation((query: string) => ({
+      data: query
+        ? {
+            query,
+            limit: 10,
+            results: [
+              {
+                reef_id: "REEF-349",
+                title: "Unicode search",
+                snippet: `${"İ".repeat(40)}Needle`,
+                source: "comment",
+                score: null,
+                match_id: "comment:unicode",
+              },
+            ],
+            has_more: false,
+          }
+        : undefined,
+      isError: false,
+      isFetching: false,
+    }));
+    useGlobalSearchStore.setState({ isOpen: true });
+    renderDialog();
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("global-search-input"), "needle");
+
+    const item = await screen.findByTestId("global-search-content-item");
+    expect(item.querySelector("mark")?.textContent).toBe("Needle");
+  });
+
   it("removes every auxiliary source for an issue already shown in metadata", async () => {
     useIssueContentSearchMock.mockImplementation((query: string) => ({
       data: query

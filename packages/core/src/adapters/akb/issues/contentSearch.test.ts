@@ -224,4 +224,20 @@ describe("searchIssueContent", () => {
       "Deployment",
     );
   });
+
+  it("preserves literal matching whitespace when bounding a comment snippet", () => {
+    const snippet = buildContentSearchSnippet(
+      `${"before ".repeat(80)}foo  bar${" after".repeat(80)}`,
+      "foo  bar",
+    );
+    expect(snippet).toContain("foo  bar");
+  });
+
+  it("maps length-changing Unicode case folds back to source offsets", () => {
+    const snippet = buildContentSearchSnippet(
+      `${"İ".repeat(180)}Needle${" after".repeat(80)}`,
+      "needle",
+    );
+    expect(snippet).toContain("Needle");
+  });
 });

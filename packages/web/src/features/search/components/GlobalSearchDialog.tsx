@@ -54,6 +54,41 @@ const CONTENT_MAX_LIMIT = 50;
  */
 const CANONICAL_ID = /^[a-z]+-\d{3,}$/i;
 
+function foldWithSourceRanges(value: string): {
+  folded: string;
+  starts: number[];
+  ends: number[];
+} {
+  let folded = "";
+  const starts: number[] = [];
+  const ends: number[] = [];
+  let sourceIndex = 0;
+  for (const symbol of value) {
+    const foldedSymbol = symbol.toLowerCase();
+    folded += foldedSymbol;
+    for (let index = 0; index < foldedSymbol.length; index += 1) {
+      starts.push(sourceIndex);
+      ends.push(sourceIndex + symbol.length);
+    }
+    sourceIndex += symbol.length;
+  }
+  return { folded, starts, ends };
+}
+
+function findCaseInsensitiveLiteralRange(
+  value: string,
+  query: string,
+): { start: number; end: number } | null {
+  const source = foldWithSourceRanges(value);
+  const needle = foldWithSourceRanges(query).folded;
+  if (!needle) return null;
+  const foldedIndex = source.folded.indexOf(needle);
+  if (foldedIndex < 0) return null;
+  const start = source.starts[foldedIndex];
+  const end = source.ends[foldedIndex + needle.length - 1];
+  return start === undefined || end === undefined ? null : { start, end };
+}
+
 function LiteralHighlight({
   text,
   query,
@@ -61,26 +96,26 @@ function LiteralHighlight({
   text: string;
   query: string;
 }) {
-  const needle = query.toLocaleLowerCase();
-  if (!needle) return text;
-  const lowerText = text.toLocaleLowerCase();
   const parts: Array<{ text: string; matched: boolean }> = [];
   let cursor = 0;
   while (cursor < text.length) {
-    const match = lowerText.indexOf(needle, cursor);
-    if (match < 0) {
+    const match = findCaseInsensitiveLiteralRange(text.slice(cursor), query);
+    if (!match) {
       parts.push({ text: text.slice(cursor), matched: false });
       break;
     }
-    if (match > cursor) {
-      parts.push({ text: text.slice(cursor, match), matched: false });
+    const matchStart = cursor + match.start;
+    const matchEnd = cursor + match.end;
+    if (matchStart > cursor) {
+      parts.push({ text: text.slice(cursor, matchStart), matched: false });
     }
     parts.push({
-      text: text.slice(match, match + needle.length),
+      text: text.slice(matchStart, matchEnd),
       matched: true,
     });
-    cursor = match + needle.length;
+    cursor = matchEnd;
   }
+  if (parts.length === 0) return text;
   return parts.map((part, index) =>
     part.matched ? (
       <mark

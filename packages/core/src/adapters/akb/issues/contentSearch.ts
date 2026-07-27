@@ -13,24 +13,102 @@ import { rowToIssue, selectIssueRows } from "./issueRows";
 const MAX_SNIPPET_LENGTH = 280;
 const SNIPPET_CONTEXT = 90;
 
-function normalizeDisplayText(value: string): string {
-  return value
-    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
-    .replace(/\s+/gu, " ")
-    .trim();
+interface TextRange {
+  start: number;
+  end: number;
+}
+
+function foldWithSourceRanges(value: string): {
+  folded: string;
+  starts: number[];
+  ends: number[];
+} {
+  let folded = "";
+  const starts: number[] = [];
+  const ends: number[] = [];
+  let sourceIndex = 0;
+  for (const symbol of value) {
+    const foldedSymbol = symbol.toLowerCase();
+    folded += foldedSymbol;
+    for (let index = 0; index < foldedSymbol.length; index += 1) {
+      starts.push(sourceIndex);
+      ends.push(sourceIndex + symbol.length);
+    }
+    sourceIndex += symbol.length;
+  }
+  return { folded, starts, ends };
+}
+
+function findCaseInsensitiveLiteralRange(
+  value: string,
+  query: string,
+): TextRange | null {
+  const source = foldWithSourceRanges(value);
+  const needle = foldWithSourceRanges(query).folded;
+  if (!needle) return null;
+  const foldedIndex = source.folded.indexOf(needle);
+  if (foldedIndex < 0) return null;
+  const start = source.starts[foldedIndex];
+  const end = source.ends[foldedIndex + needle.length - 1];
+  return start === undefined || end === undefined ? null : { start, end };
+}
+
+function normalizeDisplayText(
+  value: string,
+  preservedRange: TextRange | null,
+): { text: string; matchStart: number | null } {
+  const headingPrefixes = [...value.matchAll(/^\s{0,3}#{1,6}\s+/gm)].map(
+    (match) => ({
+      start: match.index,
+      end: match.index + match[0].length,
+    }),
+  );
+  let text = "";
+  let matchStart: number | null = null;
+  let sourceIndex = 0;
+  let headingIndex = 0;
+
+  for (const symbol of value) {
+    const sourceEnd = sourceIndex + symbol.length;
+    while (
+      headingPrefixes[headingIndex] &&
+      sourceIndex >= headingPrefixes[headingIndex].end
+    ) {
+      headingIndex += 1;
+    }
+    const inPreservedRange =
+      preservedRange !== null &&
+      sourceIndex < preservedRange.end &&
+      sourceEnd > preservedRange.start;
+    const inHeadingPrefix =
+      headingPrefixes[headingIndex] !== undefined &&
+      sourceIndex >= headingPrefixes[headingIndex].start &&
+      sourceIndex < headingPrefixes[headingIndex].end;
+
+    if (inPreservedRange && matchStart === null) matchStart = text.length;
+    if (!inHeadingPrefix || inPreservedRange) {
+      if (/\s/u.test(symbol) && !inPreservedRange) {
+        if (text && !/\s$/u.test(text)) text += " ";
+      } else {
+        text += symbol;
+      }
+    }
+    sourceIndex = sourceEnd;
+  }
+
+  return { text: text.trimEnd(), matchStart };
 }
 
 export function buildContentSearchSnippet(
   value: string,
   query: string,
 ): string {
-  const text = normalizeDisplayText(value);
+  const matchRange = findCaseInsensitiveLiteralRange(value, query);
+  const normalized = normalizeDisplayText(value, matchRange);
+  const { text } = normalized;
   if (text.length <= MAX_SNIPPET_LENGTH) return text;
 
-  const matchIndex = text
-    .toLocaleLowerCase()
-    .indexOf(query.toLocaleLowerCase());
-  const center = matchIndex >= 0 ? matchIndex : 0;
+  const center = normalized.matchStart ?? 0;
   const start = Math.max(0, center - SNIPPET_CONTEXT);
   const end = Math.min(text.length, start + MAX_SNIPPET_LENGTH);
   const slice = text.slice(start, end).trim();
