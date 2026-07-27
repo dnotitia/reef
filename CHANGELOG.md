@@ -12,6 +12,14 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Added
+
+- **Global search now finds issue body and comment text.** For queries of two
+  characters or more, `⌘K` keeps its existing metadata and exact-ID results and
+  adds a separate bilingual body/comment group with safe literal highlighting,
+  real issue links, quiet degradation, and bounded 10-at-a-time expansion up to
+  50 results. (REEF-347)
+
 ## v0.8.0 - 2026-07-27
 
 ### Added

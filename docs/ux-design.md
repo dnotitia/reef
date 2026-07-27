@@ -711,3 +711,21 @@ is respected so typing is never hijacked.
 When List selection is active, the single-issue `s` / `a` / `p` / `l`
 shortcuts are suppressed and Esc clears the selection only after any focused
 interactive overlay has had the chance to consume it.
+
+### Global Search
+
+The `⌘K` palette keeps metadata search authoritative: server order, canonical
+exact-ID promotion, recent issues, relation commands, `shouldFilter={false}`,
+and native modified-click behavior remain unchanged. Once a trimmed query has
+at least two Unicode code points, a second query searches issue task-document
+bodies semantically and comment bodies as case-insensitive literal text. Those
+hits appear in a separate **Body & comment matches** group below metadata, with
+a source badge, bounded snippet, and text-node-only literal highlighting.
+Issues already visible in metadata are omitted from the auxiliary group.
+
+Content search owns no error or empty message. A failed, degraded, unsupported,
+or empty content response hides the entire auxiliary group without a toast and
+leaves metadata search usable. Its initial and expansion requests participate
+in the palette's teal progress hairline, `aria-busy`, and polite live status.
+Expansion re-requests the same query at limits `10 → 20 → … → 50`, retains the
+settled rows while loading, and never presents an estimated corpus total.

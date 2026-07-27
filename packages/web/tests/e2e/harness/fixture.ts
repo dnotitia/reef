@@ -6,6 +6,7 @@ export const E2E_MOCK_URL =
 export type FixtureScenario =
   | "empty"
   | "configured"
+  | "content_search"
   | "demo_board"
   | "raw_only"
   | "activity_suggestions"
@@ -95,6 +96,18 @@ export async function setIssueListFailure(
   const response = await request.post(
     `${E2E_MOCK_URL}/__e2e/issue-list-failure`,
     { data: { enabled } },
+  );
+  expect(response.ok()).toBeTruthy();
+}
+
+export async function setContentSearchMode(
+  request: APIRequestContext,
+  mode: "healthy" | "degraded" | "error" | "missing-comments",
+  delayMs = 0,
+): Promise<void> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/content-search-control`,
+    { data: { mode, delay_ms: delayMs } },
   );
   expect(response.ok()).toBeTruthy();
 }
