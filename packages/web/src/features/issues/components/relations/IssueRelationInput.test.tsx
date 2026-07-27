@@ -481,6 +481,24 @@ describe("IssueRelationInput", () => {
     expect(onChange).toHaveBeenLastCalledWith(["REEF-777"]);
   });
 
+  it("adds an id with a Jira-compatible numeric prefix", async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <IssueRelationInput
+        id="depends-on"
+        label="Depends on"
+        value={[]}
+        allIssues={RICH}
+        onChange={onChange}
+      />,
+    );
+
+    await user.type(screen.getByLabelText("Depends on"), "saasv31-777");
+    await user.click(screen.getByText("SAASV31-777"));
+    expect(onChange).toHaveBeenLastCalledWith(["SAASV31-777"]);
+  });
+
   it("adds the auto-highlighted match on Enter", async () => {
     const onChange = vi.fn();
     const user = userEvent.setup();

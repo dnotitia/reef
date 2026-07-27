@@ -45,7 +45,10 @@ explicitly in the entries below.
   keys.** Prefixes still begin with an uppercase ASCII letter, but may now
   contain uppercase letters, digits, and underscores after it, allowing Jira
   projects such as `SAASV31` to initialize a matching target workspace and
-  preserve their source project key during migration.
+  preserve their source project key during migration. Issue detail APIs,
+  relations, global search, chat grounding, the `read_issue` tool, and Markdown
+  mention links now use the same contract instead of rejecting or overlooking
+  those ids.
 
 ## v0.8.0 - 2026-07-27
 

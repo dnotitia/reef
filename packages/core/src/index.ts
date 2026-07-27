@@ -152,6 +152,7 @@ export {
   type ActivitySuggestionsResult,
 } from "./schemas";
 export {
+  ISSUE_ID_PATTERN,
   type IssueIdParts,
   isForwardStatus,
   isResolvedStatus,

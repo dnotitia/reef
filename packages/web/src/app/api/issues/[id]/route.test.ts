@@ -143,6 +143,30 @@ describe("GET /api/issues/[id]", () => {
     );
   });
 
+  it("accepts a Jira-compatible numeric project prefix", async () => {
+    const migratedIssue = { ...SAMPLE_ISSUE, id: "SAASV31-001" };
+    mockAkbReadIssue.mockResolvedValueOnce({
+      issue: migratedIssue,
+      content: "## migrated",
+      path: "issues/saasv31-001.md",
+      commit_hash: "def",
+    });
+    const req = new Request(
+      "http://localhost/api/issues/SAASV31-001?vault=reef-saasv31",
+      { headers: authedHeaders() },
+    );
+
+    const res = await GET(req, params("SAASV31-001"));
+
+    expect(res.status).toBe(200);
+    expect(mockAkbReadIssue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        vault: "reef-saasv31",
+        id: "SAASV31-001",
+      }),
+    );
+  });
+
   it("translates NotFoundError to 404 with issue label", async () => {
     mockAkbReadIssue.mockRejectedValueOnce(
       new NotFoundError({ resource: "issue REEF-999" }),

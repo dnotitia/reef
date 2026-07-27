@@ -15,6 +15,13 @@ export interface IssueIdParts {
 const PREFIX_PATTERN = /^[A-Z][A-Z0-9_]*$/;
 
 /**
+ * Complete canonical Reef issue id. Keep every route, tool, and UI exact-id
+ * guard on this shared pattern so Jira-compatible numeric/underscore prefixes
+ * do not regress independently of {@link parseIssueId}.
+ */
+export const ISSUE_ID_PATTERN = /^[A-Z][A-Z0-9_]*-\d+$/;
+
+/**
  * Computes the next sequential issue ID.
  *
  * Format: {PREFIX}-{NNN} where NNN is zero-padded to minimum 3 digits.

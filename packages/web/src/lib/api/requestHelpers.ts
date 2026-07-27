@@ -19,6 +19,7 @@ import {
   type AkbAdapter,
   type AkbResourceLabel,
   AuthError,
+  ISSUE_ID_PATTERN,
   NotFoundError,
   SchemaValidationError,
   VAULT_NAME_PATTERN,
@@ -43,10 +44,8 @@ export { VaultNameSchema };
  * matched value into URL paths so any deviation (slashes, dots, null bytes)
  * should be rejected before it reaches the adapter.
  */
-const ISSUE_ID_PATH_REGEX = /^[A-Za-z]+-\d+$/;
-
 export function isValidIssueIdPathParam(id: string): boolean {
-  return ISSUE_ID_PATH_REGEX.test(id);
+  return ISSUE_ID_PATTERN.test(id.toUpperCase());
 }
 
 export interface RepoParts {

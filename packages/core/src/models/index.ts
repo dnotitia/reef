@@ -1,4 +1,4 @@
-export type { IssueIdParts } from "./id";
+export { ISSUE_ID_PATTERN, type IssueIdParts } from "./id";
 export {
   JIRA_RANK_MAPPED,
   computeReorderedRanks,

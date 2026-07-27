@@ -1,6 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { SchemaValidationError } from "../errors";
-import { type IssueIdParts, nextIssueId, parseIssueId } from "./id";
+import {
+  ISSUE_ID_PATTERN,
+  type IssueIdParts,
+  nextIssueId,
+  parseIssueId,
+} from "./id";
+
+describe("ISSUE_ID_PATTERN", () => {
+  it("accepts Jira-compatible numeric and underscore prefixes", () => {
+    expect(ISSUE_ID_PATTERN.test("SAASV31-001")).toBe(true);
+    expect(ISSUE_ID_PATTERN.test("TEAM_2-042")).toBe(true);
+  });
+
+  it("rejects unsafe or non-canonical ids", () => {
+    expect(ISSUE_ID_PATTERN.test("reef-001")).toBe(false);
+    expect(ISSUE_ID_PATTERN.test("../SAASV31-001")).toBe(false);
+    expect(ISSUE_ID_PATTERN.test("31TEAM-001")).toBe(false);
+  });
+});
 
 describe("nextIssueId", () => {
   describe("happy path", () => {
