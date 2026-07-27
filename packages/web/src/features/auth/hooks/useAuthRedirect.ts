@@ -6,7 +6,7 @@ import {
 } from "@/lib/akb/accountDenialClient";
 import { getAkbSessionStatus } from "@/lib/akb/checkAkbSession";
 import { buildPathWithParams } from "@/lib/akb/safeRedirect";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 /**
@@ -33,6 +33,7 @@ export type AuthGateStatus = "checking" | "active" | "inactive";
  */
 export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
   const router = useRouter();
+  const pathname = usePathname();
   const [authState, setAuthState] = useState<{
     mode: AuthGateMode;
     status: AuthGateStatus;
@@ -61,7 +62,9 @@ export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
                 ? { sso_error_token: pending.token }
                 : {}),
             })
-          : "/login",
+          : mode === "workspace"
+            ? buildPathWithParams("/login", { redirect: pathname })
+            : "/login",
       );
     };
     const unsubscribe = subscribeAkbAccountDenied(redirectToLogin);
@@ -98,7 +101,7 @@ export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
       controller.abort();
       unsubscribe();
     };
-  }, [router, mode]);
+  }, [router, mode, pathname]);
 
   return status;
 }

@@ -76,6 +76,34 @@ test.describe("Hermetic onboarding flow", () => {
     });
   });
 
+  test("rechecks a remembered workspace after cached selection and re-login", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "configured_multi");
+    await signInAsAlice(page);
+    await expect(page).toHaveURL(/\/workspace\/reef-alpha\/issues\/?$/, {
+      timeout: 15_000,
+    });
+    await expect
+      .poll(() =>
+        page.evaluate(() => localStorage.getItem("REACT_QUERY_OFFLINE_CACHE")),
+      )
+      .toContain("reef-alpha");
+
+    await context.clearCookies();
+    await writeIndexedDbConfig(page, "akb_user_id", "user-alice");
+    await writeIndexedDbConfig(page, "vault", "reef-zeta");
+    await page.goto("/login");
+    await waitForPasswordLogin(page);
+
+    await signInAsAlice(page);
+    await expect(page).toHaveURL(/\/workspace\/reef-zeta\/issues\/?$/, {
+      timeout: 15_000,
+    });
+  });
+
   test("uses ASCII order for an invalid remembered workspace", async ({
     page,
     request,

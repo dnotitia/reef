@@ -43,6 +43,9 @@ export function useActiveVault(): ActiveVaultState {
     queryKey: ACTIVE_VAULT_QUERY_KEY,
     queryFn: getActiveVault,
     staleTime: Number.POSITIVE_INFINITY,
+    // The persisted query cache is only an optimization. Dexie is the browser
+    // source of truth and may have been updated while this query was unmounted.
+    refetchOnMount: "always",
     retry: false,
   });
 
@@ -57,7 +60,7 @@ export function useActiveVault(): ActiveVaultState {
   // value on the post-mount render. A URL-supplied vault skips this entirely —
   // it is identical on both passes.
   const hydrated = useHydrated();
-  const dexieVault = hydrated ? (query.data ?? "") : "";
+  const dexieVault = hydrated && !query.isFetching ? (query.data ?? "") : "";
 
   return {
     vault: urlVault || dexieVault,
@@ -68,7 +71,9 @@ export function useActiveVault(): ActiveVaultState {
     // makes isLoading false even though data is still undefined — callers
     // that gate skeletons on this would flash an empty state before the
     // hydrated cache arrives.
-    isLoading: urlVault ? false : !hydrated || query.isPending,
+    isLoading: urlVault
+      ? false
+      : !hydrated || query.isPending || query.isFetching,
     refetch: () => query.refetch(),
   };
 }

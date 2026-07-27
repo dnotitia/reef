@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const replace = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace }),
+  usePathname: () => "/workspace/raw-vault/issues",
 }));
 
 const getAkbSessionStatus = vi.fn();
@@ -62,6 +63,18 @@ describe("useAuthRedirect", () => {
 
     await waitFor(() => {
       expect(replace).toHaveBeenCalledWith("/login");
+    });
+  });
+
+  it("preserves an explicit workspace URL through login", async () => {
+    getAkbSessionStatus.mockResolvedValue({ active: false });
+
+    renderHook(() => useAuthRedirect("workspace"));
+
+    await waitFor(() => {
+      expect(replace).toHaveBeenCalledWith(
+        "/login?redirect=%2Fworkspace%2Fraw-vault%2Fissues",
+      );
     });
   });
 

@@ -88,6 +88,23 @@ describe("useActiveVault", () => {
     expect(result.current.isLoading).toBe(true);
   });
 
+  it("rechecks Dexie before exposing a restored active-vault cache", async () => {
+    mockGetActiveVault.mockResolvedValue("reef-zeta");
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    queryClient.setQueryData(["active-vault"], "reef-alpha");
+
+    const { result } = renderHook(() => useActiveVault(), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.vault).toBe("");
+    await waitFor(() => expect(result.current.vault).toBe("reef-zeta"));
+    expect(mockGetActiveVault).toHaveBeenCalledOnce();
+  });
+
   it("prefers the URL [vault] segment over the Dexie default (REEF-315)", async () => {
     paramsRef.current = { vault: "reef-url" };
     mockGetActiveVault.mockResolvedValue("reef-dexie");

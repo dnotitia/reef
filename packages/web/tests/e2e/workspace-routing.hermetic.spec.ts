@@ -5,6 +5,7 @@ import {
   readIndexedDbConfig,
   resetFixture,
   signInAsAlice,
+  waitForPasswordLogin,
   writeIndexedDbConfig,
 } from "./harness/fixture";
 
@@ -99,6 +100,29 @@ test.describe("workspace URL routing (REEF-315)", () => {
     // It offers the user's own workspaces as the way out.
     await expect(
       page.locator('[data-testid="access-denied-workspace-reef-e2e"]'),
+    ).toBeVisible();
+  });
+
+  test("a bare vault URL remains explicit through login", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "configured_multi");
+    await page.goto("/workspace/raw-vault/issues");
+    await expect(page).toHaveURL(
+      /\/login\?redirect=%2Fworkspace%2Fraw-vault%2Fissues$/,
+    );
+    await waitForPasswordLogin(page);
+
+    await page.locator('[data-testid="login-username"]').fill("alice");
+    await page.locator('[data-testid="login-password"]').fill("password");
+    await page.locator('[data-testid="login-submit"]').click();
+
+    await expect(page).toHaveURL(/\/workspace\/raw-vault\/issues\/?$/, {
+      timeout: 15_000,
+    });
+    await expect(
+      page.locator('[data-testid="workspace-access-denied"]'),
     ).toBeVisible();
   });
 });
