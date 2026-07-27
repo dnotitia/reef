@@ -24,6 +24,7 @@ export {
   deleteIssue as akbDeleteIssue,
   listIssues as akbListIssues,
   searchSimilarIssues as akbSearchSimilarIssues,
+  searchIssueContent as akbSearchIssueContent,
   listIssueRelations as akbListIssueRelations,
   listIssueReferences as akbListIssueReferences,
   addIssueReference as akbAddIssueReference,

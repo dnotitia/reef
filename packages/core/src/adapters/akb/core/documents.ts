@@ -1,5 +1,5 @@
 import { ZodError, z } from "zod";
-import { SchemaValidationError } from "../../../errors";
+import { AkbApiError, SchemaValidationError } from "../../../errors";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import type { AkbDocumentReference } from "../../../schemas/issues/references";
 import { buildIssueAkbTitle, uniqueStrings } from "../issues/issueRows";
@@ -45,6 +45,41 @@ export async function searchDocuments({
   query: string;
   limit: number;
 }): Promise<AkbSearchHit[]> {
+  return (
+    await searchDocumentsWithMetadata({
+      adapter,
+      vault,
+      collection,
+      type,
+      query,
+      limit,
+    })
+  ).hits;
+}
+
+export interface AkbDocumentSearchResult {
+  hits: AkbSearchHit[];
+  returned: number;
+  truncated: boolean;
+}
+
+export async function searchDocumentsWithMetadata({
+  adapter,
+  vault,
+  collection,
+  type,
+  query,
+  limit,
+  requireHealthy = false,
+}: {
+  adapter: AkbAdapter;
+  vault: string;
+  collection?: string;
+  type?: string;
+  query: string;
+  limit: number;
+  requireHealthy?: boolean;
+}): Promise<AkbDocumentSearchResult> {
   const payload = await adapter.request("/api/v1/search", {
     query: {
       vault,
@@ -59,10 +94,24 @@ export async function searchDocuments({
     },
   });
   if (Array.isArray(payload)) {
-    return z.array(AkbSearchHitSchema).parse(payload);
+    const hits = z.array(AkbSearchHitSchema).parse(payload);
+    return { hits, returned: hits.length, truncated: false };
   }
   const parsed = AkbSearchResponseSchema.parse(payload);
-  return parsed.results ?? parsed.items ?? [];
+  if (requireHealthy && (parsed.degraded || parsed.unsupported)) {
+    throw new AkbApiError({
+      status: 503,
+      message: parsed.unsupported
+        ? "AKB hybrid search is unsupported"
+        : "AKB hybrid search is degraded",
+    });
+  }
+  const hits = parsed.results ?? parsed.items ?? [];
+  return {
+    hits,
+    returned: parsed.returned ?? hits.length,
+    truncated: parsed.truncated,
+  };
 }
 
 /**

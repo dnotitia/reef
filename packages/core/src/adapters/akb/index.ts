@@ -58,6 +58,7 @@ export {
   deleteIssue,
   listIssues,
   searchSimilarIssues,
+  searchIssueContent,
   listIssueRelations,
   allocateNextIssueId,
   buildIssueMetadataFromCreateInput,

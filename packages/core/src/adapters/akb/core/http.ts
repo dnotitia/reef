@@ -112,6 +112,12 @@ export const AkbSearchResponseSchema = z
   .object({
     results: z.array(AkbSearchHitSchema).optional(),
     items: z.array(AkbSearchHitSchema).optional(),
+    returned: z.number().int().nonnegative().optional(),
+    total_matches: z.number().int().nonnegative().optional(),
+    truncated: z.boolean().optional().default(false),
+    degraded: z.boolean().optional().default(false),
+    degradation_reason: z.string().nullable().optional(),
+    unsupported: z.boolean().optional().default(false),
   })
   .passthrough();
 
