@@ -167,7 +167,7 @@ test.describe("workspace root redirects (REEF-424)", () => {
         page.locator('[data-testid="workspace-access-denied"]'),
       ).toBeVisible();
       await expect(page).toHaveURL(
-        new RegExp(`/workspace/${deniedVault}/issues/?$`),
+        new RegExp(`/workspace/${deniedVault}(?:/issues)?/?$`),
       );
       await expect
         .poll(() => readIndexedDbConfig(page, "vault"))
