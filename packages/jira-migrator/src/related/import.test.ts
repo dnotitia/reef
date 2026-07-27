@@ -583,7 +583,7 @@ describe("Jira related-data import stage", () => {
         mode: "apply",
         approvedOperations: dry.report.operations,
       }),
-    ).rejects.toThrow("related_operation_preflight_failed");
+    ).rejects.toThrow("related_operation_not_approved:revoke_attachment");
     state.attachments.set(boundUri, boundAttachment);
 
     const rerun = await importJiraRelatedData({
@@ -616,10 +616,22 @@ describe("Jira related-data import stage", () => {
     });
     const sourceAttachment = base.issue.fields.attachment?.[0];
     if (sourceAttachment) sourceAttachment.mimeType = undefined;
+    const mimeDry = await importJiraRelatedData({
+      ...base,
+      ledger: rerun.ledger,
+      mode: "dry-run",
+    });
+    expect(mimeDry.report.failures).toEqual([]);
+    expect(
+      mimeDry.report.operations.map((operation) => operation.kind),
+    ).toEqual(
+      expect.arrayContaining(["revoke_attachment", "create_attachment"]),
+    );
     const mimeRerun = await importJiraRelatedData({
       ...base,
       ledger: rerun.ledger,
       mode: "apply",
+      approvedOperations: mimeDry.report.operations,
     });
     expect(mimeRerun.report.attachments.skipped).toBe(0);
     expect(mimeRerun.report.attachments.created).toBe(1);

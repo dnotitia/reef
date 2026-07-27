@@ -348,6 +348,7 @@ export async function importAttachments(options: {
       jiraCloudId: migration.jiraCloudId,
     };
     let attachmentPhase: JiraRelatedImportFailure["phase"] = "read";
+    const previousFileUris: string[] = [];
     try {
       let download: Awaited<
         ReturnType<typeof migration.client.downloadAttachmentContent>
@@ -389,8 +390,9 @@ export async function importAttachments(options: {
           report.attachments.skipped += 1;
           continue;
         }
+        previousFileUris.push(existing.target.file_uri);
         if (migration.mode === "dry-run") {
-          recordRelatedOperation(report, "revoke_attachment", identity.key, {
+          await migration.target.revokeAttachment({
             reefId: migration.reefId,
             fileUri: existing.target.file_uri,
             replacement: revokedAttachmentPlaceholder(attachment.id),
@@ -462,8 +464,9 @@ export async function importAttachments(options: {
           report.attachments.skipped += 1;
           continue;
         }
+        previousFileUris.push(recovered.attachment.file_uri);
         if (migration.mode === "dry-run") {
-          recordRelatedOperation(report, "revoke_attachment", identity.key, {
+          await migration.target.revokeAttachment({
             reefId: migration.reefId,
             fileUri: recovered.attachment.file_uri,
             replacement: revokedAttachmentPlaceholder(attachment.id),
@@ -509,6 +512,7 @@ export async function importAttachments(options: {
         attachmentBindings.push({
           source: attachment,
           fileUri: `dry-run://attachment/${encodeURIComponent(attachment.id)}`,
+          ...(previousFileUris.length > 0 ? { previousFileUris } : {}),
         });
         continue;
       }
@@ -532,6 +536,7 @@ export async function importAttachments(options: {
         attachmentBindings.push({
           source: attachment,
           fileUri: created.file_uri,
+          ...(previousFileUris.length > 0 ? { previousFileUris } : {}),
         });
         ledger = confirmJiraMigrationBinding(ledger, {
           sourceIdentity: identity,
@@ -588,6 +593,7 @@ export async function importAttachments(options: {
         attachmentBindings.push({
           source: attachment,
           fileUri: residual.attachment.file_uri,
+          ...(previousFileUris.length > 0 ? { previousFileUris } : {}),
         });
       }
     } catch (error) {

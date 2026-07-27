@@ -24,7 +24,10 @@ explicitly in the entries below.
   boundary without exposing source content.
 - Reject wildcard and generic attachment content types, infer common formats
   from byte signatures or filenames, and replace stale bound attachments whose
-  stored metadata or bytes no longer match the normalized Jira source.
+  stored metadata or bytes no longer match the normalized Jira source. Stale
+  file URIs remain accepted as description preconditions during that atomic
+  revoke/recreate plan, while operation approval uses the same target URI key
+  in dry-run and apply.
 - Preserve explicitly selected Jira `simple`/non-Scrum boards in migration
   provenance and treat their unsupported Sprint catalog HTTP 400 as an empty
   catalog instead of aborting the migration.
