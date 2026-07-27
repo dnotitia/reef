@@ -14,6 +14,14 @@ explicitly in the entries below.
 
 ### Fixed
 
+- Use AKB's presigned upload/confirm and download flows for issue attachments
+  instead of the nonexistent direct multipart and byte-stream endpoints.
+- Compare Reef comment-thread UUIDs as text when validating reply chains stored
+  in JSON metadata, so Jira replies no longer fail with PostgreSQL
+  `uuid = text` operator errors.
+- Preserve attachment write-phase failures and report safe field-level
+  readback mismatch codes so migration diagnostics identify the failing
+  boundary without exposing source content.
 - Preserve explicitly selected Jira `simple`/non-Scrum boards in migration
   provenance and treat their unsupported Sprint catalog HTTP 400 as an empty
   catalog instead of aborting the migration.

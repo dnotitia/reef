@@ -851,7 +851,12 @@ Attachments are downloaded only with a GET to the configured Jira origin at
 `/rest/api/3/attachment/content/{id}?redirect=false`. The importer never follows
 the payload's arbitrary `content` URL with Jira credentials. It verifies source
 size, stored file bytes, attachment metadata, original Jira id, and file URI
-readback before confirming the ledger binding.
+readback before confirming the ledger binding. AKB storage uses the backend's
+presigned contract: initiate under `/api/v1/files/{vault}/upload`, PUT the exact
+bytes to the returned storage URL with its signed MIME type, confirm the
+content hash under `/api/v1/files/{vault}/{file_id}/confirm`, and use the
+matching presigned download endpoint for readback. The migrator does not assume
+that AKB exposes a direct multipart upload or authenticated byte-stream route.
 
 ADF `media` and `mediaInline` nodes resolve after attachment import in this
 fixed order: unique filename on the issue, the issue's sole attachment, a
