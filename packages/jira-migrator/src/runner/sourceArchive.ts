@@ -91,6 +91,11 @@ export async function archiveJiraMigrationSource(input: {
       ]);
       for (const { boardId, catalog } of boardCatalogs) {
         await archivePages(
+          `board:${boardId}`,
+          `/rest/agile/1.0/board/${encodeURIComponent(boardId)}`,
+          [catalog.boardRaw],
+        );
+        await archivePages(
           `board_sprints:${boardId}`,
           `/rest/agile/1.0/board/${encodeURIComponent(boardId)}/sprint`,
           catalog.pages,

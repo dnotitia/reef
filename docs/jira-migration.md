@@ -488,7 +488,10 @@ does not create releases or sprints itself.
   `customfield_NNNNN` id.
 - Always include Sprint records referenced by in-scope issues.
 - Expand Sprint selection only from boards the operator explicitly configured,
-  using `readBoardSprintCatalog()`. A shared board is not inferred from a
+  using `readBoardSprintCatalog()`. The board resource itself is archived and
+  plan-bound even when Jira identifies it as a `simple` or other non-Scrum
+  board whose Sprint endpoint returns HTTP 400; in that case the verified
+  Sprint catalog is empty rather than aborting the project migration. A shared board is not inferred from a
   project name.
 - Record `configured_project`, `issue_reference`, and `configured_board` in the
   action's selection provenance so dry-run reports explain why each source

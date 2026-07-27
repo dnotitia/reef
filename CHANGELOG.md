@@ -14,6 +14,10 @@ explicitly in the entries below.
 
 ### Fixed
 
+- Preserve explicitly selected Jira `simple`/non-Scrum boards in migration
+  provenance and treat their unsupported Sprint catalog HTTP 400 as an empty
+  catalog instead of aborting the migration.
+
 - **Reef workspace and issue ID prefixes now accept Jira-compatible project
   keys.** Prefixes still begin with an uppercase ASCII letter, but may now
   contain uppercase letters, digits, and underscores after it, allowing Jira

@@ -138,6 +138,8 @@ export {
   type GetIssueOptions,
   type JiraClientOptions,
   type JiraBinaryResult,
+  type JiraBoardResult,
+  type JiraBoardSprintCatalogResult,
   type JiraIssueCollectionResult,
   type JiraIssueResult,
   type JiraCatalogResult,

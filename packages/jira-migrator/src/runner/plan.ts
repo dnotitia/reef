@@ -648,6 +648,12 @@ export async function buildJiraMigrationPlan(input: {
         [...projectDetailsByProject].map(([key, detail]) => [key, detail.raw]),
       ),
       board_ids: config.jira.boardIds,
+      boards: Object.fromEntries(
+        boardCatalogs.map(({ boardId, catalog }) => [
+          boardId,
+          catalog.boardRaw,
+        ]),
+      ),
       fields: fieldResult.raw,
       board_pages: Object.fromEntries(
         boardCatalogs.map(({ boardId, catalog }) => [boardId, catalog.pages]),
