@@ -110,12 +110,21 @@ Configure either basic auth or bearer auth, not both.
 
 ## Execution And Report Contract
 
-The runner reads enhanced JQL pages by `nextPageToken`, only the explicitly
-selected boards, project Versions, comments, remote links, and every changelog
-page. Jira requests are GET-only. It archives exact source JSON before
-normalization, maps accounts and planning entities, reserves deterministic
-target issue identities, then fingerprints the complete issue/related/changelog
-plan.
+The runner reads complete issue projections from enhanced JQL pages by
+`nextPageToken`, only the explicitly selected boards, project Versions,
+comments, remote links, and every changelog page. The complete projection is
+required so descriptions, parents, priorities, attachments, links, and
+tenant-specific mapped fields cannot disappear merely because the search
+request omitted them. Jira requests are GET-only. It archives exact source JSON
+before normalization, maps accounts and planning entities, reserves
+deterministic target issue identities, then fingerprints the complete
+issue/related/changelog plan.
+
+Approval fingerprints exclude only runner-generated retrieval, observation,
+and migration timestamps and canonicalize Jira field-catalog ordering. These
+values naturally differ between dry-run and apply and do not describe Jira
+business state; mapped issue content, relationships, raw archive references,
+and every other source value remain approval-bound.
 
 Dry-run performs the same bounded source reads and validation as apply but
 makes zero target mutations. Apply revalidates source scope, target vault and
@@ -123,6 +132,11 @@ actor, report approval, and the plan SHA-256. Each successful target write is
 read back before its binding and entity checkpoint are atomically persisted.
 Independent entity failures remain isolated and reports classify every input
 exactly once; `conservation.balanced` must be true.
+
+Target preflight reads the Reef workspace configuration and uses its
+`project_prefix` for every planned issue id. An uninitialized vault or a prefix
+change between dry-run and apply fails closed through target preflight or plan
+fingerprint validation; the migrator does not fall back to a hard-coded prefix.
 
 The private plan seals an ordered, hashed related-operation manifest covering
 comment, attachment, description, relation, and external-reference writes and
@@ -299,6 +313,49 @@ those account ids to Reef actors in this order:
 2. Email-directory matches when Jira exposes an email address.
 3. Existing artifact records from a previous migration scan.
 4. A stable fallback actor, `jira:<accountId>`.
+
+The email directory is the target vault's member roster, not AKB's global user
+directory. An operator override must also name a current member of the target
+vault; otherwise preflight fails with
+`account_mapping_actor_not_vault_member` before archiving, planning, or target
+mutation. Add the user to the vault explicitly or remove the override and
+review the stable Jira fallback—global account existence alone is insufficient.
+
+### Vault Membership Preparation
+
+Prepare target membership after Jira discovery identifies the people in scope
+and before producing the approval dry-run:
+
+1. Create and initialize the target Reef vault.
+2. Discover the selected Jira projects and collect their user observations.
+3. Compare the Jira users and proposed overrides with the target vault member
+   roster.
+4. For each gap, explicitly grant an appropriate vault role or retain the
+   stable `jira:<accountId>` fallback.
+5. Run the approval dry-run only after membership decisions are complete.
+6. Apply with the same artifacts and approval hash. Apply re-reads the member
+   roster and fails closed if an email or override actor is no longer a member.
+
+Do not grant vault access automatically from Jira participation. Appearing as
+an assignee, reporter, creator, commenter, or changelog actor does not establish
+authorization to read a private Reef vault. The migrator therefore performs no
+membership mutation during dry-run or apply; access grants are a separate,
+operator-authorized preparation action. In particular, do not add a member
+during apply: that would change both access control and account resolution
+after the plan was approved.
+
+Use the least privileged role that satisfies the target workflow:
+
+- `reader` preserves a person identity and permits read-only vault access.
+- `writer` is appropriate only when the person must edit issues or other vault
+  content.
+- `admin` is not required for Jira people-field fidelity and should not be
+  granted by a migration procedure.
+
+A disposable vault may accept a reviewed membership manifest immediately after
+creation when its access list is already known. This is a provisioning
+optimization, not a replacement for migration preflight: the approval dry-run
+and apply must still validate the current target roster.
 
 Assignee, reporter, requester, creator, ADF mention, comment-author, and
 changelog contexts all use this resolver. Serialized issue plans retain only a
@@ -511,7 +568,8 @@ Lossless promotion follows these rules:
 
 - status, assignee, summary, parent, due date, and labels reuse existing Reef
   activity types after field-id, canonical-role, or configured exact-alias
-  resolution; display-name fuzzy matching is forbidden;
+  resolution; Jira Cloud's exact `IssueParentAssociation` field name is a
+  built-in parent alias, while display-name fuzzy matching is forbidden;
 - issue type maps to `issue_type_change` only when both values resolve to Reef
   issue types, and Start date maps to `start_date_change` only for valid dates
   or null;
@@ -578,6 +636,12 @@ the same normalized fingerprints and target readback evidence:
 - a retryable prior failure with unchanged preconditions is `retry`;
 - a missing/mismatched bound target, changed retry precondition, or
   non-retryable prior failure is `conflict`.
+
+Mapped-state fingerprints exclude runner-generated issue `created_at` and
+`updated_at` values. Changelog mapped-state fingerprints exclude the raw
+archive reference's run id while retaining source content identity and the
+semantic classification. A new run id or execution time must therefore remain
+`skip` when source state and target readback are unchanged.
 
 Call `confirmJiraMigrationBinding` only after both the target write and target
 identity readback succeed. A failed write or readback belongs in the run result,
@@ -647,6 +711,15 @@ objects.
 ### Field Catalog And Enum Policy
 
 Canonical custom roles are `sprint`, `story_points`, `start_date`, and `rank`.
+Here, "custom" describes Jira's API storage model, not an instruction to import
+arbitrary tenant fields. These four allowlisted Jira/Jira Software concepts may
+be promoted into existing first-class Reef fields; every other custom field
+remains raw-only unless a future migration contract explicitly adds it.
+
+Field-id overrides are an exception path, not normal operator discovery work.
+With no override, the migrator must identify each canonical role from Jira's
+field catalog. Configure an override only when exact catalog evidence is
+ambiguous or a reviewed tenant policy intentionally selects one candidate.
 Resolve them in this order:
 
 1. An explicit field-id override that exists in the current catalog and has a
@@ -654,10 +727,37 @@ Resolve them in this order:
 2. An exact Jira schema custom key plus compatible type.
 3. A normalized exact field name or clause alias plus compatible type.
 
+Jira Cloud may expose the exact LexoRank schema key
+`com.pyxis.greenhopper.jira:gh-lexo-rank` with schema type `any` even though
+issue values are strings. Treat that exact schema-key combination as compatible
+with Rank, then validate each issue value at the mapping boundary. Do not accept
+type `any` for unrelated custom fields.
+
 Substring and fuzzy matching are prohibited. Missing fields report
 `field_unresolved`; multiple exact candidates report `field_ambiguous`; an
 absent or incompatible override reports `field_override_invalid`. Ambiguity
 and invalid overrides block the plan instead of choosing a candidate.
+
+Configure tenant-specific ids in the selected project's private mapping policy:
+
+```json
+{
+  "statuses": [],
+  "issueTypes": [],
+  "priorities": [],
+  "fieldOverrides": {
+    "sprint": "customfield_10020",
+    "story_points": "customfield_10016",
+    "start_date": "customfield_10015",
+    "rank": "customfield_10019"
+  },
+  "linkMappings": []
+}
+```
+
+The same overrides govern current issue projection and changelog field-role
+resolution. Omit roles that resolve unambiguously; never select one tenant
+candidate by array order.
 
 Status, issue type, and priority policies match exact source ids or normalized
 exact names. Status alone may fall back to an explicitly configured Jira status

@@ -161,6 +161,11 @@ const BUILT_IN_ROLE_BY_FIELD_ID: Readonly<
   Goals: "goals",
 } as const;
 
+const BUILT_IN_ROLE_BY_FIELD: Readonly<Record<string, JiraChangelogFieldRole>> =
+  {
+    IssueParentAssociation: "parent",
+  } as const;
+
 const RAW_ONLY_ROLES = new Set<JiraChangelogFieldRole>([
   "description",
   "rank",
@@ -313,6 +318,10 @@ const resolveRole = (
       }
     }
   }
+  const builtInField = Object.hasOwn(BUILT_IN_ROLE_BY_FIELD, item.field)
+    ? BUILT_IN_ROLE_BY_FIELD[item.field]
+    : undefined;
+  if (builtInField) return builtInField;
   const aliases = input.configuredExactAliases;
   return aliases && Object.hasOwn(aliases, item.field)
     ? (aliases[item.field] ?? null)

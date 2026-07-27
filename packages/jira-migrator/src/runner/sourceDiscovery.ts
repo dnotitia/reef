@@ -2,6 +2,8 @@ import { loadJiraAccountMappingArtifact } from "../accounts/artifactFile.js";
 import {
   buildJiraAccountMigrationReport,
   collectJiraUserObservations,
+  invalidJiraAccountMemberActors,
+  invalidJiraAccountOverrideActors,
   upsertJiraAccountMappingArtifact,
 } from "../accounts/mapping.js";
 import type { JiraMigratorConfig } from "../cli/config.js";
@@ -32,6 +34,10 @@ export async function discoverJiraMigrationSource(input: {
   target: AkbJiraMigrationTarget;
   approvedPayload: Record<string, unknown> | null;
   accountMappingPath: string;
+  actorDirectory: Awaited<
+    ReturnType<AkbJiraMigrationTarget["preflight"]>
+  >["actorDirectory"];
+  memberActors: readonly string[];
 }) {
   const {
     config,
@@ -42,6 +48,8 @@ export async function discoverJiraMigrationSource(input: {
     target,
     approvedPayload,
     accountMappingPath,
+    actorDirectory,
+    memberActors,
   } = input;
   const firstClient = clients.get(config.jira.projectKeys[0] as string);
   if (!firstClient) throw new Error("jira_client_missing");
@@ -245,6 +253,11 @@ export async function discoverJiraMigrationSource(input: {
     path: accountMappingPath,
     jiraCloudId: config.jira.cloudId,
   });
+  if (
+    invalidJiraAccountOverrideActors(accountMapping, memberActors).length > 0
+  ) {
+    throw new JiraRunnerError("account_mapping_actor_not_vault_member");
+  }
   accountMapping = upsertJiraAccountMappingArtifact({
     artifact: accountMapping,
     observations: allIssues.flatMap((issue) =>
@@ -254,8 +267,12 @@ export async function discoverJiraMigrationSource(input: {
         changelog: changelogByIssue.get(issue.key) ?? [],
       }),
     ),
+    directory: actorDirectory,
     observedAt: runAt,
   }).artifact;
+  if (invalidJiraAccountMemberActors(accountMapping, memberActors).length > 0) {
+    throw new JiraRunnerError("account_mapping_actor_not_vault_member");
+  }
   const accountReport = buildJiraAccountMigrationReport(accountMapping);
 
   return {

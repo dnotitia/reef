@@ -85,6 +85,7 @@ export async function readAllProjectIssues(
         client.searchProjectIssues({
           projectKey,
           nextPageToken,
+          fields: ["*all"],
           expand: ["properties"],
         }),
       { ...retry, operationKind: "read" },

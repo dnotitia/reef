@@ -1,3 +1,4 @@
+import type { RawArchiveReference } from "../archive/model.js";
 import { fingerprintJiraState } from "../execution/diff.js";
 import type { JiraChangelogPlan } from "../issues/changelog.js";
 import type {
@@ -98,17 +99,65 @@ export const reconciliationAction = (
 export const projectId = (issue: NormalizedJiraIssue): string =>
   String(issue.raw.fields.project?.id ?? issue.projectKey ?? "unknown");
 
+const changelogReportWithReference = (
+  plan: JiraChangelogPlan,
+  reference: RawArchiveReference,
+) => ({
+  ...plan.report,
+  rawPreservationLocations: [reference],
+});
+
+const changelogItemsWithReference = (
+  plan: JiraChangelogPlan,
+  reference: RawArchiveReference,
+) =>
+  plan.items.map((item) => ({
+    ...item,
+    rawArchiveReference: reference,
+  }));
+
 export const mappedFingerprintForChangelog = (
   plan: JiraChangelogPlan,
+): string => {
+  const { rawPreservationLocations: _rawPreservationLocations, ...report } =
+    plan.report;
+  return fingerprintJiraState({
+    report,
+    items: plan.items.map(
+      ({ rawArchiveReference: _rawArchiveReference, ...item }) => item,
+    ),
+  });
+};
+
+export const runScopedMappedFingerprintForChangelog = (
+  plan: JiraChangelogPlan,
+  reference: RawArchiveReference,
 ): string =>
   fingerprintJiraState({
-    report: plan.report,
-    items: plan.items,
+    report: changelogReportWithReference(plan, reference),
+    items: changelogItemsWithReference(plan, reference),
   });
 
 export const legacyMappedFingerprintForChangelog = (
   plan: JiraChangelogPlan,
-): string => fingerprintJiraState(plan.report);
+  reference: RawArchiveReference = plan.rawArchiveReference,
+): string =>
+  fingerprintJiraState(changelogReportWithReference(plan, reference));
+
+export const mappedFingerprintForIssue = (
+  plan: JiraIssueImportPlan,
+): string => {
+  if (!plan.desired.issue) return fingerprintJiraState(plan.desired);
+  const {
+    created_at: _createdAt,
+    updated_at: _updatedAt,
+    ...issue
+  } = plan.desired.issue;
+  return fingerprintJiraState({
+    ...plan.desired,
+    issue,
+  });
+};
 
 export const actionForChangelogPlan = (
   plan: JiraChangelogPlan,
@@ -118,10 +167,16 @@ export const actionForChangelogPlan = (
   const binding = ledger.bindings.find(
     (candidate) => candidate.source_key === plan.sourceIdentity.key,
   );
-  return binding?.source_fingerprint === plan.sourceFingerprint &&
-    binding.mapped_state_fingerprint === mappedFingerprintForChangelog(plan)
-    ? "skip"
-    : "create";
+  if (binding?.source_fingerprint !== plan.sourceFingerprint) return "create";
+  const reference = binding.raw_archive_reference;
+  const mappedFingerprintMatches =
+    binding.mapped_state_fingerprint === mappedFingerprintForChangelog(plan) ||
+    (reference !== null &&
+      (binding.mapped_state_fingerprint ===
+        runScopedMappedFingerprintForChangelog(plan, reference) ||
+        binding.mapped_state_fingerprint ===
+          legacyMappedFingerprintForChangelog(plan, reference)));
+  return mappedFingerprintMatches ? "skip" : "create";
 };
 
 export const safeMigrationFailureReason = (
@@ -188,7 +243,7 @@ export const actionForIssuePlan = (
   ) {
     return "conflict";
   }
-  return binding.mapped_state_fingerprint === fingerprintJiraState(plan.desired)
+  return binding.mapped_state_fingerprint === mappedFingerprintForIssue(plan)
     ? "skip"
     : "update";
 };

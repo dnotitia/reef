@@ -30,9 +30,11 @@ import {
   actionForRelatedReport,
   legacyMappedFingerprintForChangelog,
   mappedFingerprintForChangelog,
+  mappedFingerprintForIssue,
   projectId,
   reconciliationAction,
   resultFor,
+  runScopedMappedFingerprintForChangelog,
   safeMigrationFailureReason,
 } from "./decisions.js";
 import { executeJiraDryRun } from "./dryRunExecution.js";
@@ -350,7 +352,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
       const sourceFingerprint = fingerprintJiraState(
         allIssues.find((issue) => issue.id === plan.source.issueId)?.raw,
       );
-      const mappedFingerprint = fingerprintJiraState(plan.desired);
+      const mappedFingerprint = mappedFingerprintForIssue(plan);
       if (
         fingerprintJiraState(
           semanticIssuePlan(plan, planningResolutions, planningActions),
@@ -371,7 +373,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
         await checkpoint();
         continue;
       }
-      const action = actionForIssuePlan(plan, ledger);
+      let action = actionForIssuePlan(plan, ledger);
       if (action === "conflict") {
         record(
           "issues",
@@ -524,6 +526,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
             postRelatedContentByReefId.get(desired.id),
           )
         ) {
+          action = "skip";
           applied = {
             reefId: desired.id,
             documentUri: `akb://${config.target.vault}/coll/issues/doc/${desired.id.toLowerCase()}.md`,
@@ -553,11 +556,16 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
         }
       }
       try {
-        applied ??= await target.applyIssue(
-          plan,
-          action,
-          approvedUpdateReadback,
-        );
+        if (!applied) {
+          if (action === "skip") {
+            throw new Error("target_issue_skip_readback_missing");
+          }
+          applied = await target.applyIssue(
+            plan,
+            action,
+            approvedUpdateReadback,
+          );
+        }
       } catch (error) {
         const recovered = await recoverAppliedIssue(plan);
         if (!recovered.applied) {
@@ -820,13 +828,24 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
         bindingMatchesSource &&
         existingBinding.mapped_state_fingerprint ===
           mappedFingerprintForChangelog(plan);
+      const bindingReference = existingBinding?.raw_archive_reference;
+      const bindingUsesRunScopedFingerprint =
+        bindingMatchesSource &&
+        bindingReference !== null &&
+        bindingReference !== undefined &&
+        existingBinding.mapped_state_fingerprint ===
+          runScopedMappedFingerprintForChangelog(plan, bindingReference);
       const bindingUsesLegacyFingerprint =
         bindingMatchesSource &&
+        bindingReference !== null &&
+        bindingReference !== undefined &&
         existingBinding.mapped_state_fingerprint ===
-          legacyMappedFingerprintForChangelog(plan);
+          legacyMappedFingerprintForChangelog(plan, bindingReference);
       if (
         action !== "conflict" &&
-        (bindingUsesCurrentFingerprint || bindingUsesLegacyFingerprint)
+        (bindingUsesCurrentFingerprint ||
+          bindingUsesRunScopedFingerprint ||
+          bindingUsesLegacyFingerprint)
       ) {
         const activities = plan.items.flatMap((item) =>
           item.activity ? [item.activity] : [],
@@ -854,7 +873,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
               });
         }
         if (readbackMatches) {
-          if (bindingUsesLegacyFingerprint) {
+          if (bindingUsesRunScopedFingerprint || bindingUsesLegacyFingerprint) {
             ledger = confirmJiraMigrationBinding(ledger, {
               sourceIdentity: plan.sourceIdentity,
               target: existingBinding.target,

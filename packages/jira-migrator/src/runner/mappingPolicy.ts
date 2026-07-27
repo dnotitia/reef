@@ -7,6 +7,7 @@ import {
 } from "@reef/core";
 import { z } from "zod";
 import type { JiraIssueMappingPolicy } from "../issues/mappingContracts.js";
+import type { JiraFieldOverrides } from "../jira/fieldCatalog.js";
 import type { JiraLinkMapping } from "../related/contracts.js";
 
 const LinkMatchSchema = z.object({
@@ -47,6 +48,15 @@ const PolicySchema = z
         })
         .strict(),
     ),
+    fieldOverrides: z
+      .object({
+        sprint: z.string().min(1).optional(),
+        story_points: z.string().min(1).optional(),
+        start_date: z.string().min(1).optional(),
+        rank: z.string().min(1).optional(),
+      })
+      .strict()
+      .default({}),
     linkMappings: z
       .array(
         z.discriminatedUnion("kind", [
@@ -63,6 +73,7 @@ const PolicySchema = z
   .strict();
 
 export interface LoadedJiraMappingPolicy extends JiraIssueMappingPolicy {
+  fieldOverrides: JiraFieldOverrides;
   linkMappings: readonly JiraLinkMapping[];
 }
 

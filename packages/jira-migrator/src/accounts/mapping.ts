@@ -279,6 +279,31 @@ export const createJiraAccountMappingArtifact = (input: {
   overrides: input.overrides ?? {},
 });
 
+export const invalidJiraAccountOverrideActors = (
+  artifact: JiraAccountMappingArtifact,
+  memberActors: readonly string[],
+): string[] => {
+  const members = new Set(memberActors);
+  return sortedUnique(
+    Object.values(artifact.overrides)
+      .map((override) => override.actor)
+      .filter((actor) => !members.has(actor)),
+  );
+};
+
+export const invalidJiraAccountMemberActors = (
+  artifact: JiraAccountMappingArtifact,
+  memberActors: readonly string[],
+): string[] => {
+  const members = new Set(memberActors);
+  return sortedUnique(
+    Object.values(artifact.accounts)
+      .filter((account) => account.mappingStrategy !== "fallback")
+      .map((account) => account.actor)
+      .filter((actor) => !members.has(actor)),
+  );
+};
+
 export const resolveJiraActor = (
   context: JiraActorMappingContext,
   user: JiraUserPayload | NormalizedJiraUser | null | undefined,

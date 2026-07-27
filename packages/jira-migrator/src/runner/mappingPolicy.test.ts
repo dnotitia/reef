@@ -12,6 +12,36 @@ afterEach(async () => {
 });
 
 describe("loadJiraMappingPolicy", () => {
+  it("loads explicit tenant field overrides", async () => {
+    root = await mkdtemp(join(tmpdir(), "reef-jira-policy-"));
+    const path = join(root, "policy.json");
+    await writeFile(
+      path,
+      JSON.stringify({
+        statuses: [],
+        issueTypes: [],
+        priorities: [],
+        fieldOverrides: {
+          sprint: "customfield_10020",
+          story_points: "customfield_10016",
+          start_date: "customfield_10015",
+          rank: "customfield_10019",
+        },
+      }),
+      { mode: 0o600 },
+    );
+
+    await expect(loadJiraMappingPolicy(path)).resolves.toMatchObject({
+      fieldOverrides: {
+        sprint: "customfield_10020",
+        story_points: "customfield_10016",
+        start_date: "customfield_10015",
+        rank: "customfield_10019",
+      },
+      linkMappings: [],
+    });
+  });
+
   it.runIf(process.platform !== "win32")(
     "rejects group/world-readable policy files",
     async () => {

@@ -1,3 +1,4 @@
+import type { IssueMetadata } from "@reef/core";
 import { fingerprintJiraState } from "../execution/diff.js";
 import type { JiraIssueImportPlan } from "../issues/importPlan.js";
 import type { JiraMigrationLedgerV1 } from "../ledger.js";
@@ -9,6 +10,98 @@ import type { JiraRelatedImportReport } from "../related/import.js";
 import { jiraOwnerIdentity } from "./ownership.js";
 import type { JiraRunnerReport } from "./report.js";
 import type { AkbJiraMigrationTarget } from "./targetAdapter.js";
+import { issueProjection } from "./targetSupport.js";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const migrationTimeToken = "<migration-time>";
+const retrievalTimeToken = "<retrieval-time>";
+const observationTimeToken = "<observation-time>";
+
+export const jiraApprovalPlanProjection = (value: unknown): unknown => {
+  if (!isRecord(value)) return value;
+
+  const source = isRecord(value.source)
+    ? {
+        ...value.source,
+        fields: Array.isArray(value.source.fields)
+          ? [...value.source.fields].sort((left, right) =>
+              fingerprintJiraState(left).localeCompare(
+                fingerprintJiraState(right),
+              ),
+            )
+          : value.source.fields,
+      }
+    : value.source;
+
+  const issues = Array.isArray(value.issues)
+    ? value.issues.map((item) => {
+        if (!isRecord(item)) return item;
+        const desired = isRecord(item.desired) ? item.desired : null;
+        const issue = desired && isRecord(desired.issue) ? desired.issue : null;
+        const issueSource = isRecord(item.source) ? item.source : null;
+        const fieldCatalog =
+          issueSource && isRecord(issueSource.fieldCatalog)
+            ? issueSource.fieldCatalog
+            : null;
+        return {
+          ...item,
+          source:
+            issueSource && fieldCatalog
+              ? {
+                  ...issueSource,
+                  fieldCatalog: {
+                    ...fieldCatalog,
+                    retrievedAt: retrievalTimeToken,
+                  },
+                }
+              : item.source,
+          desired:
+            desired && issue
+              ? {
+                  ...desired,
+                  issue: {
+                    ...issue,
+                    created_at: migrationTimeToken,
+                    updated_at: migrationTimeToken,
+                  },
+                }
+              : item.desired,
+        };
+      })
+    : value.issues;
+
+  const relatedMapping = isRecord(value.related_mapping)
+    ? value.related_mapping
+    : null;
+  const accounts =
+    relatedMapping && isRecord(relatedMapping.accounts)
+      ? Object.fromEntries(
+          Object.entries(relatedMapping.accounts).map(
+            ([accountId, account]) => [
+              accountId,
+              isRecord(account)
+                ? { ...account, lastSeenAt: observationTimeToken }
+                : account,
+            ],
+          ),
+        )
+      : null;
+
+  return {
+    ...value,
+    source,
+    issues,
+    related_mapping:
+      relatedMapping && accounts
+        ? { ...relatedMapping, accounts }
+        : value.related_mapping,
+  };
+};
+
+export const fingerprintJiraApprovalPlan = (value: unknown): string =>
+  fingerprintJiraState(jiraApprovalPlanProjection(value));
 
 export const safePlanningAction = (action: JiraPlanningAction) => ({
   classification: action.classification,
@@ -164,7 +257,7 @@ const issueReadbackApprovalState = (
   ]);
   const keys = Object.keys(desired).filter(
     (key) => !downstreamManagedKeys.has(key),
-  );
+  ) as Array<keyof IssueMetadata>;
   const desiredCustomFields =
     desired.custom_fields &&
     typeof desired.custom_fields === "object" &&
@@ -177,9 +270,7 @@ const issueReadbackApprovalState = (
   const normalize = (
     issue: Record<string, unknown>,
   ): Record<string, unknown> => {
-    const projection = Object.fromEntries(
-      keys.map((key) => [key, issue[key] ?? null]),
-    );
+    const projection = issueProjection(issue as unknown as IssueMetadata, keys);
     const customFields =
       projection.custom_fields &&
       typeof projection.custom_fields === "object" &&

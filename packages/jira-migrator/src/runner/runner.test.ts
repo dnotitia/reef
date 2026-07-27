@@ -39,6 +39,7 @@ const makeIssue = (
   projectKey: string,
   projectId: string,
   issueId: string,
+  rank: string,
 ): NormalizedJiraIssue =>
   normalizeJiraIssue(
     JiraIssueSchema.parse({
@@ -54,6 +55,7 @@ const makeIssue = (
           name: projectKey,
         },
         attachment: [],
+        customfield_rank: rank,
         issuelinks: [],
       },
     }),
@@ -63,6 +65,10 @@ const policy = {
   statuses: [{ name: "In Progress", status: "in_progress" }],
   issueTypes: [{ name: "Task", issueType: "task" }],
   priorities: [],
+  fieldOverrides: {
+    story_points: "customfield_story_points",
+    start_date: "customfield_start_date",
+  },
 };
 
 describe("runJiraMigration", () => {
@@ -404,15 +410,60 @@ describe("runJiraMigration", () => {
       },
     };
     const issues = {
-      ALPHA: makeIssue("ALPHA", "100", "10001"),
-      BETA: makeIssue("BETA", "200", "20001"),
+      ALPHA: makeIssue("ALPHA", "100", "10001", "0|i00020:"),
+      BETA: makeIssue("BETA", "200", "20001", "0|i00010:"),
     };
     const clients = new Map(
       Object.entries(issues).map(([key, issue]) => [
         key,
         {
           listFields: vi.fn(async () => ({
-            items: [],
+            items: [
+              {
+                id: "customfield_story_points",
+                name: "Story Points",
+                schema: {
+                  type: "number",
+                  custom:
+                    "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                },
+              },
+              {
+                id: "customfield_other_number",
+                name: "Budget",
+                schema: {
+                  type: "number",
+                  custom:
+                    "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                },
+              },
+              {
+                id: "customfield_start_date",
+                name: "Start date",
+                schema: {
+                  type: "date",
+                  custom:
+                    "com.atlassian.jira.plugin.system.customfieldtypes:datepicker",
+                },
+              },
+              {
+                id: "customfield_other_date",
+                name: "Other date",
+                schema: {
+                  type: "date",
+                  custom:
+                    "com.atlassian.jira.plugin.system.customfieldtypes:datepicker",
+                },
+              },
+              {
+                id: "customfield_rank",
+                name: "순위",
+                schema: {
+                  type: "any",
+                  custom: "com.pyxis.greenhopper.jira:gh-lexo-rank",
+                },
+              },
+            ],
             rateLimit: {},
             raw: [],
           })),
@@ -471,6 +522,7 @@ describe("runJiraMigration", () => {
       preflight: vi.fn(async () => ({
         actor: "operator",
         vault: "reef-test",
+        projectPrefix: "REEF",
         planning: { releases: [], sprints: [], milestones: [] },
       })),
       planIssueIds: vi.fn(async () => ["REEF-001", "REEF-002"]),
@@ -668,6 +720,8 @@ describe("runJiraMigration", () => {
     expect(mutations).toEqual(["REEF-001", "REEF-002"]);
     expect(apply.report.totals.created).toBe(1);
     expect(apply.report.totals.skipped).toBe(3);
+    expect(writtenIssues.get("REEF-001")?.issue.rank).toBe(2000);
+    expect(writtenIssues.get("REEF-002")?.issue.rank).toBe(1000);
 
     for (const [id, written] of writtenIssues) {
       const customFields =

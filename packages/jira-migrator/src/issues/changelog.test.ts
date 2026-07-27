@@ -177,6 +177,28 @@ describe("buildJiraChangelogPlan", () => {
     expect(Object.isFrozen(plan.items)).toBe(true);
   });
 
+  it("maps Jira Cloud IssueParentAssociation histories to parent changes", () => {
+    const plan = buildJiraChangelogPlan(
+      baseInput([
+        {
+          field: "IssueParentAssociation",
+          from: null,
+          to: "200",
+          toString: "ALPHA-2",
+        },
+      ]),
+    );
+
+    expect(plan.items[0]).toMatchObject({
+      classification: "promoted",
+      reason: "lossless_activity_mapping",
+      activity: {
+        eventType: "parent_change",
+        payload: { from: null, to: "REEF-002" },
+      },
+    });
+  });
+
   it("never promotes fuzzy aliases or lossy issue types and dates", () => {
     const plan = buildJiraChangelogPlan({
       ...baseInput([
