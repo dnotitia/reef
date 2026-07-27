@@ -146,9 +146,7 @@ describe("GET /api/issues/search-content", () => {
       }),
     );
     const response = await GET(
-      request(
-        "/api/issues/search-content?vault=reef-test&q=okay&limit=10",
-      ),
+      request("/api/issues/search-content?vault=reef-test&q=okay&limit=10"),
     );
     expect(response.status).toBe(403);
     expect(response.headers.get("set-cookie")).toContain("__reef_session=");

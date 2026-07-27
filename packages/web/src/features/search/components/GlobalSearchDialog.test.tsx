@@ -781,9 +781,7 @@ describe("GlobalSearchDialog", () => {
     await user.type(screen.getByTestId("global-search-input"), "needle");
 
     for (const limit of [20, 30, 40, 50]) {
-      await user.click(
-        await screen.findByTestId("global-search-content-more"),
-      );
+      await user.click(await screen.findByTestId("global-search-content-more"));
       await waitFor(() =>
         expect(useIssueContentSearchMock).toHaveBeenLastCalledWith(
           "needle",
