@@ -3,7 +3,10 @@ import {
   type JiraMigratorConfig,
   secretValuesForConfig,
 } from "../cli/config.js";
-import type { RawArchiveReference } from "../rawArchive.js";
+import type {
+  ArchiveRawPayloadInput,
+  RawArchiveReference,
+} from "../rawArchive.js";
 import { createRawArchive } from "../rawArchive.js";
 import type { discoverJiraMigrationSource } from "./sourceDiscovery.js";
 
@@ -64,13 +67,25 @@ export async function archiveJiraMigrationSource(input: {
       forbiddenSecretValues: secretValuesForConfig(config),
     });
     archivesByProject.set(key, archive);
-    const archivePages = async (
+    const pendingInputs: ArchiveRawPayloadInput[] = [];
+    const issueBindings: Array<{
+      issueKey: string;
+      issueIndex: number;
+      descriptionIndex?: number;
+    }> = [];
+    const changelogBindings: Array<{
+      sourceKey: string;
+      referenceIndex: number;
+    }> = [];
+    const enqueue = (archiveInput: ArchiveRawPayloadInput): number =>
+      pendingInputs.push(archiveInput) - 1;
+    const archivePages = (
       endpointKind: string,
       pathname: string,
       pages: readonly unknown[],
-    ): Promise<void> => {
+    ): void => {
       for (const [pageIndex, payload] of pages.entries()) {
-        await archive.archive({
+        enqueue({
           entityKind: "response_page",
           sourceIdentity: {
             cloud_id: config.jira.cloudId,
@@ -86,34 +101,32 @@ export async function archiveJiraMigrationSource(input: {
       }
     };
     if (key === config.jira.projectKeys[0]) {
-      await archivePages("field_catalog", "/rest/api/3/field", [
-        fieldResult.raw,
-      ]);
+      archivePages("field_catalog", "/rest/api/3/field", [fieldResult.raw]);
       for (const { boardId, catalog } of boardCatalogs) {
-        await archivePages(
+        archivePages(
           `board:${boardId}`,
           `/rest/agile/1.0/board/${encodeURIComponent(boardId)}`,
           [catalog.boardRaw],
         );
-        await archivePages(
+        archivePages(
           `board_sprints:${boardId}`,
           `/rest/agile/1.0/board/${encodeURIComponent(boardId)}/sprint`,
           catalog.pages,
         );
       }
     }
-    await archivePages(
+    archivePages(
       "project_versions",
       `/rest/api/3/project/${encodeURIComponent(key)}/version`,
       versionPagesByProject.get(key) ?? [],
     );
-    await archivePages(
+    archivePages(
       "issue_search",
       "/rest/api/3/search/jql",
       issuePagesByProject.get(key) ?? [],
     );
     for (const issue of issuesByProject.get(key) ?? []) {
-      const issueReference = await archive.archive({
+      const issueIndex = enqueue({
         entityKind: "issue",
         sourceIdentity: {
           cloud_id: config.jira.cloudId,
@@ -128,9 +141,9 @@ export async function archiveJiraMigrationSource(input: {
         fetchedAt: runAt,
         payload: issue.raw,
       });
-      let descriptionAdf: RawArchiveReference | undefined;
+      let descriptionIndex: number | undefined;
       if (issue.description !== null && typeof issue.description === "object") {
-        descriptionAdf = await archive.archive({
+        descriptionIndex = enqueue({
           entityKind: "description_adf",
           sourceIdentity: {
             cloud_id: config.jira.cloudId,
@@ -146,12 +159,13 @@ export async function archiveJiraMigrationSource(input: {
           payload: issue.description,
         });
       }
-      archiveReferences.set(issue.key, {
-        issue: issueReference,
-        ...(descriptionAdf ? { descriptionAdf } : {}),
+      issueBindings.push({
+        issueKey: issue.key,
+        issueIndex,
+        ...(descriptionIndex === undefined ? {} : { descriptionIndex }),
       });
       for (const history of changelogByIssue.get(issue.key) ?? []) {
-        const historyReference = await archive.archive({
+        const referenceIndex = enqueue({
           entityKind: "changelog_history",
           sourceIdentity: {
             cloud_id: config.jira.cloudId,
@@ -166,16 +180,37 @@ export async function archiveJiraMigrationSource(input: {
           fetchedAt: runAt,
           payload: history,
         });
-        changelogArchiveReferences.set(
-          `${issue.id}:${history.id}`,
-          historyReference,
-        );
+        changelogBindings.push({
+          sourceKey: `${issue.id}:${history.id}`,
+          referenceIndex,
+        });
       }
-      await archivePages(
+      archivePages(
         `changelog:${issue.key}`,
         `/rest/api/3/issue/${encodeURIComponent(issue.key)}/changelog`,
         changelogPagesByIssue.get(issue.key) ?? [],
       );
+    }
+    const references = await archive.archiveMany(pendingInputs);
+    for (const binding of issueBindings) {
+      const issueReference = references[binding.issueIndex];
+      if (!issueReference) throw new Error("raw_archive_reference_missing");
+      const descriptionAdf =
+        binding.descriptionIndex === undefined
+          ? undefined
+          : references[binding.descriptionIndex];
+      if (binding.descriptionIndex !== undefined && !descriptionAdf) {
+        throw new Error("raw_archive_reference_missing");
+      }
+      archiveReferences.set(binding.issueKey, {
+        issue: issueReference,
+        ...(descriptionAdf ? { descriptionAdf } : {}),
+      });
+    }
+    for (const binding of changelogBindings) {
+      const reference = references[binding.referenceIndex];
+      if (!reference) throw new Error("raw_archive_reference_missing");
+      changelogArchiveReferences.set(binding.sourceKey, reference);
     }
   }
 

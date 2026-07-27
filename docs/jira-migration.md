@@ -242,6 +242,12 @@ const reference = await archive.archive({
 // { runId, entryId, contentSha256 }
 ```
 
+Use `archiveMany(inputs)` for a migration phase with many source entities. It
+holds the same exclusive manifest lock, verifies each content-addressed object
+as it is written, atomically replaces the manifest once, and then verifies the
+complete envelope and object set once. `archive(input)` remains the one-item
+equivalent.
+
 Field-mapping results and changelog classifications store this opaque
 reference. The migration ledger persists the same reference, and the apply
 runner passes it through report/apply/resume orchestration. None of those

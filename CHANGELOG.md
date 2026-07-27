@@ -17,6 +17,9 @@ explicitly in the entries below.
 - Preserve explicitly selected Jira `simple`/non-Scrum boards in migration
   provenance and treat their unsupported Sprint catalog HTTP 400 as an empty
   catalog instead of aborting the migration.
+- Batch raw-source archive writes per migration phase so a full Jira project
+  performs one manifest/object verification per batch instead of re-verifying
+  every prior object after each archived entity.
 
 - **Reef workspace and issue ID prefixes now accept Jira-compatible project
   keys.** Prefixes still begin with an uppercase ASCII letter, but may now
