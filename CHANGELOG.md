@@ -23,6 +23,9 @@ explicitly in the entries below.
 - Exclude opaque enhanced-JQL pagination cursors and raw-archive run ids from
   Jira approval fingerprints while retaining issue contents, archive entry
   ids, and content digests.
+- Keep Atlassian development-summary custom-field payloads in the raw archive
+  but normalize their request-volatile internal identifiers out of approval
+  fingerprints.
 
 - **Reef workspace and issue ID prefixes now accept Jira-compatible project
   keys.** Prefixes still begin with an uppercase ASCII letter, but may now

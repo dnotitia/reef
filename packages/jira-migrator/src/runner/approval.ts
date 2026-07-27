@@ -20,9 +20,19 @@ const retrievalTimeToken = "<retrieval-time>";
 const observationTimeToken = "<observation-time>";
 const paginationToken = "<pagination-token>";
 const archiveRunToken = "<archive-run>";
+const volatileJiraFieldToken = "<volatile-jira-field>";
+const jiraDevelopmentSummarySchema =
+  "com.atlassian.jira.plugins.jira-development-integration-plugin:devsummarycf";
 
-const normalizeApprovalMetadata = (value: unknown): unknown => {
-  if (Array.isArray(value)) return value.map(normalizeApprovalMetadata);
+const normalizeApprovalMetadata = (
+  value: unknown,
+  volatileFieldIds: ReadonlySet<string> = new Set(),
+): unknown => {
+  if (Array.isArray(value)) {
+    return value.map((item) =>
+      normalizeApprovalMetadata(item, volatileFieldIds),
+    );
+  }
   if (!isRecord(value)) return value;
   const isArchiveReference =
     typeof value.runId === "string" &&
@@ -31,11 +41,13 @@ const normalizeApprovalMetadata = (value: unknown): unknown => {
   return Object.fromEntries(
     Object.entries(value).map(([key, item]) => [
       key,
-      key === "nextPageToken" && typeof item === "string"
-        ? paginationToken
-        : key === "runId" && isArchiveReference
-          ? archiveRunToken
-          : normalizeApprovalMetadata(item),
+      volatileFieldIds.has(key)
+        ? volatileJiraFieldToken
+        : key === "nextPageToken" && typeof item === "string"
+          ? paginationToken
+          : key === "runId" && isArchiveReference
+            ? archiveRunToken
+            : normalizeApprovalMetadata(item, volatileFieldIds),
     ]),
   );
 };
@@ -43,17 +55,30 @@ const normalizeApprovalMetadata = (value: unknown): unknown => {
 export const jiraApprovalPlanProjection = (value: unknown): unknown => {
   if (!isRecord(value)) return value;
 
+  const sourceFields =
+    isRecord(value.source) && Array.isArray(value.source.fields)
+      ? [...value.source.fields].sort((left, right) =>
+          fingerprintJiraState(left).localeCompare(fingerprintJiraState(right)),
+        )
+      : null;
+  const volatileFieldIds = new Set(
+    (sourceFields ?? []).flatMap((field) =>
+      isRecord(field) &&
+      typeof field.id === "string" &&
+      isRecord(field.schema) &&
+      field.schema.custom === jiraDevelopmentSummarySchema
+        ? [field.id]
+        : [],
+    ),
+  );
   const source = isRecord(value.source)
-    ? {
-        ...value.source,
-        fields: Array.isArray(value.source.fields)
-          ? [...value.source.fields].sort((left, right) =>
-              fingerprintJiraState(left).localeCompare(
-                fingerprintJiraState(right),
-              ),
-            )
-          : value.source.fields,
-      }
+    ? normalizeApprovalMetadata(
+        {
+          ...value.source,
+          fields: sourceFields ?? value.source.fields,
+        },
+        volatileFieldIds,
+      )
     : value.source;
 
   const issues = Array.isArray(value.issues)

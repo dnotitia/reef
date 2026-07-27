@@ -94,6 +94,45 @@ describe("fingerprintJiraApprovalPlan", () => {
     );
   });
 
+  it("ignores volatile Jira development summary values identified by schema", () => {
+    const base = plan("2026-07-27T00:00:00.000Z", [
+      {
+        id: "customfield_dev",
+        name: "development",
+        schema: {
+          custom:
+            "com.atlassian.jira.plugins.jira-development-integration-plugin:devsummarycf",
+          type: "any",
+        },
+      },
+    ]);
+    const approved = {
+      ...base,
+      source: {
+        ...base.source,
+        issue_pages: {
+          ALPHA: [
+            {
+              issues: [
+                {
+                  id: "1",
+                  fields: { customfield_dev: "volatile-approved-value" },
+                },
+              ],
+            },
+          ],
+        },
+      },
+    };
+    const apply = structuredClone(approved);
+    apply.source.issue_pages.ALPHA[0].issues[0].fields.customfield_dev =
+      "volatile-apply-value";
+
+    expect(fingerprintJiraApprovalPlan(apply)).toBe(
+      fingerprintJiraApprovalPlan(approved),
+    );
+  });
+
   it("treats an absent target labels array as an empty desired array", () => {
     const issue = {
       id: "NOTEBOOKLM-001",

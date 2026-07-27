@@ -655,6 +655,13 @@ page contents, archive entry ids, and content digests. A new run id, pagination
 cursor, or execution time must therefore remain `skip` when source state and
 target readback are unchanged.
 
+The Atlassian development integration field whose schema custom key is
+`com.atlassian.jira.plugins.jira-development-integration-plugin:devsummarycf`
+contains request-volatile internal identifiers. Its exact response remains in
+the verifiable raw archive, but its raw-only value is tokenized in the approval
+projection because it does not drive any target mutation. Other custom-field
+values remain approval-bound.
+
 Call `confirmJiraMigrationBinding` only after both the target write and target
 identity readback succeed. A failed write or readback belongs in the run result,
 not in `bindings`; resume then retries or conflicts instead of creating a second
