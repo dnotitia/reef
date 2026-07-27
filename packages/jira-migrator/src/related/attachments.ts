@@ -1,6 +1,78 @@
 import type { IssueAttachment } from "@reef/core";
 import type { NormalizedJiraAttachment } from "../payloads.js";
 
+const MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
+  csv: "text/csv",
+  gif: "image/gif",
+  jpeg: "image/jpeg",
+  jpg: "image/jpeg",
+  json: "application/json",
+  md: "text/markdown",
+  pdf: "application/pdf",
+  png: "image/png",
+  txt: "text/plain",
+  webp: "image/webp",
+  zip: "application/zip",
+};
+
+const normalizedSpecificMimeType = (
+  value: string | null | undefined,
+): string | null => {
+  const normalized = value?.split(";", 1)[0]?.trim().toLowerCase();
+  if (
+    !normalized ||
+    normalized === "*/*" ||
+    normalized === "application/octet-stream" ||
+    !/^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/u.test(
+      normalized,
+    )
+  )
+    return null;
+  return normalized;
+};
+
+const sniffMimeType = (bytes: Uint8Array): string | null => {
+  if (
+    bytes.length >= 8 &&
+    [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every(
+      (value, index) => bytes[index] === value,
+    )
+  )
+    return "image/png";
+  if (
+    bytes.length >= 3 &&
+    bytes[0] === 0xff &&
+    bytes[1] === 0xd8 &&
+    bytes[2] === 0xff
+  )
+    return "image/jpeg";
+  const prefix = new TextDecoder("ascii").decode(bytes.subarray(0, 12));
+  if (prefix.startsWith("GIF87a") || prefix.startsWith("GIF89a"))
+    return "image/gif";
+  if (prefix.startsWith("%PDF-")) return "application/pdf";
+  if (prefix.startsWith("RIFF") && prefix.slice(8, 12) === "WEBP")
+    return "image/webp";
+  return null;
+};
+
+export const resolveAttachmentMimeType = (
+  sourceMimeType: string | null | undefined,
+  downloadMimeType: string | null | undefined,
+  filename: string,
+  bytes: Uint8Array,
+): string => {
+  const explicit = normalizedSpecificMimeType(sourceMimeType);
+  if (explicit) return explicit;
+  const downloaded = normalizedSpecificMimeType(downloadMimeType);
+  if (downloaded) return downloaded;
+  const sniffed = sniffMimeType(bytes);
+  if (sniffed) return sniffed;
+  const extension = /\.([^.]+)$/u.exec(filename)?.[1]?.toLowerCase();
+  return (
+    (extension && MIME_BY_EXTENSION[extension]) ?? "application/octet-stream"
+  );
+};
+
 export type AttachmentReadbackMismatch =
   | "missing"
   | "file_uri"

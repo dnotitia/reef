@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { NormalizedJiraAttachment } from "../payloads.js";
 import {
   attachmentReadbackMismatches,
+  resolveAttachmentMimeType,
   validAttachmentReadback,
 } from "./attachments.js";
 
@@ -67,5 +68,37 @@ describe("attachmentReadbackMismatches", () => {
         new Uint8Array([1, 2, 3]),
       ),
     ).toEqual(["filename", "mime_type", "stored_size", "source_size", "bytes"]);
+  });
+});
+
+describe("resolveAttachmentMimeType", () => {
+  it("rejects wildcard response headers and detects PNG bytes", () => {
+    expect(
+      resolveAttachmentMimeType(
+        null,
+        "*/*;charset=UTF-8",
+        "capture.png",
+        new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      ),
+    ).toBe("image/png");
+  });
+
+  it("prefers a specific Jira MIME and falls back conservatively", () => {
+    expect(
+      resolveAttachmentMimeType(
+        "IMAGE/JPEG; charset=binary",
+        "application/octet-stream",
+        "capture.bin",
+        new Uint8Array(),
+      ),
+    ).toBe("image/jpeg");
+    expect(
+      resolveAttachmentMimeType(
+        null,
+        "not-a-mime",
+        "unknown.bin",
+        new Uint8Array(),
+      ),
+    ).toBe("application/octet-stream");
   });
 });

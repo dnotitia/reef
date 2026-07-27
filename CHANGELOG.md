@@ -22,6 +22,9 @@ explicitly in the entries below.
 - Preserve attachment write-phase failures and report safe field-level
   readback mismatch codes so migration diagnostics identify the failing
   boundary without exposing source content.
+- Reject wildcard and generic attachment content types, infer common formats
+  from byte signatures or filenames, and replace stale bound attachments whose
+  stored metadata or bytes no longer match the normalized Jira source.
 - Preserve explicitly selected Jira `simple`/non-Scrum boards in migration
   provenance and treat their unsupported Sprint catalog HTTP 400 as an empty
   catalog instead of aborting the migration.

@@ -622,19 +622,18 @@ describe("Jira related-data import stage", () => {
       mode: "apply",
     });
     expect(mimeRerun.report.attachments.skipped).toBe(0);
-    expect(mimeRerun.report.failures).toContainEqual(
-      expect.objectContaining({
-        source_kind: "attachment",
-        phase: "readback",
-      }),
+    expect(mimeRerun.report.attachments.created).toBe(1);
+    expect(mimeRerun.report.failures).toEqual([]);
+    expect(state.attachments.size).toBe(1);
+    expect([...state.attachments.values()][0]?.attachment.mime_type).toBe(
+      "application/octet-stream",
     );
     if (sourceAttachment)
       sourceAttachment.mimeType = "application/octet-stream";
-    state.attachments.set(mimeUri, mimeStored);
 
     const remapped = await importJiraRelatedData({
       ...base,
-      ledger: rerun.ledger,
+      ledger: mimeRerun.ledger,
       linkMappings: [{ typeId: "1", kind: "symmetric" as const }],
       mode: "apply",
     });
@@ -665,17 +664,16 @@ describe("Jira related-data import stage", () => {
     });
     const corruptRerun = await importJiraRelatedData({
       ...base,
-      ledger: rerun.ledger,
+      ledger: externalized.ledger,
       mode: "apply",
     });
     expect(corruptRerun.report.attachments.skipped).toBe(0);
-    expect(state.description).toBe(preservedDescription);
-    expect(corruptRerun.report.failures).toContainEqual(
-      expect.objectContaining({
-        source_kind: "attachment",
-        phase: "readback",
-        reason: "attachment_readback_mismatch:stored_size,source_size,bytes",
-      }),
+    expect(corruptRerun.report.attachments.created).toBe(1);
+    expect(corruptRerun.report.failures).toEqual([]);
+    expect(state.description).not.toContain(storedUri);
+    expect(state.description).not.toBe(preservedDescription);
+    expect([...state.attachments.values()][0]?.bytes).toEqual(
+      new Uint8Array([1, 2, 3]),
     );
   });
 

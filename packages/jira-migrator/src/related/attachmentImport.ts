@@ -13,6 +13,7 @@ import type {
 } from "../payloads.js";
 import {
   attachmentReadbackMismatches,
+  resolveAttachmentMimeType,
   validAttachmentReadback,
 } from "./attachments.js";
 import { revokeCommentTargets } from "./comments.js";
@@ -348,8 +349,11 @@ export async function importAttachments(options: {
     };
     let attachmentPhase: JiraRelatedImportFailure["phase"] = "read";
     try {
+      let download: Awaited<
+        ReturnType<typeof migration.client.downloadAttachmentContent>
+      > | null = null;
       if (existing?.target.target_kind === "attachment") {
-        const download = await migration.client.downloadAttachmentContent(
+        download = await migration.client.downloadAttachmentContent(
           attachment.id,
           maxAttachmentBytes,
         );
@@ -360,37 +364,52 @@ export async function importAttachments(options: {
           throw new Error("attachment_size_mismatch");
         const expectedAttachment = {
           ...expectedAttachmentBase,
-          mimeType:
-            attachment.mimeType ??
-            download.contentType ??
-            "application/octet-stream",
+          mimeType: resolveAttachmentMimeType(
+            attachment.mimeType,
+            download.contentType,
+            attachment.filename,
+            download.bytes,
+          ),
         };
         attachmentPhase = "readback";
         const readback = await migration.target.readAttachment(
           existing.target.file_uri,
         );
-        assertAttachmentReadback(
+        const mismatches = attachmentReadbackMismatches(
           readback,
           attachment,
           { ...expectedAttachment, fileUri: existing.target.file_uri },
           download.bytes,
         );
-        attachmentBindings.push({
-          source: attachment,
-          fileUri: existing.target.file_uri,
-        });
-        report.attachments.skipped += 1;
-        continue;
+        if (mismatches.length === 0) {
+          attachmentBindings.push({
+            source: attachment,
+            fileUri: existing.target.file_uri,
+          });
+          report.attachments.skipped += 1;
+          continue;
+        }
+        if (migration.mode === "dry-run") {
+          recordRelatedOperation(report, "revoke_attachment", identity.key, {
+            reefId: migration.reefId,
+            fileUri: existing.target.file_uri,
+            replacement: revokedAttachmentPlaceholder(attachment.id),
+          });
+        } else {
+          await revokeAttachmentBinding(identity, attachment.id);
+        }
       }
-      attachmentPhase = "readback";
-      const recovered = await migration.target.findAttachmentByJiraId(
-        migration.reefId,
-        migration.jiraCloudId,
-        attachment.id,
-      );
+      const recovered =
+        existing?.target.target_kind === "attachment"
+          ? null
+          : await migration.target.findAttachmentByJiraId(
+              migration.reefId,
+              migration.jiraCloudId,
+              attachment.id,
+            );
       if (recovered) {
         attachmentPhase = "read";
-        const download = await migration.client.downloadAttachmentContent(
+        download = await migration.client.downloadAttachmentContent(
           attachment.id,
           maxAttachmentBytes,
         );
@@ -401,13 +420,15 @@ export async function importAttachments(options: {
           throw new Error("attachment_size_mismatch");
         const expectedAttachment = {
           ...expectedAttachmentBase,
-          mimeType:
-            attachment.mimeType ??
-            download.contentType ??
-            "application/octet-stream",
+          mimeType: resolveAttachmentMimeType(
+            attachment.mimeType,
+            download.contentType,
+            attachment.filename,
+            download.bytes,
+          ),
         };
         attachmentPhase = "readback";
-        assertAttachmentReadback(
+        const mismatches = attachmentReadbackMismatches(
           recovered,
           attachment,
           {
@@ -416,32 +437,43 @@ export async function importAttachments(options: {
           },
           download.bytes,
         );
-        attachmentBindings.push({
-          source: attachment,
-          fileUri: recovered.attachment.file_uri,
-        });
-        if (migration.mode === "apply") {
-          ledger = confirmJiraMigrationBinding(ledger, {
-            sourceIdentity: identity,
-            target: {
-              target_kind: "attachment",
-              file_uri: recovered.attachment.file_uri,
-            },
-            sourceFingerprint: fingerprintJiraState(attachment),
-            mappedStateFingerprint: fingerprintJiraState({
-              file_uri: recovered.attachment.file_uri,
-              size: recovered.bytes.byteLength,
-            }),
-            lastAppliedAt: now(),
-            writeSucceeded: true,
-            readbackSucceeded: true,
+        if (mismatches.length === 0) {
+          attachmentBindings.push({
+            source: attachment,
+            fileUri: recovered.attachment.file_uri,
           });
+          if (migration.mode === "apply") {
+            ledger = confirmJiraMigrationBinding(ledger, {
+              sourceIdentity: identity,
+              target: {
+                target_kind: "attachment",
+                file_uri: recovered.attachment.file_uri,
+              },
+              sourceFingerprint: fingerprintJiraState(attachment),
+              mappedStateFingerprint: fingerprintJiraState({
+                file_uri: recovered.attachment.file_uri,
+                size: recovered.bytes.byteLength,
+              }),
+              lastAppliedAt: now(),
+              writeSucceeded: true,
+              readbackSucceeded: true,
+            });
+          }
+          report.attachments.skipped += 1;
+          continue;
         }
-        report.attachments.skipped += 1;
-        continue;
+        if (migration.mode === "dry-run") {
+          recordRelatedOperation(report, "revoke_attachment", identity.key, {
+            reefId: migration.reefId,
+            fileUri: recovered.attachment.file_uri,
+            replacement: revokedAttachmentPlaceholder(attachment.id),
+          });
+        } else {
+          await revokeAttachmentBinding(identity, attachment.id);
+        }
       }
       attachmentPhase = "read";
-      const download = await migration.client.downloadAttachmentContent(
+      download ??= await migration.client.downloadAttachmentContent(
         attachment.id,
         maxAttachmentBytes,
       );
@@ -450,10 +482,12 @@ export async function importAttachments(options: {
         download.bytes.byteLength !== attachment.size
       )
         throw new Error("attachment_size_mismatch");
-      const mimeType =
-        attachment.mimeType ??
-        download.contentType ??
-        "application/octet-stream";
+      const mimeType = resolveAttachmentMimeType(
+        attachment.mimeType,
+        download.contentType,
+        attachment.filename,
+        download.bytes,
+      );
       const createInput = {
         idempotencyKey: identity.key,
         reefId: migration.reefId,

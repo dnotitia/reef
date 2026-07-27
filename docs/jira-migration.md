@@ -857,6 +857,11 @@ bytes to the returned storage URL with its signed MIME type, confirm the
 content hash under `/api/v1/files/{vault}/{file_id}/confirm`, and use the
 matching presigned download endpoint for readback. The migrator does not assume
 that AKB exposes a direct multipart upload or authenticated byte-stream route.
+Wildcard, malformed, and generic MIME headers are not persisted as authoritative
+types: the importer next checks file signatures, then known filename
+extensions, and finally falls back to `application/octet-stream`. A rerun that
+finds a bound attachment with different normalized metadata or bytes revokes
+that target and recreates it before confirming the new binding.
 
 ADF `media` and `mediaInline` nodes resolve after attachment import in this
 fixed order: unique filename on the issue, the issue's sole attachment, a
