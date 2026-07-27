@@ -114,6 +114,35 @@ explicitly in the entries below.
 
 - **Production web builds stay browser-compatible.** Core adapter equality
   checks no longer pull the Node-only `node:util` module into client bundles.
+
+- **Jira migration canonical fields and reruns now converge across Jira Cloud
+  variants.** Exact LexoRank catalogs reported as `type=any` are auto-discovered
+  and connected to the batch Rank planner without requiring an operator field
+  override. `IssueParentAssociation` changelog items promote to parent activity,
+  and mapped-state fingerprints ignore migration timestamps and raw-archive run
+  ids so a new run does not report unchanged issues or histories as writes.
+
+- **Jira migrator CLI policies can disambiguate tenant custom fields.**
+  Per-project `fieldOverrides` now select explicit Sprint, story-points,
+  start-date, and Rank field ids for both current issue projection and
+  changelog planning, so tenants with multiple schema-compatible numeric or
+  date fields no longer block every CLI dry run. Runner discovery also requests
+  complete enhanced-JQL issue projections so parent, description, priority,
+  attachment, link, and mapped custom-field data cannot be silently omitted
+  from an otherwise approvable plan. Target preflight now reads the initialized
+  Reef workspace `project_prefix` instead of silently allocating `REEF-*` ids
+  in every vault. Approval fingerprints now normalize retrieval, observation,
+  and migration timestamps plus Jira field-catalog ordering so separate
+  dry-run and apply processes remain comparable without masking semantic
+  source changes. AKB readback also treats an absent labels value as equivalent
+  to an empty label array, allowing successful writes and idempotent reruns to
+  confirm their ledger bindings. Update preconditions now compare the AKB JSON
+  wire representation, omitting optional `undefined` keys that previously
+  raised `invalid_json_value` before legitimate Jira people-field updates.
+  Account resolution now uses the target vault member roster as its email
+  directory and rejects overrides that name global AKB users without target
+  vault membership.
+
 - **Comment threads revalidate after a hard reload.** A fresh persisted browser
   cache can render immediately, but the activity timeline now always reconciles
   it with the server so recently posted replies cannot disappear temporarily.

@@ -16,6 +16,7 @@ import {
   actionForIssuePlan,
   actionForPlanning,
   actionForRelatedReport,
+  mappedFingerprintForIssue,
   reconciliationAction,
   resultFor,
 } from "./decisions.js";
@@ -101,14 +102,16 @@ export async function executeJiraDryRun(input: {
         .readIssue(issuePlan.desired.issue.id)
         .catch(() => null);
       readbackSucceeded = readback !== null;
+      const baseMatches = baseIssueReadbackMatches(
+        issuePlan,
+        readback,
+        postRelatedContentByReefId.get(issuePlan.desired.issue.id),
+      );
       const matches =
         action === "skip"
-          ? baseIssueReadbackMatches(
-              issuePlan,
-              readback,
-              postRelatedContentByReefId.get(issuePlan.desired.issue.id),
-            )
+          ? baseMatches
           : issueOwnerMatches(issuePlan, readback);
+      if (action === "update" && baseMatches) action = "skip";
       if (!matches) action = "conflict";
     }
     record(
@@ -119,7 +122,7 @@ export async function executeJiraDryRun(input: {
         sourceFingerprint: fingerprintJiraState(
           allIssues.find((issue) => issue.id === issuePlan.source.issueId)?.raw,
         ),
-        mappedFingerprint: fingerprintJiraState(issuePlan.desired),
+        mappedFingerprint: mappedFingerprintForIssue(issuePlan),
         action,
         at: runAt,
         readback: readbackSucceeded,

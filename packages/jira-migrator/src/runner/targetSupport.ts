@@ -121,6 +121,7 @@ const relationshipKeys = new Set<keyof IssueMetadata>([
   "depends_on",
   "blocks",
   "related_to",
+  "labels",
 ]);
 const targetManagedIssueKeys = new Set<keyof IssueMetadata>([
   "created_at",

@@ -75,6 +75,42 @@ describe("Jira tenant field catalog", () => {
     expect(resolved.rank.field?.id).toBe("customfield_10004");
   });
 
+  it("accepts Jira Cloud Rank catalogs that expose LexoRank as type any", () => {
+    const rankAny = buildJiraFieldCatalog({
+      retrievedAt: "2026-07-20T05:00:00.000Z",
+      fields: [
+        {
+          id: "customfield_10019",
+          name: "순위",
+          schema: {
+            type: "any",
+            custom: "com.pyxis.greenhopper.jira:gh-lexo-rank",
+          },
+        },
+        {
+          id: "customfield_10020",
+          name: "Other",
+          schema: { type: "any", custom: "tenant:opaque" },
+        },
+      ],
+    });
+
+    expect(resolveJiraField(rankAny, "rank")).toMatchObject({
+      classification: "resolved",
+      reason: "exact_schema_custom_key",
+      field: { id: "customfield_10019" },
+    });
+    expect(
+      resolveJiraField(rankAny, "rank", { rank: "customfield_10019" }),
+    ).toMatchObject({
+      classification: "resolved",
+      reason: "explicit_override",
+    });
+    expect(
+      resolveJiraField(rankAny, "rank", { rank: "customfield_10020" }),
+    ).toMatchObject({ classification: "field_override_invalid" });
+  });
+
   it("fails closed for absent overrides, ambiguity, and fuzzy substrings", () => {
     expect(
       resolveJiraField(snapshot, "sprint", { sprint: "customfield_99999" }),

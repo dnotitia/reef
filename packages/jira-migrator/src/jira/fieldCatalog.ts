@@ -95,13 +95,19 @@ const matchesExpectedSchema = (
   field: JiraFieldPayload,
 ): boolean => {
   const spec = roleSpecs[role];
-  if (!field.schema?.type || !spec.types.includes(field.schema.type)) {
-    return false;
+  const schema = field.schema;
+  const exactRankAnySchema =
+    role === "rank" &&
+    schema?.type === "any" &&
+    schema.custom !== undefined &&
+    spec.customKeys.includes(schema.custom);
+  if (!schema?.type || !spec.types.includes(schema.type)) {
+    if (!exactRankAnySchema) return false;
   }
   if (
     spec.items &&
-    field.schema.items !== undefined &&
-    !spec.items.includes(field.schema.items)
+    schema.items !== undefined &&
+    !spec.items.includes(schema.items)
   ) {
     return false;
   }

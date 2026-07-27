@@ -355,6 +355,21 @@ const server = createServer(async (request, response) => {
     return respond(response, { username: "contract-operator" });
   }
   if (
+    url.pathname === "/akb/api/v1/vaults/reef-contract/members" &&
+    request.method === "GET"
+  ) {
+    return respond(response, {
+      members: [
+        {
+          username: "contract-operator",
+          display_name: "Contract Operator",
+          email: "operator@example.com",
+          role: "owner",
+        },
+      ],
+    });
+  }
+  if (
     url.pathname === "/akb/api/v1/tables/reef-contract" &&
     request.method === "GET"
   ) {
@@ -367,8 +382,10 @@ const server = createServer(async (request, response) => {
         "reef_comments",
         "reef_attachments",
         "reef_activity",
+        "reef_settings",
+        "monitored_repos",
       ].map((name) => ({ name })),
-      total: 7,
+      total: 9,
     });
   }
   if (
@@ -377,6 +394,15 @@ const server = createServer(async (request, response) => {
   ) {
     const { sql: statement } = await readBody(request);
     state.akbRequests.at(-1).sql = statement;
+    if (statement.includes("FROM reef_settings")) {
+      return respond(
+        response,
+        sqlResult([{ key: "project_prefix", value: '"REEF"' }]),
+      );
+    }
+    if (statement.includes("FROM monitored_repos")) {
+      return respond(response, sqlResult([]));
+    }
     if (
       statement.includes("FROM reef_sprints") ||
       statement.includes("FROM reef_milestones") ||

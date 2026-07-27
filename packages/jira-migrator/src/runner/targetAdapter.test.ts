@@ -75,6 +75,78 @@ const releaseAction: JiraPlanningAction = {
 };
 
 describe("AKB Jira migration target", () => {
+  it("allocates issue ids from the initialized target workspace prefix", async () => {
+    const target = createAkbJiraMigrationTarget(
+      {
+        baseUrl: "https://akb.test",
+        jwt: "jwt",
+        vault: "notebooklm-smoke",
+      },
+      {
+        createAdapter: () => ({
+          request: vi.fn(async () => ({ kind: "table_query", items: [] })),
+        }),
+        getCurrentActor: async () => ({ actor: "operator" }),
+        readConfig: vi.fn(async () => ({
+          exists: true,
+          config: {
+            project_prefix: "NOTEBOOKLM",
+            monitored_repos: [],
+            authoring_language: "ko" as const,
+            stale_hide_completed_days: 28,
+            stale_hide_canceled_days: 7,
+            ai_scanning_enabled: false,
+          },
+        })),
+        listPlanningCatalog: vi.fn(async () => ({
+          releases: [],
+          sprints: [],
+          milestones: [],
+        })),
+        listVaultMembers: vi.fn(async () => ({
+          members: [
+            {
+              username: "operator",
+              display_name: "Operator",
+              email: "operator@example.com",
+              role: "owner",
+            },
+          ],
+        })),
+        createRelease: vi.fn(),
+        createSprint: vi.fn(),
+        readPlanningCreateClaim: vi.fn(),
+        allocateNextIssueId: vi.fn(),
+        writeIssue: vi.fn(),
+        updateIssue: vi.fn(),
+        readIssue: vi.fn(),
+        claimIssueId: vi.fn(),
+      },
+    );
+
+    await expect(target.preflight()).resolves.toMatchObject({
+      projectPrefix: "NOTEBOOKLM",
+      actorDirectory: [
+        {
+          actor: "operator",
+          displayName: "Operator",
+          emailAddress: "operator@example.com",
+        },
+      ],
+      memberActors: ["operator"],
+    });
+    await expect(
+      target.planIssueIds([
+        {
+          jira_cloud_id: "cloud-1",
+          project_key: "NOTEBOOKLM",
+          issue_id: "29449",
+          issue_key: "NOTEBOOKLM-1",
+        },
+      ]),
+    ).resolves.toEqual(["NOTEBOOKLM-001"]);
+  });
+
   it("uses core public planning and paired issue writes with readback", async () => {
     const createRelease = vi.fn(
       async () =>
@@ -208,6 +280,7 @@ describe("AKB Jira migration target", () => {
         baseUrl: "https://akb.test",
         jwt: "jwt",
         vault: "reef-test",
+        issuePrefix: "REEF",
       },
       {
         createAdapter: () => ({
@@ -248,6 +321,7 @@ describe("AKB Jira migration target", () => {
     expect(await target.preflight()).toMatchObject({
       actor: "operator",
       vault: "reef-test",
+      projectPrefix: "REEF",
     });
     expect(
       await target.planIssueIds([
@@ -400,7 +474,13 @@ describe("AKB Jira migration target", () => {
         },
       } as unknown as AkbReadIssueResult);
     await expect(
-      target.applyIssue(updatedPlan, "update", targetAuthoredReadback),
+      target.applyIssue(updatedPlan, "update", {
+        ...targetAuthoredReadback,
+        issue: {
+          ...targetAuthoredReadback.issue,
+          assigned_to: undefined,
+        },
+      } as unknown as AkbReadIssueResult),
     ).resolves.toMatchObject({
       reefId: "REEF-010",
       commitHash: "commit-1",
@@ -441,6 +521,7 @@ describe("AKB Jira migration target", () => {
         baseUrl: "https://akb.test",
         jwt: "jwt",
         vault: "reef-test",
+        issuePrefix: "REEF",
       },
       {
         createAdapter: () => ({ request: vi.fn() }),
@@ -473,7 +554,12 @@ describe("AKB Jira migration target", () => {
 
   it("does not write blocked issue plans", async () => {
     const target = createAkbJiraMigrationTarget(
-      { baseUrl: "https://akb.test", jwt: "jwt", vault: "reef-test" },
+      {
+        baseUrl: "https://akb.test",
+        jwt: "jwt",
+        vault: "reef-test",
+        issuePrefix: "REEF",
+      },
       {
         createAdapter: () => ({ request: vi.fn() }),
         getCurrentActor: async () => ({ actor: "operator" }),
@@ -510,7 +596,12 @@ describe("AKB Jira migration target", () => {
       return { kind: "table_query", items: [] };
     });
     const target = createAkbJiraMigrationTarget(
-      { baseUrl: "https://akb.test", jwt: "jwt", vault: "reef-test" },
+      {
+        baseUrl: "https://akb.test",
+        jwt: "jwt",
+        vault: "reef-test",
+        issuePrefix: "REEF",
+      },
       {
         createAdapter: () => ({ request }),
         getCurrentActor: async () => ({ actor: "operator" }),
@@ -558,7 +649,12 @@ describe("AKB Jira migration target", () => {
       return { kind: "table_query", items: [] };
     });
     const target = createAkbJiraMigrationTarget(
-      { baseUrl: "https://akb.test", jwt: "jwt", vault: "reef-test" },
+      {
+        baseUrl: "https://akb.test",
+        jwt: "jwt",
+        vault: "reef-test",
+        issuePrefix: "REEF",
+      },
       {
         createAdapter: () => ({ request }),
         getCurrentActor: async () => ({ actor: "operator" }),
@@ -605,7 +701,12 @@ describe("AKB Jira migration target", () => {
     }));
     const updateIssue = vi.fn();
     const target = createAkbJiraMigrationTarget(
-      { baseUrl: "https://akb.test", jwt: "jwt", vault: "reef-test" },
+      {
+        baseUrl: "https://akb.test",
+        jwt: "jwt",
+        vault: "reef-test",
+        issuePrefix: "REEF",
+      },
       {
         createAdapter: () => ({ request }),
         getCurrentActor: async () => ({ actor: "operator" }),
@@ -697,7 +798,12 @@ describe("AKB Jira migration target", () => {
       };
     });
     const target = createAkbJiraMigrationTarget(
-      { baseUrl: "https://akb.test", jwt: "jwt", vault: "reef-test" },
+      {
+        baseUrl: "https://akb.test",
+        jwt: "jwt",
+        vault: "reef-test",
+        issuePrefix: "REEF",
+      },
       {
         createAdapter: () => ({
           request: vi.fn(async (_path, init) => {

@@ -82,7 +82,14 @@ describe("runner source traversal", () => {
     ]);
     expect(searchProjectIssues).toHaveBeenNthCalledWith(
       2,
-      expect.objectContaining({ nextPageToken: "next-1" }),
+      expect.objectContaining({
+        nextPageToken: "next-1",
+        fields: ["*all"],
+      }),
+    );
+    expect(searchProjectIssues).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ fields: ["*all"] }),
     );
 
     searchProjectIssues.mockReset().mockResolvedValue({

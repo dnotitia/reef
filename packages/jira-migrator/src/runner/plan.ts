@@ -9,6 +9,7 @@ import {
 import type { JiraIssueImportPlan } from "../issues/importPlan.js";
 import { buildJiraIssueImportPlan } from "../issues/mapping.js";
 import type { JiraReadClient } from "../jira/client.js";
+import { resolveJiraField } from "../jira/fieldCatalog.js";
 import {
   JiraMigrationBindingSchema,
   type JiraMigrationLedgerV1,
@@ -25,6 +26,7 @@ import {
   buildJiraPlanningMigrationPlan,
   buildJiraPlanningTargetMappings,
 } from "../planning/entities.js";
+import { buildJiraRankImportPlan } from "../planning/rank.js";
 import type {
   JiraRelatedOperation,
   JiraRelatedOperationKind,
@@ -38,6 +40,7 @@ import { sameRelatedOperation } from "../related/operations.js";
 import { reportTemplate } from "../related/reporting.js";
 import {
   canRecoverApprovedPlanningCreate,
+  fingerprintJiraApprovalPlan,
   issueReadbackApprovalFingerprint,
   planningResolutionsForApproval,
   planningSourceProjection,
@@ -253,6 +256,33 @@ export async function buildJiraMigrationPlan(input: {
     );
   const approvedPlanningResolutions =
     planningResolutionsForApproval(planningActions);
+  const rankPlansByJiraKey = new Map(
+    buildJiraRankImportPlan(
+      allIssues.flatMap((issue) => {
+        const projectKey =
+          issue.projectKey ?? issue.key.split("-")[0] ?? "unknown";
+        const policy = policies.get(projectKey);
+        if (!policy) throw new JiraRunnerError("mapping_policy_required");
+        const resolution = resolveJiraField(
+          fieldCatalog,
+          "rank",
+          policy.fieldOverrides,
+        );
+        if (resolution.classification !== "resolved" || !resolution.field) {
+          return [];
+        }
+        const rawRank = issue.raw.fields[resolution.field.id];
+        return [
+          {
+            reefId: targetIdsByJiraKey[issue.key] as string,
+            jiraKey: issue.key,
+            jiraRank:
+              typeof rawRank === "string" || rawRank === null ? rawRank : null,
+          },
+        ];
+      }),
+    ).map((plan) => [plan.jiraKey, plan] as const),
+  );
   const buildIssuePlans = (
     resolutions: readonly JiraPlanningTargetResolution[],
   ): JiraIssueImportPlan[] => {
@@ -269,10 +299,12 @@ export async function buildJiraMigrationPlan(input: {
         runAt,
         migrationActor: targetPreflight.actor,
         fieldCatalog,
+        fieldOverrides: policy.fieldOverrides,
         policy,
         accountMapping: { artifact: accountMapping },
         planningMappings: mappings,
         targetIdsByJiraKey,
+        rankPlan: rankPlansByJiraKey.get(issue.key) ?? null,
         rawArchiveReferences: archiveReferences.get(issue.key) ?? {},
       });
     });
@@ -358,6 +390,7 @@ export async function buildJiraMigrationPlan(input: {
             `${issue.id}:${history.id}`,
           ),
           fieldCatalog,
+          fieldOverrides: policy.fieldOverrides,
           actorBindings,
           statusMappings,
           issueTypeMappings,
@@ -627,6 +660,7 @@ export async function buildJiraMigrationPlan(input: {
     target: {
       vault: config.target.vault,
       actor: targetPreflight.actor,
+      project_prefix: targetPreflight.projectPrefix,
       endpoint_fingerprint: endpointFingerprint,
     },
     issue_ids: targetIdsByJiraKey,
@@ -668,7 +702,7 @@ export async function buildJiraMigrationPlan(input: {
       items: plan.items,
     })),
   };
-  const planSha256 = fingerprintJiraState(planPayload);
+  const planSha256 = fingerprintJiraApprovalPlan(planPayload);
   if (config.expectedPlanSha256 && config.expectedPlanSha256 !== planSha256) {
     throw new JiraRunnerError("plan_fingerprint_mismatch");
   }
@@ -677,7 +711,7 @@ export async function buildJiraMigrationPlan(input: {
   }
   if (
     approvedPlanArtifact &&
-    fingerprintJiraState(approvedPlanArtifact.payload) !== planSha256
+    fingerprintJiraApprovalPlan(approvedPlanArtifact.payload) !== planSha256
   ) {
     throw new JiraRunnerError("plan_fingerprint_mismatch");
   }

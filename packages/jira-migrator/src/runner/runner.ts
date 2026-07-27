@@ -243,6 +243,8 @@ async function runJiraMigrationUnlocked(
     target,
     approvedPayload,
     accountMappingPath: paths.accountMappingPath,
+    actorDirectory: targetPreflight.actorDirectory,
+    memberActors: targetPreflight.memberActors,
   });
   const { absentSourceRelationPlan, accountReport } = discovery;
   const archive = await archiveJiraMigrationSource({

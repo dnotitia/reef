@@ -14,6 +14,8 @@ import {
   buildUnmappedJiraUsersCustomFields,
   collectJiraUserObservations,
   createJiraAccountMappingArtifact,
+  invalidJiraAccountMemberActors,
+  invalidJiraAccountOverrideActors,
   mapJiraChangelogActor,
   mapJiraCommentActor,
   mapJiraIssueActors,
@@ -34,6 +36,49 @@ const first = <T>(items: readonly T[]): T => {
 };
 
 describe("Jira account mapping", () => {
+  it("identifies override actors outside the target vault membership", () => {
+    const artifact = createJiraAccountMappingArtifact({
+      jiraCloudId: "cloud-abc",
+      overrides: {
+        "acct-member": { actor: "reef-operator" },
+        "acct-outsider": { actor: "global-user" },
+      },
+    });
+
+    expect(
+      invalidJiraAccountOverrideActors(artifact, ["reef-operator"]),
+    ).toEqual(["global-user"]);
+  });
+
+  it("identifies persisted non-fallback actors outside the current membership", () => {
+    const artifact = createJiraAccountMappingArtifact({
+      jiraCloudId: "cloud-abc",
+    });
+    artifact.accounts.member = {
+      accountId: "member",
+      emailAddress: "operator@example.com",
+      displayName: "Operator",
+      active: true,
+      accountType: "atlassian",
+      actor: "reef-operator",
+      mappingStrategy: "email",
+      overrideReason: null,
+      firstSeenAt: "2026-07-27T00:00:00.000Z",
+      lastSeenAt: "2026-07-27T00:00:00.000Z",
+      projectKeys: ["ALPHA"],
+    };
+    artifact.accounts.fallback = {
+      ...artifact.accounts.member,
+      accountId: "fallback",
+      actor: "jira:fallback",
+      mappingStrategy: "fallback",
+    };
+
+    expect(invalidJiraAccountMemberActors(artifact, [])).toEqual([
+      "reef-operator",
+    ]);
+  });
+
   it("collects Jira user originals, maps actors, and preserves unmapped fallback users", () => {
     const issue = JiraIssueSchema.parse(jiraIssueFixture);
     const comments = JiraCommentPageSchema.parse(

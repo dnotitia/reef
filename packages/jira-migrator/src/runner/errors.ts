@@ -3,6 +3,7 @@ export type JiraRunnerErrorCode =
   | "mapping_policy_required"
   | "dry_run_approval_required"
   | "dry_run_scope_mismatch"
+  | "account_mapping_actor_not_vault_member"
   | "plan_fingerprint_mismatch"
   | "interrupted"
   | "failpoint";

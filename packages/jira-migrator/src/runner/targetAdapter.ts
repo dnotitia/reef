@@ -18,6 +18,8 @@ import {
   akbGetCurrentActor,
   akbIssueDocumentUri,
   akbListPlanningCatalog,
+  akbListVaultMembers,
+  akbReadConfig,
   akbReadIssue,
   akbReadPlanningCreateClaim,
   akbUpdateIssue,
@@ -41,6 +43,12 @@ import {
   sidecarFor,
 } from "./targetSupport.js";
 
+const canonicalizeWireValue = (value: unknown): string => {
+  const serialized = JSON.stringify(value);
+  if (serialized === undefined) throw new Error("target_readback_not_json");
+  return canonicalizeJson(JSON.parse(serialized));
+};
+
 export interface AkbJiraMigrationTargetConfig {
   baseUrl: string;
   jwt: string;
@@ -54,10 +62,18 @@ interface TargetCore {
     adapter: AkbAdapter;
     jwt: string;
   }): Promise<{ actor: string | null }>;
+  readConfig?(input: {
+    adapter: AkbAdapter;
+    vault: string;
+  }): ReturnType<typeof akbReadConfig>;
   listPlanningCatalog(input: {
     adapter: AkbAdapter;
     vault: string;
   }): Promise<PlanningCatalog>;
+  listVaultMembers?(input: {
+    adapter: AkbAdapter;
+    vault: string;
+  }): ReturnType<typeof akbListVaultMembers>;
   createRelease(input: {
     adapter: AkbAdapter;
     vault: string;
@@ -113,7 +129,9 @@ interface TargetCore {
 const defaultCore: TargetCore = {
   createAdapter: createAkbAdapter,
   getCurrentActor: akbGetCurrentActor,
+  readConfig: akbReadConfig,
   listPlanningCatalog: akbListPlanningCatalog,
+  listVaultMembers: akbListVaultMembers,
   createRelease: akbCreateRelease,
   createSprint: akbCreateSprint,
   readPlanningCreateClaim: akbReadPlanningCreateClaim,
@@ -152,6 +170,13 @@ export interface AkbJiraMigrationTarget {
     actor: string;
     vault: string;
     planning: PlanningCatalog;
+    projectPrefix: string;
+    actorDirectory: Array<{
+      actor: string;
+      emailAddress: string | readonly string[];
+      displayName?: string;
+    }>;
+    memberActors: string[];
   }>;
   planIssueIds(owners: readonly JiraIssueTargetOwner[]): Promise<string[]>;
   applyPlanning(
@@ -181,6 +206,7 @@ export function createAkbJiraMigrationTarget(
     jwt: config.jwt,
   });
   const vault = config.vault;
+  let issuePrefix = config.issuePrefix ?? null;
   const readIssue = (id: string) => core.readIssue({ adapter, vault, id });
   const updateIssue = (
     id: string,
@@ -207,16 +233,51 @@ export function createAkbJiraMigrationTarget(
   return {
     adapter,
     async preflight() {
-      const [{ actor }, planning] = await Promise.all([
-        core.getCurrentActor({ adapter, jwt: config.jwt }),
-        core.listPlanningCatalog({ adapter, vault }),
-      ]);
+      const [{ actor }, planning, targetConfig, membership] = await Promise.all(
+        [
+          core.getCurrentActor({ adapter, jwt: config.jwt }),
+          core.listPlanningCatalog({ adapter, vault }),
+          issuePrefix
+            ? Promise.resolve(null)
+            : core.readConfig
+              ? core.readConfig({ adapter, vault })
+              : Promise.reject(new Error("target_config_reader_unavailable")),
+          core.listVaultMembers
+            ? core.listVaultMembers({ adapter, vault })
+            : Promise.resolve({ members: [] }),
+        ],
+      );
       if (!actor) throw new Error("target_identity_unavailable");
-      return { actor, vault, planning };
+      const projectPrefix =
+        issuePrefix ??
+        (targetConfig?.exists ? targetConfig.config.project_prefix : null);
+      if (!projectPrefix) throw new Error("target_config_unavailable");
+      issuePrefix = projectPrefix;
+      return {
+        actor,
+        vault,
+        planning,
+        projectPrefix,
+        actorDirectory: membership.members.flatMap((member) =>
+          member.email
+            ? [
+                {
+                  actor: member.username,
+                  emailAddress: member.email,
+                  ...(member.display_name
+                    ? { displayName: member.display_name }
+                    : {}),
+                },
+              ]
+            : [],
+        ),
+        memberActors: membership.members.map((member) => member.username),
+      };
     },
     async planIssueIds(owners) {
       if (owners.length === 0) return [];
-      const prefix = config.issuePrefix ?? "REEF";
+      if (!issuePrefix) throw new Error("target_preflight_required");
+      const prefix = issuePrefix;
       const rows = await allIssueRows();
       const existing = new Set(
         rows.flatMap((row) =>
@@ -449,12 +510,12 @@ export function createAkbJiraMigrationTarget(
         });
         if (
           approvedReadback &&
-          canonicalizeJson({
+          canonicalizeWireValue({
             issue: current.issue,
             content: current.content,
             commit_hash: current.commit_hash ?? null,
           }) !==
-            canonicalizeJson({
+            canonicalizeWireValue({
               issue: approvedReadback.issue,
               content: approvedReadback.content,
               commit_hash: approvedReadback.commit_hash ?? null,

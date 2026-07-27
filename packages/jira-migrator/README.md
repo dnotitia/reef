@@ -5,9 +5,23 @@ intentionally outside `@reef/web`: Jira credentials are deployment/operator
 secrets, not user state in the product runtime.
 
 The CLI is the end-to-end composition root: it performs read-only Jira
-discovery, archives source payloads, produces an approval-bound dry-run report,
-and applies/resumes idempotent writes through the public `@reef/core` AKB
-adapter. The library surfaces the same runner for controlled automation.
+discovery with complete enhanced-JQL issue projections, archives source
+payloads, produces an approval-bound dry-run report, and applies/resumes
+idempotent writes through the public `@reef/core` AKB adapter. The library
+surfaces the same runner for controlled automation.
+
+Target issue ids use the configured Reef workspace `project_prefix`; target
+preflight fails closed when the vault has not been initialized as a Reef
+workspace.
+
+Before the approval dry-run, compare Jira people with the target vault member
+roster and explicitly resolve every access gap. Grant the least privileged
+role—normally `reader` for identity fidelity—or keep the stable
+`jira:<accountId>` fallback. The migrator never grants vault access during
+dry-run or apply, and apply fails closed when an email or override actor is not
+a current target member. See
+[Jira Account Mapping](../../docs/jira-migration.md#jira-account-mapping) for
+the preparation sequence and role guidance.
 
 ## Documentation Policy
 
@@ -42,6 +56,33 @@ pnpm --filter @reef/jira-migrator run start -- \
   --account-mapping-path /private/jira/accounts.json \
   --report-path /private/jira/report.json
 ```
+
+Each policy may include explicit tenant field ids when Jira exposes multiple
+schema-compatible custom fields:
+
+```json
+{
+  "statuses": [],
+  "issueTypes": [],
+  "priorities": [],
+  "fieldOverrides": {
+    "sprint": "customfield_10020",
+    "story_points": "customfield_10016",
+    "start_date": "customfield_10015",
+    "rank": "customfield_10019"
+  },
+  "linkMappings": []
+}
+```
+
+These overrides are exceptional disambiguation inputs. The migrator normally
+discovers Sprint, story points, start date, and Rank from Jira's field catalog;
+those allowlisted Jira concepts may use `customfield_*` ids without enabling
+arbitrary tenant custom-field migration.
+
+Omit roles that the tenant resolves unambiguously. An absent or
+schema-incompatible configured id blocks planning rather than selecting a
+different field.
 
 The configured report path always contains the latest command result. A
 completed dry run also seals immutable approval and private plan artifacts at
