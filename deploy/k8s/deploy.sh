@@ -18,6 +18,12 @@
 #                 point KUSTOMIZE_DIR at that.
 #   PUBLIC_URL    Printed at the end. Cosmetic only — the actual host lives
 #                 in the overlay's patch-ingress.yaml.
+#   DEPLOY_VERSION
+#                 Version recorded in rollout history (default: root package
+#                 version prefixed with `v`).
+#   DEPLOY_COMMIT Git commit recorded in rollout history (default: short HEAD).
+#   CHANGE_CAUSE  Full rollout-history message. Overrides DEPLOY_VERSION and
+#                 DEPLOY_COMMIT when set.
 
 set -euo pipefail
 
@@ -26,6 +32,16 @@ NAMESPACE="${NAMESPACE:-reef}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 KUSTOMIZE_DIR="${KUSTOMIZE_DIR:-${SCRIPT_DIR}/overlays/example}"
 ROOT_DIR="${SCRIPT_DIR}/../.."
+if [ -z "${CHANGE_CAUSE:-}" ]; then
+  if [ -z "${DEPLOY_VERSION:-}" ]; then
+    PACKAGE_VERSION="$(node -e \
+      'process.stdout.write(require(process.argv[1]).version)' \
+      "${ROOT_DIR}/package.json")"
+    DEPLOY_VERSION="v${PACKAGE_VERSION}"
+  fi
+  DEPLOY_COMMIT="${DEPLOY_COMMIT:-$(git -C "${ROOT_DIR}" rev-parse --short=8 HEAD)}"
+  CHANGE_CAUSE="Deploy reef-web ${DEPLOY_VERSION} (commit ${DEPLOY_COMMIT}) on $(date -u +%Y-%m-%d)"
+fi
 
 echo "=== Building Docker image (linux/amd64) ==="
 docker buildx build --platform linux/amd64 \
@@ -41,6 +57,12 @@ echo "=== Applying manifests (kustomize: ${KUSTOMIZE_DIR}) ==="
 kubectl kustomize "${KUSTOMIZE_DIR}" | \
   sed "s|image: reef-web:latest|image: ${REGISTRY}/reef-web:latest|g" | \
   kubectl apply -f -
+
+echo "=== Recording rollout provenance ==="
+# Set this before restarting so the Deployment controller copies the
+# annotation to the new ReplicaSet shown by `kubectl rollout history`.
+kubectl annotate "deployment/reef-web" -n "${NAMESPACE}" \
+  kubernetes.io/change-cause="${CHANGE_CAUSE}" --overwrite
 
 echo "=== Rolling restart to pick up :latest image ==="
 # `imagePullPolicy: Always` only pulls on pod creation; if the Deployment
