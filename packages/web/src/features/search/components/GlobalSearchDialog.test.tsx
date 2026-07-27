@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { configure, render, screen, waitFor } from "@testing-library/react";
+import {
+  configure,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -39,6 +45,12 @@ vi.mock("@/features/issues/hooks/queries/useIssueList", () => ({
 const useExactIssueMock = vi.fn();
 vi.mock("../hooks/useExactIssue", () => ({
   useExactIssue: (...args: unknown[]) => useExactIssueMock(...args),
+}));
+
+const useIssueContentSearchMock = vi.fn();
+vi.mock("../hooks/useIssueContentSearch", () => ({
+  useIssueContentSearch: (...args: unknown[]) =>
+    useIssueContentSearchMock(...args),
 }));
 
 vi.mock("@/features/issues/hooks/queries/useIssueRelations", () => ({
@@ -87,13 +99,13 @@ function serverLike(_vault: string, query?: { q?: string }): ListResult {
   return { data, isLoading: false, isError: false };
 }
 
-function renderDialog() {
+function renderDialog(locale: "en" | "ko" = "en") {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>
-      <IntlTestProvider>{children}</IntlTestProvider>
+      <IntlTestProvider locale={locale}>{children}</IntlTestProvider>
     </QueryClientProvider>
   );
   return render(<GlobalSearchDialog />, { wrapper });
@@ -108,6 +120,12 @@ describe("GlobalSearchDialog", () => {
     useExactIssueMock.mockReset();
     // No exact-id lookup resolved by default; the truncation test drives it.
     useExactIssueMock.mockReturnValue({ data: undefined, isFetching: false });
+    useIssueContentSearchMock.mockReset();
+    useIssueContentSearchMock.mockReturnValue({
+      data: undefined,
+      isError: false,
+      isFetching: false,
+    });
   });
 
   it("does not render content when closed", () => {
@@ -535,5 +553,284 @@ describe("GlobalSearchDialog", () => {
     expect(screen.getByRole("listbox").className).toContain(
       "overscroll-contain",
     );
+  });
+
+  it("renders localized body and comment matches as safe highlighted anchors", async () => {
+    useIssueContentSearchMock.mockImplementation(
+      (query: string, _vault: string, limit: number) => ({
+        data: query
+          ? {
+              query,
+              limit,
+              results: [
+                {
+                  reef_id: "REEF-347",
+                  title: "본문 검색",
+                  snippet: "한국어 본문 전용 문구",
+                  source: "body",
+                  score: 0.8,
+                  match_id: "body:reef-347",
+                },
+                {
+                  reef_id: "REEF-348",
+                  title: "Comment search",
+                  snippet: "literal %_[\\ phrase",
+                  source: "comment",
+                  score: null,
+                  match_id: "comment:c-1",
+                },
+              ],
+              has_more: false,
+            }
+          : undefined,
+        isError: false,
+        isFetching: false,
+      }),
+    );
+    useGlobalSearchStore.setState({ isOpen: true });
+    renderDialog("ko");
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("global-search-input"), "한국어");
+
+    const items = await screen.findAllByTestId("global-search-content-item");
+    expect(items).toHaveLength(2);
+    expect(screen.getByText("본문")).toBeInTheDocument();
+    expect(screen.getByText("코멘트")).toBeInTheDocument();
+    expect(items[0]?.querySelector("mark")?.textContent).toBe("한국어");
+    expect(items[0]?.querySelector("a")).toHaveAttribute(
+      "href",
+      "/workspace/reef-acme/issues/REEF-347",
+    );
+    expect(items[0]?.querySelector("a")).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("removes every auxiliary source for an issue already shown in metadata", async () => {
+    useIssueContentSearchMock.mockImplementation((query: string) => ({
+      data: query
+        ? {
+            query,
+            limit: 10,
+            results: [
+              {
+                reef_id: "REEF-001",
+                title: "Fix login bug",
+                snippet: "login body",
+                source: "body",
+                score: 0.8,
+                match_id: "body:one",
+              },
+              {
+                reef_id: "REEF-001",
+                title: "Fix login bug",
+                snippet: "login comment",
+                source: "comment",
+                score: null,
+                match_id: "comment:one",
+              },
+            ],
+            has_more: false,
+          }
+        : undefined,
+      isError: false,
+      isFetching: false,
+    }));
+    useGlobalSearchStore.setState({ isOpen: true });
+    renderDialog();
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("global-search-input"), "login");
+    await screen.findByTestId("global-search-item");
+    expect(screen.queryByTestId("global-search-content-item")).toBeNull();
+  });
+
+  it("hides stale or failed content without changing metadata usability", async () => {
+    useIssueContentSearchMock.mockReturnValue({
+      data: {
+        query: "query-a",
+        limit: 10,
+        results: [
+          {
+            reef_id: "REEF-347",
+            title: "Stale",
+            snippet: "query-a",
+            source: "body",
+            score: 0.5,
+            match_id: "body:stale",
+          },
+        ],
+        has_more: false,
+      },
+      isError: true,
+      isFetching: false,
+    });
+    useGlobalSearchStore.setState({ isOpen: true });
+    renderDialog();
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("global-search-input"), "login");
+    await waitFor(() =>
+      expect(useIssueListMock).toHaveBeenCalledWith(
+        "reef-acme",
+        expect.objectContaining({ q: "login" }),
+      ),
+    );
+    expect(screen.queryByTestId("global-search-content-item")).toBeNull();
+    await user.click(screen.getByTestId("global-search-item"));
+    expect(pushMock).toHaveBeenCalledWith(
+      "/workspace/reef-acme/issues/REEF-001",
+    );
+  });
+
+  it("includes content fetches in progress, aria-busy, and live status", async () => {
+    useIssueContentSearchMock.mockImplementation((query: string) => ({
+      data: undefined,
+      isError: false,
+      isFetching: [...query].length >= 2,
+    }));
+    useGlobalSearchStore.setState({ isOpen: true });
+    renderDialog();
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("global-search-input"), "needle");
+    await waitFor(() =>
+      expect(useIssueListMock).toHaveBeenCalledWith(
+        "reef-acme",
+        expect.objectContaining({ q: "needle" }),
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("listbox")).toHaveAttribute("aria-busy", "true"),
+    );
+    expect(screen.getByTestId("search-progress-bar")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Searching issue content…",
+    );
+  });
+
+  it("expands the same query by ten, retains rows, and blocks duplicate load-more clicks", async () => {
+    useIssueContentSearchMock.mockImplementation(
+      (query: string, _vault: string, limit: number) => ({
+        data: query
+          ? {
+              query,
+              limit: 10,
+              results: [
+                {
+                  reef_id: "REEF-347",
+                  title: "Content search",
+                  snippet: "needle body",
+                  source: "body",
+                  score: 0.8,
+                  match_id: "body:one",
+                },
+              ],
+              has_more: true,
+            }
+          : undefined,
+        isError: false,
+        isFetching: limit > 10,
+      }),
+    );
+    useGlobalSearchStore.setState({ isOpen: true });
+    renderDialog();
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("global-search-input"), "needle");
+    const more = await screen.findByTestId("global-search-content-more");
+    await user.click(more);
+
+    await waitFor(() =>
+      expect(useIssueContentSearchMock).toHaveBeenLastCalledWith(
+        "needle",
+        "reef-acme",
+        20,
+      ),
+    );
+    expect(
+      screen.getByTestId("global-search-content-item"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("global-search-content-more")).toBeDisabled();
+    expect(screen.getByTestId("global-search-content-more")).toHaveTextContent(
+      "Loading more…",
+    );
+  });
+
+  it("stops bounded expansion at 50 even when the server remains conservative", async () => {
+    useIssueContentSearchMock.mockImplementation(
+      (query: string, _vault: string, limit: number) => ({
+        data: query
+          ? {
+              query,
+              limit,
+              results: [
+                {
+                  reef_id: "REEF-347",
+                  title: "Content search",
+                  snippet: "needle body",
+                  source: "body",
+                  score: 0.8,
+                  match_id: "body:one",
+                },
+              ],
+              has_more: true,
+            }
+          : undefined,
+        isError: false,
+        isFetching: false,
+      }),
+    );
+    useGlobalSearchStore.setState({ isOpen: true });
+    renderDialog();
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("global-search-input"), "needle");
+
+    for (const limit of [20, 30, 40, 50]) {
+      await user.click(
+        await screen.findByTestId("global-search-content-more"),
+      );
+      await waitFor(() =>
+        expect(useIssueContentSearchMock).toHaveBeenLastCalledWith(
+          "needle",
+          "reef-acme",
+          limit,
+        ),
+      );
+    }
+    expect(screen.queryByTestId("global-search-content-more")).toBeNull();
+  });
+
+  it("does not prevent modified or middle clicks on a content anchor", async () => {
+    useIssueContentSearchMock.mockImplementation((query: string) => ({
+      data: query
+        ? {
+            query,
+            limit: 10,
+            results: [
+              {
+                reef_id: "REEF-347",
+                title: "Content search",
+                snippet: "needle body",
+                source: "body",
+                score: 0.8,
+                match_id: "body:one",
+              },
+            ],
+            has_more: false,
+          }
+        : undefined,
+      isError: false,
+      isFetching: false,
+    }));
+    useGlobalSearchStore.setState({ isOpen: true });
+    renderDialog();
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("global-search-input"), "needle");
+    const anchor = (
+      await screen.findByTestId("global-search-content-item")
+    ).querySelector("a");
+    expect(anchor).not.toBeNull();
+    expect(
+      fireEvent.click(anchor as HTMLAnchorElement, { metaKey: true }),
+    ).toBe(true);
+    expect(fireEvent.click(anchor as HTMLAnchorElement, { button: 1 })).toBe(
+      true,
+    );
+    expect(pushMock).not.toHaveBeenCalled();
   });
 });
