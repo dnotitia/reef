@@ -197,6 +197,22 @@ describe("proxy — credential redaction", () => {
     expect(capture.sink.join("")).toContain("?vault=reef-test");
   });
 
+  it("redacts content-search q values while retaining safe request metadata", () => {
+    const privateSearchTerm = "private-comment-lighthouse";
+    const request = new NextRequest(
+      `https://reef.test/api/issues/search-content?vault=reef-test&q=${privateSearchTerm}&limit=10`,
+      { method: "GET" },
+    );
+
+    proxy(request);
+
+    const line = requestLine(capture.sink);
+    expect(line?.path).toBe("/api/issues/search-content");
+    expect(line?.route_class).toBe("/api/issues");
+    expect(line?.query).toBe("?vault=reef-test&q&limit=10");
+    expect(capture.sink.join("")).not.toContain(privateSearchTerm);
+  });
+
   it("emits structured request metadata through the shared pino logger", () => {
     const request = new NextRequest(
       "https://reef.test/api/issues?vault=reef-test",
