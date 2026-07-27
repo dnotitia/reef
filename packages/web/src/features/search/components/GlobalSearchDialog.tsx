@@ -298,7 +298,7 @@ export function GlobalSearchDialog() {
     contentLimit,
   );
   const contentQueryIsCurrent =
-    !debouncePending &&
+    resultsAreCurrent &&
     contentQuery.data?.query === liveTrimmed &&
     [...liveTrimmed].length >= 2;
   const metadataIds = new Set(

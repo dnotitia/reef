@@ -635,6 +635,53 @@ describe("GlobalSearchDialog", () => {
     expect(item.querySelector("mark")?.textContent).toBe("Needle");
   });
 
+  it("hides content results while canonical exact-ID lookup is pending", async () => {
+    useIssueListMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+      isFetching: false,
+      isPlaceholderData: false,
+      isError: false,
+    });
+    useExactIssueMock.mockReturnValue({
+      data: undefined,
+      isFetching: true,
+    });
+    useIssueContentSearchMock.mockImplementation((query: string) => ({
+      data: query
+        ? {
+            query,
+            limit: 10,
+            results: [
+              {
+                reef_id: "REEF-999",
+                title: "Mentions the canonical id",
+                snippet: "Body mentions REEF-123",
+                source: "body",
+                score: 0.7,
+                match_id: "body:mention",
+              },
+            ],
+            has_more: false,
+          }
+        : undefined,
+      isError: false,
+      isFetching: false,
+    }));
+    useGlobalSearchStore.setState({ isOpen: true });
+    renderDialog();
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("global-search-input"), "REEF-123");
+
+    await waitFor(() =>
+      expect(useExactIssueMock).toHaveBeenLastCalledWith(
+        "REEF-123",
+        "reef-acme",
+      ),
+    );
+    expect(screen.queryByTestId("global-search-content-item")).toBeNull();
+  });
+
   it("removes every auxiliary source for an issue already shown in metadata", async () => {
     useIssueContentSearchMock.mockImplementation((query: string) => ({
       data: query
