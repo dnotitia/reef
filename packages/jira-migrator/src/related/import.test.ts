@@ -1780,7 +1780,10 @@ describe("Jira related-data import stage", () => {
       rewritten: 2,
       unresolved: 0,
     });
-    expect(dryRun.report.media.by_strategy.rendered_element).toBe(2);
+    expect(dryRun.report.media.by_strategy).toMatchObject({
+      rendered_element: 1,
+      unique_filename: 1,
+    });
     expect(state.comments.size).toBe(0);
 
     const applied = await importJiraRelatedData({ ...base, mode: "apply" });
@@ -2619,6 +2622,7 @@ describe("media crosswalk", () => {
       mediaType: "file",
       collection: null,
       filename: "a.bin",
+      alt: null,
       rawArchiveReference: null,
       placeholder: "placeholder",
       legacyPlaceholder: "legacy-placeholder",
@@ -2651,6 +2655,19 @@ describe("media crosswalk", () => {
       ],
     }).media[0];
     expect(altOnlyMedia?.filename).toBeNull();
+    expect(altOnlyMedia?.alt).toBe("a.bin");
+    expect(
+      altOnlyMedia
+        ? resolveJiraMediaReference(
+            altOnlyMedia,
+            [
+              { source: source("1", "a.bin"), fileUri: "akb://v/file/1" },
+              { source: source("2", "b.bin"), fileUri: "akb://v/file/2" },
+            ],
+            "",
+          )?.strategy
+        : null,
+    ).toBe("unique_filename");
     expect(
       altOnlyMedia
         ? resolveJiraMediaReference(
@@ -2660,9 +2677,9 @@ describe("media crosswalk", () => {
               { source: source("2", "b.bin"), fileUri: "akb://v/file/2" },
             ],
             '<span data-media-services-id="m1" href="/attachment/2/b.bin"></span>',
-          )?.binding.source.id
+          )
         : null,
-    ).toBe("2");
+    ).toBeNull();
     expect(
       resolveJiraMediaReference(
         { ...media, filename: null },
@@ -2697,6 +2714,16 @@ describe("media crosswalk", () => {
           { source: source("1", "a.bin"), fileUri: "akb://v/file/1" },
           { source: source("2", "b.bin"), fileUri: "akb://v/file/2" },
         ],
+        '<a data-media-services-id="m1" data-attachment-name="b.bin" href="/rest/api/3/attachment/content/2"></a>',
+      )?.binding.source.id,
+    ).toBe("2");
+    expect(
+      resolveJiraMediaReference(
+        { ...media, filename: null },
+        [
+          { source: source("1", "a.bin"), fileUri: "akb://v/file/1" },
+          { source: source("2", "b.bin"), fileUri: "akb://v/file/2" },
+        ],
         '<span data-media-services-id="m1" data-attachment-id="1" href="/attachment/2/b.bin"></span>',
       ),
     ).toBeNull();
@@ -2708,6 +2735,19 @@ describe("media crosswalk", () => {
           { source: source("2", "b.bin"), fileUri: "akb://v/file/2" },
         ],
         '<span data-media-services-id="m1" data-filename="b.bin"></span>',
+      )?.strategy,
+    ).toBe("rendered_unique_filename");
+    expect(
+      resolveJiraMediaReference(
+        { ...media, filename: null },
+        [
+          { source: source("1", "a.bin"), fileUri: "akb://v/file/1" },
+          {
+            source: source("2", "manual (m1).pdf"),
+            fileUri: "akb://v/file/2",
+          },
+        ],
+        "<p>See [^manual (m1).pdf]</p>",
       )?.strategy,
     ).toBe("rendered_unique_filename");
     expect(

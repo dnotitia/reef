@@ -743,7 +743,7 @@ try {
     wrongHash.code === 0 ||
     wrongHash.result?.code !== "plan_fingerprint_mismatch"
   ) {
-    throw new Error("plan_hash_rejection_missing");
+    throw new Error(`plan_hash_rejection_missing:${JSON.stringify(wrongHash)}`);
   }
   const wrongHashTargetUnchanged =
     targetStateSha256() === wrongHashState &&

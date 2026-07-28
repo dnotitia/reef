@@ -845,7 +845,9 @@ A raw issue reference is required for every plan. ADF, watcher, and media
 references are additionally required when those payloads exist. Missing one
 produces `raw_archive_reference_missing` and a blocked plan. Blocked plans carry
 no `desired.issue`, preventing callers from applying a fabricated required
-field. Ready plans validate `desired.issue` with the public core
+field. The runner grounds each description media placeholder in the same
+archived ADF object, so the issue projection and later rewrite use identical
+opaque provenance. Ready plans validate `desired.issue` with the public core
 `IssueMetadataSchema`.
 
 `desired.issue.created_at` and `updated_at` use the caller-supplied run timestamp
@@ -892,11 +894,17 @@ retains every replaced file URI only as an approved description-rewrite
 precondition so ADF media references to stale files converge on the recreated
 attachment; those stale URIs are not treated as live bindings.
 
-ADF `media` and `mediaInline` nodes resolve after attachment import in this
-fixed order: unique filename on the issue, the issue's sole attachment, a
-rendered-field element that pairs the media id with an attachment, then a
-rendered-field unique filename. Zero or multiple candidates remain unresolved;
-the importer never guesses from numeric equality or array order.
+Issue discovery requests both `properties` and `renderedFields`. ADF `media`
+and `mediaInline` nodes resolve after attachment import in this fixed order:
+a unique issue attachment filename (including an exact non-empty ADF `alt`
+match), the issue's sole attachment, a rendered-field element that pairs the
+media id with an attachment REST href/name, then a rendered-description
+filename that uniquely contains the media id. Contradictory rendered and ADF
+evidence, zero candidates, or multiple candidates remain unresolved; the
+importer never guesses from numeric equality or array order. Issue planning
+and description rewriting use the same raw-archive and account-mapping
+conversion options, preventing a valid rewrite from failing its Markdown
+precondition.
 
 Standard links deduplicate on Jira link id. Operators configure an exact link
 type triple (`id`, `name`, `inward`, `outward`) as directional or symmetric;
@@ -907,7 +915,10 @@ The importer canonicalizes each directional edge as Jira outward endpoint to
 inward endpoint before applying both relations, so project traversal order
 cannot choose the stored orientation.
 Unknown or not-yet-migrated endpoints remain Jira external refs
-with reconciliation provenance. Remote links are a separate reader and use
+with reconciliation provenance. When the link type has an explicit operator
+mapping, this externalization is a successful cross-project reconciliation;
+the report keeps `externalized` separate from `unmapped`, and only the latter
+remains a policy conflict. Remote links are a separate reader and use
 `globalId`, or a canonical content hash when absent, while preserving URL,
 title, application, relationship, and object provenance.
 

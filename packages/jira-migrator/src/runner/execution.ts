@@ -683,6 +683,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
       const client = clients.get(key);
       const policy = policies.get(key);
       if (!client || !policy) throw new Error("jira_client_missing");
+      const issueArchiveReferences = archiveReferences.get(issue.key);
       let result: Awaited<ReturnType<typeof importJiraRelatedData>>;
       try {
         result = await importJiraRelatedData({
@@ -708,6 +709,12 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
                   : {}),
               }
             : undefined,
+          descriptionConversionOptions: {
+            accountMapping: { artifact: accountMapping },
+            descriptionRawArchiveReference:
+              issueArchiveReferences?.descriptionAdf,
+            mediaRawArchiveReferences: issueArchiveReferences?.media,
+          },
           resolveIssueTarget(sourceIdOrKey) {
             const peer = allIssues.find(
               (candidate) =>

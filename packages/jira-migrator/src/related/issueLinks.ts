@@ -228,6 +228,11 @@ export async function importIssueLinks(options: {
       }
       if (!mapping || !targetIssue) {
         report.links.unresolved += 1;
+        if (mapping) {
+          report.links.externalized += 1;
+        } else {
+          report.links.unmapped += 1;
+        }
         await removeStaleRelationBindings(linkId);
         const externalKey = `jira-link:${migration.jiraCloudId}:${issueId}:${linkId}`;
         const externalValue = {

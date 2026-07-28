@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { JiraChangelogPlan } from "../issues/changelog.js";
 import type { JiraIssueImportPlan } from "../issues/importPlan.js";
+import { reportTemplate } from "../related/reporting.js";
 import {
   mappedFingerprintForChangelog,
   mappedFingerprintForIssue,
+  reconciliationAction,
   runScopedMappedFingerprintForChangelog,
 } from "./decisions.js";
 
@@ -70,5 +72,77 @@ describe("migration action fingerprints", () => {
     ).not.toBe(
       runScopedMappedFingerprintForChangelog(second, reference("run-2")),
     );
+  });
+});
+
+describe("relation reconciliation", () => {
+  it("accepts mapped cross-project links as durable external references", () => {
+    const report = reportTemplate("dry-run");
+    report.links.unique = 2;
+    report.links.unresolved = 1;
+    report.links.externalized = 1;
+
+    expect(
+      reconciliationAction(
+        {
+          kind: "relation",
+          reason: "cross_project_reconcile",
+          sourceKey: "OTHER-1",
+          targetId: null,
+        },
+        report,
+        [],
+      ),
+    ).toBe("skip");
+    expect(
+      reconciliationAction(
+        {
+          kind: "relation",
+          reason: "needs_relation_reconcile",
+          sourceKey: "SHDEV-2",
+          targetId: "SHDEV-002",
+        },
+        report,
+        [],
+      ),
+    ).toBe("skip");
+  });
+
+  it("accepts a cross-project link resolved inside a multi-project batch", () => {
+    const report = reportTemplate("dry-run");
+    report.links.unique = 1;
+
+    expect(
+      reconciliationAction(
+        {
+          kind: "relation",
+          reason: "cross_project_reconcile",
+          sourceKey: "BETA-1",
+          targetId: "REEF-002",
+        },
+        report,
+        [],
+      ),
+    ).toBe("skip");
+  });
+
+  it("keeps missing link semantics as a conflict", () => {
+    const report = reportTemplate("dry-run");
+    report.links.unique = 1;
+    report.links.unresolved = 1;
+    report.links.unmapped = 1;
+
+    expect(
+      reconciliationAction(
+        {
+          kind: "relation",
+          reason: "cross_project_reconcile",
+          sourceKey: "OTHER-1",
+          targetId: null,
+        },
+        report,
+        [],
+      ),
+    ).toBe("conflict");
   });
 });

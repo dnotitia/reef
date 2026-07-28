@@ -12,6 +12,18 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Fixed
+
+- **Jira migration media and cross-project reconciliation now preserve the
+  approved source contract end to end.** Issue discovery approval-binds
+  rendered fields, description rewrites reuse the issue plan's raw-archive and
+  account mapping options, deterministic ADF filename/rendered-element
+  crosswalks cover REST attachment hrefs, and mapped out-of-scope issue links
+  are distinguished from missing link policy as durable external references.
+  Description media placeholders are grounded in their archived ADF object, so
+  full-project dry-run and apply no longer conflict on otherwise lossless
+  inputs.
+
 ## v0.8.1 - 2026-07-28
 
 ### Security

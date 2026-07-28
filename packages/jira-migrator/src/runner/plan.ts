@@ -410,6 +410,12 @@ export async function buildJiraMigrationPlan(input: {
     const policy = policies.get(key);
     if (!client || !policy) throw new Error("jira_client_missing");
     const dryIssuePlan = dryIssuePlansByKey.get(issue.key);
+    const issueArchiveReferences = archiveReferences.get(issue.key);
+    const descriptionConversionOptions = {
+      accountMapping: { artifact: accountMapping },
+      descriptionRawArchiveReference: issueArchiveReferences?.descriptionAdf,
+      mediaRawArchiveReferences: issueArchiveReferences?.media,
+    };
     const result = await importJiraRelatedData({
       jiraCloudId: config.jira.cloudId,
       issue: issue.raw,
@@ -425,6 +431,7 @@ export async function buildJiraMigrationPlan(input: {
             commentVisibilityCompleteness: "verified" as const,
           }
         : undefined,
+      descriptionConversionOptions,
       resolveIssueTarget(sourceIdOrKey) {
         const reefId = issueBindings[sourceIdOrKey];
         return reefId
@@ -473,6 +480,12 @@ export async function buildJiraMigrationPlan(input: {
       reportTemplate("dry-run"),
       issue.id,
       attachments,
+      {
+        accountMapping: { artifact: accountMapping },
+        descriptionRawArchiveReference: archiveReferences.get(issue.key)
+          ?.descriptionAdf,
+        mediaRawArchiveReferences: archiveReferences.get(issue.key)?.media,
+      },
     );
     if (rewritten.resolved && rewritten.changed) {
       postRelatedContentByReefId.set(

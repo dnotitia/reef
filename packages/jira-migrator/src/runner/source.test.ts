@@ -6,7 +6,11 @@ import {
   readAllProjectIssues,
   readBoardSprints,
 } from "./source.js";
-import { runnerArchivePermissionVerification } from "./sourceArchive.js";
+import {
+  descriptionMediaIds,
+  mediaArchiveReferencesForIds,
+  runnerArchivePermissionVerification,
+} from "./sourceArchive.js";
 import { assertCachedAttachmentWithinLimit } from "./sourceSnapshot.js";
 
 const rateLimit: JiraRateLimit = {
@@ -25,6 +29,27 @@ describe("runner source traversal", () => {
     expect(runnerArchivePermissionVerification("linux")).toEqual({
       kind: "posix_mode",
       verified: true,
+    });
+  });
+
+  it("grounds description media placeholders in the archived ADF", () => {
+    const reference = {
+      runId: "run-1",
+      entryId: "description-1",
+      contentSha256: "a".repeat(64),
+    };
+    const ids = descriptionMediaIds({
+      type: "doc",
+      version: 1,
+      content: [
+        { type: "media", attrs: { id: "media-1", type: "file" } },
+        { type: "media", attrs: { id: "media-2", type: "file" } },
+      ],
+    });
+
+    expect(mediaArchiveReferencesForIds(ids, reference)).toEqual({
+      "media-1": reference,
+      "media-2": reference,
     });
   });
 
@@ -85,11 +110,15 @@ describe("runner source traversal", () => {
       expect.objectContaining({
         nextPageToken: "next-1",
         fields: ["*all"],
+        expand: ["properties", "renderedFields"],
       }),
     );
     expect(searchProjectIssues).toHaveBeenNthCalledWith(
       1,
-      expect.objectContaining({ fields: ["*all"] }),
+      expect.objectContaining({
+        fields: ["*all"],
+        expand: ["properties", "renderedFields"],
+      }),
     );
 
     searchProjectIssues.mockReset().mockResolvedValue({

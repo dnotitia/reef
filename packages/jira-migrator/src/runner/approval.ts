@@ -266,6 +266,8 @@ export const semanticRelatedReport = (
     entries: report.links.entries,
     unique: report.links.unique,
     unresolved: report.links.unresolved,
+    externalized: report.links.externalized,
+    unmapped: report.links.unmapped,
   },
   remote_links: { total: report.remote_links.total },
   failures: report.failures,

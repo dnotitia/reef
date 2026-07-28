@@ -198,6 +198,8 @@ export interface JiraRelatedImportReport {
     applied: number;
     skipped: number;
     unresolved: number;
+    externalized: number;
+    unmapped: number;
   };
   remote_links: { total: number; applied: number; skipped: number };
   operations: JiraRelatedOperation[];

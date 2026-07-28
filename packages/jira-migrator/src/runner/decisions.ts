@@ -86,10 +86,17 @@ export const reconciliationAction = (
     return "failed";
   }
   if (item.kind === "relation") {
-    return relatedReport.links.unique > 0 &&
-      relatedReport.links.unresolved === 0
-      ? "skip"
-      : "conflict";
+    if (relatedReport.links.unmapped > 0) return "conflict";
+    if (item.reason === "cross_project_reconcile") {
+      return item.targetId
+        ? relatedReport.links.unique > 0
+          ? "skip"
+          : "conflict"
+        : relatedReport.links.externalized > 0
+          ? "skip"
+          : "conflict";
+    }
+    return relatedReport.links.unique > 0 ? "skip" : "conflict";
   }
   return relatedReport.media.total > 0 && relatedReport.media.unresolved === 0
     ? "skip"
