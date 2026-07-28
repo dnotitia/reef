@@ -145,7 +145,9 @@ test.describe("workspace root redirects (REEF-424)", () => {
 
   test("B2: /workspace sends a signed-in user without a default to onboarding", async ({
     page,
+    request,
   }) => {
+    await resetFixture(request, "empty");
     await signInAsAlice(page);
     await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
 
@@ -206,9 +208,10 @@ test.describe("workspace root redirects (REEF-424)", () => {
   test("B6: both workspace roots send an unauthenticated browser to login", async ({
     page,
   }) => {
-    for (const path of ["/workspace", "/workspace/reef-e2e"]) {
-      await page.goto(path);
-      await expect(page).toHaveURL(/\/login$/);
-    }
+    await page.goto("/workspace");
+    await expect(page).toHaveURL(/\/login$/);
+
+    await page.goto("/workspace/reef-e2e");
+    await expect(page).toHaveURL(/\/login\?redirect=%2Fworkspace%2Freef-e2e$/);
   });
 });

@@ -2,6 +2,8 @@
 
 import { AppShellSkeleton } from "@/components/AppShellSkeleton";
 import { useAuthRedirect } from "@/features/auth/hooks/useAuthRedirect";
+import { WorkspaceResumeStatus } from "@/features/onboarding/components/WorkspaceResumeStatus";
+import { useWorkspaceAutoResume } from "@/features/onboarding/hooks/useWorkspaceAutoResume";
 
 /**
  * `/workspace` is an alias for the global root redirect contract. Only this
@@ -9,6 +11,18 @@ import { useAuthRedirect } from "@/features/auth/hooks/useAuthRedirect";
  * `/workspace/[vault]` routes keep their URL vault as the source of truth.
  */
 export default function WorkspaceRootPage() {
-  useAuthRedirect("root");
-  return <AppShellSkeleton />;
+  const authStatus = useAuthRedirect("root");
+  const resume = useWorkspaceAutoResume({
+    enabled: authStatus === "active",
+    redirectWhenEmpty: true,
+  });
+
+  if (authStatus !== "active" || resume.status === "disabled") {
+    return <AppShellSkeleton />;
+  }
+  return (
+    <main className="flex min-h-screen items-center justify-center p-6">
+      <WorkspaceResumeStatus status={resume.status} onRetry={resume.retry} />
+    </main>
+  );
 }
