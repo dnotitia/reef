@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const replace = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace }),
+  usePathname: () => "/workspace/raw-vault/issues",
 }));
 
 const getAkbSessionStatus = vi.fn();
@@ -30,11 +31,6 @@ vi.mock("@/lib/akb/accountDenialClient", () => ({
       accountDeniedHandler.current = undefined;
     };
   },
-}));
-
-const getActiveVault = vi.fn();
-vi.mock("@/lib/storage/config", () => ({
-  getActiveVault: () => getActiveVault(),
 }));
 
 import { useAuthRedirect } from "./useAuthRedirect";
@@ -68,7 +64,18 @@ describe("useAuthRedirect", () => {
     await waitFor(() => {
       expect(replace).toHaveBeenCalledWith("/login");
     });
-    expect(getActiveVault).not.toHaveBeenCalled();
+  });
+
+  it("preserves an explicit workspace URL through login", async () => {
+    getAkbSessionStatus.mockResolvedValue({ active: false });
+
+    renderHook(() => useAuthRedirect("workspace"));
+
+    await waitFor(() => {
+      expect(replace).toHaveBeenCalledWith(
+        "/login?redirect=%2Fworkspace%2Fraw-vault%2Fissues",
+      );
+    });
   });
 
   it("preserves an AKB account denial when routing to login", async () => {
@@ -84,29 +91,17 @@ describe("useAuthRedirect", () => {
         "/login?sso_error=membership_required",
       );
     });
-    expect(getActiveVault).not.toHaveBeenCalled();
   });
 
-  it("routes authenticated users without an active vault to /onboarding", async () => {
+  it("leaves authenticated root workspace selection to the resume policy", async () => {
     getAkbSessionStatus.mockResolvedValue({ active: true });
-    getActiveVault.mockResolvedValue("");
 
-    renderHook(() => useAuthRedirect("root"));
+    const { result } = renderHook(() => useAuthRedirect("root"));
 
     await waitFor(() => {
-      expect(replace).toHaveBeenCalledWith("/onboarding");
+      expect(result.current).toBe("active");
     });
-  });
-
-  it("routes fully onboarded users from root to /issues", async () => {
-    getAkbSessionStatus.mockResolvedValue({ active: true });
-    getActiveVault.mockResolvedValue("reef-acme");
-
-    renderHook(() => useAuthRedirect("root"));
-
-    await waitFor(() => {
-      expect(replace).toHaveBeenCalledWith("/workspace/reef-acme/issues");
-    });
+    expect(replace).not.toHaveBeenCalled();
   });
 
   it("does not redirect when an in-flight auth probe is aborted during navigation", async () => {

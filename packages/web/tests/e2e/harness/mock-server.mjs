@@ -51,6 +51,16 @@ const server = createServer(async (req, res) => {
         issue_list_failure: state.issueListFailure,
       });
     }
+    if (url.pathname === "/__e2e/vault-list-control" && req.method === "POST") {
+      const body = await readJson(req);
+      state.vaultListDelayMs = Math.max(0, Number(body?.delay_ms ?? 0));
+      state.vaultListFailures = Math.max(0, Number(body?.failures ?? 0));
+      return json(res, 200, {
+        ok: true,
+        delay_ms: state.vaultListDelayMs,
+        failures: state.vaultListFailures,
+      });
+    }
     if (
       url.pathname === "/__e2e/issue-update-control" &&
       req.method === "POST"
@@ -198,6 +208,7 @@ process.on("SIGINT", () => server.close(() => process.exit(0)));
 function normalizeScenario(value) {
   if (
     value === "empty" ||
+    value === "configured_multi" ||
     value === "demo_board" ||
     value === "raw_only" ||
     value === "activity_suggestions" ||
@@ -235,6 +246,8 @@ function makeState(scenario) {
     loginToken: token,
     vaults: new Map(),
     issueListFailure: false,
+    vaultListDelayMs: 0,
+    vaultListFailures: 0,
     issueUpdateFailures: new Map(),
     keycloakEnabled: false,
     localAuthEnabled: true,
@@ -264,6 +277,7 @@ function makeState(scenario) {
 
   if (
     scenario === "configured" ||
+    scenario === "configured_multi" ||
     scenario === "activity_suggestions" ||
     scenario === "skill_outdated"
   ) {
@@ -272,6 +286,10 @@ function makeState(scenario) {
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);
     next.vaults.set(REEF_VAULT, vault);
     next.vaults.set("raw-vault", rawVault("raw-vault"));
+    if (scenario === "configured_multi") {
+      next.vaults.set("reef-zeta", configuredVault("reef-zeta"));
+      next.vaults.set("reef-alpha", configuredVault("reef-alpha"));
+    }
   } else if (scenario === "demo_board") {
     next.vaults.set(REEF_VAULT, demoBoardVault(REEF_VAULT));
     next.vaults.set("raw-vault", rawVault("raw-vault"));
@@ -879,6 +897,11 @@ async function handleAkb(req, res, url) {
   }
 
   if (path === "/api/v1/my/vaults" && req.method === "GET") {
+    if (state.vaultListDelayMs > 0) await sleep(state.vaultListDelayMs);
+    if (state.vaultListFailures > 0) {
+      state.vaultListFailures -= 1;
+      return json(res, 500, { error: "e2e forced vault list failure" });
+    }
     return json(res, 200, {
       vaults: [...state.vaults.values()].map(vaultSummary),
     });

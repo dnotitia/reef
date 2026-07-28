@@ -12,6 +12,13 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Fixed
+
+- Existing users now resume an accessible configured workspace after signing
+  in or opening onboarding, without seeing the workspace creation form first.
+  Reef preserves a valid last-viewed workspace and otherwise chooses a
+  deterministic configured workspace; empty and raw-only accounts still enter
+  onboarding, while vault-list failures show a retryable error.
 ## v0.8.1 - 2026-07-28
 
 ### Security

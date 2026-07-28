@@ -568,15 +568,21 @@ browser's own storage), the previous account's workspace-scoped browser state
 is reconciled away, and the user enters the app. There is no GitHub-OAuth
 sign-in, no popup, and no management-repository selection.
 
-First-time users hit an **OnboardingGuard** that redirects to `/onboarding`
-until setup is complete. Onboarding is a single screen whose required step is
+After session validation, reef checks the user's accessible workspaces before
+showing onboarding. If at least one already has reef configuration, the app
+restores a valid last-viewed workspace or deterministically chooses one, saves
+that browser fallback, and replaces the current history entry with its Issues
+URL. During this check the creation form stays hidden; a failed list request
+shows an explicit retry state.
+
+Users with no configured workspace enter `/onboarding`. Its required step is
 **Create a project workspace**: name a new akb vault (lowercase/digits/
 hyphens), choose an issue **prefix** (uppercase, e.g. `REEF`), optionally add a
-description and monitored repositories, and create. A secondary, collapsed path
-lets the user pick an existing reef workspace instead. Monitored repository
-access comes from deployment-managed GitHub credentials, so onboarding
-configures a *workspace*, not a Git repo, and no issue is committed under
-anyone's GitHub identity.
+description and monitored repositories, and create. Raw vaults do not count as
+configured workspaces and therefore do not bypass onboarding. Monitored
+repository access comes from deployment-managed GitHub
+credentials, so onboarding configures a *workspace*, not a Git repo, and no
+issue is committed under anyone's GitHub identity.
 
 ### Planning, Reports, Settings
 

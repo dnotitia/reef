@@ -5,6 +5,7 @@ import {
   readIndexedDbConfig,
   resetFixture,
   signInAsAlice,
+  waitForPasswordLogin,
   writeIndexedDbConfig,
 } from "./harness/fixture";
 
@@ -31,7 +32,9 @@ test.describe("workspace URL routing (REEF-315)", () => {
     page,
   }) => {
     await signInAsAlice(page);
-    await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+    await page.waitForURL(/\/workspace\/reef-e2e\/issues\/?$/, {
+      timeout: 15_000,
+    });
     // Point this browser's "last viewed" default at a DIFFERENT workspace, to
     // prove the path segment — not the pointer — decides what opens.
     await writeIndexedDbConfig(page, "vault", "raw-vault");
@@ -64,7 +67,9 @@ test.describe("workspace URL routing (REEF-315)", () => {
 
   test("AC4: a legacy link with no remembered workspace goes to onboarding", async ({
     page,
+    request,
   }) => {
+    await resetFixture(request, "empty");
     await signInAsAlice(page);
     await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
     // No workspace selected yet → no Dexie default.
@@ -97,6 +102,29 @@ test.describe("workspace URL routing (REEF-315)", () => {
       page.locator('[data-testid="access-denied-workspace-reef-e2e"]'),
     ).toBeVisible();
   });
+
+  test("a bare vault URL remains explicit through login", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "configured_multi");
+    await page.goto("/workspace/raw-vault/issues");
+    await expect(page).toHaveURL(
+      /\/login\?redirect=%2Fworkspace%2Fraw-vault%2Fissues$/,
+    );
+    await waitForPasswordLogin(page);
+
+    await page.locator('[data-testid="login-username"]').fill("alice");
+    await page.locator('[data-testid="login-password"]').fill("password");
+    await page.locator('[data-testid="login-submit"]').click();
+
+    await expect(page).toHaveURL(/\/workspace\/raw-vault\/issues\/?$/, {
+      timeout: 15_000,
+    });
+    await expect(
+      page.locator('[data-testid="workspace-access-denied"]'),
+    ).toBeVisible();
+  });
 });
 
 test.describe("workspace root redirects (REEF-424)", () => {
@@ -117,7 +145,9 @@ test.describe("workspace root redirects (REEF-424)", () => {
 
   test("B2: /workspace sends a signed-in user without a default to onboarding", async ({
     page,
+    request,
   }) => {
+    await resetFixture(request, "empty");
     await signInAsAlice(page);
     await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
 
@@ -178,9 +208,10 @@ test.describe("workspace root redirects (REEF-424)", () => {
   test("B6: both workspace roots send an unauthenticated browser to login", async ({
     page,
   }) => {
-    for (const path of ["/workspace", "/workspace/reef-e2e"]) {
-      await page.goto(path);
-      await expect(page).toHaveURL(/\/login$/);
-    }
+    await page.goto("/workspace");
+    await expect(page).toHaveURL(/\/login$/);
+
+    await page.goto("/workspace/reef-e2e");
+    await expect(page).toHaveURL(/\/login\?redirect=%2Fworkspace%2Freef-e2e$/);
   });
 });

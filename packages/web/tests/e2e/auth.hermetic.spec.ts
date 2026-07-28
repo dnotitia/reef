@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   resetFixture,
+  setVaultListControl,
   signInAsAlice,
   waitForPasswordLogin,
 } from "./harness/fixture";
@@ -53,6 +54,80 @@ test.describe("Hermetic auth flow", () => {
     expect(cookies.some((cookie) => cookie.name === "__reef_session")).toBe(
       true,
     );
+  });
+
+  test("automatically resumes a configured workspace without showing the creation form", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "configured");
+    await page.addInitScript(() => {
+      const state = window as Window & { __greenfieldFormSeen?: boolean };
+      state.__greenfieldFormSeen = false;
+      window.addEventListener("DOMContentLoaded", () => {
+        const observer = new MutationObserver(() => {
+          if (
+            document.querySelector(
+              '[data-testid="greenfield-vault-name-input"]',
+            )
+          ) {
+            state.__greenfieldFormSeen = true;
+          }
+        });
+        observer.observe(document.documentElement, {
+          childList: true,
+          subtree: true,
+        });
+      });
+    });
+
+    await signInAsAlice(page);
+    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/?$/, {
+      timeout: 15_000,
+    });
+    await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
+    expect(
+      await page.evaluate(
+        () =>
+          (window as Window & { __greenfieldFormSeen?: boolean })
+            .__greenfieldFormSeen,
+      ),
+    ).toBe(false);
+  });
+
+  test("keeps an accessible loading state until a delayed vault list resolves", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "configured");
+    await setVaultListControl(request, { delayMs: 800 });
+
+    await signInAsAlice(page);
+    await expect(page.getByTestId("workspace-resume-loading")).toBeVisible();
+    await expect(
+      page.locator('[data-testid="greenfield-vault-name-input"]'),
+    ).toHaveCount(0);
+    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/?$/, {
+      timeout: 15_000,
+    });
+  });
+
+  test("retries a failed vault list without exposing onboarding", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "configured");
+    await setVaultListControl(request, { failures: 1 });
+
+    await signInAsAlice(page);
+    await expect(page.getByTestId("workspace-resume-error")).toBeVisible();
+    await expect(
+      page.locator('[data-testid="greenfield-vault-name-input"]'),
+    ).toHaveCount(0);
+    await page.getByRole("button", { name: "Retry" }).click();
+    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/?$/, {
+      timeout: 15_000,
+    });
   });
 
   test("finishes SSO completion when an akb session cookie already exists", async ({
