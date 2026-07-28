@@ -1,6 +1,7 @@
 import {
   type AkbReadIssueResult,
   type AkbUpdateIssueResult,
+  ConflictError,
   NotFoundError,
   type Release,
 } from "@reef/core";
@@ -513,6 +514,198 @@ describe("AKB Jira migration target", () => {
       "target_issue_id_conflict",
     );
     expect(updateIssue).toHaveBeenCalledTimes(updateCalls);
+  });
+
+  it("waits for a newly created planning item to become readable", async () => {
+    const release = {
+      id: "11111111-1111-4111-8111-111111111111",
+      ...(releaseAction.target?.kind === "release"
+        ? releaseAction.target.item
+        : {}),
+    } as Release;
+    const listPlanningCatalog = vi
+      .fn()
+      .mockResolvedValueOnce({
+        releases: [],
+        sprints: [],
+        milestones: [],
+      })
+      .mockResolvedValue({
+        releases: [release],
+        sprints: [],
+        milestones: [],
+      });
+    const waitForConsistency = vi.fn(async () => undefined);
+    const target = createAkbJiraMigrationTarget(
+      {
+        baseUrl: "https://akb.test",
+        jwt: "jwt",
+        vault: "reef-test",
+        issuePrefix: "REEF",
+      },
+      {
+        createAdapter: () => ({ request: vi.fn() }),
+        getCurrentActor: async () => ({ actor: "operator" }),
+        listPlanningCatalog,
+        createRelease: vi.fn(async () => release),
+        createSprint: vi.fn(),
+        readPlanningCreateClaim: vi.fn(),
+        allocateNextIssueId: vi.fn(),
+        writeIssue: vi.fn(),
+        updateIssue: vi.fn(),
+        readIssue: vi.fn(),
+        claimIssueId: vi.fn(),
+        waitForConsistency,
+      },
+    );
+
+    await expect(target.applyPlanning(releaseAction)).resolves.toMatchObject({
+      targetId: release.id,
+    });
+    expect(listPlanningCatalog).toHaveBeenCalledTimes(2);
+    expect(waitForConsistency).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries an ambiguous issue claim until its reservation is visible", async () => {
+    const claimIssueId = vi
+      .fn()
+      .mockRejectedValueOnce(new ConflictError())
+      .mockResolvedValue(undefined);
+    const waitForConsistency = vi.fn(async () => undefined);
+    const target = createAkbJiraMigrationTarget(
+      {
+        baseUrl: "https://akb.test",
+        jwt: "jwt",
+        vault: "reef-test",
+        issuePrefix: "REEF",
+      },
+      {
+        createAdapter: () => ({ request: vi.fn() }),
+        getCurrentActor: async () => ({ actor: "operator" }),
+        listPlanningCatalog: vi.fn(),
+        createRelease: vi.fn(),
+        createSprint: vi.fn(),
+        readPlanningCreateClaim: vi.fn(),
+        allocateNextIssueId: vi.fn(),
+        writeIssue: vi.fn(),
+        updateIssue: vi.fn(),
+        readIssue: vi.fn(),
+        claimIssueId,
+        waitForConsistency,
+      },
+    );
+    const issuePlan = {
+      desired: {
+        issue: {
+          id: "REEF-010",
+          title: "Alpha issue",
+          status: "todo",
+          created_at: "2026-07-23T00:00:00.000Z",
+          created_by: "operator",
+          updated_at: "2026-07-23T00:00:00.000Z",
+          updated_by: "operator",
+          custom_fields: {
+            jira_migration: {
+              owner: {
+                jira_cloud_id: "cloud-1",
+                project_key: "ALPHA",
+                issue_id: "10001",
+                issue_key: "ALPHA-1",
+              },
+            },
+          },
+        },
+        content: "body",
+      },
+      status: "ready",
+    } as unknown as JiraIssueImportPlan;
+
+    await expect(target.claimIssue(issuePlan)).resolves.toBeUndefined();
+    expect(claimIssueId).toHaveBeenCalledTimes(2);
+    expect(waitForConsistency).toHaveBeenCalledTimes(1);
+  });
+
+  it("confirms an issue write that committed before a stale readback conflict", async () => {
+    const issue = {
+      id: "REEF-010",
+      title: "Alpha issue",
+      status: "todo",
+      created_at: "2026-07-23T00:00:00.000Z",
+      created_by: "operator",
+      updated_at: "2026-07-23T00:00:00.000Z",
+      updated_by: "operator",
+      custom_fields: {
+        jira_migration: {
+          owner: {
+            jira_cloud_id: "cloud-1",
+            project_key: "ALPHA",
+            issue_id: "10001",
+            issue_key: "ALPHA-1",
+          },
+        },
+      },
+    };
+    const exactReadback = {
+      issue,
+      content: "body",
+      path: "issues/reef-010.md",
+      commit_hash: "commit-1",
+    } as AkbReadIssueResult;
+    const staleReadback = {
+      ...exactReadback,
+      issue: {
+        ...issue,
+        archived_at: issue.updated_at,
+        custom_fields: {
+          jira_migration: {
+            ...issue.custom_fields.jira_migration,
+            reservation: true,
+          },
+        },
+      },
+    } as AkbReadIssueResult;
+    const readIssue = vi
+      .fn()
+      .mockRejectedValueOnce(new NotFoundError({ resource: issue.id }))
+      .mockResolvedValueOnce(staleReadback)
+      .mockResolvedValueOnce(exactReadback);
+    const waitForConsistency = vi.fn(async () => undefined);
+    const target = createAkbJiraMigrationTarget(
+      {
+        baseUrl: "https://akb.test",
+        jwt: "jwt",
+        vault: "reef-test",
+        issuePrefix: "REEF",
+      },
+      {
+        createAdapter: () => ({ request: vi.fn() }),
+        getCurrentActor: async () => ({ actor: "operator" }),
+        listPlanningCatalog: vi.fn(),
+        createRelease: vi.fn(),
+        createSprint: vi.fn(),
+        readPlanningCreateClaim: vi.fn(),
+        allocateNextIssueId: vi.fn(),
+        writeIssue: vi.fn(async () => {
+          throw new ConflictError();
+        }),
+        updateIssue: vi.fn(),
+        readIssue,
+        claimIssueId: vi.fn(),
+        waitForConsistency,
+      },
+    );
+
+    await expect(
+      target.applyIssue(
+        {
+          desired: { issue, content: "body" },
+          status: "ready",
+        } as unknown as JiraIssueImportPlan,
+        "create",
+      ),
+    ).resolves.toMatchObject({ commitHash: "commit-1" });
+    expect(readIssue).toHaveBeenCalledTimes(3);
+    expect(waitForConsistency).toHaveBeenCalledTimes(1);
   });
 
   it("rejects a reused planning target that disappeared after preflight", async () => {

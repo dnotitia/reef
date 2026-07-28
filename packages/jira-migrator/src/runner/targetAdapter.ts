@@ -124,7 +124,11 @@ interface TargetCore {
     vault: string;
     issue: IssueMetadata;
   }): Promise<void>;
+  waitForConsistency?(): Promise<void>;
 }
+
+const waitForConsistency = () =>
+  new Promise<void>((resolve) => setTimeout(resolve, 150));
 
 const defaultCore: TargetCore = {
   createAdapter: createAkbAdapter,
@@ -140,7 +144,10 @@ const defaultCore: TargetCore = {
   updateIssue: akbUpdateIssue,
   readIssue: akbReadIssue,
   claimIssueId: akbClaimIssueId,
+  waitForConsistency,
 };
+
+const CONSISTENCY_READ_ATTEMPTS = 20;
 
 export interface JiraIssueApplyReadback {
   reefId: string;
@@ -207,6 +214,46 @@ export function createAkbJiraMigrationTarget(
   });
   const vault = config.vault;
   let issuePrefix = config.issuePrefix ?? null;
+  const consistencyPause = core.waitForConsistency ?? (() => Promise.resolve());
+  const eventually = async <T>(
+    read: () => Promise<T>,
+    matches: (value: T) => boolean,
+  ): Promise<T | null> => {
+    for (let attempt = 0; attempt < CONSISTENCY_READ_ATTEMPTS; attempt += 1) {
+      try {
+        const value = await read();
+        if (matches(value)) return value;
+      } catch (error) {
+        if (!(error instanceof NotFoundError)) throw error;
+      }
+      if (attempt < CONSISTENCY_READ_ATTEMPTS - 1) {
+        await consistencyPause();
+      }
+    }
+    return null;
+  };
+  const readPlanningEventually = (
+    target: NonNullable<JiraPlanningAction["target"]>,
+    targetId: string,
+  ) =>
+    eventually(
+      async () => {
+        const planning = await core.listPlanningCatalog({ adapter, vault });
+        return target.kind === "release"
+          ? planning.releases.find((candidate) => candidate.id === targetId)
+          : planning.sprints.find((candidate) => candidate.id === targetId);
+      },
+      (candidate) => {
+        if (!candidate) return false;
+        const projection = Object.fromEntries(
+          Object.keys(target.item).map((key) => [
+            key,
+            candidate[key as keyof typeof candidate],
+          ]),
+        );
+        return canonicalizeJson(projection) === canonicalizeJson(target.item);
+      },
+    );
   const readIssue = (id: string) => core.readIssue({ adapter, vault, id });
   const updateIssue = (
     id: string,
@@ -341,26 +388,11 @@ export function createAkbJiraMigrationTarget(
       }
       if (action.classification === "reuse") {
         if (!action.targetId) throw new Error("jira_planning_target_missing");
-        const planning = await core.listPlanningCatalog({ adapter, vault });
-        const readback =
-          action.target.kind === "release"
-            ? planning.releases.find(
-                (candidate) => candidate.id === action.targetId,
-              )
-            : planning.sprints.find(
-                (candidate) => candidate.id === action.targetId,
-              );
-        if (!readback) throw new Error("target_planning_readback_failed");
-        const readbackProjection = Object.fromEntries(
-          Object.keys(action.target.item).map((key) => [
-            key,
-            readback[key as keyof typeof readback],
-          ]),
+        const readback = await readPlanningEventually(
+          action.target,
+          action.targetId,
         );
-        if (
-          canonicalizeJson(readbackProjection) !==
-          canonicalizeJson(action.target.item)
-        ) {
+        if (!readback) {
           throw new Error("target_planning_readback_failed");
         }
         return {
@@ -383,22 +415,8 @@ export function createAkbJiraMigrationTarget(
               item: action.target.item,
               idempotencyKey: action.sourceIdentity.key,
             });
-      const planning = await core.listPlanningCatalog({ adapter, vault });
-      const readback =
-        action.target.kind === "release"
-          ? planning.releases.find((candidate) => candidate.id === item.id)
-          : planning.sprints.find((candidate) => candidate.id === item.id);
-      if (!readback) throw new Error("target_planning_readback_failed");
-      const readbackProjection = Object.fromEntries(
-        Object.keys(action.target.item).map((key) => [
-          key,
-          readback[key as keyof typeof readback],
-        ]),
-      );
-      if (
-        canonicalizeJson(readbackProjection) !==
-        canonicalizeJson(action.target.item)
-      ) {
+      const readback = await readPlanningEventually(action.target, item.id);
+      if (!readback) {
         throw new Error("target_planning_readback_failed");
       }
       return {
@@ -443,6 +461,7 @@ export function createAkbJiraMigrationTarget(
       }
       let commitHash: string;
       let expectedIssue = desired;
+      let writeError: unknown;
       if (action === "create") {
         let current: AkbReadIssueResult | null = null;
         try {
@@ -469,14 +488,19 @@ export function createAkbJiraMigrationTarget(
             currentMigration.reservation === true &&
             current.issue.archived_at != null
           ) {
-            const result = await core.writeIssue({
-              adapter,
-              vault,
-              issue: desired,
-              content: plan.desired.content,
-              claimFirst: true,
-            });
-            commitHash = result.commit_hash;
+            try {
+              const result = await core.writeIssue({
+                adapter,
+                vault,
+                issue: desired,
+                content: plan.desired.content,
+                claimFirst: true,
+              });
+              commitHash = result.commit_hash;
+            } catch (error) {
+              writeError = error;
+              commitHash = "";
+            }
           } else {
             const desiredKeys = issueProjectionKeys(desired);
             if (
@@ -493,14 +517,19 @@ export function createAkbJiraMigrationTarget(
             };
           }
         } else {
-          const result = await core.writeIssue({
-            adapter,
-            vault,
-            issue: desired,
-            content: plan.desired.content,
-            claimFirst: true,
-          });
-          commitHash = result.commit_hash;
+          try {
+            const result = await core.writeIssue({
+              adapter,
+              vault,
+              issue: desired,
+              content: plan.desired.content,
+              claimFirst: true,
+            });
+            commitHash = result.commit_hash;
+          } catch (error) {
+            writeError = error;
+            commitHash = "";
+          }
         }
       } else {
         const current = await core.readIssue({
@@ -560,39 +589,47 @@ export function createAkbJiraMigrationTarget(
             commitHash: current.commit_hash ?? "",
           };
         }
-        const result = await core.updateIssue({
-          adapter,
-          vault,
-          id: desired.id,
-          partial: expectedIssue,
-          content: plan.desired.content,
-          message: `Update ${desired.id} from Jira migration`,
-          ...(current.commit_hash
-            ? { expectedCommit: current.commit_hash }
-            : {}),
-          expectedUpdatedAt: current.issue.updated_at,
-        });
-        commitHash = result.commit_hash;
+        try {
+          const result = await core.updateIssue({
+            adapter,
+            vault,
+            id: desired.id,
+            partial: expectedIssue,
+            content: plan.desired.content,
+            message: `Update ${desired.id} from Jira migration`,
+            ...(current.commit_hash
+              ? { expectedCommit: current.commit_hash }
+              : {}),
+            expectedUpdatedAt: current.issue.updated_at,
+          });
+          commitHash = result.commit_hash;
+        } catch (error) {
+          writeError = error;
+          commitHash = "";
+        }
       }
-      const readback = await core.readIssue({
-        adapter,
-        vault,
-        id: desired.id,
-      });
       const desiredKeys = issueProjectionKeys(expectedIssue);
       const desiredProjection = issueProjection(expectedIssue, desiredKeys);
-      const projectedReadback = issueProjection(readback.issue, desiredKeys);
-      if (
-        canonicalizeJson(projectedReadback) !==
-          canonicalizeJson(desiredProjection) ||
-        readback.content !== plan.desired.content
-      ) {
+      const readback = await eventually(
+        () => core.readIssue({ adapter, vault, id: desired.id }),
+        (candidate) =>
+          canonicalizeJson(issueProjection(candidate.issue, desiredKeys)) ===
+            canonicalizeJson(desiredProjection) &&
+          candidate.content === plan.desired.content,
+      );
+      if (!readback) {
+        if (writeError) {
+          if (writeError instanceof ConflictError) {
+            throw new JiraTargetConflictError();
+          }
+          throw writeError;
+        }
         throw new Error("target_issue_readback_failed");
       }
       return {
         reefId: desired.id,
         documentUri: akbIssueDocumentUri(vault, desired.id),
-        commitHash,
+        commitHash: commitHash || readback.commit_hash || "",
       };
     },
     readIssue(id) {
@@ -606,11 +643,17 @@ export function createAkbJiraMigrationTarget(
       ) {
         throw new Error("jira_issue_plan_not_claimable");
       }
-      try {
-        await core.claimIssueId({ adapter, vault, issue: desired });
-      } catch (error) {
-        if (error instanceof ConflictError) throw new JiraTargetConflictError();
-        throw error;
+      for (let attempt = 0; attempt < CONSISTENCY_READ_ATTEMPTS; attempt += 1) {
+        try {
+          await core.claimIssueId({ adapter, vault, issue: desired });
+          return;
+        } catch (error) {
+          if (!(error instanceof ConflictError)) throw error;
+          if (attempt === CONSISTENCY_READ_ATTEMPTS - 1) {
+            throw new JiraTargetConflictError();
+          }
+          await consistencyPause();
+        }
       }
     },
     relatedTarget() {

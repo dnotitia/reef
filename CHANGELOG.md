@@ -23,6 +23,11 @@ explicitly in the entries below.
   Description media placeholders are grounded in their archived ADF object, so
   full-project dry-run and apply no longer conflict on otherwise lossless
   inputs.
+- **Jira migration apply no longer misclassifies committed AKB writes during a
+  short read-after-write consistency window.** Planning and issue creation now
+  use bounded exact-state readback, issue claims retry their idempotent owner
+  reservation, and an ambiguous write error is accepted only when subsequent
+  target readback exactly matches the approved issue projection.
 
 ## v0.8.1 - 2026-07-28
 

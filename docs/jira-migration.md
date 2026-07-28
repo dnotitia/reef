@@ -155,6 +155,14 @@ read back before its binding and entity checkpoint are atomically persisted.
 Independent entity failures remain isolated and reports classify every input
 exactly once; `conservation.balanced` must be true.
 
+AKB query readback can briefly lag a committed planning or issue mutation. The
+target adapter therefore performs a bounded exact-state readback after those
+writes and retries idempotent Jira-owner issue reservations across that window.
+It never confirms an ambiguous result from timing alone: the complete approved
+projection and issue body must become readable before a ledger binding is
+written. If the bounded readback does not converge, apply remains failed or
+conflicted and resume retries from the durable checkpoint.
+
 Target preflight reads the Reef workspace configuration and uses its
 `project_prefix` for every planned issue id. An uninitialized vault or a prefix
 change between dry-run and apply fails closed through target preflight or plan
