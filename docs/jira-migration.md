@@ -161,7 +161,9 @@ writes and retries idempotent Jira-owner issue reservations across that window.
 It never confirms an ambiguous result from timing alone: the complete approved
 projection and issue body must become readable before a ledger binding is
 written. If the bounded readback does not converge, apply remains failed or
-conflicted and resume retries from the durable checkpoint.
+conflicted and resume retries from the durable checkpoint. Nullable planning
+fields omitted by the AKB read model are projected back to the requested
+`null` before exact comparison; no unrelated missing field is normalized.
 
 Target preflight reads the Reef workspace configuration and uses its
 `project_prefix` for every planned issue id. An uninitialized vault or a prefix

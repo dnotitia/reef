@@ -519,9 +519,9 @@ describe("AKB Jira migration target", () => {
   it("waits for a newly created planning item to become readable", async () => {
     const release = {
       id: "11111111-1111-4111-8111-111111111111",
-      ...(releaseAction.target?.kind === "release"
-        ? releaseAction.target.item
-        : {}),
+      name: "Alpha 1.0",
+      status: "planned" as const,
+      notes: "",
     } as Release;
     const listPlanningCatalog = vi
       .fn()
@@ -549,7 +549,7 @@ describe("AKB Jira migration target", () => {
         listPlanningCatalog,
         createRelease: vi.fn(async () => release),
         createSprint: vi.fn(),
-        readPlanningCreateClaim: vi.fn(),
+        readPlanningCreateClaim: vi.fn(async () => release),
         allocateNextIssueId: vi.fn(),
         writeIssue: vi.fn(),
         updateIssue: vi.fn(),
@@ -564,6 +564,9 @@ describe("AKB Jira migration target", () => {
     });
     expect(listPlanningCatalog).toHaveBeenCalledTimes(2);
     expect(waitForConsistency).toHaveBeenCalledTimes(1);
+    await expect(
+      target.readPlanningClaim(releaseAction),
+    ).resolves.toMatchObject({ targetId: release.id });
   });
 
   it("retries an ambiguous issue claim until its reservation is visible", async () => {

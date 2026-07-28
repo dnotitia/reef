@@ -27,7 +27,9 @@ explicitly in the entries below.
   short read-after-write consistency window.** Planning and issue creation now
   use bounded exact-state readback, issue claims retry their idempotent owner
   reservation, and an ambiguous write error is accepted only when subsequent
-  target readback exactly matches the approved issue projection.
+  target readback exactly matches the approved issue projection. Planning
+  readback also treats an omitted nullable AKB field as the requested `null`,
+  so a committed create can be recovered in a fresh resume process.
 
 ## v0.8.1 - 2026-07-28
 

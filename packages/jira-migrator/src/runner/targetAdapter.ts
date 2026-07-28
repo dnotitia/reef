@@ -149,6 +149,22 @@ const defaultCore: TargetCore = {
 
 const CONSISTENCY_READ_ATTEMPTS = 20;
 
+const planningProjection = (
+  candidate: Release | Sprint,
+  desired: Omit<Release, "id"> | Omit<Sprint, "id">,
+): Record<string, unknown> => {
+  const candidateRecord = candidate as unknown as Record<string, unknown>;
+  const desiredRecord = desired as unknown as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.keys(desiredRecord).map((key) => [
+      key,
+      candidateRecord[key] === undefined && desiredRecord[key] === null
+        ? null
+        : candidateRecord[key],
+    ]),
+  );
+};
+
 export interface JiraIssueApplyReadback {
   reefId: string;
   documentUri: string;
@@ -245,12 +261,7 @@ export function createAkbJiraMigrationTarget(
       },
       (candidate) => {
         if (!candidate) return false;
-        const projection = Object.fromEntries(
-          Object.keys(target.item).map((key) => [
-            key,
-            candidate[key as keyof typeof candidate],
-          ]),
-        );
+        const projection = planningProjection(candidate, target.item);
         return canonicalizeJson(projection) === canonicalizeJson(target.item);
       },
     );
@@ -434,12 +445,7 @@ export function createAkbJiraMigrationTarget(
         idempotencyKey: action.sourceIdentity.key,
       });
       if (!claimed) return null;
-      const projection = Object.fromEntries(
-        Object.keys(action.target.item).map((key) => [
-          key,
-          claimed[key as keyof typeof claimed],
-        ]),
-      );
+      const projection = planningProjection(claimed, action.target.item);
       if (
         canonicalizeJson(projection) !== canonicalizeJson(action.target.item)
       ) {
