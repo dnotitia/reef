@@ -274,6 +274,14 @@ export const actionForIssuePlan = (
     : "update";
 };
 
+export const plannedIssueContentForRelated = (
+  plan: JiraIssueImportPlan,
+  action: ReturnType<typeof actionForIssuePlan>,
+): string | undefined =>
+  plan.desired.issue && (action === "create" || action === "update")
+    ? plan.desired.content
+    : undefined;
+
 export const actionForRelatedReport = (
   report: JiraRelatedImportReport,
 ): "create" | "update" | "skip" | "failed" => {

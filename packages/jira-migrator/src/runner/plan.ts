@@ -50,7 +50,11 @@ import {
   semanticRelatedReport,
 } from "./approval.js";
 import type { JiraApprovalArtifacts } from "./approvalArtifacts.js";
-import { actionForIssuePlan, mergePlanningActions } from "./decisions.js";
+import {
+  actionForIssuePlan,
+  mergePlanningActions,
+  plannedIssueContentForRelated,
+} from "./decisions.js";
 import { JiraRunnerError } from "./errors.js";
 import type { LoadedJiraMappingPolicy } from "./mappingPolicy.js";
 import type { archiveJiraMigrationSource } from "./sourceArchive.js";
@@ -441,12 +445,12 @@ export async function buildJiraMigrationPlan(input: {
             }
           : null;
       },
-      plannedDescription:
-        dryIssuePlan &&
-        actionForIssuePlan(dryIssuePlan, ledger) === "create" &&
-        dryIssuePlan.desired.issue
-          ? dryIssuePlan.desired.content
-          : undefined,
+      plannedDescription: dryIssuePlan
+        ? plannedIssueContentForRelated(
+            dryIssuePlan,
+            actionForIssuePlan(dryIssuePlan, ledger),
+          )
+        : undefined,
       mode: "dry-run",
       now: () => runAt,
     });

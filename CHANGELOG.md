@@ -38,6 +38,10 @@ explicitly in the entries below.
   conflicts.** Related-data catalog and readback requests retry bounded 429 and
   5xx responses without retrying mutations, and an exhausted transient failure
   remains classified as retryable in the migration report.
+- **Jira media planning now respects base-issue updates that execute first.**
+  Related-data dry runs evaluate media rewrites against the approved new issue
+  description for both creates and updates, avoiding a false precondition
+  failure against stale target content.
 
 ## v0.8.1 - 2026-07-28
 

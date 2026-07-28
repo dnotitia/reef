@@ -5,6 +5,7 @@ import { reportTemplate } from "../related/reporting.js";
 import {
   mappedFingerprintForChangelog,
   mappedFingerprintForIssue,
+  plannedIssueContentForRelated,
   reconciliationAction,
   relatedExecutionError,
   runScopedMappedFingerprintForChangelog,
@@ -80,6 +81,20 @@ describe("migration action fingerprints", () => {
     expect(
       mappedFingerprintForIssue(issuePlan("2026-07-27T00:00:00.000Z")),
     ).toBe(mappedFingerprintForIssue(issuePlan("2026-07-28T00:00:00.000Z")));
+  });
+
+  it("plans related data against base content created or updated first", () => {
+    const plan = issuePlan("2026-07-28T00:00:00.000Z");
+    plan.desired.content = "new base description";
+
+    expect(plannedIssueContentForRelated(plan, "create")).toBe(
+      "new base description",
+    );
+    expect(plannedIssueContentForRelated(plan, "update")).toBe(
+      "new base description",
+    );
+    expect(plannedIssueContentForRelated(plan, "skip")).toBeUndefined();
+    expect(plannedIssueContentForRelated(plan, "conflict")).toBeUndefined();
   });
 
   it("ignores raw archive run ids in changelog mapped state", () => {

@@ -710,6 +710,12 @@ The ordered phases are planning, issues, related
 (comments/attachments/changelog), and reconciliation. Reordering source input
 does not change which completed entities are skipped.
 
+Related-data planning follows that same phase order. When the base issue action
+is `create` or `update`, media preconditions are evaluated against the approved
+new base description that the issue phase will write first. A `skip` continues
+to use current target readback, and a conflict supplies no speculative base
+content.
+
 Cross-project relations persist `pending_target_migration`, `ready`, and
 `reconciled` separately. A retryable entity failure leaves its phase
 `partial_failed` without blocking unrelated entities; a conflict or
