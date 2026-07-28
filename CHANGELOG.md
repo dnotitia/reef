@@ -12,6 +12,14 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.8.1 - 2026-07-28
+
+### Security
+
+- **Next.js is updated from 16.2.6 to 16.2.11.** This patch incorporates the
+  upstream App Router, Server Actions, rewrites, cache, and Image Optimization
+  security fixes published in the 16.2.11 release. (REEF-435)
+
 ### Fixed
 
 - **Workspace root URLs now land on a usable screen.** `/workspace` reuses the
@@ -20,39 +28,43 @@ explicitly in the entries below.
   empty query values. Malformed or inaccessible vault roots keep their existing
   denial behavior and cannot silently replace the browser's remembered
   workspace. (REEF-424)
-- Use AKB's presigned upload/confirm and download flows for issue attachments
-  instead of the nonexistent direct multipart and byte-stream endpoints.
-- Compare Reef comment-thread UUIDs as text when validating reply chains stored
-  in JSON metadata, so Jira replies no longer fail with PostgreSQL
-  `uuid = text` operator errors.
-- Preserve attachment write-phase failures and report safe field-level
-  readback mismatch codes so migration diagnostics identify the failing
-  boundary without exposing source content.
-- Reject wildcard and generic attachment content types, infer common formats
-  from byte signatures or filenames, and replace stale bound attachments whose
-  stored metadata or bytes no longer match the normalized Jira source. Stale
-  file URIs remain accepted as description preconditions during that atomic
-  revoke/recreate plan, while operation approval uses the same target URI key
-  in dry-run and apply.
-- Preserve explicitly selected Jira `simple`/non-Scrum boards in migration
-  provenance and treat their unsupported Sprint catalog HTTP 400 as an empty
-  catalog instead of aborting the migration.
-- Batch raw-source archive writes per migration phase so a full Jira project
-  performs one manifest/object verification per batch instead of re-verifying
-  every prior object after each archived entity.
-- Exclude opaque enhanced-JQL pagination cursors and raw-archive run ids from
-  Jira approval fingerprints while retaining issue contents, archive entry
-  ids, and content digests.
-- Keep Atlassian development-summary custom-field payloads in the raw archive
-  but normalize their request-volatile internal identifiers out of approval
-  fingerprints.
+- **Jira migration canonical fields and reruns now converge across Jira Cloud
+  variants.** The migrator reads the target workspace prefix and member roster,
+  discovers canonical Rank fields, promotes parent changelog activity, requests
+  complete issue projections, supports explicit tenant field overrides, and
+  normalizes run-volatile metadata without hiding semantic changes. Separate
+  dry-run and apply processes can therefore retain the same approval while
+  unchanged writes confirm their ledger bindings. (REEF-437)
+- **Jira migration apply and fresh-process reruns are hardened end to end.**
+  Non-Scrum boards, enhanced-JQL cursors, raw-archive batches, request-volatile
+  development summaries, attachment reconciliation, and comment-thread UUID
+  validation now preserve stable approvals and actionable diagnostics. Issue
+  attachments use AKB's presigned upload/confirm and download flows with
+  metadata and byte readback, stale bindings are safely replaced, and write
+  failures remain visible without exposing source content. (REEF-438)
 - **Reef workspace and issue ID prefixes now accept Jira-compatible project
   keys.** Prefixes still begin with an uppercase ASCII letter, but may now
   contain uppercase letters, digits, and underscores after it, allowing a
   matching target workspace to preserve the source project key during
   migration. Issue detail APIs, relations, global search, chat grounding, the
   `read_issue` tool, and Markdown mention links now use the same contract
-  instead of rejecting or overlooking those ids.
+  instead of rejecting or overlooking those ids. (REEF-438)
+
+### Migration
+
+- No AKB schema migration or data backfill is required. Jira-compatible project
+  prefixes are an additive validation change; existing workspace prefixes and
+  issue ids remain valid.
+
+### Operational
+
+- **Kubernetes rollout history now records deployment provenance.** The deploy
+  helper derives a change-cause from the root product version and current Git
+  commit before restarting the Deployment, with explicit version, commit, and
+  complete-message overrides for operators. (REEF-436)
+- **No Docker Hub image is published for v0.8.1.** This patch is distributed by
+  source and the annotated `v0.8.1` Git tag. Build and size verification still
+  apply locally; rollback uses the immutable `v0.8.0` tag.
 
 ## v0.8.0 - 2026-07-27
 
@@ -156,34 +168,6 @@ explicitly in the entries below.
 
 - **Production web builds stay browser-compatible.** Core adapter equality
   checks no longer pull the Node-only `node:util` module into client bundles.
-
-- **Jira migration canonical fields and reruns now converge across Jira Cloud
-  variants.** Exact LexoRank catalogs reported as `type=any` are auto-discovered
-  and connected to the batch Rank planner without requiring an operator field
-  override. `IssueParentAssociation` changelog items promote to parent activity,
-  and mapped-state fingerprints ignore migration timestamps and raw-archive run
-  ids so a new run does not report unchanged issues or histories as writes.
-
-- **Jira migrator CLI policies can disambiguate tenant custom fields.**
-  Per-project `fieldOverrides` now select explicit Sprint, story-points,
-  start-date, and Rank field ids for both current issue projection and
-  changelog planning, so tenants with multiple schema-compatible numeric or
-  date fields no longer block every CLI dry run. Runner discovery also requests
-  complete enhanced-JQL issue projections so parent, description, priority,
-  attachment, link, and mapped custom-field data cannot be silently omitted
-  from an otherwise approvable plan. Target preflight now reads the initialized
-  Reef workspace `project_prefix` instead of silently allocating `REEF-*` ids
-  in every vault. Approval fingerprints now normalize retrieval, observation,
-  and migration timestamps plus Jira field-catalog ordering so separate
-  dry-run and apply processes remain comparable without masking semantic
-  source changes. AKB readback also treats an absent labels value as equivalent
-  to an empty label array, allowing successful writes and idempotent reruns to
-  confirm their ledger bindings. Update preconditions now compare the AKB JSON
-  wire representation, omitting optional `undefined` keys that previously
-  raised `invalid_json_value` before legitimate Jira people-field updates.
-  Account resolution now uses the target vault member roster as its email
-  directory and rejects overrides that name global AKB users without target
-  vault membership.
 
 - **Comment threads revalidate after a hard reload.** A fresh persisted browser
   cache can render immediately, but the activity timeline now always reconciles
