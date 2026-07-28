@@ -12,6 +12,15 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Fixed
+
+- **Workspace root URLs now land on a usable screen.** `/workspace` reuses the
+  remembered-workspace/onboarding decision, while `/workspace/{vault}` opens
+  that explicit vault's Issues surface without dropping single, repeated, or
+  empty query values. Malformed or inaccessible vault roots keep their existing
+  denial behavior and cannot silently replace the browser's remembered
+  workspace. (REEF-424)
+
 ## v0.8.0 - 2026-07-27
 
 ### Added
