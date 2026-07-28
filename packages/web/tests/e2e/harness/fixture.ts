@@ -7,6 +7,7 @@ export type FixtureScenario =
   | "empty"
   | "configured"
   | "content_search"
+  | "configured_multi"
   | "demo_board"
   | "raw_only"
   | "activity_suggestions"
@@ -112,6 +113,22 @@ export async function setContentSearchMode(
   expect(response.ok()).toBeTruthy();
 }
 
+export async function setVaultListControl(
+  request: APIRequestContext,
+  control: { delayMs?: number; failures?: number },
+): Promise<void> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/vault-list-control`,
+    {
+      data: {
+        delay_ms: control.delayMs ?? 0,
+        failures: control.failures ?? 0,
+      },
+    },
+  );
+  expect(response.ok()).toBeTruthy();
+}
+
 export async function setIssueUpdateFailure(
   request: APIRequestContext,
   id: string,
@@ -184,7 +201,27 @@ export async function signInAsAlice(page: Page): Promise<void> {
   await waitForPasswordLogin(page);
   await page.locator('[data-testid="login-username"]').fill("alice");
   await page.locator('[data-testid="login-password"]').fill("password");
+  const loginResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/auth/akb/login" &&
+      response.request().method() === "POST",
+  );
   await page.locator('[data-testid="login-submit"]').click();
+  const loginResponse = await loginResponsePromise;
+  expect(
+    loginResponse.ok(),
+    `POST /api/auth/akb/login failed with ${loginResponse.status()}`,
+  ).toBeTruthy();
+
+  // Wait until LoginForm has finished account reconciliation and committed its
+  // post-login navigation. Generic fixture setup must not depend on the root
+  // page's subsequent client redirect: when that redirect stalls, every test in
+  // a shard spends all retries waiting for /onboarding even though login and
+  // the session cookie succeeded. Root routing has dedicated coverage.
+  await page.waitForURL((url) => url.pathname !== "/login", {
+    timeout: 10_000,
+  });
+  await page.goto("/onboarding");
 }
 
 export async function signInAndSelectExistingWorkspace(
@@ -192,32 +229,31 @@ export async function signInAndSelectExistingWorkspace(
   vault = REEF_E2E_VAULT,
 ): Promise<void> {
   await signInAsAlice(page);
-  await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
-
-  await page.getByText("Use an existing reef workspace").click();
-  await page.locator('[data-testid="active-vault-trigger"]').click();
-  await expect(
-    page.locator(`[data-testid="active-vault-option-${vault}"]`),
-  ).toBeVisible();
-  await expect(
-    page.locator('[data-testid="active-vault-option-raw-vault"]'),
-  ).toHaveCount(0);
-  await page.locator(`[data-testid="active-vault-option-${vault}"]`).click();
-
-  await expect(
-    page.locator('[data-testid="onboarding-continue-btn"]'),
-  ).toBeEnabled();
+  await expect(page).toHaveURL(
+    new RegExp(`/workspace/${escapeRegExp(vault)}/issues/?$`),
+    { timeout: 15_000 },
+  );
 }
 
 export async function continueToWorkspace(
   page: Page,
   vault = REEF_E2E_VAULT,
 ): Promise<void> {
-  await page.locator('[data-testid="onboarding-continue-btn"]').click();
   await expect(page).toHaveURL(
     new RegExp(`/workspace/${escapeRegExp(vault)}/issues/?$`),
     { timeout: 15_000 },
   );
+
+  // The auto-resume redirect can settle before DashboardShell's client effects
+  // install the global shortcut listener. Prove the shell is interactive so a
+  // caller's first shortcut is not lost in that hydration window.
+  const globalSearchInput = page.locator('[data-testid="global-search-input"]');
+  await expect(async () => {
+    await page.keyboard.press("Control+K");
+    await expect(globalSearchInput).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await page.keyboard.press("Escape");
+  await expect(globalSearchInput).toHaveCount(0);
 }
 
 export async function openExistingWorkspace(

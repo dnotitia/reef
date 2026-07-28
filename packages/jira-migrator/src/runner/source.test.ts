@@ -137,6 +137,9 @@ describe("runner source traversal", () => {
 
   it("reads only explicit boards and preserves their selection provenance", async () => {
     const readBoardSprintCatalog = vi.fn(async (boardId: string) => ({
+      board: { id: boardId, name: `Board ${boardId}`, type: "scrum" },
+      boardRaw: { id: boardId, name: `Board ${boardId}`, type: "scrum" },
+      boardRateLimit: rateLimit,
       items: [{ id: boardId, name: `Sprint ${boardId}` }],
       pages: [],
       rateLimits: [],

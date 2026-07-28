@@ -1189,6 +1189,9 @@
     "existingWorkspaceEmpty": "No existing reef workspaces found.",
     "existingWorkspacePlaceholder": "Select a reef workspace...",
     "continueToWorkspace": "Continue to workspace",
+    "checkingWorkspaces": "Checking your workspaces...",
+    "workspaceLoadError": "We could not load your workspaces. Try again.",
+    "retry": "Retry",
     "workspaceName": "Workspace name",
     "issuePrefix": "Issue prefix",
     "optional": "(optional)",
@@ -1201,7 +1204,7 @@
     "createButton": "Create workspace",
     "creating": "Creating...",
     "nameError": "Workspace name must use lowercase letters, digits, and hyphens only.",
-    "prefixError": "Project prefix must use uppercase letters only.",
+    "prefixError": "Project prefix must start with an uppercase letter and use only uppercase letters, digits, or underscores.",
     "reposResolveError": "Could not resolve selected repositories.",
     "createFailed": "Failed to create workspace."
   }

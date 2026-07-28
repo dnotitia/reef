@@ -425,6 +425,9 @@ describe("JiraReadClient", () => {
   it("reads configured board Sprint pages and the Jira field catalog", async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        jsonResponse({ id: 90001, name: "Migration", type: "scrum" }),
+      )
       .mockResolvedValueOnce(jsonResponse(jiraSprintPageFixture))
       .mockResolvedValueOnce(
         jsonResponse({
@@ -455,16 +458,54 @@ describe("JiraReadClient", () => {
       "80002",
     ]);
     expect(String(fetchImpl.mock.calls[0]?.[0])).toContain(
+      "/rest/agile/1.0/board/90001",
+    );
+    expect(String(fetchImpl.mock.calls[1]?.[0])).toContain(
       "/rest/agile/1.0/board/90001/sprint",
     );
-    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain(
+    expect(String(fetchImpl.mock.calls[1]?.[0])).toContain(
       "state=future%2Cactive%2Cclosed",
     );
+    expect(catalog.board).toMatchObject({
+      id: "90001",
+      name: "Migration",
+      type: "scrum",
+    });
     expect(fields.items).toEqual(
       expect.arrayContaining([expect.objectContaining({ name: "Sprint" })]),
     );
     expect(fetchImpl.mock.calls.map(([, init]) => init?.method)).toEqual([
       "GET",
+      "GET",
+      "GET",
+      "GET",
+    ]);
+  });
+
+  it("preserves a simple board whose Sprint catalog endpoint is unsupported", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        jsonResponse({ id: 405, name: "SAASV31 board", type: "simple" }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { errorMessages: ["The board does not support sprints"] },
+          { status: 400, statusText: "Bad Request" },
+        ),
+      );
+    const client = makeClient(fetchImpl);
+
+    await expect(client.readBoardSprintCatalog("405")).resolves.toMatchObject({
+      board: { id: "405", name: "SAASV31 board", type: "simple" },
+      items: [],
+      pages: [],
+      rateLimits: [],
+    });
+    expect(String(fetchImpl.mock.calls[1]?.[0])).toContain(
+      "/rest/agile/1.0/board/405/sprint",
+    );
+    expect(fetchImpl.mock.calls.map(([, init]) => init?.method)).toEqual([
       "GET",
       "GET",
     ]);

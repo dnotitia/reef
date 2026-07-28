@@ -338,6 +338,7 @@ export const rewriteMedia = (
         media.legacyPlaceholder,
         revokedAttachmentPlaceholder(resolution.binding.source.id),
         resolution.binding.fileUri,
+        ...(resolution.binding.previousFileUris ?? []),
       ].filter((value, index, values) => values.indexOf(value) === index),
     });
     report.media.rewritten += 1;

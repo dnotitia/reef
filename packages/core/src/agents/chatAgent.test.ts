@@ -192,7 +192,7 @@ describe("workspace chat agent task", () => {
   it("prefetches the current issue into instructions when currentIssueId is set (AC2)", async () => {
     readIssueMock.mockResolvedValue({
       issue: {
-        id: "REEF-360",
+        id: "SAASV31-360",
         title: "Context-aware chat grounding",
         status: "in_progress",
         issue_type: "story",
@@ -203,22 +203,22 @@ describe("workspace chat agent task", () => {
         updated_at: "2026-07-02T00:00:00.000Z",
         updated_by: "younglo",
       },
-      path: "issues/reef-360.md",
+      path: "issues/saasv31-360.md",
       commit_hash: null,
       content: "## User Story\nGround the chat in this issue.",
     });
 
     await createWorkspaceChatAgentResponse({
       ...createParams(),
-      currentIssueId: "REEF-360",
+      currentIssueId: "SAASV31-360",
     });
 
     expect(readIssueMock).toHaveBeenCalledWith(
-      expect.objectContaining({ vault: "reef-test", id: "REEF-360" }),
+      expect.objectContaining({ vault: "reef-test", id: "SAASV31-360" }),
     );
     const { instructions } = getAgentSettings();
     expect(instructions).toContain("## Current issue");
-    expect(instructions).toContain("REEF-360");
+    expect(instructions).toContain("SAASV31-360");
     expect(instructions).toContain("Ground the chat in this issue.");
   });
 

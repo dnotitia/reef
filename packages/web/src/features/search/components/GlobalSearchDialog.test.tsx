@@ -261,6 +261,32 @@ describe("GlobalSearchDialog", () => {
     expect(items).toHaveLength(20); // DOM still capped
   });
 
+  it("probes a complete id with a Jira-compatible numeric prefix", async () => {
+    useIssueListMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+      isFetching: false,
+      isPlaceholderData: false,
+      isError: false,
+    });
+    useExactIssueMock.mockReturnValue({
+      data: makeIssue("SAASV31-001", "Migrated issue"),
+      isFetching: false,
+    });
+    useGlobalSearchStore.setState({ isOpen: true });
+    renderDialog();
+    const user = userEvent.setup();
+
+    await user.type(screen.getByTestId("global-search-input"), "saasv31-001");
+
+    await waitFor(() =>
+      expect(useExactIssueMock).toHaveBeenCalledWith(
+        "SAASV31-001",
+        "reef-acme",
+      ),
+    );
+  });
+
   it("does not fire a by-id lookup when the page already has the exact id", async () => {
     // Common case: the exact id is on the bounded page, so no extra request.
     useIssueListMock.mockReturnValue({

@@ -157,6 +157,23 @@ describe("createReadIssueTool", () => {
     expect(ReadIssueOutputSchema.safeParse(result).success).toBe(true);
   });
 
+  it("accepts a Jira-compatible numeric project prefix", async () => {
+    const { calls } = setupFetch([
+      { body: makeDocumentResponse() },
+      { body: makeIssueQueryResponse([SAMPLE_ISSUE]) },
+    ]);
+    const tool = createReadIssueTool({
+      adapter: makeAdapter(),
+      vault: "reef-saasv31",
+    });
+
+    await callTool(tool, { id: "SAASV31-001" });
+
+    expect(calls[0]?.url).toBe(
+      "https://akb.test/api/v1/documents/reef-saasv31/issues/saasv31-001.md",
+    );
+  });
+
   it("propagates NotFoundError when akb returns 404", async () => {
     setupFetch([{ status: 404, body: { detail: "not found" } }]);
     const tool = createReadIssueTool({

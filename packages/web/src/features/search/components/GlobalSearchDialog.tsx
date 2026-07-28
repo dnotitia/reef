@@ -52,7 +52,7 @@ const CONTENT_MAX_LIMIT = 50;
  * `REEF-1` / `REEF-01` a user is still typing. A complete id triggers the
  * exact-id lookup below, so a half-typed prefix avoids the extra fetch.
  */
-const CANONICAL_ID = /^[a-z]+-\d{3,}$/i;
+const CANONICAL_ID = /^[a-z][a-z0-9_]*-\d{3,}$/i;
 
 function foldWithSourceRanges(value: string): {
   folded: string;

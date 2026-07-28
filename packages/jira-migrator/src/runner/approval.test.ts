@@ -60,6 +60,79 @@ describe("fingerprintJiraApprovalPlan", () => {
     );
   });
 
+  it("ignores opaque pagination cursors and raw archive run ids", () => {
+    const approved = {
+      source: {
+        fields: [],
+        issue_pages: {
+          ALPHA: [
+            {
+              nextPageToken: "opaque-approved",
+              issues: [{ id: "1", key: "ALPHA-1" }],
+            },
+          ],
+        },
+      },
+      issues: [],
+      related_mapping: { accounts: {} },
+      changelog: [
+        {
+          rawArchiveReference: {
+            runId: "approval-run",
+            entryId: "entry-1",
+            contentSha256: "content-1",
+          },
+        },
+      ],
+    };
+    const apply = structuredClone(approved);
+    apply.source.issue_pages.ALPHA[0].nextPageToken = "opaque-apply";
+    apply.changelog[0].rawArchiveReference.runId = "apply-run";
+
+    expect(fingerprintJiraApprovalPlan(apply)).toBe(
+      fingerprintJiraApprovalPlan(approved),
+    );
+  });
+
+  it("ignores volatile Jira development summary values identified by schema", () => {
+    const base = plan("2026-07-27T00:00:00.000Z", [
+      {
+        id: "customfield_dev",
+        name: "development",
+        schema: {
+          custom:
+            "com.atlassian.jira.plugins.jira-development-integration-plugin:devsummarycf",
+          type: "any",
+        },
+      },
+    ]);
+    const approved = {
+      ...base,
+      source: {
+        ...base.source,
+        issue_pages: {
+          ALPHA: [
+            {
+              issues: [
+                {
+                  id: "1",
+                  fields: { customfield_dev: "volatile-approved-value" },
+                },
+              ],
+            },
+          ],
+        },
+      },
+    };
+    const apply = structuredClone(approved);
+    apply.source.issue_pages.ALPHA[0].issues[0].fields.customfield_dev =
+      "volatile-apply-value";
+
+    expect(fingerprintJiraApprovalPlan(apply)).toBe(
+      fingerprintJiraApprovalPlan(approved),
+    );
+  });
+
   it("treats an absent target labels array as an empty desired array", () => {
     const issue = {
       id: "NOTEBOOKLM-001",

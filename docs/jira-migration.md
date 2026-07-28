@@ -66,6 +66,25 @@ ledger, or archive between approval and apply; stale content, a sibling lock,
 unsafe permissions, a symlink, target actor/vault drift, or a changed plan
 fails closed.
 
+### Post-Apply Closeout
+
+Do not close a migration smoke test merely because the apply process exited
+successfully. Verify that the selected run is `completed`, that
+`conservation.balanced` is true, and that `failed`, `conflict`, and `retryable`
+are all zero. Read the target back independently and compare the expected issue,
+parent, comment, attachment, relation, external-reference, and promoted-activity
+counts. Download imported attachments through the target read path and compare
+their byte length and SHA-256 digest with the archived Jira source bytes.
+
+For a smoke test, finish with a new run id over the same source scope, target,
+mapping policy, account mapping, and durable ledger. Produce and approve a new
+dry-run plan, then apply it. When Jira business state and target readback are
+unchanged, the convergence run must report zero `created`, `updated`, `failed`,
+`conflict`, and `retryable`, with every classified input reported as
+`skipped`. In this result, `skipped` is a successful idempotent no-op: the
+source entity was found in the target with matching mapped state and readback.
+It does not mean omitted, unsupported, deferred, or unprocessed.
+
 When an installed build is used, the binary name is:
 
 ```bash
@@ -81,7 +100,7 @@ Credentials come only from environment variables or local secret files.
 | --- | --- | --- |
 | `--jira-base-url` | `REEF_JIRA_BASE_URL` or `JIRA_BASE_URL` | Jira tenant URL. Must be HTTPS. |
 | `--jira-cloud-id` | `REEF_JIRA_CLOUD_ID` or `JIRA_CLOUD_ID` | Atlassian Cloud id. When no base URL is supplied, it derives `https://api.atlassian.com/ex/jira/<cloudId>`. |
-| `--project-key` | `REEF_JIRA_PROJECT_KEY` or `JIRA_PROJECT_KEY` | Repeatable Jira project key, normalized to uppercase. |
+| `--project-key` | `REEF_JIRA_PROJECT_KEY` or `JIRA_PROJECT_KEY` | Repeatable Jira project key, normalized to uppercase. It must start with `A-Z` and then use only `A-Z`, `0-9`, or `_`, so keys such as `SAASV31` are valid. |
 | `--board-id` | — | Repeatable explicit board selection; no board inference. |
 | `--mapping-policy PROJECT=PATH` | — | Required private JSON mapping policy for every selected project. |
 | `--akb-base-url` | `AKB_BACKEND_URL` | HTTPS AKB API origin. |
@@ -120,11 +139,14 @@ before normalization, maps accounts and planning entities, reserves
 deterministic target issue identities, then fingerprints the complete
 issue/related/changelog plan.
 
-Approval fingerprints exclude only runner-generated retrieval, observation,
-and migration timestamps and canonicalize Jira field-catalog ordering. These
-values naturally differ between dry-run and apply and do not describe Jira
-business state; mapped issue content, relationships, raw archive references,
-and every other source value remain approval-bound.
+Approval projections normalize runner-generated retrieval, observation, and
+migration timestamps; opaque enhanced-JQL pagination cursors; raw-archive run
+ids; Jira field-catalog ordering; and the separately documented request-volatile
+development-summary identifiers. These values naturally differ between dry-run
+and apply and do not describe target business state. Exact source responses
+remain in the private raw archive, while mapped issue content, relationships,
+archive entry identities and content digests, and every other stable source
+value remain approval-bound.
 
 Dry-run performs the same bounded source reads and validation as apply but
 makes zero target mutations. Apply revalidates source scope, target vault and
@@ -137,6 +159,8 @@ Target preflight reads the Reef workspace configuration and uses its
 `project_prefix` for every planned issue id. An uninitialized vault or a prefix
 change between dry-run and apply fails closed through target preflight or plan
 fingerprint validation; the migrator does not fall back to a hard-coded prefix.
+The prefix follows the same Jira-compatible contract as the source project key:
+an uppercase ASCII letter followed by uppercase letters, digits, or underscores.
 
 The private plan seals an ordered, hashed related-operation manifest covering
 comment, attachment, description, relation, and external-reference writes and
@@ -241,6 +265,12 @@ const reference = await archive.archive({
 });
 // { runId, entryId, contentSha256 }
 ```
+
+Use `archiveMany(inputs)` for a migration phase with many source entities. It
+holds the same exclusive manifest lock, verifies each content-addressed object
+as it is written, atomically replaces the manifest once, and then verifies the
+complete envelope and object set once. `archive(input)` remains the one-item
+equivalent.
 
 Field-mapping results and changelog classifications store this opaque
 reference. The migration ledger persists the same reference, and the apply
@@ -371,7 +401,7 @@ pnpm --filter @reef/jira-migrator run start -- \
   --jira-cloud-id cloud-abc \
   --project-key PROJECT \
   --vault reef-test \
-  --account-mapping ./artifacts/jira-account-mapping.cloud-abc.json \
+  --account-mapping-path ./artifacts/jira-account-mapping.cloud-abc.json \
   --dry-run
 ```
 
@@ -488,8 +518,11 @@ does not create releases or sprints itself.
   `customfield_NNNNN` id.
 - Always include Sprint records referenced by in-scope issues.
 - Expand Sprint selection only from boards the operator explicitly configured,
-  using `readBoardSprintCatalog()`. A shared board is not inferred from a
-  project name.
+  using `readBoardSprintCatalog()`. The board resource itself is archived and
+  plan-bound even when Jira identifies it as a `simple` or other non-Scrum
+  board whose Sprint endpoint returns HTTP 400; in that case the verified
+  Sprint catalog is empty rather than aborting the project migration. A shared
+  board is not inferred from a project name.
 - Record `configured_project`, `issue_reference`, and `configured_board` in the
   action's selection provenance so dry-run reports explain why each source
   entity is present.
@@ -640,8 +673,18 @@ the same normalized fingerprints and target readback evidence:
 Mapped-state fingerprints exclude runner-generated issue `created_at` and
 `updated_at` values. Changelog mapped-state fingerprints exclude the raw
 archive reference's run id while retaining source content identity and the
-semantic classification. A new run id or execution time must therefore remain
-`skip` when source state and target readback are unchanged.
+semantic classification. Approval fingerprints likewise normalize opaque
+enhanced-JQL `nextPageToken` values and raw archive run ids while retaining
+page contents, archive entry ids, and content digests. A new run id, pagination
+cursor, or execution time must therefore remain `skip` when source state and
+target readback are unchanged.
+
+The Atlassian development integration field whose schema custom key is
+`com.atlassian.jira.plugins.jira-development-integration-plugin:devsummarycf`
+contains request-volatile internal identifiers. Its exact response remains in
+the verifiable raw archive, but its raw-only value is tokenized in the approval
+projection because it does not drive any target mutation. Other custom-field
+values remain approval-bound.
 
 Call `confirmJiraMigrationBinding` only after both the target write and target
 identity readback succeed. A failed write or readback belongs in the run result,
@@ -832,7 +875,22 @@ Attachments are downloaded only with a GET to the configured Jira origin at
 `/rest/api/3/attachment/content/{id}?redirect=false`. The importer never follows
 the payload's arbitrary `content` URL with Jira credentials. It verifies source
 size, stored file bytes, attachment metadata, original Jira id, and file URI
-readback before confirming the ledger binding.
+readback before confirming the ledger binding. AKB storage uses the backend's
+presigned contract: initiate under `/api/v1/files/{vault}/upload`, PUT the exact
+bytes to the returned storage URL with its signed MIME type, confirm the
+content hash under `/api/v1/files/{vault}/{file_id}/confirm`, and use the
+matching presigned download endpoint for readback. The migrator does not assume
+that AKB exposes a direct multipart upload or authenticated byte-stream route.
+Treat presigned upload and download URLs as ephemeral credentials: never log,
+archive, or serialize them into a report, ledger, plan, issue body, or error.
+Wildcard, malformed, and generic MIME headers are not persisted as authoritative
+types: the importer next checks file signatures, then known filename
+extensions, and finally falls back to `application/octet-stream`. A rerun that
+finds a bound attachment with different normalized metadata or bytes revokes
+that target and recreates it before confirming the new binding. The repair plan
+retains every replaced file URI only as an approved description-rewrite
+precondition so ADF media references to stale files converge on the recreated
+attachment; those stale URIs are not treated as live bindings.
 
 ADF `media` and `mediaInline` nodes resolve after attachment import in this
 fixed order: unique filename on the issue, the issue's sole attachment, a

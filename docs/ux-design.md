@@ -406,6 +406,14 @@ status. They share one route, one header, one Zustand filter scope, and one
 filter toolbar, with the backlog view hiding facets that are pinned or
 irrelevant there.
 
+The workspace roots follow the same URL-first contract (REEF-424).
+`/workspace` is the only workspace route that consults the remembered Dexie
+default: it opens that vault's Issues surface or sends a signed-in browser with
+no default to onboarding. `/workspace/{vault}` keeps the explicit vault,
+preserves all query values, and redirects to that vault's `/issues` surface.
+Malformed, inaccessible, and Reef-unconfigured vault roots never fall back to a
+different remembered vault or overwrite the browser default.
+
 **Kanban Board.** Five columns, one per status (Open, In Progress, In Review,
 Done, Closed), populated by drag-and-drop (`@dnd-kit`). A short drag distance
 distinguishes a drag from a click, so a click opens the issue's detail
@@ -560,15 +568,21 @@ browser's own storage), the previous account's workspace-scoped browser state
 is reconciled away, and the user enters the app. There is no GitHub-OAuth
 sign-in, no popup, and no management-repository selection.
 
-First-time users hit an **OnboardingGuard** that redirects to `/onboarding`
-until setup is complete. Onboarding is a single screen whose required step is
+After session validation, reef checks the user's accessible workspaces before
+showing onboarding. If at least one already has reef configuration, the app
+restores a valid last-viewed workspace or deterministically chooses one, saves
+that browser fallback, and replaces the current history entry with its Issues
+URL. During this check the creation form stays hidden; a failed list request
+shows an explicit retry state.
+
+Users with no configured workspace enter `/onboarding`. Its required step is
 **Create a project workspace**: name a new akb vault (lowercase/digits/
 hyphens), choose an issue **prefix** (uppercase, e.g. `REEF`), optionally add a
-description and monitored repositories, and create. A secondary, collapsed path
-lets the user pick an existing reef workspace instead. Monitored repository
-access comes from deployment-managed GitHub credentials, so onboarding
-configures a *workspace*, not a Git repo, and no issue is committed under
-anyone's GitHub identity.
+description and monitored repositories, and create. Raw vaults do not count as
+configured workspaces and therefore do not bypass onboarding. Monitored
+repository access comes from deployment-managed GitHub
+credentials, so onboarding configures a *workspace*, not a Git repo, and no
+issue is committed under anyone's GitHub identity.
 
 ### Planning, Reports, Settings
 

@@ -199,6 +199,15 @@ export const JiraSprintSchema = z
   })
   .passthrough();
 
+export const JiraBoardSchema = z
+  .object({
+    id: StringOrNumberAsStringSchema,
+    name: z.string().min(1),
+    type: z.string().min(1),
+    location: UnknownRecordSchema.optional(),
+  })
+  .passthrough();
+
 export const JiraSprintPageSchema = z
   .object({
     startAt: z.number().int().nonnegative().default(0),
@@ -351,6 +360,7 @@ export type JiraSearchResponsePayload = z.infer<
 >;
 export type JiraVersionPayload = z.infer<typeof JiraVersionSchema>;
 export type JiraVersionPagePayload = z.infer<typeof JiraVersionPageSchema>;
+export type JiraBoardPayload = z.infer<typeof JiraBoardSchema>;
 export type JiraSprintPayload = z.infer<typeof JiraSprintSchema>;
 export type JiraSprintPagePayload = z.infer<typeof JiraSprintPageSchema>;
 export type JiraFieldPayload = z.infer<typeof JiraFieldSchema>;

@@ -80,11 +80,12 @@ export const GitHubAppConfigSchema = z.object({
 });
 
 /**
- * Pattern enforced for `project_prefix` — uppercase ASCII alphabetic just.
+ * Pattern enforced for `project_prefix` — an uppercase ASCII letter followed
+ * by uppercase ASCII letters, digits, or underscores.
  * Mirrors `PREFIX_PATTERN` in `packages/core/src/models/id.ts` so prefixes
  * round-trip through `nextIssueId` / `parseIssueId` without rejection.
  */
-export const PROJECT_PREFIX_PATTERN = /^[A-Z]+$/;
+export const PROJECT_PREFIX_PATTERN = /^[A-Z][A-Z0-9_]*$/;
 
 /**
  * Existing akb vault names accepted on read/select paths. Unlike creation,
@@ -122,7 +123,7 @@ export const StaleHideDaysSchema = z
  * App and LLM configuration are deployment-managed server env.
  *
  *   project_prefix — drives issue ID generation (e.g. "REEF" → "REEF-001").
- *                    should be uppercase A–Z just.
+ *                    starts with uppercase A–Z, followed by A–Z, 0–9, or `_`.
  *   monitored_repos — GitHub repos this workspace tracks for untracked-activity
  *                     detection (grounding just — these are not the issue store).
  *
@@ -148,7 +149,10 @@ export const ConfigSchema = z.object({
   project_prefix: z
     .string()
     .min(1, "project_prefix is required")
-    .regex(PROJECT_PREFIX_PATTERN, "project_prefix must be uppercase A–Z only"),
+    .regex(
+      PROJECT_PREFIX_PATTERN,
+      "project_prefix must start with uppercase A–Z and use only A–Z, 0–9, or underscore",
+    ),
   monitored_repos: z.array(MonitoredRepoSchema).default([]),
   authoring_language: AuthoringLanguageSchema.nullable().default(null),
   stale_hide_completed_days: StaleHideDaysSchema.default(
@@ -173,7 +177,10 @@ export const CreateVaultRequestSchema = z.object({
   project_prefix: z
     .string()
     .min(1, "project_prefix is required")
-    .regex(PROJECT_PREFIX_PATTERN, "project_prefix must be uppercase A–Z only"),
+    .regex(
+      PROJECT_PREFIX_PATTERN,
+      "project_prefix must start with uppercase A–Z and use only A–Z, 0–9, or underscore",
+    ),
   monitored_repos: z.array(MonitoredRepoSchema).default([]),
   /**
    * Optional default authoring language picked at create time (REEF-160). A

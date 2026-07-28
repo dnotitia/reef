@@ -6,12 +6,11 @@ import { WorkspaceResumeStatus } from "@/features/onboarding/components/Workspac
 import { useWorkspaceAutoResume } from "@/features/onboarding/hooks/useWorkspaceAutoResume";
 
 /**
- * Root route — gates on akb session and active workspace, then sends the
- * user to `/login`, `/onboarding`, or `/issues`. See `useAuthRedirect` for
- * the full decision tree. While the redirect resolves, paint the board app
- * shell instead of a bare "Loading…" line (REEF-097 AC2).
+ * `/workspace` is an alias for the global root redirect contract. Only this
+ * unscoped route may consult the remembered Dexie workspace default; explicit
+ * `/workspace/[vault]` routes keep their URL vault as the source of truth.
  */
-export default function RootPage() {
+export default function WorkspaceRootPage() {
   const authStatus = useAuthRedirect("root");
   const resume = useWorkspaceAutoResume({
     enabled: authStatus === "active",

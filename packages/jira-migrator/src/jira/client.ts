@@ -1,4 +1,6 @@
 import {
+  type JiraBoardPayload,
+  JiraBoardSchema,
   type JiraChangelogHistoryPayload,
   JiraChangelogPageSchema,
   JiraCommentPageSchema,
@@ -64,6 +66,12 @@ export interface JiraProjectResult {
   raw: unknown;
 }
 
+export interface JiraBoardResult {
+  board: JiraBoardPayload;
+  rateLimit: JiraRateLimit;
+  raw: unknown;
+}
+
 export interface JiraIssueCollectionResult<T> {
   items: T[];
   rateLimit: JiraRateLimit;
@@ -81,6 +89,13 @@ export interface JiraCatalogResult<T> {
   items: T[];
   pages: unknown[];
   rateLimits: JiraRateLimit[];
+}
+
+export interface JiraBoardSprintCatalogResult
+  extends JiraCatalogResult<NormalizedJiraSprint> {
+  board: JiraBoardPayload;
+  boardRaw: unknown;
+  boardRateLimit: JiraRateLimit;
 }
 
 export interface JiraClientOptions {
@@ -498,13 +513,44 @@ export class JiraReadClient {
     };
   }
 
+  async getBoard(boardId: string | number): Promise<JiraBoardResult> {
+    const body = await this.getJson(
+      `/rest/agile/1.0/board/${encodeURIComponent(String(boardId))}`,
+    );
+    return {
+      board: JiraBoardSchema.parse(body.json),
+      rateLimit: body.rateLimit,
+      raw: body.json,
+    };
+  }
+
   async readBoardSprintCatalog(
     boardId: string | number,
     options: Omit<ListBoardSprintsOptions, "startAt"> = {},
-  ): Promise<JiraCatalogResult<NormalizedJiraSprint>> {
-    return this.readOffsetCatalog((startAt) =>
-      this.listBoardSprints(boardId, { ...options, startAt }),
-    );
+  ): Promise<JiraBoardSprintCatalogResult> {
+    const board = await this.getBoard(boardId);
+    let catalog: JiraCatalogResult<NormalizedJiraSprint>;
+    try {
+      catalog = await this.readOffsetCatalog((startAt) =>
+        this.listBoardSprints(boardId, { ...options, startAt }),
+      );
+    } catch (error) {
+      if (
+        board.board.type.toLowerCase() !== "scrum" &&
+        error instanceof JiraApiError &&
+        error.status === 400
+      ) {
+        catalog = { items: [], pages: [], rateLimits: [] };
+      } else {
+        throw error;
+      }
+    }
+    return {
+      ...catalog,
+      board: board.board,
+      boardRaw: board.raw,
+      boardRateLimit: board.rateLimit,
+    };
   }
 
   private async readOffsetCatalog<T>(
