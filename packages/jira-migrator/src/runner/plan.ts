@@ -27,6 +27,7 @@ import {
   buildJiraPlanningTargetMappings,
 } from "../planning/entities.js";
 import { buildJiraRankImportPlan } from "../planning/rank.js";
+import type { ArchiveRawPayloadInput } from "../rawArchive.js";
 import type {
   JiraRelatedOperation,
   JiraRelatedOperationKind,
@@ -484,9 +485,10 @@ export async function buildJiraMigrationPlan(input: {
     const archive = archivesByProject.get(key);
     const snapshot = relatedSourceSnapshots.get(key);
     if (!archive || !snapshot) continue;
+    const pendingInputs: ArchiveRawPayloadInput[] = [];
     let pageIndex = 0;
     for (const [issueKey, response] of Object.entries(snapshot.comments)) {
-      await archive.archive({
+      pendingInputs.push({
         entityKind: "response_page",
         sourceIdentity: {
           cloud_id: config.jira.cloudId,
@@ -504,7 +506,7 @@ export async function buildJiraMigrationPlan(input: {
       });
     }
     for (const [issueKey, response] of Object.entries(snapshot.remote_links)) {
-      await archive.archive({
+      pendingInputs.push({
         entityKind: "response_page",
         sourceIdentity: {
           cloud_id: config.jira.cloudId,
@@ -531,7 +533,7 @@ export async function buildJiraMigrationPlan(input: {
     );
     for (const [attachmentId, response] of getRelatedBinarySpools(snapshot)) {
       const bytes = await readFile(response.path);
-      await archive.archive({
+      pendingInputs.push({
         entityKind: "attachment_content",
         sourceIdentity: {
           cloud_id: config.jira.cloudId,
@@ -551,6 +553,7 @@ export async function buildJiraMigrationPlan(input: {
         },
       });
     }
+    await archive.archiveMany(pendingInputs);
     archiveSummaries.push({ project_key: key, ...(await archive.verify()) });
   }
   const finalRelatedReports = relatedPlanningReports;
@@ -648,6 +651,12 @@ export async function buildJiraMigrationPlan(input: {
         [...projectDetailsByProject].map(([key, detail]) => [key, detail.raw]),
       ),
       board_ids: config.jira.boardIds,
+      boards: Object.fromEntries(
+        boardCatalogs.map(({ boardId, catalog }) => [
+          boardId,
+          catalog.boardRaw,
+        ]),
+      ),
       fields: fieldResult.raw,
       board_pages: Object.fromEntries(
         boardCatalogs.map(({ boardId, catalog }) => [boardId, catalog.pages]),

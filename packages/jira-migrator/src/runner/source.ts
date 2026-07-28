@@ -2,7 +2,6 @@ import type { JiraCatalogResult, JiraReadClient } from "../jira/client.js";
 import type {
   JiraChangelogHistoryPayload,
   NormalizedJiraIssue,
-  NormalizedJiraSprint,
 } from "../payloads.js";
 import { type RetryOperationOptions, retryOperation } from "./retry.js";
 
@@ -119,7 +118,10 @@ export async function readBoardSprints(
   boardIds: readonly string[],
   retry: RetryConfig,
 ): Promise<
-  Array<{ boardId: string; catalog: JiraCatalogResult<NormalizedJiraSprint> }>
+  Array<{
+    boardId: string;
+    catalog: Awaited<ReturnType<JiraReadClient["readBoardSprintCatalog"]>>;
+  }>
 > {
   const results = [];
   for (const boardId of boardIds) {

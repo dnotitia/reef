@@ -38,7 +38,7 @@ const ConfigPatchSchema = z
       .string()
       .regex(
         PROJECT_PREFIX_PATTERN,
-        "project_prefix must be uppercase A–Z only",
+        "project_prefix must start with uppercase A–Z and use only A–Z, 0–9, or underscore",
       )
       .optional(),
     monitored_repos: z.array(MonitoredRepoSchema).optional(),

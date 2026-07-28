@@ -138,7 +138,10 @@ export const AgentArtifactCommandRequestSchema = z
     prefix: z
       .string()
       .min(1)
-      .regex(PROJECT_PREFIX_PATTERN, "prefix must be uppercase A-Z only")
+      .regex(
+        PROJECT_PREFIX_PATTERN,
+        "prefix must start with uppercase A-Z and use only A-Z, 0-9, or underscore",
+      )
       .nullable()
       .default(null),
     actor: z.string().min(1).nullable().default(null),

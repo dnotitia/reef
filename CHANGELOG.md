@@ -20,6 +20,39 @@ explicitly in the entries below.
   empty query values. Malformed or inaccessible vault roots keep their existing
   denial behavior and cannot silently replace the browser's remembered
   workspace. (REEF-424)
+- Use AKB's presigned upload/confirm and download flows for issue attachments
+  instead of the nonexistent direct multipart and byte-stream endpoints.
+- Compare Reef comment-thread UUIDs as text when validating reply chains stored
+  in JSON metadata, so Jira replies no longer fail with PostgreSQL
+  `uuid = text` operator errors.
+- Preserve attachment write-phase failures and report safe field-level
+  readback mismatch codes so migration diagnostics identify the failing
+  boundary without exposing source content.
+- Reject wildcard and generic attachment content types, infer common formats
+  from byte signatures or filenames, and replace stale bound attachments whose
+  stored metadata or bytes no longer match the normalized Jira source. Stale
+  file URIs remain accepted as description preconditions during that atomic
+  revoke/recreate plan, while operation approval uses the same target URI key
+  in dry-run and apply.
+- Preserve explicitly selected Jira `simple`/non-Scrum boards in migration
+  provenance and treat their unsupported Sprint catalog HTTP 400 as an empty
+  catalog instead of aborting the migration.
+- Batch raw-source archive writes per migration phase so a full Jira project
+  performs one manifest/object verification per batch instead of re-verifying
+  every prior object after each archived entity.
+- Exclude opaque enhanced-JQL pagination cursors and raw-archive run ids from
+  Jira approval fingerprints while retaining issue contents, archive entry
+  ids, and content digests.
+- Keep Atlassian development-summary custom-field payloads in the raw archive
+  but normalize their request-volatile internal identifiers out of approval
+  fingerprints.
+- **Reef workspace and issue ID prefixes now accept Jira-compatible project
+  keys.** Prefixes still begin with an uppercase ASCII letter, but may now
+  contain uppercase letters, digits, and underscores after it, allowing a
+  matching target workspace to preserve the source project key during
+  migration. Issue detail APIs, relations, global search, chat grounding, the
+  `read_issue` tool, and Markdown mention links now use the same contract
+  instead of rejecting or overlooking those ids.
 
 ## v0.8.0 - 2026-07-27
 

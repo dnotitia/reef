@@ -1,15 +1,29 @@
 import { z } from "zod";
-import { SchemaValidationError } from "../../../errors";
-import type { AkbAdapter, AkbBinaryResponse } from "./http";
+import { AkbApiError, SchemaValidationError } from "../../../errors";
+import type { AkbAdapter } from "./http";
 
-const AkbFileUploadResponseSchema = z
+const AkbFileUploadInitResponseSchema = z
   .object({
     uri: z.string().min(1),
-    name: z.string().optional(),
-    filename: z.string().optional(),
-    mime_type: z.string().optional(),
-    content_type: z.string().optional(),
-    size_bytes: z.number().int().nonnegative().optional(),
+    upload_url: z.string().url(),
+  })
+  .passthrough();
+
+const AkbFileResponseSchema = z
+  .object({
+    uri: z.string().min(1),
+    name: z.string().min(1),
+    mime_type: z.string().min(1),
+    size_bytes: z.number().int().nonnegative(),
+  })
+  .passthrough();
+
+const AkbFileDownloadResponseSchema = z
+  .object({
+    name: z.string().min(1),
+    download_url: z.string().url(),
+    mime_type: z.string().min(1),
+    size_bytes: z.number().int().nonnegative(),
   })
   .passthrough();
 
@@ -47,31 +61,98 @@ function fileIdFromUri(uri: string): string {
   return match[1];
 }
 
+async function sha256(bytes: Uint8Array): Promise<string> {
+  const copied = new Uint8Array(bytes.byteLength);
+  copied.set(bytes);
+  const digest = await crypto.subtle.digest("SHA-256", copied);
+  return Array.from(new Uint8Array(digest), (value) =>
+    value.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
+async function fetchPresigned(
+  url: string,
+  init?: RequestInit,
+): Promise<Response> {
+  const parsed = new URL(url);
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new SchemaValidationError({
+      issues: ["AKB returned an unsupported presigned URL protocol"],
+    });
+  }
+  const response = await fetch(parsed.href, { ...init, redirect: "error" });
+  if (!response.ok) {
+    throw new AkbApiError({
+      status: response.status,
+      message: `Presigned file transfer failed with HTTP ${response.status}`,
+    });
+  }
+  return response;
+}
+
 export async function uploadAkbFile(
   params: UploadAkbFileParams,
 ): Promise<UploadAkbFileResult> {
   const { adapter, vault, filename, mimeType, bytes, collection, description } =
     params;
+  const contentHash = await sha256(bytes);
+  const initiated = AkbFileUploadInitResponseSchema.parse(
+    await adapter.request(`/api/v1/files/${encodeURIComponent(vault)}/upload`, {
+      method: "POST",
+      query: {
+        filename,
+        collection,
+        description,
+        mime_type: mimeType,
+        content_hash: contentHash,
+      },
+      resource: `file ${filename}`,
+    }),
+  );
+  const fileId = fileIdFromUri(initiated.uri);
   const bodyBytes = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(bodyBytes).set(bytes);
-  const form = new FormData();
-  form.set("vault", vault);
-  if (collection) form.set("collection", collection);
-  if (description) form.set("description", description);
-  form.set("file", new Blob([bodyBytes], { type: mimeType }), filename);
-
-  const payload = await adapter.request("/api/v1/files", {
-    method: "POST",
-    rawBody: form,
-    resource: `file ${filename}`,
-  });
-  const parsed = AkbFileUploadResponseSchema.parse(payload);
-  return {
-    uri: parsed.uri,
-    filename: parsed.filename ?? parsed.name ?? filename,
-    mimeType: parsed.mime_type ?? parsed.content_type ?? mimeType,
-    sizeBytes: parsed.size_bytes ?? bytes.byteLength,
-  };
+  try {
+    await fetchPresigned(initiated.upload_url, {
+      method: "PUT",
+      headers: { "Content-Type": mimeType },
+      body: bodyBytes,
+    });
+    const confirmed = AkbFileResponseSchema.parse(
+      await adapter.request(
+        `/api/v1/files/${encodeURIComponent(vault)}/${encodeURIComponent(
+          fileId,
+        )}/confirm`,
+        {
+          method: "POST",
+          query: {
+            content_hash: contentHash,
+            hash_algorithm: "sha256",
+          },
+          resource: `file ${filename}`,
+        },
+      ),
+    );
+    return {
+      uri: confirmed.uri,
+      filename: confirmed.name,
+      mimeType: confirmed.mime_type,
+      sizeBytes: confirmed.size_bytes,
+    };
+  } catch (error) {
+    await adapter
+      .request(
+        `/api/v1/files/${encodeURIComponent(vault)}/${encodeURIComponent(
+          fileId,
+        )}`,
+        {
+          method: "DELETE",
+          resource: `file ${filename}`,
+        },
+      )
+      .catch(() => undefined);
+    throw error;
+  }
 }
 
 export async function downloadAkbFile(
@@ -80,19 +161,23 @@ export async function downloadAkbFile(
   uri: string,
 ): Promise<DownloadAkbFileResult> {
   const fileId = fileIdFromUri(uri);
-  const payload = (await adapter.request(
-    `/api/v1/files/${encodeURIComponent(vault)}/${encodeURIComponent(fileId)}`,
-    {
-      rawHeaders: { Accept: "*/*" },
-      resource: `file ${fileId}`,
-      responseType: "arrayBuffer",
-    },
-  )) as AkbBinaryResponse;
+  const metadata = AkbFileDownloadResponseSchema.parse(
+    await adapter.request(
+      `/api/v1/files/${encodeURIComponent(vault)}/${encodeURIComponent(
+        fileId,
+      )}/download`,
+      { resource: `file ${fileId}` },
+    ),
+  );
+  const response = await fetchPresigned(metadata.download_url, {
+    headers: { Accept: "*/*" },
+  });
+  const body = await response.arrayBuffer();
   return {
-    body: payload.body,
-    contentType: payload.contentType ?? "application/octet-stream",
-    filename: payload.filename,
-    sizeBytes: payload.contentLength,
+    body,
+    contentType: metadata.mime_type,
+    filename: metadata.name,
+    sizeBytes: metadata.size_bytes,
   };
 }
 

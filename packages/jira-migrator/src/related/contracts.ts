@@ -212,4 +212,5 @@ export interface JiraRelatedImportResult {
 export interface AttachmentBinding {
   source: NormalizedJiraAttachment;
   fileUri: string;
+  previousFileUris?: readonly string[];
 }

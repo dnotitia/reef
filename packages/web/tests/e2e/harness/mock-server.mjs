@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 
 const PORT = Number(process.env.REEF_E2E_MOCK_PORT ?? 7354);
@@ -128,6 +129,42 @@ const server = createServer(async (req, res) => {
     }
     if (url.pathname === "/__e2e/state") {
       return json(res, 200, publicState());
+    }
+    const presignedFileMatch = url.pathname.match(
+      /^\/__e2e\/files\/([^/]+)\/([^/]+)\/(upload|download)$/,
+    );
+    if (presignedFileMatch) {
+      const [, encodedVault, encodedFileId, operation] = presignedFileMatch;
+      const vault = getVault(decodeURIComponent(encodedVault), res);
+      if (!vault) return;
+      const file = vault.files?.get(decodeURIComponent(encodedFileId));
+      if (!file) return json(res, 404, { error: "file not found" });
+
+      if (operation === "upload" && req.method === "PUT") {
+        const body = await readRawBody(req);
+        if (sha256(body) !== file.contentHash) {
+          return json(res, 422, { error: "content hash mismatch" });
+        }
+        file.body = body;
+        file.mimeType =
+          String(req.headers["content-type"] ?? "") ||
+          "application/octet-stream";
+        file.sizeBytes = body.length;
+        return json(res, 200, { uploaded: true });
+      }
+
+      if (operation === "download" && req.method === "GET") {
+        if (!file.confirmed || !file.body) {
+          return json(res, 409, { error: "file not confirmed" });
+        }
+        res.writeHead(200, {
+          "Content-Type": file.mimeType,
+          "Content-Length": String(file.body.length),
+          "Content-Disposition": `inline; filename="${headerQuoted(file.filename)}"`,
+          "Cache-Control": "no-store",
+        });
+        return res.end(file.body);
+      }
     }
     if (url.pathname.startsWith("/akb")) {
       return handleAkb(req, res, url);
@@ -877,33 +914,80 @@ async function handleAkb(req, res, url) {
     return json(res, 200, { members: vault.members });
   }
 
-  if (path === "/api/v1/files" && req.method === "POST") {
-    const form = await readMultipartForm(req);
-    const vault = getVault(String(form.fields.vault ?? ""), res);
+  const fileUploadMatch = path.match(/^\/api\/v1\/files\/([^/]+)\/upload$/);
+  if (fileUploadMatch && req.method === "POST") {
+    const vault = getVault(decodeURIComponent(fileUploadMatch[1]), res);
     if (!vault) return;
-    const file = form.files.file;
-    if (!file) return json(res, 422, { error: "missing file" });
     if (!vault.files) vault.files = new Map();
     const fileId = `file-${vault.files.size + 1}`;
-    const collection = String(form.fields.collection ?? "files")
+    const collection = String(url.searchParams.get("collection") ?? "files")
       .replace(/^\/+/, "")
       .replace(/\/+$/, "");
-    const filename = file.filename || "attachment";
-    const mimeType = file.contentType || "application/octet-stream";
+    const filename = url.searchParams.get("filename") || "attachment";
+    const mimeType =
+      url.searchParams.get("mime_type") || "application/octet-stream";
+    const contentHash = url.searchParams.get("content_hash");
+    if (!contentHash) {
+      return json(res, 422, { error: "missing content hash" });
+    }
     const uri = `akb://${vault.name}/${collection}/file/${fileId}`;
     vault.files.set(fileId, {
       id: fileId,
       uri,
       filename,
       mimeType,
-      sizeBytes: file.body.length,
-      body: file.body,
+      sizeBytes: 0,
+      body: null,
+      contentHash,
+      confirmed: false,
     });
     return json(res, 200, {
       uri,
-      filename,
-      mime_type: mimeType,
-      size_bytes: file.body.length,
+      upload_url: `http://${req.headers.host}/__e2e/files/${encodeURIComponent(
+        vault.name,
+      )}/${encodeURIComponent(fileId)}/upload`,
+    });
+  }
+
+  const fileConfirmMatch = path.match(
+    /^\/api\/v1\/files\/([^/]+)\/([^/]+)\/confirm$/,
+  );
+  if (fileConfirmMatch && req.method === "POST") {
+    const vault = getVault(decodeURIComponent(fileConfirmMatch[1]), res);
+    if (!vault) return;
+    const file = vault.files?.get(decodeURIComponent(fileConfirmMatch[2]));
+    if (!file) return json(res, 404, { error: "file not found" });
+    if (!file.body) return json(res, 409, { error: "file not uploaded" });
+    if (url.searchParams.get("content_hash") !== file.contentHash) {
+      return json(res, 422, { error: "content hash mismatch" });
+    }
+    file.confirmed = true;
+    return json(res, 200, {
+      uri: file.uri,
+      name: file.filename,
+      mime_type: file.mimeType,
+      size_bytes: file.sizeBytes,
+    });
+  }
+
+  const fileDownloadMatch = path.match(
+    /^\/api\/v1\/files\/([^/]+)\/([^/]+)\/download$/,
+  );
+  if (fileDownloadMatch && req.method === "GET") {
+    const vault = getVault(decodeURIComponent(fileDownloadMatch[1]), res);
+    if (!vault) return;
+    const file = vault.files?.get(decodeURIComponent(fileDownloadMatch[2]));
+    if (!file) return json(res, 404, { error: "file not found" });
+    if (!file.confirmed || !file.body) {
+      return json(res, 409, { error: "file not confirmed" });
+    }
+    return json(res, 200, {
+      name: file.filename,
+      download_url: `http://${req.headers.host}/__e2e/files/${encodeURIComponent(
+        vault.name,
+      )}/${encodeURIComponent(file.id)}/download`,
+      mime_type: file.mimeType,
+      size_bytes: file.sizeBytes,
     });
   }
 
@@ -2540,51 +2624,8 @@ async function readRawBody(req) {
   return Buffer.concat(chunks);
 }
 
-async function readMultipartForm(req) {
-  const body = await readRawBody(req);
-  const contentType = String(req.headers["content-type"] ?? "");
-  const boundary = contentType.match(/boundary="?([^";]+)"?/i)?.[1] ?? "";
-  if (!boundary) return { fields: {}, files: {} };
-  return parseMultipart(body, boundary);
-}
-
-function parseMultipart(body, boundary) {
-  const fields = {};
-  const files = {};
-  const raw = body.toString("binary");
-  const marker = `--${boundary}`;
-  for (let part of raw.split(marker).slice(1)) {
-    if (part.startsWith("--")) break;
-    if (part.startsWith("\r\n")) part = part.slice(2);
-    if (part.endsWith("\r\n")) part = part.slice(0, -2);
-    const separator = part.indexOf("\r\n\r\n");
-    if (separator < 0) continue;
-    const headerText = part.slice(0, separator);
-    let bodyText = part.slice(separator + 4);
-    if (bodyText.endsWith("\r\n")) bodyText = bodyText.slice(0, -2);
-    const headers = Object.fromEntries(
-      headerText
-        .split("\r\n")
-        .map((line) => line.split(/:\s*/, 2))
-        .filter(([key, value]) => key && value)
-        .map(([key, value]) => [key.toLowerCase(), value]),
-    );
-    const disposition = headers["content-disposition"] ?? "";
-    const name = disposition.match(/name="([^"]+)"/i)?.[1];
-    if (!name) continue;
-    const filename = disposition.match(/filename="([^"]*)"/i)?.[1];
-    const buffer = Buffer.from(bodyText, "binary");
-    if (filename != null) {
-      files[name] = {
-        filename,
-        contentType: headers["content-type"] ?? "application/octet-stream",
-        body: buffer,
-      };
-    } else {
-      fields[name] = buffer.toString("utf8");
-    }
-  }
-  return { fields, files };
+function sha256(bytes) {
+  return createHash("sha256").update(bytes).digest("hex");
 }
 
 function headerQuoted(value) {

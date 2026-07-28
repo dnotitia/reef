@@ -14,6 +14,7 @@ import {
 } from "../adapters/akb";
 import type { GitHubAdapter } from "../adapters/github";
 import type { LlmAdapter } from "../adapters/llm";
+import { ISSUE_ID_PATTERN } from "../models";
 import {
   type ChatIssueContext,
   ChatIssueContextIssueSchema,
@@ -272,14 +273,11 @@ async function resolveWorkspaceSummary(
  * chat still works (AC4). The result is narrowed to the PM-facing field subset
  * the `read_issue` tool already exposes.
  */
-/** Issue id shape guard — the security boundary before the akb read URL. */
-const CHAT_ISSUE_ID_REGEX = /^[A-Z]+-\d+$/;
-
 async function resolveIssueContext(
   params: CreateWorkspaceChatAgentResponseParams,
 ): Promise<ChatIssueContext | null> {
   const id = params.currentIssueId?.trim();
-  if (!id || !CHAT_ISSUE_ID_REGEX.test(id)) return null;
+  if (!id || !ISSUE_ID_PATTERN.test(id)) return null;
   try {
     const { issue, content } = await readIssue({
       adapter: params.adapter,

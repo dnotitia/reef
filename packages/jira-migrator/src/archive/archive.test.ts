@@ -137,6 +137,37 @@ describe("RFC 8785 JSON canonicalization", () => {
 });
 
 describe("RawArchive", () => {
+  it("archives a batch with stable references and one verified manifest", async () => {
+    const root = join(await makeBase(), "archive");
+    const archive = createRawArchive(options(root));
+    const inputs = ["10001", "10002", "10003"].map((issueId) =>
+      input({
+        sourceIdentity: {
+          cloud_id: "cloud-abc",
+          project_key: "ALPHA",
+          issue_id: issueId,
+        },
+        payload: { id: issueId },
+      }),
+    );
+
+    const references = await archive.archiveMany(inputs);
+
+    expect(references).toHaveLength(3);
+    expect(new Set(references.map((reference) => reference.entryId)).size).toBe(
+      3,
+    );
+    await expect(archive.verify()).resolves.toMatchObject({
+      entryCount: 3,
+      objectCount: 3,
+    });
+    await expect(
+      archive.read(references[1] as (typeof references)[number]),
+    ).resolves.toEqual({
+      id: "10002",
+    });
+  });
+
   it("deduplicates retries and content across runs", async () => {
     const root = join(await makeBase(), "archive");
     const firstArchive = createRawArchive(options(root));

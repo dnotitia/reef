@@ -168,7 +168,11 @@ jobs:
         if: ${{ !cancelled() && failure() }}
         with:
           name: playwright-report-shard-${{ matrix.shard }}
-          path: packages/web/playwright-report/
+          # CI uses Playwright's `github` reporter, which does not create the
+          # HTML `playwright-report/` directory. Retry traces and error context
+          # are written here instead.
+          path: packages/web/test-results/
+          if-no-files-found: error
           retention-days: 7
 
   # Stable aggregate gate. Branch protection requires the context "Playwright

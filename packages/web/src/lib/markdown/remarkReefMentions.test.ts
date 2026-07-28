@@ -63,6 +63,19 @@ describe("remarkReefMentions", () => {
     expect(out[1].children?.[0]?.value).toBe("reef-42");
   });
 
+  it("links known ids with Jira-compatible numeric and underscore prefixes", () => {
+    const out = run(
+      paragraph({
+        type: "text",
+        value: "See saasv31-42 and TEAM_2-7.",
+      }),
+      ["SAASV31-42", "TEAM_2-7"],
+    );
+
+    expect(out[1].url).toBe("/workspace/reef-e2e/issues/SAASV31-42");
+    expect(out[3].url).toBe("/workspace/reef-e2e/issues/TEAM_2-7");
+  });
+
   it("does not linkify inside inline code or existing links", () => {
     const tree: Node = {
       type: "root",
