@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { describeError } from "../errors";
 import {
   ALL_REEF_TABLES,
   AuthError,
@@ -602,6 +603,43 @@ describe("ensureReefTables", () => {
     ]);
     const adapter = makeAdapter();
     await ensureReefTables({ adapter, vault: "reef-sample" });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("rejects a vault name that cannot fit every desired AKB table before I/O", async () => {
+    const { calls } = setupFetch([]);
+
+    let caught: unknown;
+    try {
+      await ensureReefTables({
+        adapter: makeAdapter(),
+        vault: "v".repeat(34),
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(SchemaValidationError);
+    expect(describeError(caught)).toEqual({
+      code: "schema.invalid",
+      status: 422,
+      params: { field: "vault" },
+      details: [
+        "Vault name is too long for Reef table reef_activity_suggestions; maximum supported length is 33",
+      ],
+    });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("accepts a 33-character vault name at the desired-table boundary", async () => {
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+    ]);
+
+    await ensureReefTables({
+      adapter: makeAdapter(),
+      vault: "v".repeat(33),
+    });
     expect(calls).toHaveLength(1);
   });
 

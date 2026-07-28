@@ -44,6 +44,8 @@ export {
 // lives in `sql.ts`.
 
 const NonEmptyStringSchema = z.string().min(1);
+const AKB_TABLE_IDENTIFIER_MAX_LENGTH = 63;
+const AKB_TABLE_IDENTIFIER_FIXED_LENGTH = "vt_".length + "__".length;
 
 export const AkbTableMutationColumnTypeSchema = z.enum([
   "text",
@@ -232,6 +234,35 @@ function schemaValidationError(error: z.ZodError): SchemaValidationError {
       (issue) => `${issue.path.join(".") || "input"}: ${issue.message}`,
     ),
   });
+}
+
+function akbTableIdentifierPart(value: string): string {
+  return value
+    .toLowerCase()
+    .replaceAll("-", "_")
+    .replace(/[^a-z0-9]/gu, "_");
+}
+
+function assertDesiredTableIdentifiersFit(vault: string): void {
+  const vaultPartLength = akbTableIdentifierPart(vault).length;
+  for (const manifest of REEF_DESIRED_TABLES) {
+    const tablePartLength = akbTableIdentifierPart(manifest.name).length;
+    const identifierLength =
+      AKB_TABLE_IDENTIFIER_FIXED_LENGTH + vaultPartLength + tablePartLength;
+    if (identifierLength <= AKB_TABLE_IDENTIFIER_MAX_LENGTH) continue;
+
+    const maximumVaultLength =
+      AKB_TABLE_IDENTIFIER_MAX_LENGTH -
+      AKB_TABLE_IDENTIFIER_FIXED_LENGTH -
+      tablePartLength;
+    throw new SchemaValidationError({
+      field: "vault",
+      issues: [
+        `Vault name is too long for Reef table ${manifest.name}; maximum supported length is ${maximumVaultLength}`,
+      ],
+      clientValidated: true,
+    });
+  }
 }
 
 function parseOrThrow<T>(schema: z.ZodType<T>, value: unknown): T {
@@ -641,7 +672,12 @@ async function createMissingTable(
 export async function ensureReefTables(
   params: EnsureReefTablesParams,
 ): Promise<void> {
-  const { adapter, vault } = params;
+  const { vault } = parseOrThrow(
+    z.object({ vault: NonEmptyStringSchema }),
+    params,
+  );
+  const { adapter } = params;
+  assertDesiredTableIdentifiersFit(vault);
   return withSpan("akb.tables.ensure", { vault }, async (span) => {
     for (const manifest of REEF_DESIRED_TABLES) {
       assertNoAkbManagedColumns(manifest);

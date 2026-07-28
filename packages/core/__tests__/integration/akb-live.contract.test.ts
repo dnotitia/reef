@@ -137,7 +137,12 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
     };
 
     // Throwaway vault per run so local re-runs never collide; teardown below.
-    vault = `reef-live-smoke-${Date.now()}`;
+    const vaultSuffix =
+      `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`
+        .padEnd(17, "0")
+        .slice(0, 17);
+    vault = `reef-live-smoke-${vaultSuffix}`;
+    expect(vault).toHaveLength(33);
     await createVault({
       adapter,
       name: vault,
@@ -315,6 +320,49 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
     expect(provisionCreateCount).toBe(REEF_DESIRED_TABLES.length);
     expect(provisionAlterCount).toBe(0);
 
+    const boundarySuffix =
+      `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`
+        .padEnd(20, "0")
+        .slice(0, 20);
+    const overlongVault = `reef-boundary-${boundarySuffix}`;
+    let overlongVaultAdapterCalls = 0;
+    let overlongVaultTableCount = -1;
+    await createVault({
+      adapter,
+      name: overlongVault,
+      description: "ephemeral Reef table identifier boundary probe",
+    });
+    try {
+      const overlongVaultAdapter: AkbAdapter = {
+        request: async (...args) => {
+          overlongVaultAdapterCalls += 1;
+          return adapter.request(...args);
+        },
+      };
+      await expect(
+        ensureReefTables({
+          adapter: overlongVaultAdapter,
+          vault: overlongVault,
+        }),
+      ).rejects.toMatchObject({ name: "SchemaValidationError" });
+      expect(overlongVaultAdapterCalls).toBe(0);
+
+      const boundaryManifest = (await adapter.request(
+        `/api/v1/tables/${encodeURIComponent(overlongVault)}`,
+        { resource: "ephemeral boundary vault tables" },
+      )) as { items?: Array<Record<string, unknown>> };
+      overlongVaultTableCount = boundaryManifest.items?.length ?? 0;
+      expect(overlongVaultTableCount).toBe(0);
+    } finally {
+      await adapter.request(
+        `/api/v1/vaults/${encodeURIComponent(overlongVault)}`,
+        {
+          method: "DELETE",
+          resource: "ephemeral boundary vault",
+        },
+      );
+    }
+
     await ensureReefTables({ adapter, vault });
     expect(provisionCreateCount).toBe(REEF_DESIRED_TABLES.length);
     expect(provisionAlterCount).toBe(0);
@@ -474,6 +522,16 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
               alter_calls: provisionAlterCount,
               second_run_create_calls: 0,
               second_run_alter_calls: 0,
+            },
+          },
+          {
+            api: "akbEnsureReefTables boundary validation",
+            input: { vault_length: 34 },
+            output: {
+              rejected: true,
+              adapter_calls: overlongVaultAdapterCalls,
+              manifest_count: overlongVaultTableCount,
+              partial_manifest: overlongVaultTableCount !== 0,
             },
           },
           {
