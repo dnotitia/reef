@@ -39,10 +39,10 @@ explicitly in the entries below.
   `reef_subscriptions` declaratively.** New and schema-version-1 vaults create
   only missing tables with their unique keys and lookup indexes; existing Reef
   tables and activity-inbox data are unchanged, no backfill is required, and a
-  mismatched existing table fails closed for operator review instead of being
-  altered at runtime. Target AKB deployments must support create-time
-  `unique_keys` and `indexes`. Reef also rejects vault names that cannot fit the
-  longest desired table within AKB's PostgreSQL identifier limit before
+  mismatched existing table fails closed for operator review before any missing
+  table is created or altered. Target AKB deployments must support create-time
+  `unique_keys` and `indexes`. Reef also rejects vault names that cannot fit
+  the longest desired table within AKB's PostgreSQL identifier limit before
   creating any table, preventing a partial workspace installation. (REEF-427)
 
 ## v0.8.1 - 2026-07-28

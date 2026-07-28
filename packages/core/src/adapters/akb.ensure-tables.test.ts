@@ -512,6 +512,14 @@ describe("ensureReefTables", () => {
 
   it.each([
     [
+      "column",
+      {
+        columns: REEF_DESIRED_TABLES.find(
+          (manifest) => manifest.name === REEF_NOTIFICATIONS_TABLE,
+        )?.columns.filter((column) => column.name !== "meta"),
+      },
+    ],
+    [
       "unique key",
       {
         unique_keys: [{ columns: ["notification_key"] }],
@@ -524,9 +532,17 @@ describe("ensureReefTables", () => {
       },
     ],
   ])(
-    "fails hard without altering when an existing notification table has a %s mismatch",
+    "fails hard before creating a missing table when an existing notification table has a %s mismatch",
     async (_label, override) => {
+      const initialResponse = makeDesiredTablesResponse({
+        [REEF_NOTIFICATIONS_TABLE]: override,
+      }) as { items: Array<Record<string, unknown>> };
+      initialResponse.items = initialResponse.items.filter(
+        (table) => table.name !== REEF_SUBSCRIPTIONS_TABLE,
+      );
       const { calls } = setupFetch([
+        { body: initialResponse },
+        { status: 201, body: { name: REEF_SUBSCRIPTIONS_TABLE } },
         {
           body: makeDesiredTablesResponse({
             [REEF_NOTIFICATIONS_TABLE]: override,
@@ -539,6 +555,8 @@ describe("ensureReefTables", () => {
       ).rejects.toBeInstanceOf(SchemaValidationError);
       expect(calls).toHaveLength(1);
       expect(calls[0]?.init?.method ?? "GET").toBe("GET");
+      expect(calls.some((call) => call.init?.method === "POST")).toBe(false);
+      expect(calls.some((call) => call.init?.method === "PATCH")).toBe(false);
     },
   );
 

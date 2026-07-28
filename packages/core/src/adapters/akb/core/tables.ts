@@ -587,6 +587,15 @@ function assertDesiredTablesMatch(tables: AkbTableSummary[]): void {
   }
 }
 
+function assertExistingDesiredTablesMatch(tables: AkbTableSummary[]): void {
+  const byName = tableMap(tables);
+  for (const manifest of REEF_DESIRED_TABLES) {
+    const table = byName.get(manifest.name);
+    if (!tableHasColumnMetadata(table)) continue;
+    assertManifestMatches(manifest, table);
+  }
+}
+
 async function readStoredSchemaVersion(
   adapter: AkbAdapter,
   vault: string,
@@ -686,10 +695,8 @@ export async function ensureReefTables(
     const initial = tableMap(tables);
     span.setAttribute("existing_table_count", initial.size);
 
+    assertExistingDesiredTablesMatch(tables);
     const supportsSchemaVerification = canVerifySchema(tables);
-    if (supportsSchemaVerification) {
-      assertDesiredTablesMatch(tables);
-    }
     const storedVersion = supportsSchemaVerification
       ? await readStoredSchemaVersion(
           adapter,

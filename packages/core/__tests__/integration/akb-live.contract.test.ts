@@ -363,6 +363,114 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
       );
     }
 
+    const mismatchPreflight = [];
+    for (const variant of ["column", "unique_key", "index"] as const) {
+      const suffix =
+        `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`
+          .padEnd(12, "0")
+          .slice(0, 12);
+      const mismatchVault = `reef-mm-${suffix}-${variant.slice(0, 1)}`;
+      expect(mismatchVault.length).toBeLessThanOrEqual(33);
+      await createVault({
+        adapter,
+        name: mismatchVault,
+        description: "ephemeral Reef manifest mismatch preflight probe",
+      });
+      try {
+        for (const manifest of REEF_DESIRED_TABLES.slice(0, 11)) {
+          await adapter.request(
+            `/api/v1/tables/${encodeURIComponent(mismatchVault)}`,
+            {
+              method: "POST",
+              body: structuredClone(manifest),
+              resource: `ephemeral legacy table ${manifest.name}`,
+            },
+          );
+        }
+        const notificationManifest = structuredClone(
+          REEF_DESIRED_TABLES.find(
+            (manifest) => manifest.name === REEF_NOTIFICATIONS_TABLE,
+          ),
+        );
+        if (!notificationManifest) {
+          throw new Error("Missing notification manifest");
+        }
+        if (variant === "column") {
+          notificationManifest.columns = notificationManifest.columns.filter(
+            (column) => column.name !== "meta",
+          );
+        } else if (variant === "unique_key") {
+          notificationManifest.unique_keys =
+            notificationManifest.unique_keys?.slice(0, 1);
+        } else {
+          notificationManifest.indexes = [];
+        }
+        await adapter.request(
+          `/api/v1/tables/${encodeURIComponent(mismatchVault)}`,
+          {
+            method: "POST",
+            body: notificationManifest,
+            resource: `ephemeral mismatched ${variant} table`,
+          },
+        );
+
+        let createCalls = 0;
+        let alterCalls = 0;
+        const mismatchAdapter: AkbAdapter = {
+          request: async (...args) => {
+            const [path, init] = args;
+            if (
+              path === `/api/v1/tables/${encodeURIComponent(mismatchVault)}` &&
+              init?.method === "POST"
+            ) {
+              createCalls += 1;
+            }
+            if (
+              path.startsWith(
+                `/api/v1/tables/${encodeURIComponent(mismatchVault)}/`,
+              ) &&
+              init?.method === "PATCH"
+            ) {
+              alterCalls += 1;
+            }
+            return adapter.request(...args);
+          },
+        };
+        await expect(
+          ensureReefTables({
+            adapter: mismatchAdapter,
+            vault: mismatchVault,
+          }),
+        ).rejects.toMatchObject({ name: "SchemaValidationError" });
+        expect(createCalls).toBe(0);
+        expect(alterCalls).toBe(0);
+        const manifest = (await adapter.request(
+          `/api/v1/tables/${encodeURIComponent(mismatchVault)}`,
+          { resource: "ephemeral mismatch vault tables" },
+        )) as { items?: Array<Record<string, unknown>> };
+        expect(manifest.items).toHaveLength(12);
+        expect(
+          manifest.items?.some(
+            (table) => table.name === REEF_SUBSCRIPTIONS_TABLE,
+          ),
+        ).toBe(false);
+        mismatchPreflight.push({
+          variant,
+          create_calls: createCalls,
+          alter_calls: alterCalls,
+          manifest_count: manifest.items?.length ?? 0,
+        });
+      } finally {
+        await adapter.request(
+          `/api/v1/vaults/${encodeURIComponent(mismatchVault)}`,
+          {
+            method: "DELETE",
+            resource: "ephemeral mismatch vault",
+          },
+        );
+      }
+    }
+
     await ensureReefTables({ adapter, vault });
     expect(provisionCreateCount).toBe(REEF_DESIRED_TABLES.length);
     expect(provisionAlterCount).toBe(0);
@@ -533,6 +641,15 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
               manifest_count: overlongVaultTableCount,
               partial_manifest: overlongVaultTableCount !== 0,
             },
+          },
+          {
+            api: "akbEnsureReefTables mismatch preflight",
+            input: {
+              variants: ["column", "unique_key", "index"],
+              existing_manifest_count: 12,
+              missing_table: REEF_SUBSCRIPTIONS_TABLE,
+            },
+            output: mismatchPreflight,
           },
           {
             api: "akbCreateNotification + akbListNotifications",
