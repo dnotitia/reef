@@ -17,6 +17,7 @@ import {
   type JiraRelatedImportReport,
   importJiraRelatedData,
 } from "../related/import.js";
+import { isRetryableAkbReadError } from "./akbReadRetry.js";
 import {
   baseIssueReadbackMatches,
   issueReadbackApprovalFingerprint,
@@ -275,9 +276,17 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
       readbackFound: boolean;
     }> => {
       const desired = plan.desired.issue;
-      const readback = desired
-        ? await target.readIssue(desired.id).catch(() => null)
-        : null;
+      let readback: Awaited<
+        ReturnType<AkbJiraMigrationTarget["readIssue"]>
+      > | null = null;
+      if (desired) {
+        try {
+          readback = await target.readIssue(desired.id);
+        } catch (error) {
+          if (isRetryableAkbReadError(error))
+            throw new JiraRunnerError("target_unavailable");
+        }
+      }
       if (
         !desired ||
         !readback ||
@@ -313,6 +322,8 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
       try {
         await target.claimIssue(plan);
       } catch (error) {
+        if (isRetryableAkbReadError(error))
+          throw new JiraRunnerError("target_unavailable");
         const reefId = plan.desired.issue?.id;
         if (reefId) {
           if (error instanceof JiraTargetConflictError) {
@@ -450,7 +461,9 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
         if (desired) {
           try {
             readback = await target.readIssue(desired.id);
-          } catch {
+          } catch (error) {
+            if (isRetryableAkbReadError(error))
+              throw new JiraRunnerError("target_unavailable");
             record(
               "issues",
               resultFor({
@@ -516,9 +529,17 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
         | undefined;
       if (action === "update") {
         const desired = plan.desired.issue;
-        const current = desired
-          ? await target.readIssue(desired.id).catch(() => null)
-          : null;
+        let current: Awaited<
+          ReturnType<AkbJiraMigrationTarget["readIssue"]>
+        > | null = null;
+        if (desired) {
+          try {
+            current = await target.readIssue(desired.id);
+          } catch (error) {
+            if (isRetryableAkbReadError(error))
+              throw new JiraRunnerError("target_unavailable");
+          }
+        }
         if (
           desired &&
           baseIssueReadbackMatches(
@@ -741,6 +762,10 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
         });
       } catch (relatedError) {
         const relatedFailure = relatedExecutionError(relatedError);
+        if (relatedFailure.retryable) {
+          await checkpoint();
+          throw new JiraRunnerError("target_unavailable");
+        }
         const planned = relatedPlanningReports.find(
           (candidate) => candidate.issue_key === issue.key,
         );
@@ -770,6 +795,10 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
       }
       ledger = result.ledger;
       relatedApplyReports.push({ issue_key: issue.key, report: result.report });
+      if (result.report.failures.some((failure) => failure.retryable)) {
+        await checkpoint();
+        throw new JiraRunnerError("target_unavailable");
+      }
       recordReportOnly(
         "related",
         `related:${issue.key}`,

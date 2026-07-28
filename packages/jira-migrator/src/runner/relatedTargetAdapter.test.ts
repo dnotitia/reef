@@ -7,7 +7,7 @@ describe("AKB Jira related target", () => {
     const request = vi
       .fn()
       .mockRejectedValueOnce(
-        new AkbApiError({ status: 503, message: "temporarily unavailable" }),
+        new AkbApiError({ status: 0, message: "connect timeout" }),
       )
       .mockRejectedValueOnce(
         new AkbApiError({ status: 503, message: "temporarily unavailable" }),

@@ -720,6 +720,11 @@ Checkpoint persistence uses the immutable ledger object's identity: report-only
 classifications that leave the ledger unchanged do not rewrite the full private
 artifact, while every new binding or entity result still uses the same
 compare-and-swap, atomic-write, and immediate-readback path.
+AKB reads retry bounded transport (`status 0`), rate-limit, and 5xx failures.
+If that bound is exhausted, apply fails fast with `target_unavailable` at the
+last durable checkpoint instead of overwriting hundreds of otherwise valid
+entity results with identical outage failures. A fresh approval is still
+required when partial success changed target or ledger state.
 The ordered phases are planning, issues, related
 (comments/attachments/changelog), and reconciliation. Reordering source input
 does not change which completed entities are skipped.

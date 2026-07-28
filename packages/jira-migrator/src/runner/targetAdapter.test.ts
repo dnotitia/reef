@@ -1,4 +1,5 @@
 import {
+  AkbApiError,
   type AkbReadIssueResult,
   type AkbUpdateIssueResult,
   ConflictError,
@@ -625,6 +626,56 @@ describe("AKB Jira migration target", () => {
 
     await expect(target.claimIssue(issuePlan)).resolves.toBeUndefined();
     expect(claimIssueId).toHaveBeenCalledTimes(2);
+    expect(waitForConsistency).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries an AKB network failure on a public issue read", async () => {
+    const readback = {
+      issue: {
+        id: "REEF-010",
+        title: "Alpha issue",
+        status: "todo",
+        created_at: "2026-07-23T00:00:00.000Z",
+        created_by: "operator",
+        updated_at: "2026-07-23T00:00:00.000Z",
+        updated_by: "operator",
+      },
+      content: "body",
+      path: "issues/reef-010.md",
+      commit_hash: "commit-1",
+    } as AkbReadIssueResult;
+    const readIssue = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new AkbApiError({ status: 0, message: "connect timeout" }),
+      )
+      .mockResolvedValue(readback);
+    const waitForConsistency = vi.fn(async () => undefined);
+    const target = createAkbJiraMigrationTarget(
+      {
+        baseUrl: "https://akb.test",
+        jwt: "jwt",
+        vault: "reef-test",
+        issuePrefix: "REEF",
+      },
+      {
+        createAdapter: () => ({ request: vi.fn() }),
+        getCurrentActor: async () => ({ actor: "operator" }),
+        listPlanningCatalog: vi.fn(),
+        createRelease: vi.fn(),
+        createSprint: vi.fn(),
+        readPlanningCreateClaim: vi.fn(),
+        allocateNextIssueId: vi.fn(),
+        writeIssue: vi.fn(),
+        updateIssue: vi.fn(),
+        readIssue,
+        claimIssueId: vi.fn(),
+        waitForConsistency,
+      },
+    );
+
+    await expect(target.readIssue("REEF-010")).resolves.toBe(readback);
+    expect(readIssue).toHaveBeenCalledTimes(2);
     expect(waitForConsistency).toHaveBeenCalledTimes(1);
   });
 

@@ -33,6 +33,7 @@ import type {
 } from "../planning/entities.js";
 import { canonicalizeJson } from "../rawArchive.js";
 import type { JiraRelatedImportTarget } from "../related/contracts.js";
+import { isRetryableAkbReadError, retryAkbRead } from "./akbReadRetry.js";
 import { jiraOwnerIdentity } from "./ownership.js";
 import { createAkbRelatedTarget } from "./relatedTargetAdapter.js";
 import {
@@ -240,7 +241,16 @@ export function createAkbJiraMigrationTarget(
         const value = await read();
         if (matches(value)) return value;
       } catch (error) {
-        if (!(error instanceof NotFoundError)) throw error;
+        if (
+          !(error instanceof NotFoundError) &&
+          !isRetryableAkbReadError(error)
+        )
+          throw error;
+        if (
+          isRetryableAkbReadError(error) &&
+          attempt === CONSISTENCY_READ_ATTEMPTS - 1
+        )
+          throw error;
       }
       if (attempt < CONSISTENCY_READ_ATTEMPTS - 1) {
         await consistencyPause();
@@ -265,7 +275,10 @@ export function createAkbJiraMigrationTarget(
         return canonicalizeJson(projection) === canonicalizeJson(target.item);
       },
     );
-  const readIssue = (id: string) => core.readIssue({ adapter, vault, id });
+  const readIssue = (id: string) =>
+    retryAkbRead(() => core.readIssue({ adapter, vault, id }), {
+      wait: consistencyPause,
+    });
   const updateIssue = (
     id: string,
     partial: Partial<IssueMetadata>,
@@ -496,11 +509,7 @@ export function createAkbJiraMigrationTarget(
       if (action === "create") {
         let current: AkbReadIssueResult | null = null;
         try {
-          current = await core.readIssue({
-            adapter,
-            vault,
-            id: desired.id,
-          });
+          current = await readIssue(desired.id);
         } catch (error) {
           if (!(error instanceof NotFoundError)) throw error;
         }
@@ -563,11 +572,7 @@ export function createAkbJiraMigrationTarget(
           }
         }
       } else {
-        const current = await core.readIssue({
-          adapter,
-          vault,
-          id: desired.id,
-        });
+        const current = await readIssue(desired.id);
         if (
           approvedReadback &&
           canonicalizeWireValue({
@@ -664,7 +669,7 @@ export function createAkbJiraMigrationTarget(
       };
     },
     readIssue(id) {
-      return core.readIssue({ adapter, vault, id });
+      return readIssue(id);
     },
     async claimIssue(plan) {
       const desired = plan.desired.issue;

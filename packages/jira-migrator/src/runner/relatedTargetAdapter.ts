@@ -1,7 +1,6 @@
 import {
   type ActivityEventInput,
   type AkbAdapter,
-  AkbApiError,
   type AkbReadIssueResult,
   type AkbUpdateIssueResult,
   type Comment,
@@ -22,6 +21,7 @@ import type {
   JiraImportedCommentInput,
   JiraRelatedImportTarget,
 } from "../related/contracts.js";
+import { retryAkbRead } from "./akbReadRetry.js";
 import {
   type MigrationSidecar,
   addUnique,
@@ -49,19 +49,8 @@ interface RelatedTargetDependencies {
 export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
   const { adapter, vault, readIssue, updateIssue } = input;
   const pause = input.waitForConsistency ?? (() => Promise.resolve());
-  const retryRead = async <T>(read: () => Promise<T>): Promise<T> => {
-    for (let attempt = 0; ; attempt += 1) {
-      try {
-        return await read();
-      } catch (error) {
-        const retryable =
-          error instanceof AkbApiError &&
-          (error.status === 429 || error.status >= 500);
-        if (!retryable || attempt >= 19) throw error;
-        await pause();
-      }
-    }
-  };
+  const retryRead = <T>(read: () => Promise<T>): Promise<T> =>
+    retryAkbRead(read, { wait: pause });
   const readSql = (statement: string) =>
     retryRead(() => sql(adapter, vault, statement));
   const readTargetIssue = (id: string) => retryRead(() => readIssue(id));

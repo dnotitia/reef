@@ -18,6 +18,7 @@ import type {
 } from "../planning/entities.js";
 import type { JiraRelatedOperationKind } from "../related/contracts.js";
 import type { JiraRelatedImportReport } from "../related/import.js";
+import { isRetryableAkbReadError } from "./akbReadRetry.js";
 
 type JiraMigrationBinding = JiraMigrationLedgerV1["bindings"][number];
 
@@ -207,10 +208,11 @@ export const relatedExecutionError = (
   retryable: boolean;
 } => {
   const retryable =
-    typeof error === "object" &&
-    error !== null &&
-    "retryable" in error &&
-    error.retryable === true;
+    isRetryableAkbReadError(error) ||
+    (typeof error === "object" &&
+      error !== null &&
+      "retryable" in error &&
+      error.retryable === true);
   return {
     action: retryable ? "failed" : "conflict",
     reason: safeMigrationFailureReason(error, "related_import_failed"),

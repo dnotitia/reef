@@ -1,12 +1,11 @@
-import { AkbApiError } from "@reef/core";
+import { isRetryableAkbReadError } from "../runner/akbReadRetry.js";
 import type {
   JiraRelatedImportFailure,
   JiraRelatedImportReport,
 } from "./contracts.js";
 
 const retryableError = (error: unknown): boolean =>
-  (error instanceof AkbApiError &&
-    (error.status === 429 || error.status >= 500)) ||
+  isRetryableAkbReadError(error) ||
   (typeof error === "object" &&
     error !== null &&
     "retryable" in error &&
