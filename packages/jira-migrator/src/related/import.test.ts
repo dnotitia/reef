@@ -1430,6 +1430,45 @@ describe("Jira related-data import stage", () => {
     ).toBe(true);
   });
 
+  it("preserves the original readback error when revoking an invalid residual attachment", async () => {
+    const state = makeTarget();
+    const createAttachment = state.target.createAttachment.bind(state.target);
+    state.target.createAttachment = (input) =>
+      createAttachment({ ...input, filename: "server-name.dat" });
+
+    const result = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client: makeClient([]),
+      target: state.target,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [],
+      resolveIssueTarget: () => null,
+      mode: "apply",
+    });
+
+    expect(result.report.failures).toContainEqual(
+      expect.objectContaining({
+        source_kind: "attachment",
+        reason: "attachment_readback_mismatch:filename",
+      }),
+    );
+    expect(state.attachments.size).toBe(0);
+    expect(
+      result.ledger.bindings.some(
+        (binding) => binding.entity_kind === "attachment",
+      ),
+    ).toBe(false);
+  });
+
   it("does not treat an omitted attachment field as an empty catalog", async () => {
     const state = makeTarget();
     const base = {

@@ -1,4 +1,5 @@
 import { resolveJiraActor } from "../accounts/mapping.js";
+import { sha256 } from "../archive/canonicalJson.js";
 import { fingerprintJiraState } from "../execution/diff.js";
 import {
   type JiraMigrationLedgerV1,
@@ -579,7 +580,10 @@ export async function importAttachments(options: {
                 file_uri: residual.attachment.file_uri,
                 size: download.bytes.byteLength,
               })
-            : fingerprintJiraState(residual),
+            : fingerprintJiraState({
+                attachment: residual.attachment,
+                bytes_sha256: sha256(residual.bytes),
+              }),
           lastAppliedAt: now(),
           writeSucceeded: true,
           readbackSucceeded: true,
