@@ -1,29 +1,28 @@
-"use client";
+import { VAULT_NAME_RE } from "@/lib/akb/vaultName";
+import { withVault } from "@/lib/workspaceHref";
+import { notFound, redirect } from "next/navigation";
 
-import { ActivityFeed } from "@/features/activity/components/ActivityFeed";
-import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
-import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
-import { PageBody } from "@/features/ui/components/PageBody";
-import { PageHeader } from "@/features/ui/components/PageHeader";
-import { useTranslations } from "next-intl";
+type LegacyActivitySearchParams = Record<string, string | string[] | undefined>;
 
-/**
- * Activity Page — renders ActivityFeed for recent auto-updates.
- */
-export default function ActivityPage() {
-  const { vault, isLoading } = useActiveVault();
-  const nav = useTranslations("nav");
+export default async function LegacyWorkspaceActivityPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ vault: string }>;
+  searchParams: Promise<LegacyActivitySearchParams>;
+}) {
+  const { vault } = await params;
+  if (!VAULT_NAME_RE.test(vault)) notFound();
+  const query = new URLSearchParams();
 
-  return (
-    <div className="flex h-full flex-col">
-      <PageHeader title={nav("activity")} description={vault || undefined} />
-      {!vault && !isLoading ? (
-        <EmptyWorkspaceNotice />
-      ) : (
-        <PageBody width="narrow">
-          <ActivityFeed vault={vault} />
-        </PageBody>
-      )}
-    </div>
-  );
+  for (const [key, value] of Object.entries(await searchParams)) {
+    if (typeof value === "string") {
+      query.append(key, value);
+      continue;
+    }
+    for (const item of value ?? []) query.append(key, item);
+  }
+
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+  redirect(withVault(vault, `/suggestions${suffix}`));
 }

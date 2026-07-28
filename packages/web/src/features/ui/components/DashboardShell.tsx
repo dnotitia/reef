@@ -4,14 +4,11 @@ import { Button } from "@/components/ui/button";
 import { ReefMark } from "@/components/ui/reef-mark";
 import { ACTIVITY_SUGGESTIONS_QUERY_KEY } from "@/features/activity/hooks/useActivityFeed";
 import { useActivityRepo } from "@/features/activity/hooks/useActivityRepo";
+import { usePendingSuggestionsCount } from "@/features/activity/hooks/usePendingSuggestionsCount";
 import {
   useScanActivity,
   useScanAutoTrigger,
 } from "@/features/activity/hooks/useScanActivity";
-import {
-  UNREAD_INBOX_QUERY_KEY,
-  useUnreadInboxCount,
-} from "@/features/activity/hooks/useUnreadInboxCount";
 import { AskAiFab } from "@/features/ai/components/AskAiFab";
 import { useAskAiStore } from "@/features/ai/stores/useAskAiStore";
 import { SidebarAccount } from "@/features/auth/components/SidebarAccount";
@@ -53,7 +50,7 @@ import {
   BarChart3,
   ChevronLeft,
   CircleUser,
-  Inbox,
+  ListChecks,
   ListTodo,
   type LucideIcon,
   Milestone,
@@ -110,7 +107,7 @@ const navLinks: ReadonlyArray<{
     | "issues"
     | "myWork"
     | "planning"
-    | "activity"
+    | "suggestions"
     | "reports"
     | "settings";
   testId: string;
@@ -126,7 +123,12 @@ const navLinks: ReadonlyArray<{
     testId: "planning",
     icon: Milestone,
   },
-  { href: "/activity", labelKey: "activity", testId: "activity", icon: Inbox },
+  {
+    href: "/suggestions",
+    labelKey: "suggestions",
+    testId: "suggestions",
+    icon: ListChecks,
+  },
   { href: "/reports", labelKey: "reports", testId: "reports", icon: BarChart3 },
   {
     href: "/settings",
@@ -136,8 +138,8 @@ const navLinks: ReadonlyArray<{
   },
 ] as const;
 
-/** A sidebar nav badge (REEF-204): the Activity "unread" pill and the My
- * Work "needs attention" pill share one render path, differing in tone.
+/** A sidebar nav badge: Suggestions pending, My Work attention, and Settings
+ * drift share one render path, differing in tone.
  * Filled-pill + white foreground is the sidebar's badge vocabulary (the count is
  * also carried by an aria-label, so the small chip is not the signal). */
 type NavBadgeTone = "brand" | "danger" | "warn";
@@ -155,8 +157,8 @@ const NAV_BADGE_DOT: Record<NavBadgeTone, string> = {
 };
 
 interface NavBadge {
-  /** "count" → a numeric pill when expanded, a dot when collapsed (Activity, My
-   * Work). "state" → a dot in both layouts: a binary signal that carries no
+  /** "count" → a numeric pill when expanded, a dot when collapsed (Suggestions,
+   * My Work). "state" → a dot in both layouts: a binary signal that carries no
    * quantity, so a counting pill would be the wrong vocabulary (REEF-257 — the
    * workspace skill is either drifted or not). */
   kind: "count" | "state";
@@ -233,9 +235,9 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
     : t("newIssue");
 
   // Auto-detection trigger lives at the shell so it fires regardless of which
-  // page the user is on — Board / List / Settings all benefit. ActivityFeed
-  // keeps its own mutation for the manual refresh button (separate instance,
-  // same AKB activity inbox, same invalidation channel).
+  // page the user is on — Board / List / Settings all benefit. The Suggestions
+  // queue keeps its own mutation for the manual refresh button (separate
+  // instance, same persisted queue and invalidation channel).
   const { vault } = useActiveVault();
   const queryClient = useQueryClient();
 
@@ -256,23 +258,18 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
         void queryClient.invalidateQueries({
           queryKey: ACTIVITY_SUGGESTIONS_QUERY_KEY,
         });
-        void queryClient.invalidateQueries({
-          queryKey: UNREAD_INBOX_QUERY_KEY,
-        });
       }
     },
   });
   useScanAutoTrigger(vault, scanRepo, scan.mutate);
 
-  // Unread count for the sidebar Activity badge. Hidden while the user is
-  // already on /activity — they can see the items themselves and ActivityFeed
-  // updates `last_visit_at` on mount to clear it.
-  const unreadInboxCount = useUnreadInboxCount(vault);
+  // Suggestions are actionable queue state, not a visit marker. Keep the
+  // actual pending total visible even while the user is reviewing the queue.
+  const pendingSuggestionsCount = usePendingSuggestionsCount(vault);
 
   // My Work "needs attention" count for its sidebar badge (REEF-204): the
   // signed-in user's overdue + due-soon work, derived from MyWorkPage's same
-  // `useIssueList` cache (no extra fetch). Hidden while on /my-work, like the
-  // Activity badge.
+  // `useIssueList` cache (no extra fetch). Hidden while on /my-work.
   const { attention, overdue, dueSoon } = useMyWorkAttention();
 
   // Workspace skill (agent-playbook) drift for the sidebar Settings badge
@@ -287,21 +284,23 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   // badge stays dark (REEF-257 AC3).
   const skillOutdated = skillStatus.data?.up_to_date === false;
 
-  // Resolve the badge a nav link shows, if any. Returns null while the link is
-  // active so the page itself owns the signal then (matches Activity; for
-  // Settings the drift detail + update affordance lives on the page).
+  // Resolve the badge a nav link shows, if any. Suggestions is intentionally
+  // handled first because its actionable count remains visible on the active
+  // page; other destinations own their signal while active.
   function navBadgeFor(href: string, isActive: boolean): NavBadge | null {
-    if (isActive) return null;
-    if (href === "/activity" && unreadInboxCount > 0) {
+    if (href === "/suggestions" && pendingSuggestionsCount > 0) {
       return {
         kind: "count",
-        display: cap(unreadInboxCount),
-        label: t("badge.unread", { count: unreadInboxCount }),
+        display: cap(pendingSuggestionsCount),
+        label: t("badge.pendingSuggestions", {
+          count: pendingSuggestionsCount,
+        }),
         tone: "brand",
-        badgeTestId: "activity-unread-badge",
-        dotTestId: "activity-unread-dot",
+        badgeTestId: "suggestions-pending-badge",
+        dotTestId: "suggestions-pending-dot",
       };
     }
+    if (isActive) return null;
     if (href === "/my-work" && attention > 0) {
       const parts: string[] = [];
       if (overdue > 0) parts.push(t("badge.overdue", { count: overdue }));
@@ -455,11 +454,11 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
         handler: () => navigateTo("/my-work"),
       },
       {
-        labelKey: "goActivity",
+        labelKey: "goSuggestions",
         scope: "global",
         chordPrefix: "g",
-        keys: [{ key: "a" }],
-        handler: () => navigateTo("/activity"),
+        keys: [{ key: "s" }],
+        handler: () => navigateTo("/suggestions"),
       },
       {
         labelKey: "goReports",
@@ -685,12 +684,13 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                           className="h-[18px] w-[18px] shrink-0 stroke-[1.9]"
                         />
                         {badge && (
-                          <span
+                          <output
                             data-testid={badge.dotTestId}
                             className={cn(
                               "absolute right-1 top-1 h-1.5 w-1.5 rounded-full",
                               NAV_BADGE_DOT[badge.tone],
                             )}
+                            aria-live="polite"
                             aria-label={badge.label}
                           />
                         )}
@@ -704,8 +704,9 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                             // collapsed layout, parked in the badge gutter where
                             // the count pills sit so the right edge stays a single
                             // scan column (REEF-257).
-                            <span
+                            <output
                               data-testid={badge.badgeTestId}
+                              aria-live="polite"
                               aria-label={badge.label}
                               className={cn(
                                 "ml-auto inline-block h-1.5 w-1.5 rounded-full",
@@ -713,8 +714,9 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                               )}
                             />
                           ) : (
-                            <span
+                            <output
                               data-testid={badge.badgeTestId}
+                              aria-live="polite"
                               aria-label={badge.label}
                               className={cn(
                                 "ml-auto inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-semibold leading-none tabular-nums",
@@ -722,7 +724,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                               )}
                             >
                               {badge.display}
-                            </span>
+                            </output>
                           ))}
                       </>
                     )}

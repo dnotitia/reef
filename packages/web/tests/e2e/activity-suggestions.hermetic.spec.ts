@@ -39,12 +39,128 @@ test.describe("Hermetic activity suggestion workflows", () => {
     await resetFixture(request, "activity_suggestions");
   });
 
-  test("edits and approves a seeded AI draft through the activity inbox", async ({
+  test("keeps the real pending total across a visit and decreases it after a persisted action", async ({
     page,
     request,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/workspace/reef-e2e/activity");
+    const pendingSuggestions = reefVault(
+      await readFixtureState(request),
+    ).activity_suggestions.filter(
+      (suggestion) => suggestion.status === "pending",
+    );
+    const pendingBefore = pendingSuggestions.length;
+    expect(pendingBefore).toBeGreaterThan(0);
+
+    const expandedBadge = page.getByTestId("suggestions-pending-badge");
+    await expect(expandedBadge).toHaveAccessibleName(
+      `${pendingBefore} pending suggestions`,
+    );
+
+    await page.getByRole("link", { name: /Suggestions/ }).click();
+    await expect(page).toHaveURL("/workspace/reef-e2e/suggestions");
+    await expect(
+      page.getByRole("heading", { name: "Suggestions to review" }),
+    ).toBeVisible();
+    const draftProvenance = page
+      .getByTestId("suggestion-provenance")
+      .filter({ hasText: "AI Draft" });
+    const statusChangeProvenance = page
+      .getByTestId("suggestion-provenance")
+      .filter({ hasText: "AI Status Change" });
+    await expect(draftProvenance).toHaveCount(
+      pendingSuggestions.filter((suggestion) => suggestion.kind === "draft")
+        .length,
+    );
+    await expect(statusChangeProvenance).toHaveCount(
+      pendingSuggestions.filter(
+        (suggestion) => suggestion.kind === "status_change",
+      ).length,
+    );
+    await expect(draftProvenance.first()).toBeVisible();
+    await expect(statusChangeProvenance.first()).toBeVisible();
+    await expect(expandedBadge).toHaveAccessibleName(
+      `${pendingBefore} pending suggestions`,
+    );
+
+    const dismissedCard = page
+      .locator('[data-testid="activity-item-ai_draft"]')
+      .filter({ hasText: "Dismiss stale draft" });
+    const dismissedSuggestion = pendingSuggestions.find(
+      (suggestion) => suggestion.title === "Dismiss stale draft",
+    );
+    expect(dismissedSuggestion).toBeDefined();
+    await dismissedCard.getByRole("button", { name: "Dismiss" }).click();
+
+    const pendingAfter = pendingBefore - 1;
+    await expect(expandedBadge).toHaveAccessibleName(
+      `${pendingAfter} pending suggestions`,
+    );
+    await expect
+      .poll(
+        async () =>
+          reefVault(
+            await readFixtureState(request),
+          ).activity_suggestions.filter(
+            (suggestion) => suggestion.status === "pending",
+          ).length,
+      )
+      .toBe(pendingAfter);
+    await page.reload();
+    await expect
+      .poll(
+        async () =>
+          suggestionById(
+            await readFixtureState(request),
+            dismissedSuggestion?.id ?? "",
+          ).status,
+      )
+      .toBe("dismissed");
+    const pendingApiResponse = await page.request.get(
+      `/api/activity/suggestions?vault=${REEF_E2E_VAULT}&status=pending`,
+    );
+    expect(pendingApiResponse.ok()).toBe(true);
+    const pendingApiBody = (await pendingApiResponse.json()) as {
+      suggestions: unknown[];
+    };
+    expect(pendingApiBody.suggestions).toHaveLength(pendingAfter);
+    await expect(expandedBadge).toHaveAccessibleName(
+      `${pendingAfter} pending suggestions`,
+    );
+    await expect
+      .poll(
+        async () =>
+          reefVault(
+            await readFixtureState(request),
+          ).activity_suggestions.filter(
+            (suggestion) => suggestion.status === "pending",
+          ).length,
+      )
+      .toBe(pendingAfter);
+  });
+
+  test("preserves repeated and empty query values through scoped and flat compatibility URLs", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    await page.goto("/workspace/reef-e2e/activity?tag=a&tag=b&empty=");
+    await expect(page).toHaveURL(
+      "/workspace/reef-e2e/suggestions?tag=a&tag=b&empty=",
+    );
+
+    await page.goto("/activity?tag=a&tag=b&empty=");
+    await expect(page).toHaveURL(
+      "/workspace/reef-e2e/suggestions?tag=a&tag=b&empty=",
+    );
+  });
+
+  test("edits and approves a seeded AI draft through Suggestions", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/suggestions");
 
     const draftCard = page
       .locator('[data-testid="activity-item-ai_draft"]')
@@ -109,7 +225,7 @@ test.describe("Hermetic activity suggestion workflows", () => {
     request,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/workspace/reef-e2e/activity");
+    await page.goto("/workspace/reef-e2e/suggestions");
 
     const draftCard = page
       .locator('[data-testid="activity-item-ai_draft"]')
@@ -137,7 +253,7 @@ test.describe("Hermetic activity suggestion workflows", () => {
     request,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/workspace/reef-e2e/activity");
+    await page.goto("/workspace/reef-e2e/suggestions");
 
     const statusCard = page
       .locator('[data-testid="activity-item-ai_status_change"]')
@@ -186,7 +302,7 @@ test.describe("Hermetic activity suggestion workflows", () => {
     request,
   }) => {
     await openExistingWorkspace(page);
-    await page.goto("/workspace/reef-e2e/activity");
+    await page.goto("/workspace/reef-e2e/suggestions");
 
     const statusCard = page
       .locator('[data-testid="activity-item-ai_status_change"]')

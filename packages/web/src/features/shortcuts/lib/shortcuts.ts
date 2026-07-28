@@ -7,7 +7,7 @@ export type ShortcutActionKey =
   | "showKeyboardShortcuts"
   | "goIssues"
   | "goMyWork"
-  | "goActivity"
+  | "goSuggestions"
   | "goReports"
   | "goBacklog"
   | "newIssue"
@@ -64,7 +64,7 @@ export const SHORTCUT_GROUPS: ReadonlyArray<ShortcutGroup> = [
       },
       { labelKey: "goIssues", keys: ["G", "I"], scope: "global" },
       { labelKey: "goMyWork", keys: ["G", "M"], scope: "global" },
-      { labelKey: "goActivity", keys: ["G", "A"], scope: "global" },
+      { labelKey: "goSuggestions", keys: ["G", "S"], scope: "global" },
       { labelKey: "goReports", keys: ["G", "R"], scope: "global" },
       { labelKey: "goBacklog", keys: ["G", "B"], scope: "global" },
     ],

@@ -60,7 +60,7 @@ describe("SHORTCUT_GROUPS", () => {
         "showKeyboardShortcuts",
         "goIssues",
         "goMyWork",
-        "goActivity",
+        "goSuggestions",
         "goReports",
         "goBacklog",
         "newIssue",
@@ -74,6 +74,18 @@ describe("SHORTCUT_GROUPS", () => {
         "toggleAskAi",
       ]),
     );
+  });
+
+  it("advertises Suggestions on G S and does not retain G A", () => {
+    const suggestions = SHORTCUT_GROUPS.flatMap((g) => g.shortcuts).find(
+      (shortcut) => shortcut.labelKey === "goSuggestions",
+    );
+    expect(suggestions?.keys).toEqual(["G", "S"]);
+    expect(
+      SHORTCUT_GROUPS.flatMap((g) => g.shortcuts).some(
+        (shortcut) => shortcut.keys.join(" ") === "G A",
+      ),
+    ).toBe(false);
   });
 
   it("uses a browser-safe chord for the new issue action", () => {

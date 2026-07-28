@@ -74,5 +74,11 @@ export function ActivityItemCard({
           isApproving={isApproving}
         />
       );
+    default:
+      return assertNever(item);
   }
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unsupported suggestion item: ${JSON.stringify(value)}`);
 }

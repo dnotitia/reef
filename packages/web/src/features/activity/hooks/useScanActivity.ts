@@ -55,8 +55,7 @@ function isMissingCredentialsError(
  *
  * Replaces `useDetectUntrackedActivity` (untracked). The unified scan
  * additionally detects tracked-activity status changes. The browser keeps just
- * the scan watermark locally; pending suggestion state now lives in the AKB
- * activity inbox.
+ * the scan watermark locally; pending suggestion state now lives in AKB.
  */
 export function useScanActivity(options?: {
   onSuccess?: (result: ScanActivityResult) => void;

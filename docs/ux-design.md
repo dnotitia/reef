@@ -103,8 +103,8 @@ advisory, opens matches in a new tab for
 inspection, can be dismissed as a contextual group for the current writing
 session, and never blocks creating or approving an issue.
 
-The same human-in-the-loop pattern governs the second AI surface: the
-**Activity Hub**, where the agent's autonomously detected proposals —
+The same human-in-the-loop pattern governs the second AI surface:
+**Suggestions**, where the agent's autonomously detected proposals —
 new-issue drafts and status changes inferred from repo activity — wait for the
 PM's Approve / Edit / Dismiss. And a third surface, the **Ask AI** panel, lets
 the PM interrogate the codebase conversationally with the same read-only
@@ -339,7 +339,7 @@ fluid main column:
 
 - **Sidebar** — collapsible between an expanded `w-60` and a `w-14` icon rail.
   It holds the reef wordmark, a prominent New Issue button, the primary nav
-  (Issues / My Work / Planning / Activity / Reports / Settings), a footer
+  (Issues / My Work / Planning / Suggestions / Reports / Settings), a footer
   utility row for keyboard shortcuts, and the workspace/account identity block.
   App-version context lives in the account menu as a release-notes link.
 - **Main column** — a per-page header and the page body. The Issues page body
@@ -518,13 +518,22 @@ at a time, name the direct parent author, preserve the draft with an inline
 error on failure, and close on cancel or success. The root timestamp determines
 the thread's position among system events, while replies sort within the thread.
 
-### Activity Hub
+### Suggestions Review Queue
 
-`/activity` is the PM's review queue for everything the agent detected. A
-background scan of the configured monitored repo (auto-triggered from the
-shell, and manually refreshable here) feeds an akb activity inbox; the sidebar
-shows an unread badge until the PM visits, at which point the feed records the
-visit and clears it.
+`/workspace/{vault}/suggestions` is the PM's single review queue for proposals
+detected by the agent. A background scan of the configured monitored
+repositories (auto-triggered from the shell and manually refreshable here)
+feeds the existing akb suggestion storage. The sidebar badge is the total
+number of `pending` suggestions, independent of page visits or future
+notification unread state. It remains visible on the active route, uses a
+numbered pill in the expanded sidebar and an equivalently named dot in the
+collapsed rail, and decreases only when a review action changes queue state.
+
+`/workspace/{vault}/activity` remains a replace-style compatibility redirect to
+Suggestions and preserves single, repeated, and empty query values. The legacy
+flat `/activity` route still resolves the remembered, accessible workspace
+before following the same redirect. The issue-detail **Activity** timeline is a
+separate immutable audit surface and keeps its name and behavior.
 
 The feed is a list of purple-tinted AI cards in two variants, each
 human-in-the-loop:
@@ -541,11 +550,13 @@ human-in-the-loop:
   excluded — closing needs a reason and stays in the close dialog).
 
 When the PM returns after an absence with new items waiting, a brand-tinted
-**"Since you were last here"** summary card leads the feed with the counts,
-dismissible with "Got it". Type filters (All / AI Drafts / Status Changes)
-sit above the feed. Dismissed and approved suggestions persist as akb activity
-suggestion state so they don't reappear for the workspace. The empty state reads
-"No AI drafts or status changes to review."
+**"New since your last review"** summary card can still orient them without
+changing the pending badge. Type filters (All / Draft issues / Status Changes)
+sit above the queue. Each purple card carries a text AI provenance badge, so
+the source is not conveyed by color alone or promoted into the page title.
+Dismissed and approved suggestions persist as akb suggestion state so they
+don't reappear for the workspace. The empty state reads "No suggestions to
+review."
 
 ### Ask AI
 
@@ -627,11 +638,12 @@ Enrichment is always explicitly triggered (never on keystroke), always
 reviewable, and always optional — an issue can be created with no AI
 involvement at all, and a missing AI deployment simply disables the button.
 
-### Journey 2 — Morning Review at the Activity Hub
+### Journey 2 — Morning Suggestions Review
 
-1. The PM returns and sees the **Activity** nav item carrying an unread badge.
-2. They open `/activity`. A "Since you were last here" summary leads with the
-   counts; visiting clears the unread badge.
+1. The PM returns and sees the **Suggestions** nav item carrying the total
+   pending count.
+2. They open `/workspace/{vault}/suggestions`. The queue title says
+   "Suggestions to review"; visiting does not change the pending count.
 3. They scan the purple cards. For each **AI Status Change**, the from→to
    transition, rationale, and evidence count tell them why the agent thinks the
    work moved; for each **AI Draft**, the title, preview, and confidence tell
@@ -661,7 +673,8 @@ that exist and define the experience:
   linked documents, the activity timeline, and the relations/refs editors.
 - **AI surfaces.** `EnrichmentReviewBar` (the purple strip with loading/empty/
   error/progress states), `FieldSuggestion` (the inline per-field review card),
-  `ConfidenceBadge`, `TextDiff` (word/line diffs), the Activity `ActivityFeed`
+  `ConfidenceBadge`, `TextDiff` (word/line diffs), the Suggestions
+  `ActivityFeed`
   / `ActivityItemCard` / `UnreviewedSummaryCard`, and the Ask AI
   `AskAiFab` / `AskAiDialog` / `ChatSurface`.
 - **Shell.** `DashboardShell` (sidebar, nav, account/release context, global
@@ -681,7 +694,8 @@ Three feedback sources are treated distinctly:
   inline edits in the detail panel are silent except for the header Saving…/
   Saved indicator; filters/sorts re-render silently.
 - **AI actions** — always purple. Enrichment shows a loading strip, then
-  per-field review cards; the Activity feed shows purple proposal cards;
+  per-field review cards; the Suggestions queue shows purple proposal cards
+  with text provenance;
   confidence is always visible.
 - **System errors** — translated to PM vocabulary, shown inline with
   `role="alert"` or as a toast, never as Git or raw backend errors.
@@ -696,14 +710,14 @@ actions (Delete) are red and confirmed.
 Loading uses TanStack Query's `isPending` with shadcn `<Skeleton>` placeholders
 shaped like the content they replace (column skeletons on the board, table rows
 for list/backlog, a structured skeleton in the detail panel, settings group
-skeletons, row skeletons in the activity feed), plus a slow shimmer. The **AI
+skeletons, row skeletons in the Suggestions queue), plus a slow shimmer. The **AI
 enrichment loading state is purple-tinted** — the
 `EnrichmentReviewBar`'s "Analyzing fields…" strip uses the `--ai-subtle`
 surface with a spinning indicator, matching the purple of the suggestions it
 precedes — so AI work is visually distinct from neutral content loading.
 
 Empty states explain and offer a next step: an unconfigured workspace points to
-Settings; an empty activity feed says there's nothing to review; an
+Settings; an empty Suggestions queue says there's nothing to review; an
 enrichment that returns nothing says "No additional suggestions." A screen is
 never left blank.
 

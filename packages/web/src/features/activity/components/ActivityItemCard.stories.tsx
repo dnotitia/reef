@@ -3,7 +3,7 @@ import type { ActivityFeedItem } from "../types";
 import { ActivityItemCard } from "./ActivityItemCard";
 
 const meta: Meta<typeof ActivityItemCard> = {
-  title: "Activity/ActivityItemCard",
+  title: "Suggestions/ActivityItemCard",
   component: ActivityItemCard,
   parameters: {
     layout: "padded",

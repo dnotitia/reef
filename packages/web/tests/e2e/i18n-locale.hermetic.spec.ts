@@ -369,7 +369,7 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
     await expect(page.getByText(/^Jun \d{4}$/)).toHaveCount(0);
   });
 
-  test("renders migrated activity + planning body strings in the active locale (REEF-305)", async ({
+  test("renders migrated Suggestions + planning body strings in the active locale (REEF-305)", async ({
     page,
   }) => {
     await openExistingWorkspace(page);
@@ -381,18 +381,19 @@ test.describe("Hermetic i18n locale switch + persistence", () => {
       .click();
     await expect(page.locator("html")).toHaveAttribute("lang", "ko");
 
-    // The activity feed's filter controls are web-chrome copy migrated in
-    // REEF-305; they render regardless of the draft set, now from the ko catalog.
-    await page.goto("/workspace/reef-e2e/activity");
+    await page.goto("/workspace/reef-e2e/suggestions");
     await expect(
-      page.getByRole("button", { name: "AI 초안" }).first(),
+      page.getByRole("heading", { name: "검토할 제안" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "이슈 초안" }).first(),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "상태 변경" }).first(),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: "AI Drafts" })).toHaveCount(
-      0,
-    );
+    await expect(
+      page.getByRole("button", { name: "Draft issues" }),
+    ).toHaveCount(0);
 
     // The planning page's kind toggle follows the locale too (REEF-305).
     await page.goto("/workspace/reef-e2e/planning");

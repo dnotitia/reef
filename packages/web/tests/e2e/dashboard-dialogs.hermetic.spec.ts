@@ -22,7 +22,7 @@ test.describe("Hermetic dashboard surfaces and global dialogs", () => {
     await resetFixture(request, "configured");
   });
 
-  test("renders reports and activity read-only dashboard pages through Route Handlers", async ({
+  test("renders reports and Suggestions review pages through Route Handlers", async ({
     page,
   }) => {
     await openExistingWorkspace(page);
@@ -34,7 +34,7 @@ test.describe("Hermetic dashboard surfaces and global dialogs", () => {
     ).toBeVisible();
     await expect(page.getByText("Workflow")).toBeVisible();
 
-    await page.goto("/workspace/reef-e2e/activity");
+    await page.goto("/workspace/reef-e2e/suggestions");
     await expect(page.locator('[data-testid="activity-feed"]')).toBeVisible();
     await expect(
       page.locator('[data-testid="activity-scan-target-empty"]'),

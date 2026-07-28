@@ -20,6 +20,23 @@ explicitly in the entries below.
   real issue links, quiet degradation, and bounded 10-at-a-time expansion up to
   50 results. (REEF-347)
 
+### Changed
+
+- **Activity review is now named Suggestions and has its own navigation
+  surface.** The workspace sidebar, bilingual page copy, and `G S` shortcut
+  open `/workspace/{vault}/suggestions`; the badge reports the full pending
+  queue and changes only after approve or dismiss actions. Existing
+  workspace-scoped and flat `/activity` links redirect without dropping
+  repeated or empty query values, while issue-detail Activity timelines remain
+  unchanged. (REEF-432)
+
+### Migration
+
+- No AKB, API, or browser-storage migration is required for Suggestions. Reef
+  continues to use `reef_activity_suggestions`, `_reef/activity-inbox`,
+  `/api/activity/suggestions`, and the existing core wire schemas; no copy,
+  backfill, Dexie version, or persistence-buster change is needed. (REEF-432)
+
 ### Fixed
 
 - Existing users now resume an accessible configured workspace after signing

@@ -23,7 +23,7 @@ interface ActivityRefreshButtonProps {
 }
 
 /**
- * Manual refresh control for the Activity feed's auto-detection scan.
+ * Manual refresh control for the Suggestions queue's auto-detection scan.
  *
  * Disabled while a scan is in flight (icon swaps to a spinner). The relative
  * "last scanned" label gives the user a sense of staleness without us needing
@@ -83,9 +83,9 @@ export function ActivityRefreshButton({
         className="h-7 gap-1.5 px-2 text-xs"
       >
         {isScanning ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
         ) : (
-          <RefreshCw className={cn("h-3.5 w-3.5")} />
+          <RefreshCw aria-hidden="true" className={cn("h-3.5 w-3.5")} />
         )}
         <span>{t("refresh")}</span>
       </Button>
