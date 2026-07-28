@@ -28,7 +28,9 @@ explicitly in the entries below.
   queue and changes only after approve or dismiss actions. Existing
   workspace-scoped and flat `/activity` links redirect without dropping
   repeated or empty query values, while issue-detail Activity timelines remain
-  unchanged. (REEF-432)
+  unchanged. The workspace shell also waits until its controls are interactive
+  before exposing them, so early clicks and keyboard shortcuts are not silently
+  discarded. (REEF-432)
 
 ### Migration
 

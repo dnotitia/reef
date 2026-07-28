@@ -176,6 +176,7 @@ interface NavBadge {
 const cap = (n: number) => (n > 9 ? "9+" : String(n));
 
 export function DashboardShell({ children, appVersion }: DashboardShellProps) {
+  const [interactionReady, setInteractionReady] = useState(false);
   const sidebarCollapsed = useViewStore((state) => state.sidebarCollapsed);
   const toggleSidebar = useViewStore((state) => state.toggleSidebar);
   const openNewIssueDialog = useViewStore((state) => state.openNewIssueDialog);
@@ -201,6 +202,9 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   // mirroring useThemeSync. Restores a persisted locale if the cookie was
   // cleared (REEF-291).
   useLocaleSync();
+  useEffect(() => {
+    setInteractionReady(true);
+  }, []);
   const t = useTranslations("nav");
   const pathname = usePathname();
   const router = useRouter();
@@ -561,7 +565,18 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   }, [clearChord, resolveShortcutScope, shortcutRegistry]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div
+      className={cn(
+        "flex h-screen overflow-hidden bg-background",
+        // Server-rendered controls look ready before React has attached their
+        // handlers. Keep the shell out of the visible interaction surface for
+        // that brief window so early pointer and keyboard input is not silently
+        // discarded.
+        !interactionReady && "invisible",
+      )}
+      aria-busy={!interactionReady}
+      data-interaction-ready={interactionReady}
+    >
       {/* Sidebar */}
       <aside
         className={cn(

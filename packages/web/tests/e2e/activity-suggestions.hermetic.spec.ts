@@ -139,6 +139,46 @@ test.describe("Hermetic activity suggestion workflows", () => {
       .toBe(pendingAfter);
   });
 
+  test("exposes suggestion controls from an interaction-ready shell", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    const pendingBefore = reefVault(
+      await readFixtureState(request),
+    ).activity_suggestions.filter(
+      (suggestion) => suggestion.status === "pending",
+    ).length;
+
+    await page.goto("/workspace/reef-e2e/suggestions");
+    await expect(page.locator('[data-interaction-ready="true"]')).toBeVisible();
+
+    const collapseSidebar = page.getByRole("button", {
+      name: "Collapse sidebar",
+    });
+    await expect(collapseSidebar).toBeVisible();
+    await collapseSidebar.click();
+    await expect(
+      page.getByRole("button", { name: "Expand sidebar" }),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId("suggestions-pending-dot"),
+    ).toHaveAccessibleName(`${pendingBefore} pending suggestions`);
+
+    await page.goto("/workspace/reef-e2e/issues");
+    await expect(page.locator('[data-interaction-ready="true"]')).toBeVisible();
+    await page.keyboard.press("g");
+    await page.keyboard.press("s");
+    await expect(page).toHaveURL("/workspace/reef-e2e/suggestions");
+
+    await page.getByRole("button", { name: "Keyboard shortcuts" }).click();
+    const shortcutDialog = page.getByTestId("keyboard-shortcuts-dialog");
+    await expect(shortcutDialog).toBeVisible();
+    await expect(
+      shortcutDialog.locator('[data-shortcut-label="goSuggestions"]'),
+    ).toContainText("Suggestions");
+  });
+
   test("preserves repeated and empty query values through scoped and flat compatibility URLs", async ({
     page,
   }) => {
