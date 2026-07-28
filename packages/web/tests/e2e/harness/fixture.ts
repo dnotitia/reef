@@ -171,7 +171,27 @@ export async function signInAsAlice(page: Page): Promise<void> {
   await waitForPasswordLogin(page);
   await page.locator('[data-testid="login-username"]').fill("alice");
   await page.locator('[data-testid="login-password"]').fill("password");
+  const loginResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/auth/akb/login" &&
+      response.request().method() === "POST",
+  );
   await page.locator('[data-testid="login-submit"]').click();
+  const loginResponse = await loginResponsePromise;
+  expect(
+    loginResponse.ok(),
+    `POST /api/auth/akb/login failed with ${loginResponse.status()}`,
+  ).toBeTruthy();
+
+  // Wait until LoginForm has finished account reconciliation and committed its
+  // post-login navigation. Generic fixture setup must not depend on the root
+  // page's subsequent client redirect: when that redirect stalls, every test in
+  // a shard spends all retries waiting for /onboarding even though login and
+  // the session cookie succeeded. Root routing has dedicated coverage.
+  await page.waitForURL((url) => url.pathname !== "/login", {
+    timeout: 10_000,
+  });
+  await page.goto("/onboarding");
 }
 
 export async function signInAndSelectExistingWorkspace(
