@@ -285,6 +285,7 @@ export function createAkbJiraMigrationTarget(
   const { allIssueRows, related, activityMatches } = createAkbRelatedTarget({
     adapter,
     vault,
+    waitForConsistency: consistencyPause,
     readIssue,
     updateIssue,
   });

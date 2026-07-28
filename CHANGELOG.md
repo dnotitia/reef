@@ -34,6 +34,10 @@ explicitly in the entries below.
   migration process.** The failing issue is isolated as a fail-closed conflict
   with a sanitized reason, its confirmed sibling checkpoints remain durable,
   and apply continues classifying the remaining issues.
+- **Transient AKB read failures no longer create false Jira related-data
+  conflicts.** Related-data catalog and readback requests retry bounded 429 and
+  5xx responses without retrying mutations, and an exhausted transient failure
+  remains classified as retryable in the migration report.
 
 ## v0.8.1 - 2026-07-28
 

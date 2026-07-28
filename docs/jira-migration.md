@@ -718,6 +718,13 @@ created, updated, skipped, conflict, failed, and retryable counts directly from
 the selected run, grouped by phase and entity kind; no mutable counter totals
 are persisted.
 
+AKB related-data catalog and readback calls use bounded retries for HTTP 429 and
+5xx responses. The retry boundary covers reads only; mutations still rely on
+their explicit idempotency keys, preconditions, and target readback. If the
+read retry budget is exhausted, the report retains `retryable: true` so a
+resume can distinguish transient backend availability from deterministic data
+conflicts.
+
 Each entity result stores the sanitized source and mapped-state fingerprints
 used for its attempt. After restart, retry classification compares those
 persisted values with the current source and desired mapped state; changed or
