@@ -70,6 +70,8 @@ const ALL_REEF_TABLES = [
   "reef_comments",
   "reef_attachments",
   "reef_activity",
+  "reef_notifications",
+  "reef_subscriptions",
 ];
 
 /**

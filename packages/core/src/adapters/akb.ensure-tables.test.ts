@@ -10,12 +10,15 @@ import {
   REEF_DESIRED_TABLES,
   REEF_ISSUES_TABLE,
   REEF_MILESTONES_TABLE,
+  REEF_NOTIFICATIONS_TABLE,
   REEF_RELEASES_TABLE,
   REEF_SCHEMA_VERSION,
   REEF_SETTINGS_SCHEMA_VERSION_KEY,
   REEF_SETTINGS_TABLE,
   REEF_SPRINTS_TABLE,
+  REEF_SUBSCRIPTIONS_TABLE,
   REEF_TEMPLATES_TABLE,
+  SchemaValidationError,
   ensureReefTables,
   makeAdapter,
   makeListTablesResponse,
@@ -35,6 +38,8 @@ function makeDesiredTablesResponse(
     items: REEF_DESIRED_TABLES.map((manifest) => ({
       name: manifest.name,
       columns: manifest.columns,
+      unique_keys: manifest.unique_keys ?? [],
+      indexes: manifest.indexes ?? [],
       ...((overrides[manifest.name] as Record<string, unknown> | undefined) ??
         {}),
     })),
@@ -49,6 +54,8 @@ function makeDesiredTablesResponseExcept(name: string): unknown {
       (manifest) => ({
         name: manifest.name,
         columns: manifest.columns,
+        unique_keys: manifest.unique_keys ?? [],
+        indexes: manifest.indexes ?? [],
       }),
     ),
   };
@@ -83,11 +90,15 @@ describe("ensureReefTables", () => {
       { status: 201, body: { name: REEF_COMMENTS_TABLE } },
       { status: 201, body: { name: REEF_ATTACHMENTS_TABLE } },
       { status: 201, body: { name: REEF_ACTIVITY_TABLE } },
-      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { status: 201, body: { name: REEF_NOTIFICATIONS_TABLE } },
+      { status: 201, body: { name: REEF_SUBSCRIPTIONS_TABLE } },
+      { body: makeDesiredTablesResponse() },
+      { body: makeSqlMutationResponse("DELETE 0") },
+      { body: makeSqlMutationResponse("INSERT 0 1") },
     ]);
     const adapter = makeAdapter();
     await ensureReefTables({ adapter, vault: "reef-sample" });
-    expect(calls).toHaveLength(13);
+    expect(calls).toHaveLength(17);
     expect(calls[0]?.url).toBe("https://akb.test/api/v1/tables/reef-sample");
     expect(calls[0]?.init?.method ?? "GET").toBe("GET");
     const firstCreate = JSON.parse(calls[1]?.init?.body as string);
@@ -274,6 +285,12 @@ describe("ensureReefTables", () => {
     expect(activityColumnNames).not.toContain("created_at");
     expect(activityColumnNames).not.toContain("updated_at");
     expect(activityColumnNames).not.toContain("created_by");
+    const twelfthCreate = JSON.parse(calls[12]?.init?.body as string);
+    expect(twelfthCreate.name).toBe(REEF_NOTIFICATIONS_TABLE);
+    expect(twelfthCreate.unique_keys).toHaveLength(2);
+    expect(twelfthCreate.indexes).toHaveLength(1);
+    const thirteenthCreate = JSON.parse(calls[13]?.init?.body as string);
+    expect(thirteenthCreate.name).toBe(REEF_SUBSCRIPTIONS_TABLE);
   });
 
   it("never declares AKB-managed columns in a desired table manifest", () => {
@@ -316,13 +333,15 @@ describe("ensureReefTables", () => {
       { status: 201, body: { name: REEF_COMMENTS_TABLE } },
       { status: 201, body: { name: REEF_ATTACHMENTS_TABLE } },
       { status: 201, body: { name: REEF_ACTIVITY_TABLE } },
+      { status: 201, body: { name: REEF_NOTIFICATIONS_TABLE } },
+      { status: 201, body: { name: REEF_SUBSCRIPTIONS_TABLE } },
       { body: makeListTablesResponse(ALL_REEF_TABLES) },
     ]);
     const adapter = makeAdapter();
     await ensureReefTables({ adapter, vault: "reef-sample" });
-    expect(calls).toHaveLength(12);
+    expect(calls).toHaveLength(14);
     const createdNames = calls
-      .slice(1, 11)
+      .slice(1, 13)
       .map((c) => JSON.parse(c.init?.body as string).name);
     expect(createdNames).toEqual([
       MONITORED_REPOS_TABLE,
@@ -335,7 +354,47 @@ describe("ensureReefTables", () => {
       REEF_COMMENTS_TABLE,
       REEF_ATTACHMENTS_TABLE,
       REEF_ACTIVITY_TABLE,
+      REEF_NOTIFICATIONS_TABLE,
+      REEF_SUBSCRIPTIONS_TABLE,
     ]);
+  });
+
+  it("upgrades a complete legacy manifest by creating only the additive tables and then becomes a no-op", async () => {
+    const legacyTables = {
+      kind: "table",
+      vault: "reef-sample",
+      items: REEF_DESIRED_TABLES.slice(0, 11).map((manifest) => ({
+        name: manifest.name,
+        columns: manifest.columns,
+        unique_keys: manifest.unique_keys ?? [],
+        indexes: manifest.indexes ?? [],
+      })),
+    };
+    const { calls } = setupFetch([
+      { body: legacyTables },
+      { status: 201, body: { name: REEF_NOTIFICATIONS_TABLE } },
+      { status: 201, body: { name: REEF_SUBSCRIPTIONS_TABLE } },
+      { body: makeDesiredTablesResponse() },
+      { body: makeSqlMutationResponse("DELETE 1") },
+      { body: makeSqlMutationResponse("INSERT 0 1") },
+      { body: makeDesiredTablesResponse() },
+      { body: makeSchemaVersionResponse(2) },
+    ]);
+    const adapter = makeAdapter();
+
+    await ensureReefTables({ adapter, vault: "reef-sample" });
+    await ensureReefTables({ adapter, vault: "reef-sample" });
+
+    const createBodies = calls
+      .filter((call) => call.init?.method === "POST")
+      .map((call) => JSON.parse(String(call.init?.body)))
+      .filter((body) => typeof body.name === "string");
+    expect(createBodies.map((body) => body.name)).toEqual([
+      REEF_NOTIFICATIONS_TABLE,
+      REEF_SUBSCRIPTIONS_TABLE,
+    ]);
+    expect(calls.some((call) => call.init?.method === "PATCH")).toBe(false);
+    expect(calls).toHaveLength(8);
   });
 
   it("is a no-op when all tables already exist", async () => {
@@ -370,6 +429,8 @@ describe("ensureReefTables", () => {
       items: REEF_DESIRED_TABLES.map((manifest) => ({
         name: manifest.name,
         columns: canonicalizeColumns(manifest.columns),
+        unique_keys: manifest.unique_keys ?? [],
+        indexes: manifest.indexes ?? [],
       })),
     };
     const { calls } = setupFetch([
@@ -447,6 +508,38 @@ describe("ensureReefTables", () => {
     ).rejects.toMatchObject({ name: "SchemaValidationError" });
     expect(calls).toHaveLength(1);
   });
+
+  it.each([
+    [
+      "unique key",
+      {
+        unique_keys: [{ columns: ["notification_key"] }],
+      },
+    ],
+    [
+      "index",
+      {
+        indexes: [{ columns: ["recipient", "state", "occurred_at"] }],
+      },
+    ],
+  ])(
+    "fails hard without altering when an existing notification table has a %s mismatch",
+    async (_label, override) => {
+      const { calls } = setupFetch([
+        {
+          body: makeDesiredTablesResponse({
+            [REEF_NOTIFICATIONS_TABLE]: override,
+          }),
+        },
+      ]);
+
+      await expect(
+        ensureReefTables({ adapter: makeAdapter(), vault: "reef-sample" }),
+      ).rejects.toBeInstanceOf(SchemaValidationError);
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.init?.method ?? "GET").toBe("GET");
+    },
+  );
 
   it("absorbs create 409 only after a refreshed manifest matches", async () => {
     const { calls } = setupFetch([

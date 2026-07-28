@@ -7,9 +7,11 @@ import {
   REEF_COMMENTS_TABLE,
   REEF_ISSUES_TABLE,
   REEF_MILESTONES_TABLE,
+  REEF_NOTIFICATIONS_TABLE,
   REEF_RELEASES_TABLE,
   REEF_SETTINGS_TABLE,
   REEF_SPRINTS_TABLE,
+  REEF_SUBSCRIPTIONS_TABLE,
   REEF_TEMPLATES_TABLE,
 } from "./constants";
 
@@ -34,6 +36,23 @@ export interface AkbCreateTableRequest {
   description?: string;
   columns: AkbTableColumn[];
   collection?: string | null;
+  unique_keys?: AkbTableUniqueKey[];
+  indexes?: AkbTableIndex[];
+}
+
+export interface AkbTableUniqueKey {
+  name?: string;
+  columns: string[];
+}
+
+export interface AkbTableIndexColumn {
+  name: string;
+  order?: "asc" | "desc";
+}
+
+export interface AkbTableIndex {
+  name?: string;
+  columns: Array<string | AkbTableIndexColumn>;
 }
 
 export interface ReefTableManifest extends AkbCreateTableRequest {
@@ -48,11 +67,13 @@ export interface ReefTableManifest extends AkbCreateTableRequest {
     | typeof REEF_ACTIVITY_SUGGESTIONS_TABLE
     | typeof REEF_COMMENTS_TABLE
     | typeof REEF_ATTACHMENTS_TABLE
-    | typeof REEF_ACTIVITY_TABLE;
+    | typeof REEF_ACTIVITY_TABLE
+    | typeof REEF_NOTIFICATIONS_TABLE
+    | typeof REEF_SUBSCRIPTIONS_TABLE;
   columns: AkbTableColumn[];
 }
 
-export const REEF_SCHEMA_VERSION = 1;
+export const REEF_SCHEMA_VERSION = 2;
 
 /** Columns injected and owned by AKB for every dynamic table. */
 export const AKB_MANAGED_TABLE_COLUMNS = [
@@ -245,5 +266,51 @@ export const REEF_DESIRED_TABLES: readonly ReefTableManifest[] = [
       { name: "payload", type: "json" },
       { name: "meta", type: "json" },
     ],
+  },
+  {
+    name: REEF_NOTIFICATIONS_TABLE,
+    description: "Recipient-scoped reef notifications",
+    columns: [
+      { name: "notification_key", type: "text", required: true },
+      { name: "recipient", type: "text", required: true },
+      { name: "reef_id", type: "text", required: true },
+      { name: "source_type", type: "text", required: true },
+      { name: "source_ref", type: "text", required: true },
+      { name: "event_type", type: "text", required: true },
+      { name: "actor", type: "text", required: true },
+      { name: "occurred_at", type: "text", required: true },
+      { name: "state", type: "text", required: true },
+      { name: "read_at", type: "text" },
+      { name: "archived_at", type: "text" },
+      { name: "payload", type: "json" },
+      { name: "meta", type: "json" },
+    ],
+    unique_keys: [
+      { columns: ["notification_key"] },
+      { columns: ["recipient", "source_type", "source_ref"] },
+    ],
+    indexes: [
+      {
+        columns: ["recipient", "state", { name: "occurred_at", order: "desc" }],
+      },
+    ],
+  },
+  {
+    name: REEF_SUBSCRIPTIONS_TABLE,
+    description: "Source-aware reef issue subscriptions",
+    columns: [
+      { name: "subscription_key", type: "text", required: true },
+      { name: "reef_id", type: "text", required: true },
+      { name: "subscriber", type: "text", required: true },
+      { name: "source", type: "text", required: true },
+      { name: "status", type: "text", required: true },
+      { name: "subscribed_at", type: "text", required: true },
+      { name: "meta", type: "json" },
+    ],
+    unique_keys: [
+      { columns: ["subscription_key"] },
+      { columns: ["reef_id", "subscriber", "source"] },
+    ],
+    indexes: [{ columns: ["reef_id", "status", "subscriber"] }],
   },
 ];

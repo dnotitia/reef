@@ -52,6 +52,8 @@ export const REEF_ACTIVITY_SUGGESTIONS_TABLE = "reef_activity_suggestions";
 export const REEF_COMMENTS_TABLE = "reef_comments";
 export const REEF_ATTACHMENTS_TABLE = "reef_attachments";
 export const REEF_ACTIVITY_TABLE = "reef_activity";
+export const REEF_NOTIFICATIONS_TABLE = "reef_notifications";
+export const REEF_SUBSCRIPTIONS_TABLE = "reef_subscriptions";
 export const REEF_SPRINTS_TABLE = "reef_sprints";
 export const REEF_MILESTONES_TABLE = "reef_milestones";
 export const REEF_RELEASES_TABLE = "reef_releases";
@@ -100,6 +102,8 @@ export const REEF_TABLE_NAMES = [
   REEF_COMMENTS_TABLE,
   REEF_ATTACHMENTS_TABLE,
   REEF_ACTIVITY_TABLE,
+  REEF_NOTIFICATIONS_TABLE,
+  REEF_SUBSCRIPTIONS_TABLE,
   REEF_SPRINTS_TABLE,
   REEF_MILESTONES_TABLE,
   REEF_RELEASES_TABLE,

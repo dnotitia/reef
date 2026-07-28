@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   type AkbAdapter,
@@ -19,6 +20,21 @@ import {
   DocumentResponseSchema,
   runSql,
 } from "../../src/adapters/akb/core/shared";
+import {
+  REEF_DESIRED_TABLES,
+  REEF_NOTIFICATIONS_TABLE,
+  REEF_SCHEMA_VERSION,
+  REEF_SUBSCRIPTIONS_TABLE,
+  akbCreateNotification,
+  akbGetEffectiveSubscriptionState,
+  akbListNotifications,
+  akbListSubscriptions,
+  akbMuteIssue,
+  akbRemoveSubscription,
+  akbUpdateNotificationState,
+  akbUpsertSubscription,
+  akbWatchIssue,
+} from "../../src/index";
 
 /**
  * REEF-056 — live akb contract smoke (parent REEF-084).
@@ -90,6 +106,8 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
   const baseUrl = BASE_URL as string;
   let adapter: AkbAdapter;
   let vault: string;
+  let provisionCreateCount = 0;
+  let provisionAlterCount = 0;
 
   beforeAll(async () => {
     await ensureSeedUser(baseUrl);
@@ -98,7 +116,25 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
       username: USERNAME,
       password: PASSWORD,
     });
-    adapter = createAkbAdapter({ baseUrl, jwt: token });
+    const baseAdapter = createAkbAdapter({ baseUrl, jwt: token });
+    adapter = {
+      request: async (...args) => {
+        const [path, init] = args;
+        if (
+          path === `/api/v1/tables/${encodeURIComponent(vault)}` &&
+          init?.method === "POST"
+        ) {
+          provisionCreateCount += 1;
+        }
+        if (
+          path.startsWith(`/api/v1/tables/${encodeURIComponent(vault)}/`) &&
+          init?.method === "PATCH"
+        ) {
+          provisionAlterCount += 1;
+        }
+        return baseAdapter.request(...args);
+      },
+    };
 
     // Throwaway vault per run so local re-runs never collide; teardown below.
     vault = `reef-live-smoke-${Date.now()}`;
@@ -272,5 +308,228 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
   it("readIssue — reef's joined read path parses a live document + row", async () => {
     const result = await readIssue({ adapter, vault, id: SEED_ISSUE_ID });
     expect(result.issue.id).toBe(SEED_ISSUE_ID);
+  });
+
+  it("notification storage — public APIs preserve identity, recipient, state, and source contracts", async () => {
+    expect(REEF_SCHEMA_VERSION).toBe(2);
+    expect(provisionCreateCount).toBe(REEF_DESIRED_TABLES.length);
+    expect(provisionAlterCount).toBe(0);
+
+    await ensureReefTables({ adapter, vault });
+    expect(provisionCreateCount).toBe(REEF_DESIRED_TABLES.length);
+    expect(provisionAlterCount).toBe(0);
+
+    const tableEnvelope = (await adapter.request(
+      `/api/v1/tables/${encodeURIComponent(vault)}`,
+      { resource: `tables in vault ${vault}` },
+    )) as { items?: Array<Record<string, unknown>> };
+    expect(tableEnvelope.items).toHaveLength(REEF_DESIRED_TABLES.length);
+    for (const tableName of [
+      REEF_NOTIFICATIONS_TABLE,
+      REEF_SUBSCRIPTIONS_TABLE,
+    ]) {
+      const table = tableEnvelope.items?.find(
+        (item) => item.name === tableName,
+      );
+      expect(table?.unique_keys).toEqual(expect.any(Array));
+      expect(table?.indexes).toEqual(expect.any(Array));
+    }
+
+    const runToken = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const occurredAt = new Date().toISOString();
+    const notificationInput = {
+      recipient: USERNAME,
+      reefId: SEED_ISSUE_ID,
+      sourceType: "issue_activity",
+      sourceRef: `status:${runToken}`,
+      eventType: "status_change",
+      actor: "live-actor",
+      occurredAt,
+      payload: { replay: 1 },
+    };
+    const firstNotification = await akbCreateNotification(
+      adapter,
+      vault,
+      notificationInput,
+    );
+    const replayedNotification = await akbCreateNotification(adapter, vault, {
+      ...notificationInput,
+      payload: { replay: 2 },
+    });
+    expect(replayedNotification.id).toBe(firstNotification.id);
+
+    await akbCreateNotification(adapter, vault, {
+      ...notificationInput,
+      recipient: `${USERNAME}-other`,
+    });
+    const notifications = await akbListNotifications(adapter, vault, {
+      recipient: USERNAME,
+      state: "unread",
+      limit: 10,
+    });
+    const notificationIdentityRows = notifications.filter(
+      (notification) => notification.source_ref === notificationInput.sourceRef,
+    ).length;
+    expect(notificationIdentityRows).toBe(1);
+    expect(
+      notifications.every(
+        (notification) => notification.recipient === USERNAME,
+      ),
+    ).toBe(true);
+
+    const changedAt = new Date(Date.now() + 1_000).toISOString();
+    const read = await akbUpdateNotificationState(adapter, vault, {
+      notificationKey: firstNotification.notification_key,
+      recipient: USERNAME,
+      state: "read",
+      changedAt,
+    });
+    expect(read.read_at).toBe(changedAt);
+    expect(read.archived_at).toBeNull();
+    const archived = await akbUpdateNotificationState(adapter, vault, {
+      notificationKey: firstNotification.notification_key,
+      recipient: USERNAME,
+      state: "archived",
+      changedAt,
+    });
+    expect(archived.read_at).toBe(changedAt);
+    expect(archived.archived_at).toBe(changedAt);
+    const unread = await akbUpdateNotificationState(adapter, vault, {
+      notificationKey: firstNotification.notification_key,
+      recipient: USERNAME,
+      state: "unread",
+    });
+    expect(unread.read_at).toBeNull();
+    expect(unread.archived_at).toBeNull();
+
+    await akbUpsertSubscription(adapter, vault, {
+      reefId: SEED_ISSUE_ID,
+      subscriber: USERNAME,
+      source: "requester",
+      status: "active",
+      subscribedAt: occurredAt,
+    });
+    await akbMuteIssue(adapter, vault, {
+      reefId: SEED_ISSUE_ID,
+      subscriber: USERNAME,
+      subscribedAt: occurredAt,
+    });
+    await expect(
+      akbGetEffectiveSubscriptionState(adapter, vault, {
+        reefId: SEED_ISSUE_ID,
+        subscriber: USERNAME,
+      }),
+    ).resolves.toBe("muted");
+    await akbWatchIssue(adapter, vault, {
+      reefId: SEED_ISSUE_ID,
+      subscriber: USERNAME,
+      subscribedAt: occurredAt,
+    });
+    await expect(
+      akbGetEffectiveSubscriptionState(adapter, vault, {
+        reefId: SEED_ISSUE_ID,
+        subscriber: USERNAME,
+      }),
+    ).resolves.toBe("watching");
+    const subscriptionSourceRows = await akbListSubscriptions(adapter, vault, {
+      reefId: SEED_ISSUE_ID,
+      subscriber: USERNAME,
+    });
+    expect(subscriptionSourceRows).toHaveLength(2);
+    await akbRemoveSubscription(adapter, vault, {
+      reefId: SEED_ISSUE_ID,
+      subscriber: USERNAME,
+      source: "manual",
+    });
+    await expect(
+      akbGetEffectiveSubscriptionState(adapter, vault, {
+        reefId: SEED_ISSUE_ID,
+        subscriber: USERNAME,
+      }),
+    ).resolves.toBe("watching");
+    await akbRemoveSubscription(adapter, vault, {
+      reefId: SEED_ISSUE_ID,
+      subscriber: USERNAME,
+      source: "requester",
+    });
+    await expect(
+      akbGetEffectiveSubscriptionState(adapter, vault, {
+        reefId: SEED_ISSUE_ID,
+        subscriber: USERNAME,
+      }),
+    ).resolves.toBe("unwatched");
+
+    if (process.env.REEF_LIVE_AKB_EVIDENCE === "1") {
+      const evidence = {
+        surface: "@reef/core public notification contract",
+        runtime: "unique throwaway AKB vault",
+        transcript: [
+          {
+            api: "akbEnsureReefTables",
+            input: { vault: "<ephemeral>" },
+            output: {
+              schema_version: REEF_SCHEMA_VERSION,
+              manifest_count: tableEnvelope.items?.length ?? 0,
+              create_calls: provisionCreateCount,
+              alter_calls: provisionAlterCount,
+              second_run_create_calls: 0,
+              second_run_alter_calls: 0,
+            },
+          },
+          {
+            api: "akbCreateNotification + akbListNotifications",
+            input: {
+              recipient: "<actor>",
+              source_type: "issue_activity",
+              payload_replay: true,
+            },
+            output: {
+              identity_row_count: notificationIdentityRows,
+              same_identity_same_row:
+                replayedNotification.id === firstNotification.id,
+              recipient_isolated: notifications.every(
+                (notification) => notification.recipient === USERNAME,
+              ),
+            },
+          },
+          {
+            api: "akbUpdateNotificationState",
+            input: { transitions: ["read", "archived", "unread"] },
+            output: {
+              read_timestamp_recorded: read.read_at === changedAt,
+              archived_timestamp_recorded: archived.archived_at === changedAt,
+              unread_timestamps_cleared:
+                unread.read_at == null && unread.archived_at == null,
+            },
+          },
+          {
+            api: "subscription public APIs",
+            input: {
+              sources: ["requester", "manual"],
+              manual_transitions: ["muted", "active", "removed"],
+            },
+            output: {
+              independent_source_rows: subscriptionSourceRows.length,
+              precedence_sequence: [
+                "muted",
+                "watching",
+                "watching",
+                "unwatched",
+              ],
+            },
+          },
+        ],
+        redaction: {
+          credentials: "omitted",
+          vault: "ephemeral placeholder",
+          usernames: "actor placeholders",
+        },
+      };
+      const serialized = JSON.stringify(evidence);
+      console.info(`SOURCE_AWARE_EVIDENCE ${serialized}`);
+      console.info(
+        `SOURCE_AWARE_EVIDENCE_SHA256 ${createHash("sha256").update(serialized).digest("hex")}`,
+      );
+    }
   });
 });
