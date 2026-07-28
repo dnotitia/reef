@@ -720,6 +720,12 @@ new base description that the issue phase will write first. A `skip` continues
 to use current target readback, and a conflict supplies no speculative base
 content.
 
+Related operation approval hashes normalize target-generated identifiers.
+Comment parent UUIDs use their stable Jira source identity, and attachment links
+in both descriptions and comments use their stable Jira attachment identity.
+Dry-run placeholder URIs and live AKB file URIs therefore produce the same
+approval input only when they refer to the same source attachment.
+
 Cross-project relations persist `pending_target_migration`, `ready`, and
 `reconciled` separately. A retryable entity failure leaves its phase
 `partial_failed` without blocking unrelated entities; a conflict or

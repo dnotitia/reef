@@ -164,7 +164,11 @@ export async function importComments(options: {
         recordOperation(
           kind,
           key,
-          commentOperationInput(commentInput, parentSourceId),
+          commentOperationInput(
+            commentInput,
+            parentSourceId,
+            attachmentBindings,
+          ),
         );
       };
       const sourceFingerprint = fingerprintJiraState(comment);

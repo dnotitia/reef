@@ -44,6 +44,10 @@ explicitly in the entries below.
   Related-data dry runs evaluate media rewrites against the approved new issue
   description for both creates and updates, avoiding a false precondition
   failure against stale target content.
+- **Jira comment approvals no longer depend on target-generated attachment
+  URIs.** Comment operation fingerprints replace dry-run and live AKB file URIs
+  with the same stable Jira attachment identity, while retaining all other body
+  and thread-parent differences.
 
 ## v0.8.1 - 2026-07-28
 

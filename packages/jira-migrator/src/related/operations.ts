@@ -11,18 +11,23 @@ import type {
 export const commentOperationInput = (
   input: JiraImportedCommentInput,
   parentSourceId: string | null,
+  attachmentBindings: readonly AttachmentBinding[] = [],
 ): JiraImportedCommentInput => {
   const parentToken = parentSourceId
     ? `migration://comment/${fingerprintJiraState(parentSourceId)}`
     : null;
   const { parentCommentId: _parentCommentId, ...stableInput } = input;
+  const normalizedInput = {
+    ...stableInput,
+    body: descriptionOperationInput(stableInput.body, attachmentBindings),
+  };
   return parentToken
     ? {
-        ...stableInput,
+        ...normalizedInput,
         parentCommentId: parentToken,
         expectedThreadRootId: parentToken,
       }
-    : { ...stableInput, expectedThreadRootId: null };
+    : { ...normalizedInput, expectedThreadRootId: null };
 };
 
 export const descriptionOperationInput = (
