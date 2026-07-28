@@ -29,7 +29,9 @@ explicitly in the entries below.
   reservation, and an ambiguous write error is accepted only when subsequent
   target readback exactly matches the approved issue projection. Planning
   readback also treats an omitted nullable AKB field as the requested `null`,
-  so a committed create can be recovered in a fresh resume process.
+  so a committed create can be recovered in a fresh resume process. A
+  conflicting claim response is also recoverable only when an independent row
+  read proves the exact target id, document URI, and Jira owner.
 - **A deterministic related-entity conflict no longer aborts the entire Jira
   migration process.** The failing issue is isolated as a fail-closed conflict
   with a sanitized reason, its confirmed sibling checkpoints remain durable,

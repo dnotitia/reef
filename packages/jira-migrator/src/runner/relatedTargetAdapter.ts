@@ -66,6 +66,14 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
     retryRead(() => sql(adapter, vault, statement));
   const readTargetIssue = (id: string) => retryRead(() => readIssue(id));
   const allIssueRows = () => readSql("SELECT reef_id, meta FROM reef_issues");
+  const readIssueOwnershipRow = async (id: string) =>
+    (
+      await readSql(
+        `SELECT reef_id, document_uri, archived_at, meta FROM reef_issues WHERE reef_id = ${quote(
+          id,
+        )} LIMIT 1`,
+      )
+    )[0] ?? null;
   const readDocumentedIssue = async (
     id: string,
   ): Promise<AkbReadIssueResult | null> => {
@@ -789,5 +797,5 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
     }
     return true;
   };
-  return { allIssueRows, related, activityMatches };
+  return { allIssueRows, readIssueOwnershipRow, related, activityMatches };
 }

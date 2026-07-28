@@ -164,6 +164,10 @@ single related issue cannot prevent remaining issues from being classified.
 AKB query readback can briefly lag a committed planning or issue mutation. The
 target adapter therefore performs a bounded exact-state readback after those
 writes and retries idempotent Jira-owner issue reservations across that window.
+If the claim endpoint reports a conflict, an independent row read may accept
+the claim only when the target id, document URI, and stable Jira cloud/issue
+owner all match. A different owner remains a hard conflict, while an ownership
+read failure remains unconfirmed and retryable.
 It never confirms an ambiguous result from timing alone: the complete approved
 projection and issue body must become readable before a ledger binding is
 written. If the bounded readback does not converge, apply remains failed or

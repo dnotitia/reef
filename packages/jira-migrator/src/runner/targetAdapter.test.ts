@@ -628,6 +628,80 @@ describe("AKB Jira migration target", () => {
     expect(waitForConsistency).toHaveBeenCalledTimes(1);
   });
 
+  it("accepts an independently verified existing Jira owner claim", async () => {
+    const owner = {
+      jira_cloud_id: "cloud-1",
+      project_key: "ALPHA",
+      issue_id: "10001",
+      issue_key: "ALPHA-1",
+    };
+    const request = vi.fn(async () => ({
+      kind: "table_query",
+      items: [
+        {
+          reef_id: "REEF-010",
+          document_uri: "akb://reef-test/coll/issues/doc/reef-010.md",
+          archived_at: "2026-07-23T00:00:00.000Z",
+          meta: {
+            custom_fields: {
+              jira_migration: {
+                owner,
+                reservation: true,
+              },
+            },
+          },
+        },
+      ],
+    }));
+    const claimIssueId = vi.fn(async () => {
+      throw new ConflictError();
+    });
+    const target = createAkbJiraMigrationTarget(
+      {
+        baseUrl: "https://akb.test",
+        jwt: "jwt",
+        vault: "reef-test",
+        issuePrefix: "REEF",
+      },
+      {
+        createAdapter: () => ({ request }),
+        getCurrentActor: async () => ({ actor: "operator" }),
+        listPlanningCatalog: vi.fn(),
+        createRelease: vi.fn(),
+        createSprint: vi.fn(),
+        readPlanningCreateClaim: vi.fn(),
+        allocateNextIssueId: vi.fn(),
+        writeIssue: vi.fn(),
+        updateIssue: vi.fn(),
+        readIssue: vi.fn(),
+        claimIssueId,
+        waitForConsistency: vi.fn(),
+      },
+    );
+    const issuePlan = {
+      desired: {
+        issue: {
+          id: "REEF-010",
+          title: "Alpha issue",
+          status: "todo",
+          created_at: "2026-07-23T00:00:00.000Z",
+          created_by: "operator",
+          updated_at: "2026-07-23T00:00:00.000Z",
+          updated_by: "operator",
+          custom_fields: {
+            jira_migration: { owner },
+          },
+        },
+        content: "body",
+      },
+      status: "ready",
+    } as unknown as JiraIssueImportPlan;
+
+    await expect(target.claimIssue(issuePlan)).resolves.toBeUndefined();
+    expect(claimIssueId).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
   it("confirms an issue write that committed before a stale readback conflict", async () => {
     const issue = {
       id: "REEF-010",

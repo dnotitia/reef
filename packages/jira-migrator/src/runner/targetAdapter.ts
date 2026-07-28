@@ -282,13 +282,37 @@ export function createAkbJiraMigrationTarget(
       ...(expected ? { expectedUpdatedAt: expected.updatedAt } : {}),
       message: `Reconcile ${id} Jira migration data`,
     });
-  const { allIssueRows, related, activityMatches } = createAkbRelatedTarget({
-    adapter,
-    vault,
-    waitForConsistency: consistencyPause,
-    readIssue,
-    updateIssue,
-  });
+  const { allIssueRows, readIssueOwnershipRow, related, activityMatches } =
+    createAkbRelatedTarget({
+      adapter,
+      vault,
+      waitForConsistency: consistencyPause,
+      readIssue,
+      updateIssue,
+    });
+  const issueOwnershipMatches = (
+    row: Record<string, unknown> | null,
+    desired: IssueMetadata,
+  ): boolean => {
+    if (
+      !row ||
+      row.reef_id !== desired.id ||
+      row.document_uri !== akbIssueDocumentUri(vault, desired.id)
+    ) {
+      return false;
+    }
+    const migration = parseMeta(
+      parseMeta(row.meta).custom_fields,
+    ).jira_migration;
+    const desiredMigration = parseMeta(
+      parseMeta(desired.custom_fields).jira_migration,
+    );
+    const desiredOwner = jiraOwnerIdentity(desiredMigration.owner);
+    return (
+      desiredOwner !== null &&
+      jiraOwnerIdentity(parseMeta(migration).owner) === desiredOwner
+    );
+  };
   return {
     adapter,
     async preflight() {
@@ -656,7 +680,15 @@ export function createAkbJiraMigrationTarget(
           return;
         } catch (error) {
           if (!(error instanceof ConflictError)) throw error;
+          let ownershipReadError: unknown;
+          try {
+            const row = await readIssueOwnershipRow(desired.id);
+            if (issueOwnershipMatches(row, desired)) return;
+          } catch (readError) {
+            ownershipReadError = readError;
+          }
           if (attempt === CONSISTENCY_READ_ATTEMPTS - 1) {
+            if (ownershipReadError) throw ownershipReadError;
             throw new JiraTargetConflictError();
           }
           await consistencyPause();
