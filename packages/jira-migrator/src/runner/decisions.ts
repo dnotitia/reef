@@ -199,6 +199,25 @@ export const safeMigrationFailureReason = (
   return fallback;
 };
 
+export const relatedExecutionError = (
+  error: unknown,
+): {
+  action: "conflict" | "failed";
+  reason: string;
+  retryable: boolean;
+} => {
+  const retryable =
+    typeof error === "object" &&
+    error !== null &&
+    "retryable" in error &&
+    error.retryable === true;
+  return {
+    action: retryable ? "failed" : "conflict",
+    reason: safeMigrationFailureReason(error, "related_import_failed"),
+    retryable,
+  };
+};
+
 export const resultFor = (input: {
   sourceKey: string;
   entityKind: JiraMigrationEntityResult["entity_kind"];

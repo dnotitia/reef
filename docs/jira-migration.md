@@ -155,6 +155,12 @@ read back before its binding and entity checkpoint are atomically persisted.
 Independent entity failures remain isolated and reports classify every input
 exactly once; `conservation.balanced` must be true.
 
+Related-data execution isolates both retryable transport failures and
+deterministic fail-closed errors to the current Jira issue. Retryable errors are
+reported as `failed`; non-retryable approval, precondition, or target conflicts
+are reported as `conflict`. Neither class confirms an unverified binding, and a
+single related issue cannot prevent remaining issues from being classified.
+
 AKB query readback can briefly lag a committed planning or issue mutation. The
 target adapter therefore performs a bounded exact-state readback after those
 writes and retries idempotent Jira-owner issue reservations across that window.

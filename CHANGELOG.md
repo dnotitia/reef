@@ -30,6 +30,10 @@ explicitly in the entries below.
   target readback exactly matches the approved issue projection. Planning
   readback also treats an omitted nullable AKB field as the requested `null`,
   so a committed create can be recovered in a fresh resume process.
+- **A deterministic related-entity conflict no longer aborts the entire Jira
+  migration process.** The failing issue is isolated as a fail-closed conflict
+  with a sanitized reason, its confirmed sibling checkpoints remain durable,
+  and apply continues classifying the remaining issues.
 
 ## v0.8.1 - 2026-07-28
 

@@ -33,6 +33,7 @@ import {
   mappedFingerprintForIssue,
   projectId,
   reconciliationAction,
+  relatedExecutionError,
   resultFor,
   runScopedMappedFingerprintForChangelog,
   safeMigrationFailureReason,
@@ -739,38 +740,31 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
           },
         });
       } catch (relatedError) {
-        if (
-          typeof relatedError !== "object" ||
-          relatedError === null ||
-          !("retryable" in relatedError) ||
-          relatedError.retryable !== true
-        ) {
-          throw relatedError;
-        }
-        const failureReason = safeMigrationFailureReason(
-          relatedError,
-          "related_import_failed",
+        const relatedFailure = relatedExecutionError(relatedError);
+        const planned = relatedPlanningReports.find(
+          (candidate) => candidate.issue_key === issue.key,
         );
         const report = {
-          ...relatedPlanningReports.find(
-            (candidate) => candidate.issue_key === issue.key,
-          )?.report,
+          ...planned?.report,
           mode: "apply" as const,
           failures: [
-            ...(relatedPlanningReports.find(
-              (candidate) => candidate.issue_key === issue.key,
-            )?.report.failures ?? []),
+            ...(planned?.report.failures ?? []),
             {
               source_kind: "link" as const,
               source_id: issue.id,
               phase: "write" as const,
-              retryable: true,
-              reason: failureReason,
+              retryable: relatedFailure.retryable,
+              reason: relatedFailure.reason,
             },
           ],
         } as JiraRelatedImportReport;
         relatedApplyReports.push({ issue_key: issue.key, report });
-        recordReportOnly("related", `related:${issue.key}`, "failed", true);
+        recordReportOnly(
+          "related",
+          `related:${issue.key}`,
+          relatedFailure.action,
+          relatedFailure.retryable,
+        );
         await checkpoint();
         continue;
       }

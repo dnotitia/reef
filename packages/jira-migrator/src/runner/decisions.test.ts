@@ -6,6 +6,7 @@ import {
   mappedFingerprintForChangelog,
   mappedFingerprintForIssue,
   reconciliationAction,
+  relatedExecutionError,
   runScopedMappedFingerprintForChangelog,
 } from "./decisions.js";
 
@@ -54,6 +55,27 @@ const issuePlan = (at: string) =>
   }) as unknown as JiraIssueImportPlan;
 
 describe("migration action fingerprints", () => {
+  it("isolates deterministic and retryable related execution errors", () => {
+    expect(
+      relatedExecutionError(new Error("related_operation_preflight_failed")),
+    ).toEqual({
+      action: "conflict",
+      reason: "related_operation_preflight_failed",
+      retryable: false,
+    });
+    expect(
+      relatedExecutionError(
+        Object.assign(new Error("target_temporarily_unavailable"), {
+          retryable: true,
+        }),
+      ),
+    ).toEqual({
+      action: "failed",
+      reason: "target_temporarily_unavailable",
+      retryable: true,
+    });
+  });
+
   it("ignores migration timestamps in issue mapped state", () => {
     expect(
       mappedFingerprintForIssue(issuePlan("2026-07-27T00:00:00.000Z")),
