@@ -53,6 +53,11 @@ explicitly in the entries below.
   conservation classifications without repeating the private artifact's
   compare-and-swap write, while every binding and durable entity result remains
   atomically checkpointed.
+- **Jira planning approval no longer conflicts on target-generated ids hidden
+  in compact issue provenance.** Version and sprint target ids use the same
+  source-derived approval token in first-class fields and nested Jira planning
+  metadata, so dry-run placeholders and apply-time AKB UUIDs compare
+  semantically.
 
 ## v0.8.1 - 2026-07-28
 

@@ -218,7 +218,26 @@ export const semanticIssuePlan = (
       ];
     }),
   );
+  const semanticPlanningTarget = (value: unknown): unknown =>
+    typeof value === "string" ? (tokens.get(value) ?? value) : value;
   const desiredIssue = plan.desired.issue;
+  const desiredCustomFields =
+    desiredIssue && isRecord(desiredIssue.custom_fields)
+      ? desiredIssue.custom_fields
+      : {};
+  const desiredJira = isRecord(desiredCustomFields.jira)
+    ? desiredCustomFields.jira
+    : {};
+  const desiredPlanning = Array.isArray(desiredJira.planning)
+    ? desiredJira.planning.map((item) =>
+        isRecord(item)
+          ? {
+              ...item,
+              target_id: semanticPlanningTarget(item.target_id),
+            }
+          : item,
+      )
+    : desiredJira.planning;
   return {
     source: plan.source,
     desired: {
@@ -227,11 +246,18 @@ export const semanticIssuePlan = (
         ? {
             ...desiredIssue,
             release_id: desiredIssue.release_id
-              ? (tokens.get(desiredIssue.release_id) ?? desiredIssue.release_id)
+              ? semanticPlanningTarget(desiredIssue.release_id)
               : desiredIssue.release_id,
             sprint_id: desiredIssue.sprint_id
-              ? (tokens.get(desiredIssue.sprint_id) ?? desiredIssue.sprint_id)
+              ? semanticPlanningTarget(desiredIssue.sprint_id)
               : desiredIssue.sprint_id,
+            custom_fields: {
+              ...desiredCustomFields,
+              jira: {
+                ...desiredJira,
+                planning: desiredPlanning,
+              },
+            },
           }
         : null,
     },

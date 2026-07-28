@@ -699,6 +699,12 @@ page contents, archive entry ids, and content digests. A new run id, pagination
 cursor, or execution time must therefore remain `skip` when source state and
 target readback are unchanged.
 
+Target-generated planning UUIDs use stable source-derived semantic tokens at
+the approval boundary. Apply the token to both the first-class `release_id` /
+`sprint_id` field and compact `custom_fields.jira.planning[].target_id`
+provenance; otherwise an identical versioned issue would conflict solely
+because dry-run used a token and apply resolved the real AKB UUID.
+
 The Atlassian development integration field whose schema custom key is
 `com.atlassian.jira.plugins.jira-development-integration-plugin:devsummarycf`
 contains request-volatile internal identifiers. Its exact response remains in
