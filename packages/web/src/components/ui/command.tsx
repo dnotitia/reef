@@ -33,9 +33,12 @@ type CommandDialogProps = DialogProps & {
    *  owns its own input row and the inherited X would overlap it (the ⌘K
    *  palette). Esc-to-close is unaffected. */
   showCloseButton?: boolean
+  /** Exposes an in-flight state on the dialog surface itself. */
+  ariaBusy?: boolean
 }
 
 const CommandDialog = ({
+  ariaBusy,
   children,
   commandProps,
   showCloseButton,
@@ -44,6 +47,7 @@ const CommandDialog = ({
   return (
     <Dialog {...props}>
       <DialogContent
+        aria-busy={ariaBusy}
         showCloseButton={showCloseButton}
         className="overflow-hidden p-0 shadow-lg"
       >

@@ -28,8 +28,9 @@ import { withVault } from "@/lib/workspaceHref";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useExactIssue } from "../hooks/useExactIssue";
+import { useIssueContentSearch } from "../hooks/useIssueContentSearch";
 import { useGlobalSearchStore } from "../stores/useGlobalSearchStore";
 
 /** Recent-issues preview size shown when the search box is empty. */
@@ -42,6 +43,9 @@ const RECENT_LIMIT = 8;
  * set, so the cap matters; the id-rank below promotes the best hits within it.
  */
 const SEARCH_LIMIT = 20;
+const CONTENT_INITIAL_LIMIT = 10;
+const CONTENT_LIMIT_STEP = 10;
+const CONTENT_MAX_LIMIT = 50;
 /**
  * A complete, canonical reef id (`PREFIX-` + at least 3 digits, e.g. `REEF-001`).
  * Ids are zero-padded to ≥3 digits, so this matches a finished id but not the
@@ -49,6 +53,83 @@ const SEARCH_LIMIT = 20;
  * exact-id lookup below, so a half-typed prefix avoids the extra fetch.
  */
 const CANONICAL_ID = /^[a-z][a-z0-9_]*-\d{3,}$/i;
+
+function foldWithSourceRanges(value: string): {
+  folded: string;
+  starts: number[];
+  ends: number[];
+} {
+  let folded = "";
+  const starts: number[] = [];
+  const ends: number[] = [];
+  let sourceIndex = 0;
+  for (const symbol of value) {
+    const foldedSymbol = symbol.toLowerCase();
+    folded += foldedSymbol;
+    for (let index = 0; index < foldedSymbol.length; index += 1) {
+      starts.push(sourceIndex);
+      ends.push(sourceIndex + symbol.length);
+    }
+    sourceIndex += symbol.length;
+  }
+  return { folded, starts, ends };
+}
+
+function findCaseInsensitiveLiteralRange(
+  value: string,
+  query: string,
+): { start: number; end: number } | null {
+  const source = foldWithSourceRanges(value);
+  const needle = foldWithSourceRanges(query).folded;
+  if (!needle) return null;
+  const foldedIndex = source.folded.indexOf(needle);
+  if (foldedIndex < 0) return null;
+  const start = source.starts[foldedIndex];
+  const end = source.ends[foldedIndex + needle.length - 1];
+  return start === undefined || end === undefined ? null : { start, end };
+}
+
+function LiteralHighlight({
+  text,
+  query,
+}: {
+  text: string;
+  query: string;
+}) {
+  const parts: Array<{ text: string; matched: boolean }> = [];
+  let cursor = 0;
+  while (cursor < text.length) {
+    const match = findCaseInsensitiveLiteralRange(text.slice(cursor), query);
+    if (!match) {
+      parts.push({ text: text.slice(cursor), matched: false });
+      break;
+    }
+    const matchStart = cursor + match.start;
+    const matchEnd = cursor + match.end;
+    if (matchStart > cursor) {
+      parts.push({ text: text.slice(cursor, matchStart), matched: false });
+    }
+    parts.push({
+      text: text.slice(matchStart, matchEnd),
+      matched: true,
+    });
+    cursor = matchEnd;
+  }
+  if (parts.length === 0) return text;
+  return parts.map((part, index) =>
+    part.matched ? (
+      <mark
+        // The source text + position is stable for a settled result.
+        key={`${index}:${part.text}`}
+        className="rounded-sm bg-brand/15 px-0.5 text-foreground"
+      >
+        {part.text}
+      </mark>
+    ) : (
+      <Fragment key={`${index}:${part.text}`}>{part.text}</Fragment>
+    ),
+  );
+}
 
 /**
  * ⌘K global search palette.
@@ -76,6 +157,10 @@ export function GlobalSearchDialog() {
   const { vault } = useActiveVault();
   const router = useRouter();
   const t = useTranslations("search");
+  const [contentExpansion, setContentExpansion] = useState({
+    query: "",
+    limit: CONTENT_INITIAL_LIMIT,
+  });
 
   // The live value drives the input + match highlighting; the debounced value
   // drives the server query so a request isn't fired on every keystroke. The
@@ -96,6 +181,10 @@ export function GlobalSearchDialog() {
   // rows it returns) still reflect the PREVIOUS text. Used to keep the palette in
   // a pending state so a fast Enter does not select a now-stale row.
   const debouncePending = liveTrimmed !== debouncedTrimmed;
+  const contentLimit =
+    contentExpansion.query === debouncedTrimmed
+      ? contentExpansion.limit
+      : CONTENT_INITIAL_LIMIT;
 
   // Bounded request (the `archived` facet defaults to false, excluding
   // archived rows): an empty box previews recent issues; otherwise the server `q`
@@ -203,11 +292,44 @@ export function GlobalSearchDialog() {
         .slice(0, SEARCH_LIMIT)
     : matched.slice(0, RECENT_LIMIT);
 
+  const contentQuery = useIssueContentSearch(
+    debouncedTrimmed,
+    vault ?? "",
+    contentLimit,
+  );
+  const contentQueryIsCurrent =
+    resultsAreCurrent &&
+    contentQuery.data?.query === liveTrimmed &&
+    [...liveTrimmed].length >= 2;
+  const metadataIds = new Set(
+    isError ? [] : results.map((result) => result.id),
+  );
+  const contentResults =
+    contentQueryIsCurrent && !contentQuery.isError
+      ? (contentQuery.data?.results ?? []).filter(
+          (result) => !metadataIds.has(result.reef_id),
+        )
+      : [];
+  const contentInFlight =
+    [...debouncedTrimmed].length >= 2 && contentQuery.isFetching;
+  const canLoadMore =
+    contentQueryIsCurrent &&
+    contentQuery.data?.has_more === true &&
+    contentLimit < CONTENT_MAX_LIMIT;
+  const searchBusy = (isSearching && !resultsAreCurrent) || contentInFlight;
+
   function handleSelect(id: string) {
     // Ignore selection while the shown rows are stale for the live query — the
     // result for what's typed hasn't settled yet, so navigating now could open
     // the wrong issue. Resolves within the debounce + a server round-trip.
     if (!resultsAreCurrent) return;
+    close();
+    resetQuery();
+    router.push(withVault(vault, `/issues/${encodeURIComponent(id)}`));
+  }
+
+  function handleContentSelect(id: string) {
+    if (!contentQueryIsCurrent) return;
     close();
     resetQuery();
     router.push(withVault(vault, `/issues/${encodeURIComponent(id)}`));
@@ -234,6 +356,19 @@ export function GlobalSearchDialog() {
     handleSelect(id);
   }
 
+  function handleContentRowClick(
+    e: React.MouseEvent<HTMLAnchorElement>,
+    id: string,
+  ) {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
+      e.stopPropagation();
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    handleContentSelect(id);
+  }
+
   function handleOpenChange(open: boolean) {
     if (!open) {
       close();
@@ -251,12 +386,18 @@ export function GlobalSearchDialog() {
   let statusMessage = "";
   if (isError) {
     statusMessage = t("unavailable");
+  } else if (contentInFlight && !debouncePending && !isFetching) {
+    statusMessage = t("searchingContent");
   } else if (
     results.length === 0 &&
     (isLoading || isFetching || debouncePending)
   ) {
     statusMessage = t("searching");
-  } else if (results.length === 0) {
+  } else if (
+    results.length === 0 &&
+    contentResults.length === 0 &&
+    !canLoadMore
+  ) {
     statusMessage = isSearching ? t("noMatches") : t("empty");
   }
 
@@ -269,6 +410,7 @@ export function GlobalSearchDialog() {
       // which shadows a caller `aria-label`, so the name flows through here.
       // `shouldFilter={false}` keeps the server's result order.
       commandProps={{ shouldFilter: false, label: t("title") }}
+      ariaBusy={searchBusy}
       // The palette owns its input row, so suppress the inherited top-right close
       // X that would otherwise overlap it. Esc-to-close is unaffected.
       showCloseButton={false}
@@ -295,15 +437,14 @@ export function GlobalSearchDialog() {
             already settled but selection is still blocked, so without it the
             bar would read as idle mid-load. */}
         <SearchProgressBar
-          active={isFetching || debouncePending || exactIdPending}
+          active={
+            isFetching || debouncePending || exactIdPending || contentInFlight
+          }
         />
       </div>
       {/* `overscroll-contain` keeps scroll chaining from leaking to the page
           behind the modal once the list reaches its top/bottom. */}
-      <CommandList
-        className="overscroll-contain"
-        aria-busy={isSearching && !resultsAreCurrent}
-      >
+      <CommandList className="overscroll-contain" aria-busy={searchBusy}>
         {showResults ? (
           <CommandGroup
             heading={isSearching ? t("headingMatches") : t("headingRecent")}
@@ -339,6 +480,71 @@ export function GlobalSearchDialog() {
             ))}
           </CommandGroup>
         ) : null}
+        {contentResults.length > 0 || canLoadMore ? (
+          <CommandGroup heading={t("headingContent")}>
+            {contentResults.map((result) => (
+              <CommandItem
+                key={result.match_id}
+                value={`${result.reef_id} ${result.title} ${result.match_id}`}
+                onSelect={() => handleContentSelect(result.reef_id)}
+                data-testid="global-search-content-item"
+                data-issue-id={result.reef_id}
+                data-source={result.source}
+              >
+                <Link
+                  href={withVault(
+                    vault,
+                    `/issues/${encodeURIComponent(result.reef_id)}`,
+                  )}
+                  tabIndex={-1}
+                  onClick={(event) =>
+                    handleContentRowClick(event, result.reef_id)
+                  }
+                  className="flex min-w-0 flex-1 flex-col gap-1.5 py-0.5"
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="shrink-0 font-mono text-xs font-semibold text-brand">
+                      {result.reef_id}
+                    </span>
+                    <span className="truncate text-sm font-medium">
+                      {result.title}
+                    </span>
+                    <span className="ml-auto shrink-0 rounded-full border border-brand/25 bg-brand/5 px-1.5 py-0.5 text-[10px] font-medium text-brand">
+                      {result.source === "body"
+                        ? t("sourceBody")
+                        : t("sourceComment")}
+                    </span>
+                  </span>
+                  <span className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                    <LiteralHighlight
+                      text={result.snippet}
+                      query={liveTrimmed}
+                    />
+                  </span>
+                </Link>
+              </CommandItem>
+            ))}
+            {canLoadMore ? (
+              <button
+                type="button"
+                data-testid="global-search-content-more"
+                disabled={contentInFlight}
+                onClick={() =>
+                  setContentExpansion({
+                    query: debouncedTrimmed,
+                    limit: Math.min(
+                      contentLimit + CONTENT_LIMIT_STEP,
+                      CONTENT_MAX_LIMIT,
+                    ),
+                  })
+                }
+                className="mx-auto mt-1 block rounded-md px-3 py-1.5 text-xs font-medium text-brand transition-colors hover:bg-brand/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:pointer-events-none disabled:opacity-50"
+              >
+                {contentInFlight ? t("loadingMore") : t("loadMore")}
+              </button>
+            ) : null}
+          </CommandGroup>
+        ) : null}
         {/* `<output>` carries a polite `role="status"` live region for the
             "Searching…" ↔ "No matching issues." transition. The region remains
             mounted before its text changes. */}
@@ -346,7 +552,12 @@ export function GlobalSearchDialog() {
           aria-live="polite"
           className={cn(
             "block text-center text-sm",
-            statusMessage ? "py-6" : "sr-only",
+            statusMessage &&
+              !showResults &&
+              contentResults.length === 0 &&
+              !canLoadMore
+              ? "py-6"
+              : "sr-only",
           )}
         >
           {statusMessage}

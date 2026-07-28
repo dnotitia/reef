@@ -20,6 +20,7 @@ const SCENARIO =
 const SCENARIOS = new Set([
   "empty",
   "configured",
+  "content_search",
   "configured_multi",
   "demo_board",
   "raw_only",

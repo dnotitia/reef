@@ -12,6 +12,14 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Added
+
+- **Global search now finds issue body and comment text.** For queries of two
+  characters or more, `⌘K` keeps its existing metadata and exact-ID results and
+  adds a separate bilingual body/comment group with safe literal highlighting,
+  real issue links, quiet degradation, and bounded 10-at-a-time expansion up to
+  50 results. (REEF-347)
+
 ### Fixed
 
 - Existing users now resume an accessible configured workspace after signing
@@ -19,6 +27,7 @@ explicitly in the entries below.
   Reef preserves a valid last-viewed workspace and otherwise chooses a
   deterministic configured workspace; empty and raw-only accounts still enter
   onboarding, while vault-list failures show a retryable error.
+
 ## v0.8.1 - 2026-07-28
 
 ### Security

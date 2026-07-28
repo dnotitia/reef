@@ -6,6 +6,7 @@ export const E2E_MOCK_URL =
 export type FixtureScenario =
   | "empty"
   | "configured"
+  | "content_search"
   | "configured_multi"
   | "demo_board"
   | "raw_only"
@@ -96,6 +97,18 @@ export async function setIssueListFailure(
   const response = await request.post(
     `${E2E_MOCK_URL}/__e2e/issue-list-failure`,
     { data: { enabled } },
+  );
+  expect(response.ok()).toBeTruthy();
+}
+
+export async function setContentSearchMode(
+  request: APIRequestContext,
+  mode: "healthy" | "degraded" | "error" | "missing-comments",
+  delayMs = 0,
+): Promise<void> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/content-search-control`,
+    { data: { mode, delay_ms: delayMs } },
   );
   expect(response.ok()).toBeTruthy();
 }
@@ -230,6 +243,17 @@ export async function continueToWorkspace(
     new RegExp(`/workspace/${escapeRegExp(vault)}/issues/?$`),
     { timeout: 15_000 },
   );
+
+  // The auto-resume redirect can settle before DashboardShell's client effects
+  // install the global shortcut listener. Prove the shell is interactive so a
+  // caller's first shortcut is not lost in that hydration window.
+  const globalSearchInput = page.locator('[data-testid="global-search-input"]');
+  await expect(async () => {
+    await page.keyboard.press("Control+K");
+    await expect(globalSearchInput).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await page.keyboard.press("Escape");
+  await expect(globalSearchInput).toHaveCount(0);
 }
 
 export async function openExistingWorkspace(

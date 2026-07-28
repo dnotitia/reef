@@ -40,6 +40,16 @@ export {
 } from "./comment";
 
 export {
+  IssueContentSearchLimitSchema,
+  IssueContentSearchRequestSchema,
+  IssueContentSearchResultSchema,
+  IssueContentSearchResponseSchema,
+  type IssueContentSearchRequest,
+  type IssueContentSearchResult,
+  type IssueContentSearchResponse,
+} from "./contentSearch";
+
+export {
   IssueAttachmentSourceEnum,
   type IssueAttachment,
   type IssueAttachmentCreateInput,

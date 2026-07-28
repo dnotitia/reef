@@ -52,6 +52,7 @@ export {
   searchSimilarIssues,
   type SearchSimilarIssuesParams,
 } from "./similarIssues";
+export { searchIssueContent } from "./contentSearch";
 
 const sameJiraMigrationOwner = (left: unknown, right: unknown): boolean => {
   if (

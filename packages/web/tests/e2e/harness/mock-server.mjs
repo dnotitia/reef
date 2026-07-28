@@ -62,6 +62,35 @@ const server = createServer(async (req, res) => {
       });
     }
     if (
+      url.pathname === "/__e2e/content-search-control" &&
+      req.method === "POST"
+    ) {
+      const body = await readJson(req);
+      const mode = [
+        "healthy",
+        "degraded",
+        "error",
+        "missing-comments",
+      ].includes(body?.mode)
+        ? body.mode
+        : "healthy";
+      state.contentSearchMode = mode;
+      state.contentSearchDelayMs = Math.max(
+        0,
+        Math.min(Number(body?.delay_ms ?? 0), 2_000),
+      );
+      const vault = state.vaults.get(REEF_VAULT);
+      if (vault) {
+        if (mode === "missing-comments") vault.tables.delete("reef_comments");
+        else vault.tables.add("reef_comments");
+      }
+      return json(res, 200, {
+        ok: true,
+        mode,
+        delay_ms: state.contentSearchDelayMs,
+      });
+    }
+    if (
       url.pathname === "/__e2e/issue-update-control" &&
       req.method === "POST"
     ) {
@@ -210,6 +239,7 @@ function normalizeScenario(value) {
     value === "empty" ||
     value === "configured_multi" ||
     value === "demo_board" ||
+    value === "content_search" ||
     value === "raw_only" ||
     value === "activity_suggestions" ||
     value === "skill_outdated"
@@ -246,6 +276,8 @@ function makeState(scenario) {
     loginToken: token,
     vaults: new Map(),
     issueListFailure: false,
+    contentSearchMode: "healthy",
+    contentSearchDelayMs: 0,
     vaultListDelayMs: 0,
     vaultListFailures: 0,
     issueUpdateFailures: new Map(),
@@ -292,6 +324,9 @@ function makeState(scenario) {
     }
   } else if (scenario === "demo_board") {
     next.vaults.set(REEF_VAULT, demoBoardVault(REEF_VAULT));
+    next.vaults.set("raw-vault", rawVault("raw-vault"));
+  } else if (scenario === "content_search") {
+    next.vaults.set(REEF_VAULT, contentSearchVault(REEF_VAULT));
     next.vaults.set("raw-vault", rawVault("raw-vault"));
   } else if (scenario === "raw_only") {
     next.vaults.set("raw-vault", rawVault("raw-vault"));
@@ -499,6 +534,89 @@ function configuredVault(name) {
       "Spec overview for the hermetic Ask AI tool transparency workflow.",
     tags: ["docs", "ask-ai", "e2e"],
   });
+  return vault;
+}
+
+function contentSearchVault(name) {
+  const vault = configuredVault(name);
+  seedIssueDocument(
+    vault,
+    "REEF-002",
+    "이 본문에는 한국어 본문 전용 검색 문구가 들어 있습니다.",
+  );
+  vault.comments.push(
+    {
+      id: uuidFor(42),
+      reef_id: "REEF-003",
+      body: "An English comment-only lighthouse phrase lives here.",
+      meta: {
+        author: "alice",
+        created_at: "2026-06-17T11:00:00.000Z",
+        edited_at: null,
+      },
+      created_at: "2026-06-17T11:00:00.000Z",
+      updated_at: "2026-06-17T11:00:00.000Z",
+      created_by: "alice",
+    },
+    {
+      id: uuidFor(43),
+      reef_id: "REEF-003",
+      body: "Literal %_[\\ token is safe to search and highlight.",
+      meta: {
+        author: "alice",
+        created_at: "2026-06-17T12:00:00.000Z",
+        edited_at: null,
+      },
+      created_at: "2026-06-17T12:00:00.000Z",
+      updated_at: "2026-06-17T12:00:00.000Z",
+      created_by: "alice",
+    },
+  );
+  for (let index = 0; index < 11; index += 1) {
+    const createdAt = `2026-06-18T11:${String(index).padStart(2, "0")}:00.000Z`;
+    vault.comments.push({
+      id: uuidFor(100 + index),
+      reef_id: "REEF-003",
+      body: `Dedupe-before-limit comment ${index}`,
+      meta: {
+        author: "alice",
+        created_at: createdAt,
+        edited_at: null,
+      },
+      created_at: createdAt,
+      updated_at: createdAt,
+      created_by: "alice",
+    });
+  }
+  vault.comments.push({
+    id: uuidFor(120),
+    reef_id: "REEF-001",
+    body: "Dedupe-before-limit other issue",
+    meta: {
+      author: "alice",
+      created_at: "2026-06-18T10:00:00.000Z",
+      edited_at: null,
+    },
+    created_at: "2026-06-18T10:00:00.000Z",
+    updated_at: "2026-06-18T10:00:00.000Z",
+    created_by: "alice",
+  });
+  for (let index = 0; index < 12; index += 1) {
+    const id = `REEF-${String(200 + index).padStart(3, "0")}`;
+    vault.issues.push(
+      issueRow({
+        id,
+        title: `Expansion fixture ${index + 1}`,
+        status: "todo",
+        priority: "low",
+      }),
+    );
+    seedIssueDocument(
+      vault,
+      id,
+      `Bounded expansion phrase appears in body fixture ${index + 1}.`,
+    );
+  }
   return vault;
 }
 
@@ -1149,8 +1267,30 @@ async function handleAkb(req, res, url) {
   if (path === "/api/v1/search" && req.method === "GET") {
     const vault = getVault(url.searchParams.get("vault") ?? REEF_VAULT, res);
     if (!vault) return;
-    if (isToolLoopSearch(url)) await sleep(350);
-    return json(res, 200, { results: searchVaultDocuments(vault, url) });
+    const isIssueContentSearch =
+      url.searchParams.get("collection") === "issues" &&
+      url.searchParams.get("type") === "task";
+    if (isIssueContentSearch && state.contentSearchDelayMs > 0) {
+      await sleep(state.contentSearchDelayMs);
+    } else if (isToolLoopSearch(url)) {
+      await sleep(350);
+    }
+    if (isIssueContentSearch && state.contentSearchMode === "error") {
+      return json(res, 503, { detail: "e2e forced hybrid search failure" });
+    }
+    const search = searchVaultDocuments(vault, url);
+    return json(res, 200, {
+      kind: "search",
+      returned: search.results.length,
+      total_matches: search.totalMatches,
+      truncated: search.totalMatches > search.results.length,
+      degraded: isIssueContentSearch && state.contentSearchMode === "degraded",
+      degradation_reason:
+        isIssueContentSearch && state.contentSearchMode === "degraded"
+          ? "e2e_forced"
+          : null,
+      results: search.results,
+    });
   }
 
   return json(res, 404, { error: `unhandled akb mock route: ${path}` });
@@ -1399,6 +1539,41 @@ function handleSql(vault, sql) {
     return tableSql();
   }
 
+  if (
+    lower.startsWith("select id, reef_id, body") &&
+    lower.includes("from reef_comments")
+  ) {
+    const pattern = matchSqlString(
+      normalized,
+      /body\s+ilike\s+'((?:''|[^'])+)'/i,
+    );
+    const literal = decodeEscapedLikePattern(pattern ?? "");
+    const limit = Number(normalized.match(/\blimit\s+(\d+)/i)?.[1] ?? 10);
+    const matching = vault.comments
+      .filter((comment) =>
+        comment.body.toLowerCase().includes(literal.toLowerCase()),
+      )
+      .sort(
+        (left, right) =>
+          String(right.meta?.created_at ?? "").localeCompare(
+            String(left.meta?.created_at ?? ""),
+          ) || String(left.id).localeCompare(String(right.id)),
+      );
+    const latestPerIssue = [];
+    const seenIssues = new Set();
+    for (const comment of matching) {
+      if (seenIssues.has(comment.reef_id)) continue;
+      seenIssues.add(comment.reef_id);
+      latestPerIssue.push(comment);
+    }
+    const rows = latestPerIssue.slice(0, limit).map((comment) => ({
+      id: comment.id,
+      reef_id: comment.reef_id,
+      body: comment.body,
+      created_at: comment.meta?.created_at ?? null,
+    }));
+    return tableQuery(["id", "reef_id", "body", "created_at"], rows);
+  }
   if (lower.startsWith("select * from reef_comments")) {
     const reefId = matchSqlString(normalized, /reef_id\s*=\s*'([^']+)'/i);
     const rows = vault.comments.filter(
@@ -1860,6 +2035,7 @@ function tableNamesInSql(lowerSql) {
     "reef_settings",
     "monitored_repos",
     "reef_issues",
+    "reef_comments",
     "reef_templates",
     "reef_activity_suggestions",
     "reef_attachments",
@@ -2208,7 +2384,7 @@ function searchVaultDocuments(vault, url) {
   const query = (url.searchParams.get("q") ?? "").trim().toLowerCase();
   const limit = Math.max(1, Number(url.searchParams.get("limit") ?? 10));
 
-  return [...vault.documents.values()]
+  const matches = [...vault.documents.values()]
     .filter((doc) => {
       if (collection && !doc.path.startsWith(`${collection}/`)) return false;
       if (type && doc.type !== type) return false;
@@ -2219,20 +2395,35 @@ function searchVaultDocuments(vault, url) {
       score: searchScore(doc, query),
     }))
     .filter(({ score }) => query.length === 0 || score > 0)
-    .sort((a, b) => b.score - a.score || a.doc.path.localeCompare(b.doc.path))
-    .slice(0, limit)
-    .map(({ doc, score }) => ({
+    .sort((a, b) => b.score - a.score || a.doc.path.localeCompare(b.doc.path));
+  return {
+    totalMatches: matches.length,
+    results: matches.slice(0, limit).map(({ doc, score }) => ({
       uri: doc.uri,
       vault: vault.name,
       title: doc.title ?? null,
       summary: doc.summary ?? null,
       score,
-      matched_section: doc.summary ?? doc.content?.slice(0, 160) ?? null,
+      matched_section: doc.content?.slice(0, 320) ?? doc.summary ?? null,
       source_type: "document",
       collection: doc.path.split("/").at(0) ?? null,
       doc_type: doc.type ?? null,
       tags: doc.tags ?? [],
-    }));
+    })),
+  };
+}
+
+function decodeEscapedLikePattern(pattern) {
+  const inner =
+    pattern.startsWith("%") && pattern.endsWith("%")
+      ? pattern.slice(1, -1)
+      : pattern;
+  let decoded = "";
+  for (let index = 0; index < inner.length; index += 1) {
+    if (inner[index] === "\\" && index + 1 < inner.length) index += 1;
+    decoded += inner[index];
+  }
+  return decoded;
 }
 
 function isToolLoopSearch(url) {
