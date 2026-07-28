@@ -26,6 +26,7 @@ import {
 import { finalizeJiraCleanup } from "./cleanup.js";
 import { JiraRunnerError } from "./errors.js";
 import { executeJiraMigrationPlan } from "./execution.js";
+import { createChangeAwarePersister } from "./ledgerPersistence.js";
 import {
   type LoadedJiraMappingPolicy,
   loadJiraMappingPolicy,
@@ -213,15 +214,22 @@ async function runJiraMigrationUnlocked(
   const runAt =
     ledger.runs.find((run) => run.run_id === config.artifacts.runId)
       ?.started_at ?? startedAt;
-  let persistedLedger = ledger;
+  const persistChangedLedger = createChangeAwarePersister(
+    ledger,
+    async (
+      next: JiraMigrationLedgerV1,
+      expectedLedger: JiraMigrationLedgerV1,
+    ): Promise<void> => {
+      await writeJiraMigrationLedger({
+        path: paths.ledgerPath,
+        ledger: next,
+        expectedLedger,
+        forbiddenSecretValues: secretValuesForConfig(config),
+      });
+    },
+  );
   const persistLedger = async (next: JiraMigrationLedgerV1): Promise<void> => {
-    await writeJiraMigrationLedger({
-      path: paths.ledgerPath,
-      ledger: next,
-      expectedLedger: persistedLedger,
-      forbiddenSecretValues: secretValuesForConfig(config),
-    });
-    persistedLedger = next;
+    await persistChangedLedger(next);
     ledger = next;
   };
 

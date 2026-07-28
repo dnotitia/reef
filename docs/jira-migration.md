@@ -710,6 +710,10 @@ Call `confirmJiraMigrationBinding` only after both the target write and target
 identity readback succeed. A failed write or readback belongs in the run result,
 not in `bindings`; resume then retries or conflicts instead of creating a second
 target. Checkpoints are phase plus canonical entity key, never an array index.
+Checkpoint persistence uses the immutable ledger object's identity: report-only
+classifications that leave the ledger unchanged do not rewrite the full private
+artifact, while every new binding or entity result still uses the same
+compare-and-swap, atomic-write, and immediate-readback path.
 The ordered phases are planning, issues, related
 (comments/attachments/changelog), and reconciliation. Reordering source input
 does not change which completed entities are skipped.

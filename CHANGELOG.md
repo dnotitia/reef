@@ -48,6 +48,11 @@ explicitly in the entries below.
   URIs.** Comment operation fingerprints replace dry-run and live AKB file URIs
   with the same stable Jira attachment identity, while retaining all other body
   and thread-parent differences.
+- **Jira migration report-only checkpoints no longer rewrite an unchanged
+  multi-megabyte ledger.** Related and changelog skips retain their existing
+  conservation classifications without repeating the private artifact's
+  compare-and-swap write, while every binding and durable entity result remains
+  atomically checkpointed.
 
 ## v0.8.1 - 2026-07-28
 
