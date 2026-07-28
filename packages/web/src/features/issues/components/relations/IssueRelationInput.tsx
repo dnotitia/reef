@@ -13,7 +13,7 @@ import { rankIssueOptions } from "@/features/issues/lib/rankIssueOptions";
 import { computePanelPlacement } from "@/lib/panelPlacement";
 import { scrollOptionIntoView } from "@/lib/scrollOptionIntoView";
 import { cn } from "@/lib/utils";
-import type { IssueListItem } from "@reef/core";
+import { ISSUE_ID_PATTERN, type IssueListItem } from "@reef/core";
 import { Check, Plus, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -36,9 +36,6 @@ const INPUT_CLASS =
 
 /** How many candidates to surface before the user has typed anything. */
 const RECENT_LIMIT = 8;
-
-/** A complete reef-id shape (`PREFIX-NUMBER`), distinct from a title/prefix search. */
-const ID_LIKE = /^[a-z]+-\d+$/i;
 
 interface IssueRelationInputProps {
   id: string;
@@ -244,7 +241,7 @@ export function IssueRelationInput({
   // shape (not `matches.length === 0`) keeps a plain title search from
   // masquerading as free-text.
   const showUseRow =
-    ID_LIKE.test(normalizedDraft) &&
+    ISSUE_ID_PATTERN.test(normalizedDraft) &&
     normalizedDraft !== normalizedCurrentId &&
     !value.includes(normalizedDraft) &&
     !matches.some(({ issue }) => issue.id === normalizedDraft);

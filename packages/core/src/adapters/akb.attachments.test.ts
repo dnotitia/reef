@@ -108,7 +108,14 @@ describe("uploadIssueAttachment", () => {
       {
         body: {
           uri: "akb://reef-sample/issues/file/file-1",
-          filename: "screenshot.png",
+          upload_url: "https://s3.test/presigned-put",
+        },
+      },
+      { empty: true },
+      {
+        body: {
+          uri: "akb://reef-sample/issues/file/file-1",
+          name: "screenshot.png",
           mime_type: "image/png",
           size_bytes: 4,
         },
@@ -156,9 +163,23 @@ describe("uploadIssueAttachment", () => {
       file_uri: "akb://reef-sample/issues/file/file-1",
       size_bytes: 4,
     });
-    expect(calls[3]?.url).toBe("https://akb.test/api/v1/files");
-    expect(calls[3]?.init?.body).toBeInstanceOf(FormData);
-    const insertSql = lastSql(calls[4]?.init?.body);
+    expect(calls[3]?.url).toContain(
+      "https://akb.test/api/v1/files/reef-sample/upload?",
+    );
+    expect(calls[3]?.url).toContain("filename=screenshot.png");
+    expect(calls[3]?.url).toContain("content_hash=");
+    expect(calls[4]).toMatchObject({
+      url: "https://s3.test/presigned-put",
+      init: {
+        method: "PUT",
+        headers: { "Content-Type": "image/png" },
+        redirect: "error",
+      },
+    });
+    expect(calls[5]?.url).toContain(
+      "https://akb.test/api/v1/files/reef-sample/file-1/confirm?",
+    );
+    const insertSql = lastSql(calls[6]?.init?.body);
     expect(insertSql).toContain(`INSERT INTO ${REEF_ATTACHMENTS_TABLE}`);
     expect(
       insertSql.slice(
@@ -175,7 +196,7 @@ describe("uploadIssueAttachment", () => {
     expect(insertSql).toContain("'source-42'");
     expect(insertSql).toContain("'REEF-349'");
     expect(insertSql).toContain("'akb://reef-sample/issues/file/file-1'");
-    const activitySql = lastSql(calls[6]?.init?.body);
+    const activitySql = lastSql(calls[8]?.init?.body);
     expect(activitySql).toContain("'attachment_added'");
     expect(activitySql).toContain('"attachment_id":"att-1"');
   });
@@ -200,6 +221,14 @@ describe("uploadIssueAttachment", () => {
           ],
           ATTACHMENT_ROW_COLUMNS,
         ),
+      },
+      {
+        body: {
+          name: "screenshot.png",
+          download_url: "https://s3.test/presigned-get",
+          mime_type: "image/png",
+          size_bytes: 4,
+        },
       },
       {
         rawBody: new Uint8Array([1, 2, 3, 4]).buffer,
@@ -297,6 +326,14 @@ describe("downloadIssueAttachmentByFileUri", () => {
         ),
       },
       {
+        body: {
+          name: "screenshot.png",
+          download_url: "https://s3.test/presigned-get",
+          mime_type: "image/png",
+          size_bytes: 3,
+        },
+      },
+      {
         rawBody: body,
         headers: {
           "content-type": "image/png",
@@ -319,7 +356,8 @@ describe("downloadIssueAttachmentByFileUri", () => {
     const sql = lastSql(calls[0]?.init?.body);
     expect(sql).toContain("file_uri = 'akb://reef-sample/issues/file/file-1'");
     expect(calls[1]?.url).toBe(
-      "https://akb.test/api/v1/files/reef-sample/file-1",
+      "https://akb.test/api/v1/files/reef-sample/file-1/download",
     );
+    expect(calls[2]?.url).toBe("https://s3.test/presigned-get");
   });
 });

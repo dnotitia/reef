@@ -323,6 +323,10 @@ describe("createComment", () => {
     expect(sql).toContain("pg_advisory_xact_lock");
     expect(sql).toContain("WHERE reef_id = 'REEF-062' LIMIT 1");
     expect(sql).toContain("parent_chain AS");
+    expect(sql).toContain(
+      "chain_parent.id::text = parent_chain.meta->>'parent_comment_id'",
+    );
+    expect(sql).toContain("root_comment.id::text = reply_target.root_id");
     expect(sql).toContain("jsonb_build_object");
     expect(sql).not.toMatch(/\bjson_build_object\b/u);
     expect(sql).toContain('"jira_idempotency_key":"jira:reply:10002"');

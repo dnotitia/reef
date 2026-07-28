@@ -33,10 +33,14 @@ export const descriptionOperationInput = (
   for (const binding of [...attachmentBindings].sort(
     (left, right) => right.fileUri.length - left.fileUri.length,
   )) {
-    normalized = normalized.replaceAll(
+    for (const fileUri of [
       binding.fileUri,
-      `migration://attachment/${fingerprintJiraState(binding.source.id)}`,
-    );
+      ...(binding.previousFileUris ?? []),
+    ])
+      normalized = normalized.replaceAll(
+        fileUri,
+        `migration://attachment/${fingerprintJiraState(binding.source.id)}`,
+      );
   }
   return normalized;
 };

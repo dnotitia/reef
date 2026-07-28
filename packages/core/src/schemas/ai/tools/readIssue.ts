@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ISSUE_ID_PATTERN } from "../../../models";
 import { IssueMetadataSchema } from "../../issues/metadata";
 
 /**
@@ -9,13 +10,11 @@ import { IssueMetadataSchema } from "../../issues/metadata";
  * prevent path-traversal escapes like `../other-vault/...` from concatenating
  * into the akb URL `/documents/${vault}/${id}`.
  */
-const ISSUE_ID_REGEX = /^[A-Z]+-\d+$/;
-
 export const ReadIssueInputSchema = z.object({
   /** Reef issue id (e.g. "REEF-001"). Vault is bound at factory construction. */
   id: z
     .string()
-    .regex(ISSUE_ID_REGEX, "id must match PREFIX-NUMBER (e.g. REEF-001)"),
+    .regex(ISSUE_ID_PATTERN, "id must match PREFIX-NUMBER (e.g. SAASV31-001)"),
 });
 
 const ReadIssueToolIssueSchema = IssueMetadataSchema.pick({

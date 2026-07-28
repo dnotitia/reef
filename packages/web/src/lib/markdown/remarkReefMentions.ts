@@ -1,6 +1,7 @@
 /**
- * A dependency-free remark plugin that turns `REEF-\d+` tokens into links for
- * ids the caller recognizes — the "loaded issue list" rule (REEF-361
+ * A dependency-free remark plugin that turns Jira-compatible
+ * `PREFIX-NUMBER` tokens into links for ids the caller recognizes — the
+ * "loaded issue list" rule (REEF-361
  * AC3). Unknown ids are left as plain text. It is surface-agnostic: the chat
  * renderer uses it now, and the editor autolink (REEF-348) can reuse the same
  * rule.
@@ -13,8 +14,8 @@
  * routing through the external-link confirmation.
  */
 
-/** Matches a reef issue token on a word boundary so mid-identifier hits (e.g. `xREEF-1`, `REEF-1a`) are ignored. */
-export const REEF_ID_PATTERN = /\bREEF-\d+\b/gi;
+/** Matches a Jira-compatible Reef issue token on a word boundary. */
+export const REEF_ID_PATTERN = /\b[A-Z][A-Z0-9_]*-\d+\b/gi;
 
 interface MdastNode {
   type: string;

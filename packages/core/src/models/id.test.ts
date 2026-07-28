@@ -1,6 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { SchemaValidationError } from "../errors";
-import { type IssueIdParts, nextIssueId, parseIssueId } from "./id";
+import {
+  ISSUE_ID_PATTERN,
+  type IssueIdParts,
+  nextIssueId,
+  parseIssueId,
+} from "./id";
+
+describe("ISSUE_ID_PATTERN", () => {
+  it("accepts Jira-compatible numeric and underscore prefixes", () => {
+    expect(ISSUE_ID_PATTERN.test("SAASV31-001")).toBe(true);
+    expect(ISSUE_ID_PATTERN.test("TEAM_2-042")).toBe(true);
+  });
+
+  it("rejects unsafe or non-canonical ids", () => {
+    expect(ISSUE_ID_PATTERN.test("reef-001")).toBe(false);
+    expect(ISSUE_ID_PATTERN.test("../SAASV31-001")).toBe(false);
+    expect(ISSUE_ID_PATTERN.test("31TEAM-001")).toBe(false);
+  });
+});
 
 describe("nextIssueId", () => {
   describe("happy path", () => {
@@ -28,6 +46,18 @@ describe("nextIssueId", () => {
 
     it("returns PROJ-001 when prefix is PROJ and currentMax is 0", () => {
       expect(nextIssueId({ prefix: "PROJ", currentMax: 0 })).toBe("PROJ-001");
+    });
+
+    it("returns SAASV31-001 for a Jira-compatible numeric prefix", () => {
+      expect(nextIssueId({ prefix: "SAASV31", currentMax: 0 })).toBe(
+        "SAASV31-001",
+      );
+    });
+
+    it("returns TEAM_2-001 for a Jira-compatible underscore prefix", () => {
+      expect(nextIssueId({ prefix: "TEAM_2", currentMax: 0 })).toBe(
+        "TEAM_2-001",
+      );
     });
   });
 
@@ -128,6 +158,8 @@ describe("nextIssueId", () => {
         { prefix: "REEF", currentMax: 99 },
         { prefix: "REEF", currentMax: 999 },
         { prefix: "PROJ", currentMax: 7 },
+        { prefix: "SAASV31", currentMax: 154 },
+        { prefix: "TEAM_2", currentMax: 9 },
       ];
       for (const { prefix, currentMax } of cases) {
         const id = nextIssueId({ prefix, currentMax });
@@ -204,7 +236,21 @@ describe("parseIssueId", () => {
       expect(() => parseIssueId("REEF-00")).toThrow(SchemaValidationError);
     });
 
-    it("throws on '123-042' (numeric prefix — only alpha A-Z allowed)", () => {
+    it("parses Jira-compatible prefixes containing digits", () => {
+      expect(parseIssueId("SAASV31-042")).toEqual({
+        prefix: "SAASV31",
+        number: 42,
+      });
+    });
+
+    it("parses Jira-compatible prefixes containing underscores", () => {
+      expect(parseIssueId("TEAM_2-042")).toEqual({
+        prefix: "TEAM_2",
+        number: 42,
+      });
+    });
+
+    it("throws on '123-042' (prefix must start with alpha A-Z)", () => {
       expect(() => parseIssueId("123-042")).toThrow(SchemaValidationError);
     });
   });

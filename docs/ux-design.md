@@ -406,6 +406,14 @@ status. They share one route, one header, one Zustand filter scope, and one
 filter toolbar, with the backlog view hiding facets that are pinned or
 irrelevant there.
 
+The workspace roots follow the same URL-first contract (REEF-424).
+`/workspace` is the only workspace route that consults the remembered Dexie
+default: it opens that vault's Issues surface or sends a signed-in browser with
+no default to onboarding. `/workspace/{vault}` keeps the explicit vault,
+preserves all query values, and redirects to that vault's `/issues` surface.
+Malformed, inaccessible, and Reef-unconfigured vault roots never fall back to a
+different remembered vault or overwrite the browser default.
+
 **Kanban Board.** Five columns, one per status (Open, In Progress, In Review,
 Done, Closed), populated by drag-and-drop (`@dnd-kit`). A short drag distance
 distinguishes a drag from a click, so a click opens the issue's detail

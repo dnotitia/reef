@@ -583,7 +583,7 @@ describe("Jira related-data import stage", () => {
         mode: "apply",
         approvedOperations: dry.report.operations,
       }),
-    ).rejects.toThrow("related_operation_preflight_failed");
+    ).rejects.toThrow("related_operation_not_approved:revoke_attachment");
     state.attachments.set(boundUri, boundAttachment);
 
     const rerun = await importJiraRelatedData({
@@ -616,25 +616,36 @@ describe("Jira related-data import stage", () => {
     });
     const sourceAttachment = base.issue.fields.attachment?.[0];
     if (sourceAttachment) sourceAttachment.mimeType = undefined;
+    const mimeDry = await importJiraRelatedData({
+      ...base,
+      ledger: rerun.ledger,
+      mode: "dry-run",
+    });
+    expect(mimeDry.report.failures).toEqual([]);
+    expect(
+      mimeDry.report.operations.map((operation) => operation.kind),
+    ).toEqual(
+      expect.arrayContaining(["revoke_attachment", "create_attachment"]),
+    );
     const mimeRerun = await importJiraRelatedData({
       ...base,
       ledger: rerun.ledger,
       mode: "apply",
+      approvedOperations: mimeDry.report.operations,
     });
     expect(mimeRerun.report.attachments.skipped).toBe(0);
-    expect(mimeRerun.report.failures).toContainEqual(
-      expect.objectContaining({
-        source_kind: "attachment",
-        phase: "readback",
-      }),
+    expect(mimeRerun.report.attachments.created).toBe(1);
+    expect(mimeRerun.report.failures).toEqual([]);
+    expect(state.attachments.size).toBe(1);
+    expect([...state.attachments.values()][0]?.attachment.mime_type).toBe(
+      "application/octet-stream",
     );
     if (sourceAttachment)
       sourceAttachment.mimeType = "application/octet-stream";
-    state.attachments.set(mimeUri, mimeStored);
 
     const remapped = await importJiraRelatedData({
       ...base,
-      ledger: rerun.ledger,
+      ledger: mimeRerun.ledger,
       linkMappings: [{ typeId: "1", kind: "symmetric" as const }],
       mode: "apply",
     });
@@ -665,17 +676,16 @@ describe("Jira related-data import stage", () => {
     });
     const corruptRerun = await importJiraRelatedData({
       ...base,
-      ledger: rerun.ledger,
+      ledger: externalized.ledger,
       mode: "apply",
     });
     expect(corruptRerun.report.attachments.skipped).toBe(0);
-    expect(state.description).toBe(preservedDescription);
-    expect(corruptRerun.report.failures).toContainEqual(
-      expect.objectContaining({
-        source_kind: "attachment",
-        phase: "readback",
-        reason: "attachment_import_failed",
-      }),
+    expect(corruptRerun.report.attachments.created).toBe(1);
+    expect(corruptRerun.report.failures).toEqual([]);
+    expect(state.description).not.toContain(storedUri);
+    expect(state.description).not.toBe(preservedDescription);
+    expect([...state.attachments.values()][0]?.bytes).toEqual(
+      new Uint8Array([1, 2, 3]),
     );
   });
 

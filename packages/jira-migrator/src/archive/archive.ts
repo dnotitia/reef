@@ -424,7 +424,16 @@ export class RawArchive {
   }
 
   async archive(input: ArchiveRawPayloadInput): Promise<RawArchiveReference> {
-    const prepared = this.prepareInput(input);
+    const [reference] = await this.archiveMany([input]);
+    if (!reference) fail("archive_io_failed");
+    return reference;
+  }
+
+  async archiveMany(
+    inputs: readonly ArchiveRawPayloadInput[],
+  ): Promise<RawArchiveReference[]> {
+    if (inputs.length === 0) return [];
+    const preparedInputs = inputs.map((input) => this.prepareInput(input));
     await this.ensureLayout();
     const runDirectory = this.runDirectory();
     const lockPath = join(runDirectory, ".manifest.lock");
@@ -437,58 +446,66 @@ export class RawArchive {
     try {
       await assertSecureNode(lockPath, "file", this.permissionModel);
       const manifest = await this.loadOrCreateManifest();
-      const existing = manifest.entries.find(
-        (entry) => entry.entry_id === prepared.entryId,
-      );
-      if (
-        existing &&
-        (existing.classification !== prepared.classification ||
-          canonicalizeJson(existing.source_endpoint) !==
-            canonicalizeJson(prepared.sourceEndpoint))
-      ) {
-        fail("entry_metadata_conflict");
-      }
-      const existingVersion = existing?.versions.find(
-        (version) => version.sha256 === prepared.digest,
-      );
-      if (existingVersion) {
-        await this.verifyObject(existingVersion);
-        if (existing && existing.current_sha256 !== prepared.digest) {
-          existing.current_sha256 = prepared.digest;
-          await this.replaceManifest(manifest);
-          await this.verifyEnvelopeAndObjects(true);
+      const references: RawArchiveReference[] = [];
+      let changed = false;
+      for (const prepared of preparedInputs) {
+        const existing = manifest.entries.find(
+          (entry) => entry.entry_id === prepared.entryId,
+        );
+        if (
+          existing &&
+          (existing.classification !== prepared.classification ||
+            canonicalizeJson(existing.source_endpoint) !==
+              canonicalizeJson(prepared.sourceEndpoint))
+        ) {
+          fail("entry_metadata_conflict");
         }
-        return this.reference(prepared.entryId, prepared.digest);
-      }
+        const existingVersion = existing?.versions.find(
+          (version) => version.sha256 === prepared.digest,
+        );
+        if (existingVersion) {
+          await this.verifyObject(existingVersion);
+          if (existing && existing.current_sha256 !== prepared.digest) {
+            existing.current_sha256 = prepared.digest;
+            changed = true;
+          }
+          references.push(this.reference(prepared.entryId, prepared.digest));
+          continue;
+        }
 
-      await this.writeObject(prepared.digest, prepared.canonicalPayload);
-      const version: RawArchiveVersionV1 = {
-        sha256: prepared.digest,
-        byte_size: Buffer.byteLength(prepared.canonicalPayload),
-        relative_path: objectRelativePath(prepared.digest),
-        fetched_at: prepared.fetchedAt,
-      };
-      if (existing) {
-        existing.versions.push(version);
-        existing.current_sha256 = prepared.digest;
-      } else {
-        manifest.entries.push({
-          entry_id: prepared.entryId,
-          entity_kind: prepared.entityKind,
-          source_identity: prepared.sourceIdentity,
-          source_endpoint: prepared.sourceEndpoint,
-          classification: prepared.classification,
-          redaction_status: "not_redacted_verified_no_configured_secret",
-          versions: [version],
-          current_sha256: prepared.digest,
-        });
+        await this.writeObject(prepared.digest, prepared.canonicalPayload);
+        const version: RawArchiveVersionV1 = {
+          sha256: prepared.digest,
+          byte_size: Buffer.byteLength(prepared.canonicalPayload),
+          relative_path: objectRelativePath(prepared.digest),
+          fetched_at: prepared.fetchedAt,
+        };
+        if (existing) {
+          existing.versions.push(version);
+          existing.current_sha256 = prepared.digest;
+        } else {
+          manifest.entries.push({
+            entry_id: prepared.entryId,
+            entity_kind: prepared.entityKind,
+            source_identity: prepared.sourceIdentity,
+            source_endpoint: prepared.sourceEndpoint,
+            classification: prepared.classification,
+            redaction_status: "not_redacted_verified_no_configured_secret",
+            versions: [version],
+            current_sha256: prepared.digest,
+          });
+        }
+        changed = true;
+        references.push(this.reference(prepared.entryId, prepared.digest));
       }
-      manifest.entries.sort((left, right) =>
-        left.entry_id.localeCompare(right.entry_id, "en"),
-      );
-      await this.replaceManifest(manifest);
-      await this.verifyEnvelopeAndObjects(true);
-      return this.reference(prepared.entryId, prepared.digest);
+      if (changed) {
+        manifest.entries.sort((left, right) =>
+          left.entry_id.localeCompare(right.entry_id, "en"),
+        );
+        await this.replaceManifest(manifest);
+        await this.verifyEnvelopeAndObjects(true);
+      }
+      return references;
     } finally {
       await rm(lockPath, { force: true }).catch(() => undefined);
     }
