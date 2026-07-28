@@ -98,3 +98,89 @@ test.describe("workspace URL routing (REEF-315)", () => {
     ).toBeVisible();
   });
 });
+
+test.describe("workspace root redirects (REEF-424)", () => {
+  test.beforeEach(async ({ request }) => {
+    await resetFixture(request, "configured");
+  });
+
+  test("B1: /workspace opens the remembered Reef workspace", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    await page.goto("/workspace");
+
+    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/?$/);
+    await expect(page.getByText("Initial issue Alpha")).toBeVisible();
+  });
+
+  test("B2: /workspace sends a signed-in user without a default to onboarding", async ({
+    page,
+  }) => {
+    await signInAsAlice(page);
+    await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+
+    await page.goto("/workspace");
+
+    await expect(page).toHaveURL(/\/onboarding$/);
+  });
+
+  test("B3-B4: an explicit vault root opens Issues and preserves every query value", async ({
+    page,
+  }) => {
+    await signInAsAlice(page);
+    await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
+
+    await page.goto("/workspace/reef-e2e?view=list&label=a&label=b&empty=");
+
+    await expect(page).toHaveURL(
+      /\/workspace\/reef-e2e\/issues\?view=list&label=a&label=b&empty=$/,
+    );
+    await expect(
+      page.locator('[data-testid="issue-list-row"]').first(),
+    ).toBeVisible();
+    const destination = new URL(page.url());
+    expect(destination.searchParams.get("view")).toBe("list");
+    expect(destination.searchParams.getAll("label")).toEqual(["a", "b"]);
+    expect(destination.searchParams.has("empty")).toBe(true);
+    expect(destination.searchParams.get("empty")).toBe("");
+  });
+
+  test("B5: malformed and denied vault roots never replace the remembered default", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await expect
+      .poll(() => readIndexedDbConfig(page, "vault"))
+      .toBe(REEF_E2E_VAULT);
+
+    const malformedResponse = await page.goto("/workspace/Bad_Vault");
+    expect(malformedResponse?.status()).toBe(404);
+    await expect
+      .poll(() => readIndexedDbConfig(page, "vault"))
+      .toBe(REEF_E2E_VAULT);
+
+    for (const deniedVault of ["reef-other", "raw-vault"]) {
+      await page.goto(`/workspace/${deniedVault}`);
+      await expect(
+        page.locator('[data-testid="workspace-access-denied"]'),
+      ).toBeVisible();
+      await expect(page).toHaveURL(
+        new RegExp(`/workspace/${deniedVault}(?:/issues)?/?$`),
+      );
+      await expect
+        .poll(() => readIndexedDbConfig(page, "vault"))
+        .toBe(REEF_E2E_VAULT);
+    }
+  });
+
+  test("B6: both workspace roots send an unauthenticated browser to login", async ({
+    page,
+  }) => {
+    for (const path of ["/workspace", "/workspace/reef-e2e"]) {
+      await page.goto(path);
+      await expect(page).toHaveURL(/\/login$/);
+    }
+  });
+});

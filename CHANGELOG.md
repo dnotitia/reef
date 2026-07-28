@@ -14,6 +14,12 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Workspace root URLs now land on a usable screen.** `/workspace` reuses the
+  remembered-workspace/onboarding decision, while `/workspace/{vault}` opens
+  that explicit vault's Issues surface without dropping single, repeated, or
+  empty query values. Malformed or inaccessible vault roots keep their existing
+  denial behavior and cannot silently replace the browser's remembered
+  workspace. (REEF-424)
 - Use AKB's presigned upload/confirm and download flows for issue attachments
   instead of the nonexistent direct multipart and byte-stream endpoints.
 - Compare Reef comment-thread UUIDs as text when validating reply chains stored
@@ -40,15 +46,13 @@ explicitly in the entries below.
 - Keep Atlassian development-summary custom-field payloads in the raw archive
   but normalize their request-volatile internal identifiers out of approval
   fingerprints.
-
 - **Reef workspace and issue ID prefixes now accept Jira-compatible project
   keys.** Prefixes still begin with an uppercase ASCII letter, but may now
-  contain uppercase letters, digits, and underscores after it, allowing Jira
-  projects such as `SAASV31` to initialize a matching target workspace and
-  preserve their source project key during migration. Issue detail APIs,
-  relations, global search, chat grounding, the `read_issue` tool, and Markdown
-  mention links now use the same contract instead of rejecting or overlooking
-  those ids.
+  contain uppercase letters, digits, and underscores after it, allowing a
+  matching target workspace to preserve the source project key during
+  migration. Issue detail APIs, relations, global search, chat grounding, the
+  `read_issue` tool, and Markdown mention links now use the same contract
+  instead of rejecting or overlooking those ids.
 
 ## v0.8.0 - 2026-07-27
 
