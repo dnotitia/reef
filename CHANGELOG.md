@@ -18,7 +18,9 @@ explicitly in the entries below.
   media rewrites.** Fresh dry runs recognize the exact native planning UUID
   projection as equivalent to its approval-bound semantic token, and
   descriptions already containing canonical attachment URIs remain no-op
-  skips instead of being rewritten to the same value.
+  skips instead of being rewritten to the same value. Related planning also
+  uses the issue phase's exact-readback correction before assuming that a stale
+  fingerprint will overwrite the base description.
 - **Jira migration media and cross-project reconciliation now preserve the
   approved source contract end to end.** Issue discovery approval-binds
   rendered fields, description rewrites reuse the issue plan's raw-archive and

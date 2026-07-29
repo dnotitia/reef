@@ -747,6 +747,10 @@ to use current target readback, and a conflict supplies no speculative base
 content. A description that already contains the exact canonical attachment
 URIs is converged; legacy placeholders and prior confirmed file URIs are
 eligible for rewrite only after that exact final-state check.
+Before supplying speculative base content, related planning applies the same
+native-planning and exact-readback correction as the issue phase. A stale
+mapped fingerprint therefore cannot make related planning assume an issue
+rewrite that execution will correctly classify as `skip`.
 
 Related operation approval hashes normalize target-generated identifiers.
 Comment parent UUIDs use their stable Jira source identity, and attachment links

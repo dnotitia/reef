@@ -16,6 +16,7 @@ import { JiraIssueSchema, normalizeJiraIssue } from "../payloads.js";
 import { reportTemplate } from "../related/reporting.js";
 import { scheduleIssuePlansForApply } from "./issueSchedule.js";
 import {
+  actionForRelatedIssuePlan,
   assertRelatedOperationSubset,
   relatedPlanForApproval,
 } from "./plan.js";
@@ -243,6 +244,73 @@ describe("runJiraMigration", () => {
         "markdown with akb://reef-test/file/attachment",
       ),
     ).toBe(true);
+  });
+
+  it("plans related data from converged target content after a stale issue fingerprint", () => {
+    const issue = {
+      id: "REEF-001",
+      title: "Migrated",
+      status: "todo",
+      created_at: "2026-07-23T00:00:00.000Z",
+      created_by: "operator",
+      updated_at: "2026-07-23T00:00:00.000Z",
+      updated_by: "operator",
+      source: "jira-migration",
+      custom_fields: {
+        jira_migration: {
+          owner: {
+            jira_cloud_id: "cloud-1",
+            project_key: "ALPHA",
+            issue_id: "10001",
+            issue_key: "ALPHA-1",
+          },
+        },
+      },
+    };
+    const plan = {
+      source: {
+        jiraCloudId: "cloud-1",
+        projectId: "100",
+        projectKey: "ALPHA",
+        issueId: "10001",
+        issueKey: "ALPHA-1",
+      },
+      status: "ready",
+      desired: { issue, content: "pre-rewrite markdown" },
+    } as unknown as JiraIssueImportPlan;
+    const ledger = {
+      bindings: [
+        {
+          source_key: "issue:cloud-1:100:10001",
+          target: { target_kind: "issue", reef_id: "REEF-001" },
+          mapped_state_fingerprint: "stale",
+        },
+      ],
+    } as never;
+    const readback = {
+      issue,
+      content: "markdown with akb://reef-test/file/attachment",
+      path: "issues/reef-001.md",
+      commit_hash: "commit",
+    } as never;
+
+    expect(
+      actionForRelatedIssuePlan({
+        plan,
+        equivalentPlans: [],
+        ledger,
+        readback: null,
+      }),
+    ).toBe("update");
+    expect(
+      actionForRelatedIssuePlan({
+        plan,
+        equivalentPlans: [],
+        ledger,
+        readback,
+        postRelatedContent: "markdown with akb://reef-test/file/attachment",
+      }),
+    ).toBe("skip");
   });
 
   it("fingerprints approval-time mapped target drift", () => {
