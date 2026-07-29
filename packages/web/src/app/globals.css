@@ -150,10 +150,10 @@
 }
 
 /* Dark token overrides. Applied when `<html>` carries the `.dark` class;
- * the no-flash boot script in `layout.tsx` sets this synchronously based on
- * the user's stored preference (light/dark/system) — with the "system"
- * choice consulting matchMedia('(prefers-color-scheme: dark)') at boot and
- * on OS-level changes. CSS therefore needs one selector here. */
+ * the root ThemeSync client owner restores the stored preference after
+ * hydration, with the "system" choice consulting
+ * matchMedia('(prefers-color-scheme: dark)') initially and on OS-level
+ * changes. CSS therefore needs one selector here. */
 :root.dark {
   color-scheme: dark;
 
