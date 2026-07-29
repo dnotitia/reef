@@ -28,6 +28,7 @@ import {
   migrationScopeLockIdentity,
   runJiraMigration,
 } from "./runner.js";
+import { JiraTargetConflictError } from "./targetAdapter.js";
 
 let root: string | null = null;
 afterEach(async () => {
@@ -517,6 +518,7 @@ describe("runJiraMigration", () => {
       if (!written) throw new Error("issue_missing");
       return { ...written, commit_hash: "commit" };
     });
+    const claimIssue = vi.fn();
     const target = {
       adapter: { request: vi.fn() },
       preflight: vi.fn(async () => ({
@@ -543,7 +545,7 @@ describe("runJiraMigration", () => {
         };
       }),
       readIssue,
-      claimIssue: vi.fn(),
+      claimIssue,
       relatedTarget: vi.fn(() => ({
         listExternalRefKeys: vi.fn(async () => []),
       })),
@@ -749,6 +751,41 @@ describe("runJiraMigration", () => {
     expect(mutations).toEqual(["REEF-001", "REEF-002"]);
     expect(rerun.report.totals.created).toBe(0);
     expect(rerun.report.totals.skipped).toBe(4);
+
+    const ledgerPath = config.artifacts.ledgerPath;
+    if (!ledgerPath) throw new Error("ledger_path_missing");
+    const ledger = JSON.parse(await readFile(ledgerPath, "utf8")) as {
+      bindings: Array<{ source_key?: string }>;
+    };
+    ledger.bindings = ledger.bindings.filter(
+      (binding) => binding.source_key !== "issue:cloud-1:100:10001",
+    );
+    await writeFile(ledgerPath, JSON.stringify(ledger), {
+      mode: 0o600,
+    });
+    claimIssue.mockImplementation(async (plan: JiraIssueImportPlan) => {
+      if (plan.desired.issue?.id === "REEF-001") {
+        throw new JiraTargetConflictError();
+      }
+    });
+    const claimCallsBeforeRecovery = claimIssue.mock.calls.length;
+    const recoveredExisting = await runJiraMigration(applyConfig, {
+      target,
+      createJiraClient: (key) => clients.get(key) as never,
+      now,
+    });
+    expect(recoveredExisting.report.totals.conflict).toBe(0);
+    expect(recoveredExisting.report.totals.created).toBe(0);
+    expect(recoveredExisting.report.totals.skipped).toBe(4);
+    expect(claimIssue.mock.calls).toHaveLength(claimCallsBeforeRecovery);
+    const recoveredLedger = JSON.parse(await readFile(ledgerPath, "utf8")) as {
+      bindings: Array<{ source_key?: string }>;
+    };
+    expect(recoveredLedger.bindings).toContainEqual(
+      expect.objectContaining({
+        source_key: "issue:cloud-1:100:10001",
+      }),
+    );
 
     const alpha = writtenIssues.get("REEF-001");
     if (!alpha) throw new Error("alpha_issue_missing");

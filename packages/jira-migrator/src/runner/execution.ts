@@ -309,6 +309,11 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
     };
     const failedIssueClaimIds = new Set(issueSchedule.blockedIssueIds);
     const conflictedIssueClaimIds = new Set<string>();
+    const recoveredCreateIssues = new Map<
+      string,
+      Awaited<ReturnType<AkbJiraMigrationTarget["applyIssue"]>>
+    >();
+    const confirmedIssueSourceKeys = new Set<string>();
     for (const plan of applyIssuePlans) {
       assertNotAborted();
       if (
@@ -317,6 +322,16 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
           semanticIssuePlan(plan, planningResolutions, planningActions),
         ) !== approvedIssueFingerprints.get(plan.source.issueKey)
       ) {
+        continue;
+      }
+      const identity = jiraIssueSourceIdentity(
+        plan.source.jiraCloudId,
+        plan.source.projectId ?? plan.source.projectKey,
+        plan.source.issueId,
+      );
+      const recovered = await recoverAppliedIssue(plan);
+      if (recovered.applied) {
+        recoveredCreateIssues.set(identity.key, recovered.applied);
         continue;
       }
       try {
@@ -353,7 +368,6 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
         }
       }
     }
-    const confirmedIssueSourceKeys = new Set<string>();
     for (const plan of applyIssuePlans) {
       assertNotAborted();
       const identity = jiraIssueSourceIdentity(
@@ -380,6 +394,39 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
             action: "conflict",
             at: now(),
             readback: false,
+          }),
+        );
+        await checkpoint();
+        continue;
+      }
+      const recoveredCreate = recoveredCreateIssues.get(identity.key);
+      if (recoveredCreate) {
+        ledger = confirmJiraMigrationBinding(ledger, {
+          sourceIdentity: identity,
+          target: {
+            target_kind: "issue",
+            reef_id: recoveredCreate.reefId,
+            document_uri: recoveredCreate.documentUri,
+          },
+          sourceFingerprint,
+          mappedStateFingerprint: mappedFingerprint,
+          lastAppliedAt: now(),
+          writeSucceeded: true,
+          readbackSucceeded: true,
+          rawArchiveReference: archiveReferences.get(plan.source.issueKey)
+            ?.issue,
+        });
+        confirmedIssueSourceKeys.add(identity.key);
+        record(
+          "issues",
+          resultFor({
+            sourceKey: identity.key,
+            entityKind: "issue",
+            sourceFingerprint,
+            mappedFingerprint,
+            action: "skip",
+            at: now(),
+            readback: true,
           }),
         );
         await checkpoint();

@@ -58,6 +58,11 @@ explicitly in the entries below.
   source-derived approval token in first-class fields and nested Jira planning
   metadata, so dry-run placeholders and apply-time AKB UUIDs compare
   semantically.
+- **Jira migration resumes now distinguish target outages from completed
+  unbound creates.** Bounded AKB transport retries fail the run once at its
+  durable checkpoint instead of producing hundreds of entity failures, while
+  an existing target with the approved semantic state and exact Jira owner is
+  bound before another issue-id claim is attempted.
 
 ## v0.8.1 - 2026-07-28
 

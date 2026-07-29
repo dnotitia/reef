@@ -716,6 +716,11 @@ Call `confirmJiraMigrationBinding` only after both the target write and target
 identity readback succeed. A failed write or readback belongs in the run result,
 not in `bindings`; resume then retries or conflicts instead of creating a second
 target. Checkpoints are phase plus canonical entity key, never an array index.
+When a create has no ledger binding but the assigned target id already has the
+approved Jira owner and exact semantic issue readback, apply recovers that
+binding before attempting another claim. This recovery still requires the
+current semantic issue plan to match the immutable approval and never adopts an
+owner-only or drifted target.
 Checkpoint persistence uses the immutable ledger object's identity: report-only
 classifications that leave the ledger unchanged do not rewrite the full private
 artifact, while every new binding or entity result still uses the same
