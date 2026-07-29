@@ -389,6 +389,8 @@ function configuredVault(name) {
       "reef_comments",
       "reef_attachments",
       "reef_activity",
+      "reef_notifications",
+      "reef_subscriptions",
       "reef_sprints",
       "reef_milestones",
       "reef_releases",
@@ -448,6 +450,7 @@ function configuredVault(name) {
     ],
     templates: [],
     activitySuggestions: [],
+    subscriptions: [],
     attachments: [],
     files: new Map(),
     comments: [
@@ -873,6 +876,7 @@ function rawVault(name) {
     releases: [],
     templates: [],
     activitySuggestions: [],
+    subscriptions: [],
     attachments: [],
     files: new Map(),
   };
@@ -1320,6 +1324,7 @@ function handleSql(vault, sql) {
   if (!vault.comments) vault.comments = [];
   if (!vault.attachments) vault.attachments = [];
   if (!vault.activity) vault.activity = [];
+  if (!vault.subscriptions) vault.subscriptions = [];
 
   if (lower.startsWith("select key, value from reef_settings")) {
     return tableQuery(["key", "value"], settingsRows(vault, normalized));
@@ -1388,6 +1393,76 @@ function handleSql(vault, sql) {
         depends_on: row.depends_on,
       })),
     );
+  }
+
+  if (lower.startsWith("select * from reef_subscriptions")) {
+    let subscriptions = [...vault.subscriptions];
+    const reefId = matchSqlString(normalized, /reef_id\s*=\s*'([^']+)'/i);
+    const subscriber = matchSqlString(
+      normalized,
+      /subscriber\s*=\s*'([^']+)'/i,
+    );
+    const status = matchSqlString(normalized, /status\s*=\s*'([^']+)'/i);
+    if (reefId) {
+      subscriptions = subscriptions.filter(
+        (subscription) => subscription.reef_id === reefId,
+      );
+    }
+    if (subscriber) {
+      subscriptions = subscriptions.filter(
+        (subscription) => subscription.subscriber === subscriber,
+      );
+    }
+    if (status) {
+      subscriptions = subscriptions.filter(
+        (subscription) => subscription.status === status,
+      );
+    }
+    subscriptions.sort(
+      (a, b) =>
+        a.subscriber.localeCompare(b.subscriber) ||
+        a.source.localeCompare(b.source) ||
+        a.id.localeCompare(b.id),
+    );
+    return tableQuery(
+      [
+        "id",
+        "subscription_key",
+        "reef_id",
+        "subscriber",
+        "source",
+        "status",
+        "subscribed_at",
+        "meta",
+      ],
+      subscriptions,
+    );
+  }
+
+  if (lower.includes("insert into reef_subscriptions")) {
+    const insert = parseInsert(normalized);
+    if (!insert) return { error: "invalid subscription upsert" };
+    const inserted = objectFromColumns(insert.columns, insert.values);
+    const existing = vault.subscriptions.find(
+      (subscription) =>
+        subscription.subscription_key === inserted.subscription_key,
+    );
+    if (existing) {
+      existing.status = inserted.status;
+      return tableQuery(Object.keys(existing), [existing]);
+    }
+    const subscription = {
+      id: uuidFor(6000 + vault.subscriptions.length),
+      subscription_key: inserted.subscription_key,
+      reef_id: inserted.reef_id,
+      subscriber: inserted.subscriber,
+      source: inserted.source,
+      status: inserted.status,
+      subscribed_at: inserted.subscribed_at,
+      meta: inserted.meta,
+    };
+    vault.subscriptions.push(subscription);
+    return tableQuery(Object.keys(subscription), [subscription]);
   }
   if (lower.startsWith("select * from reef_issues")) {
     if (state.issueListFailure) {
@@ -2039,6 +2114,8 @@ function tableNamesInSql(lowerSql) {
     "reef_templates",
     "reef_activity_suggestions",
     "reef_attachments",
+    "reef_notifications",
+    "reef_subscriptions",
     "reef_sprints",
     "reef_milestones",
     "reef_releases",
@@ -2805,6 +2882,12 @@ function publicState() {
         reef_id: item.reef_id,
         event_type: item.event_type,
         payload: item.payload,
+      })),
+      subscriptions: (vault.subscriptions ?? []).map((item) => ({
+        reef_id: item.reef_id,
+        subscriber: item.subscriber,
+        source: item.source,
+        status: item.status,
       })),
       documents: [...vault.documents.values()].map((doc) => ({
         path: doc.path,

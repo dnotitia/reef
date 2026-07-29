@@ -72,6 +72,12 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
       event_type: string;
       payload: unknown;
     }>;
+    subscriptions: Array<{
+      reef_id: string;
+      subscriber: string;
+      source: string;
+      status: string;
+    }>;
     documents: Array<{
       path: string;
       title: string;
