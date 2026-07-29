@@ -299,10 +299,16 @@ discipline applied at the component level.
 
 ### Dark Mode
 
-Both modes are first-class. The `.dark` class on `<html>` is set synchronously
-by a no-flash boot script that honors the stored light/dark/system preference,
-consulting `prefers-color-scheme` for "system" at boot and on OS changes. Every
-semantic token has a dark variant.
+Both modes are first-class. After client hydration, the `.dark` class on
+`<html>` follows the stored light/dark/system preference; the `system` choice
+consults `prefers-color-scheme` initially and on OS changes. Every semantic
+token has a dark variant.
+
+Theme synchronization has one root-level client owner rather than living in the
+authenticated dashboard shell. Direct entries into login, onboarding,
+not-found, and recoverable error routes therefore hydrate the same persisted
+light/dark/system preference and keep following OS changes when the preference
+is `system`.
 
 ### Typography
 
@@ -729,6 +735,14 @@ again** and never block creating the issue without AI; the rare save conflict
 is surfaced as a save conflict, not a merge conflict. AI degradation is
 silent and total — when the deployment lacks AI, the affordances vanish and the
 core product is unaffected.
+
+Unmatched URLs and recoverable App Router render failures use one shell-free
+Reef error family: mark and wordmark, a short catalog-backed title and
+description, and only the actions that are safe without assuming authentication
+or workspace state. A 404 keeps the real HTTP 404 and offers one `/` home
+action. A recoverable render error offers Next.js retry plus the same `/` home
+path. Neither surface guesses a vault, depends on browser history, or exposes an
+error message, stack, or digest.
 
 ### Keyboard Shortcuts
 

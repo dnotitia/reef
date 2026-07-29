@@ -43,6 +43,19 @@
     "loading": "Loading…",
     "addLabelPlaceholder": "Add a label and press Enter…"
   },
+  "errorSurfaces": {
+    "notFound": {
+      "title": "Page not found",
+      "description": "The page you’re looking for doesn’t exist or may have moved.",
+      "home": "Go to reef home"
+    },
+    "route": {
+      "title": "Something went wrong",
+      "description": "We couldn’t load this page. Try again, or return home to continue.",
+      "retry": "Retry",
+      "home": "Go to reef home"
+    }
+  },
   "sections": {
     "details": "Details",
     "people": "People",

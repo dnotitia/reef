@@ -25,7 +25,6 @@ import { useMyWorkAttention } from "@/features/my-work/hooks/useMyWorkAttention"
 import { OfflineBanner } from "@/features/network/components/OfflineBanner";
 import { CreateWorkspaceDialog } from "@/features/onboarding/components/CreateWorkspaceDialog";
 import { useLocaleSync } from "@/features/preferences/hooks/useLocaleSync";
-import { useThemeSync } from "@/features/preferences/hooks/useThemeSync";
 import { GlobalSearchDialog } from "@/features/search/components/GlobalSearchDialog";
 import { useGlobalSearchStore } from "@/features/search/stores/useGlobalSearchStore";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
@@ -194,13 +193,9 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
     (state) => state.selectedIds.size > 0,
   );
   const clearIssueSelection = useIssueSelectionStore((state) => state.clear);
-  // Singleton theme side-effects (one-time hydrate + OS `system` listener).
-  // The shell is consistently mounted, so this is the one place they run; every
-  // theme control reads the shared store via useTheme (REEF-095).
-  useThemeSync();
   // Singleton locale side-effects (one-time hydrate + cookie/lang reconcile),
-  // mirroring useThemeSync. Restores a persisted locale if the cookie was
-  // cleared (REEF-291).
+  // mounted in the authenticated shell. Restores a persisted locale if the
+  // cookie was cleared (REEF-291).
   useLocaleSync();
   useEffect(() => {
     setInteractionReady(true);

@@ -27,6 +27,12 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Unmatched URLs and recoverable page errors now stay inside Reef's visual
+  language.** Catalog-backed English and Korean surfaces use the existing teal,
+  typography, semantic light/dark tokens, accessible recovery actions, and a
+  safe root path without exposing framework or error internals. Theme
+  synchronization now also covers routes outside the dashboard shell.
+  (REEF-425)
 - **Activity review is now named Suggestions and has its own navigation
   surface.** The workspace sidebar, bilingual page copy, and `G S` shortcut
   open `/workspace/{vault}/suggestions`; the badge reports the full pending

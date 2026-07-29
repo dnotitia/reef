@@ -54,13 +54,9 @@ vi.mock("@/features/settings/hooks/useWorkspaceSkillStatus", () => ({
   useWorkspaceSkillStatus: () => skillStatusState,
 }));
 
-vi.mock("@/features/preferences/hooks/useThemeSync", () => ({
-  useThemeSync: vi.fn(),
-}));
-
-// Mirrors the useThemeSync stub: the locale sync hook consumes next-intl +
-// next/navigation, which this shell test does not provide. Its reconcile
-// behavior is covered by its own tests and the i18n e2e spec.
+// The locale sync hook consumes next-intl + next/navigation, which this shell
+// test does not provide. Its reconcile behavior is covered by its own tests
+// and the i18n e2e spec.
 vi.mock("@/features/preferences/hooks/useLocaleSync", () => ({
   useLocaleSync: vi.fn(),
 }));
