@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { UnreviewedSummaryCard } from "./UnreviewedSummaryCard";
 
 const meta: Meta<typeof UnreviewedSummaryCard> = {
-  title: "Activity/UnreviewedSummaryCard",
+  title: "Suggestions/UnreviewedSummaryCard",
   component: UnreviewedSummaryCard,
   parameters: {
     layout: "padded",

@@ -37,7 +37,9 @@ export function useActivityFeed(vault: string): {
     queryKey: [...ACTIVITY_SUGGESTIONS_QUERY_KEY, vault, "pending"],
     queryFn: async () => {
       const params = new URLSearchParams({ vault, status: "pending" });
-      const res = await apiFetch(`/api/activity/suggestions?${params}`);
+      const res = await apiFetch(`/api/activity/suggestions?${params}`, {
+        cache: "no-store",
+      });
       if (!res.ok) {
         await throwHttpError(
           res,
@@ -47,7 +49,7 @@ export function useActivityFeed(vault: string): {
       return ActivitySuggestionsResultSchema.parse(await res.json());
     },
     enabled: vault.length > 0,
-    staleTime: 5_000,
+    refetchOnMount: "always",
   });
 
   const refreshInbox = useCallback(async () => {
@@ -66,20 +68,28 @@ export function useActivityFeed(vault: string): {
 function suggestionToFeedItem(
   suggestion: ActivitySuggestion,
 ): ActivityFeedItem {
-  if (suggestion.kind === "draft") {
-    return {
-      id: suggestion.id,
-      type: "ai_draft",
-      timestamp: suggestion.created_at,
-      draft: suggestion,
-    };
+  switch (suggestion.kind) {
+    case "draft":
+      return {
+        id: suggestion.id,
+        type: "ai_draft",
+        timestamp: suggestion.created_at,
+        draft: suggestion,
+      };
+    case "status_change":
+      return {
+        id: suggestion.id,
+        type: "ai_status_change",
+        timestamp: suggestion.created_at,
+        issueId: suggestion.proposal.update.issue_id,
+        issueTitle: suggestion.issue_title,
+        statusChange: suggestion,
+      };
+    default:
+      return assertNever(suggestion);
   }
-  return {
-    id: suggestion.id,
-    type: "ai_status_change",
-    timestamp: suggestion.created_at,
-    issueId: suggestion.proposal.update.issue_id,
-    issueTitle: suggestion.issue_title,
-    statusChange: suggestion,
-  };
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unsupported suggestion kind: ${JSON.stringify(value)}`);
 }

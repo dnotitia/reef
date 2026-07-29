@@ -36,7 +36,7 @@ function formatTimestamp(iso: string, locale: string): string {
   }
 }
 
-function ActivityTypeBadge({
+function SuggestionProvenanceBadge({
   children,
 }: {
   children: ReactNode;
@@ -48,6 +48,7 @@ function ActivityTypeBadge({
         "text-[10px] font-semibold uppercase tracking-wide",
         "border-ai-border bg-ai/15 text-ai-subtle-foreground",
       ].join(" ")}
+      data-testid="suggestion-provenance"
     >
       {children}
     </span>
@@ -73,7 +74,7 @@ export function ActivityCardHeader({
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex min-w-0 items-center gap-2">
-          <ActivityTypeBadge>{badge}</ActivityTypeBadge>
+          <SuggestionProvenanceBadge>{badge}</SuggestionProvenanceBadge>
           {issueId && (
             <Link
               href={withVault(vault, `/issues/${issueId}`)}

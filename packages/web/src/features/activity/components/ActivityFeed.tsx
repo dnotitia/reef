@@ -21,11 +21,13 @@ import {
   dismissActivitySuggestion,
   updateActivitySuggestion,
 } from "../actions/activitySuggestions.actions";
-import { useActivityFeed } from "../hooks/useActivityFeed";
+import {
+  ACTIVITY_SUGGESTIONS_QUERY_KEY,
+  useActivityFeed,
+} from "../hooks/useActivityFeed";
 import { useActivityRepo } from "../hooks/useActivityRepo";
 import { useLastVisitAt } from "../hooks/useLastVisitAt";
 import { useScanActivity } from "../hooks/useScanActivity";
-import { UNREAD_INBOX_QUERY_KEY } from "../hooks/useUnreadInboxCount";
 import { useActivityStore } from "../stores/useActivityStore";
 import { ActivityItemCard } from "./ActivityItemCard";
 import { ActivityRefreshButton } from "./ActivityRefreshButton";
@@ -141,14 +143,14 @@ function ActivityFeedContent({
   const [scanTick, setScanTick] = useState(0);
 
   // Manual scan trigger (auto trigger lives in DashboardShell). Both share
-  // the AKB activity inbox and the unread inbox invalidation channel.
+  // the persisted suggestions queue and its query invalidation channel.
   const scan = useScanActivity({
     onSuccess: (result) => {
       setScanTick((t) => t + 1);
       if (result.addedDrafts + result.addedStatusChanges > 0) {
         void refreshInbox();
         void queryClient.invalidateQueries({
-          queryKey: UNREAD_INBOX_QUERY_KEY,
+          queryKey: ACTIVITY_SUGGESTIONS_QUERY_KEY,
         });
       }
     },
@@ -156,8 +158,7 @@ function ActivityFeedContent({
 
   useEffect(() => {
     void updateLastVisitAt();
-    void queryClient.invalidateQueries({ queryKey: UNREAD_INBOX_QUERY_KEY });
-  }, [updateLastVisitAt, queryClient]);
+  }, [updateLastVisitAt]);
 
   const [removedIds, setRemovedIds] = useState<Set<string>>(() => new Set());
   const [approveError, setApproveError] = useState<string | null>(null);
@@ -231,9 +232,11 @@ function ActivityFeedContent({
 
       markRemoved(draft.id);
       void refreshInbox().catch((err) => {
-        console.error("Failed to refresh activity inbox:", err);
+        console.error("Failed to refresh suggestions:", err);
       });
-      void queryClient.invalidateQueries({ queryKey: UNREAD_INBOX_QUERY_KEY });
+      void queryClient.invalidateQueries({
+        queryKey: ACTIVITY_SUGGESTIONS_QUERY_KEY,
+      });
 
       toast.success(
         issueId
@@ -264,7 +267,9 @@ function ActivityFeedContent({
     await dismissActivitySuggestion(draftId, vault);
     markRemoved(draftId);
     await refreshInbox();
-    void queryClient.invalidateQueries({ queryKey: UNREAD_INBOX_QUERY_KEY });
+    void queryClient.invalidateQueries({
+      queryKey: ACTIVITY_SUGGESTIONS_QUERY_KEY,
+    });
   };
 
   const handleApproveStatusChange = async (
@@ -276,7 +281,9 @@ function ActivityFeedContent({
       await approveActivitySuggestion(statusChange.id, { vault });
       markRemoved(statusChange.id);
       await refreshInbox();
-      void queryClient.invalidateQueries({ queryKey: UNREAD_INBOX_QUERY_KEY });
+      void queryClient.invalidateQueries({
+        queryKey: ACTIVITY_SUGGESTIONS_QUERY_KEY,
+      });
       // The issue's status just changed on akb. The detail cache otherwise
       // stays fresh for ~30s and the user would see a stale status if they
       // open the issue right after approving. Invalidate this vault's list and
@@ -334,7 +341,9 @@ function ActivityFeedContent({
     await dismissActivitySuggestion(statusChangeId, vault);
     markRemoved(statusChangeId);
     await refreshInbox();
-    void queryClient.invalidateQueries({ queryKey: UNREAD_INBOX_QUERY_KEY });
+    void queryClient.invalidateQueries({
+      queryKey: ACTIVITY_SUGGESTIONS_QUERY_KEY,
+    });
   };
 
   if (isLoading) {
@@ -345,7 +354,7 @@ function ActivityFeedContent({
     <div data-testid="activity-feed" className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <fieldset className="flex items-center gap-2 border-0 p-0 m-0">
-          <legend className="sr-only">{ta("filterActivity")}</legend>
+          <legend className="sr-only">{ta("filterSuggestions")}</legend>
           {(
             [
               { value: "all", label: ta("filterAll") },
@@ -357,8 +366,9 @@ function ActivityFeedContent({
               key={value}
               type="button"
               onClick={() => setActivityTypeFilter(value)}
+              aria-pressed={activityTypeFilter === value}
               className={[
-                "rounded-full px-3 py-1 text-xs font-medium transition-colors duration-150",
+                "rounded-full px-3 py-1 text-xs font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
                 activityTypeFilter === value
                   ? "bg-foreground text-background"
                   : "bg-secondary text-muted-foreground hover:bg-surface-hover hover:text-foreground",

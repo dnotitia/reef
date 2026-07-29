@@ -32,7 +32,7 @@ test.describe("Hermetic AI activity scanning toggle (REEF-313)", () => {
     );
 
     // While on, the Activity feed exposes the manual Refresh control.
-    await page.goto("/workspace/reef-e2e/activity");
+    await page.goto("/workspace/reef-e2e/suggestions");
     await expect(page.getByTestId("activity-refresh")).toBeVisible();
     await expect(page.getByTestId("activity-scanning-off")).toHaveCount(0);
 
@@ -45,7 +45,7 @@ test.describe("Hermetic AI activity scanning toggle (REEF-313)", () => {
     );
 
     // The Activity feed now hides the manual scan and shows the off note.
-    await page.goto("/workspace/reef-e2e/activity");
+    await page.goto("/workspace/reef-e2e/suggestions");
     await expect(page.getByTestId("activity-scanning-off")).toBeVisible();
     await expect(page.getByTestId("activity-refresh")).toHaveCount(0);
 
@@ -56,7 +56,7 @@ test.describe("Hermetic AI activity scanning toggle (REEF-313)", () => {
       "aria-checked",
       "true",
     );
-    await page.goto("/workspace/reef-e2e/activity");
+    await page.goto("/workspace/reef-e2e/suggestions");
     await expect(page.getByTestId("activity-refresh")).toBeVisible();
   });
 });

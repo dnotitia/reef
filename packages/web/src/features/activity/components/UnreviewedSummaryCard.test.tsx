@@ -14,8 +14,8 @@ describe("UnreviewedSummaryCard", () => {
     );
 
     expect(screen.getByTestId("unreviewed-summary-card")).toBeInTheDocument();
-    expect(screen.getByText(/Since you were last here/)).toBeInTheDocument();
-    expect(screen.getByText(/2 new AI drafts/)).toBeInTheDocument();
+    expect(screen.getByText(/New since your last review/)).toBeInTheDocument();
+    expect(screen.getByText(/2 draft suggestions/)).toBeInTheDocument();
     expect(screen.getByText(/1 status change/)).toBeInTheDocument();
   });
 
@@ -29,7 +29,7 @@ describe("UnreviewedSummaryCard", () => {
     );
 
     expect(screen.getByTestId("unreviewed-summary-card")).toBeInTheDocument();
-    expect(screen.getByText(/1 new AI draft/)).toBeInTheDocument();
+    expect(screen.getByText(/1 draft suggestion/)).toBeInTheDocument();
     expect(screen.queryByText(/status change/)).not.toBeInTheDocument();
   });
 

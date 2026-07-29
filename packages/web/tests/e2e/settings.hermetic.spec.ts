@@ -73,14 +73,14 @@ test.describe("Hermetic settings workflows", () => {
       })
       .toContain("octo/reef");
 
-    await page.goto("/workspace/reef-e2e/activity");
+    await page.goto("/workspace/reef-e2e/suggestions");
     await expect(
       page.locator('[data-testid="activity-scan-target-single"]'),
     ).toHaveText("octo/reef");
     await page.locator('[data-testid="activity-refresh"]').click();
     await expect(
       page.locator('[data-testid="activity-last-scan"]'),
-    ).toContainText("Scanned");
+    ).toContainText("Checked");
   });
 
   test("updates workspace project prefix and authoring language through real config routes", async ({

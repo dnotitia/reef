@@ -9,9 +9,9 @@ interface UnreviewedSummaryCardProps {
 }
 
 /**
- * Summary card shown at the top of the Activity feed when the PM returns after
- * a period of absence. Uses brand-tinted surface to read as "important but
- * informational" against the neutral feed.
+ * Summary card shown at the top of Suggestions when the PM returns after a
+ * period of absence. Uses a brand-tinted surface to read as "important but
+ * informational" against the neutral queue.
  */
 export function UnreviewedSummaryCard({
   draftCount,
@@ -44,7 +44,7 @@ export function UnreviewedSummaryCard({
       <button
         type="button"
         onClick={onDismiss}
-        className="shrink-0 rounded-md bg-brand px-3 py-1 text-xs font-medium text-brand-foreground transition-colors duration-150 hover:opacity-90"
+        className="shrink-0 rounded-md bg-brand px-3 py-1 text-xs font-medium text-brand-foreground transition-colors duration-150 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
       >
         {t("gotIt")}
       </button>
