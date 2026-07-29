@@ -50,6 +50,7 @@ export {
   listIssues,
   listPlanningCatalog,
   reconcileJiraChangelogActivityEvents,
+  reconcileJiraImportedComment,
   readPlanningCreateClaim,
   listTemplates,
   listVaultMembers,

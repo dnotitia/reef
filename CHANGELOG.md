@@ -20,6 +20,11 @@ explicitly in the entries below.
   attempting an append that cannot change the old actor. Ordinary Reef
   activity remains append-only, while imported assignees and historical actor
   payloads can converge without duplicate events.
+- **Jira account remapping now repairs migration-owned comment authors in
+  place.** Imported comments with their exact deterministic Jira idempotency
+  key can replace a fallback author after vault membership review while
+  preserving comment identity, thread links, and AKB bookkeeping. Ordinary
+  Reef comment edits remain author-scoped.
 - **Jira migration convergence no longer schedules equivalent planning or
   media rewrites.** Fresh dry runs recognize the exact native planning UUID
   projection as equivalent to its approval-bound semantic token, and

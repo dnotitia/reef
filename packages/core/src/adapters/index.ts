@@ -30,6 +30,7 @@ export {
   removeIssueReference as akbRemoveIssueReference,
   listComments as akbListComments,
   createComment as akbCreateComment,
+  reconcileJiraImportedComment as akbReconcileJiraImportedComment,
   updateComment as akbUpdateComment,
   listIssueAttachments as akbListIssueAttachments,
   uploadIssueAttachment as akbUploadIssueAttachment,

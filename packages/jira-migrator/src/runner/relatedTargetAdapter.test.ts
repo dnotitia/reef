@@ -1,8 +1,22 @@
 import { AkbApiError } from "@reef/core";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createAkbRelatedTarget } from "./relatedTargetAdapter.js";
 
+const reconcileJiraImportedComment = vi.hoisted(() => vi.fn());
+
+vi.mock("@reef/core", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@reef/core")>();
+  return {
+    ...actual,
+    akbReconcileJiraImportedComment: reconcileJiraImportedComment,
+  };
+});
+
 describe("AKB Jira related target", () => {
+  beforeEach(() => {
+    reconcileJiraImportedComment.mockReset();
+  });
+
   it("retries transient AKB read failures without retrying a mutation", async () => {
     const request = vi
       .fn()
@@ -46,5 +60,53 @@ describe("AKB Jira related target", () => {
           String(init.body.sql).startsWith("SELECT"),
       ),
     ).toBe(true);
+  });
+
+  it("routes Jira comment remapping through the migration-owned repair path", async () => {
+    reconcileJiraImportedComment.mockResolvedValue({
+      id: "comment-1",
+      reef_id: "SHDEV-007",
+      body: "imported",
+      author: "hongchan",
+      created_at: "2025-05-27T21:43:43.262+09:00",
+      edited_at: null,
+      parent_comment_id: null,
+      thread_root_id: null,
+    });
+    const adapter = { request: vi.fn() };
+    const { related } = createAkbRelatedTarget({
+      adapter,
+      vault: "reef-shdev",
+      readIssue: async () => {
+        throw new Error("unused");
+      },
+      updateIssue: async () => {
+        throw new Error("unused");
+      },
+    });
+
+    await related.updateComment("comment-1", {
+      idempotencyKey: "comment:cloud-1:15263:15578",
+      reefId: "SHDEV-007",
+      body: "imported",
+      author: "hongchan",
+      createdAt: "2025-05-27T21:43:43.262+09:00",
+      editedAt: null,
+      expectedThreadRootId: null,
+    });
+
+    expect(reconcileJiraImportedComment).toHaveBeenCalledWith(
+      adapter,
+      "reef-shdev",
+      {
+        commentId: "comment-1",
+        reefId: "SHDEV-007",
+        idempotencyKey: "comment:cloud-1:15263:15578",
+        body: "imported",
+        author: "hongchan",
+        createdAt: "2025-05-27T21:43:43.262+09:00",
+        editedAt: null,
+      },
+    );
   });
 });

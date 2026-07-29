@@ -972,6 +972,14 @@ and uses Reef's threaded-comment contract. Missing parents are isolated as
 entity failures and never become flat comments. Source author mapping and
 created/edited timestamps are preserved.
 
+Ordinary Reef comment edits remain author-scoped. If a later approved account
+mapping replaces a fallback comment author, apply may reconcile only the exact
+row that already carries its deterministic
+`comment:<cloud>:<issue>:<comment>` idempotency key. This migration-only repair
+updates the source body, mapped author, and preserved source timestamps in
+place while retaining the comment id, thread links, and AKB creation
+bookkeeping. Missing or manually shaped keys are rejected before I/O.
+
 Attachments are downloaded only with a GET to the configured Jira origin at
 `/rest/api/3/attachment/content/{id}?redirect=false`. The importer never follows
 the payload's arbitrary `content` URL with Jira credentials. It verifies source

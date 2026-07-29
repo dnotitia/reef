@@ -220,6 +220,7 @@ export {
   akbRemoveIssueReference,
   akbListComments,
   akbCreateComment,
+  akbReconcileJiraImportedComment,
   akbUpdateComment,
   akbListIssueAttachments,
   akbUploadIssueAttachment,

@@ -72,6 +72,7 @@ export {
 export {
   listComments,
   createComment,
+  reconcileJiraImportedComment,
   updateComment,
 } from "./issues/comments";
 export {

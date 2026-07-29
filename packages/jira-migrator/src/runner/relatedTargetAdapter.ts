@@ -12,7 +12,7 @@ import {
   akbListComments,
   akbListIssueActivity,
   akbListIssueAttachments,
-  akbUpdateComment,
+  akbReconcileJiraImportedComment,
   akbUploadIssueAttachment,
 } from "@reef/core";
 import { canonicalizeJson } from "../rawArchive.js";
@@ -254,19 +254,15 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
       return comment;
     },
     updateComment(commentId, input) {
-      return akbUpdateComment(
-        adapter,
-        vault,
-        input.reefId,
+      return akbReconcileJiraImportedComment(adapter, vault, {
         commentId,
-        input.body,
-        input.author,
-        {
-          createdAt: input.createdAt,
-          editedAt: input.editedAt,
-          metadata: { jira_idempotency_key: input.idempotencyKey },
-        },
-      );
+        reefId: input.reefId,
+        idempotencyKey: input.idempotencyKey,
+        body: input.body,
+        author: input.author,
+        createdAt: input.createdAt,
+        editedAt: input.editedAt,
+      });
     },
     async readComment(commentId) {
       const rows = await readSql(
