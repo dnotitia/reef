@@ -14,6 +14,11 @@ explicitly in the entries below.
 
 ### Added
 
+- **Core now provides notification inbox and source-aware issue subscription
+  contracts.** Public schemas, deterministic keys, recipient-scoped notification
+  reads and state transitions, and manual/requester/assignee/commenter
+  subscription precedence give follow-up web features a single AKB-backed
+  boundary. (REEF-427)
 - **Global search now finds issue body and comment text.** For queries of two
   characters or more, `⌘K` keeps its existing metadata and exact-ID results and
   adds a separate bilingual body/comment group with safe literal highlighting,
@@ -46,6 +51,18 @@ explicitly in the entries below.
   Reef preserves a valid last-viewed workspace and otherwise chooses a
   deterministic configured workspace; empty and raw-only accounts still enter
   onboarding, while vault-list failures show a retryable error.
+
+### Migration
+
+- **Reef storage schema version 2 adds `reef_notifications` and
+  `reef_subscriptions` declaratively.** New and schema-version-1 vaults create
+  only missing tables with their unique keys and lookup indexes; existing Reef
+  tables and activity-inbox data are unchanged, no backfill is required, and a
+  mismatched existing table fails closed for operator review before any missing
+  table is created or altered. Target AKB deployments must support create-time
+  `unique_keys` and `indexes`. Reef also rejects vault names that cannot fit
+  the longest desired table within AKB's PostgreSQL identifier limit before
+  creating any table, preventing a partial workspace installation. (REEF-427)
 
 ## v0.8.1 - 2026-07-28
 

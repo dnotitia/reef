@@ -18,13 +18,24 @@ import {
   type AkbCreateTableRequest,
   type AkbTableColumn,
   AkbTableColumnTypeSchema,
+  type AkbTableIndex,
+  type AkbTableUniqueKey,
   REEF_DESIRED_TABLES,
   REEF_SCHEMA_VERSION,
   type ReefTableManifest,
 } from "./tableManifest";
 import { withSpan } from "./tracing";
 
-export { REEF_DESIRED_TABLES, REEF_SCHEMA_VERSION } from "./tableManifest";
+export {
+  REEF_DESIRED_TABLES,
+  REEF_SCHEMA_VERSION,
+  type AkbCreateTableRequest,
+  type AkbTableColumn,
+  type AkbTableIndex,
+  type AkbTableIndexColumn,
+  type AkbTableUniqueKey,
+  type ReefTableManifest,
+} from "./tableManifest";
 
 // ─── Tables: HTTP primitives ──────────────────────────────────────────────────
 //
@@ -33,6 +44,8 @@ export { REEF_DESIRED_TABLES, REEF_SCHEMA_VERSION } from "./tableManifest";
 // lives in `sql.ts`.
 
 const NonEmptyStringSchema = z.string().min(1);
+const AKB_TABLE_IDENTIFIER_MAX_LENGTH = 63;
+const AKB_TABLE_IDENTIFIER_FIXED_LENGTH = "vt_".length + "__".length;
 
 export const AkbTableMutationColumnTypeSchema = z.enum([
   "text",
@@ -223,6 +236,35 @@ function schemaValidationError(error: z.ZodError): SchemaValidationError {
   });
 }
 
+function akbTableIdentifierPart(value: string): string {
+  return value
+    .toLowerCase()
+    .replaceAll("-", "_")
+    .replace(/[^a-z0-9]/gu, "_");
+}
+
+function assertDesiredTableIdentifiersFit(vault: string): void {
+  const vaultPartLength = akbTableIdentifierPart(vault).length;
+  for (const manifest of REEF_DESIRED_TABLES) {
+    const tablePartLength = akbTableIdentifierPart(manifest.name).length;
+    const identifierLength =
+      AKB_TABLE_IDENTIFIER_FIXED_LENGTH + vaultPartLength + tablePartLength;
+    if (identifierLength <= AKB_TABLE_IDENTIFIER_MAX_LENGTH) continue;
+
+    const maximumVaultLength =
+      AKB_TABLE_IDENTIFIER_MAX_LENGTH -
+      AKB_TABLE_IDENTIFIER_FIXED_LENGTH -
+      tablePartLength;
+    throw new SchemaValidationError({
+      field: "vault",
+      issues: [
+        `Vault name is too long for Reef table ${manifest.name}; maximum supported length is ${maximumVaultLength}`,
+      ],
+      clientValidated: true,
+    });
+  }
+}
+
 function parseOrThrow<T>(schema: z.ZodType<T>, value: unknown): T {
   const parsed = schema.safeParse(value);
   if (!parsed.success) throw schemaValidationError(parsed.error);
@@ -332,6 +374,8 @@ export function assertNoAkbManagedColumns(table: AkbCreateTableRequest): void {
 interface AkbTableSummary {
   name: string;
   columns?: AkbTableColumn[];
+  uniqueKeys?: AkbTableUniqueKey[];
+  indexes?: AkbTableIndex[];
 }
 
 async function listAkbTables(
@@ -356,7 +400,12 @@ async function listAkbTables(
   })();
   return items.flatMap((item) => {
     if (!item || typeof item !== "object" || !("name" in item)) return [];
-    const obj = item as { name: unknown; columns?: unknown };
+    const obj = item as {
+      name: unknown;
+      columns?: unknown;
+      unique_keys?: unknown;
+      indexes?: unknown;
+    };
     const table: AkbTableSummary = { name: String(obj.name) };
     if (Array.isArray(obj.columns)) {
       table.columns = obj.columns.flatMap((col) => {
@@ -367,6 +416,18 @@ async function listAkbTables(
             required: z.boolean().optional(),
           })
           .safeParse(col);
+        return parsed.success ? [parsed.data] : [];
+      });
+    }
+    if (Array.isArray(obj.unique_keys)) {
+      table.uniqueKeys = obj.unique_keys.flatMap((uniqueKey) => {
+        const parsed = AkbUniqueKeySchema.safeParse(uniqueKey);
+        return parsed.success ? [parsed.data] : [];
+      });
+    }
+    if (Array.isArray(obj.indexes)) {
+      table.indexes = obj.indexes.flatMap((index) => {
+        const parsed = AkbIndexSchema.safeParse(index);
         return parsed.success ? [parsed.data] : [];
       });
     }
@@ -437,6 +498,42 @@ function columnsMatch(
   });
 }
 
+function uniqueKeysMatch(
+  expected: readonly AkbTableUniqueKey[] | undefined,
+  actual: readonly AkbTableUniqueKey[] | undefined,
+): boolean {
+  if (!expected) return true;
+  if (!actual || actual.length !== expected.length) return false;
+  const signatures = (items: readonly AkbTableUniqueKey[]) =>
+    items.map((item) => item.columns.join("\u0000")).sort();
+  return (
+    JSON.stringify(signatures(expected)) === JSON.stringify(signatures(actual))
+  );
+}
+
+function indexColumnSignature(
+  column: AkbTableIndex["columns"][number],
+): string {
+  return typeof column === "string"
+    ? `${column}:asc`
+    : `${column.name}:${column.order ?? "asc"}`;
+}
+
+function indexesMatch(
+  expected: readonly AkbTableIndex[] | undefined,
+  actual: readonly AkbTableIndex[] | undefined,
+): boolean {
+  if (!expected) return true;
+  if (!actual || actual.length !== expected.length) return false;
+  const signatures = (items: readonly AkbTableIndex[]) =>
+    items
+      .map((item) => item.columns.map(indexColumnSignature).join("\u0000"))
+      .sort();
+  return (
+    JSON.stringify(signatures(expected)) === JSON.stringify(signatures(actual))
+  );
+}
+
 function manifestMatchesTable(
   manifest: ReefTableManifest,
   table: AkbTableSummary | undefined,
@@ -444,7 +541,9 @@ function manifestMatchesTable(
   return (
     table?.name === manifest.name &&
     tableHasColumnMetadata(table) &&
-    columnsMatch(manifest.columns, table.columns)
+    columnsMatch(manifest.columns, table.columns) &&
+    uniqueKeysMatch(manifest.unique_keys, table.uniqueKeys) &&
+    indexesMatch(manifest.indexes, table.indexes)
   );
 }
 
@@ -462,6 +561,16 @@ function assertManifestMatches(
       issues: [`Reef table schema mismatch: ${manifest.name}`],
     });
   }
+  if (!uniqueKeysMatch(manifest.unique_keys, table.uniqueKeys)) {
+    throw new SchemaValidationError({
+      issues: [`Reef table unique-key mismatch: ${manifest.name}`],
+    });
+  }
+  if (!indexesMatch(manifest.indexes, table.indexes)) {
+    throw new SchemaValidationError({
+      issues: [`Reef table index mismatch: ${manifest.name}`],
+    });
+  }
 }
 
 function canVerifySchema(tables: AkbTableSummary[]): boolean {
@@ -475,6 +584,15 @@ function assertDesiredTablesMatch(tables: AkbTableSummary[]): void {
   const byName = tableMap(tables);
   for (const manifest of REEF_DESIRED_TABLES) {
     assertManifestMatches(manifest, byName.get(manifest.name));
+  }
+}
+
+function assertExistingDesiredTablesMatch(tables: AkbTableSummary[]): void {
+  const byName = tableMap(tables);
+  for (const manifest of REEF_DESIRED_TABLES) {
+    const table = byName.get(manifest.name);
+    if (!tableHasColumnMetadata(table)) continue;
+    assertManifestMatches(manifest, table);
   }
 }
 
@@ -563,7 +681,12 @@ async function createMissingTable(
 export async function ensureReefTables(
   params: EnsureReefTablesParams,
 ): Promise<void> {
-  const { adapter, vault } = params;
+  const { vault } = parseOrThrow(
+    z.object({ vault: NonEmptyStringSchema }),
+    params,
+  );
+  const { adapter } = params;
+  assertDesiredTableIdentifiersFit(vault);
   return withSpan("akb.tables.ensure", { vault }, async (span) => {
     for (const manifest of REEF_DESIRED_TABLES) {
       assertNoAkbManagedColumns(manifest);
@@ -572,10 +695,8 @@ export async function ensureReefTables(
     const initial = tableMap(tables);
     span.setAttribute("existing_table_count", initial.size);
 
+    assertExistingDesiredTablesMatch(tables);
     const supportsSchemaVerification = canVerifySchema(tables);
-    if (supportsSchemaVerification) {
-      assertDesiredTablesMatch(tables);
-    }
     const storedVersion = supportsSchemaVerification
       ? await readStoredSchemaVersion(
           adapter,
