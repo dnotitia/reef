@@ -488,6 +488,81 @@ export async function reconcileJiraChangelogActivityEvents(
   );
 }
 
+export interface JiraImportedAttachmentActivityActorInput {
+  reefId: string;
+  eventKey: string;
+  fromActor: string;
+  toActor: string;
+}
+
+/**
+ * Repair the actor on one migration-generated attachment event.
+ *
+ * Uploading a replacement attachment appends a new event and can leave the
+ * previous event orphaned when the old attachment row is revoked. Ordinary
+ * Reef activity remains append-only; this path is limited to an exact
+ * `attachment_added` key whose current actor is a Jira fallback identity.
+ */
+export async function reconcileJiraImportedAttachmentActivityActor(
+  adapter: AkbAdapter,
+  vault: string,
+  input: JiraImportedAttachmentActivityActorInput,
+): Promise<void> {
+  if (!/^attachment_added:[^@]+@.+$/u.test(input.eventKey)) {
+    throw new ZodError([
+      {
+        code: "custom",
+        path: ["eventKey"],
+        message:
+          "Jira attachment activity reconciliation requires an attachment_added event key",
+      },
+    ]);
+  }
+  if (!input.fromActor.startsWith("jira:")) {
+    throw new ZodError([
+      {
+        code: "custom",
+        path: ["fromActor"],
+        message:
+          "Jira attachment activity reconciliation requires a fallback actor",
+      },
+    ]);
+  }
+  await withSpan(
+    "akb.reconcile_jira_imported_attachment_activity_actor",
+    { vault, reef_id: input.reefId },
+    async (span) => {
+      await ensureReefTables({ adapter, vault });
+      const update = await runSql(
+        adapter,
+        vault,
+        `UPDATE ${tableRef(
+          REEF_ACTIVITY_TABLE,
+        )} SET meta = jsonb_set(meta::jsonb, '{actor}', ${quoteJson(
+          input.toActor,
+        )}::jsonb, true) WHERE reef_id = ${quoteText(
+          input.reefId,
+          "activity reef_id",
+        )} AND event_type = ${quoteText(
+          ACTIVITY_EVENT_ATTACHMENT_ADDED,
+          "activity event_type",
+        )} AND event_key = ${quoteText(
+          input.eventKey,
+          "activity event_key",
+        )} AND meta->>'actor' = ${quoteText(
+          input.fromActor,
+          "activity actor",
+        )} RETURNING id`,
+      );
+      const updated = update.kind === "table_query" ? update.items.length : 0;
+      span.setAttribute("updated_count", updated);
+      if (updated !== 1) {
+        throw new Error("jira_attachment_activity_actor_reconcile_mismatch");
+      }
+    },
+  );
+}
+
 /** Stable identity of an implementation ref, matching the runbook's `type:repo:ref` de-dupe. */
 function implRefDedupeKey(ref: {
   type: string;

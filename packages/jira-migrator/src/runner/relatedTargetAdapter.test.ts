@@ -3,17 +3,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createAkbRelatedTarget } from "./relatedTargetAdapter.js";
 
 const reconcileJiraImportedComment = vi.hoisted(() => vi.fn());
+const reconcileJiraImportedAttachmentActivityActor = vi.hoisted(() => vi.fn());
 
 vi.mock("@reef/core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@reef/core")>();
   return {
     ...actual,
+    akbReconcileJiraImportedAttachmentActivityActor:
+      reconcileJiraImportedAttachmentActivityActor,
     akbReconcileJiraImportedComment: reconcileJiraImportedComment,
   };
 });
 
 describe("AKB Jira related target", () => {
   beforeEach(() => {
+    reconcileJiraImportedAttachmentActivityActor.mockReset();
     reconcileJiraImportedComment.mockReset();
   });
 
@@ -107,6 +111,35 @@ describe("AKB Jira related target", () => {
         createdAt: "2025-05-27T21:43:43.262+09:00",
         editedAt: null,
       },
+    );
+  });
+
+  it("routes attachment activity remapping through the migration-owned repair path", async () => {
+    reconcileJiraImportedAttachmentActivityActor.mockResolvedValue(undefined);
+    const adapter = { request: vi.fn() };
+    const { related } = createAkbRelatedTarget({
+      adapter,
+      vault: "reef-shdev",
+      readIssue: async () => {
+        throw new Error("unused");
+      },
+      updateIssue: async () => {
+        throw new Error("unused");
+      },
+    });
+    const input = {
+      reefId: "SHDEV-007",
+      eventKey: "attachment_added:attachment-1@2025-05-27T21:43:43.262+09:00",
+      fromActor: "jira:account-1",
+      toActor: "hongchan",
+    };
+
+    await related.reconcileAttachmentActivityActor(input);
+
+    expect(reconcileJiraImportedAttachmentActivityActor).toHaveBeenCalledWith(
+      adapter,
+      "reef-shdev",
+      input,
     );
   });
 });

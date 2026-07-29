@@ -228,6 +228,7 @@ export {
   akbDownloadIssueAttachmentByFileUri,
   akbListIssueActivity,
   akbAppendActivityEvents,
+  akbReconcileJiraImportedAttachmentActivityActor,
   akbReconcileJiraChangelogActivityEvents,
   akbSearchDocuments,
   akbResolveDocumentTitles,

@@ -44,6 +44,7 @@ export type JiraRelatedOperationKind =
   | "delete_comment"
   | "create_attachment"
   | "revoke_attachment"
+  | "reconcile_attachment_activity_actor"
   | "update_description"
   | "put_relation"
   | "delete_relation"
@@ -79,6 +80,18 @@ export interface JiraImportedAttachmentInput {
   meta: Record<string, unknown>;
 }
 
+export interface JiraAttachmentActivityActor {
+  eventKey: string;
+  actor: string;
+}
+
+export interface JiraAttachmentActivityActorReconciliation {
+  reefId: string;
+  eventKey: string;
+  fromActor: string;
+  toActor: string;
+}
+
 export interface JiraRelatedImportTarget {
   createComment(input: JiraImportedCommentInput): Promise<Comment>;
   updateComment(
@@ -104,6 +117,16 @@ export interface JiraRelatedImportTarget {
     fileUri: string;
     replacement: string;
   }): Promise<void>;
+  listFallbackAttachmentActivityActors(
+    reefId: string,
+  ): Promise<JiraAttachmentActivityActor[]>;
+  readAttachmentActivityActor(
+    reefId: string,
+    eventKey: string,
+  ): Promise<string | null>;
+  reconcileAttachmentActivityActor(
+    input: JiraAttachmentActivityActorReconciliation,
+  ): Promise<void>;
   hasMediaReference(reefId: string, fileUri: string): Promise<boolean>;
   readDescription(reefId: string): Promise<string>;
   updateDescription(reefId: string, markdown: string): Promise<void>;

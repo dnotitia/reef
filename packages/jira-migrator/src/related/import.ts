@@ -19,6 +19,7 @@ import { importComments } from "./commentImport.js";
 import { jiraCommentVisibility, revokeCommentTargets } from "./comments.js";
 import type {
   AttachmentBinding,
+  JiraAttachmentActivityActorReconciliation,
   JiraImportedCommentInput,
   JiraLinkMapping,
   JiraRelatedImportFailure,
@@ -36,6 +37,7 @@ import { importRemoteLinks } from "./remoteLinks.js";
 import { failure, reportTemplate } from "./reporting.js";
 
 export type {
+  JiraAttachmentActivityActorReconciliation,
   JiraImportedAttachmentInput,
   JiraImportedCommentInput,
   JiraLinkMapping,
@@ -401,6 +403,49 @@ export async function importJiraRelatedData(
   const attachmentBindings = attachmentResult.attachmentBindings;
   if (input.mode === "apply" && input.checkpointLedger) {
     await input.checkpointLedger(ledger);
+  }
+
+  try {
+    const fallbackEvents =
+      await migration.target.listFallbackAttachmentActivityActors(
+        migration.reefId,
+      );
+    for (const event of fallbackEvents) {
+      const accountId = event.actor.slice("jira:".length);
+      const desiredActor =
+        migration.accountMapping.overrides[accountId]?.actor ??
+        migration.accountMapping.accounts[accountId]?.actor;
+      if (!desiredActor || desiredActor === event.actor) continue;
+      const reconciliation: JiraAttachmentActivityActorReconciliation = {
+        reefId: migration.reefId,
+        eventKey: event.eventKey,
+        fromActor: event.actor,
+        toActor: desiredActor,
+      };
+      recordOperation(
+        "reconcile_attachment_activity_actor",
+        `${migration.reefId}:${event.eventKey}`,
+        reconciliation,
+      );
+      if (migration.mode === "dry-run") continue;
+      await migration.target.reconcileAttachmentActivityActor(reconciliation);
+      const readback = await migration.target.readAttachmentActivityActor(
+        migration.reefId,
+        event.eventKey,
+      );
+      if (readback !== desiredActor) {
+        throw new Error("attachment_activity_actor_readback_mismatch");
+      }
+    }
+  } catch (error) {
+    failure(
+      report.failures,
+      "attachment",
+      issue.id,
+      String(error).includes("readback") ? "readback" : "write",
+      "attachment_activity_actor_reconcile_failed",
+      error,
+    );
   }
 
   await updateDescriptionMedia({

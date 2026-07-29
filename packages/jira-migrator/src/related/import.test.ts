@@ -234,6 +234,7 @@ const makeTarget = () => {
     string,
     { attachment: import("@reef/core").IssueAttachment; bytes: Uint8Array }
   >();
+  const attachmentActivityActors = new Map<string, string>();
   const relations = new Map<string, unknown>();
   const refs = new Map<string, unknown>();
   let nextFileId = 30001;
@@ -330,6 +331,27 @@ const makeTarget = () => {
         });
       }
     },
+    async listFallbackAttachmentActivityActors(reefId) {
+      return [...attachmentActivityActors.entries()]
+        .filter(
+          ([key, actor]) =>
+            key.startsWith(`${reefId}:`) && actor.startsWith("jira:"),
+        )
+        .map(([key, actor]) => ({
+          eventKey: key.slice(reefId.length + 1),
+          actor,
+        }));
+    },
+    async readAttachmentActivityActor(reefId, eventKey) {
+      return attachmentActivityActors.get(`${reefId}:${eventKey}`) ?? null;
+    },
+    async reconcileAttachmentActivityActor(input) {
+      const key = `${input.reefId}:${input.eventKey}`;
+      if (attachmentActivityActors.get(key) !== input.fromActor) {
+        throw new Error("attachment_activity_actor_reconcile_mismatch");
+      }
+      attachmentActivityActors.set(key, input.toActor);
+    },
     async hasMediaReference(_reefId, fileUri) {
       return (
         description.includes(fileUri) ||
@@ -393,6 +415,7 @@ const makeTarget = () => {
     target,
     comments,
     attachments,
+    attachmentActivityActors,
     relations,
     refs,
     get description() {
@@ -405,6 +428,74 @@ const makeTarget = () => {
 };
 
 describe("Jira related-data import stage", () => {
+  it("approval-binds fallback attachment activity actor repairs and converges", async () => {
+    const requests: string[] = [];
+    const state = makeTarget();
+    const eventKey = "attachment_added:old-row@2025-05-27T21:43:43.262+09:00";
+    state.attachmentActivityActors.set(`REEF-1:${eventKey}`, "jira:account-1");
+    const accountMapping = createJiraAccountMappingArtifact({
+      jiraCloudId: "cloud-1",
+      overrides: {
+        "account-1": { actor: "hongchan", reason: "reviewed membership" },
+      },
+    });
+    const base = {
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client: makeClient(requests),
+      target: state.target,
+      accountMapping,
+      actorDirectory: [
+        { actor: "reef-directory-actor", emailAddress: "directory-key-1" },
+      ],
+      linkMappings: [] as const,
+      resolveIssueTarget: () => null,
+      now: () => "2026-01-02T00:00:00.000Z",
+    };
+    const initial = createJiraMigrationLedger({
+      jiraCloudId: "cloud-1",
+      targetVault: "isolated",
+    });
+
+    const dryRun = await importJiraRelatedData({
+      ...base,
+      ledger: initial,
+      mode: "dry-run",
+    });
+    expect(state.attachmentActivityActors.get(`REEF-1:${eventKey}`)).toBe(
+      "jira:account-1",
+    );
+    expect(dryRun.report.operations).toContainEqual(
+      expect.objectContaining({
+        kind: "reconcile_attachment_activity_actor",
+      }),
+    );
+
+    const applied = await importJiraRelatedData({
+      ...base,
+      ledger: initial,
+      mode: "apply",
+      approvedOperations: dryRun.report.operations,
+    });
+    expect(applied.report.failures).toEqual([]);
+    expect(state.attachmentActivityActors.get(`REEF-1:${eventKey}`)).toBe(
+      "hongchan",
+    );
+
+    const converged = await importJiraRelatedData({
+      ...base,
+      ledger: applied.ledger,
+      mode: "dry-run",
+    });
+    expect(converged.report.operations).not.toContainEqual(
+      expect.objectContaining({
+        kind: "reconcile_attachment_activity_actor",
+      }),
+    );
+  });
+
   it("keeps dry-run immutable, applies root-first, and reruns idempotently through the public stage", async () => {
     const requests: string[] = [];
     const client = makeClient(requests);

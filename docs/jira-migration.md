@@ -980,6 +980,14 @@ updates the source body, mapped author, and preserved source timestamps in
 place while retaining the comment id, thread links, and AKB creation
 bookkeeping. Missing or manually shaped keys are rejected before I/O.
 
+Attachment replacement can leave the prior `attachment_added` activity row
+without a live attachment row. If its actor is still a `jira:<account-id>`
+fallback and the reviewed account artifact now resolves that account, the
+related-data plan includes an exact actor reconciliation operation. Apply
+updates only the matching issue, `attachment_added` event key, and previous
+fallback actor, then reads the actor back. It preserves the event id, payload,
+timestamps, and creator; true fallback accounts remain unchanged.
+
 Attachments are downloaded only with a GET to the configured Jira origin at
 `/rest/api/3/attachment/content/{id}?redirect=false`. The importer never follows
 the payload's arbitrary `content` URL with Jira credentials. It verifies source

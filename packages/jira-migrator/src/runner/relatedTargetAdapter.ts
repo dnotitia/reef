@@ -12,6 +12,7 @@ import {
   akbListComments,
   akbListIssueActivity,
   akbListIssueAttachments,
+  akbReconcileJiraImportedAttachmentActivityActor,
   akbReconcileJiraImportedComment,
   akbUploadIssueAttachment,
 } from "@reef/core";
@@ -413,6 +414,35 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
       if (remainingOwners.length > 0) {
         throw new Error("attachment_delete_readback_mismatch");
       }
+    },
+    async listFallbackAttachmentActivityActors(reefId) {
+      const rows = await readSql(
+        `SELECT event_key, meta->>'actor' AS actor FROM reef_activity WHERE reef_id = ${quote(
+          reefId,
+        )} AND event_type = 'attachment_added' AND meta->>'actor' LIKE 'jira:%' ORDER BY event_key`,
+      );
+      return rows.flatMap((row) =>
+        typeof row.event_key === "string" && typeof row.actor === "string"
+          ? [{ eventKey: row.event_key, actor: row.actor }]
+          : [],
+      );
+    },
+    async readAttachmentActivityActor(reefId, eventKey) {
+      const rows = await readSql(
+        `SELECT meta->>'actor' AS actor FROM reef_activity WHERE reef_id = ${quote(
+          reefId,
+        )} AND event_type = 'attachment_added' AND event_key = ${quote(
+          eventKey,
+        )} LIMIT 1`,
+      );
+      return typeof rows[0]?.actor === "string" ? rows[0].actor : null;
+    },
+    reconcileAttachmentActivityActor(input) {
+      return akbReconcileJiraImportedAttachmentActivityActor(
+        adapter,
+        vault,
+        input,
+      );
     },
     async hasMediaReference(reefId, fileUri) {
       return (await readTargetIssue(reefId)).content.includes(fileUri);

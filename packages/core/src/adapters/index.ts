@@ -38,6 +38,7 @@ export {
   downloadIssueAttachmentByFileUri as akbDownloadIssueAttachmentByFileUri,
   listIssueActivity as akbListIssueActivity,
   appendActivityEvents as akbAppendActivityEvents,
+  reconcileJiraImportedAttachmentActivityActor as akbReconcileJiraImportedAttachmentActivityActor,
   reconcileJiraChangelogActivityEvents as akbReconcileJiraChangelogActivityEvents,
   type ActivityEventInput,
   searchDocuments as akbSearchDocuments,

@@ -109,6 +109,7 @@ const relatedOperationKinds = new Set<JiraRelatedOperationKind>([
   "delete_comment",
   "create_attachment",
   "revoke_attachment",
+  "reconcile_attachment_activity_actor",
   "update_description",
   "put_relation",
   "delete_relation",

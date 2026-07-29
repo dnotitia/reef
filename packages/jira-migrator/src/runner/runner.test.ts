@@ -678,6 +678,7 @@ describe("runJiraMigration", () => {
       readIssue,
       claimIssue,
       relatedTarget: vi.fn(() => ({
+        listFallbackAttachmentActivityActors: vi.fn(async () => []),
         listExternalRefKeys: vi.fn(async () => []),
       })),
       appendActivity: vi.fn(),

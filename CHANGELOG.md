@@ -14,6 +14,12 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Jira account remapping now repairs migration-owned attachment activity
+  actors, including orphaned upload history.** An approved account override can
+  replace the exact fallback actor on an `attachment_added` event left behind
+  when a remapped attachment is revoked and recreated. The repair is
+  approval-bound, validates the reserved event shape and previous fallback
+  actor, and preserves the event identity and payload.
 - **Jira account remapping now repairs migration-owned activity in place.**
   When a reviewed vault membership or override replaces a fallback Jira actor,
   changelog replay reconciles the existing reserved event key instead of

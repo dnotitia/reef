@@ -14,6 +14,7 @@ import {
   makeSqlQueryResponse,
   makeSqlRuntimeErrorResponse,
   reconcileJiraChangelogActivityEvents,
+  reconcileJiraImportedAttachmentActivityActor,
   setupFetch,
   statusChangeEventKey,
 } from "./akb.testSupport";
@@ -779,6 +780,58 @@ describe("reconcileJiraChangelogActivityEvents", () => {
         { ...event, eventKey: "manual-override" },
       ]),
     ).rejects.toThrow();
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe("reconcileJiraImportedAttachmentActivityActor", () => {
+  const input = {
+    reefId: "SHDEV-007",
+    eventKey:
+      "attachment_added:11111111-1111-4111-8111-111111111111@2025-05-27T21:43:43.262+09:00",
+    fromActor: "jira:712020:e2e54077-7f55-4a34-90e7-e05ee490662b",
+    toActor: "임종혁",
+  };
+
+  it("repairs only the exact fallback-owned attachment event", async () => {
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { body: makeSqlQueryResponse([{ id: "existing-event" }], ["id"]) },
+    ]);
+
+    await reconcileJiraImportedAttachmentActivityActor(
+      makeAdapter(),
+      "reef-shdev",
+      input,
+    );
+
+    expect(calls).toHaveLength(2);
+    const updateSql = lastSql(calls[1]?.init?.body);
+    expect(updateSql).toContain(`UPDATE ${REEF_ACTIVITY_TABLE}`);
+    expect(updateSql).toContain("event_type = 'attachment_added'");
+    expect(updateSql).toContain(`event_key = '${input.eventKey}'`);
+    expect(updateSql).toContain(`meta->>'actor' = '${input.fromActor}'`);
+    expect(updateSql).toContain('"임종혁"');
+    expect(updateSql).not.toContain("created_by");
+    expect(updateSql).not.toContain("created_at");
+  });
+
+  it("rejects a non-attachment key or non-fallback actor before I/O", async () => {
+    const { calls } = setupFetch([]);
+    await expect(
+      reconcileJiraImportedAttachmentActivityActor(
+        makeAdapter(),
+        "reef-shdev",
+        { ...input, eventKey: "assignee_change:a->b@2026-01-01T00:00:00Z" },
+      ),
+    ).rejects.toThrow(/attachment_added event key/u);
+    await expect(
+      reconcileJiraImportedAttachmentActivityActor(
+        makeAdapter(),
+        "reef-shdev",
+        { ...input, fromActor: "hongchan" },
+      ),
+    ).rejects.toThrow(/fallback actor/u);
     expect(calls).toHaveLength(0);
   });
 });
