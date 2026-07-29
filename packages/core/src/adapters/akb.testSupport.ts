@@ -49,6 +49,7 @@ export {
   listIssueActivity,
   listIssues,
   listPlanningCatalog,
+  reconcileJiraChangelogActivityEvents,
   readPlanningCreateClaim,
   listTemplates,
   listVaultMembers,

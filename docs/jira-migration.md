@@ -76,6 +76,19 @@ parent, comment, attachment, relation, external-reference, and promoted-activity
 counts. Download imported attachments through the target read path and compare
 their byte length and SHA-256 digest with the archived Jira source bytes.
 
+People fields require their own conservation check. Count Jira issues with a
+current assignee and compare that count with non-null target `assigned_to`
+values, then compare the resolved actor for every assigned issue. A
+`preserved/actor_unmapped` field result or stable `jira:<accountId>` fallback
+is raw-fidelity evidence, not successful assignee migration. If the smoke-test
+policy requires live assignees, treat either result as a closeout blocker:
+review the private account artifact, explicitly grant the least-privileged
+vault membership, add a confirmed override when Jira hides the email, and
+produce a new approval dry-run before applying. Perform the same member-backed
+actor audit for reporter and requester when those live Reef fields are in
+scope. Do not infer migration success from the account catalog's observed-user
+count alone.
+
 For a smoke test, finish with a new run id over the same source scope, target,
 mapping policy, account mapping, and durable ledger. Produce and approve a new
 dry-run plan, then apply it. When Jira business state and target readback are
@@ -643,8 +656,17 @@ value-and-time key calculation. Record the changelog-history source fingerprint
 in the migration ledger only after target write/readback succeeds. A changed
 fingerprint for an existing binding is a failed conflict, not an overwrite.
 
-The apply runner, bulk changelog API selection, current-object import, and
-concurrent-writer database uniqueness remain outside this planning API.
+If a later approved account mapping replaces a fallback actor, the immutable
+Jira source fingerprint stays the same while the mapped activity actor or
+actor-valued payload changes. Apply uses the reserved Jira event key to
+reconcile that migration-owned `reef_activity` row in place, preserving its
+row id and AKB creation bookkeeping; if the key is absent, it uses the ordinary
+idempotent insert. This is a migration-only repair path. It rejects missing,
+manually shaped, or event-type-mismatched keys before I/O and does not make
+ordinary Reef activity mutable.
+
+The bulk changelog API selection, current-object import, and concurrent-writer
+database uniqueness remain outside this planning API.
 
 ## Migration Ledger And Checkpoint
 

@@ -11,7 +11,6 @@ import {
   type Release,
   type Sprint,
   akbAllocateNextIssueId,
-  akbAppendActivityEvents,
   akbClaimIssueId,
   akbCreateRelease,
   akbCreateSprint,
@@ -22,6 +21,7 @@ import {
   akbReadConfig,
   akbReadIssue,
   akbReadPlanningCreateClaim,
+  akbReconcileJiraChangelogActivityEvents,
   akbUpdateIssue,
   akbWriteIssue,
   createAkbAdapter,
@@ -709,7 +709,9 @@ export function createAkbJiraMigrationTarget(
           throw new Error("target_activity_event_key_required");
         }
       }
-      await akbAppendActivityEvents(adapter, vault, [...events]);
+      await akbReconcileJiraChangelogActivityEvents(adapter, vault, [
+        ...events,
+      ]);
       if (!(await activityMatches(events))) {
         throw new Error("target_activity_readback_failed");
       }

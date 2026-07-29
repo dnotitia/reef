@@ -14,6 +14,12 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Jira account remapping now repairs migration-owned activity in place.**
+  When a reviewed vault membership or override replaces a fallback Jira actor,
+  changelog replay reconciles the existing reserved event key instead of
+  attempting an append that cannot change the old actor. Ordinary Reef
+  activity remains append-only, while imported assignees and historical actor
+  payloads can converge without duplicate events.
 - **Jira migration convergence no longer schedules equivalent planning or
   media rewrites.** Fresh dry runs recognize the exact native planning UUID
   projection as equivalent to its approval-bound semantic token, and

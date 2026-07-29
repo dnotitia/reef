@@ -91,6 +91,7 @@ export {
   appendStatusChangeEvent,
   diffFieldActivityEvents,
   listIssueActivity,
+  reconcileJiraChangelogActivityEvents,
   statusChangeEventKey,
   type ActivityEventInput,
   type StatusChangeEventInput,
