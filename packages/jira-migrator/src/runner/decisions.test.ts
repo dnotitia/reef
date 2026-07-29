@@ -3,6 +3,7 @@ import type { JiraChangelogPlan } from "../issues/changelog.js";
 import type { JiraIssueImportPlan } from "../issues/importPlan.js";
 import { reportTemplate } from "../related/reporting.js";
 import {
+  actionForEquivalentIssuePlans,
   mappedFingerprintForChangelog,
   mappedFingerprintForIssue,
   plannedIssueContentForRelated,
@@ -81,6 +82,48 @@ describe("migration action fingerprints", () => {
     expect(
       mappedFingerprintForIssue(issuePlan("2026-07-27T00:00:00.000Z")),
     ).toBe(mappedFingerprintForIssue(issuePlan("2026-07-28T00:00:00.000Z")));
+  });
+
+  it("accepts a ledger-bound native planning representation as equivalent", () => {
+    const semantic = {
+      source: {
+        jiraCloudId: "cloud-1",
+        projectId: "100",
+        projectKey: "ALPHA",
+        issueId: "10001",
+      },
+      desired: {
+        content: "",
+        issue: {
+          id: "REEF-001",
+          release_id: "jira-planning:release:alpha",
+        },
+      },
+    } as unknown as JiraIssueImportPlan;
+    const native = {
+      ...semantic,
+      desired: {
+        ...semantic.desired,
+        issue: {
+          ...semantic.desired.issue,
+          release_id: "release-uuid",
+        },
+      },
+    } as JiraIssueImportPlan;
+    const ledger = {
+      bindings: [
+        {
+          source_key: "issue:cloud-1:100:10001",
+          target: { target_kind: "issue", reef_id: "REEF-001" },
+          mapped_state_fingerprint: mappedFingerprintForIssue(native),
+        },
+      ],
+    } as never;
+
+    expect(actionForEquivalentIssuePlans(semantic, [native], ledger)).toBe(
+      "skip",
+    );
+    expect(actionForEquivalentIssuePlans(semantic, [], ledger)).toBe("update");
   });
 
   it("plans related data against base content created or updated first", () => {

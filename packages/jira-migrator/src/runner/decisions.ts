@@ -276,6 +276,20 @@ export const actionForIssuePlan = (
     : "update";
 };
 
+export const actionForEquivalentIssuePlans = (
+  plan: JiraIssueImportPlan,
+  equivalentPlans: readonly JiraIssueImportPlan[],
+  ledger: JiraMigrationLedgerV1,
+): ReturnType<typeof actionForIssuePlan> => {
+  const action = actionForIssuePlan(plan, ledger);
+  if (action !== "update") return action;
+  return equivalentPlans.some(
+    (equivalentPlan) => actionForIssuePlan(equivalentPlan, ledger) === "skip",
+  )
+    ? "skip"
+    : action;
+};
+
 export const plannedIssueContentForRelated = (
   plan: JiraIssueImportPlan,
   action: ReturnType<typeof actionForIssuePlan>,

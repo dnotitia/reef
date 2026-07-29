@@ -704,6 +704,10 @@ the approval boundary. Apply the token to both the first-class `release_id` /
 `sprint_id` field and compact `custom_fields.jira.planning[].target_id`
 provenance; otherwise an identical versioned issue would conflict solely
 because dry-run used a token and apply resolved the real AKB UUID.
+An independent convergence dry-run compares the approval-token projection with
+the exact native projection derived from the same confirmed planning binding.
+Either may prove an unchanged issue, but an unrelated UUID or unbound
+same-name planning entity remains a conflict.
 
 The Atlassian development integration field whose schema custom key is
 `com.atlassian.jira.plugins.jira-development-integration-plugin:devsummarycf`
@@ -740,7 +744,9 @@ Related-data planning follows that same phase order. When the base issue action
 is `create` or `update`, media preconditions are evaluated against the approved
 new base description that the issue phase will write first. A `skip` continues
 to use current target readback, and a conflict supplies no speculative base
-content.
+content. A description that already contains the exact canonical attachment
+URIs is converged; legacy placeholders and prior confirmed file URIs are
+eligible for rewrite only after that exact final-state check.
 
 Related operation approval hashes normalize target-generated identifiers.
 Comment parent UUIDs use their stable Jira source identity, and attachment links

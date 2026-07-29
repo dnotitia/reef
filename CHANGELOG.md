@@ -14,6 +14,11 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Jira migration convergence no longer schedules equivalent planning or
+  media rewrites.** Fresh dry runs recognize the exact native planning UUID
+  projection as equivalent to its approval-bound semantic token, and
+  descriptions already containing canonical attachment URIs remain no-op
+  skips instead of being rewritten to the same value.
 - **Jira migration media and cross-project reconciliation now preserve the
   approved source contract end to end.** Issue discovery approval-binds
   rendered fields, description rewrites reuse the issue plan's raw-archive and

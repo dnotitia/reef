@@ -13,7 +13,7 @@ import {
 } from "./approval.js";
 import {
   actionForChangelogPlan,
-  actionForIssuePlan,
+  actionForEquivalentIssuePlans,
   actionForPlanning,
   actionForRelatedReport,
   mappedFingerprintForIssue,
@@ -65,12 +65,16 @@ export async function executeJiraDryRun(input: {
     planningActions,
     approvedPlanningResolutions,
     dryIssuePlans,
+    nativeIssuePlans,
     relatedPlanningReports,
     postRelatedContentByReefId,
     finalRelatedReports,
     changelogPlans,
   } = plan;
   const { allIssues, absentSourceRelationPlan } = discovery;
+  const nativeIssuePlansByKey = new Map(
+    nativeIssuePlans.map((issuePlan) => [issuePlan.source.issueKey, issuePlan]),
+  );
 
   for (const action of planningActions) {
     assertNotAborted();
@@ -95,18 +99,32 @@ export async function executeJiraDryRun(input: {
       issuePlan.source.projectId ?? issuePlan.source.projectKey,
       issuePlan.source.issueId,
     );
-    let action = actionForIssuePlan(issuePlan, getLedger());
+    const nativeIssuePlan = nativeIssuePlansByKey.get(
+      issuePlan.source.issueKey,
+    );
+    let action = actionForEquivalentIssuePlans(
+      issuePlan,
+      nativeIssuePlan ? [nativeIssuePlan] : [],
+      getLedger(),
+    );
     let readbackSucceeded = false;
     if (issuePlan.desired.issue && (action === "skip" || action === "update")) {
       const readback = await target
         .readIssue(issuePlan.desired.issue.id)
         .catch(() => null);
       readbackSucceeded = readback !== null;
-      const baseMatches = baseIssueReadbackMatches(
-        issuePlan,
-        readback,
-        postRelatedContentByReefId.get(issuePlan.desired.issue.id),
-      );
+      const baseMatches =
+        baseIssueReadbackMatches(
+          issuePlan,
+          readback,
+          postRelatedContentByReefId.get(issuePlan.desired.issue.id),
+        ) ||
+        (nativeIssuePlan !== undefined &&
+          baseIssueReadbackMatches(
+            nativeIssuePlan,
+            readback,
+            postRelatedContentByReefId.get(issuePlan.desired.issue.id),
+          ));
       const matches =
         action === "skip"
           ? baseMatches

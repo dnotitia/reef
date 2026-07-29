@@ -595,6 +595,12 @@ describe("Jira related-data import stage", () => {
     expect(rerun.report.attachments.skipped).toBe(1);
     expect(rerun.report.links.skipped).toBe(1);
     expect(rerun.report.remote_links.skipped).toBe(2);
+    expect(rerun.report.media.description_updated).toBe(false);
+    expect(
+      rerun.report.operations.some(
+        (operation) => operation.kind === "update_description",
+      ),
+    ).toBe(false);
     expect(state.comments.size).toBe(2);
     expect(state.attachments.size).toBe(1);
     expect(requests.every((item) => item.startsWith("GET:"))).toBe(true);

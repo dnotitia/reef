@@ -315,6 +315,7 @@ export async function buildJiraMigrationPlan(input: {
     });
   };
   const dryIssuePlans = buildIssuePlans(approvedPlanningResolutions);
+  const nativeIssuePlans = buildIssuePlans(existingPlanningResolutions);
   const dryIssuePlansByKey = new Map(
     dryIssuePlans.map((plan) => [plan.source.issueKey, plan]),
   );
@@ -756,6 +757,7 @@ export async function buildJiraMigrationPlan(input: {
     approvedPlanningResolutions,
     buildIssuePlans,
     dryIssuePlans,
+    nativeIssuePlans,
     targetIssuePreconditions,
     issueBindings,
     changelogPlans,

@@ -53,7 +53,11 @@ export async function updateDescriptionMedia(options: {
         migration.plannedDescription !== undefined
           ? migration.plannedDescription
           : await migration.target.readDescription(migration.reefId);
-      if (description.matchesPreRewriteMarkdown(existingDescription)) {
+      if (existingDescription === description.markdown) {
+        // The related-data pass may run after the canonical attachment URI was
+        // already written by an earlier successful run. Treat that exact
+        // projection as converged before considering legacy/pre-rewrite forms.
+      } else if (description.matchesPreRewriteMarkdown(existingDescription)) {
         report.media.description_updated = true;
         recordOperation(
           "update_description",
@@ -66,7 +70,7 @@ export async function updateDescriptionMedia(options: {
             description.markdown,
           );
         }
-      } else if (existingDescription !== description.markdown) {
+      } else {
         throw new Error("description_precondition_failed");
       }
       if (migration.mode === "dry-run") return;
