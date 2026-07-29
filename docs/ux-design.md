@@ -517,6 +517,13 @@ sub-issue rows use the same compact issue-row rhythm as the rest of the detail
 panel; their issue-type mark is glyph-only in the visual row, with the localized
 type name kept for screen readers.
 
+The chrome also carries an actor-scoped notification control. Its trigger names
+and shows the effective **Watch / Watching / Muted** state, while the menu
+offers Watch and Mute. Changes update optimistically, block duplicate input
+while pending, and reconcile with the server after success or rollback with a
+toast after failure. The preference is account-backed rather than browser-local
+and is refetched when the panel mounts or the window regains focus.
+
 Comments in that timeline are threaded without deep visual nesting. A top-level
 comment anchors one timeline position; replies stay beneath it behind a single
 hairline, including replies to replies. Reply controls open one inline composer

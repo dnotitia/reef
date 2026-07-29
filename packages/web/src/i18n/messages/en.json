@@ -721,6 +721,14 @@
       "backNavigation": "Back navigation",
       "backTo": "Back to {id}"
     },
+    "subscription": {
+      "controlLabel": "Issue notifications: {state}",
+      "watch": "Watch",
+      "watching": "Watching",
+      "muted": "Muted",
+      "mute": "Mute",
+      "updateError": "Couldn't change the notification preference. Try again."
+    },
     "detail": {
       "loadError": "Failed to load issue.",
       "titlePlaceholder": "Issue title",

@@ -16,6 +16,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
+import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   formatAbsoluteTime,
@@ -44,6 +45,7 @@ export function IssueChromeActions({
   isArchived,
   isArchivePending,
   isDeletePending,
+  subscriptionControl,
   onCopyLink,
   onAskAi,
   onArchiveToggle,
@@ -55,6 +57,7 @@ export function IssueChromeActions({
   isArchived: boolean;
   isArchivePending: boolean;
   isDeletePending: boolean;
+  subscriptionControl?: ReactNode;
   onCopyLink: () => void;
   onAskAi: () => void;
   onArchiveToggle: () => void;
@@ -85,6 +88,7 @@ export function IssueChromeActions({
           {t("edited", { time: formatRelativeTime(updatedAt, locale) })}
         </span>
       ) : null}
+      {subscriptionControl}
       <DropdownMenu>
         <DropdownMenuTrigger
           type="button"

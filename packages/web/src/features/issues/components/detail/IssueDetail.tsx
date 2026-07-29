@@ -31,6 +31,7 @@ import {
 import { IssueDetailMain } from "./IssueDetailMain";
 import { IssueDetailSidebar } from "./IssueDetailSidebar";
 import { IssueDetailSkeleton } from "./IssueDetailSkeleton";
+import { IssueSubscriptionControl } from "./IssueSubscriptionControl";
 import { useIssueAutosaveMachine } from "./useIssueAutosaveMachine";
 
 interface IssueDetailProps {
@@ -335,6 +336,9 @@ function IssueDetailLoaded({
         isArchived={isArchived}
         isArchivePending={archiveMutation.isPending}
         isDeletePending={deleteMutation.isPending}
+        subscriptionControl={
+          <IssueSubscriptionControl issueId={issueId} vault={vault} />
+        }
         onCopyLink={() => void handleCopyLink()}
         onAskAi={() => {
           // Ground the chat on this issue, then close the full-height issue

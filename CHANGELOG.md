@@ -14,6 +14,11 @@ explicitly in the entries below.
 
 ### Added
 
+- **Issue detail now exposes actor-scoped Watch and Mute controls.** The
+  bilingual chrome shows the effective notification state, persists Watch/Mute
+  choices through the existing AKB subscription contract, updates
+  optimistically with rollback and retryable feedback, and rejects attempts to
+  choose another subscriber. (REEF-428)
 - **Core now provides notification inbox and source-aware issue subscription
   contracts.** Public schemas, deterministic keys, recipient-scoped notification
   reads and state transitions, and manual/requester/assignee/commenter
