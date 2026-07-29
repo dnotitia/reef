@@ -706,8 +706,11 @@ provenance; otherwise an identical versioned issue would conflict solely
 because dry-run used a token and apply resolved the real AKB UUID.
 An independent convergence dry-run compares the approval-token projection with
 the exact native projection derived from the same confirmed planning binding.
-Either may prove an unchanged issue, but an unrelated UUID or unbound
-same-name planning entity remains a conflict.
+The native projection is the converged target form. An exact approval token is
+safe update-precondition evidence and is normalized to the confirmed native
+UUID; an unrelated UUID or unbound same-name planning entity remains a
+conflict. A native readback remains `skip` even when an older ledger
+fingerprint records the equivalent approval token.
 
 The Atlassian development integration field whose schema custom key is
 `com.atlassian.jira.plugins.jira-development-integration-plugin:devsummarycf`
@@ -726,10 +729,10 @@ binding before attempting another claim. This recovery still requires the
 current semantic issue plan to match the immutable approval and never adopts an
 owner-only or drifted target. Readback may match either the apply-time resolved
 planning UUIDs or the approval-bound source-derived planning tokens; both
-represent the same approved Version/Sprint relation. The same dual-plan
-readback rule applies when an existing binding's representation makes apply
-enter the update path: an exact approved-token target is a `skip`, not a
-rewrite or conflict.
+represent the same approved Version/Sprint relation for create recovery. A
+later independent run uses that exact token readback as safe update-precondition
+evidence and normalizes it to the confirmed native UUID instead of leaving a
+non-native planning reference or reporting a conflict.
 Checkpoint persistence uses the immutable ledger object's identity: report-only
 classifications that leave the ledger unchanged do not rewrite the full private
 artifact, while every new binding or entity result still uses the same

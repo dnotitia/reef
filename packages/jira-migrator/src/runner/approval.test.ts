@@ -5,6 +5,7 @@ import {
   baseIssueReadbackMatches,
   completedIssueReadbackMatches,
   fingerprintJiraApprovalPlan,
+  issueReadbackRepresentation,
   planningResolutionsForApproval,
   semanticIssuePlan,
 } from "./approval.js";
@@ -271,6 +272,9 @@ describe("fingerprintJiraApprovalPlan", () => {
     expect(baseIssueReadbackMatches(current, readback)).toBe(false);
     expect(completedIssueReadbackMatches(current, approved, readback)).toBe(
       true,
+    );
+    expect(issueReadbackRepresentation(current, approved, readback)).toBe(
+      "approved",
     );
     expect(
       completedIssueReadbackMatches(

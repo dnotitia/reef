@@ -22,6 +22,7 @@ import {
   baseIssueReadbackMatches,
   completedIssueReadbackMatches,
   issueReadbackApprovalFingerprint,
+  issueReadbackRepresentation,
   mappedFingerprintForPlanning,
   semanticIssuePlan,
   sourceFingerprintForPlanning,
@@ -275,6 +276,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
     );
     const recoverAppliedIssue = async (
       plan: JiraIssueImportPlan,
+      acceptApprovedRepresentation: boolean,
     ): Promise<{
       applied: Awaited<ReturnType<AkbJiraMigrationTarget["applyIssue"]>> | null;
       readbackFound: boolean;
@@ -294,12 +296,18 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
       if (
         !desired ||
         !readback ||
-        !completedIssueReadbackMatches(
-          plan,
-          approvedIssuePlansByKey.get(plan.source.issueKey) ?? plan,
-          readback,
-          postRelatedContentByReefId.get(desired.id),
-        )
+        !(acceptApprovedRepresentation
+          ? completedIssueReadbackMatches(
+              plan,
+              approvedIssuePlansByKey.get(plan.source.issueKey) ?? plan,
+              readback,
+              postRelatedContentByReefId.get(desired.id),
+            )
+          : baseIssueReadbackMatches(
+              plan,
+              readback,
+              postRelatedContentByReefId.get(desired.id),
+            ))
       ) {
         return { applied: null, readbackFound: readback !== null };
       }
@@ -334,7 +342,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
         plan.source.projectId ?? plan.source.projectKey,
         plan.source.issueId,
       );
-      const recovered = await recoverAppliedIssue(plan);
+      const recovered = await recoverAppliedIssue(plan, true);
       if (recovered.applied) {
         recoveredCreateIssues.set(identity.key, recovered.applied);
         continue;
@@ -505,6 +513,12 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
         await checkpoint();
         continue;
       }
+      let applied:
+        | Awaited<ReturnType<AkbJiraMigrationTarget["applyIssue"]>>
+        | undefined;
+      let approvedUpdateReadback:
+        | Awaited<ReturnType<AkbJiraMigrationTarget["readIssue"]>>
+        | undefined;
       if (action === "skip") {
         const desired = plan.desired.issue;
         let readback: Awaited<
@@ -534,13 +548,16 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
             continue;
           }
         }
-        if (
-          !baseIssueReadbackMatches(
-            plan,
-            readback,
-            desired ? postRelatedContentByReefId.get(desired.id) : undefined,
-          )
-        ) {
+        const representation = issueReadbackRepresentation(
+          plan,
+          approvedIssuePlansByKey.get(plan.source.issueKey) ?? plan,
+          readback,
+          desired ? postRelatedContentByReefId.get(desired.id) : undefined,
+        );
+        if (representation === "approved" && readback) {
+          action = "update";
+          approvedUpdateReadback = readback;
+        } else if (representation !== "current") {
           record(
             "issues",
             resultFor({
@@ -557,29 +574,25 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
           await checkpoint();
           continue;
         }
-        confirmedIssueSourceKeys.add(identity.key);
-        record(
-          "issues",
-          resultFor({
-            sourceKey: identity.key,
-            entityKind: "issue",
-            sourceFingerprint,
-            mappedFingerprint,
-            action: "skip",
-            at: now(),
-            readback: true,
-          }),
-        );
-        await checkpoint();
-        continue;
+        if (action === "skip") {
+          confirmedIssueSourceKeys.add(identity.key);
+          record(
+            "issues",
+            resultFor({
+              sourceKey: identity.key,
+              entityKind: "issue",
+              sourceFingerprint,
+              mappedFingerprint,
+              action: "skip",
+              at: now(),
+              readback: true,
+            }),
+          );
+          await checkpoint();
+          continue;
+        }
       }
-      let applied:
-        | Awaited<ReturnType<AkbJiraMigrationTarget["applyIssue"]>>
-        | undefined;
-      let approvedUpdateReadback:
-        | Awaited<ReturnType<AkbJiraMigrationTarget["readIssue"]>>
-        | undefined;
-      if (action === "update") {
+      if (action === "update" && !approvedUpdateReadback) {
         const desired = plan.desired.issue;
         let current: Awaited<
           ReturnType<AkbJiraMigrationTarget["readIssue"]>
@@ -592,21 +605,23 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
               throw new JiraRunnerError("target_unavailable");
           }
         }
-        if (
-          desired &&
-          completedIssueReadbackMatches(
-            plan,
-            approvedIssuePlansByKey.get(plan.source.issueKey) ?? plan,
-            current,
-            postRelatedContentByReefId.get(desired.id),
-          )
-        ) {
+        const representation = desired
+          ? issueReadbackRepresentation(
+              plan,
+              approvedIssuePlansByKey.get(plan.source.issueKey) ?? plan,
+              current,
+              postRelatedContentByReefId.get(desired.id),
+            )
+          : "mismatch";
+        if (desired && representation === "current") {
           action = "skip";
           applied = {
             reefId: desired.id,
             documentUri: `akb://${config.target.vault}/coll/issues/doc/${desired.id.toLowerCase()}.md`,
             commitHash: current?.commit_hash ?? "",
           };
+        } else if (current && representation === "approved") {
+          approvedUpdateReadback = current;
         } else if (
           issueReadbackApprovalFingerprint(plan, current) !==
           targetIssuePreconditions[plan.source.issueKey]
@@ -642,7 +657,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
           );
         }
       } catch (error) {
-        const recovered = await recoverAppliedIssue(plan);
+        const recovered = await recoverAppliedIssue(plan, action === "create");
         if (!recovered.applied) {
           const conflict = error instanceof JiraTargetConflictError;
           if (action === "create" && plan.desired.issue) {

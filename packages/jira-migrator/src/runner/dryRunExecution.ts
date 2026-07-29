@@ -6,14 +6,14 @@ import type {
 import { jiraIssueSourceIdentity } from "../ledger.js";
 import type { JiraPlanningTargetResolution } from "../planning/entities.js";
 import {
-  baseIssueReadbackMatches,
   issueOwnerMatches,
+  issueReadbackRepresentation,
   mappedFingerprintForPlanning,
   sourceFingerprintForPlanning,
 } from "./approval.js";
 import {
   actionForChangelogPlan,
-  actionForEquivalentIssuePlans,
+  actionForIssuePlan,
   actionForPlanning,
   actionForRelatedReport,
   mappedFingerprintForIssue,
@@ -102,35 +102,30 @@ export async function executeJiraDryRun(input: {
     const nativeIssuePlan = nativeIssuePlansByKey.get(
       issuePlan.source.issueKey,
     );
-    let action = actionForEquivalentIssuePlans(
-      issuePlan,
-      nativeIssuePlan ? [nativeIssuePlan] : [],
-      getLedger(),
-    );
+    const currentIssuePlan = nativeIssuePlan ?? issuePlan;
+    let action = actionForIssuePlan(currentIssuePlan, getLedger());
     let readbackSucceeded = false;
     if (issuePlan.desired.issue && (action === "skip" || action === "update")) {
       const readback = await target
         .readIssue(issuePlan.desired.issue.id)
         .catch(() => null);
       readbackSucceeded = readback !== null;
-      const baseMatches =
-        baseIssueReadbackMatches(
-          issuePlan,
-          readback,
-          postRelatedContentByReefId.get(issuePlan.desired.issue.id),
-        ) ||
-        (nativeIssuePlan !== undefined &&
-          baseIssueReadbackMatches(
-            nativeIssuePlan,
-            readback,
-            postRelatedContentByReefId.get(issuePlan.desired.issue.id),
-          ));
-      const matches =
-        action === "skip"
-          ? baseMatches
-          : issueOwnerMatches(issuePlan, readback);
-      if (action === "update" && baseMatches) action = "skip";
-      if (!matches) action = "conflict";
+      const representation = issueReadbackRepresentation(
+        currentIssuePlan,
+        issuePlan,
+        readback,
+        postRelatedContentByReefId.get(issuePlan.desired.issue.id),
+      );
+      if (representation === "current") {
+        action = "skip";
+      } else if (representation === "approved") {
+        action = "update";
+      } else if (
+        action === "skip" ||
+        !issueOwnerMatches(currentIssuePlan, readback)
+      ) {
+        action = "conflict";
+      }
     }
     record(
       "issues",
@@ -140,7 +135,7 @@ export async function executeJiraDryRun(input: {
         sourceFingerprint: fingerprintJiraState(
           allIssues.find((issue) => issue.id === issuePlan.source.issueId)?.raw,
         ),
-        mappedFingerprint: mappedFingerprintForIssue(issuePlan),
+        mappedFingerprint: mappedFingerprintForIssue(currentIssuePlan),
         action,
         at: runAt,
         readback: readbackSucceeded,

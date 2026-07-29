@@ -14,6 +14,7 @@ import type { JiraIssueImportPlan } from "../issues/importPlan.js";
 import { jiraIssueFixture } from "../jira/fixtures.js";
 import { JiraIssueSchema, normalizeJiraIssue } from "../payloads.js";
 import { reportTemplate } from "../related/reporting.js";
+import { mappedFingerprintForIssue } from "./decisions.js";
 import { scheduleIssuePlansForApply } from "./issueSchedule.js";
 import {
   actionForRelatedIssuePlan,
@@ -311,6 +312,68 @@ describe("runJiraMigration", () => {
         postRelatedContent: "markdown with akb://reef-test/file/attachment",
       }),
     ).toBe("skip");
+  });
+
+  it("plans a native planning normalization when readback still has the approved token", () => {
+    const owner = {
+      jira_cloud_id: "cloud-1",
+      project_key: "ALPHA",
+      issue_id: "10001",
+      issue_key: "ALPHA-1",
+    };
+    const issuePlan = (releaseId: string) =>
+      ({
+        source: {
+          jiraCloudId: "cloud-1",
+          projectId: "100",
+          projectKey: "ALPHA",
+          issueId: "10001",
+          issueKey: "ALPHA-1",
+        },
+        status: "ready",
+        desired: {
+          issue: {
+            id: "REEF-001",
+            title: "Migrated",
+            status: "todo",
+            source: "jira-migration",
+            release_id: releaseId,
+            custom_fields: {
+              jira: {
+                planning: [{ kind: "version", target_id: releaseId }],
+              },
+              jira_migration: { owner },
+            },
+          },
+          content: "",
+        },
+      }) as unknown as JiraIssueImportPlan;
+    const approved = issuePlan("jira-planning:release:release 1");
+    const current = issuePlan("target-release-uuid");
+    const ledger = {
+      bindings: [
+        {
+          source_key: "issue:cloud-1:100:10001",
+          target: { target_kind: "issue", reef_id: "REEF-001" },
+          mapped_state_fingerprint: mappedFingerprintForIssue(current),
+        },
+      ],
+    } as never;
+    const readback = {
+      issue: approved.desired.issue,
+      content: "",
+      path: "issues/reef-001.md",
+      commit_hash: "commit",
+    } as never;
+
+    expect(
+      actionForRelatedIssuePlan({
+        plan: current,
+        equivalentPlans: [approved],
+        ledger,
+        readback,
+      }),
+    ).toBe("update");
   });
 
   it("fingerprints approval-time mapped target drift", () => {

@@ -40,10 +40,10 @@ import { rewriteMedia } from "../related/media.js";
 import { sameRelatedOperation } from "../related/operations.js";
 import { reportTemplate } from "../related/reporting.js";
 import {
-  baseIssueReadbackMatches,
   canRecoverApprovedPlanningCreate,
   fingerprintJiraApprovalPlan,
   issueReadbackApprovalFingerprint,
+  issueReadbackRepresentation,
   planningResolutionsForApproval,
   planningSourceProjection,
   safePlanningAction,
@@ -52,7 +52,6 @@ import {
 } from "./approval.js";
 import type { JiraApprovalArtifacts } from "./approvalArtifacts.js";
 import {
-  actionForEquivalentIssuePlans,
   actionForIssuePlan,
   mergePlanningActions,
   plannedIssueContentForRelated,
@@ -88,17 +87,20 @@ export const actionForRelatedIssuePlan = (input: {
   readback: Awaited<ReturnType<AkbJiraMigrationTarget["readIssue"]>> | null;
   postRelatedContent?: string;
 }): ReturnType<typeof actionForIssuePlan> => {
-  const action = actionForEquivalentIssuePlans(
+  const action = actionForIssuePlan(input.plan, input.ledger);
+  if ((action !== "skip" && action !== "update") || input.readback === null) {
+    return action;
+  }
+  const approvedPlan = input.equivalentPlans[0] ?? input.plan;
+  const representation = issueReadbackRepresentation(
     input.plan,
-    input.equivalentPlans,
-    input.ledger,
+    approvedPlan,
+    input.readback,
+    input.postRelatedContent,
   );
-  if (action !== "update") return action;
-  return [input.plan, ...input.equivalentPlans].some((plan) =>
-    baseIssueReadbackMatches(plan, input.readback, input.postRelatedContent),
-  )
-    ? "skip"
-    : action;
+  if (representation === "current") return "skip";
+  if (representation === "approved") return "update";
+  return action;
 };
 
 const relatedOperationKinds = new Set<JiraRelatedOperationKind>([
@@ -486,24 +488,27 @@ export async function buildJiraMigrationPlan(input: {
       descriptionRawArchiveReference: issueArchiveReferences?.descriptionAdf,
       mediaRawArchiveReferences: issueArchiveReferences?.media,
     };
-    let relatedIssueAction = dryIssuePlan
-      ? actionForEquivalentIssuePlans(
-          dryIssuePlan,
-          nativeIssuePlan ? [nativeIssuePlan] : [],
-          ledger,
-        )
+    const currentIssuePlan = nativeIssuePlan ?? dryIssuePlan;
+    let relatedIssueAction = currentIssuePlan
+      ? actionForIssuePlan(currentIssuePlan, ledger)
       : ("conflict" as const);
-    if (relatedIssueAction === "update" && dryIssuePlan?.desired.issue) {
+    if (
+      (relatedIssueAction === "skip" || relatedIssueAction === "update") &&
+      currentIssuePlan?.desired.issue
+    ) {
       const readback = await target
-        .readIssue(dryIssuePlan.desired.issue.id)
+        .readIssue(currentIssuePlan.desired.issue.id)
         .catch(() => null);
       relatedIssueAction = actionForRelatedIssuePlan({
-        plan: dryIssuePlan,
-        equivalentPlans: nativeIssuePlan ? [nativeIssuePlan] : [],
+        plan: currentIssuePlan,
+        equivalentPlans:
+          dryIssuePlan && dryIssuePlan !== currentIssuePlan
+            ? [dryIssuePlan]
+            : [],
         ledger,
         readback,
         postRelatedContent: postRelatedContentByReefId.get(
-          dryIssuePlan.desired.issue.id,
+          currentIssuePlan.desired.issue.id,
         ),
       });
     }
