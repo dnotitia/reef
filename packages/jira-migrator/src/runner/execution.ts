@@ -20,6 +20,7 @@ import {
 import { isRetryableAkbReadError } from "./akbReadRetry.js";
 import {
   baseIssueReadbackMatches,
+  completedIssueReadbackMatches,
   issueReadbackApprovalFingerprint,
   mappedFingerprintForPlanning,
   semanticIssuePlan,
@@ -261,6 +262,9 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
       buildIssuePlans(planningResolutions),
     );
     const applyIssuePlans = issueSchedule.plans;
+    const approvedIssuePlansByKey = new Map(
+      dryIssuePlans.map((plan) => [plan.source.issueKey, plan]),
+    );
     const approvedIssueFingerprints = new Map(
       dryIssuePlans.map((plan) => [
         plan.source.issueKey,
@@ -290,8 +294,9 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
       if (
         !desired ||
         !readback ||
-        !baseIssueReadbackMatches(
+        !completedIssueReadbackMatches(
           plan,
+          approvedIssuePlansByKey.get(plan.source.issueKey) ?? plan,
           readback,
           postRelatedContentByReefId.get(desired.id),
         )

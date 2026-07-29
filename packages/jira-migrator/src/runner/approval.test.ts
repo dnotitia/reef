@@ -3,6 +3,7 @@ import type { JiraIssueImportPlan } from "../issues/importPlan.js";
 import type { JiraPlanningAction } from "../planning/entities.js";
 import {
   baseIssueReadbackMatches,
+  completedIssueReadbackMatches,
   fingerprintJiraApprovalPlan,
   planningResolutionsForApproval,
   semanticIssuePlan,
@@ -230,5 +231,53 @@ describe("fingerprintJiraApprovalPlan", () => {
         commit_hash: "commit",
       } as never),
     ).toBe(true);
+  });
+
+  it("recovers an approved semantic planning token after apply resolves the target UUID", () => {
+    const owner = {
+      jira_cloud_id: "cloud-1",
+      project_key: "ALPHA",
+      issue_id: "1",
+      issue_key: "ALPHA-1",
+    };
+    const issuePlan = (targetId: string, title = "Migrated") =>
+      ({
+        source: { issueKey: "ALPHA-1" },
+        desired: {
+          issue: {
+            id: "REEF-001",
+            title,
+            source: "jira-migration",
+            release_id: targetId,
+            custom_fields: {
+              jira: {
+                planning: [{ kind: "version", target_id: targetId }],
+              },
+              jira_migration: { owner },
+            },
+          },
+          content: "",
+        },
+      }) as unknown as JiraIssueImportPlan;
+    const approved = issuePlan("jira-planning:release:release 1");
+    const current = issuePlan("target-release-uuid");
+    const readback = {
+      issue: approved.desired.issue,
+      content: "",
+      path: "issues/reef-001.md",
+      commit_hash: "commit",
+    } as never;
+
+    expect(baseIssueReadbackMatches(current, readback)).toBe(false);
+    expect(completedIssueReadbackMatches(current, approved, readback)).toBe(
+      true,
+    );
+    expect(
+      completedIssueReadbackMatches(
+        issuePlan("target-release-uuid", "Changed"),
+        issuePlan("jira-planning:release:release 1", "Changed"),
+        readback,
+      ),
+    ).toBe(false);
   });
 });

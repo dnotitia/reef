@@ -412,6 +412,15 @@ export const baseIssueReadbackMatches = (
   );
 };
 
+export const completedIssueReadbackMatches = (
+  currentPlan: JiraIssueImportPlan,
+  approvedPlan: JiraIssueImportPlan,
+  readback: Awaited<ReturnType<AkbJiraMigrationTarget["readIssue"]>> | null,
+  postRelatedContent?: string,
+): boolean =>
+  baseIssueReadbackMatches(currentPlan, readback, postRelatedContent) ||
+  baseIssueReadbackMatches(approvedPlan, readback, postRelatedContent);
+
 export const issueOwnerMatches = (
   plan: JiraIssueImportPlan,
   readback: Awaited<ReturnType<AkbJiraMigrationTarget["readIssue"]>> | null,

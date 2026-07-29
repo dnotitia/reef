@@ -720,7 +720,9 @@ When a create has no ledger binding but the assigned target id already has the
 approved Jira owner and exact semantic issue readback, apply recovers that
 binding before attempting another claim. This recovery still requires the
 current semantic issue plan to match the immutable approval and never adopts an
-owner-only or drifted target.
+owner-only or drifted target. Readback may match either the apply-time resolved
+planning UUIDs or the approval-bound source-derived planning tokens; both
+represent the same approved Version/Sprint relation.
 Checkpoint persistence uses the immutable ledger object's identity: report-only
 classifications that leave the ledger unchanged do not rewrite the full private
 artifact, while every new binding or entity result still uses the same
