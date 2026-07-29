@@ -594,8 +594,9 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
         }
         if (
           desired &&
-          baseIssueReadbackMatches(
+          completedIssueReadbackMatches(
             plan,
+            approvedIssuePlansByKey.get(plan.source.issueKey) ?? plan,
             current,
             postRelatedContentByReefId.get(desired.id),
           )

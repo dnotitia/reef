@@ -20,7 +20,9 @@ explicitly in the entries below.
   descriptions already containing canonical attachment URIs remain no-op
   skips instead of being rewritten to the same value. Related planning also
   uses the issue phase's exact-readback correction before assuming that a stale
-  fingerprint will overwrite the base description.
+  fingerprint will overwrite the base description, and apply accepts the same
+  immutable semantic planning projection when its current plan resolves native
+  UUIDs.
 - **Jira migration media and cross-project reconciliation now preserve the
   approved source contract end to end.** Issue discovery approval-binds
   rendered fields, description rewrites reuse the issue plan's raw-archive and

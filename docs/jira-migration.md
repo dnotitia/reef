@@ -726,7 +726,10 @@ binding before attempting another claim. This recovery still requires the
 current semantic issue plan to match the immutable approval and never adopts an
 owner-only or drifted target. Readback may match either the apply-time resolved
 planning UUIDs or the approval-bound source-derived planning tokens; both
-represent the same approved Version/Sprint relation.
+represent the same approved Version/Sprint relation. The same dual-plan
+readback rule applies when an existing binding's representation makes apply
+enter the update path: an exact approved-token target is a `skip`, not a
+rewrite or conflict.
 Checkpoint persistence uses the immutable ledger object's identity: report-only
 classifications that leave the ledger unchanged do not rewrite the full private
 artifact, while every new binding or entity result still uses the same
