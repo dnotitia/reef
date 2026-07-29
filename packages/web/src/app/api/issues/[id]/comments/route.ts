@@ -92,6 +92,9 @@ export async function POST(
           parsed.data.body,
           actor,
           parsed.data.parent_comment_id,
+          parsed.data.idempotency_key
+            ? { idempotencyKey: parsed.data.idempotency_key }
+            : undefined,
         ),
     });
     return Response.json({ comment }, { status: 201 });

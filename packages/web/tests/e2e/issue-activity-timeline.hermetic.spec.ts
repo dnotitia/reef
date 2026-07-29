@@ -199,6 +199,7 @@ test.describe("Hermetic issue activity timeline (REEF-277)", () => {
           body: JSON.stringify({
             body: "must not cross issues",
             parent_comment_id: "00000000-0000-4000-8000-000000000040",
+            idempotency_key: "55555555-5555-4555-8555-555555555555",
           }),
         },
       );

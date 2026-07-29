@@ -72,6 +72,7 @@ const CommentBodySchema = z
 export const CommentCreateInputSchema = z.object({
   body: CommentBodySchema,
   parent_comment_id: z.string().uuid().optional(),
+  idempotency_key: z.string().uuid().optional(),
 });
 
 /** Edit payload (web → core): the replacement body. */

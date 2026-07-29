@@ -39,6 +39,7 @@ const CREATED = {
   created_at: "2026-06-18T01:00:00.000Z",
   edited_at: null,
 };
+const IDEMPOTENCY_KEY = "33333333-3333-4333-8333-333333333333";
 
 describe("useCreateComment", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -62,6 +63,7 @@ describe("useCreateComment", () => {
         vault: "reef-acme",
         body: "new one",
         parentCommentId: EXISTING.id,
+        idempotencyKey: IDEMPOTENCY_KEY,
       });
     });
 
@@ -70,6 +72,7 @@ describe("useCreateComment", () => {
     expect(init?.method).toBe("POST");
     expect(JSON.parse(init?.body as string)).toEqual({
       body: "new one",
+      idempotency_key: IDEMPOTENCY_KEY,
       parent_comment_id: EXISTING.id,
     });
     expect(

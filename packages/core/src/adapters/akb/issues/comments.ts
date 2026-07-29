@@ -1,5 +1,6 @@
 import { ZodError } from "zod";
 import {
+  AkbApiError,
   ConflictError,
   NotFoundError,
   SchemaValidationError,
@@ -10,10 +11,12 @@ import {
   CommentMetaSchema,
   CommentSchema,
 } from "../../../schemas/issues/comment";
+import { buildSubscriptionKey } from "../../../schemas/notifications";
 import {
   type AkbAdapter,
   REEF_COMMENTS_TABLE,
   REEF_ISSUES_TABLE,
+  REEF_SUBSCRIPTIONS_TABLE,
   decodeSettingsValue,
   ensureReefTables,
   isMissingTableError,
@@ -24,6 +27,15 @@ import {
   tableRef,
   withSpan,
 } from "../core/shared";
+
+const COMMENT_IDEMPOTENCY_META_KEY = "reef_comment_idempotency_key";
+
+function isAmbiguousAcknowledgement(error: unknown): boolean {
+  return (
+    error instanceof AkbApiError &&
+    (error.status === 0 || error.status === 408 || error.status >= 500)
+  );
+}
 
 /**
  * Map a `reef_comments` row to a Comment. The reef-semantic author and the
@@ -129,19 +141,21 @@ export async function createComment(
   author: string,
   parentCommentId?: string,
   preserved?: {
-    createdAt: string;
-    editedAt: string | null;
+    createdAt?: string;
+    editedAt?: string | null;
     metadata?: Record<string, unknown>;
+    /** Caller-owned key retained across invocation-level retries. */
+    idempotencyKey?: string;
   },
 ): Promise<Comment> {
   return withSpan(
     "akb.create_comment",
     { vault, reef_id: reefId },
-    async () => {
+    async (span) => {
       await ensureReefTables({ adapter, vault });
       const createdAt = preserved?.createdAt ?? new Date().toISOString();
       const editedAt = preserved?.editedAt ?? null;
-      const metadata = Object.fromEntries(
+      const callerMetadata = Object.fromEntries(
         Object.entries(preserved?.metadata ?? {}).filter(
           ([key]) =>
             ![
@@ -153,6 +167,25 @@ export async function createComment(
             ].includes(key),
         ),
       );
+      const jiraIdempotencyKey =
+        typeof callerMetadata.jira_idempotency_key === "string"
+          ? callerMetadata.jira_idempotency_key.trim() || null
+          : null;
+      const explicitIdempotencyKey = preserved?.idempotencyKey?.trim() || null;
+      const internalIdempotencyKey =
+        explicitIdempotencyKey ??
+        (typeof callerMetadata[COMMENT_IDEMPOTENCY_META_KEY] === "string"
+          ? callerMetadata[COMMENT_IDEMPOTENCY_META_KEY].trim() ||
+            globalThis.crypto.randomUUID()
+          : globalThis.crypto.randomUUID());
+      const idempotencyMetaKey = jiraIdempotencyKey
+        ? "jira_idempotency_key"
+        : COMMENT_IDEMPOTENCY_META_KEY;
+      const idempotencyKey = jiraIdempotencyKey ?? internalIdempotencyKey;
+      const metadata = {
+        ...callerMetadata,
+        [idempotencyMetaKey]: idempotencyKey,
+      };
       const meta = {
         ...metadata,
         author,
@@ -174,27 +207,45 @@ export async function createComment(
       const issueGuard = `SELECT reef_id FROM ${tableRef(
         REEF_ISSUES_TABLE,
       )} WHERE reef_id = ${quoteText(reefId, "comment reef_id")} LIMIT 1`;
-      const idempotencyKey =
-        typeof metadata.jira_idempotency_key === "string"
-          ? metadata.jira_idempotency_key
-          : null;
-      const claimCtes = idempotencyKey
-        ? `claim_lock AS (SELECT pg_advisory_xact_lock(hashtextextended(${quoteText(
-            idempotencyKey,
-            "comment idempotency key",
-          )}, 0))), existing AS (SELECT comment.* FROM ${tableRef(
-            REEF_COMMENTS_TABLE,
-          )} comment CROSS JOIN claim_lock WHERE comment.meta->>'jira_idempotency_key' = ${quoteText(
-            idempotencyKey,
-            "comment idempotency key",
-          )} LIMIT 1), `
-        : "";
-      const resultSelection = idempotencyKey
-        ? "SELECT * FROM ins UNION ALL SELECT * FROM existing LIMIT 1"
-        : "SELECT * FROM ins";
-      const claimJoin = idempotencyKey
-        ? " CROSS JOIN claim_lock WHERE NOT EXISTS (SELECT 1 FROM existing)"
-        : "";
+      const claimCtes = `claim_lock AS (SELECT pg_advisory_xact_lock(hashtextextended(${quoteText(
+        idempotencyKey,
+        "comment idempotency key",
+      )}, 0))), existing AS (SELECT comment.* FROM ${tableRef(
+        REEF_COMMENTS_TABLE,
+      )} comment CROSS JOIN claim_lock WHERE comment.meta->>${quoteText(
+        idempotencyMetaKey,
+        "comment idempotency meta key",
+      )} = ${quoteText(
+        idempotencyKey,
+        "comment idempotency key",
+      )} AND comment.reef_id = ${quoteText(
+        reefId,
+        "comment reef_id",
+      )} AND comment.meta->>'author' = ${quoteText(
+        author,
+        "comment author",
+      )} LIMIT 1), `;
+      const resultSelection =
+        "SELECT * FROM ins UNION ALL SELECT * FROM existing LIMIT 1";
+      const claimJoin =
+        " CROSS JOIN claim_lock WHERE NOT EXISTS (SELECT 1 FROM existing)";
+      const commenterKey = buildSubscriptionKey({
+        reefId,
+        subscriber: author,
+        source: "commenter",
+      });
+      const commenterSubscriptionCte = `commenter_subscription AS (INSERT INTO ${tableRef(
+        REEF_SUBSCRIPTIONS_TABLE,
+      )} (subscription_key, reef_id, subscriber, source, status, subscribed_at, meta) SELECT ${quoteText(
+        commenterKey,
+        "subscription key",
+      )}, comment_result.reef_id, comment_result.meta->>'author', 'commenter', 'active', ${quoteText(
+        createdAt,
+        "subscription subscribed at",
+      )}, NULL FROM comment_result WHERE comment_result.meta->>'author' = ${quoteText(
+        author,
+        "comment author",
+      )} ON CONFLICT (subscription_key) DO UPDATE SET status = 'active' RETURNING id)`;
       const sql = parentCommentId
         ? `WITH RECURSIVE ${claimCtes}target_issue AS (${issueGuard}), direct_parent AS (SELECT * FROM ${tableRef(
             REEF_COMMENTS_TABLE,
@@ -227,11 +278,18 @@ export async function createComment(
           )}, 'created_at', ${quoteText(
             createdAt,
             "comment created_at",
-          )}, 'edited_at', ${editedAt === null ? "NULL" : quoteText(editedAt, "comment edited_at")}, 'parent_comment_id', valid_reply.parent_id, 'thread_root_id', valid_reply.root_id) || ${quoteJson(metadata)}::jsonb FROM target_issue CROSS JOIN valid_reply${claimJoin} RETURNING *) ${resultSelection}`
+          )}, 'edited_at', ${editedAt === null ? "NULL" : quoteText(editedAt, "comment edited_at")}, 'parent_comment_id', valid_reply.parent_id, 'thread_root_id', valid_reply.root_id) || ${quoteJson(metadata)}::jsonb FROM target_issue CROSS JOIN valid_reply${claimJoin} RETURNING *), comment_result AS (${resultSelection}), ${commenterSubscriptionCte} SELECT * FROM comment_result`
         : `WITH ${claimCtes}target_issue AS (${issueGuard}), ins AS (INSERT INTO ${tableRef(
             REEF_COMMENTS_TABLE,
-          )} (${columns}) SELECT ${values} FROM target_issue${claimJoin} RETURNING *) ${resultSelection}`;
-      const res = await runSql(adapter, vault, sql);
+          )} (${columns}) SELECT ${values} FROM target_issue${claimJoin} RETURNING *), comment_result AS (${resultSelection}), ${commenterSubscriptionCte} SELECT * FROM comment_result`;
+      let res: Awaited<ReturnType<typeof runSql>>;
+      try {
+        res = await runSql(adapter, vault, sql);
+      } catch (error) {
+        if (!isAmbiguousAcknowledgement(error)) throw error;
+        res = await runSql(adapter, vault, sql);
+        span.setAttribute("ambiguous_acknowledgement_recovered", true);
+      }
       const row = res.kind === "table_query" ? res.items[0] : undefined;
       if (!row) {
         throw parentCommentId
@@ -243,8 +301,9 @@ export async function createComment(
         comment.reef_id === reefId &&
         comment.body === body &&
         comment.author === author &&
-        comment.created_at === createdAt &&
-        comment.edited_at === editedAt &&
+        (jiraIdempotencyKey === null ||
+          (comment.created_at === createdAt &&
+            comment.edited_at === editedAt)) &&
         (comment.parent_comment_id ?? null) === (parentCommentId ?? null) &&
         (parentCommentId
           ? comment.thread_root_id != null

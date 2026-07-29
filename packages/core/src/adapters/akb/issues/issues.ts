@@ -41,6 +41,11 @@ import type {
   WriteMultipleIssuesOutput,
 } from "../core/types";
 import {
+  automaticSubscriptionCtes,
+  reconcilePersistedAutomaticSubscriptions,
+} from "../notifications/automaticSubscriptions";
+import { listSubscriptions } from "../notifications/notifications";
+import {
   appendActivityEvents,
   appendStatusChangeEvent,
   diffFieldActivityEvents,
@@ -74,6 +79,129 @@ const sameJiraMigrationOwner = (left: unknown, right: unknown): boolean => {
     leftOwner.issue_id === rightOwner.issue_id
   );
 };
+
+function isAmbiguousAkbAcknowledgement(error: unknown): boolean {
+  return (
+    error instanceof AkbApiError &&
+    (error.status === 0 || error.status === 408 || error.status >= 500)
+  );
+}
+
+function issueStateMatches(
+  persisted: IssueMetadata,
+  desired: IssueMetadata,
+): boolean {
+  const relationKeys = new Set(["depends_on", "blocks", "related_to"]);
+  const desiredKeys = Object.keys(desired).filter(
+    (key) =>
+      key !== "created_at" &&
+      key !== "updated_at" &&
+      desired[key as keyof IssueMetadata] !== undefined,
+  );
+  const desiredProjection = Object.fromEntries(
+    desiredKeys.map((key) => [key, desired[key as keyof IssueMetadata]]),
+  );
+  const persistedProjection = Object.fromEntries(
+    desiredKeys.map((key) => [
+      key,
+      key === "rank" &&
+      desired.status === "backlog" &&
+      desired.rank == null &&
+      typeof persisted.rank === "number"
+        ? null
+        : relationKeys.has(key) &&
+            persisted[key as keyof IssueMetadata] === undefined
+          ? []
+          : desired[key as keyof IssueMetadata] === null &&
+              persisted[key as keyof IssueMetadata] === undefined
+            ? null
+            : persisted[key as keyof IssueMetadata],
+    ]),
+  );
+  return deepEqual(persistedProjection, desiredProjection);
+}
+
+type VerificationResult = "match" | "mismatch" | "indeterminate";
+
+async function issueAndAutomaticSubscriptionsMatch(
+  adapter: ReadIssueParams["adapter"],
+  vault: string,
+  issue: IssueMetadata,
+  documentUri: string,
+): Promise<VerificationResult> {
+  try {
+    const [row] = await selectIssueRows(
+      adapter,
+      vault,
+      `reef_id = ${quoteText(issue.id, "reef_id")}`,
+    );
+    if (!row || row.document_uri !== documentUri) return "mismatch";
+    const persisted = rowToIssue(row);
+    if (!issueStateMatches(persisted, issue)) return "mismatch";
+    const subscriptions = await listSubscriptions(adapter, vault, {
+      reefId: issue.id,
+    });
+    for (const [source, subscriber] of [
+      ["requester", issue.requester],
+      ["assignee", issue.assigned_to],
+    ] as const) {
+      const sourceRows = subscriptions.filter(
+        (subscription) => subscription.source === source,
+      );
+      const expected = subscriber?.trim();
+      if (!expected) {
+        if (sourceRows.length !== 0) return "mismatch";
+      } else if (
+        sourceRows.length !== 1 ||
+        sourceRows[0]?.subscriber !== expected ||
+        sourceRows[0]?.status !== "active"
+      ) {
+        return "mismatch";
+      }
+    }
+    return "match";
+  } catch {
+    return "indeterminate";
+  }
+}
+
+async function persistedAutomaticSubscriptionsMatch(
+  adapter: ReadIssueParams["adapter"],
+  vault: string,
+  reefId: string,
+): Promise<VerificationResult> {
+  try {
+    const [row] = await selectIssueRows(
+      adapter,
+      vault,
+      `reef_id = ${quoteText(reefId, "reef_id")}`,
+    );
+    if (!row) return "mismatch";
+    const persisted = rowToIssue(row);
+    const subscriptions = await listSubscriptions(adapter, vault, { reefId });
+    for (const [source, subscriber] of [
+      ["requester", persisted.requester],
+      ["assignee", persisted.assigned_to],
+    ] as const) {
+      const sourceRows = subscriptions.filter(
+        (subscription) => subscription.source === source,
+      );
+      const expected = subscriber?.trim();
+      if (!expected) {
+        if (sourceRows.length !== 0) return "mismatch";
+      } else if (
+        sourceRows.length !== 1 ||
+        sourceRows[0]?.subscriber !== expected ||
+        sourceRows[0]?.status !== "active"
+      ) {
+        return "mismatch";
+      }
+    }
+    return "match";
+  } catch {
+    return "indeterminate";
+  }
+}
 
 export async function readIssue(
   params: ReadIssueParams,
@@ -241,26 +369,55 @@ export async function writeIssue(
       ) {
         throw new ConflictError({ path: issueDocumentUri(vault, issue.id) });
       }
-      await runSql(
-        adapter,
-        vault,
-        `UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET ${buildRowAssignments(
-          issueRowMutableFields(
-            issue,
-            issue.rank == null && existingIssue.rank != null
-              ? { rankExpr: quoteNumberOrNull(existingIssue.rank) }
-              : undefined,
-          ),
-        )} WHERE reef_id = ${quoteText(
-          issue.id,
-          "reef_id",
-        )} AND meta::jsonb->'custom_fields'->'jira_migration'->'owner' = ${quoteJson(
-          existingOwner,
-        )}::jsonb AND archived_at IS NOT NULL AND meta::jsonb->'custom_fields'->'jira_migration'->'reservation' = 'true'::jsonb AND updated_at = ${quoteText(
-          existingIssue.updated_at,
-          "expected updated_at",
-        )}`,
-      );
+      const finalizeMutation = `UPDATE ${tableRef(
+        REEF_ISSUES_TABLE,
+      )} SET ${buildRowAssignments(
+        issueRowMutableFields(
+          issue,
+          issue.rank == null && existingIssue.rank != null
+            ? { rankExpr: quoteNumberOrNull(existingIssue.rank) }
+            : undefined,
+        ),
+      )} WHERE reef_id = ${quoteText(
+        issue.id,
+        "reef_id",
+      )} AND meta::jsonb->'custom_fields'->'jira_migration'->'owner' = ${quoteJson(
+        existingOwner,
+      )}::jsonb AND archived_at IS NOT NULL AND meta::jsonb->'custom_fields'->'jira_migration'->'reservation' = 'true'::jsonb AND updated_at = ${quoteText(
+        existingIssue.updated_at,
+        "expected updated_at",
+      )} RETURNING reef_id`;
+      const finalizeSubscriptionCtes = automaticSubscriptionCtes({
+        anchorCte: "issue_mutation",
+        reefId: issue.id,
+        participants: [
+          { source: "requester", subscriber: issue.requester },
+          { source: "assignee", subscriber: issue.assigned_to },
+        ],
+        subscribedAt: new Date().toISOString(),
+        reconcile: true,
+      });
+      try {
+        await runSql(
+          adapter,
+          vault,
+          `WITH issue_mutation AS (${finalizeMutation}), ${finalizeSubscriptionCtes.join(
+            ", ",
+          )} SELECT reef_id FROM issue_mutation`,
+        );
+      } catch (error) {
+        const verification = isAmbiguousAkbAcknowledgement(error)
+          ? await issueAndAutomaticSubscriptionsMatch(
+              adapter,
+              vault,
+              issue,
+              put.uri,
+            )
+          : "mismatch";
+        if (!isAmbiguousAkbAcknowledgement(error) || verification !== "match") {
+          throw error;
+        }
+      }
       const refreshed = (
         await selectIssueRows(
           adapter,
@@ -269,40 +426,40 @@ export async function writeIssue(
         )
       )[0];
       const refreshedIssue = refreshed ? rowToIssue(refreshed) : null;
-      const relationKeys = new Set(["depends_on", "blocks", "related_to"]);
-      const desiredKeys = Object.keys(issue).filter(
-        (key) =>
-          key !== "created_at" &&
-          key !== "updated_at" &&
-          issue[key as keyof IssueMetadata] !== undefined,
-      );
-      const desiredProjection = Object.fromEntries(
-        desiredKeys.map((key) => [key, issue[key as keyof IssueMetadata]]),
-      );
-      const refreshedProjection = refreshedIssue
-        ? Object.fromEntries(
-            desiredKeys.map((key) => [
-              key,
-              relationKeys.has(key) &&
-              refreshedIssue[key as keyof IssueMetadata] === undefined
-                ? []
-                : issue[key as keyof IssueMetadata] === null &&
-                    refreshedIssue[key as keyof IssueMetadata] === undefined
-                  ? null
-                  : refreshedIssue[key as keyof IssueMetadata],
-            ]),
-          )
-        : null;
-      if (!deepEqual(refreshedProjection, desiredProjection)) {
+      if (!refreshedIssue || !issueStateMatches(refreshedIssue, issue)) {
         throw new ConflictError({ path: issueDocumentUri(vault, issue.id) });
       }
     } else {
       try {
         await insertIssueRow(adapter, vault, issue, put.uri, {
           assignBacklogRank: true,
+          automaticSubscriptionParticipants: [
+            { source: "requester", subscriber: issue.requester },
+            { source: "assignee", subscriber: issue.assigned_to },
+          ],
         });
       } catch (err) {
-        await deleteDocumentQuietly(adapter, vault, put.path);
+        const ambiguousAcknowledgement = isAmbiguousAkbAcknowledgement(err);
+        const verification = ambiguousAcknowledgement
+          ? await issueAndAutomaticSubscriptionsMatch(
+              adapter,
+              vault,
+              issue,
+              put.uri,
+            )
+          : "mismatch";
+        if (verification === "match") {
+          return {
+            path: put.path,
+            commit_hash: put.commit_hash,
+          };
+        }
+        // A negative read immediately after an ambiguous acknowledgement does
+        // not prove that the original transaction will not commit later. Only
+        // a deterministic rejection authorizes deleting the document.
+        if (!ambiguousAcknowledgement) {
+          await deleteDocumentQuietly(adapter, vault, put.path);
+        }
         throw err;
       }
     }
@@ -480,39 +637,37 @@ export async function updateIssue(
       current.issue.status !== "backlog" &&
       mergedIssue.rank == null;
     try {
+      const issueMutation = `UPDATE ${tableRef(
+        REEF_ISSUES_TABLE,
+      )} SET ${buildRowAssignments(
+        issueRowMutableFields(
+          mergedIssue,
+          enteringBacklog ? { rankExpr: backlogTailRankExpr() } : undefined,
+        ),
+      )} WHERE reef_id = ${quoteText(id, "reef_id")}${
+        expectedUpdatedAt
+          ? ` AND updated_at = ${quoteText(
+              expectedUpdatedAt,
+              "expected updated_at",
+            )}`
+          : ""
+      } RETURNING reef_id`;
+      const subscriptionCtes = automaticSubscriptionCtes({
+        anchorCte: "issue_mutation",
+        reefId: id,
+        participants: [
+          { source: "requester", subscriber: mergedIssue.requester },
+          { source: "assignee", subscriber: mergedIssue.assigned_to },
+        ],
+        subscribedAt: new Date().toISOString(),
+        reconcile: true,
+      });
       const rowUpdate = await runSql(
         adapter,
         vault,
-        expectedUpdatedAt
-          ? // `updated_at` is an AKB-reserved dynamic-table column: AKB
-            // atomically advances it after every successful UPDATE and rejects
-            // callers that try to assign it directly. The predicate therefore
-            // checks the pre-write token, while the same statement produces the
-            // next token for subsequent OCC callers.
-            `WITH upd AS (UPDATE ${tableRef(
-              REEF_ISSUES_TABLE,
-            )} SET ${buildRowAssignments(
-              issueRowMutableFields(
-                mergedIssue,
-                enteringBacklog
-                  ? { rankExpr: backlogTailRankExpr() }
-                  : undefined,
-              ),
-            )} WHERE reef_id = ${quoteText(
-              id,
-              "reef_id",
-            )} AND updated_at = ${quoteText(
-              expectedUpdatedAt,
-              "expected updated_at",
-            )} RETURNING reef_id) SELECT reef_id FROM upd`
-          : `UPDATE ${tableRef(REEF_ISSUES_TABLE)} SET ${buildRowAssignments(
-              issueRowMutableFields(
-                mergedIssue,
-                enteringBacklog
-                  ? { rankExpr: backlogTailRankExpr() }
-                  : undefined,
-              ),
-            )} WHERE reef_id = ${quoteText(id, "reef_id")}`,
+        `WITH issue_mutation AS (${issueMutation}), ${subscriptionCtes.join(
+          ", ",
+        )} SELECT reef_id FROM issue_mutation`,
       );
       if (
         expectedUpdatedAt &&
@@ -522,38 +677,44 @@ export async function updateIssue(
         throw new ConflictError({ path: issuePathFor(id) });
       }
     } catch (err) {
-      let committed = false;
-      if (
-        err instanceof AkbApiError &&
-        (err.status === 0 ||
-          err.status === 408 ||
-          err.status === 429 ||
-          err.status >= 500)
-      ) {
+      const ambiguousAcknowledgement = isAmbiguousAkbAcknowledgement(err);
+      let verification: VerificationResult = "mismatch";
+      let recoveredIssue: Awaited<ReturnType<typeof readIssue>> | null = null;
+      if (ambiguousAcknowledgement) {
         try {
           const recovered = await readIssue({ adapter, vault, id });
+          recoveredIssue = recovered;
           const expectedRecoveredIssue = {
             ...mergedIssue,
             updated_at: recovered.issue.updated_at,
             ...(enteringBacklog ? { rank: recovered.issue.rank } : {}),
           };
-          committed =
+          const issueMatches =
             recovered.commit_hash === commitHash &&
             recovered.content === mergedBody &&
             recovered.issue.updated_at !== current.issue.updated_at &&
             deepEqual(recovered.issue, expectedRecoveredIssue);
-          if (committed) {
-            mergedIssue.updated_at = recovered.issue.updated_at;
-            if (enteringBacklog) mergedIssue.rank = recovered.issue.rank;
-          }
+          verification = issueMatches
+            ? await issueAndAutomaticSubscriptionsMatch(
+                adapter,
+                vault,
+                mergedIssue,
+                issueDocumentUri(vault, id),
+              )
+            : "mismatch";
         } catch {
-          committed = false;
+          verification = "indeterminate";
         }
       }
-      if (committed) {
+      if (verification === "match" && recoveredIssue) {
+        mergedIssue.updated_at = recoveredIssue.issue.updated_at;
+        if (enteringBacklog) mergedIssue.rank = recoveredIssue.issue.rank;
         span.setAttribute("row_update_recovered", true);
       } else {
-        if (docDirty) {
+        // Neither a failed nor a negative verification read proves that an
+        // ambiguously acknowledged mutation will not commit later. Rewinding
+        // in either state could undo a row + subscription mutation in flight.
+        if (!ambiguousAcknowledgement && docDirty) {
           const revertBody = buildIssueDocPatchBody(
             current.issue,
             current.content,
@@ -575,6 +736,23 @@ export async function updateIssue(
         }
         throw err;
       }
+    }
+
+    // The mutation statement inserts the required active sources atomically.
+    // A fresh statement then removes rows an overlapping LWW writer inserted
+    // from an older snapshot. The final writer always performs this cleanup
+    // after its own row commit, so returned success observes one canonical
+    // requester/assignee source without changing the row-update LWW contract.
+    try {
+      await reconcilePersistedAutomaticSubscriptions(adapter, vault, id);
+    } catch (error) {
+      const verification = await persistedAutomaticSubscriptionsMatch(
+        adapter,
+        vault,
+        id,
+      );
+      if (verification !== "match") throw error;
+      span.setAttribute("subscription_reconciliation_recovered", true);
     }
 
     // The tail rank was assigned by an in-statement subquery, so its value is

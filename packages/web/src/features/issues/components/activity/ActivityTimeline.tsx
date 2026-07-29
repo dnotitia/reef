@@ -9,7 +9,7 @@ import { useComments } from "@/features/issues/hooks/queries/useComments";
 import { resolveIssueAttachmentUrl } from "@/features/issues/lib/attachmentUrls";
 import type { ActivityEvent, Comment, IssueMetadata } from "@reef/core";
 import { useTranslations } from "next-intl";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CommentCard } from "../comments/CommentCard";
 import { CommentComposer } from "../comments/CommentComposer";
@@ -62,6 +62,11 @@ export function ActivityTimeline({
   const uploadAttachment = useUploadIssueAttachment();
   const [flashId, setFlashId] = useState<string | null>(null);
   const [replyTargetId, setReplyTargetId] = useState<string | null>(null);
+  const pendingCommentAttempt = useRef<{
+    body: string;
+    parentCommentId?: string;
+    idempotencyKey: string;
+  } | null>(null);
 
   const timeline = useMemo(
     () => buildTimeline(comments, activity, issue),
@@ -75,13 +80,22 @@ export function ActivityTimeline({
   );
 
   async function handleCreate(body: string, parentCommentId?: string) {
+    const priorAttempt = pendingCommentAttempt.current;
+    const idempotencyKey =
+      priorAttempt?.body === body &&
+      priorAttempt.parentCommentId === parentCommentId
+        ? priorAttempt.idempotencyKey
+        : globalThis.crypto.randomUUID();
+    pendingCommentAttempt.current = { body, parentCommentId, idempotencyKey };
     try {
       const created = await createComment.mutateAsync({
         issueId,
         vault,
         body,
         parentCommentId,
+        idempotencyKey,
       });
+      pendingCommentAttempt.current = null;
       setFlashId(created.id);
       if (parentCommentId) setReplyTargetId(null);
     } catch (err) {

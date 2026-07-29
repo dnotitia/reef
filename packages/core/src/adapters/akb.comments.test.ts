@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ALL_REEF_TABLES,
+  AkbApiError,
   NotFoundError,
   REEF_COMMENTS_TABLE,
   createComment,
@@ -188,6 +189,241 @@ describe("listComments", () => {
 });
 
 describe("createComment", () => {
+  it("commits the comment and canonical author source in one SQL statement", async () => {
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      {
+        body: makeSqlQueryResponse(
+          [
+            makeCommentRow({
+              id: "new-uuid",
+              body: "participating",
+              meta: {
+                author: "alice",
+                created_at: "2026-06-18T04:00:00.000Z",
+                edited_at: null,
+                parent_comment_id: null,
+                thread_root_id: null,
+              },
+            }),
+          ],
+          COMMENT_ROW_COLUMNS,
+        ),
+      },
+    ]);
+
+    await createComment(
+      makeAdapter(),
+      "reef-sample",
+      "REEF-062",
+      "participating",
+      "alice",
+      undefined,
+      {
+        createdAt: "2026-06-18T04:00:00.000Z",
+        editedAt: null,
+      },
+    );
+
+    const sql = lastSql(calls[1]?.init?.body);
+    expect(sql).toContain("INSERT INTO reef_comments");
+    expect(sql).toContain("INSERT INTO reef_subscriptions");
+    expect(sql).toContain("'commenter'");
+    expect(sql).toContain("'active'");
+    expect(sql).toContain("comment_result.meta->>'author'");
+    expect(calls.filter((call) => call.url.includes("/sql"))).toHaveLength(1);
+  });
+
+  it("retries an ambiguously acknowledged ordinary comment with one stable operation key", async () => {
+    const comment = makeCommentRow({
+      id: "new-uuid",
+      body: "retry me",
+      meta: {
+        author: "alice",
+        created_at: "2026-06-18T04:00:00.000Z",
+        edited_at: null,
+        parent_comment_id: null,
+        thread_root_id: null,
+      },
+    });
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { status: 500, body: { error: "response lost" } },
+      {
+        body: makeSqlQueryResponse([comment], COMMENT_ROW_COLUMNS),
+      },
+    ]);
+
+    await expect(
+      createComment(
+        makeAdapter(),
+        "reef-sample",
+        "REEF-062",
+        "retry me",
+        "alice",
+        undefined,
+        {
+          createdAt: "2026-06-18T04:00:00.000Z",
+          editedAt: null,
+        },
+      ),
+    ).resolves.toMatchObject({ id: "new-uuid" });
+
+    const firstSql = lastSql(calls[1]?.init?.body);
+    const retrySql = lastSql(calls[2]?.init?.body);
+    expect(firstSql).toBe(retrySql);
+    expect(firstSql).toContain("reef_comment_idempotency_key");
+    expect(firstSql).toContain("pg_advisory_xact_lock");
+    expect(firstSql).toContain("comment.reef_id = 'REEF-062'");
+    expect(firstSql).toContain("comment.meta->>'author' = 'alice'");
+    expect(firstSql).toContain("INSERT INTO reef_subscriptions");
+  });
+
+  it("reuses a caller-owned operation key across invocation-level retries", async () => {
+    const idempotencyKey = "33333333-3333-4333-8333-333333333333";
+    const committed = makeCommentRow({
+      id: "new-uuid",
+      body: "retry later",
+      meta: {
+        author: "alice",
+        created_at: "2026-06-18T04:00:00.000Z",
+        edited_at: null,
+        parent_comment_id: null,
+        thread_root_id: null,
+        reef_comment_idempotency_key: idempotencyKey,
+      },
+    });
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { status: 500, body: { error: "first response lost" } },
+      { status: 500, body: { error: "retry response lost" } },
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { body: makeSqlQueryResponse([committed], COMMENT_ROW_COLUMNS) },
+    ]);
+    const adapter = makeAdapter();
+
+    await expect(
+      createComment(
+        adapter,
+        "reef-sample",
+        "REEF-062",
+        "retry later",
+        "alice",
+        undefined,
+        {
+          createdAt: "2026-06-18T04:00:00.000Z",
+          editedAt: null,
+          idempotencyKey,
+        },
+      ),
+    ).rejects.toBeInstanceOf(AkbApiError);
+
+    await expect(
+      createComment(
+        adapter,
+        "reef-sample",
+        "REEF-062",
+        "retry later",
+        "alice",
+        undefined,
+        {
+          createdAt: "2026-06-18T05:00:00.000Z",
+          editedAt: null,
+          idempotencyKey,
+        },
+      ),
+    ).resolves.toMatchObject({
+      id: "new-uuid",
+      created_at: "2026-06-18T04:00:00.000Z",
+    });
+
+    for (const call of [calls[1], calls[2], calls[4]]) {
+      expect(lastSql(call?.init?.body)).toContain(idempotencyKey);
+    }
+  });
+
+  it("replaces blank caller idempotency keys with one non-empty internal key", async () => {
+    const comment = makeCommentRow({
+      id: "new-uuid",
+      body: "unique comment",
+      meta: {
+        author: "alice",
+        created_at: "2026-06-18T04:00:00.000Z",
+        edited_at: null,
+        parent_comment_id: null,
+        thread_root_id: null,
+      },
+    });
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      {
+        body: makeSqlQueryResponse([comment], COMMENT_ROW_COLUMNS),
+      },
+    ]);
+
+    await createComment(
+      makeAdapter(),
+      "reef-sample",
+      "REEF-062",
+      "unique comment",
+      "alice",
+      undefined,
+      {
+        createdAt: "2026-06-18T04:00:00.000Z",
+        editedAt: null,
+        metadata: {
+          jira_idempotency_key: "",
+          reef_comment_idempotency_key: " ",
+        },
+      },
+    );
+
+    const sql = lastSql(calls[1]?.init?.body);
+    const generatedKey = sql.match(
+      /hashtextextended\('([0-9a-f-]{36})', 0\)/i,
+    )?.[1];
+    expect(generatedKey).toBeTruthy();
+    expect(sql).toContain(
+      `comment.meta->>'reef_comment_idempotency_key' = '${generatedKey}'`,
+    );
+  });
+
+  it("does not retry a definitively rejected comment mutation", async () => {
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { status: 422, body: { error: "invalid comment" } },
+    ]);
+
+    await expect(
+      createComment(
+        makeAdapter(),
+        "reef-sample",
+        "REEF-062",
+        "invalid",
+        "alice",
+      ),
+    ).rejects.not.toBeInstanceOf(AkbApiError);
+    expect(calls).toHaveLength(2);
+  });
+
+  it("does not retry a definitely throttled comment mutation", async () => {
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { status: 429, body: { error: "rate limited" } },
+    ]);
+
+    await expect(
+      createComment(
+        makeAdapter(),
+        "reef-sample",
+        "REEF-062",
+        "retry later",
+        "alice",
+      ),
+    ).rejects.toBeInstanceOf(AkbApiError);
+    expect(calls).toHaveLength(2);
+  });
+
   it("inserts only reef_id/body/meta and returns the row via RETURNING", async () => {
     const { calls } = setupFetch([
       { body: makeListTablesResponse(ALL_REEF_TABLES) }, // ensureReefTables
@@ -399,6 +635,7 @@ describe("updateComment", () => {
     // Ownership guard: the author's own row matches.
     expect(sql).toContain("meta->>'author' = 'alice'");
     expect(sql).toContain("RETURNING *");
+    expect(sql).not.toContain("reef_subscriptions");
   });
 
   it("raises NotFound when no row matches (missing comment or not the author)", async () => {

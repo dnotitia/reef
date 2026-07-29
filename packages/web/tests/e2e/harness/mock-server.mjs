@@ -1395,6 +1395,23 @@ function handleSql(vault, sql) {
     );
   }
 
+  if (lower.startsWith("with canonical_participants as materialized")) {
+    const reefId = matchSqlString(normalized, /where reef_id\s*=\s*'([^']+)'/i);
+    const issue = vault.issues.find((row) => row.reef_id === reefId);
+    if (!issue) return tableQuery(["reef_id"], []);
+    vault.subscriptions = vault.subscriptions.filter((subscription) => {
+      if (subscription.reef_id !== reefId) return true;
+      if (subscription.source === "requester") {
+        return subscription.subscriber === issue.requester;
+      }
+      if (subscription.source === "assignee") {
+        return subscription.subscriber === issue.assigned_to;
+      }
+      return true;
+    });
+    return tableQuery(["reef_id"], [{ reef_id: issue.reef_id }]);
+  }
+
   if (lower.startsWith("select * from reef_subscriptions")) {
     let subscriptions = [...vault.subscriptions];
     const reefId = matchSqlString(normalized, /reef_id\s*=\s*'([^']+)'/i);
@@ -1439,7 +1456,12 @@ function handleSql(vault, sql) {
     );
   }
 
-  if (lower.includes("insert into reef_subscriptions")) {
+  if (
+    lower.includes("insert into reef_subscriptions") &&
+    !lower.includes("insert into reef_issues") &&
+    !lower.includes("update reef_issues") &&
+    !lower.includes("insert into reef_comments")
+  ) {
     const insert = parseInsert(normalized);
     if (!insert) return { error: "invalid subscription upsert" };
     const inserted = objectFromColumns(insert.columns, insert.values);
@@ -1480,7 +1502,7 @@ function handleSql(vault, sql) {
       vault.issues.map((row) => ({ reef_id: row.reef_id })),
     );
   }
-  if (lower.startsWith("insert into reef_issues")) {
+  if (lower.includes("insert into reef_issues")) {
     const insert = parseInsert(normalized);
     if (insert) {
       const row = objectFromColumns(insert.columns, insert.values);
@@ -1494,10 +1516,14 @@ function handleSql(vault, sql) {
       row.created_at = row.created_at ?? NOW;
       row.updated_at = row.updated_at ?? NOW;
       vault.issues.push(row);
+      applyAutomaticSubscriptionCtes(vault, normalized);
+      if (lower.startsWith("with issue_mutation as")) {
+        return tableQuery(["reef_id"], [{ reef_id: row.reef_id }]);
+      }
     }
     return tableSql();
   }
-  if (lower.startsWith("update reef_issues")) {
+  if (lower.includes("update reef_issues")) {
     const update = parseUpdate(normalized);
     if (update) {
       const id = matchSqlString(
@@ -1518,7 +1544,14 @@ function handleSql(vault, sql) {
         ) {
           row.rank = nextBacklogRank(vault);
         }
+        applyAutomaticSubscriptionCtes(vault, normalized);
+        if (lower.startsWith("with issue_mutation as")) {
+          return tableQuery(["reef_id"], [{ reef_id: row.reef_id }]);
+        }
       }
+    }
+    if (lower.startsWith("with issue_mutation as")) {
+      return tableQuery(["reef_id"], []);
     }
     return tableSql();
   }
@@ -1658,8 +1691,10 @@ function handleSql(vault, sql) {
   }
   if (lower.includes("insert into reef_comments")) {
     if (lower.includes("target_issue as")) {
-      const values = sqlValues(normalized);
-      const reefId = values[0] ?? null;
+      const reefId = matchSqlString(
+        normalized,
+        /target_issue\s+as\s*\(select reef_id from reef_issues where reef_id\s*=\s*'((?:''|[^'])+)'/i,
+      );
       if (!reefId || !vault.issues.some((issue) => issue.reef_id === reefId)) {
         return tableQuery(commentColumns(), []);
       }
@@ -1731,12 +1766,14 @@ function handleSql(vault, sql) {
           thread_root_id: root.id,
         };
       } else {
-        body = values[2] ?? null;
-        try {
-          meta = JSON.parse(values[3] ?? "null");
-        } catch {
-          meta = null;
-        }
+        const commentInsert = parseInsert(
+          normalized.slice(lower.indexOf("insert into reef_comments")),
+        );
+        const row = commentInsert
+          ? objectFromColumns(commentInsert.columns, commentInsert.values)
+          : null;
+        body = row?.body ?? null;
+        meta = row?.meta ?? null;
       }
       if (typeof body !== "string" || !meta) {
         return tableQuery(commentColumns(), []);
@@ -1751,6 +1788,7 @@ function handleSql(vault, sql) {
         created_by: meta.author ?? "alice",
       };
       vault.comments.push(row);
+      applyAutomaticSubscriptionCtes(vault, normalized, row);
       return tableQuery(commentColumns(), [row]);
     }
     const insert = parseInsert(normalized);
@@ -1761,6 +1799,7 @@ function handleSql(vault, sql) {
     row.updated_at = NOW;
     row.created_by = row.meta?.author ?? "alice";
     vault.comments.push(row);
+    applyAutomaticSubscriptionCtes(vault, normalized, row);
     return tableQuery(commentColumns(), [row]);
   }
   if (lower.includes("update reef_comments")) {
@@ -2972,6 +3011,66 @@ function firstSqlString(sql) {
 function matchSqlString(sql, pattern) {
   const match = sql.match(pattern);
   return match ? match[1].replace(/''/g, "'") : null;
+}
+
+function applyAutomaticSubscriptionCtes(vault, sql, anchorRow = null) {
+  const removals =
+    sql.matchAll(
+      /delete from reef_subscriptions(?: as [a-z_]+)? using [a-z_]+ where (?:[a-z_]+\.)?reef_id = '((?:''|[^'])+)' and (?:[a-z_]+\.)?source = '((?:''|[^'])+)' and (?:[a-z_]+\.)?subscriber is distinct from (null|'(?:''|[^'])*')/gi,
+    ) ?? [];
+  for (const match of removals) {
+    const reefId = match[1].replace(/''/g, "'");
+    const source = match[2].replace(/''/g, "'");
+    const target =
+      match[3].toLowerCase() === "null"
+        ? null
+        : match[3].slice(1, -1).replace(/''/g, "'");
+    vault.subscriptions = vault.subscriptions.filter(
+      (subscription) =>
+        subscription.reef_id !== reefId ||
+        subscription.source !== source ||
+        subscription.subscriber === target,
+    );
+  }
+
+  const insertPattern = /insert into reef_subscriptions/gi;
+  let insertMatch = insertPattern.exec(sql);
+  while (insertMatch) {
+    const insert = parseInsert(sql.slice(insertMatch.index));
+    if (insert) {
+      const values = objectFromColumns(insert.columns, insert.values);
+      const source = String(values.source);
+      const reefId =
+        source === "commenter" ? anchorRow?.reef_id : values.reef_id;
+      const subscriber =
+        source === "commenter" ? anchorRow?.meta?.author : values.subscriber;
+      if (
+        typeof values.subscription_key === "string" &&
+        typeof reefId === "string" &&
+        typeof subscriber === "string"
+      ) {
+        const existing = vault.subscriptions.find(
+          (subscription) =>
+            subscription.subscription_key === values.subscription_key,
+        );
+        if (existing) {
+          existing.status = "active";
+        } else {
+          vault.subscriptions.push({
+            id: uuidFor(6000 + vault.subscriptions.length),
+            subscription_key: values.subscription_key,
+            reef_id: reefId,
+            subscriber,
+            source,
+            status: "active",
+            subscribed_at: values.subscribed_at,
+            meta: null,
+          });
+        }
+      }
+    }
+    insertMatch = insertPattern.exec(sql);
+  }
 }
 
 function parseInsert(sql) {

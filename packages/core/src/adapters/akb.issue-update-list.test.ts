@@ -23,12 +23,18 @@ import {
   writeMultipleIssues,
 } from "./akb.testSupport";
 
+const RECONCILE_OK = makeSqlQueryResponse(
+  [{ reef_id: "REEF-001" }],
+  ["reef_id"],
+);
+
 describe("updateIssue", () => {
   it("updates only the row for table-only fields (no document PATCH)", async () => {
     const { calls } = setupFetch([
       { body: makeDocumentResponse() }, // read: GET document
       { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row
       { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row
+      { body: RECONCILE_OK }, // reconcile automatic sources from canonical row
     ]);
     const adapter = makeAdapter();
     const result = await updateIssue({
@@ -41,7 +47,7 @@ describe("updateIssue", () => {
     // document's existing commit hash through.
     expect(result.commit_hash).toBe("abc1234");
     expect(result.issue.status).toBe("in_progress");
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(4);
     expect(calls.some((c) => c.init?.method === "PATCH")).toBe(false);
 
     const updateCall = calls[2];
@@ -59,6 +65,7 @@ describe("updateIssue", () => {
       { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row
       { body: makePutResponse({ commit_hash: "deadbeef" }) }, // PATCH document
       { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row
+      { body: RECONCILE_OK },
     ]);
     const adapter = makeAdapter();
     const result = await updateIssue({
@@ -70,7 +77,7 @@ describe("updateIssue", () => {
     });
     expect(result.commit_hash).toBe("deadbeef");
     expect(result.content).toBe("rewritten body");
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(5);
 
     const patchCall = calls[2];
     expect(patchCall?.init?.method).toBe("PATCH");
@@ -104,13 +111,14 @@ describe("updateIssue", () => {
   // REEF-063: a real status transition (one that stamps a fresh
   // last_status_change, as buildIssueUpdateMetadataPatch does on every web/agent
   // funnel) appends an immutable status_change event to reef_activity. The row
-  // UPDATE stays a plain committing statement; `from` is the observed (read)
-  // status, consistent with the LWW write itself.
+  // The issue row and its automatic sources stay in one data-modifying CTE;
+  // `from` remains the observed status, consistent with the LWW write itself.
   it("appends a reef_activity event when the status transition stamps a fresh last_status_change", async () => {
     const { calls } = setupFetch([
       { body: makeDocumentResponse() }, // read: GET document
       { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row (status=todo)
       { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row
+      { body: RECONCILE_OK },
       { body: makeListTablesResponse(ALL_REEF_TABLES) }, // append: ensureReefTables
       { body: makeSqlQueryResponse([{ id: "ev" }], ["id"]) }, // append: conditional INSERT … RETURNING
     ]);
@@ -126,14 +134,15 @@ describe("updateIssue", () => {
       },
     });
     expect(result.issue.status).toBe("in_progress");
-    expect(calls).toHaveLength(5);
+    expect(calls).toHaveLength(6);
 
-    // The row UPDATE is a plain committing statement (akb routes by leading
-    // keyword), not a SELECT-wrapped CTE.
+    // The issue row and automatic participant sources share one committing
+    // statement so a successful transition cannot expose only one side.
     const updateSql = JSON.parse(calls[2]?.init?.body as string).sql;
-    expect(updateSql.startsWith("UPDATE reef_issues SET")).toBe(true);
+    expect(updateSql.startsWith("WITH issue_mutation AS (UPDATE")).toBe(true);
+    expect(updateSql).toContain("DELETE FROM reef_subscriptions");
 
-    const insertSql = JSON.parse(calls[4]?.init?.body as string).sql;
+    const insertSql = JSON.parse(calls[5]?.init?.body as string).sql;
     expect(insertSql).toContain(`INSERT INTO ${REEF_ACTIVITY_TABLE}`);
     expect(insertSql).toContain("'status_change'");
     expect(insertSql).toContain(
@@ -156,6 +165,7 @@ describe("updateIssue", () => {
       { body: makeDocumentResponse() }, // read: GET document
       { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row (status=todo)
       { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row
+      { body: RECONCILE_OK },
       { body: makeListTablesResponse(ALL_REEF_TABLES) }, // append: ensureReefTables
       { body: makeSqlQueryResponse([{ id: "ev" }], ["id"]) }, // append: conditional INSERT
     ]);
@@ -172,7 +182,7 @@ describe("updateIssue", () => {
       },
     });
 
-    const insertSql = JSON.parse(calls[4]?.init?.body as string).sql;
+    const insertSql = JSON.parse(calls[5]?.init?.body as string).sql;
     expect(insertSql).toContain('"from":"todo"');
     expect(insertSql).toContain('"to":"done"');
     expect(insertSql).toContain('"source":"ai-agent:status_change:s-1"');
@@ -197,6 +207,7 @@ describe("updateIssue", () => {
         ),
       }, // read: row already carries last_status_change = 09:00 (status todo)
       { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row
+      { body: RECONCILE_OK },
       { body: makeListTablesResponse(ALL_REEF_TABLES) }, // append: ensureReefTables
       { body: makeSqlQueryResponse([{ id: "ev" }], ["id"]) }, // append: conditional INSERT
     ]);
@@ -212,8 +223,8 @@ describe("updateIssue", () => {
       },
     });
     // The event is recorded despite the repeated timestamp.
-    expect(calls).toHaveLength(5);
-    const insertSql = JSON.parse(calls[4]?.init?.body as string).sql;
+    expect(calls).toHaveLength(6);
+    const insertSql = JSON.parse(calls[5]?.init?.body as string).sql;
     expect(insertSql).toContain(
       "'status_change:todo->in_review@2026-06-18T09:00:00.000Z'",
     );
@@ -227,6 +238,7 @@ describe("updateIssue", () => {
       { body: makeDocumentResponse() }, // read: GET document
       { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row
       { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row just
+      { body: RECONCILE_OK },
     ]);
     const adapter = makeAdapter();
     const result = await updateIssue({
@@ -237,7 +249,7 @@ describe("updateIssue", () => {
     });
     expect(result.issue.status).toBe("in_progress");
     // No ensureReefTables / probe / INSERT — the activity funnel did not fire.
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(4);
   });
 
   // A best-effort append failure should not fail the issue update: the status row
@@ -247,6 +259,7 @@ describe("updateIssue", () => {
       { body: makeDocumentResponse() }, // read: GET document
       { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row
       { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row (committed)
+      { body: RECONCILE_OK },
       { status: 500, body: { detail: "list tables blew up" } }, // append: ensureReefTables fails
     ]);
     const adapter = makeAdapter();
@@ -262,7 +275,7 @@ describe("updateIssue", () => {
     });
     // The update succeeds despite the swallowed append error.
     expect(result.issue.status).toBe("in_progress");
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(5);
   });
 
   // REEF-126: a non-status field change (assignee/priority/planning/impl-ref),
@@ -275,6 +288,7 @@ describe("updateIssue", () => {
       { body: makeDocumentResponse() }, // read: GET document
       { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row (assignee=alice, priority=high)
       { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row
+      { body: RECONCILE_OK },
       { body: makeListTablesResponse(ALL_REEF_TABLES) }, // append: ensureReefTables (once)
       { body: makeSqlQueryResponse([{ id: "e1" }], ["id"]) }, // INSERT assignee_change
       { body: makeSqlQueryResponse([{ id: "e2" }], ["id"]) }, // INSERT priority_change
@@ -292,9 +306,9 @@ describe("updateIssue", () => {
       },
     });
     expect(result.issue.assigned_to).toBe("bob");
-    expect(calls).toHaveLength(6);
+    expect(calls).toHaveLength(7);
 
-    const assigneeSql = JSON.parse(calls[4]?.init?.body as string).sql;
+    const assigneeSql = JSON.parse(calls[5]?.init?.body as string).sql;
     expect(assigneeSql).toContain(`INSERT INTO ${REEF_ACTIVITY_TABLE}`);
     expect(assigneeSql).toContain("'assignee_change'");
     expect(assigneeSql).toContain(
@@ -305,7 +319,7 @@ describe("updateIssue", () => {
     expect(assigneeSql).toContain('"actor":"carol"');
     expect(assigneeSql).toContain('"source":"ai-agent:user_request"');
 
-    const prioritySql = JSON.parse(calls[5]?.init?.body as string).sql;
+    const prioritySql = JSON.parse(calls[6]?.init?.body as string).sql;
     expect(prioritySql).toContain("'priority_change'");
     expect(prioritySql).toContain(
       "'priority_change:high->low@2026-06-18T12:00:00.000Z'",
@@ -323,6 +337,7 @@ describe("updateIssue", () => {
       { body: makeDocumentResponse() }, // read: GET document
       { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row
       { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row
+      { body: RECONCILE_OK },
     ]);
     const result = await updateIssue({
       adapter: makeAdapter(),
@@ -332,7 +347,7 @@ describe("updateIssue", () => {
     });
     expect(result.issue.assigned_to).toBe("bob");
     // No ensureReefTables / INSERT — the field-change funnel did not fire.
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(4);
   });
 
   // Best-effort: the row UPDATE already committed, so a failed field-event
@@ -342,6 +357,7 @@ describe("updateIssue", () => {
       { body: makeDocumentResponse() }, // read: GET document
       { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row
       { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row (committed)
+      { body: RECONCILE_OK },
       { status: 500, body: { detail: "list tables blew up" } }, // append: ensureReefTables fails
     ]);
     const result = await updateIssue({
@@ -355,7 +371,7 @@ describe("updateIssue", () => {
       },
     });
     expect(result.issue.assigned_to).toBe("bob");
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(5);
   });
 });
 

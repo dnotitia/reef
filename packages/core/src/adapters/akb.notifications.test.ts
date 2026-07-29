@@ -21,6 +21,10 @@ import {
   makeSqlQueryResponse,
   setupFetch,
 } from "./akb.testSupport";
+import {
+  automaticSubscriptionCtes,
+  reconcilePersistedAutomaticSubscriptions,
+} from "./akb/notifications/automaticSubscriptions";
 
 const FIRST_ID = "018f47a4-8e3b-7f62-a3d2-9876543210ab";
 const SECOND_ID = "018f47a4-8e3b-7f62-a3d2-9876543210ac";
@@ -220,6 +224,73 @@ describe("notification adapter", () => {
 });
 
 describe("subscription adapter", () => {
+  it("normalizes persisted participant identities before fresh reconciliation", async () => {
+    const { calls } = setupFetch([
+      { body: makeSqlQueryResponse([], ["reef_id"]) },
+    ]);
+
+    await reconcilePersistedAutomaticSubscriptions(
+      makeAdapter(),
+      "reef-sample",
+      "REEF-1",
+    );
+
+    const sql = JSON.parse(String(calls[0]?.init?.body)).sql as string;
+    expect(sql).toContain("NULLIF(BTRIM(requester), '') AS requester");
+    expect(sql).toContain("NULLIF(BTRIM(assigned_to), '') AS assigned_to");
+  });
+
+  it("builds automatic reconciliation without null rows or manual-source mutations", () => {
+    const ctes = automaticSubscriptionCtes({
+      anchorCte: "issue_mutation",
+      reefId: "REEF-1",
+      participants: [
+        { source: "requester", subscriber: null },
+        { source: "assignee", subscriber: "kim" },
+      ],
+      subscribedAt: "2026-07-28T00:00:00.000Z",
+      reconcile: true,
+    }).join(", ");
+
+    expect(ctes).toContain("automatic_requester_removed");
+    expect(ctes).not.toContain("automatic_requester_upserted");
+    expect(ctes).toContain("automatic_subscription.reef_id = 'REEF-1'");
+    expect(ctes).toContain("automatic_subscription.source = 'requester'");
+    expect(ctes).toContain("subscriber IS DISTINCT FROM NULL");
+    expect(ctes).toContain("automatic_assignee_upserted");
+    expect(ctes).toContain("'kim', 'assignee', 'active'");
+    expect(ctes).not.toContain("source = 'manual'");
+  });
+
+  it("keeps automatic identities independent when one person has multiple sources", () => {
+    const ctes = automaticSubscriptionCtes({
+      anchorCte: "issue_mutation",
+      reefId: "REEF-1",
+      participants: [
+        { source: "requester", subscriber: "kim" },
+        { source: "assignee", subscriber: "kim" },
+      ],
+      subscribedAt: "2026-07-28T00:00:00.000Z",
+      reconcile: true,
+    }).join(", ");
+
+    expect(ctes).toContain(
+      buildSubscriptionKey({
+        reefId: "REEF-1",
+        subscriber: "kim",
+        source: "requester",
+      }),
+    );
+    expect(ctes).toContain(
+      buildSubscriptionKey({
+        reefId: "REEF-1",
+        subscriber: "kim",
+        source: "assignee",
+      }),
+    );
+    expect(ctes.match(/INSERT INTO reef_subscriptions/gu)).toHaveLength(2);
+  });
+
   it("upserts source rows independently and removes only the requested source", async () => {
     const requester = subscriptionRow({
       source: "requester",

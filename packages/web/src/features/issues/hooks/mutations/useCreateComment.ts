@@ -8,6 +8,7 @@ interface CreateCommentInput {
   vault: string;
   body: string;
   parentCommentId?: string;
+  idempotencyKey: string;
 }
 
 /**
@@ -21,7 +22,13 @@ export function useCreateComment() {
   const queryClient = useQueryClient();
 
   return useMutation<Comment, Error, CreateCommentInput>({
-    mutationFn: async ({ issueId, vault, body, parentCommentId }) => {
+    mutationFn: async ({
+      issueId,
+      vault,
+      body,
+      parentCommentId,
+      idempotencyKey,
+    }) => {
       const res = await apiFetch(
         `/api/issues/${encodeURIComponent(issueId)}/comments?vault=${encodeURIComponent(
           vault,
@@ -31,6 +38,7 @@ export function useCreateComment() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             body,
+            idempotency_key: idempotencyKey,
             ...(parentCommentId ? { parent_comment_id: parentCommentId } : {}),
           }),
         },

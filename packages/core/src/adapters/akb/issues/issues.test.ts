@@ -8,6 +8,7 @@ import {
 import { mockOpenTelemetry } from "../../../agents/tools/__test-helpers__/otelMock";
 import { AkbApiError, ConflictError } from "../../../errors";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
+import { buildSubscriptionKey } from "../../../schemas/notifications";
 import {
   claimIssueId,
   reorderBacklogIssues,
@@ -73,6 +74,8 @@ function rowsForIssue(issue: IssueMetadata): unknown {
   response.items[0] = {
     ...response.items[0],
     document_uri: `akb://${VAULT}/coll/issues/doc/reef-001.md`,
+    requester: issue.requester ?? null,
+    assigned_to: issue.assigned_to ?? null,
     parent_id: issue.parent_id ?? null,
     related_to: issue.related_to ?? [],
     meta: {
@@ -113,6 +116,39 @@ function putResponse(commit: string): unknown {
 }
 
 const ROW_UPDATE_OK = { kind: "table_sql", result: "UPDATE 1" };
+const RECONCILE_OK = {
+  kind: "table_query",
+  columns: ["reef_id"],
+  items: [{ reef_id: "REEF-001" }],
+  total: 1,
+};
+const NO_SUBSCRIPTIONS = {
+  kind: "table_query",
+  columns: ["id"],
+  items: [],
+  total: 0,
+};
+
+function subscriptionRow(
+  reefId: string,
+  subscriber: string,
+  source: "requester" | "assignee",
+): Record<string, unknown> {
+  return {
+    id: crypto.randomUUID(),
+    subscription_key: buildSubscriptionKey({
+      reefId,
+      subscriber,
+      source,
+    }),
+    reef_id: reefId,
+    subscriber,
+    source,
+    status: "active",
+    subscribed_at: "2026-05-01T00:00:00.000Z",
+    meta: null,
+  };
+}
 
 function patchCalls(calls: FetchCall[]): FetchCall[] {
   return calls.filter((c) => c.init?.method === "PATCH");
@@ -122,6 +158,175 @@ function bodyOf(call: FetchCall): Record<string, unknown> {
   return JSON.parse(String(call.init?.body));
 }
 
+describe("automatic issue participant subscriptions", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("creates requester and assignee sources in the same SQL boundary as the issue row", async () => {
+    const issue = makeIssue({
+      status: "backlog",
+      rank: null,
+      requester: "requester",
+      assigned_to: "assignee",
+    });
+    const { calls } = setupFetch([
+      { body: putResponse("commit-1") },
+      { body: ROW_UPDATE_OK },
+    ]);
+
+    await writeIssue({
+      adapter: makeTestAkbAdapter(),
+      vault: VAULT,
+      issue,
+    });
+
+    const sql = String(bodyOf(calls[1]).sql);
+    expect(sql).toContain("INSERT INTO reef_issues");
+    expect(sql).toContain("INSERT INTO reef_subscriptions");
+    expect(sql).toContain('SELECT COALESCE(MAX("rank"), 0) + 1000');
+    expect(sql).toContain("'requester'");
+    expect(sql).toContain("'assignee'");
+    expect(sql).toContain("'active'");
+    expect(sql).toContain("'requester', 'requester', 'active'");
+    expect(sql).toContain("'assignee', 'assignee', 'active'");
+    expect(calls.filter((call) => call.url.includes("/sql"))).toHaveLength(1);
+  });
+
+  it("reconciles replacements and clears per source without touching sibling or manual rows", async () => {
+    const current = makeIssue({
+      requester: "old-requester",
+      assigned_to: "old-assignee",
+    });
+    const { calls } = setupFetch([
+      { body: docGetResponse("body") },
+      { body: rowsForIssue(current) },
+      { body: ROW_UPDATE_OK },
+      { body: RECONCILE_OK },
+    ]);
+
+    await updateIssue({
+      adapter: makeTestAkbAdapter(),
+      vault: VAULT,
+      id: current.id,
+      partial: {
+        requester: "new-requester",
+        assigned_to: null,
+      },
+    });
+
+    const sql = String(bodyOf(calls[2]).sql);
+    expect(sql).toContain("UPDATE reef_issues");
+    expect(sql).toContain("DELETE FROM reef_subscriptions");
+    expect(sql).toContain("source = 'requester'");
+    expect(sql).toContain("source = 'assignee'");
+    expect(sql).toContain("subscriber IS DISTINCT FROM 'new-requester'");
+    expect(sql).toContain("subscriber IS DISTINCT FROM NULL");
+    expect(sql).toContain("'new-requester'");
+    expect(sql).not.toContain("source = 'manual'");
+    const reconciliationSql = String(bodyOf(calls[3]).sql);
+    expect(reconciliationSql).toContain(
+      "canonical_participants AS MATERIALIZED",
+    );
+    expect(reconciliationSql).toContain(
+      "automatic_subscription.subscriber IS DISTINCT FROM canonical_participants.requester",
+    );
+    expect(reconciliationSql).toContain(
+      "automatic_subscription.subscriber IS DISTINCT FROM canonical_participants.assigned_to",
+    );
+    expect(reconciliationSql).not.toContain("source = 'manual'");
+    expect(calls.filter((call) => call.url.includes("/sql"))).toHaveLength(3);
+  });
+
+  it("recovers an ambiguously acknowledged create only after the row and required sources are observed", async () => {
+    const issue = makeIssue({
+      status: "backlog",
+      rank: null,
+      requester: "requester",
+      assigned_to: "assignee",
+    });
+    const persistedIssue = { ...issue, rank: 4096 };
+    const { calls } = setupFetch([
+      { body: putResponse("commit-1") },
+      { status: 500, body: { error: "response lost" } },
+      { body: rowsForIssue(persistedIssue) },
+      {
+        body: {
+          kind: "table_query",
+          columns: ["id"],
+          items: [
+            subscriptionRow(issue.id, "requester", "requester"),
+            subscriptionRow(issue.id, "assignee", "assignee"),
+          ],
+          total: 2,
+        },
+      },
+    ]);
+
+    await expect(
+      writeIssue({
+        adapter: makeTestAkbAdapter(),
+        vault: VAULT,
+        issue,
+      }),
+    ).resolves.toMatchObject({ commit_hash: "commit-1" });
+    expect(calls.some((call) => call.init?.method === "DELETE")).toBe(false);
+  });
+
+  it("does not delete a created document when ambiguous-write verification is unavailable", async () => {
+    const issue = makeIssue({ requester: "requester" });
+    const { calls } = setupFetch([
+      { body: putResponse("commit-1") },
+      { status: 500, body: { error: "response lost" } },
+      { status: 503, body: { error: "verification unavailable" } },
+    ]);
+
+    await expect(
+      writeIssue({
+        adapter: makeTestAkbAdapter(),
+        vault: VAULT,
+        issue,
+      }),
+    ).rejects.toBeInstanceOf(AkbApiError);
+
+    expect(calls.some((call) => call.init?.method === "DELETE")).toBe(false);
+  });
+
+  it("does not delete a created document after an immediate negative ambiguity read", async () => {
+    const issue = makeIssue({ requester: "requester" });
+    const { calls } = setupFetch([
+      { body: putResponse("commit-1") },
+      { status: 500, body: { error: "response lost" } },
+      { body: makeIssueQueryResponse([]) },
+    ]);
+
+    await expect(
+      writeIssue({
+        adapter: makeTestAkbAdapter(),
+        vault: VAULT,
+        issue,
+      }),
+    ).rejects.toBeInstanceOf(AkbApiError);
+    expect(calls.some((call) => call.init?.method === "DELETE")).toBe(false);
+  });
+
+  it("compensates a definitely throttled row insert without ambiguity readback", async () => {
+    const { calls } = setupFetch([
+      { body: putResponse("commit-1") },
+      { status: 429, body: { error: "rate limited" } },
+      { body: {} },
+    ]);
+
+    await expect(
+      writeIssue({
+        adapter: makeTestAkbAdapter(),
+        vault: VAULT,
+        issue: makeIssue(),
+      }),
+    ).rejects.toBeInstanceOf(AkbApiError);
+    expect(calls).toHaveLength(3);
+    expect(calls[2]?.init?.method).toBe("DELETE");
+  });
+});
+
 describe("updateIssue → row-update compensation", () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -130,14 +335,7 @@ describe("updateIssue → row-update compensation", () => {
       { body: docGetResponse("old body") }, // readIssue GET
       { body: makeIssueQueryResponse([makeIssue()]) }, // readIssue selectIssueRows
       { body: putResponse("commit-new") }, // forward doc PATCH (succeeds)
-      { status: 500, body: { error: "sql boom" } }, // row UPDATE (fails)
-      {
-        body: {
-          ...(docGetResponse("new body") as Record<string, unknown>),
-          current_commit: "commit-new",
-        },
-      }, // ambiguous-write recovery document readback
-      { body: makeIssueQueryResponse([makeIssue()]) }, // row did not commit
+      { body: { error: "sql boom" } }, // deterministic SQL runtime failure
       { body: putResponse("commit-revert") }, // compensating re-PATCH
     ]);
 
@@ -151,7 +349,7 @@ describe("updateIssue → row-update compensation", () => {
 
     // The original row-update error propagates, not a compensation error.
     expect(err).toBeInstanceOf(AkbApiError);
-    expect((err as AkbApiError).status).toBe(500);
+    expect((err as AkbApiError).status).toBe(200);
 
     // Forward PATCH carried the new body; the compensating PATCH rewound the
     // document to the prior body with a descriptive revert message.
@@ -188,6 +386,28 @@ describe("updateIssue → row-update compensation", () => {
     expect(patchCalls(calls)).toHaveLength(0);
   });
 
+  it("rewinds a document when the row update is definitely throttled", async () => {
+    const { calls } = setupFetch([
+      { body: docGetResponse("old body") },
+      { body: makeIssueQueryResponse([makeIssue()]) },
+      { body: putResponse("commit-new") },
+      { status: 429, body: { error: "rate limited" } },
+      { body: putResponse("commit-revert") },
+    ]);
+
+    await expect(
+      updateIssue({
+        adapter: makeTestAkbAdapter(),
+        vault: VAULT,
+        id: "REEF-001",
+        partial: {},
+        content: "new body",
+      }),
+    ).rejects.toBeInstanceOf(AkbApiError);
+    expect(patchCalls(calls)).toHaveLength(2);
+    expect(bodyOf(patchCalls(calls)[1]).content).toBe("old body");
+  });
+
   it("writes a backlog rank as a row-only update, never touching the document (REEF-129)", async () => {
     // A reorder changes `rank`, a typed row column absent from the doc's
     // native-projected fields, so docDirty=false: no document PATCH, no git
@@ -196,6 +416,7 @@ describe("updateIssue → row-update compensation", () => {
       { body: docGetResponse("body") }, // readIssue GET
       { body: makeIssueQueryResponse([makeIssue()]) }, // readIssue selectIssueRows
       { body: ROW_UPDATE_OK }, // row UPDATE succeeds
+      { body: RECONCILE_OK },
     ]);
 
     await updateIssue({
@@ -213,14 +434,7 @@ describe("updateIssue → row-update compensation", () => {
       { body: docGetResponse("old body") },
       { body: makeIssueQueryResponse([makeIssue()]) },
       { body: putResponse("commit-new") }, // forward PATCH ok
-      { status: 500, body: { error: "sql boom" } }, // row UPDATE fails
-      {
-        body: {
-          ...(docGetResponse("new body") as Record<string, unknown>),
-          current_commit: "commit-new",
-        },
-      },
-      { body: makeIssueQueryResponse([makeIssue()]) },
+      { body: { error: "sql boom" } }, // deterministic SQL runtime failure
       { status: 503, body: { error: "revert boom" } }, // re-PATCH also fails
     ]);
 
@@ -232,9 +446,9 @@ describe("updateIssue → row-update compensation", () => {
       content: "new body",
     }).catch((e) => e);
 
-    // Best-effort compensation: the row-update 500 wins over the re-PATCH 503.
+    // Best-effort compensation: the row-update error wins over the re-PATCH.
     expect(err).toBeInstanceOf(AkbApiError);
-    expect((err as AkbApiError).status).toBe(500);
+    expect((err as AkbApiError).status).toBe(200);
     expect(patchCalls(calls)).toHaveLength(2); // revert was still attempted
   });
 
@@ -254,6 +468,9 @@ describe("updateIssue → row-update compensation", () => {
         },
       },
       { body: makeIssueQueryResponse([recoveredIssue]) },
+      { body: rowsForIssue(recoveredIssue) },
+      { body: NO_SUBSCRIPTIONS },
+      { body: RECONCILE_OK },
     ]);
 
     await expect(
@@ -272,12 +489,128 @@ describe("updateIssue → row-update compensation", () => {
     expect(patchCalls(calls)).toHaveLength(1);
   });
 
+  it("does not rewind the document when ambiguous-write verification is unavailable", async () => {
+    const { calls } = setupFetch([
+      { body: docGetResponse("old body") },
+      { body: makeIssueQueryResponse([makeIssue()]) },
+      { body: putResponse("commit-new") },
+      { status: 500, body: { error: "response lost" } },
+      { status: 503, body: { error: "verification unavailable" } },
+    ]);
+
+    await expect(
+      updateIssue({
+        adapter: makeTestAkbAdapter(),
+        vault: VAULT,
+        id: "REEF-001",
+        partial: {},
+        content: "new body",
+      }),
+    ).rejects.toBeInstanceOf(AkbApiError);
+
+    expect(patchCalls(calls)).toHaveLength(1);
+  });
+
+  it("does not rewind the document after an immediate negative ambiguity read", async () => {
+    const { calls } = setupFetch([
+      { body: docGetResponse("old body") },
+      { body: makeIssueQueryResponse([makeIssue()]) },
+      { body: putResponse("commit-new") },
+      { status: 500, body: { error: "response lost" } },
+      {
+        body: {
+          ...(docGetResponse("new body") as Record<string, unknown>),
+          current_commit: "commit-new",
+        },
+      },
+      { body: makeIssueQueryResponse([makeIssue()]) },
+    ]);
+
+    await expect(
+      updateIssue({
+        adapter: makeTestAkbAdapter(),
+        vault: VAULT,
+        id: "REEF-001",
+        partial: {},
+        content: "new body",
+      }),
+    ).rejects.toBeInstanceOf(AkbApiError);
+    expect(patchCalls(calls)).toHaveLength(1);
+  });
+
+  it("recovers an ambiguously acknowledged fresh-snapshot reconciliation", async () => {
+    const persisted = makeIssue({ updated_at: "2026-05-01T00:00:01.000Z" });
+    const { calls } = setupFetch([
+      { body: docGetResponse("body") },
+      { body: makeIssueQueryResponse([makeIssue()]) },
+      { body: ROW_UPDATE_OK },
+      { status: 500, body: { error: "reconciliation response lost" } },
+      { body: makeIssueQueryResponse([persisted]) },
+      { body: NO_SUBSCRIPTIONS },
+    ]);
+
+    await expect(
+      updateIssue({
+        adapter: makeTestAkbAdapter(),
+        vault: VAULT,
+        id: "REEF-001",
+        partial: {},
+      }),
+    ).resolves.toMatchObject({ issue: { id: "REEF-001" } });
+    expect(patchCalls(calls)).toHaveLength(0);
+  });
+
+  it("recovers a definitely throttled reconciliation when canonical state already committed", async () => {
+    const persisted = makeIssue({ updated_at: "2026-05-01T00:00:01.000Z" });
+    const { calls } = setupFetch([
+      { body: docGetResponse("body") },
+      { body: makeIssueQueryResponse([makeIssue()]) },
+      { body: ROW_UPDATE_OK },
+      { status: 429, body: { error: "reconciliation rate limited" } },
+      { body: makeIssueQueryResponse([persisted]) },
+      { body: NO_SUBSCRIPTIONS },
+    ]);
+
+    await expect(
+      updateIssue({
+        adapter: makeTestAkbAdapter(),
+        vault: VAULT,
+        id: "REEF-001",
+        partial: {},
+      }),
+    ).resolves.toMatchObject({ issue: { id: "REEF-001" } });
+    expect(patchCalls(calls)).toHaveLength(0);
+  });
+
+  it("does not compensate a committed row when reconciliation verification is unavailable", async () => {
+    const { calls } = setupFetch([
+      { body: docGetResponse("old body") },
+      { body: makeIssueQueryResponse([makeIssue()]) },
+      { body: putResponse("commit-new") },
+      { body: ROW_UPDATE_OK },
+      { status: 500, body: { error: "reconciliation response lost" } },
+      { status: 503, body: { error: "verification unavailable" } },
+    ]);
+
+    await expect(
+      updateIssue({
+        adapter: makeTestAkbAdapter(),
+        vault: VAULT,
+        id: "REEF-001",
+        partial: {},
+        content: "new body",
+      }),
+    ).rejects.toBeInstanceOf(AkbApiError);
+    expect(patchCalls(calls)).toHaveLength(1);
+  });
+
   it("commits both stores and skips compensation on the happy path", async () => {
     const { calls } = setupFetch([
       { body: docGetResponse("old body") },
       { body: makeIssueQueryResponse([makeIssue()]) },
       { body: putResponse("commit-new") }, // forward PATCH
       { body: ROW_UPDATE_OK }, // row UPDATE succeeds
+      { body: RECONCILE_OK },
     ]);
 
     const res = await updateIssue({
@@ -305,6 +638,7 @@ describe("updateIssue → document OCC (REEF-227)", () => {
       { body: makeIssueQueryResponse([makeIssue()]) },
       { body: putResponse("commit-new") }, // forward PATCH ok
       { body: ROW_UPDATE_OK },
+      { body: RECONCILE_OK },
     ]);
 
     await updateIssue({
@@ -327,6 +661,7 @@ describe("updateIssue → document OCC (REEF-227)", () => {
       { body: makeIssueQueryResponse([makeIssue()]) },
       { body: putResponse("commit-new") },
       { body: ROW_UPDATE_OK },
+      { body: RECONCILE_OK },
     ]);
 
     await updateIssue({
@@ -345,6 +680,7 @@ describe("updateIssue → document OCC (REEF-227)", () => {
       { body: docGetResponse("body") },
       { body: makeIssueQueryResponse([makeIssue()]) },
       { body: ROW_UPDATE_OK },
+      { body: RECONCILE_OK },
     ]);
 
     await updateIssue({
@@ -716,7 +1052,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
     ).resolves.toMatchObject({ commit_hash: "commit-1" });
 
     const update = sqlStatements(calls).find((statement) =>
-      statement.startsWith("UPDATE reef_issues"),
+      statement.includes("UPDATE reef_issues"),
     );
     expect(update).toContain("REEF-098");
     expect(update).toContain("REEF-097");
@@ -780,6 +1116,71 @@ describe("born-correct backlog rank (REEF-176)", () => {
     ).toHaveLength(1);
   });
 
+  it("recovers an ambiguously acknowledged claim finalization only with required sources", async () => {
+    const issue = makeMigrationIssue({
+      status: "todo",
+      requester: "requester",
+      assigned_to: "assignee",
+    });
+    const reservation = makeReservation(issue);
+    const { calls } = setupFetch([
+      { body: ROW_UPDATE_OK },
+      { body: rowsForIssue(reservation) },
+      { body: putResponse("commit-1") },
+      { body: rowsForIssue(reservation) },
+      { status: 500, body: { error: "response lost" } },
+      { body: rowsForIssue(issue) },
+      {
+        body: {
+          kind: "table_query",
+          columns: ["id"],
+          items: [
+            subscriptionRow(issue.id, "requester", "requester"),
+            subscriptionRow(issue.id, "assignee", "assignee"),
+          ],
+          total: 2,
+        },
+      },
+      { body: rowsForIssue(issue) },
+    ]);
+
+    await expect(
+      writeIssue({
+        adapter: makeTestAkbAdapter(),
+        vault: VAULT,
+        issue,
+        content: "migrated",
+        claimFirst: true,
+      }),
+    ).resolves.toMatchObject({ commit_hash: "commit-1" });
+    expect(calls.some((call) => call.init?.method === "DELETE")).toBe(false);
+  });
+
+  it("does not accept an untouched reservation as an ambiguous finalization", async () => {
+    const issue = makeMigrationIssue({ status: "todo" });
+    const reservation = makeReservation(issue);
+    const { calls } = setupFetch([
+      { body: ROW_UPDATE_OK },
+      { body: rowsForIssue(reservation) },
+      { body: putResponse("commit-1") },
+      { body: rowsForIssue(reservation) },
+      { status: 500, body: { error: "response lost" } },
+      { body: rowsForIssue(reservation) },
+    ]);
+
+    await expect(
+      writeIssue({
+        adapter: makeTestAkbAdapter(),
+        vault: VAULT,
+        issue,
+        content: "migrated",
+        claimFirst: true,
+      }),
+    ).rejects.toBeInstanceOf(AkbApiError);
+    expect(calls).toHaveLength(6);
+    expect(calls.some((call) => call.init?.method === "DELETE")).toBe(false);
+  });
+
   it("does not adopt a pre-existing document after a deterministic conflict", async () => {
     const issue = makeMigrationIssue({ status: "todo" });
     const reservation = makeReservation(issue);
@@ -820,6 +1221,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
       { body: docGetResponse("body") }, // readIssue GET
       { body: makeIssueQueryResponse([makeIssue()]) }, // current: todo, unranked
       { body: ROW_UPDATE_OK }, // row UPDATE (rank = tail subquery)
+      { body: RECONCILE_OK },
       {
         body: makeIssueQueryResponse([
           makeIssue({ status: "backlog", rank: 33000 }),
@@ -832,7 +1234,9 @@ describe("born-correct backlog rank (REEF-176)", () => {
       id: "REEF-001",
       partial: { status: "backlog" },
     });
-    const update = sqlStatements(calls).find((s) => s.startsWith("UPDATE"));
+    const update = sqlStatements(calls).find((s) =>
+      s.includes("UPDATE reef_issues"),
+    );
     expect(update).toContain(`"rank" = ${TAIL_EXPR}`);
     // The subquery-assigned rank is read back so the returned issue (and the
     // caches seeded from it) is not stale-null — the born-correct invariant.
@@ -850,6 +1254,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
         ]),
       },
       { body: ROW_UPDATE_OK },
+      { body: RECONCILE_OK },
     ]);
     await updateIssue({
       adapter: makeTestAkbAdapter(),
@@ -857,7 +1262,9 @@ describe("born-correct backlog rank (REEF-176)", () => {
       id: "REEF-001",
       partial: { status: "backlog" },
     });
-    const update = sqlStatements(calls).find((s) => s.startsWith("UPDATE"));
+    const update = sqlStatements(calls).find((s) =>
+      s.includes("UPDATE reef_issues"),
+    );
     expect(update).not.toContain("COALESCE(MAX");
     expect(update).toContain('"rank" = 3000');
   });
@@ -871,6 +1278,7 @@ describe("born-correct backlog rank (REEF-176)", () => {
         ]),
       },
       { body: ROW_UPDATE_OK },
+      { body: RECONCILE_OK },
     ]);
     await updateIssue({
       adapter: makeTestAkbAdapter(),
@@ -878,7 +1286,9 @@ describe("born-correct backlog rank (REEF-176)", () => {
       id: "REEF-001",
       partial: { priority: "high" },
     });
-    const update = sqlStatements(calls).find((s) => s.startsWith("UPDATE"));
+    const update = sqlStatements(calls).find((s) =>
+      s.includes("UPDATE reef_issues"),
+    );
     expect(update).not.toContain("COALESCE(MAX");
     expect(update).toContain('"rank" = 5000');
   });

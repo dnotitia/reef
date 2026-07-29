@@ -14,6 +14,12 @@ explicitly in the entries below.
 
 ### Added
 
+- **Issue participation now maintains automatic subscriptions.** Creating or
+  updating an issue reconciles independent requester and assignee sources, and
+  new comments or replies add the canonical author as a commenter without
+  overriding manual Watch or Mute choices. The Core write boundaries keep the
+  body row and required source atomic and idempotent across safe retries.
+  (REEF-429)
 - **Issue detail now exposes actor-scoped Watch and Mute controls.** The
   bilingual chrome shows the effective notification state, persists Watch/Mute
   choices through the existing AKB subscription contract, updates
@@ -50,6 +56,9 @@ explicitly in the entries below.
 
 ### Migration
 
+- No schema change, backfill, or operator action is required for automatic
+  participant subscriptions; existing issues and historical comments are not
+  scanned. (REEF-429)
 - No AKB, API, or browser-storage migration is required for Suggestions. Reef
   continues to use `reef_activity_suggestions`, `_reef/activity-inbox`,
   `/api/activity/suggestions`, and the existing core wire schemas; no copy,

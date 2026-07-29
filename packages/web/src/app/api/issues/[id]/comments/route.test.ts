@@ -56,6 +56,7 @@ const COMMENT = {
   created_at: "2026-06-18T01:00:00.000Z",
   edited_at: null,
 };
+const IDEMPOTENCY_KEY = "33333333-3333-4333-8333-333333333333";
 
 function authedHeaders(): Record<string, string> {
   return {
@@ -130,7 +131,10 @@ describe("POST /api/issues/[id]/comments", () => {
       new Request("http://localhost/api/issues/REEF-001/comments?vault=v", {
         method: "POST",
         headers: authedHeaders(),
-        body: JSON.stringify({ body: "a comment" }),
+        body: JSON.stringify({
+          body: "a comment",
+          idempotency_key: IDEMPOTENCY_KEY,
+        }),
       }),
       params(),
     );
@@ -145,6 +149,7 @@ describe("POST /api/issues/[id]/comments", () => {
       "a comment",
       "alice",
       undefined,
+      { idempotencyKey: IDEMPOTENCY_KEY },
     );
   });
 
@@ -163,6 +168,7 @@ describe("POST /api/issues/[id]/comments", () => {
         body: JSON.stringify({
           body: "a reply",
           parent_comment_id: parentId,
+          idempotency_key: IDEMPOTENCY_KEY,
           author: "mallory",
         }),
       }),
@@ -177,6 +183,7 @@ describe("POST /api/issues/[id]/comments", () => {
       "a reply",
       "alice",
       parentId,
+      { idempotencyKey: IDEMPOTENCY_KEY },
     );
   });
 
@@ -204,6 +211,7 @@ describe("POST /api/issues/[id]/comments", () => {
         body: JSON.stringify({
           body: "reply",
           parent_comment_id: "22222222-2222-4222-8222-222222222222",
+          idempotency_key: IDEMPOTENCY_KEY,
         }),
       }),
       params(),
@@ -226,6 +234,28 @@ describe("POST /api/issues/[id]/comments", () => {
     );
     expect(res.status).toBe(400);
     expect(mockCreateComment).not.toHaveBeenCalled();
+  });
+
+  it("keeps older clients without an idempotency key compatible", async () => {
+    mockCreateComment.mockResolvedValue(COMMENT);
+    const res = await POST(
+      new Request("http://localhost/api/issues/REEF-001/comments?vault=v", {
+        method: "POST",
+        headers: authedHeaders(),
+        body: JSON.stringify({ body: "a comment" }),
+      }),
+      params(),
+    );
+    expect(res.status).toBe(201);
+    expect(mockCreateComment).toHaveBeenCalledWith(
+      expect.anything(),
+      "v",
+      "REEF-001",
+      "a comment",
+      "alice",
+      undefined,
+      undefined,
+    );
   });
 
   it("400s invalid JSON", async () => {

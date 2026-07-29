@@ -23,6 +23,10 @@ import {
   runSql,
   tableRef,
 } from "../core/sql";
+import {
+  type AutomaticSubscriptionParticipant,
+  automaticSubscriptionCtes,
+} from "../notifications/automaticSubscriptions";
 
 // ─── Issue ↔ reef_issues row mapping ──────────────────────────────────────────
 
@@ -313,6 +317,7 @@ export function insertIssueRow(
   opts?: {
     assignBacklogRank?: boolean;
     uniqueJiraOwner?: { jiraCloudId: string; issueId: string };
+    automaticSubscriptionParticipants?: readonly AutomaticSubscriptionParticipant[];
   },
 ): Promise<AkbSqlResponse> {
   // Born-correct: an issue entering the backlog with no explicit rank gets the
@@ -354,6 +359,24 @@ export function insertIssueRow(
         issueId,
         "Jira issue id",
       )}) RETURNING reef_id) SELECT reef_id FROM inserted`,
+    );
+  }
+  if (opts?.automaticSubscriptionParticipants) {
+    const subscriptionCtes = automaticSubscriptionCtes({
+      anchorCte: "issue_mutation",
+      reefId: issue.id,
+      participants: opts.automaticSubscriptionParticipants,
+      subscribedAt: new Date().toISOString(),
+      reconcile: false,
+    });
+    return runSql(
+      adapter,
+      vault,
+      `WITH issue_mutation AS (INSERT INTO ${tableRef(
+        REEF_ISSUES_TABLE,
+      )} (${columns}) VALUES (${values}) RETURNING reef_id)${
+        subscriptionCtes.length > 0 ? `, ${subscriptionCtes.join(", ")}` : ""
+      } SELECT reef_id FROM issue_mutation`,
     );
   }
   return runSql(

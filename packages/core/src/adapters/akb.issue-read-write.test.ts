@@ -268,7 +268,7 @@ describe("writeIssue", () => {
   it("compensates by deleting the document when the row INSERT fails", async () => {
     const { calls } = setupFetch([
       { status: 201, body: makePutResponse() }, // POST document
-      { status: 500, body: { detail: "insert blew up" } }, // INSERT row fails
+      { body: { error: "insert blew up" } }, // deterministic SQL runtime failure
       { status: 204, empty: true }, // compensating DELETE document
     ]);
     const adapter = makeAdapter();
