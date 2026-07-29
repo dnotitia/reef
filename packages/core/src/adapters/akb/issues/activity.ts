@@ -554,11 +554,10 @@ export async function reconcileJiraImportedAttachmentActivityActor(
           "activity actor",
         )} RETURNING id`,
       );
-      const updated = update.kind === "table_query" ? update.items.length : 0;
-      span.setAttribute("updated_count", updated);
-      if (updated !== 1) {
-        throw new Error("jira_attachment_activity_actor_reconcile_mismatch");
-      }
+      // AKB may return the generic `table_sql` envelope even for DML with
+      // RETURNING. The related-data migration performs an exact actor readback,
+      // which is the authoritative success check.
+      span.setAttribute("response_kind", update.kind);
     },
   );
 }

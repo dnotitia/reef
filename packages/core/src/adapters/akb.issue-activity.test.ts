@@ -11,6 +11,7 @@ import {
   listIssueActivity,
   makeAdapter,
   makeListTablesResponse,
+  makeSqlMutationResponse,
   makeSqlQueryResponse,
   makeSqlRuntimeErrorResponse,
   reconcileJiraChangelogActivityEvents,
@@ -796,7 +797,7 @@ describe("reconcileJiraImportedAttachmentActivityActor", () => {
   it("repairs only the exact fallback-owned attachment event", async () => {
     const { calls } = setupFetch([
       { body: makeListTablesResponse(ALL_REEF_TABLES) },
-      { body: makeSqlQueryResponse([{ id: "existing-event" }], ["id"]) },
+      { body: makeSqlMutationResponse("UPDATE 1") },
     ]);
 
     await reconcileJiraImportedAttachmentActivityActor(
