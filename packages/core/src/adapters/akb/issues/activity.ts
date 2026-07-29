@@ -540,7 +540,7 @@ export async function reconcileJiraImportedAttachmentActivityActor(
           REEF_ACTIVITY_TABLE,
         )} SET meta = jsonb_set(meta::jsonb, '{actor}', ${quoteJson(
           input.toActor,
-        )}::jsonb, true) WHERE reef_id = ${quoteText(
+        )}::jsonb, true)::json WHERE reef_id = ${quoteText(
           input.reefId,
           "activity reef_id",
         )} AND event_type = ${quoteText(

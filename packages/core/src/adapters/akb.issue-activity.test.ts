@@ -812,6 +812,7 @@ describe("reconcileJiraImportedAttachmentActivityActor", () => {
     expect(updateSql).toContain(`event_key = '${input.eventKey}'`);
     expect(updateSql).toContain(`meta->>'actor' = '${input.fromActor}'`);
     expect(updateSql).toContain('"임종혁"');
+    expect(updateSql).toContain("::jsonb, true)::json");
     expect(updateSql).not.toContain("created_by");
     expect(updateSql).not.toContain("created_at");
   });
