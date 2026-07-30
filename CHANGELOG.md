@@ -14,6 +14,13 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Jira issue migrations now preserve the source ticket number.** Newly bound
+  issues use the target workspace prefix with the Jira key's exact numeric
+  segment, so a matching project prefix keeps `SHDEV-290` as `SHDEV-290`
+  instead of dense-renumbering it by lexicographic discovery order. Existing
+  numeric aliases, collisions, and legacy same-key bindings under a different
+  number fail closed, while a genuine Jira key rename retains its stable
+  issue-id binding.
 - **Jira account remapping now repairs migration-owned attachment activity
   actors, including orphaned upload history.** An approved account override can
   replace the exact fallback actor on an `attachment_added` event left behind
@@ -89,6 +96,13 @@ explicitly in the entries below.
   durable checkpoint instead of producing hundreds of entity failures, while
   an existing target with the approved semantic state and exact Jira owner is
   bound before another issue-id claim is attempted.
+
+### Migration
+
+- Jira vaults created by the migrator before source ticket-number preservation
+  must be rebuilt when their stored Jira key and Reef issue number differ.
+  The migrator rejects that legacy drift instead of silently retaining or
+  renumbering it.
 
 ## v0.8.1 - 2026-07-28
 

@@ -195,6 +195,18 @@ fingerprint validation; the migrator does not fall back to a hard-coded prefix.
 The prefix follows the same Jira-compatible contract as the source project key:
 an uppercase ASCII letter followed by uppercase letters, digits, or underscores.
 
+For every newly bound issue, target id planning preserves the Jira issue key's
+exact numeric segment under the target prefix. A matching target and source
+prefix therefore preserves the complete Jira key (`SHDEV-290` remains
+`SHDEV-290`), including gaps left by deleted or moved Jira issues. It never
+dense-renumbers issues by discovery order. An existing target id with the same
+numeric identity, including a zero-padded alias such as `SHDEV-001` for
+`SHDEV-1`, is a fail-closed conflict rather than permission to silently choose
+another number. A previously bound stable Jira issue identity keeps its target
+id after a genuine Jira key rename; a binding that records the current Jira key
+under a different target number is rejected as legacy id drift and requires an
+operator-reviewed rebuild.
+
 The private plan seals an ordered, hashed related-operation manifest covering
 comment, attachment, description, relation, and external-reference writes and
 deletions. A freshly computed apply plan must be a subset of that manifest:

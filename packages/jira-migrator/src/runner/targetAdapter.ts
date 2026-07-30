@@ -149,6 +149,35 @@ const defaultCore: TargetCore = {
 };
 
 const CONSISTENCY_READ_ATTEMPTS = 20;
+const JIRA_ISSUE_KEY_PATTERN = /^([A-Z][A-Z0-9_]*)-(\d+)$/u;
+
+const issueNumberSegment = (
+  owner: JiraIssueTargetOwner,
+): { numberSegment: string; numericIdentity: string } => {
+  const match = JIRA_ISSUE_KEY_PATTERN.exec(owner.issue_key);
+  if (
+    !match?.[1] ||
+    !match[2] ||
+    match[1] !== owner.project_key ||
+    BigInt(match[2]) === 0n
+  ) {
+    throw new Error("source_issue_key_invalid");
+  }
+  return {
+    numberSegment: match[2],
+    numericIdentity: BigInt(match[2]).toString(),
+  };
+};
+
+const targetIssueNumericIdentity = (
+  issueId: string,
+  prefix: string,
+): string | null => {
+  const match = JIRA_ISSUE_KEY_PATTERN.exec(issueId);
+  if (!match?.[1] || !match[2] || match[1] !== prefix) return null;
+  const numericIdentity = BigInt(match[2]);
+  return numericIdentity === 0n ? null : numericIdentity.toString();
+};
 
 const planningProjection = (
   candidate: Release | Sprint,
@@ -380,9 +409,20 @@ export function createAkbJiraMigrationTarget(
           typeof row.reef_id === "string" ? [row.reef_id] : [],
         ),
       );
-      const ownedIds = new Map<string, string>();
+      const existingByNumericIdentity = new Map<string, string>();
+      const ownedIds = new Map<
+        string,
+        { reefId: string; sourceIssueKey: string | null }
+      >();
       for (const row of rows) {
         if (typeof row.reef_id !== "string") continue;
+        const numericIdentity = targetIssueNumericIdentity(row.reef_id, prefix);
+        if (numericIdentity) {
+          if (existingByNumericIdentity.has(numericIdentity)) {
+            throw new Error("target_issue_id_alias_conflict");
+          }
+          existingByNumericIdentity.set(numericIdentity, row.reef_id);
+        }
         const meta = parseMeta(row.meta);
         const customFields = parseMeta(meta.custom_fields);
         const migration = parseMeta(customFields.jira_migration);
@@ -392,39 +432,44 @@ export function createAkbJiraMigrationTarget(
         if (ownedIds.has(key)) {
           throw new Error("target_issue_owner_claim_ambiguous");
         }
-        ownedIds.set(key, row.reef_id);
+        const parsedOwner = parseMeta(owner);
+        ownedIds.set(key, {
+          reefId: row.reef_id,
+          sourceIssueKey:
+            typeof parsedOwner.issue_key === "string"
+              ? parsedOwner.issue_key
+              : null,
+        });
       }
-      const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-      const pattern = new RegExp(`^${escapedPrefix}-(\\d+)$`, "u");
-      let next = [...existing].reduce((maximum, id) => {
-        const match = pattern.exec(id);
-        return match?.[1]
-          ? Math.max(maximum, Number.parseInt(match[1], 10))
-          : maximum;
-      }, 0);
-      const width = Math.max(
-        3,
-        ...[...existing].flatMap((id) => {
-          const match = pattern.exec(id);
-          return match?.[1] ? [match[1].length] : [];
-        }),
-      );
       const candidates: string[] = [];
+      const plannedNumericIdentities = new Set<string>();
       for (const owner of owners) {
         const ownerIdentity = jiraOwnerIdentity(owner);
         if (!ownerIdentity) throw new Error("target_issue_owner_invalid");
-        const ownedId = ownedIds.get(ownerIdentity);
-        if (ownedId) {
-          candidates.push(ownedId);
+        const { numberSegment, numericIdentity } = issueNumberSegment(owner);
+        const preferredId = `${prefix}-${numberSegment}`;
+        const owned = ownedIds.get(ownerIdentity);
+        if (owned) {
+          if (
+            owned.sourceIssueKey === owner.issue_key &&
+            owned.reefId !== preferredId
+          ) {
+            throw new Error("target_issue_id_mismatch");
+          }
+          candidates.push(owned.reefId);
           continue;
         }
-        let candidate: string;
-        do {
-          next += 1;
-          candidate = `${prefix}-${String(next).padStart(width, "0")}`;
-        } while (existing.has(candidate));
-        candidates.push(candidate);
-        existing.add(candidate);
+        if (
+          existing.has(preferredId) ||
+          existingByNumericIdentity.has(numericIdentity) ||
+          plannedNumericIdentities.has(numericIdentity)
+        ) {
+          throw new Error("target_issue_id_conflict");
+        }
+        candidates.push(preferredId);
+        existing.add(preferredId);
+        existingByNumericIdentity.set(numericIdentity, preferredId);
+        plannedNumericIdentities.add(numericIdentity);
       }
       return candidates;
     },

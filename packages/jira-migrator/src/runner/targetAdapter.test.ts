@@ -146,7 +146,138 @@ describe("AKB Jira migration target", () => {
           issue_key: "SAASV31-1",
         },
       ]),
-    ).resolves.toEqual(["SAASV31-001"]);
+    ).resolves.toEqual(["SAASV31-1"]);
+  });
+
+  it("preserves Jira issue numbers and rejects target aliases or collisions", async () => {
+    const request = vi.fn(async () => ({
+      kind: "table_query" as const,
+      items: [
+        {
+          reef_id: "SHDEV-001",
+          meta: {
+            custom_fields: {
+              jira_migration: {
+                owner: {
+                  jira_cloud_id: "cloud-1",
+                  project_key: "SHDEV",
+                  issue_id: "10001",
+                  issue_key: "SHDEV-1",
+                },
+              },
+            },
+          },
+        },
+      ],
+    }));
+    const target = createAkbJiraMigrationTarget(
+      {
+        baseUrl: "https://akb.test",
+        jwt: "jwt",
+        vault: "reef-shdev",
+        issuePrefix: "SHDEV",
+      },
+      {
+        createAdapter: () => ({ request }),
+        getCurrentActor: async () => ({ actor: "operator" }),
+        listPlanningCatalog: vi.fn(async () => ({
+          releases: [],
+          sprints: [],
+          milestones: [],
+        })),
+        createRelease: vi.fn(),
+        createSprint: vi.fn(),
+        readPlanningCreateClaim: vi.fn(),
+        allocateNextIssueId: vi.fn(),
+        writeIssue: vi.fn(),
+        updateIssue: vi.fn(),
+        readIssue: vi.fn(),
+        claimIssueId: vi.fn(),
+      },
+    );
+
+    await target.preflight();
+    await expect(
+      target.planIssueIds([
+        {
+          jira_cloud_id: "cloud-1",
+          project_key: "SHDEV",
+          issue_id: "10001",
+          issue_key: "SHDEV-1",
+        },
+      ]),
+    ).rejects.toThrow("target_issue_id_mismatch");
+    await expect(
+      target.planIssueIds([
+        {
+          jira_cloud_id: "cloud-1",
+          project_key: "SHDEV",
+          issue_id: "10002",
+          issue_key: "SHDEV-1",
+        },
+      ]),
+    ).rejects.toThrow("target_issue_id_conflict");
+  });
+
+  it("keeps a stable binding after a Jira key rename", async () => {
+    const target = createAkbJiraMigrationTarget(
+      {
+        baseUrl: "https://akb.test",
+        jwt: "jwt",
+        vault: "reef-shdev",
+        issuePrefix: "SHDEV",
+      },
+      {
+        createAdapter: () => ({
+          request: vi.fn(async () => ({
+            kind: "table_query",
+            items: [
+              {
+                reef_id: "SHDEV-7",
+                meta: {
+                  custom_fields: {
+                    jira_migration: {
+                      owner: {
+                        jira_cloud_id: "cloud-1",
+                        project_key: "OLD",
+                        issue_id: "10001",
+                        issue_key: "OLD-7",
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          })),
+        }),
+        getCurrentActor: async () => ({ actor: "operator" }),
+        listPlanningCatalog: vi.fn(async () => ({
+          releases: [],
+          sprints: [],
+          milestones: [],
+        })),
+        createRelease: vi.fn(),
+        createSprint: vi.fn(),
+        readPlanningCreateClaim: vi.fn(),
+        allocateNextIssueId: vi.fn(),
+        writeIssue: vi.fn(),
+        updateIssue: vi.fn(),
+        readIssue: vi.fn(),
+        claimIssueId: vi.fn(),
+      },
+    );
+
+    await target.preflight();
+    await expect(
+      target.planIssueIds([
+        {
+          jira_cloud_id: "cloud-1",
+          project_key: "SHDEV",
+          issue_id: "10001",
+          issue_key: "SHDEV-91",
+        },
+      ]),
+    ).resolves.toEqual(["SHDEV-7"]);
   });
 
   it("uses core public planning and paired issue writes with readback", async () => {
@@ -298,7 +429,7 @@ describe("AKB Jira migration target", () => {
                         jira_cloud_id: "cloud-1",
                         project_key: "LEGACY",
                         issue_id: "10001",
-                        issue_key: "LEGACY-1",
+                        issue_key: "LEGACY-009",
                       },
                     },
                   },
@@ -331,13 +462,13 @@ describe("AKB Jira migration target", () => {
           jira_cloud_id: "cloud-1",
           project_key: "ALPHA",
           issue_id: "10001",
-          issue_key: "ALPHA-1",
+          issue_key: "ALPHA-009",
         },
         {
           jira_cloud_id: "cloud-1",
           project_key: "BETA",
           issue_id: "20001",
-          issue_key: "BETA-1",
+          issue_key: "BETA-010",
         },
       ]),
     ).toEqual(["REEF-009", "REEF-010"]);
