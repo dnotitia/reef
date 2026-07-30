@@ -24,6 +24,7 @@ import {
   tableRef,
   withSpan,
 } from "../core/shared";
+import { upsertSubscription } from "../notifications/notifications";
 
 /**
  * Map a `reef_comments` row to a Comment. The reef-semantic author and the
@@ -252,6 +253,12 @@ export async function createComment(
       if (!compatible) {
         throw new ConflictError({ path: `comment:${comment.id}` });
       }
+      await upsertSubscription(adapter, vault, {
+        reefId,
+        subscriber: comment.author,
+        source: "commenter",
+        status: "active",
+      });
       return comment;
     },
   );
