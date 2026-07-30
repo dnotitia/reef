@@ -124,4 +124,34 @@ describe("CommandMode", () => {
     fireEvent.click(screen.getByTestId("command-action"));
     expect(onExecute).toHaveBeenCalledWith("navigate", run);
   });
+
+  it("renders the New issue label visibly and in the option name", () => {
+    const action: BoundAppAction = {
+      descriptor: {
+        id: "issue.new",
+        labelKey: "newIssue",
+        aliasKeys: ["createIssue", "addIssue"],
+        group: "issues",
+        scopes: ["global"],
+        surfaces: ["palette"],
+        focusPolicy: "handoff",
+        shortcut: {
+          keys: ["mod", "I"],
+          scope: "global",
+          bindings: [],
+        },
+      },
+      label: "New issue",
+      keywords: ["create issue"],
+      current: false,
+      run: vi.fn(),
+    };
+
+    renderMode({ actions: [action] });
+
+    expect(screen.getByText("New issue")).toBeVisible();
+    expect(
+      screen.getByRole("option", { name: /New issue/i }),
+    ).toBeInTheDocument();
+  });
 });

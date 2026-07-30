@@ -335,6 +335,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   const chordRef = useRef<{ prefix: string; timer: number | null } | null>(
     null,
   );
+  const commandDestinationRef = useRef<HTMLElement>(null);
 
   const clearChord = useCallback(() => {
     if (chordRef.current?.timer) {
@@ -386,6 +387,10 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
     [requestQuickEdit, selectionActive],
   );
 
+  const focusCommandDestination = useCallback(() => {
+    commandDestinationRef.current?.focus({ preventScroll: true });
+  }, []);
+
   const commandRegistry = useCommandRegistry({
     vault: vault ?? "",
     togglePalette: toggleGlobalSearch,
@@ -394,6 +399,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
     toggleAskAi,
     startChord,
     clearChord,
+    focusDestination: focusCommandDestination,
     clearSelection: clearIssueSelection,
     moveIssueFocus,
     openFocusedIssue,
@@ -619,7 +625,13 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
 
       <div className="flex flex-1 flex-col overflow-hidden">
         <OfflineBanner />
-        <main className="flex-1 overflow-auto bg-background">{children}</main>
+        <main
+          ref={commandDestinationRef}
+          tabIndex={-1}
+          className="flex-1 overflow-auto bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/40"
+        >
+          {children}
+        </main>
       </div>
 
       {/* Global new-issue dialog — single instance for the whole shell so any

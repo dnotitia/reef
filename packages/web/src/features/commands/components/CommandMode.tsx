@@ -217,7 +217,8 @@ function ActionRow({
     >
       {descriptor.id === "issue.new" ? (
         <Plus className="size-4 text-muted-foreground" aria-hidden="true" />
-      ) : status ? (
+      ) : null}
+      {status ? (
         <StatusBadge status={status} />
       ) : priority ? (
         <PriorityBadge priority={priority} />

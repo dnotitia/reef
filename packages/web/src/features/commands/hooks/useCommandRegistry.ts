@@ -67,6 +67,7 @@ interface RegistryOptions {
   toggleAskAi: () => void;
   startChord: (prefix: string) => void;
   clearChord: () => void;
+  focusDestination: () => void;
   clearSelection: () => void;
   moveIssueFocus: (scope: IssueKeyboardScope, delta: 1 | -1) => void;
   openFocusedIssue: (scope: IssueKeyboardScope) => void;
@@ -99,6 +100,7 @@ export function useCommandRegistry({
   toggleAskAi,
   startChord,
   clearChord,
+  focusDestination,
   clearSelection,
   moveIssueFocus,
   openFocusedIssue,
@@ -223,9 +225,10 @@ export function useCommandRegistry({
   const navigate = useCallback(
     (href: string) => {
       clearChord();
+      focusDestination();
       startTransition(() => router.push(href));
     },
-    [clearChord, router],
+    [clearChord, focusDestination, router],
   );
 
   const executeAction = useCallback(
@@ -258,7 +261,10 @@ export function useCommandRegistry({
       }
       if (id.startsWith("locale.")) {
         const next = actionValue(id) as Locale;
-        if (locale !== next) void setLocale(next);
+        if (locale !== next) {
+          focusDestination();
+          void setLocale(next);
+        }
         return;
       }
       if (!target) return;
@@ -272,6 +278,7 @@ export function useCommandRegistry({
     [
       executePriority,
       executeStatus,
+      focusDestination,
       locale,
       navigate,
       openNewIssue,
@@ -309,9 +316,14 @@ export function useCommandRegistry({
           {
             descriptor,
             label: resolveLabel(descriptor),
-            keywords: descriptor.aliasKeys.map((key) =>
-              commandsTranslator(`aliases.${key}`),
-            ),
+            keywords: [
+              ...new Set([
+                ...(descriptor.searchAliases ?? []),
+                ...descriptor.aliasKeys.map((key) =>
+                  commandsTranslator(`aliases.${key}`),
+                ),
+              ]),
+            ],
             current,
             target: target ?? undefined,
             run: () => executeAction(descriptor, target ?? undefined),

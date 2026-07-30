@@ -46,6 +46,8 @@ export interface AppActionDescriptor {
   labelKey: string;
   /** Stable keys below `commands.aliases.*`. */
   aliasKeys: ReadonlyArray<string>;
+  /** Locale-independent terms projected directly into command search. */
+  searchAliases?: ReadonlyArray<string>;
   group: AppActionGroup;
   scopes: ReadonlyArray<AppActionScope>;
   surfaces: ReadonlyArray<AppActionSurface>;
@@ -57,6 +59,12 @@ export interface AppActionDescriptor {
 
 const action = (descriptor: AppActionDescriptor): AppActionDescriptor =>
   descriptor;
+
+const THEME_SEARCH_ALIASES = {
+  light: ["light", "라이트", "밝게"],
+  dark: ["dark", "다크", "어둡게"],
+  system: ["system", "시스템", "자동"],
+} as const;
 
 export const APP_ACTION_CATALOG: ReadonlyArray<AppActionDescriptor> = [
   action({
@@ -279,6 +287,7 @@ export const APP_ACTION_CATALOG: ReadonlyArray<AppActionDescriptor> = [
       id: `theme.${theme}`,
       labelKey: `theme${theme[0]?.toUpperCase()}${theme.slice(1)}`,
       aliasKeys: [theme],
+      searchAliases: THEME_SEARCH_ALIASES[theme],
       group: "preferences",
       scopes: ["global"],
       surfaces: ["palette"],

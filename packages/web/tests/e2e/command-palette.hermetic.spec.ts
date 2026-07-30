@@ -108,40 +108,86 @@ test.describe("Hermetic command palette", () => {
     await openExistingWorkspace(page);
     await enterCommandMode(page);
 
-    await page
-      .locator('[data-testid="command-action"][data-command-id="issue.new"]')
-      .click();
+    const newIssue = page.locator(
+      '[data-testid="command-action"][data-command-id="issue.new"]',
+    );
+    await expect(newIssue).toContainText("New issue");
+    await expect(newIssue).toHaveAccessibleName(/New issue/i);
+    await newIssue.click();
     const dialog = page.getByTestId("new-issue-dialog");
     await expect(dialog).toBeVisible();
     await expect(dialog.locator("input").first()).toBeFocused();
   });
 
-  test("fuzzy-matches localized English and Korean aliases", async ({
+  test("fuzzy-matches aliases from both locales regardless of the UI locale", async ({
     context,
     page,
   }) => {
     await openExistingWorkspace(page);
     await enterCommandMode(page);
-    await page.locator(commandInput).fill("kanban");
+    await page
+      .locator('[data-testid="command-page-entry"][data-command-page="theme"]')
+      .click();
+    await page.locator(commandInput).fill("다");
     await expect(
       page.locator(
-        '[data-testid="command-action"][data-command-id="view.board"]',
+        '[data-testid="command-action"][data-command-id="theme.dark"]',
       ),
     ).toBeVisible();
 
-    await page.keyboard.press("Enter");
+    await page
+      .locator('[data-testid="command-action"][data-command-id="theme.dark"]')
+      .click();
     await expect(page.locator(commandInput)).toBeHidden();
     await context.addCookies([
       { name: "NEXT_LOCALE", value: "ko", url: "http://localhost:7353" },
     ]);
     await page.reload();
     await enterCommandMode(page);
-    await page.locator(commandInput).fill("칸반");
+    await page
+      .locator('[data-testid="command-page-entry"][data-command-page="theme"]')
+      .click();
+    await page.locator(commandInput).fill("dark");
     await expect(
       page.locator(
-        '[data-testid="command-action"][data-command-id="view.board"]',
+        '[data-testid="command-action"][data-command-id="theme.dark"]',
       ),
     ).toBeVisible();
+  });
+
+  test("moves focus to a meaningful destination control after navigation and locale changes", async ({
+    context,
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await enterCommandMode(page);
+    await page
+      .locator(
+        '[data-testid="command-page-entry"][data-command-page="navigation"]',
+      )
+      .click();
+    await page
+      .locator(
+        '[data-testid="command-action"][data-command-id="navigation.myWork"]',
+      )
+      .click();
+    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/my-work$/);
+    await expect(page.getByRole("main")).toBeFocused();
+
+    await context.addCookies([
+      { name: "NEXT_LOCALE", value: "ko", url: "http://localhost:7353" },
+    ]);
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+    await enterCommandMode(page);
+    await page
+      .locator('[data-testid="command-page-entry"][data-command-page="locale"]')
+      .click();
+    await page
+      .locator('[data-testid="command-action"][data-command-id="locale.en"]')
+      .click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+    await expect(page.getByRole("main")).toBeFocused();
   });
 
   test("restores focus after a same-surface theme command", async ({

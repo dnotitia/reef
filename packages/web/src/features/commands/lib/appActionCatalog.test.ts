@@ -49,4 +49,14 @@ describe("app action catalog", () => {
       firefoxKeys: ["mod", "alt", "N"],
     });
   });
+
+  it("keeps command aliases searchable independently of the active locale", () => {
+    const dark = APP_ACTION_CATALOG.find(
+      (candidate) => candidate.id === "theme.dark",
+    );
+
+    expect(dark?.searchAliases).toEqual(
+      expect.arrayContaining(["dark", "다크", "어둡게"]),
+    );
+  });
 });
