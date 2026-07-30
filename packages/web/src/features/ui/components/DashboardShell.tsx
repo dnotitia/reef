@@ -628,6 +628,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
         <main
           ref={commandDestinationRef}
           tabIndex={-1}
+          data-command-focus-destination=""
           className="flex-1 overflow-auto bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/40"
         >
           {children}

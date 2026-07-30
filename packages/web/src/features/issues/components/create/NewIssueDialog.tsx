@@ -158,6 +158,7 @@ export function NewIssueDialog() {
   // surfaced inline, not as a toast — see handleSubmit).
   const titleInputRef = useRef<HTMLInputElement>(null);
   const seededContextRef = useRef<typeof dialogContext | undefined>(undefined);
+  const focusOriginRef = useRef<HTMLElement | null>(null);
 
   // Local issue list still drives relation pickers; enrichment now fetches its
   // own AKB context server-side so the prompt sees a consistent workspace view.
@@ -301,6 +302,23 @@ export function NewIssueDialog() {
       closeDialog();
       resetForm();
     }
+  }
+
+  function handleOpenAutoFocus() {
+    const active = document.activeElement;
+    focusOriginRef.current =
+      active instanceof HTMLElement && active !== document.body ? active : null;
+  }
+
+  function handleCloseAutoFocus(event: Event) {
+    event.preventDefault();
+    const origin = focusOriginRef.current;
+    focusOriginRef.current = null;
+    const fallback = document.querySelector<HTMLElement>(
+      "[data-command-focus-destination]",
+    );
+    const destination = origin?.isConnected ? origin : fallback;
+    destination?.focus({ preventScroll: true });
   }
 
   // A dismiss request (Cancel / Escape / outside click). Confirms first when the
@@ -470,6 +488,8 @@ export function NewIssueDialog() {
         // footer Cancel / Escape / outside-click / post-submit redirect all
         // still dismiss — so this dialog opts out of the built-in close X.
         showCloseButton={false}
+        onOpenAutoFocus={handleOpenAutoFocus}
+        onCloseAutoFocus={handleCloseAutoFocus}
         // Canvas matches the issue detail sheet (REEF-167) so the widened rail
         // doesn't steal width from the main column.
         className="max-h-[88vh] max-w-[min(94vw,1200px)] gap-5 overflow-y-auto overscroll-contain"

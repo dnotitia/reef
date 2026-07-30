@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import {
   APP_ACTION_CATALOG,
+  COMMAND_PAGE_CATALOG,
   getCheatsheetGroups,
   getPaletteActions,
   getShortcutActions,
@@ -58,5 +59,13 @@ describe("app action catalog", () => {
     expect(dark?.searchAliases).toEqual(
       expect.arrayContaining(["dark", "다크", "어둡게"]),
     );
+    expect(COMMAND_PAGE_CATALOG.theme.searchAliases).toEqual(
+      expect.arrayContaining(["theme", "테마"]),
+    );
+    expect(
+      getPaletteActions().every(
+        (candidate) => (candidate.searchAliases?.length ?? 0) > 0,
+      ),
+    ).toBe(true);
   });
 });

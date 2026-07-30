@@ -8,6 +8,7 @@ import {
   APP_ACTION_CATALOG,
   type AppActionDescriptor,
   type PaletteFocusPolicy,
+  getCommandPageDescriptor,
   getPaletteActions,
   getShortcutActions,
 } from "@/features/commands/lib/appActionCatalog";
@@ -319,6 +320,10 @@ export function useCommandRegistry({
             keywords: [
               ...new Set([
                 ...(descriptor.searchAliases ?? []),
+                ...(descriptor.parentPage
+                  ? getCommandPageDescriptor(descriptor.parentPage)
+                      .searchAliases
+                  : []),
                 ...descriptor.aliasKeys.map((key) =>
                   commandsTranslator(`aliases.${key}`),
                 ),

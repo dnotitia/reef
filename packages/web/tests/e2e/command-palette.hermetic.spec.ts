@@ -117,18 +117,37 @@ test.describe("Hermetic command palette", () => {
     const dialog = page.getByTestId("new-issue-dialog");
     await expect(dialog).toBeVisible();
     await expect(dialog.locator("input").first()).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole("main")).toBeFocused();
   });
 
   test("fuzzy-matches aliases from both locales regardless of the UI locale", async ({
     context,
     page,
   }) => {
+    await context.addCookies([
+      { name: "NEXT_LOCALE", value: "ko", url: "http://localhost:7353" },
+    ]);
     await openExistingWorkspace(page);
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
     await enterCommandMode(page);
+    await page.locator(commandInput).fill("theme");
+    await expect(
+      page.locator(
+        '[data-testid="command-page-entry"][data-command-page="theme"]',
+      ),
+    ).toBeVisible();
+    await page.locator(commandInput).fill("them");
+    await expect(
+      page.locator(
+        '[data-testid="command-page-entry"][data-command-page="theme"]',
+      ),
+    ).toBeVisible();
     await page
       .locator('[data-testid="command-page-entry"][data-command-page="theme"]')
       .click();
-    await page.locator(commandInput).fill("다");
+    await page.locator(commandInput).fill("dark");
     await expect(
       page.locator(
         '[data-testid="command-action"][data-command-id="theme.dark"]',
@@ -140,19 +159,74 @@ test.describe("Hermetic command palette", () => {
       .click();
     await expect(page.locator(commandInput)).toBeHidden();
     await context.addCookies([
-      { name: "NEXT_LOCALE", value: "ko", url: "http://localhost:7353" },
+      { name: "NEXT_LOCALE", value: "en", url: "http://localhost:7353" },
     ]);
     await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
     await enterCommandMode(page);
+    await page.locator(commandInput).fill("테마");
+    await expect(
+      page.locator(
+        '[data-testid="command-page-entry"][data-command-page="theme"]',
+      ),
+    ).toBeVisible();
     await page
       .locator('[data-testid="command-page-entry"][data-command-page="theme"]')
       .click();
-    await page.locator(commandInput).fill("dark");
+    await page.locator(commandInput).fill("다");
     await expect(
       page.locator(
         '[data-testid="command-action"][data-command-id="theme.dark"]',
       ),
     ).toBeVisible();
+  });
+
+  test("opens a contextual parent page through a real pointer coordinate", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues/REEF-001");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+
+    let patchCount = 0;
+    page.on("request", (request) => {
+      if (
+        request.method() === "PATCH" &&
+        new URL(request.url()).pathname === "/api/issues/REEF-001"
+      ) {
+        patchCount += 1;
+      }
+    });
+
+    await enterCommandMode(page);
+    const priorityPage = page.locator(
+      '[data-testid="command-page-entry"][data-command-page="priority"]',
+    );
+    await priorityPage.scrollIntoViewIfNeeded();
+    await expect(priorityPage).toBeVisible();
+    const box = await priorityPage.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) return;
+
+    const center = {
+      x: box.x + box.width / 2,
+      y: box.y + box.height / 2,
+    };
+    await expect(priorityPage).toHaveAttribute("data-selected", "false");
+    await page.mouse.move(center.x, center.y);
+    await expect(priorityPage).toHaveAttribute("data-selected", "false");
+    await page.mouse.click(center.x, center.y);
+
+    await expect(page.locator(commandInput)).toBeVisible();
+    await expect(page.getByTestId("command-breadcrumb")).toContainText(
+      "Change priority",
+    );
+    await expect(
+      page.locator(
+        '[data-testid="command-action"][data-command-id="priority.high"]',
+      ),
+    ).toBeVisible();
+    expect(patchCount).toBe(0);
   });
 
   test("moves focus to a meaningful destination control after navigation and locale changes", async ({

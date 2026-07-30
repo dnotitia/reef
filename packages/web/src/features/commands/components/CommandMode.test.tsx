@@ -125,6 +125,14 @@ describe("CommandMode", () => {
     expect(onExecute).toHaveBeenCalledWith("navigate", run);
   });
 
+  it("keeps parent pages searchable through locale-independent aliases", () => {
+    renderMode({ query: "theme" });
+
+    expect(
+      screen.getByText("Change theme").closest("[cmdk-item]"),
+    ).toHaveAttribute("data-command-page", "theme");
+  });
+
   it("renders the New issue label visibly and in the option name", () => {
     const action: BoundAppAction = {
       descriptor: {

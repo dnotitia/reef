@@ -15,8 +15,10 @@ import type {
 } from "@/features/commands/hooks/useCommandRegistry";
 import type {
   CommandPage,
+  CommandParentPage,
   PaletteFocusPolicy,
 } from "@/features/commands/lib/appActionCatalog";
+import { getCommandPageDescriptor } from "@/features/commands/lib/appActionCatalog";
 import type { CommandPageState } from "@/features/commands/lib/commandPageStack";
 import {
   formatShortcut,
@@ -56,6 +58,19 @@ const PAGE_ICONS = {
   priority: LayoutDashboard,
 } as const;
 
+const GLOBAL_COMMAND_PAGES: ReadonlyArray<CommandParentPage> = [
+  "navigation",
+  "view",
+  "theme",
+  "locale",
+];
+
+const CONTEXTUAL_COMMAND_PAGES: ReadonlyArray<CommandParentPage> = [
+  "status",
+  "assignee",
+  "priority",
+];
+
 export function CommandMode({
   state,
   vault,
@@ -67,6 +82,10 @@ export function CommandMode({
   const t = useTranslations("commands");
   const page = state.pages.at(-1) ?? "root";
   const actions = registry.paletteActions(target);
+  const pages = [
+    ...GLOBAL_COMMAND_PAGES,
+    ...(target ? CONTEXTUAL_COMMAND_PAGES : []),
+  ];
 
   const executeAction = (action: BoundAppAction) =>
     onExecute(action.descriptor.focusPolicy, action.run);
@@ -107,6 +126,20 @@ export function CommandMode({
     return (
       <>
         <CommandEmpty>{t("noCommands")}</CommandEmpty>
+        <CommandGroup heading={t("commandsHeading")}>
+          {pages.map((nextPage) => (
+            <PageRow
+              key={nextPage}
+              page={nextPage}
+              targetId={
+                CONTEXTUAL_COMMAND_PAGES.includes(nextPage)
+                  ? target?.issueId
+                  : undefined
+              }
+              onSelect={() => onPushPage(nextPage)}
+            />
+          ))}
+        </CommandGroup>
         {(["navigation", "views", "issues", "preferences"] as const).map(
           (group) => {
             const groupActions = actions.filter(
@@ -132,55 +165,62 @@ export function CommandMode({
   const newIssue = actions.find(
     (action) => action.descriptor.id === "issue.new",
   );
-  const pages: Array<{
-    page: Exclude<CommandPage, "root">;
-    contextual?: boolean;
-  }> = [
-    { page: "navigation" },
-    { page: "view" },
-    { page: "theme" },
-    { page: "locale" },
-    ...(target
-      ? ([
-          { page: "status", contextual: true },
-          { page: "assignee", contextual: true },
-          { page: "priority", contextual: true },
-        ] as const)
-      : []),
-  ];
 
   return (
     <CommandGroup heading={t("commandsHeading")}>
       {newIssue ? (
         <ActionRow action={newIssue} onSelect={() => executeAction(newIssue)} />
       ) : null}
-      {pages.map(({ page: nextPage, contextual }) => {
-        const Icon = PAGE_ICONS[nextPage];
-        return (
-          <CommandItem
-            key={nextPage}
-            value={`${t(`pages.${nextPage}`)} ${target?.issueId ?? ""}`}
-            data-testid="command-page-entry"
-            data-command-page={nextPage}
-            onSelect={() => onPushPage(nextPage)}
-          >
-            <Icon className="size-4 text-muted-foreground" aria-hidden="true" />
-            <span className="min-w-0 flex-1 truncate">
-              {t(`pages.${nextPage}`)}
-            </span>
-            {contextual && target ? (
-              <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                {target.issueId}
-              </span>
-            ) : null}
-            <ChevronRight
-              className="size-4 text-muted-foreground"
-              aria-hidden="true"
-            />
-          </CommandItem>
-        );
-      })}
+      {pages.map((nextPage) => (
+        <PageRow
+          key={nextPage}
+          page={nextPage}
+          targetId={
+            CONTEXTUAL_COMMAND_PAGES.includes(nextPage)
+              ? target?.issueId
+              : undefined
+          }
+          onSelect={() => onPushPage(nextPage)}
+        />
+      ))}
     </CommandGroup>
+  );
+}
+
+function PageRow({
+  page,
+  targetId,
+  onSelect,
+}: {
+  page: CommandParentPage;
+  targetId?: string;
+  onSelect: () => void;
+}) {
+  const t = useTranslations("commands");
+  const Icon = PAGE_ICONS[page];
+  const { searchAliases } = getCommandPageDescriptor(page);
+  const label = t(`pages.${page}`);
+
+  return (
+    <CommandItem
+      value={`${label} ${searchAliases.join(" ")} ${targetId ?? ""}`}
+      keywords={[...searchAliases]}
+      data-testid="command-page-entry"
+      data-command-page={page}
+      onSelect={onSelect}
+    >
+      <Icon className="size-4 text-muted-foreground" aria-hidden="true" />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {targetId ? (
+        <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+          {targetId}
+        </span>
+      ) : null}
+      <ChevronRight
+        className="size-4 text-muted-foreground"
+        aria-hidden="true"
+      />
+    </CommandItem>
   );
 }
 

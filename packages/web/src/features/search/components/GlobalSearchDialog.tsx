@@ -365,6 +365,7 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
     <CommandDialog
       open={isOpen}
       onOpenChange={handleOpenChange}
+      commandKey={mode}
       // `label` gives cmdk's combobox input an accessible name: cmdk hardcodes
       // the input's `aria-labelledby` to its own (otherwise empty) label element,
       // which shadows a caller `aria-label`, so the name flows through here.
@@ -372,6 +373,7 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
       // localized label + alias fuzzy filtering to cmdk.
       commandProps={{
         shouldFilter: mode === "command",
+        disablePointerSelection: mode === "command",
         label: mode === "command" ? commands("title") : t("title"),
       }}
       ariaBusy={mode === "search" && searchBusy}

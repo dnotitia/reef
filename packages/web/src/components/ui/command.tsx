@@ -24,6 +24,8 @@ const Command = React.forwardRef<
 Command.displayName = CommandPrimitive.displayName;
 
 type CommandDialogProps = DialogProps & {
+  /** Remounts cmdk when behavior-defining root props change between modes. */
+  commandKey?: React.Key;
   /** Forwarded to the inner cmdk `Command`. Pass `shouldFilter={false}` to
    *  disable cmdk's built-in fuzzy filter when the caller is doing its own
    *  filtering (e.g. the global ⌘K palette). */
@@ -52,6 +54,7 @@ type CommandDialogProps = DialogProps & {
 const CommandDialog = ({
   ariaBusy,
   children,
+  commandKey,
   commandProps,
   onCloseAutoFocus,
   onEscapeKeyDown,
@@ -70,6 +73,7 @@ const CommandDialog = ({
         className="overflow-hidden p-0 shadow-lg"
       >
         <Command
+          key={commandKey}
           {...commandProps}
           className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-group]]:px-2 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-item]_svg:not([class*='size-'])]:size-5"
         >
@@ -171,7 +175,7 @@ const CommandItem = React.forwardRef<
   <CommandPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex cursor-default gap-2 select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0",
+      "relative flex cursor-default gap-2 select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground data-[disabled=true]:pointer-events-none data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0",
       className,
     )}
     {...props}
