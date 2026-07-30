@@ -1,4 +1,7 @@
-import type { IssueViewMode } from "@/features/issues/lib/viewMode";
+import {
+  type IssueViewMode,
+  parseViewParam,
+} from "@/features/issues/lib/viewMode";
 import { withVault } from "@/lib/workspaceHref";
 
 export function buildNavigationHref(vault: string, href: string): string {
@@ -24,4 +27,17 @@ export function buildViewHref({
     : new URLSearchParams();
   params.set("view", view);
   return withVault(vault, `/issues?${params.toString()}`);
+}
+
+export function resolveCurrentIssueView({
+  pathname,
+  search,
+}: {
+  pathname: string;
+  search: string;
+}): IssueViewMode | null {
+  if (!/\/workspace\/[^/]+\/issues(?:\/[^/]+)?\/?$/.test(pathname)) {
+    return null;
+  }
+  return parseViewParam(new URLSearchParams(search).get("view"));
 }

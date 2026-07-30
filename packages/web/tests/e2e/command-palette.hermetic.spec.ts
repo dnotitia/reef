@@ -181,6 +181,56 @@ test.describe("Hermetic command palette", () => {
     ).toBeVisible();
   });
 
+  test("pops an empty nested page with Backspace after pointer entry", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await enterCommandMode(page);
+
+    const themePage = page.locator(
+      '[data-testid="command-page-entry"][data-command-page="theme"]',
+    );
+    const box = await themePage.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) return;
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+
+    await expect(page.getByTestId("command-breadcrumb")).toContainText(
+      "Change theme",
+    );
+    await expect(page.locator(commandInput)).toBeFocused();
+    await page.keyboard.press("Backspace");
+    await expect(themePage).toBeVisible();
+  });
+
+  test("selects and executes the first filtered command result", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/planning");
+    await expect(page.locator("html")).not.toHaveClass(/dark/);
+    await enterCommandMode(page);
+
+    await page.locator(commandInput).fill("dark");
+    const dark = page.locator(
+      '[data-testid="command-action"][data-command-id="theme.dark"]',
+    );
+    await expect(dark).toBeVisible();
+    await expect
+      .poll(() =>
+        page
+          .locator('[cmdk-item][data-selected="true"]')
+          .evaluateAll((items) =>
+            items.map((item) => item.getAttribute("data-value")),
+          ),
+      )
+      .toEqual(["theme.dark"]);
+    await page.keyboard.press("Enter");
+
+    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/planning$/);
+    await expect(page.locator("html")).toHaveClass(/dark/);
+  });
+
   test("opens a contextual parent page through a real pointer coordinate", async ({
     page,
   }) => {
@@ -227,6 +277,22 @@ test.describe("Hermetic command palette", () => {
       ),
     ).toBeVisible();
     expect(patchCount).toBe(0);
+  });
+
+  test("restores meaningful focus after cancelling the root palette", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.evaluate(() => {
+      document.body.tabIndex = -1;
+      document.body.focus();
+    });
+    await expect(page.locator("body")).toBeFocused();
+    await enterCommandMode(page);
+
+    await page.keyboard.press("Escape");
+    await expect(page.locator(commandInput)).toBeHidden();
+    await expect(page.getByRole("main")).toBeFocused();
   });
 
   test("moves focus to a meaningful destination control after navigation and locale changes", async ({
@@ -280,6 +346,70 @@ test.describe("Hermetic command palette", () => {
 
     await expect(page.locator("html")).toHaveClass(/dark/);
     await expect(origin).toBeFocused();
+  });
+
+  test("restores meaningful focus after a same-surface theme command without an origin control", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
+    await expect(page.locator("body")).toBeFocused();
+    await enterCommandMode(page);
+    await page
+      .locator('[data-testid="command-page-entry"][data-command-page="theme"]')
+      .click();
+    await page
+      .locator('[data-testid="command-action"][data-command-id="theme.dark"]')
+      .click();
+
+    await expect(page.locator("html")).toHaveClass(/dark/);
+    await expect(page.getByRole("main")).toBeFocused();
+  });
+
+  test("marks the active issue view as current", async ({ page }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=board");
+    await enterCommandMode(page);
+    await page
+      .locator('[data-testid="command-page-entry"][data-command-page="view"]')
+      .click();
+
+    const board = page.locator(
+      '[data-testid="command-action"][data-command-id="view.board"]',
+    );
+    await expect(board.getByLabel("Current")).toBeVisible();
+    await expect(
+      page.locator('[data-testid="command-action"]').getByLabel("Current"),
+    ).toHaveCount(1);
+  });
+
+  test("keeps a narrow nested breadcrumb visibly separated from the input", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 900, height: 800 });
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues/REEF-001");
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await enterCommandMode(page);
+    await page
+      .locator(
+        '[data-testid="command-page-entry"][data-command-page="assignee"]',
+      )
+      .click();
+
+    const breadcrumb = page.getByTestId("command-breadcrumb");
+    const input = page.locator(commandInput);
+    await expect(breadcrumb).toContainText("Change assignee");
+    await expect(input).toHaveAccessibleName("Search and commands");
+    const separation = await breadcrumb.evaluate(
+      (node, inputNode) => {
+        const breadcrumbRect = node.getBoundingClientRect();
+        const inputRect = (inputNode as HTMLElement).getBoundingClientRect();
+        return inputRect.left - breadcrumbRect.right;
+      },
+      await input.elementHandle(),
+    );
+    expect(separation).toBeGreaterThanOrEqual(8);
   });
 
   test("targets a detail issue, skips same-value PATCH, and requires a close reason", async ({

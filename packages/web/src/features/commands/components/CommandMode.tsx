@@ -37,6 +37,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { CommandAssigneePage } from "./CommandAssigneePage";
 
 interface CommandModeProps {
@@ -70,6 +71,10 @@ const CONTEXTUAL_COMMAND_PAGES: ReadonlyArray<CommandParentPage> = [
   "assignee",
   "priority",
 ];
+
+function preserveCommandInputFocus(event: ReactMouseEvent<HTMLElement>) {
+  event.preventDefault();
+}
 
 export function CommandMode({
   state,
@@ -203,10 +208,11 @@ function PageRow({
 
   return (
     <CommandItem
-      value={`${label} ${searchAliases.join(" ")} ${targetId ?? ""}`}
-      keywords={[...searchAliases]}
+      value={`page.${page}`}
+      keywords={[label, ...searchAliases, ...(targetId ? [targetId] : [])]}
       data-testid="command-page-entry"
       data-command-page={page}
+      onMouseDown={preserveCommandInputFocus}
       onSelect={onSelect}
     >
       <Icon className="size-4 text-muted-foreground" aria-hidden="true" />
@@ -233,9 +239,6 @@ function ActionRow({
 }) {
   const t = useTranslations("commands");
   const { descriptor } = action;
-  const value = `${action.label} ${action.keywords.join(" ")} ${
-    action.target?.issueId ?? ""
-  }`;
   const status = descriptor.id.startsWith("status.")
     ? (descriptor.id.slice("status.".length) as Status)
     : null;
@@ -249,8 +252,12 @@ function ActionRow({
 
   return (
     <CommandItem
-      value={value}
-      keywords={[...action.keywords]}
+      value={descriptor.id}
+      keywords={[
+        action.label,
+        ...action.keywords,
+        ...(action.target ? [action.target.issueId] : []),
+      ]}
       data-testid="command-action"
       data-command-id={descriptor.id}
       onSelect={onSelect}

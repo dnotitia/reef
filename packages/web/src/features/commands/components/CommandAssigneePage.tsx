@@ -71,7 +71,8 @@ export function CommandAssigneePage({
       </div>
       {!query.trim() ? (
         <CommandItem
-          value={t("assignee.unassigned")}
+          value="assignee.unassigned"
+          keywords={[t("assignee.unassigned")]}
           data-testid="command-assignee-unassigned"
           onSelect={() =>
             onExecute(() => registry.executeAssignee(target, null))
@@ -99,8 +100,8 @@ export function CommandAssigneePage({
         options.map((option) => (
           <CommandItem
             key={option.value}
-            value={`${option.label} ${option.keywords ?? ""}`}
-            keywords={[option.keywords ?? ""]}
+            value={`assignee.${option.value}`}
+            keywords={[option.label, option.keywords ?? ""]}
             data-testid="command-assignee-option"
             data-assignee={option.value}
             onSelect={() =>

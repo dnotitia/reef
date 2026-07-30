@@ -1,7 +1,11 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
-import { buildNavigationHref, buildViewHref } from "./commandNavigation";
+import {
+  buildNavigationHref,
+  buildViewHref,
+  resolveCurrentIssueView,
+} from "./commandNavigation";
 
 describe("command navigation", () => {
   it("always scopes navigation destinations to the active vault", () => {
@@ -32,5 +36,26 @@ describe("command navigation", () => {
         view: "timeline",
       }),
     ).toBe("/workspace/reef-acme/issues?view=timeline");
+  });
+
+  it("resolves the active issue view only inside the issues workspace", () => {
+    expect(
+      resolveCurrentIssueView({
+        pathname: "/workspace/reef-acme/issues",
+        search: "",
+      }),
+    ).toBe("board");
+    expect(
+      resolveCurrentIssueView({
+        pathname: "/workspace/reef-acme/issues",
+        search: "?view=list",
+      }),
+    ).toBe("list");
+    expect(
+      resolveCurrentIssueView({
+        pathname: "/workspace/reef-acme/planning",
+        search: "?view=timeline",
+      }),
+    ).toBeNull();
   });
 });

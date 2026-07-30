@@ -19,6 +19,7 @@ import {
 import {
   buildNavigationHref,
   buildViewHref,
+  resolveCurrentIssueView,
 } from "@/features/commands/lib/commandNavigation";
 import { useUpdateIssue } from "@/features/issues/hooks/mutations/useUpdateIssue";
 import { buildStatusPatch } from "@/features/issues/lib/statusPatch";
@@ -297,8 +298,15 @@ export function useCommandRegistry({
   );
 
   const paletteActions = useCallback(
-    (target: CommandIssueTarget | null): ReadonlyArray<BoundAppAction> =>
-      getPaletteActions().flatMap((descriptor) => {
+    (target: CommandIssueTarget | null): ReadonlyArray<BoundAppAction> => {
+      const currentView =
+        typeof window === "undefined"
+          ? null
+          : resolveCurrentIssueView({
+              pathname: window.location.pathname,
+              search: window.location.search,
+            });
+      return getPaletteActions().flatMap((descriptor) => {
         const needsTarget = descriptor.scopes.some(
           (scope) => scope !== "global",
         );
@@ -307,6 +315,7 @@ export function useCommandRegistry({
         const current =
           (descriptor.id.startsWith("theme.") && theme === value) ||
           (descriptor.id.startsWith("locale.") && locale === value) ||
+          (descriptor.id.startsWith("view.") && currentView === value) ||
           (descriptor.id.startsWith("status.") &&
             target !== null &&
             getFreshIssue(target.issueId)?.status === value) ||
@@ -334,7 +343,8 @@ export function useCommandRegistry({
             run: () => executeAction(descriptor, target ?? undefined),
           },
         ];
-      }),
+      });
+    },
     [
       commandsTranslator,
       executeAction,

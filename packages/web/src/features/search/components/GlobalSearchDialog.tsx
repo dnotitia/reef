@@ -16,6 +16,12 @@ import type {
   CommandRegistry,
 } from "@/features/commands/hooks/useCommandRegistry";
 import {
+  COMMAND_PAGE_CATALOG,
+  type CommandPage,
+  type CommandParentPage,
+} from "@/features/commands/lib/appActionCatalog";
+import { scoreCommandFilter } from "@/features/commands/lib/commandFilter";
+import {
   initialCommandPageState,
   reduceCommandPageState,
 } from "@/features/commands/lib/commandPageStack";
@@ -144,6 +150,12 @@ interface GlobalSearchDialogProps {
   registry: CommandRegistry;
 }
 
+const CONTEXTUAL_COMMAND_PAGES = new Set<CommandParentPage>([
+  "status",
+  "assignee",
+  "priority",
+]);
+
 export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
   const isOpen = useGlobalSearchStore((s) => s.isOpen);
   const close = useGlobalSearchStore((s) => s.close);
@@ -162,6 +174,8 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
   const [commandTarget, setCommandTarget] = useState<CommandIssueTarget | null>(
     null,
   );
+  const [commandSelection, setCommandSelection] = useState("issue.new");
+  const allowCommandSelectionChangeRef = useRef(false);
   const originRef = useRef<HTMLElement | null>(null);
   const focusPolicyRef = useRef<"restore" | "navigate" | "handoff">("restore");
   // The live value drives the input + match highlighting; the debounced value
@@ -264,6 +278,7 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
       close();
       resetQuery();
       setMode("search");
+      setCommandSelection("issue.new");
       dispatchCommand({ type: "reset" });
     }
   }
@@ -271,6 +286,11 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
   function enterCommandMode(initialQuery = "") {
     resetQuery();
     setMode("command");
+    setCommandSelection(
+      initialQuery
+        ? resolveCommandSelection(initialQuery, "root")
+        : "issue.new",
+    );
     dispatchCommand({ type: "reset" });
     if (initialQuery) {
       dispatchCommand({ type: "query", query: initialQuery });
@@ -293,8 +313,19 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
     close();
     resetQuery();
     setMode("search");
+    setCommandSelection("issue.new");
     dispatchCommand({ type: "reset" });
     queueMicrotask(run);
+  }
+
+  function handleCommandQueryChange(value: string) {
+    setCommandSelection(resolveCommandSelection(value, commandPage));
+    dispatchCommand({ type: "query", query: value });
+  }
+
+  function handlePushCommandPage(page: Exclude<CommandPage, "root">) {
+    setCommandSelection(resolveCommandSelection("", page));
+    dispatchCommand({ type: "push", page });
   }
 
   function handleCommandKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
@@ -302,38 +333,134 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
     if (event.key === "Backspace" && nested && commandState.query === "") {
       event.preventDefault();
       event.stopPropagation();
+      setCommandSelection("issue.new");
       dispatchCommand({ type: "backspace" });
       return;
     }
   }
 
+  function handleCommandNavigationKeyDown(
+    event: ReactKeyboardEvent<HTMLElement>,
+  ) {
+    allowCommandSelectionChangeRef.current =
+      event.key === "ArrowDown" ||
+      event.key === "ArrowUp" ||
+      event.key === "Home" ||
+      event.key === "End" ||
+      (event.ctrlKey && ["n", "j", "p", "k"].includes(event.key));
+  }
+
+  function handleCommandSelectionChange(value: string) {
+    if (!value) return;
+    const expected = resolveCommandSelection(commandState.query, commandPage);
+    if (value === expected || allowCommandSelectionChangeRef.current) {
+      setCommandSelection(value);
+    }
+    allowCommandSelectionChangeRef.current = false;
+  }
+
   function handleCloseAutoFocus(event: Event) {
     event.preventDefault();
     const origin = originRef.current;
-    if (
-      !shouldRestorePaletteFocus(
-        focusPolicyRef.current,
-        origin?.isConnected === true,
-      )
-    ) {
-      return;
-    }
+    if (focusPolicyRef.current !== "restore") return;
+    const fallback = document.querySelector<HTMLElement>(
+      "[data-command-focus-destination]",
+    );
+    const destination = shouldRestorePaletteFocus(
+      focusPolicyRef.current,
+      origin?.isConnected === true,
+    )
+      ? origin
+      : fallback;
     queueMicrotask(() => {
-      origin?.focus();
+      destination?.focus({ preventScroll: true });
     });
   }
 
   function handleOpenAutoFocus() {
+    const active = document.activeElement;
     originRef.current =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
+      active instanceof HTMLElement && active !== document.body ? active : null;
   }
 
   function handleEscapeKeyDown(event: Event) {
     if (mode !== "command" || commandState.pages.length <= 1) return;
     event.preventDefault();
+    setCommandSelection("issue.new");
     dispatchCommand({ type: "escape" });
+  }
+
+  function resolveCommandSelection(
+    nextQuery: string,
+    nextPage: CommandPage,
+  ): string {
+    const actions = registry.paletteActions(commandTarget);
+    const trimmed = nextQuery.trim();
+    if (!trimmed) {
+      if (nextPage === "root") {
+        return actions.some((action) => action.descriptor.id === "issue.new")
+          ? "issue.new"
+          : "page.navigation";
+      }
+      if (nextPage === "assignee") return "assignee.unassigned";
+      return (
+        actions.find((action) => action.descriptor.parentPage === nextPage)
+          ?.descriptor.id ?? ""
+      );
+    }
+
+    const candidates: Array<{
+      value: string;
+      keywords: ReadonlyArray<string>;
+    }> = [];
+    if (nextPage === "root") {
+      for (const descriptor of Object.values(COMMAND_PAGE_CATALOG)) {
+        if (
+          CONTEXTUAL_COMMAND_PAGES.has(descriptor.page) &&
+          commandTarget === null
+        ) {
+          continue;
+        }
+        candidates.push({
+          value: `page.${descriptor.page}`,
+          keywords: [
+            commands(`pages.${descriptor.page}`),
+            ...descriptor.searchAliases,
+            ...(CONTEXTUAL_COMMAND_PAGES.has(descriptor.page) && commandTarget
+              ? [commandTarget.issueId]
+              : []),
+          ],
+        });
+      }
+    }
+    for (const action of actions) {
+      if (nextPage !== "root" && action.descriptor.parentPage !== nextPage) {
+        continue;
+      }
+      candidates.push({
+        value: action.descriptor.id,
+        keywords: [
+          action.label,
+          ...action.keywords,
+          ...(action.target ? [action.target.issueId] : []),
+        ],
+      });
+    }
+
+    let selected = "";
+    let selectedScore = 0;
+    for (const candidate of candidates) {
+      const score = scoreCommandFilter(
+        candidate.value,
+        trimmed,
+        candidate.keywords,
+      );
+      if (score > selectedScore) {
+        selected = candidate.value;
+        selectedScore = score;
+      }
+    }
+    return selected;
   }
 
   // Error and pending states avoid reading as "no results" while a query is still
@@ -360,12 +487,21 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
   ) {
     statusMessage = isSearching ? t("noMatches") : t("empty");
   }
+  const commandPage = commandState.pages.at(-1) ?? "root";
+  const commandKey =
+    mode === "command"
+      ? `command:${commandPage}:${
+          commandPage === "root" && commandState.query.trim()
+            ? "filtered"
+            : "default"
+        }`
+      : "search";
 
   return (
     <CommandDialog
       open={isOpen}
       onOpenChange={handleOpenChange}
-      commandKey={mode}
+      commandKey={commandKey}
       // `label` gives cmdk's combobox input an accessible name: cmdk hardcodes
       // the input's `aria-labelledby` to its own (otherwise empty) label element,
       // which shadows a caller `aria-label`, so the name flows through here.
@@ -373,8 +509,17 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
       // localized label + alias fuzzy filtering to cmdk.
       commandProps={{
         shouldFilter: mode === "command",
+        filter: mode === "command" ? scoreCommandFilter : undefined,
         disablePointerSelection: mode === "command",
         label: mode === "command" ? commands("title") : t("title"),
+        onKeyDown:
+          mode === "command" ? handleCommandNavigationKeyDown : undefined,
+        ...(mode === "command"
+          ? {
+              value: commandSelection,
+              onValueChange: handleCommandSelectionChange,
+            }
+          : {}),
       }}
       ariaBusy={mode === "search" && searchBusy}
       onCloseAutoFocus={handleCloseAutoFocus}
@@ -398,18 +543,18 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
             autoFocus
             placeholder={commands("commandPlaceholder")}
             value={commandState.query}
-            onValueChange={(value) =>
-              dispatchCommand({ type: "query", query: value })
-            }
+            onValueChange={handleCommandQueryChange}
             onKeyDown={handleCommandKeyDown}
             inputPrefix={
               <span
-                className="flex shrink-0 items-center gap-1 text-sm text-muted-foreground"
+                className="flex max-w-[50%] min-w-0 shrink-0 items-center gap-1 text-sm text-muted-foreground"
                 data-testid="command-breadcrumb"
               >
                 <span aria-hidden="true">&gt;</span>
                 {commandState.pages.slice(1).map((page) => (
-                  <span key={page}>{commands(`pages.${page}`)}</span>
+                  <span key={page} className="truncate">
+                    {commands(`pages.${page}`)}
+                  </span>
                 ))}
               </span>
             }
@@ -424,7 +569,7 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
               vault={vault ?? ""}
               target={commandTarget}
               registry={registry}
-              onPushPage={(page) => dispatchCommand({ type: "push", page })}
+              onPushPage={handlePushCommandPage}
               onExecute={handleCommandExecute}
             />
           </CommandList>

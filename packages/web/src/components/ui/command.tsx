@@ -92,11 +92,11 @@ const CommandInput = React.forwardRef<
 >(({ className, inputPrefix, ...props }, ref) => (
   <div className="border-b border-border px-2 py-2">
     <div
-      className="flex h-9 items-center rounded-md border border-border bg-elevated px-2.5 transition-colors duration-150 focus-within:border-brand focus-within:ring-2 focus-within:ring-inset focus-within:ring-brand/30"
+      className="flex h-9 items-center gap-2 rounded-md border border-border bg-elevated px-2.5 transition-colors duration-150 focus-within:border-brand focus-within:ring-2 focus-within:ring-inset focus-within:ring-brand/30"
       cmdk-input-wrapper=""
     >
       <Search
-        className="mr-2 h-4 w-4 shrink-0 text-muted-foreground"
+        className="h-4 w-4 shrink-0 text-muted-foreground"
         aria-hidden="true"
       />
       {inputPrefix}
