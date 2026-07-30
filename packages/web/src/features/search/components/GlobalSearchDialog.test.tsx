@@ -57,9 +57,25 @@ vi.mock("@/features/issues/hooks/queries/useIssueRelations", () => ({
   useIssueRelations: () => ({ data: [] }),
 }));
 
+import type { CommandRegistry } from "@/features/commands/hooks/useCommandRegistry";
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { useGlobalSearchStore } from "../stores/useGlobalSearchStore";
 import { GlobalSearchDialog } from "./GlobalSearchDialog";
+
+const captureContextMock = vi.fn(() => null);
+const paletteActionsMock = vi.fn(() => []);
+const commandRegistry = {
+  actions: [],
+  captureContext: captureContextMock,
+  getFreshIssue: () => undefined,
+  paletteActions: paletteActionsMock,
+  shortcutBindings: [],
+  executeAssignee: vi.fn(),
+  mutationPending: false,
+  pendingClose: null,
+  setPendingClose: vi.fn(),
+  confirmPendingClose: vi.fn(),
+} as unknown as CommandRegistry;
 
 function makeIssue(
   id: string,
@@ -108,7 +124,7 @@ function renderDialog(locale: "en" | "ko" = "en") {
       <IntlTestProvider locale={locale}>{children}</IntlTestProvider>
     </QueryClientProvider>
   );
-  return render(<GlobalSearchDialog />, { wrapper });
+  return render(<GlobalSearchDialog registry={commandRegistry} />, { wrapper });
 }
 
 describe("GlobalSearchDialog", () => {
@@ -126,6 +142,10 @@ describe("GlobalSearchDialog", () => {
       isError: false,
       isFetching: false,
     });
+    captureContextMock.mockClear();
+    captureContextMock.mockReturnValue(null);
+    paletteActionsMock.mockReset();
+    paletteActionsMock.mockReturnValue([]);
   });
 
   it("does not render content when closed", () => {
@@ -150,6 +170,71 @@ describe("GlobalSearchDialog", () => {
     expect(useIssueListMock).not.toHaveBeenCalledWith(
       "reef-acme",
       expect.objectContaining({ q: expect.anything() }),
+    );
+  });
+
+  it("renders the compact Commands entry before Recent issues", () => {
+    useGlobalSearchStore.setState({ isOpen: true });
+    renderDialog();
+
+    const commandsEntry = screen.getByTestId("command-mode-entry");
+    const firstRecent = screen.getAllByTestId("global-search-item")[0];
+    expect(
+      commandsEntry.compareDocumentPosition(firstRecent as Node) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("enters command mode on a leading > without enabling issue search hooks", () => {
+    useGlobalSearchStore.setState({ isOpen: true });
+    renderDialog();
+    useIssueListMock.mockClear();
+    useIssueContentSearchMock.mockClear();
+
+    fireEvent.change(screen.getByTestId("global-search-input"), {
+      target: { value: ">view" },
+    });
+
+    expect(screen.getByTestId("command-palette-input")).toHaveValue("view");
+    expect(
+      useIssueListMock.mock.calls.every(([calledVault]) => calledVault === ""),
+    ).toBe(true);
+    expect(
+      useIssueContentSearchMock.mock.calls.every(
+        ([, calledVault]) => calledVault === "",
+      ),
+    ).toBe(true);
+  });
+
+  it("pops a nested command page on Escape and closes at the root", async () => {
+    useGlobalSearchStore.setState({ isOpen: true });
+    const user = userEvent.setup();
+    renderDialog();
+
+    await user.click(screen.getByTestId("command-mode-entry"));
+    const viewEntry = screen
+      .getAllByTestId("command-page-entry")
+      .find((entry) => entry.getAttribute("data-command-page") === "view");
+    expect(viewEntry).toBeDefined();
+    await user.click(viewEntry as HTMLElement);
+    expect(screen.getByTestId("command-breadcrumb")).toHaveTextContent(
+      "Change view",
+    );
+
+    fireEvent.keyDown(screen.getByTestId("command-palette-input"), {
+      key: "Escape",
+    });
+    expect(screen.getAllByTestId("command-page-entry").length).toBeGreaterThan(
+      0,
+    );
+
+    fireEvent.keyDown(screen.getByTestId("command-palette-input"), {
+      key: "Escape",
+    });
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("command-palette-input"),
+      ).not.toBeInTheDocument(),
     );
   });
 

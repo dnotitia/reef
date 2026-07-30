@@ -56,13 +56,13 @@ describe("SHORTCUT_GROUPS", () => {
     );
     expect(flat).toEqual(
       expect.arrayContaining([
-        "openGlobalSearch",
+        "openPalette",
         "showKeyboardShortcuts",
-        "goIssues",
-        "goMyWork",
-        "goSuggestions",
-        "goReports",
-        "goBacklog",
+        "issues",
+        "myWork",
+        "suggestions",
+        "reports",
+        "backlog",
         "newIssue",
         "focusNextIssue",
         "focusPreviousIssue",
@@ -78,7 +78,7 @@ describe("SHORTCUT_GROUPS", () => {
 
   it("advertises Suggestions on G S and does not retain G A", () => {
     const suggestions = SHORTCUT_GROUPS.flatMap((g) => g.shortcuts).find(
-      (shortcut) => shortcut.labelKey === "goSuggestions",
+      (shortcut) => shortcut.id === "navigation.suggestions",
     );
     expect(suggestions?.keys).toEqual(["G", "S"]);
     expect(
@@ -90,7 +90,7 @@ describe("SHORTCUT_GROUPS", () => {
 
   it("uses a browser-safe chord for the new issue action", () => {
     const newIssue = SHORTCUT_GROUPS.flatMap((g) => g.shortcuts).find(
-      (s) => s.labelKey === "newIssue",
+      (s) => s.id === "issue.new",
     );
     expect(newIssue?.keys).toEqual(["mod", "I"]);
     expect(newIssue?.firefoxKeys).toEqual(["mod", "alt", "N"]);
@@ -98,7 +98,7 @@ describe("SHORTCUT_GROUPS", () => {
 
   it("keeps the Firefox fallback off the primary declaration by default", () => {
     const newIssue = SHORTCUT_GROUPS.flatMap((g) => g.shortcuts).find(
-      (s) => s.labelKey === "newIssue",
+      (s) => s.id === "issue.new",
     );
     expect(newIssue ? getShortcutKeys(newIssue) : []).toEqual(["mod", "I"]);
   });

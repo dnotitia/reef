@@ -13,7 +13,9 @@ import { AskAiFab } from "@/features/ai/components/AskAiFab";
 import { useAskAiStore } from "@/features/ai/stores/useAskAiStore";
 import { SidebarAccount } from "@/features/auth/components/SidebarAccount";
 import { SidebarWorkspace } from "@/features/auth/components/SidebarWorkspace";
+import { useCommandRegistry } from "@/features/commands/hooks/useCommandRegistry";
 import { NewIssueDialog } from "@/features/issues/components/create/NewIssueDialog";
+import { CloseIssueDialog } from "@/features/issues/components/detail/CloseIssueDialog";
 import { buildOpenIssueHref } from "@/features/issues/lib/issueHref";
 import {
   type IssueKeyboardScope,
@@ -32,12 +34,10 @@ import { useProjectConfig } from "@/features/settings/hooks/useProjectConfig";
 import { useWorkspaceSkillStatus } from "@/features/settings/hooks/useWorkspaceSkillStatus";
 import { KeyboardShortcutsDialog } from "@/features/shortcuts/components/KeyboardShortcutsDialog";
 import {
-  type ShortcutBinding,
   type ShortcutScope,
   dispatchShortcut,
   formatShortcut,
   getNewIssueShortcutKeys,
-  isFirefoxLike,
   isMacLike,
 } from "@/features/shortcuts/lib/shortcuts";
 import { useShortcutsStore } from "@/features/shortcuts/stores/useShortcutsStore";
@@ -63,7 +63,6 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -355,14 +354,6 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
     [clearChord],
   );
 
-  const navigateTo = useCallback(
-    (href: string) => {
-      clearChord();
-      router.push(withVault(vault, href));
-    },
-    [clearChord, router, vault],
-  );
-
   const resolveShortcutScope = useCallback((): ShortcutScope => {
     if (typeof window === "undefined") return "global";
     const path = window.location.pathname;
@@ -395,148 +386,20 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
     [requestQuickEdit, selectionActive],
   );
 
-  const shortcutRegistry = useMemo<ShortcutBinding[]>(
-    () => [
-      {
-        labelKey: "showKeyboardShortcuts",
-        scope: "global",
-        keys: [
-          { key: "?", modKey: true, shiftKey: true },
-          { key: "/", modKey: true, shiftKey: true },
-        ],
-        allowEditableTarget: true,
-        allowInteractiveTarget: true,
-        handler: toggleShortcuts,
-      },
-      {
-        labelKey: "openGlobalSearch",
-        scope: "global",
-        keys: [{ key: "k", modKey: true }],
-        allowEditableTarget: true,
-        allowInteractiveTarget: true,
-        handler: toggleGlobalSearch,
-      },
-      {
-        labelKey: "newIssue",
-        scope: "global",
-        keys: isFirefoxLike()
-          ? [{ key: "n", code: "KeyN", primaryModKey: true, altKey: true }]
-          : [{ key: "i", code: "KeyI", primaryModKey: true }],
-        allowInteractiveTarget: true,
-        handler: openBlankNewIssueDialog,
-      },
-      {
-        labelKey: "toggleAskAi",
-        scope: "global",
-        keys: [{ key: "a", modKey: true, shiftKey: true }],
-        allowInteractiveTarget: true,
-        handler: toggleAskAi,
-      },
-      {
-        labelKey: "goIssues",
-        scope: "global",
-        keys: [{ key: "g" }],
-        handler: () => startChord("g"),
-      },
-      {
-        labelKey: "goIssues",
-        scope: "global",
-        chordPrefix: "g",
-        keys: [{ key: "i" }],
-        handler: () => navigateTo("/issues"),
-      },
-      {
-        labelKey: "goMyWork",
-        scope: "global",
-        chordPrefix: "g",
-        keys: [{ key: "m" }],
-        handler: () => navigateTo("/my-work"),
-      },
-      {
-        labelKey: "goSuggestions",
-        scope: "global",
-        chordPrefix: "g",
-        keys: [{ key: "s" }],
-        handler: () => navigateTo("/suggestions"),
-      },
-      {
-        labelKey: "goReports",
-        scope: "global",
-        chordPrefix: "g",
-        keys: [{ key: "r" }],
-        handler: () => navigateTo("/reports"),
-      },
-      {
-        labelKey: "goBacklog",
-        scope: "global",
-        chordPrefix: "g",
-        keys: [{ key: "b" }],
-        handler: () => navigateTo("/issues?view=backlog"),
-      },
-      {
-        labelKey: "closeDialogClearSearch" as const,
-        scope: "list",
-        keys: [{ key: "Escape" }],
-        handler: clearIssueSelection,
-      },
-      ...(["list", "board"] as const).flatMap<ShortcutBinding>((scope) => [
-        {
-          labelKey: "focusNextIssue" as const,
-          scope,
-          keys: [{ key: "j" }, { key: "ArrowDown" }],
-          handler: () => moveIssueFocus(scope, 1),
-        },
-        {
-          labelKey: "focusPreviousIssue" as const,
-          scope,
-          keys: [{ key: "k" }, { key: "ArrowUp" }],
-          handler: () => moveIssueFocus(scope, -1),
-        },
-        {
-          labelKey: "openFocusedIssue" as const,
-          scope,
-          keys: [{ key: "Enter" }],
-          handler: () => openFocusedIssue(scope),
-        },
-        {
-          labelKey: "editStatus" as const,
-          scope,
-          keys: [{ key: "s" }],
-          handler: () => editFocusedIssue(scope, "status"),
-        },
-        {
-          labelKey: "editAssignee" as const,
-          scope,
-          keys: [{ key: "a" }],
-          handler: () => editFocusedIssue(scope, "assignee"),
-        },
-        {
-          labelKey: "editPriority" as const,
-          scope,
-          keys: [{ key: "p" }],
-          handler: () => editFocusedIssue(scope, "priority"),
-        },
-        {
-          labelKey: "editLabels" as const,
-          scope,
-          keys: [{ key: "l" }],
-          handler: () => editFocusedIssue(scope, "labels"),
-        },
-      ]),
-    ],
-    [
-      editFocusedIssue,
-      clearIssueSelection,
-      moveIssueFocus,
-      navigateTo,
-      openFocusedIssue,
-      openBlankNewIssueDialog,
-      startChord,
-      toggleAskAi,
-      toggleGlobalSearch,
-      toggleShortcuts,
-    ],
-  );
+  const commandRegistry = useCommandRegistry({
+    vault: vault ?? "",
+    togglePalette: toggleGlobalSearch,
+    toggleShortcuts,
+    openNewIssue: openBlankNewIssueDialog,
+    toggleAskAi,
+    startChord,
+    clearChord,
+    clearSelection: clearIssueSelection,
+    moveIssueFocus,
+    openFocusedIssue,
+    editFocusedIssue,
+  });
+  const shortcutRegistry = commandRegistry.shortcutBindings;
 
   // Global shortcut dispatcher. Bindings are declared above with scope +
   // key contracts; this stays the shell's single keydown listener.
@@ -771,7 +634,17 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
       {/* Global ⌘K search palette. consistently mounted; controlled via
           useGlobalSearchStore so the keyboard shortcut and any future
           toolbar trigger share one canonical source. */}
-      <GlobalSearchDialog />
+      <GlobalSearchDialog registry={commandRegistry} />
+
+      <CloseIssueDialog
+        open={commandRegistry.pendingClose !== null}
+        issueId={commandRegistry.pendingClose?.issueId ?? ""}
+        disabled={commandRegistry.mutationPending}
+        onOpenChange={(open) => {
+          if (!open) commandRegistry.setPendingClose(null);
+        }}
+        onConfirm={commandRegistry.confirmPendingClose}
+      />
 
       {/* Keyboard shortcuts cheat sheet (⌘?). Same single-mount pattern —
           opened by the keybinding for now, but a future "Help" entry

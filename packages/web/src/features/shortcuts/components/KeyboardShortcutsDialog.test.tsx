@@ -40,10 +40,10 @@ describe("KeyboardShortcutsDialog", () => {
     const labels = rows.map((el) => el.getAttribute("data-shortcut-label"));
     expect(labels).toEqual(
       expect.arrayContaining([
-        "openGlobalSearch",
-        "showKeyboardShortcuts",
-        "newIssue",
-        "toggleAskAi",
+        "palette.open",
+        "shortcuts.open",
+        "issue.new",
+        "ai.toggle",
       ]),
     );
   });
@@ -89,7 +89,7 @@ describe("KeyboardShortcutsDialog", () => {
 
     const row = screen
       .getAllByTestId("shortcut-row")
-      .find((el) => el.getAttribute("data-shortcut-label") === "newIssue");
+      .find((el) => el.getAttribute("data-shortcut-label") === "issue.new");
     expect(row).toBeDefined();
     expect(within(row as HTMLElement).getByText("Ctrl")).toBeVisible();
     expect(within(row as HTMLElement).getByText("Alt")).toBeVisible();

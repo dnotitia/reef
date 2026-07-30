@@ -753,10 +753,11 @@ error message, stack, or digest.
 
 ### Keyboard Shortcuts
 
-Global shortcuts are registered at the shell: **⌘N** opens New Issue, **⌘K**
-toggles global search, **⌘⇧A** toggles Ask AI, **⌘?** opens the
-keyboard-shortcuts sheet, and **Esc** closes the active panel. Text-field focus
-is respected so typing is never hijacked.
+Global shortcuts are registered once at the shell from the same app-action
+catalog used by the command palette and keyboard-shortcuts sheet: **⌘I** opens
+New Issue (**⌘⌥N** on Firefox), **⌘K** toggles search and commands, **⌘⇧A**
+toggles Ask AI, **⌘?** opens the keyboard-shortcuts sheet, and **Esc** closes
+the active panel. Text-field focus is respected so typing is never hijacked.
 When List selection is active, the single-issue `s` / `a` / `p` / `l`
 shortcuts are suppressed and Esc clears the selection only after any focused
 interactive overlay has had the chance to consume it.
@@ -779,3 +780,20 @@ leaves metadata search usable. Its initial and expansion requests participate
 in the palette's teal progress hairline, `aria-busy`, and polite live status.
 Expansion re-requests the same query at limits `10 → 20 → … → 50`, retains the
 settled rows while loading, and never presents an estimated corpus total.
+
+An empty palette places a compact **Commands** entry above the eight recent
+issues. A leading `>` or that entry switches the existing dialog into local
+command mode; metadata and body/comment search remain disabled until the
+palette returns to search mode. Commands use localized labels and aliases,
+support nested pages with a visible breadcrumb, keep the input as the sole
+keyboard focus, pop a page with Esc or empty-query Backspace, and close from
+the root with Esc.
+
+Navigation and view commands stay scoped to the active vault. View changes
+preserve the Issues workspace's filter, search, sort, and ordering query.
+Single-issue status, assignee, and priority commands resolve the detail issue
+before a focused list/board issue and disappear while multi-selection is
+active. Mutations re-read the latest cached entity, skip same-value patches,
+and route Closed through the existing close-reason dialog. Focus returns to
+the invoking control for same-surface actions; navigation, locale changes, and
+dialog handoffs deliberately transfer it.

@@ -1,12 +1,12 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { type DialogProps } from "@radix-ui/react-dialog"
-import { Command as CommandPrimitive } from "cmdk"
-import { Search } from "lucide-react"
+import type { DialogProps } from "@radix-ui/react-dialog";
+import { Command as CommandPrimitive } from "cmdk";
+import { Search } from "lucide-react";
+import * as React from "react";
 
-import { cn } from "@/lib/utils"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 const Command = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive>,
@@ -16,31 +16,46 @@ const Command = React.forwardRef<
     ref={ref}
     className={cn(
       "flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground",
-      className
+      className,
     )}
     {...props}
   />
-))
-Command.displayName = CommandPrimitive.displayName
+));
+Command.displayName = CommandPrimitive.displayName;
 
 type CommandDialogProps = DialogProps & {
   /** Forwarded to the inner cmdk `Command`. Pass `shouldFilter={false}` to
    *  disable cmdk's built-in fuzzy filter when the caller is doing its own
    *  filtering (e.g. the global ⌘K palette). */
-  commandProps?: React.ComponentPropsWithoutRef<typeof CommandPrimitive>
+  commandProps?: React.ComponentPropsWithoutRef<typeof CommandPrimitive>;
   /** Forwarded to the underlying `DialogContent`. Defaults to `true` so existing
    *  callers keep the top-right close X; pass `false` when the command surface
    *  owns its own input row and the inherited X would overlap it (the ⌘K
    *  palette). Esc-to-close is unaffected. */
-  showCloseButton?: boolean
+  showCloseButton?: boolean;
   /** Exposes an in-flight state on the dialog surface itself. */
-  ariaBusy?: boolean
-}
+  ariaBusy?: boolean;
+  /** Lets a command surface choose whether Radix restores the trigger focus. */
+  onCloseAutoFocus?: React.ComponentPropsWithoutRef<
+    typeof DialogContent
+  >["onCloseAutoFocus"];
+  /** Captures the focus origin before Radix moves focus into the command input. */
+  onOpenAutoFocus?: React.ComponentPropsWithoutRef<
+    typeof DialogContent
+  >["onOpenAutoFocus"];
+  /** Lets nested command pages consume Escape before Radix closes the dialog. */
+  onEscapeKeyDown?: React.ComponentPropsWithoutRef<
+    typeof DialogContent
+  >["onEscapeKeyDown"];
+};
 
 const CommandDialog = ({
   ariaBusy,
   children,
   commandProps,
+  onCloseAutoFocus,
+  onEscapeKeyDown,
+  onOpenAutoFocus,
   showCloseButton,
   ...props
 }: CommandDialogProps) => {
@@ -48,6 +63,9 @@ const CommandDialog = ({
     <Dialog {...props}>
       <DialogContent
         aria-busy={ariaBusy}
+        onCloseAutoFocus={onCloseAutoFocus}
+        onEscapeKeyDown={onEscapeKeyDown}
+        onOpenAutoFocus={onOpenAutoFocus}
         showCloseButton={showCloseButton}
         className="overflow-hidden p-0 shadow-lg"
       >
@@ -59,13 +77,15 @@ const CommandDialog = ({
         </Command>
       </DialogContent>
     </Dialog>
-  )
-}
+  );
+};
 
 const CommandInput = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Input>,
-  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input>
->(({ className, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input> & {
+    inputPrefix?: React.ReactNode;
+  }
+>(({ className, inputPrefix, ...props }, ref) => (
   <div className="border-b border-border px-2 py-2">
     <div
       className="flex h-9 items-center rounded-md border border-border bg-elevated px-2.5 transition-colors duration-150 focus-within:border-brand focus-within:ring-2 focus-within:ring-inset focus-within:ring-brand/30"
@@ -75,19 +95,20 @@ const CommandInput = React.forwardRef<
         className="mr-2 h-4 w-4 shrink-0 text-muted-foreground"
         aria-hidden="true"
       />
+      {inputPrefix}
       <CommandPrimitive.Input
         ref={ref}
         className={cn(
           "flex h-full min-w-0 flex-1 bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50",
-          className
+          className,
         )}
         {...props}
       />
     </div>
   </div>
-))
+));
 
-CommandInput.displayName = CommandPrimitive.Input.displayName
+CommandInput.displayName = CommandPrimitive.Input.displayName;
 
 const CommandList = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.List>,
@@ -98,9 +119,9 @@ const CommandList = React.forwardRef<
     className={cn("max-h-[300px] overflow-y-auto overflow-x-hidden", className)}
     {...props}
   />
-))
+));
 
-CommandList.displayName = CommandPrimitive.List.displayName
+CommandList.displayName = CommandPrimitive.List.displayName;
 
 const CommandEmpty = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Empty>,
@@ -111,9 +132,9 @@ const CommandEmpty = React.forwardRef<
     className="py-6 text-center text-sm"
     {...props}
   />
-))
+));
 
-CommandEmpty.displayName = CommandPrimitive.Empty.displayName
+CommandEmpty.displayName = CommandPrimitive.Empty.displayName;
 
 const CommandGroup = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Group>,
@@ -123,13 +144,13 @@ const CommandGroup = React.forwardRef<
     ref={ref}
     className={cn(
       "overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground",
-      className
+      className,
     )}
     {...props}
   />
-))
+));
 
-CommandGroup.displayName = CommandPrimitive.Group.displayName
+CommandGroup.displayName = CommandPrimitive.Group.displayName;
 
 const CommandSeparator = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Separator>,
@@ -140,8 +161,8 @@ const CommandSeparator = React.forwardRef<
     className={cn("-mx-1 h-px bg-border", className)}
     {...props}
   />
-))
-CommandSeparator.displayName = CommandPrimitive.Separator.displayName
+));
+CommandSeparator.displayName = CommandPrimitive.Separator.displayName;
 
 const CommandItem = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Item>,
@@ -151,13 +172,13 @@ const CommandItem = React.forwardRef<
     ref={ref}
     className={cn(
       "relative flex cursor-default gap-2 select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0",
-      className
+      className,
     )}
     {...props}
   />
-))
+));
 
-CommandItem.displayName = CommandPrimitive.Item.displayName
+CommandItem.displayName = CommandPrimitive.Item.displayName;
 
 const CommandShortcut = ({
   className,
@@ -167,13 +188,13 @@ const CommandShortcut = ({
     <span
       className={cn(
         "ml-auto text-xs tracking-widest text-muted-foreground",
-        className
+        className,
       )}
       {...props}
     />
-  )
-}
-CommandShortcut.displayName = "CommandShortcut"
+  );
+};
+CommandShortcut.displayName = "CommandShortcut";
 
 export {
   Command,
@@ -185,4 +206,4 @@ export {
   CommandItem,
   CommandShortcut,
   CommandSeparator,
-}
+};
