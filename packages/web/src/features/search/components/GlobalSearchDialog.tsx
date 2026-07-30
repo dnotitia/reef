@@ -550,7 +550,9 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
                 className="flex max-w-[50%] min-w-0 shrink-0 items-center gap-1 text-sm text-muted-foreground"
                 data-testid="command-breadcrumb"
               >
-                <span aria-hidden="true">&gt;</span>
+                <span aria-hidden="true">
+                  &gt;{/* i18n-exempt: breadcrumb glyph */}
+                </span>
                 {commandState.pages.slice(1).map((page) => (
                   <span key={page} className="truncate">
                     {commands(`pages.${page}`)}
