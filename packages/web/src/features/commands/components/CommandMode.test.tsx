@@ -122,7 +122,7 @@ describe("CommandMode", () => {
     });
 
     fireEvent.click(screen.getByTestId("command-action"));
-    expect(onExecute).toHaveBeenCalledWith("navigate", run);
+    expect(onExecute).toHaveBeenCalledWith("navigate", run, false);
   });
 
   it("keeps parent pages searchable through locale-independent aliases", () => {

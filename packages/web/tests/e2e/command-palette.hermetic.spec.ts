@@ -50,7 +50,29 @@ test.describe("Hermetic command palette", () => {
       }
     });
 
-    await page.locator(searchInput).fill(">view");
+    const metadataResponse = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        response.ok() &&
+        url.pathname === "/api/issues" &&
+        url.searchParams.get("q") === "Alpha"
+      );
+    });
+    await page.locator(searchInput).fill("Alpha");
+    await metadataResponse;
+    metadataSearches = 0;
+    contentSearches = 0;
+    await page.locator(searchInput).evaluate((input) => {
+      const setValue = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      if (!setValue) throw new Error("missing input value setter");
+      for (const value of ["", ">view"]) {
+        setValue.call(input, value);
+        input.dispatchEvent(new InputEvent("input", { bubbles: true }));
+      }
+    });
     await expect(page.locator(commandInput)).toHaveValue("view");
     await page.waitForTimeout(500);
     expect(metadataSearches).toBe(0);
@@ -442,10 +464,9 @@ test.describe("Hermetic command palette", () => {
     await page.waitForTimeout(300);
     expect(patches).toHaveLength(0);
 
-    await enterCommandMode(page);
-    await page
-      .locator('[data-testid="command-page-entry"][data-command-page="status"]')
-      .click();
+    await page.keyboard.press("Control+K");
+    await page.getByTestId("command-mode-entry").click();
+    await page.locator(commandInput).fill("status");
     await page
       .locator(
         '[data-testid="command-action"][data-command-id="status.closed"]',
@@ -521,8 +542,10 @@ test.describe("Hermetic command palette", () => {
     await page.goto("/workspace/reef-e2e/issues?view=list");
     const row = page.getByTestId("issue-list-row").first();
     await expect(row).toBeVisible();
-    await row.getByRole("checkbox").click();
-    await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
+    await row.hover();
+    await row.getByRole("checkbox", { name: "Select REEF-001" }).click();
+    await page.keyboard.press("Shift+Tab");
+    await expect(row).toBeFocused();
     await enterCommandMode(page);
 
     for (const pageName of ["status", "assignee", "priority"]) {

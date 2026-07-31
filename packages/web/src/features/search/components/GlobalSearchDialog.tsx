@@ -298,7 +298,7 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
   }
 
   function handleSearchValueChange(next: string) {
-    if (query === "" && next.startsWith(">")) {
+    if (next.startsWith(">")) {
       enterCommandMode(next.slice(1).trimStart());
       return;
     }
@@ -308,14 +308,19 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
   function handleCommandExecute(
     policy: "restore" | "navigate" | "handoff",
     run: () => void,
+    runBeforeClose = false,
   ) {
+    // Closed owns a second dialog. Commit that handoff state in the originating
+    // interaction before the palette closes; deferring it can lose the dialog
+    // transition while Radix is removing the first modal.
+    if (runBeforeClose) run();
     focusPolicyRef.current = policy;
     close();
     resetQuery();
     setMode("search");
     setCommandSelection("issue.new");
     dispatchCommand({ type: "reset" });
-    queueMicrotask(run);
+    if (!runBeforeClose) queueMicrotask(run);
   }
 
   function handleCommandQueryChange(value: string) {

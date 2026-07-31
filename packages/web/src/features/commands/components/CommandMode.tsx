@@ -46,7 +46,11 @@ interface CommandModeProps {
   target: CommandIssueTarget | null;
   registry: CommandRegistry;
   onPushPage: (page: Exclude<CommandPage, "root">) => void;
-  onExecute: (policy: PaletteFocusPolicy, run: () => void) => void;
+  onExecute: (
+    policy: PaletteFocusPolicy,
+    run: () => void,
+    runBeforeClose?: boolean,
+  ) => void;
 }
 
 const PAGE_ICONS = {
@@ -93,7 +97,11 @@ export function CommandMode({
   ];
 
   const executeAction = (action: BoundAppAction) =>
-    onExecute(action.descriptor.focusPolicy, action.run);
+    onExecute(
+      action.descriptor.focusPolicy,
+      action.run,
+      action.descriptor.id === "status.closed",
+    );
 
   if (page === "assignee" && target) {
     return (

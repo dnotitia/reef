@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
+  act,
   configure,
   fireEvent,
   render,
@@ -57,13 +58,20 @@ vi.mock("@/features/issues/hooks/queries/useIssueRelations", () => ({
   useIssueRelations: () => ({ data: [] }),
 }));
 
-import type { CommandRegistry } from "@/features/commands/hooks/useCommandRegistry";
+import type {
+  BoundAppAction,
+  CommandIssueTarget,
+  CommandRegistry,
+} from "@/features/commands/hooks/useCommandRegistry";
+import { APP_ACTION_CATALOG } from "@/features/commands/lib/appActionCatalog";
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { useGlobalSearchStore } from "../stores/useGlobalSearchStore";
 import { GlobalSearchDialog } from "./GlobalSearchDialog";
 
-const captureContextMock = vi.fn(() => null);
-const paletteActionsMock = vi.fn(() => []);
+const captureContextMock = vi.fn<() => CommandIssueTarget | null>(() => null);
+const paletteActionsMock = vi.fn<
+  (target: CommandIssueTarget | null) => ReadonlyArray<BoundAppAction>
+>(() => []);
 const commandRegistry = {
   actions: [],
   captureContext: captureContextMock,
@@ -204,6 +212,72 @@ describe("GlobalSearchDialog", () => {
         ([, calledVault]) => calledVault === "",
       ),
     ).toBe(true);
+  });
+
+  it("enters command mode when > immediately follows a cleared query", () => {
+    useGlobalSearchStore.setState({ isOpen: true });
+    renderDialog();
+    const input = screen.getByTestId("global-search-input");
+
+    fireEvent.change(input, { target: { value: "login" } });
+    useIssueListMock.mockClear();
+    useIssueContentSearchMock.mockClear();
+
+    act(() => {
+      fireEvent.change(input, { target: { value: "" } });
+      fireEvent.change(input, { target: { value: ">" } });
+    });
+
+    expect(screen.getByTestId("command-palette-input")).toHaveValue("");
+    expect(useIssueListMock).not.toHaveBeenCalledWith(
+      "reef-acme",
+      expect.objectContaining({ q: ">" }),
+    );
+    expect(
+      useIssueContentSearchMock.mock.calls.every(
+        ([calledQuery, calledVault]) =>
+          calledQuery !== ">" || calledVault === "",
+      ),
+    ).toBe(true);
+  });
+
+  it("starts the Closed reason handoff before closing the palette", async () => {
+    const runClosed = vi.fn();
+    const target: CommandIssueTarget = {
+      issueId: "REEF-001",
+      title: "Fix login bug",
+      source: "detail",
+    };
+    const closedDescriptor = APP_ACTION_CATALOG.find(
+      (descriptor) => descriptor.id === "status.closed",
+    );
+    if (!closedDescriptor) throw new Error("missing status.closed action");
+    captureContextMock.mockReturnValue(target);
+    paletteActionsMock.mockReturnValue([
+      {
+        descriptor: closedDescriptor,
+        label: "Closed",
+        keywords: ["closed"],
+        current: false,
+        target,
+        run: runClosed,
+      },
+    ]);
+    useGlobalSearchStore.setState({ isOpen: true });
+    const user = userEvent.setup();
+    renderDialog();
+
+    await user.click(screen.getByTestId("command-mode-entry"));
+    const statusEntry = screen
+      .getAllByTestId("command-page-entry")
+      .find((entry) => entry.getAttribute("data-command-page") === "status");
+    expect(statusEntry).toBeDefined();
+    await user.click(statusEntry as HTMLElement);
+
+    fireEvent.click(screen.getByTestId("command-action"));
+
+    expect(runClosed).toHaveBeenCalledOnce();
+    expect(useGlobalSearchStore.getState().isOpen).toBe(false);
   });
 
   it("pops a nested command page on Escape and closes at the root", async () => {
