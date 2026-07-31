@@ -37,6 +37,11 @@ import {
   writePrivatePlanArtifact,
 } from "./privateArtifact.js";
 import {
+  type JiraMigrationProfile,
+  type JiraMigrationProfiler,
+  profileMethods,
+} from "./profiler.js";
+import {
   type JiraRunnerReport,
   buildJiraRunnerReport,
   loadJiraRunnerReport,
@@ -59,6 +64,7 @@ export interface JiraRunnerDependencies {
   now?: () => string;
   failAfterConfirmedEntities?: number;
   signal?: AbortSignal;
+  profiler?: JiraMigrationProfiler;
 }
 
 export interface JiraRunnerResult {
@@ -67,6 +73,7 @@ export interface JiraRunnerResult {
   planSha256: string;
   report: JiraRunnerReport;
   ledger: JiraMigrationLedgerV1;
+  profile?: JiraMigrationProfile;
 }
 
 export { JiraRunnerError } from "./errors.js";
@@ -99,6 +106,9 @@ async function runJiraMigrationUnlocked(
   config: JiraMigratorConfig,
   dependencies: JiraRunnerDependencies = {},
 ): Promise<JiraRunnerResult> {
+  const profiler = dependencies.profiler;
+  const measure = <T>(name: string, operation: () => Promise<T>): Promise<T> =>
+    profiler ? profiler.measure(name, operation) : operation();
   if (
     config.mode === "apply" &&
     !/^[a-f0-9]{64}$/u.test(config.expectedPlanSha256 ?? "")
@@ -125,13 +135,33 @@ async function runJiraMigrationUnlocked(
   const sourceEndpointFingerprint = jiraEndpointFingerprint(
     config.jira.baseUrl,
   );
-  const target =
+  const rawTarget =
     dependencies.target ??
     createAkbJiraMigrationTarget({
       baseUrl: config.target.baseUrl,
       jwt: config.target.jwt,
       vault: config.target.vault,
     });
+  let profiledRelatedTarget:
+    | ReturnType<AkbJiraMigrationTarget["relatedTarget"]>
+    | undefined;
+  const target = profiler
+    ? new Proxy(profileMethods(rawTarget, profiler, "akb"), {
+        get(profiledTarget, property, receiver) {
+          if (property !== "relatedTarget") {
+            return Reflect.get(profiledTarget, property, receiver);
+          }
+          return () => {
+            profiledRelatedTarget ??= profileMethods(
+              rawTarget.relatedTarget(),
+              profiler,
+              "akb.related",
+            );
+            return profiledRelatedTarget;
+          };
+        },
+      })
+    : rawTarget;
   const createClient =
     dependencies.createJiraClient ??
     ((projectKey: string) =>
@@ -144,15 +174,20 @@ async function runJiraMigrationUnlocked(
   for (const key of config.jira.projectKeys) {
     const path = config.jira.mappingPolicyPaths[key];
     if (!path) throw new JiraRunnerError("mapping_policy_required");
-    policies.set(key, await loadJiraMappingPolicy(path));
+    policies.set(
+      key,
+      await measure("setup.mapping_policy", () => loadJiraMappingPolicy(path)),
+    );
   }
 
-  const approval = await loadJiraApprovalArtifacts({
-    config,
-    paths,
-    sourceEndpointFingerprint,
-    targetEndpointFingerprint: endpointFingerprint,
-  });
+  const approval = await measure("setup.approval_artifacts", () =>
+    loadJiraApprovalArtifacts({
+      config,
+      paths,
+      sourceEndpointFingerprint,
+      targetEndpointFingerprint: endpointFingerprint,
+    }),
+  );
   const {
     approvedReport,
     approvedPlanArtifact,
@@ -191,26 +226,44 @@ async function runJiraMigrationUnlocked(
       relatedSourceSnapshots.set(key, snapshot);
       return [
         key,
-        snapshotJiraClient(
-          createClient(key),
-          snapshot,
-          join(
-            paths.archiveRoot,
-            ".spool",
-            privateSpoolSegment(config.artifacts.runId),
-            privateSpoolSegment(key),
-          ),
-          retry,
-        ),
+        profiler
+          ? profileMethods(
+              snapshotJiraClient(
+                createClient(key),
+                snapshot,
+                join(
+                  paths.archiveRoot,
+                  ".spool",
+                  privateSpoolSegment(config.artifacts.runId),
+                  privateSpoolSegment(key),
+                ),
+                retry,
+              ),
+              profiler,
+              `jira.${key}`,
+            )
+          : snapshotJiraClient(
+              createClient(key),
+              snapshot,
+              join(
+                paths.archiveRoot,
+                ".spool",
+                privateSpoolSegment(config.artifacts.runId),
+                privateSpoolSegment(key),
+              ),
+              retry,
+            ),
       ] as const;
     }),
   );
 
-  let ledger = await loadJiraMigrationLedger({
-    path: paths.ledgerPath,
-    jiraCloudId: config.jira.cloudId,
-    targetVault: config.target.vault,
-  });
+  let ledger = await measure("setup.load_ledger", () =>
+    loadJiraMigrationLedger({
+      path: paths.ledgerPath,
+      jiraCloudId: config.jira.cloudId,
+      targetVault: config.target.vault,
+    }),
+  );
   const runAt =
     ledger.runs.find((run) => run.run_id === config.artifacts.runId)
       ?.started_at ?? startedAt;
@@ -220,12 +273,14 @@ async function runJiraMigrationUnlocked(
       next: JiraMigrationLedgerV1,
       expectedLedger: JiraMigrationLedgerV1,
     ): Promise<void> => {
-      await writeJiraMigrationLedger({
-        path: paths.ledgerPath,
-        ledger: next,
-        expectedLedger,
-        forbiddenSecretValues: secretValuesForConfig(config),
-      });
+      await measure("artifact.write_ledger", () =>
+        writeJiraMigrationLedger({
+          path: paths.ledgerPath,
+          ledger: next,
+          expectedLedger,
+          forbiddenSecretValues: secretValuesForConfig(config),
+        }),
+      );
     },
   );
   const persistLedger = async (next: JiraMigrationLedgerV1): Promise<void> => {
@@ -233,7 +288,9 @@ async function runJiraMigrationUnlocked(
     ledger = next;
   };
 
-  const targetPreflight = await target.preflight();
+  const targetPreflight = await measure("stage.target_preflight", () =>
+    target.preflight(),
+  );
   if (
     (approvedReport &&
       approvedReport.run.target.actor !== targetPreflight.actor) ||
@@ -242,42 +299,48 @@ async function runJiraMigrationUnlocked(
   ) {
     throw new JiraRunnerError("dry_run_scope_mismatch");
   }
-  const discovery = await discoverJiraMigrationSource({
-    config,
-    clients,
-    retry,
-    runAt,
-    ledger,
-    target,
-    approvedPayload,
-    accountMappingPath: paths.accountMappingPath,
-    actorDirectory: targetPreflight.actorDirectory,
-    memberActors: targetPreflight.memberActors,
-  });
+  const discovery = await measure("stage.source_discovery", () =>
+    discoverJiraMigrationSource({
+      config,
+      clients,
+      retry,
+      runAt,
+      ledger,
+      target,
+      approvedPayload,
+      accountMappingPath: paths.accountMappingPath,
+      actorDirectory: targetPreflight.actorDirectory,
+      memberActors: targetPreflight.memberActors,
+    }),
+  );
   const { absentSourceRelationPlan, accountReport } = discovery;
-  const archive = await archiveJiraMigrationSource({
-    config,
-    archiveRoot: paths.archiveRoot,
-    runAt,
-    targetActor: targetPreflight.actor,
-    discovery,
-  });
+  const archive = await measure("stage.source_archive", () =>
+    archiveJiraMigrationSource({
+      config,
+      archiveRoot: paths.archiveRoot,
+      runAt,
+      targetActor: targetPreflight.actor,
+      discovery,
+    }),
+  );
   const { archiveSummaries } = archive;
-  const plan = await buildJiraMigrationPlan({
-    config,
-    accountMappingPath: paths.accountMappingPath,
-    endpointFingerprint,
-    runAt,
-    ledger,
-    target,
-    targetPreflight,
-    clients,
-    policies,
-    relatedSourceSnapshots,
-    discovery,
-    archive,
-    approval,
-  });
+  const plan = await measure("stage.plan_build", () =>
+    buildJiraMigrationPlan({
+      config,
+      accountMappingPath: paths.accountMappingPath,
+      endpointFingerprint,
+      runAt,
+      ledger,
+      target,
+      targetPreflight,
+      clients,
+      policies,
+      relatedSourceSnapshots,
+      discovery,
+      archive,
+      approval,
+    }),
+  );
   ledger = plan.ledger;
   const {
     planningActions,
@@ -287,23 +350,25 @@ async function runJiraMigrationUnlocked(
     planPayload,
     planSha256,
   } = plan;
-  const execution = await executeJiraMigrationPlan({
-    config,
-    target,
-    runAt,
-    now,
-    ledger,
-    clients,
-    policies,
-    approval,
-    discovery,
-    archive,
-    plan,
-    assertNotAborted,
-    persistLedger,
-    failAfterConfirmedEntities: dependencies.failAfterConfirmedEntities,
-    signal: dependencies.signal,
-  });
+  const execution = await measure("stage.execution", () =>
+    executeJiraMigrationPlan({
+      config,
+      target,
+      runAt,
+      now,
+      ledger,
+      clients,
+      policies,
+      approval,
+      discovery,
+      archive,
+      plan,
+      assertNotAborted,
+      persistLedger,
+      failAfterConfirmedEntities: dependencies.failAfterConfirmedEntities,
+      signal: dependencies.signal,
+    }),
+  );
   ledger = execution.ledger;
   const {
     terminalClassifications,
@@ -412,43 +477,50 @@ async function runJiraMigrationUnlocked(
       }
       approvalReport = existingApproval;
     } else {
-      await writeJiraRunnerReport({
-        path: approvalPath,
-        report,
-        forbiddenSecretValues: secretValuesForConfig(config),
-      });
+      await measure("artifact.write_approval_report", () =>
+        writeJiraRunnerReport({
+          path: approvalPath,
+          report,
+          forbiddenSecretValues: secretValuesForConfig(config),
+        }),
+      );
     }
-    await writePrivatePlanArtifact(`${paths.reportPath}.plan.json`, {
-      schema_version: 1,
-      run_id: config.artifacts.runId,
-      source: {
-        jira_cloud_id: config.jira.cloudId,
-        project_keys: config.jira.projectKeys,
-        board_ids: config.jira.boardIds,
-        endpoint_fingerprint: sourceEndpointFingerprint,
-      },
-      target: {
-        vault: config.target.vault,
-        actor: targetPreflight.actor,
-        endpoint_fingerprint: endpointFingerprint,
-      },
-      plan_sha256: planSha256,
-      approval_report_sha256: fingerprintJiraState(approvalReport),
-      payload: planPayload,
-    });
+    await measure("artifact.write_plan", () =>
+      writePrivatePlanArtifact(`${paths.reportPath}.plan.json`, {
+        schema_version: 1,
+        run_id: config.artifacts.runId,
+        source: {
+          jira_cloud_id: config.jira.cloudId,
+          project_keys: config.jira.projectKeys,
+          board_ids: config.jira.boardIds,
+          endpoint_fingerprint: sourceEndpointFingerprint,
+        },
+        target: {
+          vault: config.target.vault,
+          actor: targetPreflight.actor,
+          endpoint_fingerprint: endpointFingerprint,
+        },
+        plan_sha256: planSha256,
+        approval_report_sha256: fingerprintJiraState(approvalReport),
+        payload: planPayload,
+      }),
+    );
   }
-  await writeJiraRunnerReport({
-    path: outputReportPath,
-    report,
-    ...(expectedReport ? { expectedReport } : {}),
-    forbiddenSecretValues: secretValuesForConfig(config),
-  });
+  await measure("artifact.write_report", () =>
+    writeJiraRunnerReport({
+      path: outputReportPath,
+      report,
+      ...(expectedReport ? { expectedReport } : {}),
+      forbiddenSecretValues: secretValuesForConfig(config),
+    }),
+  );
   return {
     runId: config.artifacts.runId,
     mode: config.mode,
     planSha256,
     report,
     ledger,
+    ...(profiler ? { profile: profiler.snapshot() } : {}),
   };
 }
 

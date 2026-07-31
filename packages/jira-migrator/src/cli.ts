@@ -6,6 +6,7 @@ import {
   loadJiraMigratorConfig,
   redactForConfig,
 } from "./cli/config.js";
+import { JiraMigrationProfiler } from "./runner/profiler.js";
 import {
   type JiraRunnerDependencies,
   JiraRunnerError,
@@ -55,6 +56,10 @@ Control:
   --retry-count N
   --retry-base-delay-ms N
   --retry-max-delay-ms N
+
+Diagnostics:
+  REEF_JIRA_MIGRATOR_PROFILE=1
+                           Emit aggregate stage and external-call timings.
 `;
 
 const isHelp = (argv: readonly string[]) =>
@@ -96,6 +101,27 @@ export async function main(
   }
 
   let config: ReturnType<typeof loadJiraMigratorConfig> | null = null;
+  const profileOutputEnabled = env.REEF_JIRA_MIGRATOR_PROFILE === "1";
+  const profiler = profileOutputEnabled
+    ? new JiraMigrationProfiler()
+    : dependencies.runnerDependencies?.profiler;
+  let profileEmitted = false;
+  const emitProfile = (kind: "progress" | "final"): void => {
+    if (!profileOutputEnabled || !profiler) return;
+    process.stderr.write(
+      `${JSON.stringify({
+        jira_migration_profile: {
+          kind,
+          ...profiler.snapshot(),
+        },
+      })}\n`,
+    );
+    if (kind === "final") profileEmitted = true;
+  };
+  const profileInterval = profileOutputEnabled
+    ? setInterval(() => emitProfile("progress"), 60_000)
+    : null;
+  profileInterval?.unref();
   const controller = new AbortController();
   const interrupt = () => controller.abort();
   process.once("SIGINT", interrupt);
@@ -106,6 +132,7 @@ export async function main(
     const result = await run(config, {
       ...dependencies.runnerDependencies,
       signal: controller.signal,
+      ...(profiler ? { profiler } : {}),
     });
     process.stdout.write(
       `${JSON.stringify({
@@ -116,6 +143,9 @@ export async function main(
         status: result.report.run.status,
       })}\n`,
     );
+    if (result.profile) {
+      emitProfile("final");
+    }
     return result.report.run.status === "completed" ? 0 : 1;
   } catch (error) {
     const safe = config
@@ -127,6 +157,10 @@ export async function main(
     }
     return error instanceof JiraMigratorConfigError ? 2 : 1;
   } finally {
+    if (profileInterval) clearInterval(profileInterval);
+    if (profileOutputEnabled && profiler && !profileEmitted) {
+      emitProfile("final");
+    }
     process.removeListener("SIGINT", interrupt);
     process.removeListener("SIGTERM", interrupt);
   }

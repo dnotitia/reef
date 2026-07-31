@@ -12,6 +12,10 @@ explicitly in the entries below.
 
 ## Unreleased
 
+- Added opt-in Jira migration dry-run profiling with aggregate stage and
+  Jira/AKB boundary timings, periodic in-flight snapshots, and no impact on
+  approval artifacts or migration semantics.
+
 ### Fixed
 
 - **Large Jira migration reruns no longer repeatedly scan the complete ledger

@@ -66,6 +66,15 @@ ledger, or archive between approval and apply; stale content, a sibling lock,
 unsafe permissions, a symlink, target actor/vault drift, or a changed plan
 fails closed.
 
+For performance diagnosis, set `REEF_JIRA_MIGRATOR_PROFILE=1`. The CLI writes
+one redacted JSON timing snapshot to stderr every 60 seconds and a final
+snapshot on successful completion. Snapshots contain only aggregate stage and
+method names, call/error counts, elapsed time, averages, maxima, and currently
+active calls. They are excluded from approval reports, plan payloads, hashes,
+ledgers, and source archives, so profiling does not change migration semantics.
+Capture stderr in the operator's private artifact directory when the snapshots
+must be retained.
+
 ### Post-Apply Closeout
 
 Do not close a migration smoke test merely because the apply process exited
