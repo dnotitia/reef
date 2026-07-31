@@ -1,6 +1,7 @@
 import { AkbApiError, ConflictError, NotFoundError } from "../../../errors";
 import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import { deepEqual } from "../../../utils/deepEqual";
+import type { AkbAdapter } from "../core/http";
 import {
   REEF_ISSUES_TABLE,
   backlogTailRankExpr,
@@ -41,6 +42,10 @@ import type {
   WriteMultipleIssuesOutput,
 } from "../core/types";
 import {
+  removeSubscription,
+  upsertSubscription,
+} from "../notifications/notifications";
+import {
   appendActivityEvents,
   appendStatusChangeEvent,
   diffFieldActivityEvents,
@@ -53,6 +58,45 @@ export {
   type SearchSimilarIssuesParams,
 } from "./similarIssues";
 export { searchIssueContent } from "./contentSearch";
+
+type AutomaticIssueSubscriptionSource = "requester" | "assignee";
+
+async function syncAutomaticIssueSubscriptions(
+  adapter: AkbAdapter,
+  vault: string,
+  reefId: string,
+  previous: Pick<IssueMetadata, "requester" | "assigned_to">,
+  current: Pick<IssueMetadata, "requester" | "assigned_to">,
+): Promise<void> {
+  const participants: Array<
+    [
+      AutomaticIssueSubscriptionSource,
+      string | null | undefined,
+      string | null | undefined,
+    ]
+  > = [
+    ["requester", previous.requester, current.requester],
+    ["assignee", previous.assigned_to, current.assigned_to],
+  ];
+
+  for (const [source, previousSubscriber, subscriber] of participants) {
+    if (previousSubscriber && previousSubscriber !== subscriber) {
+      await removeSubscription(adapter, vault, {
+        reefId,
+        subscriber: previousSubscriber,
+        source,
+      });
+    }
+    if (subscriber) {
+      await upsertSubscription(adapter, vault, {
+        reefId,
+        subscriber,
+        source,
+        status: "active",
+      });
+    }
+  }
+}
 
 const sameJiraMigrationOwner = (left: unknown, right: unknown): boolean => {
   if (
@@ -306,6 +350,7 @@ export async function writeIssue(
         throw err;
       }
     }
+    await syncAutomaticIssueSubscriptions(adapter, vault, issue.id, {}, issue);
     return {
       path: put.path,
       commit_hash: put.commit_hash,
@@ -671,6 +716,16 @@ export async function updateIssue(
           });
         }
       }
+    }
+
+    if (partial.requester !== undefined || partial.assigned_to !== undefined) {
+      await syncAutomaticIssueSubscriptions(
+        adapter,
+        vault,
+        id,
+        current.issue,
+        mergedIssue,
+      );
     }
 
     return {
