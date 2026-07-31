@@ -302,6 +302,11 @@ an AKB table, or reef-web persistence. Keep it on an encrypted local volume,
 back it up before an apply, and never delete a stale lock automatically. See
 the operator runbook for the full resume and repair procedure.
 
+Apply batches immutable ledger checkpoints and flushes after 50 changes or 5
+seconds, with forced flushes at phase boundaries and controlled exits. A crash
+may replay only the final partial batch; exact target readback and idempotent
+apply recover those bindings without duplicating target data.
+
 ## Commands
 
 Run from the repository root:

@@ -21,6 +21,7 @@ export interface JiraExecutionInput {
   archive: Awaited<ReturnType<typeof archiveJiraMigrationSource>>;
   plan: Awaited<ReturnType<typeof buildJiraMigrationPlan>>;
   assertNotAborted: () => void;
+  checkpointLedger: (ledger: JiraMigrationLedgerV1) => Promise<void>;
   persistLedger: (ledger: JiraMigrationLedgerV1) => Promise<void>;
   failAfterConfirmedEntities?: number;
   signal?: AbortSignal;

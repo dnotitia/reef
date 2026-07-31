@@ -26,7 +26,7 @@ import {
 import { finalizeJiraCleanup } from "./cleanup.js";
 import { JiraRunnerError } from "./errors.js";
 import { executeJiraMigrationPlan } from "./execution.js";
-import { createChangeAwarePersister } from "./ledgerPersistence.js";
+import { createBufferedChangeAwarePersister } from "./ledgerPersistence.js";
 import {
   type LoadedJiraMappingPolicy,
   loadJiraMappingPolicy,
@@ -86,6 +86,9 @@ export {
   actionForRelatedReport,
   inferRelationSourceProjectKey,
 } from "./decisions.js";
+
+const LEDGER_CHECKPOINT_BATCH_SIZE = 50;
+const LEDGER_CHECKPOINT_MAX_DELAY_MS = 5_000;
 
 export const migrationScopeLockIdentity = (
   config: JiraMigratorConfig,
@@ -267,7 +270,7 @@ async function runJiraMigrationUnlocked(
   const runAt =
     ledger.runs.find((run) => run.run_id === config.artifacts.runId)
       ?.started_at ?? startedAt;
-  const persistChangedLedger = createChangeAwarePersister(
+  const ledgerPersister = createBufferedChangeAwarePersister(
     ledger,
     async (
       next: JiraMigrationLedgerV1,
@@ -282,10 +285,21 @@ async function runJiraMigrationUnlocked(
         }),
       );
     },
+    {
+      batchSize: LEDGER_CHECKPOINT_BATCH_SIZE,
+      maxDelayMs: LEDGER_CHECKPOINT_MAX_DELAY_MS,
+    },
   );
-  const persistLedger = async (next: JiraMigrationLedgerV1): Promise<void> => {
-    await persistChangedLedger(next);
+  const checkpointLedger = async (
+    next: JiraMigrationLedgerV1,
+  ): Promise<void> => {
     ledger = next;
+    await ledgerPersister.checkpoint(next);
+  };
+  const persistLedger = async (next: JiraMigrationLedgerV1): Promise<void> => {
+    ledger = next;
+    await ledgerPersister.checkpoint(next);
+    await ledgerPersister.flush();
   };
 
   const targetPreflight = await measure("stage.target_preflight", () =>
@@ -350,25 +364,32 @@ async function runJiraMigrationUnlocked(
     planPayload,
     planSha256,
   } = plan;
-  const execution = await measure("stage.execution", () =>
-    executeJiraMigrationPlan({
-      config,
-      target,
-      runAt,
-      now,
-      ledger,
-      clients,
-      policies,
-      approval,
-      discovery,
-      archive,
-      plan,
-      assertNotAborted,
-      persistLedger,
-      failAfterConfirmedEntities: dependencies.failAfterConfirmedEntities,
-      signal: dependencies.signal,
-    }),
-  );
+  let execution: Awaited<ReturnType<typeof executeJiraMigrationPlan>>;
+  try {
+    execution = await measure("stage.execution", () =>
+      executeJiraMigrationPlan({
+        config,
+        target,
+        runAt,
+        now,
+        ledger,
+        clients,
+        policies,
+        approval,
+        discovery,
+        archive,
+        plan,
+        assertNotAborted,
+        checkpointLedger,
+        persistLedger,
+        failAfterConfirmedEntities: dependencies.failAfterConfirmedEntities,
+        signal: dependencies.signal,
+      }),
+    );
+  } catch (error) {
+    await persistLedger(ledger);
+    throw error;
+  }
   ledger = execution.ledger;
   const {
     terminalClassifications,

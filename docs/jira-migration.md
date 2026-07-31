@@ -778,8 +778,13 @@ evidence and normalizes it to the confirmed native UUID instead of leaving a
 non-native planning reference or reporting a conflict.
 Checkpoint persistence uses the immutable ledger object's identity: report-only
 classifications that leave the ledger unchanged do not rewrite the full private
-artifact, while every new binding or entity result still uses the same
-compare-and-swap, atomic-write, and immediate-readback path.
+artifact. Apply stages changed checkpoints in memory and flushes the full ledger
+after 50 changes or 5 seconds, whichever comes first. Every phase boundary,
+controlled error, interrupt, and test failpoint force-flushes a partial batch.
+Each flush retains the same compare-and-swap, atomic-write, and ledger readback
+path. An uncatchable process or host failure can discard only the final partial
+batch; resume then recovers already-written targets through exact readback and
+idempotency before restoring their bindings.
 Within one run, source-key bindings and Jira issues are indexed once rather than
 rescanning the complete ledger or issue catalog for each plan. Changelog
 readback also loads an issue's activity catalog once and indexes it by stable

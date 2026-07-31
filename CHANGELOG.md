@@ -12,6 +12,9 @@ explicitly in the entries below.
 
 ## Unreleased
 
+- Batched Jira apply ledger checkpoints by change count and elapsed time while
+  preserving forced phase/error flushes, atomic CAS writes, and readback-based
+  crash recovery, avoiding thousands of full-ledger rewrites on large runs.
 - Added opt-in Jira migration dry-run profiling with aggregate stage and
   Jira/AKB boundary timings, periodic in-flight snapshots, and no impact on
   approval artifacts or migration semantics.

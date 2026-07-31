@@ -69,6 +69,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
     archive,
     plan,
     assertNotAborted,
+    checkpointLedger,
     persistLedger,
     failAfterConfirmedEntities,
     signal,
@@ -164,12 +165,13 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
   } else {
     let confirmed = 0;
     const checkpoint = async (): Promise<void> => {
-      await persistLedger(ledger);
+      await checkpointLedger(ledger);
       confirmed += 1;
       if (
         failAfterConfirmedEntities !== undefined &&
         confirmed >= failAfterConfirmedEntities
       ) {
+        await persistLedger(ledger);
         throw new JiraRunnerError("failpoint");
       }
     };
@@ -751,6 +753,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
       phase: "issues",
       at: now(),
     });
+    await persistLedger(ledger);
     const confirmedIssueBinding = (issue: NormalizedJiraIssue): boolean => {
       const identity = jiraIssueSourceIdentity(
         config.jira.cloudId,
@@ -1126,6 +1129,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
       phase: "related",
       at: now(),
     });
+    await persistLedger(ledger);
     for (const [index, deferred] of dryIssuePlans
       .flatMap((plan) => plan.deferred.map((item) => ({ plan, item })))
       .entries()) {
