@@ -12,12 +12,63 @@ explicitly in the entries below.
 
 ## Unreleased
 
-- Batched Jira apply ledger checkpoints by change count and elapsed time while
-  preserving forced phase/error flushes, atomic CAS writes, and readback-based
-  crash recovery, avoiding thousands of full-ledger rewrites on large runs.
+### Added
+
 - Added opt-in Jira migration dry-run profiling with aggregate stage and
   Jira/AKB boundary timings, periodic in-flight snapshots, and no impact on
   approval artifacts or migration semantics.
+
+- **Global search now includes a bilingual action command mode.** The existing
+  `⌘K` palette keeps recent issues and metadata/body/comment search intact while
+  adding a `>` command mode for vault-scoped navigation, view, New issue,
+  theme, locale, and context-aware status/assignee/priority actions. One action
+  catalog now drives the palette, global keybindings, and shortcut help, with
+  nested keyboard navigation, deliberate focus handoff, same-value no-ops, and
+  the existing close-reason workflow.
+- **Issue detail now exposes actor-scoped Watch and Mute controls.** The
+  bilingual chrome shows the effective notification state, persists Watch/Mute
+  choices through the existing AKB subscription contract, updates
+  optimistically with rollback and retryable feedback, and rejects attempts to
+  choose another subscriber. (REEF-428)
+- **Core now provides notification inbox and source-aware issue subscription
+  contracts.** Public schemas, deterministic keys, recipient-scoped notification
+  reads and state transitions, and manual/requester/assignee/commenter
+  subscription precedence give follow-up web features a single AKB-backed
+  boundary. (REEF-427)
+- **Global search now finds issue body and comment text.** For queries of two
+  characters or more, `⌘K` keeps its existing metadata and exact-ID results and
+  adds a separate bilingual body/comment group with safe literal highlighting,
+  real issue links, quiet degradation, and bounded 10-at-a-time expansion up to
+  50 results. (REEF-347)
+
+### Changed
+
+- Batched Jira apply ledger checkpoints by change count and elapsed time while
+  preserving forced phase/error flushes, atomic CAS writes, and readback-based
+  crash recovery, avoiding thousands of full-ledger rewrites on large runs.
+
+- **Unmatched URLs and recoverable page errors now stay inside Reef's visual
+  language.** Catalog-backed English and Korean surfaces use the existing teal,
+  typography, semantic light/dark tokens, accessible recovery actions, and a
+  safe root path without exposing framework or error internals. Theme
+  synchronization now also covers routes outside the dashboard shell.
+  (REEF-425)
+- **Activity review is now named Suggestions and has its own navigation
+  surface.** The workspace sidebar, bilingual page copy, and `G S` shortcut
+  open `/workspace/{vault}/suggestions`; the badge reports the full pending
+  queue and changes only after approve or dismiss actions. Existing
+  workspace-scoped and flat `/activity` links redirect without dropping
+  repeated or empty query values, while issue-detail Activity timelines remain
+  unchanged. The workspace shell also waits until its controls are interactive
+  before exposing them, so early clicks and keyboard shortcuts are not silently
+  discarded. (REEF-432)
+
+### Migration
+
+- No AKB, API, or browser-storage migration is required for Suggestions. Reef
+  continues to use `reef_activity_suggestions`, `_reef/activity-inbox`,
+  `/api/activity/suggestions`, and the existing core wire schemas; no copy,
+  backfill, Dexie version, or persistence-buster change is needed. (REEF-432)
 
 ### Fixed
 
@@ -122,8 +173,23 @@ explicitly in the entries below.
   an existing target with the approved semantic state and exact Jira owner is
   bound before another issue-id claim is attempted.
 
+- Existing users now resume an accessible configured workspace after signing
+  in or opening onboarding, without seeing the workspace creation form first.
+  Reef preserves a valid last-viewed workspace and otherwise chooses a
+  deterministic configured workspace; empty and raw-only accounts still enter
+  onboarding, while vault-list failures show a retryable error.
+
 ### Migration
 
+- **Reef storage schema version 2 adds `reef_notifications` and
+  `reef_subscriptions` declaratively.** New and schema-version-1 vaults create
+  only missing tables with their unique keys and lookup indexes; existing Reef
+  tables and activity-inbox data are unchanged, no backfill is required, and a
+  mismatched existing table fails closed for operator review before any missing
+  table is created or altered. Target AKB deployments must support create-time
+  `unique_keys` and `indexes`. Reef also rejects vault names that cannot fit
+  the longest desired table within AKB's PostgreSQL identifier limit before
+  creating any table, preventing a partial workspace installation. (REEF-427)
 - Jira vaults created by the migrator before source ticket-number preservation
   must be rebuilt when their stored Jira key and Reef issue number differ.
   The migrator rejects that legacy drift instead of silently retaining or

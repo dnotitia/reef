@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { buildSubscriptionKey } from "../schemas/notifications";
 import {
   AkbApiError,
   AuthError,
@@ -22,6 +23,23 @@ import {
   writeIssue,
 } from "./akb.testSupport";
 import type { IssueMetadata } from "./akb.testSupport";
+
+function subscriptionRow(subscriber: string, source: "assignee") {
+  return {
+    id: "018f47a4-8e3b-7f62-a3d2-9876543210ab",
+    subscription_key: buildSubscriptionKey({
+      reefId: "REEF-001",
+      subscriber,
+      source,
+    }),
+    reef_id: "REEF-001",
+    subscriber,
+    source,
+    status: "active",
+    subscribed_at: "2026-07-30T00:00:00.000Z",
+    meta: null,
+  };
+}
 
 describe("createAkbAdapter", () => {
   it("returns an adapter exposing a request function", () => {
@@ -221,6 +239,12 @@ describe("writeIssue", () => {
     const { calls } = setupFetch([
       { status: 201, body: makePutResponse() }, // POST document
       { body: makeSqlMutationResponse("INSERT 0 1") }, // INSERT row
+      {
+        body: makeSqlQueryResponse(
+          [subscriptionRow("alice", "assignee")],
+          ["id"],
+        ),
+      },
     ]);
     const adapter = makeAdapter();
     const result = await writeIssue({
@@ -231,7 +255,7 @@ describe("writeIssue", () => {
     });
     expect(result.path).toBe("issues/reef-001-fix-the-login-flow.md");
     expect(result.commit_hash).toBe("abc1234");
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
 
     const docCall = calls[0];
     expect(docCall?.init?.method).toBe("POST");

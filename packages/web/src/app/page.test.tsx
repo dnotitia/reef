@@ -12,12 +12,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 //   - session + vault   → /issues
 const useAuthRedirect = vi.hoisted(() => vi.fn());
 vi.mock("@/features/auth/hooks/useAuthRedirect", () => ({ useAuthRedirect }));
+const useWorkspaceAutoResume = vi.hoisted(() =>
+  vi.fn(() => ({ status: "disabled", retry: vi.fn() })),
+);
+vi.mock("@/features/onboarding/hooks/useWorkspaceAutoResume", () => ({
+  useWorkspaceAutoResume,
+}));
 
 import RootPage from "./page";
 
 afterEach(() => {
   cleanup();
   useAuthRedirect.mockClear();
+  useWorkspaceAutoResume.mockClear();
 });
 
 describe("apps/web root page", () => {

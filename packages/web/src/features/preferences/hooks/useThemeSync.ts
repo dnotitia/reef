@@ -7,11 +7,11 @@ import { useThemeStore } from "../stores/useThemeStore";
 /**
  * Singleton theme side-effects: a one-time hydrate from Dexie and the OS
  * `system` color-scheme listener. Call this exactly once, at the consistently-mounted
- * shell.
+ * root owner.
  *
  * Keeping the effects here (not in `useTheme`) is the point of REEF-095:
  * `useTheme` is a pure store façade with no effects, so adding a theme control
- * somewhere new — the account menu — does not spawns a second hydrate or a
+ * somewhere new — the account menu — does not spawn a second hydrate or a
  * duplicate `matchMedia` listener (vercel `client-event-listeners`,
  * `advanced-init-once`).
  */

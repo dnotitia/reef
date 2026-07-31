@@ -100,6 +100,7 @@ describe("useActivityFeed", () => {
     expect(result.current.items).toHaveLength(0);
     expect(mockedApiFetch).toHaveBeenCalledWith(
       "/api/activity/suggestions?vault=reef-acme&status=pending",
+      { cache: "no-store" },
     );
   });
 

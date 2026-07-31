@@ -2,6 +2,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { getAkbWebUrl } from "@/lib/akb/akbWebUrl";
 import { AkbWebUrlProvider } from "@/providers/AkbWebUrlProvider";
 import { QueryProvider } from "@/providers/QueryProvider";
+import { ThemeSync } from "@/providers/ThemeSync";
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale } from "next-intl/server";
@@ -59,8 +60,8 @@ export default async function RootLayout({
   // the value is not frozen at build time.
   const akbWebUrl = getAkbWebUrl();
 
-  // suppressHydrationWarning on <html>: `useTheme` adds/removes `.dark` on
-  // documentElement before React reconciles, so the server-rendered class
+  // suppressHydrationWarning on <html>: the root ThemeSync owner adds/removes
+  // `.dark` on documentElement during hydration, so the server-rendered class
   // attribute differs from the client one for any non-light user. Without
   // this, every dark-mode user sees a hydration warning on every load.
   // (`lang` is server-resolved from the cookie, so it does not itself mismatch.)
@@ -77,6 +78,7 @@ export default async function RootLayout({
         {/* No-prop provider inherits locale + messages + formats from
             `getRequestConfig` (next-intl v4), serializing them to the client. */}
         <NextIntlClientProvider>
+          <ThemeSync />
           <AkbWebUrlProvider value={akbWebUrl}>
             <QueryProvider>{children}</QueryProvider>
           </AkbWebUrlProvider>

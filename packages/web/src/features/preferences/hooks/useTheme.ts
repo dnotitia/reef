@@ -16,7 +16,7 @@ interface UseThemeReturn {
  * `rerender-defer-reads`), so every control — Settings → Appearance and the
  * account-menu toggle — shares one selection cursor and can not drift
  * (REEF-095). The hook has no effects: hydration and the OS `system` listener
- * live in `useThemeSync`, mounted once at the shell.
+ * live in `useThemeSync`, mounted once at the app root.
  */
 export function useTheme(): UseThemeReturn {
   const theme = useThemeStore((state) => state.theme);

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { buildSubscriptionKey } from "../schemas/notifications";
 import {
   ALL_REEF_TABLES,
   AkbApiError,
@@ -22,6 +23,23 @@ import {
   updateIssue,
   writeMultipleIssues,
 } from "./akb.testSupport";
+
+function subscriptionRow(
+  reefId: string,
+  subscriber: string,
+  source: "assignee",
+) {
+  return {
+    id: "018f47a4-8e3b-7f62-a3d2-9876543210ab",
+    subscription_key: buildSubscriptionKey({ reefId, subscriber, source }),
+    reef_id: reefId,
+    subscriber,
+    source,
+    status: "active",
+    subscribed_at: "2026-07-30T00:00:00.000Z",
+    meta: null,
+  };
+}
 
 describe("updateIssue", () => {
   it("updates only the row for table-only fields (no document PATCH)", async () => {
@@ -278,6 +296,13 @@ describe("updateIssue", () => {
       { body: makeListTablesResponse(ALL_REEF_TABLES) }, // append: ensureReefTables (once)
       { body: makeSqlQueryResponse([{ id: "e1" }], ["id"]) }, // INSERT assignee_change
       { body: makeSqlQueryResponse([{ id: "e2" }], ["id"]) }, // INSERT priority_change
+      { body: makeSqlQueryResponse([{ id: "removed" }], ["id"]) }, // remove old assignee source
+      {
+        body: makeSqlQueryResponse(
+          [subscriptionRow("REEF-001", "bob", "assignee")],
+          ["id"],
+        ),
+      },
     ]);
     const result = await updateIssue({
       adapter: makeAdapter(),
@@ -292,7 +317,7 @@ describe("updateIssue", () => {
       },
     });
     expect(result.issue.assigned_to).toBe("bob");
-    expect(calls).toHaveLength(6);
+    expect(calls).toHaveLength(8);
 
     const assigneeSql = JSON.parse(calls[4]?.init?.body as string).sql;
     expect(assigneeSql).toContain(`INSERT INTO ${REEF_ACTIVITY_TABLE}`);
@@ -323,6 +348,13 @@ describe("updateIssue", () => {
       { body: makeDocumentResponse() }, // read: GET document
       { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row
       { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row
+      { body: makeSqlQueryResponse([{ id: "removed" }], ["id"]) },
+      {
+        body: makeSqlQueryResponse(
+          [subscriptionRow("REEF-001", "bob", "assignee")],
+          ["id"],
+        ),
+      },
     ]);
     const result = await updateIssue({
       adapter: makeAdapter(),
@@ -331,8 +363,8 @@ describe("updateIssue", () => {
       partial: { assigned_to: "bob" },
     });
     expect(result.issue.assigned_to).toBe("bob");
-    // No ensureReefTables / INSERT — the field-change funnel did not fire.
-    expect(calls).toHaveLength(3);
+    // No activity-table calls — only the assignee source lifecycle runs.
+    expect(calls).toHaveLength(5);
   });
 
   // Best-effort: the row UPDATE already committed, so a failed field-event
@@ -343,6 +375,13 @@ describe("updateIssue", () => {
       { body: makeSqlQueryResponse([makeIssueRow()], ISSUE_ROW_COLUMNS) }, // read: row
       { body: makeSqlMutationResponse("UPDATE 1") }, // UPDATE row (committed)
       { status: 500, body: { detail: "list tables blew up" } }, // append: ensureReefTables fails
+      { body: makeSqlQueryResponse([{ id: "removed" }], ["id"]) },
+      {
+        body: makeSqlQueryResponse(
+          [subscriptionRow("REEF-001", "bob", "assignee")],
+          ["id"],
+        ),
+      },
     ]);
     const result = await updateIssue({
       adapter: makeAdapter(),
@@ -355,7 +394,7 @@ describe("updateIssue", () => {
       },
     });
     expect(result.issue.assigned_to).toBe("bob");
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(6);
   });
 });
 
@@ -478,8 +517,20 @@ describe("writeMultipleIssues", () => {
     setupFetch([
       { status: 201, body: makePutResponse({ path: "issues/reef-001.md" }) },
       { body: makeSqlMutationResponse("INSERT 0 1") },
+      {
+        body: makeSqlQueryResponse(
+          [subscriptionRow("REEF-001", "alice", "assignee")],
+          ["id"],
+        ),
+      },
       { status: 201, body: makePutResponse({ path: "issues/reef-002.md" }) },
       { body: makeSqlMutationResponse("INSERT 0 1") },
+      {
+        body: makeSqlQueryResponse(
+          [subscriptionRow("REEF-002", "alice", "assignee")],
+          ["id"],
+        ),
+      },
     ]);
     const adapter = makeAdapter();
     const result = await writeMultipleIssues({
@@ -503,9 +554,21 @@ describe("writeMultipleIssues", () => {
     setupFetch([
       { status: 201, body: makePutResponse({ path: "issues/reef-101.md" }) },
       { body: makeSqlMutationResponse("INSERT 0 1") },
+      {
+        body: makeSqlQueryResponse(
+          [subscriptionRow("REEF-101", "alice", "assignee")],
+          ["id"],
+        ),
+      },
       { status: 422, body: { detail: "validation failed" } }, // item 2 doc POST
       { status: 201, body: makePutResponse({ path: "issues/reef-103.md" }) },
       { body: makeSqlMutationResponse("INSERT 0 1") },
+      {
+        body: makeSqlQueryResponse(
+          [subscriptionRow("REEF-103", "alice", "assignee")],
+          ["id"],
+        ),
+      },
     ]);
     const adapter = makeAdapter();
     const result = await writeMultipleIssues({

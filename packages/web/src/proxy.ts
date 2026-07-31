@@ -273,7 +273,17 @@ export const config = {
      *
      * API routes are included because they still need request-logging.
      * The proxy function itself decides per-path whether to log.
+     *
+     * Router prefetch requests do not render nonce-bearing responses, so keep
+     * them out of Proxy. This also avoids Next.js abort-related ECONNRESET
+     * errors when a speculative prefetch is cancelled during navigation.
      */
-    "/((?!_next/static|_next/image|favicon.ico|api/metrics).*)",
+    {
+      source: "/((?!_next/static|_next/image|favicon.ico|api/metrics).*)",
+      missing: [
+        { type: "header", key: "next-router-prefetch" },
+        { type: "header", key: "purpose", value: "prefetch" },
+      ],
+    },
   ],
 };

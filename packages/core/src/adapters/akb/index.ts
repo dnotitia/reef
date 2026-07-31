@@ -1,4 +1,16 @@
 export {
+  createNotification,
+  listNotifications,
+  updateNotificationState,
+  upsertSubscription,
+  removeSubscription,
+  listSubscriptions,
+  watchIssue,
+  muteIssue,
+  getEffectiveSubscriptionState,
+  type ManualSubscriptionInput,
+} from "./notifications/notifications";
+export {
   createAkbAdapter,
   ISSUES_COLLECTION,
   REEF_SETTINGS_TABLE,
@@ -10,6 +22,8 @@ export {
   REEF_COMMENTS_TABLE,
   REEF_ATTACHMENTS_TABLE,
   REEF_ACTIVITY_TABLE,
+  REEF_NOTIFICATIONS_TABLE,
+  REEF_SUBSCRIPTIONS_TABLE,
   REEF_SPRINTS_TABLE,
   REEF_MILESTONES_TABLE,
   REEF_RELEASES_TABLE,
@@ -30,6 +44,12 @@ export {
   type AkbTableMigrationResult,
   type AlterAkbTableParams,
   type ApplyAkbTableMigrationParams,
+  type AkbCreateTableRequest,
+  type AkbTableColumn,
+  type AkbTableIndex,
+  type AkbTableIndexColumn,
+  type AkbTableUniqueKey,
+  type ReefTableManifest,
 } from "./core/shared";
 export {
   EnrichedVaultSummarySchema,
@@ -58,6 +78,7 @@ export {
   deleteIssue,
   listIssues,
   searchSimilarIssues,
+  searchIssueContent,
   listIssueRelations,
   allocateNextIssueId,
   buildIssueMetadataFromCreateInput,

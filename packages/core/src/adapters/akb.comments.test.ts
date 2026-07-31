@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { buildSubscriptionKey } from "../schemas/notifications";
 import {
   ALL_REEF_TABLES,
   NotFoundError,
@@ -48,6 +49,23 @@ function makeCommentRow(
 
 function lastSql(body: unknown): string {
   return JSON.parse(body as string).sql as string;
+}
+
+function commenterSubscriptionRow(subscriber: string): Record<string, unknown> {
+  return {
+    id: "018f47a4-8e3b-7f62-a3d2-9876543210ab",
+    subscription_key: buildSubscriptionKey({
+      reefId: "REEF-062",
+      subscriber,
+      source: "commenter",
+    }),
+    reef_id: "REEF-062",
+    subscriber,
+    source: "commenter",
+    status: "active",
+    subscribed_at: "2026-07-30T00:00:00.000Z",
+    meta: null,
+  };
 }
 
 describe("listComments", () => {
@@ -209,6 +227,9 @@ describe("createComment", () => {
           COMMENT_ROW_COLUMNS,
         ),
       },
+      {
+        body: makeSqlQueryResponse([commenterSubscriptionRow("alice")], ["id"]),
+      },
     ]);
 
     const comment = await createComment(
@@ -294,6 +315,9 @@ describe("createComment", () => {
           COMMENT_ROW_COLUMNS,
         ),
       },
+      {
+        body: makeSqlQueryResponse([commenterSubscriptionRow("alice")], ["id"]),
+      },
     ]);
 
     await expect(
@@ -333,7 +357,7 @@ describe("createComment", () => {
     expect(sql).not.toMatch(/\bjson_build_object\b/u);
     expect(sql).toContain('"jira_idempotency_key":"jira:reply:10002"');
     expect(sql.match(/INSERT INTO reef_comments/g)).toHaveLength(1);
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
   });
 
   it("returns the same parent-not-found error for missing, cross-issue, or malformed parents", async () => {

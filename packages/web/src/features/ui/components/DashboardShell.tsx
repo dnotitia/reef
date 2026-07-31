@@ -4,19 +4,18 @@ import { Button } from "@/components/ui/button";
 import { ReefMark } from "@/components/ui/reef-mark";
 import { ACTIVITY_SUGGESTIONS_QUERY_KEY } from "@/features/activity/hooks/useActivityFeed";
 import { useActivityRepo } from "@/features/activity/hooks/useActivityRepo";
+import { usePendingSuggestionsCount } from "@/features/activity/hooks/usePendingSuggestionsCount";
 import {
   useScanActivity,
   useScanAutoTrigger,
 } from "@/features/activity/hooks/useScanActivity";
-import {
-  UNREAD_INBOX_QUERY_KEY,
-  useUnreadInboxCount,
-} from "@/features/activity/hooks/useUnreadInboxCount";
 import { AskAiFab } from "@/features/ai/components/AskAiFab";
 import { useAskAiStore } from "@/features/ai/stores/useAskAiStore";
 import { SidebarAccount } from "@/features/auth/components/SidebarAccount";
 import { SidebarWorkspace } from "@/features/auth/components/SidebarWorkspace";
+import { useCommandRegistry } from "@/features/commands/hooks/useCommandRegistry";
 import { NewIssueDialog } from "@/features/issues/components/create/NewIssueDialog";
+import { CloseIssueDialog } from "@/features/issues/components/detail/CloseIssueDialog";
 import { buildOpenIssueHref } from "@/features/issues/lib/issueHref";
 import {
   type IssueKeyboardScope,
@@ -28,7 +27,6 @@ import { useMyWorkAttention } from "@/features/my-work/hooks/useMyWorkAttention"
 import { OfflineBanner } from "@/features/network/components/OfflineBanner";
 import { CreateWorkspaceDialog } from "@/features/onboarding/components/CreateWorkspaceDialog";
 import { useLocaleSync } from "@/features/preferences/hooks/useLocaleSync";
-import { useThemeSync } from "@/features/preferences/hooks/useThemeSync";
 import { GlobalSearchDialog } from "@/features/search/components/GlobalSearchDialog";
 import { useGlobalSearchStore } from "@/features/search/stores/useGlobalSearchStore";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
@@ -36,12 +34,10 @@ import { useProjectConfig } from "@/features/settings/hooks/useProjectConfig";
 import { useWorkspaceSkillStatus } from "@/features/settings/hooks/useWorkspaceSkillStatus";
 import { KeyboardShortcutsDialog } from "@/features/shortcuts/components/KeyboardShortcutsDialog";
 import {
-  type ShortcutBinding,
   type ShortcutScope,
   dispatchShortcut,
   formatShortcut,
   getNewIssueShortcutKeys,
-  isFirefoxLike,
   isMacLike,
 } from "@/features/shortcuts/lib/shortcuts";
 import { useShortcutsStore } from "@/features/shortcuts/stores/useShortcutsStore";
@@ -53,7 +49,7 @@ import {
   BarChart3,
   ChevronLeft,
   CircleUser,
-  Inbox,
+  ListChecks,
   ListTodo,
   type LucideIcon,
   Milestone,
@@ -67,7 +63,6 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -110,7 +105,7 @@ const navLinks: ReadonlyArray<{
     | "issues"
     | "myWork"
     | "planning"
-    | "activity"
+    | "suggestions"
     | "reports"
     | "settings";
   testId: string;
@@ -126,7 +121,12 @@ const navLinks: ReadonlyArray<{
     testId: "planning",
     icon: Milestone,
   },
-  { href: "/activity", labelKey: "activity", testId: "activity", icon: Inbox },
+  {
+    href: "/suggestions",
+    labelKey: "suggestions",
+    testId: "suggestions",
+    icon: ListChecks,
+  },
   { href: "/reports", labelKey: "reports", testId: "reports", icon: BarChart3 },
   {
     href: "/settings",
@@ -136,8 +136,8 @@ const navLinks: ReadonlyArray<{
   },
 ] as const;
 
-/** A sidebar nav badge (REEF-204): the Activity "unread" pill and the My
- * Work "needs attention" pill share one render path, differing in tone.
+/** A sidebar nav badge: Suggestions pending, My Work attention, and Settings
+ * drift share one render path, differing in tone.
  * Filled-pill + white foreground is the sidebar's badge vocabulary (the count is
  * also carried by an aria-label, so the small chip is not the signal). */
 type NavBadgeTone = "brand" | "danger" | "warn";
@@ -155,8 +155,8 @@ const NAV_BADGE_DOT: Record<NavBadgeTone, string> = {
 };
 
 interface NavBadge {
-  /** "count" → a numeric pill when expanded, a dot when collapsed (Activity, My
-   * Work). "state" → a dot in both layouts: a binary signal that carries no
+  /** "count" → a numeric pill when expanded, a dot when collapsed (Suggestions,
+   * My Work). "state" → a dot in both layouts: a binary signal that carries no
    * quantity, so a counting pill would be the wrong vocabulary (REEF-257 — the
    * workspace skill is either drifted or not). */
   kind: "count" | "state";
@@ -174,6 +174,7 @@ interface NavBadge {
 const cap = (n: number) => (n > 9 ? "9+" : String(n));
 
 export function DashboardShell({ children, appVersion }: DashboardShellProps) {
+  const [interactionReady, setInteractionReady] = useState(false);
   const sidebarCollapsed = useViewStore((state) => state.sidebarCollapsed);
   const toggleSidebar = useViewStore((state) => state.toggleSidebar);
   const openNewIssueDialog = useViewStore((state) => state.openNewIssueDialog);
@@ -191,14 +192,13 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
     (state) => state.selectedIds.size > 0,
   );
   const clearIssueSelection = useIssueSelectionStore((state) => state.clear);
-  // Singleton theme side-effects (one-time hydrate + OS `system` listener).
-  // The shell is consistently mounted, so this is the one place they run; every
-  // theme control reads the shared store via useTheme (REEF-095).
-  useThemeSync();
   // Singleton locale side-effects (one-time hydrate + cookie/lang reconcile),
-  // mirroring useThemeSync. Restores a persisted locale if the cookie was
-  // cleared (REEF-291).
+  // mounted in the authenticated shell. Restores a persisted locale if the
+  // cookie was cleared (REEF-291).
   useLocaleSync();
+  useEffect(() => {
+    setInteractionReady(true);
+  }, []);
   const t = useTranslations("nav");
   const pathname = usePathname();
   const router = useRouter();
@@ -233,9 +233,9 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
     : t("newIssue");
 
   // Auto-detection trigger lives at the shell so it fires regardless of which
-  // page the user is on — Board / List / Settings all benefit. ActivityFeed
-  // keeps its own mutation for the manual refresh button (separate instance,
-  // same AKB activity inbox, same invalidation channel).
+  // page the user is on — Board / List / Settings all benefit. The Suggestions
+  // queue keeps its own mutation for the manual refresh button (separate
+  // instance, same persisted queue and invalidation channel).
   const { vault } = useActiveVault();
   const queryClient = useQueryClient();
 
@@ -256,23 +256,18 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
         void queryClient.invalidateQueries({
           queryKey: ACTIVITY_SUGGESTIONS_QUERY_KEY,
         });
-        void queryClient.invalidateQueries({
-          queryKey: UNREAD_INBOX_QUERY_KEY,
-        });
       }
     },
   });
   useScanAutoTrigger(vault, scanRepo, scan.mutate);
 
-  // Unread count for the sidebar Activity badge. Hidden while the user is
-  // already on /activity — they can see the items themselves and ActivityFeed
-  // updates `last_visit_at` on mount to clear it.
-  const unreadInboxCount = useUnreadInboxCount(vault);
+  // Suggestions are actionable queue state, not a visit marker. Keep the
+  // actual pending total visible even while the user is reviewing the queue.
+  const pendingSuggestionsCount = usePendingSuggestionsCount(vault);
 
   // My Work "needs attention" count for its sidebar badge (REEF-204): the
   // signed-in user's overdue + due-soon work, derived from MyWorkPage's same
-  // `useIssueList` cache (no extra fetch). Hidden while on /my-work, like the
-  // Activity badge.
+  // `useIssueList` cache (no extra fetch). Hidden while on /my-work.
   const { attention, overdue, dueSoon } = useMyWorkAttention();
 
   // Workspace skill (agent-playbook) drift for the sidebar Settings badge
@@ -287,21 +282,23 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   // badge stays dark (REEF-257 AC3).
   const skillOutdated = skillStatus.data?.up_to_date === false;
 
-  // Resolve the badge a nav link shows, if any. Returns null while the link is
-  // active so the page itself owns the signal then (matches Activity; for
-  // Settings the drift detail + update affordance lives on the page).
+  // Resolve the badge a nav link shows, if any. Suggestions is intentionally
+  // handled first because its actionable count remains visible on the active
+  // page; other destinations own their signal while active.
   function navBadgeFor(href: string, isActive: boolean): NavBadge | null {
-    if (isActive) return null;
-    if (href === "/activity" && unreadInboxCount > 0) {
+    if (href === "/suggestions" && pendingSuggestionsCount > 0) {
       return {
         kind: "count",
-        display: cap(unreadInboxCount),
-        label: t("badge.unread", { count: unreadInboxCount }),
+        display: cap(pendingSuggestionsCount),
+        label: t("badge.pendingSuggestions", {
+          count: pendingSuggestionsCount,
+        }),
         tone: "brand",
-        badgeTestId: "activity-unread-badge",
-        dotTestId: "activity-unread-dot",
+        badgeTestId: "suggestions-pending-badge",
+        dotTestId: "suggestions-pending-dot",
       };
     }
+    if (isActive) return null;
     if (href === "/my-work" && attention > 0) {
       const parts: string[] = [];
       if (overdue > 0) parts.push(t("badge.overdue", { count: overdue }));
@@ -338,6 +335,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   const chordRef = useRef<{ prefix: string; timer: number | null } | null>(
     null,
   );
+  const commandDestinationRef = useRef<HTMLElement>(null);
 
   const clearChord = useCallback(() => {
     if (chordRef.current?.timer) {
@@ -355,14 +353,6 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
       };
     },
     [clearChord],
-  );
-
-  const navigateTo = useCallback(
-    (href: string) => {
-      clearChord();
-      router.push(withVault(vault, href));
-    },
-    [clearChord, router, vault],
   );
 
   const resolveShortcutScope = useCallback((): ShortcutScope => {
@@ -397,148 +387,25 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
     [requestQuickEdit, selectionActive],
   );
 
-  const shortcutRegistry = useMemo<ShortcutBinding[]>(
-    () => [
-      {
-        labelKey: "showKeyboardShortcuts",
-        scope: "global",
-        keys: [
-          { key: "?", modKey: true, shiftKey: true },
-          { key: "/", modKey: true, shiftKey: true },
-        ],
-        allowEditableTarget: true,
-        allowInteractiveTarget: true,
-        handler: toggleShortcuts,
-      },
-      {
-        labelKey: "openGlobalSearch",
-        scope: "global",
-        keys: [{ key: "k", modKey: true }],
-        allowEditableTarget: true,
-        allowInteractiveTarget: true,
-        handler: toggleGlobalSearch,
-      },
-      {
-        labelKey: "newIssue",
-        scope: "global",
-        keys: isFirefoxLike()
-          ? [{ key: "n", code: "KeyN", primaryModKey: true, altKey: true }]
-          : [{ key: "i", code: "KeyI", primaryModKey: true }],
-        allowInteractiveTarget: true,
-        handler: openBlankNewIssueDialog,
-      },
-      {
-        labelKey: "toggleAskAi",
-        scope: "global",
-        keys: [{ key: "a", modKey: true, shiftKey: true }],
-        allowInteractiveTarget: true,
-        handler: toggleAskAi,
-      },
-      {
-        labelKey: "goIssues",
-        scope: "global",
-        keys: [{ key: "g" }],
-        handler: () => startChord("g"),
-      },
-      {
-        labelKey: "goIssues",
-        scope: "global",
-        chordPrefix: "g",
-        keys: [{ key: "i" }],
-        handler: () => navigateTo("/issues"),
-      },
-      {
-        labelKey: "goMyWork",
-        scope: "global",
-        chordPrefix: "g",
-        keys: [{ key: "m" }],
-        handler: () => navigateTo("/my-work"),
-      },
-      {
-        labelKey: "goActivity",
-        scope: "global",
-        chordPrefix: "g",
-        keys: [{ key: "a" }],
-        handler: () => navigateTo("/activity"),
-      },
-      {
-        labelKey: "goReports",
-        scope: "global",
-        chordPrefix: "g",
-        keys: [{ key: "r" }],
-        handler: () => navigateTo("/reports"),
-      },
-      {
-        labelKey: "goBacklog",
-        scope: "global",
-        chordPrefix: "g",
-        keys: [{ key: "b" }],
-        handler: () => navigateTo("/issues?view=backlog"),
-      },
-      {
-        labelKey: "closeDialogClearSearch" as const,
-        scope: "list",
-        keys: [{ key: "Escape" }],
-        handler: clearIssueSelection,
-      },
-      ...(["list", "board"] as const).flatMap<ShortcutBinding>((scope) => [
-        {
-          labelKey: "focusNextIssue" as const,
-          scope,
-          keys: [{ key: "j" }, { key: "ArrowDown" }],
-          handler: () => moveIssueFocus(scope, 1),
-        },
-        {
-          labelKey: "focusPreviousIssue" as const,
-          scope,
-          keys: [{ key: "k" }, { key: "ArrowUp" }],
-          handler: () => moveIssueFocus(scope, -1),
-        },
-        {
-          labelKey: "openFocusedIssue" as const,
-          scope,
-          keys: [{ key: "Enter" }],
-          handler: () => openFocusedIssue(scope),
-        },
-        {
-          labelKey: "editStatus" as const,
-          scope,
-          keys: [{ key: "s" }],
-          handler: () => editFocusedIssue(scope, "status"),
-        },
-        {
-          labelKey: "editAssignee" as const,
-          scope,
-          keys: [{ key: "a" }],
-          handler: () => editFocusedIssue(scope, "assignee"),
-        },
-        {
-          labelKey: "editPriority" as const,
-          scope,
-          keys: [{ key: "p" }],
-          handler: () => editFocusedIssue(scope, "priority"),
-        },
-        {
-          labelKey: "editLabels" as const,
-          scope,
-          keys: [{ key: "l" }],
-          handler: () => editFocusedIssue(scope, "labels"),
-        },
-      ]),
-    ],
-    [
-      editFocusedIssue,
-      clearIssueSelection,
-      moveIssueFocus,
-      navigateTo,
-      openFocusedIssue,
-      openBlankNewIssueDialog,
-      startChord,
-      toggleAskAi,
-      toggleGlobalSearch,
-      toggleShortcuts,
-    ],
-  );
+  const focusCommandDestination = useCallback(() => {
+    commandDestinationRef.current?.focus({ preventScroll: true });
+  }, []);
+
+  const commandRegistry = useCommandRegistry({
+    vault: vault ?? "",
+    togglePalette: toggleGlobalSearch,
+    toggleShortcuts,
+    openNewIssue: openBlankNewIssueDialog,
+    toggleAskAi,
+    startChord,
+    clearChord,
+    focusDestination: focusCommandDestination,
+    clearSelection: clearIssueSelection,
+    moveIssueFocus,
+    openFocusedIssue,
+    editFocusedIssue,
+  });
+  const shortcutRegistry = commandRegistry.shortcutBindings;
 
   // Global shortcut dispatcher. Bindings are declared above with scope +
   // key contracts; this stays the shell's single keydown listener.
@@ -562,7 +429,18 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   }, [clearChord, resolveShortcutScope, shortcutRegistry]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div
+      className={cn(
+        "flex h-screen overflow-hidden bg-background",
+        // Server-rendered controls look ready before React has attached their
+        // handlers. Keep the shell out of the visible interaction surface for
+        // that brief window so early pointer and keyboard input is not silently
+        // discarded.
+        !interactionReady && "invisible",
+      )}
+      aria-busy={!interactionReady}
+      data-interaction-ready={interactionReady}
+    >
       {/* Sidebar */}
       <aside
         className={cn(
@@ -685,12 +563,13 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                           className="h-[18px] w-[18px] shrink-0 stroke-[1.9]"
                         />
                         {badge && (
-                          <span
+                          <output
                             data-testid={badge.dotTestId}
                             className={cn(
                               "absolute right-1 top-1 h-1.5 w-1.5 rounded-full",
                               NAV_BADGE_DOT[badge.tone],
                             )}
+                            aria-live="polite"
                             aria-label={badge.label}
                           />
                         )}
@@ -704,8 +583,9 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                             // collapsed layout, parked in the badge gutter where
                             // the count pills sit so the right edge stays a single
                             // scan column (REEF-257).
-                            <span
+                            <output
                               data-testid={badge.badgeTestId}
+                              aria-live="polite"
                               aria-label={badge.label}
                               className={cn(
                                 "ml-auto inline-block h-1.5 w-1.5 rounded-full",
@@ -713,8 +593,9 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                               )}
                             />
                           ) : (
-                            <span
+                            <output
                               data-testid={badge.badgeTestId}
+                              aria-live="polite"
                               aria-label={badge.label}
                               className={cn(
                                 "ml-auto inline-flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-semibold leading-none tabular-nums",
@@ -722,7 +603,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
                               )}
                             >
                               {badge.display}
-                            </span>
+                            </output>
                           ))}
                       </>
                     )}
@@ -744,7 +625,14 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
 
       <div className="flex flex-1 flex-col overflow-hidden">
         <OfflineBanner />
-        <main className="flex-1 overflow-auto bg-background">{children}</main>
+        <main
+          ref={commandDestinationRef}
+          tabIndex={-1}
+          data-command-focus-destination=""
+          className="flex-1 overflow-auto bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/40"
+        >
+          {children}
+        </main>
       </div>
 
       {/* Global new-issue dialog — single instance for the whole shell so any
@@ -759,7 +647,17 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
       {/* Global ⌘K search palette. consistently mounted; controlled via
           useGlobalSearchStore so the keyboard shortcut and any future
           toolbar trigger share one canonical source. */}
-      <GlobalSearchDialog />
+      <GlobalSearchDialog registry={commandRegistry} />
+
+      <CloseIssueDialog
+        open={commandRegistry.pendingClose !== null}
+        issueId={commandRegistry.pendingClose?.issueId ?? ""}
+        disabled={commandRegistry.mutationPending}
+        onOpenChange={(open) => {
+          if (!open) commandRegistry.setPendingClose(null);
+        }}
+        onConfirm={commandRegistry.confirmPendingClose}
+      />
 
       {/* Keyboard shortcuts cheat sheet (⌘?). Same single-mount pattern —
           opened by the keybinding for now, but a future "Help" entry

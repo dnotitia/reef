@@ -107,6 +107,8 @@ describe("templates", () => {
       { status: 201, body: { name: REEF_COMMENTS_TABLE } },
       { status: 201, body: { name: REEF_ATTACHMENTS_TABLE } },
       { status: 201, body: { name: REEF_ACTIVITY_TABLE } },
+      { status: 201, body: { name: "reef_notifications" } },
+      { status: 201, body: { name: "reef_subscriptions" } },
       { body: makeListTablesResponse(ALL_REEF_TABLES) },
       // probe SELECT: empty (table now exists)
       { body: makeSqlQueryResponse([], TEMPLATE_ROW_COLUMNS) },
@@ -121,12 +123,12 @@ describe("templates", () => {
         template: SAMPLE_TEMPLATE,
       }),
     ).resolves.toBeUndefined();
-    expect(calls).toHaveLength(15);
+    expect(calls).toHaveLength(17);
     const createNames = calls
-      .slice(1, 12)
+      .slice(1, 14)
       .map((c) => JSON.parse(c.init?.body as string).name);
     expect(createNames).toEqual(ALL_REEF_TABLES);
-    const insertSql = JSON.parse(calls[14]?.init?.body as string).sql;
+    const insertSql = JSON.parse(calls[16]?.init?.body as string).sql;
     expect(insertSql).toContain("INSERT INTO reef_templates");
   });
 

@@ -63,7 +63,7 @@ test.describe("Activity last-scan label i18n (REEF-300)", () => {
       .context()
       .addCookies([{ name: "NEXT_LOCALE", value: "ko", url: origin }]);
 
-    await page.goto("/workspace/reef-e2e/activity");
+    await page.goto("/workspace/reef-e2e/suggestions");
 
     // A real scan persists last_scan_at through the client mutation and bumps
     // the re-read; the staleness label then renders the freshly-scanned time.

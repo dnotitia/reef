@@ -8,7 +8,7 @@ interface ActivityState {
 }
 
 /**
- * Zustand store for Activity Hub UI state.
+ * Zustand store for Suggestions queue UI state.
  *
  * Rules:
  *  - consistently use granular selectors: `useActivityStore(state => state.activityTypeFilter)`

@@ -121,11 +121,11 @@ describe("ActivityFeed", () => {
     expect(screen.queryByText(/loading/i) ?? document.body).toBeInTheDocument();
   });
 
-  it("renders activity filter buttons (All / AI Drafts / Status Changes)", () => {
+  it("renders suggestion filter buttons (All / Draft issues / Status Changes)", () => {
     render(wrap(<ActivityFeed vault="reef-acme" />));
     expect(screen.getByRole("button", { name: /All/i })).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /AI Drafts/i }),
+      screen.getByRole("button", { name: /Draft issues/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /Status Changes/i }),

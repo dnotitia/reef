@@ -3,6 +3,8 @@ import {
   readFixtureState,
   resetFixture,
   signInAsAlice,
+  waitForPasswordLogin,
+  writeIndexedDbConfig,
 } from "./harness/fixture";
 
 test.describe("Hermetic onboarding flow", () => {
@@ -53,13 +55,86 @@ test.describe("Hermetic onboarding flow", () => {
     await signInAsAlice(page);
     await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
 
-    await page.getByText("Use an existing reef workspace").click();
+    await expect(
+      page.locator('[data-testid="greenfield-vault-name-input"]'),
+    ).toBeVisible();
+  });
 
-    await expect(
-      page.locator('[data-testid="onboarding-empty-state"]'),
-    ).toContainText(/No existing reef workspaces found/i);
-    await expect(
-      page.locator('[data-testid="onboarding-continue-btn"]'),
-    ).toBeDisabled();
+  test("prefers a remembered configured workspace", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "configured_multi");
+    await page.goto("/login");
+    await waitForPasswordLogin(page);
+    await writeIndexedDbConfig(page, "akb_user_id", "user-alice");
+    await writeIndexedDbConfig(page, "vault", "reef-zeta");
+
+    await signInAsAlice(page);
+    await expect(page).toHaveURL(/\/workspace\/reef-zeta\/issues\/?$/, {
+      timeout: 15_000,
+    });
+  });
+
+  test("rechecks a remembered workspace after cached selection and re-login", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "configured_multi");
+    await signInAsAlice(page);
+    await expect(page).toHaveURL(/\/workspace\/reef-alpha\/issues\/?$/, {
+      timeout: 15_000,
+    });
+    await expect
+      .poll(() =>
+        page.evaluate(() => localStorage.getItem("REACT_QUERY_OFFLINE_CACHE")),
+      )
+      .toContain("reef-alpha");
+
+    await context.clearCookies();
+    await writeIndexedDbConfig(page, "akb_user_id", "user-alice");
+    await writeIndexedDbConfig(page, "vault", "reef-zeta");
+    await page.goto("/login");
+    await waitForPasswordLogin(page);
+
+    await signInAsAlice(page);
+    await expect(page).toHaveURL(/\/workspace\/reef-zeta\/issues\/?$/, {
+      timeout: 15_000,
+    });
+  });
+
+  test("uses ASCII order for an invalid remembered workspace", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "configured_multi");
+    await page.goto("/login");
+    await waitForPasswordLogin(page);
+    await writeIndexedDbConfig(page, "akb_user_id", "user-alice");
+    await writeIndexedDbConfig(page, "vault", "missing");
+
+    await signInAsAlice(page);
+    await expect(page).toHaveURL(/\/workspace\/reef-alpha\/issues\/?$/, {
+      timeout: 15_000,
+    });
+  });
+
+  test("auto-resumes direct onboarding and Back does not return to it", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "configured");
+    await signInAsAlice(page);
+    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/?$/, {
+      timeout: 15_000,
+    });
+
+    await page.goto("/onboarding");
+    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/?$/, {
+      timeout: 15_000,
+    });
+    await page.goBack();
+    await expect(page).not.toHaveURL(/\/onboarding\/?$/);
   });
 });

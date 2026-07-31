@@ -197,6 +197,22 @@ describe("proxy — credential redaction", () => {
     expect(capture.sink.join("")).toContain("?vault=reef-test");
   });
 
+  it("redacts content-search q values while retaining safe request metadata", () => {
+    const privateSearchTerm = "private-comment-lighthouse";
+    const request = new NextRequest(
+      `https://reef.test/api/issues/search-content?vault=reef-test&q=${privateSearchTerm}&limit=10`,
+      { method: "GET" },
+    );
+
+    proxy(request);
+
+    const line = requestLine(capture.sink);
+    expect(line?.path).toBe("/api/issues/search-content");
+    expect(line?.route_class).toBe("/api/issues");
+    expect(line?.query).toBe("?vault=reef-test&q&limit=10");
+    expect(capture.sink.join("")).not.toContain(privateSearchTerm);
+  });
+
   it("emits structured request metadata through the shared pino logger", () => {
     const request = new NextRequest(
       "https://reef.test/api/issues?vault=reef-test",
@@ -303,8 +319,16 @@ describe("proxy — credential redaction", () => {
     //  - /_next/static, /_next/image, /favicon.ico (static assets)
     //  - /api/metrics (Prometheus scrape endpoint — machine-to-machine,
     //    excluded so CSP headers are not injected on every Prometheus poll)
+    //  - router prefetch requests (no rendered response needs a fresh nonce,
+    //    and keeping them out of Proxy avoids abort-related runtime errors)
     expect(config.matcher).toEqual([
-      "/((?!_next/static|_next/image|favicon.ico|api/metrics).*)",
+      {
+        source: "/((?!_next/static|_next/image|favicon.ico|api/metrics).*)",
+        missing: [
+          { type: "header", key: "next-router-prefetch" },
+          { type: "header", key: "purpose", value: "prefetch" },
+        ],
+      },
     ]);
   });
 

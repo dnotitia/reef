@@ -103,8 +103,8 @@ advisory, opens matches in a new tab for
 inspection, can be dismissed as a contextual group for the current writing
 session, and never blocks creating or approving an issue.
 
-The same human-in-the-loop pattern governs the second AI surface: the
-**Activity Hub**, where the agent's autonomously detected proposals —
+The same human-in-the-loop pattern governs the second AI surface:
+**Suggestions**, where the agent's autonomously detected proposals —
 new-issue drafts and status changes inferred from repo activity — wait for the
 PM's Approve / Edit / Dismiss. And a third surface, the **Ask AI** panel, lets
 the PM interrogate the codebase conversationally with the same read-only
@@ -299,10 +299,16 @@ discipline applied at the component level.
 
 ### Dark Mode
 
-Both modes are first-class. The `.dark` class on `<html>` is set synchronously
-by a no-flash boot script that honors the stored light/dark/system preference,
-consulting `prefers-color-scheme` for "system" at boot and on OS changes. Every
-semantic token has a dark variant.
+Both modes are first-class. After client hydration, the `.dark` class on
+`<html>` follows the stored light/dark/system preference; the `system` choice
+consults `prefers-color-scheme` initially and on OS changes. Every semantic
+token has a dark variant.
+
+Theme synchronization has one root-level client owner rather than living in the
+authenticated dashboard shell. Direct entries into login, onboarding,
+not-found, and recoverable error routes therefore hydrate the same persisted
+light/dark/system preference and keep following OS changes when the preference
+is `system`.
 
 ### Typography
 
@@ -339,7 +345,7 @@ fluid main column:
 
 - **Sidebar** — collapsible between an expanded `w-60` and a `w-14` icon rail.
   It holds the reef wordmark, a prominent New Issue button, the primary nav
-  (Issues / My Work / Planning / Activity / Reports / Settings), a footer
+  (Issues / My Work / Planning / Suggestions / Reports / Settings), a footer
   utility row for keyboard shortcuts, and the workspace/account identity block.
   App-version context lives in the account menu as a release-notes link.
 - **Main column** — a per-page header and the page body. The Issues page body
@@ -511,6 +517,13 @@ sub-issue rows use the same compact issue-row rhythm as the rest of the detail
 panel; their issue-type mark is glyph-only in the visual row, with the localized
 type name kept for screen readers.
 
+The chrome also carries an actor-scoped notification control. Its trigger names
+and shows the effective **Watch / Watching / Muted** state, while the menu
+offers Watch and Mute. Changes update optimistically, block duplicate input
+while pending, and reconcile with the server after success or rollback with a
+toast after failure. The preference is account-backed rather than browser-local
+and is refetched when the panel mounts or the window regains focus.
+
 Comments in that timeline are threaded without deep visual nesting. A top-level
 comment anchors one timeline position; replies stay beneath it behind a single
 hairline, including replies to replies. Reply controls open one inline composer
@@ -518,13 +531,22 @@ at a time, name the direct parent author, preserve the draft with an inline
 error on failure, and close on cancel or success. The root timestamp determines
 the thread's position among system events, while replies sort within the thread.
 
-### Activity Hub
+### Suggestions Review Queue
 
-`/activity` is the PM's review queue for everything the agent detected. A
-background scan of the configured monitored repo (auto-triggered from the
-shell, and manually refreshable here) feeds an akb activity inbox; the sidebar
-shows an unread badge until the PM visits, at which point the feed records the
-visit and clears it.
+`/workspace/{vault}/suggestions` is the PM's single review queue for proposals
+detected by the agent. A background scan of the configured monitored
+repositories (auto-triggered from the shell and manually refreshable here)
+feeds the existing akb suggestion storage. The sidebar badge is the total
+number of `pending` suggestions, independent of page visits or future
+notification unread state. It remains visible on the active route, uses a
+numbered pill in the expanded sidebar and an equivalently named dot in the
+collapsed rail, and decreases only when a review action changes queue state.
+
+`/workspace/{vault}/activity` remains a replace-style compatibility redirect to
+Suggestions and preserves single, repeated, and empty query values. The legacy
+flat `/activity` route still resolves the remembered, accessible workspace
+before following the same redirect. The issue-detail **Activity** timeline is a
+separate immutable audit surface and keeps its name and behavior.
 
 The feed is a list of purple-tinted AI cards in two variants, each
 human-in-the-loop:
@@ -541,11 +563,13 @@ human-in-the-loop:
   excluded — closing needs a reason and stays in the close dialog).
 
 When the PM returns after an absence with new items waiting, a brand-tinted
-**"Since you were last here"** summary card leads the feed with the counts,
-dismissible with "Got it". Type filters (All / AI Drafts / Status Changes)
-sit above the feed. Dismissed and approved suggestions persist as akb activity
-suggestion state so they don't reappear for the workspace. The empty state reads
-"No AI drafts or status changes to review."
+**"New since your last review"** summary card can still orient them without
+changing the pending badge. Type filters (All / Draft issues / Status Changes)
+sit above the queue. Each purple card carries a text AI provenance badge, so
+the source is not conveyed by color alone or promoted into the page title.
+Dismissed and approved suggestions persist as akb suggestion state so they
+don't reappear for the workspace. The empty state reads "No suggestions to
+review."
 
 ### Ask AI
 
@@ -568,15 +592,21 @@ browser's own storage), the previous account's workspace-scoped browser state
 is reconciled away, and the user enters the app. There is no GitHub-OAuth
 sign-in, no popup, and no management-repository selection.
 
-First-time users hit an **OnboardingGuard** that redirects to `/onboarding`
-until setup is complete. Onboarding is a single screen whose required step is
+After session validation, reef checks the user's accessible workspaces before
+showing onboarding. If at least one already has reef configuration, the app
+restores a valid last-viewed workspace or deterministically chooses one, saves
+that browser fallback, and replaces the current history entry with its Issues
+URL. During this check the creation form stays hidden; a failed list request
+shows an explicit retry state.
+
+Users with no configured workspace enter `/onboarding`. Its required step is
 **Create a project workspace**: name a new akb vault (lowercase/digits/
 hyphens), choose an issue **prefix** (uppercase, e.g. `REEF`), optionally add a
-description and monitored repositories, and create. A secondary, collapsed path
-lets the user pick an existing reef workspace instead. Monitored repository
-access comes from deployment-managed GitHub credentials, so onboarding
-configures a *workspace*, not a Git repo, and no issue is committed under
-anyone's GitHub identity.
+description and monitored repositories, and create. Raw vaults do not count as
+configured workspaces and therefore do not bypass onboarding. Monitored
+repository access comes from deployment-managed GitHub
+credentials, so onboarding configures a *workspace*, not a Git repo, and no
+issue is committed under anyone's GitHub identity.
 
 ### Planning, Reports, Settings
 
@@ -621,11 +651,12 @@ Enrichment is always explicitly triggered (never on keystroke), always
 reviewable, and always optional — an issue can be created with no AI
 involvement at all, and a missing AI deployment simply disables the button.
 
-### Journey 2 — Morning Review at the Activity Hub
+### Journey 2 — Morning Suggestions Review
 
-1. The PM returns and sees the **Activity** nav item carrying an unread badge.
-2. They open `/activity`. A "Since you were last here" summary leads with the
-   counts; visiting clears the unread badge.
+1. The PM returns and sees the **Suggestions** nav item carrying the total
+   pending count.
+2. They open `/workspace/{vault}/suggestions`. The queue title says
+   "Suggestions to review"; visiting does not change the pending count.
 3. They scan the purple cards. For each **AI Status Change**, the from→to
    transition, rationale, and evidence count tell them why the agent thinks the
    work moved; for each **AI Draft**, the title, preview, and confidence tell
@@ -655,7 +686,8 @@ that exist and define the experience:
   linked documents, the activity timeline, and the relations/refs editors.
 - **AI surfaces.** `EnrichmentReviewBar` (the purple strip with loading/empty/
   error/progress states), `FieldSuggestion` (the inline per-field review card),
-  `ConfidenceBadge`, `TextDiff` (word/line diffs), the Activity `ActivityFeed`
+  `ConfidenceBadge`, `TextDiff` (word/line diffs), the Suggestions
+  `ActivityFeed`
   / `ActivityItemCard` / `UnreviewedSummaryCard`, and the Ask AI
   `AskAiFab` / `AskAiDialog` / `ChatSurface`.
 - **Shell.** `DashboardShell` (sidebar, nav, account/release context, global
@@ -675,7 +707,8 @@ Three feedback sources are treated distinctly:
   inline edits in the detail panel are silent except for the header Saving…/
   Saved indicator; filters/sorts re-render silently.
 - **AI actions** — always purple. Enrichment shows a loading strip, then
-  per-field review cards; the Activity feed shows purple proposal cards;
+  per-field review cards; the Suggestions queue shows purple proposal cards
+  with text provenance;
   confidence is always visible.
 - **System errors** — translated to PM vocabulary, shown inline with
   `role="alert"` or as a toast, never as Git or raw backend errors.
@@ -690,14 +723,14 @@ actions (Delete) are red and confirmed.
 Loading uses TanStack Query's `isPending` with shadcn `<Skeleton>` placeholders
 shaped like the content they replace (column skeletons on the board, table rows
 for list/backlog, a structured skeleton in the detail panel, settings group
-skeletons, row skeletons in the activity feed), plus a slow shimmer. The **AI
+skeletons, row skeletons in the Suggestions queue), plus a slow shimmer. The **AI
 enrichment loading state is purple-tinted** — the
 `EnrichmentReviewBar`'s "Analyzing fields…" strip uses the `--ai-subtle`
 surface with a spinning indicator, matching the purple of the suggestions it
 precedes — so AI work is visually distinct from neutral content loading.
 
 Empty states explain and offer a next step: an unconfigured workspace points to
-Settings; an empty activity feed says there's nothing to review; an
+Settings; an empty Suggestions queue says there's nothing to review; an
 enrichment that returns nothing says "No additional suggestions." A screen is
 never left blank.
 
@@ -710,12 +743,57 @@ is surfaced as a save conflict, not a merge conflict. AI degradation is
 silent and total — when the deployment lacks AI, the affordances vanish and the
 core product is unaffected.
 
+Unmatched URLs and recoverable App Router render failures use one shell-free
+Reef error family: mark and wordmark, a short catalog-backed title and
+description, and only the actions that are safe without assuming authentication
+or workspace state. A 404 keeps the real HTTP 404 and offers one `/` home
+action. A recoverable render error offers Next.js retry plus the same `/` home
+path. Neither surface guesses a vault, depends on browser history, or exposes an
+error message, stack, or digest.
+
 ### Keyboard Shortcuts
 
-Global shortcuts are registered at the shell: **⌘N** opens New Issue, **⌘K**
-toggles global search, **⌘⇧A** toggles Ask AI, **⌘?** opens the
-keyboard-shortcuts sheet, and **Esc** closes the active panel. Text-field focus
-is respected so typing is never hijacked.
+Global shortcuts are registered once at the shell from the same app-action
+catalog used by the command palette and keyboard-shortcuts sheet: **⌘I** opens
+New Issue (**⌘⌥N** on Firefox), **⌘K** toggles search and commands, **⌘⇧A**
+toggles Ask AI, **⌘?** opens the keyboard-shortcuts sheet, and **Esc** closes
+the active panel. Text-field focus is respected so typing is never hijacked.
 When List selection is active, the single-issue `s` / `a` / `p` / `l`
 shortcuts are suppressed and Esc clears the selection only after any focused
 interactive overlay has had the chance to consume it.
+
+### Global Search
+
+The `⌘K` palette keeps metadata search authoritative: server order, canonical
+exact-ID promotion, recent issues, relation commands, `shouldFilter={false}`,
+and native modified-click behavior remain unchanged. Once a trimmed query has
+at least two Unicode code points and fits the 180 UTF-16 code-unit
+content-search bound, a second query searches issue task-document bodies
+semantically and comment bodies as case-insensitive literal text. Those hits
+appear in a separate **Body & comment matches** group below metadata, with a
+source badge, bounded snippet, and text-node-only literal highlighting. Issues
+already visible in metadata are omitted from the auxiliary group.
+
+Content search owns no error or empty message. A failed, degraded, unsupported,
+or empty content response hides the entire auxiliary group without a toast and
+leaves metadata search usable. Its initial and expansion requests participate
+in the palette's teal progress hairline, `aria-busy`, and polite live status.
+Expansion re-requests the same query at limits `10 → 20 → … → 50`, retains the
+settled rows while loading, and never presents an estimated corpus total.
+
+An empty palette places a compact **Commands** entry above the eight recent
+issues. A leading `>` or that entry switches the existing dialog into local
+command mode; metadata and body/comment search remain disabled until the
+palette returns to search mode. Commands use localized labels and aliases,
+support nested pages with a visible breadcrumb, keep the input as the sole
+keyboard focus, pop a page with Esc or empty-query Backspace, and close from
+the root with Esc.
+
+Navigation and view commands stay scoped to the active vault. View changes
+preserve the Issues workspace's filter, search, sort, and ordering query.
+Single-issue status, assignee, and priority commands resolve the detail issue
+before a focused list/board issue and disappear while multi-selection is
+active. Mutations re-read the latest cached entity, skip same-value patches,
+and route Closed through the existing close-reason dialog. Focus returns to
+the invoking control for same-surface actions; navigation, locale changes, and
+dialog handoffs deliberately transfer it.

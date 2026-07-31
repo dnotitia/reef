@@ -6,6 +6,8 @@ export const E2E_MOCK_URL =
 export type FixtureScenario =
   | "empty"
   | "configured"
+  | "content_search"
+  | "configured_multi"
   | "demo_board"
   | "raw_only"
   | "activity_suggestions"
@@ -70,6 +72,12 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
       event_type: string;
       payload: unknown;
     }>;
+    subscriptions: Array<{
+      reef_id: string;
+      subscriber: string;
+      source: string;
+      status: string;
+    }>;
     documents: Array<{
       path: string;
       title: string;
@@ -95,6 +103,34 @@ export async function setIssueListFailure(
   const response = await request.post(
     `${E2E_MOCK_URL}/__e2e/issue-list-failure`,
     { data: { enabled } },
+  );
+  expect(response.ok()).toBeTruthy();
+}
+
+export async function setContentSearchMode(
+  request: APIRequestContext,
+  mode: "healthy" | "degraded" | "error" | "missing-comments",
+  delayMs = 0,
+): Promise<void> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/content-search-control`,
+    { data: { mode, delay_ms: delayMs } },
+  );
+  expect(response.ok()).toBeTruthy();
+}
+
+export async function setVaultListControl(
+  request: APIRequestContext,
+  control: { delayMs?: number; failures?: number },
+): Promise<void> {
+  const response = await request.post(
+    `${E2E_MOCK_URL}/__e2e/vault-list-control`,
+    {
+      data: {
+        delay_ms: control.delayMs ?? 0,
+        failures: control.failures ?? 0,
+      },
+    },
   );
   expect(response.ok()).toBeTruthy();
 }
@@ -199,32 +235,31 @@ export async function signInAndSelectExistingWorkspace(
   vault = REEF_E2E_VAULT,
 ): Promise<void> {
   await signInAsAlice(page);
-  await page.waitForURL(/\/onboarding$/, { timeout: 10_000 });
-
-  await page.getByText("Use an existing reef workspace").click();
-  await page.locator('[data-testid="active-vault-trigger"]').click();
-  await expect(
-    page.locator(`[data-testid="active-vault-option-${vault}"]`),
-  ).toBeVisible();
-  await expect(
-    page.locator('[data-testid="active-vault-option-raw-vault"]'),
-  ).toHaveCount(0);
-  await page.locator(`[data-testid="active-vault-option-${vault}"]`).click();
-
-  await expect(
-    page.locator('[data-testid="onboarding-continue-btn"]'),
-  ).toBeEnabled();
+  await expect(page).toHaveURL(
+    new RegExp(`/workspace/${escapeRegExp(vault)}/issues/?$`),
+    { timeout: 15_000 },
+  );
 }
 
 export async function continueToWorkspace(
   page: Page,
   vault = REEF_E2E_VAULT,
 ): Promise<void> {
-  await page.locator('[data-testid="onboarding-continue-btn"]').click();
   await expect(page).toHaveURL(
     new RegExp(`/workspace/${escapeRegExp(vault)}/issues/?$`),
     { timeout: 15_000 },
   );
+
+  // The auto-resume redirect can settle before DashboardShell's client effects
+  // install the global shortcut listener. Prove the shell is interactive so a
+  // caller's first shortcut is not lost in that hydration window.
+  const globalSearchInput = page.locator('[data-testid="global-search-input"]');
+  await expect(async () => {
+    await page.keyboard.press("Control+K");
+    await expect(globalSearchInput).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  await page.keyboard.press("Escape");
+  await expect(globalSearchInput).toHaveCount(0);
 }
 
 export async function openExistingWorkspace(

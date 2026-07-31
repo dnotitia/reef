@@ -1,39 +1,20 @@
-/** Stable catalog key under `misc.shortcutGroups.*` (locale owns the wording). */
-export type ShortcutGroupKey = "navigation" | "issues" | "ai" | "misc";
+import {
+  type AppActionGroup,
+  type AppActionKeySpec,
+  type AppActionScope,
+  getCheatsheetGroups,
+} from "@/features/commands/lib/appActionCatalog";
 
-/** Stable catalog key under `misc.shortcutActions.*` (locale owns the wording). */
-export type ShortcutActionKey =
-  | "openGlobalSearch"
-  | "showKeyboardShortcuts"
-  | "goIssues"
-  | "goMyWork"
-  | "goActivity"
-  | "goReports"
-  | "goBacklog"
-  | "newIssue"
-  | "focusNextIssue"
-  | "focusPreviousIssue"
-  | "openFocusedIssue"
-  | "editStatus"
-  | "editAssignee"
-  | "editPriority"
-  | "editLabels"
-  | "toggleAskAi"
-  | "closeDialogClearSearch";
-
-export type ShortcutScope = "global" | "list" | "board" | "detail";
-
-export interface ShortcutKeySpec {
-  key: string;
-  code?: string;
-  modKey?: boolean;
-  primaryModKey?: boolean;
-  shiftKey?: boolean;
-  altKey?: boolean;
-}
+/** Stable catalog key below `commands.groups.*` (locale owns the wording). */
+export type ShortcutGroupKey = AppActionGroup;
+export type ShortcutActionKey = string;
+export type ShortcutScope = AppActionScope;
+export type ShortcutKeySpec = AppActionKeySpec;
 
 export interface Shortcut {
-  /** Catalog key for the short, action-style label (resolved at render). */
+  /** Stable action id shared by every projection. */
+  id: string;
+  /** Catalog key below `commands.actions.*`. */
   labelKey: ShortcutActionKey;
   /** Symbolic key parts in display order. Modifier slots use the magic
    *  strings "mod" (⌘ on macOS, Ctrl elsewhere) and "shift"; literal keys
@@ -52,68 +33,24 @@ export interface ShortcutGroup {
   shortcuts: ReadonlyArray<Shortcut>;
 }
 
-export const SHORTCUT_GROUPS: ReadonlyArray<ShortcutGroup> = [
-  {
-    titleKey: "navigation",
-    shortcuts: [
-      { labelKey: "openGlobalSearch", keys: ["mod", "K"], scope: "global" },
-      {
-        labelKey: "showKeyboardShortcuts",
-        keys: ["mod", "?"],
-        scope: "global",
-      },
-      { labelKey: "goIssues", keys: ["G", "I"], scope: "global" },
-      { labelKey: "goMyWork", keys: ["G", "M"], scope: "global" },
-      { labelKey: "goActivity", keys: ["G", "A"], scope: "global" },
-      { labelKey: "goReports", keys: ["G", "R"], scope: "global" },
-      { labelKey: "goBacklog", keys: ["G", "B"], scope: "global" },
-    ],
-  },
-  {
-    titleKey: "issues",
-    shortcuts: [
-      {
-        labelKey: "newIssue",
-        keys: ["mod", "I"],
-        firefoxKeys: ["mod", "alt", "N"],
-        scope: "global",
-      },
-      {
-        labelKey: "focusNextIssue",
-        keys: ["J"],
-        alternateKeys: [["arrowDown"]],
-        scope: "list",
-      },
-      {
-        labelKey: "focusPreviousIssue",
-        keys: ["K"],
-        alternateKeys: [["arrowUp"]],
-        scope: "list",
-      },
-      { labelKey: "openFocusedIssue", keys: ["enter"], scope: "list" },
-      { labelKey: "editStatus", keys: ["S"], scope: "list" },
-      { labelKey: "editAssignee", keys: ["A"], scope: "list" },
-      { labelKey: "editPriority", keys: ["P"], scope: "list" },
-      { labelKey: "editLabels", keys: ["L"], scope: "list" },
-    ],
-  },
-  {
-    titleKey: "ai",
-    shortcuts: [
-      { labelKey: "toggleAskAi", keys: ["mod", "shift", "A"], scope: "global" },
-    ],
-  },
-  {
-    titleKey: "misc",
-    shortcuts: [
-      {
-        labelKey: "closeDialogClearSearch",
-        keys: ["Esc"],
-        scope: "global",
-      },
-    ],
-  },
-];
+export const SHORTCUT_GROUPS: ReadonlyArray<ShortcutGroup> =
+  getCheatsheetGroups().map(({ group, actions }) => ({
+    titleKey: group,
+    shortcuts: actions.flatMap((descriptor) =>
+      descriptor.shortcut
+        ? [
+            {
+              id: descriptor.id,
+              labelKey: descriptor.labelKey,
+              keys: descriptor.shortcut.keys,
+              alternateKeys: descriptor.shortcut.alternateKeys,
+              firefoxKeys: descriptor.shortcut.firefoxKeys,
+              scope: descriptor.shortcut.scope,
+            },
+          ]
+        : [],
+    ),
+  }));
 
 export interface ShortcutBinding {
   labelKey: ShortcutActionKey;
@@ -269,7 +206,9 @@ export function isFirefoxLike(): boolean {
   return /Firefox\//i.test(navigator.userAgent);
 }
 
-export function getShortcutKeys(shortcut: Shortcut): ReadonlyArray<string> {
+export function getShortcutKeys(
+  shortcut: Pick<Shortcut, "keys" | "firefoxKeys">,
+): ReadonlyArray<string> {
   return isFirefoxLike() && shortcut.firefoxKeys
     ? shortcut.firefoxKeys
     : shortcut.keys;
@@ -277,7 +216,7 @@ export function getShortcutKeys(shortcut: Shortcut): ReadonlyArray<string> {
 
 export function getNewIssueShortcutKeys(): ReadonlyArray<string> {
   const newIssue = SHORTCUT_GROUPS.flatMap((group) => group.shortcuts).find(
-    (shortcut) => shortcut.labelKey === "newIssue",
+    (shortcut) => shortcut.id === "issue.new",
   );
   return newIssue ? getShortcutKeys(newIssue) : ["mod", "I"];
 }
