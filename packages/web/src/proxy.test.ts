@@ -319,8 +319,16 @@ describe("proxy — credential redaction", () => {
     //  - /_next/static, /_next/image, /favicon.ico (static assets)
     //  - /api/metrics (Prometheus scrape endpoint — machine-to-machine,
     //    excluded so CSP headers are not injected on every Prometheus poll)
+    //  - router prefetch requests (no rendered response needs a fresh nonce,
+    //    and keeping them out of Proxy avoids abort-related runtime errors)
     expect(config.matcher).toEqual([
-      "/((?!_next/static|_next/image|favicon.ico|api/metrics).*)",
+      {
+        source: "/((?!_next/static|_next/image|favicon.ico|api/metrics).*)",
+        missing: [
+          { type: "header", key: "next-router-prefetch" },
+          { type: "header", key: "purpose", value: "prefetch" },
+        ],
+      },
     ]);
   });
 
