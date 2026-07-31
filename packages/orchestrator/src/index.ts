@@ -12,6 +12,7 @@ export {
 } from "./config.js";
 export {
   runOrchestrator,
+  notificationProjectorTick,
   sleep,
   type OrchestratorDomainPorts,
   type OrchestratorLogger,

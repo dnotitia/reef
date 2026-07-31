@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { OrchestratorConfig } from "./config.js";
 import {
   type OrchestratorLogEvent,
   type OrchestratorLogger,
+  notificationProjectorTick,
   runOrchestrator,
 } from "./loop.js";
 
@@ -13,6 +14,7 @@ const baseConfig: OrchestratorConfig = {
   pollIntervalMs: 10,
   shutdownGraceMs: 10,
   akbBaseUrl: null,
+  akbJwt: null,
   llm: null,
   githubApp: null,
 };
@@ -28,6 +30,28 @@ const captureLogger = () => {
 };
 
 describe("runOrchestrator", () => {
+  it("runs the public core projector contract and reports only work counts", async () => {
+    const request = vi.fn(async (_path: string, init?: { body?: unknown }) => {
+      const statement = (init?.body as { sql: string }).sql;
+      if (statement.startsWith("SELECT value FROM reef_settings")) {
+        return { kind: "table_query", columns: ["value"], items: [], total: 0 };
+      }
+      if (statement.includes("INSERT INTO reef_settings")) {
+        return { kind: "table_sql", result: "INSERT 0 1" };
+      }
+      throw new Error("unexpected projector request");
+    });
+
+    await expect(
+      notificationProjectorTick({
+        config: baseConfig,
+        ports: { akb: { request } },
+        signal: new AbortController().signal,
+      }),
+    ).resolves.toEqual({ startedWork: true });
+    expect(JSON.stringify(request.mock.calls)).not.toContain("akbJwt");
+  });
+
   it("reports readiness in dry-run mode without trying to claim work", async () => {
     const { logger, events } = captureLogger();
     let tickCount = 0;

@@ -1,4 +1,9 @@
-import type { AkbAdapter, GitHubAdapter, LlmAdapter } from "@reef/core";
+import {
+  akbRunNotificationProjector,
+  type AkbAdapter,
+  type GitHubAdapter,
+  type LlmAdapter,
+} from "@reef/core";
 import { type OrchestratorConfig, publicOrchestratorConfig } from "./config.js";
 
 export interface OrchestratorDomainPorts {
@@ -76,7 +81,25 @@ export const sleep = (ms: number, signal: AbortSignal): Promise<void> =>
     );
   });
 
-const idleTick: OrchestratorTick = () => ({ startedWork: false });
+export const notificationProjectorTick: OrchestratorTick = async ({
+  config,
+  ports,
+  signal,
+}) => {
+  if (!ports.akb) {
+    throw new Error("orchestrator_akb_adapter_required");
+  }
+  const result = await akbRunNotificationProjector(ports.akb, {
+    vault: config.vault,
+    signal,
+  });
+  return {
+    startedWork:
+      result.activated ||
+      result.activity.scanned > 0 ||
+      result.comment.scanned > 0,
+  };
+};
 
 export async function runOrchestrator(
   config: OrchestratorConfig,
@@ -85,7 +108,7 @@ export async function runOrchestrator(
     ports = {},
     signal = new AbortController().signal,
     sleep: sleepFn = sleep,
-    tick = idleTick,
+    tick = notificationProjectorTick,
     now = () => new Date(),
   }: RunOrchestratorOptions = {},
 ): Promise<OrchestratorRunSummary> {

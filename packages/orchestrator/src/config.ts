@@ -5,6 +5,7 @@ import {
   LLMConfigSchema,
   VaultNameSchema,
 } from "@reef/core";
+import { readFileSync, statSync } from "node:fs";
 
 export const DEFAULT_POLL_INTERVAL_MS = 30_000;
 export const DEFAULT_SHUTDOWN_GRACE_MS = 10_000;
@@ -18,6 +19,8 @@ export interface OrchestratorConfig {
   pollIntervalMs: number;
   shutdownGraceMs: number;
   akbBaseUrl: string | null;
+  /** Deployment-managed only; intentionally absent from the public config. */
+  akbJwt: string | null;
   llm: LLMConfig | null;
   githubApp: GitHubAppConfig | null;
 }
@@ -156,6 +159,38 @@ export function parseOrchestratorArgs(argv: readonly string[]): ParsedArgs {
 const normalizePrivateKey = (raw: string | undefined): string =>
   (raw ?? "").replace(/\\n/g, "\n").trim();
 
+function resolveAkbJwt(env: Record<string, string | undefined>): string | null {
+  const inline = trimToNull(env.REEF_AKB_JWT);
+  const file = trimToNull(env.REEF_AKB_JWT_FILE);
+  if (inline && file) {
+    throw new OrchestratorConfigError([
+      "REEF_AKB_JWT and REEF_AKB_JWT_FILE are mutually exclusive",
+    ]);
+  }
+  if (inline) return inline;
+  if (!file) return null;
+  try {
+    const stat = statSync(file);
+    if (!stat.isFile() || (stat.mode & 0o777) !== 0o600) {
+      throw new OrchestratorConfigError([
+        "REEF_AKB_JWT_FILE must name a mode-0600 regular file",
+      ]);
+    }
+    const value = readFileSync(file, "utf8").trim();
+    if (!value) {
+      throw new OrchestratorConfigError([
+        "REEF_AKB_JWT_FILE must not be empty",
+      ]);
+    }
+    return value;
+  } catch (error) {
+    if (error instanceof OrchestratorConfigError) throw error;
+    throw new OrchestratorConfigError([
+      "REEF_AKB_JWT_FILE could not be read as a mode-0600 private file",
+    ]);
+  }
+}
+
 const resolveOptionalLlmConfig = (
   env: Record<string, string | undefined>,
 ): LLMConfig | null => {
@@ -246,6 +281,15 @@ export function loadOrchestratorConfig({
     );
   }
 
+  const akbBaseUrl =
+    trimToNull(env.REEF_AKB_BASE_URL) ?? trimToNull(env.AKB_BASE_URL);
+  const akbJwt = resolveAkbJwt(env);
+  if (!dryRun && (!akbBaseUrl || !akbJwt)) {
+    throw new OrchestratorConfigError([
+      "REEF_AKB_BASE_URL and exactly one of REEF_AKB_JWT or REEF_AKB_JWT_FILE are required outside dry-run",
+    ]);
+  }
+
   return {
     mode: dryRun ? "dry-run" : "idle",
     dryRun,
@@ -262,8 +306,8 @@ export function loadOrchestratorConfig({
       DEFAULT_SHUTDOWN_GRACE_MS,
       "shutdownGraceMs",
     ),
-    akbBaseUrl:
-      trimToNull(env.REEF_AKB_BASE_URL) ?? trimToNull(env.AKB_BASE_URL),
+    akbBaseUrl,
+    akbJwt,
     llm: resolveOptionalLlmConfig(env),
     githubApp: resolveOptionalGitHubAppConfig(env),
   };
@@ -279,7 +323,7 @@ export function publicOrchestratorConfig(
     pollIntervalMs: config.pollIntervalMs,
     shutdownGraceMs: config.shutdownGraceMs,
     akb: {
-      isConfigured: config.akbBaseUrl !== null,
+      isConfigured: config.akbBaseUrl !== null && config.akbJwt !== null,
     },
     llm: {
       isConfigured: config.llm !== null,

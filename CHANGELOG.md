@@ -35,6 +35,12 @@ explicitly in the entries below.
   reads and state transitions, and manual/requester/assignee/commenter
   subscription precedence give follow-up web features a single AKB-backed
   boundary. (REEF-427)
+- **The orchestrator now projects new issue activity and comments into
+  idempotent recipient notifications.** It activates from a durable v1
+  checkpoint, preserves independent source cursors across restarts, skips
+  malformed source rows without poisoning later work, and excludes muted and
+  self recipients. No historical backfill or schema migration is performed.
+  (REEF-430)
 - **Global search now finds issue body and comment text.** For queries of two
   characters or more, `⌘K` keeps its existing metadata and exact-ID results and
   adds a separate bilingual body/comment group with safe literal highlighting,
@@ -78,6 +84,15 @@ explicitly in the entries below.
   continues to use `reef_activity_suggestions`, `_reef/activity-inbox`,
   `/api/activity/suggestions`, and the existing core wire schemas; no copy,
   backfill, Dexie version, or persistence-buster change is needed. (REEF-432)
+
+### Operational
+
+- **Notification projection is deployment-managed by `@reef/orchestrator`.**
+  A non-dry-run worker requires `REEF_AKB_BASE_URL` plus exactly one of
+  `REEF_AKB_JWT` or a mode-0600 `REEF_AKB_JWT_FILE`; dry-run validates and
+  reports redacted readiness without AKB I/O. Run one active worker per vault.
+  Restarting resumes the durable checkpoint; rollback stops the worker without
+  deleting its state, source rows, or notification rows. (REEF-430)
 
 ### Fixed
 

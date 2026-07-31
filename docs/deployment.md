@@ -262,6 +262,22 @@ deployment-managed server secrets, not browser storage. The three `REEF_LLM_*`
 values must be set together; with none set, AI routes are unavailable but Reef,
 AKB, and Keycloak flows remain ready.
 
+### Notification projector worker
+
+`@reef/orchestrator` is a separate deployment from reef-web. To enable the
+notification projector for one vault, run one active worker with
+`REEF_ORCHESTRATOR_VAULT`, `REEF_AKB_BASE_URL`, and exactly one of
+`REEF_AKB_JWT` or `REEF_AKB_JWT_FILE`. The file form must be a regular
+mode-0600 secret file. Do not pass credentials on the command line, log them,
+or mount them into reef-web.
+
+Use `--dry-run` for redacted configuration readiness; it performs no AKB I/O.
+The first normal start durably records the current activation boundary in the
+existing settings envelope, so it does not backfill historical activity or
+comments. Restarting resumes that checkpoint. During a rollback, stop the
+worker and preserve its state and notification rows; deleting or moving a
+cursor is a separate, explicitly reviewed operational action.
+
 ### Backend logging and the prod access-line policy
 
 reef-web logs backend events as structured pino lines on stdout (pretty in

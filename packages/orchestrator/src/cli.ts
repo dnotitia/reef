@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { pathToFileURL } from "node:url";
+import { createAkbAdapter } from "@reef/core";
 import { OrchestratorConfigError, loadOrchestratorConfig } from "./config.js";
 import { runOrchestrator } from "./loop.js";
 import { installShutdownHandlers } from "./shutdown.js";
@@ -40,7 +41,15 @@ export async function main(
   const shutdown = installShutdownHandlers();
   try {
     const config = loadOrchestratorConfig({ argv, env });
-    await runOrchestrator(config, { signal: shutdown.signal });
+    const ports = config.dryRun
+      ? undefined
+      : {
+          akb: createAkbAdapter({
+            baseUrl: config.akbBaseUrl!,
+            jwt: config.akbJwt!,
+          }),
+        };
+    await runOrchestrator(config, { signal: shutdown.signal, ports });
     return 0;
   } catch (error) {
     process.stderr.write(formatError(error));

@@ -29,6 +29,7 @@ describe("loadOrchestratorConfig", () => {
       argv: ["--dry-run", "--vault", "reef-test"],
       env: {
         AKB_BASE_URL: "https://akb.example",
+        REEF_AKB_JWT: "akb-jwt-secret",
         REEF_LLM_API_KEY: "sk-secret",
         REEF_LLM_BASE_URL: "https://llm.example/v1",
         REEF_LLM_MODEL: "openai/gpt-test",
@@ -60,6 +61,9 @@ describe("loadOrchestratorConfig", () => {
     expect(JSON.stringify(publicOrchestratorConfig(config))).not.toContain(
       "secret",
     );
+    expect(JSON.stringify(publicOrchestratorConfig(config))).not.toContain(
+      "akb-jwt-secret",
+    );
   });
 
   it("requires a vault", () => {
@@ -77,6 +81,40 @@ describe("loadOrchestratorConfig", () => {
         },
       }),
     ).toThrow(OrchestratorConfigError);
+  });
+
+  it("fails closed outside dry-run without complete AKB credentials", () => {
+    expect(() =>
+      loadOrchestratorConfig({
+        argv: ["--vault", "reef-test"],
+        env: { REEF_AKB_BASE_URL: "https://akb.example" },
+      }),
+    ).toThrow(OrchestratorConfigError);
+    expect(() =>
+      loadOrchestratorConfig({
+        argv: ["--vault", "reef-test"],
+        env: { REEF_AKB_JWT: "jwt-value" },
+      }),
+    ).toThrow(OrchestratorConfigError);
+  });
+
+  it("rejects ambiguous AKB credential sources without exposing their values", () => {
+    const error = (() => {
+      try {
+        loadOrchestratorConfig({
+          argv: ["--dry-run", "--vault", "reef-test"],
+          env: {
+            REEF_AKB_JWT: "private-token",
+            REEF_AKB_JWT_FILE: "/private/token-file",
+          },
+        });
+      } catch (caught) {
+        return caught;
+      }
+      return null;
+    })();
+    expect(error).toBeInstanceOf(OrchestratorConfigError);
+    expect(JSON.stringify(error)).not.toContain("private-token");
   });
 
   it("accepts the main branch OpenRouter variables as compatibility aliases", () => {

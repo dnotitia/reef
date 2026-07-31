@@ -85,6 +85,9 @@ export const REEF_SETTINGS_STALE_HIDE_CANCELED_DAYS_KEY =
  * on, because a scan writes AI suggestions into the team-shared activity inbox.
  */
 export const REEF_SETTINGS_AI_SCANNING_ENABLED_KEY = "ai_scanning_enabled";
+/** Durable v1 notification-projector state kept in the JSON settings envelope. */
+export const REEF_SETTINGS_NOTIFICATION_PROJECTOR_V1_KEY =
+  "notification_projector_v1";
 
 /**
  * Closed set of every table name reef writes SQL against. Used as the input
