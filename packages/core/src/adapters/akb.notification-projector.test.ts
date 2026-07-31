@@ -172,6 +172,7 @@ describe("notification projector", () => {
       { body: makeSqlQueryResponse(recipients, ["id"]) },
       { body: makeSqlQueryResponse([notificationRow("bob")], ["id"]) },
       { status: 500, body: { detail: "credential-free upstream failure" } },
+      { body: makeSqlQueryResponse([], ["id"]) },
       { body: makeSqlQueryResponse([{ value: state }], ["value"]) },
       { body: makeSqlQueryResponse([activityRow()], ["id"]) },
       { body: makeSqlQueryResponse(recipients, ["id"]) },
@@ -184,7 +185,7 @@ describe("notification projector", () => {
 
     await expect(
       akbRunNotificationProjector(adapter, { vault: "reef-sample" }),
-    ).rejects.toBeDefined();
+    ).resolves.toMatchObject({ activity: { failed: true } });
     await expect(
       akbRunNotificationProjector(adapter, { vault: "reef-sample" }),
     ).resolves.toMatchObject({ activity: { delivered: 2 } });
@@ -192,6 +193,47 @@ describe("notification projector", () => {
     expect(
       calls.filter((call) => sql(call.init?.body).includes("reef_settings")),
     ).toHaveLength(3);
+  });
+
+  it("continues comment projection when the activity source read fails", async () => {
+    const comment = {
+      id: ID,
+      reef_id: "REEF-430",
+      body: "COMMENT_BODY_CANARY_DO_NOT_COPY",
+      meta: { author: "alice", created_at: "2026-07-31T00:02:00.000Z" },
+      projector_sort_at: "2026-07-31T00:02:00.000Z",
+    };
+    const { calls } = setupFetch([
+      { body: makeSqlQueryResponse([{ value: state }], ["value"]) },
+      { status: 500, body: { detail: "activity source unavailable" } },
+      { body: makeSqlQueryResponse([comment], ["id"]) },
+      {
+        body: makeSqlQueryResponse(
+          [subscriptionRow("bob", "commenter", "active")],
+          ["id"],
+        ),
+      },
+      { body: makeSqlQueryResponse([commentNotificationRow("bob")], ["id"]) },
+      { body: makeSqlMutationResponse("INSERT 0 1") },
+    ]);
+
+    await expect(
+      akbRunNotificationProjector(makeAdapter(), { vault: "reef-sample" }),
+    ).resolves.toMatchObject({
+      activity: {
+        failed: true,
+        checkpoint: state.activity,
+      },
+      comment: {
+        failed: false,
+        delivered: 1,
+        checkpoint: { occurred_at: "2026-07-31T00:02:00.000Z", id: ID },
+      },
+    });
+    expect(sql(calls[5]?.init?.body)).toContain("notification_projector_v1");
+    expect(JSON.stringify(calls)).not.toContain(
+      "COMMENT_BODY_CANARY_DO_NOT_COPY",
+    );
   });
 
   it("advances past malformed source rows and never copies a comment body", async () => {

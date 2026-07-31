@@ -31,6 +31,7 @@ export interface OrchestratorTickContext {
 
 export interface OrchestratorTickResult {
   startedWork: boolean;
+  failed?: boolean;
 }
 
 export type OrchestratorTick = (
@@ -55,6 +56,7 @@ export interface OrchestratorRunSummary {
   stoppedAt: string;
   ticks: number;
   claimsAttempted: number;
+  failedTicks: number;
 }
 
 const jsonLogger: OrchestratorLogger = {
@@ -98,6 +100,7 @@ export const notificationProjectorTick: OrchestratorTick = async ({
       result.activated ||
       result.activity.scanned > 0 ||
       result.comment.scanned > 0,
+    failed: result.activity.failed || result.comment.failed,
   };
 };
 
@@ -115,6 +118,7 @@ export async function runOrchestrator(
   const startedAt = now().toISOString();
   let ticks = 0;
   let claimsAttempted = 0;
+  let failedTicks = 0;
 
   logger.info({
     event: "orchestrator.started",
@@ -129,6 +133,7 @@ export async function runOrchestrator(
       mode: config.mode,
       vault: config.vault,
       claimsAttempted,
+      failedTicks,
       stoppedAt,
     });
     return {
@@ -140,6 +145,7 @@ export async function runOrchestrator(
       stoppedAt,
       ticks,
       claimsAttempted,
+      failedTicks,
     };
   }
 
@@ -147,6 +153,14 @@ export async function runOrchestrator(
     const tickResult = await tick({ config, ports, signal });
     ticks += 1;
     if (tickResult.startedWork) claimsAttempted += 1;
+    if (tickResult.failed) {
+      failedTicks += 1;
+      logger.warn({
+        event: "orchestrator.tick_failed",
+        vault: config.vault,
+        failedTicks,
+      });
+    }
     if (signal.aborted) break;
     await sleepFn(config.pollIntervalMs, signal);
   }
@@ -159,6 +173,7 @@ export async function runOrchestrator(
     vault: config.vault,
     ticks,
     claimsAttempted,
+    failedTicks,
     stoppedAt,
   });
 
@@ -171,5 +186,6 @@ export async function runOrchestrator(
     stoppedAt,
     ticks,
     claimsAttempted,
+    failedTicks,
   };
 }

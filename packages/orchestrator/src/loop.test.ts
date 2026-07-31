@@ -48,7 +48,7 @@ describe("runOrchestrator", () => {
         ports: { akb: { request } },
         signal: new AbortController().signal,
       }),
-    ).resolves.toEqual({ startedWork: true });
+    ).resolves.toMatchObject({ startedWork: true, failed: false });
     expect(JSON.stringify(request.mock.calls)).not.toContain("akbJwt");
   });
 

@@ -56,6 +56,8 @@ export interface NotificationProjectorSourceResult {
   delivered: number;
   skipped: number;
   retried: number;
+  /** A safe retry signal; no upstream error detail is retained. */
+  failed: boolean;
   checkpoint: ProjectorCursor;
 }
 
@@ -102,6 +104,7 @@ const emptySourceResult = (
   delivered: 0,
   skipped: 0,
   retried: 0,
+  failed: false,
   checkpoint,
 });
 
@@ -334,7 +337,13 @@ async function projectSource(
   let state = initialState;
   const result = emptySourceResult(state[source]);
   if (signal?.aborted) return { state, result };
-  const rows = await readPage(adapter, vault, source, state[source], pageSize);
+  let rows: RawSourceRow[];
+  try {
+    rows = await readPage(adapter, vault, source, state[source], pageSize);
+  } catch {
+    result.failed = true;
+    return { state, result };
+  }
   for (const raw of rows) {
     if (signal?.aborted) break;
     result.scanned += 1;
@@ -347,37 +356,47 @@ async function projectSource(
     if (!cursor || !event) {
       result.malformed += 1;
       if (cursor) {
-        state = await checkpointAfter(adapter, vault, state, source, cursor);
-        result.checkpoint = cursor;
+        try {
+          state = await checkpointAfter(adapter, vault, state, source, cursor);
+          result.checkpoint = cursor;
+        } catch {
+          result.failed = true;
+          return { state, result };
+        }
       }
       continue;
     }
 
-    const subscriptions = await listSubscriptions(adapter, vault, {
-      reefId: event.reefId,
-    });
-    const recipients = recipientsForEvent(subscriptions, event.actor);
-    for (const recipient of recipients) {
-      const notification: Notification = await createNotification(
-        adapter,
-        vault,
-        {
-          recipient,
-          reefId: event.reefId,
-          sourceType: event.source,
-          sourceRef: event.sourceRef,
-          eventType: event.eventType,
-          actor: event.actor,
-          occurredAt: event.occurredAt,
-          payload: event.payload,
-          meta: { provenance: event.provenance },
-        },
-      );
-      if (notification.recipient === recipient) result.delivered += 1;
+    try {
+      const subscriptions = await listSubscriptions(adapter, vault, {
+        reefId: event.reefId,
+      });
+      const recipients = recipientsForEvent(subscriptions, event.actor);
+      for (const recipient of recipients) {
+        const notification: Notification = await createNotification(
+          adapter,
+          vault,
+          {
+            recipient,
+            reefId: event.reefId,
+            sourceType: event.source,
+            sourceRef: event.sourceRef,
+            eventType: event.eventType,
+            actor: event.actor,
+            occurredAt: event.occurredAt,
+            payload: event.payload,
+            meta: { provenance: event.provenance },
+          },
+        );
+        if (notification.recipient === recipient) result.delivered += 1;
+      }
+      if (recipients.length === 0) result.skipped += 1;
+      state = await checkpointAfter(adapter, vault, state, source, cursor);
+      result.checkpoint = cursor;
+    } catch {
+      result.failed = true;
+      return { state, result };
     }
-    if (recipients.length === 0) result.skipped += 1;
-    state = await checkpointAfter(adapter, vault, state, source, cursor);
-    result.checkpoint = cursor;
   }
   return { state, result };
 }
@@ -415,6 +434,7 @@ export async function runNotificationProjector(
           delivered: 0,
           skipped: 0,
           retried: 0,
+          failed: false,
         },
         "notification projector activated",
       );
@@ -457,6 +477,7 @@ export async function runNotificationProjector(
           delivered: sourceResult.delivered,
           skipped: sourceResult.skipped,
           retried: sourceResult.retried,
+          failed: sourceResult.failed,
         },
         "notification projector source completed",
       );
