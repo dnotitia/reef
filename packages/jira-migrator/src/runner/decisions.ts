@@ -7,8 +7,10 @@ import type {
 } from "../issues/importPlan.js";
 import {
   type JiraMigrationAction,
+  type JiraMigrationBindingIndex,
   type JiraMigrationEntityResult,
   type JiraMigrationLedgerV1,
+  getJiraMigrationBinding,
   jiraIssueSourceIdentity,
 } from "../ledger.js";
 import type { NormalizedJiraIssue } from "../payloads.js";
@@ -18,6 +20,7 @@ import type {
 } from "../planning/entities.js";
 import type { JiraRelatedOperationKind } from "../related/contracts.js";
 import type { JiraRelatedImportReport } from "../related/import.js";
+import { isRetryableAkbReadError } from "./akbReadRetry.js";
 
 type JiraMigrationBinding = JiraMigrationLedgerV1["bindings"][number];
 
@@ -86,10 +89,17 @@ export const reconciliationAction = (
     return "failed";
   }
   if (item.kind === "relation") {
-    return relatedReport.links.unique > 0 &&
-      relatedReport.links.unresolved === 0
-      ? "skip"
-      : "conflict";
+    if (relatedReport.links.unmapped > 0) return "conflict";
+    if (item.reason === "cross_project_reconcile") {
+      return item.targetId
+        ? relatedReport.links.unique > 0
+          ? "skip"
+          : "conflict"
+        : relatedReport.links.externalized > 0
+          ? "skip"
+          : "conflict";
+    }
+    return relatedReport.links.unique > 0 ? "skip" : "conflict";
   }
   return relatedReport.media.total > 0 && relatedReport.media.unresolved === 0
     ? "skip"
@@ -162,15 +172,19 @@ export const mappedFingerprintForIssue = (
 export const actionForChangelogPlan = (
   plan: JiraChangelogPlan,
   ledger: JiraMigrationLedgerV1,
+  bindingIndex?: Readonly<JiraMigrationBindingIndex>,
+  mappedFingerprint = mappedFingerprintForChangelog(plan),
 ): "create" | "skip" | "conflict" => {
   if (plan.report.totals.failed > 0) return "conflict";
-  const binding = ledger.bindings.find(
-    (candidate) => candidate.source_key === plan.sourceIdentity.key,
+  const binding = getJiraMigrationBinding(
+    ledger,
+    plan.sourceIdentity.key,
+    bindingIndex,
   );
   if (binding?.source_fingerprint !== plan.sourceFingerprint) return "create";
   const reference = binding.raw_archive_reference;
   const mappedFingerprintMatches =
-    binding.mapped_state_fingerprint === mappedFingerprintForChangelog(plan) ||
+    binding.mapped_state_fingerprint === mappedFingerprint ||
     (reference !== null &&
       (binding.mapped_state_fingerprint ===
         runScopedMappedFingerprintForChangelog(plan, reference) ||
@@ -190,6 +204,26 @@ export const safeMigrationFailureReason = (
     return error.message;
   }
   return fallback;
+};
+
+export const relatedExecutionError = (
+  error: unknown,
+): {
+  action: "conflict" | "failed";
+  reason: string;
+  retryable: boolean;
+} => {
+  const retryable =
+    isRetryableAkbReadError(error) ||
+    (typeof error === "object" &&
+      error !== null &&
+      "retryable" in error &&
+      error.retryable === true);
+  return {
+    action: retryable ? "failed" : "conflict",
+    reason: safeMigrationFailureReason(error, "related_import_failed"),
+    retryable,
+  };
 };
 
 export const resultFor = (input: {
@@ -226,6 +260,7 @@ export const actionForPlanning = (
 export const actionForIssuePlan = (
   plan: JiraIssueImportPlan,
   ledger: JiraMigrationLedgerV1,
+  bindingIndex?: Readonly<JiraMigrationBindingIndex>,
 ): "create" | "update" | "skip" | "conflict" => {
   if (!plan.desired.issue || plan.status === "blocked") return "conflict";
   const identity = jiraIssueSourceIdentity(
@@ -233,9 +268,7 @@ export const actionForIssuePlan = (
     plan.source.projectId ?? plan.source.projectKey,
     plan.source.issueId,
   );
-  const binding = ledger.bindings.find(
-    (candidate) => candidate.source_key === identity.key,
-  );
+  const binding = getJiraMigrationBinding(ledger, identity.key, bindingIndex);
   if (!binding) return "create";
   if (
     binding.target.target_kind !== "issue" ||
@@ -247,6 +280,30 @@ export const actionForIssuePlan = (
     ? "skip"
     : "update";
 };
+
+export const actionForEquivalentIssuePlans = (
+  plan: JiraIssueImportPlan,
+  equivalentPlans: readonly JiraIssueImportPlan[],
+  ledger: JiraMigrationLedgerV1,
+  bindingIndex?: Readonly<JiraMigrationBindingIndex>,
+): ReturnType<typeof actionForIssuePlan> => {
+  const action = actionForIssuePlan(plan, ledger, bindingIndex);
+  if (action !== "update") return action;
+  return equivalentPlans.some(
+    (equivalentPlan) =>
+      actionForIssuePlan(equivalentPlan, ledger, bindingIndex) === "skip",
+  )
+    ? "skip"
+    : action;
+};
+
+export const plannedIssueContentForRelated = (
+  plan: JiraIssueImportPlan,
+  action: ReturnType<typeof actionForIssuePlan>,
+): string | undefined =>
+  plan.desired.issue && (action === "create" || action === "update")
+    ? plan.desired.content
+    : undefined;
 
 export const actionForRelatedReport = (
   report: JiraRelatedImportReport,

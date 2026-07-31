@@ -66,6 +66,15 @@ ledger, or archive between approval and apply; stale content, a sibling lock,
 unsafe permissions, a symlink, target actor/vault drift, or a changed plan
 fails closed.
 
+For performance diagnosis, set `REEF_JIRA_MIGRATOR_PROFILE=1`. The CLI writes
+one redacted JSON timing snapshot to stderr every 60 seconds and a final
+snapshot on successful completion. Snapshots contain only aggregate stage and
+method names, call/error counts, elapsed time, averages, maxima, and currently
+active calls. They are excluded from approval reports, plan payloads, hashes,
+ledgers, and source archives, so profiling does not change migration semantics.
+Capture stderr in the operator's private artifact directory when the snapshots
+must be retained.
+
 ### Post-Apply Closeout
 
 Do not close a migration smoke test merely because the apply process exited
@@ -75,6 +84,19 @@ are all zero. Read the target back independently and compare the expected issue,
 parent, comment, attachment, relation, external-reference, and promoted-activity
 counts. Download imported attachments through the target read path and compare
 their byte length and SHA-256 digest with the archived Jira source bytes.
+
+People fields require their own conservation check. Count Jira issues with a
+current assignee and compare that count with non-null target `assigned_to`
+values, then compare the resolved actor for every assigned issue. A
+`preserved/actor_unmapped` field result or stable `jira:<accountId>` fallback
+is raw-fidelity evidence, not successful assignee migration. If the smoke-test
+policy requires live assignees, treat either result as a closeout blocker:
+review the private account artifact, explicitly grant the least-privileged
+vault membership, add a confirmed override when Jira hides the email, and
+produce a new approval dry-run before applying. Perform the same member-backed
+actor audit for reporter and requester when those live Reef fields are in
+scope. Do not infer migration success from the account catalog's observed-user
+count alone.
 
 For a smoke test, finish with a new run id over the same source scope, target,
 mapping policy, account mapping, and durable ledger. Produce and approve a new
@@ -155,12 +177,44 @@ read back before its binding and entity checkpoint are atomically persisted.
 Independent entity failures remain isolated and reports classify every input
 exactly once; `conservation.balanced` must be true.
 
+Related-data execution isolates both retryable transport failures and
+deterministic fail-closed errors to the current Jira issue. Retryable errors are
+reported as `failed`; non-retryable approval, precondition, or target conflicts
+are reported as `conflict`. Neither class confirms an unverified binding, and a
+single related issue cannot prevent remaining issues from being classified.
+
+AKB query readback can briefly lag a committed planning or issue mutation. The
+target adapter therefore performs a bounded exact-state readback after those
+writes and retries idempotent Jira-owner issue reservations across that window.
+If the claim endpoint reports a conflict, an independent row read may accept
+the claim only when the target id, document URI, and stable Jira cloud/issue
+owner all match. A different owner remains a hard conflict, while an ownership
+read failure remains unconfirmed and retryable.
+It never confirms an ambiguous result from timing alone: the complete approved
+projection and issue body must become readable before a ledger binding is
+written. If the bounded readback does not converge, apply remains failed or
+conflicted and resume retries from the durable checkpoint. Nullable planning
+fields omitted by the AKB read model are projected back to the requested
+`null` before exact comparison; no unrelated missing field is normalized.
+
 Target preflight reads the Reef workspace configuration and uses its
 `project_prefix` for every planned issue id. An uninitialized vault or a prefix
 change between dry-run and apply fails closed through target preflight or plan
 fingerprint validation; the migrator does not fall back to a hard-coded prefix.
 The prefix follows the same Jira-compatible contract as the source project key:
 an uppercase ASCII letter followed by uppercase letters, digits, or underscores.
+
+For every newly bound issue, target id planning preserves the Jira issue key's
+exact numeric segment under the target prefix. A matching target and source
+prefix therefore preserves the complete Jira key (`SHDEV-290` remains
+`SHDEV-290`), including gaps left by deleted or moved Jira issues. It never
+dense-renumbers issues by discovery order. An existing target id with the same
+numeric identity, including a zero-padded alias such as `SHDEV-001` for
+`SHDEV-1`, is a fail-closed conflict rather than permission to silently choose
+another number. A previously bound stable Jira issue identity keeps its target
+id after a genuine Jira key rename; a binding that records the current Jira key
+under a different target number is rejected as legacy id drift and requires an
+operator-reviewed rebuild.
 
 The private plan seals an ordered, hashed related-operation manifest covering
 comment, attachment, description, relation, and external-reference writes and
@@ -623,8 +677,17 @@ value-and-time key calculation. Record the changelog-history source fingerprint
 in the migration ledger only after target write/readback succeeds. A changed
 fingerprint for an existing binding is a failed conflict, not an overwrite.
 
-The apply runner, bulk changelog API selection, current-object import, and
-concurrent-writer database uniqueness remain outside this planning API.
+If a later approved account mapping replaces a fallback actor, the immutable
+Jira source fingerprint stays the same while the mapped activity actor or
+actor-valued payload changes. Apply uses the reserved Jira event key to
+reconcile that migration-owned `reef_activity` row in place, preserving its
+row id and AKB creation bookkeeping; if the key is absent, it uses the ordinary
+idempotent insert. This is a migration-only repair path. It rejects missing,
+manually shaped, or event-type-mismatched keys before I/O and does not make
+ordinary Reef activity mutable.
+
+The bulk changelog API selection, current-object import, and concurrent-writer
+database uniqueness remain outside this planning API.
 
 ## Migration Ledger And Checkpoint
 
@@ -679,6 +742,19 @@ page contents, archive entry ids, and content digests. A new run id, pagination
 cursor, or execution time must therefore remain `skip` when source state and
 target readback are unchanged.
 
+Target-generated planning UUIDs use stable source-derived semantic tokens at
+the approval boundary. Apply the token to both the first-class `release_id` /
+`sprint_id` field and compact `custom_fields.jira.planning[].target_id`
+provenance; otherwise an identical versioned issue would conflict solely
+because dry-run used a token and apply resolved the real AKB UUID.
+An independent convergence dry-run compares the approval-token projection with
+the exact native projection derived from the same confirmed planning binding.
+The native projection is the converged target form. An exact approval token is
+safe update-precondition evidence and is normalized to the confirmed native
+UUID; an unrelated UUID or unbound same-name planning entity remains a
+conflict. A native readback remains `skip` even when an older ledger
+fingerprint records the equivalent approval token.
+
 The Atlassian development integration field whose schema custom key is
 `com.atlassian.jira.plugins.jira-development-integration-plugin:devsummarycf`
 contains request-volatile internal identifiers. Its exact response remains in
@@ -690,9 +766,58 @@ Call `confirmJiraMigrationBinding` only after both the target write and target
 identity readback succeed. A failed write or readback belongs in the run result,
 not in `bindings`; resume then retries or conflicts instead of creating a second
 target. Checkpoints are phase plus canonical entity key, never an array index.
+When a create has no ledger binding but the assigned target id already has the
+approved Jira owner and exact semantic issue readback, apply recovers that
+binding before attempting another claim. This recovery still requires the
+current semantic issue plan to match the immutable approval and never adopts an
+owner-only or drifted target. Readback may match either the apply-time resolved
+planning UUIDs or the approval-bound source-derived planning tokens; both
+represent the same approved Version/Sprint relation for create recovery. A
+later independent run uses that exact token readback as safe update-precondition
+evidence and normalizes it to the confirmed native UUID instead of leaving a
+non-native planning reference or reporting a conflict.
+Checkpoint persistence uses the immutable ledger object's identity: report-only
+classifications that leave the ledger unchanged do not rewrite the full private
+artifact. Apply stages changed checkpoints in memory and flushes the full ledger
+after 50 changes or 5 seconds, whichever comes first. Every phase boundary,
+controlled error, interrupt, and test failpoint force-flushes a partial batch.
+Each flush retains the same compare-and-swap, atomic-write, and ledger readback
+path. An uncatchable process or host failure can discard only the final partial
+batch; resume then recovers already-written targets through exact readback and
+idempotency before restoring their bindings.
+Within one run, source-key bindings and Jira issues are indexed once rather than
+rescanning the complete ledger or issue catalog for each plan. Changelog
+readback also loads an issue's activity catalog once and indexes it by stable
+event key; a successful activity mutation invalidates that issue cache before
+the mandatory readback. These caches are process-local execution accelerators,
+not persistence or authority, and do not weaken the ledger checkpoint or target
+readback contracts.
+AKB reads retry bounded transport (`status 0`), rate-limit, and 5xx failures.
+If that bound is exhausted, apply fails fast with `target_unavailable` at the
+last durable checkpoint instead of overwriting hundreds of otherwise valid
+entity results with identical outage failures. A fresh approval is still
+required when partial success changed target or ledger state.
 The ordered phases are planning, issues, related
 (comments/attachments/changelog), and reconciliation. Reordering source input
 does not change which completed entities are skipped.
+
+Related-data planning follows that same phase order. When the base issue action
+is `create` or `update`, media preconditions are evaluated against the approved
+new base description that the issue phase will write first. A `skip` continues
+to use current target readback, and a conflict supplies no speculative base
+content. A description that already contains the exact canonical attachment
+URIs is converged; legacy placeholders and prior confirmed file URIs are
+eligible for rewrite only after that exact final-state check.
+Before supplying speculative base content, related planning applies the same
+native-planning and exact-readback correction as the issue phase. A stale
+mapped fingerprint therefore cannot make related planning assume an issue
+rewrite that execution will correctly classify as `skip`.
+
+Related operation approval hashes normalize target-generated identifiers.
+Comment parent UUIDs use their stable Jira source identity, and attachment links
+in both descriptions and comments use their stable Jira attachment identity.
+Dry-run placeholder URIs and live AKB file URIs therefore produce the same
+approval input only when they refer to the same source attachment.
 
 Cross-project relations persist `pending_target_migration`, `ready`, and
 `reconciled` separately. A retryable entity failure leaves its phase
@@ -701,6 +826,13 @@ non-retryable failure marks it `blocked`. `buildJiraMigrationReport` derives
 created, updated, skipped, conflict, failed, and retryable counts directly from
 the selected run, grouped by phase and entity kind; no mutable counter totals
 are persisted.
+
+AKB related-data catalog and readback calls use bounded retries for HTTP 429 and
+5xx responses. The retry boundary covers reads only; mutations still rely on
+their explicit idempotency keys, preconditions, and target readback. If the
+read retry budget is exhausted, the report retains `retryable: true` so a
+resume can distinguish transient backend availability from deterministic data
+conflicts.
 
 Each entity result stores the sanitized source and mapped-state fingerprints
 used for its attempt. After restart, retry classification compares those
@@ -845,7 +977,9 @@ A raw issue reference is required for every plan. ADF, watcher, and media
 references are additionally required when those payloads exist. Missing one
 produces `raw_archive_reference_missing` and a blocked plan. Blocked plans carry
 no `desired.issue`, preventing callers from applying a fabricated required
-field. Ready plans validate `desired.issue` with the public core
+field. The runner grounds each description media placeholder in the same
+archived ADF object, so the issue projection and later rewrite use identical
+opaque provenance. Ready plans validate `desired.issue` with the public core
 `IssueMetadataSchema`.
 
 `desired.issue.created_at` and `updated_at` use the caller-supplied run timestamp
@@ -871,11 +1005,30 @@ and uses Reef's threaded-comment contract. Missing parents are isolated as
 entity failures and never become flat comments. Source author mapping and
 created/edited timestamps are preserved.
 
+Ordinary Reef comment edits remain author-scoped. If a later approved account
+mapping replaces a fallback comment author, apply may reconcile only the exact
+row that already carries its deterministic
+`comment:<cloud>:<issue>:<comment>` idempotency key. This migration-only repair
+updates the source body, mapped author, and preserved source timestamps in
+place while retaining the comment id, thread links, and AKB creation
+bookkeeping. Missing or manually shaped keys are rejected before I/O.
+
+Attachment replacement can leave the prior `attachment_added` activity row
+without a live attachment row. If its actor is still a `jira:<account-id>`
+fallback and the reviewed account artifact now resolves that account, the
+related-data plan includes an exact actor reconciliation operation. Apply
+updates only the matching issue, `attachment_added` event key, and previous
+fallback actor, then reads the actor back. It preserves the event id, payload,
+timestamps, and creator; true fallback accounts remain unchanged.
+
 Attachments are downloaded only with a GET to the configured Jira origin at
 `/rest/api/3/attachment/content/{id}?redirect=false`. The importer never follows
 the payload's arbitrary `content` URL with Jira credentials. It verifies source
 size, stored file bytes, attachment metadata, original Jira id, and file URI
-readback before confirming the ledger binding. AKB storage uses the backend's
+readback before confirming the ledger binding. Filename readback treats only
+Unicode NFC/NFD canonical equivalents as the same filename because the AKB
+file service may normalize Korean and other decomposed names during upload;
+all other filename differences still fail closed. AKB storage uses the backend's
 presigned contract: initiate under `/api/v1/files/{vault}/upload`, PUT the exact
 bytes to the returned storage URL with its signed MIME type, confirm the
 content hash under `/api/v1/files/{vault}/{file_id}/confirm`, and use the
@@ -892,11 +1045,17 @@ retains every replaced file URI only as an approved description-rewrite
 precondition so ADF media references to stale files converge on the recreated
 attachment; those stale URIs are not treated as live bindings.
 
-ADF `media` and `mediaInline` nodes resolve after attachment import in this
-fixed order: unique filename on the issue, the issue's sole attachment, a
-rendered-field element that pairs the media id with an attachment, then a
-rendered-field unique filename. Zero or multiple candidates remain unresolved;
-the importer never guesses from numeric equality or array order.
+Issue discovery requests both `properties` and `renderedFields`. ADF `media`
+and `mediaInline` nodes resolve after attachment import in this fixed order:
+a unique issue attachment filename (including an exact non-empty ADF `alt`
+match), the issue's sole attachment, a rendered-field element that pairs the
+media id with an attachment REST href/name, then a rendered-description
+filename that uniquely contains the media id. Contradictory rendered and ADF
+evidence, zero candidates, or multiple candidates remain unresolved; the
+importer never guesses from numeric equality or array order. Issue planning
+and description rewriting use the same raw-archive and account-mapping
+conversion options, preventing a valid rewrite from failing its Markdown
+precondition.
 
 Standard links deduplicate on Jira link id. Operators configure an exact link
 type triple (`id`, `name`, `inward`, `outward`) as directional or symmetric;
@@ -907,7 +1066,10 @@ The importer canonicalizes each directional edge as Jira outward endpoint to
 inward endpoint before applying both relations, so project traversal order
 cannot choose the stored orientation.
 Unknown or not-yet-migrated endpoints remain Jira external refs
-with reconciliation provenance. Remote links are a separate reader and use
+with reconciliation provenance. When the link type has an explicit operator
+mapping, this externalization is a successful cross-project reconciliation;
+the report keeps `externalized` separate from `unmapped`, and only the latter
+remains a policy conflict. Remote links are a separate reader and use
 `globalId`, or a canonical content hash when absent, while preserving URL,
 title, application, relationship, and object provenance.
 

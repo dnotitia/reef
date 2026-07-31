@@ -93,6 +93,7 @@ export {
 export {
   listComments,
   createComment,
+  reconcileJiraImportedComment,
   updateComment,
 } from "./issues/comments";
 export {
@@ -112,8 +113,11 @@ export {
   appendStatusChangeEvent,
   diffFieldActivityEvents,
   listIssueActivity,
+  reconcileJiraImportedAttachmentActivityActor,
+  reconcileJiraChangelogActivityEvents,
   statusChangeEventKey,
   type ActivityEventInput,
+  type JiraImportedAttachmentActivityActorInput,
   type StatusChangeEventInput,
 } from "./issues/activity";
 export {

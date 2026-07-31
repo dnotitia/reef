@@ -180,10 +180,16 @@ The package exports:
   keeping Reef target mutations at zero. When the issue description was first
   projected with raw-archive or account-mapping options, pass the same options
   as `descriptionConversionOptions`; legacy and current media placeholders are
-  then both accepted by the description precondition.
+  then both accepted by the description precondition. The project runner
+  supplies those options from the same archived ADF reference used by issue
+  planning and requests Jira `renderedFields` during issue discovery so
+  deterministic media-to-attachment evidence is approval-bound.
   Standard link mappings must resolve to exactly one configured rule;
   overlapping matches are isolated as ambiguous rather than selected by array
-  order. Successful explicit standard-link and remote-link catalogs also
+  order. A mapped link whose peer is outside the selected project scope is
+  preserved as a durable Jira external reference and reported separately from
+  an actually unmapped link type. Successful explicit standard-link and
+  remote-link catalogs also
   reconcile target relations/refs that disappeared or changed identity; an
   omitted standard-link field or failed remote-link read is not treated as an
   empty catalog. A returned remote identity without a usable URL invalidates
@@ -295,6 +301,11 @@ The ledger is operator-owned local execution state, not a raw payload archive,
 an AKB table, or reef-web persistence. Keep it on an encrypted local volume,
 back it up before an apply, and never delete a stale lock automatically. See
 the operator runbook for the full resume and repair procedure.
+
+Apply batches immutable ledger checkpoints and flushes after 50 changes or 5
+seconds, with forced flushes at phase boundaries and controlled exits. A crash
+may replay only the final partial batch; exact target readback and idempotent
+apply recover those bindings without duplicating target data.
 
 ## Commands
 

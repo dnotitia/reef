@@ -20,6 +20,7 @@ export interface AdfMediaReference {
   mediaType: string | null;
   collection: string | null;
   filename: string | null;
+  alt: string | null;
   rawArchiveReference: RawArchiveReference | null;
   placeholder: string;
   legacyPlaceholder: string;
@@ -354,6 +355,10 @@ const renderMedia = (
     typeof mediaAttrs.filename === "string" && mediaAttrs.filename.trim()
       ? mediaAttrs.filename.trim()
       : null;
+  const alt =
+    typeof mediaAttrs.alt === "string" && mediaAttrs.alt.trim()
+      ? mediaAttrs.alt.trim()
+      : null;
   const reference = context.options.mediaRawArchiveReferences?.[id] ?? null;
   const token = reference ? rawReferenceToken(reference) : "missing";
   const legacyPlaceholder = escapeInlineSourceText(
@@ -376,6 +381,7 @@ const renderMedia = (
     mediaType: type,
     collection,
     filename,
+    alt,
     rawArchiveReference: reference,
     placeholder,
     legacyPlaceholder,

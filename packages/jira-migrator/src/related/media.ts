@@ -76,7 +76,7 @@ const attachmentIdFromHref = (
 ): string | null => {
   if (!href) return null;
   const lowerHref = href.toLowerCase();
-  for (const marker of ["attachment/", "att"]) {
+  for (const marker of ["attachment/content/", "attachment/", "att"]) {
     let offset = 0;
     while (offset < lowerHref.length) {
       const markerIndex = lowerHref.indexOf(marker, offset);
@@ -141,6 +141,7 @@ const renderedHints = (
         ? null
         : (explicitAttachmentId ?? hrefAttachmentId);
     const encodedName =
+      attributes.get("data-attachment-name") ??
       attributes.get("data-filename") ??
       attributes.get("alt") ??
       attributes.get("title") ??
@@ -193,14 +194,30 @@ export const resolveJiraMediaReference = (
       return binding ? { binding, strategy: "unique_filename" } : null;
     }
   }
+  if (media.alt) {
+    const candidates = sourceAttachments.filter(
+      (item) => item.filename === media.alt,
+    );
+    if (candidates.length === 1) {
+      if (hint?.attachmentId && hint.attachmentId !== candidates[0]?.id) {
+        return null;
+      }
+      const binding = attachments.find(
+        (item) => item.source.id === candidates[0]?.id,
+      );
+      return binding ? { binding, strategy: "unique_filename" } : null;
+    }
+  }
   if (sourceAttachments.length === 1) {
+    if (hint?.attachmentId && hint.attachmentId !== sourceAttachments[0]?.id) {
+      return null;
+    }
     const binding = attachments.find(
       (item) => item.source.id === sourceAttachments[0]?.id,
     );
     return binding ? { binding, strategy: "sole_attachment" } : null;
   }
-  if (!hint) return null;
-  if (hint.attachmentId) {
+  if (hint?.attachmentId) {
     const candidates = sourceAttachments.filter(
       (item) => item.id === hint.attachmentId,
     );
@@ -212,7 +229,7 @@ export const resolveJiraMediaReference = (
     }
     if (candidates.length > 1) return null;
   }
-  if (hint.filename) {
+  if (hint?.filename) {
     const candidates = sourceAttachments.filter(
       (item) => item.filename === hint.filename,
     );
@@ -223,6 +240,22 @@ export const resolveJiraMediaReference = (
       return binding ? { binding, strategy: "rendered_unique_filename" } : null;
     }
   }
+  const decodedRenderedHtml = decodeHtmlAttribute(renderedHtml);
+  const renderedFilenameCandidates = sourceAttachments.filter(
+    (item) =>
+      item.filename.includes(media.mediaId) &&
+      decodedRenderedHtml.includes(item.filename),
+  );
+  if (renderedFilenameCandidates.length === 1) {
+    const candidate = renderedFilenameCandidates[0];
+    const binding = attachments.find(
+      (item) => item.source.id === candidate?.id,
+    );
+    if (binding) {
+      return { binding, strategy: "rendered_unique_filename" };
+    }
+  }
+  if (renderedFilenameCandidates.length > 1) return null;
   return null;
 };
 

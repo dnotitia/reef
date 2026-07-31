@@ -401,6 +401,167 @@ export async function appendActivityEvents(
   );
 }
 
+/**
+ * Reconcile activity rows owned by a Jira changelog migration.
+ *
+ * Ordinary Reef activity remains append-only. This narrowly-scoped repair path
+ * accepts only deterministic Jira changelog event keys, so a later account
+ * mapping correction can replace fallback actors and actor-valued payloads
+ * without duplicating the same logical event. Existing bookkeeping identity
+ * (`id`, `created_by`, `created_at`) is preserved; a missing event is inserted
+ * through the ordinary idempotent append path.
+ */
+export async function reconcileJiraChangelogActivityEvents(
+  adapter: AkbAdapter,
+  vault: string,
+  events: ActivityEventInput[],
+): Promise<void> {
+  const [first] = events;
+  if (!first) {
+    return;
+  }
+  const eventKeys = events.map((event) => {
+    if (event.eventKey === undefined) {
+      throw new ZodError([
+        {
+          code: "custom",
+          path: ["eventKey"],
+          message: "Jira changelog reconciliation requires an event key",
+        },
+      ]);
+    }
+    const eventKey = JiraChangelogActivityEventKeySchema.parse(event.eventKey);
+    if (!eventKey.endsWith(`:${event.eventType}`)) {
+      throw new ZodError([
+        {
+          code: "custom",
+          path: ["eventKey"],
+          message: "Jira changelog event key type does not match event type",
+        },
+      ]);
+    }
+    return eventKey;
+  });
+  return withSpan(
+    "akb.reconcile_jira_changelog_activity_events",
+    { vault, reef_id: first.reefId, count: events.length },
+    async (span) => {
+      await ensureReefTables({ adapter, vault });
+      let updated = 0;
+      let inserted = 0;
+      for (const [index, event] of events.entries()) {
+        const eventKey = eventKeys[index] as string;
+        const reefId = quoteText(event.reefId, "activity reef_id");
+        const key = quoteText(eventKey, "activity event_key");
+        const update = await runSql(
+          adapter,
+          vault,
+          `UPDATE ${tableRef(REEF_ACTIVITY_TABLE)} SET event_type = ${quoteText(
+            event.eventType,
+            "activity event_type",
+          )}, payload = ${quoteJson(event.payload)}, meta = ${quoteJson({
+            actor: event.actor,
+            at: event.at,
+            source: event.source,
+          })} WHERE reef_id = ${reefId} AND event_key = ${key} RETURNING id`,
+        );
+        if (update.kind === "table_query" && update.items.length > 0) {
+          updated += update.items.length;
+          continue;
+        }
+        const ok = await insertActivityEventRow(adapter, vault, {
+          reefId: event.reefId,
+          eventType: event.eventType,
+          eventKey,
+          payload: event.payload,
+          meta: {
+            actor: event.actor,
+            at: event.at,
+            source: event.source,
+          },
+        });
+        if (ok) inserted += 1;
+      }
+      span.setAttribute("updated_count", updated);
+      span.setAttribute("inserted_count", inserted);
+    },
+  );
+}
+
+export interface JiraImportedAttachmentActivityActorInput {
+  reefId: string;
+  eventKey: string;
+  fromActor: string;
+  toActor: string;
+}
+
+/**
+ * Repair the actor on one migration-generated attachment event.
+ *
+ * Uploading a replacement attachment appends a new event and can leave the
+ * previous event orphaned when the old attachment row is revoked. Ordinary
+ * Reef activity remains append-only; this path is limited to an exact
+ * `attachment_added` key whose current actor is a Jira fallback identity.
+ */
+export async function reconcileJiraImportedAttachmentActivityActor(
+  adapter: AkbAdapter,
+  vault: string,
+  input: JiraImportedAttachmentActivityActorInput,
+): Promise<void> {
+  if (!/^attachment_added:[^@]+@.+$/u.test(input.eventKey)) {
+    throw new ZodError([
+      {
+        code: "custom",
+        path: ["eventKey"],
+        message:
+          "Jira attachment activity reconciliation requires an attachment_added event key",
+      },
+    ]);
+  }
+  if (!input.fromActor.startsWith("jira:")) {
+    throw new ZodError([
+      {
+        code: "custom",
+        path: ["fromActor"],
+        message:
+          "Jira attachment activity reconciliation requires a fallback actor",
+      },
+    ]);
+  }
+  await withSpan(
+    "akb.reconcile_jira_imported_attachment_activity_actor",
+    { vault, reef_id: input.reefId },
+    async (span) => {
+      await ensureReefTables({ adapter, vault });
+      const update = await runSql(
+        adapter,
+        vault,
+        `UPDATE ${tableRef(
+          REEF_ACTIVITY_TABLE,
+        )} SET meta = jsonb_set(meta::jsonb, '{actor}', ${quoteJson(
+          input.toActor,
+        )}::jsonb, true)::json WHERE reef_id = ${quoteText(
+          input.reefId,
+          "activity reef_id",
+        )} AND event_type = ${quoteText(
+          ACTIVITY_EVENT_ATTACHMENT_ADDED,
+          "activity event_type",
+        )} AND event_key = ${quoteText(
+          input.eventKey,
+          "activity event_key",
+        )} AND meta->>'actor' = ${quoteText(
+          input.fromActor,
+          "activity actor",
+        )} RETURNING id`,
+      );
+      // AKB may return the generic `table_sql` envelope even for DML with
+      // RETURNING. The related-data migration performs an exact actor readback,
+      // which is the authoritative success check.
+      span.setAttribute("response_kind", update.kind);
+    },
+  );
+}
+
 /** Stable identity of an implementation ref, matching the runbook's `type:repo:ref` de-dupe. */
 function implRefDedupeKey(ref: {
   type: string;

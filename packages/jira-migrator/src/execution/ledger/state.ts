@@ -8,6 +8,7 @@ import type {
 import {
   JIRA_MIGRATION_PHASES,
   JiraCommentQuarantineSchema,
+  type JiraMigrationBinding,
   JiraMigrationBindingSchema,
   JiraMigrationLedgerError,
   type JiraMigrationLedgerV1,
@@ -20,6 +21,21 @@ import {
   expectedTargetKind,
   targetAkbUri,
 } from "./model.js";
+
+export type JiraMigrationBindingIndex = Map<string, JiraMigrationBinding>;
+
+export const indexJiraMigrationBindings = (
+  ledger: JiraMigrationLedgerV1,
+): JiraMigrationBindingIndex =>
+  new Map(ledger.bindings.map((binding) => [binding.source_key, binding]));
+
+export const getJiraMigrationBinding = (
+  ledger: JiraMigrationLedgerV1,
+  sourceKey: string,
+  index?: ReadonlyMap<string, JiraMigrationBinding>,
+): JiraMigrationBinding | undefined =>
+  index?.get(sourceKey) ??
+  ledger.bindings.find((binding) => binding.source_key === sourceKey);
 
 type JiraPlanningSourceIdentityInput =
   | {
@@ -99,6 +115,7 @@ export interface ConfirmJiraMigrationBindingInput {
 export const confirmJiraMigrationBinding = (
   ledger: JiraMigrationLedgerV1,
   input: ConfirmJiraMigrationBindingInput,
+  bindingIndex?: JiraMigrationBindingIndex,
 ): JiraMigrationLedgerV1 => {
   if (!input.writeSucceeded || !input.readbackSucceeded) {
     throw new JiraMigrationLedgerError("target_readback_required");
@@ -118,9 +135,7 @@ export const confirmJiraMigrationBinding = (
   if (akbUri && !akbUriBelongsToVault(akbUri, ledger.target_scope.vault)) {
     throw new JiraMigrationLedgerError("target_scope_mismatch");
   }
-  const existing = ledger.bindings.find(
-    (item) => item.source_key === identity.key,
-  );
+  const existing = getJiraMigrationBinding(ledger, identity.key, bindingIndex);
   if (existing && JSON.stringify(existing.target) !== JSON.stringify(target)) {
     throw new JiraMigrationLedgerError("binding_target_conflict");
   }
@@ -138,15 +153,20 @@ export const confirmJiraMigrationBinding = (
     .filter((item) => item.source_key !== identity.key)
     .concat(binding)
     .sort((left, right) => left.source_key.localeCompare(right.source_key));
-  return deepFreeze(JiraMigrationLedgerV1Schema.parse({ ...ledger, bindings }));
+  const next = deepFreeze(
+    JiraMigrationLedgerV1Schema.parse({ ...ledger, bindings }),
+  );
+  bindingIndex?.set(identity.key, binding);
+  return next;
 };
 
 export const removeJiraMigrationBindings = (
   ledger: JiraMigrationLedgerV1,
   sourceKeys: readonly string[],
+  bindingIndex?: JiraMigrationBindingIndex,
 ): JiraMigrationLedgerV1 => {
   const removed = new Set(sourceKeys);
-  return deepFreeze(
+  const next = deepFreeze(
     JiraMigrationLedgerV1Schema.parse({
       ...ledger,
       bindings: ledger.bindings.filter(
@@ -154,6 +174,8 @@ export const removeJiraMigrationBindings = (
       ),
     }),
   );
+  for (const sourceKey of removed) bindingIndex?.delete(sourceKey);
+  return next;
 };
 
 export const quarantineJiraCommentSource = (
@@ -233,9 +255,12 @@ export const getJiraIssueTarget = (
 export const getJiraCommentTargetId = (
   ledger: JiraMigrationLedgerV1,
   identity: ReturnType<typeof jiraCommentSourceIdentity>,
+  bindingIndex?: ReadonlyMap<string, JiraMigrationBinding>,
 ): string | null => {
-  const target = ledger.bindings.find(
-    (binding) => binding.source_key === identity.key,
+  const target = getJiraMigrationBinding(
+    ledger,
+    identity.key,
+    bindingIndex,
   )?.target;
   return target?.target_kind === "comment" ? target.comment_id : null;
 };

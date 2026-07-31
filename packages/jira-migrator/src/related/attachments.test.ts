@@ -52,6 +52,26 @@ describe("attachmentReadbackMismatches", () => {
     ).toBe(true);
   });
 
+  it("accepts canonically equivalent Unicode filenames", () => {
+    const decomposedSource = {
+      ...source,
+      filename: "e\u0301vidence.png",
+    };
+    const normalizedReadback = {
+      attachment: { ...attachment, filename: "évidence.png" },
+      bytes: new Uint8Array([1, 2, 3]),
+    };
+
+    expect(
+      attachmentReadbackMismatches(
+        normalizedReadback,
+        decomposedSource,
+        expected,
+        normalizedReadback.bytes,
+      ),
+    ).toEqual([]);
+  });
+
   it("returns only safe field codes for mismatches", () => {
     expect(
       attachmentReadbackMismatches(

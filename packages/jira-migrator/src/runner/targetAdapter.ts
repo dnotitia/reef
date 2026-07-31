@@ -11,7 +11,6 @@ import {
   type Release,
   type Sprint,
   akbAllocateNextIssueId,
-  akbAppendActivityEvents,
   akbClaimIssueId,
   akbCreateRelease,
   akbCreateSprint,
@@ -22,6 +21,7 @@ import {
   akbReadConfig,
   akbReadIssue,
   akbReadPlanningCreateClaim,
+  akbReconcileJiraChangelogActivityEvents,
   akbUpdateIssue,
   akbWriteIssue,
   createAkbAdapter,
@@ -33,6 +33,7 @@ import type {
 } from "../planning/entities.js";
 import { canonicalizeJson } from "../rawArchive.js";
 import type { JiraRelatedImportTarget } from "../related/contracts.js";
+import { isRetryableAkbReadError, retryAkbRead } from "./akbReadRetry.js";
 import { jiraOwnerIdentity } from "./ownership.js";
 import { createAkbRelatedTarget } from "./relatedTargetAdapter.js";
 import {
@@ -124,7 +125,11 @@ interface TargetCore {
     vault: string;
     issue: IssueMetadata;
   }): Promise<void>;
+  waitForConsistency?(): Promise<void>;
 }
+
+const waitForConsistency = () =>
+  new Promise<void>((resolve) => setTimeout(resolve, 150));
 
 const defaultCore: TargetCore = {
   createAdapter: createAkbAdapter,
@@ -140,6 +145,54 @@ const defaultCore: TargetCore = {
   updateIssue: akbUpdateIssue,
   readIssue: akbReadIssue,
   claimIssueId: akbClaimIssueId,
+  waitForConsistency,
+};
+
+const CONSISTENCY_READ_ATTEMPTS = 20;
+const JIRA_ISSUE_KEY_PATTERN = /^([A-Z][A-Z0-9_]*)-(\d+)$/u;
+
+const issueNumberSegment = (
+  owner: JiraIssueTargetOwner,
+): { numberSegment: string; numericIdentity: string } => {
+  const match = JIRA_ISSUE_KEY_PATTERN.exec(owner.issue_key);
+  if (
+    !match?.[1] ||
+    !match[2] ||
+    match[1] !== owner.project_key ||
+    BigInt(match[2]) === 0n
+  ) {
+    throw new Error("source_issue_key_invalid");
+  }
+  return {
+    numberSegment: match[2],
+    numericIdentity: BigInt(match[2]).toString(),
+  };
+};
+
+const targetIssueNumericIdentity = (
+  issueId: string,
+  prefix: string,
+): string | null => {
+  const match = JIRA_ISSUE_KEY_PATTERN.exec(issueId);
+  if (!match?.[1] || !match[2] || match[1] !== prefix) return null;
+  const numericIdentity = BigInt(match[2]);
+  return numericIdentity === 0n ? null : numericIdentity.toString();
+};
+
+const planningProjection = (
+  candidate: Release | Sprint,
+  desired: Omit<Release, "id"> | Omit<Sprint, "id">,
+): Record<string, unknown> => {
+  const candidateRecord = candidate as unknown as Record<string, unknown>;
+  const desiredRecord = desired as unknown as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.keys(desiredRecord).map((key) => [
+      key,
+      candidateRecord[key] === undefined && desiredRecord[key] === null
+        ? null
+        : candidateRecord[key],
+    ]),
+  );
 };
 
 export interface JiraIssueApplyReadback {
@@ -207,7 +260,54 @@ export function createAkbJiraMigrationTarget(
   });
   const vault = config.vault;
   let issuePrefix = config.issuePrefix ?? null;
-  const readIssue = (id: string) => core.readIssue({ adapter, vault, id });
+  const consistencyPause = core.waitForConsistency ?? (() => Promise.resolve());
+  const eventually = async <T>(
+    read: () => Promise<T>,
+    matches: (value: T) => boolean,
+  ): Promise<T | null> => {
+    for (let attempt = 0; attempt < CONSISTENCY_READ_ATTEMPTS; attempt += 1) {
+      try {
+        const value = await read();
+        if (matches(value)) return value;
+      } catch (error) {
+        if (
+          !(error instanceof NotFoundError) &&
+          !isRetryableAkbReadError(error)
+        )
+          throw error;
+        if (
+          isRetryableAkbReadError(error) &&
+          attempt === CONSISTENCY_READ_ATTEMPTS - 1
+        )
+          throw error;
+      }
+      if (attempt < CONSISTENCY_READ_ATTEMPTS - 1) {
+        await consistencyPause();
+      }
+    }
+    return null;
+  };
+  const readPlanningEventually = (
+    target: NonNullable<JiraPlanningAction["target"]>,
+    targetId: string,
+  ) =>
+    eventually(
+      async () => {
+        const planning = await core.listPlanningCatalog({ adapter, vault });
+        return target.kind === "release"
+          ? planning.releases.find((candidate) => candidate.id === targetId)
+          : planning.sprints.find((candidate) => candidate.id === targetId);
+      },
+      (candidate) => {
+        if (!candidate) return false;
+        const projection = planningProjection(candidate, target.item);
+        return canonicalizeJson(projection) === canonicalizeJson(target.item);
+      },
+    );
+  const readIssue = (id: string) =>
+    retryAkbRead(() => core.readIssue({ adapter, vault, id }), {
+      wait: consistencyPause,
+    });
   const updateIssue = (
     id: string,
     partial: Partial<IssueMetadata>,
@@ -224,12 +324,42 @@ export function createAkbJiraMigrationTarget(
       ...(expected ? { expectedUpdatedAt: expected.updatedAt } : {}),
       message: `Reconcile ${id} Jira migration data`,
     });
-  const { allIssueRows, related, activityMatches } = createAkbRelatedTarget({
+  const {
+    allIssueRows,
+    readIssueOwnershipRow,
+    related,
+    activityMatches,
+    invalidateActivityMatches,
+  } = createAkbRelatedTarget({
     adapter,
     vault,
+    waitForConsistency: consistencyPause,
     readIssue,
     updateIssue,
   });
+  const issueOwnershipMatches = (
+    row: Record<string, unknown> | null,
+    desired: IssueMetadata,
+  ): boolean => {
+    if (
+      !row ||
+      row.reef_id !== desired.id ||
+      row.document_uri !== akbIssueDocumentUri(vault, desired.id)
+    ) {
+      return false;
+    }
+    const migration = parseMeta(
+      parseMeta(row.meta).custom_fields,
+    ).jira_migration;
+    const desiredMigration = parseMeta(
+      parseMeta(desired.custom_fields).jira_migration,
+    );
+    const desiredOwner = jiraOwnerIdentity(desiredMigration.owner);
+    return (
+      desiredOwner !== null &&
+      jiraOwnerIdentity(parseMeta(migration).owner) === desiredOwner
+    );
+  };
   return {
     adapter,
     async preflight() {
@@ -284,9 +414,20 @@ export function createAkbJiraMigrationTarget(
           typeof row.reef_id === "string" ? [row.reef_id] : [],
         ),
       );
-      const ownedIds = new Map<string, string>();
+      const existingByNumericIdentity = new Map<string, string>();
+      const ownedIds = new Map<
+        string,
+        { reefId: string; sourceIssueKey: string | null }
+      >();
       for (const row of rows) {
         if (typeof row.reef_id !== "string") continue;
+        const numericIdentity = targetIssueNumericIdentity(row.reef_id, prefix);
+        if (numericIdentity) {
+          if (existingByNumericIdentity.has(numericIdentity)) {
+            throw new Error("target_issue_id_alias_conflict");
+          }
+          existingByNumericIdentity.set(numericIdentity, row.reef_id);
+        }
         const meta = parseMeta(row.meta);
         const customFields = parseMeta(meta.custom_fields);
         const migration = parseMeta(customFields.jira_migration);
@@ -296,39 +437,44 @@ export function createAkbJiraMigrationTarget(
         if (ownedIds.has(key)) {
           throw new Error("target_issue_owner_claim_ambiguous");
         }
-        ownedIds.set(key, row.reef_id);
+        const parsedOwner = parseMeta(owner);
+        ownedIds.set(key, {
+          reefId: row.reef_id,
+          sourceIssueKey:
+            typeof parsedOwner.issue_key === "string"
+              ? parsedOwner.issue_key
+              : null,
+        });
       }
-      const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-      const pattern = new RegExp(`^${escapedPrefix}-(\\d+)$`, "u");
-      let next = [...existing].reduce((maximum, id) => {
-        const match = pattern.exec(id);
-        return match?.[1]
-          ? Math.max(maximum, Number.parseInt(match[1], 10))
-          : maximum;
-      }, 0);
-      const width = Math.max(
-        3,
-        ...[...existing].flatMap((id) => {
-          const match = pattern.exec(id);
-          return match?.[1] ? [match[1].length] : [];
-        }),
-      );
       const candidates: string[] = [];
+      const plannedNumericIdentities = new Set<string>();
       for (const owner of owners) {
         const ownerIdentity = jiraOwnerIdentity(owner);
         if (!ownerIdentity) throw new Error("target_issue_owner_invalid");
-        const ownedId = ownedIds.get(ownerIdentity);
-        if (ownedId) {
-          candidates.push(ownedId);
+        const { numberSegment, numericIdentity } = issueNumberSegment(owner);
+        const preferredId = `${prefix}-${numberSegment}`;
+        const owned = ownedIds.get(ownerIdentity);
+        if (owned) {
+          if (
+            owned.sourceIssueKey === owner.issue_key &&
+            owned.reefId !== preferredId
+          ) {
+            throw new Error("target_issue_id_mismatch");
+          }
+          candidates.push(owned.reefId);
           continue;
         }
-        let candidate: string;
-        do {
-          next += 1;
-          candidate = `${prefix}-${String(next).padStart(width, "0")}`;
-        } while (existing.has(candidate));
-        candidates.push(candidate);
-        existing.add(candidate);
+        if (
+          existing.has(preferredId) ||
+          existingByNumericIdentity.has(numericIdentity) ||
+          plannedNumericIdentities.has(numericIdentity)
+        ) {
+          throw new Error("target_issue_id_conflict");
+        }
+        candidates.push(preferredId);
+        existing.add(preferredId);
+        existingByNumericIdentity.set(numericIdentity, preferredId);
+        plannedNumericIdentities.add(numericIdentity);
       }
       return candidates;
     },
@@ -341,26 +487,11 @@ export function createAkbJiraMigrationTarget(
       }
       if (action.classification === "reuse") {
         if (!action.targetId) throw new Error("jira_planning_target_missing");
-        const planning = await core.listPlanningCatalog({ adapter, vault });
-        const readback =
-          action.target.kind === "release"
-            ? planning.releases.find(
-                (candidate) => candidate.id === action.targetId,
-              )
-            : planning.sprints.find(
-                (candidate) => candidate.id === action.targetId,
-              );
-        if (!readback) throw new Error("target_planning_readback_failed");
-        const readbackProjection = Object.fromEntries(
-          Object.keys(action.target.item).map((key) => [
-            key,
-            readback[key as keyof typeof readback],
-          ]),
+        const readback = await readPlanningEventually(
+          action.target,
+          action.targetId,
         );
-        if (
-          canonicalizeJson(readbackProjection) !==
-          canonicalizeJson(action.target.item)
-        ) {
+        if (!readback) {
           throw new Error("target_planning_readback_failed");
         }
         return {
@@ -383,22 +514,8 @@ export function createAkbJiraMigrationTarget(
               item: action.target.item,
               idempotencyKey: action.sourceIdentity.key,
             });
-      const planning = await core.listPlanningCatalog({ adapter, vault });
-      const readback =
-        action.target.kind === "release"
-          ? planning.releases.find((candidate) => candidate.id === item.id)
-          : planning.sprints.find((candidate) => candidate.id === item.id);
-      if (!readback) throw new Error("target_planning_readback_failed");
-      const readbackProjection = Object.fromEntries(
-        Object.keys(action.target.item).map((key) => [
-          key,
-          readback[key as keyof typeof readback],
-        ]),
-      );
-      if (
-        canonicalizeJson(readbackProjection) !==
-        canonicalizeJson(action.target.item)
-      ) {
+      const readback = await readPlanningEventually(action.target, item.id);
+      if (!readback) {
         throw new Error("target_planning_readback_failed");
       }
       return {
@@ -416,12 +533,7 @@ export function createAkbJiraMigrationTarget(
         idempotencyKey: action.sourceIdentity.key,
       });
       if (!claimed) return null;
-      const projection = Object.fromEntries(
-        Object.keys(action.target.item).map((key) => [
-          key,
-          claimed[key as keyof typeof claimed],
-        ]),
-      );
+      const projection = planningProjection(claimed, action.target.item);
       if (
         canonicalizeJson(projection) !== canonicalizeJson(action.target.item)
       ) {
@@ -443,14 +555,11 @@ export function createAkbJiraMigrationTarget(
       }
       let commitHash: string;
       let expectedIssue = desired;
+      let writeError: unknown;
       if (action === "create") {
         let current: AkbReadIssueResult | null = null;
         try {
-          current = await core.readIssue({
-            adapter,
-            vault,
-            id: desired.id,
-          });
+          current = await readIssue(desired.id);
         } catch (error) {
           if (!(error instanceof NotFoundError)) throw error;
         }
@@ -469,14 +578,19 @@ export function createAkbJiraMigrationTarget(
             currentMigration.reservation === true &&
             current.issue.archived_at != null
           ) {
-            const result = await core.writeIssue({
-              adapter,
-              vault,
-              issue: desired,
-              content: plan.desired.content,
-              claimFirst: true,
-            });
-            commitHash = result.commit_hash;
+            try {
+              const result = await core.writeIssue({
+                adapter,
+                vault,
+                issue: desired,
+                content: plan.desired.content,
+                claimFirst: true,
+              });
+              commitHash = result.commit_hash;
+            } catch (error) {
+              writeError = error;
+              commitHash = "";
+            }
           } else {
             const desiredKeys = issueProjectionKeys(desired);
             if (
@@ -493,21 +607,22 @@ export function createAkbJiraMigrationTarget(
             };
           }
         } else {
-          const result = await core.writeIssue({
-            adapter,
-            vault,
-            issue: desired,
-            content: plan.desired.content,
-            claimFirst: true,
-          });
-          commitHash = result.commit_hash;
+          try {
+            const result = await core.writeIssue({
+              adapter,
+              vault,
+              issue: desired,
+              content: plan.desired.content,
+              claimFirst: true,
+            });
+            commitHash = result.commit_hash;
+          } catch (error) {
+            writeError = error;
+            commitHash = "";
+          }
         }
       } else {
-        const current = await core.readIssue({
-          adapter,
-          vault,
-          id: desired.id,
-        });
+        const current = await readIssue(desired.id);
         if (
           approvedReadback &&
           canonicalizeWireValue({
@@ -560,43 +675,51 @@ export function createAkbJiraMigrationTarget(
             commitHash: current.commit_hash ?? "",
           };
         }
-        const result = await core.updateIssue({
-          adapter,
-          vault,
-          id: desired.id,
-          partial: expectedIssue,
-          content: plan.desired.content,
-          message: `Update ${desired.id} from Jira migration`,
-          ...(current.commit_hash
-            ? { expectedCommit: current.commit_hash }
-            : {}),
-          expectedUpdatedAt: current.issue.updated_at,
-        });
-        commitHash = result.commit_hash;
+        try {
+          const result = await core.updateIssue({
+            adapter,
+            vault,
+            id: desired.id,
+            partial: expectedIssue,
+            content: plan.desired.content,
+            message: `Update ${desired.id} from Jira migration`,
+            ...(current.commit_hash
+              ? { expectedCommit: current.commit_hash }
+              : {}),
+            expectedUpdatedAt: current.issue.updated_at,
+          });
+          commitHash = result.commit_hash;
+        } catch (error) {
+          writeError = error;
+          commitHash = "";
+        }
       }
-      const readback = await core.readIssue({
-        adapter,
-        vault,
-        id: desired.id,
-      });
       const desiredKeys = issueProjectionKeys(expectedIssue);
       const desiredProjection = issueProjection(expectedIssue, desiredKeys);
-      const projectedReadback = issueProjection(readback.issue, desiredKeys);
-      if (
-        canonicalizeJson(projectedReadback) !==
-          canonicalizeJson(desiredProjection) ||
-        readback.content !== plan.desired.content
-      ) {
+      const readback = await eventually(
+        () => core.readIssue({ adapter, vault, id: desired.id }),
+        (candidate) =>
+          canonicalizeJson(issueProjection(candidate.issue, desiredKeys)) ===
+            canonicalizeJson(desiredProjection) &&
+          candidate.content === plan.desired.content,
+      );
+      if (!readback) {
+        if (writeError) {
+          if (writeError instanceof ConflictError) {
+            throw new JiraTargetConflictError();
+          }
+          throw writeError;
+        }
         throw new Error("target_issue_readback_failed");
       }
       return {
         reefId: desired.id,
         documentUri: akbIssueDocumentUri(vault, desired.id),
-        commitHash,
+        commitHash: commitHash || readback.commit_hash || "",
       };
     },
     readIssue(id) {
-      return core.readIssue({ adapter, vault, id });
+      return readIssue(id);
     },
     async claimIssue(plan) {
       const desired = plan.desired.issue;
@@ -606,11 +729,25 @@ export function createAkbJiraMigrationTarget(
       ) {
         throw new Error("jira_issue_plan_not_claimable");
       }
-      try {
-        await core.claimIssueId({ adapter, vault, issue: desired });
-      } catch (error) {
-        if (error instanceof ConflictError) throw new JiraTargetConflictError();
-        throw error;
+      for (let attempt = 0; attempt < CONSISTENCY_READ_ATTEMPTS; attempt += 1) {
+        try {
+          await core.claimIssueId({ adapter, vault, issue: desired });
+          return;
+        } catch (error) {
+          if (!(error instanceof ConflictError)) throw error;
+          let ownershipReadError: unknown;
+          try {
+            const row = await readIssueOwnershipRow(desired.id);
+            if (issueOwnershipMatches(row, desired)) return;
+          } catch (readError) {
+            ownershipReadError = readError;
+          }
+          if (attempt === CONSISTENCY_READ_ATTEMPTS - 1) {
+            if (ownershipReadError) throw ownershipReadError;
+            throw new JiraTargetConflictError();
+          }
+          await consistencyPause();
+        }
       }
     },
     relatedTarget() {
@@ -622,7 +759,10 @@ export function createAkbJiraMigrationTarget(
           throw new Error("target_activity_event_key_required");
         }
       }
-      await akbAppendActivityEvents(adapter, vault, [...events]);
+      await akbReconcileJiraChangelogActivityEvents(adapter, vault, [
+        ...events,
+      ]);
+      invalidateActivityMatches(events);
       if (!(await activityMatches(events))) {
         throw new Error("target_activity_readback_failed");
       }

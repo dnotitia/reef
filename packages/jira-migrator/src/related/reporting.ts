@@ -1,13 +1,15 @@
+import { isRetryableAkbReadError } from "../runner/akbReadRetry.js";
 import type {
   JiraRelatedImportFailure,
   JiraRelatedImportReport,
 } from "./contracts.js";
 
 const retryableError = (error: unknown): boolean =>
-  typeof error === "object" &&
-  error !== null &&
-  "retryable" in error &&
-  error.retryable === true;
+  isRetryableAkbReadError(error) ||
+  (typeof error === "object" &&
+    error !== null &&
+    "retryable" in error &&
+    error.retryable === true);
 
 export const failure = (
   failures: JiraRelatedImportFailure[],
@@ -48,7 +50,15 @@ export const reportTemplate = (
     description_updated: false,
     by_strategy: {},
   },
-  links: { entries: 0, unique: 0, applied: 0, skipped: 0, unresolved: 0 },
+  links: {
+    entries: 0,
+    unique: 0,
+    applied: 0,
+    skipped: 0,
+    unresolved: 0,
+    externalized: 0,
+    unmapped: 0,
+  },
   remote_links: { total: 0, applied: 0, skipped: 0 },
   operations: [],
   failures: [],

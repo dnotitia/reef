@@ -251,7 +251,8 @@ async function isCompatibleAttachment(
   const existingBytes = new Uint8Array(existing.body);
   return (
     attachment.reef_id === expected.reefId &&
-    attachment.filename === expected.filename &&
+    attachment.filename.normalize("NFC") ===
+      expected.filename.normalize("NFC") &&
     attachment.mime_type === expected.mimeType &&
     attachment.size_bytes === expected.sizeBytes &&
     attachment.author === expected.author &&

@@ -14,6 +14,10 @@ explicitly in the entries below.
 
 ### Added
 
+- Added opt-in Jira migration dry-run profiling with aggregate stage and
+  Jira/AKB boundary timings, periodic in-flight snapshots, and no impact on
+  approval artifacts or migration semantics.
+
 - **Global search now includes a bilingual action command mode.** The existing
   `⌘K` palette keeps recent issues and metadata/body/comment search intact while
   adding a `>` command mode for vault-scoped navigation, view, New issue,
@@ -38,6 +42,10 @@ explicitly in the entries below.
   50 results. (REEF-347)
 
 ### Changed
+
+- Batched Jira apply ledger checkpoints by change count and elapsed time while
+  preserving forced phase/error flushes, atomic CAS writes, and readback-based
+  crash recovery, avoiding thousands of full-ledger rewrites on large runs.
 
 - **Global search result groups now use one field/content vocabulary.** English
   and Korean palettes distinguish issue-field matches from issue-content
@@ -73,6 +81,107 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Jira ADF mentions inside comments now use the reviewed account mapping.**
+  Comment conversion previously omitted the mapping options already used for
+  issue descriptions, causing every comment mention to become the
+  non-identifying `@jira-user` fallback even when the Jira account resolved to
+  a vault member. Genuinely unmapped accounts still retain that safe fallback.
+- **Large Jira dry runs no longer reread the same target issue and related-data
+  catalogs for every planning pass.** Planning reuses its exact issue
+  readbacks, serves relation, external-reference, description, and media checks
+  from that immutable snapshot, and loads external-reference keys and fallback
+  attachment actors with one bulk query per catalog. Missing snapshot data
+  still falls back to the existing exact target read.
+- **Large Jira migration reruns no longer repeatedly scan the complete ledger
+  and activity catalog for every entity.** The runner builds source-key and
+  issue indexes once, reuses each changelog fingerprint, and caches target
+  activity readback by issue with explicit invalidation after a write. This
+  removes the quadratic lookup and repeated per-history activity-read pattern
+  while preserving ordered writes, exact readback, checkpoint, and resume
+  behavior.
+- **Jira issue migrations now preserve the source ticket number.** Newly bound
+  issues use the target workspace prefix with the Jira key's exact numeric
+  segment, so a matching project prefix keeps `SHDEV-290` as `SHDEV-290`
+  instead of dense-renumbering it by lexicographic discovery order. Existing
+  numeric aliases, collisions, and legacy same-key bindings under a different
+  number fail closed, while a genuine Jira key rename retains its stable
+  issue-id binding.
+- **Jira account remapping now repairs migration-owned attachment activity
+  actors, including orphaned upload history.** An approved account override can
+  replace the exact fallback actor on an `attachment_added` event left behind
+  when a remapped attachment is revoked and recreated. The repair is
+  approval-bound, validates the reserved event shape and previous fallback
+  actor, and preserves the event identity and payload.
+- **Jira account remapping now repairs migration-owned activity in place.**
+  When a reviewed vault membership or override replaces a fallback Jira actor,
+  changelog replay reconciles the existing reserved event key instead of
+  attempting an append that cannot change the old actor. Ordinary Reef
+  activity remains append-only, while imported assignees and historical actor
+  payloads can converge without duplicate events.
+- **Jira account remapping now repairs migration-owned comment authors in
+  place.** Imported comments with their exact deterministic Jira idempotency
+  key can replace a fallback author after vault membership review while
+  preserving comment identity, thread links, and AKB bookkeeping. Ordinary
+  Reef comment edits remain author-scoped.
+- **Jira migration convergence no longer schedules equivalent planning or
+  media rewrites.** Fresh dry runs recognize the exact native planning UUID
+  projection as equivalent to its approval-bound semantic token, and
+  descriptions already containing canonical attachment URIs remain no-op
+  skips instead of being rewritten to the same value. Related planning also
+  uses the issue phase's exact-readback correction before assuming that a stale
+  fingerprint will overwrite the base description, and apply accepts the same
+  immutable semantic planning projection when its current plan resolves native
+  UUIDs.
+- **Jira migration media and cross-project reconciliation now preserve the
+  approved source contract end to end.** Issue discovery approval-binds
+  rendered fields, description rewrites reuse the issue plan's raw-archive and
+  account mapping options, deterministic ADF filename/rendered-element
+  crosswalks cover REST attachment hrefs, and mapped out-of-scope issue links
+  are distinguished from missing link policy as durable external references.
+  Description media placeholders are grounded in their archived ADF object, so
+  full-project dry-run and apply no longer conflict on otherwise lossless
+  inputs.
+- **Jira migration apply no longer misclassifies committed AKB writes during a
+  short read-after-write consistency window.** Planning and issue creation now
+  use bounded exact-state readback, issue claims retry their idempotent owner
+  reservation, and an ambiguous write error is accepted only when subsequent
+  target readback exactly matches the approved issue projection. Planning
+  readback also treats an omitted nullable AKB field as the requested `null`,
+  so a committed create can be recovered in a fresh resume process. A
+  conflicting claim response is also recoverable only when an independent row
+  read proves the exact target id, document URI, and Jira owner.
+- **A deterministic related-entity conflict no longer aborts the entire Jira
+  migration process.** The failing issue is isolated as a fail-closed conflict
+  with a sanitized reason, its confirmed sibling checkpoints remain durable,
+  and apply continues classifying the remaining issues.
+- **Transient AKB read failures no longer create false Jira related-data
+  conflicts.** Related-data catalog and readback requests retry bounded 429 and
+  5xx responses without retrying mutations, and an exhausted transient failure
+  remains classified as retryable in the migration report.
+- **Jira media planning now respects base-issue updates that execute first.**
+  Related-data dry runs evaluate media rewrites against the approved new issue
+  description for both creates and updates, avoiding a false precondition
+  failure against stale target content.
+- **Jira comment approvals no longer depend on target-generated attachment
+  URIs.** Comment operation fingerprints replace dry-run and live AKB file URIs
+  with the same stable Jira attachment identity, while retaining all other body
+  and thread-parent differences.
+- **Jira migration report-only checkpoints no longer rewrite an unchanged
+  multi-megabyte ledger.** Related and changelog skips retain their existing
+  conservation classifications without repeating the private artifact's
+  compare-and-swap write, while every binding and durable entity result remains
+  atomically checkpointed.
+- **Jira planning approval no longer conflicts on target-generated ids hidden
+  in compact issue provenance.** Version and sprint target ids use the same
+  source-derived approval token in first-class fields and nested Jira planning
+  metadata, so dry-run placeholders and apply-time AKB UUIDs compare
+  semantically.
+- **Jira migration resumes now distinguish target outages from completed
+  unbound creates.** Bounded AKB transport retries fail the run once at its
+  durable checkpoint instead of producing hundreds of entity failures, while
+  an existing target with the approved semantic state and exact Jira owner is
+  bound before another issue-id claim is attempted.
+
 - Existing users now resume an accessible configured workspace after signing
   in or opening onboarding, without seeing the workspace creation form first.
   Reef preserves a valid last-viewed workspace and otherwise chooses a
@@ -90,6 +199,10 @@ explicitly in the entries below.
   `unique_keys` and `indexes`. Reef also rejects vault names that cannot fit
   the longest desired table within AKB's PostgreSQL identifier limit before
   creating any table, preventing a partial workspace installation. (REEF-427)
+- Jira vaults created by the migrator before source ticket-number preservation
+  must be rebuilt when their stored Jira key and Reef issue number differ.
+  The migrator rejects that legacy drift instead of silently retaining or
+  renumbering it.
 
 ## v0.8.1 - 2026-07-28
 

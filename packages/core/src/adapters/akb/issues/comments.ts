@@ -353,3 +353,79 @@ export async function updateComment(
     },
   );
 }
+
+const JIRA_COMMENT_IDEMPOTENCY_KEY = /^comment:[^:]+:[^:]+:[^:]+$/u;
+
+/**
+ * Reconcile a comment row owned by a Jira migration.
+ *
+ * Ordinary Reef comment edits remain author-scoped through `updateComment`.
+ * This narrowly-scoped repair path requires the deterministic Jira comment
+ * idempotency key already stored on the exact row, so an operator rerun can
+ * replace a fallback author after the corresponding AKB member is invited.
+ * Thread identity and akb bookkeeping columns are preserved.
+ */
+export async function reconcileJiraImportedComment(
+  adapter: AkbAdapter,
+  vault: string,
+  input: {
+    commentId: string;
+    reefId: string;
+    idempotencyKey: string;
+    body: string;
+    author: string;
+    createdAt: string;
+    editedAt: string | null;
+  },
+): Promise<Comment> {
+  if (!JIRA_COMMENT_IDEMPOTENCY_KEY.test(input.idempotencyKey)) {
+    throw new SchemaValidationError({
+      issues: ["Jira comment reconciliation requires a Jira comment key"],
+    });
+  }
+  return withSpan(
+    "akb.reconcile_jira_imported_comment",
+    {
+      vault,
+      reef_id: input.reefId,
+      comment_id: input.commentId,
+    },
+    async () => {
+      await ensureReefTables({ adapter, vault });
+      const migrationMeta = {
+        author: input.author,
+        created_at: input.createdAt,
+        edited_at: input.editedAt,
+        jira_idempotency_key: input.idempotencyKey,
+      };
+      const res = await runSql(
+        adapter,
+        vault,
+        `WITH upd AS (UPDATE ${tableRef(
+          REEF_COMMENTS_TABLE,
+        )} SET body = ${quoteText(
+          input.body,
+          "comment body",
+        )}, meta = (meta::jsonb || ${quoteJson(
+          migrationMeta,
+        )}::jsonb)::json WHERE id = ${quoteText(
+          input.commentId,
+          "comment id",
+        )} AND reef_id = ${quoteText(
+          input.reefId,
+          "comment reef_id",
+        )} AND meta->>'jira_idempotency_key' = ${quoteText(
+          input.idempotencyKey,
+          "comment idempotency key",
+        )} RETURNING *) SELECT * FROM upd`,
+      );
+      const row = res.kind === "table_query" ? res.items[0] : undefined;
+      if (!row) {
+        throw new NotFoundError({
+          resource: `Jira comment ${input.commentId}`,
+        });
+      }
+      return rowToComment(row);
+    },
+  );
+}

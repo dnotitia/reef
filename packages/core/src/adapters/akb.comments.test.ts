@@ -4,12 +4,14 @@ import {
   ALL_REEF_TABLES,
   NotFoundError,
   REEF_COMMENTS_TABLE,
+  SchemaValidationError,
   createComment,
   listComments,
   makeAdapter,
   makeListTablesResponse,
   makeSqlQueryResponse,
   makeSqlRuntimeErrorResponse,
+  reconcileJiraImportedComment,
   setupFetch,
   updateComment,
 } from "./akb.testSupport";
@@ -483,5 +485,80 @@ describe("updateComment", () => {
     expect(sql).toContain('"edited_at":"2020-01-02T00:00:00.000Z"');
     expect(sql).toContain('"jira_idempotency_key":"jira:comment:10001"');
     expect(sql).toContain("meta::jsonb ||");
+  });
+});
+
+describe("reconcileJiraImportedComment", () => {
+  const jiraKey = "comment:cloud-1:15263:15578";
+
+  it("repairs a Jira-owned comment author in place", async () => {
+    const parentId = "22222222-2222-4222-8222-222222222222";
+    const rootId = "33333333-3333-4333-8333-333333333333";
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      {
+        body: makeSqlQueryResponse(
+          [
+            makeCommentRow({
+              id: "c1",
+              body: "imported comment",
+              meta: {
+                author: "hongchan",
+                created_at: "2025-05-27T21:43:43.262+09:00",
+                edited_at: null,
+                parent_comment_id: parentId,
+                thread_root_id: rootId,
+                jira_idempotency_key: jiraKey,
+              },
+            }),
+          ],
+          COMMENT_ROW_COLUMNS,
+        ),
+      },
+    ]);
+
+    await expect(
+      reconcileJiraImportedComment(makeAdapter(), "reef-sample", {
+        commentId: "c1",
+        reefId: "REEF-062",
+        idempotencyKey: jiraKey,
+        body: "imported comment",
+        author: "hongchan",
+        createdAt: "2025-05-27T21:43:43.262+09:00",
+        editedAt: null,
+      }),
+    ).resolves.toMatchObject({
+      id: "c1",
+      author: "hongchan",
+      parent_comment_id: parentId,
+      thread_root_id: rootId,
+    });
+
+    const sql = lastSql(calls[1]?.init?.body);
+    expect(sql).toContain(`UPDATE ${REEF_COMMENTS_TABLE}`);
+    expect(sql).toContain('"author":"hongchan"');
+    expect(sql).toContain(`meta->>'jira_idempotency_key' = '${jiraKey}'`);
+    expect(sql).toContain("RETURNING *");
+    expect(sql).not.toContain("created_by =");
+    expect(sql).not.toContain("created_at =");
+    expect(sql).not.toContain("parent_comment_id");
+    expect(sql).not.toContain("thread_root_id");
+  });
+
+  it("rejects non-Jira keys before I/O", async () => {
+    const { calls } = setupFetch([]);
+
+    await expect(
+      reconcileJiraImportedComment(makeAdapter(), "reef-sample", {
+        commentId: "c1",
+        reefId: "REEF-062",
+        idempotencyKey: "manual-comment",
+        body: "comment",
+        author: "alice",
+        createdAt: "2025-05-27T21:43:43.262+09:00",
+        editedAt: null,
+      }),
+    ).rejects.toBeInstanceOf(SchemaValidationError);
+    expect(calls).toHaveLength(0);
   });
 });

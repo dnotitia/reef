@@ -41,9 +41,9 @@ for (const key of ["ALPHA", "BETA"]) {
   policies[key] = path;
 }
 
-const issue = (projectKey, projectId, issueId, linked) => ({
+const issue = (projectKey, projectId, issueId, issueNumber, linked) => ({
   id: issueId,
-  key: `${projectKey}-1`,
+  key: `${projectKey}-${issueNumber}`,
   self: `https://jira.invalid/rest/api/3/issue/${issueId}`,
   fields: {
     summary: `${projectKey} migration contract`,
@@ -67,7 +67,7 @@ const issue = (projectKey, projectId, issueId, linked) => ({
             },
             outwardIssue: {
               id: "20001",
-              key: "BETA-1",
+              key: "BETA-2",
               fields: { summary: "BETA migration contract" },
             },
           },
@@ -76,8 +76,8 @@ const issue = (projectKey, projectId, issueId, linked) => ({
   },
 });
 const issues = {
-  ALPHA: issue("ALPHA", "100", "10001", true),
-  BETA: issue("BETA", "200", "20001", false),
+  ALPHA: issue("ALPHA", "100", "10001", 1, true),
+  BETA: issue("BETA", "200", "20001", 2, false),
 };
 
 const state = {
@@ -132,7 +132,7 @@ const sqlResult = (items) => ({
   items,
   total: items.length,
 });
-const projectForReefId = (id) => (id === "REEF-001" ? "ALPHA" : "BETA");
+const projectForReefId = (id) => (id === "REEF-1" ? "ALPHA" : "BETA");
 const sourceForReefId = (id) => issues[projectForReefId(id)];
 const issueMetadata = (id, reservation = false) => {
   const source = sourceForReefId(id);
@@ -415,9 +415,9 @@ const server = createServer(async (request, response) => {
     }
     if (statement.includes("INSERT INTO reef_issues")) {
       const id =
-        [...["REEF-001", "REEF-002"]].find((candidate) =>
+        [...["REEF-1", "REEF-2"]].find((candidate) =>
           statement.includes(`'${candidate}'`),
-        ) ?? `REEF-${String(state.issues.size + 1).padStart(3, "0")}`;
+        ) ?? `REEF-${state.issues.size + 1}`;
       if (state.issues.has(id)) {
         return respond(response, { error: "duplicate reef_id" }, 409);
       }
@@ -743,7 +743,7 @@ try {
     wrongHash.code === 0 ||
     wrongHash.result?.code !== "plan_fingerprint_mismatch"
   ) {
-    throw new Error("plan_hash_rejection_missing");
+    throw new Error(`plan_hash_rejection_missing:${JSON.stringify(wrongHash)}`);
   }
   const wrongHashTargetUnchanged =
     targetStateSha256() === wrongHashState &&
@@ -783,6 +783,7 @@ try {
       interrupted_after_confirmed_entity: interrupted.result.code,
       fresh_process_resume: true,
       issues: state.issues.size,
+      issue_ids: [...state.issues.keys()].sort(),
       relations: state.relations.size,
       mutation_log: state.mutationLog,
     },
@@ -810,6 +811,7 @@ try {
     proof.plan_hash_rejection.code !== "plan_fingerprint_mismatch" ||
     !proof.plan_hash_rejection.target_unchanged ||
     proof.apply_resume.issues !== 2 ||
+    proof.apply_resume.issue_ids.join(",") !== "REEF-1,REEF-2" ||
     proof.apply_resume.relations !== 1 ||
     proof.rerun.duplicate_mutations !== 0 ||
     proof.jira.methods.join(",") !== "GET" ||

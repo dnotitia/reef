@@ -5,6 +5,7 @@ export type JiraRunnerErrorCode =
   | "dry_run_scope_mismatch"
   | "account_mapping_actor_not_vault_member"
   | "plan_fingerprint_mismatch"
+  | "target_unavailable"
   | "interrupted"
   | "failpoint";
 

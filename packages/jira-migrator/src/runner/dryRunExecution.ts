@@ -3,11 +3,14 @@ import type {
   JiraMigrationEntityResult,
   JiraMigrationPhase,
 } from "../ledger.js";
-import { jiraIssueSourceIdentity } from "../ledger.js";
+import {
+  indexJiraMigrationBindings,
+  jiraIssueSourceIdentity,
+} from "../ledger.js";
 import type { JiraPlanningTargetResolution } from "../planning/entities.js";
 import {
-  baseIssueReadbackMatches,
   issueOwnerMatches,
+  issueReadbackRepresentation,
   mappedFingerprintForPlanning,
   sourceFingerprintForPlanning,
 } from "./approval.js";
@@ -65,12 +68,22 @@ export async function executeJiraDryRun(input: {
     planningActions,
     approvedPlanningResolutions,
     dryIssuePlans,
+    nativeIssuePlans,
     relatedPlanningReports,
     postRelatedContentByReefId,
     finalRelatedReports,
     changelogPlans,
+    targetIssueReadbacksByReefId,
   } = plan;
   const { allIssues, absentSourceRelationPlan } = discovery;
+  const bindingIndex = indexJiraMigrationBindings(getLedger());
+  const issuesById = new Map(allIssues.map((issue) => [issue.id, issue]));
+  const finalRelatedReportsByIssueKey = new Map(
+    finalRelatedReports.map((report) => [report.issue_key, report]),
+  );
+  const nativeIssuePlansByKey = new Map(
+    nativeIssuePlans.map((issuePlan) => [issuePlan.source.issueKey, issuePlan]),
+  );
 
   for (const action of planningActions) {
     assertNotAborted();
@@ -95,24 +108,38 @@ export async function executeJiraDryRun(input: {
       issuePlan.source.projectId ?? issuePlan.source.projectKey,
       issuePlan.source.issueId,
     );
-    let action = actionForIssuePlan(issuePlan, getLedger());
+    const nativeIssuePlan = nativeIssuePlansByKey.get(
+      issuePlan.source.issueKey,
+    );
+    const currentIssuePlan = nativeIssuePlan ?? issuePlan;
+    let action = actionForIssuePlan(
+      currentIssuePlan,
+      getLedger(),
+      bindingIndex,
+    );
     let readbackSucceeded = false;
     if (issuePlan.desired.issue && (action === "skip" || action === "update")) {
-      const readback = await target
-        .readIssue(issuePlan.desired.issue.id)
-        .catch(() => null);
+      const reefId = issuePlan.desired.issue.id;
+      const readback = targetIssueReadbacksByReefId.has(reefId)
+        ? (targetIssueReadbacksByReefId.get(reefId) ?? null)
+        : await target.readIssue(reefId).catch(() => null);
       readbackSucceeded = readback !== null;
-      const baseMatches = baseIssueReadbackMatches(
+      const representation = issueReadbackRepresentation(
+        currentIssuePlan,
         issuePlan,
         readback,
         postRelatedContentByReefId.get(issuePlan.desired.issue.id),
       );
-      const matches =
-        action === "skip"
-          ? baseMatches
-          : issueOwnerMatches(issuePlan, readback);
-      if (action === "update" && baseMatches) action = "skip";
-      if (!matches) action = "conflict";
+      if (representation === "current") {
+        action = "skip";
+      } else if (representation === "approved") {
+        action = "update";
+      } else if (
+        action === "skip" ||
+        !issueOwnerMatches(currentIssuePlan, readback)
+      ) {
+        action = "conflict";
+      }
     }
     record(
       "issues",
@@ -120,9 +147,9 @@ export async function executeJiraDryRun(input: {
         sourceKey: identity.key,
         entityKind: "issue",
         sourceFingerprint: fingerprintJiraState(
-          allIssues.find((issue) => issue.id === issuePlan.source.issueId)?.raw,
+          issuesById.get(issuePlan.source.issueId)?.raw,
         ),
-        mappedFingerprint: mappedFingerprintForIssue(issuePlan),
+        mappedFingerprint: mappedFingerprintForIssue(currentIssuePlan),
         action,
         at: runAt,
         readback: readbackSucceeded,
@@ -148,7 +175,7 @@ export async function executeJiraDryRun(input: {
     recordReportOnly(
       "changelog",
       changelogPlan.sourceIdentity.key,
-      actionForChangelogPlan(changelogPlan, getLedger()),
+      actionForChangelogPlan(changelogPlan, getLedger(), bindingIndex),
     );
   }
   finalizePhase("related");
@@ -157,8 +184,8 @@ export async function executeJiraDryRun(input: {
       issuePlan.deferred.map((item) => ({ plan: issuePlan, item })),
     )
     .entries()) {
-    const relatedReport = finalRelatedReports.find(
-      (candidate) => candidate.issue_key === deferred.plan.source.issueKey,
+    const relatedReport = finalRelatedReportsByIssueKey.get(
+      deferred.plan.source.issueKey,
     )?.report;
     recordReportOnly(
       "reconciliation",

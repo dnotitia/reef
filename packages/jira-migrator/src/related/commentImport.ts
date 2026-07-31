@@ -5,6 +5,7 @@ import {
   type JiraMigrationLedgerV1,
   confirmJiraMigrationBinding,
   getJiraCommentTargetId,
+  getJiraMigrationBinding,
   jiraCommentSourceIdentity,
   removeJiraMigrationBindings,
 } from "../ledger.js";
@@ -61,6 +62,12 @@ export async function importComments(options: {
     now,
   } = options;
   let ledger = options.ledger;
+  const commentConversionOptions = {
+    accountMapping: {
+      artifact: migration.accountMapping,
+      directory: migration.actorDirectory ?? [],
+    },
+  };
   const roots = comments.filter((item) => item.parentId == null);
   const pendingReplies = comments.filter((item) => item.parentId != null);
   const orderedComments = [...roots];
@@ -130,6 +137,7 @@ export async function importComments(options: {
         report,
         comment.id,
         attachments,
+        commentConversionOptions,
       );
       if (!body.resolved) continue;
       const actor = mapJiraCommentActor(comment, {
@@ -164,7 +172,11 @@ export async function importComments(options: {
         recordOperation(
           kind,
           key,
-          commentOperationInput(commentInput, parentSourceId),
+          commentOperationInput(
+            commentInput,
+            parentSourceId,
+            attachmentBindings,
+          ),
         );
       };
       const sourceFingerprint = fingerprintJiraState(comment);
@@ -173,7 +185,11 @@ export async function importComments(options: {
         author: actor.actor,
         parent: parentTargetId,
       });
-      let existingTarget = getJiraCommentTargetId(ledger, identity);
+      let existingTarget = getJiraCommentTargetId(
+        ledger,
+        identity,
+        migration.bindingIndex,
+      );
       if (existingTarget) {
         const existing = await migration.target.readComment(existingTarget);
         if (existing === null) {
@@ -186,14 +202,20 @@ export async function importComments(options: {
             report.comments.updated += 1;
             continue;
           }
-          ledger = removeJiraMigrationBindings(ledger, [identity.key]);
+          ledger = removeJiraMigrationBindings(
+            ledger,
+            [identity.key],
+            migration.bindingIndex,
+          );
           existingTarget = null;
         }
         if (existingTarget === null) {
           // A quarantined comment returned safely; recreate it below.
         } else if (validCommentReadback(existing, commentInput)) {
-          const existingBinding = ledger.bindings.find(
-            (binding) => binding.source_key === identity.key,
+          const existingBinding = getJiraMigrationBinding(
+            ledger,
+            identity.key,
+            migration.bindingIndex,
           );
           if (
             migration.mode === "apply" &&
@@ -201,15 +223,19 @@ export async function importComments(options: {
               existingBinding.mapped_state_fingerprint !==
                 mappedStateFingerprint)
           ) {
-            ledger = confirmJiraMigrationBinding(ledger, {
-              sourceIdentity: identity,
-              target: { target_kind: "comment", comment_id: existingTarget },
-              sourceFingerprint,
-              mappedStateFingerprint,
-              lastAppliedAt: now(),
-              writeSucceeded: true,
-              readbackSucceeded: true,
-            });
+            ledger = confirmJiraMigrationBinding(
+              ledger,
+              {
+                sourceIdentity: identity,
+                target: { target_kind: "comment", comment_id: existingTarget },
+                sourceFingerprint,
+                mappedStateFingerprint,
+                lastAppliedAt: now(),
+                writeSucceeded: true,
+                readbackSucceeded: true,
+              },
+              migration.bindingIndex,
+            );
           }
           report.comments.skipped += 1;
           continue;
@@ -223,15 +249,19 @@ export async function importComments(options: {
           const readback = await migration.target.readComment(existingTarget);
           if (!validCommentReadback(readback, commentInput))
             throw new Error("comment_update_readback_mismatch");
-          ledger = confirmJiraMigrationBinding(ledger, {
-            sourceIdentity: identity,
-            target: { target_kind: "comment", comment_id: existingTarget },
-            sourceFingerprint,
-            mappedStateFingerprint,
-            lastAppliedAt: now(),
-            writeSucceeded: true,
-            readbackSucceeded: true,
-          });
+          ledger = confirmJiraMigrationBinding(
+            ledger,
+            {
+              sourceIdentity: identity,
+              target: { target_kind: "comment", comment_id: existingTarget },
+              sourceFingerprint,
+              mappedStateFingerprint,
+              lastAppliedAt: now(),
+              writeSucceeded: true,
+              readbackSucceeded: true,
+            },
+            migration.bindingIndex,
+          );
           plannedCommentTargets.set(comment.id, existingTarget);
           report.comments.updated += 1;
           continue;
@@ -244,32 +274,40 @@ export async function importComments(options: {
         plannedCommentTargets.set(comment.id, recovered.id);
         const matches = validCommentReadback(recovered, commentInput);
         if (migration.mode === "apply") {
-          ledger = confirmJiraMigrationBinding(ledger, {
-            sourceIdentity: identity,
-            target: { target_kind: "comment", comment_id: recovered.id },
-            sourceFingerprint,
-            mappedStateFingerprint: matches
-              ? mappedStateFingerprint
-              : fingerprintJiraState(recovered),
-            lastAppliedAt: now(),
-            writeSucceeded: true,
-            readbackSucceeded: true,
-          });
+          ledger = confirmJiraMigrationBinding(
+            ledger,
+            {
+              sourceIdentity: identity,
+              target: { target_kind: "comment", comment_id: recovered.id },
+              sourceFingerprint,
+              mappedStateFingerprint: matches
+                ? mappedStateFingerprint
+                : fingerprintJiraState(recovered),
+              lastAppliedAt: now(),
+              writeSucceeded: true,
+              readbackSucceeded: true,
+            },
+            migration.bindingIndex,
+          );
           if (!matches) {
             recordCommentOperation("update_comment", recovered.id);
             await migration.target.updateComment(recovered.id, commentInput);
             const readback = await migration.target.readComment(recovered.id);
             if (!validCommentReadback(readback, commentInput))
               throw new Error("comment_update_readback_mismatch");
-            ledger = confirmJiraMigrationBinding(ledger, {
-              sourceIdentity: identity,
-              target: { target_kind: "comment", comment_id: recovered.id },
-              sourceFingerprint,
-              mappedStateFingerprint,
-              lastAppliedAt: now(),
-              writeSucceeded: true,
-              readbackSucceeded: true,
-            });
+            ledger = confirmJiraMigrationBinding(
+              ledger,
+              {
+                sourceIdentity: identity,
+                target: { target_kind: "comment", comment_id: recovered.id },
+                sourceFingerprint,
+                mappedStateFingerprint,
+                lastAppliedAt: now(),
+                writeSucceeded: true,
+                readbackSucceeded: true,
+              },
+              migration.bindingIndex,
+            );
           }
         }
         if (matches) report.comments.skipped += 1;
@@ -294,30 +332,38 @@ export async function importComments(options: {
         const readback = await migration.target.readComment(created.id);
         if (!validCommentReadback(readback, commentInput))
           throw new Error("comment_readback_mismatch");
-        ledger = confirmJiraMigrationBinding(ledger, {
-          sourceIdentity: identity,
-          target: { target_kind: "comment", comment_id: created.id },
-          sourceFingerprint,
-          mappedStateFingerprint,
-          lastAppliedAt: now(),
-          writeSucceeded: true,
-          readbackSucceeded: true,
-        });
+        ledger = confirmJiraMigrationBinding(
+          ledger,
+          {
+            sourceIdentity: identity,
+            target: { target_kind: "comment", comment_id: created.id },
+            sourceFingerprint,
+            mappedStateFingerprint,
+            lastAppliedAt: now(),
+            writeSucceeded: true,
+            readbackSucceeded: true,
+          },
+          migration.bindingIndex,
+        );
         report.comments.created += 1;
       } catch (error) {
         const residual = createdTargetId
           ? await migration.target.readComment(createdTargetId)
           : await migration.target.findCommentByIdempotencyKey(identity.key);
         if (residual) {
-          ledger = confirmJiraMigrationBinding(ledger, {
-            sourceIdentity: identity,
-            target: { target_kind: "comment", comment_id: residual.id },
-            sourceFingerprint,
-            mappedStateFingerprint: fingerprintJiraState(residual),
-            lastAppliedAt: now(),
-            writeSucceeded: true,
-            readbackSucceeded: true,
-          });
+          ledger = confirmJiraMigrationBinding(
+            ledger,
+            {
+              sourceIdentity: identity,
+              target: { target_kind: "comment", comment_id: residual.id },
+              sourceFingerprint,
+              mappedStateFingerprint: fingerprintJiraState(residual),
+              lastAppliedAt: now(),
+              writeSucceeded: true,
+              readbackSucceeded: true,
+            },
+            migration.bindingIndex,
+          );
           let rollbackError: unknown = null;
           try {
             await migration.target.deleteComment(residual.id);
@@ -332,7 +378,11 @@ export async function importComments(options: {
               rollbackError ? [error, rollbackError] : [error],
               "comment_create_rollback_failed",
             );
-          ledger = removeJiraMigrationBindings(ledger, [identity.key]);
+          ledger = removeJiraMigrationBindings(
+            ledger,
+            [identity.key],
+            migration.bindingIndex,
+          );
         }
         throw error;
       }

@@ -11,9 +11,12 @@ import { buildJiraIssueImportPlan } from "../issues/mapping.js";
 import type { JiraReadClient } from "../jira/client.js";
 import { resolveJiraField } from "../jira/fieldCatalog.js";
 import {
+  type JiraMigrationBindingIndex,
   JiraMigrationBindingSchema,
   type JiraMigrationLedgerV1,
+  getJiraMigrationBinding,
   getJiraPlanningLedgerBindings,
+  indexJiraMigrationBindings,
   jiraAttachmentSourceIdentity,
   openJiraMigrationRun,
 } from "../ledger.js";
@@ -43,6 +46,7 @@ import {
   canRecoverApprovedPlanningCreate,
   fingerprintJiraApprovalPlan,
   issueReadbackApprovalFingerprint,
+  issueReadbackRepresentation,
   planningResolutionsForApproval,
   planningSourceProjection,
   safePlanningAction,
@@ -50,9 +54,14 @@ import {
   semanticRelatedReport,
 } from "./approval.js";
 import type { JiraApprovalArtifacts } from "./approvalArtifacts.js";
-import { actionForIssuePlan, mergePlanningActions } from "./decisions.js";
+import {
+  actionForIssuePlan,
+  mergePlanningActions,
+  plannedIssueContentForRelated,
+} from "./decisions.js";
 import { JiraRunnerError } from "./errors.js";
 import type { LoadedJiraMappingPolicy } from "./mappingPolicy.js";
+import { createRelatedPlanningSnapshot } from "./relatedPlanningSnapshot.js";
 import type { archiveJiraMigrationSource } from "./sourceArchive.js";
 import type { discoverJiraMigrationSource } from "./sourceDiscovery.js";
 import {
@@ -75,12 +84,41 @@ export const relatedPlanForApproval = (
         report: semanticRelatedReport(item.report),
       }));
 
+export const actionForRelatedIssuePlan = (input: {
+  plan: JiraIssueImportPlan;
+  equivalentPlans: readonly JiraIssueImportPlan[];
+  ledger: JiraMigrationLedgerV1;
+  bindingIndex?: Readonly<JiraMigrationBindingIndex>;
+  readback: Awaited<ReturnType<AkbJiraMigrationTarget["readIssue"]>> | null;
+  postRelatedContent?: string;
+}): ReturnType<typeof actionForIssuePlan> => {
+  const action = actionForIssuePlan(
+    input.plan,
+    input.ledger,
+    input.bindingIndex,
+  );
+  if ((action !== "skip" && action !== "update") || input.readback === null) {
+    return action;
+  }
+  const approvedPlan = input.equivalentPlans[0] ?? input.plan;
+  const representation = issueReadbackRepresentation(
+    input.plan,
+    approvedPlan,
+    input.readback,
+    input.postRelatedContent,
+  );
+  if (representation === "current") return "skip";
+  if (representation === "approved") return "update";
+  return action;
+};
+
 const relatedOperationKinds = new Set<JiraRelatedOperationKind>([
   "create_comment",
   "update_comment",
   "delete_comment",
   "create_attachment",
   "revoke_attachment",
+  "reconcile_attachment_activity_actor",
   "update_description",
   "put_relation",
   "delete_relation",
@@ -183,6 +221,7 @@ export async function buildJiraMigrationPlan(input: {
     approval,
   } = input;
   let ledger = input.ledger;
+  const bindingIndex = indexJiraMigrationBindings(ledger);
   const {
     fieldResult,
     fieldCatalog,
@@ -311,9 +350,26 @@ export async function buildJiraMigrationPlan(input: {
     });
   };
   const dryIssuePlans = buildIssuePlans(approvedPlanningResolutions);
+  const nativeIssuePlans = buildIssuePlans(existingPlanningResolutions);
   const dryIssuePlansByKey = new Map(
     dryIssuePlans.map((plan) => [plan.source.issueKey, plan]),
   );
+  const targetIssueReadbacksByReefId = new Map<
+    string,
+    Awaited<ReturnType<AkbJiraMigrationTarget["readIssue"]>> | null
+  >();
+  const readTargetIssueForPlanning = async (
+    reefId: string,
+  ): Promise<Awaited<
+    ReturnType<AkbJiraMigrationTarget["readIssue"]>
+  > | null> => {
+    if (targetIssueReadbacksByReefId.has(reefId)) {
+      return targetIssueReadbacksByReefId.get(reefId) ?? null;
+    }
+    const readback = await target.readIssue(reefId).catch(() => null);
+    targetIssueReadbacksByReefId.set(reefId, readback);
+    return readback;
+  };
   const approvedTargetIssuePreconditions =
     approvedPayload?.target_issue_preconditions &&
     typeof approvedPayload.target_issue_preconditions === "object" &&
@@ -335,13 +391,11 @@ export async function buildJiraMigrationPlan(input: {
       : Object.fromEntries(
           await Promise.all(
             dryIssuePlans.map(async (plan) => {
-              if (actionForIssuePlan(plan, ledger) === "create") {
+              if (actionForIssuePlan(plan, ledger, bindingIndex) === "create") {
                 return [plan.source.issueKey, null] as const;
               }
               const id = plan.desired.issue?.id;
-              const readback = id
-                ? await target.readIssue(id).catch(() => null)
-                : null;
+              const readback = id ? await readTargetIssueForPlanning(id) : null;
               return [
                 plan.source.issueKey,
                 issueReadbackApprovalFingerprint(plan, readback),
@@ -400,54 +454,6 @@ export async function buildJiraMigrationPlan(input: {
       );
     }
   }
-  const relatedPlanningReports: Array<{
-    issue_key: string;
-    report: JiraRelatedImportReport;
-  }> = [];
-  for (const issue of allIssues) {
-    const key = issue.projectKey ?? issue.key.split("-")[0] ?? "";
-    const client = clients.get(key);
-    const policy = policies.get(key);
-    if (!client || !policy) throw new Error("jira_client_missing");
-    const dryIssuePlan = dryIssuePlansByKey.get(issue.key);
-    const result = await importJiraRelatedData({
-      jiraCloudId: config.jira.cloudId,
-      issue: issue.raw,
-      reefId: targetIdsByJiraKey[issue.key] as string,
-      client,
-      target: target.relatedTarget(),
-      ledger,
-      accountMapping,
-      linkMappings: policy.linkMappings,
-      attachmentPolicy: config.control.commentCatalogComplete
-        ? {
-            maxBytes: 20 * 1024 * 1024,
-            commentVisibilityCompleteness: "verified" as const,
-          }
-        : undefined,
-      resolveIssueTarget(sourceIdOrKey) {
-        const reefId = issueBindings[sourceIdOrKey];
-        return reefId
-          ? {
-              reefId,
-              documentUri: `akb://${config.target.vault}/coll/issues/doc/${reefId.toLowerCase()}.md`,
-            }
-          : null;
-      },
-      plannedDescription:
-        dryIssuePlan &&
-        actionForIssuePlan(dryIssuePlan, ledger) === "create" &&
-        dryIssuePlan.desired.issue
-          ? dryIssuePlan.desired.content
-          : undefined,
-      mode: "dry-run",
-      now: () => runAt,
-    });
-    relatedPlanningReports.push({
-      issue_key: issue.key,
-      report: result.report,
-    });
-  }
   const postRelatedContentByReefId = new Map<string, string>();
   for (const issue of allIssues) {
     const attachments = issue.attachments ?? [];
@@ -457,9 +463,7 @@ export async function buildJiraMigrationPlan(input: {
         issue.id,
         attachment.id,
       ).key;
-      const binding = ledger.bindings.find(
-        (candidate) => candidate.source_key === sourceKey,
-      );
+      const binding = getJiraMigrationBinding(ledger, sourceKey, bindingIndex);
       return binding?.target.target_kind === "attachment"
         ? [{ source: attachment, fileUri: binding.target.file_uri }]
         : [];
@@ -473,6 +477,12 @@ export async function buildJiraMigrationPlan(input: {
       reportTemplate("dry-run"),
       issue.id,
       attachments,
+      {
+        accountMapping: { artifact: accountMapping },
+        descriptionRawArchiveReference: archiveReferences.get(issue.key)
+          ?.descriptionAdf,
+        mediaRawArchiveReferences: archiveReferences.get(issue.key)?.media,
+      },
     );
     if (rewritten.resolved && rewritten.changed) {
       postRelatedContentByReefId.set(
@@ -480,6 +490,101 @@ export async function buildJiraMigrationPlan(input: {
         rewritten.markdown,
       );
     }
+  }
+  const nativeIssuePlansByKey = new Map(
+    nativeIssuePlans.map((plan) => [plan.source.issueKey, plan]),
+  );
+  const baseRelatedTarget = target.relatedTarget();
+  const [externalRefKeys, fallbackAttachmentActors] = await Promise.all([
+    baseRelatedTarget.listAllExternalRefKeys?.().catch(() => undefined),
+    baseRelatedTarget
+      .listAllFallbackAttachmentActivityActors?.()
+      .catch(() => undefined),
+  ]);
+  const relatedPlanningTarget = createRelatedPlanningSnapshot({
+    target: baseRelatedTarget,
+    issueReadbacks: targetIssueReadbacksByReefId,
+    ...(externalRefKeys ? { externalRefKeys } : {}),
+    ...(fallbackAttachmentActors ? { fallbackAttachmentActors } : {}),
+  });
+  const relatedPlanningReports: Array<{
+    issue_key: string;
+    report: JiraRelatedImportReport;
+  }> = [];
+  for (const issue of allIssues) {
+    const key = issue.projectKey ?? issue.key.split("-")[0] ?? "";
+    const client = clients.get(key);
+    const policy = policies.get(key);
+    if (!client || !policy) throw new Error("jira_client_missing");
+    const dryIssuePlan = dryIssuePlansByKey.get(issue.key);
+    const nativeIssuePlan = nativeIssuePlansByKey.get(issue.key);
+    const issueArchiveReferences = archiveReferences.get(issue.key);
+    const descriptionConversionOptions = {
+      accountMapping: { artifact: accountMapping },
+      descriptionRawArchiveReference: issueArchiveReferences?.descriptionAdf,
+      mediaRawArchiveReferences: issueArchiveReferences?.media,
+    };
+    const currentIssuePlan = nativeIssuePlan ?? dryIssuePlan;
+    let relatedIssueAction = currentIssuePlan
+      ? actionForIssuePlan(currentIssuePlan, ledger, bindingIndex)
+      : ("conflict" as const);
+    if (
+      (relatedIssueAction === "skip" || relatedIssueAction === "update") &&
+      currentIssuePlan?.desired.issue
+    ) {
+      const readback = await readTargetIssueForPlanning(
+        currentIssuePlan.desired.issue.id,
+      );
+      relatedIssueAction = actionForRelatedIssuePlan({
+        plan: currentIssuePlan,
+        equivalentPlans:
+          dryIssuePlan && dryIssuePlan !== currentIssuePlan
+            ? [dryIssuePlan]
+            : [],
+        ledger,
+        bindingIndex,
+        readback,
+        postRelatedContent: postRelatedContentByReefId.get(
+          currentIssuePlan.desired.issue.id,
+        ),
+      });
+    }
+    const result = await importJiraRelatedData({
+      jiraCloudId: config.jira.cloudId,
+      issue: issue.raw,
+      reefId: targetIdsByJiraKey[issue.key] as string,
+      client,
+      target: relatedPlanningTarget,
+      ledger,
+      bindingIndex,
+      accountMapping,
+      linkMappings: policy.linkMappings,
+      attachmentPolicy: config.control.commentCatalogComplete
+        ? {
+            maxBytes: 20 * 1024 * 1024,
+            commentVisibilityCompleteness: "verified" as const,
+          }
+        : undefined,
+      descriptionConversionOptions,
+      resolveIssueTarget(sourceIdOrKey) {
+        const reefId = issueBindings[sourceIdOrKey];
+        return reefId
+          ? {
+              reefId,
+              documentUri: `akb://${config.target.vault}/coll/issues/doc/${reefId.toLowerCase()}.md`,
+            }
+          : null;
+      },
+      plannedDescription: dryIssuePlan
+        ? plannedIssueContentForRelated(dryIssuePlan, relatedIssueAction)
+        : undefined,
+      mode: "dry-run",
+      now: () => runAt,
+    });
+    relatedPlanningReports.push({
+      issue_key: issue.key,
+      report: result.report,
+    });
   }
   for (const key of config.jira.projectKeys) {
     const archive = archivesByProject.get(key);
@@ -739,7 +844,9 @@ export async function buildJiraMigrationPlan(input: {
     approvedPlanningResolutions,
     buildIssuePlans,
     dryIssuePlans,
+    nativeIssuePlans,
     targetIssuePreconditions,
+    targetIssueReadbacksByReefId,
     issueBindings,
     changelogPlans,
     relatedPlanningReports,

@@ -262,6 +262,69 @@ describe("uploadIssueAttachment", () => {
       ),
     ).toBe(false);
   });
+
+  it("treats canonically equivalent Unicode filenames as idempotent", async () => {
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { body: makeSqlQueryResponse([{ reef_id: "REEF-349" }], ["reef_id"]) },
+      {
+        body: makeSqlQueryResponse(
+          [
+            makeAttachmentRow({
+              filename: "évidence.png",
+              size_bytes: 4,
+              source: "jira_import",
+              original_jira_attachment_id: "source-42",
+              meta: {
+                source: "jira",
+                jira_idempotency_key: "attachment:cloud-1:source-42",
+                created_at: "2026-01-01T00:00:00.000Z",
+              },
+            }),
+          ],
+          ATTACHMENT_ROW_COLUMNS,
+        ),
+      },
+      {
+        body: {
+          name: "évidence.png",
+          download_url: "https://s3.test/presigned-get",
+          mime_type: "image/png",
+          size_bytes: 4,
+        },
+      },
+      {
+        rawBody: new Uint8Array([1, 2, 3, 4]).buffer,
+        headers: { "content-type": "image/png" },
+      },
+    ]);
+
+    await expect(
+      uploadIssueAttachment({
+        adapter: makeAdapter(),
+        vault: "reef-sample",
+        reefId: "REEF-349",
+        filename: "e\u0301vidence.png",
+        mimeType: "image/png",
+        bytes: new Uint8Array([1, 2, 3, 4]),
+        author: "alice",
+        source: "jira_import",
+        inline: true,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        originalJiraAttachmentId: "source-42",
+        meta: {
+          source: "jira",
+          jira_idempotency_key: "attachment:cloud-1:source-42",
+        },
+      }),
+    ).resolves.toMatchObject({ id: "att-1", filename: "évidence.png" });
+    expect(
+      calls.some(
+        (call) =>
+          call.url.endsWith("/api/v1/files") && call.init?.method === "POST",
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("createIssueAttachmentRecord", () => {

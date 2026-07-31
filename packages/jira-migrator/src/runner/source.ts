@@ -85,7 +85,7 @@ export async function readAllProjectIssues(
           projectKey,
           nextPageToken,
           fields: ["*all"],
-          expand: ["properties"],
+          expand: ["properties", "renderedFields"],
         }),
       { ...retry, operationKind: "read" },
     );

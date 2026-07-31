@@ -64,4 +64,29 @@ describe("related operation approval identities", () => {
       ),
     );
   });
+
+  it("preserves comment attachment identity across dry-run and apply URIs", () => {
+    const source = { id: "100" } as never;
+    const input = (body: string): JiraImportedCommentInput => ({
+      idempotencyKey: "comment-key",
+      reefId: "REEF-001",
+      body,
+      author: "jira-import",
+      createdAt: "2026-07-23T00:00:00.000Z",
+      editedAt: null,
+      expectedThreadRootId: null,
+    });
+    const dry = commentOperationInput(input("dry-run://attachment/100"), null, [
+      { source, fileUri: "dry-run://attachment/100" },
+    ]);
+    const apply = commentOperationInput(
+      input("akb://vault/coll/file/actual"),
+      null,
+      [{ source, fileUri: "akb://vault/coll/file/actual" }],
+    );
+
+    expect(relatedOperation("create_comment", "comment-key", apply)).toEqual(
+      relatedOperation("create_comment", "comment-key", dry),
+    );
+  });
 });

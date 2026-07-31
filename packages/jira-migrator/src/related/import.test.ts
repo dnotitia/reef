@@ -94,7 +94,7 @@ const makeClient = (
   commentMedia = false,
   restrictedComment = false,
   internalComment = false,
-  rootText = "root",
+  rootText: string | Record<string, unknown> = "root",
 ) =>
   new JiraReadClient({
     baseUrl: "https://example.atlassian.net",
@@ -135,16 +135,18 @@ const makeClient = (
                             },
                           ],
                         }
-                      : {
-                          type: "doc",
-                          version: 1,
-                          content: [
-                            {
-                              type: "paragraph",
-                              content: [{ type: "text", text: rootText }],
-                            },
-                          ],
-                        },
+                      : typeof rootText === "string"
+                        ? {
+                            type: "doc",
+                            version: 1,
+                            content: [
+                              {
+                                type: "paragraph",
+                                content: [{ type: "text", text: rootText }],
+                              },
+                            ],
+                          }
+                        : rootText,
                     renderedBody: commentMedia
                       ? '<span data-media-services-id="comment-media" href="/attachment/30001/fixture">media</span>'
                       : undefined,
@@ -234,6 +236,7 @@ const makeTarget = () => {
     string,
     { attachment: import("@reef/core").IssueAttachment; bytes: Uint8Array }
   >();
+  const attachmentActivityActors = new Map<string, string>();
   const relations = new Map<string, unknown>();
   const refs = new Map<string, unknown>();
   let nextFileId = 30001;
@@ -330,6 +333,27 @@ const makeTarget = () => {
         });
       }
     },
+    async listFallbackAttachmentActivityActors(reefId) {
+      return [...attachmentActivityActors.entries()]
+        .filter(
+          ([key, actor]) =>
+            key.startsWith(`${reefId}:`) && actor.startsWith("jira:"),
+        )
+        .map(([key, actor]) => ({
+          eventKey: key.slice(reefId.length + 1),
+          actor,
+        }));
+    },
+    async readAttachmentActivityActor(reefId, eventKey) {
+      return attachmentActivityActors.get(`${reefId}:${eventKey}`) ?? null;
+    },
+    async reconcileAttachmentActivityActor(input) {
+      const key = `${input.reefId}:${input.eventKey}`;
+      if (attachmentActivityActors.get(key) !== input.fromActor) {
+        throw new Error("attachment_activity_actor_reconcile_mismatch");
+      }
+      attachmentActivityActors.set(key, input.toActor);
+    },
     async hasMediaReference(_reefId, fileUri) {
       return (
         description.includes(fileUri) ||
@@ -393,6 +417,7 @@ const makeTarget = () => {
     target,
     comments,
     attachments,
+    attachmentActivityActors,
     relations,
     refs,
     get description() {
@@ -405,6 +430,74 @@ const makeTarget = () => {
 };
 
 describe("Jira related-data import stage", () => {
+  it("approval-binds fallback attachment activity actor repairs and converges", async () => {
+    const requests: string[] = [];
+    const state = makeTarget();
+    const eventKey = "attachment_added:old-row@2025-05-27T21:43:43.262+09:00";
+    state.attachmentActivityActors.set(`REEF-1:${eventKey}`, "jira:account-1");
+    const accountMapping = createJiraAccountMappingArtifact({
+      jiraCloudId: "cloud-1",
+      overrides: {
+        "account-1": { actor: "hongchan", reason: "reviewed membership" },
+      },
+    });
+    const base = {
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client: makeClient(requests),
+      target: state.target,
+      accountMapping,
+      actorDirectory: [
+        { actor: "reef-directory-actor", emailAddress: "directory-key-1" },
+      ],
+      linkMappings: [] as const,
+      resolveIssueTarget: () => null,
+      now: () => "2026-01-02T00:00:00.000Z",
+    };
+    const initial = createJiraMigrationLedger({
+      jiraCloudId: "cloud-1",
+      targetVault: "isolated",
+    });
+
+    const dryRun = await importJiraRelatedData({
+      ...base,
+      ledger: initial,
+      mode: "dry-run",
+    });
+    expect(state.attachmentActivityActors.get(`REEF-1:${eventKey}`)).toBe(
+      "jira:account-1",
+    );
+    expect(dryRun.report.operations).toContainEqual(
+      expect.objectContaining({
+        kind: "reconcile_attachment_activity_actor",
+      }),
+    );
+
+    const applied = await importJiraRelatedData({
+      ...base,
+      ledger: initial,
+      mode: "apply",
+      approvedOperations: dryRun.report.operations,
+    });
+    expect(applied.report.failures).toEqual([]);
+    expect(state.attachmentActivityActors.get(`REEF-1:${eventKey}`)).toBe(
+      "hongchan",
+    );
+
+    const converged = await importJiraRelatedData({
+      ...base,
+      ledger: applied.ledger,
+      mode: "dry-run",
+    });
+    expect(converged.report.operations).not.toContainEqual(
+      expect.objectContaining({
+        kind: "reconcile_attachment_activity_actor",
+      }),
+    );
+  });
+
   it("keeps dry-run immutable, applies root-first, and reruns idempotently through the public stage", async () => {
     const requests: string[] = [];
     const client = makeClient(requests);
@@ -595,6 +688,12 @@ describe("Jira related-data import stage", () => {
     expect(rerun.report.attachments.skipped).toBe(1);
     expect(rerun.report.links.skipped).toBe(1);
     expect(rerun.report.remote_links.skipped).toBe(2);
+    expect(rerun.report.media.description_updated).toBe(false);
+    expect(
+      rerun.report.operations.some(
+        (operation) => operation.kind === "update_description",
+      ),
+    ).toBe(false);
     expect(state.comments.size).toBe(2);
     expect(state.attachments.size).toBe(1);
     expect(requests.every((item) => item.startsWith("GET:"))).toBe(true);
@@ -776,6 +875,55 @@ describe("Jira related-data import stage", () => {
     });
     expect(rerun.report.comments).toMatchObject({ updated: 0, skipped: 2 });
     expect(state.comments.size).toBe(2);
+  });
+
+  it("maps ADF mentions inside comments through the Jira account resolver", async () => {
+    const state = makeTarget();
+    const mentionBody = {
+      type: "doc",
+      version: 1,
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "mention",
+              attrs: { id: "acct-1", text: "@Mapped User" },
+            },
+            { type: "text", text: " and " },
+            {
+              type: "mention",
+              attrs: { id: "acct-unmapped", text: "@Private User" },
+            },
+          ],
+        },
+      ],
+    };
+    const applied = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client: makeClient([], false, false, false, false, false, mentionBody),
+      target: state.target,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+        overrides: { "acct-1": { actor: "reef-alice" } },
+      }),
+      linkMappings: [],
+      resolveIssueTarget: () => null,
+      mode: "apply",
+    });
+
+    expect(applied.report.failures).toEqual([]);
+    expect(state.comments.get(rootId)?.body).toBe(
+      "@reef\\-alice and @jira\\-user",
+    );
+    expect(state.comments.get(rootId)?.body).not.toContain("Private User");
   });
 
   it("dry-runs a stale threaded root with a synthetic replacement parent", async () => {
@@ -1430,6 +1578,45 @@ describe("Jira related-data import stage", () => {
     ).toBe(true);
   });
 
+  it("preserves the original readback error when revoking an invalid residual attachment", async () => {
+    const state = makeTarget();
+    const createAttachment = state.target.createAttachment.bind(state.target);
+    state.target.createAttachment = (input) =>
+      createAttachment({ ...input, filename: "server-name.dat" });
+
+    const result = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client: makeClient([]),
+      target: state.target,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [],
+      resolveIssueTarget: () => null,
+      mode: "apply",
+    });
+
+    expect(result.report.failures).toContainEqual(
+      expect.objectContaining({
+        source_kind: "attachment",
+        reason: "attachment_readback_mismatch:filename",
+      }),
+    );
+    expect(state.attachments.size).toBe(0);
+    expect(
+      result.ledger.bindings.some(
+        (binding) => binding.entity_kind === "attachment",
+      ),
+    ).toBe(false);
+  });
+
   it("does not treat an omitted attachment field as an empty catalog", async () => {
     const state = makeTarget();
     const base = {
@@ -1780,7 +1967,10 @@ describe("Jira related-data import stage", () => {
       rewritten: 2,
       unresolved: 0,
     });
-    expect(dryRun.report.media.by_strategy.rendered_element).toBe(2);
+    expect(dryRun.report.media.by_strategy).toMatchObject({
+      rendered_element: 1,
+      unique_filename: 1,
+    });
     expect(state.comments.size).toBe(0);
 
     const applied = await importJiraRelatedData({ ...base, mode: "apply" });
@@ -2619,6 +2809,7 @@ describe("media crosswalk", () => {
       mediaType: "file",
       collection: null,
       filename: "a.bin",
+      alt: null,
       rawArchiveReference: null,
       placeholder: "placeholder",
       legacyPlaceholder: "legacy-placeholder",
@@ -2651,6 +2842,19 @@ describe("media crosswalk", () => {
       ],
     }).media[0];
     expect(altOnlyMedia?.filename).toBeNull();
+    expect(altOnlyMedia?.alt).toBe("a.bin");
+    expect(
+      altOnlyMedia
+        ? resolveJiraMediaReference(
+            altOnlyMedia,
+            [
+              { source: source("1", "a.bin"), fileUri: "akb://v/file/1" },
+              { source: source("2", "b.bin"), fileUri: "akb://v/file/2" },
+            ],
+            "",
+          )?.strategy
+        : null,
+    ).toBe("unique_filename");
     expect(
       altOnlyMedia
         ? resolveJiraMediaReference(
@@ -2660,9 +2864,9 @@ describe("media crosswalk", () => {
               { source: source("2", "b.bin"), fileUri: "akb://v/file/2" },
             ],
             '<span data-media-services-id="m1" href="/attachment/2/b.bin"></span>',
-          )?.binding.source.id
+          )
         : null,
-    ).toBe("2");
+    ).toBeNull();
     expect(
       resolveJiraMediaReference(
         { ...media, filename: null },
@@ -2697,6 +2901,16 @@ describe("media crosswalk", () => {
           { source: source("1", "a.bin"), fileUri: "akb://v/file/1" },
           { source: source("2", "b.bin"), fileUri: "akb://v/file/2" },
         ],
+        '<a data-media-services-id="m1" data-attachment-name="b.bin" href="/rest/api/3/attachment/content/2"></a>',
+      )?.binding.source.id,
+    ).toBe("2");
+    expect(
+      resolveJiraMediaReference(
+        { ...media, filename: null },
+        [
+          { source: source("1", "a.bin"), fileUri: "akb://v/file/1" },
+          { source: source("2", "b.bin"), fileUri: "akb://v/file/2" },
+        ],
         '<span data-media-services-id="m1" data-attachment-id="1" href="/attachment/2/b.bin"></span>',
       ),
     ).toBeNull();
@@ -2708,6 +2922,19 @@ describe("media crosswalk", () => {
           { source: source("2", "b.bin"), fileUri: "akb://v/file/2" },
         ],
         '<span data-media-services-id="m1" data-filename="b.bin"></span>',
+      )?.strategy,
+    ).toBe("rendered_unique_filename");
+    expect(
+      resolveJiraMediaReference(
+        { ...media, filename: null },
+        [
+          { source: source("1", "a.bin"), fileUri: "akb://v/file/1" },
+          {
+            source: source("2", "manual (m1).pdf"),
+            fileUri: "akb://v/file/2",
+          },
+        ],
+        "<p>See [^manual (m1).pdf]</p>",
       )?.strategy,
     ).toBe("rendered_unique_filename");
     expect(

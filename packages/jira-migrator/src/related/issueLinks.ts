@@ -67,6 +67,7 @@ export async function importIssueLinks(options: {
       ledger = removeJiraMigrationBindings(
         ledger,
         staleRelationBindings.map((binding) => binding.source_key),
+        migration.bindingIndex,
       );
     }
   };
@@ -228,6 +229,11 @@ export async function importIssueLinks(options: {
       }
       if (!mapping || !targetIssue) {
         report.links.unresolved += 1;
+        if (mapping) {
+          report.links.externalized += 1;
+        } else {
+          report.links.unmapped += 1;
+        }
         await removeStaleRelationBindings(linkId);
         const externalKey = `jira-link:${migration.jiraCloudId}:${issueId}:${linkId}`;
         const externalValue = {
@@ -409,16 +415,21 @@ export async function importIssueLinks(options: {
       ledger = removeJiraMigrationBindings(
         ledger,
         semanticBindings.map((binding) => binding.source_key),
+        migration.bindingIndex,
       );
-      ledger = confirmJiraMigrationBinding(ledger, {
-        sourceIdentity: identity,
-        target: { target_kind: "relation", idempotency_key: relationKey },
-        sourceFingerprint: fingerprintJiraState(link),
-        mappedStateFingerprint,
-        lastAppliedAt: now(),
-        writeSucceeded: true,
-        readbackSucceeded: true,
-      });
+      ledger = confirmJiraMigrationBinding(
+        ledger,
+        {
+          sourceIdentity: identity,
+          target: { target_kind: "relation", idempotency_key: relationKey },
+          sourceFingerprint: fingerprintJiraState(link),
+          mappedStateFingerprint,
+          lastAppliedAt: now(),
+          writeSucceeded: true,
+          readbackSucceeded: true,
+        },
+        migration.bindingIndex,
+      );
       report.links.applied += 1;
     } catch (error) {
       failure(

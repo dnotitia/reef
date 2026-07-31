@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { JiraIssueImportPlan } from "../issues/importPlan.js";
+import type { JiraPlanningAction } from "../planning/entities.js";
 import {
   baseIssueReadbackMatches,
+  completedIssueReadbackMatches,
   fingerprintJiraApprovalPlan,
+  issueReadbackRepresentation,
+  planningResolutionsForApproval,
+  semanticIssuePlan,
 } from "./approval.js";
 
 const plan = (at: string, fields: unknown[]) => ({
@@ -34,6 +39,73 @@ const plan = (at: string, fields: unknown[]) => ({
       },
     },
   },
+});
+
+describe("semanticIssuePlan", () => {
+  it("normalizes target planning ids in issue fields and compact provenance", () => {
+    const sourceIdentity = {
+      kind: "version" as const,
+      jiraCloudId: "cloud-1",
+      projectId: "project-1",
+      versionId: "version-1",
+      key: "version:cloud-1:project-1:version-1",
+    };
+    const action = {
+      classification: "reuse" as const,
+      sourceIdentity,
+      target: {
+        kind: "release" as const,
+        item: { name: "Release 1" },
+      },
+      targetId: "target-release-uuid",
+    } as unknown as JiraPlanningAction;
+    const approvalResolution = planningResolutionsForApproval([action])[0];
+    const liveResolution = {
+      sourceIdentity,
+      targetKind: "release" as const,
+      targetId: "target-release-uuid",
+    };
+    const issuePlan = (targetId: string) =>
+      ({
+        source: { issueKey: "ALPHA-1" },
+        desired: {
+          issue: {
+            id: "REEF-001",
+            release_id: targetId,
+            sprint_id: null,
+            custom_fields: {
+              jira: {
+                planning: [
+                  {
+                    kind: "version",
+                    source_key: sourceIdentity.key,
+                    target_id: targetId,
+                  },
+                ],
+              },
+            },
+          },
+          content: "",
+        },
+        deferred: [],
+        field_results: [],
+        status: "ready",
+      }) as unknown as JiraIssueImportPlan;
+
+    expect(approvalResolution).toBeDefined();
+    const approved = semanticIssuePlan(
+      issuePlan(approvalResolution?.targetId ?? ""),
+      approvalResolution ? [approvalResolution] : [],
+      [action],
+    );
+    const live = semanticIssuePlan(
+      issuePlan(liveResolution.targetId),
+      [liveResolution],
+      [action],
+    );
+
+    expect(live).toEqual(approved);
+  });
 });
 
 describe("fingerprintJiraApprovalPlan", () => {
@@ -160,5 +232,56 @@ describe("fingerprintJiraApprovalPlan", () => {
         commit_hash: "commit",
       } as never),
     ).toBe(true);
+  });
+
+  it("recovers an approved semantic planning token after apply resolves the target UUID", () => {
+    const owner = {
+      jira_cloud_id: "cloud-1",
+      project_key: "ALPHA",
+      issue_id: "1",
+      issue_key: "ALPHA-1",
+    };
+    const issuePlan = (targetId: string, title = "Migrated") =>
+      ({
+        source: { issueKey: "ALPHA-1" },
+        desired: {
+          issue: {
+            id: "REEF-001",
+            title,
+            source: "jira-migration",
+            release_id: targetId,
+            custom_fields: {
+              jira: {
+                planning: [{ kind: "version", target_id: targetId }],
+              },
+              jira_migration: { owner },
+            },
+          },
+          content: "",
+        },
+      }) as unknown as JiraIssueImportPlan;
+    const approved = issuePlan("jira-planning:release:release 1");
+    const current = issuePlan("target-release-uuid");
+    const readback = {
+      issue: approved.desired.issue,
+      content: "",
+      path: "issues/reef-001.md",
+      commit_hash: "commit",
+    } as never;
+
+    expect(baseIssueReadbackMatches(current, readback)).toBe(false);
+    expect(completedIssueReadbackMatches(current, approved, readback)).toBe(
+      true,
+    );
+    expect(issueReadbackRepresentation(current, approved, readback)).toBe(
+      "approved",
+    );
+    expect(
+      completedIssueReadbackMatches(
+        issuePlan("target-release-uuid", "Changed"),
+        issuePlan("jira-planning:release:release 1", "Changed"),
+        readback,
+      ),
+    ).toBe(false);
   });
 });

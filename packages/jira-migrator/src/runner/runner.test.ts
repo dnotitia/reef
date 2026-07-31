@@ -14,8 +14,10 @@ import type { JiraIssueImportPlan } from "../issues/importPlan.js";
 import { jiraIssueFixture } from "../jira/fixtures.js";
 import { JiraIssueSchema, normalizeJiraIssue } from "../payloads.js";
 import { reportTemplate } from "../related/reporting.js";
+import { mappedFingerprintForIssue } from "./decisions.js";
 import { scheduleIssuePlansForApply } from "./issueSchedule.js";
 import {
+  actionForRelatedIssuePlan,
   assertRelatedOperationSubset,
   relatedPlanForApproval,
 } from "./plan.js";
@@ -28,6 +30,7 @@ import {
   migrationScopeLockIdentity,
   runJiraMigration,
 } from "./runner.js";
+import { JiraTargetConflictError } from "./targetAdapter.js";
 
 let root: string | null = null;
 afterEach(async () => {
@@ -242,6 +245,135 @@ describe("runJiraMigration", () => {
         "markdown with akb://reef-test/file/attachment",
       ),
     ).toBe(true);
+  });
+
+  it("plans related data from converged target content after a stale issue fingerprint", () => {
+    const issue = {
+      id: "REEF-001",
+      title: "Migrated",
+      status: "todo",
+      created_at: "2026-07-23T00:00:00.000Z",
+      created_by: "operator",
+      updated_at: "2026-07-23T00:00:00.000Z",
+      updated_by: "operator",
+      source: "jira-migration",
+      custom_fields: {
+        jira_migration: {
+          owner: {
+            jira_cloud_id: "cloud-1",
+            project_key: "ALPHA",
+            issue_id: "10001",
+            issue_key: "ALPHA-1",
+          },
+        },
+      },
+    };
+    const plan = {
+      source: {
+        jiraCloudId: "cloud-1",
+        projectId: "100",
+        projectKey: "ALPHA",
+        issueId: "10001",
+        issueKey: "ALPHA-1",
+      },
+      status: "ready",
+      desired: { issue, content: "pre-rewrite markdown" },
+    } as unknown as JiraIssueImportPlan;
+    const ledger = {
+      bindings: [
+        {
+          source_key: "issue:cloud-1:100:10001",
+          target: { target_kind: "issue", reef_id: "REEF-001" },
+          mapped_state_fingerprint: "stale",
+        },
+      ],
+    } as never;
+    const readback = {
+      issue,
+      content: "markdown with akb://reef-test/file/attachment",
+      path: "issues/reef-001.md",
+      commit_hash: "commit",
+    } as never;
+
+    expect(
+      actionForRelatedIssuePlan({
+        plan,
+        equivalentPlans: [],
+        ledger,
+        readback: null,
+      }),
+    ).toBe("update");
+    expect(
+      actionForRelatedIssuePlan({
+        plan,
+        equivalentPlans: [],
+        ledger,
+        readback,
+        postRelatedContent: "markdown with akb://reef-test/file/attachment",
+      }),
+    ).toBe("skip");
+  });
+
+  it("plans a native planning normalization when readback still has the approved token", () => {
+    const owner = {
+      jira_cloud_id: "cloud-1",
+      project_key: "ALPHA",
+      issue_id: "10001",
+      issue_key: "ALPHA-1",
+    };
+    const issuePlan = (releaseId: string) =>
+      ({
+        source: {
+          jiraCloudId: "cloud-1",
+          projectId: "100",
+          projectKey: "ALPHA",
+          issueId: "10001",
+          issueKey: "ALPHA-1",
+        },
+        status: "ready",
+        desired: {
+          issue: {
+            id: "REEF-001",
+            title: "Migrated",
+            status: "todo",
+            source: "jira-migration",
+            release_id: releaseId,
+            custom_fields: {
+              jira: {
+                planning: [{ kind: "version", target_id: releaseId }],
+              },
+              jira_migration: { owner },
+            },
+          },
+          content: "",
+        },
+      }) as unknown as JiraIssueImportPlan;
+    const approved = issuePlan("jira-planning:release:release 1");
+    const current = issuePlan("target-release-uuid");
+    const ledger = {
+      bindings: [
+        {
+          source_key: "issue:cloud-1:100:10001",
+          target: { target_kind: "issue", reef_id: "REEF-001" },
+          mapped_state_fingerprint: mappedFingerprintForIssue(current),
+        },
+      ],
+    } as never;
+    const readback = {
+      issue: approved.desired.issue,
+      content: "",
+      path: "issues/reef-001.md",
+      commit_hash: "commit",
+    } as never;
+
+    expect(
+      actionForRelatedIssuePlan({
+        plan: current,
+        equivalentPlans: [approved],
+        ledger,
+        readback,
+      }),
+    ).toBe("update");
   });
 
   it("fingerprints approval-time mapped target drift", () => {
@@ -517,6 +649,7 @@ describe("runJiraMigration", () => {
       if (!written) throw new Error("issue_missing");
       return { ...written, commit_hash: "commit" };
     });
+    const claimIssue = vi.fn();
     const target = {
       adapter: { request: vi.fn() },
       preflight: vi.fn(async () => ({
@@ -543,8 +676,9 @@ describe("runJiraMigration", () => {
         };
       }),
       readIssue,
-      claimIssue: vi.fn(),
+      claimIssue,
       relatedTarget: vi.fn(() => ({
+        listFallbackAttachmentActivityActors: vi.fn(async () => []),
         listExternalRefKeys: vi.fn(async () => []),
       })),
       appendActivity: vi.fn(),
@@ -749,6 +883,41 @@ describe("runJiraMigration", () => {
     expect(mutations).toEqual(["REEF-001", "REEF-002"]);
     expect(rerun.report.totals.created).toBe(0);
     expect(rerun.report.totals.skipped).toBe(4);
+
+    const ledgerPath = config.artifacts.ledgerPath;
+    if (!ledgerPath) throw new Error("ledger_path_missing");
+    const ledger = JSON.parse(await readFile(ledgerPath, "utf8")) as {
+      bindings: Array<{ source_key?: string }>;
+    };
+    ledger.bindings = ledger.bindings.filter(
+      (binding) => binding.source_key !== "issue:cloud-1:100:10001",
+    );
+    await writeFile(ledgerPath, JSON.stringify(ledger), {
+      mode: 0o600,
+    });
+    claimIssue.mockImplementation(async (plan: JiraIssueImportPlan) => {
+      if (plan.desired.issue?.id === "REEF-001") {
+        throw new JiraTargetConflictError();
+      }
+    });
+    const claimCallsBeforeRecovery = claimIssue.mock.calls.length;
+    const recoveredExisting = await runJiraMigration(applyConfig, {
+      target,
+      createJiraClient: (key) => clients.get(key) as never,
+      now,
+    });
+    expect(recoveredExisting.report.totals.conflict).toBe(0);
+    expect(recoveredExisting.report.totals.created).toBe(0);
+    expect(recoveredExisting.report.totals.skipped).toBe(4);
+    expect(claimIssue.mock.calls).toHaveLength(claimCallsBeforeRecovery);
+    const recoveredLedger = JSON.parse(await readFile(ledgerPath, "utf8")) as {
+      bindings: Array<{ source_key?: string }>;
+    };
+    expect(recoveredLedger.bindings).toContainEqual(
+      expect.objectContaining({
+        source_key: "issue:cloud-1:100:10001",
+      }),
+    );
 
     const alpha = writtenIssues.get("REEF-001");
     if (!alpha) throw new Error("alpha_issue_missing");

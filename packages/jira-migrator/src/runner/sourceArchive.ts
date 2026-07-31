@@ -3,6 +3,7 @@ import {
   type JiraMigratorConfig,
   secretValuesForConfig,
 } from "../cli/config.js";
+import { convertAdfToMarkdown } from "../content/adf.js";
 import type {
   ArchiveRawPayloadInput,
   RawArchiveReference,
@@ -18,6 +19,17 @@ export const runnerArchivePermissionVerification = (
   }
   return { kind: "posix_mode", verified: true };
 };
+
+export const descriptionMediaIds = (description: unknown): string[] =>
+  convertAdfToMarkdown(description).media.map((media) => media.mediaId);
+
+export const mediaArchiveReferencesForIds = (
+  mediaIds: readonly string[],
+  descriptionReference: RawArchiveReference,
+): Readonly<Record<string, RawArchiveReference>> =>
+  Object.fromEntries(
+    mediaIds.map((mediaId) => [mediaId, descriptionReference]),
+  );
 
 export async function archiveJiraMigrationSource(input: {
   config: JiraMigratorConfig;
@@ -38,7 +50,11 @@ export async function archiveJiraMigrationSource(input: {
   } = discovery;
   const archiveReferences = new Map<
     string,
-    { issue: RawArchiveReference; descriptionAdf?: RawArchiveReference }
+    {
+      issue: RawArchiveReference;
+      descriptionAdf?: RawArchiveReference;
+      media?: Readonly<Record<string, RawArchiveReference>>;
+    }
   >();
   const changelogArchiveReferences = new Map<string, RawArchiveReference>();
   const archiveSummaries: Array<
@@ -72,6 +88,7 @@ export async function archiveJiraMigrationSource(input: {
       issueKey: string;
       issueIndex: number;
       descriptionIndex?: number;
+      mediaIds: readonly string[];
     }> = [];
     const changelogBindings: Array<{
       sourceKey: string;
@@ -142,6 +159,7 @@ export async function archiveJiraMigrationSource(input: {
         payload: issue.raw,
       });
       let descriptionIndex: number | undefined;
+      let mediaIds: readonly string[] = [];
       if (issue.description !== null && typeof issue.description === "object") {
         descriptionIndex = enqueue({
           entityKind: "description_adf",
@@ -158,11 +176,13 @@ export async function archiveJiraMigrationSource(input: {
           fetchedAt: runAt,
           payload: issue.description,
         });
+        mediaIds = descriptionMediaIds(issue.description);
       }
       issueBindings.push({
         issueKey: issue.key,
         issueIndex,
         ...(descriptionIndex === undefined ? {} : { descriptionIndex }),
+        mediaIds,
       });
       for (const history of changelogByIssue.get(issue.key) ?? []) {
         const referenceIndex = enqueue({
@@ -205,6 +225,14 @@ export async function archiveJiraMigrationSource(input: {
       archiveReferences.set(binding.issueKey, {
         issue: issueReference,
         ...(descriptionAdf ? { descriptionAdf } : {}),
+        ...(descriptionAdf && binding.mediaIds.length > 0
+          ? {
+              media: mediaArchiveReferencesForIds(
+                binding.mediaIds,
+                descriptionAdf,
+              ),
+            }
+          : {}),
       });
     }
     for (const binding of changelogBindings) {

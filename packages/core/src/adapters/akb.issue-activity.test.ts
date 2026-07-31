@@ -11,8 +11,11 @@ import {
   listIssueActivity,
   makeAdapter,
   makeListTablesResponse,
+  makeSqlMutationResponse,
   makeSqlQueryResponse,
   makeSqlRuntimeErrorResponse,
+  reconcileJiraChangelogActivityEvents,
+  reconcileJiraImportedAttachmentActivityActor,
   setupFetch,
   statusChangeEventKey,
 } from "./akb.testSupport";
@@ -705,6 +708,132 @@ describe("appendActivityEvents (REEF-126)", () => {
         },
       ]),
     ).rejects.toThrow(/does not match event type/u);
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe("reconcileJiraChangelogActivityEvents", () => {
+  const at = "2025-05-19T15:13:04.872+09:00";
+  const event = {
+    reefId: "SHDEV-001",
+    eventType: "assignee_change" as const,
+    eventKey: "jira-changelog:cloud-1:15076:55990:0:assignee_change" as const,
+    payload: { from: "한병전", to: "남무현" },
+    at,
+    actor: "한병전",
+    source: "jira-changelog:history-key:0",
+  };
+
+  it("repairs the existing Jira-owned event in place", async () => {
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { body: makeSqlQueryResponse([{ id: "existing-event" }], ["id"]) },
+    ]);
+
+    await reconcileJiraChangelogActivityEvents(makeAdapter(), "reef-sample", [
+      event,
+    ]);
+
+    expect(calls).toHaveLength(2);
+    const updateSql = lastSql(calls[1]?.init?.body);
+    expect(updateSql).toContain(`UPDATE ${REEF_ACTIVITY_TABLE}`);
+    expect(updateSql).toContain("SET event_type = 'assignee_change'");
+    expect(updateSql).toContain('"from":"한병전"');
+    expect(updateSql).toContain('"to":"남무현"');
+    expect(updateSql).toContain('"actor":"한병전"');
+    expect(updateSql).toContain("reef_id = 'SHDEV-001'");
+    expect(updateSql).toContain(`event_key = '${event.eventKey}'`);
+    expect(updateSql).toContain("RETURNING id");
+    expect(updateSql).not.toContain("created_by");
+    expect(updateSql).not.toContain("created_at");
+  });
+
+  it("uses the idempotent insert path when the Jira event is absent", async () => {
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { body: makeSqlQueryResponse([], ["id"]) },
+      { body: makeSqlQueryResponse([{ id: "new-event" }], ["id"]) },
+    ]);
+
+    await reconcileJiraChangelogActivityEvents(makeAdapter(), "reef-sample", [
+      event,
+    ]);
+
+    expect(calls).toHaveLength(3);
+    expect(lastSql(calls[1]?.init?.body)).toContain(
+      `UPDATE ${REEF_ACTIVITY_TABLE}`,
+    );
+    const insertSql = lastSql(calls[2]?.init?.body);
+    expect(insertSql).toContain(`INSERT INTO ${REEF_ACTIVITY_TABLE}`);
+    expect(insertSql).toContain("WHERE NOT EXISTS");
+    expect(insertSql).toContain(`'${event.eventKey}'`);
+  });
+
+  it("rejects non-Jira or missing event keys before I/O", async () => {
+    const { calls } = setupFetch([]);
+    await expect(
+      reconcileJiraChangelogActivityEvents(makeAdapter(), "reef-sample", [
+        { ...event, eventKey: undefined },
+      ]),
+    ).rejects.toThrow(/requires an event key/u);
+    await expect(
+      reconcileJiraChangelogActivityEvents(makeAdapter(), "reef-sample", [
+        { ...event, eventKey: "manual-override" },
+      ]),
+    ).rejects.toThrow();
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe("reconcileJiraImportedAttachmentActivityActor", () => {
+  const input = {
+    reefId: "SHDEV-007",
+    eventKey:
+      "attachment_added:11111111-1111-4111-8111-111111111111@2025-05-27T21:43:43.262+09:00",
+    fromActor: "jira:712020:e2e54077-7f55-4a34-90e7-e05ee490662b",
+    toActor: "임종혁",
+  };
+
+  it("repairs only the exact fallback-owned attachment event", async () => {
+    const { calls } = setupFetch([
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      { body: makeSqlMutationResponse("UPDATE 1") },
+    ]);
+
+    await reconcileJiraImportedAttachmentActivityActor(
+      makeAdapter(),
+      "reef-shdev",
+      input,
+    );
+
+    expect(calls).toHaveLength(2);
+    const updateSql = lastSql(calls[1]?.init?.body);
+    expect(updateSql).toContain(`UPDATE ${REEF_ACTIVITY_TABLE}`);
+    expect(updateSql).toContain("event_type = 'attachment_added'");
+    expect(updateSql).toContain(`event_key = '${input.eventKey}'`);
+    expect(updateSql).toContain(`meta->>'actor' = '${input.fromActor}'`);
+    expect(updateSql).toContain('"임종혁"');
+    expect(updateSql).toContain("::jsonb, true)::json");
+    expect(updateSql).not.toContain("created_by");
+    expect(updateSql).not.toContain("created_at");
+  });
+
+  it("rejects a non-attachment key or non-fallback actor before I/O", async () => {
+    const { calls } = setupFetch([]);
+    await expect(
+      reconcileJiraImportedAttachmentActivityActor(
+        makeAdapter(),
+        "reef-shdev",
+        { ...input, eventKey: "assignee_change:a->b@2026-01-01T00:00:00Z" },
+      ),
+    ).rejects.toThrow(/attachment_added event key/u);
+    await expect(
+      reconcileJiraImportedAttachmentActivityActor(
+        makeAdapter(),
+        "reef-shdev",
+        { ...input, fromActor: "hongchan" },
+      ),
+    ).rejects.toThrow(/fallback actor/u);
     expect(calls).toHaveLength(0);
   });
 });

@@ -5,7 +5,10 @@ import type {
 } from "../accounts/mapping.js";
 import type { AdfToMarkdownOptions } from "../content/adf.js";
 import type { JiraReadClient } from "../jira/client.js";
-import type { JiraMigrationLedgerV1 } from "../ledger.js";
+import type {
+  JiraMigrationBindingIndex,
+  JiraMigrationLedgerV1,
+} from "../ledger.js";
 import type {
   JiraIssuePayload,
   NormalizedJiraAttachment,
@@ -44,6 +47,7 @@ export type JiraRelatedOperationKind =
   | "delete_comment"
   | "create_attachment"
   | "revoke_attachment"
+  | "reconcile_attachment_activity_actor"
   | "update_description"
   | "put_relation"
   | "delete_relation"
@@ -79,6 +83,23 @@ export interface JiraImportedAttachmentInput {
   meta: Record<string, unknown>;
 }
 
+export interface JiraAttachmentActivityActor {
+  eventKey: string;
+  actor: string;
+}
+
+export interface JiraIssueAttachmentActivityActor
+  extends JiraAttachmentActivityActor {
+  reefId: string;
+}
+
+export interface JiraAttachmentActivityActorReconciliation {
+  reefId: string;
+  eventKey: string;
+  fromActor: string;
+  toActor: string;
+}
+
 export interface JiraRelatedImportTarget {
   createComment(input: JiraImportedCommentInput): Promise<Comment>;
   updateComment(
@@ -104,6 +125,19 @@ export interface JiraRelatedImportTarget {
     fileUri: string;
     replacement: string;
   }): Promise<void>;
+  listFallbackAttachmentActivityActors(
+    reefId: string,
+  ): Promise<JiraAttachmentActivityActor[]>;
+  listAllFallbackAttachmentActivityActors?(): Promise<
+    JiraIssueAttachmentActivityActor[]
+  >;
+  readAttachmentActivityActor(
+    reefId: string,
+    eventKey: string,
+  ): Promise<string | null>;
+  reconcileAttachmentActivityActor(
+    input: JiraAttachmentActivityActorReconciliation,
+  ): Promise<void>;
   hasMediaReference(reefId: string, fileUri: string): Promise<boolean>;
   readDescription(reefId: string): Promise<string>;
   updateDescription(reefId: string, markdown: string): Promise<void>;
@@ -136,6 +170,7 @@ export interface JiraRelatedImportTarget {
     provenance: Record<string, unknown>;
   } | null>;
   listExternalRefKeys(prefix: string): Promise<string[]>;
+  listAllExternalRefKeys?(): Promise<string[]>;
   deleteExternalRef(idempotencyKey: string): Promise<void>;
 }
 
@@ -146,6 +181,7 @@ export interface JiraRelatedImportInput {
   client: JiraReadClient;
   target: JiraRelatedImportTarget;
   ledger: JiraMigrationLedgerV1;
+  bindingIndex?: JiraMigrationBindingIndex;
   accountMapping: JiraAccountMappingArtifact;
   actorDirectory?: readonly ReefActorDirectoryEntry[];
   linkMappings: readonly JiraLinkMapping[];
@@ -198,6 +234,8 @@ export interface JiraRelatedImportReport {
     applied: number;
     skipped: number;
     unresolved: number;
+    externalized: number;
+    unmapped: number;
   };
   remote_links: { total: number; applied: number; skipped: number };
   operations: JiraRelatedOperation[];

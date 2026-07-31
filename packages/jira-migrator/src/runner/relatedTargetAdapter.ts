@@ -12,7 +12,8 @@ import {
   akbListComments,
   akbListIssueActivity,
   akbListIssueAttachments,
-  akbUpdateComment,
+  akbReconcileJiraImportedAttachmentActivityActor,
+  akbReconcileJiraImportedComment,
   akbUploadIssueAttachment,
 } from "@reef/core";
 import { canonicalizeJson } from "../rawArchive.js";
@@ -21,6 +22,7 @@ import type {
   JiraImportedCommentInput,
   JiraRelatedImportTarget,
 } from "../related/contracts.js";
+import { retryAkbRead } from "./akbReadRetry.js";
 import {
   type MigrationSidecar,
   addUnique,
@@ -35,6 +37,7 @@ import {
 interface RelatedTargetDependencies {
   adapter: AkbAdapter;
   vault: string;
+  waitForConsistency?: () => Promise<void>;
   readIssue(id: string): Promise<AkbReadIssueResult>;
   updateIssue(
     id: string,
@@ -46,13 +49,32 @@ interface RelatedTargetDependencies {
 
 export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
   const { adapter, vault, readIssue, updateIssue } = input;
-  const allIssueRows = () =>
-    sql(adapter, vault, "SELECT reef_id, meta FROM reef_issues");
+  const pause = input.waitForConsistency ?? (() => Promise.resolve());
+  const retryRead = <T>(read: () => Promise<T>): Promise<T> =>
+    retryAkbRead(read, { wait: pause });
+  const activityMatchesCache = new Map<
+    string,
+    Promise<
+      Map<string, Awaited<ReturnType<typeof akbListIssueActivity>>[number]>
+    >
+  >();
+  const readSql = (statement: string) =>
+    retryRead(() => sql(adapter, vault, statement));
+  const readTargetIssue = (id: string) => retryRead(() => readIssue(id));
+  const allIssueRows = () => readSql("SELECT reef_id, meta FROM reef_issues");
+  const readIssueOwnershipRow = async (id: string) =>
+    (
+      await readSql(
+        `SELECT reef_id, document_uri, archived_at, meta FROM reef_issues WHERE reef_id = ${quote(
+          id,
+        )} LIMIT 1`,
+      )
+    )[0] ?? null;
   const readDocumentedIssue = async (
     id: string,
   ): Promise<AkbReadIssueResult | null> => {
     try {
-      return await readIssue(id);
+      return await readTargetIssue(id);
     } catch (error) {
       if (error instanceof NotFoundError) return null;
       throw error;
@@ -62,9 +84,7 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
     field: "relations" | "external_refs",
     idempotencyKey: string,
   ): Promise<string | null> => {
-    const rows = await sql(
-      adapter,
-      vault,
+    const rows = await readSql(
       `SELECT reef_id FROM reef_issues WHERE EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(meta::jsonb->'custom_fields'->'jira_migration'->'${field}', '[]'::jsonb)) AS record WHERE record->>'idempotencyKey' = ${quote(
         idempotencyKey,
       )}) LIMIT 2`,
@@ -139,7 +159,7 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
     const found = await findRelation(idempotencyKey);
     if (!found) return;
     const { issue, readback, record } = found;
-    const targetReadback = await readIssue(record.targetReefId);
+    const targetReadback = await readTargetIssue(record.targetReefId);
     const targetIssue = targetReadback.issue;
     const sidecar = sidecarFor(issue);
     sidecar.relations = sidecar.relations.filter(
@@ -197,14 +217,14 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
         },
       );
     } catch (error) {
-      const currentSource = await readIssue(record.sourceReefId);
+      const currentSource = await readTargetIssue(record.sourceReefId);
       const sourceStillOwnsRecord = sidecarFor(
         currentSource.issue,
       ).relations.some(
         (candidate) => candidate.idempotencyKey === idempotencyKey,
       );
       if (targetHadInverse && sourceStillOwnsRecord) {
-        const currentTarget = await readIssue(record.targetReefId);
+        const currentTarget = await readTargetIssue(record.targetReefId);
         await updateIssue(
           record.targetReefId,
           {
@@ -241,38 +261,30 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
       return comment;
     },
     updateComment(commentId, input) {
-      return akbUpdateComment(
-        adapter,
-        vault,
-        input.reefId,
+      return akbReconcileJiraImportedComment(adapter, vault, {
         commentId,
-        input.body,
-        input.author,
-        {
-          createdAt: input.createdAt,
-          editedAt: input.editedAt,
-          metadata: { jira_idempotency_key: input.idempotencyKey },
-        },
-      );
+        reefId: input.reefId,
+        idempotencyKey: input.idempotencyKey,
+        body: input.body,
+        author: input.author,
+        createdAt: input.createdAt,
+        editedAt: input.editedAt,
+      });
     },
     async readComment(commentId) {
-      const rows = await sql(
-        adapter,
-        vault,
+      const rows = await readSql(
         `SELECT reef_id FROM reef_comments WHERE id = ${quote(commentId)} LIMIT 1`,
       );
       const reefId = rows[0]?.reef_id;
       if (typeof reefId !== "string") return null;
       return (
-        (await akbListComments(adapter, vault, reefId)).find(
+        (await retryRead(() => akbListComments(adapter, vault, reefId))).find(
           (comment) => comment.id === commentId,
         ) ?? null
       );
     },
     async findCommentByIdempotencyKey(idempotencyKey) {
-      const rows = await sql(
-        adapter,
-        vault,
+      const rows = await readSql(
         `SELECT id, reef_id FROM reef_comments WHERE meta->>'jira_idempotency_key' = ${quote(
           idempotencyKey,
         )} LIMIT 1`,
@@ -281,7 +293,7 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
       const reefId = rows[0]?.reef_id;
       if (typeof id !== "string" || typeof reefId !== "string") return null;
       return (
-        (await akbListComments(adapter, vault, reefId)).find(
+        (await retryRead(() => akbListComments(adapter, vault, reefId))).find(
           (comment) => comment.id === id,
         ) ?? null
       );
@@ -314,9 +326,7 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
       });
     },
     async readAttachment(fileUri) {
-      const rows = await sql(
-        adapter,
-        vault,
+      const rows = await readSql(
         `SELECT reef_id FROM reef_attachments WHERE file_uri = ${quote(
           fileUri,
         )} LIMIT 1`,
@@ -324,12 +334,14 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
       const reefId = rows[0]?.reef_id;
       if (typeof reefId !== "string") return null;
       try {
-        const result = await akbDownloadIssueAttachmentByFileUri({
-          adapter,
-          vault,
-          reefId,
-          fileUri,
-        });
+        const result = await retryRead(() =>
+          akbDownloadIssueAttachmentByFileUri({
+            adapter,
+            vault,
+            reefId,
+            fileUri,
+          }),
+        );
         return {
           attachment: result.attachment,
           bytes: new Uint8Array(result.body),
@@ -341,28 +353,28 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
     },
     async findAttachmentByJiraId(reefId, jiraCloudId, jiraAttachmentId) {
       const attachment = (
-        await akbListIssueAttachments(adapter, vault, reefId)
+        await retryRead(() => akbListIssueAttachments(adapter, vault, reefId))
       ).find(
         (candidate) =>
           candidate.original_jira_attachment_id === jiraAttachmentId &&
           parseMeta(candidate.meta).jira_cloud_id === jiraCloudId,
       );
       if (!attachment) return null;
-      const result = await akbDownloadIssueAttachmentByFileUri({
-        adapter,
-        vault,
-        reefId,
-        fileUri: attachment.file_uri,
-      });
+      const result = await retryRead(() =>
+        akbDownloadIssueAttachmentByFileUri({
+          adapter,
+          vault,
+          reefId,
+          fileUri: attachment.file_uri,
+        }),
+      );
       return {
         attachment: result.attachment,
         bytes: new Uint8Array(result.body),
       };
     },
     async revokeAttachment({ reefId, fileUri, replacement }) {
-      const owners = await sql(
-        adapter,
-        vault,
+      const owners = await readSql(
         `SELECT reef_id FROM reef_attachments WHERE file_uri = ${quote(
           fileUri,
         )} ORDER BY reef_id`,
@@ -370,7 +382,7 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
       if (owners.length !== 1 || owners[0]?.reef_id !== reefId) {
         throw new Error("attachment_ownership_mismatch");
       }
-      const current = await readIssue(reefId);
+      const current = await readTargetIssue(reefId);
       if (current.content.includes(fileUri)) {
         await updateIssue(
           reefId,
@@ -400,9 +412,7 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
           reefId,
         )} AND file_uri = ${quote(fileUri)}`,
       );
-      const remainingOwners = await sql(
-        adapter,
-        vault,
+      const remainingOwners = await readSql(
         `SELECT reef_id FROM reef_attachments WHERE file_uri = ${quote(
           fileUri,
         )} LIMIT 1`,
@@ -411,14 +421,61 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
         throw new Error("attachment_delete_readback_mismatch");
       }
     },
+    async listFallbackAttachmentActivityActors(reefId) {
+      const rows = await readSql(
+        `SELECT event_key, meta->>'actor' AS actor FROM reef_activity WHERE reef_id = ${quote(
+          reefId,
+        )} AND event_type = 'attachment_added' AND meta->>'actor' LIKE 'jira:%' ORDER BY event_key`,
+      );
+      return rows.flatMap((row) =>
+        typeof row.event_key === "string" && typeof row.actor === "string"
+          ? [{ eventKey: row.event_key, actor: row.actor }]
+          : [],
+      );
+    },
+    async listAllFallbackAttachmentActivityActors() {
+      const rows = await readSql(
+        "SELECT reef_id, event_key, meta->>'actor' AS actor FROM reef_activity WHERE event_type = 'attachment_added' AND meta->>'actor' LIKE 'jira:%' ORDER BY reef_id, event_key",
+      );
+      return rows.flatMap((row) =>
+        typeof row.reef_id === "string" &&
+        typeof row.event_key === "string" &&
+        typeof row.actor === "string"
+          ? [
+              {
+                reefId: row.reef_id,
+                eventKey: row.event_key,
+                actor: row.actor,
+              },
+            ]
+          : [],
+      );
+    },
+    async readAttachmentActivityActor(reefId, eventKey) {
+      const rows = await readSql(
+        `SELECT meta->>'actor' AS actor FROM reef_activity WHERE reef_id = ${quote(
+          reefId,
+        )} AND event_type = 'attachment_added' AND event_key = ${quote(
+          eventKey,
+        )} LIMIT 1`,
+      );
+      return typeof rows[0]?.actor === "string" ? rows[0].actor : null;
+    },
+    reconcileAttachmentActivityActor(input) {
+      return akbReconcileJiraImportedAttachmentActivityActor(
+        adapter,
+        vault,
+        input,
+      );
+    },
     async hasMediaReference(reefId, fileUri) {
-      return (await readIssue(reefId)).content.includes(fileUri);
+      return (await readTargetIssue(reefId)).content.includes(fileUri);
     },
     async readDescription(reefId) {
-      return (await readIssue(reefId)).content;
+      return (await readTargetIssue(reefId)).content;
     },
     async updateDescription(reefId, markdown) {
-      const current = await readIssue(reefId);
+      const current = await readTargetIssue(reefId);
       await updateIssue(reefId, {}, markdown, {
         commit: current.commit_hash,
         updatedAt: current.issue.updated_at,
@@ -435,8 +492,8 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
       ) {
         await deleteOwnedRelation(input.idempotencyKey);
       }
-      const sourceReadback = await readIssue(input.sourceReefId);
-      const targetReadback = await readIssue(input.targetReefId);
+      const sourceReadback = await readTargetIssue(input.sourceReefId);
+      const targetReadback = await readTargetIssue(input.targetReefId);
       const source = sourceReadback.issue;
       const targetIssue = targetReadback.issue;
       const sourceBefore = source[input.relation] ?? [];
@@ -620,7 +677,7 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
       if (existingOwner && existingOwner.issue.id !== input.reefId) {
         throw new Error("external_ref_ownership_mismatch");
       }
-      const readback = await readIssue(input.reefId);
+      const readback = await readTargetIssue(input.reefId);
       const issue = readback.issue;
       const sidecar = sidecarFor(issue);
       const previous = sidecar.externalRefs.find(
@@ -688,12 +745,18 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
       };
     },
     async listExternalRefKeys(prefix) {
-      const rows = await sql(
-        adapter,
-        vault,
+      const rows = await readSql(
         `SELECT DISTINCT record->>'idempotencyKey' AS idempotency_key FROM reef_issues CROSS JOIN LATERAL jsonb_array_elements(COALESCE(meta::jsonb->'custom_fields'->'jira_migration'->'external_refs', '[]'::jsonb)) AS record WHERE LEFT(record->>'idempotencyKey', ${
           prefix.length
         }) = ${quote(prefix)} ORDER BY idempotency_key`,
+      );
+      return rows.flatMap((row) =>
+        typeof row.idempotency_key === "string" ? [row.idempotency_key] : [],
+      );
+    },
+    async listAllExternalRefKeys() {
+      const rows = await readSql(
+        "SELECT DISTINCT record->>'idempotencyKey' AS idempotency_key FROM reef_issues CROSS JOIN LATERAL jsonb_array_elements(COALESCE(meta::jsonb->'custom_fields'->'jira_migration'->'external_refs', '[]'::jsonb)) AS record ORDER BY idempotency_key",
       );
       return rows.flatMap((row) =>
         typeof row.idempotency_key === "string" ? [row.idempotency_key] : [],
@@ -744,15 +807,35 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
       byIssue.set(event.reefId, issueEvents);
     }
     for (const [reefId, expectedEvents] of byIssue) {
-      const actualEvents = await akbListIssueActivity(adapter, vault, reefId);
-      for (const expected of expectedEvents) {
-        const actual = actualEvents.find(
-          (event) => event.event_key === expected.eventKey,
+      let actualEventsPromise = activityMatchesCache.get(reefId);
+      if (!actualEventsPromise) {
+        actualEventsPromise = retryRead(() =>
+          akbListIssueActivity(adapter, vault, reefId),
+        ).then(
+          (events) =>
+            new Map(
+              events.flatMap((event) =>
+                event.event_key ? [[event.event_key, event] as const] : [],
+              ),
+            ),
         );
+        activityMatchesCache.set(reefId, actualEventsPromise);
+      }
+      let actualEventsByKey: Awaited<typeof actualEventsPromise>;
+      try {
+        actualEventsByKey = await actualEventsPromise;
+      } catch (error) {
+        activityMatchesCache.delete(reefId);
+        throw error;
+      }
+      for (const expected of expectedEvents) {
+        const expectedEventKey = expected.eventKey;
+        if (!expectedEventKey) return false;
+        const actual = actualEventsByKey.get(expectedEventKey);
         const expectedProjection = {
           reef_id: expected.reefId,
           event_type: expected.eventType,
-          event_key: expected.eventKey,
+          event_key: expectedEventKey,
           actor: expected.actor,
           at: expected.at,
           source: expected.source,
@@ -779,5 +862,18 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
     }
     return true;
   };
-  return { allIssueRows, related, activityMatches };
+  const invalidateActivityMatches = (
+    events: readonly ActivityEventInput[],
+  ): void => {
+    for (const reefId of new Set(events.map((event) => event.reefId))) {
+      activityMatchesCache.delete(reefId);
+    }
+  };
+  return {
+    allIssueRows,
+    readIssueOwnershipRow,
+    related,
+    activityMatches,
+    invalidateActivityMatches,
+  };
 }

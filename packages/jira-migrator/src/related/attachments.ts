@@ -112,7 +112,8 @@ export const attachmentReadbackMismatches = (
   if (attachment.original_jira_attachment_id !== source.id)
     mismatches.push("original_jira_attachment_id");
   if (attachment.reef_id !== expected.reefId) mismatches.push("reef_id");
-  if (attachment.filename !== source.filename) mismatches.push("filename");
+  if (attachment.filename.normalize("NFC") !== source.filename.normalize("NFC"))
+    mismatches.push("filename");
   if (attachment.mime_type !== expected.mimeType) mismatches.push("mime_type");
   if (attachment.author !== expected.author) mismatches.push("author");
   if (attachment.created_at !== expected.createdAt)
