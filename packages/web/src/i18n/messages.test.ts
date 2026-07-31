@@ -88,6 +88,21 @@ describe("loadMessages", () => {
     // And the real ko catalog carries the full en structure (no missing nodes).
     expect(Object.keys(ko)).toEqual(expect.arrayContaining(Object.keys(en)));
   });
+
+  it("keeps global search result groups aligned across locales", () => {
+    expect(loadMessages("en").search).toMatchObject({
+      headingMatches: "Issue field matches",
+      headingContent: "Issue content matches",
+      sourceBody: "Body",
+      sourceComment: "Comment",
+    });
+    expect(loadMessages("ko").search).toMatchObject({
+      headingMatches: "이슈 필드 검색 결과",
+      headingContent: "이슈 콘텐츠 검색 결과",
+      sourceBody: "본문",
+      sourceComment: "코멘트",
+    });
+  });
 });
 
 describe("catalog parity (REEF-293 AC2 — missing-key check)", () => {

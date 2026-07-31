@@ -696,17 +696,31 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
                         <span className="truncate text-sm font-medium">
                           {result.title}
                         </span>
-                        <span className="ml-auto shrink-0 rounded-full border border-brand/25 bg-brand/5 px-1.5 py-0.5 text-[10px] font-medium text-brand">
+                      </span>
+                      <span className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                        <span
+                          className="font-medium text-muted-foreground"
+                          data-testid={`global-search-content-source-${result.source}`}
+                        >
                           {result.source === "body"
                             ? t("sourceBody")
                             : t("sourceComment")}
                         </span>
-                      </span>
-                      <span className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-                        <LiteralHighlight
-                          text={result.snippet}
-                          query={liveTrimmed}
-                        />
+                        <span
+                          aria-hidden="true"
+                          className="mx-1 text-muted-foreground/60"
+                          data-testid="content-source-separator"
+                        >
+                          ·
+                        </span>
+                        <span
+                          data-testid={`global-search-content-snippet-${result.match_id}`}
+                        >
+                          <LiteralHighlight
+                            text={result.snippet}
+                            query={liveTrimmed}
+                          />
+                        </span>
                       </span>
                     </Link>
                   </CommandItem>

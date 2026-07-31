@@ -779,14 +779,91 @@ describe("GlobalSearchDialog", () => {
 
     const items = await screen.findAllByTestId("global-search-content-item");
     expect(items).toHaveLength(2);
-    expect(screen.getByText("본문")).toBeInTheDocument();
-    expect(screen.getByText("코멘트")).toBeInTheDocument();
+    const contentHeading = screen.getByText("이슈 콘텐츠 검색 결과");
+    const contentGroup = contentHeading.closest("[cmdk-group]");
+    expect(contentGroup).not.toBeNull();
+    expect(contentGroup?.querySelectorAll('[data-source="body"]')).toHaveLength(
+      1,
+    );
+    expect(
+      contentGroup?.querySelectorAll('[data-source="comment"]'),
+    ).toHaveLength(1);
+
+    const bodySource = screen.getByTestId("global-search-content-source-body");
+    const commentSource = screen.getByTestId(
+      "global-search-content-source-comment",
+    );
+    expect(bodySource).toHaveTextContent("본문");
+    expect(commentSource).toHaveTextContent("코멘트");
+    for (const source of [bodySource, commentSource]) {
+      expect(source.className).not.toMatch(
+        /\b(?:rounded|border|bg-brand|text-brand)\b/,
+      );
+    }
+
+    const bodyAnchor = items[0]?.querySelector("a");
+    const bodyTitle = screen.getByText("본문 검색");
+    const bodySnippet = screen.getByTestId(
+      "global-search-content-snippet-body:reef-347",
+    );
+    expect(bodyAnchor).toHaveAccessibleName(
+      "REEF-347 본문 검색 본문 한국어 본문 전용 문구",
+    );
+    expect(
+      bodyTitle.compareDocumentPosition(bodySource) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      bodySource.compareDocumentPosition(bodySnippet) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      items[0]?.querySelector('[data-testid="content-source-separator"]'),
+    ).toHaveAttribute("aria-hidden", "true");
     expect(items[0]?.querySelector("mark")?.textContent).toBe("한국어");
     expect(items[0]?.querySelector("a")).toHaveAttribute(
       "href",
       "/workspace/reef-acme/issues/REEF-347",
     );
     expect(items[0]?.querySelector("a")).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("uses field and content result headings for English search groups", async () => {
+    useIssueListMock.mockReturnValue({
+      data: [makeIssue("REEF-001", "Needle field match")],
+      isLoading: false,
+      isError: false,
+    });
+    useIssueContentSearchMock.mockImplementation((query: string) => ({
+      data: query
+        ? {
+            query,
+            limit: 10,
+            results: [
+              {
+                reef_id: "REEF-347",
+                title: "Content search",
+                snippet: "Needle body",
+                source: "body",
+                score: 0.8,
+                match_id: "body:one",
+              },
+            ],
+            has_more: false,
+          }
+        : undefined,
+      isError: false,
+      isFetching: false,
+    }));
+    useGlobalSearchStore.setState({ isOpen: true });
+    renderDialog();
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("global-search-input"), "needle");
+
+    expect(await screen.findByText("Issue field matches")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Issue content matches"),
+    ).toBeInTheDocument();
   });
 
   it("highlights with source offsets after length-changing Unicode folds", async () => {

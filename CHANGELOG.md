@@ -39,6 +39,12 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Global search result groups now use one field/content vocabulary.** English
+  and Korean palettes distinguish issue-field matches from issue-content
+  matches, while body and comment provenance appears as muted inline text
+  immediately before each snippet instead of as a branded pill. Existing
+  navigation, ranking, deduplication, and command-mode behavior is unchanged.
+  (REEF-439)
 - **Unmatched URLs and recoverable page errors now stay inside Reef's visual
   language.** Catalog-backed English and Korean surfaces use the existing teal,
   typography, semantic light/dark tokens, accessible recovery actions, and a
