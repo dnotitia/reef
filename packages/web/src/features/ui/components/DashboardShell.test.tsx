@@ -1,3 +1,4 @@
+import { useGlobalSearchStore } from "@/features/search/stores/useGlobalSearchStore";
 import { useShortcutsStore } from "@/features/shortcuts/stores/useShortcutsStore";
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -144,6 +145,7 @@ describe("DashboardShell", () => {
       newIssueDialogOpen: false,
       newIssueDialogContext: null,
     });
+    useGlobalSearchStore.setState({ isOpen: false });
     useShortcutsStore.setState({ isOpen: false });
   });
 
@@ -362,6 +364,22 @@ describe("DashboardShell", () => {
     );
 
     expect(screen.getByTestId("keyboard-shortcuts-dialog")).toBeVisible();
+  });
+
+  it("routes Ctrl+K through the shell's single shortcut dispatcher", () => {
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    expect(screen.getByTestId("global-search-input")).toBeVisible();
+
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    expect(screen.queryByTestId("global-search-input")).not.toBeInTheDocument();
   });
 
   it("opens the new issue dialog only on the browser-safe shortcut", () => {

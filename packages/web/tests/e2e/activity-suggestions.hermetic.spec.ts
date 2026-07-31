@@ -175,7 +175,7 @@ test.describe("Hermetic activity suggestion workflows", () => {
     const shortcutDialog = page.getByTestId("keyboard-shortcuts-dialog");
     await expect(shortcutDialog).toBeVisible();
     await expect(
-      shortcutDialog.locator('[data-shortcut-label="goSuggestions"]'),
+      shortcutDialog.locator('[data-shortcut-label="navigation.suggestions"]'),
     ).toContainText("Suggestions");
   });
 

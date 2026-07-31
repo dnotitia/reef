@@ -14,6 +14,13 @@ explicitly in the entries below.
 
 ### Added
 
+- **Global search now includes a bilingual action command mode.** The existing
+  `⌘K` palette keeps recent issues and metadata/body/comment search intact while
+  adding a `>` command mode for vault-scoped navigation, view, New issue,
+  theme, locale, and context-aware status/assignee/priority actions. One action
+  catalog now drives the palette, global keybindings, and shortcut help, with
+  nested keyboard navigation, deliberate focus handoff, same-value no-ops, and
+  the existing close-reason workflow.
 - **Issue detail now exposes actor-scoped Watch and Mute controls.** The
   bilingual chrome shows the effective notification state, persists Watch/Mute
   choices through the existing AKB subscription contract, updates
