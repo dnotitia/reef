@@ -41,14 +41,18 @@ export async function main(
   const shutdown = installShutdownHandlers();
   try {
     const config = loadOrchestratorConfig({ argv, env });
-    const ports = config.dryRun
-      ? undefined
-      : {
-          akb: createAkbAdapter({
-            baseUrl: config.akbBaseUrl!,
-            jwt: config.akbJwt!,
-          }),
-        };
+    let ports: { akb: ReturnType<typeof createAkbAdapter> } | undefined;
+    if (!config.dryRun) {
+      const { akbBaseUrl, akbJwt } = config;
+      if (!akbBaseUrl || !akbJwt) {
+        throw new OrchestratorConfigError([
+          "AKB configuration is required when dry-run is disabled",
+        ]);
+      }
+      ports = {
+        akb: createAkbAdapter({ baseUrl: akbBaseUrl, jwt: akbJwt }),
+      };
+    }
     await runOrchestrator(config, { signal: shutdown.signal, ports });
     return 0;
   } catch (error) {

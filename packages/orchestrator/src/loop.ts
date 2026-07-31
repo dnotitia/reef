@@ -1,8 +1,8 @@
 import {
-  akbRunNotificationProjector,
   type AkbAdapter,
   type GitHubAdapter,
   type LlmAdapter,
+  akbRunNotificationProjector,
 } from "@reef/core";
 import { type OrchestratorConfig, publicOrchestratorConfig } from "./config.js";
 

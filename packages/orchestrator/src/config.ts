@@ -1,3 +1,4 @@
+import { readFileSync, statSync } from "node:fs";
 import {
   type GitHubAppConfig,
   GitHubAppConfigSchema,
@@ -5,7 +6,6 @@ import {
   LLMConfigSchema,
   VaultNameSchema,
 } from "@reef/core";
-import { readFileSync, statSync } from "node:fs";
 
 export const DEFAULT_POLL_INTERVAL_MS = 30_000;
 export const DEFAULT_SHUTDOWN_GRACE_MS = 10_000;
