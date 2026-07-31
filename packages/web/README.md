@@ -26,8 +26,8 @@ local and CI), and LLM configuration is deployment-managed server environment.
 
 Prerequisites:
 
-- Node.js 22+
-- pnpm 10.27.0
+- Node.js 22.13+
+- pnpm 11.10.0
 - A reachable AKB backend
 
 reef-web talks to AKB through `AKB_BACKEND_URL`; it does not require AKB to run
@@ -179,6 +179,55 @@ Default specs must be named `*.hermetic.spec.ts`. They should sign in through
 the real login UI and `/api/auth/akb/login`, then reset fixture data with
 `/__e2e/reset` before each test. Legacy UI-only specs were removed after their
 useful flows were moved onto the hermetic fixture server.
+
+The same harness also exposes one portable user-behavior runner entrypoint. It
+packages as a single executable artifact so a reviewed trusted ref can exercise
+an already-running, hermetically seeded target without carrying a repository
+checkout or candidate source:
+
+```bash
+corepack pnpm --filter @reef/web run test:e2e:runner -- \
+  pack --output /tmp/reef-e2e-runner.cjs
+```
+
+The input directory contains only `scenario.json`; credentials stay in named
+environment variables. The currently supported `global-search-content`
+scenario is deliberately narrow and uses the same search behavior exercised by
+`content-search.hermetic.spec.ts`:
+
+```json
+{
+  "schema_version": 1,
+  "scenario": "global-search-content",
+  "clause_id": "search-content-presentation",
+  "target_url": "https://reef-candidate.test",
+  "workspace": "reef-e2e",
+  "search_placeholder": "Search issues...",
+  "metadata_query": "Initial issue Alpha",
+  "content_query": "comment-only lighthouse",
+  "credentials": {
+    "username_env": "REEF_E2E_USERNAME",
+    "password_env": "REEF_E2E_PASSWORD"
+  },
+  "expected": {
+    "field_heading": "Issue field matches",
+    "content_heading": "Issue content matches",
+    "issue_id": "REEF-003",
+    "title": "Backlog issue Gamma",
+    "source": "Comment",
+    "snippet": "comment-only lighthouse"
+  }
+}
+```
+
+Execute the artifact with `--input-dir`, `--output-dir`, and the full
+`--candidate-head`. It writes private `behavior-report.json`,
+`redacted-transcript.jsonl`, screenshot, and accessibility evidence. In a clean
+Playwright image it installs the pinned `@playwright/test@1.59.1` runtime via
+`corepack pnpm`; set `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright` when using the
+matching official image. Record the artifact SHA-256 and trusted source commit
+separately from the candidate SHA. External orchestration owns container policy
+and read-only mounts. This runner does not replace `test:e2e:sharded`.
 
 For a faster local full run, use:
 
