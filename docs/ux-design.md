@@ -770,9 +770,13 @@ and native modified-click behavior remain unchanged. Once a trimmed query has
 at least two Unicode code points and fits the 180 UTF-16 code-unit
 content-search bound, a second query searches issue task-document bodies
 semantically and comment bodies as case-insensitive literal text. Those hits
-appear in a separate **Body & comment matches** group below metadata, with a
-source badge, bounded snippet, and text-node-only literal highlighting. Issues
-already visible in metadata are omitted from the auxiliary group.
+appear in a single **Issue content matches** group below the authoritative
+**Issue field matches** metadata group. Body and comment provenance sits
+immediately before each bounded snippet as muted inline text, while the issue
+row retains ownership of selection, hover, and focus emphasis. The accessible
+row order is issue ID, title, source, then snippet; the visual separator between
+source and snippet is decorative. Literal highlighting remains text-node-only,
+and issues already visible in metadata are omitted from the auxiliary group.
 
 Content search owns no error or empty message. A failed, degraded, unsupported,
 or empty content response hides the entire auxiliary group without a toast and

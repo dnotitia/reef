@@ -19,7 +19,7 @@ export default defineConfig({
     // lighter node environment instead of paying for jsdom. Individual non-API
     // logic tests opt in per file with a `// @vitest-environment node` docblock.
     environmentMatchGlobs: [["src/app/api/**", "node"]],
-    include: ["src/**/*.test.{ts,tsx}"],
+    include: ["src/**/*.test.{ts,tsx}", "scripts/**/*.test.mts"],
     setupFiles: ["./vitest.setup.ts"],
   },
 });
