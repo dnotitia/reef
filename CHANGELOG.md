@@ -18,6 +18,11 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Jira ADF mentions inside comments now use the reviewed account mapping.**
+  Comment conversion previously omitted the mapping options already used for
+  issue descriptions, causing every comment mention to become the
+  non-identifying `@jira-user` fallback even when the Jira account resolved to
+  a vault member. Genuinely unmapped accounts still retain that safe fallback.
 - **Large Jira dry runs no longer reread the same target issue and related-data
   catalogs for every planning pass.** Planning reuses its exact issue
   readbacks, serves relation, external-reference, description, and media checks

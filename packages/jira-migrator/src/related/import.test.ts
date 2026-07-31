@@ -94,7 +94,7 @@ const makeClient = (
   commentMedia = false,
   restrictedComment = false,
   internalComment = false,
-  rootText = "root",
+  rootText: string | Record<string, unknown> = "root",
 ) =>
   new JiraReadClient({
     baseUrl: "https://example.atlassian.net",
@@ -135,16 +135,18 @@ const makeClient = (
                             },
                           ],
                         }
-                      : {
-                          type: "doc",
-                          version: 1,
-                          content: [
-                            {
-                              type: "paragraph",
-                              content: [{ type: "text", text: rootText }],
-                            },
-                          ],
-                        },
+                      : typeof rootText === "string"
+                        ? {
+                            type: "doc",
+                            version: 1,
+                            content: [
+                              {
+                                type: "paragraph",
+                                content: [{ type: "text", text: rootText }],
+                              },
+                            ],
+                          }
+                        : rootText,
                     renderedBody: commentMedia
                       ? '<span data-media-services-id="comment-media" href="/attachment/30001/fixture">media</span>'
                       : undefined,
@@ -873,6 +875,55 @@ describe("Jira related-data import stage", () => {
     });
     expect(rerun.report.comments).toMatchObject({ updated: 0, skipped: 2 });
     expect(state.comments.size).toBe(2);
+  });
+
+  it("maps ADF mentions inside comments through the Jira account resolver", async () => {
+    const state = makeTarget();
+    const mentionBody = {
+      type: "doc",
+      version: 1,
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "mention",
+              attrs: { id: "acct-1", text: "@Mapped User" },
+            },
+            { type: "text", text: " and " },
+            {
+              type: "mention",
+              attrs: { id: "acct-unmapped", text: "@Private User" },
+            },
+          ],
+        },
+      ],
+    };
+    const applied = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client: makeClient([], false, false, false, false, false, mentionBody),
+      target: state.target,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+        overrides: { "acct-1": { actor: "reef-alice" } },
+      }),
+      linkMappings: [],
+      resolveIssueTarget: () => null,
+      mode: "apply",
+    });
+
+    expect(applied.report.failures).toEqual([]);
+    expect(state.comments.get(rootId)?.body).toBe(
+      "@reef\\-alice and @jira\\-user",
+    );
+    expect(state.comments.get(rootId)?.body).not.toContain("Private User");
   });
 
   it("dry-runs a stale threaded root with a synthetic replacement parent", async () => {

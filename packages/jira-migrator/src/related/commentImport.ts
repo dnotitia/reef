@@ -62,6 +62,12 @@ export async function importComments(options: {
     now,
   } = options;
   let ledger = options.ledger;
+  const commentConversionOptions = {
+    accountMapping: {
+      artifact: migration.accountMapping,
+      directory: migration.actorDirectory ?? [],
+    },
+  };
   const roots = comments.filter((item) => item.parentId == null);
   const pendingReplies = comments.filter((item) => item.parentId != null);
   const orderedComments = [...roots];
@@ -131,6 +137,7 @@ export async function importComments(options: {
         report,
         comment.id,
         attachments,
+        commentConversionOptions,
       );
       if (!body.resolved) continue;
       const actor = mapJiraCommentActor(comment, {
