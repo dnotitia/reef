@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { observeGlobalSearchContent } from "../../scripts/e2e-user-behavior-runner.cjs";
 import {
   openExistingWorkspace,
   resetFixture,
@@ -112,17 +113,29 @@ test.describe("Global body and comment search (REEF-347)", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
-    await page.keyboard.press("Control+K");
-    await expect(page.getByText("Recent Issues")).toBeVisible();
-    await page.locator(inputSelector).fill("Initial issue Alpha");
-    await expect(page.getByText("Issue field matches")).toBeVisible();
-    await page.locator(inputSelector).fill("comment-only lighthouse");
-
-    const row = page.locator(contentItemSelector, {
-      has: page.getByText("REEF-003", { exact: true }),
+    const observation = await observeGlobalSearchContent(page, {
+      schema_version: 1,
+      scenario: "global-search-content",
+      clause_id: "search-content-presentation",
+      target_url: "http://localhost:7353",
+      workspace: "reef-e2e",
+      search_placeholder: "Search issues...",
+      metadata_query: "Initial issue Alpha",
+      content_query: "comment-only lighthouse",
+      credentials: {
+        username_env: "REEF_E2E_USERNAME",
+        password_env: "REEF_E2E_PASSWORD",
+      },
+      expected: {
+        field_heading: "Issue field matches",
+        content_heading: "Issue content matches",
+        issue_id: "REEF-003",
+        title: "Backlog issue Gamma",
+        source: "Comment",
+        snippet: "comment-only lighthouse",
+      },
     });
-    await expect(page.getByText("Issue content matches")).toBeVisible();
-    await expect(row.getByText("Comment", { exact: true })).toBeVisible();
+    const row = observation.row;
     await expect(row.locator("mark")).toHaveText("comment-only lighthouse");
     const anchor = row.locator("a");
     await expect(anchor).toHaveAttribute(

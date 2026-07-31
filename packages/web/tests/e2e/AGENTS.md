@@ -14,3 +14,14 @@
 - Logged-in E2E state should be created through the real login route against the
   fixture AKB backend, not by hand-writing `__reef_session` cookies or Dexie
   `config` rows. Reset fixture data through `/__e2e/reset` before each test.
+- The portable user-behavior runner is an additional boundary over this harness,
+  not a replacement for the canonical hermetic suite or
+  `test:e2e:sharded`. Keep named scenarios narrow and product-facing; reuse
+  existing fixture/login helpers and spec behavior instead of introducing an
+  action DSL or another fixture framework.
+- Portable scenario files contain observable inputs and credential environment
+  variable names only, never credential values. Runner evidence must be
+  redacted, private (`0600`), and relative to its output directory.
+- Build the portable runner artifact from a reviewed trusted ref and record its
+  SHA-256. The copied artifact must run without a repository checkout; external
+  orchestration owns isolation, mounts, runtime policy, and candidate binding.
