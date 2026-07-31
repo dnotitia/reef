@@ -69,6 +69,59 @@ describe("AKB Jira related target", () => {
     ).toBe(true);
   });
 
+  it("loads planning catalogs with one query per catalog", async () => {
+    const request = vi.fn(async (_path: string, init?: { body?: unknown }) => {
+      const sql = String(
+        (init?.body as { sql?: unknown } | undefined)?.sql ?? "",
+      );
+      if (sql.includes("FROM reef_activity")) {
+        return {
+          kind: "table_query",
+          items: [
+            {
+              reef_id: "SHDEV-007",
+              event_key:
+                "attachment_added:file-1@2025-05-27T21:43:43.262+09:00",
+              actor: "jira:account-1",
+            },
+          ],
+        };
+      }
+      return {
+        kind: "table_query",
+        items: [
+          { idempotency_key: "jira-remote:cloud:1:key" },
+          { idempotency_key: "jira-remote:cloud:2:key" },
+        ],
+      };
+    });
+    const { related } = createAkbRelatedTarget({
+      adapter: { request },
+      vault: "reef-shdev",
+      readIssue: async () => {
+        throw new Error("unused");
+      },
+      updateIssue: async () => {
+        throw new Error("unused");
+      },
+    });
+
+    await expect(
+      related.listAllFallbackAttachmentActivityActors?.(),
+    ).resolves.toEqual([
+      {
+        reefId: "SHDEV-007",
+        eventKey: "attachment_added:file-1@2025-05-27T21:43:43.262+09:00",
+        actor: "jira:account-1",
+      },
+    ]);
+    await expect(related.listAllExternalRefKeys?.()).resolves.toEqual([
+      "jira-remote:cloud:1:key",
+      "jira-remote:cloud:2:key",
+    ]);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
   it("routes Jira comment remapping through the migration-owned repair path", async () => {
     reconcileJiraImportedComment.mockResolvedValue({
       id: "comment-1",

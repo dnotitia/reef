@@ -73,6 +73,7 @@ export async function executeJiraDryRun(input: {
     postRelatedContentByReefId,
     finalRelatedReports,
     changelogPlans,
+    targetIssueReadbacksByReefId,
   } = plan;
   const { allIssues, absentSourceRelationPlan } = discovery;
   const bindingIndex = indexJiraMigrationBindings(getLedger());
@@ -118,9 +119,10 @@ export async function executeJiraDryRun(input: {
     );
     let readbackSucceeded = false;
     if (issuePlan.desired.issue && (action === "skip" || action === "update")) {
-      const readback = await target
-        .readIssue(issuePlan.desired.issue.id)
-        .catch(() => null);
+      const reefId = issuePlan.desired.issue.id;
+      const readback = targetIssueReadbacksByReefId.has(reefId)
+        ? (targetIssueReadbacksByReefId.get(reefId) ?? null)
+        : await target.readIssue(reefId).catch(() => null);
       readbackSucceeded = readback !== null;
       const representation = issueReadbackRepresentation(
         currentIssuePlan,

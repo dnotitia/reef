@@ -88,6 +88,11 @@ export interface JiraAttachmentActivityActor {
   actor: string;
 }
 
+export interface JiraIssueAttachmentActivityActor
+  extends JiraAttachmentActivityActor {
+  reefId: string;
+}
+
 export interface JiraAttachmentActivityActorReconciliation {
   reefId: string;
   eventKey: string;
@@ -123,6 +128,9 @@ export interface JiraRelatedImportTarget {
   listFallbackAttachmentActivityActors(
     reefId: string,
   ): Promise<JiraAttachmentActivityActor[]>;
+  listAllFallbackAttachmentActivityActors?(): Promise<
+    JiraIssueAttachmentActivityActor[]
+  >;
   readAttachmentActivityActor(
     reefId: string,
     eventKey: string,
@@ -162,6 +170,7 @@ export interface JiraRelatedImportTarget {
     provenance: Record<string, unknown>;
   } | null>;
   listExternalRefKeys(prefix: string): Promise<string[]>;
+  listAllExternalRefKeys?(): Promise<string[]>;
   deleteExternalRef(idempotencyKey: string): Promise<void>;
 }
 

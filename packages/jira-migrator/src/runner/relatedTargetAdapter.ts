@@ -433,6 +433,24 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
           : [],
       );
     },
+    async listAllFallbackAttachmentActivityActors() {
+      const rows = await readSql(
+        "SELECT reef_id, event_key, meta->>'actor' AS actor FROM reef_activity WHERE event_type = 'attachment_added' AND meta->>'actor' LIKE 'jira:%' ORDER BY reef_id, event_key",
+      );
+      return rows.flatMap((row) =>
+        typeof row.reef_id === "string" &&
+        typeof row.event_key === "string" &&
+        typeof row.actor === "string"
+          ? [
+              {
+                reefId: row.reef_id,
+                eventKey: row.event_key,
+                actor: row.actor,
+              },
+            ]
+          : [],
+      );
+    },
     async readAttachmentActivityActor(reefId, eventKey) {
       const rows = await readSql(
         `SELECT meta->>'actor' AS actor FROM reef_activity WHERE reef_id = ${quote(
@@ -731,6 +749,14 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
         `SELECT DISTINCT record->>'idempotencyKey' AS idempotency_key FROM reef_issues CROSS JOIN LATERAL jsonb_array_elements(COALESCE(meta::jsonb->'custom_fields'->'jira_migration'->'external_refs', '[]'::jsonb)) AS record WHERE LEFT(record->>'idempotencyKey', ${
           prefix.length
         }) = ${quote(prefix)} ORDER BY idempotency_key`,
+      );
+      return rows.flatMap((row) =>
+        typeof row.idempotency_key === "string" ? [row.idempotency_key] : [],
+      );
+    },
+    async listAllExternalRefKeys() {
+      const rows = await readSql(
+        "SELECT DISTINCT record->>'idempotencyKey' AS idempotency_key FROM reef_issues CROSS JOIN LATERAL jsonb_array_elements(COALESCE(meta::jsonb->'custom_fields'->'jira_migration'->'external_refs', '[]'::jsonb)) AS record ORDER BY idempotency_key",
       );
       return rows.flatMap((row) =>
         typeof row.idempotency_key === "string" ? [row.idempotency_key] : [],

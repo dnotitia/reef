@@ -18,6 +18,12 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Large Jira dry runs no longer reread the same target issue and related-data
+  catalogs for every planning pass.** Planning reuses its exact issue
+  readbacks, serves relation, external-reference, description, and media checks
+  from that immutable snapshot, and loads external-reference keys and fallback
+  attachment actors with one bulk query per catalog. Missing snapshot data
+  still falls back to the existing exact target read.
 - **Large Jira migration reruns no longer repeatedly scan the complete ledger
   and activity catalog for every entity.** The runner builds source-key and
   issue indexes once, reuses each changelog fingerprint, and caches target

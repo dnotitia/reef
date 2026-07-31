@@ -61,6 +61,7 @@ import {
 } from "./decisions.js";
 import { JiraRunnerError } from "./errors.js";
 import type { LoadedJiraMappingPolicy } from "./mappingPolicy.js";
+import { createRelatedPlanningSnapshot } from "./relatedPlanningSnapshot.js";
 import type { archiveJiraMigrationSource } from "./sourceArchive.js";
 import type { discoverJiraMigrationSource } from "./sourceDiscovery.js";
 import {
@@ -353,6 +354,22 @@ export async function buildJiraMigrationPlan(input: {
   const dryIssuePlansByKey = new Map(
     dryIssuePlans.map((plan) => [plan.source.issueKey, plan]),
   );
+  const targetIssueReadbacksByReefId = new Map<
+    string,
+    Awaited<ReturnType<AkbJiraMigrationTarget["readIssue"]>> | null
+  >();
+  const readTargetIssueForPlanning = async (
+    reefId: string,
+  ): Promise<Awaited<
+    ReturnType<AkbJiraMigrationTarget["readIssue"]>
+  > | null> => {
+    if (targetIssueReadbacksByReefId.has(reefId)) {
+      return targetIssueReadbacksByReefId.get(reefId) ?? null;
+    }
+    const readback = await target.readIssue(reefId).catch(() => null);
+    targetIssueReadbacksByReefId.set(reefId, readback);
+    return readback;
+  };
   const approvedTargetIssuePreconditions =
     approvedPayload?.target_issue_preconditions &&
     typeof approvedPayload.target_issue_preconditions === "object" &&
@@ -378,9 +395,7 @@ export async function buildJiraMigrationPlan(input: {
                 return [plan.source.issueKey, null] as const;
               }
               const id = plan.desired.issue?.id;
-              const readback = id
-                ? await target.readIssue(id).catch(() => null)
-                : null;
+              const readback = id ? await readTargetIssueForPlanning(id) : null;
               return [
                 plan.source.issueKey,
                 issueReadbackApprovalFingerprint(plan, readback),
@@ -479,6 +494,19 @@ export async function buildJiraMigrationPlan(input: {
   const nativeIssuePlansByKey = new Map(
     nativeIssuePlans.map((plan) => [plan.source.issueKey, plan]),
   );
+  const baseRelatedTarget = target.relatedTarget();
+  const [externalRefKeys, fallbackAttachmentActors] = await Promise.all([
+    baseRelatedTarget.listAllExternalRefKeys?.().catch(() => undefined),
+    baseRelatedTarget
+      .listAllFallbackAttachmentActivityActors?.()
+      .catch(() => undefined),
+  ]);
+  const relatedPlanningTarget = createRelatedPlanningSnapshot({
+    target: baseRelatedTarget,
+    issueReadbacks: targetIssueReadbacksByReefId,
+    ...(externalRefKeys ? { externalRefKeys } : {}),
+    ...(fallbackAttachmentActors ? { fallbackAttachmentActors } : {}),
+  });
   const relatedPlanningReports: Array<{
     issue_key: string;
     report: JiraRelatedImportReport;
@@ -504,9 +532,9 @@ export async function buildJiraMigrationPlan(input: {
       (relatedIssueAction === "skip" || relatedIssueAction === "update") &&
       currentIssuePlan?.desired.issue
     ) {
-      const readback = await target
-        .readIssue(currentIssuePlan.desired.issue.id)
-        .catch(() => null);
+      const readback = await readTargetIssueForPlanning(
+        currentIssuePlan.desired.issue.id,
+      );
       relatedIssueAction = actionForRelatedIssuePlan({
         plan: currentIssuePlan,
         equivalentPlans:
@@ -526,7 +554,7 @@ export async function buildJiraMigrationPlan(input: {
       issue: issue.raw,
       reefId: targetIdsByJiraKey[issue.key] as string,
       client,
-      target: target.relatedTarget(),
+      target: relatedPlanningTarget,
       ledger,
       bindingIndex,
       accountMapping,
@@ -818,6 +846,7 @@ export async function buildJiraMigrationPlan(input: {
     dryIssuePlans,
     nativeIssuePlans,
     targetIssuePreconditions,
+    targetIssueReadbacksByReefId,
     issueBindings,
     changelogPlans,
     relatedPlanningReports,
