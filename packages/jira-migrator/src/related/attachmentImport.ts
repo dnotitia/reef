@@ -4,6 +4,7 @@ import { fingerprintJiraState } from "../execution/diff.js";
 import {
   type JiraMigrationLedgerV1,
   confirmJiraMigrationBinding,
+  getJiraMigrationBinding,
   jiraAttachmentSourceIdentity,
   jiraCommentSourceIdentity,
   removeJiraMigrationBindings,
@@ -109,8 +110,10 @@ export async function importAttachments(options: {
     identity: ReturnType<typeof jiraAttachmentSourceIdentity>,
     attachmentId: string,
   ): Promise<void> => {
-    const binding = ledger.bindings.find(
-      (item) => item.source_key === identity.key,
+    const binding = getJiraMigrationBinding(
+      ledger,
+      identity.key,
+      migration.bindingIndex,
     );
     const recovered = await migration.target.findAttachmentByJiraId(
       migration.reefId,
@@ -142,7 +145,11 @@ export async function importAttachments(options: {
       }
     }
     if (migration.mode === "apply")
-      ledger = removeJiraMigrationBindings(ledger, [identity.key]);
+      ledger = removeJiraMigrationBindings(
+        ledger,
+        [identity.key],
+        migration.bindingIndex,
+      );
   };
   const commentById = new Map(comments.map((comment) => [comment.id, comment]));
   const commentDepth = (commentId: string): number => {
@@ -174,8 +181,10 @@ export async function importAttachments(options: {
           commentId,
         );
         try {
-          const binding = ledger.bindings.find(
-            (candidate) => candidate.source_key === identity.key,
+          const binding = getJiraMigrationBinding(
+            ledger,
+            identity.key,
+            migration.bindingIndex,
           );
           const recovered = await migration.target.findCommentByIdempotencyKey(
             identity.key,
@@ -191,7 +200,11 @@ export async function importAttachments(options: {
             migration.mode,
           );
           if (migration.mode === "apply")
-            ledger = removeJiraMigrationBindings(ledger, [identity.key]);
+            ledger = removeJiraMigrationBindings(
+              ledger,
+              [identity.key],
+              migration.bindingIndex,
+            );
           commentRevocationErrors.delete(commentId);
           progress = true;
         } catch (error) {
@@ -331,8 +344,10 @@ export async function importAttachments(options: {
       );
       continue;
     }
-    const existing = ledger.bindings.find(
-      (item) => item.source_key === identity.key,
+    const existing = getJiraMigrationBinding(
+      ledger,
+      identity.key,
+      migration.bindingIndex,
     );
     const mappedAuthor = resolveJiraActor(
       "attachment_author",
@@ -446,21 +461,25 @@ export async function importAttachments(options: {
             fileUri: recovered.attachment.file_uri,
           });
           if (migration.mode === "apply") {
-            ledger = confirmJiraMigrationBinding(ledger, {
-              sourceIdentity: identity,
-              target: {
-                target_kind: "attachment",
-                file_uri: recovered.attachment.file_uri,
+            ledger = confirmJiraMigrationBinding(
+              ledger,
+              {
+                sourceIdentity: identity,
+                target: {
+                  target_kind: "attachment",
+                  file_uri: recovered.attachment.file_uri,
+                },
+                sourceFingerprint: fingerprintJiraState(attachment),
+                mappedStateFingerprint: fingerprintJiraState({
+                  file_uri: recovered.attachment.file_uri,
+                  size: recovered.bytes.byteLength,
+                }),
+                lastAppliedAt: now(),
+                writeSucceeded: true,
+                readbackSucceeded: true,
               },
-              sourceFingerprint: fingerprintJiraState(attachment),
-              mappedStateFingerprint: fingerprintJiraState({
-                file_uri: recovered.attachment.file_uri,
-                size: recovered.bytes.byteLength,
-              }),
-              lastAppliedAt: now(),
-              writeSucceeded: true,
-              readbackSucceeded: true,
-            });
+              migration.bindingIndex,
+            );
           }
           report.attachments.skipped += 1;
           continue;
@@ -539,18 +558,22 @@ export async function importAttachments(options: {
           fileUri: created.file_uri,
           ...(previousFileUris.length > 0 ? { previousFileUris } : {}),
         });
-        ledger = confirmJiraMigrationBinding(ledger, {
-          sourceIdentity: identity,
-          target: { target_kind: "attachment", file_uri: created.file_uri },
-          sourceFingerprint,
-          mappedStateFingerprint: fingerprintJiraState({
-            file_uri: created.file_uri,
-            size: download.bytes.byteLength,
-          }),
-          lastAppliedAt: now(),
-          writeSucceeded: true,
-          readbackSucceeded: true,
-        });
+        ledger = confirmJiraMigrationBinding(
+          ledger,
+          {
+            sourceIdentity: identity,
+            target: { target_kind: "attachment", file_uri: created.file_uri },
+            sourceFingerprint,
+            mappedStateFingerprint: fingerprintJiraState({
+              file_uri: created.file_uri,
+              size: download.bytes.byteLength,
+            }),
+            lastAppliedAt: now(),
+            writeSucceeded: true,
+            readbackSucceeded: true,
+          },
+          migration.bindingIndex,
+        );
       } catch (writeError) {
         attachmentPhase = "readback";
         const residual = await migration.target.findAttachmentByJiraId(
@@ -568,26 +591,30 @@ export async function importAttachments(options: {
           { ...expectedAttachment, fileUri: residual.attachment.file_uri },
           download.bytes,
         );
-        ledger = confirmJiraMigrationBinding(ledger, {
-          sourceIdentity: identity,
-          target: {
-            target_kind: "attachment",
-            file_uri: residual.attachment.file_uri,
+        ledger = confirmJiraMigrationBinding(
+          ledger,
+          {
+            sourceIdentity: identity,
+            target: {
+              target_kind: "attachment",
+              file_uri: residual.attachment.file_uri,
+            },
+            sourceFingerprint,
+            mappedStateFingerprint: residualIsValid
+              ? fingerprintJiraState({
+                  file_uri: residual.attachment.file_uri,
+                  size: download.bytes.byteLength,
+                })
+              : fingerprintJiraState({
+                  attachment: residual.attachment,
+                  bytes_sha256: sha256(residual.bytes),
+                }),
+            lastAppliedAt: now(),
+            writeSucceeded: true,
+            readbackSucceeded: true,
           },
-          sourceFingerprint,
-          mappedStateFingerprint: residualIsValid
-            ? fingerprintJiraState({
-                file_uri: residual.attachment.file_uri,
-                size: download.bytes.byteLength,
-              })
-            : fingerprintJiraState({
-                attachment: residual.attachment,
-                bytes_sha256: sha256(residual.bytes),
-              }),
-          lastAppliedAt: now(),
-          writeSucceeded: true,
-          readbackSucceeded: true,
-        });
+          migration.bindingIndex,
+        );
         if (!residualIsValid) {
           await revokeAttachmentBinding(identity, attachment.id);
           throw writeError;

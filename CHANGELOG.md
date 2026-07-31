@@ -14,6 +14,13 @@ explicitly in the entries below.
 
 ### Fixed
 
+- **Large Jira migration reruns no longer repeatedly scan the complete ledger
+  and activity catalog for every entity.** The runner builds source-key and
+  issue indexes once, reuses each changelog fingerprint, and caches target
+  activity readback by issue with explicit invalidation after a write. This
+  removes the quadratic lookup and repeated per-history activity-read pattern
+  while preserving ordered writes, exact readback, checkpoint, and resume
+  behavior.
 - **Jira issue migrations now preserve the source ticket number.** Newly bound
   issues use the target workspace prefix with the Jira key's exact numeric
   segment, so a matching project prefix keeps `SHDEV-290` as `SHDEV-290`

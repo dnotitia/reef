@@ -5,7 +5,10 @@ import type {
 } from "../accounts/mapping.js";
 import type { AdfToMarkdownOptions } from "../content/adf.js";
 import type { JiraReadClient } from "../jira/client.js";
-import type { JiraMigrationLedgerV1 } from "../ledger.js";
+import type {
+  JiraMigrationBindingIndex,
+  JiraMigrationLedgerV1,
+} from "../ledger.js";
 import type {
   JiraIssuePayload,
   NormalizedJiraAttachment,
@@ -169,6 +172,7 @@ export interface JiraRelatedImportInput {
   client: JiraReadClient;
   target: JiraRelatedImportTarget;
   ledger: JiraMigrationLedgerV1;
+  bindingIndex?: JiraMigrationBindingIndex;
   accountMapping: JiraAccountMappingArtifact;
   actorDirectory?: readonly ReefActorDirectoryEntry[];
   linkMappings: readonly JiraLinkMapping[];

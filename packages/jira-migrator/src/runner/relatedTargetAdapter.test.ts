@@ -4,11 +4,13 @@ import { createAkbRelatedTarget } from "./relatedTargetAdapter.js";
 
 const reconcileJiraImportedComment = vi.hoisted(() => vi.fn());
 const reconcileJiraImportedAttachmentActivityActor = vi.hoisted(() => vi.fn());
+const listIssueActivity = vi.hoisted(() => vi.fn());
 
 vi.mock("@reef/core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@reef/core")>();
   return {
     ...actual,
+    akbListIssueActivity: listIssueActivity,
     akbReconcileJiraImportedAttachmentActivityActor:
       reconcileJiraImportedAttachmentActivityActor,
     akbReconcileJiraImportedComment: reconcileJiraImportedComment,
@@ -19,6 +21,7 @@ describe("AKB Jira related target", () => {
   beforeEach(() => {
     reconcileJiraImportedAttachmentActivityActor.mockReset();
     reconcileJiraImportedComment.mockReset();
+    listIssueActivity.mockReset();
   });
 
   it("retries transient AKB read failures without retrying a mutation", async () => {
@@ -141,5 +144,47 @@ describe("AKB Jira related target", () => {
       "reef-shdev",
       input,
     );
+  });
+
+  it("indexes activity readback once per issue and invalidates after a write", async () => {
+    const expected = {
+      reefId: "SHDEV-007",
+      eventType: "status_change" as const,
+      eventKey: "status_change:todo->done@2025-05-27T21:43:43.262+09:00",
+      actor: "hongchan",
+      at: "2025-05-27T21:43:43.262+09:00",
+      source: "jira_import",
+      payload: { from: "todo" as const, to: "done" as const },
+    };
+    listIssueActivity.mockResolvedValue([
+      {
+        id: "activity-1",
+        reef_id: expected.reefId,
+        event_type: expected.eventType,
+        event_key: expected.eventKey,
+        actor: expected.actor,
+        at: expected.at,
+        source: expected.source,
+        payload: expected.payload,
+      },
+    ]);
+    const target = createAkbRelatedTarget({
+      adapter: { request: vi.fn() },
+      vault: "reef-shdev",
+      readIssue: async () => {
+        throw new Error("unused");
+      },
+      updateIssue: async () => {
+        throw new Error("unused");
+      },
+    });
+
+    await expect(target.activityMatches([expected])).resolves.toBe(true);
+    await expect(target.activityMatches([expected])).resolves.toBe(true);
+    expect(listIssueActivity).toHaveBeenCalledTimes(1);
+
+    target.invalidateActivityMatches([expected]);
+    await expect(target.activityMatches([expected])).resolves.toBe(true);
+    expect(listIssueActivity).toHaveBeenCalledTimes(2);
   });
 });

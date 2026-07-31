@@ -16,7 +16,9 @@ import {
   createJiraMigrationLedger,
   getJiraCommentTargetId,
   getJiraIssueTarget,
+  getJiraMigrationBinding,
   getJiraPlanningLedgerBindings,
+  indexJiraMigrationBindings,
   jiraAttachmentSourceIdentity,
   jiraChangelogSourceIdentity,
   jiraCommentSourceIdentity,
@@ -24,11 +26,74 @@ import {
   jiraRelationSourceIdentity,
   legacyJiraRelationSourceKey,
   openJiraMigrationRun,
+  removeJiraMigrationBindings,
 } from "./index.js";
 
 const at = "2026-07-20T00:00:00.000Z";
 const sourceFingerprint = fingerprintJiraState({ source: "stable" });
 const mappedStateFingerprint = fingerprintJiraState({ mapped: "stable" });
+
+it("indexes large binding catalogs for constant-time repeated lookup", () => {
+  const bindings = Array.from({ length: 7_339 }, (_, index) => ({
+    source_key: `changelog_history:cloud-1:issue-1:${index}`,
+  }));
+  const ledger = { bindings } as never;
+  const bindingIndex = indexJiraMigrationBindings(ledger);
+  const guardedLedger = {
+    bindings: new Proxy(bindings, {
+      get(target, property, receiver) {
+        if (property === "find") {
+          throw new Error("linear binding lookup");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    }),
+  } as never;
+
+  for (let index = 0; index < bindings.length; index += 1) {
+    expect(
+      getJiraMigrationBinding(
+        guardedLedger,
+        `changelog_history:cloud-1:issue-1:${index}`,
+        bindingIndex,
+      ),
+    ).toBe(bindings[index]);
+  }
+});
+
+it("keeps a writable binding index synchronized with ledger changes", () => {
+  let ledger = createJiraMigrationLedger({
+    jiraCloudId: "cloud-1",
+    targetVault: "reef-target",
+  });
+  const bindingIndex = indexJiraMigrationBindings(ledger);
+  const identity = jiraIssueSourceIdentity("cloud-1", "p-1", "i-1");
+  ledger = confirmJiraMigrationBinding(
+    ledger,
+    {
+      sourceIdentity: identity,
+      target: {
+        target_kind: "issue",
+        reef_id: "REEF-001",
+        document_uri: "akb://reef-target/coll/issues/doc/reef-001.md",
+      },
+      sourceFingerprint,
+      mappedStateFingerprint,
+      lastAppliedAt: at,
+      writeSucceeded: true,
+      readbackSucceeded: true,
+    },
+    bindingIndex,
+  );
+  expect(bindingIndex.get(identity.key)?.target).toMatchObject({
+    reef_id: "REEF-001",
+  });
+
+  ledger = removeJiraMigrationBindings(ledger, [identity.key], bindingIndex);
+  expect(getJiraMigrationBinding(ledger, identity.key, bindingIndex)).toBe(
+    undefined,
+  );
+});
 
 describe("Jira migration ledger", () => {
   it("keeps V1 attachment identities without issue_id readable", () => {

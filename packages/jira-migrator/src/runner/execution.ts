@@ -6,9 +6,12 @@ import { fingerprintJiraState } from "../execution/diff.js";
 import type { JiraIssueImportPlan } from "../issues/importPlan.js";
 import {
   type JiraMigrationAction,
+  type JiraMigrationBindingIndex,
   type JiraMigrationEntityResult,
   type JiraMigrationPhase,
   confirmJiraMigrationBinding,
+  getJiraMigrationBinding,
+  indexJiraMigrationBindings,
   jiraIssueSourceIdentity,
 } from "../ledger.js";
 import type { NormalizedJiraIssue } from "../payloads.js";
@@ -71,6 +74,8 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
     signal,
   } = input;
   let ledger = input.ledger;
+  let bindingIndex: JiraMigrationBindingIndex =
+    indexJiraMigrationBindings(ledger);
   const { approvedCommentBindingPreconditions, approvedCommentBindings } =
     discovery;
   const {
@@ -92,6 +97,15 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
     approvedRelatedOperationsByIssue,
     postRelatedContentByReefId,
   } = plan;
+  const issuesBySourceId = new Map(
+    allIssues.flatMap((issue) => [
+      [issue.id, issue] as const,
+      [issue.key, issue] as const,
+    ]),
+  );
+  const relatedPlanningReportsByIssueKey = new Map(
+    relatedPlanningReports.map((report) => [report.issue_key, report]),
+  );
   let { finalRelatedReports } = plan;
   const terminalClassifications: JiraRunnerReport["terminal_classifications"] =
     [];
@@ -226,18 +240,22 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
       ) {
         planningResolutions.push(resolution);
       }
-      ledger = confirmJiraMigrationBinding(ledger, {
-        sourceIdentity: action.sourceIdentity,
-        target: {
-          target_kind: resolution.targetKind,
-          target_id: resolution.targetId,
+      ledger = confirmJiraMigrationBinding(
+        ledger,
+        {
+          sourceIdentity: action.sourceIdentity,
+          target: {
+            target_kind: resolution.targetKind,
+            target_id: resolution.targetId,
+          },
+          sourceFingerprint,
+          mappedStateFingerprint: mappedFingerprint,
+          lastAppliedAt: now(),
+          writeSucceeded: true,
+          readbackSucceeded: true,
         },
-        sourceFingerprint,
-        mappedStateFingerprint: mappedFingerprint,
-        lastAppliedAt: now(),
-        writeSucceeded: true,
-        readbackSucceeded: true,
-      });
+        bindingIndex,
+      );
       record(
         "planning",
         resultFor({
@@ -330,7 +348,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
     for (const plan of applyIssuePlans) {
       assertNotAborted();
       if (
-        actionForIssuePlan(plan, ledger) !== "create" ||
+        actionForIssuePlan(plan, ledger, bindingIndex) !== "create" ||
         fingerprintJiraState(
           semanticIssuePlan(plan, planningResolutions, planningActions),
         ) !== approvedIssueFingerprints.get(plan.source.issueKey)
@@ -370,7 +388,8 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
       blockedClaimCount =
         failedIssueClaimIds.size + conflictedIssueClaimIds.size;
       for (const plan of applyIssuePlans) {
-        if (actionForIssuePlan(plan, ledger) !== "create") continue;
+        if (actionForIssuePlan(plan, ledger, bindingIndex) !== "create")
+          continue;
         const reefId = plan.desired.issue?.id;
         if (!reefId) continue;
         const references = issueReferences(plan);
@@ -389,7 +408,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
         plan.source.issueId,
       );
       const sourceFingerprint = fingerprintJiraState(
-        allIssues.find((issue) => issue.id === plan.source.issueId)?.raw,
+        issuesBySourceId.get(plan.source.issueId)?.raw,
       );
       const mappedFingerprint = mappedFingerprintForIssue(plan);
       if (
@@ -414,21 +433,25 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
       }
       const recoveredCreate = recoveredCreateIssues.get(identity.key);
       if (recoveredCreate) {
-        ledger = confirmJiraMigrationBinding(ledger, {
-          sourceIdentity: identity,
-          target: {
-            target_kind: "issue",
-            reef_id: recoveredCreate.reefId,
-            document_uri: recoveredCreate.documentUri,
+        ledger = confirmJiraMigrationBinding(
+          ledger,
+          {
+            sourceIdentity: identity,
+            target: {
+              target_kind: "issue",
+              reef_id: recoveredCreate.reefId,
+              document_uri: recoveredCreate.documentUri,
+            },
+            sourceFingerprint,
+            mappedStateFingerprint: mappedFingerprint,
+            lastAppliedAt: now(),
+            writeSucceeded: true,
+            readbackSucceeded: true,
+            rawArchiveReference: archiveReferences.get(plan.source.issueKey)
+              ?.issue,
           },
-          sourceFingerprint,
-          mappedStateFingerprint: mappedFingerprint,
-          lastAppliedAt: now(),
-          writeSucceeded: true,
-          readbackSucceeded: true,
-          rawArchiveReference: archiveReferences.get(plan.source.issueKey)
-            ?.issue,
-        });
+          bindingIndex,
+        );
         confirmedIssueSourceKeys.add(identity.key);
         record(
           "issues",
@@ -445,7 +468,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
         await checkpoint();
         continue;
       }
-      let action = actionForIssuePlan(plan, ledger);
+      let action = actionForIssuePlan(plan, ledger, bindingIndex);
       if (action === "conflict") {
         record(
           "issues",
@@ -689,20 +712,25 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
         applied = recovered.applied;
       }
       if (!applied) throw new Error("target_issue_apply_unresolved");
-      ledger = confirmJiraMigrationBinding(ledger, {
-        sourceIdentity: identity,
-        target: {
-          target_kind: "issue",
-          reef_id: applied.reefId,
-          document_uri: applied.documentUri,
+      ledger = confirmJiraMigrationBinding(
+        ledger,
+        {
+          sourceIdentity: identity,
+          target: {
+            target_kind: "issue",
+            reef_id: applied.reefId,
+            document_uri: applied.documentUri,
+          },
+          sourceFingerprint,
+          mappedStateFingerprint: mappedFingerprint,
+          lastAppliedAt: now(),
+          writeSucceeded: true,
+          readbackSucceeded: true,
+          rawArchiveReference: archiveReferences.get(plan.source.issueKey)
+            ?.issue,
         },
-        sourceFingerprint,
-        mappedStateFingerprint: mappedFingerprint,
-        lastAppliedAt: now(),
-        writeSucceeded: true,
-        readbackSucceeded: true,
-        rawArchiveReference: archiveReferences.get(plan.source.issueKey)?.issue,
-      });
+        bindingIndex,
+      );
       confirmedIssueSourceKeys.add(identity.key);
       record(
         "issues",
@@ -729,8 +757,10 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
         projectId(issue),
         issue.id,
       );
-      const binding = ledger.bindings.find(
-        (candidate) => candidate.source_key === identity.key,
+      const binding = getJiraMigrationBinding(
+        ledger,
+        identity.key,
+        bindingIndex,
       );
       return (
         confirmedIssueSourceKeys.has(identity.key) &&
@@ -747,9 +777,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
     for (const issue of allIssues) {
       assertNotAborted();
       if (!confirmedIssueBinding(issue)) {
-        const planned = relatedPlanningReports.find(
-          (candidate) => candidate.issue_key === issue.key,
-        );
+        const planned = relatedPlanningReportsByIssueKey.get(issue.key);
         const report = {
           ...planned?.report,
           mode: "apply" as const,
@@ -783,6 +811,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
           client,
           target: target.relatedTarget(),
           ledger,
+          bindingIndex,
           accountMapping,
           linkMappings: policy.linkMappings,
           attachmentPolicy: config.control.commentCatalogComplete
@@ -806,11 +835,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
             mediaRawArchiveReferences: issueArchiveReferences?.media,
           },
           resolveIssueTarget(sourceIdOrKey) {
-            const peer = allIssues.find(
-              (candidate) =>
-                candidate.id === sourceIdOrKey ||
-                candidate.key === sourceIdOrKey,
-            );
+            const peer = issuesBySourceId.get(sourceIdOrKey);
             const reefId = peer ? issueBindings[sourceIdOrKey] : undefined;
             return peer && confirmedIssueBinding(peer) && reefId
               ? {
@@ -825,6 +850,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
           now,
           async checkpointLedger(attachmentLedger) {
             ledger = attachmentLedger;
+            bindingIndex = indexJiraMigrationBindings(ledger);
             await checkpoint();
           },
         });
@@ -834,9 +860,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
           await checkpoint();
           throw new JiraRunnerError("target_unavailable");
         }
-        const planned = relatedPlanningReports.find(
-          (candidate) => candidate.issue_key === issue.key,
-        );
+        const planned = relatedPlanningReportsByIssueKey.get(issue.key);
         const report = {
           ...planned?.report,
           mode: "apply" as const,
@@ -861,7 +885,10 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
         await checkpoint();
         continue;
       }
-      ledger = result.ledger;
+      if (result.ledger !== ledger) {
+        ledger = result.ledger;
+        bindingIndex = indexJiraMigrationBindings(ledger);
+      }
       relatedApplyReports.push({ issue_key: issue.key, report: result.report });
       if (result.report.failures.some((failure) => failure.retryable)) {
         await checkpoint();
@@ -878,8 +905,10 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
     finalRelatedReports = relatedApplyReports;
     for (const plannedBinding of absentSourceRelationPlan) {
       assertNotAborted();
-      const binding = ledger.bindings.find(
-        (candidate) => candidate.source_key === plannedBinding.source_key,
+      const binding = getJiraMigrationBinding(
+        ledger,
+        plannedBinding.source_key,
+        bindingIndex,
       );
       const classificationKey = `related:absent-source:${plannedBinding.source_key}`;
       if (!binding) {
@@ -908,24 +937,29 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
     }
     for (const plan of changelogPlans) {
       assertNotAborted();
-      const parentIssue = allIssues.find(
-        (issue) => issue.id === plan.sourceIdentity.issue_id,
-      );
+      const mappedFingerprint = mappedFingerprintForChangelog(plan);
+      const parentIssue = issuesBySourceId.get(plan.sourceIdentity.issue_id);
       if (!parentIssue || !confirmedIssueBinding(parentIssue)) {
         recordReportOnly("changelog", plan.sourceIdentity.key, "conflict");
         await checkpoint();
         continue;
       }
-      let action = actionForChangelogPlan(plan, ledger);
-      const existingBinding = ledger.bindings.find(
-        (candidate) => candidate.source_key === plan.sourceIdentity.key,
+      let action = actionForChangelogPlan(
+        plan,
+        ledger,
+        bindingIndex,
+        mappedFingerprint,
+      );
+      const existingBinding = getJiraMigrationBinding(
+        ledger,
+        plan.sourceIdentity.key,
+        bindingIndex,
       );
       const bindingMatchesSource =
         existingBinding?.source_fingerprint === plan.sourceFingerprint;
       const bindingUsesCurrentFingerprint =
         bindingMatchesSource &&
-        existingBinding.mapped_state_fingerprint ===
-          mappedFingerprintForChangelog(plan);
+        existingBinding.mapped_state_fingerprint === mappedFingerprint;
       const bindingReference = existingBinding?.raw_archive_reference;
       const bindingUsesRunScopedFingerprint =
         bindingMatchesSource &&
@@ -972,16 +1006,20 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
         }
         if (readbackMatches) {
           if (bindingUsesRunScopedFingerprint || bindingUsesLegacyFingerprint) {
-            ledger = confirmJiraMigrationBinding(ledger, {
-              sourceIdentity: plan.sourceIdentity,
-              target: existingBinding.target,
-              sourceFingerprint: plan.sourceFingerprint,
-              mappedStateFingerprint: mappedFingerprintForChangelog(plan),
-              lastAppliedAt: now(),
-              writeSucceeded: true,
-              readbackSucceeded: true,
-              rawArchiveReference: plan.rawArchiveReference,
-            });
+            ledger = confirmJiraMigrationBinding(
+              ledger,
+              {
+                sourceIdentity: plan.sourceIdentity,
+                target: existingBinding.target,
+                sourceFingerprint: plan.sourceFingerprint,
+                mappedStateFingerprint: mappedFingerprint,
+                lastAppliedAt: now(),
+                writeSucceeded: true,
+                readbackSucceeded: true,
+                rawArchiveReference: plan.rawArchiveReference,
+              },
+              bindingIndex,
+            );
           }
           action = "skip";
         } else {
@@ -1062,19 +1100,23 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
           await checkpoint();
           continue;
         }
-        ledger = confirmJiraMigrationBinding(ledger, {
-          sourceIdentity: plan.sourceIdentity,
-          target: {
-            target_kind: "changelog_history",
-            idempotency_key: plan.sourceIdentity.key,
+        ledger = confirmJiraMigrationBinding(
+          ledger,
+          {
+            sourceIdentity: plan.sourceIdentity,
+            target: {
+              target_kind: "changelog_history",
+              idempotency_key: plan.sourceIdentity.key,
+            },
+            sourceFingerprint: plan.sourceFingerprint,
+            mappedStateFingerprint: mappedFingerprint,
+            lastAppliedAt: now(),
+            writeSucceeded: true,
+            readbackSucceeded: true,
+            rawArchiveReference: plan.rawArchiveReference,
           },
-          sourceFingerprint: plan.sourceFingerprint,
-          mappedStateFingerprint: mappedFingerprintForChangelog(plan),
-          lastAppliedAt: now(),
-          writeSucceeded: true,
-          readbackSucceeded: true,
-          rawArchiveReference: plan.rawArchiveReference,
-        });
+          bindingIndex,
+        );
       }
       recordReportOnly("changelog", plan.sourceIdentity.key, action);
       await checkpoint();

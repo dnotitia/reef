@@ -11,9 +11,12 @@ import { buildJiraIssueImportPlan } from "../issues/mapping.js";
 import type { JiraReadClient } from "../jira/client.js";
 import { resolveJiraField } from "../jira/fieldCatalog.js";
 import {
+  type JiraMigrationBindingIndex,
   JiraMigrationBindingSchema,
   type JiraMigrationLedgerV1,
+  getJiraMigrationBinding,
   getJiraPlanningLedgerBindings,
+  indexJiraMigrationBindings,
   jiraAttachmentSourceIdentity,
   openJiraMigrationRun,
 } from "../ledger.js";
@@ -84,10 +87,15 @@ export const actionForRelatedIssuePlan = (input: {
   plan: JiraIssueImportPlan;
   equivalentPlans: readonly JiraIssueImportPlan[];
   ledger: JiraMigrationLedgerV1;
+  bindingIndex?: Readonly<JiraMigrationBindingIndex>;
   readback: Awaited<ReturnType<AkbJiraMigrationTarget["readIssue"]>> | null;
   postRelatedContent?: string;
 }): ReturnType<typeof actionForIssuePlan> => {
-  const action = actionForIssuePlan(input.plan, input.ledger);
+  const action = actionForIssuePlan(
+    input.plan,
+    input.ledger,
+    input.bindingIndex,
+  );
   if ((action !== "skip" && action !== "update") || input.readback === null) {
     return action;
   }
@@ -212,6 +220,7 @@ export async function buildJiraMigrationPlan(input: {
     approval,
   } = input;
   let ledger = input.ledger;
+  const bindingIndex = indexJiraMigrationBindings(ledger);
   const {
     fieldResult,
     fieldCatalog,
@@ -365,7 +374,7 @@ export async function buildJiraMigrationPlan(input: {
       : Object.fromEntries(
           await Promise.all(
             dryIssuePlans.map(async (plan) => {
-              if (actionForIssuePlan(plan, ledger) === "create") {
+              if (actionForIssuePlan(plan, ledger, bindingIndex) === "create") {
                 return [plan.source.issueKey, null] as const;
               }
               const id = plan.desired.issue?.id;
@@ -439,9 +448,7 @@ export async function buildJiraMigrationPlan(input: {
         issue.id,
         attachment.id,
       ).key;
-      const binding = ledger.bindings.find(
-        (candidate) => candidate.source_key === sourceKey,
-      );
+      const binding = getJiraMigrationBinding(ledger, sourceKey, bindingIndex);
       return binding?.target.target_kind === "attachment"
         ? [{ source: attachment, fileUri: binding.target.file_uri }]
         : [];
@@ -491,7 +498,7 @@ export async function buildJiraMigrationPlan(input: {
     };
     const currentIssuePlan = nativeIssuePlan ?? dryIssuePlan;
     let relatedIssueAction = currentIssuePlan
-      ? actionForIssuePlan(currentIssuePlan, ledger)
+      ? actionForIssuePlan(currentIssuePlan, ledger, bindingIndex)
       : ("conflict" as const);
     if (
       (relatedIssueAction === "skip" || relatedIssueAction === "update") &&
@@ -507,6 +514,7 @@ export async function buildJiraMigrationPlan(input: {
             ? [dryIssuePlan]
             : [],
         ledger,
+        bindingIndex,
         readback,
         postRelatedContent: postRelatedContentByReefId.get(
           currentIssuePlan.desired.issue.id,
@@ -520,6 +528,7 @@ export async function buildJiraMigrationPlan(input: {
       client,
       target: target.relatedTarget(),
       ledger,
+      bindingIndex,
       accountMapping,
       linkMappings: policy.linkMappings,
       attachmentPolicy: config.control.commentCatalogComplete

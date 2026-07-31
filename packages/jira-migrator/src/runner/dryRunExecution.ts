@@ -3,7 +3,10 @@ import type {
   JiraMigrationEntityResult,
   JiraMigrationPhase,
 } from "../ledger.js";
-import { jiraIssueSourceIdentity } from "../ledger.js";
+import {
+  indexJiraMigrationBindings,
+  jiraIssueSourceIdentity,
+} from "../ledger.js";
 import type { JiraPlanningTargetResolution } from "../planning/entities.js";
 import {
   issueOwnerMatches,
@@ -72,6 +75,11 @@ export async function executeJiraDryRun(input: {
     changelogPlans,
   } = plan;
   const { allIssues, absentSourceRelationPlan } = discovery;
+  const bindingIndex = indexJiraMigrationBindings(getLedger());
+  const issuesById = new Map(allIssues.map((issue) => [issue.id, issue]));
+  const finalRelatedReportsByIssueKey = new Map(
+    finalRelatedReports.map((report) => [report.issue_key, report]),
+  );
   const nativeIssuePlansByKey = new Map(
     nativeIssuePlans.map((issuePlan) => [issuePlan.source.issueKey, issuePlan]),
   );
@@ -103,7 +111,11 @@ export async function executeJiraDryRun(input: {
       issuePlan.source.issueKey,
     );
     const currentIssuePlan = nativeIssuePlan ?? issuePlan;
-    let action = actionForIssuePlan(currentIssuePlan, getLedger());
+    let action = actionForIssuePlan(
+      currentIssuePlan,
+      getLedger(),
+      bindingIndex,
+    );
     let readbackSucceeded = false;
     if (issuePlan.desired.issue && (action === "skip" || action === "update")) {
       const readback = await target
@@ -133,7 +145,7 @@ export async function executeJiraDryRun(input: {
         sourceKey: identity.key,
         entityKind: "issue",
         sourceFingerprint: fingerprintJiraState(
-          allIssues.find((issue) => issue.id === issuePlan.source.issueId)?.raw,
+          issuesById.get(issuePlan.source.issueId)?.raw,
         ),
         mappedFingerprint: mappedFingerprintForIssue(currentIssuePlan),
         action,
@@ -161,7 +173,7 @@ export async function executeJiraDryRun(input: {
     recordReportOnly(
       "changelog",
       changelogPlan.sourceIdentity.key,
-      actionForChangelogPlan(changelogPlan, getLedger()),
+      actionForChangelogPlan(changelogPlan, getLedger(), bindingIndex),
     );
   }
   finalizePhase("related");
@@ -170,8 +182,8 @@ export async function executeJiraDryRun(input: {
       issuePlan.deferred.map((item) => ({ plan: issuePlan, item })),
     )
     .entries()) {
-    const relatedReport = finalRelatedReports.find(
-      (candidate) => candidate.issue_key === deferred.plan.source.issueKey,
+    const relatedReport = finalRelatedReportsByIssueKey.get(
+      deferred.plan.source.issueKey,
     )?.report;
     recordReportOnly(
       "reconciliation",

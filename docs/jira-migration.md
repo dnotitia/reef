@@ -771,6 +771,13 @@ Checkpoint persistence uses the immutable ledger object's identity: report-only
 classifications that leave the ledger unchanged do not rewrite the full private
 artifact, while every new binding or entity result still uses the same
 compare-and-swap, atomic-write, and immediate-readback path.
+Within one run, source-key bindings and Jira issues are indexed once rather than
+rescanning the complete ledger or issue catalog for each plan. Changelog
+readback also loads an issue's activity catalog once and indexes it by stable
+event key; a successful activity mutation invalidates that issue cache before
+the mandatory readback. These caches are process-local execution accelerators,
+not persistence or authority, and do not weaken the ledger checkpoint or target
+readback contracts.
 AKB reads retry bounded transport (`status 0`), rate-limit, and 5xx failures.
 If that bound is exhausted, apply fails fast with `target_unavailable` at the
 last durable checkpoint instead of overwriting hundreds of otherwise valid

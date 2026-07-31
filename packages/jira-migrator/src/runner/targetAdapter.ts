@@ -324,14 +324,19 @@ export function createAkbJiraMigrationTarget(
       ...(expected ? { expectedUpdatedAt: expected.updatedAt } : {}),
       message: `Reconcile ${id} Jira migration data`,
     });
-  const { allIssueRows, readIssueOwnershipRow, related, activityMatches } =
-    createAkbRelatedTarget({
-      adapter,
-      vault,
-      waitForConsistency: consistencyPause,
-      readIssue,
-      updateIssue,
-    });
+  const {
+    allIssueRows,
+    readIssueOwnershipRow,
+    related,
+    activityMatches,
+    invalidateActivityMatches,
+  } = createAkbRelatedTarget({
+    adapter,
+    vault,
+    waitForConsistency: consistencyPause,
+    readIssue,
+    updateIssue,
+  });
   const issueOwnershipMatches = (
     row: Record<string, unknown> | null,
     desired: IssueMetadata,
@@ -757,6 +762,7 @@ export function createAkbJiraMigrationTarget(
       await akbReconcileJiraChangelogActivityEvents(adapter, vault, [
         ...events,
       ]);
+      invalidateActivityMatches(events);
       if (!(await activityMatches(events))) {
         throw new Error("target_activity_readback_failed");
       }

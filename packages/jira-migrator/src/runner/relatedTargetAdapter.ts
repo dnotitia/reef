@@ -52,6 +52,12 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
   const pause = input.waitForConsistency ?? (() => Promise.resolve());
   const retryRead = <T>(read: () => Promise<T>): Promise<T> =>
     retryAkbRead(read, { wait: pause });
+  const activityMatchesCache = new Map<
+    string,
+    Promise<
+      Map<string, Awaited<ReturnType<typeof akbListIssueActivity>>[number]>
+    >
+  >();
   const readSql = (statement: string) =>
     retryRead(() => sql(adapter, vault, statement));
   const readTargetIssue = (id: string) => retryRead(() => readIssue(id));
@@ -775,17 +781,35 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
       byIssue.set(event.reefId, issueEvents);
     }
     for (const [reefId, expectedEvents] of byIssue) {
-      const actualEvents = await retryRead(() =>
-        akbListIssueActivity(adapter, vault, reefId),
-      );
-      for (const expected of expectedEvents) {
-        const actual = actualEvents.find(
-          (event) => event.event_key === expected.eventKey,
+      let actualEventsPromise = activityMatchesCache.get(reefId);
+      if (!actualEventsPromise) {
+        actualEventsPromise = retryRead(() =>
+          akbListIssueActivity(adapter, vault, reefId),
+        ).then(
+          (events) =>
+            new Map(
+              events.flatMap((event) =>
+                event.event_key ? [[event.event_key, event] as const] : [],
+              ),
+            ),
         );
+        activityMatchesCache.set(reefId, actualEventsPromise);
+      }
+      let actualEventsByKey: Awaited<typeof actualEventsPromise>;
+      try {
+        actualEventsByKey = await actualEventsPromise;
+      } catch (error) {
+        activityMatchesCache.delete(reefId);
+        throw error;
+      }
+      for (const expected of expectedEvents) {
+        const expectedEventKey = expected.eventKey;
+        if (!expectedEventKey) return false;
+        const actual = actualEventsByKey.get(expectedEventKey);
         const expectedProjection = {
           reef_id: expected.reefId,
           event_type: expected.eventType,
-          event_key: expected.eventKey,
+          event_key: expectedEventKey,
           actor: expected.actor,
           at: expected.at,
           source: expected.source,
@@ -812,5 +836,18 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
     }
     return true;
   };
-  return { allIssueRows, readIssueOwnershipRow, related, activityMatches };
+  const invalidateActivityMatches = (
+    events: readonly ActivityEventInput[],
+  ): void => {
+    for (const reefId of new Set(events.map((event) => event.reefId))) {
+      activityMatchesCache.delete(reefId);
+    }
+  };
+  return {
+    allIssueRows,
+    readIssueOwnershipRow,
+    related,
+    activityMatches,
+    invalidateActivityMatches,
+  };
 }
