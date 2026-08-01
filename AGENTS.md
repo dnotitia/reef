@@ -138,11 +138,15 @@ metadata.
 
 - Co-locate unit tests beside their targets. Issue fixtures are plain objects
   validated against `IssueMetadataSchema` or derived schemas.
-- Standard gates are `pnpm biome check .`, `pnpm -r run typecheck`, and
-  `pnpm -r run test`; package-specific details live in the package `AGENTS.md`.
+- During development, run the nearest package's relevant lint, typecheck, and
+  tests so deterministic failures stay in the implementation feedback loop.
+  Before opening or updating a PR, run the canonical non-E2E gate
+  (`pnpm run check`), which runs lint before typecheck, tests, and the release
+  policy check. Package-specific details live in the package `AGENTS.md`.
 - The web E2E suite is a required CI check (`Playwright E2E`); run the canonical
-  isolated full suite (`pnpm --filter @reef/web run test:e2e:sharded`) before
-  opening or updating a PR, not just the focused spec for the path you changed.
+  isolated full suite (`pnpm --filter @reef/web run test:e2e:sharded`) after the
+  non-E2E gate and before opening or updating a PR, not just the focused spec
+  for the path you changed.
   Use `pnpm --filter @reef/web run test:e2e` only for focused, single-server
   local debugging. A change to shared fixtures or the vault-skill version can
   break a sibling hermetic spec you never opened, and that only surfaces in the
