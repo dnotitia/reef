@@ -85,6 +85,13 @@ export const REEF_SETTINGS_STALE_HIDE_CANCELED_DAYS_KEY =
  * on, because a scan writes AI suggestions into the team-shared activity inbox.
  */
 export const REEF_SETTINGS_AI_SCANNING_ENABLED_KEY = "ai_scanning_enabled";
+/**
+ * JSON envelope for the notification projector's activation boundary and its
+ * independent activity/comment cursors. It deliberately stays in
+ * `reef_settings` so the projector does not require a schema migration.
+ */
+export const REEF_SETTINGS_NOTIFICATION_PROJECTOR_KEY =
+  "notification_projector";
 
 /**
  * Closed set of every table name reef writes SQL against. Used as the input

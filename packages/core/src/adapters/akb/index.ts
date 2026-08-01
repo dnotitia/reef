@@ -11,6 +11,12 @@ export {
   type ManualSubscriptionInput,
 } from "./notifications/notifications";
 export {
+  projectNotifications,
+  type NotificationProjectorInput,
+  type NotificationProjectionResult,
+  type NotificationProjectionSourceResult,
+} from "./notifications/projector";
+export {
   createAkbAdapter,
   ISSUES_COLLECTION,
   REEF_SETTINGS_TABLE,
