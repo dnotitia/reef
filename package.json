@@ -20,6 +20,7 @@
     "dev": "pnpm --filter @reef/web dev",
     "build": "pnpm --filter @reef/web build",
     "lint": "biome check .",
+    "check": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run check:release",
     "check:release": "node scripts/check-release-policy.mjs",
     "maintenance:scan": "node scripts/maintenance/scan.mjs",
     "maintenance:assert-clean": "node scripts/maintenance/scan.mjs --assert-clean",
