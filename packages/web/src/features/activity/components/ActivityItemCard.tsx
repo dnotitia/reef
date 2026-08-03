@@ -72,6 +72,7 @@ export function ActivityItemCard({
           onDismiss={onDismissStatusChange}
           onSaveTarget={onSaveStatusChange}
           isApproving={isApproving}
+          vault={vault}
         />
       );
     default:

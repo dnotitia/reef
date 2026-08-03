@@ -9,6 +9,7 @@ import {
 import { logger } from "@/lib/logging/logger";
 import {
   akbEnsureReefTables,
+  akbReadActivitySuggestion,
   akbUpdateActivitySuggestionStatus,
 } from "@reef/core";
 import { z } from "zod";
@@ -48,6 +49,10 @@ export async function POST(
 
   try {
     await akbEnsureReefTables({ adapter, vault });
+    const current = await akbReadActivitySuggestion({ adapter, vault, id });
+    if (current.suggestion.status !== "pending") {
+      return localizedErrorResponse("suggestionAlreadyReviewed", 409);
+    }
     const result = await akbUpdateActivitySuggestionStatus({
       adapter,
       vault,

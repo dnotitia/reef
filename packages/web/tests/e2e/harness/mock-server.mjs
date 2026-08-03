@@ -51,6 +51,17 @@ const server = createServer(async (req, res) => {
         issue_list_failure: state.issueListFailure,
       });
     }
+    if (
+      url.pathname === "/__e2e/activity-suggestions-control" &&
+      req.method === "POST"
+    ) {
+      const body = await readJson(req);
+      state.activitySuggestionsFailure = body?.enabled === true;
+      return json(res, 200, {
+        ok: true,
+        activity_suggestions_failure: state.activitySuggestionsFailure,
+      });
+    }
     if (url.pathname === "/__e2e/vault-list-control" && req.method === "POST") {
       const body = await readJson(req);
       state.vaultListDelayMs = Math.max(0, Number(body?.delay_ms ?? 0));
@@ -281,6 +292,7 @@ function makeState(scenario) {
     vaultListDelayMs: 0,
     vaultListFailures: 0,
     issueUpdateFailures: new Map(),
+    activitySuggestionsFailure: false,
     keycloakEnabled: false,
     localAuthEnabled: true,
     ssoOnly: false,
@@ -1589,6 +1601,9 @@ function handleSql(vault, sql) {
   }
 
   if (lower.startsWith("select * from reef_activity_suggestions")) {
+    if (state.activitySuggestionsFailure) {
+      return { error: "e2e forced activity suggestions failure" };
+    }
     const rows = filterActivityRows(vault.activitySuggestions, normalized);
     return tableQuery(activityColumns(), rows);
   }

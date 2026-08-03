@@ -30,6 +30,10 @@ explicitly in the entries below.
   choices through the existing AKB subscription contract, updates
   optimistically with rollback and retryable feedback, and rejects attempts to
   choose another subscriber. (REEF-428)
+- **Issue detail now surfaces pending AI status suggestions for the current
+  issue.** The section reuses the Suggestions queue's review actions and cache,
+  supports context links with safe focus, and keeps the audit Activity timeline
+  separate.
 - **Core now provides notification inbox and source-aware issue subscription
   contracts.** Public schemas, deterministic keys, recipient-scoped notification
   reads and state transitions, and manual/requester/assignee/commenter

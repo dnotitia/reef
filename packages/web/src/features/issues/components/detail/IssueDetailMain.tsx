@@ -20,6 +20,7 @@ import { IssueAttachments } from "../attachments/IssueAttachments";
 import { IssueLinkedDocuments } from "../refs/IssueLinkedDocuments";
 import { IssueRefsEditor } from "../refs/IssueRefsEditor";
 import { IssueChildren } from "../relations/IssueChildren";
+import { IssueSuggestionsSection } from "./IssueSuggestionsSection";
 
 function sameJson(a: unknown, b: unknown): boolean {
   return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
@@ -181,7 +182,10 @@ export function IssueDetailMain({
           status changes, and reconstructed events merge into one chronological
           thread after the structured fields. */}
       {issue ? (
-        <ActivityTimeline issueId={issueId} vault={vault} issue={issue} />
+        <>
+          <IssueSuggestionsSection issueId={issueId} vault={vault} />
+          <ActivityTimeline issueId={issueId} vault={vault} issue={issue} />
+        </>
       ) : null}
     </main>
   );

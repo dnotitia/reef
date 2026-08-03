@@ -224,6 +224,9 @@ export function ActivityDraftCard({
         content,
       });
       setIsEditing(false);
+    } catch {
+      // The parent owns the retryable error surface. Keep the editor open so
+      // the pending proposal remains available for another attempt.
     } finally {
       setIsSaving(false);
     }

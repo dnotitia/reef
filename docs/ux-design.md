@@ -510,12 +510,17 @@ A "more" menu offers Archive/Unarchive and a confirmed Delete.
 
 The detail panel's expression of "show the why" is split by intent:
 relationships show issue-to-issue context, linked documents show akb-native
-reference edges, implementation refs hold external/code references, and the
-activity timeline merges comments, status changes, and reconstructed events into
-one chronological thread. Relationship dropdowns, navigable relation rows, and
-sub-issue rows use the same compact issue-row rhythm as the rest of the detail
-panel; their issue-type mark is glyph-only in the visual row, with the localized
-type name kept for screen readers.
+reference edges, implementation refs hold external/code references, and a
+separate Suggestions section surfaces only pending AI status proposals for the
+current issue. The Suggestions section reuses the queue's purple review cards,
+review actions, and pending-query cache; a queue context link can open the issue
+detail with the matching card focused and scrolled into view. The activity
+timeline remains a separate immutable audit surface that merges comments,
+status changes, and reconstructed events into one chronological thread.
+Relationship dropdowns, navigable relation rows, and sub-issue rows use the same
+compact issue-row rhythm as the rest of the detail panel; their issue-type mark
+is glyph-only in the visual row, with the localized type name kept for screen
+readers.
 
 The chrome also carries an actor-scoped notification control. Its trigger names
 and shows the effective **Watch / Watching / Muted** state, while the menu
@@ -545,8 +550,12 @@ collapsed rail, and decreases only when a review action changes queue state.
 `/workspace/{vault}/activity` remains a replace-style compatibility redirect to
 Suggestions and preserves single, repeated, and empty query values. The legacy
 flat `/activity` route still resolves the remembered, accessible workspace
-before following the same redirect. The issue-detail **Activity** timeline is a
-separate immutable audit surface and keeps its name and behavior.
+before following the same redirect. An issue-detail **Suggestions** section
+appears only when pending status proposals target that issue; it shares the
+queue's query and review actions, and a queue card links back with its suggestion
+id so the detail can focus the exact pending card. The issue-detail **Activity**
+timeline stays a separate immutable audit surface and keeps its name and
+behavior.
 
 The feed is a list of purple-tinted AI cards in two variants, each
 human-in-the-loop:

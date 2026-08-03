@@ -32,12 +32,14 @@ export function StatusChangeCard({
   onDismiss,
   onSaveTarget,
   isApproving,
+  vault,
 }: {
   item: Extract<ActivityFeedItem, { type: "ai_status_change" }>;
   onApprove?: (statusChange: ActivityStatusChangeSuggestion) => Promise<void>;
   onDismiss?: (statusChangeId: string) => void;
   onSaveTarget?: (statusChangeId: string, toStatus: Status) => Promise<void>;
   isApproving: boolean;
+  vault?: string;
 }) {
   const statusLabels = useStatusLabels();
   const t = useTranslations("activity");
@@ -60,6 +62,9 @@ export function StatusChangeCard({
     try {
       await onSaveTarget(statusChange.id, toStatus);
       setIsEditing(false);
+    } catch {
+      // The parent owns the retryable error surface. Keep the editor open so
+      // the pending proposal remains available for another attempt.
     } finally {
       setIsSaving(false);
     }
@@ -75,6 +80,8 @@ export function StatusChangeCard({
         timestamp={item.timestamp}
         issueId={item.issueId}
         issueTitle={item.issueTitle}
+        suggestionId={statusChange.id}
+        vault={vault}
       >
         <div
           className="mt-1 flex items-center gap-2 text-sm"

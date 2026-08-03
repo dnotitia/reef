@@ -3,11 +3,11 @@
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
 import { ActivitySuggestionsResultSchema } from "@reef/core";
 import { useQuery } from "@tanstack/react-query";
-import { ACTIVITY_SUGGESTIONS_QUERY_KEY } from "./useActivityFeed";
+import { activitySuggestionsQueryKey } from "./useActivityFeed";
 
 export function usePendingSuggestionsCount(vault: string): number {
   const query = useQuery({
-    queryKey: [...ACTIVITY_SUGGESTIONS_QUERY_KEY, vault, "pending"],
+    queryKey: activitySuggestionsQueryKey(vault),
     queryFn: async () => {
       const params = new URLSearchParams({ vault, status: "pending" });
       const response = await apiFetch(`/api/activity/suggestions?${params}`, {

@@ -14,6 +14,9 @@ vi.mock("../refs/IssueRefsEditor", () => ({ IssueRefsEditor: () => null }));
 vi.mock("../activity/ActivityTimeline", () => ({
   ActivityTimeline: () => null,
 }));
+vi.mock("./IssueSuggestionsSection", () => ({
+  IssueSuggestionsSection: () => null,
+}));
 vi.mock("../attachments/IssueAttachments", () => ({
   IssueAttachments: () => null,
 }));

@@ -9,6 +9,10 @@ import type { ActivityFeedItem } from "../types";
 
 export const ACTIVITY_SUGGESTIONS_QUERY_KEY = ["activity-suggestions"] as const;
 
+export function activitySuggestionsQueryKey(vault: string) {
+  return [...ACTIVITY_SUGGESTIONS_QUERY_KEY, vault, "pending"] as const;
+}
+
 /**
  * Stable descending comparator for ISO 8601 timestamp strings. Returns 0 for
  * equal timestamps so the underlying sort is stable.
@@ -31,10 +35,12 @@ function compareTimestampDesc(a: string, b: string): number {
 export function useActivityFeed(vault: string): {
   items: ActivityFeedItem[];
   isLoading: boolean;
+  isError: boolean;
+  error: Error | null;
   refreshInbox: () => Promise<void>;
 } {
   const query = useQuery({
-    queryKey: [...ACTIVITY_SUGGESTIONS_QUERY_KEY, vault, "pending"],
+    queryKey: activitySuggestionsQueryKey(vault),
     queryFn: async () => {
       const params = new URLSearchParams({ vault, status: "pending" });
       const res = await apiFetch(`/api/activity/suggestions?${params}`, {
@@ -62,7 +68,13 @@ export function useActivityFeed(vault: string): {
       .sort((a, b) => compareTimestampDesc(a.timestamp, b.timestamp));
   }, [query.data?.suggestions]);
 
-  return { items, isLoading: query.isLoading, refreshInbox };
+  return {
+    items,
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error instanceof Error ? query.error : null,
+    refreshInbox,
+  };
 }
 
 function suggestionToFeedItem(

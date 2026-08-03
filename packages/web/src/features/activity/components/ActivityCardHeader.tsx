@@ -2,7 +2,7 @@
 
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { withVault } from "@/lib/workspaceHref";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -60,16 +60,25 @@ export function ActivityCardHeader({
   timestamp,
   issueId,
   issueTitle,
+  suggestionId,
+  vault: explicitVault,
   children,
 }: {
   badge: ReactNode;
   timestamp: string;
   issueId?: string;
   issueTitle?: string;
+  suggestionId?: string;
+  vault?: string;
   children: ReactNode;
 }) {
   const locale = useLocale();
-  const { vault } = useActiveVault();
+  const { vault: activeVault } = useActiveVault();
+  const activity = useTranslations("activity");
+  const vault = explicitVault ?? activeVault;
+  const contextQuery = suggestionId
+    ? `?${new URLSearchParams({ suggestion: suggestionId })}`
+    : "";
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0 flex-1">
@@ -77,8 +86,17 @@ export function ActivityCardHeader({
           <SuggestionProvenanceBadge>{badge}</SuggestionProvenanceBadge>
           {issueId && (
             <Link
-              href={withVault(vault, `/issues/${issueId}`)}
-              className="shrink-0 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:underline"
+              href={withVault(
+                vault,
+                `/issues/${encodeURIComponent(issueId)}${contextQuery}`,
+              )}
+              title={
+                suggestionId
+                  ? activity("openIssueContext", { id: issueId })
+                  : undefined
+              }
+              data-testid={suggestionId ? "suggestion-context-link" : undefined}
+              className="shrink-0 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
             >
               {issueId}
             </Link>

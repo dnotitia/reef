@@ -18,6 +18,11 @@ vi.mock("../hooks/useActivityFeed", () => ({
     isLoading: false,
     refreshInbox: vi.fn(),
   }),
+  activitySuggestionsQueryKey: (vault: string) => [
+    "activity-suggestions",
+    vault,
+    "pending",
+  ],
 }));
 
 // Mutable so a test can drop to zero monitored repos and exercise the

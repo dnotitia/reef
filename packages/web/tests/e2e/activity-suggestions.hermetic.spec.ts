@@ -4,6 +4,7 @@ import {
   openExistingWorkspace,
   readFixtureState,
   resetFixture,
+  setActivitySuggestionsFailure,
 } from "./harness/fixture";
 
 type FixtureState = Awaited<ReturnType<typeof readFixtureState>>;
@@ -366,5 +367,207 @@ test.describe("Hermetic activity suggestion workflows", () => {
           issueById(await readFixtureState(request), "REEF-002").status,
       )
       .toBe("in_progress");
+  });
+
+  test("reviews an existing issue suggestion from detail and reconciles the central queue", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/suggestions");
+
+    const statusCard = page
+      .locator('[data-testid="activity-item-ai_status_change"]')
+      .filter({ hasText: "Initial issue Alpha" });
+    const contextLink = statusCard.getByTestId("suggestion-context-link");
+    await expect(contextLink).toHaveAttribute(
+      "href",
+      "/workspace/reef-e2e/issues/REEF-001?suggestion=reef-status-3333333333333333",
+    );
+
+    await contextLink.click();
+    await expect(page).toHaveURL(
+      "/workspace/reef-e2e/issues/REEF-001?suggestion=reef-status-3333333333333333",
+    );
+
+    const detailSection = page.getByTestId("issue-detail-suggestions");
+    await expect(detailSection).toBeVisible();
+    const detailCard = detailSection.locator(
+      '[data-testid="issue-detail-suggestion-card"]',
+    );
+    await expect(detailCard).toHaveAttribute(
+      "data-suggestion-id",
+      "reef-status-3333333333333333",
+    );
+    await expect(detailCard).toBeFocused();
+
+    await detailCard.getByTestId("status-change-edit").click();
+    await detailCard.getByTestId("status-change-target").click();
+    await page.getByRole("option", { name: "In Review" }).click();
+    await detailCard.getByTestId("status-change-save").click();
+    await detailCard.getByRole("button", { name: "Approve" }).click();
+
+    await expect(detailCard).toBeHidden();
+    await expect(detailSection).toBeHidden();
+    await expect
+      .poll(
+        async () =>
+          suggestionById(
+            await readFixtureState(request),
+            "reef-status-3333333333333333",
+          ).status,
+      )
+      .toBe("approved");
+    await expect
+      .poll(
+        async () =>
+          issueById(await readFixtureState(request), "REEF-001").status,
+      )
+      .toBe("in_review");
+
+    await page.goto("/workspace/reef-e2e/suggestions");
+    await expect(
+      page
+        .locator('[data-testid="activity-item-ai_status_change"]')
+        .filter({ hasText: "Initial issue Alpha" }),
+    ).toHaveCount(0);
+  });
+
+  test("dismisses an existing issue suggestion in detail without changing issue status", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(
+      "/workspace/reef-e2e/issues/REEF-002?suggestion=reef-status-4444444444444444",
+    );
+
+    const detailSection = page.getByTestId("issue-detail-suggestions");
+    await expect(detailSection).toBeVisible();
+    const detailCard = detailSection.locator(
+      '[data-testid="issue-detail-suggestion-card"]',
+    );
+    await expect(detailCard).toBeFocused();
+    await detailCard.getByRole("button", { name: "Dismiss" }).click();
+
+    await expect(detailCard).toBeHidden();
+    await expect(detailSection).toBeHidden();
+    await expect
+      .poll(
+        async () =>
+          suggestionById(
+            await readFixtureState(request),
+            "reef-status-4444444444444444",
+          ).status,
+      )
+      .toBe("dismissed");
+    await expect
+      .poll(
+        async () =>
+          issueById(await readFixtureState(request), "REEF-002").status,
+      )
+      .toBe("in_progress");
+  });
+
+  test("keeps invalid or handled suggestion context from focusing another card", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(
+      "/workspace/reef-e2e/issues/REEF-001?suggestion=not-a-suggestion",
+    );
+
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await expect(
+      page.locator(
+        '[data-testid="issue-detail-suggestion-card"][tabindex="-1"]',
+      ),
+    ).toHaveCount(0);
+
+    await page.goto(
+      "/workspace/reef-e2e/issues/REEF-002?suggestion=reef-status-4444444444444444",
+    );
+    const handledCard = page
+      .getByTestId("issue-detail-suggestions")
+      .locator('[data-testid="issue-detail-suggestion-card"]');
+    await handledCard.getByRole("button", { name: "Dismiss" }).click();
+    await expect(handledCard).toBeHidden();
+
+    await page.goto(
+      "/workspace/reef-e2e/issues/REEF-001?suggestion=reef-status-4444444444444444",
+    );
+    await expect(page.getByTestId("issue-detail-suggestions")).toBeVisible();
+    await expect(
+      page.locator(
+        '[data-testid="issue-detail-suggestion-card"][tabindex="-1"]',
+      ),
+    ).toHaveCount(0);
+  });
+
+  test("offers a retryable error when detail suggestions cannot load", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    await setActivitySuggestionsFailure(request, true);
+    await page.goto("/workspace/reef-e2e/issues/REEF-001");
+
+    const error = page.getByTestId("issue-detail-suggestions-error");
+    await expect(error).toBeVisible();
+    await setActivitySuggestionsFailure(request, false);
+    await error.getByRole("button", { name: "Retry" }).click();
+    await expect(page.getByTestId("issue-detail-suggestions")).toBeVisible();
+  });
+
+  test("keeps issue suggestions usable in a narrow desktop viewport with keyboard controls", async ({
+    page,
+  }, testInfo) => {
+    await openExistingWorkspace(page);
+    await page.setViewportSize({ width: 760, height: 720 });
+    await page.goto(
+      "/workspace/reef-e2e/issues/REEF-001?suggestion=reef-status-3333333333333333",
+    );
+
+    const detailSection = page.getByTestId("issue-detail-suggestions");
+    await expect(detailSection).toBeVisible();
+    const detailCard = detailSection.locator(
+      '[data-testid="issue-detail-suggestion-card"]',
+    );
+    await expect(detailCard).toBeFocused();
+    const cardWidth = await detailCard.evaluate(
+      (element) => element.getBoundingClientRect().width,
+    );
+    expect(cardWidth).toBeLessThanOrEqual(760);
+
+    const dismiss = detailCard.getByRole("button", { name: "Dismiss" });
+    await dismiss.focus();
+    await page.keyboard.press("Enter");
+    await expect(detailCard).toBeHidden();
+    await page.screenshot({
+      path: testInfo.outputPath("narrow-detail-suggestion.png"),
+      fullPage: true,
+    });
+  });
+
+  test("renders issue suggestions in Korean", async ({ page }, testInfo) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/settings/preferences");
+    await page
+      .getByRole("region", { name: "Language" })
+      .getByTestId("locale-option-ko")
+      .click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+
+    await page.goto(
+      "/workspace/reef-e2e/issues/REEF-001?suggestion=reef-status-3333333333333333",
+    );
+    await expect(
+      page.getByRole("heading", { name: "이 이슈의 제안" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "승인" })).toBeVisible();
+    await page.screenshot({
+      path: testInfo.outputPath("korean-detail-suggestion.png"),
+      fullPage: true,
+    });
   });
 });

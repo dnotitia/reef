@@ -13,7 +13,7 @@ import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { withVault } from "@/lib/workspaceHref";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { IssueChromeIdentity } from "./IssueChromeIdentity";
 import { IssueChromeSlotProvider } from "./IssueChromeSlot";
 import { IssueDetail } from "./IssueDetail";
@@ -205,7 +205,9 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
                   <IssueDetailCloseButton onClose={exit} />
                 </div>
               </div>
-              {renderBody()}
+              <Suspense fallback={<IssueDetailSkeleton />}>
+                {renderBody()}
+              </Suspense>
             </div>
           </IssueChromeSlotProvider>
         </SheetContent>
