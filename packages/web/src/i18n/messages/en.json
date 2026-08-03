@@ -10,6 +10,7 @@
   "nav": {
     "issues": "Issues",
     "myWork": "My Work",
+    "inbox": "Inbox",
     "planning": "Planning",
     "suggestions": "Suggestions",
     "activity": "Activity",
@@ -24,6 +25,8 @@
     "mainNavLandmark": "Main navigation",
     "badge": {
       "pendingSuggestions": "{count} pending suggestions",
+      "unreadNotifications": "{count} unread notifications",
+      "unreadNotificationsAtLeast100": "100 or more unread notifications",
       "overdue": "{count} overdue",
       "dueSoon": "{count} due soon",
       "skillUpdate": "Workspace instructions update available"
@@ -406,6 +409,9 @@
     "githubAppUnconfigured": "GitHub App is not configured for this deployment.",
     "invalidSuggestionId": "Invalid suggestion id.",
     "invalidSuggestionStatus": "Invalid suggestion status.",
+    "invalidNotificationState": "Invalid notification state.",
+    "invalidNotificationLimit": "Notification limit must be between 1 and 100.",
+    "invalidNotificationKey": "Invalid notification key.",
     "invalidMilestoneId": "Invalid milestone id.",
     "invalidSprintId": "Invalid sprint id.",
     "invalidReleaseId": "Invalid release id.",
@@ -1004,6 +1010,28 @@
     "gotIt": "Got it",
     "newDraftsPart": "{count, plural, one {# draft suggestion} other {# draft suggestions}}",
     "statusChangesPart": "{count, plural, one {# status change} other {# status changes}}"
+  },
+  "inbox": {
+    "pageTitle": "Inbox",
+    "loading": "Loading notifications…",
+    "notification": "Notification",
+    "listLabel": "Notifications",
+    "emptyTitle": "You’re all caught up",
+    "emptyDescription": "New collaboration activity for your issues will appear here.",
+    "errorTitle": "Couldn't load your notifications",
+    "errorDescription": "Try again, or come back after the workspace is reachable.",
+    "retry": "Retry",
+    "actionError": "Couldn't update this notification. Try again.",
+    "openNotification": "Open activity for {issue}",
+    "markUnread": "Mark unread",
+    "markUnreadFor": "Mark {issue} unread",
+    "archive": "Archive",
+    "archiveFor": "Archive notification for {issue}",
+    "state": {
+      "unread": "Unread",
+      "read": "Read",
+      "archived": "Archived"
+    }
   },
   "planning": {
     "newKind": "New {kind}",

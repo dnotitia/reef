@@ -114,7 +114,10 @@ export function ActivityTimeline({
   }
 
   return (
-    <section className="flex min-w-0 flex-col gap-3">
+    <section
+      id="issue-activity"
+      className="scroll-mt-4 flex min-w-0 flex-col gap-3"
+    >
       <h3 className={ISSUE_SECTION_HEADER_CLASS}>{nav("activity")}</h3>
 
       <div className="flex min-w-0 flex-col gap-4">

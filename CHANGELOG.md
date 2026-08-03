@@ -71,6 +71,10 @@ explicitly in the entries below.
   unchanged. The workspace shell also waits until its controls are interactive
   before exposing them, so early clicks and keyboard shortcuts are not silently
   discarded. (REEF-432)
+- **The workspace sidebar now includes a persisted Notification Inbox.** The
+  actor-scoped badge stays within the existing 100-row unread contract, while
+  Inbox rows expose read, unread, and archive transitions and deep-link to the
+  related issue Activity section without mixing with Suggestions. (REEF-431)
 
 ### Migration
 

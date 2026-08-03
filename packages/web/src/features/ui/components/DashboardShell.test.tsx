@@ -42,6 +42,10 @@ vi.mock("@/features/activity/hooks/usePendingSuggestionsCount", () => ({
   usePendingSuggestionsCount: () => pendingSuggestionsState.count,
 }));
 
+vi.mock("@/features/inbox/hooks/useInboxNotifications", () => ({
+  useUnreadNotificationCount: () => unreadNotificationState.count,
+}));
+
 // The My Work sidebar badge (REEF-204) reads its overdue/due-soon counts from
 // this hook; mock it so each test drives the badge tone/visibility directly.
 vi.mock("@/features/my-work/hooks/useMyWorkAttention", () => ({
@@ -65,6 +69,7 @@ vi.mock("@/features/preferences/hooks/useLocaleSync", () => ({
 const {
   navigationState,
   pendingSuggestionsState,
+  unreadNotificationState,
   myWorkAttentionState,
   skillStatusState,
 } = vi.hoisted(() => ({
@@ -73,6 +78,9 @@ const {
     push: vi.fn(),
   },
   pendingSuggestionsState: {
+    count: 0,
+  },
+  unreadNotificationState: {
     count: 0,
   },
   myWorkAttentionState: {
@@ -136,6 +144,7 @@ describe("DashboardShell", () => {
     vi.clearAllMocks();
     navigationState.pathname = "/workspace/reef-acme/issues";
     pendingSuggestionsState.count = 0;
+    unreadNotificationState.count = 0;
     myWorkAttentionState.attention = 0;
     myWorkAttentionState.overdue = 0;
     myWorkAttentionState.dueSoon = 0;
@@ -208,6 +217,26 @@ describe("DashboardShell", () => {
     );
     expect(screen.getByRole("link", { name: "Reports" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
+  });
+
+  it("shows the capped Inbox badge with the 100-or-more accessible label", () => {
+    unreadNotificationState.count = 100;
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+
+    const badge = screen.getByTestId("inbox-unread-badge");
+    expect(badge).toHaveTextContent("9+");
+    expect(badge).toHaveAccessibleName("100 or more unread notifications");
+    expect(
+      screen.getByRole("link", {
+        name: "Inbox 100 or more unread notifications",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("places My Work right after Issues in the nav (REEF-204)", () => {
