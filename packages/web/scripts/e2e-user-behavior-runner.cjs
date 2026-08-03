@@ -474,6 +474,7 @@ async function loadPlaywright() {
     }),
     { mode: 0o600 },
   );
+  await run("corepack", ["install", "--global", `pnpm@${PNPM_VERSION}`]);
   await run("corepack", [
     "pnpm",
     "install",
