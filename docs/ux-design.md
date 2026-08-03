@@ -345,7 +345,7 @@ fluid main column:
 
 - **Sidebar** — collapsible between an expanded `w-60` and a `w-14` icon rail.
   It holds the reef wordmark, a prominent New Issue button, the primary nav
-  (Issues / My Work / Planning / Suggestions / Reports / Settings), a footer
+  (Issues / My Work / Inbox / Planning / Suggestions / Reports / Settings), a footer
   utility row for keyboard shortcuts, and the workspace/account identity block.
   App-version context lives in the account menu as a release-notes link.
 - **Main column** — a per-page header and the page body. The Issues page body
@@ -530,6 +530,23 @@ hairline, including replies to replies. Reply controls open one inline composer
 at a time, name the direct parent author, preserve the draft with an inline
 error on failure, and close on cancel or success. The root timestamp determines
 the thread's position among system events, while replies sort within the thread.
+
+### Notification Inbox
+
+`/workspace/{vault}/inbox` is the signed-in actor's collaboration inbox for
+activity and comment notifications. It is backed by the persisted
+`reef_notifications` state, so unread/read/archive changes survive a refresh
+and another device. The sidebar badge is derived from the unread list with a
+maximum query of 100 rows: the visible pill caps at `9+`, while assistive text
+announces `100 or more unread notifications` (or the equivalent localized
+wording) when the boundary is reached.
+
+The Inbox list is independent from the AI Suggestions queue. Each row shows
+the event type, actor, related issue, occurred time, and read state. Opening a
+row marks an unread notification read before navigating to the issue Activity
+section when that issue is available. Mark unread and Archive are server
+state transitions; the browser does not persist notification data or a
+last-visit marker. Empty, loading, and fetch-failure states remain distinct.
 
 ### Suggestions Review Queue
 

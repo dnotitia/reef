@@ -11,6 +11,7 @@ export type FixtureScenario =
   | "demo_board"
   | "raw_only"
   | "activity_suggestions"
+  | "notifications"
   | "skill_outdated";
 export const REEF_E2E_VAULT = "reef-e2e";
 
@@ -77,6 +78,20 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
       subscriber: string;
       source: string;
       status: string;
+    }>;
+    notifications: Array<{
+      id: string;
+      notification_key: string;
+      recipient: string;
+      reef_id: string;
+      source_type: string;
+      source_ref: string;
+      event_type: string;
+      actor: string;
+      occurred_at: string;
+      state: string;
+      read_at: string | null;
+      archived_at: string | null;
     }>;
     documents: Array<{
       path: string;

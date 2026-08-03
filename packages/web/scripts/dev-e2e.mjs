@@ -25,6 +25,7 @@ const SCENARIOS = new Set([
   "demo_board",
   "raw_only",
   "activity_suggestions",
+  "notifications",
   "skill_outdated",
 ]);
 const E2E_GITHUB_APP_PRIVATE_KEY = generateKeyPairSync("rsa", {

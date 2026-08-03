@@ -14,6 +14,7 @@ import { useAskAiStore } from "@/features/ai/stores/useAskAiStore";
 import { SidebarAccount } from "@/features/auth/components/SidebarAccount";
 import { SidebarWorkspace } from "@/features/auth/components/SidebarWorkspace";
 import { useCommandRegistry } from "@/features/commands/hooks/useCommandRegistry";
+import { useUnreadNotificationCount } from "@/features/inbox/hooks/useInboxNotifications";
 import { NewIssueDialog } from "@/features/issues/components/create/NewIssueDialog";
 import { CloseIssueDialog } from "@/features/issues/components/detail/CloseIssueDialog";
 import { buildOpenIssueHref } from "@/features/issues/lib/issueHref";
@@ -47,6 +48,7 @@ import { withVault } from "@/lib/workspaceHref";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   BarChart3,
+  Bell,
   ChevronLeft,
   CircleUser,
   ListChecks,
@@ -104,6 +106,7 @@ const navLinks: ReadonlyArray<{
   labelKey:
     | "issues"
     | "myWork"
+    | "inbox"
     | "planning"
     | "suggestions"
     | "reports"
@@ -115,6 +118,7 @@ const navLinks: ReadonlyArray<{
   // My Work sits right after Issues (REEF-204 / REEF-181 AC1) — a personal lens
   // on the same work, distinct from the board's `ListTodo` via `CircleUser`.
   { href: "/my-work", labelKey: "myWork", testId: "my work", icon: CircleUser },
+  { href: "/inbox", labelKey: "inbox", testId: "inbox", icon: Bell },
   {
     href: "/planning",
     labelKey: "planning",
@@ -265,6 +269,11 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   // actual pending total visible even while the user is reviewing the queue.
   const pendingSuggestionsCount = usePendingSuggestionsCount(vault);
 
+  // Inbox unread state is an account-scoped persisted notification list. The
+  // hook reads the bounded unread list itself; there is deliberately no count
+  // endpoint and no browser visit marker in this path.
+  const unreadNotificationCount = useUnreadNotificationCount(vault);
+
   // My Work "needs attention" count for its sidebar badge (REEF-204): the
   // signed-in user's overdue + due-soon work, derived from MyWorkPage's same
   // `useIssueList` cache (no extra fetch). Hidden while on /my-work.
@@ -296,6 +305,21 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
         tone: "brand",
         badgeTestId: "suggestions-pending-badge",
         dotTestId: "suggestions-pending-dot",
+      };
+    }
+    if (href === "/inbox" && unreadNotificationCount > 0) {
+      return {
+        kind: "count",
+        display: cap(unreadNotificationCount),
+        label:
+          unreadNotificationCount >= 100
+            ? t("badge.unreadNotificationsAtLeast100")
+            : t("badge.unreadNotifications", {
+                count: unreadNotificationCount,
+              }),
+        tone: "brand",
+        badgeTestId: "inbox-unread-badge",
+        dotTestId: "inbox-unread-dot",
       };
     }
     if (isActive) return null;

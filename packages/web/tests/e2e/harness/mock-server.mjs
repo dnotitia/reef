@@ -242,6 +242,7 @@ function normalizeScenario(value) {
     value === "content_search" ||
     value === "raw_only" ||
     value === "activity_suggestions" ||
+    value === "notifications" ||
     value === "skill_outdated"
   ) {
     return value;
@@ -311,10 +312,12 @@ function makeState(scenario) {
     scenario === "configured" ||
     scenario === "configured_multi" ||
     scenario === "activity_suggestions" ||
+    scenario === "notifications" ||
     scenario === "skill_outdated"
   ) {
     const vault = configuredVault(REEF_VAULT);
     if (scenario === "activity_suggestions") seedActivitySuggestions(vault);
+    if (scenario === "notifications") seedNotifications(vault);
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);
     next.vaults.set(REEF_VAULT, vault);
     next.vaults.set("raw-vault", rawVault("raw-vault"));
@@ -450,6 +453,7 @@ function configuredVault(name) {
     ],
     templates: [],
     activitySuggestions: [],
+    notifications: [],
     subscriptions: [],
     attachments: [],
     files: new Map(),
@@ -876,6 +880,7 @@ function rawVault(name) {
     releases: [],
     templates: [],
     activitySuggestions: [],
+    notifications: [],
     subscriptions: [],
     attachments: [],
     files: new Map(),
@@ -899,6 +904,99 @@ function activityRow(reefId, eventType, at, payload) {
     updated_at: at,
     created_by: "alice",
   };
+}
+
+function notificationKey(recipient, sourceType, sourceRef) {
+  return `notification:${recipient.length}:${recipient}:${sourceType.length}:${sourceType}:${sourceRef.length}:${sourceRef}`;
+}
+
+function notificationRow({
+  id,
+  recipient,
+  reefId,
+  sourceType,
+  sourceRef,
+  eventType,
+  actor,
+  occurredAt,
+  state,
+}) {
+  return {
+    id: uuidFor(id),
+    notification_key: notificationKey(recipient, sourceType, sourceRef),
+    recipient,
+    reef_id: reefId,
+    source_type: sourceType,
+    source_ref: sourceRef,
+    event_type: eventType,
+    actor,
+    occurred_at: occurredAt,
+    state,
+    read_at: state === "read" ? occurredAt : null,
+    archived_at: state === "archived" ? occurredAt : null,
+    payload: null,
+    meta: null,
+  };
+}
+
+/**
+ * Notification Inbox fixture: exactly 100 unread Alice rows exercises the
+ * bounded badge contract, plus one read row for state controls and one Bob row
+ * that must never appear in Alice's session-scoped response.
+ */
+function seedNotifications(vault) {
+  vault.notifications = [];
+  for (let index = 0; index < 99; index += 1) {
+    const issue = `REEF-${String((index % 3) + 1).padStart(3, "0")}`;
+    vault.notifications.push(
+      notificationRow({
+        id: 7000 + index,
+        recipient: "alice",
+        reefId: issue,
+        sourceType: "activity",
+        sourceRef: `fixture-${index}`,
+        eventType: "status_change",
+        actor: "bob",
+        occurredAt: new Date(NOW_MS - (99 - index) * 60_000).toISOString(),
+        state: "unread",
+      }),
+    );
+  }
+  vault.notifications.push(
+    notificationRow({
+      id: 7100,
+      recipient: "alice",
+      reefId: "REEF-001",
+      sourceType: "comment",
+      sourceRef: "comment-primary",
+      eventType: "comment_created",
+      actor: "bob",
+      occurredAt: "2026-06-15T00:00:00.000Z",
+      state: "unread",
+    }),
+    notificationRow({
+      id: 7101,
+      recipient: "alice",
+      reefId: "REEF-002",
+      sourceType: "activity",
+      sourceRef: "read-primary",
+      eventType: "priority_changed",
+      actor: "bob",
+      occurredAt: "2026-06-14T00:00:00.000Z",
+      state: "read",
+    }),
+    notificationRow({
+      id: 7102,
+      recipient: "bob",
+      reefId: "REEF-001",
+      sourceType: "activity",
+      sourceRef: "bob-only",
+      eventType: "comment_created",
+      actor: "alice",
+      occurredAt: "2026-06-15T00:00:00.000Z",
+      state: "unread",
+    }),
+  );
 }
 
 function issueRow(input) {
@@ -1324,6 +1422,7 @@ function handleSql(vault, sql) {
   if (!vault.comments) vault.comments = [];
   if (!vault.attachments) vault.attachments = [];
   if (!vault.activity) vault.activity = [];
+  if (!vault.notifications) vault.notifications = [];
   if (!vault.subscriptions) vault.subscriptions = [];
 
   if (lower.startsWith("select key, value from reef_settings")) {
@@ -1464,6 +1563,77 @@ function handleSql(vault, sql) {
     vault.subscriptions.push(subscription);
     return tableQuery(Object.keys(subscription), [subscription]);
   }
+
+  if (lower.startsWith("select * from reef_notifications")) {
+    const recipient = matchSqlString(normalized, /recipient\s*=\s*'([^']+)'/i);
+    const status = matchSqlString(normalized, /state\s*=\s*'([^']+)'/i);
+    const rows = vault.notifications
+      .filter(
+        (notification) =>
+          (!recipient || notification.recipient === recipient) &&
+          (!status || notification.state === status),
+      )
+      .sort(
+        (left, right) =>
+          String(right.occurred_at).localeCompare(String(left.occurred_at)) ||
+          String(right.id).localeCompare(String(left.id)),
+      );
+    return tableQuery(notificationColumns(), applyLimit(rows, normalized));
+  }
+
+  if (lower.startsWith("with updated as (update reef_notifications")) {
+    const notificationKeyValue = matchSqlString(
+      normalized,
+      /notification_key\s*=\s*'([^']+)'/i,
+    );
+    const recipient = matchSqlString(normalized, /recipient\s*=\s*'([^']+)'/i);
+    const status = matchSqlString(normalized, /set state\s*=\s*'([^']+)'/i);
+    const changedAt = matchSqlString(normalized, /COALESCE\('([^']+)'/i);
+    const row = vault.notifications.find(
+      (notification) =>
+        notification.notification_key === notificationKeyValue &&
+        notification.recipient === recipient,
+    );
+    if (!row || !status) return tableQuery(notificationColumns(), []);
+    if (status === "unread") {
+      row.state = "unread";
+      row.read_at = null;
+      row.archived_at = null;
+    } else if (status === "read") {
+      row.state = "read";
+      row.read_at = row.read_at ?? changedAt ?? NOW;
+      row.archived_at = null;
+    } else if (status === "archived") {
+      row.state = "archived";
+      row.read_at = row.read_at ?? changedAt ?? NOW;
+      row.archived_at = row.archived_at ?? changedAt ?? NOW;
+    } else {
+      return tableQuery(notificationColumns(), []);
+    }
+    return tableQuery(notificationColumns(), [row]);
+  }
+
+  if (lower.includes("insert into reef_notifications")) {
+    const insert = parseInsert(normalized);
+    if (!insert) return tableQuery(notificationColumns(), []);
+    const candidate = objectFromColumns(insert.columns, insert.values);
+    const existing = vault.notifications.find(
+      (notification) =>
+        notification.notification_key === candidate.notification_key,
+    );
+    if (existing) return tableQuery(notificationColumns(), [existing]);
+    const row = {
+      ...candidate,
+      id: uuidFor(7200 + vault.notifications.length),
+      read_at: candidate.read_at ?? null,
+      archived_at: candidate.archived_at ?? null,
+      payload: candidate.payload ?? null,
+      meta: candidate.meta ?? null,
+    };
+    vault.notifications.push(row);
+    return tableQuery(notificationColumns(), [row]);
+  }
+
   if (lower.startsWith("select * from reef_issues")) {
     if (state.issueListFailure) {
       return { error: "e2e forced issue list failure" };
@@ -2889,6 +3059,20 @@ function publicState() {
         source: item.source,
         status: item.status,
       })),
+      notifications: (vault.notifications ?? []).map((item) => ({
+        id: item.id,
+        notification_key: item.notification_key,
+        recipient: item.recipient,
+        reef_id: item.reef_id,
+        source_type: item.source_type,
+        source_ref: item.source_ref,
+        event_type: item.event_type,
+        actor: item.actor,
+        occurred_at: item.occurred_at,
+        state: item.state,
+        read_at: item.read_at,
+        archived_at: item.archived_at,
+      })),
       documents: [...vault.documents.values()].map((doc) => ({
         path: doc.path,
         title: doc.title,
@@ -3170,6 +3354,25 @@ function activityColumns() {
     "detected_at",
     "reviewed_at",
     "reviewed_by",
+    "meta",
+  ];
+}
+
+function notificationColumns() {
+  return [
+    "id",
+    "notification_key",
+    "recipient",
+    "reef_id",
+    "source_type",
+    "source_ref",
+    "event_type",
+    "actor",
+    "occurred_at",
+    "state",
+    "read_at",
+    "archived_at",
+    "payload",
     "meta",
   ];
 }

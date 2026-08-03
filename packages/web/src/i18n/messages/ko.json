@@ -10,6 +10,7 @@
   "nav": {
     "issues": "이슈",
     "myWork": "내 작업",
+    "inbox": "받은 알림",
     "planning": "플래닝",
     "suggestions": "제안",
     "activity": "활동",
@@ -24,6 +25,8 @@
     "mainNavLandmark": "메인 내비게이션",
     "badge": {
       "pendingSuggestions": "미처리 제안 {count}개",
+      "unreadNotifications": "읽지 않은 알림 {count}개",
+      "unreadNotificationsAtLeast100": "읽지 않은 알림 100개 이상",
       "overdue": "기한 초과 {count}개",
       "dueSoon": "기한 임박 {count}개",
       "skillUpdate": "워크스페이스 안내 업데이트 사용 가능"
@@ -449,6 +452,9 @@
     "githubAppUnconfigured": "이 배포에는 GitHub App이 설정되어 있지 않습니다.",
     "invalidSuggestionId": "잘못된 제안 ID입니다.",
     "invalidSuggestionStatus": "잘못된 제안 상태입니다.",
+    "invalidNotificationState": "잘못된 알림 상태입니다.",
+    "invalidNotificationLimit": "알림 개수는 1개에서 100개 사이여야 합니다.",
+    "invalidNotificationKey": "잘못된 알림 키입니다.",
     "invalidMilestoneId": "잘못된 마일스톤 ID입니다.",
     "invalidSprintId": "잘못된 스프린트 ID입니다.",
     "invalidReleaseId": "잘못된 릴리스 ID입니다.",
@@ -1191,6 +1197,28 @@
     "gotIt": "확인",
     "newDraftsPart": "{count, plural, other {이슈 초안 제안 #건}}",
     "statusChangesPart": "{count, plural, other {상태 변경 #건}}"
+  },
+  "inbox": {
+    "pageTitle": "받은 알림",
+    "loading": "알림을 불러오는 중…",
+    "notification": "알림",
+    "listLabel": "알림 목록",
+    "emptyTitle": "모두 확인했습니다",
+    "emptyDescription": "내 이슈의 새 협업 활동이 여기에 표시됩니다.",
+    "errorTitle": "알림을 불러오지 못했습니다",
+    "errorDescription": "다시 시도하거나 워크스페이스 연결을 확인하세요.",
+    "retry": "다시 시도",
+    "actionError": "알림을 업데이트하지 못했습니다. 다시 시도하세요.",
+    "openNotification": "{issue} 활동 열기",
+    "markUnread": "읽지 않음으로 표시",
+    "markUnreadFor": "{issue} 읽지 않음으로 표시",
+    "archive": "보관",
+    "archiveFor": "{issue} 알림 보관",
+    "state": {
+      "unread": "읽지 않음",
+      "read": "읽음",
+      "archived": "보관됨"
+    }
   },
   "planning": {
     "newKind": "새 {kind}",
