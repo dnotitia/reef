@@ -12,6 +12,8 @@ explicitly in the entries below.
 
 ## Unreleased
 
+## v0.9.0 - 2026-08-03
+
 ### Added
 
 - Added opt-in Jira migration dry-run profiling with aggregate stage and
