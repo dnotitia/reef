@@ -39,6 +39,21 @@ const usage = `Usage:
  */
 
 /**
+ * @typedef {object} CommentMentionsScenario
+ * @property {1} schema_version
+ * @property {"comment-mentions"} scenario
+ * @property {string} clause_id
+ * @property {string} target_url
+ * @property {string} workspace
+ * @property {string} issue_id
+ * @property {string} composer_label
+ * @property {string} trigger
+ * @property {string} submit_label
+ * @property {{username_env: string, password_env: string}} credentials
+ * @property {{option_label: string, token: string, body: string, visible_label: string}} expected
+ */
+
+/**
  * The hermetic content-search spec and portable artifact share this one
  * user-facing action instead of defining an action language or second harness.
  *
@@ -112,10 +127,73 @@ async function observeGlobalSearchContent(page, scenario) {
   return { accessibleText, row };
 }
 
+/**
+ * @param {import("@playwright/test").Page} page
+ * @param {CommentMentionsScenario} scenario
+ */
+async function observeCommentMentions(page, scenario) {
+  const composer = page.getByRole("textbox", {
+    name: scenario.composer_label,
+    exact: true,
+  });
+  await composer.waitFor({ state: "visible", timeout: 15_000 });
+  await composer.fill(scenario.trigger);
+
+  const option = page.getByRole("option", {
+    name: scenario.expected.option_label,
+    exact: true,
+  });
+  await option.waitFor({ state: "visible", timeout: 15_000 });
+  await composer.press("Enter");
+  assert(
+    (await composer.inputValue()) === scenario.expected.body,
+    "autocomplete did not insert the expected exact-case token",
+  );
+  assert(
+    (await composer.inputValue()).includes(scenario.expected.token),
+    "composer value does not contain the expected canonical token",
+  );
+
+  await page
+    .getByRole("button", { name: scenario.submit_label, exact: true })
+    .last()
+    .click();
+  const mention = page.locator("[data-reef-mention]").last();
+  await mention.waitFor({ state: "visible", timeout: 15_000 });
+  assert(
+    (await mention.textContent()) === scenario.expected.visible_label,
+    "rendered mention label does not match the stored token",
+  );
+  const rendered = await mention.evaluate((element) => ({
+    tag: element.tagName,
+    link: element.closest("a") !== null,
+    token: element.getAttribute("data-reef-mention"),
+  }));
+  assert(rendered.tag === "SPAN", "mention is not rendered as a span");
+  assert(!rendered.link, "mentions must not be clickable");
+  assert(
+    rendered.token === scenario.expected.visible_label.slice(1),
+    "rendered mention projection does not match the canonical username",
+  );
+
+  const thread = mention
+    .locator("xpath=ancestor::*[@data-testid='comment-thread']")
+    .first();
+  const accessibleText = await thread.ariaSnapshot();
+  assert(
+    accessibleText.includes(scenario.expected.visible_label),
+    "comment thread accessibility snapshot omitted the mention",
+  );
+  return { accessibleText, mention };
+}
+
 /** @param {unknown} raw */
 function validateScenarioInput(raw) {
   assertRecord(raw, "scenario.json");
   assert(raw.schema_version === 1, "schema_version must be 1");
+  if (raw.scenario === "comment-mentions") {
+    return validateCommentMentionsScenario(raw);
+  }
   assert(
     raw.scenario === "global-search-content",
     "scenario must be global-search-content",
@@ -159,6 +237,44 @@ function validateScenarioInput(raw) {
       title: text(raw.expected.title, "title", 500),
       source: text(raw.expected.source, "source", 120),
       snippet: text(raw.expected.snippet, "snippet", 1000),
+    },
+  });
+}
+
+/** @param {Record<string, unknown>} raw @returns {CommentMentionsScenario} */
+function validateCommentMentionsScenario(raw) {
+  assertRecord(raw.credentials, "credentials");
+  assertRecord(raw.expected, "expected");
+  const target = new URL(text(raw.target_url, "target_url", 2048));
+  assert(
+    /^https?:$/u.test(target.protocol),
+    "target_url must use http or https",
+  );
+  assert(
+    !(target.username || target.password || target.search || target.hash),
+    "target_url must not contain credentials, query, or fragment",
+  );
+  const clauseId = text(raw.clause_id, "clause_id", 80);
+  assert(/^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(clauseId), "invalid clause_id");
+  return /** @type {CommentMentionsScenario} */ ({
+    schema_version: 1,
+    scenario: "comment-mentions",
+    clause_id: clauseId,
+    target_url: target.origin,
+    workspace: text(raw.workspace, "workspace", 160),
+    issue_id: text(raw.issue_id, "issue_id", 120),
+    composer_label: text(raw.composer_label, "composer_label", 200),
+    trigger: text(raw.trigger, "trigger", 500),
+    submit_label: text(raw.submit_label, "submit_label", 200),
+    credentials: {
+      username_env: environmentName(raw.credentials.username_env),
+      password_env: environmentName(raw.credentials.password_env),
+    },
+    expected: {
+      option_label: text(raw.expected.option_label, "option_label", 500),
+      token: text(raw.expected.token, "token", 500),
+      body: text(raw.expected.body, "body", 1_000),
+      visible_label: text(raw.expected.visible_label, "visible_label", 500),
     },
   });
 }
@@ -252,29 +368,55 @@ async function runScenario(options) {
       event: "workspace.opened",
       workspace: scenario.workspace,
     });
+    if (scenario.scenario === "comment-mentions") {
+      await page.goto(
+        new URL(
+          `${workspace}/${encodeURIComponent(scenario.issue_id)}`,
+          scenario.target_url,
+        ).toString(),
+        { waitUntil: "domcontentloaded" },
+      );
+      transcript.push({ event: "issue.opened", issue_id: scenario.issue_id });
+    }
     phase = "behavior";
-    const observation = await observeGlobalSearchContent(page, scenario);
+    const observation =
+      scenario.scenario === "comment-mentions"
+        ? await observeCommentMentions(page, scenario)
+        : await observeGlobalSearchContent(page, scenario);
     transcript.push({
-      event: "global-search.observed",
-      issue_id: scenario.expected.issue_id,
-      source: scenario.expected.source,
+      event:
+        scenario.scenario === "comment-mentions"
+          ? "comment-mentions.observed"
+          : "global-search.observed",
+      ...(scenario.scenario === "comment-mentions"
+        ? { token: scenario.expected.token }
+        : {
+            issue_id: scenario.expected.issue_id,
+            source: scenario.expected.source,
+          }),
     });
 
     phase = "evidence";
+    const evidenceName =
+      scenario.scenario === "comment-mentions"
+        ? "comment-mentions"
+        : "global-search";
     await page.screenshot({
-      path: join(outputDir, "global-search.png"),
+      path: join(outputDir, `${evidenceName}.png`),
       fullPage: true,
     });
-    await chmod(join(outputDir, "global-search.png"), 0o600);
+    await chmod(join(outputDir, `${evidenceName}.png`), 0o600);
     await writePrivate(
-      join(outputDir, "global-search.aria.txt"),
+      join(outputDir, `${evidenceName}.aria.txt`),
       `${observation.accessibleText}\n`,
     );
-    evidence.push("global-search.png", "global-search.aria.txt");
+    evidence.push(`${evidenceName}.png`, `${evidenceName}.aria.txt`);
     await context.close();
     status = "pass";
     observable =
-      "Signed in, opened global search, and observed the configured field and content result in accessible order.";
+      scenario.scenario === "comment-mentions"
+        ? "Signed in, selected the exact-case vault-roster mention, saved the comment, and observed the non-clickable rendered mention."
+        : "Signed in, opened global search, and observed the configured field and content result in accessible order.";
   } catch (error) {
     status = phase === "behavior" ? "fail" : "blocked";
     observable = redactText(
@@ -455,6 +597,7 @@ function assert(condition, message) {
 }
 
 module.exports = {
+  observeCommentMentions,
   observeGlobalSearchContent,
   packRunnerArtifact,
   redactText,

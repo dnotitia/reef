@@ -243,7 +243,8 @@ function normalizeScenario(value) {
     value === "raw_only" ||
     value === "activity_suggestions" ||
     value === "notifications" ||
-    value === "skill_outdated"
+    value === "skill_outdated" ||
+    value === "comment_mentions"
   ) {
     return value;
   }
@@ -313,12 +314,22 @@ function makeState(scenario) {
     scenario === "configured_multi" ||
     scenario === "activity_suggestions" ||
     scenario === "notifications" ||
-    scenario === "skill_outdated"
+    scenario === "skill_outdated" ||
+    scenario === "comment_mentions"
   ) {
     const vault = configuredVault(REEF_VAULT);
     if (scenario === "activity_suggestions") seedActivitySuggestions(vault);
     if (scenario === "notifications") seedNotifications(vault);
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);
+    if (scenario === "comment_mentions") {
+      vault.members.push({
+        username: "Bob Smith",
+        display_name: "Bob Smith",
+        email: "bob@example.com",
+        role: "member",
+        since: NOW,
+      });
+    }
     next.vaults.set(REEF_VAULT, vault);
     next.vaults.set("raw-vault", rawVault("raw-vault"));
     if (scenario === "configured_multi") {

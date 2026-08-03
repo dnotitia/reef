@@ -59,6 +59,30 @@ function scenario() {
   };
 }
 
+function commentMentionsScenario() {
+  return {
+    schema_version: 1,
+    scenario: "comment-mentions",
+    clause_id: "comment-mentions-user-visible",
+    target_url: "https://reef-candidate.test",
+    workspace: "reef-e2e",
+    issue_id: "REEF-001",
+    composer_label: "Add a comment",
+    trigger: "@{B",
+    submit_label: "Comment",
+    credentials: {
+      username_env: "REEF_E2E_USERNAME",
+      password_env: "REEF_E2E_PASSWORD",
+    },
+    expected: {
+      option_label: "Mention @{Bob Smith}",
+      token: "@{Bob Smith}",
+      body: "@{Bob Smith} ",
+      visible_label: "@Bob Smith",
+    },
+  };
+}
+
 describe("portable E2E user-behavior runner", () => {
   it("accepts source-neutral expectations and credential environment names", () => {
     expect(validateScenarioInput(scenario())).toEqual(scenario());
@@ -77,6 +101,12 @@ describe("portable E2E user-behavior runner", () => {
     expect(
       redactText("login alice failed with password", ["alice", "password"]),
     ).toBe("login [REDACTED] failed with [REDACTED]");
+  });
+
+  it("accepts the narrow comment-mentions scenario alongside the existing DSL", () => {
+    expect(validateScenarioInput(commentMentionsScenario())).toEqual(
+      commentMentionsScenario(),
+    );
   });
 
   it("packs one executable checkout-independent artifact", async () => {

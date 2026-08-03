@@ -7,6 +7,7 @@ import { useUploadIssueAttachment } from "@/features/issues/hooks/mutations/useU
 import { useActivity } from "@/features/issues/hooks/queries/useActivity";
 import { useComments } from "@/features/issues/hooks/queries/useComments";
 import { resolveIssueAttachmentUrl } from "@/features/issues/lib/attachmentUrls";
+import { useVaultRoster } from "@/features/settings/hooks/useVaultRoster";
 import type { ActivityEvent, Comment, IssueMetadata } from "@reef/core";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
@@ -29,6 +30,7 @@ interface ActivityTimelineProps {
 // while a query is still loading (referential stability).
 const NO_COMMENTS: Comment[] = [];
 const NO_ACTIVITY: ActivityEvent[] = [];
+const NO_VAULT_MEMBERS: never[] = [];
 
 /**
  * The issue detail's unified "Activity" section (REEF-064). It owns its own data
@@ -49,6 +51,7 @@ export function ActivityTimeline({
   const nav = useTranslations("nav");
   const ta = useTranslations("issues.activity");
   const currentLogin = useCurrentUserLogin();
+  const { data: vaultMembers = NO_VAULT_MEMBERS } = useVaultRoster(vault);
   const { data: comments = NO_COMMENTS, isError: commentsError } = useComments(
     issueId,
     vault,
@@ -149,6 +152,7 @@ export function ActivityTimeline({
                     {replyTarget?.id === entry.comment.id ? (
                       <CommentComposer
                         currentLogin={currentLogin}
+                        members={vaultMembers}
                         pending={createComment.isPending}
                         replyToAuthor={replyTarget.author}
                         onCancel={() => setReplyTargetId(null)}
@@ -179,6 +183,7 @@ export function ActivityTimeline({
                         {replyTarget?.id === reply.id ? (
                           <CommentComposer
                             currentLogin={currentLogin}
+                            members={vaultMembers}
                             pending={createComment.isPending}
                             replyToAuthor={reply.author}
                             onCancel={() => setReplyTargetId(null)}
@@ -213,6 +218,7 @@ export function ActivityTimeline({
 
         <CommentComposer
           currentLogin={currentLogin}
+          members={vaultMembers}
           pending={createComment.isPending}
           onSubmit={handleCreate}
           onUploadFiles={handleUploadFiles}

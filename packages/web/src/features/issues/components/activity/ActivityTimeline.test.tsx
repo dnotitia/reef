@@ -90,6 +90,7 @@ beforeEach(() => {
       const method = init?.method ?? "GET";
       if (url.includes("/planning"))
         return json({ sprints: [], milestones: [], releases: [] });
+      if (url.includes("/members")) return json({ members: [] });
       if (url.includes("/activity")) return json({ activity });
       if (url.includes("/attachments")) {
         if (method === "POST") {

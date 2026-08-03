@@ -40,6 +40,20 @@ export {
 } from "./comment";
 
 export {
+  DELIMITER_SAFE_USERNAME_PATTERN,
+  MentionRecipientsSchema,
+  MentionTokenSchema,
+  MentionUsernameSchema,
+  buildMentionRecipients,
+  extractMentionUsernames,
+  formatMentionToken,
+  isDelimiterSafeUsername,
+  parseMentionTokens,
+  parsePersistedMentionRecipients,
+  type MentionToken,
+} from "./mention";
+
+export {
   IssueContentSearchLimitSchema,
   IssueContentSearchRequestSchema,
   IssueContentSearchResultSchema,

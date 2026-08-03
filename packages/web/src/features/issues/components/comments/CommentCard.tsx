@@ -3,13 +3,30 @@
 import { PersonAvatar, personToneFor } from "@/components/fields/PersonAvatar";
 import { linkSafetyConfig } from "@/components/markdown/linkSafety";
 import { Button } from "@/components/ui/button";
+import { remarkCommentMentions } from "@/lib/markdown/remarkCommentMentions";
 import { formatAbsoluteTime, formatRelativeTime } from "@/lib/relativeTime";
 import { cn } from "@/lib/utils";
 import type { Comment } from "@reef/core";
 import { Pencil, Reply } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { type KeyboardEvent, useState } from "react";
-import { Streamdown, type UrlTransform, defaultUrlTransform } from "streamdown";
+import {
+  type ComponentProps,
+  type KeyboardEvent,
+  useMemo,
+  useState,
+} from "react";
+import {
+  type AllowedTags,
+  Streamdown,
+  type UrlTransform,
+  defaultUrlTransform,
+} from "streamdown";
+
+type RemarkPlugins = ComponentProps<typeof Streamdown>["remarkPlugins"];
+
+const COMMENT_MENTION_ALLOWED_TAGS: AllowedTags = {
+  span: ["dataReefMention"],
+};
 
 interface CommentCardProps {
   comment: Comment;
@@ -47,6 +64,27 @@ export function CommentCard({
   const locale = useLocale();
   const t = useTranslations("issues.comments");
   const c = useTranslations("common");
+  const mentionUsernames = useMemo(
+    () => new Set(comment.mention_recipients ?? []),
+    [comment.mention_recipients],
+  );
+  const mentionFingerprint = useMemo(
+    () =>
+      `${comment.id}:${comment.body}:${[...mentionUsernames].sort().join(",")}`,
+    [comment.body, comment.id, mentionUsernames],
+  );
+  const remarkPlugins = useMemo<RemarkPlugins>(
+    () => [
+      [
+        remarkCommentMentions,
+        {
+          knownUsernames: mentionUsernames,
+          cacheFingerprint: mentionFingerprint,
+        },
+      ],
+    ],
+    [mentionFingerprint, mentionUsernames],
+  );
 
   function startEditing() {
     setDraft(comment.body);
@@ -191,9 +229,12 @@ export function CommentCard({
           </div>
         ) : (
           <Streamdown
+            key={mentionFingerprint}
             className="mt-1 w-full min-w-0 break-words text-[13px] text-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
             linkSafety={linkSafetyConfig}
             urlTransform={urlTransform}
+            remarkPlugins={remarkPlugins}
+            allowedTags={COMMENT_MENTION_ALLOWED_TAGS}
           >
             {comment.body}
           </Streamdown>

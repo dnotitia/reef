@@ -7,18 +7,70 @@ import {
   appendMarkdownSnippets,
   filesFromFileList,
 } from "@/features/issues/lib/attachmentMarkdown";
+import { type VaultMember, formatMentionToken } from "@reef/core";
 import { CornerDownLeftIcon, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   type ClipboardEvent,
   type DragEvent,
   type KeyboardEvent,
+  useId,
+  useMemo,
+  useRef,
   useState,
 } from "react";
+
+interface MentionContext {
+  start: number;
+  query: string;
+}
+
+const LETTER_OR_NUMBER = /[\p{L}\p{N}]/u;
+const SAFE_QUERY = /^[\p{L}\p{N}]*$/u;
+
+function previousCodePoint(value: string, index: number): string | undefined {
+  if (index <= 0) return undefined;
+  const previousIndex = index - 1;
+  const codePoint = value.codePointAt(previousIndex);
+  if (codePoint === undefined) return undefined;
+  const start = previousIndex - (codePoint > 0xffff ? 1 : 0);
+  return value.slice(start, index);
+}
+
+function isEscaped(value: string, index: number): boolean {
+  let slashes = 0;
+  for (
+    let cursor = index - 1;
+    cursor >= 0 && value[cursor] === "\\";
+    cursor -= 1
+  ) {
+    slashes += 1;
+  }
+  return slashes % 2 === 1;
+}
+
+function mentionContextAt(value: string, caret: number): MentionContext | null {
+  const beforeCaret = value.slice(0, caret);
+  const start = beforeCaret.lastIndexOf("@");
+  if (start < 0 || isEscaped(beforeCaret, start)) return null;
+  const previous = previousCodePoint(beforeCaret, start);
+  if (previous === "@" || LETTER_OR_NUMBER.test(previous ?? "")) return null;
+
+  const fragment = beforeCaret.slice(start + 1);
+  if (fragment.includes("\n") || fragment.includes("\r")) return null;
+  if (fragment.startsWith("{")) {
+    if (fragment.includes("}")) return null;
+    return { start, query: fragment.slice(1) };
+  }
+  if (!SAFE_QUERY.test(fragment)) return null;
+  return { start, query: fragment };
+}
 
 interface CommentComposerProps {
   /** Current user login — tones the composer avatar teal ("this is you"). */
   currentLogin: string | null;
+  /** Exact-case current vault roster used by the mention autocomplete. */
+  members?: readonly VaultMember[];
   pending: boolean;
   /** Resolve to clear the field; reject to keep the typed text for a retry. */
   onSubmit: (body: string) => Promise<void>;
@@ -35,19 +87,74 @@ interface CommentComposerProps {
  */
 export function CommentComposer({
   currentLogin,
+  members = [],
   pending,
   onSubmit,
   onUploadFiles,
   replyToAuthor,
   onCancel,
 }: CommentComposerProps) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const mentionListboxId = useId();
   const [value, setValue] = useState("");
+  const [mentionContext, setMentionContext] = useState<MentionContext | null>(
+    null,
+  );
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
+  const [composing, setComposing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState(false);
   const [submitError, setSubmitError] = useState(false);
   const trimmed = value.trim();
   const t = useTranslations("issues.comments");
   const c = useTranslations("common");
+
+  const mentionSuggestions = useMemo(() => {
+    if (!mentionContext || composing) return [];
+    const query = mentionContext.query.trim().toLocaleLowerCase();
+    const filtered = members.filter((member) => {
+      if (!query) return true;
+      return (
+        member.username.toLocaleLowerCase().includes(query) ||
+        (member.display_name?.toLocaleLowerCase().includes(query) ?? false)
+      );
+    });
+    return filtered.slice(0, 8);
+  }, [composing, mentionContext, members]);
+  const mentionOpen = mentionSuggestions.length > 0 && !composing;
+
+  function syncMentionContext(nextValue: string, caret: number) {
+    if (composing) {
+      setMentionContext(null);
+      return;
+    }
+    setMentionContext(mentionContextAt(nextValue, caret));
+    setSelectedMentionIndex(0);
+  }
+
+  function selectMention(member: VaultMember) {
+    const textarea = textareaRef.current;
+    const caret = textarea?.selectionStart ?? value.length;
+    const token = formatMentionToken(member.username);
+    const nextValue = `${value.slice(0, mentionContext?.start ?? caret)}${token} ${value.slice(caret)}`;
+    const nextCaret = (mentionContext?.start ?? caret) + token.length + 1;
+    setValue(nextValue);
+    setMentionContext(null);
+    setSelectedMentionIndex(0);
+    if (textarea) {
+      textarea.focus();
+      const restoreSelection = () =>
+        textarea.setSelectionRange(nextCaret, nextCaret);
+      if (
+        typeof window !== "undefined" &&
+        typeof window.requestAnimationFrame === "function"
+      ) {
+        window.requestAnimationFrame(restoreSelection);
+      } else {
+        restoreSelection();
+      }
+    }
+  }
 
   async function submit() {
     if (!trimmed || pending) return;
@@ -63,6 +170,34 @@ export function CommentComposer({
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (mentionOpen && !event.nativeEvent.isComposing) {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setSelectedMentionIndex(
+          (index) => (index + 1) % mentionSuggestions.length,
+        );
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setSelectedMentionIndex(
+          (index) =>
+            (index - 1 + mentionSuggestions.length) % mentionSuggestions.length,
+        );
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMentionContext(null);
+        return;
+      }
+      if (event.key === "Enter" && !event.metaKey && !event.ctrlKey) {
+        event.preventDefault();
+        const selected = mentionSuggestions[selectedMentionIndex];
+        if (selected) selectMention(selected);
+        return;
+      }
+    }
     if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
       void submit();
@@ -139,9 +274,46 @@ export function CommentComposer({
           </div>
         ) : null}
         <textarea
+          ref={textareaRef}
           value={value}
-          onChange={(event) => setValue(event.target.value)}
+          onChange={(event) => {
+            const nextValue = event.target.value;
+            setValue(nextValue);
+            const isComposingEvent = (
+              event.nativeEvent as Event & { isComposing?: boolean }
+            ).isComposing;
+            if (isComposingEvent) {
+              setMentionContext(null);
+            } else {
+              syncMentionContext(
+                nextValue,
+                event.currentTarget.selectionStart ?? nextValue.length,
+              );
+            }
+          }}
           onKeyDown={onKeyDown}
+          onSelect={(event) => {
+            syncMentionContext(
+              event.currentTarget.value,
+              event.currentTarget.selectionStart ??
+                event.currentTarget.value.length,
+            );
+          }}
+          onCompositionStart={() => {
+            setComposing(true);
+            setMentionContext(null);
+          }}
+          onCompositionEnd={(event) => {
+            setComposing(false);
+            setMentionContext(
+              mentionContextAt(
+                event.currentTarget.value,
+                event.currentTarget.selectionStart ??
+                  event.currentTarget.value.length,
+              ),
+            );
+            setSelectedMentionIndex(0);
+          }}
           onPaste={handlePaste}
           onDrop={handleDrop}
           onDragOver={(event) => {
@@ -156,9 +328,61 @@ export function CommentComposer({
               ? t("replyLabel", { author: replyToAuthor })
               : t("addLabel")
           }
+          aria-autocomplete="list"
+          aria-controls={mentionOpen ? mentionListboxId : undefined}
+          aria-expanded={mentionOpen}
+          aria-activedescendant={
+            mentionOpen
+              ? `${mentionListboxId}-${selectedMentionIndex}`
+              : undefined
+          }
           placeholder={replyToAuthor ? t("replyPlaceholder") : t("placeholder")}
           className="max-h-60 w-full resize-none bg-transparent px-3 py-2 text-[13px] text-foreground outline-none [field-sizing:content] placeholder:text-muted-foreground disabled:opacity-50"
         />
+        {mentionOpen ? (
+          <div
+            id={mentionListboxId}
+            tabIndex={-1}
+            // biome-ignore lint/a11y/useSemanticElements: this is a keyboard-owned autocomplete list, not a native select control.
+            role="listbox"
+            aria-label={t("mentionSuggestions")}
+            className="mx-2 mb-2 overflow-hidden rounded-md border border-border bg-background shadow-sm"
+          >
+            {mentionSuggestions.map((member, index) => (
+              <button
+                key={member.username}
+                id={`${mentionListboxId}-${index}`}
+                type="button"
+                tabIndex={-1}
+                // biome-ignore lint/a11y/useSemanticElements: autocomplete options are actionable buttons while focus remains on the textarea.
+                role="option"
+                aria-selected={index === selectedMentionIndex}
+                aria-label={t("mentionOption", {
+                  username: formatMentionToken(member.username),
+                })}
+                className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs text-foreground hover:bg-muted aria-selected:bg-muted"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => selectMention(member)}
+              >
+                <PersonAvatar
+                  identityKey={member.username}
+                  name={member.display_name ?? member.username}
+                  size="xs"
+                  decorative
+                />
+                <span className="min-w-0 truncate" translate="no">
+                  {member.display_name ?? member.username}
+                </span>
+                <span
+                  className="ml-auto shrink-0 text-[11px] text-muted-foreground"
+                  translate="no"
+                >
+                  {formatMentionToken(member.username)}
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : null}
         {(uploading || uploadError) && (
           <div
             className="px-3 pb-1 text-[11px] text-muted-foreground"

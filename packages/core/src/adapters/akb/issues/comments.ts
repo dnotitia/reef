@@ -11,6 +11,11 @@ import {
   CommentSchema,
 } from "../../../schemas/issues/comment";
 import {
+  buildMentionRecipients,
+  extractMentionUsernames,
+  parsePersistedMentionRecipients,
+} from "../../../schemas/issues/mention";
+import {
   type AkbAdapter,
   REEF_COMMENTS_TABLE,
   REEF_ISSUES_TABLE,
@@ -25,6 +30,28 @@ import {
   withSpan,
 } from "../core/shared";
 import { upsertSubscription } from "../notifications/notifications";
+import { listVaultMembers } from "../workspace/vaults";
+
+async function resolveMentionRecipients(
+  adapter: AkbAdapter,
+  vault: string,
+  body: string,
+): Promise<string[]> {
+  const usernames = extractMentionUsernames(body);
+  if (usernames.length === 0) return [];
+
+  const { members } = await listVaultMembers({ adapter, vault });
+  const recipients = buildMentionRecipients(
+    body,
+    members.map((member) => member.username),
+  );
+  if (recipients.length !== new Set(usernames).size) {
+    // Do not include the unresolved username: a rejected save must not expose
+    // roster membership or authorization details.
+    throw new SchemaValidationError({ field: "comment mentions" });
+  }
+  return recipients;
+}
 
 /**
  * Map a `reef_comments` row to a Comment. The reef-semantic author and the
@@ -34,7 +61,14 @@ import { upsertSubscription } from "../notifications/notifications";
  */
 function rowToComment(row: Record<string, unknown>): Comment {
   try {
-    const meta = CommentMetaSchema.parse(decodeSettingsValue(row.meta) ?? {});
+    const decodedMeta = decodeSettingsValue(row.meta) ?? {};
+    const meta = CommentMetaSchema.parse(decodedMeta);
+    const mentionRecipients =
+      typeof decodedMeta === "object" && decodedMeta !== null
+        ? parsePersistedMentionRecipients(
+            (decodedMeta as Record<string, unknown>).mention_recipients,
+          )
+        : [];
     return CommentSchema.parse({
       id: row.id,
       reef_id: row.reef_id,
@@ -44,6 +78,7 @@ function rowToComment(row: Record<string, unknown>): Comment {
       edited_at: meta.edited_at,
       parent_comment_id: meta.parent_comment_id,
       thread_root_id: meta.thread_root_id,
+      mention_recipients: mentionRecipients,
     });
   } catch (err) {
     if (err instanceof ZodError) {
@@ -139,6 +174,11 @@ export async function createComment(
     "akb.create_comment",
     { vault, reef_id: reefId },
     async () => {
+      const mentionRecipients = await resolveMentionRecipients(
+        adapter,
+        vault,
+        body,
+      );
       await ensureReefTables({ adapter, vault });
       const createdAt = preserved?.createdAt ?? new Date().toISOString();
       const editedAt = preserved?.editedAt ?? null;
@@ -151,9 +191,11 @@ export async function createComment(
               "edited_at",
               "parent_comment_id",
               "thread_root_id",
+              "mention_recipients",
             ].includes(key),
         ),
       );
+      metadata.mention_recipients = mentionRecipients;
       const meta = {
         ...metadata,
         author,
@@ -296,6 +338,11 @@ export async function updateComment(
     "akb.update_comment",
     { vault, reef_id: reefId, comment_id: commentId },
     async () => {
+      const mentionRecipients = await resolveMentionRecipients(
+        adapter,
+        vault,
+        body,
+      );
       await ensureReefTables({ adapter, vault });
       const editedAt = preserved?.editedAt ?? new Date().toISOString();
       const preservedMetadata = preserved
@@ -309,20 +356,22 @@ export async function updateComment(
                     "edited_at",
                     "parent_comment_id",
                     "thread_root_id",
+                    "mention_recipients",
                   ].includes(key),
               ),
             ),
             author: editor,
             created_at: preserved.createdAt,
             edited_at: preserved.editedAt,
+            mention_recipients: mentionRecipients,
           }
         : null;
       const metaUpdate = preservedMetadata
         ? `meta::jsonb || ${quoteJson(preservedMetadata)}::jsonb`
-        : `jsonb_set(meta::jsonb, '{edited_at}', to_jsonb(${quoteText(
+        : `(jsonb_set(meta::jsonb, '{edited_at}', to_jsonb(${quoteText(
             editedAt,
             "comment edited_at",
-          )}::text))`;
+          )}::text)) || ${quoteJson({ mention_recipients: mentionRecipients })}::jsonb)`;
       const metaAssignment = preservedMetadata
         ? `(${metaUpdate})::json`
         : `${metaUpdate}::json`;

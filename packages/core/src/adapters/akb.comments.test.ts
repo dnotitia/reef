@@ -205,9 +205,112 @@ describe("listComments", () => {
     );
     expect(comments.map((comment) => comment.id)).toEqual([rootId, replyId]);
   });
+
+  it("treats malformed persisted mention projections as empty on read", async () => {
+    setupFetch([
+      {
+        body: makeSqlQueryResponse(
+          [
+            makeCommentRow({
+              body: "hello @alice",
+              meta: {
+                author: "alice",
+                created_at: "2026-06-18T01:00:00.000Z",
+                edited_at: null,
+                mention_recipients: { malformed: true },
+              },
+            }),
+          ],
+          COMMENT_ROW_COLUMNS,
+        ),
+      },
+    ]);
+
+    const comments = await listComments(
+      makeAdapter(),
+      "reef-sample",
+      "REEF-062",
+    );
+
+    expect(comments).toHaveLength(1);
+    expect(comments[0]?.mention_recipients).toEqual([]);
+  });
 });
 
 describe("createComment", () => {
+  it("validates mentions against the current roster and persists a deduped projection", async () => {
+    const { calls } = setupFetch([
+      {
+        body: {
+          members: [
+            { username: "Alice Smith", role: "member" },
+            { username: "alice", role: "member" },
+          ],
+        },
+      },
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      {
+        body: makeSqlQueryResponse(
+          [
+            makeCommentRow({
+              id: "new-mention-uuid",
+              body: "hello @{Alice Smith} @alice and @alice",
+              meta: {
+                author: "alice",
+                created_at: "2026-06-18T04:00:00.000Z",
+                edited_at: null,
+                mention_recipients: ["Alice Smith", "alice"],
+              },
+            }),
+          ],
+          COMMENT_ROW_COLUMNS,
+        ),
+      },
+      {
+        body: makeSqlQueryResponse([commenterSubscriptionRow("alice")], ["id"]),
+      },
+    ]);
+
+    const comment = await createComment(
+      makeAdapter(),
+      "reef-sample",
+      "REEF-062",
+      "hello @{Alice Smith} @alice and @alice",
+      "alice",
+      undefined,
+      {
+        createdAt: "2026-06-18T04:00:00.000Z",
+        editedAt: null,
+      },
+    );
+
+    expect(comment.mention_recipients).toEqual(["Alice Smith", "alice"]);
+    const sql = lastSql(calls[2]?.init?.body);
+    expect(sql).toContain('"mention_recipients":["Alice Smith","alice"]');
+  });
+
+  it("fails closed before provisioning or inserting when a mention is unresolved", async () => {
+    const { calls } = setupFetch([
+      {
+        body: {
+          members: [{ username: "alice", role: "member" }],
+        },
+      },
+    ]);
+
+    await expect(
+      createComment(
+        makeAdapter(),
+        "reef-sample",
+        "REEF-062",
+        "hello @missing",
+        "alice",
+      ),
+    ).rejects.toBeInstanceOf(SchemaValidationError);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toContain("/api/v1/vaults/reef-sample/members");
+  });
+
   it("inserts only reef_id/body/meta and returns the row via RETURNING", async () => {
     const { calls } = setupFetch([
       { body: makeListTablesResponse(ALL_REEF_TABLES) }, // ensureReefTables
@@ -380,6 +483,48 @@ describe("createComment", () => {
 });
 
 describe("updateComment", () => {
+  it("replaces the persisted mention projection on edit", async () => {
+    const { calls } = setupFetch([
+      {
+        body: {
+          members: [{ username: "alice", role: "member" }],
+        },
+      },
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      {
+        body: makeSqlQueryResponse(
+          [
+            makeCommentRow({
+              id: "c1",
+              body: "edited @alice",
+              meta: {
+                author: "alice",
+                created_at: "2026-06-18T01:00:00.000Z",
+                edited_at: "2026-06-18T05:00:00.000Z",
+                mention_recipients: ["alice"],
+              },
+            }),
+          ],
+          COMMENT_ROW_COLUMNS,
+        ),
+      },
+    ]);
+
+    const comment = await updateComment(
+      makeAdapter(),
+      "reef-sample",
+      "REEF-062",
+      "c1",
+      "edited @alice",
+      "alice",
+    );
+
+    expect(comment.mention_recipients).toEqual(["alice"]);
+    expect(lastSql(calls[2]?.init?.body)).toContain(
+      '"mention_recipients":["alice"]',
+    );
+  });
+
   it("edits the body, stamps meta.edited_at, and guards on author ownership", async () => {
     const { calls } = setupFetch([
       { body: makeListTablesResponse(ALL_REEF_TABLES) }, // ensureReefTables

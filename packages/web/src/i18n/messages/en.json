@@ -777,6 +777,8 @@
       "edited": "edited",
       "addLabel": "Add a comment",
       "placeholder": "Add a comment…",
+      "mentionSuggestions": "Mention suggestions",
+      "mentionOption": "Mention {username}",
       "submit": "Comment",
       "uploading": "Uploading attachment…",
       "uploadError": "Couldn't upload that file."
