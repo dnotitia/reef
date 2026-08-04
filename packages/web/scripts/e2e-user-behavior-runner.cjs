@@ -261,16 +261,17 @@ async function runScenario(options) {
     });
 
     phase = "evidence";
+    const evidenceName = "global-search";
     await page.screenshot({
-      path: join(outputDir, "global-search.png"),
+      path: join(outputDir, `${evidenceName}.png`),
       fullPage: true,
     });
-    await chmod(join(outputDir, "global-search.png"), 0o600);
+    await chmod(join(outputDir, `${evidenceName}.png`), 0o600);
     await writePrivate(
-      join(outputDir, "global-search.aria.txt"),
+      join(outputDir, `${evidenceName}.aria.txt`),
       `${observation.accessibleText}\n`,
     );
-    evidence.push("global-search.png", "global-search.aria.txt");
+    evidence.push(`${evidenceName}.png`, `${evidenceName}.aria.txt`);
     await context.close();
     status = "pass";
     observable =
@@ -332,6 +333,7 @@ async function loadPlaywright() {
     }),
     { mode: 0o600 },
   );
+  await run("corepack", ["install", "--global", `pnpm@${PNPM_VERSION}`]);
   await run("corepack", [
     "pnpm",
     "install",

@@ -56,4 +56,11 @@ describe("global focus styles", () => {
     );
     expect(css).toContain("border-bottom-color: transparent");
   });
+
+  it("styles comment mentions from the sanitized renderer marker", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    expect(css).toContain(".comment-mention-renderer [data-reef-mention]");
+    expect(css).toContain("color: var(--brand);");
+    expect(css).toContain("font-weight: 500;");
+  });
 });

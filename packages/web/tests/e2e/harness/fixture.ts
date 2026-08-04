@@ -12,7 +12,8 @@ export type FixtureScenario =
   | "raw_only"
   | "activity_suggestions"
   | "notifications"
-  | "skill_outdated";
+  | "skill_outdated"
+  | "comment_mentions";
 export const REEF_E2E_VAULT = "reef-e2e";
 
 function escapeRegExp(value: string): string {

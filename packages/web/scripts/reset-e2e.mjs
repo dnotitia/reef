@@ -5,23 +5,10 @@ const SCENARIO =
   process.argv.slice(2).find((arg) => arg !== "--") ??
   process.env.REEF_E2E_SCENARIO ??
   "configured";
-const SCENARIOS = new Set([
-  "empty",
-  "configured",
-  "configured_multi",
-  "demo_board",
-  "raw_only",
-  "activity_suggestions",
-  "notifications",
-  "skill_outdated",
-]);
 
-if (!SCENARIOS.has(SCENARIO)) {
+if (!/^[A-Za-z][A-Za-z0-9_-]*$/u.test(SCENARIO)) {
   process.stderr.write(
-    `${[
-      `Unknown E2E fixture scenario: ${SCENARIO}`,
-      `Expected one of: ${[...SCENARIOS].join(", ")}`,
-    ].join("\n")}\n`,
+    `Invalid E2E fixture scenario: ${SCENARIO}. Use letters, numbers, underscores, and hyphens.\n`,
   );
   process.exit(1);
 }
@@ -49,6 +36,12 @@ if (!response.ok) {
 }
 
 const body = await response.json();
+if (body?.ok !== true || body.scenario !== SCENARIO) {
+  process.stderr.write(
+    `Fixture rejected scenario "${SCENARIO}" (returned ${String(body?.scenario ?? "none")}).\n`,
+  );
+  process.exit(1);
+}
 process.stdout.write(
   `Reset E2E fixture at ${MOCK_URL} to "${body.scenario}".\n`,
 );

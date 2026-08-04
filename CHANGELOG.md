@@ -12,6 +12,10 @@ explicitly in the entries below.
 
 ## Unreleased
 
+- **Comment mentions now use exact-case vault-roster autocomplete, canonical
+  escaped tokens, save-time validation, and projection-gated rendering.**
+  (REEF-452)
+
 ## v0.9.0 - 2026-08-03
 
 ### Added

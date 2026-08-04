@@ -2,23 +2,23 @@
 
 import { PersonAvatar } from "@/components/fields/PersonAvatar";
 import { Button } from "@/components/ui/button";
-import {
-  type AttachmentMarkdownUploadResult,
-  appendMarkdownSnippets,
-  filesFromFileList,
-} from "@/features/issues/lib/attachmentMarkdown";
+import type { AttachmentMarkdownUploadResult } from "@/features/issues/lib/attachmentMarkdown";
+import type { VaultMember } from "@reef/core";
 import { CornerDownLeftIcon, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useState } from "react";
+import { CommentMentionTextarea } from "./CommentMentionTextarea";
 import {
-  type ClipboardEvent,
-  type DragEvent,
-  type KeyboardEvent,
-  useState,
-} from "react";
+  type CommentMentionDraft,
+  emptyCommentMentionDraft,
+  serializeCommentMentionDraft,
+} from "./commentMentionDraft";
 
 interface CommentComposerProps {
   /** Current user login — tones the composer avatar teal ("this is you"). */
   currentLogin: string | null;
+  /** Exact-case current vault roster used by the mention autocomplete. */
+  members?: readonly VaultMember[];
   pending: boolean;
   /** Resolve to clear the field; reject to keep the typed text for a retry. */
   onSubmit: (body: string) => Promise<void>;
@@ -30,74 +30,38 @@ interface CommentComposerProps {
 /**
  * The comment composer (REEF-062): a framed, avatar-gutter input. Plain
  * markdown text in an auto-growing textarea — comments does not mount the TipTap
- * editor, keeping the issue-detail surface light (the heavy editor is reserved
- * for the issue body). `⌘↵` / `Ctrl+↵` submits; plain Enter is a newline.
+ * editor, keeping the issue-detail surface light. Mention identity is kept
+ * alongside the visible draft and serialized only when this form is submitted.
  */
 export function CommentComposer({
   currentLogin,
+  members = [],
   pending,
   onSubmit,
   onUploadFiles,
   replyToAuthor,
   onCancel,
 }: CommentComposerProps) {
-  const [value, setValue] = useState("");
+  const [draft, setDraft] = useState<CommentMentionDraft>(() =>
+    emptyCommentMentionDraft(),
+  );
   const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState(false);
   const [submitError, setSubmitError] = useState(false);
-  const trimmed = value.trim();
+  const trimmed = draft.text.trim();
   const t = useTranslations("issues.comments");
   const c = useTranslations("common");
 
   async function submit() {
-    if (!trimmed || pending) return;
+    const body = serializeCommentMentionDraft(draft).trim();
+    if (!body || pending || uploading) return;
     try {
-      await onSubmit(trimmed);
-      setValue("");
+      await onSubmit(body);
+      setDraft(emptyCommentMentionDraft());
       setSubmitError(false);
     } catch {
       setSubmitError(true);
-      // Keep the typed text so the author can retry; the error is surfaced as a
-      // toast by the parent.
+      // Keep the visible draft so the author can retry.
     }
-  }
-
-  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-      event.preventDefault();
-      void submit();
-    }
-  }
-
-  async function uploadAndAppend(files: File[]) {
-    if (!onUploadFiles || pending) return;
-    setUploading(true);
-    setUploadError(false);
-    try {
-      const results = await onUploadFiles(files);
-      const snippets = results
-        .map((result) => result.markdown)
-        .filter((markdown): markdown is string => !!markdown);
-      setValue((current) => appendMarkdownSnippets(current, snippets));
-    } catch {
-      setUploadError(true);
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  function handlePaste(event: ClipboardEvent<HTMLTextAreaElement>) {
-    const files = filesFromFileList(event.clipboardData.files);
-    if (files.length === 0 || !onUploadFiles || pending) return;
-    event.preventDefault();
-    void uploadAndAppend(files);
-  }
-
-  function handleDrop(event: DragEvent<HTMLTextAreaElement>) {
-    const files = filesFromFileList(event.dataTransfer.files);
-    if (files.length === 0 || !onUploadFiles || pending) return;
-    event.preventDefault();
-    void uploadAndAppend(files);
   }
 
   return (
@@ -138,35 +102,24 @@ export function CommentComposer({
             ) : null}
           </div>
         ) : null}
-        <textarea
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          onKeyDown={onKeyDown}
-          onPaste={handlePaste}
-          onDrop={handleDrop}
-          onDragOver={(event) => {
-            if (onUploadFiles && !pending) event.preventDefault();
-          }}
-          rows={2}
+        <CommentMentionTextarea
+          draft={draft}
+          members={members}
+          pending={pending}
           name={replyToAuthor ? "comment-reply" : "comment"}
-          autoComplete="off"
-          disabled={pending || uploading}
-          aria-label={
+          ariaLabel={
             replyToAuthor
               ? t("replyLabel", { author: replyToAuthor })
               : t("addLabel")
           }
           placeholder={replyToAuthor ? t("replyPlaceholder") : t("placeholder")}
+          rows={2}
           className="max-h-60 w-full resize-none bg-transparent px-3 py-2 text-[13px] text-foreground outline-none [field-sizing:content] placeholder:text-muted-foreground disabled:opacity-50"
+          onDraftChange={setDraft}
+          onSubmit={() => void submit()}
+          onUploadFiles={onUploadFiles}
+          onUploadingChange={setUploading}
         />
-        {(uploading || uploadError) && (
-          <div
-            className="px-3 pb-1 text-[11px] text-muted-foreground"
-            role={uploadError ? "alert" : "status"}
-          >
-            {uploadError ? t("uploadError") : t("uploading")}
-          </div>
-        )}
         {submitError ? (
           <div className="px-3 pb-1 text-[11px] text-destructive" role="alert">
             {t("submitError")}

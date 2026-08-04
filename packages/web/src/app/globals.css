@@ -429,6 +429,15 @@ hr {
   margin: 0;
 }
 
+/* Comment mentions are deliberately styled from the sanitized data marker,
+ * not from arbitrary Markdown classes. Streamdown owns the renderer root, so
+ * this keeps the marker non-clickable while making the persisted projection
+ * visibly distinct in both themes. */
+.comment-mention-renderer [data-reef-mention] {
+  color: var(--brand);
+  font-weight: 500;
+}
+
 .reef-markdown-editor
   ul[data-type="taskList"]
   > li

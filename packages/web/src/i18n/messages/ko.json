@@ -964,6 +964,8 @@
       "edited": "수정됨",
       "addLabel": "댓글 추가",
       "placeholder": "댓글을 입력하세요…",
+      "mentionSuggestions": "멘션 추천",
+      "mentionOption": "{username} 멘션",
       "submit": "댓글 작성",
       "uploading": "첨부파일 업로드 중…",
       "uploadError": "파일을 업로드하지 못했습니다."

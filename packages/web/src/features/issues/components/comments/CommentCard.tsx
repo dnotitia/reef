@@ -3,13 +3,31 @@
 import { PersonAvatar, personToneFor } from "@/components/fields/PersonAvatar";
 import { linkSafetyConfig } from "@/components/markdown/linkSafety";
 import { Button } from "@/components/ui/button";
+import { remarkCommentMentions } from "@/lib/markdown/remarkCommentMentions";
 import { formatAbsoluteTime, formatRelativeTime } from "@/lib/relativeTime";
 import { cn } from "@/lib/utils";
-import type { Comment } from "@reef/core";
+import type { Comment, VaultMember } from "@reef/core";
 import { Pencil, Reply } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { type KeyboardEvent, useState } from "react";
-import { Streamdown, type UrlTransform, defaultUrlTransform } from "streamdown";
+import { type ComponentProps, useMemo, useRef, useState } from "react";
+import {
+  type AllowedTags,
+  Streamdown,
+  type UrlTransform,
+  defaultUrlTransform,
+} from "streamdown";
+import { CommentMentionTextarea } from "./CommentMentionTextarea";
+import {
+  type CommentMentionDraft,
+  draftFromPersistedComment,
+  serializeCommentMentionDraft,
+} from "./commentMentionDraft";
+
+type RemarkPlugins = ComponentProps<typeof Streamdown>["remarkPlugins"];
+
+const COMMENT_MENTION_ALLOWED_TAGS: AllowedTags = {
+  span: ["dataReefMention"],
+};
 
 interface CommentCardProps {
   comment: Comment;
@@ -22,6 +40,8 @@ interface CommentCardProps {
   onReply?: () => void;
   replyToAuthor?: string;
   resolveMarkdownUrl?: UrlTransform;
+  /** Current vault roster used by the edit-mode mention autocomplete. */
+  members?: readonly VaultMember[];
 }
 
 /**
@@ -38,23 +58,56 @@ export function CommentCard({
   onReply,
   replyToAuthor,
   resolveMarkdownUrl,
+  members = [],
 }: CommentCardProps) {
   const isOwn = !!currentLogin && comment.author === currentLogin;
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(comment.body);
+  const mentionUsernames = useMemo(
+    () => new Set(comment.mention_recipients ?? []),
+    [comment.mention_recipients],
+  );
+  const [draft, setDraft] = useState<CommentMentionDraft>(() =>
+    draftFromPersistedComment(comment.body, mentionUsernames),
+  );
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
   const [saving, setSaving] = useState(false);
   const [nowMs] = useState(() => Date.now());
   const locale = useLocale();
   const t = useTranslations("issues.comments");
   const c = useTranslations("common");
+  const mentionFingerprint = useMemo(
+    () =>
+      `${comment.id}:${comment.body}:${[...mentionUsernames].sort().join(",")}`,
+    [comment.body, comment.id, mentionUsernames],
+  );
+  const remarkPlugins = useMemo<RemarkPlugins>(
+    () => [
+      [
+        remarkCommentMentions,
+        {
+          knownUsernames: mentionUsernames,
+          cacheFingerprint: mentionFingerprint,
+        },
+      ],
+    ],
+    [mentionFingerprint, mentionUsernames],
+  );
 
   function startEditing() {
-    setDraft(comment.body);
+    const nextDraft = draftFromPersistedComment(comment.body, mentionUsernames);
+    draftRef.current = nextDraft;
+    setDraft(nextDraft);
     setEditing(true);
   }
 
+  function handleDraftChange(nextDraft: CommentMentionDraft) {
+    draftRef.current = nextDraft;
+    setDraft(nextDraft);
+  }
+
   async function save() {
-    const body = draft.trim();
+    const body = serializeCommentMentionDraft(draftRef.current).trim();
     if (!body || saving) return;
     setSaving(true);
     try {
@@ -64,16 +117,6 @@ export function CommentCard({
       // Stay in edit mode; the parent surfaces the error as a toast.
     } finally {
       setSaving(false);
-    }
-  }
-
-  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-      event.preventDefault();
-      void save();
-    } else if (event.key === "Escape") {
-      event.preventDefault();
-      setEditing(false);
     }
   }
 
@@ -157,15 +200,18 @@ export function CommentCard({
 
         {editing ? (
           <div className="mt-1 flex flex-col rounded-md border border-brand bg-elevated ring-2 ring-inset ring-brand/30">
-            <textarea
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={onKeyDown}
+            <CommentMentionTextarea
+              draft={draft}
+              members={members}
+              pending={saving}
+              name="comment-edit"
+              ariaLabel={t("draftLabel")}
+              placeholder={t("placeholder")}
               rows={3}
-              disabled={saving}
-              aria-label={t("draftLabel")}
-              // biome-ignore lint/a11y/noAutofocus: focusing the field is the point of entering edit mode.
               autoFocus
+              onDraftChange={handleDraftChange}
+              onSubmit={() => void save()}
+              onEscape={() => setEditing(false)}
               className="max-h-60 w-full resize-none bg-transparent px-3 py-2 text-[13px] text-foreground outline-none [field-sizing:content] disabled:opacity-50"
             />
             <div className="flex items-center justify-end gap-2 px-2 pb-2">
@@ -183,7 +229,7 @@ export function CommentCard({
                 variant="brand"
                 size="sm"
                 onClick={() => void save()}
-                disabled={saving || !draft.trim()}
+                disabled={saving || !draft.text.trim()}
               >
                 {c("save")}
               </Button>
@@ -191,9 +237,12 @@ export function CommentCard({
           </div>
         ) : (
           <Streamdown
-            className="mt-1 w-full min-w-0 break-words text-[13px] text-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+            key={mentionFingerprint}
+            className="comment-mention-renderer mt-1 w-full min-w-0 break-words text-[13px] text-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
             linkSafety={linkSafetyConfig}
             urlTransform={urlTransform}
+            remarkPlugins={remarkPlugins}
+            allowedTags={COMMENT_MENTION_ALLOWED_TAGS}
           >
             {comment.body}
           </Streamdown>
