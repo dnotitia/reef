@@ -34,10 +34,10 @@ describe("comment mention draft", () => {
     ]);
   });
 
-  it("preserves unresolved raw tokens only until their label is edited", () => {
+  it("escapes unresolved persisted tokens as ordinary text", () => {
     const draft = draftFromPersistedComment("Hi @{Unknown Person}", new Set());
     expect(draft.text).toBe("Hi @Unknown Person");
-    expect(serializeCommentMentionDraft(draft)).toBe("Hi @{Unknown Person}");
+    expect(serializeCommentMentionDraft(draft)).toBe("Hi \\@Unknown Person");
 
     const edited = updateCommentMentionDraft(draft, "Hi @Known Person");
     expect(edited.tokens).toHaveLength(0);

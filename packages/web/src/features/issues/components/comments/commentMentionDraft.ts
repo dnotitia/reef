@@ -10,7 +10,7 @@ export interface CommentMentionDraftToken {
   /** UTF-16 offsets into the user-visible draft text. */
   start: number;
   end: number;
-  /** True only for a roster identity that can be serialized as a mention. */
+  /** True only for an identity present in the persisted roster projection. */
   resolved: boolean;
 }
 
@@ -60,8 +60,8 @@ function unescapePersistedOrdinaryAt(value: string): string {
 
 /**
  * Build the editable, syntax-free view of a persisted comment. Every parsed
- * token gets a backing raw value so an unresolved or legacy token survives a
- * no-op edit, while the visible draft never exposes canonical braces.
+ * token gets a backing raw value, while only projected identities are reused
+ * at save time and the visible draft never exposes canonical braces.
  */
 export function draftFromPersistedComment(
   body: string,
@@ -114,6 +114,7 @@ export function serializeCommentMentionDraft(
   );
   const validTokens = tokens.filter(
     (token) =>
+      token.resolved &&
       token.start >= 0 &&
       token.end <= draft.text.length &&
       draft.text.slice(token.start, token.end) === `@${token.username}`,
