@@ -1,6 +1,7 @@
 "use client";
 
 import { PersonAvatar } from "@/components/fields/PersonAvatar";
+import { useOverlayOpenRegistration } from "@/components/ui/overlayDismiss";
 import {
   type AttachmentMarkdownUploadResult,
   appendMarkdownSnippets,
@@ -78,6 +79,7 @@ export function CommentMentionTextarea({
     ? []
     : commentMentionSuggestions(members, mentionContext);
   const mentionOpen = mentionSuggestions.length > 0 && !composing;
+  useOverlayOpenRegistration(mentionOpen);
 
   function syncMentionContext(nextValue: string, caret: number) {
     if (composing) {
@@ -175,7 +177,9 @@ export function CommentMentionTextarea({
       }
       if (event.key === "Escape") {
         event.preventDefault();
+        event.stopPropagation();
         setMentionContext(null);
+        setSelectedMentionIndex(0);
         return;
       }
       if (event.key === "Enter" && !event.metaKey && !event.ctrlKey) {

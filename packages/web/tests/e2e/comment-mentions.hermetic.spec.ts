@@ -42,4 +42,39 @@ test.describe("Comment mentions (REEF-452)", () => {
 
     expect(observation.accessibleText).toContain("@Bob Smith");
   });
+
+  test("Escape closes autocomplete without dismissing the composer or issue", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues/REEF-001");
+
+    let createRequests = 0;
+    page.on("request", (request) => {
+      if (
+        request.method() === "POST" &&
+        new URL(request.url()).pathname.endsWith("/comments")
+      ) {
+        createRequests += 1;
+      }
+    });
+
+    const composer = page.getByRole("textbox", {
+      name: "Add a comment",
+      exact: true,
+    });
+    await composer.fill("@B");
+    await expect(
+      page.getByRole("option", { name: "Mention @Bob Smith", exact: true }),
+    ).toBeVisible();
+
+    await composer.press("Escape");
+
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+    await expect(composer).toBeVisible();
+    await expect(composer).toHaveValue("@B");
+    await expect(page.getByTestId("issue-detail-modal")).toBeVisible();
+    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/REEF-001\/?$/);
+    expect(createRequests).toBe(0);
+  });
 });

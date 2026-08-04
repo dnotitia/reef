@@ -75,6 +75,9 @@ describe("CommentComposer mentions", () => {
     ).toHaveAttribute("aria-selected", "true");
     fireEvent.keyDown(textbox, { key: "Escape" });
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Add a comment" })).toHaveValue(
+      "@",
+    );
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
