@@ -32,6 +32,33 @@ export function emptyCommentMentionDraft(): CommentMentionDraft {
 }
 
 /**
+ * Remove the save-boundary escape from ordinary persisted @ text while
+ * leaving Markdown-owned and already-escaped regions untouched. The probe
+ * reuses the core parser instead of introducing another Markdown grammar.
+ */
+function unescapePersistedOrdinaryAt(value: string): string {
+  let cursor = 0;
+  let visible = "";
+
+  for (let index = 0; index < value.length - 1; index += 1) {
+    if (value[index] !== "\\" || value[index + 1] !== "@") continue;
+
+    const probe = `${value.slice(0, index)}@${value.slice(index + 2)}`;
+    const token = parseMentionTokens(probe).find(
+      (candidate) => candidate.start === index,
+    );
+    if (!token) continue;
+
+    visible += value.slice(cursor, index);
+    visible += "@";
+    cursor = index + 2;
+    index += 1;
+  }
+
+  return visible + value.slice(cursor);
+}
+
+/**
  * Build the editable, syntax-free view of a persisted comment. Every parsed
  * token gets a backing raw value so an unresolved or legacy token survives a
  * no-op edit, while the visible draft never exposes canonical braces.
@@ -41,7 +68,9 @@ export function draftFromPersistedComment(
   persistedRecipients: ReadonlySet<string>,
 ): CommentMentionDraft {
   const parsed = parseMentionTokens(body);
-  if (parsed.length === 0) return { text: body, tokens: [] };
+  if (parsed.length === 0) {
+    return { text: unescapePersistedOrdinaryAt(body), tokens: [] };
+  }
 
   const parts: string[] = [];
   const tokens: CommentMentionDraftToken[] = [];
@@ -50,8 +79,9 @@ export function draftFromPersistedComment(
 
   for (const token of parsed) {
     const before = body.slice(sourceCursor, token.start);
-    parts.push(before);
-    visibleCursor += before.length;
+    const visibleBefore = unescapePersistedOrdinaryAt(before);
+    parts.push(visibleBefore);
+    visibleCursor += visibleBefore.length;
 
     const visible = `@${token.username}`;
     parts.push(visible);
@@ -67,32 +97,65 @@ export function draftFromPersistedComment(
   }
 
   const after = body.slice(sourceCursor);
-  parts.push(after);
+  parts.push(unescapePersistedOrdinaryAt(after));
   return { text: parts.join(""), tokens };
 }
 
-/** Serialize only identities whose visible label and range are still intact. */
+/**
+ * Serialize identities while escaping every other syntactic @ token as
+ * ordinary text. This keeps the core fail-closed validator unchanged while
+ * allowing users to edit a mention label into normal prose.
+ */
 export function serializeCommentMentionDraft(
   draft: CommentMentionDraft,
 ): string {
-  if (draft.tokens.length === 0) return draft.text;
-
   const tokens = [...draft.tokens].sort(
     (left, right) => left.start - right.start,
   );
+  const validTokens = tokens.filter(
+    (token) =>
+      token.start >= 0 &&
+      token.end <= draft.text.length &&
+      draft.text.slice(token.start, token.end) === `@${token.username}`,
+  );
+  const ordinaryStarts = parseMentionTokens(draft.text)
+    .filter(
+      (token) =>
+        !validTokens.some(
+          (active) => token.start >= active.start && token.start < active.end,
+        ),
+    )
+    .map((token) => token.start)
+    .sort((left, right) => left - right);
+
+  if (validTokens.length === 0 && ordinaryStarts.length === 0) {
+    return draft.text;
+  }
+
   let cursor = 0;
   let serialized = "";
-  for (const token of tokens) {
-    if (
-      token.start < cursor ||
-      token.end > draft.text.length ||
-      draft.text.slice(token.start, token.end) !== `@${token.username}`
-    ) {
+  const events = [
+    ...validTokens.map((token) => ({ kind: "token" as const, token })),
+    ...ordinaryStarts.map((start) => ({ kind: "literal" as const, start })),
+  ].sort((left, right) => {
+    const leftStart = left.kind === "token" ? left.token.start : left.start;
+    const rightStart = right.kind === "token" ? right.token.start : right.start;
+    return leftStart - rightStart;
+  });
+
+  for (const event of events) {
+    if (event.kind === "token") {
+      const token = event.token;
+      if (token.start < cursor) continue;
+      serialized += draft.text.slice(cursor, token.start);
+      serialized += token.raw;
+      cursor = token.end;
       continue;
     }
-    serialized += draft.text.slice(cursor, token.start);
-    serialized += token.raw;
-    cursor = token.end;
+    if (event.start < cursor) continue;
+    serialized += draft.text.slice(cursor, event.start);
+    serialized += "\\@";
+    cursor = event.start + 1;
   }
   return serialized + draft.text.slice(cursor);
 }

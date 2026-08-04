@@ -41,7 +41,7 @@ describe("comment mention draft", () => {
 
     const edited = updateCommentMentionDraft(draft, "Hi @Known Person");
     expect(edited.tokens).toHaveLength(0);
-    expect(serializeCommentMentionDraft(edited)).toBe("Hi @Known Person");
+    expect(serializeCommentMentionDraft(edited)).toBe("Hi \\@Known Person");
   });
 
   it("invalidates an identity when a user changes the visible label", () => {
@@ -56,7 +56,37 @@ describe("comment mention draft", () => {
 
     const changed = updateCommentMentionDraft(selected, "say @Rob Smith ");
     expect(changed.tokens).toHaveLength(0);
-    expect(serializeCommentMentionDraft(changed)).toBe("say @Rob Smith ");
+    expect(serializeCommentMentionDraft(changed)).toBe("say \\@Rob Smith ");
+  });
+
+  it("escapes unresolved ordinary labels and round-trips persisted escapes", () => {
+    const typed = { text: "@Nobody", tokens: [] };
+    expect(serializeCommentMentionDraft(typed)).toBe("\\@Nobody");
+
+    const persisted = draftFromPersistedComment(
+      "Hello \\@Bob Smyth hello and \\@Nobody",
+      new Set(),
+    );
+    expect(persisted.text).toBe("Hello @Bob Smyth hello and @Nobody");
+    expect(serializeCommentMentionDraft(persisted)).toBe(
+      "Hello \\@Bob Smyth hello and \\@Nobody",
+    );
+  });
+
+  it("keeps email, code, link, and escaped text boundaries unchanged", () => {
+    const body = [
+      "mail alice@example.com",
+      "inline `@code`",
+      "```md",
+      "@fenced",
+      "```",
+      "link [@link](https://example.com/@link)",
+      "escaped \\@Nobody",
+    ].join("\n");
+    const draft = draftFromPersistedComment(body, new Set());
+
+    expect(draft.text).toBe(body.replace("\\@Nobody", "@Nobody"));
+    expect(serializeCommentMentionDraft(draft)).toBe(body);
   });
 
   it("rebases identities across edits outside the label", () => {

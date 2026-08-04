@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import type { Comment, VaultMember } from "@reef/core";
 import { Pencil, Reply } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { type ComponentProps, useMemo, useState } from "react";
+import { type ComponentProps, useMemo, useRef, useState } from "react";
 import {
   type AllowedTags,
   Streamdown,
@@ -69,6 +69,8 @@ export function CommentCard({
   const [draft, setDraft] = useState<CommentMentionDraft>(() =>
     draftFromPersistedComment(comment.body, mentionUsernames),
   );
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
   const [saving, setSaving] = useState(false);
   const [nowMs] = useState(() => Date.now());
   const locale = useLocale();
@@ -93,12 +95,19 @@ export function CommentCard({
   );
 
   function startEditing() {
-    setDraft(draftFromPersistedComment(comment.body, mentionUsernames));
+    const nextDraft = draftFromPersistedComment(comment.body, mentionUsernames);
+    draftRef.current = nextDraft;
+    setDraft(nextDraft);
     setEditing(true);
   }
 
+  function handleDraftChange(nextDraft: CommentMentionDraft) {
+    draftRef.current = nextDraft;
+    setDraft(nextDraft);
+  }
+
   async function save() {
-    const body = serializeCommentMentionDraft(draft).trim();
+    const body = serializeCommentMentionDraft(draftRef.current).trim();
     if (!body || saving) return;
     setSaving(true);
     try {
@@ -200,7 +209,7 @@ export function CommentCard({
               placeholder={t("placeholder")}
               rows={3}
               autoFocus
-              onDraftChange={setDraft}
+              onDraftChange={handleDraftChange}
               onSubmit={() => void save()}
               onEscape={() => setEditing(false)}
               className="max-h-60 w-full resize-none bg-transparent px-3 py-2 text-[13px] text-foreground outline-none [field-sizing:content] disabled:opacity-50"

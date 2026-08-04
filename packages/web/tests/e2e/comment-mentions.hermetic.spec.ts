@@ -76,4 +76,89 @@ test.describe("Comment mentions (REEF-452)", () => {
     await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/REEF-001\/?$/);
     expect(createRequests).toBe(0);
   });
+
+  test("escapes an edited or unresolved ordinary label at the save boundary", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues/REEF-001");
+
+    const composer = page.getByRole("textbox", {
+      name: "Add a comment",
+      exact: true,
+    });
+    await composer.fill("@B");
+    await page
+      .getByRole("option", { name: "Mention @Bob Smith", exact: true })
+      .waitFor({ state: "visible" });
+    await composer.press("Enter");
+    await composer.press("End");
+    await composer.type("hello");
+
+    const createResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname.endsWith("/comments") &&
+        response.request().method() === "POST",
+    );
+    await page.getByRole("button", { name: "Comment", exact: true }).click();
+    const created = await createResponse;
+    expect(created.ok()).toBeTruthy();
+    expect((await created.json()).comment.body).toBe("@{Bob Smith} hello");
+
+    const thread = page.getByTestId("comment-thread").last();
+    await expect(
+      thread.getByRole("button", { name: "Edit comment", exact: true }),
+    ).toBeVisible();
+    await thread
+      .getByRole("button", { name: "Edit comment", exact: true })
+      .click();
+    const editDraft = page.getByRole("textbox", {
+      name: "Comment draft",
+      exact: true,
+    });
+    await expect(editDraft).toHaveValue("@Bob Smith hello");
+    expect(await editDraft.inputValue()).not.toMatch(/[{}\\]/u);
+
+    await editDraft.press("Home");
+    for (let index = 0; index < 7; index += 1) {
+      await editDraft.press("ArrowRight");
+    }
+    await editDraft.press("Delete");
+    await editDraft.type("y");
+    await expect(editDraft).toHaveValue("@Bob Smyth hello");
+    expect(await editDraft.inputValue()).not.toMatch(/[{}\\]/u);
+
+    const updateResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname.includes("/comments/") &&
+        response.request().method() === "PATCH",
+    );
+    await thread.getByRole("button", { name: "Save", exact: true }).click();
+    const updated = await updateResponse;
+    expect(updated.ok()).toBeTruthy();
+    expect((await updated.json()).comment.body).toBe("\\@Bob Smyth hello");
+    await expect(thread.locator("[data-reef-mention]")).toHaveCount(0);
+    await expect(
+      thread.getByText("@Bob Smyth hello", { exact: true }),
+    ).toBeVisible();
+
+    await composer.fill("@Nobody");
+    const unresolvedCreateResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname.endsWith("/comments") &&
+        response.request().method() === "POST",
+    );
+    await page.getByRole("button", { name: "Comment", exact: true }).click();
+    const unresolvedCreated = await unresolvedCreateResponse;
+    expect(unresolvedCreated.ok()).toBeTruthy();
+    expect((await unresolvedCreated.json()).comment.body).toBe("\\@Nobody");
+
+    const unresolvedThread = page.getByTestId("comment-thread").last();
+    await expect(
+      unresolvedThread.getByText("@Nobody", { exact: true }),
+    ).toBeVisible();
+    await expect(unresolvedThread.locator("[data-reef-mention]")).toHaveCount(
+      0,
+    );
+  });
 });

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import type { Comment } from "@reef/core";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { CommentCard } from "./CommentCard";
 
@@ -42,6 +42,12 @@ const MENTION_COMMENT: Comment = {
   ...COMMENT,
   body: "Hello @{Bob Smith}",
   author: "alice",
+  mention_recipients: ["Bob Smith"],
+};
+
+const EDITABLE_MENTION_COMMENT: Comment = {
+  ...COMMENT,
+  body: "@{Bob Smith} hello",
   mention_recipients: ["Bob Smith"],
 };
 
@@ -142,5 +148,48 @@ describe("CommentCard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(onSave).toHaveBeenCalledWith("@{Bob Smith}");
+  });
+
+  it("saves the latest edited label as escaped ordinary text", () => {
+    const onSave = vi.fn(async () => undefined);
+    render(
+      <IntlTestProvider>
+        <CommentCard
+          comment={EDITABLE_MENTION_COMMENT}
+          currentLogin="alice"
+          members={MEMBERS}
+          onSave={onSave}
+        />
+      </IntlTestProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit comment" }));
+    const draft = screen.getByRole("textbox", { name: "Comment draft" });
+    expect(draft).toHaveValue("@Bob Smith hello");
+
+    act(() => {
+      fireEvent.keyDown(draft, { key: "Delete", code: "Delete" });
+      fireEvent.change(draft, {
+        target: {
+          value: "@Bob Smth hello",
+          selectionStart: 7,
+          selectionEnd: 7,
+        },
+      });
+      fireEvent.keyDown(draft, { key: "y", code: "KeyY" });
+      fireEvent.change(draft, {
+        target: {
+          value: "@Bob Smyth hello",
+          selectionStart: 8,
+          selectionEnd: 8,
+        },
+      });
+      expect(draft).toHaveValue("@Bob Smyth hello");
+      expect((draft as HTMLTextAreaElement).value).not.toMatch(/[{}\\]/u);
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    });
+
+    expect(onSave).toHaveBeenCalledWith("\\@Bob Smyth hello");
+    expect(onSave).not.toHaveBeenCalledWith("@{Bob Smith} hello");
   });
 });
