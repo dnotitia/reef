@@ -38,6 +38,17 @@ const COMMENT: Comment = {
   edited_at: null,
 };
 
+const MENTION_COMMENT: Comment = {
+  ...COMMENT,
+  body: "Hello @{Bob Smith}",
+  author: "alice",
+  mention_recipients: ["Bob Smith"],
+};
+
+const MEMBERS = [
+  { username: "Bob Smith", display_name: "Bob Smith", role: "member" },
+] as const;
+
 describe("CommentCard", () => {
   it("passes markdown hrefs and image srcs distinctly to the URL resolver", () => {
     const resolveMarkdownUrl = vi.fn((url: string, key: string) =>
@@ -100,5 +111,36 @@ describe("CommentCard", () => {
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "답글" }));
     expect(onReply).toHaveBeenCalledOnce();
+  });
+
+  it("keeps edit mode syntax-free and serializes the selected identity on save", () => {
+    const onSave = vi.fn(async () => undefined);
+    render(
+      <IntlTestProvider>
+        <CommentCard
+          comment={MENTION_COMMENT}
+          currentLogin="alice"
+          members={MEMBERS}
+          onSave={onSave}
+        />
+      </IntlTestProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit comment" }));
+    const draft = screen.getByRole("textbox", { name: "Comment draft" });
+    expect(draft).toHaveValue("Hello @Bob Smith");
+    expect(draft).not.toHaveValue("Hello @{Bob Smith}");
+
+    fireEvent.change(draft, {
+      target: { value: "@B", selectionStart: 2, selectionEnd: 2 },
+    });
+    expect(
+      screen.getByRole("option", { name: "Mention @Bob Smith" }),
+    ).toBeInTheDocument();
+    fireEvent.keyDown(draft, { key: "Enter" });
+    expect(draft).toHaveValue("@Bob Smith ");
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenCalledWith("@{Bob Smith}");
   });
 });

@@ -25,19 +25,32 @@ function renderComposer(members: readonly VaultMember[] = MEMBERS) {
 }
 
 describe("CommentComposer mentions", () => {
-  it("selects a roster username with its exact canonical case", () => {
-    renderComposer();
+  it("selects a roster username with exact case without exposing save syntax", () => {
+    const onSubmit = vi.fn(async () => undefined);
+    render(
+      <IntlTestProvider>
+        <CommentComposer
+          currentLogin="alice"
+          members={MEMBERS}
+          pending={false}
+          onSubmit={onSubmit}
+        />
+      </IntlTestProvider>,
+    );
     const textbox = screen.getByRole("textbox", { name: "Add a comment" });
 
     fireEvent.change(textbox, {
       target: { value: "@a", selectionStart: 2, selectionEnd: 2 },
     });
     expect(
-      screen.getByRole("option", { name: "Mention @{Alice Smith}" }),
+      screen.getByRole("option", { name: "Mention @Alice Smith" }),
     ).toBeInTheDocument();
 
     fireEvent.keyDown(textbox, { key: "Enter" });
-    expect(textbox).toHaveValue("@{Alice Smith} ");
+    expect(textbox).toHaveValue("@Alice Smith ");
+    expect(textbox).not.toHaveValue(expect.stringContaining("{"));
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+    expect(onSubmit).toHaveBeenCalledWith("@{Alice Smith}");
   });
 
   it("supports arrow navigation and escape without submitting", () => {

@@ -102,7 +102,6 @@ function mentionNode(token: MentionToken): MdastNode {
       hName: "span",
       hProperties: {
         dataReefMention: token.username,
-        className: "font-medium text-brand",
       },
     },
   };

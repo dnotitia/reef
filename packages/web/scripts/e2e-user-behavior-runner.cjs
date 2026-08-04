@@ -49,8 +49,11 @@ const usage = `Usage:
  * @property {string} composer_label
  * @property {string} trigger
  * @property {string} submit_label
+ * @property {string} edit_label
+ * @property {string} edit_draft_label
+ * @property {string} edit_submit_label
  * @property {{username_env: string, password_env: string}} credentials
- * @property {{option_label: string, token: string, body: string, visible_label: string}} expected
+ * @property {{option_label: string, token: string, body: string, canonical_body: string, visible_label: string}} expected
  */
 
 /**
@@ -147,17 +150,29 @@ async function observeCommentMentions(page, scenario) {
   await composer.press("Enter");
   assert(
     (await composer.inputValue()) === scenario.expected.body,
-    "autocomplete did not insert the expected exact-case token",
+    "autocomplete did not insert the expected visible exact-case label",
   );
   assert(
-    (await composer.inputValue()).includes(scenario.expected.token),
-    "composer value does not contain the expected canonical token",
+    !/[{}\\]/u.test(await composer.inputValue()),
+    "composer exposed canonical mention syntax",
   );
 
+  const createResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname.endsWith("/comments") &&
+      response.request().method() === "POST",
+  );
   await page
     .getByRole("button", { name: scenario.submit_label, exact: true })
     .last()
     .click();
+  const created = await createResponse;
+  assert(created.ok(), `comment create returned HTTP ${created.status()}`);
+  const createdPayload = await created.json();
+  assert(
+    createdPayload?.comment?.body === scenario.expected.canonical_body,
+    "comment API did not receive the canonical persisted body",
+  );
   const mention = page.locator("[data-reef-mention]").last();
   await mention.waitFor({ state: "visible", timeout: 15_000 });
   assert(
@@ -175,8 +190,74 @@ async function observeCommentMentions(page, scenario) {
     rendered.token === scenario.expected.visible_label.slice(1),
     "rendered mention projection does not match the canonical username",
   );
+  const style = await mention.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    const root = element.closest(".comment-mention-renderer");
+    const probe = document.createElement("span");
+    probe.style.color = "var(--brand)";
+    root?.append(probe);
+    const brandColor = getComputedStyle(probe).color;
+    probe.remove();
+    return {
+      fontWeight: Number.parseInt(computed.fontWeight, 10),
+      color: computed.color,
+      brandColor,
+    };
+  });
+  assert(style.fontWeight >= 500, "rendered mention is not medium weight");
+  assert(
+    style.color === style.brandColor,
+    "rendered mention does not use the Reef brand color",
+  );
 
-  const thread = mention
+  const editButton = page
+    .getByRole("button", {
+      name: scenario.edit_label,
+      exact: true,
+    })
+    .last();
+  await editButton.click();
+  const editDraft = page.getByRole("textbox", {
+    name: scenario.edit_draft_label,
+    exact: true,
+  });
+  await editDraft.waitFor({ state: "visible", timeout: 15_000 });
+  assert(
+    (await editDraft.inputValue()) === scenario.expected.visible_label,
+    "edit draft did not restore the visible mention label",
+  );
+  assert(
+    !/[{}\\]/u.test(await editDraft.inputValue()),
+    "edit draft exposed canonical mention syntax",
+  );
+  await editDraft.fill(scenario.trigger);
+  await page
+    .getByRole("option", { name: scenario.expected.option_label, exact: true })
+    .waitFor({ state: "visible", timeout: 15_000 });
+  await editDraft.press("Enter");
+  assert(
+    (await editDraft.inputValue()) === scenario.expected.body,
+    "edit autocomplete did not insert the visible mention label",
+  );
+  const updateResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname.includes("/comments/") &&
+      response.request().method() === "PATCH",
+  );
+  await page
+    .getByRole("button", { name: scenario.edit_submit_label, exact: true })
+    .click();
+  const updated = await updateResponse;
+  assert(updated.ok(), `comment update returned HTTP ${updated.status()}`);
+  const updatedPayload = await updated.json();
+  assert(
+    updatedPayload?.comment?.body === scenario.expected.canonical_body,
+    "comment update API did not receive the canonical persisted body",
+  );
+
+  const editedMention = page.locator("[data-reef-mention]").last();
+  await editedMention.waitFor({ state: "visible", timeout: 15_000 });
+  const thread = editedMention
     .locator("xpath=ancestor::*[@data-testid='comment-thread']")
     .first();
   const accessibleText = await thread.ariaSnapshot();
@@ -184,7 +265,7 @@ async function observeCommentMentions(page, scenario) {
     accessibleText.includes(scenario.expected.visible_label),
     "comment thread accessibility snapshot omitted the mention",
   );
-  return { accessibleText, mention };
+  return { accessibleText, mention: editedMention };
 }
 
 /** @param {unknown} raw */
@@ -266,6 +347,9 @@ function validateCommentMentionsScenario(raw) {
     composer_label: text(raw.composer_label, "composer_label", 200),
     trigger: text(raw.trigger, "trigger", 500),
     submit_label: text(raw.submit_label, "submit_label", 200),
+    edit_label: text(raw.edit_label, "edit_label", 200),
+    edit_draft_label: text(raw.edit_draft_label, "edit_draft_label", 200),
+    edit_submit_label: text(raw.edit_submit_label, "edit_submit_label", 200),
     credentials: {
       username_env: environmentName(raw.credentials.username_env),
       password_env: environmentName(raw.credentials.password_env),
@@ -274,6 +358,11 @@ function validateCommentMentionsScenario(raw) {
       option_label: text(raw.expected.option_label, "option_label", 500),
       token: text(raw.expected.token, "token", 500),
       body: text(raw.expected.body, "body", 1_000),
+      canonical_body: text(
+        raw.expected.canonical_body,
+        "canonical_body",
+        1_000,
+      ),
       visible_label: text(raw.expected.visible_label, "visible_label", 500),
     },
   });

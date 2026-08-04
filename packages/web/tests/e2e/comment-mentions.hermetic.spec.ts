@@ -22,16 +22,20 @@ test.describe("Comment mentions (REEF-452)", () => {
       workspace: "reef-e2e",
       issue_id: "REEF-001",
       composer_label: "Add a comment",
-      trigger: "@{B",
+      trigger: "@B",
       submit_label: "Comment",
+      edit_label: "Edit comment",
+      edit_draft_label: "Comment draft",
+      edit_submit_label: "Save",
       credentials: {
         username_env: "REEF_E2E_USERNAME",
         password_env: "REEF_E2E_PASSWORD",
       },
       expected: {
-        option_label: "Mention @{Bob Smith}",
+        option_label: "Mention @Bob Smith",
         token: "@{Bob Smith}",
-        body: "@{Bob Smith} ",
+        body: "@Bob Smith ",
+        canonical_body: "@{Bob Smith}",
         visible_label: "@Bob Smith",
       },
     });

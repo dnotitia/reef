@@ -142,6 +142,7 @@ export function ActivityTimeline({
                 <CommentCard
                   comment={entry.comment}
                   currentLogin={currentLogin}
+                  members={vaultMembers}
                   flash={entry.comment.id === flashId}
                   onSave={(body) => handleEdit(entry.comment.id, body)}
                   onReply={() => setReplyTargetId(entry.comment.id)}
@@ -171,6 +172,7 @@ export function ActivityTimeline({
                         <CommentCard
                           comment={reply}
                           currentLogin={currentLogin}
+                          members={vaultMembers}
                           flash={reply.id === flashId}
                           replyToAuthor={
                             authorById.get(reply.parent_comment_id ?? "") ??
