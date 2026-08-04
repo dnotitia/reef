@@ -66,6 +66,10 @@ export function CommentMentionTextarea({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const draftRef = useRef(draft);
   draftRef.current = draft;
+  const dismissedMentionSelectionRef = useRef<{
+    value: string;
+    start: number;
+  } | null>(null);
   const mentionListboxId = useId();
   const [mentionContext, setMentionContext] =
     useState<ReturnType<typeof mentionContextAt>>(null);
@@ -178,6 +182,11 @@ export function CommentMentionTextarea({
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
+        dismissedMentionSelectionRef.current = {
+          value: draftRef.current.text,
+          start:
+            textareaRef.current?.selectionStart ?? draftRef.current.text.length,
+        };
         setMentionContext(null);
         setSelectedMentionIndex(0);
         return;
@@ -211,6 +220,7 @@ export function CommentMentionTextarea({
             draftRef.current,
             nextValue,
           );
+          dismissedMentionSelectionRef.current = null;
           draftRef.current = nextDraft;
           onDraftChange(nextDraft);
           const isComposingEvent = (
@@ -227,11 +237,19 @@ export function CommentMentionTextarea({
         }}
         onKeyDown={onKeyDown}
         onSelect={(event) => {
-          syncMentionContext(
-            event.currentTarget.value,
-            event.currentTarget.selectionStart ??
-              event.currentTarget.value.length,
-          );
+          const nextValue = event.currentTarget.value;
+          const nextStart =
+            event.currentTarget.selectionStart ?? nextValue.length;
+          const dismissedSelection = dismissedMentionSelectionRef.current;
+          if (
+            dismissedSelection?.value === nextValue &&
+            dismissedSelection.start === nextStart
+          ) {
+            dismissedMentionSelectionRef.current = null;
+            return;
+          }
+          dismissedMentionSelectionRef.current = null;
+          syncMentionContext(nextValue, nextStart);
         }}
         onCompositionStart={() => {
           setComposing(true);

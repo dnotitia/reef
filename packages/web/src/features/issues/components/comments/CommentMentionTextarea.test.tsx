@@ -68,7 +68,7 @@ describe("CommentMentionTextarea Escape behavior", () => {
     expect(onEscape).not.toHaveBeenCalled();
   });
 
-  it("does not expose Escape as a parent key event when the list is open", () => {
+  it("does not reopen when the browser emits select after Escape", async () => {
     const onEscape = vi.fn();
     render(
       <IntlTestProvider>
@@ -92,6 +92,11 @@ describe("CommentMentionTextarea Escape behavior", () => {
       screen.getByRole("option", { name: "Mention @Bob Smith" }),
     ).toBeInTheDocument();
     fireEvent.keyDown(textbox, { key: "Escape" });
+    fireEvent.select(textbox, { target: { selectionStart: 2 } });
+    await waitFor(() =>
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument(),
+    );
+    expect(textbox).toHaveValue("@B");
     expect(onEscape).not.toHaveBeenCalled();
   });
 });
