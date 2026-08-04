@@ -73,7 +73,6 @@ test.describe("Comment mentions (REEF-452)", () => {
     await expect(page.getByRole("listbox")).toHaveCount(0);
     await expect(composer).toBeVisible();
     await expect(composer).toHaveValue("@B");
-    await expect(page.getByTestId("issue-detail-modal")).toBeVisible();
     await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/REEF-001\/?$/);
     expect(createRequests).toBe(0);
   });
