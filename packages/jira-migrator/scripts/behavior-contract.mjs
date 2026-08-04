@@ -762,8 +762,22 @@ try {
   if (rerun.code !== 0 || !rerun.result?.ok) throw new Error("rerun_failed");
   const reportBytes = await readFile(baseConfig.artifacts.reportPath);
   const reportJson = JSON.parse(reportBytes);
+  const commentContract = dry.result.comment_contract;
   const proof = {
     contract: "source-blind-built-public-api",
+    required_view: "V1-V7 Jira comment ADF-to-Reef mention behavior",
+    target_exercised: {
+      required_view: "V1-V7 Jira comment ADF-to-Reef mention behavior",
+      required_view_was_exercised:
+        commentContract?.required_view_was_exercised === true,
+    },
+    required_mention_evidence_observed: Object.fromEntries(
+      ["V1", "V2", "V3", "V4", "V5", "V6", "V7"].map((clause) => [
+        clause,
+        commentContract?.[clause]?.observed === true,
+      ]),
+    ),
+    comment_mentions: commentContract,
     projects: ["ALPHA", "BETA"],
     before,
     dry_run: {
@@ -815,6 +829,11 @@ try {
     proof.apply_resume.relations !== 1 ||
     proof.rerun.duplicate_mutations !== 0 ||
     proof.jira.methods.join(",") !== "GET" ||
+    proof.target_exercised.required_view_was_exercised !== true ||
+    Object.values(proof.required_mention_evidence_observed).some(
+      (observed) => observed !== true,
+    ) ||
+    proof.comment_mentions?.all_pass !== true ||
     !proof.redaction.canaries_absent
   ) {
     throw new Error(
