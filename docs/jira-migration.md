@@ -1005,6 +1005,24 @@ and uses Reef's threaded-comment contract. Missing parents are isolated as
 entity failures and never become flat comments. Source author mapping and
 created/edited timestamps are preserved.
 
+ADF `mention` nodes in comments use the same `formatMentionToken` grammar as
+Reef comment writes. The resolved actor must be an exact-case member of the
+target vault before it is serialized; delimiter-safe usernames use `@username`,
+while spaces, punctuation, backslashes, closing braces, and other unsafe
+characters use the escaped `@{username}` form. Unmapped or current-non-member
+accounts become the existing non-identifying placeholder, and account ids,
+email addresses, and source display names are excluded from the comment body,
+report, and operation fingerprint.
+
+The related-data stage carries the canonical body and expected deduplicated
+recipient projection through its operation approval input. AKB create and
+Jira-owned reconcile paths validate the body against the current target roster,
+persist `reef_comments.meta.mention_recipients`, and require that projection in
+readback before a ledger binding is confirmed. A legacy escaped body updates its
+existing Jira-bound target in place; an already canonical body and projection
+rerun is a skip. A roster or projection mismatch fails closed without creating a
+duplicate comment.
+
 Ordinary Reef comment edits remain author-scoped. If a later approved account
 mapping replaces a fallback comment author, apply may reconcile only the exact
 row that already carries its deterministic

@@ -690,6 +690,76 @@ describe("reconcileJiraImportedComment", () => {
     expect(sql).not.toContain("thread_root_id");
   });
 
+  it("revalidates and replaces the mention projection during Jira repair", async () => {
+    const { calls } = setupFetch([
+      {
+        body: {
+          members: [{ username: "Alice Smith", role: "member" }],
+        },
+      },
+      { body: makeListTablesResponse(ALL_REEF_TABLES) },
+      {
+        body: makeSqlQueryResponse(
+          [
+            makeCommentRow({
+              id: "c1",
+              body: "hello @{Alice Smith}",
+              meta: {
+                author: "hongchan",
+                created_at: "2025-05-27T21:43:43.262+09:00",
+                edited_at: null,
+                mention_recipients: ["Alice Smith"],
+                jira_idempotency_key: jiraKey,
+              },
+            }),
+          ],
+          COMMENT_ROW_COLUMNS,
+        ),
+      },
+    ]);
+
+    await expect(
+      reconcileJiraImportedComment(makeAdapter(), "reef-sample", {
+        commentId: "c1",
+        reefId: "REEF-062",
+        idempotencyKey: jiraKey,
+        body: "hello @{Alice Smith}",
+        author: "hongchan",
+        createdAt: "2025-05-27T21:43:43.262+09:00",
+        editedAt: null,
+      }),
+    ).resolves.toMatchObject({
+      mention_recipients: ["Alice Smith"],
+    });
+
+    expect(lastSql(calls[2]?.init?.body)).toContain(
+      '"mention_recipients":["Alice Smith"]',
+    );
+  });
+
+  it("rejects an unresolved mention before touching the Jira-owned row", async () => {
+    const { calls } = setupFetch([
+      {
+        body: {
+          members: [{ username: "alice", role: "member" }],
+        },
+      },
+    ]);
+
+    await expect(
+      reconcileJiraImportedComment(makeAdapter(), "reef-sample", {
+        commentId: "c1",
+        reefId: "REEF-062",
+        idempotencyKey: jiraKey,
+        body: "hello @missing",
+        author: "hongchan",
+        createdAt: "2025-05-27T21:43:43.262+09:00",
+        editedAt: null,
+      }),
+    ).rejects.toBeInstanceOf(SchemaValidationError);
+    expect(calls).toHaveLength(1);
+  });
+
   it("rejects non-Jira keys before I/O", async () => {
     const { calls } = setupFetch([]);
 

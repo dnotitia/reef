@@ -15,6 +15,11 @@ explicitly in the entries below.
 - **Comment mentions now use exact-case vault-roster autocomplete, canonical
   escaped tokens, save-time validation, and projection-gated rendering.**
   (REEF-452)
+- **Jira comment ADF mentions now reuse the canonical Reef mention serializer.**
+  Mapped accounts are gated by the exact target-vault member roster, unsafe
+  usernames use braced escaping, unresolved accounts remain non-identifying
+  placeholders, and apply/rerun readback includes the deduplicated recipient
+  projection. (REEF-455)
 
 ## v0.9.0 - 2026-08-03
 

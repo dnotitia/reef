@@ -558,6 +558,7 @@ export async function buildJiraMigrationPlan(input: {
       ledger,
       bindingIndex,
       accountMapping,
+      memberActors: targetPreflight.memberActors,
       linkMappings: policy.linkMappings,
       attachmentPolicy: config.control.commentCatalogComplete
         ? {
