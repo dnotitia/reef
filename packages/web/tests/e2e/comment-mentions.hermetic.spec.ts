@@ -1,6 +1,100 @@
-import { expect, test } from "@playwright/test";
-import { observeCommentMentions } from "../../scripts/e2e-user-behavior-runner.cjs";
+import { type Page, expect, test } from "@playwright/test";
 import { openExistingWorkspace, resetFixture } from "./harness/fixture";
+
+async function exerciseCommentMention(page: Page) {
+  const composer = page.getByRole("textbox", {
+    name: "Add a comment",
+    exact: true,
+  });
+  await expect(composer).toBeVisible();
+  await composer.fill("@B");
+
+  const option = page.getByRole("option", {
+    name: "Mention @Bob Smith",
+    exact: true,
+  });
+  await expect(option).toBeVisible();
+  await composer.press("Enter");
+  await expect(composer).toHaveValue("@Bob Smith ");
+  expect(await composer.inputValue()).not.toMatch(/[{}\\]/u);
+
+  const createResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname.endsWith("/comments") &&
+      response.request().method() === "POST",
+  );
+  await page
+    .getByRole("button", { name: "Comment", exact: true })
+    .last()
+    .click();
+  const created = await createResponse;
+  expect(created.ok()).toBeTruthy();
+  expect((await created.json()).comment.body).toBe("@{Bob Smith}");
+
+  const mention = page.locator("[data-reef-mention]").last();
+  await expect(mention).toBeVisible();
+  await expect(mention).toHaveText("@Bob Smith");
+  const rendered = await mention.evaluate((element) => ({
+    tag: element.tagName,
+    link: element.closest("a") !== null,
+    token: element.getAttribute("data-reef-mention"),
+  }));
+  expect(rendered.tag).toBe("SPAN");
+  expect(rendered.link).toBe(false);
+  expect(rendered.token).toBe("Bob Smith");
+  const style = await mention.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    const root = element.closest(".comment-mention-renderer");
+    const probe = document.createElement("span");
+    probe.style.color = "var(--brand)";
+    root?.append(probe);
+    const brandColor = getComputedStyle(probe).color;
+    probe.remove();
+    return {
+      fontWeight: Number.parseInt(computed.fontWeight, 10),
+      color: computed.color,
+      brandColor,
+    };
+  });
+  expect(style.fontWeight).toBeGreaterThanOrEqual(500);
+  expect(style.color).toBe(style.brandColor);
+
+  const editButton = page
+    .getByRole("button", { name: "Edit comment", exact: true })
+    .last();
+  await editButton.click();
+  const editDraft = page.getByRole("textbox", {
+    name: "Comment draft",
+    exact: true,
+  });
+  await expect(editDraft).toBeVisible();
+  await expect(editDraft).toHaveValue("@Bob Smith");
+  expect(await editDraft.inputValue()).not.toMatch(/[{}\\]/u);
+
+  await editDraft.fill("@B");
+  await expect(
+    page.getByRole("option", { name: "Mention @Bob Smith", exact: true }),
+  ).toBeVisible();
+  await editDraft.press("Enter");
+  await expect(editDraft).toHaveValue("@Bob Smith ");
+
+  const updateResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname.includes("/comments/") &&
+      response.request().method() === "PATCH",
+  );
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const updated = await updateResponse;
+  expect(updated.ok()).toBeTruthy();
+  expect((await updated.json()).comment.body).toBe("@{Bob Smith}");
+
+  const editedMention = page.locator("[data-reef-mention]").last();
+  await expect(editedMention).toBeVisible();
+  const thread = editedMention
+    .locator("xpath=ancestor::*[@data-testid='comment-thread']")
+    .first();
+  return thread.ariaSnapshot();
+}
 
 test.describe("Comment mentions (REEF-452)", () => {
   test.beforeEach(async ({ context, request }) => {
@@ -14,33 +108,9 @@ test.describe("Comment mentions (REEF-452)", () => {
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/issues/REEF-001");
 
-    const observation = await observeCommentMentions(page, {
-      schema_version: 1,
-      scenario: "comment-mentions",
-      clause_id: "comment-mentions-user-visible",
-      target_url: "http://localhost:7353",
-      workspace: "reef-e2e",
-      issue_id: "REEF-001",
-      composer_label: "Add a comment",
-      trigger: "@B",
-      submit_label: "Comment",
-      edit_label: "Edit comment",
-      edit_draft_label: "Comment draft",
-      edit_submit_label: "Save",
-      credentials: {
-        username_env: "REEF_E2E_USERNAME",
-        password_env: "REEF_E2E_PASSWORD",
-      },
-      expected: {
-        option_label: "Mention @Bob Smith",
-        token: "@{Bob Smith}",
-        body: "@Bob Smith ",
-        canonical_body: "@{Bob Smith}",
-        visible_label: "@Bob Smith",
-      },
-    });
+    const accessibleText = await exerciseCommentMention(page);
 
-    expect(observation.accessibleText).toContain("@Bob Smith");
+    expect(accessibleText).toContain("@Bob Smith");
   });
 
   test("Escape closes autocomplete without dismissing the composer or issue", async ({
