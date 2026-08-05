@@ -312,9 +312,12 @@ async function loginToTarget(
   clauseId,
 ) {
   transcript.push({ event: "login.opened", clause_id: clauseId });
-  await page.goto(new URL("/login", scenario.target_url).toString(), {
-    waitUntil: "domcontentloaded",
-  });
+  await page.goto(
+    new URL("/login?password=1", scenario.target_url).toString(),
+    {
+      waitUntil: "domcontentloaded",
+    },
+  );
   await page
     .locator('[data-testid="akb-login-form"]')
     .waitFor({ state: "visible", timeout: 20_000 });
@@ -1345,7 +1348,7 @@ async function runScenario(options) {
   const report = {
     candidate_head: options.candidateHead,
     status,
-    ...(status === "blocked" ? { reason } : {}),
+    reason: reportReason(status, reason),
     clauses: reportClauses,
   };
   await writePrivate(
@@ -1480,6 +1483,10 @@ function assertRecord(value, name) {
   );
 }
 
+function reportReason(status, reason) {
+  return status === "blocked" ? reason : null;
+}
+
 function assertTextOrder(value, ordered) {
   let cursor = 0;
   for (const part of ordered) {
@@ -1508,6 +1515,7 @@ module.exports = {
   observeGlobalSearchContent,
   packRunnerArtifact,
   redactText,
+  reportReason,
   runLargeIssueListScenario,
   validateScenarioInput,
 };

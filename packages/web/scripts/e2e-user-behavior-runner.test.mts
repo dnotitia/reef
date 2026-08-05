@@ -18,6 +18,7 @@ import {
   LARGE_ISSUE_LIST_CLAUSES,
   packRunnerArtifact,
   redactText,
+  reportReason,
   validateScenarioInput,
 } from "./e2e-user-behavior-runner.cjs";
 
@@ -111,6 +112,12 @@ describe("portable E2E user-behavior runner", () => {
     expect(
       redactText("login alice failed with password", ["alice", "password"]),
     ).toBe("login [REDACTED] failed with [REDACTED]");
+  });
+
+  it("records null for non-blocked report reasons", () => {
+    expect(reportReason("pass", undefined)).toBeNull();
+    expect(reportReason("fail", undefined)).toBeNull();
+    expect(reportReason("blocked", "blocked_runtime")).toBe("blocked_runtime");
   });
 
   it("packs one executable checkout-independent artifact", async () => {
