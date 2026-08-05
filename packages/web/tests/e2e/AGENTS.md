@@ -14,14 +14,17 @@
 - Logged-in E2E state should be created through the real login route against the
   fixture AKB backend, not by hand-writing `__reef_session` cookies or Dexie
   `config` rows. Reset fixture data through `/__e2e/reset` before each test.
-- The portable user-behavior runner is an additional boundary over this harness,
-  not a replacement for the canonical hermetic suite or
-  `test:e2e:sharded`. Keep named scenarios narrow and product-facing; reuse
-  existing fixture/login helpers and spec behavior instead of introducing an
-  action DSL or another fixture framework.
-- Portable scenario files contain observable inputs and credential environment
-  variable names only, never credential values. Runner evidence must be
-  redacted, private (`0600`), and relative to its output directory.
-- Build the portable runner artifact from a reviewed trusted ref and record its
-  SHA-256. The copied artifact must run without a repository checkout; external
-  orchestration owns isolation, mounts, runtime policy, and candidate binding.
+- The source-free behavior artifact is an additional boundary over this
+  harness, not a replacement for the canonical hermetic suite or
+  `test:e2e:sharded`. Keep the reviewed behavior in the shared modules under
+  `behaviors/`; the hermetic specs and artifact adapter must call those same
+  functions.
+- `behavior-input.json` may contain only behavior selection, the contract
+  clause, web/fixture origins, workspace and reset bindings, credential
+  environment variable names, and evidence requirements. Never add selectors,
+  UI copy, expected values, or an action-sequence DSL to the input.
+- Artifact evidence and transcripts must be redacted, private (`0600`), and
+  relative to the output directory. Build the single artifact from a reviewed
+  trusted ref and record its SHA-256. The copied artifact must run without a
+  repository checkout; external orchestration owns isolation, mounts, runtime
+  policy, and candidate binding.

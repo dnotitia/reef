@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { observeGlobalSearchContent } from "../../scripts/e2e-user-behavior-runner.cjs";
+import { runContentSearchBehavior } from "./behaviors/content-search.cjs";
 import {
   openExistingWorkspace,
   resetFixture,
@@ -113,59 +113,7 @@ test.describe("Global body and comment search (REEF-347)", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
-    const observation = await observeGlobalSearchContent(page, {
-      schema_version: 1,
-      scenario: "global-search-content",
-      clause_id: "search-content-presentation",
-      target_url: "http://localhost:7353",
-      workspace: "reef-e2e",
-      search_placeholder: "Search issues...",
-      metadata_query: "Initial issue Alpha",
-      content_query: "comment-only lighthouse",
-      credentials: {
-        username_env: "REEF_E2E_USERNAME",
-        password_env: "REEF_E2E_PASSWORD",
-      },
-      expected: {
-        field_heading: "Issue field matches",
-        content_heading: "Issue content matches",
-        issue_id: "REEF-003",
-        title: "Backlog issue Gamma",
-        source: "Comment",
-        snippet: "comment-only lighthouse",
-      },
-    });
-    const row = observation.row;
-    await expect(row.locator("mark")).toHaveText("comment-only lighthouse");
-    const anchor = row.locator("a");
-    await expect(anchor).toHaveAttribute(
-      "href",
-      "/workspace/reef-e2e/issues/REEF-003",
-    );
-    await expect(anchor).not.toHaveAttribute("target");
-    expect(await anchor.evaluate((element) => element.tagName)).toBe("A");
-
-    const [modifiedPage] = await Promise.all([
-      context.waitForEvent("page"),
-      anchor.click({
-        modifiers: [process.platform === "darwin" ? "Meta" : "Control"],
-      }),
-    ]);
-    await expect(modifiedPage).toHaveURL(
-      /\/workspace\/reef-e2e\/issues\/REEF-003/,
-    );
-    await modifiedPage.close();
-
-    const [middlePage] = await Promise.all([
-      context.waitForEvent("page"),
-      anchor.click({ button: "middle" }),
-    ]);
-    await expect(middlePage).toHaveURL(
-      /\/workspace\/reef-e2e\/issues\/REEF-003/,
-    );
-    await middlePage.close();
-
-    await expect(page.locator(inputSelector)).toBeVisible();
+    await runContentSearchBehavior({ page, context, expect });
   });
 
   test("deduplicates metadata issues and preserves canonical exact-ID promotion", async ({
