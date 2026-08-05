@@ -10,7 +10,9 @@ const DEFAULT_WEB_URL = "http://localhost:7353";
 const DEFAULT_MOCK_URL = "http://127.0.0.1:7354";
 const PORT_STRIDE = 10;
 
-const { shardCount, passthroughArgs } = parseArgs(process.argv.slice(2));
+const { shardCount, selectedShard, passthroughArgs } = parseArgs(
+  process.argv.slice(2),
+);
 const baseWebUrl = new URL(process.env.REEF_WEB_URL ?? DEFAULT_WEB_URL);
 const baseMockUrl = new URL(process.env.REEF_E2E_MOCK_URL ?? DEFAULT_MOCK_URL);
 const baseWebPort = Number(baseWebUrl.port || 80);
@@ -41,9 +43,16 @@ if (!Number.isInteger(shardCount) || shardCount < 1) {
 }
 
 try {
+  const shards = selectedShard
+    ? [selectedShard]
+    : Array.from({ length: shardCount }, (_, index) => ({
+        index: index + 1,
+        total: shardCount,
+      }));
+
   await Promise.all(
-    Array.from({ length: shardCount }, (_, index) =>
-      rm(resolve(PACKAGE_ROOT, "test-results", `shard-${index + 1}`), {
+    shards.map(({ index }) =>
+      rm(resolve(PACKAGE_ROOT, "test-results", `shard-${index}`), {
         force: true,
         recursive: true,
       }),
@@ -58,15 +67,17 @@ try {
   await prepareStandaloneAssets();
 
   process.stdout.write(
-    `[e2e:shards] running ${shardCount} Playwright shards in parallel\n`,
+    selectedShard
+      ? `[e2e:shards] running Playwright shard ${selectedShard.index}/${selectedShard.total}\n`
+      : `[e2e:shards] running ${shardCount} Playwright shards in parallel\n`,
   );
 
   const results = await Promise.all(
-    Array.from({ length: shardCount }, (_, index) => {
-      const shard = index + 1;
-      const webUrl = withPort(baseWebUrl, baseWebPort + index * PORT_STRIDE);
-      const mockUrl = withPort(baseMockUrl, baseMockPort + index * PORT_STRIDE);
-      return runShard(shard, shardCount, webUrl, mockUrl);
+    shards.map(({ index, total }) => {
+      const portOffset = (index - 1) * PORT_STRIDE;
+      const webUrl = withPort(baseWebUrl, baseWebPort + portOffset);
+      const mockUrl = withPort(baseMockUrl, baseMockPort + portOffset);
+      return runShard(index, total, webUrl, mockUrl);
     }),
   );
 
@@ -77,7 +88,7 @@ try {
   if (failed.length > 0) {
     for (const result of failed) {
       process.stderr.write(
-        `[e2e:shards] shard ${result.shard}/${shardCount} failed with exit code ${result.code}\n`,
+        `[e2e:shards] shard ${result.shard}/${result.total} failed with exit code ${result.code}\n`,
       );
     }
     process.exit(1);
@@ -88,33 +99,85 @@ try {
   shutdown(1);
 }
 
-function parseArgs(args) {
-  let shardCount = Number(process.env.REEF_E2E_SHARDS ?? 3);
+function parseArgs(args, env = process.env) {
+  let shardCount = Number(env.REEF_E2E_SHARDS ?? 3);
+  let shardCountExplicit = env.REEF_E2E_SHARDS !== undefined;
+  let selectedShard = null;
   const passthroughArgs = [];
   let parsingScriptOptions = true;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (parsingScriptOptions && arg === "--") {
+      const forwardedShard = args[index + 1];
+      if (forwardedShard?.startsWith("--shard=")) {
+        if (selectedShard) {
+          throw new Error("--shard may be specified only once");
+        }
+        selectedShard = parseShardSelector(
+          forwardedShard.slice("--shard=".length),
+        );
+        index += 1;
+      }
       parsingScriptOptions = false;
       continue;
     }
 
     if (parsingScriptOptions && arg === "--shards") {
       shardCount = Number(args[index + 1]);
+      shardCountExplicit = true;
       index += 1;
       continue;
     }
 
     if (parsingScriptOptions && arg.startsWith("--shards=")) {
       shardCount = Number(arg.slice("--shards=".length));
+      shardCountExplicit = true;
+      continue;
+    }
+
+    if (parsingScriptOptions && arg.startsWith("--shard=")) {
+      if (selectedShard) {
+        throw new Error("--shard may be specified only once");
+      }
+      selectedShard = parseShardSelector(arg.slice("--shard=".length));
       continue;
     }
 
     passthroughArgs.push(arg);
   }
 
-  return { shardCount, passthroughArgs };
+  if (selectedShard && shardCountExplicit) {
+    throw new Error(
+      "--shard cannot be combined with --shards or REEF_E2E_SHARDS",
+    );
+  }
+  if (
+    selectedShard &&
+    passthroughArgs.some(
+      (arg) => arg === "--shard" || arg.startsWith("--shard="),
+    )
+  ) {
+    throw new Error("--shard must be supplied only as an e2e-shards option");
+  }
+
+  return { shardCount, selectedShard, passthroughArgs };
+}
+
+function parseShardSelector(value) {
+  const match = /^([1-9]\d*)\/([1-9]\d*)$/u.exec(value);
+  if (!match) {
+    throw new Error("--shard must use positive integers in the form i/n");
+  }
+  const index = Number(match[1]);
+  const total = Number(match[2]);
+  if (!Number.isSafeInteger(index) || !Number.isSafeInteger(total)) {
+    throw new Error("--shard values must be safe positive integers");
+  }
+  if (index > total) {
+    throw new Error("--shard index must be less than or equal to its total");
+  }
+  return { index, total };
 }
 
 function withPort(url, port) {
@@ -156,10 +219,10 @@ function runShard(shard, total, webUrl, mockUrl) {
     child.on("exit", (code, signal) => {
       children.delete(child);
       if (signal && interrupted) {
-        resolve({ shard, code: 1 });
+        resolve({ shard, total, code: 1 });
         return;
       }
-      resolve({ shard, code: code ?? (signal ? 1 : 0) });
+      resolve({ shard, total, code: code ?? (signal ? 1 : 0) });
     });
   });
 }

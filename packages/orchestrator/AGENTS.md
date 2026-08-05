@@ -5,17 +5,26 @@
 
 ## Package Role
 
-- `orchestrator` owns process lifecycle, run-loop scheduling, dry-run startup,
-  idle polling, and graceful shutdown for background Reef orchestration.
-- Domain I/O goes through contracts exported by `@reef/core`. Do not add direct
-  AKB, GitHub, LLM, Next.js, React, DOM, or browser-storage dependencies here.
+- `orchestrator` owns provider registry preflight, one-run lifecycle events,
+  cancellation, cleanup, terminal normalization, and the process signal seam.
+- The shared `executeRunPlan` entrypoint receives the immutable `RunPlan`, a
+  typed provider registry, and one caller-owned execution callback. Callers own
+  queue selection, scheduling, persistence, delivery ordering, and concrete
+  adapters.
+- This package has no Reef configuration loader, CLI, environment aliases,
+  idle polling loop, or Reef-owned domain ports.
+- Do not add direct AKB, GitHub, LLM, Next.js, React, or browser-storage
+  dependencies here. Provider contracts come from this package's
+  provider-neutral types.
 - `web` may expose dispatch/control-plane Route Handlers and UI, but it must not
   host worker polling or long-running orchestration loops.
 
 ## Testing And Layout
 
 - Co-locate tests beside their targets under `src/`.
-- Keep the loop body environment-agnostic: inject timers, signals, ports, and
-  logging so local mode, server workers, and tests exercise the same code.
-- CLI output may use JSON lines through stdout/stderr, but never print secrets
-  such as tokens, private keys, cookies, LLM prompts, or raw upstream bodies.
+- Keep execution environment-agnostic: inject the clock, abort signal, event
+  sink, provider registry, and callback so foreground callers, scheduler
+  adapters, and tests exercise the same engine contract.
+- Keep terminal results and structured lifecycle events secret-free. Never
+  expose tokens, private keys, cookies, LLM prompts, raw upstream bodies, raw
+  thrown objects, or mutable runtime handles.

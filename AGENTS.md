@@ -26,8 +26,9 @@
 - This is a pnpm workspace with private packages. Product runtime behavior
   starts in `core` when it touches schemas, adapters, agents, or shared
   contracts, then surfaces through `web`. Operator-run migration behavior for
-  Jira lives in `packages/jira-migrator`; long-running background scheduling
-  and worker lifecycle live in `packages/orchestrator`.
+  Jira lives in `packages/jira-migrator`; the provider-neutral one-run
+  execution core and process signal seam live in `packages/orchestrator`, while
+  callers own scheduling and delivery orchestration.
 - `core` is framework-agnostic: no Next.js imports, no DOM APIs, and no Node-only
   globals where avoidable.
 

@@ -122,7 +122,7 @@ inside this repository.
 | --- | --- |
 | `packages/core` | Framework-agnostic TypeScript library (`@reef/core`) for schemas, models, adapters, agents, tools, and errors. GitHub, AKB, and LLM calls originate here. |
 | `packages/web` | Next.js App Router application package (`@reef/web`) and stateless Backend-for-Frontend. Route Handlers validate requests, extract credentials, call `core`, and translate errors. |
-| `packages/orchestrator` | Long-running background runtime (`@reef/orchestrator`) for worker scheduling, polling, and graceful shutdown outside the web process. |
+| `packages/orchestrator` | Provider-neutral execution core (`@reef/orchestrator`) for registry preflight, lifecycle, cancellation, cleanup, terminal results, and graceful shutdown outside the web process. |
 | `packages/jira-migrator` | Operator-run Jira-to-Reef migration package (`@reef/jira-migrator`) for read-only Jira discovery, private migration artifacts, import planning, and dependency-injected Reef apply/reconciliation. |
 | `docs/` | Architecture, UX, deployment, migration, release, and maintenance documentation. |
 | `deploy/` | Kubernetes deployment assets. |
@@ -178,9 +178,10 @@ reef has three runtime tiers:
   workspace. It renders the product UI and acts as a stateless
   Backend-for-Frontend over reef core.
 
-Long-running background work runs separately in `@reef/orchestrator`, and
-one-shot Jira migrations run separately in `@reef/jira-migrator`; neither loop
-is hosted inside reef web.
+Provider-neutral one-run execution lives separately in `@reef/orchestrator`; a
+caller may schedule it outside the web process. One-shot Jira migrations run
+separately in `@reef/jira-migrator`; neither runtime loop is hosted inside reef
+web.
 
 For the full boundary, storage, credential, and streaming contracts, read
 [docs/architecture.md](docs/architecture.md).
