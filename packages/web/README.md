@@ -180,18 +180,16 @@ the real login UI and `/api/auth/akb/login`, then reset fixture data with
 `/__e2e/reset` before each test. Legacy UI-only specs were removed after their
 useful flows were moved onto the hermetic fixture server.
 
-`dev:e2e` is also the repository-owned runtime used for direct source-blind
-behavior validation. It emits a private ready payload with the web and fixture
-origins plus health, reset, discovery, scenario, and credential-variable
-contracts. The fixture discovery endpoint is available at
-`/__e2e/runtime`; it lists supported scenarios and user-task starting points
-without exposing selectors or assertions.
+`dev:e2e` is also the repository-owned live E2E runtime. It emits a private
+ready payload with the web and fixture origins plus health, reset, discovery,
+scenario, and credential-variable contracts. The fixture discovery endpoint is
+available at `/__e2e/runtime`; it lists supported scenarios and user-task
+starting points without exposing selectors or assertions.
 
-A fresh validator receives the mapped runtime's validator-facing origins and
-uses a browser or HTTP client directly. Reef does not package a validator
-runner or canonical behavior artifact. Canonical behavior remains in the
-hermetic Playwright specs, while external orchestration owns exact-candidate
-binding, credential delivery, evidence redaction, and teardown.
+Consumers interact with the running web and fixture services through their
+browser and HTTP surfaces. Reef does not package a portable execution runner or
+canonical behavior artifact. Canonical behavior and assertions remain in the
+hermetic Playwright specs.
 
 For a faster local full run, use:
 

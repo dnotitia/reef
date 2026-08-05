@@ -14,15 +14,14 @@
 - Logged-in E2E state should be created through the real login route against the
   fixture AKB backend, not by hand-writing `__reef_session` cookies or Dexie
   `config` rows. Reset fixture data through `/__e2e/reset` before each test.
-- `dev:e2e` is the repository-owned live runtime for direct user validation. Its
+- `dev:e2e` is the repository-owned live E2E runtime. Its
   ready payload and `/__e2e/runtime` discovery endpoint describe health, reset,
   scenario, credential variable names, and task starting points without
   selectors, assertions, or source paths.
 - Keep canonical user behavior and assertions in hermetic specs. Do not add a
-  portable validator runner, packaged behavior artifact, scenario action DSL,
-  or another fixture framework. A fresh validator uses the mapped runtime's
-  exposed browser/HTTP surface directly.
+  portable execution runner, packaged behavior artifact, scenario action DSL,
+  or another fixture framework. Consumers use the runtime's exposed browser and
+  HTTP surfaces directly.
 - Runtime discovery may describe fixture setup and user/operator starting
   points, but it must not decide pass/fail or prescribe private implementation
-  details. External orchestration owns candidate binding, tunnels, credentials,
-  evidence redaction, and teardown.
+  details or embed an evidence/reporting protocol.
