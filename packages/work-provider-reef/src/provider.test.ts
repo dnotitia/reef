@@ -397,7 +397,7 @@ function makeProvider(
 ) {
   return createReefWorkProvider({
     adapter: fixture.adapter,
-    jwt: "fixture-jwt",
+    jwt: "test-auth-context",
     vault: VAULT,
     repository: "dnotitia/reef",
     clock,
@@ -448,7 +448,7 @@ describe("Reef work provider", () => {
     const second = await provider.refresh({ uri: URI }, {});
     expect(second).toEqual(first);
     expect(first.provenance.source).toBe("akb");
-    expect(JSON.stringify(first)).not.toContain("fixture-jwt");
+    expect(JSON.stringify(first)).not.toContain("test-auth-context");
 
     fixture.setStatus(DEPENDENCY_ID, "in_review");
     const drifted = await provider.refresh(
@@ -659,14 +659,14 @@ describe("Reef work provider", () => {
     ).rejects.toMatchObject({ code: "cancelled", retryable: false });
     expect(abortedFixture.activities).toHaveLength(0);
 
-    const secret = "jwt-and-raw-upstream-secret";
+    const upstreamMarker = "raw-upstream-error-marker";
     const failedFixture = new ScriptedAkbFixture();
-    failedFixture.failureMessage = secret;
+    failedFixture.failureMessage = upstreamMarker;
     await expect(
       makeProvider(failedFixture).read({ uri: URI }, {}),
     ).rejects.toSatisfy((error: unknown) => {
       expect(error).toBeInstanceOf(ProviderError);
-      expect(JSON.stringify(error)).not.toContain(secret);
+      expect(JSON.stringify(error)).not.toContain(upstreamMarker);
       return true;
     });
   });
