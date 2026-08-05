@@ -6,6 +6,8 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import { discoverWorkspacePackages } from "./workspaces.mjs";
+
 const ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
@@ -97,8 +99,6 @@ const SLOW_TEST_SUPPRESSIONS = new Set([
   "IssueDetail asks for a close reason before closing from the detail panel",
   "i18n hardcoded-string guard matches the committed baseline (no new hardcoded JSX strings)",
 ]);
-
-const PACKAGES_DIR = path.join(ROOT, "packages");
 
 const LARGE_FILE_EXTRA_ROOTS = ["scripts"];
 
@@ -400,74 +400,22 @@ function displayPath(filePath) {
   return filePath;
 }
 
-function packageStepKey(packageDir) {
-  return path.basename(packageDir).replace(/[^a-zA-Z0-9-]/g, "-");
-}
-
-async function readPackageManifest(packageDir) {
-  try {
-    return JSON.parse(
-      await readFile(path.join(packageDir, "package.json"), "utf8"),
-    );
-  } catch {
-    return {};
-  }
-}
-
-async function listWorkspacePackages() {
-  if (!(await pathExists(PACKAGES_DIR))) return [];
-  const entries = await readdir(PACKAGES_DIR, { withFileTypes: true });
-  const packages = [];
-
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const packageDir = path.join(PACKAGES_DIR, entry.name);
-    if (!(await pathExists(path.join(packageDir, "package.json")))) continue;
-
-    const manifest = await readPackageManifest(packageDir);
-    const relativeDir = displayPath(packageDir);
-    const srcRoot = path.join(relativeDir, "src");
-    const testRoot = path.join(relativeDir, "tests");
-    packages.push({
-      dir: packageDir,
-      key: packageStepKey(packageDir),
-      manifest,
-      name:
-        typeof manifest.name === "string" && manifest.name
-          ? manifest.name
-          : relativeDir,
-      relativeDir,
-      srcRoot: (await pathExists(path.join(packageDir, "src")))
-        ? srcRoot
-        : null,
-      testRoot: (await pathExists(path.join(packageDir, "tests")))
-        ? testRoot
-        : null,
-    });
-  }
-
-  packages.sort((left, right) =>
-    left.relativeDir.localeCompare(right.relativeDir),
-  );
-  return packages;
-}
-
-async function workspaceSourceRoots() {
-  return (await listWorkspacePackages())
+function workspaceSourceRoots(workspacePackages) {
+  return workspacePackages
     .map((workspacePackage) => workspacePackage.srcRoot)
     .filter(Boolean);
 }
 
-async function workspaceTestRoots() {
-  return (await listWorkspacePackages())
+function workspaceTestRoots(workspacePackages) {
+  return workspacePackages
     .map((workspacePackage) => workspacePackage.testRoot)
     .filter(Boolean);
 }
 
-async function largeFileRoots() {
+function largeFileRoots(workspacePackages) {
   return [
-    ...(await workspaceSourceRoots()),
-    ...(await workspaceTestRoots()),
+    ...workspaceSourceRoots(workspacePackages),
+    ...workspaceTestRoots(workspacePackages),
     ...LARGE_FILE_EXTRA_ROOTS,
   ];
 }
@@ -561,9 +509,9 @@ async function runCommand({
   });
 }
 
-async function runDuplicates({ dryRun, outDir }) {
+async function runDuplicates({ dryRun, outDir, workspacePackages }) {
   const reportDir = path.join(outDir, "duplicates-jscpd", "report");
-  const roots = await workspaceSourceRoots();
+  const roots = workspaceSourceRoots(workspacePackages);
   return [
     await runCommand({
       args: [
@@ -602,13 +550,13 @@ async function runDeadCode({ dryRun, outDir }) {
   ];
 }
 
-async function runMaintenanceLint({ dryRun, outDir }) {
+async function runMaintenanceLint({ dryRun, outDir, workspacePackages }) {
   const jsonPath = path.join(
     outDir,
     "maintenance-eslint",
     "eslint-report.json",
   );
-  const roots = await workspaceSourceRoots();
+  const roots = workspaceSourceRoots(workspacePackages);
   return [
     await runCommand({
       args: [
@@ -630,10 +578,8 @@ async function runMaintenanceLint({ dryRun, outDir }) {
   ];
 }
 
-async function runSlowTests({ dryRun, outDir }) {
-  const testPackages = (await listWorkspacePackages()).filter(
-    packageHasVitestTestScript,
-  );
+async function runSlowTests({ dryRun, outDir, workspacePackages }) {
+  const testPackages = workspacePackages.filter(packageHasVitestTestScript);
   const steps = [];
 
   for (const workspacePackage of testPackages) {
@@ -782,11 +728,13 @@ function scanCommentText(filePath, content) {
   return candidates;
 }
 
-async function runCommentClaims({ dryRun, outDir }) {
+async function runCommentClaims({ dryRun, outDir, workspacePackages }) {
   const stepDir = path.join(outDir, "comment-claims");
   await mkdir(stepDir, { recursive: true });
   const commandPath = path.join(stepDir, "command.txt");
   const renderedCommand = "native comment-claim scan";
+  const sourceRoots = workspaceSourceRoots(workspacePackages);
+  const scannedRoots = [...sourceRoots, "scripts"];
   await writeFile(commandPath, `${renderedCommand}\n`);
 
   if (dryRun) {
@@ -796,12 +744,12 @@ async function runCommentClaims({ dryRun, outDir }) {
         code: null,
         name: "comment-claims",
         status: "dry-run",
+        scannedRoots,
         stdoutPath: displayPath(path.join(stepDir, "comment-claims.json")),
       },
     ];
   }
 
-  const sourceRoots = await workspaceSourceRoots();
   const files = [
     ...(
       await Promise.all(
@@ -825,7 +773,7 @@ async function runCommentClaims({ dryRun, outDir }) {
   const mdPath = path.join(stepDir, "comment-claims.md");
   await writeFile(
     jsonPath,
-    `${JSON.stringify({ candidates, count: candidates.length }, null, 2)}\n`,
+    `${JSON.stringify({ candidates, count: candidates.length, scannedRoots }, null, 2)}\n`,
   );
   await writeFile(mdPath, renderCommentClaims(candidates));
 
@@ -836,6 +784,7 @@ async function runCommentClaims({ dryRun, outDir }) {
       name: "comment-claims",
       status: "ok",
       summary: `${candidates.length} candidate comments`,
+      scannedRoots,
       stdoutPath: displayPath(jsonPath),
     },
   ];
@@ -1129,13 +1078,13 @@ async function buildAssertClean(report) {
   return { categories, failed };
 }
 
-async function runLargeFiles({ dryRun, outDir }) {
+async function runLargeFiles({ dryRun, outDir, workspacePackages }) {
   const stepDir = path.join(outDir, "large-files");
   await mkdir(stepDir, { recursive: true });
   const jsonPath = path.join(stepDir, "large-files.json");
   const mdPath = path.join(stepDir, "large-files.md");
   const commandPath = path.join(stepDir, "command.txt");
-  const roots = await largeFileRoots();
+  const roots = largeFileRoots(workspacePackages);
   const renderedCommand = `native large-file scan (${Object.entries(
     LARGE_FILE_THRESHOLDS,
   )
@@ -1149,6 +1098,7 @@ async function runLargeFiles({ dryRun, outDir }) {
         command: renderedCommand,
         code: null,
         name: "large-files",
+        scannedRoots: roots,
         status: "dry-run",
         stdoutPath: displayPath(jsonPath),
       },
@@ -1308,11 +1258,30 @@ function renderSummary(report) {
     "Scanner exits are advisory unless `--strict` is used. A non-zero scanner",
     "exit can mean findings were reported, not necessarily that the scan failed.",
     "",
+    "## Workspace Packages",
+    "",
+    "Workspace packages come from `pnpm --recursive list --depth=-1 --json`;",
+    "the scanner does not recursively guess package.json files.",
+    "",
+    "| Package | Directory | Source root | Test root |",
+    "| --- | --- | --- | --- |",
+  ];
+
+  for (const workspacePackage of report.workspacePackages) {
+    lines.push(
+      `| ${workspacePackage.name} | ${workspacePackage.relativeDir} | ${
+        workspacePackage.srcRoot ?? ""
+      } | ${workspacePackage.testRoot ?? ""} |`,
+    );
+  }
+
+  lines.push(
+    "",
     "## Results",
     "",
     "| Category | Step | Status | Code | Output |",
     "| --- | --- | --- | ---: | --- |",
-  ];
+  );
 
   for (const category of report.categories) {
     for (const step of category.steps) {
@@ -1379,6 +1348,7 @@ async function main() {
     options.outDir ?? path.join(ROOT, ".maintenance", "reports", timestamp()),
   );
   await mkdir(outDir, { recursive: true });
+  const workspacePackages = await discoverWorkspacePackages({ root: ROOT });
 
   const report = {
     assertClean: options.assertClean,
@@ -1389,12 +1359,21 @@ async function main() {
     outDir,
     startedAt: new Date().toISOString(),
     strict: options.strict,
+    workspacePackages: workspacePackages.map(
+      ({ name, relativeDir, srcRoot, testRoot }) => ({
+        name,
+        relativeDir,
+        srcRoot,
+        testRoot,
+      }),
+    ),
   };
 
   for (const category of options.categories) {
     const steps = await runCategory(category, {
       dryRun: options.dryRun,
       outDir,
+      workspacePackages,
     });
     report.categories.push({ name: category, steps });
   }

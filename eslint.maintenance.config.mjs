@@ -25,7 +25,7 @@ export default [
     ],
   },
   {
-    files: ["packages/*/src/**/*.{ts,tsx}"],
+    files: ["packages/**/src/**/*.{ts,tsx}"],
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: {
