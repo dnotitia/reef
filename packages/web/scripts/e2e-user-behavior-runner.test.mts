@@ -154,6 +154,7 @@ describe("portable E2E user-behavior runner", () => {
     expect(report).toMatchObject({
       candidate_head: "a".repeat(40),
       status: "blocked",
+      reason: "blocked_external_auth",
       clauses: [
         {
           id: "search-content-presentation",
@@ -194,6 +195,7 @@ describe("portable E2E user-behavior runner", () => {
       await readFile(join(output, "behavior-report.json"), "utf8"),
     );
     expect(report.status).toBe("blocked");
+    expect(report.reason).toBe("blocked_external_auth");
     expect(report.clauses.map((clause: { id: string }) => clause.id)).toEqual(
       LARGE_ISSUE_LIST_CLAUSES,
     );

@@ -229,10 +229,33 @@ async function scrollToListEnd(page) {
   });
 }
 
-function blockedBehavior(message) {
+function blockedBehavior(message, reason = "blocked_runtime") {
   const error = new Error(message);
   error.behavior_status = "blocked";
+  error.behavior_reason = reason;
   return error;
+}
+
+function behaviorReason(error) {
+  if (typeof error?.behavior_reason === "string") {
+    return error.behavior_reason;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  if (
+    /browserType\.launch|executable doesn't exist|cannot find package.*playwright|playwright.*browser/iu.test(
+      message,
+    )
+  ) {
+    return "blocked_tooling";
+  }
+  if (
+    /net::ERR_|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|failed to connect|target page, context or browser has been closed/iu.test(
+      message,
+    )
+  ) {
+    return "blocked_runtime";
+  }
+  return undefined;
 }
 
 async function fixtureRequest(scenario, path, options = {}) {
@@ -240,17 +263,21 @@ async function fixtureRequest(scenario, path, options = {}) {
   try {
     response = await fetch(new URL(path, scenario.fixture_origin), options);
   } catch {
-    throw blockedBehavior(`fixture request failed: ${path}`);
+    throw blockedBehavior(`fixture request failed: ${path}`, "blocked_runtime");
   }
   if (!response.ok) {
     throw blockedBehavior(
       `fixture request returned HTTP ${response.status}: ${path}`,
+      "blocked_runtime",
     );
   }
   try {
     return await response.json();
   } catch {
-    throw blockedBehavior(`fixture response was not JSON: ${path}`);
+    throw blockedBehavior(
+      `fixture response was not JSON: ${path}`,
+      "blocked_runtime",
+    );
   }
 }
 
@@ -931,6 +958,7 @@ async function runLargeIssueListScenario({
     ["B5", observeLargeIssueListB5],
   ];
   const clauses = [];
+  const reasons = [];
   for (const [id, observe] of clauseFunctions) {
     try {
       const result = await observe(
@@ -955,22 +983,35 @@ async function runLargeIssueListScenario({
         error instanceof Error ? error.message : String(error),
         [credentials.username, credentials.password],
       );
-      const status = error?.behavior_status === "blocked" ? "blocked" : "fail";
-      clauses.push({ id, status, observable: message, evidence: [] });
+      const reason = behaviorReason(error);
+      const status = reason ? "blocked" : "fail";
+      if (reason) reasons.push(reason);
+      clauses.push({
+        id,
+        status,
+        ...(reason ? { reason } : {}),
+        observable: message,
+        evidence: [],
+      });
       transcript.push({
         event: "large-issue-list.clause.error",
         clause_id: id,
         status,
+        ...(reason ? { reason } : {}),
         message,
       });
     }
   }
+  const status = clauses.every((clause) => clause.status === "pass")
+    ? "pass"
+    : clauses.some((clause) => clause.status === "fail")
+      ? "fail"
+      : "blocked";
   return {
-    status: clauses.every((clause) => clause.status === "pass")
-      ? "pass"
-      : clauses.some((clause) => clause.status === "fail")
-        ? "fail"
-        : "blocked",
+    status,
+    ...(status === "blocked"
+      ? { reason: reasons[0] ?? "blocked_tooling" }
+      : {}),
     clauses,
     observable: clauses.every((clause) => clause.status === "pass")
       ? "Signed in and exercised all five List behavior clauses through the user surface."
@@ -1160,6 +1201,7 @@ async function runScenario(options) {
   let phase = "setup";
   let status = "blocked";
   let observable = "Runner setup did not complete.";
+  let reason = "blocked_tooling";
   let browser;
   let runtime;
   let scenario;
@@ -1179,7 +1221,12 @@ async function runScenario(options) {
     const username = process.env[scenario.credentials.username_env] ?? "";
     const password = process.env[scenario.credentials.password_env] ?? "";
     secrets.push(username, password);
-    assert(username && password, "declared credential variables are required");
+    if (!username || !password) {
+      throw blockedBehavior(
+        "declared credential variables are required",
+        "blocked_external_auth",
+      );
+    }
 
     runtime = await loadPlaywright();
     browser = await runtime.chromium.launch({ headless: true });
@@ -1194,6 +1241,7 @@ async function runScenario(options) {
       });
       status = observation.status;
       observable = observation.observable;
+      reason = observation.reason;
       transcript.push({
         event: "workspace.opened",
         workspace: scenario.workspace,
@@ -1252,9 +1300,17 @@ async function runScenario(options) {
     }
     if (scenario.scenario === "large-issue-list") {
       observable = observation.observable;
+      reason = observation.reason;
     }
   } catch (error) {
-    status = phase === "behavior" ? "fail" : "blocked";
+    const inferredReason = behaviorReason(error);
+    if (inferredReason) {
+      status = "blocked";
+      reason = inferredReason;
+    } else {
+      status = phase === "behavior" ? "fail" : "blocked";
+      reason = status === "blocked" ? "blocked_tooling" : undefined;
+    }
     observable = redactText(
       error instanceof Error ? error.message : String(error),
       secrets,
@@ -1285,17 +1341,16 @@ async function runScenario(options) {
           evidence: ["redacted-transcript.jsonl"],
         }))
       : [{ id: clauseId, status, observable, evidence }];
+  if (status === "blocked" && !reason) reason = "blocked_tooling";
+  const report = {
+    candidate_head: options.candidateHead,
+    status,
+    ...(status === "blocked" ? { reason } : {}),
+    clauses: reportClauses,
+  };
   await writePrivate(
     join(outputDir, "behavior-report.json"),
-    `${JSON.stringify(
-      {
-        candidate_head: options.candidateHead,
-        status,
-        clauses: reportClauses,
-      },
-      null,
-      2,
-    )}\n`,
+    `${JSON.stringify(report, null, 2)}\n`,
   );
   process.stdout.write(
     `behavior report: ${join(outputDir, "behavior-report.json")}\n`,

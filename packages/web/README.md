@@ -264,7 +264,9 @@ Playwright image it installs the pinned `@playwright/test@1.59.1` runtime via
 `corepack pnpm`; set `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright` when using the
 matching official image. Record the artifact SHA-256 and trusted source commit
 separately from the candidate SHA. External orchestration owns container policy
-and read-only mounts. This runner does not replace `test:e2e:sharded`.
+and read-only mounts. A blocked run keeps the clause report shape and records a
+top-level `reason` such as `blocked_tooling`, `blocked_runtime`, or
+`blocked_external_auth`. This runner does not replace `test:e2e:sharded`.
 
 For a faster local full run, use:
 
