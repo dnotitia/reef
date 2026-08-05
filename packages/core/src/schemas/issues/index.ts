@@ -127,9 +127,11 @@ export {
   DEFAULT_ISSUE_SORT_FIELD,
   DEFAULT_ISSUE_SORT_ORDER,
   IssueListQuerySchema,
+  IssueListResponseSchema,
   USER_SORT_FIELDS,
   hasAnyFilter,
   type IssueListQuery,
+  type IssueListResponse,
   type IssueRelation,
 } from "./requests";
 

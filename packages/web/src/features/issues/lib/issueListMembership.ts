@@ -1,5 +1,6 @@
 import type { IssueUpdatePatch } from "@reef/core";
 import type { IssueQueryParams } from "./buildIssueQuery";
+import { issueListQueryFromKey } from "./issueListCache";
 
 /**
  * Decide what an issue edit can invalidate, so mutations refetch narrowly
@@ -109,6 +110,8 @@ function variantHasFreeText(variant: IssueQueryParams | undefined): boolean {
  * Build an `invalidateQueries` predicate that refetches just the list variants a
  * single issue `patch` can actually change — membership, order, or free-text
  * match — instead of every `['issues','list',vault]` variant (REEF-098/REEF-323).
+ * The finite and list-only infinite key shapes share the same predicate through
+ * `issueListQueryFromKey`.
  *
  * One patch-based predicate covers both a membership edit (a server facet or the
  * sort field) and a non-membership content edit (title / dates / estimate /
@@ -164,7 +167,9 @@ export function listInvalidationPredicate(
   // handled separately above because its active scope is implicit (absent key).
   const explicitFacets = membershipKeys.filter((key) => key !== "archived_at");
   return ({ queryKey }) => {
-    const variant = queryKey[3] as IssueQueryParams | undefined;
+    const variant = issueListQueryFromKey(queryKey) as
+      | IssueQueryParams
+      | undefined;
     if (!variant) return false;
     if (variantHasFreeText(variant)) return true;
     // A pure content/order edit leaves default_view membership unchanged, so gate

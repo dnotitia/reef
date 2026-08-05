@@ -79,13 +79,13 @@ describe("IssueListTable", () => {
     useIssueSelectionStore.getState().clear();
   });
 
-  it("requests /api/issues?vault={vault} and renders the rows", async () => {
+  it("requests the first 100-issue page and renders the rows", async () => {
     render(wrap(<IssueListTable vault="reef-acme" />));
 
     expect(await screen.findByText("First task")).toBeInTheDocument();
     expect(screen.getByText("Second task")).toBeInTheDocument();
     expect(mockApiFetch).toHaveBeenCalledWith(
-      "/api/issues?vault=reef-acme&sort_field=priority&sort_order=desc",
+      "/api/issues?vault=reef-acme&limit=100&sort_field=priority&sort_order=desc",
     );
   });
 
@@ -152,6 +152,20 @@ describe("IssueListTable", () => {
     render(wrap(<IssueListTable vault="reef-acme" />));
     expect(
       await screen.findByText(/Your workspace is empty/i),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the filtered empty state after loaded rows are exhausted", async () => {
+    useIssueStore.setState({
+      filter: { label: "missing-label" },
+      searchQuery: "",
+      selectedIssueId: null,
+    });
+
+    render(wrap(<IssueListTable vault="reef-acme" />));
+
+    expect(
+      await screen.findByText("No issues match your filters."),
     ).toBeInTheDocument();
   });
 });

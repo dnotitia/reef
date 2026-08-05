@@ -196,6 +196,8 @@ export const IssueListResponseSchema = z.object({
     .optional(),
 });
 
+export type IssueListResponse = z.infer<typeof IssueListResponseSchema>;
+
 /**
  * Body for POST /api/issues/reorder — the backlog drag-reorder write (REEF-129).
  * `assignments` is the set of `rank` writes a single drag produced (from

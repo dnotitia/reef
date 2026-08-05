@@ -15,8 +15,10 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  LARGE_ISSUE_LIST_CLAUSES,
   packRunnerArtifact,
   redactText,
+  reportReason,
   validateScenarioInput,
 } from "./e2e-user-behavior-runner.cjs";
 
@@ -59,9 +61,42 @@ function scenario() {
   };
 }
 
+function largeIssueListScenario() {
+  return {
+    schema_version: 1,
+    scenario: "large-issue-list",
+    clause_id: "large-list-virtualization",
+    target_url: "https://reef-candidate.test",
+    fixture_origin: "https://reef-fixture.test",
+    workspace: "reef-e2e",
+    credentials: {
+      username_env: "REEF_E2E_USERNAME",
+      password_env: "REEF_E2E_PASSWORD",
+    },
+    expected: {
+      focus_issue_id: "REEF-0101",
+      keyboard_steps: 99,
+      max_mounted_rows: 50,
+      min_scroll_height: 3000,
+      selection_issue_ids: ["REEF-0101", "REEF-0102"],
+      quick_edit_issue_id: "REEF-0101",
+      quick_edit_label: "large-fixture",
+      max_anchor_delta: 240,
+      sparse_filter: "tail-marker",
+      sparse_issue_id: "REEF-1124",
+      sparse_issue_title: "Sparse residual match",
+      cls_budget: 0.1,
+      sibling_view: "board",
+    },
+  };
+}
+
 describe("portable E2E user-behavior runner", () => {
   it("accepts source-neutral expectations and credential environment names", () => {
     expect(validateScenarioInput(scenario())).toEqual(scenario());
+    expect(validateScenarioInput(largeIssueListScenario())).toEqual(
+      largeIssueListScenario(),
+    );
     expect(() =>
       validateScenarioInput({
         ...scenario(),
@@ -77,6 +112,12 @@ describe("portable E2E user-behavior runner", () => {
     expect(
       redactText("login alice failed with password", ["alice", "password"]),
     ).toBe("login [REDACTED] failed with [REDACTED]");
+  });
+
+  it("records null for non-blocked report reasons", () => {
+    expect(reportReason("pass", undefined)).toBeNull();
+    expect(reportReason("fail", undefined)).toBeNull();
+    expect(reportReason("blocked", "blocked_runtime")).toBe("blocked_runtime");
   });
 
   it("packs one executable checkout-independent artifact", async () => {
@@ -120,6 +161,7 @@ describe("portable E2E user-behavior runner", () => {
     expect(report).toMatchObject({
       candidate_head: "a".repeat(40),
       status: "blocked",
+      reason: "blocked_external_auth",
       clauses: [
         {
           id: "search-content-presentation",
@@ -132,5 +174,44 @@ describe("portable E2E user-behavior runner", () => {
     expect(transcript).not.toContain("password");
     expect((await stat(reportPath)).mode & 0o077).toBe(0);
     expect((await stat(transcriptPath)).mode & 0o077).toBe(0);
+  });
+
+  it("reports every large-list behavior clause when credentials are unavailable", async () => {
+    const root = await mkdtemp(join(tmpdir(), "reef-e2e-large-report-test-"));
+    temporaryDirectories.push(root);
+    const input = join(root, "input");
+    const output = join(root, "output");
+    await mkdir(input);
+    await writeFile(
+      join(input, "scenario.json"),
+      JSON.stringify(largeIssueListScenario()),
+      { mode: 0o600 },
+    );
+
+    await execFileAsync(process.execPath, [
+      runnerPath,
+      "--input-dir",
+      input,
+      "--output-dir",
+      output,
+      "--candidate-head",
+      "b".repeat(40),
+    ]);
+
+    const report = JSON.parse(
+      await readFile(join(output, "behavior-report.json"), "utf8"),
+    );
+    expect(report.status).toBe("blocked");
+    expect(report.reason).toBe("blocked_external_auth");
+    expect(report.clauses.map((clause: { id: string }) => clause.id)).toEqual(
+      LARGE_ISSUE_LIST_CLAUSES,
+    );
+    expect(
+      report.clauses.every(
+        (clause: { status: string; evidence: string[] }) =>
+          clause.status === "blocked" &&
+          clause.evidence.includes("redacted-transcript.jsonl"),
+      ),
+    ).toBe(true);
   });
 });

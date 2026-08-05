@@ -1,12 +1,12 @@
 import {
   type IssueQueryParams,
   appendIssueQueryParams,
-  normalizeIssueQuery,
 } from "@/features/issues/lib/buildIssueQuery";
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
 import { useHydrated } from "@/lib/useHydrated";
 import type { IssueListItem } from "@reef/core";
 import { useQuery } from "@tanstack/react-query";
+import { issueListKey } from "../../lib/issueListCache";
 
 /**
  * List issues in the active akb vault, optionally narrowed server-side by
@@ -16,8 +16,6 @@ import { useQuery } from "@tanstack/react-query";
  * mutation invalidation keeps working. akb does not surface response ETags yet,
  * so refreshes are unconditional.
  */
-const issueListKey = (vault: string) => ["issues", "list", vault] as const;
-
 export function useIssueList(
   vault: string,
   query?: IssueQueryParams,
@@ -37,9 +35,7 @@ export function useIssueList(
   const keepPreviousData = options?.keepPreviousData ?? true;
   const hydrated = useHydrated();
   const result = useQuery({
-    queryKey: query
-      ? (["issues", "list", vault, normalizeIssueQuery(query)] as const)
-      : issueListKey(vault),
+    queryKey: query ? issueListKey(vault, query) : issueListKey(vault),
     staleTime: 60_000,
     // Keep prior results visible across filter/sort changes WITHIN the same
     // vault (no skeleton flicker), but does not across a workspace switch — that

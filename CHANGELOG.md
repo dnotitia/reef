@@ -12,6 +12,11 @@ explicitly in the entries below.
 
 ## Unreleased
 
+- **Large issue lists now load and render progressively.** The List view fetches
+  100-issue cursor pages, keeps the DOM virtualized while preserving keyboard
+  focus, selection, quick edits, and finite sibling views. The persisted query
+  cache buster advances to v6, so stale issue-list snapshots are discarded once
+  on upgrade.
 - **Comment mentions now use exact-case vault-roster autocomplete, canonical
   escaped tokens, save-time validation, and projection-gated rendering.**
   (REEF-452)

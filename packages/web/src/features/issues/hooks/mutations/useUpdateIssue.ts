@@ -1,16 +1,13 @@
 "use client";
 
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
-import type {
-  IssueDocument,
-  IssueListItem,
-  IssueUpdatePatch,
-} from "@reef/core";
+import type { IssueDocument, IssueUpdatePatch } from "@reef/core";
 import {
   type QueryKey,
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
+import { updateIssueListCaches } from "../../lib/issueListCache";
 import {
   listInvalidationPredicate,
   patchAffectsActivityTimeline,
@@ -35,7 +32,7 @@ export interface UseUpdateIssueOptions {
 
 interface UpdateIssueMutationContext {
   previousDetail?: UpdateIssueResult;
-  previousLists?: Array<[QueryKey, IssueListItem[] | undefined]>;
+  previousLists?: Array<[QueryKey, unknown]>;
 }
 
 /**
@@ -115,19 +112,14 @@ export function useUpdateIssue(options: UseUpdateIssueOptions = {}) {
       // unfiltered list and any server-filtered/sorted
       // `['issues','list',vault,<query>]` variant — so the change is immediate
       // in whichever view is visible.
-      const previousLists = queryClient.getQueriesData<IssueListItem[]>({
-        queryKey: listKey,
-      });
+      const previousLists = updateIssueListCaches(
+        queryClient,
+        vault,
+        (issue) =>
+          issue.id === id ? toListItem({ ...issue, ...patch }) : issue,
+      );
       const previousDetail =
         queryClient.getQueryData<UpdateIssueResult>(detailKey);
-
-      queryClient.setQueriesData<IssueListItem[]>(
-        { queryKey: listKey },
-        (current) =>
-          current?.map((issue) =>
-            issue.id === id ? toListItem({ ...issue, ...patch }) : issue,
-          ),
-      );
 
       // Spread `current` so `commit_hash` (the OCC base) survives the optimistic
       // patch — mutationFn reads it back as expected_commit (REEF-227).
@@ -178,9 +170,8 @@ export function useUpdateIssue(options: UseUpdateIssueOptions = {}) {
       // normalizer mirrors the patched item into the store so the migrated
       // list rows update granularly.
       queryClient.setQueryData(["issues", "detail", vault, id], data);
-      queryClient.setQueriesData<IssueListItem[]>(
-        { queryKey: ["issues", "list", vault] },
-        (current) => current?.map((issue) => (issue.id === id ? item : issue)),
+      updateIssueListCaches(queryClient, vault, (issue) =>
+        issue.id === id ? item : issue,
       );
 
       // Avoid blanket invalidation (REEF-098). The in-place patch above supplies

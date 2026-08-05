@@ -22,7 +22,7 @@ import { useEffect, useState } from "react";
 // v5 (REEF-098): issue list/detail caches now feed a normalized entity store
 // that is the render source for board/list rows; bump once so a stale snapshot
 // does not render against the old read path (one blank reload is accepted).
-const PERSIST_BUSTER = "reef-cache-v5";
+const PERSIST_BUSTER = "reef-cache-v6";
 
 /**
  * Default staleTime / gcTime applied to every query.

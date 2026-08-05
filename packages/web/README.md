@@ -191,8 +191,8 @@ corepack pnpm --filter @reef/web run test:e2e:runner -- \
 ```
 
 The input directory contains only `scenario.json`; credentials stay in named
-environment variables. The currently supported `global-search-content`
-scenario is deliberately narrow and uses the same search behavior exercised by
+environment variables. The `global-search-content` scenario is deliberately
+narrow and uses the same search behavior exercised by
 `content-search.hermetic.spec.ts`:
 
 ```json
@@ -220,6 +220,43 @@ scenario is deliberately narrow and uses the same search behavior exercised by
 }
 ```
 
+The `large-issue-list` scenario uses the same single runner to exercise the
+five independent List clauses (B1 initial/cursor loading, B2 failure-retry and
+sparse residual filtering, B3 offscreen keyboard focus, B4 loaded selection and
+persisted quick edit, and B5 hard-load CLS plus a finite sibling view). It also
+receives the fixture origin so reset and failure controls are used only for
+case setup; the behavior report records B1 through B5 separately:
+
+```json
+{
+  "schema_version": 1,
+  "scenario": "large-issue-list",
+  "clause_id": "large-list-virtualization",
+  "target_url": "https://reef-candidate.test",
+  "fixture_origin": "https://reef-fixture.test",
+  "workspace": "reef-e2e",
+  "credentials": {
+    "username_env": "REEF_E2E_USERNAME",
+    "password_env": "REEF_E2E_PASSWORD"
+  },
+  "expected": {
+    "focus_issue_id": "REEF-0101",
+    "keyboard_steps": 99,
+    "max_mounted_rows": 50,
+    "min_scroll_height": 3000,
+    "selection_issue_ids": ["REEF-0101", "REEF-0102"],
+    "quick_edit_issue_id": "REEF-0101",
+    "quick_edit_label": "large-fixture",
+    "max_anchor_delta": 240,
+    "sparse_filter": "tail-marker",
+    "sparse_issue_id": "REEF-1124",
+    "sparse_issue_title": "Sparse residual match",
+    "cls_budget": 0.1,
+    "sibling_view": "board"
+  }
+}
+```
+
 Execute the artifact with `--input-dir`, `--output-dir`, and the full
 `--candidate-head`. It writes private `behavior-report.json`,
 `redacted-transcript.jsonl`, screenshot, and accessibility evidence. In a clean
@@ -227,7 +264,12 @@ Playwright image it installs the pinned `@playwright/test@1.59.1` runtime via
 `corepack pnpm`; set `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright` when using the
 matching official image. Record the artifact SHA-256 and trusted source commit
 separately from the candidate SHA. External orchestration owns container policy
-and read-only mounts. This runner does not replace `test:e2e:sharded`.
+and read-only mounts. Every run keeps the clause report shape and records a
+top-level `reason`: `null` for pass/fail results, or a reason such as
+`blocked_tooling`, `blocked_runtime`, or `blocked_external_auth` for blocked
+results. The portable login probe uses the password escape hatch so
+credential-backed validation remains available when the runtime presents SSO
+first. This runner does not replace `test:e2e:sharded`.
 
 For a faster local full run, use:
 

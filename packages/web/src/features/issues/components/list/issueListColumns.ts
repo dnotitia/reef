@@ -27,3 +27,10 @@ export const COLUMN_KEYS = [
   "updated",
   null,
 ] as const;
+
+// Fixed column hints keep the table geometry stable while only the mounted
+// virtual rows change. The total is intentionally wider than a narrow viewport;
+// the existing horizontal table scroll remains the way to reach planning fields.
+export const COLUMN_WIDTHS = [
+  40, 96, 80, 320, 104, 96, 144, 112, 112, 144, 144, 144, 128, 48,
+] as const;

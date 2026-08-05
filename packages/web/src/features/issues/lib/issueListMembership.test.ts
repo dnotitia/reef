@@ -1,6 +1,7 @@
 // @vitest-environment node
 import type { IssueUpdatePatch } from "@reef/core";
 import { describe, expect, it } from "vitest";
+import { issueListInfiniteKey } from "./issueListCache";
 import {
   changedListMembershipKeys,
   listInvalidationPredicate,
@@ -173,6 +174,18 @@ describe("listInvalidationPredicate", () => {
       const predicate = listInvalidationPredicate({ status: "done" });
       expect(
         predicate(key({ default_view: "true", sort_field: "priority" })),
+      ).toBe(true);
+    });
+
+    it("applies the same facet predicate to the infinite list key", () => {
+      const predicate = listInvalidationPredicate({ status: "done" });
+      expect(
+        predicate({
+          queryKey: issueListInfiniteKey("reef-acme", {
+            status: ["todo"],
+            sort_field: "created_at",
+          }),
+        }),
       ).toBe(true);
     });
   });

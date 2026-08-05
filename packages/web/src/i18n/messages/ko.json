@@ -1138,6 +1138,8 @@
     },
     "list": {
       "loadError": "이슈를 불러오지 못했습니다.",
+      "loadingMore": "이슈를 더 불러오는 중…",
+      "loadMoreError": "이슈를 더 불러오지 못했습니다.",
       "noMatches": "필터와 일치하는 이슈가 없습니다.",
       "emptyWorkspace": "워크스페이스가 비어 있습니다. 어떤 작업을 하고 계신가요?"
     },

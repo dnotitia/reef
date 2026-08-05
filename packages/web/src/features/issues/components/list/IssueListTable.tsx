@@ -10,14 +10,18 @@ import {
 } from "@/components/ui/table";
 import { IssueListRow } from "@/features/issues/components/list/IssueListRow";
 import { IssueListSkeleton } from "@/features/issues/components/list/IssueListSkeleton";
-import { COLUMN_KEYS } from "@/features/issues/components/list/issueListColumns";
+import {
+  COLUMN_KEYS,
+  COLUMN_WIDTHS,
+} from "@/features/issues/components/list/issueListColumns";
 import { IssueSelectionCheckbox } from "@/features/issues/components/shared/IssueSelectionCheckbox";
-import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
+import { useInfiniteIssueList } from "@/features/issues/hooks/queries/useInfiniteIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
 import { useResolvedAutoHideWindows } from "@/features/issues/hooks/useResolvedAutoHideWindows";
 import { useOpenIssue } from "@/features/issues/hooks/view/useOpenIssue";
 import { buildIssueQuery } from "@/features/issues/lib/buildIssueQuery";
 import { applyDependencyFilter } from "@/features/issues/lib/dependencyUtils";
+import { flattenIssueListPages } from "@/features/issues/lib/issueListCache";
 import {
   filterIssues,
   searchIssues,
@@ -30,25 +34,64 @@ import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
-import { DURATION_BASE, EASE_SIGNATURE } from "@/lib/motionTokens";
-import { useAutoAnimate } from "@formkit/auto-animate/react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslations } from "next-intl";
-import { useEffect, useMemo } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+} from "react";
 
-const EMPTY_ISSUES: never[] = [];
+const LIST_ROW_HEIGHT = 40;
+const LIST_HEADER_HEIGHT = 32;
+const VIRTUAL_OVERSCAN = 8;
+const LOAD_AHEAD_COUNT = 8;
+const FALLBACK_RENDER_COUNT = 12;
 
 interface IssueListTableProps {
   vault: string;
 }
 
+function IssueListColumnGroup() {
+  return (
+    <colgroup>
+      {COLUMN_WIDTHS.map((width, index) => (
+        <col
+          key={
+            index === 0
+              ? "selection"
+              : index === COLUMN_KEYS.length - 1
+                ? "actions"
+                : COLUMN_KEYS[index]
+          }
+          style={{ width }}
+        />
+      ))}
+    </colgroup>
+  );
+}
+
+function SpacerRow({ height }: { height: number }) {
+  if (height <= 0) return null;
+  return (
+    <tr className="pointer-events-none">
+      <td
+        colSpan={COLUMN_KEYS.length}
+        className="border-0 p-0"
+        style={{ height }}
+      />
+    </tr>
+  );
+}
+
 /**
- * Table view body for the issues workspace. Self-contained: owns its own
- * data fetch, filter/search/sort projection, and loading/error/empty states.
- * The surrounding chrome (PageHeader, ViewSwitcher, IssueFilterToolbar,
- * vault-empty state) is owned by IssuesWorkspace.
+ * Table view body for the issues workspace. The list is the one user-facing
+ * infinite surface; board/backlog/timeline/report consumers keep their finite
+ * `useIssueList` query and data shape.
  */
 export function IssueListTable({ vault }: IssueListTableProps) {
-  // Granular Zustand selectors (does not whole store)
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
   const openIssue = useOpenIssue();
@@ -58,37 +101,29 @@ export function IssueListTable({ vault }: IssueListTableProps) {
   const bulk = useTranslations("issues.bulk");
   const selectedIds = useIssueSelectionStore((state) => state.selectedIds);
   const selectionRunning = useIssueSelectionStore((state) => state.running);
-  // FLIP the rows into place when the sort/filter projection reorders them,
-  // instead of swapping content under fixed positions. Honors
-  // prefers-reduced-motion by default.
-  const [rowsRef] = useAutoAnimate<HTMLTableSectionElement>({
-    duration: DURATION_BASE,
-    easing: EASE_SIGNATURE,
-  });
+  const scrollElementRef = useRef<HTMLDivElement | null>(null);
+  const anchorRef = useRef<{ id: string; offset: number } | null>(null);
 
-  // Server-side narrows the transfer (facets + free-text search); the client
-  // pipeline still applies due/label/dependency residuals + sort. The
-  // whole-vault relation projection backs blocker badges + the dependency
-  // filter over the filtered subset.
   const query = useMemo(
     () => buildIssueQuery(filter, searchQuery),
     [filter, searchQuery],
   );
-  // isPending (not isLoading) — see useActiveVault for the rationale.
   const {
-    data: issues,
+    data,
     isPending,
     isFetching,
     isError,
     refetch,
-  } = useIssueList(vault, query);
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+  } = useInfiniteIssueList(vault, query);
   const staleWindowDays = useResolvedAutoHideWindows(vault);
   const { data: relations } = useIssueRelations(vault);
   const { data: planningCatalog } = usePlanningCatalog(vault);
 
-  const allIssues = issues ?? EMPTY_ISSUES;
-  // Dependency graph: prefer the whole-vault relation projection; fall back to
-  // the displayed set until it loads (or in tests without a relations mock).
+  const allIssues = useMemo(() => flattenIssueListPages(data), [data]);
   const graph = relations ?? allIssues;
   const sorted = useMemo(() => {
     const filtered = filterIssues(allIssues, filter, {
@@ -107,16 +142,11 @@ export function IssueListTable({ vault }: IssueListTableProps) {
     () => sorted.map((issue) => issue.id),
     [sorted],
   );
+  const selectedIssueId = useIssueKeyboardStore(
+    (state) => state.focusedIssueId.list,
+  );
+  const focusRequest = useIssueKeyboardStore((state) => state.focusRequest);
   const selectAllState = loadedSelectionState(selectedIds, visibleIssueIds);
-  useEffect(() => {
-    useIssueKeyboardStore
-      .getState()
-      .setVisibleIssueIds("list", visibleIssueIds);
-    return () => {
-      useIssueKeyboardStore.getState().setVisibleIssueIds("list", []);
-    };
-  }, [visibleIssueIds]);
-
   const hasActiveFilters = !!(
     filter.status?.length ||
     filter.issueType?.length ||
@@ -133,26 +163,185 @@ export function IssueListTable({ vault }: IssueListTableProps) {
     searchQuery
   );
 
+  const virtualizer = useVirtualizer({
+    count: sorted.length,
+    getScrollElement: () => scrollElementRef.current,
+    estimateSize: () => LIST_ROW_HEIGHT,
+    getItemKey: (index) => sorted[index]?.id ?? index,
+    overscan: VIRTUAL_OVERSCAN,
+    scrollMargin: LIST_HEADER_HEIGHT,
+  });
+  const virtualItems = virtualizer.getVirtualItems();
+  const lastVirtualIndex = virtualItems.at(-1)?.index ?? -1;
+  const focusedIssueIndex = selectedIssueId
+    ? visibleIssueIds.indexOf(selectedIssueId)
+    : -1;
+
+  const captureAnchor = useCallback(() => {
+    const firstItem = virtualizer.getVirtualItems()[0];
+    const firstIssue = firstItem ? sorted[firstItem.index] : undefined;
+    anchorRef.current = firstIssue
+      ? {
+          id: firstIssue.id,
+          offset: (virtualizer.scrollOffset ?? 0) - firstItem.start,
+        }
+      : null;
+  }, [sorted, virtualizer]);
+
+  useEffect(() => {
+    useIssueKeyboardStore
+      .getState()
+      .setVisibleIssueIds("list", visibleIssueIds);
+  }, [visibleIssueIds]);
+
+  useEffect(() => {
+    return () => {
+      useIssueKeyboardStore.getState().setVisibleIssueIds("list", []);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (
+      !hasNextPage ||
+      isFetchingNextPage ||
+      isFetchNextPageError ||
+      isPending ||
+      isError
+    ) {
+      return;
+    }
+    const nearProjectionEnd =
+      sorted.length === 0 ||
+      lastVirtualIndex >= Math.max(0, sorted.length - LOAD_AHEAD_COUNT);
+    const focusedAtProjectionEnd =
+      focusedIssueIndex >= 0 && focusedIssueIndex >= sorted.length - 1;
+    if (nearProjectionEnd || focusedAtProjectionEnd) {
+      void fetchNextPage();
+    }
+  }, [
+    fetchNextPage,
+    focusedIssueIndex,
+    hasNextPage,
+    isError,
+    isFetchNextPageError,
+    isFetchingNextPage,
+    isPending,
+    lastVirtualIndex,
+    sorted.length,
+  ]);
+
+  useEffect(() => {
+    if (focusRequest?.scope !== "list") return;
+    const index = visibleIssueIds.indexOf(focusRequest.issueId);
+    if (index >= 0) {
+      virtualizer.scrollToIndex(index, { align: "auto" });
+    }
+  }, [focusRequest, visibleIssueIds, virtualizer]);
+
+  useEffect(() => {
+    const scrollElement = scrollElementRef.current;
+    if (!scrollElement) return;
+    captureAnchor();
+    scrollElement.addEventListener("scroll", captureAnchor, { passive: true });
+    return () => scrollElement.removeEventListener("scroll", captureAnchor);
+  }, [captureAnchor]);
+
+  // Capture the top logical row before a membership/order update and restore its
+  // offset after the virtual range is recalculated. This keeps a quick edit from
+  // returning a deep list to the top while the focused row is kept addressable.
+  useLayoutEffect(() => {
+    const previousAnchor = anchorRef.current;
+    if (previousAnchor) {
+      const nextIndex = visibleIssueIds.indexOf(previousAnchor.id);
+      if (nextIndex >= 0) {
+        const nextOffset = virtualizer.getOffsetForIndex(nextIndex, "start");
+        if (nextOffset) {
+          virtualizer.scrollToOffset(nextOffset[0] + previousAnchor.offset);
+        }
+      }
+    }
+
+    captureAnchor();
+  }, [
+    captureAnchor,
+    visibleIssueIds,
+    virtualizer.getOffsetForIndex,
+    virtualizer.scrollToOffset,
+  ]);
+
+  const fallbackCount = Math.min(sorted.length, FALLBACK_RENDER_COUNT);
+  const renderedIndexes =
+    virtualItems.length > 0
+      ? virtualItems.map((item) => item.index)
+      : Array.from({ length: fallbackCount }, (_, index) => index);
+  const firstVirtualItem = virtualItems[0];
+  const lastVirtualItem = virtualItems.at(-1);
+  const totalSize =
+    virtualizer.getTotalSize() ||
+    LIST_HEADER_HEIGHT + sorted.length * LIST_ROW_HEIGHT;
+  const topSpacerHeight = firstVirtualItem
+    ? Math.max(0, firstVirtualItem.start - LIST_HEADER_HEIGHT)
+    : 0;
+  const fallbackLastEnd = LIST_HEADER_HEIGHT + fallbackCount * LIST_ROW_HEIGHT;
+  const bottomSpacerHeight = Math.max(
+    0,
+    totalSize - (lastVirtualItem?.end ?? fallbackLastEnd),
+  );
+  const initialLoadError = isError && !data?.pages.length;
+  const showTable =
+    sorted.length > 0 ||
+    hasNextPage === true ||
+    isFetchingNextPage ||
+    isFetchNextPageError;
+
+  const tableHeader = (
+    <TableHeader>
+      <TableRow>
+        {COLUMN_KEYS.map((key, index) => (
+          <TableHead key={`${key ?? "empty"}-${index}`}>
+            {index === 0 ? (
+              <IssueSelectionCheckbox
+                checked={selectAllState === "checked"}
+                indeterminate={selectAllState === "mixed"}
+                disabled={selectionRunning}
+                label={bulk("selectAllLoaded")}
+                testId="issue-select-all"
+                onChange={() =>
+                  useIssueSelectionStore
+                    .getState()
+                    .toggleAllLoaded(visibleIssueIds)
+                }
+              />
+            ) : key ? (
+              columnLabels[key]
+            ) : (
+              ""
+            )}
+          </TableHead>
+        ))}
+      </TableRow>
+    </TableHeader>
+  );
+
   return (
-    <PageBody pad="compact">
-      {/* Refetch hairline pinned to the list's top edge. The skeleton owns the
-          first-load signal; this appears during refetches (REEF-369). */}
+    <PageBody pad="compact" className="h-full min-h-0 overflow-hidden">
       <div className="pointer-events-none sticky top-0 z-10 h-0 overflow-visible">
         <SearchProgressBar
-          active={isFetching && !isPending}
+          active={isFetching && !isPending && !isFetchingNextPage}
           className="top-0 bottom-auto"
         />
       </div>
       {isPending ? (
         <Table>
+          <IssueListColumnGroup />
           <TableHeader>
             <TableRow>
               {COLUMN_KEYS.map((key, index) => (
                 <TableHead key={`${key ?? "empty"}-${index}`}>
                   {index === 0 ? (
                     <IssueSelectionCheckbox
-                      checked={selectAllState === "checked"}
-                      indeterminate={selectAllState === "mixed"}
+                      checked={false}
+                      indeterminate={false}
                       disabled
                       label={bulk("selectAllLoaded")}
                       onChange={() => {}}
@@ -170,8 +359,8 @@ export function IssueListTable({ vault }: IssueListTableProps) {
             <IssueListSkeleton />
           </TableBody>
         </Table>
-      ) : isError ? (
-        <div className="flex flex-col items-center justify-center py-12 gap-3">
+      ) : initialLoadError ? (
+        <div className="flex flex-col items-center justify-center gap-3 py-12">
           <p className="text-sm text-muted-foreground">{t("loadError")}</p>
           <button
             type="button"
@@ -181,8 +370,8 @@ export function IssueListTable({ vault }: IssueListTableProps) {
             {common("retry")}
           </button>
         </div>
-      ) : sorted.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 gap-3">
+      ) : !showTable ? (
+        <div className="flex flex-col items-center justify-center gap-3 py-12">
           {hasActiveFilters ? (
             <>
               <p className="text-sm text-muted-foreground">{t("noMatches")}</p>
@@ -203,48 +392,63 @@ export function IssueListTable({ vault }: IssueListTableProps) {
           )}
         </div>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              {COLUMN_KEYS.map((key, index) => (
-                <TableHead key={`${key ?? "empty"}-${index}`}>
-                  {index === 0 ? (
-                    <IssueSelectionCheckbox
-                      checked={selectAllState === "checked"}
-                      indeterminate={selectAllState === "mixed"}
-                      disabled={selectionRunning}
-                      label={bulk("selectAllLoaded")}
-                      testId="issue-select-all"
-                      onChange={() =>
-                        useIssueSelectionStore
-                          .getState()
-                          .toggleAllLoaded(visibleIssueIds)
-                      }
-                    />
-                  ) : key ? (
-                    columnLabels[key]
-                  ) : (
-                    ""
-                  )}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody ref={rowsRef}>
-            {sorted.map((issue) => (
-              <IssueListRow
-                key={issue.id}
-                issue={issue}
-                vault={vault}
-                allIssues={graph}
-                planningCatalog={planningCatalog}
-                highlightQuery={searchQuery}
-                logicalIds={visibleIssueIds}
-                onClick={openIssue}
-              />
-            ))}
-          </TableBody>
-        </Table>
+        <div
+          ref={scrollElementRef}
+          className="h-full min-w-0 overflow-auto overscroll-contain"
+          data-testid="issue-list-scroll-container"
+        >
+          <Table>
+            <IssueListColumnGroup />
+            {tableHeader}
+            <TableBody>
+              <SpacerRow height={topSpacerHeight} />
+              {renderedIndexes.map((index) => {
+                const issue = sorted[index];
+                if (!issue) return null;
+                return (
+                  <IssueListRow
+                    key={issue.id}
+                    issue={issue}
+                    vault={vault}
+                    allIssues={graph}
+                    planningCatalog={planningCatalog}
+                    highlightQuery={searchQuery}
+                    logicalIds={visibleIssueIds}
+                    onClick={openIssue}
+                  />
+                );
+              })}
+              <SpacerRow height={bottomSpacerHeight} />
+              {sorted.length === 0 && isFetchingNextPage && (
+                <tr>
+                  <td colSpan={COLUMN_KEYS.length} className="px-3 py-4">
+                    <output className="text-sm text-muted-foreground">
+                      {t("loadingMore")}
+                    </output>
+                  </td>
+                </tr>
+              )}
+              {isFetchNextPageError && (
+                <tr>
+                  <td colSpan={COLUMN_KEYS.length} className="px-3 py-4">
+                    <div className="flex items-center gap-3" role="alert">
+                      <span className="text-sm text-muted-foreground">
+                        {t("loadMoreError")}
+                      </span>
+                      <button
+                        type="button"
+                        className="rounded-md border border-border bg-elevated px-3 py-1.5 text-[13px] font-medium text-foreground transition-colors duration-150 hover:bg-surface-hover"
+                        onClick={() => fetchNextPage()}
+                      >
+                        {common("retry")}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       )}
     </PageBody>
   );
