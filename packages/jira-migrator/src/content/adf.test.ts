@@ -1,3 +1,4 @@
+import { extractMentionUsernames, formatMentionToken } from "@reef/core";
 import { describe, expect, it } from "vitest";
 import { createJiraAccountMappingArtifact } from "../accounts/mapping.js";
 import { convertAdfToMarkdown } from "./adf.js";
@@ -70,7 +71,7 @@ describe("ADF to Markdown", () => {
       },
     );
     expect(result.markdown).toContain(
-      "first [**linked**](https://example.test) then @reef\\-alice  \n✅",
+      "first [**linked**](https://example.test) then @{reef-alice}  \n✅",
     );
     expect(result.markdown).toContain("- [x] ship");
     expect(result.reports).toContainEqual(
@@ -79,6 +80,139 @@ describe("ADF to Markdown", () => {
         reason: "mention_actor:override",
       }),
     );
+  });
+
+  it("serializes exact-case member mentions with the shared canonical grammar", () => {
+    const unsafeActor = String.raw`team@ops\blue}`;
+    const result = convertAdfToMarkdown(
+      {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              { type: "mention", attrs: { id: "safe", text: "@safe" } },
+              { type: "text", text: " " },
+              {
+                type: "mention",
+                attrs: { id: "space", text: "@display" },
+              },
+              { type: "text", text: " " },
+              {
+                type: "mention",
+                attrs: { id: "unsafe", text: "@display" },
+              },
+            ],
+          },
+        ],
+      },
+      {
+        accountMapping: {
+          artifact: createJiraAccountMappingArtifact({
+            jiraCloudId: "cloud",
+            overrides: {
+              safe: { actor: "alice42" },
+              space: { actor: "Alice Smith" },
+              unsafe: { actor: unsafeActor },
+            },
+          }),
+        },
+        memberActors: ["alice42", "Alice Smith", unsafeActor],
+      },
+    );
+
+    expect(result.markdown).toBe(
+      `@alice42 @{Alice Smith} ${formatMentionToken(unsafeActor)}`,
+    );
+    expect(
+      result.reports.filter(({ nodeType }) => nodeType === "mention"),
+    ).toHaveLength(3);
+  });
+
+  it("downgrades mapped non-members without leaking account identity", () => {
+    const result = convertAdfToMarkdown(
+      {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              {
+                type: "mention",
+                attrs: {
+                  id: "acct-private-123",
+                  text: "@Private Display Name",
+                },
+              },
+            ],
+          },
+        ],
+      },
+      {
+        accountMapping: {
+          artifact: createJiraAccountMappingArtifact({
+            jiraCloudId: "cloud",
+            overrides: {
+              "acct-private-123": {
+                actor: "private.actor@example.com",
+              },
+            },
+          }),
+        },
+        memberActors: ["allowed-actor"],
+      },
+    );
+
+    expect(result.markdown).toBe("@jira\\-user");
+    expect(JSON.stringify(result)).not.toContain("acct-private-123");
+    expect(JSON.stringify(result)).not.toContain("private.actor@example.com");
+    expect(JSON.stringify(result)).not.toContain("Private Display Name");
+    expect(result.reports).toContainEqual(
+      expect.objectContaining({
+        classification: "preserved",
+        reason: "mention_actor_non_member",
+      }),
+    );
+  });
+
+  it("does not extract mentions from mixed Markdown-owned regions", () => {
+    const result = convertAdfToMarkdown(
+      {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              { type: "text", text: "email a@b.example and " },
+              {
+                type: "text",
+                text: "\\@escaped @inline",
+                marks: [{ type: "code" }],
+              },
+              {
+                type: "text",
+                text: "link",
+                marks: [
+                  { type: "link", attrs: { href: "https://x.test/@link" } },
+                ],
+              },
+              { type: "text", text: " and " },
+              { type: "mention", attrs: { id: "acct-1", text: "@Alice" } },
+            ],
+          },
+        ],
+      },
+      {
+        accountMapping: {
+          artifact: createJiraAccountMappingArtifact({
+            jiraCloudId: "cloud",
+            overrides: { "acct-1": { actor: "alice" } },
+          }),
+        },
+      },
+    );
+
+    expect(extractMentionUsernames(result.markdown)).toEqual(["alice"]);
   });
 
   it("uses a non-identifying placeholder for an unmapped mention", () => {

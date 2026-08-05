@@ -440,12 +440,18 @@ export async function reconcileJiraImportedComment(
       comment_id: input.commentId,
     },
     async () => {
+      const mentionRecipients = await resolveMentionRecipients(
+        adapter,
+        vault,
+        input.body,
+      );
       await ensureReefTables({ adapter, vault });
       const migrationMeta = {
         author: input.author,
         created_at: input.createdAt,
         edited_at: input.editedAt,
         jira_idempotency_key: input.idempotencyKey,
+        mention_recipients: mentionRecipients,
       };
       const res = await runSql(
         adapter,

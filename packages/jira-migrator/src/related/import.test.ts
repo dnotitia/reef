@@ -256,6 +256,7 @@ const makeTarget = () => {
         author: input.author,
         created_at: input.createdAt,
         edited_at: input.editedAt,
+        mention_recipients: [...(input.mentionRecipients ?? [])],
         parent_comment_id: input.parentCommentId ?? null,
         thread_root_id: parent ? (parent.thread_root_id ?? parent.id) : null,
       };
@@ -274,6 +275,7 @@ const makeTarget = () => {
         author: input.author,
         created_at: input.createdAt,
         edited_at: input.editedAt,
+        mention_recipients: [...(input.mentionRecipients ?? [])],
         parent_comment_id: input.parentCommentId ?? null,
         thread_root_id: parent ? (parent.thread_root_id ?? parent.id) : null,
       };
@@ -914,6 +916,7 @@ describe("Jira related-data import stage", () => {
         jiraCloudId: "cloud-1",
         overrides: { "acct-1": { actor: "reef-alice" } },
       }),
+      memberActors: ["reef-alice"],
       linkMappings: [],
       resolveIssueTarget: () => null,
       mode: "apply",
@@ -921,9 +924,141 @@ describe("Jira related-data import stage", () => {
 
     expect(applied.report.failures).toEqual([]);
     expect(state.comments.get(rootId)?.body).toBe(
-      "@reef\\-alice and @jira\\-user",
+      "@{reef-alice} and @jira\\-user",
     );
     expect(state.comments.get(rootId)?.body).not.toContain("Private User");
+    expect(state.comments.get(rootId)?.mention_recipients).toEqual([
+      "reef-alice",
+    ]);
+
+    const legacy = state.comments.get(rootId);
+    if (!legacy) throw new Error("expected imported mention comment");
+    state.comments.set(rootId, {
+      ...legacy,
+      body: "@reef\\-alice and @jira\\-user",
+      mention_recipients: [],
+    });
+    const reconciled = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client: makeClient([], false, false, false, false, false, mentionBody),
+      target: state.target,
+      ledger: applied.ledger,
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+        overrides: { "acct-1": { actor: "reef-alice" } },
+      }),
+      memberActors: ["reef-alice"],
+      linkMappings: [],
+      resolveIssueTarget: () => null,
+      mode: "apply",
+    });
+    expect(reconciled.report.comments).toMatchObject({
+      created: 0,
+      updated: 1,
+      skipped: 1,
+    });
+    expect(state.comments.get(rootId)?.body).toBe(
+      "@{reef-alice} and @jira\\-user",
+    );
+    expect(state.comments.get(rootId)?.mention_recipients).toEqual([
+      "reef-alice",
+    ]);
+  });
+
+  it("fails closed for an unresolved plain-text mention before target mutation", async () => {
+    const state = makeTarget();
+    const result = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client: makeClient(
+        [],
+        false,
+        false,
+        false,
+        false,
+        false,
+        "hello @missing",
+      ),
+      target: state.target,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      memberActors: ["allowed"],
+      linkMappings: [],
+      resolveIssueTarget: () => null,
+      mode: "apply",
+    });
+
+    expect(state.comments.size).toBe(0);
+    expect(result.report.failures).toContainEqual(
+      expect.objectContaining({
+        source_kind: "comment",
+        phase: "resolve",
+        reason: "comment_import_failed",
+      }),
+    );
+  });
+
+  it("does not serialize a mapped non-member or its source identity", async () => {
+    const state = makeTarget();
+    const mentionBody = {
+      type: "doc",
+      version: 1,
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "mention",
+              attrs: {
+                id: "acct-private-123",
+                text: "@Private Display Name",
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const result = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client: makeClient([], false, false, false, false, false, mentionBody),
+      target: state.target,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+        overrides: {
+          "acct-private-123": { actor: "private.actor@example.com" },
+        },
+      }),
+      memberActors: ["allowed"],
+      linkMappings: [],
+      resolveIssueTarget: () => null,
+      mode: "apply",
+    });
+
+    expect(result.report.failures).toEqual([]);
+    expect(state.comments.get(rootId)?.body).toBe("@jira\\-user");
+    expect(state.comments.get(rootId)?.mention_recipients).toEqual([]);
+    expect(JSON.stringify(result.report)).not.toContain("acct-private-123");
+    expect(JSON.stringify(result.report)).not.toContain(
+      "private.actor@example.com",
+    );
+    expect(JSON.stringify(result.report)).not.toContain("Private Display Name");
   });
 
   it("dry-runs a stale threaded root with a synthetic replacement parent", async () => {

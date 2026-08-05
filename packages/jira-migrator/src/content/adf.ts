@@ -1,3 +1,4 @@
+import { formatMentionToken } from "@reef/core";
 import {
   type JiraAccountMappingArtifact,
   type ReefActorDirectoryEntry,
@@ -37,6 +38,8 @@ export interface AdfToMarkdownOptions {
     artifact: JiraAccountMappingArtifact;
     directory?: readonly ReefActorDirectoryEntry[];
   };
+  /** Exact-case target-vault roster used to gate canonical comment mentions. */
+  memberActors?: readonly string[];
   descriptionRawArchiveReference?: RawArchiveReference;
   mediaRawArchiveReferences?: Readonly<Record<string, RawArchiveReference>>;
 }
@@ -527,18 +530,26 @@ function renderNode(
         context.options.accountMapping,
       );
       const hasSafeActor =
-        mapped.actor !== null && mapped.strategy !== "fallback";
+        mapped.actor !== null &&
+        mapped.strategy !== "fallback" &&
+        (context.options.memberActors === undefined ||
+          context.options.memberActors.includes(mapped.actor));
       context.reports.push({
         classification: hasSafeActor ? "mapped" : "preserved",
         path,
         nodeType: "mention",
         reason: hasSafeActor
           ? `mention_actor:${mapped.strategy}`
-          : "mention_unmapped",
+          : mapped.actor !== null &&
+              mapped.strategy !== "fallback" &&
+              context.options.memberActors !== undefined
+            ? "mention_actor_non_member"
+            : "mention_unmapped",
       });
-      return hasSafeActor
-        ? escapeInlineSourceText(`@${mapped.actor}`)
-        : "@jira\\-user";
+      if (hasSafeActor && mapped.actor !== null) {
+        return formatMentionToken(mapped.actor);
+      }
+      return "@jira\\-user";
     }
     case "inlineCard":
     case "blockCard": {

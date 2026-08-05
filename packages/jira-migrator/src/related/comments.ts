@@ -23,15 +23,28 @@ export const jiraCommentVisibility = (
 export const validCommentReadback = (
   readback: Comment | null,
   expected: JiraImportedCommentInput,
-): boolean =>
-  readback !== null &&
-  readback.reef_id === expected.reefId &&
-  readback.body === expected.body &&
-  readback.author === expected.author &&
-  readback.created_at === expected.createdAt &&
-  readback.edited_at === expected.editedAt &&
-  readback.parent_comment_id === (expected.parentCommentId ?? null) &&
-  readback.thread_root_id === expected.expectedThreadRootId;
+): boolean => {
+  if (
+    readback === null ||
+    readback.reef_id !== expected.reefId ||
+    readback.body !== expected.body ||
+    readback.author !== expected.author ||
+    readback.created_at !== expected.createdAt ||
+    readback.edited_at !== expected.editedAt ||
+    readback.parent_comment_id !== (expected.parentCommentId ?? null) ||
+    readback.thread_root_id !== expected.expectedThreadRootId
+  ) {
+    return false;
+  }
+  if (expected.mentionRecipients === undefined) return true;
+  const actual = readback.mention_recipients ?? [];
+  return (
+    actual.length === expected.mentionRecipients.length &&
+    actual.every(
+      (recipient, index) => recipient === expected.mentionRecipients?.[index],
+    )
+  );
+};
 
 export const revokeCommentTargets = async (
   target: JiraRelatedImportTarget,

@@ -89,4 +89,31 @@ describe("related operation approval identities", () => {
       relatedOperation("create_comment", "comment-key", dry),
     );
   });
+
+  it("binds the expected mention projection into the approval fingerprint", () => {
+    const input = (mentionRecipients: readonly string[]) => ({
+      idempotencyKey: "comment-key",
+      reefId: "REEF-001",
+      body: "hello @alice",
+      author: "jira-import",
+      createdAt: "2026-07-23T00:00:00.000Z",
+      editedAt: null,
+      mentionRecipients,
+      expectedThreadRootId: null,
+    });
+
+    expect(
+      relatedOperation(
+        "create_comment",
+        "comment-key",
+        commentOperationInput(input(["alice"]), null),
+      ),
+    ).not.toEqual(
+      relatedOperation(
+        "create_comment",
+        "comment-key",
+        commentOperationInput(input(["bob"]), null),
+      ),
+    );
+  });
 });

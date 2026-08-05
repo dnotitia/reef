@@ -294,5 +294,6 @@ export async function discoverJiraMigrationSource(input: {
     commentsByIssue,
     accountMapping,
     accountReport,
+    memberActors,
   };
 }

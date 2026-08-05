@@ -1,3 +1,4 @@
+import { buildMentionRecipients, extractMentionUsernames } from "@reef/core";
 import { mapJiraCommentActor } from "../accounts/mapping.js";
 import { convertAdfToMarkdown } from "../content/adf.js";
 import { fingerprintJiraState } from "../execution/diff.js";
@@ -67,6 +68,9 @@ export async function importComments(options: {
       artifact: migration.accountMapping,
       directory: migration.actorDirectory ?? [],
     },
+    ...(migration.memberActors !== undefined
+      ? { memberActors: migration.memberActors }
+      : {}),
   };
   const roots = comments.filter((item) => item.parentId == null);
   const pendingReplies = comments.filter((item) => item.parentId != null);
@@ -140,6 +144,17 @@ export async function importComments(options: {
         commentConversionOptions,
       );
       if (!body.resolved) continue;
+      const mentionRecipients =
+        migration.memberActors === undefined
+          ? undefined
+          : buildMentionRecipients(body.markdown, migration.memberActors);
+      if (
+        mentionRecipients !== undefined &&
+        mentionRecipients.length !==
+          new Set(extractMentionUsernames(body.markdown)).size
+      ) {
+        throw new Error("comment_mention_unresolved");
+      }
       const actor = mapJiraCommentActor(comment, {
         artifact: migration.accountMapping,
         directory: migration.actorDirectory ?? [],
@@ -163,6 +178,7 @@ export async function importComments(options: {
             ? comment.updated
             : null,
         expectedThreadRootId,
+        ...(mentionRecipients !== undefined ? { mentionRecipients } : {}),
         ...(parentTargetId ? { parentCommentId: parentTargetId } : {}),
       };
       const recordCommentOperation = (
@@ -184,6 +200,7 @@ export async function importComments(options: {
         body: body.markdown,
         author: actor.actor,
         parent: parentTargetId,
+        ...(mentionRecipients !== undefined ? { mentionRecipients } : {}),
       });
       let existingTarget = getJiraCommentTargetId(
         ledger,
@@ -391,7 +408,11 @@ export async function importComments(options: {
         report.failures,
         "comment",
         comment.id,
-        String(error).includes("readback") ? "readback" : "write",
+        String(error).includes("readback")
+          ? "readback"
+          : String(error).includes("comment_mention_unresolved")
+            ? "resolve"
+            : "write",
         "comment_import_failed",
         error,
       );

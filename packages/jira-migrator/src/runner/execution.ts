@@ -816,6 +816,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
           ledger,
           bindingIndex,
           accountMapping,
+          memberActors: discovery.memberActors,
           linkMappings: policy.linkMappings,
           attachmentPolicy: config.control.commentCatalogComplete
             ? {

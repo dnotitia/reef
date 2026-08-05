@@ -67,6 +67,7 @@ export interface JiraImportedCommentInput {
   author: string;
   createdAt: string;
   editedAt: string | null;
+  mentionRecipients?: readonly string[];
   parentCommentId?: string;
   expectedThreadRootId: string | null;
 }
@@ -184,6 +185,7 @@ export interface JiraRelatedImportInput {
   bindingIndex?: JiraMigrationBindingIndex;
   accountMapping: JiraAccountMappingArtifact;
   actorDirectory?: readonly ReefActorDirectoryEntry[];
+  memberActors?: readonly string[];
   linkMappings: readonly JiraLinkMapping[];
   attachmentPolicy?: {
     commentVisibilityCompleteness?: "verified";
