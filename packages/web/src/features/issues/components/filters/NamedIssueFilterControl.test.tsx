@@ -1,5 +1,11 @@
 import "fake-indexeddb/auto";
 
+import {
+  CBX_CHEVRON,
+  CBX_TRIGGER_CHIP,
+  CBX_TRIGGER_CHIP_ACTIVE,
+  CBX_TRIGGER_CHIP_INACTIVE,
+} from "@/components/ui/comboboxChrome";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import type { Locale } from "@/i18n/locales";
@@ -53,7 +59,85 @@ async function openMenu(user: ReturnType<typeof userEvent.setup>) {
   return screen.getByTestId("named-filter-menu");
 }
 
+function expectClassTokens(
+  element: HTMLElement | SVGElement,
+  className: string,
+) {
+  for (const token of className.split(/\s+/u).filter(Boolean)) {
+    expect(element).toHaveClass(token);
+  }
+}
+
 describe("NamedIssueFilterControl", () => {
+  it("uses the shared inactive chip chrome and chevron", () => {
+    renderControl();
+    const trigger = screen.getByTestId("named-filter-trigger");
+
+    expectClassTokens(trigger, CBX_TRIGGER_CHIP);
+    expectClassTokens(trigger, CBX_TRIGGER_CHIP_INACTIVE);
+    expect(trigger).not.toHaveClass("text-xs");
+    expect(trigger).not.toHaveClass("text-foreground");
+    expect(trigger).not.toHaveClass("border-brand/40");
+    expect(screen.queryByTestId("named-filter-active-dot")).toBeNull();
+    expect(screen.queryByTestId("named-filter-changed-dot")).toBeNull();
+
+    const chevron = trigger.querySelector("svg");
+    expect(chevron).not.toBeNull();
+    if (!chevron) return;
+    expect(chevron).toHaveClass("lucide-chevron-down");
+    expectClassTokens(chevron, CBX_CHEVRON);
+    expect(chevron).toHaveAttribute("data-open", "false");
+  });
+
+  it("keeps shared active chrome while the named filter becomes changed", async () => {
+    const user = userEvent.setup();
+    useIssueStore.setState({
+      filter: { status: ["todo"] },
+      filterVault: "reef-acme",
+      searchQuery: "",
+      selectedIssueId: null,
+    });
+    renderControl();
+
+    await openMenu(user);
+    await user.click(
+      screen.getByRole("menuitem", { name: "Save current filter…" }),
+    );
+    await user.type(
+      screen.getByTestId("named-filter-name-input"),
+      "Triage view",
+    );
+    await user.click(screen.getByRole("button", { name: /^Save$/ }));
+
+    const trigger = screen.getByTestId("named-filter-trigger");
+    await waitFor(() => {
+      expect(trigger).toHaveAttribute(
+        "aria-label",
+        expect.stringContaining("Triage view"),
+      );
+      expect(screen.getByTestId("named-filter-active-dot")).toBeTruthy();
+    });
+    expectClassTokens(trigger, CBX_TRIGGER_CHIP);
+    expectClassTokens(trigger, CBX_TRIGGER_CHIP_ACTIVE);
+    expect(trigger).not.toHaveClass("border-brand/40");
+
+    useIssueStore.getState().setFilter({ status: ["in_progress"] });
+    await waitFor(() => {
+      expect(trigger).toHaveAttribute(
+        "aria-label",
+        expect.stringContaining("Changed"),
+      );
+      expect(screen.getByTestId("named-filter-changed-dot")).toBeTruthy();
+    });
+    expectClassTokens(trigger, CBX_TRIGGER_CHIP_ACTIVE);
+    expect(trigger).toHaveClass("bg-brand/10", "ring-1", "ring-brand/30");
+    expect(trigger).toHaveClass("text-foreground");
+    expect(screen.queryByTestId("named-filter-active-dot")).toBeNull();
+    expect(screen.getByTestId("named-filter-changed-dot")).toHaveClass(
+      "bg-amber-500",
+    );
+  });
+
   it("saves, applies, updates, renames, duplicates, and deletes a filter", async () => {
     const user = userEvent.setup();
     useIssueStore.setState({

@@ -2,6 +2,12 @@
 
 import { Button } from "@/components/ui/button";
 import {
+  CBX_CHEVRON,
+  CBX_TRIGGER_CHIP,
+  CBX_TRIGGER_CHIP_ACTIVE,
+  CBX_TRIGGER_CHIP_INACTIVE,
+} from "@/components/ui/comboboxChrome";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -34,7 +40,7 @@ import {
   serializeNamedIssueFilterPayload,
 } from "@reef/core";
 import {
-  Bookmark,
+  ChevronDown,
   Copy,
   LoaderCircle,
   Pencil,
@@ -45,6 +51,7 @@ import {
 import { useTranslations } from "next-intl";
 import {
   type FormEvent,
+  type RefObject,
   useCallback,
   useEffect,
   useMemo,
@@ -264,6 +271,63 @@ function NamedFilterMenu({
         {t("scopeNotice")}
       </div>
     </DropdownMenuContent>
+  );
+}
+
+interface NamedFilterTriggerProps {
+  activeChanged: boolean;
+  activeItem: NamedIssueFilter | undefined;
+  disabled: boolean;
+  triggerAria: string;
+  triggerRef: RefObject<HTMLButtonElement | null>;
+  triggerText: string;
+}
+
+function NamedFilterTrigger({
+  activeChanged,
+  activeItem,
+  disabled,
+  triggerAria,
+  triggerRef,
+  triggerText,
+}: NamedFilterTriggerProps) {
+  const { open } = useDropdownMenu();
+
+  return (
+    <DropdownMenuTrigger
+      ref={triggerRef}
+      aria-label={triggerAria}
+      className={cn(
+        CBX_TRIGGER_CHIP,
+        activeItem ? CBX_TRIGGER_CHIP_ACTIVE : CBX_TRIGGER_CHIP_INACTIVE,
+        "max-w-[18rem]",
+      )}
+      data-testid="named-filter-trigger"
+      disabled={disabled}
+    >
+      <span className="min-w-0 truncate" title={activeItem?.name}>
+        {triggerText}
+      </span>
+      {activeItem ? (
+        <span
+          className={cn(
+            "size-1.5 shrink-0 rounded-full",
+            activeChanged ? "bg-amber-500" : "bg-brand",
+          )}
+          aria-hidden="true"
+          data-testid={
+            activeChanged
+              ? "named-filter-changed-dot"
+              : "named-filter-active-dot"
+          }
+        />
+      ) : null}
+      <ChevronDown
+        data-open={open}
+        aria-hidden="true"
+        className={CBX_CHEVRON}
+      />
+    </DropdownMenuTrigger>
   );
 }
 
@@ -499,35 +563,14 @@ export function NamedIssueFilterControl() {
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger
-          ref={triggerRef}
-          aria-label={triggerAria}
-          className={cn(
-            "h-8 max-w-[18rem] gap-1.5 rounded-md border border-border bg-elevated px-2.5 text-xs text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-50",
-            activeItem && "border-brand/40",
-          )}
-          data-testid="named-filter-trigger"
+        <NamedFilterTrigger
+          activeChanged={activeChanged}
+          activeItem={activeItem}
           disabled={!vault}
-        >
-          <Bookmark aria-hidden="true" className="size-3.5 shrink-0" />
-          <span className="min-w-0 truncate" title={activeItem?.name}>
-            {triggerText}
-          </span>
-          {activeItem ? (
-            <span
-              className={cn(
-                "size-1.5 shrink-0 rounded-full",
-                activeChanged ? "bg-amber-500" : "bg-brand",
-              )}
-              aria-hidden="true"
-              data-testid={
-                activeChanged
-                  ? "named-filter-changed-dot"
-                  : "named-filter-active-dot"
-              }
-            />
-          ) : null}
-        </DropdownMenuTrigger>
+          triggerAria={triggerAria}
+          triggerRef={triggerRef}
+          triggerText={triggerText}
+        />
         <NamedFilterMenu
           actionError={actionError}
           activeChanged={activeChanged}
