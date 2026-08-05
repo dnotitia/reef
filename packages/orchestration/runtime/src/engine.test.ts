@@ -447,7 +447,7 @@ describe("executeRunPlan", () => {
   it("runs every cleanup once in LIFO order and normalizes cleanup failures", async () => {
     const plan = parsedPlan();
     const { providers } = makeRegistry(plan);
-    const secret = "cleanup-secret-prompt-payload";
+    const failureMarker = "cleanup-hidden-prompt-payload";
     const order: string[] = [];
 
     const result = await executeRunPlan(plan, providers, (context) => {
@@ -456,7 +456,7 @@ describe("executeRunPlan", () => {
       });
       context.registerCleanup(() => {
         order.push("second");
-        throw new Error(secret);
+        throw new Error(failureMarker);
       });
     });
 
@@ -467,19 +467,19 @@ describe("executeRunPlan", () => {
       { index: 0, status: "succeeded" },
     ]);
     expect(order).toEqual(["second", "first"]);
-    expect(JSON.stringify(result)).not.toContain(secret);
+    expect(JSON.stringify(result)).not.toContain(failureMarker);
   });
 
   it("keeps provider and unknown execution failures secret-free", async () => {
     const plan = parsedPlan();
-    const secret = "provider-secret-prompt-payload";
+    const failureMarker = "provider-hidden-prompt-payload";
     const { providers } = makeRegistry(plan);
     const failingProviders: ProviderRegistry = {
       ...providers,
       work: {
         ...providers.work,
         read: () => {
-          throw new Error(secret);
+          throw new Error(failureMarker);
         },
       },
     };
@@ -500,13 +500,13 @@ describe("executeRunPlan", () => {
     });
 
     const unknownResult = await executeRunPlan(plan, providers, () => {
-      throw new Error(secret);
+      throw new Error(failureMarker);
     });
     expect(unknownResult.outcome).toBe("failed");
     expect(unknownResult.failure).toEqual({ code: "engine_failed" });
     expect(
       JSON.stringify({ providerResult, unknownResult, events }),
-    ).not.toContain(secret);
+    ).not.toContain(failureMarker);
   });
 
   it("preserves the primary failure when cleanup also fails", async () => {

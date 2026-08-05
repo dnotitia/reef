@@ -2,7 +2,9 @@
 
 > Root-level, cross-cutting rules for reef. Package-local rules live in
 > `packages/core/AGENTS.md`, `packages/web/AGENTS.md`,
-> `packages/jira-migrator/AGENTS.md`, `packages/orchestrator/AGENTS.md`, and
+> `packages/jira-migrator/AGENTS.md`, `packages/orchestration/runtime/AGENTS.md`,
+> `packages/orchestration/providers/reef/AGENTS.md`,
+> `packages/orchestration/providers/codex/AGENTS.md`, and
 > nested `AGENTS.md` files under those package trees; the `CLAUDE.md` files only
 > point back to these `AGENTS.md` files.
 
@@ -11,7 +13,7 @@
 - Keep this root file for repo-wide contracts that cross package boundaries:
   security, persistence, issue data model, schema ownership, release gates, and
   workflows that must stay consistent across packages.
-- Put package defaults in the matching `packages/*/AGENTS.md`.
+- Put package defaults in the matching workspace package's `AGENTS.md`.
 - Put implementation rules in the nearest subtree `AGENTS.md` so agents editing
   that code see the rule without carrying unrelated context. Examples:
   `packages/core/src/adapters/AGENTS.md`, `packages/core/src/agents/AGENTS.md`,
@@ -27,7 +29,7 @@
   starts in `core` when it touches schemas, adapters, agents, or shared
   contracts, then surfaces through `web`. Operator-run migration behavior for
   Jira lives in `packages/jira-migrator`; the provider-neutral one-run
-  execution core and process signal seam live in `packages/orchestrator`, while
+  execution core and process signal seam live in `packages/orchestration/runtime`, while
   callers own scheduling and delivery orchestration.
 - `core` is framework-agnostic: no Next.js imports, no DOM APIs, and no Node-only
   globals where avoidable.

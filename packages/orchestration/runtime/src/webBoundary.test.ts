@@ -8,6 +8,7 @@ const repoRoot = join(
   "..",
   "..",
   "..",
+  "..",
 );
 const apiRoot = join(repoRoot, "packages", "web", "src", "app", "api");
 
