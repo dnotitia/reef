@@ -1,16 +1,35 @@
 # @reef/orchestrator
 
-Background orchestration runtime for Reef.
+Provider-neutral execution core for Reef's process boundary.
 
-This package is the process boundary for long-running orchestration work. The
-web package stays responsible for UI and dispatch/control-plane Route Handlers;
-the orchestrator owns worker startup, idle polling, and graceful shutdown.
+This package owns one immutable `RunPlan` execution envelope: provider registry
+preflight, the running callback, lifecycle events, cancellation, cleanup, and
+safe terminal result normalization. A caller supplies the provider registry and
+one execution callback through the same `executeRunPlan` entrypoint. Scheduling,
+queue selection, persistence, delivery sequencing, and concrete provider
+adapters belong to their respective callers and follow-on packages.
 
-Run a dry-run startup smoke check:
+The package has no Reef configuration loader, environment alias, executable,
+AKB/GitHub/LLM dependency, or public CLI. Signal registration remains available
+through `installShutdownHandlers` for callers that own a process lifecycle.
 
-```sh
-REEF_ORCHESTRATOR_VAULT=reef-test pnpm --filter @reef/orchestrator smoke:dry-run
+```ts
+import {
+  executeRunPlan,
+  installShutdownHandlers,
+} from "@reef/orchestrator";
+
+const shutdown = installShutdownHandlers();
+const result = await executeRunPlan(plan, providers, async (context) => {
+  const work = await context.invoke("work", "read", { uri: plan.work.uri });
+  context.registerCleanup(() => release(work));
+}, { signal: shutdown.signal });
+shutdown.dispose();
 ```
 
-The dry-run path loads deployment configuration and reports readiness without
-claiming work.
+Execution cancellation is distinct from ordinary failure. Registered cleanup
+actions always run in reverse registration order, exactly once, and continue
+after an individual cleanup failure. Terminal results and lifecycle events carry
+only provider metadata, plan provenance, normalized failures, and cleanup
+outcomes; they never include raw thrown values, credentials, prompts, or
+upstream payloads.

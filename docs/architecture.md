@@ -32,9 +32,11 @@ reef has three runtime tiers:
 
 Two auxiliary runtimes stay outside the interactive web request path:
 
-- **`@reef/orchestrator`** owns long-running worker scheduling, polling, and
-  graceful shutdown. It consumes domain contracts from `core`; worker loops do
-  not run inside reef-web.
+- **`@reef/orchestrator`** owns the provider-neutral one-run execution envelope:
+  registry preflight, lifecycle events, cancellation, cleanup, terminal result
+  normalization, and process signal registration. Callers own scheduling,
+  persistence, delivery ordering, and concrete provider adapters; long-running
+  worker loops do not run inside reef-web.
 - **`@reef/jira-migrator`** is an operator-run, one-shot Jira-to-Reef migration
   package. Jira is a read-only source, while explicitly selected apply stages
   may reconcile Reef targets.
@@ -327,7 +329,7 @@ preserves Server-Sent Events.
 | Field leaves and styling | `packages/web/src/components/fields/` |
 | Browser state and storage | `packages/web/src/lib/` (`storage`, `api`, `github`, `llm`) |
 | CSP / security headers | `packages/web/src/proxy.ts` |
-| Background orchestrator | `packages/orchestrator/src/` |
+| Provider-neutral execution core | `packages/orchestrator/src/` |
 | Jira migration runtime | `packages/jira-migrator/src/` |
 
 ## Related documentation
