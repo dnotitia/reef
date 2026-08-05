@@ -125,7 +125,7 @@ export const IssueListRow = memo(function IssueListRow({
     <TableRow
       ref={rowRef}
       className={cn(
-        "reef-issue-list-row group cursor-pointer transition-colors duration-150 focus-visible:outline-none",
+        "reef-issue-list-row group h-10 cursor-pointer transition-colors duration-150 focus-visible:outline-none",
         onClick && "hover:bg-surface-hover",
         focused && "bg-brand/5",
         selected && "bg-brand/5 ring-1 ring-inset ring-brand/30",

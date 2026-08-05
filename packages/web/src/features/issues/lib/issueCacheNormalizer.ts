@@ -1,6 +1,11 @@
 import type { IssueDocument, IssueListItem } from "@reef/core";
 import type { Query, QueryClient } from "@tanstack/react-query";
 import { upsertIssue, upsertIssues } from "../stores/issueEntityStore";
+import {
+  flattenIssueListPages,
+  isIssueListInfiniteData,
+  isIssueListInfiniteKey,
+} from "./issueListCache";
 import { toListItem } from "./toListItem";
 
 /**
@@ -12,6 +17,7 @@ import { toListItem } from "./toListItem";
  * store without each hook having to remember to normalize. `['issues',...]`
  * queries are relevant:
  *   - `['issues','list',vault]` / `['issues','list',vault,<query>]` → list items
+ *   - `['issues','list',vault,'infinite',<query>]` → all loaded list pages
  *   - `['issues','detail',vault,id]` → the document's `issue`, projected to a
  *     list item.
  * Relations (`['issues','relations',vault]`) stay query-owned — they are a
@@ -25,6 +31,14 @@ function normalizeIssueQuery(query: Query): void {
   const data = query.state.data;
   if (data == null) return;
 
+  if (
+    key[1] === "list" &&
+    isIssueListInfiniteKey(key) &&
+    isIssueListInfiniteData(data)
+  ) {
+    upsertIssues(vault, flattenIssueListPages(data));
+    return;
+  }
   if (key[1] === "list" && Array.isArray(data)) {
     upsertIssues(vault, data as IssueListItem[]);
     return;

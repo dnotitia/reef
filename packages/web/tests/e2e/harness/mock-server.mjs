@@ -46,9 +46,14 @@ const server = createServer(async (req, res) => {
     if (url.pathname === "/__e2e/issue-list-failure" && req.method === "POST") {
       const body = await readJson(req);
       state.issueListFailure = body?.enabled === true;
+      state.issueListNextPageFailures = Math.max(
+        0,
+        Number(body?.next_page_failures ?? 0),
+      );
       return json(res, 200, {
         ok: true,
         issue_list_failure: state.issueListFailure,
+        issue_list_next_page_failures: state.issueListNextPageFailures,
       });
     }
     if (url.pathname === "/__e2e/vault-list-control" && req.method === "POST") {
@@ -244,7 +249,8 @@ function normalizeScenario(value) {
     value === "activity_suggestions" ||
     value === "notifications" ||
     value === "skill_outdated" ||
-    value === "comment_mentions"
+    value === "comment_mentions" ||
+    value === "large_vault"
   ) {
     return value;
   }
@@ -278,6 +284,7 @@ function makeState(scenario) {
     loginToken: token,
     vaults: new Map(),
     issueListFailure: false,
+    issueListNextPageFailures: 0,
     contentSearchMode: "healthy",
     contentSearchDelayMs: 0,
     vaultListDelayMs: 0,
@@ -315,9 +322,13 @@ function makeState(scenario) {
     scenario === "activity_suggestions" ||
     scenario === "notifications" ||
     scenario === "skill_outdated" ||
-    scenario === "comment_mentions"
+    scenario === "comment_mentions" ||
+    scenario === "large_vault"
   ) {
-    const vault = configuredVault(REEF_VAULT);
+    const vault =
+      scenario === "large_vault"
+        ? largeVault(REEF_VAULT)
+        : configuredVault(REEF_VAULT);
     if (scenario === "activity_suggestions") seedActivitySuggestions(vault);
     if (scenario === "notifications") seedNotifications(vault);
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);
@@ -634,6 +645,41 @@ function contentSearchVault(name) {
       id,
       `Bounded expansion phrase appears in body fixture ${index + 1}.`,
     );
+  }
+  return vault;
+}
+
+function largeVault(name) {
+  const vault = configuredVault(name);
+  const issues = [];
+  const total = 1_205;
+  for (let index = 0; index < total; index += 1) {
+    const id = `REEF-${String(index + 1).padStart(4, "0")}`;
+    const priority =
+      index < 200
+        ? "critical"
+        : index < 400
+          ? "high"
+          : index < 700
+            ? "medium"
+            : "low";
+    const isSparseMatch = index === 1_123;
+    issues.push(
+      issueRow({
+        id,
+        title: isSparseMatch
+          ? "Sparse residual match"
+          : `Large vault issue ${String(index + 1).padStart(4, "0")}`,
+        status: "todo",
+        priority,
+        labels: isSparseMatch ? ["tail-marker"] : ["large-fixture"],
+      }),
+    );
+  }
+  vault.issues = issues;
+  vault.documents = new Map();
+  for (const issue of issues) {
+    seedIssueDocument(vault, issue.reef_id, `Large fixture ${issue.reef_id}.`);
   }
   return vault;
 }
@@ -1649,6 +1695,13 @@ function handleSql(vault, sql) {
     if (state.issueListFailure) {
       return { error: "e2e forced issue list failure" };
     }
+    if (
+      state.issueListNextPageFailures > 0 &&
+      /"reef_id"\s*<\s*'/i.test(normalized)
+    ) {
+      state.issueListNextPageFailures -= 1;
+      return { error: "e2e forced next issue list page failure" };
+    }
     const rows = applyLimit(
       sortIssueRows(filterIssueRows(vault.issues, normalized, vault), lower),
       normalized,
@@ -2241,7 +2294,47 @@ function filterIssueRows(rows, sql, vault) {
   if (/"archived_at"\s+IS\s+NULL/i.test(sql)) {
     out = out.filter((row) => row.archived_at == null);
   }
-  return out;
+  return applyIssueKeysetCursor(out, sql);
+}
+
+function applyIssueKeysetCursor(rows, sql) {
+  const cursorId = matchSqlString(sql, /"reef_id"\s*<\s*'([^']+)'/i);
+  if (!cursorId) return rows;
+
+  const leadMatchers = [
+    {
+      match: sql.match(/END\s*([<>])\s*(-?\d+(?:\.\d+)?)/i),
+      value: (row) =>
+        ({ critical: 4, high: 3, medium: 2, low: 1 })[row.priority] ?? 0,
+    },
+    {
+      match: sql.match(/"created_at"\s*([<>])\s*'([^']+)'/i),
+      value: (row) => String(row.created_at ?? ""),
+    },
+    {
+      match: sql.match(/"updated_at"\s*([<>])\s*'([^']+)'/i),
+      value: (row) => String(row.updated_at ?? ""),
+    },
+    {
+      match: sql.match(/"title"\s*([<>])\s*'([^']+)'/i),
+      value: (row) => String(row.title ?? ""),
+    },
+  ].find(({ match }) => match);
+  if (!leadMatchers?.match) return rows;
+
+  const [, operator, rawKey] = leadMatchers.match;
+  const cursorKey =
+    typeof leadMatchers.value(rows[0] ?? {}) === "number"
+      ? Number(rawKey)
+      : rawKey;
+  return rows.filter((row) => {
+    const rowKey = leadMatchers.value(row);
+    const afterLead =
+      operator === ">" ? rowKey > cursorKey : rowKey < cursorKey;
+    const sameLead = rowKey === cursorKey;
+    const afterTie = String(row.reef_id).localeCompare(cursorId) < 0;
+    return afterLead || (sameLead && afterTie);
+  });
 }
 
 function selectPlanningRows(vault, table, sql) {

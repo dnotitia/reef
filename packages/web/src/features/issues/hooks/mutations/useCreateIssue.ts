@@ -1,12 +1,9 @@
 "use client";
 
 import { apiFetch, throwHttpError } from "@/lib/apiClient";
-import type {
-  IssueCreateInput,
-  IssueListItem,
-  IssueMetadata,
-} from "@reef/core";
+import type { IssueCreateInput, IssueMetadata } from "@reef/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { prependIssueToIssueListCaches } from "../../lib/issueListCache";
 import { toListItem } from "../../lib/toListItem";
 import { upsertIssue } from "../../stores/issueEntityStore";
 
@@ -64,14 +61,7 @@ export function useCreateIssue() {
     onSuccess: (data, { vault }) => {
       const item = toListItem(data.issue);
       upsertIssue(vault, item);
-      queryClient.setQueryData<IssueListItem[]>(
-        ["issues", "list", vault],
-        (current) => {
-          if (!current) return current;
-          if (current.some((issue) => issue.id === item.id)) return current;
-          return [item, ...current];
-        },
-      );
+      prependIssueToIssueListCaches(queryClient, vault, item);
       void queryClient.invalidateQueries({
         queryKey: ["issues", "list", vault],
       });

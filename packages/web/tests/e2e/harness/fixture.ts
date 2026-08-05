@@ -13,7 +13,8 @@ export type FixtureScenario =
   | "activity_suggestions"
   | "notifications"
   | "skill_outdated"
-  | "comment_mentions";
+  | "comment_mentions"
+  | "large_vault";
 export const REEF_E2E_VAULT = "reef-e2e";
 
 function escapeRegExp(value: string): string {
@@ -115,10 +116,11 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
 export async function setIssueListFailure(
   request: APIRequestContext,
   enabled: boolean,
+  nextPageFailures = 0,
 ): Promise<void> {
   const response = await request.post(
     `${E2E_MOCK_URL}/__e2e/issue-list-failure`,
-    { data: { enabled } },
+    { data: { enabled, next_page_failures: nextPageFailures } },
   );
   expect(response.ok()).toBeTruthy();
 }

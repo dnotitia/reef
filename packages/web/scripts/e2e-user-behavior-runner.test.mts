@@ -59,9 +59,32 @@ function scenario() {
   };
 }
 
+function largeIssueListScenario() {
+  return {
+    schema_version: 1,
+    scenario: "large-issue-list",
+    clause_id: "large-list-virtualization",
+    target_url: "https://reef-candidate.test",
+    workspace: "reef-e2e",
+    credentials: {
+      username_env: "REEF_E2E_USERNAME",
+      password_env: "REEF_E2E_PASSWORD",
+    },
+    expected: {
+      focus_issue_id: "REEF-0101",
+      keyboard_steps: 99,
+      max_mounted_rows: 50,
+      min_scroll_height: 3000,
+    },
+  };
+}
+
 describe("portable E2E user-behavior runner", () => {
   it("accepts source-neutral expectations and credential environment names", () => {
     expect(validateScenarioInput(scenario())).toEqual(scenario());
+    expect(validateScenarioInput(largeIssueListScenario())).toEqual(
+      largeIssueListScenario(),
+    );
     expect(() =>
       validateScenarioInput({
         ...scenario(),

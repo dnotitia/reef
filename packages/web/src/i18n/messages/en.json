@@ -951,6 +951,8 @@
     },
     "list": {
       "loadError": "Failed to load issues.",
+      "loadingMore": "Loading more issues…",
+      "loadMoreError": "More issues could not be loaded.",
       "noMatches": "No issues match your filters.",
       "emptyWorkspace": "Your workspace is empty. What are you working on?"
     },

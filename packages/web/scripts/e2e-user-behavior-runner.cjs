@@ -39,6 +39,17 @@ const usage = `Usage:
  */
 
 /**
+ * @typedef {object} LargeIssueListScenario
+ * @property {1} schema_version
+ * @property {"large-issue-list"} scenario
+ * @property {string} clause_id
+ * @property {string} target_url
+ * @property {string} workspace
+ * @property {{username_env: string, password_env: string}} credentials
+ * @property {{focus_issue_id: string, keyboard_steps: number, max_mounted_rows: number, min_scroll_height: number}} expected
+ */
+
+/**
  * The hermetic content-search spec and portable artifact share this one
  * user-facing action instead of defining an action language or second harness.
  *
@@ -112,13 +123,170 @@ async function observeGlobalSearchContent(page, scenario) {
   return { accessibleText, row };
 }
 
+/**
+ * Keep the portable large-list scenario narrow: it observes the real List
+ * surface, its first-page/cursor requests, bounded DOM rows, and keyboard focus
+ * movement. Failure injection and residual-filter cases remain in the
+ * repository-owned hermetic spec where the fixture control endpoints are
+ * available.
+ *
+ * @param {import("@playwright/test").Page} page
+ * @param {LargeIssueListScenario} scenario
+ */
+async function observeLargeIssueList(page, scenario) {
+  const requests = [];
+  const responses = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (request.method() === "GET" && url.pathname === "/api/issues") {
+      requests.push(url.toString());
+    }
+  });
+  page.on("response", async (response) => {
+    const url = new URL(response.url());
+    if (
+      response.request().method() !== "GET" ||
+      url.pathname !== "/api/issues" ||
+      !response.ok()
+    ) {
+      return;
+    }
+    try {
+      const body = await response.json();
+      responses.push({
+        url: url.toString(),
+        ids: Array.isArray(body?.issues)
+          ? body.issues
+              .map((issue) => issue?.id)
+              .filter((id) => typeof id === "string")
+          : [],
+      });
+    } catch {
+      // A non-JSON response is not usable as list continuation evidence.
+    }
+  });
+
+  const workspace = `/workspace/${encodeURIComponent(scenario.workspace)}/issues?view=list`;
+  await page.goto(new URL(workspace, scenario.target_url).toString(), {
+    waitUntil: "domcontentloaded",
+  });
+
+  const rows = page.locator('[data-testid="issue-list-row"]');
+  await rows.first().waitFor({ state: "visible", timeout: 20_000 });
+  const initialRequest = requests.find((raw) => {
+    const url = new URL(raw);
+    return (
+      !url.searchParams.has("cursor") && url.searchParams.get("limit") === "100"
+    );
+  });
+  assert(initialRequest, "initial issue list request was not observed");
+  assert(
+    new URL(initialRequest).searchParams.get("limit") === "100",
+    "initial issue list request did not use limit=100",
+  );
+  const initialRowCount = await rows.count();
+  assert(
+    initialRowCount <= scenario.expected.max_mounted_rows,
+    `too many mounted issue rows: ${initialRowCount}`,
+  );
+
+  const scroll = page.getByTestId("issue-list-scroll-container");
+  const range = await scroll.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }));
+  assert(
+    range.scrollHeight >= scenario.expected.min_scroll_height,
+    `list scroll range is too small: ${range.scrollHeight}`,
+  );
+
+  await rows.first().focus();
+
+  const cursorRequest = page.waitForRequest(
+    (request) => {
+      const url = new URL(request.url());
+      return (
+        request.method() === "GET" &&
+        url.pathname === "/api/issues" &&
+        url.searchParams.has("cursor")
+      );
+    },
+    { timeout: 20_000 },
+  );
+  await scroll.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  await cursorRequest;
+  await page.waitForTimeout(300);
+  const cursorRequests = requests.filter((raw) =>
+    new URL(raw).searchParams.has("cursor"),
+  );
+  assert(
+    cursorRequests.length === 1,
+    `expected one cursor request, observed ${cursorRequests.length}`,
+  );
+  const initialPage = responses.find(
+    ({ url }) => !new URL(url).searchParams.has("cursor"),
+  );
+  const cursorPage = responses.find(({ url }) =>
+    new URL(url).searchParams.has("cursor"),
+  );
+  assert(initialPage && cursorPage, "list page responses were not observed");
+  const initialTailIds = initialPage.ids.slice(-5);
+  assert(
+    cursorPage.ids.every((id) => !initialPage.ids.includes(id)),
+    "cursor page repeats an issue from the initial page",
+  );
+  const mountedIds = await rows.evaluateAll((items) =>
+    items.map((item) => item.getAttribute("data-issue-id")),
+  );
+  assert(
+    new Set(mountedIds).size === mountedIds.length,
+    "mounted issue rows contain duplicate ids",
+  );
+
+  for (let index = 0; index < scenario.expected.keyboard_steps; index += 1) {
+    await page.keyboard.press("j");
+  }
+  const focused = page.locator(
+    `[data-issue-id="${scenario.expected.focus_issue_id}"]`,
+  );
+  await focused.waitFor({ state: "visible", timeout: 20_000 });
+  assert(
+    (await focused.getAttribute("data-keyboard-focused")) === "true",
+    "keyboard target did not own list focus",
+  );
+  assert(
+    (await focused.getAttribute("tabindex")) === "0",
+    "keyboard target did not own the roving tab stop",
+  );
+
+  return {
+    accessibleText: await focused.ariaSnapshot(),
+    requestSummary: requests.map((raw) => {
+      const url = new URL(raw);
+      return {
+        url: `${url.pathname}${url.search}`,
+        path: url.pathname,
+        limit: url.searchParams.get("limit"),
+        has_cursor: url.searchParams.has("cursor"),
+      };
+    }),
+    initial_tail_ids: initialTailIds,
+    cursor_page_ids: cursorPage.ids,
+    rowCount: mountedIds.length,
+    scrollHeight: range.scrollHeight,
+  };
+}
+
 /** @param {unknown} raw */
 function validateScenarioInput(raw) {
   assertRecord(raw, "scenario.json");
   assert(raw.schema_version === 1, "schema_version must be 1");
   assert(
-    raw.scenario === "global-search-content",
-    "scenario must be global-search-content",
+    raw.scenario === "global-search-content" ||
+      raw.scenario === "large-issue-list",
+    "scenario must be global-search-content or large-issue-list",
   );
   assertRecord(raw.credentials, "credentials");
   assertRecord(raw.expected, "expected");
@@ -135,6 +303,46 @@ function validateScenarioInput(raw) {
   const clauseId = text(raw.clause_id, "clause_id", 80);
   assert(/^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(clauseId), "invalid clause_id");
 
+  const credentials = {
+    username_env: environmentName(raw.credentials.username_env),
+    password_env: environmentName(raw.credentials.password_env),
+  };
+  if (raw.scenario === "large-issue-list") {
+    const keyboardSteps = Number(raw.expected.keyboard_steps);
+    const maxMountedRows = Number(raw.expected.max_mounted_rows);
+    const minScrollHeight = Number(raw.expected.min_scroll_height);
+    assert(
+      Number.isInteger(keyboardSteps) && keyboardSteps > 0,
+      "invalid keyboard_steps",
+    );
+    assert(
+      Number.isInteger(maxMountedRows) && maxMountedRows > 0,
+      "invalid max_mounted_rows",
+    );
+    assert(
+      Number.isInteger(minScrollHeight) && minScrollHeight > 0,
+      "invalid min_scroll_height",
+    );
+    return /** @type {LargeIssueListScenario} */ ({
+      schema_version: 1,
+      scenario: "large-issue-list",
+      clause_id: clauseId,
+      target_url: target.origin,
+      workspace: text(raw.workspace, "workspace", 160),
+      credentials,
+      expected: {
+        focus_issue_id: text(
+          raw.expected.focus_issue_id,
+          "focus_issue_id",
+          120,
+        ),
+        keyboard_steps: keyboardSteps,
+        max_mounted_rows: maxMountedRows,
+        min_scroll_height: minScrollHeight,
+      },
+    });
+  }
+
   return /** @type {GlobalSearchScenario} */ ({
     schema_version: 1,
     scenario: "global-search-content",
@@ -144,10 +352,7 @@ function validateScenarioInput(raw) {
     search_placeholder: text(raw.search_placeholder, "search_placeholder", 200),
     metadata_query: text(raw.metadata_query, "metadata_query", 500),
     content_query: text(raw.content_query, "content_query", 500),
-    credentials: {
-      username_env: environmentName(raw.credentials.username_env),
-      password_env: environmentName(raw.credentials.password_env),
-    },
+    credentials,
     expected: {
       field_heading: text(raw.expected.field_heading, "field_heading", 300),
       content_heading: text(
@@ -244,24 +449,41 @@ async function runScenario(options) {
       status: loginResponse.status(),
     });
 
-    const workspace = `/workspace/${encodeURIComponent(scenario.workspace)}/issues`;
-    await page.goto(new URL(workspace, scenario.target_url).toString(), {
-      waitUntil: "domcontentloaded",
-    });
+    phase = "behavior";
+    let observation;
+    if (scenario.scenario === "large-issue-list") {
+      observation = await observeLargeIssueList(page, scenario);
+    } else {
+      const workspace = `/workspace/${encodeURIComponent(scenario.workspace)}/issues`;
+      await page.goto(new URL(workspace, scenario.target_url).toString(), {
+        waitUntil: "domcontentloaded",
+      });
+      observation = await observeGlobalSearchContent(page, scenario);
+    }
     transcript.push({
       event: "workspace.opened",
       workspace: scenario.workspace,
     });
-    phase = "behavior";
-    const observation = await observeGlobalSearchContent(page, scenario);
-    transcript.push({
-      event: "global-search.observed",
-      issue_id: scenario.expected.issue_id,
-      source: scenario.expected.source,
-    });
+    transcript.push(
+      scenario.scenario === "large-issue-list"
+        ? {
+            event: "large-issue-list.observed",
+            row_count: observation.rowCount,
+            scroll_height: observation.scrollHeight,
+            requests: observation.requestSummary,
+          }
+        : {
+            event: "global-search.observed",
+            issue_id: scenario.expected.issue_id,
+            source: scenario.expected.source,
+          },
+    );
 
     phase = "evidence";
-    const evidenceName = "global-search";
+    const evidenceName =
+      scenario.scenario === "large-issue-list"
+        ? "large-issue-list"
+        : "global-search";
     await page.screenshot({
       path: join(outputDir, `${evidenceName}.png`),
       fullPage: true,
@@ -272,10 +494,19 @@ async function runScenario(options) {
       `${observation.accessibleText}\n`,
     );
     evidence.push(`${evidenceName}.png`, `${evidenceName}.aria.txt`);
+    if (scenario.scenario === "large-issue-list") {
+      await writePrivate(
+        join(outputDir, `${evidenceName}.requests.json`),
+        `${JSON.stringify(observation.requestSummary, null, 2)}\n`,
+      );
+      evidence.push(`${evidenceName}.requests.json`);
+    }
     await context.close();
     status = "pass";
     observable =
-      "Signed in, opened global search, and observed the configured field and content result in accessible order.";
+      scenario.scenario === "large-issue-list"
+        ? `Signed in, observed a bounded virtualized issue list with a ${observation.scrollHeight}px scroll range, and moved keyboard focus to the configured offscreen issue.`
+        : "Signed in, opened global search, and observed the configured field and content result in accessible order.";
   } catch (error) {
     status = phase === "behavior" ? "fail" : "blocked";
     observable = redactText(
@@ -458,6 +689,7 @@ function assert(condition, message) {
 
 module.exports = {
   observeGlobalSearchContent,
+  observeLargeIssueList,
   packRunnerArtifact,
   redactText,
   validateScenarioInput,
