@@ -272,7 +272,7 @@ async function ensurePrivateDirectory(path) {
   await chmod(path, 0o700);
 }
 
-async function saveEvidence(outputDir, input, observation, page) {
+async function saveEvidence(outputDir, input, observation, page, secrets) {
   const evidence = [];
   const stem = input.behavior;
   if (input.evidence.includes("screenshot")) {
@@ -284,7 +284,10 @@ async function saveEvidence(outputDir, input, observation, page) {
   if (input.evidence.includes("accessibility")) {
     const path = `${stem}.aria.txt`;
     const accessibleText = await page.locator("body").ariaSnapshot();
-    await writePrivate(join(outputDir, path), `${accessibleText ?? ""}\n`);
+    await writePrivate(
+      join(outputDir, path),
+      `${redactText(accessibleText ?? "", secrets)}\n`,
+    );
     evidence.push(path);
   }
   if (input.evidence.includes("details")) {
@@ -295,7 +298,7 @@ async function saveEvidence(outputDir, input, observation, page) {
     };
     await writePrivate(
       join(outputDir, path),
-      `${JSON.stringify(details, null, 2)}\n`,
+      redactText(`${JSON.stringify(details, null, 2)}\n`, secrets),
     );
     evidence.push(path);
   }
@@ -480,7 +483,13 @@ async function runBehaviorArtifact(options) {
 
   if (page && input) {
     try {
-      evidence = await saveEvidence(outputDir, input, observation, page);
+      evidence = await saveEvidence(
+        outputDir,
+        input,
+        observation,
+        page,
+        secrets,
+      );
     } catch (error) {
       const message = redactText(
         error instanceof Error ? error.message : String(error),
@@ -667,6 +676,7 @@ module.exports = {
   redactText,
   reportReason,
   runBehaviorArtifact,
+  saveEvidence,
   validateBehaviorInput,
 };
 

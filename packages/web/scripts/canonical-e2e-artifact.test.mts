@@ -14,11 +14,13 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
+import { loginToWorkspace } from "../tests/e2e/behaviors/runtime.cjs";
 import {
   LARGE_ISSUE_LIST_CLAUSES,
   packCanonicalArtifact,
   redactText,
   reportReason,
+  saveEvidence,
   validateBehaviorInput,
 } from "./canonical-e2e-artifact.cjs";
 
@@ -120,6 +122,95 @@ describe("canonical E2E artifact adapter", () => {
     expect(reportReason("blocked", "blocked_external_auth")).toBe(
       "blocked_external_auth",
     );
+  });
+
+  it("redacts credential values from accessibility and detail evidence", async () => {
+    const root = await mkdtemp(join(tmpdir(), "reef-canonical-evidence-test-"));
+    temporaryDirectories.push(root);
+    const outputDir = join(root, "output");
+    await mkdir(outputDir);
+    const input = {
+      behavior: "content-search",
+      evidence: ["accessibility", "details"],
+    };
+    const page = {
+      locator: () => ({
+        ariaSnapshot: async () =>
+          "button name=fixture-user; text=fixture-pass;",
+      }),
+    };
+
+    const evidence = await saveEvidence(
+      outputDir,
+      input,
+      {
+        details: {
+          username: "fixture-user",
+          password: "fixture-pass",
+        },
+      },
+      page,
+      ["fixture-user", "fixture-pass"],
+    );
+
+    expect(evidence).toEqual([
+      "content-search.aria.txt",
+      "content-search.json",
+    ]);
+    for (const file of evidence) {
+      const contents = await readFile(join(outputDir, file), "utf8");
+      expect(contents).not.toContain("fixture-user");
+      expect(contents).not.toContain("fixture-pass");
+      expect((await stat(join(outputDir, file))).mode & 0o077).toBe(0);
+    }
+  });
+
+  it("waits for the hydrated workspace shell before canonical behavior starts", async () => {
+    const events: string[] = [];
+    const locator = (selector: string) => ({
+      waitFor: async ({ state }: { state: string }) => {
+        events.push(`${selector}:${state}`);
+      },
+      fill: async () => undefined,
+      click: async () => undefined,
+    });
+    const page = {
+      goto: async () => undefined,
+      locator,
+      keyboard: {
+        press: async (key: string) => {
+          events.push(`key:${key}`);
+        },
+      },
+      waitForResponse: async (predicate: (response: unknown) => boolean) => {
+        const response = {
+          url: () => "http://localhost/api/auth/akb/login",
+          request: () => ({ method: () => "POST" }),
+          ok: () => true,
+          status: () => 200,
+        };
+        expect(predicate(response)).toBe(true);
+        return response;
+      },
+      waitForURL: async (predicate: (url: URL) => boolean) => {
+        expect(
+          predicate(new URL("http://localhost/workspace/reef-e2e/issues")),
+        ).toBe(true);
+      },
+    };
+
+    await loginToWorkspace(page, {
+      webOrigin: "http://localhost:7353",
+      workspace: "reef-e2e",
+      credentials: { username: "fixture-user", password: "fixture-pass" },
+    });
+
+    expect(events.slice(-4)).toEqual([
+      "key:Control+K",
+      '[data-testid="global-search-input"]:visible',
+      "key:Escape",
+      '[data-testid="global-search-input"]:hidden',
+    ]);
   });
 
   it("packs one executable artifact with the generic launcher interface", async () => {
