@@ -16,10 +16,13 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   LARGE_ISSUE_LIST_CLAUSES,
+  NAMED_ISSUE_FILTER_CLAUSES,
   packRunnerArtifact,
   redactText,
   reportReason,
   validateScenarioInput,
+  waitForNamedTriggerFocus,
+  waitForNamedTriggerState,
 } from "./e2e-user-behavior-runner.cjs";
 
 const temporaryDirectories: string[] = [];
@@ -91,11 +94,51 @@ function largeIssueListScenario() {
   };
 }
 
+function namedIssueFiltersScenario() {
+  return {
+    schema_version: 1,
+    scenario: "named-issue-filters",
+    clause_id: "named-filter-browser-flow",
+    target_url: "https://reef-candidate.test",
+    fixture_origin: "https://reef-fixture.test",
+    workspace: "reef-e2e",
+    secondary_workspace: "reef-zeta",
+    credentials: {
+      username_env: "REEF_E2E_USERNAME",
+      password_env: "REEF_E2E_PASSWORD",
+    },
+    expected: {
+      saved_name: "My triage view",
+      renamed_name: "Renamed triage",
+      copied_name: "Renamed triage copy",
+      search_value: "temporary",
+      save_current_label: "Save current filter…",
+      save_button_label: "Save",
+      rename_button_label: "Rename",
+      cancel_button_label: "Cancel",
+      update_saved_label: "Update My triage view with the current filter",
+      rename_saved_label: "Rename My triage view",
+      duplicate_renamed_label: "Duplicate Renamed triage",
+      delete_copy_label: "Delete Renamed triage copy",
+      changed_label: "Changed",
+      active_label: "Active",
+      duplicate_error: "A filter with that name already exists.",
+      no_saved_label: "No saved filters yet.",
+      unavailable_label: "Unavailable",
+      account_menu_label: "Account menu",
+      view: "list",
+    },
+  };
+}
+
 describe("portable E2E user-behavior runner", () => {
   it("accepts source-neutral expectations and credential environment names", () => {
     expect(validateScenarioInput(scenario())).toEqual(scenario());
     expect(validateScenarioInput(largeIssueListScenario())).toEqual(
       largeIssueListScenario(),
+    );
+    expect(validateScenarioInput(namedIssueFiltersScenario())).toEqual(
+      namedIssueFiltersScenario(),
     );
     expect(() =>
       validateScenarioInput({
@@ -118,6 +161,109 @@ describe("portable E2E user-behavior runner", () => {
     expect(reportReason("pass", undefined)).toBeNull();
     expect(reportReason("fail", undefined)).toBeNull();
     expect(reportReason("blocked", "blocked_runtime")).toBe("blocked_runtime");
+  });
+
+  it("waits for the named-filter state transition after the unchanged name", async () => {
+    let ariaLabel = "My filters: My triage view, Changed";
+    const waitCalls: Array<{
+      options: { timeout?: number };
+      args: { [key: string]: string };
+    }> = [];
+    const previousDocument = Object.getOwnPropertyDescriptor(
+      globalThis,
+      "document",
+    );
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: {
+        querySelector: () => ({ getAttribute: () => ariaLabel }),
+      },
+    });
+    try {
+      const page = {
+        getByTestId: () => ({ waitFor: async () => undefined }),
+        waitForFunction: async (
+          predicate: (args: { [key: string]: string }) => boolean,
+          args: { [key: string]: string },
+          options: { timeout?: number },
+        ) => {
+          waitCalls.push({ args, options });
+          if (waitCalls.length === 1) {
+            expect(predicate(args)).toBe(true);
+            return;
+          }
+          expect(predicate(args)).toBe(false);
+          ariaLabel = "My filters: My triage view, Active";
+          expect(predicate(args)).toBe(true);
+        },
+      };
+
+      await waitForNamedTriggerState(page, {
+        name: "My triage view",
+        activeLabel: "Active",
+        changedLabel: "Changed",
+      });
+
+      expect(waitCalls).toHaveLength(2);
+      expect(waitCalls[1]).toMatchObject({
+        args: {
+          name: "My triage view",
+          active: "Active",
+          changed: "Changed",
+        },
+        options: { timeout: 15_000 },
+      });
+    } finally {
+      if (previousDocument) {
+        Object.defineProperty(globalThis, "document", previousDocument);
+      } else {
+        Reflect.deleteProperty(globalThis, "document");
+      }
+    }
+  });
+
+  it("waits for the named-filter trigger to regain focus after dialog close", async () => {
+    let focused = false;
+    let waitOptions: { timeout?: number } | undefined;
+    const previousDocument = Object.getOwnPropertyDescriptor(
+      globalThis,
+      "document",
+    );
+    const trigger = {};
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: {
+        activeElement: null,
+        querySelector: () => trigger,
+      },
+    });
+    try {
+      const page = {
+        getByTestId: () => ({ waitFor: async () => undefined }),
+        waitForFunction: async (
+          predicate: () => boolean,
+          _args: undefined,
+          options: { timeout?: number },
+        ) => {
+          waitOptions = options;
+          expect(predicate()).toBe(false);
+          (globalThis.document as { activeElement: object }).activeElement =
+            trigger;
+          focused = predicate();
+        },
+      };
+
+      await waitForNamedTriggerFocus(page);
+
+      expect(focused).toBe(true);
+      expect(waitOptions).toEqual({ timeout: 15_000 });
+    } finally {
+      if (previousDocument) {
+        Object.defineProperty(globalThis, "document", previousDocument);
+      } else {
+        Reflect.deleteProperty(globalThis, "document");
+      }
+    }
   });
 
   it("packs one executable checkout-independent artifact", async () => {
@@ -205,6 +351,45 @@ describe("portable E2E user-behavior runner", () => {
     expect(report.reason).toBe("blocked_external_auth");
     expect(report.clauses.map((clause: { id: string }) => clause.id)).toEqual(
       LARGE_ISSUE_LIST_CLAUSES,
+    );
+    expect(
+      report.clauses.every(
+        (clause: { status: string; evidence: string[] }) =>
+          clause.status === "blocked" &&
+          clause.evidence.includes("redacted-transcript.jsonl"),
+      ),
+    ).toBe(true);
+  });
+
+  it("reports every named-filter behavior clause when credentials are unavailable", async () => {
+    const root = await mkdtemp(join(tmpdir(), "reef-e2e-named-report-test-"));
+    temporaryDirectories.push(root);
+    const input = join(root, "input");
+    const output = join(root, "output");
+    await mkdir(input);
+    await writeFile(
+      join(input, "scenario.json"),
+      JSON.stringify(namedIssueFiltersScenario()),
+      { mode: 0o600 },
+    );
+
+    await execFileAsync(process.execPath, [
+      runnerPath,
+      "--input-dir",
+      input,
+      "--output-dir",
+      output,
+      "--candidate-head",
+      "c".repeat(40),
+    ]);
+
+    const report = JSON.parse(
+      await readFile(join(output, "behavior-report.json"), "utf8"),
+    );
+    expect(report.status).toBe("blocked");
+    expect(report.reason).toBe("blocked_external_auth");
+    expect(report.clauses.map((clause: { id: string }) => clause.id)).toEqual(
+      NAMED_ISSUE_FILTER_CLAUSES,
     );
     expect(
       report.clauses.every(

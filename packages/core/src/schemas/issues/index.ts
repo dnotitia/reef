@@ -139,3 +139,16 @@ export {
   PersistedIssueFilterEnvelopeSchema,
   type PersistedIssueFilter,
 } from "./persistedIssueFilter";
+
+export {
+  NamedIssueFilterEnvelopeSchema,
+  NAMED_ISSUE_FILTER_VERSION,
+  buildNamedIssueFilterEnvelope,
+  canonicalizeNamedIssueFilterName,
+  hasNamedIssueFilterPayload,
+  normalizeNamedIssueFilterDisplayName,
+  normalizeNamedIssueFilterEnvelope,
+  normalizeNamedIssueFilterPayload,
+  serializeNamedIssueFilterPayload,
+  type NamedIssueFilterEnvelope,
+} from "./namedIssueFilter";

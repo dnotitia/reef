@@ -50,15 +50,22 @@ function DropdownMenu({
 }
 
 /* ----------------------------- Trigger ----------------------------- */
-function DropdownMenuTrigger({
-  children,
-  asChild: _asChild,
-  className,
-  ...props
-}: React.ComponentProps<"button"> & { asChild?: boolean }) {
+const DropdownMenuTrigger = React.forwardRef<
+  HTMLButtonElement,
+  React.ComponentProps<"button"> & { asChild?: boolean }
+>(function DropdownMenuTrigger(
+  {
+    children,
+    asChild: _asChild,
+    className,
+    ...props
+  },
+  ref,
+) {
   const { open, setOpen } = React.useContext(DropdownMenuContext);
   return (
     <button
+      ref={ref}
       type="button"
       aria-expanded={open}
       aria-haspopup="menu"
@@ -69,6 +76,11 @@ function DropdownMenuTrigger({
       {children}
     </button>
   );
+});
+DropdownMenuTrigger.displayName = "DropdownMenuTrigger";
+
+function useDropdownMenu(): DropdownMenuContextValue {
+  return React.useContext(DropdownMenuContext);
 }
 
 /* ----------------------------- Content ----------------------------- */
@@ -200,4 +212,5 @@ export {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  useDropdownMenu,
 };

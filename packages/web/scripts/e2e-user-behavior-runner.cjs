@@ -51,6 +51,19 @@ const usage = `Usage:
  */
 
 /**
+ * @typedef {object} NamedIssueFiltersScenario
+ * @property {1} schema_version
+ * @property {"named-issue-filters"} scenario
+ * @property {string} clause_id
+ * @property {string} target_url
+ * @property {string} fixture_origin
+ * @property {string} workspace
+ * @property {string} secondary_workspace
+ * @property {{username_env: string, password_env: string}} credentials
+ * @property {{saved_name: string, renamed_name: string, copied_name: string, search_value: string, save_current_label: string, save_button_label: string, rename_button_label: string, cancel_button_label: string, update_saved_label: string, rename_saved_label: string, duplicate_renamed_label: string, delete_copy_label: string, changed_label: string, active_label: string, duplicate_error: string, no_saved_label: string, unavailable_label: string, account_menu_label: string, view: "list"}} expected
+ */
+
+/**
  * The hermetic content-search spec and portable artifact share this one
  * user-facing action instead of defining an action language or second harness.
  *
@@ -125,6 +138,102 @@ async function observeGlobalSearchContent(page, scenario) {
 }
 
 const LARGE_ISSUE_LIST_CLAUSES = ["B1", "B2", "B3", "B4", "B5"];
+const NAMED_ISSUE_FILTER_CLAUSES = ["B1", "B2", "B3", "B4", "B5"];
+
+async function openNamedFilterMenu(page) {
+  await page.getByTestId("named-filter-trigger").click();
+  const menu = page.getByTestId("named-filter-menu");
+  await menu.waitFor({ state: "visible", timeout: 15_000 });
+  return menu;
+}
+
+async function waitForNamedTrigger(page, text) {
+  const trigger = page.getByTestId("named-filter-trigger");
+  await trigger.waitFor({ state: "visible", timeout: 15_000 });
+  await page.waitForFunction(
+    ({ expected }) =>
+      document
+        .querySelector('[data-testid="named-filter-trigger"]')
+        ?.getAttribute("aria-label")
+        ?.includes(expected) ?? false,
+    { expected: text },
+    { timeout: 15_000 },
+  );
+  return trigger;
+}
+
+async function waitForNamedTriggerFocus(page) {
+  const trigger = page.getByTestId("named-filter-trigger");
+  await trigger.waitFor({ state: "visible", timeout: 15_000 });
+  await page.waitForFunction(
+    () => {
+      const trigger = document.querySelector(
+        '[data-testid="named-filter-trigger"]',
+      );
+      return trigger !== null && trigger === document.activeElement;
+    },
+    undefined,
+    { timeout: 15_000 },
+  );
+  return trigger;
+}
+
+async function waitForNamedTriggerState(
+  page,
+  { name, activeLabel, changedLabel },
+) {
+  const trigger = await waitForNamedTrigger(page, name);
+  await page.waitForFunction(
+    ({ name: expectedName, active, changed }) => {
+      const aria = document
+        .querySelector('[data-testid="named-filter-trigger"]')
+        ?.getAttribute("aria-label");
+      return (
+        aria?.includes(expectedName) === true &&
+        aria.includes(active) &&
+        !aria.includes(changed)
+      );
+    },
+    { name, active: activeLabel, changed: changedLabel },
+    { timeout: 15_000 },
+  );
+  return trigger;
+}
+
+async function seedMalformedNamedFilter(page, workspace) {
+  await page.evaluate(async (vault) => {
+    const key = `named_filter:${vault}:malformed`;
+    const value = JSON.stringify({
+      version: 1,
+      id: "malformed",
+      name: "Malformed persisted filter",
+      nameKey: "malformed persisted filter",
+      payload: { status: [{}], sortOrder: "sideways" },
+    });
+    const request = indexedDB.open("reef");
+    await new Promise((resolve, reject) => {
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(undefined);
+    });
+    const database = request.result;
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction("config", "readwrite");
+      const store = transaction.objectStore("config");
+      const existing = store.index("key").get(key);
+      existing.onsuccess = () => {
+        const entry = existing.result;
+        const write = entry?.id
+          ? store.put({ id: entry.id, key, value })
+          : store.add({ key, value });
+        write.onerror = () => reject(write.error);
+      };
+      existing.onerror = () => reject(existing.error);
+      transaction.oncomplete = () => resolve(undefined);
+      transaction.onerror = () => reject(transaction.error);
+    });
+    database.close();
+  }, workspace);
+}
 
 function isIssueListUrl(value) {
   const url = value instanceof URL ? value : new URL(value);
@@ -1022,14 +1131,451 @@ async function runLargeIssueListScenario({
   };
 }
 
+async function runNamedIssueFiltersScenario({
+  browser,
+  scenario,
+  credentials,
+  outputDir,
+  transcript,
+}) {
+  await fixtureRequest(scenario, "/__e2e/reset", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ scenario: "configured_multi" }),
+  });
+
+  const context = await browser.newContext({ ignoreHTTPSErrors: true });
+  const page = await context.newPage();
+  const clauses = [];
+  const reasons = [];
+  const expected = scenario.expected;
+  const workspaceUrl = (workspace) =>
+    new URL(
+      `/workspace/${encodeURIComponent(workspace)}/issues?view=${expected.view}`,
+      scenario.target_url,
+    ).toString();
+
+  async function recordClause(id, observe) {
+    try {
+      const result = await observe();
+      clauses.push({
+        id,
+        status: "pass",
+        observable: result.observable,
+        evidence: result.evidence,
+      });
+      transcript.push({
+        event: "named-issue-filters.clause.passed",
+        clause_id: id,
+      });
+    } catch (error) {
+      await page.keyboard.press("Escape").catch(() => undefined);
+      const message = redactText(
+        error instanceof Error ? error.message : String(error),
+        [credentials.username, credentials.password],
+      );
+      const reason = behaviorReason(error);
+      const status = reason ? "blocked" : "fail";
+      if (reason) reasons.push(reason);
+      clauses.push({
+        id,
+        status,
+        ...(reason ? { reason } : {}),
+        observable: message,
+        evidence: [],
+      });
+      transcript.push({
+        event: "named-issue-filters.clause.error",
+        clause_id: id,
+        status,
+        ...(reason ? { reason } : {}),
+        message,
+      });
+    }
+  }
+
+  try {
+    await loginToTarget(page, scenario, credentials, transcript, "B1");
+    await page.goto(workspaceUrl(scenario.workspace), {
+      waitUntil: "domcontentloaded",
+    });
+    await page
+      .locator('[data-testid="issue-list-row"]')
+      .first()
+      .waitFor({ state: "visible", timeout: 20_000 });
+
+    await recordClause("B1", async () => {
+      await page.getByTestId("status-dropdown-trigger").click();
+      await page.getByTestId("status-option-todo").click();
+      await page.keyboard.press("Escape");
+      await page.getByTestId("display-options-trigger").click();
+      await page.getByTestId("show-archived-toggle").click();
+      await page.keyboard.press("Escape");
+      await page.getByTestId("sort-control-trigger").click();
+      await page.getByTestId("sort-option-title").click();
+      await page.getByTestId("named-filter-trigger").click();
+      await page
+        .getByRole("menuitem", {
+          name: expected.save_current_label,
+          exact: true,
+        })
+        .click();
+      const dialog = page.getByTestId("named-filter-dialog");
+      await dialog
+        .getByTestId("named-filter-name-input")
+        .fill(expected.saved_name);
+      await dialog
+        .getByRole("button", { name: expected.save_button_label, exact: true })
+        .click();
+      await waitForNamedTrigger(page, expected.saved_name);
+      const activeAria = await page
+        .getByTestId("named-filter-trigger")
+        .getAttribute("aria-label");
+      assert(
+        activeAria?.includes(expected.active_label),
+        "saved filter was not announced as active",
+      );
+
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page
+        .locator('[data-testid="issue-list-row"]')
+        .first()
+        .waitFor({ state: "visible", timeout: 20_000 });
+      await waitForNamedTrigger(page, expected.saved_name);
+      const menu = await openNamedFilterMenu(page);
+      await menu.getByText(expected.saved_name, { exact: true }).waitFor({
+        state: "visible",
+        timeout: 15_000,
+      });
+      const evidence = await saveClauseEvidence(
+        outputDir,
+        "named-issue-filters.B1",
+        page,
+        await menu.ariaSnapshot(),
+        { saved_name: expected.saved_name, restored: true },
+      );
+      await page.keyboard.press("Escape");
+      return {
+        observable:
+          "A named filter remained listed after reload and was announced as the active browser-local preset.",
+        evidence,
+      };
+    });
+
+    await recordClause("B2", async () => {
+      const search = page.getByTestId("search-input");
+      await search.fill(expected.search_value);
+      await page.waitForURL(
+        (url) => url.searchParams.get("q") === expected.search_value,
+        { timeout: 15_000 },
+      );
+      const navigation = page.waitForURL(
+        (url) =>
+          url.searchParams.get("view") === expected.view &&
+          url.searchParams.get("status") === "todo" &&
+          url.searchParams.get("archived") === "1" &&
+          url.searchParams.get("sort") === "title" &&
+          url.searchParams.get("order") === "asc" &&
+          !url.searchParams.has("q"),
+        { timeout: 15_000 },
+      );
+      const menu = await openNamedFilterMenu(page);
+      await menu
+        .locator('button[role="menuitem"]')
+        .filter({ hasText: expected.saved_name })
+        .first()
+        .click();
+      await navigation;
+      const url = new URL(page.url());
+      assert(
+        url.searchParams.get("view") === expected.view,
+        "view mode changed on apply",
+      );
+      assert(!url.searchParams.has("q"), "one-off search remained after apply");
+      assert(
+        !url.searchParams.has("named_filter"),
+        "local filter key leaked into URL",
+      );
+      assert(
+        !url.toString().includes(expected.saved_name),
+        "filter name leaked into URL",
+      );
+      assert(
+        (await search.inputValue()) === "",
+        "search input remained after apply",
+      );
+      const evidence = await saveClauseEvidence(
+        outputDir,
+        "named-issue-filters.B2",
+        page,
+        await page.getByTestId("named-filter-trigger").ariaSnapshot(),
+        { final_url: `${url.pathname}${url.search}`, search_cleared: true },
+      );
+      return {
+        observable:
+          "Applying the named preset replaced the issue query, cleared one-off search, preserved List mode, and kept local ids/names out of the canonical URL.",
+        evidence,
+      };
+    });
+
+    await recordClause("B3", async () => {
+      await page.getByTestId("display-options-trigger").click();
+      await page.getByTestId("show-archived-toggle").click();
+      await page.keyboard.press("Escape");
+      const changed = await waitForNamedTrigger(page, expected.saved_name);
+      const changedAria = await changed.getAttribute("aria-label");
+      assert(
+        changedAria?.includes(expected.changed_label),
+        "changed filter state was not announced",
+      );
+      let menu = await openNamedFilterMenu(page);
+      await menu
+        .getByRole("menuitem", {
+          name: expected.update_saved_label,
+          exact: true,
+        })
+        .click();
+      const updated = await waitForNamedTriggerState(page, {
+        name: expected.saved_name,
+        activeLabel: expected.active_label,
+        changedLabel: expected.changed_label,
+      });
+      const updatedAria = await updated.getAttribute("aria-label");
+      assert(
+        updatedAria?.includes(expected.active_label) &&
+          !updatedAria.includes(expected.changed_label),
+        "updating the named filter did not clear changed state",
+      );
+
+      menu = await openNamedFilterMenu(page);
+      await menu
+        .getByRole("menuitem", {
+          name: expected.rename_saved_label,
+          exact: true,
+        })
+        .click();
+      const renameDialog = page.getByTestId("named-filter-dialog");
+      await renameDialog
+        .getByTestId("named-filter-name-input")
+        .fill(expected.renamed_name);
+      await renameDialog
+        .getByRole("button", {
+          name: expected.rename_button_label,
+          exact: true,
+        })
+        .click();
+      await waitForNamedTrigger(page, expected.renamed_name);
+
+      menu = await openNamedFilterMenu(page);
+      await menu
+        .getByRole("menuitem", {
+          name: expected.duplicate_renamed_label,
+          exact: true,
+        })
+        .click();
+      const duplicateDialog = page.getByTestId("named-filter-dialog");
+      await duplicateDialog
+        .getByTestId("named-filter-name-input")
+        .fill(expected.copied_name);
+      await duplicateDialog
+        .getByRole("button", { name: expected.save_button_label, exact: true })
+        .click();
+      await page
+        .getByTestId("named-filter-trigger")
+        .waitFor({ state: "visible" });
+
+      menu = await openNamedFilterMenu(page);
+      await menu
+        .getByRole("menuitem", {
+          name: expected.duplicate_renamed_label,
+          exact: true,
+        })
+        .click();
+      const duplicateErrorDialog = page.getByTestId("named-filter-dialog");
+      await duplicateErrorDialog
+        .getByTestId("named-filter-name-input")
+        .fill(expected.copied_name);
+      await duplicateErrorDialog
+        .getByRole("button", { name: expected.save_button_label, exact: true })
+        .click();
+      const error = duplicateErrorDialog.getByRole("alert");
+      await error.waitFor({ state: "visible", timeout: 15_000 });
+      assert(
+        (await error.textContent())?.includes(expected.duplicate_error),
+        "duplicate write failure did not surface localized error",
+      );
+      await duplicateErrorDialog
+        .getByRole("button", {
+          name: expected.cancel_button_label,
+          exact: true,
+        })
+        .click();
+
+      menu = await openNamedFilterMenu(page);
+      await menu
+        .getByRole("menuitem", {
+          name: expected.delete_copy_label,
+          exact: true,
+        })
+        .click();
+      await page.getByTestId("named-filter-confirm-delete").click();
+      menu = await openNamedFilterMenu(page);
+      await menu
+        .getByText(expected.copied_name, { exact: true })
+        .waitFor({ state: "detached", timeout: 15_000 });
+      const evidence = await saveClauseEvidence(
+        outputDir,
+        "named-issue-filters.B3",
+        page,
+        await menu.ariaSnapshot(),
+        {
+          renamed_name: expected.renamed_name,
+          duplicate_rejected: true,
+          deleted_copy: true,
+        },
+      );
+      await page.keyboard.press("Escape");
+      return {
+        observable:
+          "Changed and active states were announced, update cleared the changed state, and rename/duplicate/delete operations stayed scoped to the intended records with duplicate rejection.",
+        evidence,
+      };
+    });
+
+    await recordClause("B5", async () => {
+      const trigger = page.getByTestId("named-filter-trigger");
+      await trigger.click();
+      await page.keyboard.press("Escape");
+      await waitForNamedTriggerFocus(page);
+      await trigger.click();
+      await page
+        .getByRole("menuitem", {
+          name: expected.save_current_label,
+          exact: true,
+        })
+        .click();
+      const dialog = page.getByTestId("named-filter-dialog");
+      await dialog.getByTestId("named-filter-name-input").press("Escape");
+      await dialog.waitFor({ state: "hidden", timeout: 15_000 });
+      await waitForNamedTriggerFocus(page);
+      const evidence = await saveClauseEvidence(
+        outputDir,
+        "named-issue-filters.B5",
+        page,
+        await trigger.ariaSnapshot(),
+        { menu_escape_focus: true, dialog_escape_focus: true },
+      );
+      return {
+        observable:
+          "The menu and save dialog were keyboard-dismissible with visible focus returning to the named-filter trigger.",
+        evidence,
+      };
+    });
+
+    await recordClause("B4", async () => {
+      await page.goto(workspaceUrl(scenario.secondary_workspace), {
+        waitUntil: "domcontentloaded",
+      });
+      await page
+        .locator('[data-testid="issue-list-row"]')
+        .first()
+        .waitFor({ state: "visible", timeout: 20_000 });
+      await seedMalformedNamedFilter(page, scenario.secondary_workspace);
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page
+        .locator('[data-testid="issue-list-row"]')
+        .first()
+        .waitFor({ state: "visible", timeout: 20_000 });
+      const otherMenu = await openNamedFilterMenu(page);
+      await otherMenu
+        .getByText(expected.unavailable_label, { exact: true })
+        .waitFor({ state: "visible", timeout: 15_000 });
+      assert(
+        (await otherMenu
+          .getByText(expected.renamed_name, { exact: true })
+          .count()) === 0 &&
+          (await otherMenu
+            .getByText(expected.copied_name, { exact: true })
+            .count()) === 0,
+        "a named filter crossed the vault boundary",
+      );
+      await page.keyboard.press("Escape");
+
+      await page
+        .getByLabel(expected.account_menu_label, { exact: true })
+        .click();
+      await page.getByTestId("account-signout").click();
+      await page.waitForURL((url) => url.pathname === "/login", {
+        timeout: 15_000,
+      });
+      await loginToTarget(
+        page,
+        scenario,
+        credentials,
+        transcript,
+        "B4-relogin",
+      );
+      await page.goto(workspaceUrl(scenario.workspace), {
+        waitUntil: "domcontentloaded",
+      });
+      await page
+        .locator('[data-testid="issue-list-row"]')
+        .first()
+        .waitFor({ state: "visible", timeout: 20_000 });
+      const reconciledMenu = await openNamedFilterMenu(page);
+      await reconciledMenu
+        .getByText(expected.no_saved_label, { exact: true })
+        .waitFor({ state: "visible", timeout: 15_000 });
+      const evidence = await saveClauseEvidence(
+        outputDir,
+        "named-issue-filters.B4",
+        page,
+        await reconciledMenu.ariaSnapshot(),
+        {
+          secondary_workspace: scenario.secondary_workspace,
+          malformed_payload: expected.unavailable_label,
+          post_reconciliation: expected.no_saved_label,
+        },
+      );
+      return {
+        observable:
+          "A second vault could not observe the primary vault's filters, malformed persisted data was rendered as unavailable, and account reconciliation removed the browser-local records.",
+        evidence,
+      };
+    });
+  } finally {
+    await context.close().catch(() => undefined);
+  }
+
+  const status = clauses.every((clause) => clause.status === "pass")
+    ? "pass"
+    : clauses.some((clause) => clause.status === "fail")
+      ? "fail"
+      : "blocked";
+  const orderedClauses = NAMED_ISSUE_FILTER_CLAUSES.map((id) =>
+    clauses.find((clause) => clause.id === id),
+  ).filter(Boolean);
+  return {
+    status,
+    ...(status === "blocked"
+      ? { reason: reasons[0] ?? "blocked_tooling" }
+      : {}),
+    clauses: orderedClauses,
+    observable: orderedClauses.every((clause) => clause.status === "pass")
+      ? "Signed in and exercised all five named issue filter behavior clauses through the user surface."
+      : "One or more named issue filter behavior clauses did not pass.",
+  };
+}
+
 /** @param {unknown} raw */
 function validateScenarioInput(raw) {
   assertRecord(raw, "scenario.json");
   assert(raw.schema_version === 1, "schema_version must be 1");
   assert(
     raw.scenario === "global-search-content" ||
-      raw.scenario === "large-issue-list",
-    "scenario must be global-search-content or large-issue-list",
+      raw.scenario === "large-issue-list" ||
+      raw.scenario === "named-issue-filters",
+    "scenario must be global-search-content, large-issue-list, or named-issue-filters",
   );
   assertRecord(raw.credentials, "credentials");
   assertRecord(raw.expected, "expected");
@@ -1050,6 +1596,60 @@ function validateScenarioInput(raw) {
     username_env: environmentName(raw.credentials.username_env),
     password_env: environmentName(raw.credentials.password_env),
   };
+  if (raw.scenario === "named-issue-filters") {
+    const fixture = new URL(text(raw.fixture_origin, "fixture_origin", 2048));
+    assert(
+      /^https?:$/u.test(fixture.protocol),
+      "fixture_origin must use http or https",
+    );
+    assert(
+      !(
+        fixture.username ||
+        fixture.password ||
+        fixture.pathname !== "/" ||
+        fixture.search ||
+        fixture.hash
+      ),
+      "fixture_origin must be an origin without credentials, path, query, or fragment",
+    );
+    const namedText = (key, max = 300) => text(raw.expected[key], key, max);
+    assert(raw.expected.view === "list", "named filter view must be list");
+    return /** @type {NamedIssueFiltersScenario} */ ({
+      schema_version: 1,
+      scenario: "named-issue-filters",
+      clause_id: clauseId,
+      target_url: target.origin,
+      fixture_origin: fixture.origin,
+      workspace: text(raw.workspace, "workspace", 160),
+      secondary_workspace: text(
+        raw.secondary_workspace,
+        "secondary_workspace",
+        160,
+      ),
+      credentials,
+      expected: {
+        saved_name: namedText("saved_name", 160),
+        renamed_name: namedText("renamed_name", 160),
+        copied_name: namedText("copied_name", 160),
+        search_value: namedText("search_value", 500),
+        save_current_label: namedText("save_current_label"),
+        save_button_label: namedText("save_button_label"),
+        rename_button_label: namedText("rename_button_label"),
+        cancel_button_label: namedText("cancel_button_label"),
+        update_saved_label: namedText("update_saved_label"),
+        rename_saved_label: namedText("rename_saved_label"),
+        duplicate_renamed_label: namedText("duplicate_renamed_label"),
+        delete_copy_label: namedText("delete_copy_label"),
+        changed_label: namedText("changed_label"),
+        active_label: namedText("active_label"),
+        duplicate_error: namedText("duplicate_error", 1000),
+        no_saved_label: namedText("no_saved_label", 1000),
+        unavailable_label: namedText("unavailable_label", 300),
+        account_menu_label: namedText("account_menu_label", 200),
+        view: "list",
+      },
+    });
+  }
   if (raw.scenario === "large-issue-list") {
     const fixture = new URL(text(raw.fixture_origin, "fixture_origin", 2048));
     assert(
@@ -1250,6 +1850,22 @@ async function runScenario(options) {
         workspace: scenario.workspace,
         scenario: scenario.scenario,
       });
+    } else if (scenario.scenario === "named-issue-filters") {
+      observation = await runNamedIssueFiltersScenario({
+        browser,
+        scenario,
+        credentials: { username, password },
+        outputDir,
+        transcript,
+      });
+      status = observation.status;
+      observable = observation.observable;
+      reason = observation.reason;
+      transcript.push({
+        event: "workspace.opened",
+        workspace: scenario.workspace,
+        scenario: scenario.scenario,
+      });
     } else {
       const context = await browser.newContext({ ignoreHTTPSErrors: true });
       const page = await context.newPage();
@@ -1292,7 +1908,10 @@ async function runScenario(options) {
       observable =
         "Signed in, opened global search, and observed the configured field and content result in accessible order.";
     }
-    if (scenario.scenario === "large-issue-list") {
+    if (
+      scenario.scenario === "large-issue-list" ||
+      scenario.scenario === "named-issue-filters"
+    ) {
       phase = "evidence";
     }
     if (
@@ -1302,6 +1921,10 @@ async function runScenario(options) {
       status = "pass";
     }
     if (scenario.scenario === "large-issue-list") {
+      observable = observation.observable;
+      reason = observation.reason;
+    }
+    if (scenario.scenario === "named-issue-filters") {
       observable = observation.observable;
       reason = observation.reason;
     }
@@ -1343,7 +1966,14 @@ async function runScenario(options) {
           observable,
           evidence: ["redacted-transcript.jsonl"],
         }))
-      : [{ id: clauseId, status, observable, evidence }];
+      : scenario?.scenario === "named-issue-filters"
+        ? NAMED_ISSUE_FILTER_CLAUSES.map((id) => ({
+            id,
+            status,
+            observable,
+            evidence: ["redacted-transcript.jsonl"],
+          }))
+        : [{ id: clauseId, status, observable, evidence }];
   if (status === "blocked" && !reason) reason = "blocked_tooling";
   const report = {
     candidate_head: options.candidateHead,
@@ -1512,11 +2142,15 @@ function assert(condition, message) {
 
 module.exports = {
   LARGE_ISSUE_LIST_CLAUSES,
+  NAMED_ISSUE_FILTER_CLAUSES,
   observeGlobalSearchContent,
   packRunnerArtifact,
   redactText,
   reportReason,
   runLargeIssueListScenario,
+  runNamedIssueFiltersScenario,
+  waitForNamedTriggerFocus,
+  waitForNamedTriggerState,
   validateScenarioInput,
 };
 

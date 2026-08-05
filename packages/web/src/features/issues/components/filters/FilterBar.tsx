@@ -38,6 +38,7 @@ import {
 } from "../../lib/metadataOptions";
 import { type IssueFilter, useIssueStore } from "../../stores/useIssueStore";
 import { DisplayOptionsFilter } from "./DisplayOptionsFilter";
+import { NamedIssueFilterControl } from "./NamedIssueFilterControl";
 
 /**
  * Assignee/Requester multi-selects use chip triggers, but their dropdown needs
@@ -460,6 +461,8 @@ export function FilterBar({
         filter={filter}
         setFilter={setFilter}
       />
+
+      <NamedIssueFilterControl />
 
       {/* Active filter count + clear */}
       {hasActiveFilters && (

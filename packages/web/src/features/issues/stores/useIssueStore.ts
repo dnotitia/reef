@@ -59,6 +59,8 @@ interface IssueState {
   searchQuery: string;
   selectedIssueId: string | null;
   setFilter: (filter: Partial<IssueFilter>) => void;
+  /** Replace a complete saved-filter payload and clear one-off search. */
+  applyFilter: (filter: IssueFilter) => void;
   clearFilter: () => void;
   clearFiltersOnly: () => void;
   setSortField: (field: IssueFilter["sortField"]) => void;
@@ -99,6 +101,8 @@ export const useIssueStore = create<IssueState>((set) => ({
 
   setFilter: (partialFilter) =>
     set((state) => ({ filter: { ...state.filter, ...partialFilter } })),
+
+  applyFilter: (filter) => set({ filter, searchQuery: "" }),
 
   clearFilter: () => set({ filter: {}, searchQuery: "" }),
 
