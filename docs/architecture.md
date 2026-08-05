@@ -40,6 +40,9 @@ Two auxiliary runtimes stay outside the interactive web request path:
 - **`@reef/jira-migrator`** is an operator-run, one-shot Jira-to-Reef migration
   package. Jira is a read-only source, while explicitly selected apply stages
   may reconcile Reef targets.
+- **`@reef/work-provider-reef`** is the concrete Reef work adapter for the
+  orchestrator contract. It depends on `@reef/core` for AKB reads and writes,
+  and owns no persistence, scheduler, or web surface.
 
 ```
 Browser (React UI, Zustand, TanStack Query, Dexie)
@@ -51,9 +54,10 @@ reef-web (stateless Next.js BFF)
    └── OpenAI-compatible LLM endpoint                       — chat + agents
 ```
 
-The repository is a pnpm workspace with four private, unpublished packages
+The repository is a pnpm workspace with five private, unpublished packages
 under `packages/`: `core` (`@reef/core`), `web` (`@reef/web`), `orchestrator`
-(`@reef/orchestrator`), and `jira-migrator` (`@reef/jira-migrator`). The root
+(`@reef/orchestrator`), `jira-migrator` (`@reef/jira-migrator`), and
+`work-provider-reef` (`@reef/work-provider-reef`). The root
 `package.json` is the single product version source of truth. New interactive
 product behavior that touches schemas, adapters, agents, or shared contracts
 starts in `core` and then surfaces through `web`; background and operator
@@ -331,6 +335,7 @@ preserves Server-Sent Events.
 | CSP / security headers | `packages/web/src/proxy.ts` |
 | Provider-neutral execution core | `packages/orchestrator/src/` |
 | Jira migration runtime | `packages/jira-migrator/src/` |
+| Reef work provider | `packages/work-provider-reef/src/` |
 
 ## Related documentation
 
@@ -341,3 +346,4 @@ preserves Server-Sent Events.
   [`@reef/web` package README](../packages/web/README.md)
 - [`@reef/orchestrator` package README](../packages/orchestrator/README.md)
 - [`@reef/jira-migrator` package README](../packages/jira-migrator/README.md)
+- [`@reef/work-provider-reef` package README](../packages/work-provider-reef/README.md)
