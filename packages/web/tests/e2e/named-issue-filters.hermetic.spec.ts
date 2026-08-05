@@ -203,6 +203,98 @@ test.describe("Hermetic named issue filters", () => {
     await expect(finalMenu.getByText(copiedName, { exact: true })).toHaveCount(
       0,
     );
+
+    // Keep the focus regression on the same post-CRUD handoff path as the
+    // portable named-filter scenario.
+    await page.keyboard.press("Escape");
+    const trigger = page.getByTestId("named-filter-trigger");
+    await trigger.click();
+    await page.keyboard.press("Escape");
+    await expect(trigger).toBeFocused();
+    await trigger.click();
+    await page.getByRole("menuitem", { name: "Save current filter…" }).click();
+    const escapeDialog = page.getByTestId("named-filter-dialog");
+    await escapeDialog.getByTestId("named-filter-name-input").press("Escape");
+    await expect(escapeDialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+  });
+
+  test("clears Changed from the trigger after the update action persists", async ({
+    page,
+  }) => {
+    await page.addInitScript(`
+      (() => {
+        const originalAddEventListener = IDBRequest.prototype.addEventListener;
+        IDBRequest.prototype.addEventListener = function (type, listener, options) {
+          if (type !== "success" || typeof listener !== "function") {
+            return originalAddEventListener.call(this, type, listener, options);
+          }
+          const request = this;
+          return originalAddEventListener.call(this, type, (event) => {
+            window.setTimeout(() => listener.call(request, event), 250);
+          }, options);
+        };
+      })();
+    `);
+    await openMultiVaultWorkspace(page, "reef-e2e");
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+    await expect(
+      page.locator('[data-testid="issue-list-row"]').first(),
+    ).toBeVisible({ timeout: 15_000 });
+
+    const savedName = "Changed update view";
+    await saveNamedFilter(page, savedName);
+    const trigger = page.getByTestId("named-filter-trigger");
+    await page.getByTestId("display-options-trigger").click();
+    await page.getByTestId("show-archived-toggle").click();
+    await page.keyboard.press("Escape");
+    await expect(trigger).toHaveAttribute(
+      "aria-label",
+      new RegExp(`${savedName}.*Changed`),
+    );
+
+    const menu = await openNamedFilterMenu(page);
+    await menu
+      .getByRole("menuitem", {
+        name: `Update ${savedName} with the current filter`,
+        exact: true,
+      })
+      .click();
+
+    // Persistence is browser-local and asynchronous; wait for the bounded
+    // eventual state transition rather than treating the unchanged name as
+    // proof that the write has completed.
+    await expect(trigger).toHaveAttribute(
+      "aria-label",
+      new RegExp(`${savedName}.*Active`),
+    );
+    await expect(trigger).not.toHaveAttribute(
+      "aria-label",
+      new RegExp(`${savedName}.*Changed`),
+    );
+  });
+
+  test("returns focus to the trigger when Escape closes the named-filter dialog", async ({
+    page,
+  }) => {
+    await openMultiVaultWorkspace(page, "reef-e2e");
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+    await expect(
+      page.locator('[data-testid="issue-list-row"]').first(),
+    ).toBeVisible({ timeout: 15_000 });
+    await selectTodo(page);
+
+    const trigger = page.getByTestId("named-filter-trigger");
+    await trigger.click();
+    await page.getByRole("menuitem", { name: "Save current filter…" }).click();
+    const dialog = page.getByTestId("named-filter-dialog");
+    await expect(dialog).toBeVisible();
+    await dialog.getByTestId("named-filter-name-input").press("Escape");
+    await expect(dialog).toBeHidden();
+    const focused = await page.evaluate(() =>
+      document.activeElement?.getAttribute("data-testid"),
+    );
+    expect(focused).toBe("named-filter-trigger");
   });
 
   test("isolates vaults and clears browser-local named filters during account reconciliation", async ({

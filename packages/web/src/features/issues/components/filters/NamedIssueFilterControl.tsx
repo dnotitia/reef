@@ -432,8 +432,7 @@ export function NamedIssueFilterControl() {
   const closeNameDialog = useCallback(() => {
     setDialog(null);
     setDialogError(null);
-    restoreTriggerFocus();
-  }, [restoreTriggerFocus]);
+  }, []);
 
   const handleApply = useCallback(
     (item: NamedIssueFilter) => {
@@ -598,7 +597,13 @@ export function NamedIssueFilterControl() {
           if (!open) closeNameDialog();
         }}
       >
-        <DialogContent data-testid="named-filter-dialog">
+        <DialogContent
+          data-testid="named-filter-dialog"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            triggerRef.current?.focus();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>
               {dialog?.kind === "save"

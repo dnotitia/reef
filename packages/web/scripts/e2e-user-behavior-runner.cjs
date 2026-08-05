@@ -162,6 +162,28 @@ async function waitForNamedTrigger(page, text) {
   return trigger;
 }
 
+async function waitForNamedTriggerState(
+  page,
+  { name, activeLabel, changedLabel },
+) {
+  const trigger = await waitForNamedTrigger(page, name);
+  await page.waitForFunction(
+    ({ name: expectedName, active, changed }) => {
+      const aria = document
+        .querySelector('[data-testid="named-filter-trigger"]')
+        ?.getAttribute("aria-label");
+      return (
+        aria?.includes(expectedName) === true &&
+        aria.includes(active) &&
+        !aria.includes(changed)
+      );
+    },
+    { name, active: activeLabel, changed: changedLabel },
+    { timeout: 15_000 },
+  );
+  return trigger;
+}
+
 async function seedMalformedNamedFilter(page, workspace) {
   await page.evaluate(async (vault) => {
     const key = `named_filter:${vault}:malformed`;
@@ -1297,7 +1319,11 @@ async function runNamedIssueFiltersScenario({
           exact: true,
         })
         .click();
-      const updated = await waitForNamedTrigger(page, expected.saved_name);
+      const updated = await waitForNamedTriggerState(page, {
+        name: expected.saved_name,
+        activeLabel: expected.active_label,
+        changedLabel: expected.changed_label,
+      });
       const updatedAria = await updated.getAttribute("aria-label");
       assert(
         updatedAria?.includes(expected.active_label) &&
@@ -2119,6 +2145,7 @@ module.exports = {
   reportReason,
   runLargeIssueListScenario,
   runNamedIssueFiltersScenario,
+  waitForNamedTriggerState,
   validateScenarioInput,
 };
 

@@ -21,6 +21,7 @@ import {
   redactText,
   reportReason,
   validateScenarioInput,
+  waitForNamedTriggerState,
 } from "./e2e-user-behavior-runner.cjs";
 
 const temporaryDirectories: string[] = [];
@@ -159,6 +160,65 @@ describe("portable E2E user-behavior runner", () => {
     expect(reportReason("pass", undefined)).toBeNull();
     expect(reportReason("fail", undefined)).toBeNull();
     expect(reportReason("blocked", "blocked_runtime")).toBe("blocked_runtime");
+  });
+
+  it("waits for the named-filter state transition after the unchanged name", async () => {
+    let ariaLabel = "My filters: My triage view, Changed";
+    const waitCalls: Array<{
+      options: { timeout?: number };
+      args: { [key: string]: string };
+    }> = [];
+    const previousDocument = Object.getOwnPropertyDescriptor(
+      globalThis,
+      "document",
+    );
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: {
+        querySelector: () => ({ getAttribute: () => ariaLabel }),
+      },
+    });
+    try {
+      const page = {
+        getByTestId: () => ({ waitFor: async () => undefined }),
+        waitForFunction: async (
+          predicate: (args: { [key: string]: string }) => boolean,
+          args: { [key: string]: string },
+          options: { timeout?: number },
+        ) => {
+          waitCalls.push({ args, options });
+          if (waitCalls.length === 1) {
+            expect(predicate(args)).toBe(true);
+            return;
+          }
+          expect(predicate(args)).toBe(false);
+          ariaLabel = "My filters: My triage view, Active";
+          expect(predicate(args)).toBe(true);
+        },
+      };
+
+      await waitForNamedTriggerState(page, {
+        name: "My triage view",
+        activeLabel: "Active",
+        changedLabel: "Changed",
+      });
+
+      expect(waitCalls).toHaveLength(2);
+      expect(waitCalls[1]).toMatchObject({
+        args: {
+          name: "My triage view",
+          active: "Active",
+          changed: "Changed",
+        },
+        options: { timeout: 15_000 },
+      });
+    } finally {
+      if (previousDocument) {
+        Object.defineProperty(globalThis, "document", previousDocument);
+      } else {
+        Reflect.deleteProperty(globalThis, "document");
+      }
+    }
   });
 
   it("packs one executable checkout-independent artifact", async () => {

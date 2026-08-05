@@ -18,6 +18,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import Dexie from "dexie";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useIssueStore } from "../../stores/useIssueStore";
 import { NamedIssueFilterControl } from "./NamedIssueFilterControl";
@@ -136,6 +137,81 @@ describe("NamedIssueFilterControl", () => {
     expect(screen.getByTestId("named-filter-changed-dot")).toHaveClass(
       "bg-amber-500",
     );
+  });
+
+  it("clears Changed only after a delayed update write settles", async () => {
+    const user = userEvent.setup();
+    useIssueStore.setState({
+      filter: { status: ["todo"] },
+      filterVault: "reef-acme",
+      searchQuery: "",
+      selectedIssueId: null,
+    });
+    let releaseWrite!: () => void;
+    const writeGate = new Promise<void>((resolve) => {
+      releaseWrite = resolve;
+    });
+    const originalPut = db.config.put.bind(db.config);
+    const putSpy = vi
+      .spyOn(db.config, "put")
+      .mockImplementation((...args) =>
+        Dexie.Promise.resolve(writeGate).then(() => originalPut(...args)),
+      );
+
+    try {
+      renderControl();
+      await openMenu(user);
+      await user.click(
+        screen.getByRole("menuitem", { name: "Save current filter…" }),
+      );
+      await user.type(
+        screen.getByTestId("named-filter-name-input"),
+        "Delayed update view",
+      );
+      await user.click(screen.getByRole("button", { name: /^Save$/ }));
+      const trigger = screen.getByTestId("named-filter-trigger");
+      await waitFor(() =>
+        expect(trigger).toHaveAttribute(
+          "aria-label",
+          expect.stringContaining("Delayed update view"),
+        ),
+      );
+
+      useIssueStore.getState().setFilter({ status: ["in_progress"] });
+      await waitFor(() =>
+        expect(trigger).toHaveAttribute(
+          "aria-label",
+          expect.stringContaining("Changed"),
+        ),
+      );
+      await openMenu(user);
+      await user.click(
+        screen.getByRole("menuitem", {
+          name: "Update Delayed update view with the current filter",
+        }),
+      );
+      await waitFor(() =>
+        expect(trigger).toHaveAttribute(
+          "aria-label",
+          expect.stringContaining("Changed"),
+        ),
+      );
+
+      releaseWrite();
+      await waitFor(() => {
+        expect(trigger).toHaveAttribute(
+          "aria-label",
+          expect.stringContaining("Active"),
+        );
+        expect(trigger).not.toHaveAttribute(
+          "aria-label",
+          expect.stringContaining("Changed"),
+        );
+      });
+    } finally {
+      releaseWrite();
+      putSpy.mockRestore();
+    }
   });
 
   it("saves, applies, updates, renames, duplicates, and deletes a filter", async () => {
@@ -279,6 +355,37 @@ describe("NamedIssueFilterControl", () => {
       expect(screen.queryByTestId("named-filter-menu")).toBeNull(),
     );
     expect(document.activeElement).toBe(trigger);
+  });
+
+  it("returns focus to the trigger when Escape closes a dialog opened from the menu", async () => {
+    const user = userEvent.setup();
+    const rafSpy = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation(() => 0);
+    useIssueStore.setState({
+      filter: { status: ["todo"] },
+      filterVault: "reef-acme",
+      searchQuery: "",
+      selectedIssueId: null,
+    });
+    const trigger = renderControl().getByTestId("named-filter-trigger");
+
+    try {
+      await user.click(trigger);
+      await user.click(
+        screen.getByRole("menuitem", { name: "Save current filter…" }),
+      );
+      const input = screen.getByTestId("named-filter-name-input");
+      input.focus();
+
+      await user.keyboard("{Escape}");
+      await waitFor(() => {
+        expect(screen.queryByTestId("named-filter-dialog")).toBeNull();
+        expect(trigger).toHaveFocus();
+      });
+    } finally {
+      rafSpy.mockRestore();
+    }
   });
 
   it("renders the named-filter surface from the Korean catalog", async () => {
