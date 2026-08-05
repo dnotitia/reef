@@ -47,7 +47,7 @@ const harnessProvider: HarnessProvider = {
   version: "1.0.0",
   capabilities: HARNESS_CAPABILITIES,
   start: () => ({ session: { name: "session", revision: "1" } }),
-  observe: () => ({ state: "ready" }),
+  observe: () => ({ state: "ready", events: [] }),
   sendInput: () => ({ accepted: true }),
   interrupt: () => ({ interrupted: true }),
   resume: () => ({ session: { name: "session", revision: "1" } }),
@@ -122,7 +122,7 @@ describe("provider contract", () => {
       invokeProviderOperation(harnessProvider, "observe", {
         session: { name: "session", revision: "1" },
       }),
-    ).resolves.toEqual({ state: "ready" });
+    ).resolves.toEqual({ state: "ready", events: [] });
     await expect(
       invokeProviderOperation(infrastructureProvider, "cleanup", {
         resource: { name: "resource", revision: "1" },
@@ -171,7 +171,7 @@ describe("provider contract", () => {
       expect(error).toBeInstanceOf(ProviderError);
       expect(JSON.stringify(error)).not.toContain(secret);
       expect(error).toMatchObject({
-        code: "provider_failed",
+        code: "protocol",
         providerKind: "work",
         providerId: "fake-work",
         operation: "read",

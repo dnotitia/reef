@@ -4,7 +4,8 @@ reef is versioned as a single repository product: the deployed `reef-web`
 application plus its private core, worker, and operator packages.
 
 The pnpm workspace contains `packages/web`, `packages/core`,
-`packages/orchestrator`, and `packages/jira-migrator`. None is published or
+`packages/orchestrator`, `packages/harness-provider-codex`, and
+`packages/jira-migrator`. None is published or
 versioned independently. Repository versioning therefore follows the product
 release, not per-package library compatibility. A release may ship reef-web as
 a container while distributing the orchestrator or Jira migrator from source or

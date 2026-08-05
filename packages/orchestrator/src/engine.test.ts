@@ -130,7 +130,7 @@ const makeRegistry = (
     },
     observe: () => {
       providerCall();
-      return { state: "ready" };
+      return { state: "ready", events: [] };
     },
     sendInput: () => {
       providerCall();
@@ -493,7 +493,7 @@ describe("executeRunPlan", () => {
     );
     expect(providerResult.outcome).toBe("failed");
     expect(providerResult.failure).toMatchObject({
-      code: "provider_failed",
+      code: "protocol",
       providerKind: "work",
       providerId: "fake-work",
       operation: "read",

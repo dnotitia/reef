@@ -37,6 +37,9 @@ Two auxiliary runtimes stay outside the interactive web request path:
   normalization, and process signal registration. Callers own scheduling,
   persistence, delivery ordering, and concrete provider adapters; long-running
   worker loops do not run inside reef-web.
+- **`@reef/harness-provider-codex`** is a private concrete adapter for Codex App
+  Server. It owns the local stdio JSONL process boundary and exposes only the
+  provider-neutral harness contract to callers.
 - **`@reef/jira-migrator`** is an operator-run, one-shot Jira-to-Reef migration
   package. Jira is a read-only source, while explicitly selected apply stages
   may reconcile Reef targets.
@@ -51,9 +54,10 @@ reef-web (stateless Next.js BFF)
    └── OpenAI-compatible LLM endpoint                       — chat + agents
 ```
 
-The repository is a pnpm workspace with four private, unpublished packages
+The repository is a pnpm workspace with five private, unpublished packages
 under `packages/`: `core` (`@reef/core`), `web` (`@reef/web`), `orchestrator`
-(`@reef/orchestrator`), and `jira-migrator` (`@reef/jira-migrator`). The root
+(`@reef/orchestrator`), `harness-provider-codex`
+(`@reef/harness-provider-codex`), and `jira-migrator` (`@reef/jira-migrator`). The root
 `package.json` is the single product version source of truth. New interactive
 product behavior that touches schemas, adapters, agents, or shared contracts
 starts in `core` and then surfaces through `web`; background and operator
@@ -330,6 +334,7 @@ preserves Server-Sent Events.
 | Browser state and storage | `packages/web/src/lib/` (`storage`, `api`, `github`, `llm`) |
 | CSP / security headers | `packages/web/src/proxy.ts` |
 | Provider-neutral execution core | `packages/orchestrator/src/` |
+| Codex harness adapter | `packages/harness-provider-codex/src/` |
 | Jira migration runtime | `packages/jira-migrator/src/` |
 
 ## Related documentation
@@ -340,4 +345,5 @@ preserves Server-Sent Events.
 - [Core package README](../packages/core/README.md) and
   [`@reef/web` package README](../packages/web/README.md)
 - [`@reef/orchestrator` package README](../packages/orchestrator/README.md)
+- [`@reef/harness-provider-codex` package README](../packages/harness-provider-codex/README.md)
 - [`@reef/jira-migrator` package README](../packages/jira-migrator/README.md)
