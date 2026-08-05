@@ -25,7 +25,7 @@ export function parseReefWorkUri(
     throw new ReefWorkUriError();
   }
 
-  // Vault names and Reef ids use only URI-safe ASCII characters. Rejecting all
+  // Vault names and Reef ids are validated as URI-safe ASCII characters. Rejecting
   // percent escapes keeps encoded spellings from creating a second identity.
   if (value.includes("%")) {
     throw new ReefWorkUriError();

@@ -171,8 +171,6 @@ export const finalOutputSchema = z
 export type JsonRpcId = z.infer<typeof requestIdSchema>;
 export type JsonRpcResponse = z.infer<typeof responseEnvelopeSchema>;
 export type FinalOutput = z.infer<typeof finalOutputSchema>;
-export type MethodMessage = z.infer<typeof methodMessageSchema>;
-
 export type CodexMessage =
   | { readonly type: "response"; readonly value: JsonRpcResponse }
   | {

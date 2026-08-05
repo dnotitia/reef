@@ -10,7 +10,7 @@ export type JiraMigratorMode = "dry-run" | "apply";
 export interface JiraConfig {
   baseUrl: string;
   cloudId: string;
-  /** Compatibility alias for single-project callers. */
+  /** First project key for single-project callers; the normalized list is `projectKeys`. */
   projectKey: string;
   projectKeys: string[];
   boardIds: string[];
@@ -20,7 +20,7 @@ export interface JiraConfig {
 
 export interface JiraMigratorConfig {
   mode: JiraMigratorMode;
-  /** Compatibility alias retained for existing consumers. */
+  /** Boolean view of `mode` used by runner and reporting code. */
   dryRun: boolean;
   jira: JiraConfig;
   target: {
@@ -28,7 +28,7 @@ export interface JiraMigratorConfig {
     vault: string;
     jwt: string;
   };
-  /** Compatibility aliases retained for existing consumers. */
+  /** Flat target-vault view kept alongside `target.vault`. */
   targetVault: string;
   reportPath: string | null;
   accountMappingPath: string | null;

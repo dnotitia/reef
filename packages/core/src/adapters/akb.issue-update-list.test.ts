@@ -363,7 +363,7 @@ describe("updateIssue", () => {
       partial: { assigned_to: "bob" },
     });
     expect(result.issue.assigned_to).toBe("bob");
-    // No activity-table calls — only the assignee source lifecycle runs.
+    // The assignee source lifecycle does not append an activity event.
     expect(calls).toHaveLength(5);
   });
 

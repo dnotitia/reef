@@ -12,12 +12,12 @@ import {
 } from "./persistedIssueFilter";
 import { USER_SORT_FIELDS } from "./requests";
 
-export const NAMED_ISSUE_FILTER_VERSION = 1 as const;
+const NAMED_ISSUE_FILTER_VERSION = 1 as const;
 
 const NAMED_ISSUE_FILTER_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/u;
 const NAMED_ISSUE_FILTER_NAME_MAX_LENGTH = 80;
 
-export const NamedIssueFilterEnvelopeSchema = z.object({
+const NamedIssueFilterEnvelopeSchema = z.object({
   version: z.literal(NAMED_ISSUE_FILTER_VERSION),
   id: z.string().regex(NAMED_ISSUE_FILTER_ID_PATTERN),
   name: z.string().min(1).max(NAMED_ISSUE_FILTER_NAME_MAX_LENGTH),
@@ -78,7 +78,7 @@ const PAYLOAD_KEYS = [
  * Returns the display form used for a stored filter name. NFKC makes visually
  * equivalent input stable while trim keeps the name useful in compact menus.
  */
-export function normalizeNamedIssueFilterDisplayName(name: string): string {
+function normalizeNamedIssueFilterDisplayName(name: string): string {
   if (typeof name !== "string") {
     throw new TypeError("named issue filter name must be a string");
   }
@@ -117,7 +117,7 @@ function canonicalLabelFilter(value: string): string | undefined {
  * Sanitizes and canonicalizes the filter payload shared by storage, active
  * matching, and CRUD updates. Invalid fields are dropped by the persisted
  * schema, empty array members are removed, arrays are sorted and deduplicated,
- * and an order can never exist without its sort field.
+ * and a sort order is paired with its sort field.
  */
 export function normalizeNamedIssueFilterPayload(
   value: unknown,

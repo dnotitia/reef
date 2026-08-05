@@ -43,6 +43,7 @@ import {
 } from "@/features/shortcuts/lib/shortcuts";
 import { useShortcutsStore } from "@/features/shortcuts/stores/useShortcutsStore";
 import { useViewStore } from "@/features/ui/stores/useViewStore";
+import { useHydrated } from "@/lib/useHydrated";
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
 import { useQueryClient } from "@tanstack/react-query";
@@ -178,7 +179,7 @@ interface NavBadge {
 const cap = (n: number) => (n > 9 ? "9+" : String(n));
 
 export function DashboardShell({ children, appVersion }: DashboardShellProps) {
-  const [interactionReady, setInteractionReady] = useState(false);
+  const interactionReady = useHydrated();
   const sidebarCollapsed = useViewStore((state) => state.sidebarCollapsed);
   const toggleSidebar = useViewStore((state) => state.toggleSidebar);
   const openNewIssueDialog = useViewStore((state) => state.openNewIssueDialog);
@@ -200,9 +201,6 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   // mounted in the authenticated shell. Restores a persisted locale if the
   // cookie was cleared (REEF-291).
   useLocaleSync();
-  useEffect(() => {
-    setInteractionReady(true);
-  }, []);
   const t = useTranslations("nav");
   const pathname = usePathname();
   const router = useRouter();

@@ -374,7 +374,13 @@ test.describe("Hermetic command palette", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
-    await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
+    await page.evaluate(() => {
+      const activeElement = document.activeElement;
+      if (activeElement instanceof HTMLElement) {
+        activeElement.blur();
+      }
+    });
+    await page.locator("body").focus();
     await expect(page.locator("body")).toBeFocused();
     await enterCommandMode(page);
     await page

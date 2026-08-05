@@ -311,7 +311,7 @@ const resolveExecutable = async (
       await access(candidate, constants.X_OK);
       return candidate;
     } catch {
-      // Continue through the caller-provided PATH only.
+      // Try the next entry from the caller-provided PATH.
     }
   }
   throw classified(operation, "configuration");
@@ -1006,7 +1006,7 @@ const createSession = (
   };
   reader.on("line", (line) => handleMessage(session, line));
   child.stderr.on("data", () => {
-    // Drain stderr so a noisy child cannot block. Raw stderr never leaves the process.
+    // Drain stderr so a noisy child does not block. Raw stderr stays inside the process.
   });
   child.once("error", () => {
     if (!session.stopping) {

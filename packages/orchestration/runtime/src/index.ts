@@ -48,7 +48,6 @@ export {
   ProviderError,
   ProviderIdentitySchema,
   ProviderKindSchema,
-  ProviderSnapshotSchema,
   executeProviderOperation,
   invokeProviderOperation,
   normalizeProviderError,

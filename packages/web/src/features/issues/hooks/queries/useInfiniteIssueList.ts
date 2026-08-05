@@ -8,7 +8,7 @@ import {
 } from "../../lib/buildIssueQuery";
 import { issueListInfiniteKey } from "../../lib/issueListCache";
 
-export const ISSUE_LIST_PAGE_SIZE = 100;
+const ISSUE_LIST_PAGE_SIZE = 100;
 
 export function useInfiniteIssueList(vault: string, query: IssueQueryParams) {
   const hydrated = useHydrated();

@@ -163,6 +163,9 @@ export function IssueListTable({ vault }: IssueListTableProps) {
     searchQuery
   );
 
+  // TanStack Virtual exposes imperative methods outside React Compiler's
+  // safe memoization model; keep the compiler skip local to this integration point.
+  // eslint-disable-next-line react-hooks/incompatible-library -- the virtualizer API is the established list implementation.
   const virtualizer = useVirtualizer({
     count: sorted.length,
     getScrollElement: () => scrollElementRef.current,
@@ -265,6 +268,7 @@ export function IssueListTable({ vault }: IssueListTableProps) {
   }, [
     captureAnchor,
     visibleIssueIds,
+    virtualizer,
     virtualizer.getOffsetForIndex,
     virtualizer.scrollToOffset,
   ]);

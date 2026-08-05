@@ -9,7 +9,7 @@ import {
 } from "@reef/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-export const NOTIFICATIONS_QUERY_KEY = ["notifications"] as const;
+const NOTIFICATIONS_QUERY_KEY = ["notifications"] as const;
 
 const NOTIFICATION_LIST_LIMIT = 100;
 

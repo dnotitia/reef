@@ -381,7 +381,7 @@ export async function executeRunPlan(
         }) as ExecutionEvent,
       );
     } catch {
-      // Observation must never change the operational outcome.
+      // Observation failures do not alter the operational outcome.
     }
   };
 

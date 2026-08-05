@@ -9,7 +9,7 @@ import { normalizeIssueQuery } from "./buildIssueQuery";
 
 export type IssueListInfiniteData = InfiniteData<IssueListResponse, unknown>;
 
-export function issueListQueryPrefix(
+function issueListQueryPrefix(
   vault: string,
 ): readonly ["issues", "list", string] {
   return ["issues", "list", vault];

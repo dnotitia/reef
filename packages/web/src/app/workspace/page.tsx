@@ -6,9 +6,9 @@ import { WorkspaceResumeStatus } from "@/features/onboarding/components/Workspac
 import { useWorkspaceAutoResume } from "@/features/onboarding/hooks/useWorkspaceAutoResume";
 
 /**
- * `/workspace` is an alias for the global root redirect contract. Only this
- * unscoped route may consult the remembered Dexie workspace default; explicit
- * `/workspace/[vault]` routes keep their URL vault as the source of truth.
+ * `/workspace` is an alias for the global root redirect contract. The unscoped
+ * route consults the remembered Dexie workspace default; explicit
+ * `/workspace/[vault]` routes derive the workspace from their URL vault.
  */
 export default function WorkspaceRootPage() {
   const authStatus = useAuthRedirect("root");

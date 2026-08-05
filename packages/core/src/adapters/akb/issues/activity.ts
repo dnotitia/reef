@@ -404,8 +404,8 @@ export async function appendActivityEvents(
 /**
  * Reconcile activity rows owned by a Jira changelog migration.
  *
- * Ordinary Reef activity remains append-only. This narrowly-scoped repair path
- * accepts only deterministic Jira changelog event keys, so a later account
+ * Ordinary Reef activity uses appends. This narrowly-scoped repair path accepts
+ * deterministic Jira changelog event keys, so a later account
  * mapping correction can replace fallback actors and actor-valued payloads
  * without duplicating the same logical event. Existing bookkeeping identity
  * (`id`, `created_by`, `created_at`) is preserved; a missing event is inserted
@@ -500,7 +500,7 @@ export interface JiraImportedAttachmentActivityActorInput {
  *
  * Uploading a replacement attachment appends a new event and can leave the
  * previous event orphaned when the old attachment row is revoked. Ordinary
- * Reef activity remains append-only; this path is limited to an exact
+ * Reef activity uses appends; this path is limited to an exact
  * `attachment_added` key whose current actor is a Jira fallback identity.
  */
 export async function reconcileJiraImportedAttachmentActivityActor(

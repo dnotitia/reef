@@ -50,8 +50,8 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
-  type FormEvent,
   type RefObject,
+  type SyntheticEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -406,7 +406,7 @@ export function NamedIssueFilterControl() {
   }, [vault]);
 
   useEffect(() => {
-    void loadItems();
+    void Promise.resolve().then(loadItems);
   }, [loadItems]);
 
   useEffect(() => {
@@ -469,7 +469,7 @@ export function NamedIssueFilterControl() {
   }, [activeItem, canSave, filter, t, updatingId, vault]);
 
   const handleDialogSubmit = useCallback(
-    async (event: FormEvent<HTMLFormElement>) => {
+    async (event: SyntheticEvent<HTMLFormElement>) => {
       event.preventDefault();
       if (!vault || !dialog) return;
       const name = draftName.normalize("NFKC").trim();

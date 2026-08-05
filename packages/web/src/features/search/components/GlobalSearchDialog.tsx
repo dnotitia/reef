@@ -194,6 +194,8 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
   useEffect(() => {
     if (!isOpen) return;
     focusPolicyRef.current = "restore";
+    // The command target snapshots external keyboard context when the palette opens.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- this state captures external focus context rather than deriving render state.
     setCommandTarget(captureCommandContext());
   }, [captureCommandContext, isOpen]);
 

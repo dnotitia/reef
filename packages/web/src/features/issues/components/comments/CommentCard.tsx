@@ -9,7 +9,13 @@ import { cn } from "@/lib/utils";
 import type { Comment, VaultMember } from "@reef/core";
 import { Pencil, Reply } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { type ComponentProps, useMemo, useRef, useState } from "react";
+import {
+  type ComponentProps,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   type AllowedTags,
   Streamdown,
@@ -70,7 +76,9 @@ export function CommentCard({
     draftFromPersistedComment(comment.body, mentionUsernames),
   );
   const draftRef = useRef(draft);
-  draftRef.current = draft;
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
   const [saving, setSaving] = useState(false);
   const [nowMs] = useState(() => Date.now());
   const locale = useLocale();

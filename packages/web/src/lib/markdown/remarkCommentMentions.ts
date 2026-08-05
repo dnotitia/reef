@@ -19,7 +19,7 @@ interface VFileLike {
 }
 
 export interface CommentMentionOptions {
-  /** Only names in the persisted recipient projection are styled. */
+  /** Names in the persisted recipient projection receive mention styling. */
   knownUsernames: ReadonlySet<string>;
   /** Changes when the body/projection changes so Streamdown rebuilds its cache. */
   cacheFingerprint?: string;
@@ -63,8 +63,8 @@ const MARKDOWN_ESCAPABLE = new Set([
 /**
  * Turn source offsets into offsets in the cooked text value mdast gives us.
  * In particular, CommonMark removes the backslash from `\@alice` and from
- * escaped braces inside a braced mention. The source parser must still win for
- * deciding whether the token is a mention, while this map keeps replacement
+ * escaped braces inside a braced mention. The source parser decides whether the
+ * token is a mention, while this map keeps replacement
  * offsets aligned with the mdast value.
  */
 function cookedOffsetMap(source: string): number[] {
@@ -146,7 +146,7 @@ function splitTextFallback(
 }
 
 /**
- * Style resolved comment mentions on the mdast text nodes only. Markdown-owned
+ * Style resolved comment mentions on mdast text nodes. Markdown-owned
  * nodes (inline/fenced code and links) are intentionally not traversed; the
  * source parser additionally excludes emails and escaped/unresolved tokens.
  */

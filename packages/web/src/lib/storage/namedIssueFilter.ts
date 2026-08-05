@@ -8,7 +8,7 @@ import {
 import { clearConfigByPrefix } from "./config";
 import { type ConfigEntry, db } from "./db";
 
-export const NAMED_ISSUE_FILTER_KEY_PREFIX = "named_filter:";
+const NAMED_ISSUE_FILTER_KEY_PREFIX = "named_filter:";
 
 export interface NamedIssueFilter extends NamedIssueFilterEnvelope {
   applicable: boolean;
@@ -31,14 +31,14 @@ export class NamedIssueFilterDuplicateError extends NamedIssueFilterError {
   }
 }
 
-export class NamedIssueFilterNotFoundError extends NamedIssueFilterError {
+class NamedIssueFilterNotFoundError extends NamedIssueFilterError {
   constructor() {
     super("The named issue filter no longer exists.", "not_found");
     this.name = "NamedIssueFilterNotFoundError";
   }
 }
 
-export class NamedIssueFilterInvalidError extends NamedIssueFilterError {
+class NamedIssueFilterInvalidError extends NamedIssueFilterError {
   constructor() {
     super("The named issue filter is invalid.", "invalid");
     this.name = "NamedIssueFilterInvalidError";
