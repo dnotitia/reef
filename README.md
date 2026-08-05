@@ -125,6 +125,7 @@ inside this repository.
 | `packages/orchestrator` | Provider-neutral execution core (`@reef/orchestrator`) for registry preflight, lifecycle, cancellation, cleanup, terminal results, and graceful shutdown outside the web process. |
 | `packages/harness-provider-codex` | Private Codex App Server harness adapter (`@reef/harness-provider-codex`) for stdio lifecycle, policy enforcement, and secret-free harness events. |
 | `packages/jira-migrator` | Operator-run Jira-to-Reef migration package (`@reef/jira-migrator`) for read-only Jira discovery, private migration artifacts, import planning, and dependency-injected Reef apply/reconciliation. |
+| `packages/work-provider-reef` | Private Reef work adapter (`@reef/work-provider-reef`) that implements the orchestrator `WorkProvider` contract through core's AKB issue and activity funnels. |
 | `docs/` | Architecture, UX, deployment, migration, release, and maintenance documentation. |
 | `deploy/` | Kubernetes deployment assets. |
 | `scripts/` | Repository automation, including release-policy and maintenance checks. |
@@ -181,8 +182,8 @@ reef has three runtime tiers:
 
 Provider-neutral one-run execution lives separately in `@reef/orchestrator`; a
 caller may schedule it outside the web process. One-shot Jira migrations run
-separately in `@reef/jira-migrator`; neither runtime loop is hosted inside reef
-web.
+separately in `@reef/jira-migrator`, while Reef issue work is exposed through
+`@reef/work-provider-reef`; neither runtime loop is hosted inside reef web.
 
 For the full boundary, storage, credential, and streaming contracts, read
 [docs/architecture.md](docs/architecture.md).
@@ -214,6 +215,7 @@ reef origin. See [docs/deployment.md](docs/deployment.md) and
 - [`@reef/orchestrator` package README](packages/orchestrator/README.md)
 - [`@reef/harness-provider-codex` package README](packages/harness-provider-codex/README.md)
 - [`@reef/jira-migrator` package README](packages/jira-migrator/README.md)
+- [`@reef/work-provider-reef` package README](packages/work-provider-reef/README.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 - [Changelog](CHANGELOG.md)
