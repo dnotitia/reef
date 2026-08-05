@@ -22,7 +22,8 @@
     "smoke:dry-run": "tsx src/cli.ts --dry-run"
   },
   "dependencies": {
-    "@reef/core": "workspace:*"
+    "@reef/core": "workspace:*",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^20.19.39",
