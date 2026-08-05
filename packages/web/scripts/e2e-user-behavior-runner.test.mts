@@ -21,6 +21,7 @@ import {
   redactText,
   reportReason,
   validateScenarioInput,
+  waitForNamedTriggerFocus,
   waitForNamedTriggerState,
 } from "./e2e-user-behavior-runner.cjs";
 
@@ -212,6 +213,50 @@ describe("portable E2E user-behavior runner", () => {
         },
         options: { timeout: 15_000 },
       });
+    } finally {
+      if (previousDocument) {
+        Object.defineProperty(globalThis, "document", previousDocument);
+      } else {
+        Reflect.deleteProperty(globalThis, "document");
+      }
+    }
+  });
+
+  it("waits for the named-filter trigger to regain focus after dialog close", async () => {
+    let focused = false;
+    let waitOptions: { timeout?: number } | undefined;
+    const previousDocument = Object.getOwnPropertyDescriptor(
+      globalThis,
+      "document",
+    );
+    const trigger = {};
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: {
+        activeElement: null,
+        querySelector: () => trigger,
+      },
+    });
+    try {
+      const page = {
+        getByTestId: () => ({ waitFor: async () => undefined }),
+        waitForFunction: async (
+          predicate: () => boolean,
+          _args: undefined,
+          options: { timeout?: number },
+        ) => {
+          waitOptions = options;
+          expect(predicate()).toBe(false);
+          (globalThis.document as { activeElement: object }).activeElement =
+            trigger;
+          focused = predicate();
+        },
+      };
+
+      await waitForNamedTriggerFocus(page);
+
+      expect(focused).toBe(true);
+      expect(waitOptions).toEqual({ timeout: 15_000 });
     } finally {
       if (previousDocument) {
         Object.defineProperty(globalThis, "document", previousDocument);

@@ -361,7 +361,10 @@ describe("NamedIssueFilterControl", () => {
     const user = userEvent.setup();
     const rafSpy = vi
       .spyOn(window, "requestAnimationFrame")
-      .mockImplementation(() => 0);
+      .mockImplementation((callback) => {
+        window.setTimeout(() => callback(performance.now()), 0);
+        return 0;
+      });
     useIssueStore.setState({
       filter: { status: ["todo"] },
       filterVault: "reef-acme",

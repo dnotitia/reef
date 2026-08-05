@@ -601,7 +601,7 @@ export function NamedIssueFilterControl() {
           data-testid="named-filter-dialog"
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            triggerRef.current?.focus();
+            queueMicrotask(() => triggerRef.current?.focus());
           }}
         >
           <DialogHeader>

@@ -162,6 +162,22 @@ async function waitForNamedTrigger(page, text) {
   return trigger;
 }
 
+async function waitForNamedTriggerFocus(page) {
+  const trigger = page.getByTestId("named-filter-trigger");
+  await trigger.waitFor({ state: "visible", timeout: 15_000 });
+  await page.waitForFunction(
+    () => {
+      const trigger = document.querySelector(
+        '[data-testid="named-filter-trigger"]',
+      );
+      return trigger !== null && trigger === document.activeElement;
+    },
+    undefined,
+    { timeout: 15_000 },
+  );
+  return trigger;
+}
+
 async function waitForNamedTriggerState(
   page,
   { name, activeLabel, changedLabel },
@@ -1430,13 +1446,7 @@ async function runNamedIssueFiltersScenario({
       const trigger = page.getByTestId("named-filter-trigger");
       await trigger.click();
       await page.keyboard.press("Escape");
-      const focused = await page.evaluate(() =>
-        document.activeElement?.getAttribute("data-testid"),
-      );
-      assert(
-        focused === "named-filter-trigger",
-        "Escape did not return focus to the trigger",
-      );
+      await waitForNamedTriggerFocus(page);
       await trigger.click();
       await page
         .getByRole("menuitem", {
@@ -1447,13 +1457,7 @@ async function runNamedIssueFiltersScenario({
       const dialog = page.getByTestId("named-filter-dialog");
       await dialog.getByTestId("named-filter-name-input").press("Escape");
       await dialog.waitFor({ state: "hidden", timeout: 15_000 });
-      const dialogFocused = await page.evaluate(() =>
-        document.activeElement?.getAttribute("data-testid"),
-      );
-      assert(
-        dialogFocused === "named-filter-trigger",
-        "dialog Escape did not return focus to the trigger",
-      );
+      await waitForNamedTriggerFocus(page);
       const evidence = await saveClauseEvidence(
         outputDir,
         "named-issue-filters.B5",
@@ -2145,6 +2149,7 @@ module.exports = {
   reportReason,
   runLargeIssueListScenario,
   runNamedIssueFiltersScenario,
+  waitForNamedTriggerFocus,
   waitForNamedTriggerState,
   validateScenarioInput,
 };

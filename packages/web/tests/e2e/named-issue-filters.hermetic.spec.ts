@@ -291,10 +291,12 @@ test.describe("Hermetic named issue filters", () => {
     await expect(dialog).toBeVisible();
     await dialog.getByTestId("named-filter-name-input").press("Escape");
     await expect(dialog).toBeHidden();
-    const focused = await page.evaluate(() =>
-      document.activeElement?.getAttribute("data-testid"),
-    );
-    expect(focused).toBe("named-filter-trigger");
+    await expect
+      .poll(
+        () => trigger.evaluate((element) => element === document.activeElement),
+        { timeout: 15_000 },
+      )
+      .toBe(true);
   });
 
   test("isolates vaults and clears browser-local named filters during account reconciliation", async ({
