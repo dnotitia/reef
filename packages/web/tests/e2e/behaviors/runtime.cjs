@@ -73,7 +73,10 @@ async function clearPersistedQueryCacheOnLoad(page) {
   });
 }
 
-async function loginToWorkspace(page, { webOrigin, workspace, credentials }) {
+async function loginToWorkspace(
+  page,
+  { webOrigin, workspace, credentials, expect },
+) {
   const loginUrl = new URL("/login", webOrigin);
   loginUrl.searchParams.set("password", "1");
   await page.goto(loginUrl.toString(), {
@@ -108,15 +111,18 @@ async function loginToWorkspace(page, { webOrigin, workspace, credentials }) {
     { waitUntil: "domcontentloaded" },
   );
 
-  // The workspace shell installs the global shortcut after hydration. Prove
-  // that seam before a canonical behavior sends its first shortcut; otherwise
-  // a slower source-free browser can open the palette before the listener is
-  // ready and observe no search results.
+  assert(typeof expect === "function", "login requires Playwright expect");
+
+  // The workspace shell installs the global shortcut after hydration. Retry
+  // the shortcut itself until it opens the palette; a single probe can be
+  // lost before the listener is ready in a slower source-free browser.
   const globalSearchInput = page.locator('[data-testid="global-search-input"]');
-  await page.keyboard.press("Control+K");
-  await globalSearchInput.waitFor({ state: "visible", timeout: 15_000 });
+  await expect(async () => {
+    await page.keyboard.press("Control+K");
+    await expect(globalSearchInput).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
   await page.keyboard.press("Escape");
-  await globalSearchInput.waitFor({ state: "hidden", timeout: 15_000 });
+  await expect(globalSearchInput).toHaveCount(0);
 }
 
 function redactText(value, secrets) {

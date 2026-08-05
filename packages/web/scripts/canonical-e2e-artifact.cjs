@@ -406,6 +406,7 @@ async function runBehaviorArtifact(options) {
       webOrigin: input.runtime.web_origin,
       workspace: input.runtime.workspace,
       credentials,
+      expect: runtime.expect,
     });
     transcript.push({
       event: "login.completed",
@@ -431,6 +432,7 @@ async function runBehaviorArtifact(options) {
             webOrigin: input.runtime.web_origin,
             workspace: input.runtime.workspace,
             credentials,
+            expect: runtime.expect,
           }),
         workspace: input.runtime.workspace,
       });
@@ -445,6 +447,7 @@ async function runBehaviorArtifact(options) {
             webOrigin: input.runtime.web_origin,
             workspace: input.runtime.workspace,
             credentials,
+            expect: runtime.expect,
           }),
       });
     }

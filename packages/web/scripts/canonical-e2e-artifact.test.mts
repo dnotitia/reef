@@ -167,19 +167,56 @@ describe("canonical E2E artifact adapter", () => {
 
   it("waits for the hydrated workspace shell before canonical behavior starts", async () => {
     const events: string[] = [];
+    let shortcutPresses = 0;
+    const searchLocator = {
+      toBeVisible: async () => {
+        if (shortcutPresses < 2) {
+          throw new Error("shortcut listener is not hydrated yet");
+        }
+        events.push('[data-testid="global-search-input"]:visible');
+      },
+      toHaveCount: async (count: number) => {
+        expect(count).toBe(0);
+        events.push('[data-testid="global-search-input"]:hidden');
+      },
+    };
     const locator = (selector: string) => ({
       waitFor: async ({ state }: { state: string }) => {
         events.push(`${selector}:${state}`);
       },
+      ...(selector === '[data-testid="global-search-input"]'
+        ? searchLocator
+        : {}),
       fill: async () => undefined,
       click: async () => undefined,
     });
+    const playwrightExpect = (value: unknown) => {
+      if (typeof value === "function") {
+        return {
+          toPass: async ({ timeout }: { timeout: number }) => {
+            const deadline = Date.now() + timeout;
+            let lastError: unknown;
+            while (Date.now() < deadline) {
+              try {
+                await value();
+                return;
+              } catch (error) {
+                lastError = error;
+              }
+            }
+            throw lastError;
+          },
+        };
+      }
+      return value;
+    };
     const page = {
       goto: async () => undefined,
       locator,
       keyboard: {
         press: async (key: string) => {
           events.push(`key:${key}`);
+          if (key === "Control+K") shortcutPresses += 1;
         },
       },
       waitForResponse: async (predicate: (response: unknown) => boolean) => {
@@ -203,9 +240,11 @@ describe("canonical E2E artifact adapter", () => {
       webOrigin: "http://localhost:7353",
       workspace: "reef-e2e",
       credentials: { username: "fixture-user", password: "fixture-pass" },
+      expect: playwrightExpect,
     });
 
-    expect(events.slice(-4)).toEqual([
+    expect(events.slice(-5)).toEqual([
+      "key:Control+K",
       "key:Control+K",
       '[data-testid="global-search-input"]:visible',
       "key:Escape",
