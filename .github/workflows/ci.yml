@@ -161,7 +161,7 @@ jobs:
         run: pnpm --filter @reef/web exec playwright install-deps chromium
 
       - name: Run Playwright E2E tests
-        run: pnpm --filter @reef/web exec playwright test --shard=${{ matrix.shard }}/3
+        run: pnpm --filter @reef/web run test:e2e:sharded -- --shard=${{ matrix.shard }}/3
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v5
