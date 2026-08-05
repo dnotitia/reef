@@ -53,6 +53,13 @@ then exits non-zero if any scanner cannot run or any selected category still
 reports candidates. Category-scoped assertions use the same option, for example
 `pnpm run maintenance:scan -- dead-code --assert-clean`.
 
+Workspace package discovery is delegated to pnpm with
+`pnpm --recursive list --depth=-1 --json`. The scanner uses that workspace list
+for package source and test roots; it does not recursively guess `package.json`
+files under fixtures, build output, or other non-workspace directories. Run
+`pnpm run maintenance:test` to verify that nested orchestration packages are
+included and a maintenance fixture outside the workspace is excluded.
+
 A scanner's exit code is advisory: a non-zero exit usually means it reported
 findings, not that the scan failed. What each scan looks at, and what its output
 means:

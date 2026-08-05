@@ -1,5 +1,7 @@
 packages:
   - "packages/*"
+  - "packages/orchestration/runtime"
+  - "packages/orchestration/providers/*"
 
 pmOnFail: download
 

@@ -337,10 +337,10 @@ preserves Server-Sent Events.
 | Field leaves and styling | `packages/web/src/components/fields/` |
 | Browser state and storage | `packages/web/src/lib/` (`storage`, `api`, `github`, `llm`) |
 | CSP / security headers | `packages/web/src/proxy.ts` |
-| Provider-neutral execution core | `packages/orchestrator/src/` |
-| Codex harness adapter | `packages/harness-provider-codex/src/` |
+| Provider-neutral execution core | `packages/orchestration/runtime/src/` |
+| Codex harness adapter | `packages/orchestration/providers/codex/src/` |
 | Jira migration runtime | `packages/jira-migrator/src/` |
-| Reef work provider | `packages/work-provider-reef/src/` |
+| Reef work provider | `packages/orchestration/providers/reef/src/` |
 
 ## Related documentation
 
@@ -349,7 +349,7 @@ preserves Server-Sent Events.
 - [Release policy](release-policy.md) and [migration policy](migration-policy.md)
 - [Core package README](../packages/core/README.md) and
   [`@reef/web` package README](../packages/web/README.md)
-- [`@reef/orchestrator` package README](../packages/orchestrator/README.md)
-- [`@reef/harness-provider-codex` package README](../packages/harness-provider-codex/README.md)
+- [`@reef/orchestrator` package README](../packages/orchestration/runtime/README.md)
+- [`@reef/harness-provider-codex` package README](../packages/orchestration/providers/codex/README.md)
 - [`@reef/jira-migrator` package README](../packages/jira-migrator/README.md)
-- [`@reef/work-provider-reef` package README](../packages/work-provider-reef/README.md)
+- [`@reef/work-provider-reef` package README](../packages/orchestration/providers/reef/README.md)

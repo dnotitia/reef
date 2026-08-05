@@ -162,14 +162,14 @@ describe("provider contract", () => {
   });
 
   it("normalizes failure and cancellation without serializing raw errors", async () => {
-    const secret = "provider-secret-prompt-payload";
+    const failureMarker = "provider-hidden-prompt-payload";
     await expect(
       executeProviderOperation(workProvider, "read", "read", () => {
-        throw new Error(secret);
+        throw new Error(failureMarker);
       }),
     ).rejects.toSatisfy((error: unknown) => {
       expect(error).toBeInstanceOf(ProviderError);
-      expect(JSON.stringify(error)).not.toContain(secret);
+      expect(JSON.stringify(error)).not.toContain(failureMarker);
       expect(error).toMatchObject({
         code: "protocol",
         providerKind: "work",

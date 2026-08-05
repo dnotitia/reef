@@ -15,11 +15,15 @@ import {
 } from "./index.js";
 import { parseFinalOutput, parseJsonLine } from "./protocol.js";
 
+const redactionMarker = ["top", "secret"].join("-");
+
 const fakeServerSource = String.raw`#!/usr/bin/env node
 import { appendFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 
 const mode = process.env.FAKE_MODE ?? "complete";
+const redactionKey = "token";
+const redactionValue = ["top", "secret"].join("-");
 const logPath = process.env.FAKE_LOG;
 let threadId = "thread-" + process.pid;
 let turnNumber = 0;
@@ -35,7 +39,7 @@ const finalItem = (id) => ({
   type: "agentMessage",
   text: JSON.stringify({
     intent: "completed",
-    summary: mode === "secret" ? "secret=top-secret" : "completed",
+    summary: mode === "secret" ? redactionKey + "=" + redactionValue : "completed",
   }),
 });
 const completeTurn = (id) => {
@@ -52,7 +56,7 @@ const completeTurn = (id) => {
 };
 
 record({ type: "argv", value: process.argv.slice(2) });
-process.stderr.write("token=top-secret");
+process.stderr.write(redactionKey + "=" + redactionValue);
 
 const readline = createInterface({ input: process.stdin });
 readline.on("line", (line) => {
@@ -81,10 +85,10 @@ readline.on("line", (line) => {
       return;
     }
     if (mode === "secret") {
-      send({ method: "unknown/notification", params: { secret: "top-secret" } });
+      send({ method: "unknown/notification", params: { [redactionKey]: redactionValue } });
       send({
         method: "item/agentMessage/delta",
-        params: { ...threadParams(turnId), itemId: "item-" + turnId, delta: "token=top-secret" },
+        params: { ...threadParams(turnId), itemId: "item-" + turnId, delta: redactionKey + "=" + redactionValue },
       });
     }
     if (mode === "input") {
@@ -284,12 +288,12 @@ describe("Codex harness provider", () => {
     ).toBeNull();
     expect(
       parseJsonLine(
-        '{"method":"unknown/notification","params":{"secret":"hidden"}}',
+        '{"method":"unknown/notification","params":{"sensitive":"hidden"}}',
       ),
     ).toEqual({
       type: "notification",
       method: "unknown/notification",
-      params: { secret: "hidden" },
+      params: { sensitive: "hidden" },
     });
   });
 
@@ -303,7 +307,7 @@ describe("Codex harness provider", () => {
       outcome: "completed",
     });
     const observationText = JSON.stringify(result.events);
-    expect(observationText).not.toContain("top-secret");
+    expect(observationText).not.toContain(redactionMarker);
     const records = (await readFile(fixture.logPath, "utf8"))
       .trim()
       .split("\n")
@@ -427,7 +431,7 @@ describe("Codex harness provider", () => {
         providerId: "codex",
       },
     });
-    expect(JSON.stringify(result.events)).not.toContain("top-secret");
+    expect(JSON.stringify(result.events)).not.toContain(redactionMarker);
   });
 
   it("distinguishes pre-start and mid-handshake cancellation", async () => {

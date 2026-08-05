@@ -53,7 +53,7 @@
       "includeEntryExports": false,
       "project": ["src/**/*.ts"]
     },
-    "packages/orchestrator": {
+    "packages/orchestration/runtime": {
       "entry": ["src/index.ts", "src/cli.ts"],
       "includeEntryExports": false,
       "project": ["src/**/*.ts"]

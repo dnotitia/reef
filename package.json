@@ -30,6 +30,7 @@
     "maintenance:large-files": "node scripts/maintenance/scan.mjs large-files",
     "maintenance:test-profile": "node scripts/maintenance/scan.mjs slow-tests",
     "maintenance:comments": "node scripts/maintenance/scan.mjs comment-claims",
+    "maintenance:test": "node --test scripts/maintenance/scan.test.mjs",
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r run test",
     "format": "biome format --write ."
