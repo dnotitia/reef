@@ -10,6 +10,7 @@ import {
   setAkbUserId,
 } from "@/lib/storage/config";
 import { clearAllLastScans } from "@/lib/storage/lastScan";
+import { clearAllNamedIssueFilters } from "@/lib/storage/namedIssueFilter";
 
 /**
  * Wipe every AKB-account-scoped slice of browser state.
@@ -39,6 +40,7 @@ export async function wipeAkbScopedBrowserState(): Promise<void> {
   await Promise.all([
     setActiveVault(""),
     clearAllIssueFilters(),
+    clearAllNamedIssueFilters(),
     clearAkbUserId(),
     clearAllActivityRepos(),
     clearLastVisitAt(),

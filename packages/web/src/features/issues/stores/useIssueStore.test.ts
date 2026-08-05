@@ -42,6 +42,26 @@ describe("useIssueStore", () => {
     expect(useIssueStore.getState().filter.status).toEqual(["closed"]);
   });
 
+  it("applyFilter replaces the full filter and clears one-off search", () => {
+    useIssueStore
+      .getState()
+      .setFilter({ status: ["todo"], priority: ["high"] });
+    useIssueStore.getState().setSearchQuery("auth");
+
+    useIssueStore.getState().applyFilter({
+      status: ["in_progress"],
+      sortField: "updated_at",
+      sortOrder: "desc",
+    });
+
+    expect(useIssueStore.getState().filter).toEqual({
+      status: ["in_progress"],
+      sortField: "updated_at",
+      sortOrder: "desc",
+    });
+    expect(useIssueStore.getState().searchQuery).toBe("");
+  });
+
   it("clearFilter resets filter to empty object and clears searchQuery", () => {
     useIssueStore
       .getState()

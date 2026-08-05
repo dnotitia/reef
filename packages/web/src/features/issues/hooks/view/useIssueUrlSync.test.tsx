@@ -51,6 +51,7 @@ vi.mock("@/features/settings/hooks/useActiveVault", () => ({
 function Harness() {
   useIssueUrlSync();
   const setFilter = useIssueStore((state) => state.setFilter);
+  const applyFilter = useIssueStore((state) => state.applyFilter);
 
   return (
     <>
@@ -59,6 +60,18 @@ function Harness() {
       </button>
       <button type="button" onClick={() => setFilter({ priority: ["high"] })}>
         Set priority
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          applyFilter({
+            status: ["todo"],
+            sortField: "priority",
+            sortOrder: "desc",
+          })
+        }
+      >
+        Apply named filter
       </button>
     </>
   );
@@ -292,6 +305,29 @@ describe("useIssueUrlSync", () => {
         },
       );
     });
+  });
+
+  it("applies a named payload atomically, clears search, preserves view, and emits only canonical issue params", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      "view=timeline&q=temporary",
+    );
+    render(<Harness />);
+    await waitFor(() =>
+      expect(useIssueStore.getState().filterVault).toBe("reef-acme"),
+    );
+    mockPush.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: "Apply named filter" }));
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith(
+        "/workspace/reef-acme/issues?view=timeline&status=todo&sort=priority&order=desc",
+        { scroll: false },
+      );
+    });
+    expect(useIssueStore.getState().searchQuery).toBe("");
+    expect(navigationState.searchParams.has("q")).toBe(false);
+    expect(navigationState.searchParams.has("named_filter")).toBe(false);
   });
 
   it("does not mirror filters onto the URL while a detail sheet is open", async () => {

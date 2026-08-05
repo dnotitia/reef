@@ -12,6 +12,12 @@ explicitly in the entries below.
 
 ## Unreleased
 
+### Added
+
+- **Named personal issue filters** can save, apply, update, rename, duplicate,
+  and delete browser-local facet, display, and sort presets without adding
+  user-specific server state.
+
 - **Large issue lists now load and render progressively.** The List view fetches
   100-issue cursor pages, keeps the DOM virtualized while preserving keyboard
   focus, selection, quick edits, and finite sibling views. The persisted query

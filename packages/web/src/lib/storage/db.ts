@@ -12,7 +12,9 @@ interface ConfigEntry {
  * One live store:
  *  - `config` (key-value bag): client workspace state with no akb backend home
  *    — the active `vault`, `theme`, `activity_repo:{vault}`, `filter:{vault}`
- *    (the per-vault last-used issue filter, REEF-009), `last_visit_at`,
+ *    (the per-vault last-used issue filter, REEF-009),
+ *    `named_filter:{vault}:{id}` (browser-local named issue filter envelopes),
+ *    `last_visit_at`,
  *    `last_scan:{repo}`, and `akb_user_id` (the previously-signed-in account,
  *    read by `accountReconcile` to detect an account switch).
  *

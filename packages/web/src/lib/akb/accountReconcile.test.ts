@@ -26,6 +26,10 @@ import {
 import { db } from "@/lib/storage/db";
 import { getLastScanAt, setLastScanAt } from "@/lib/storage/lastScan";
 import {
+  createNamedIssueFilter,
+  listNamedIssueFilters,
+} from "@/lib/storage/namedIssueFilter";
+import {
   reconcileAkbAccount,
   wipeAkbScopedBrowserState,
 } from "./accountReconcile";
@@ -53,6 +57,11 @@ describe("reconcileAkbAccount", () => {
     await setAkbUserId("user-1");
     await setActiveVault("reef-acme");
     await setPersistedIssueFilter("reef-acme", { status: ["todo"] });
+    await createNamedIssueFilter({
+      vault: "reef-acme",
+      name: "Acme personal",
+      payload: { status: ["todo"] },
+    });
     useIssueStore.setState({
       filter: { status: ["todo"] },
       filterVault: "reef-acme",
@@ -68,6 +77,7 @@ describe("reconcileAkbAccount", () => {
     expect(await getPersistedIssueFilter("reef-acme")).toEqual({
       status: ["todo"],
     });
+    expect(await listNamedIssueFilters("reef-acme")).toHaveLength(1);
     // Same account: in-memory filter is left intact.
     expect(useIssueStore.getState().filter).toEqual({ status: ["todo"] });
     expect(useIssueStore.getState().filterVault).toBe("reef-acme");
@@ -78,6 +88,16 @@ describe("reconcileAkbAccount", () => {
     await setActiveVault("reef-acme");
     await setPersistedIssueFilter("reef-acme", { status: ["todo"] });
     await setPersistedIssueFilter("reef-zen", { priority: ["low"] });
+    await createNamedIssueFilter({
+      vault: "reef-acme",
+      name: "Acme personal",
+      payload: { status: ["todo"] },
+    });
+    await createNamedIssueFilter({
+      vault: "reef-zen",
+      name: "Zen personal",
+      payload: { priority: ["low"] },
+    });
     useIssueStore.setState({
       filter: { status: ["todo"] },
       filterVault: "reef-acme",
@@ -93,6 +113,8 @@ describe("reconcileAkbAccount", () => {
     // A different account should not inherit the previous account's saved filters.
     expect(await getPersistedIssueFilter("reef-acme")).toEqual({});
     expect(await getPersistedIssueFilter("reef-zen")).toEqual({});
+    expect(await listNamedIssueFilters("reef-acme")).toEqual([]);
+    expect(await listNamedIssueFilters("reef-zen")).toEqual([]);
     // ...nor the previous account's in-memory filter (would otherwise leak if
     // the new account reselects the same vault slug).
     expect(useIssueStore.getState().filter).toEqual({});
@@ -117,6 +139,11 @@ describe("wipeAkbScopedBrowserState", () => {
     await setAkbUserId("user-1");
     await setActiveVault("reef-acme");
     await setPersistedIssueFilter("reef-acme", { status: ["todo"] });
+    await createNamedIssueFilter({
+      vault: "reef-acme",
+      name: "Acme personal",
+      payload: { status: ["todo"] },
+    });
     useIssueStore.setState({
       filter: { status: ["todo"] },
       filterVault: "reef-acme",
@@ -132,6 +159,7 @@ describe("wipeAkbScopedBrowserState", () => {
     // drops the recorded id so the next login is a fresh-account wipe.
     expect(await getAkbUserId()).toBeUndefined();
     expect(await getPersistedIssueFilter("reef-acme")).toEqual({});
+    expect(await listNamedIssueFilters("reef-acme")).toEqual([]);
     expect(useIssueStore.getState().filter).toEqual({});
     expect(useIssueStore.getState().filterVault).toBeNull();
   });
