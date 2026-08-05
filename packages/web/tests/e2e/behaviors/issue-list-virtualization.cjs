@@ -56,10 +56,14 @@ async function openLargeList(page, expect, workspace, query = "") {
     window.localStorage.removeItem("REACT_QUERY_OFFLINE_CACHE");
   });
   await clearPersistedQueryCacheOnLoad(page);
+  // An explicit empty labels param makes URL state win over the saved filter
+  // while preserving the helper's unfiltered-list meaning. This matters when
+  // the canonical clauses share one browser page: the previous clause may
+  // have persisted a filter, and a bare URL would let async restoration put it
+  // back into the in-memory store at the virtualized keyboard boundary.
+  const effectiveQuery = query || "labels=";
   await page.goto(
-    `/workspace/${encodeURIComponent(workspace)}/issues?view=list${
-      query ? `&${query}` : ""
-    }`,
+    `/workspace/${encodeURIComponent(workspace)}/issues?view=list&${effectiveQuery}`,
   );
   await expect(
     page.locator('[data-testid="issue-list-row"]').first(),
