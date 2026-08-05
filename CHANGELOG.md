@@ -16,7 +16,9 @@ explicitly in the entries below.
 
 - **Named personal issue filters** can save, apply, update, rename, duplicate,
   and delete browser-local facet, display, and sort presets without adding
-  user-specific server state.
+  user-specific server state. The existing Dexie/IndexedDB `config` store
+  gains named-filter keys in place; existing browser settings remain intact and
+  no server-side storage migration is required.
 
 - **Large issue lists now load and render progressively.** The List view fetches
   100-issue cursor pages, keeps the DOM virtualized while preserving keyboard
