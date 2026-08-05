@@ -124,12 +124,37 @@ export function parseOptions(argv = process.argv.slice(2), env = process.env) {
 export function buildReadyPayload({ webOrigin, fixtureOrigin, scenario }) {
   const validatedScenario = validateScenario(scenario);
   return {
-    schema_version: 1,
+    schema_version: 2,
     status: "ready",
-    origin: webOrigin,
-    fixture_origin: fixtureOrigin,
-    reset_url: `${fixtureOrigin}/__e2e/reset`,
     scenario: validatedScenario,
+    services: {
+      web: {
+        origin: webOrigin,
+        health: { method: "GET", url: webOrigin },
+      },
+      fixture: {
+        origin: fixtureOrigin,
+        health: {
+          method: "GET",
+          url: `${fixtureOrigin}/__e2e/health`,
+        },
+        reset: {
+          method: "POST",
+          url: `${fixtureOrigin}/__e2e/reset`,
+          content_type: "application/json",
+          body: { scenario: validatedScenario },
+        },
+        discovery: {
+          method: "GET",
+          url: `${fixtureOrigin}/__e2e/runtime`,
+        },
+      },
+    },
+    credentials: {
+      username_env: "REEF_E2E_USERNAME",
+      password_env: "REEF_E2E_PASSWORD",
+      login_path: "/login?password=1",
+    },
   };
 }
 
