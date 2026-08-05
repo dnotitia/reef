@@ -79,7 +79,6 @@ export function useWorkspaceAutoResume({
       return;
     }
 
-    setPersistFailed(false);
     if (
       !pendingResumeRef.current ||
       pendingResumeRef.current.target !== target

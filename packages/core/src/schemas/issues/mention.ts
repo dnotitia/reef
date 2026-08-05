@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-/** A username may use the compact token form only when every code point is a
- * Unicode letter or number. */
-export const DELIMITER_SAFE_USERNAME_PATTERN = /^[\p{L}\p{N}]+$/u;
+/** The compact token form accepts usernames made of Unicode letters and numbers. */
+const DELIMITER_SAFE_USERNAME_PATTERN = /^[\p{L}\p{N}]+$/u;
 
-export const MentionUsernameSchema = z.string().min(1);
-export const MentionRecipientsSchema = z.array(MentionUsernameSchema);
+const MentionUsernameSchema = z.string().min(1);
+const MentionRecipientsSchema = z.array(MentionUsernameSchema);
 
 export interface MentionToken {
   username: string;
@@ -13,13 +12,6 @@ export interface MentionToken {
   start: number;
   end: number;
 }
-
-export const MentionTokenSchema = z.object({
-  username: MentionUsernameSchema,
-  raw: z.string().min(2),
-  start: z.number().int().nonnegative(),
-  end: z.number().int().positive(),
-});
 
 const LETTER_OR_NUMBER = /[\p{L}\p{N}]/u;
 const EMAIL_PATTERN =
@@ -221,21 +213,16 @@ function parseAt(value: string, start: number): MentionToken | null {
   let end = start + 1;
   while (isLetterOrNumberAt(value, end)) end += codePointWidth(value, end);
   // A backslash or a second @ immediately after the compact token means the
-  // author is typing an unsafe username; that username must use braces.
+  // author is typing an unsafe username; braces are required for that form.
   if (value[end] === "\\" || value[end] === "@") return null;
   const username = value.slice(start + 1, end);
   return { username, raw: value.slice(start, end), start, end };
 }
 
-/** Returns the canonical token the composer should insert for a roster username. */
 export function formatMentionToken(username: string): string {
   if (DELIMITER_SAFE_USERNAME_PATTERN.test(username)) return `@${username}`;
   const escaped = username.replaceAll("\\", "\\\\").replaceAll("}", "\\}");
   return `@{${escaped}}`;
-}
-
-export function isDelimiterSafeUsername(username: string): boolean {
-  return DELIMITER_SAFE_USERNAME_PATTERN.test(username);
 }
 
 /**
@@ -267,7 +254,7 @@ export function extractMentionUsernames(value: string): string[] {
   return parseMentionTokens(value).map((token) => token.username);
 }
 
-/** Parse a persisted projection; malformed/legacy values fail closed to []. */
+/** Parse a persisted projection; malformed values return an empty list. */
 export function parsePersistedMentionRecipients(value: unknown): string[] {
   const parsed = MentionRecipientsSchema.safeParse(value);
   if (!parsed.success) return [];
@@ -275,9 +262,9 @@ export function parsePersistedMentionRecipients(value: unknown): string[] {
 }
 
 /**
- * Resolve every syntactic token against the exact-case current roster and
- * return a deduplicated projection. No username is included in the error so a
- * rejected save cannot disclose roster membership.
+ * Resolve each syntactic token against the exact-case current roster and return
+ * a deduplicated projection. Errors omit usernames to avoid disclosing roster
+ * membership.
  */
 export function buildMentionRecipients(
   value: string,

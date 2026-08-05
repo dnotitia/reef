@@ -28,7 +28,7 @@ export const COLUMN_KEYS = [
   null,
 ] as const;
 
-// Fixed column hints keep the table geometry stable while only the mounted
+// Fixed column hints keep the table geometry stable while mounted
 // virtual rows change. The total is intentionally wider than a narrow viewport;
 // the existing horizontal table scroll remains the way to reach planning fields.
 export const COLUMN_WIDTHS = [

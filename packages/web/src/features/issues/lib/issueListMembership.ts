@@ -107,10 +107,10 @@ function variantHasFreeText(variant: IssueQueryParams | undefined): boolean {
 }
 
 /**
- * Build an `invalidateQueries` predicate that refetches just the list variants a
+ * Build an `invalidateQueries` predicate that refetches the list variants a
  * single issue `patch` can actually change — membership, order, or free-text
  * match — instead of every `['issues','list',vault]` variant (REEF-098/REEF-323).
- * The finite and list-only infinite key shapes share the same predicate through
+ * The finite and infinite list key shapes share the same predicate through
  * `issueListQueryFromKey`.
  *
  * One patch-based predicate covers both a membership edit (a server facet or the

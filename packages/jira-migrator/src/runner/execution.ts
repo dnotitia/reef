@@ -933,7 +933,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
         await checkpoint();
         continue;
       }
-      // Enhanced JQL absence cannot distinguish deletion from issue-security,
+      // Enhanced JQL absence leaves deletion indistinguishable from issue-security,
       // credential, or project-scope changes. Preserve the owned relation until
       // a future source contract can prove deletion authoritatively.
       recordReportOnly("related", classificationKey, "conflict");

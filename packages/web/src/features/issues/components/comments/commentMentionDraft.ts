@@ -10,7 +10,7 @@ export interface CommentMentionDraftToken {
   /** UTF-16 offsets into the user-visible draft text. */
   start: number;
   end: number;
-  /** True only for an identity present in the persisted roster projection. */
+  /** True when an identity appears in the persisted roster projection. */
   resolved: boolean;
 }
 
@@ -60,8 +60,8 @@ function unescapePersistedOrdinaryAt(value: string): string {
 
 /**
  * Build the editable, syntax-free view of a persisted comment. Every parsed
- * token gets a backing raw value, while only projected identities are reused
- * at save time and the visible draft never exposes canonical braces.
+ * token gets a backing raw value; projected identities are reused at save time,
+ * and the visible draft avoids canonical braces.
  */
 export function draftFromPersistedComment(
   body: string,
@@ -251,7 +251,7 @@ function isEscaped(value: string, index: number): boolean {
   return slashes % 2 === 1;
 }
 
-/** Visible autocomplete only accepts the delimiter-safe query the user typed. */
+/** Visible autocomplete accepts the delimiter-safe query the user typed. */
 export function mentionContextAt(
   value: string,
   caret: number,

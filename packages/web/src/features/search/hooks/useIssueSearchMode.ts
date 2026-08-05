@@ -21,7 +21,7 @@ interface IssueSearchModeOptions {
   debouncedQuery: string;
   /**
    * Empty while command mode is active. Every server hook below uses this
-   * exact gate, so command filtering cannot issue metadata, exact-id,
+   * exact gate, so command filtering does not issue metadata, exact-id,
    * relation, or content-search requests.
    */
   vault: string;

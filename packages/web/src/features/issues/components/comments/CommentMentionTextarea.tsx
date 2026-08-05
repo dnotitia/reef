@@ -13,6 +13,7 @@ import {
   type ClipboardEvent,
   type DragEvent,
   type KeyboardEvent,
+  useEffect,
   useId,
   useRef,
   useState,
@@ -43,7 +44,7 @@ interface CommentMentionTextareaProps {
 }
 
 /**
- * Shared comment/reply/edit textarea. The textarea owns only user-visible
+ * Shared comment/reply/edit textarea. The textarea owns user-visible
  * interaction; canonical mention syntax is introduced by the save boundary in
  * the parent through serializeCommentMentionDraft.
  */
@@ -65,7 +66,9 @@ export function CommentMentionTextarea({
 }: CommentMentionTextareaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const draftRef = useRef(draft);
-  draftRef.current = draft;
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
   const dismissedMentionSelectionRef = useRef<{
     value: string;
     start: number;

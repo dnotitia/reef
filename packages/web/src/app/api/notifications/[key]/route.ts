@@ -24,10 +24,10 @@ const NotificationStateMutationRequestSchema = z.object({
 /**
  * PATCH /api/notifications/{notification_key}
  *
- * The request contains only the workspace and desired state. Core receives the
- * current actor as `recipient`, so a copied key cannot update another user's
- * notification even if the caller adds a forged recipient to the request. Any
- * legacy recipient field is intentionally ignored at this boundary.
+ * The request carries the workspace and desired state. Core receives the
+ * current actor as `recipient`, so a copied key remains scoped to that actor
+ * even if the caller adds a forged recipient to the request. A recipient field
+ * from the request is ignored at this boundary.
  */
 export async function PATCH(
   request: Request,

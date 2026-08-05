@@ -172,7 +172,8 @@ async function hydrateIssuesByDocumentUri(
       const issue = rowToIssue(row);
       if (issue.archived_at == null) issues.set(uri, issue);
     } catch {
-      // A malformed projection row must not fail the remaining search results.
+      // Ignore a malformed projection row and continue with the remaining
+      // search results.
     }
   }
   return issues;

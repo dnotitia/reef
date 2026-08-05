@@ -85,8 +85,8 @@ export interface UpdateIssueParams {
    */
   expectedCommit?: string;
   /**
-   * Row-level OCC base for trusted read-modify-write callers. The update is
-   * applied only while the persisted row still has this `updated_at` value.
+   * Row-level OCC base for trusted read-modify-write callers. The update
+   * proceeds when the persisted row still carries this `updated_at` value.
    */
   expectedUpdatedAt?: string;
 }

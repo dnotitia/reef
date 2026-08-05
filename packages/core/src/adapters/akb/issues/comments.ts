@@ -46,8 +46,8 @@ async function resolveMentionRecipients(
     members.map((member) => member.username),
   );
   if (recipients.length !== new Set(usernames).size) {
-    // Do not include the unresolved username: a rejected save must not expose
-    // roster membership or authorization details.
+    // Omit the unresolved username so a rejected save does not expose roster
+    // membership or authorization details.
     throw new SchemaValidationError({ field: "comment mentions" });
   }
   return recipients;

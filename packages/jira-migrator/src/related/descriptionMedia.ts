@@ -56,7 +56,7 @@ export async function updateDescriptionMedia(options: {
       if (existingDescription === description.markdown) {
         // The related-data pass may run after the canonical attachment URI was
         // already written by an earlier successful run. Treat that exact
-        // projection as converged before considering legacy/pre-rewrite forms.
+        // projection as converged before checking pre-rewrite forms.
       } else if (description.matchesPreRewriteMarkdown(existingDescription)) {
         report.media.description_updated = true;
         recordOperation(

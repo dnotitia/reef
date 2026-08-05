@@ -27,9 +27,9 @@ function parseNotificationLimit(value: string | null): number {
 /**
  * GET /api/notifications?vault={vault_name}&state={state}&limit={limit}
  *
- * The recipient is always resolved from the authenticated akb actor. The
- * query intentionally has no recipient parameter: notification visibility is
- * an account boundary, not a client-selectable filter.
+ * Core resolves the recipient from the authenticated akb actor. The query
+ * omits a recipient parameter: notification visibility is an account boundary
+ * rather than a client-selectable filter.
  */
 export async function GET(request: Request): Promise<Response> {
   const vault = parseVaultParam(request);

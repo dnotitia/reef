@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const unicodeCodePointLength = (value: string): number => [...value].length;
 
-export const IssueContentSearchLimitSchema = z.union([
+const IssueContentSearchLimitSchema = z.union([
   z.literal(10),
   z.literal(20),
   z.literal(30),
@@ -23,7 +23,7 @@ export const IssueContentSearchRequestSchema = z.object({
   limit: IssueContentSearchLimitSchema,
 });
 
-export const IssueContentSearchResultSchema = z.object({
+const IssueContentSearchResultSchema = z.object({
   reef_id: z.string().min(1),
   title: z.string().min(1),
   snippet: z.string().min(1).max(320),
@@ -37,7 +37,7 @@ export const IssueContentSearchResponseSchema = z.object({
   has_more: z.boolean(),
 });
 
-export type IssueContentSearchRequest = z.infer<
+type IssueContentSearchRequest = z.infer<
   typeof IssueContentSearchRequestSchema
 >;
 export type IssueContentSearchResult = z.infer<

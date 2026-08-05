@@ -30,8 +30,8 @@ interface CommentComposerProps {
 /**
  * The comment composer (REEF-062): a framed, avatar-gutter input. Plain
  * markdown text in an auto-growing textarea — comments does not mount the TipTap
- * editor, keeping the issue-detail surface light. Mention identity is kept
- * alongside the visible draft and serialized only when this form is submitted.
+ * editor, keeping the issue-detail surface light. Mention identity stays
+ * alongside the visible draft and serialized at submission.
  */
 export function CommentComposer({
   currentLogin,

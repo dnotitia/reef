@@ -8,7 +8,7 @@ import { remarkCommentMentions } from "./remarkCommentMentions";
 describe("remarkCommentMentions renderer", () => {
   it("survives the real Streamdown mdast-to-hast renderer", async () => {
     const style = document.createElement("style");
-    // jsdom cannot parse Tailwind v4's @theme/@source directives. Install the
+    // jsdom does not parse Tailwind v4's @theme/@source directives. Install the
     // equivalent compiled selector here and keep the source-level selector
     // contract covered by globals.test.ts.
     style.textContent =

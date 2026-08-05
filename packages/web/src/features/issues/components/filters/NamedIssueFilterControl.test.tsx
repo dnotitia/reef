@@ -12,6 +12,7 @@ import type { Locale } from "@/i18n/locales";
 import { db } from "@/lib/storage/db";
 import {
   cleanup,
+  fireEvent,
   render,
   screen,
   waitFor,
@@ -233,10 +234,9 @@ describe("NamedIssueFilterControl", () => {
     await user.click(
       screen.getByRole("menuitem", { name: "Save current filter…" }),
     );
-    await user.type(
-      screen.getByTestId("named-filter-name-input"),
-      "My triage view",
-    );
+    fireEvent.change(screen.getByTestId("named-filter-name-input"), {
+      target: { value: "My triage view" },
+    });
     await user.click(screen.getByRole("button", { name: /^Save$/ }));
     await waitFor(() =>
       expect(screen.getByTestId("named-filter-trigger")).toHaveAttribute(
@@ -299,8 +299,7 @@ describe("NamedIssueFilterControl", () => {
       screen.getByRole("menuitem", { name: "Rename My triage view" }),
     );
     const nameInput = screen.getByTestId("named-filter-name-input");
-    await user.clear(nameInput);
-    await user.type(nameInput, "Renamed triage");
+    fireEvent.change(nameInput, { target: { value: "Renamed triage" } });
     await user.click(screen.getByRole("button", { name: /^Rename$/ }));
     await waitFor(() =>
       expect(screen.getByTestId("named-filter-trigger")).toHaveAttribute(

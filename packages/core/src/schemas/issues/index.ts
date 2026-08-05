@@ -40,25 +40,16 @@ export {
 } from "./comment";
 
 export {
-  DELIMITER_SAFE_USERNAME_PATTERN,
-  MentionRecipientsSchema,
-  MentionTokenSchema,
-  MentionUsernameSchema,
   buildMentionRecipients,
   extractMentionUsernames,
   formatMentionToken,
-  isDelimiterSafeUsername,
   parseMentionTokens,
-  parsePersistedMentionRecipients,
   type MentionToken,
 } from "./mention";
 
 export {
-  IssueContentSearchLimitSchema,
   IssueContentSearchRequestSchema,
-  IssueContentSearchResultSchema,
   IssueContentSearchResponseSchema,
-  type IssueContentSearchRequest,
   type IssueContentSearchResult,
   type IssueContentSearchResponse,
 } from "./contentSearch";
@@ -141,14 +132,10 @@ export {
 } from "./persistedIssueFilter";
 
 export {
-  NamedIssueFilterEnvelopeSchema,
-  NAMED_ISSUE_FILTER_VERSION,
   buildNamedIssueFilterEnvelope,
   canonicalizeNamedIssueFilterName,
   hasNamedIssueFilterPayload,
-  normalizeNamedIssueFilterDisplayName,
   normalizeNamedIssueFilterEnvelope,
-  normalizeNamedIssueFilterPayload,
   serializeNamedIssueFilterPayload,
   type NamedIssueFilterEnvelope,
 } from "./namedIssueFilter";

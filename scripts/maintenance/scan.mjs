@@ -98,11 +98,104 @@ const SLOW_TEST_SUPPRESSIONS = new Set([
   "IssueDetail requests /api/issues/{id}?vault={vault} on mount",
   "IssueDetail asks for a close reason before closing from the detail panel",
   "i18n hardcoded-string guard matches the committed baseline (no new hardcoded JSX strings)",
+  "Codex harness provider runs the fixed app-server protocol, emits a terminal event, and redacts raw data",
+  "Codex harness provider validates policy combinations and maps explicit sandbox modes",
+  "runJiraMigration runs dry-run then approved apply with the same plan and zero dry-run mutation",
+  "portable E2E user-behavior runner packs one executable checkout-independent artifact",
+  "NamedIssueFilterControl saves, applies, updates, renames, duplicates, and deletes a filter",
 ]);
 
 const LARGE_FILE_EXTRA_ROOTS = ["scripts"];
 
 const LARGE_FILE_SUPPRESSIONS = new Map([
+  [
+    "packages/orchestration/providers/codex/src/provider.ts",
+    "Single Codex stdio provider boundary: policy validation, session state, JSON-RPC lifecycle, process teardown, and operation routing share Session/error invariants; extract transport/session helpers when a second process provider reuses them.",
+  ],
+  [
+    "packages/jira-migrator/src/runner/targetAdapter.test.ts",
+    "Single target contract suite sharing AKB scripted fetch/readback/consistency fixtures across issue, planning, attachment, and relation cases; split scenario families when fixtures can be shared without duplicating state semantics.",
+  ],
+  [
+    "packages/web/src/features/search/components/GlobalSearchDialog.test.tsx",
+    "Single global palette suite sharing corpus, command registry, query mocks, and anchor interactions across search, command, and content cases; split command/content fixtures when another palette suite reuses them.",
+  ],
+  [
+    "packages/jira-migrator/src/runner/execution.ts",
+    "Single migration plan executor whose issue, related, ledger, approval, and checkpoint phases share one ordered saga; extract a phase when another execution path reuses it.",
+  ],
+  [
+    "packages/jira-migrator/src/runner/runner.test.ts",
+    "Single run orchestration contract suite sharing ledger, target, and Jira fixtures across planning, resume, dry-run, and apply cases; split the harness when another run suite reuses it.",
+  ],
+  [
+    "packages/core/src/adapters/akb/issues/issues.ts",
+    "Single issue adapter boundary keeping document/row compensation, OCC, backlog, and batch writes together; extract a phase helper when another adapter consumes the same saga.",
+  ],
+  [
+    "packages/core/src/adapters/akb/issues/issues.test.ts",
+    "Single issue adapter contract suite sharing fetch, row, document, and reservation fixtures across OCC, claims, reorder, create, and update cases; split fixture families when another suite reuses them.",
+  ],
+  [
+    "packages/jira-migrator/src/runner/relatedTargetAdapter.ts",
+    "Single related-data target implementation keeping readback, ownership, idempotency, and mutation boundaries together; extract an entity operation module when a second target consumes those policies.",
+  ],
+  [
+    "packages/jira-migrator/src/runner/plan.ts",
+    "Single immutable Jira migration plan builder where issue, related, and planning operations share snapshots and approval projections; extract a related-planning helper when another planner shares it.",
+  ],
+  [
+    "packages/core/src/adapters/akb.comments.test.ts",
+    "Single comment adapter contract suite sharing SQL row, projection, and roster fixtures across list, create, update, and Jira-repair cases; split the harness when another comment suite reuses it.",
+  ],
+  [
+    "packages/jira-migrator/src/runner/targetAdapter.ts",
+    "Single AKB target implementation for issue, planning, and related writes with shared ownership, readback, and consistency policy; extract an operation family when another target consumes it.",
+  ],
+  [
+    "packages/web/src/features/search/components/GlobalSearchDialog.tsx",
+    "Single global palette surface combining server search, command handoff, focus policy, and result rendering; extract a hook or leaf when another palette surface shares the state.",
+  ],
+  [
+    "packages/web/src/features/issues/components/filters/NamedIssueFilterControl.tsx",
+    "Main named-filter control owns CRUD state and composes already-separated menu and trigger pieces; extract a storage state hook when another surface reuses it.",
+  ],
+  [
+    "packages/web/src/features/issues/hooks/view/useIssueUrlSync.test.tsx",
+    "Single URL-sync hook matrix sharing router, store, and storage harnesses across restore, mirror, vault-switch, and race cases; split scenario families when the harness becomes reusable.",
+  ],
+  [
+    "packages/jira-migrator/src/archive/archive.test.ts",
+    "Single raw-archive security contract suite sharing temp-directory and envelope helpers across canonicalization, permissions, dedupe, and integrity cases; split helpers when another archive implementation needs them.",
+  ],
+  [
+    "packages/orchestration/runtime/src/provider.ts",
+    "Single provider-neutral contract module keeping capability schemas, provider maps, operation types, and secret-free error normalization aligned; split schemas and errors when independently consumed.",
+  ],
+  [
+    "packages/jira-migrator/src/cli/config.ts",
+    "Single CLI configuration boundary combining argument parsing, environment/secret resolution, validation, public projection, and redaction; extract a parser or loader when another CLI needs it.",
+  ],
+  [
+    "packages/jira-migrator/src/runner/runner.ts",
+    "Single one-shot Jira migration orchestrator owning scope locking, checkpoints, plan/apply delivery, and report classification; split a phase when a second caller needs it.",
+  ],
+  [
+    "packages/core/src/index.ts",
+    "Package root barrel intentionally holds the public contract exports; split into a subpath entry only when a new independently owned public surface appears.",
+  ],
+  [
+    "packages/orchestration/runtime/src/engine.ts",
+    "Single provider-neutral run engine owning lifecycle types, preflight, cleanup, cancellation, and terminal normalization; split the type contract from runtime when another runtime consumes it.",
+  ],
+  [
+    "packages/jira-migrator/src/runner/approval.ts",
+    "Single approval fingerprint and projection pipeline sharing volatile-token normalization across issue, related, planning, and readback data; split a projector when another approval protocol reuses it.",
+  ],
+  [
+    "packages/jira-migrator/src/related/import.ts",
+    "Single public related-data reconciliation orchestrator coordinating description, media, links, and attachments through one target ledger; extract a phase when another import entrypoint reuses it.",
+  ],
   [
     "packages/jira-migrator/src/related/import.test.ts",
     "Single public-stage reconciliation matrix sharing one stateful Jira/target harness; split by comments, attachments, and links when the harness is reusable without duplicating state semantics.",

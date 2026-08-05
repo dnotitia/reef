@@ -52,7 +52,7 @@ const normalizeApprovalMetadata = (
   );
 };
 
-export const jiraApprovalPlanProjection = (value: unknown): unknown => {
+const jiraApprovalPlanProjection = (value: unknown): unknown => {
   if (!isRecord(value)) return value;
 
   const sourceFields =

@@ -43,8 +43,8 @@ export function useActiveVault(): ActiveVaultState {
     queryKey: ACTIVE_VAULT_QUERY_KEY,
     queryFn: getActiveVault,
     staleTime: Number.POSITIVE_INFINITY,
-    // The persisted query cache is only an optimization. Dexie is the browser
-    // source of truth and may have been updated while this query was unmounted.
+    // The persisted query cache is an optimization. Dexie is the browser's
+    // authoritative store and may have been updated while this query was unmounted.
     refetchOnMount: "always",
     retry: false,
   });

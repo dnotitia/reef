@@ -628,8 +628,6 @@ export function requireProviderCapability(
   }
 }
 
-export const ProviderSnapshotSchema = ProviderIdentitySchema;
-
 export function requireProviderCapabilities(
   provider: ProviderIdentity,
   capabilities: readonly string[],

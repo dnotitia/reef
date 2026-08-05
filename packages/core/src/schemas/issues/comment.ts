@@ -51,7 +51,7 @@ export const CommentSchema = z.object({
   edited_at: IsoDateFieldSchema.nullable().default(null),
   parent_comment_id: z.string().uuid().nullable().optional(),
   thread_root_id: z.string().uuid().nullable().optional(),
-  /** Missing on legacy rows; malformed persisted projections fail closed in the adapter. */
+  /** Older rows may omit this field; malformed persisted projections fail closed in the adapter. */
   mention_recipients: z.array(z.string().min(1)).optional(),
 });
 export type Comment = z.infer<typeof CommentSchema>;

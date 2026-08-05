@@ -15,9 +15,9 @@ export interface IssueIdParts {
 const PREFIX_PATTERN = /^[A-Z][A-Z0-9_]*$/;
 
 /**
- * Complete canonical Reef issue id. Keep every route, tool, and UI exact-id
- * guard on this shared pattern so Jira-compatible numeric/underscore prefixes
- * do not regress independently of {@link parseIssueId}.
+ * Canonical Reef issue id pattern shared by route, tool, and UI exact-id guards.
+ * Keeping it shared prevents Jira-compatible numeric/underscore prefixes from
+ * drifting from {@link parseIssueId}.
  */
 export const ISSUE_ID_PATTERN = /^[A-Z][A-Z0-9_]*-\d+$/;
 
@@ -29,12 +29,12 @@ export const ISSUE_ID_PATTERN = /^[A-Z][A-Z0-9_]*-\d+$/;
  *
  * Input contract (enforced — throws {@link SchemaValidationError} on violation):
  *   - `prefix` should start with an uppercase ASCII letter and then contain
- *     only uppercase ASCII letters, digits, or underscores (matches
- *     {@link PREFIX_PATTERN}). Mirrors the invariant enforced by
- *     {@link parseIssueId}, guaranteeing round-trip safety.
+ *     uppercase ASCII letters, digits, or underscores (matches
+ *     {@link PREFIX_PATTERN}). This mirrors the invariant enforced by
+ *     {@link parseIssueId} and preserves round-trip safety.
  *   - `currentMax` should be a finite non-negative integer. Non-integer, negative,
- *     `NaN`, and non-finite values are rejected so we does not emit malformed IDs
- *     like `REEF-NaN` or `REEF-2.5`.
+ *     `NaN`, and non-finite values are rejected, so malformed IDs such as
+ *     `REEF-NaN` or `REEF-2.5` are not emitted.
  *
  * Concurrency note: This function computes the next ID given a currentMax.
  * The caller (useCreateIssue hook) is responsible for reading currentMax from

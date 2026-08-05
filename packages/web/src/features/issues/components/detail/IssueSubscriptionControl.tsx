@@ -12,7 +12,7 @@ import type { IssueSubscriptionAction } from "@/features/issues/lib/issueSubscri
 import type { EffectiveSubscriptionState } from "@reef/core";
 import { ChevronDown, Eye, EyeOff } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useRef } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 const stateKeys = {
@@ -31,20 +31,20 @@ export function IssueSubscriptionControl({
   const t = useTranslations("issues.subscription");
   const query = useIssueSubscription(issueId, vault);
   const mutation = useUpdateIssueSubscription();
-  const inFlightRef = useRef(false);
+  const [inFlight, setInFlight] = useState(false);
   const state: EffectiveSubscriptionState = query.data ?? "unwatched";
   const stateLabel = t(stateKeys[state]);
   const pending = query.isPending || mutation.isPending;
 
   async function selectAction(action: IssueSubscriptionAction) {
-    if (inFlightRef.current || mutation.isPending) return;
-    inFlightRef.current = true;
+    if (inFlight || mutation.isPending) return;
+    setInFlight(true);
     try {
       await mutation.mutateAsync({ issueId, vault, action });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("updateError"));
     } finally {
-      inFlightRef.current = false;
+      setInFlight(false);
     }
   }
 

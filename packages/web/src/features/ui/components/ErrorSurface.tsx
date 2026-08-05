@@ -11,7 +11,7 @@ interface ErrorSurfaceProps {
 /**
  * Shared presentation for route-level failures that render outside the
  * authenticated dashboard shell. Copy and recovery behavior stay with the
- * owning Next.js boundary; this component owns only the Reef visual structure.
+ * owning Next.js boundary; this component owns the Reef visual structure.
  */
 export function ErrorSurface({
   code,
