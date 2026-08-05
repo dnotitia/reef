@@ -93,14 +93,15 @@ function rejectOperation(): never {
   throw new RejectedOperation();
 }
 
-function providerFailure(operation: string, retryable: boolean): ProviderError {
-  return ProviderError.failed(
+function providerRequestFailure(operation: string): ProviderError {
+  return ProviderError.classified(
     {
       kind: "work",
       providerId: PROVIDER_ID,
       operation,
     },
-    retryable,
+    "request",
+    false,
   );
 }
 
@@ -241,7 +242,7 @@ export function createReefWorkProvider(
             error instanceof RejectedOperation ||
             error instanceof ReefWorkUriError
           ) {
-            throw providerFailure(operation, false);
+            throw providerRequestFailure(operation);
           }
           throw error;
         }

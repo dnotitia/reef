@@ -437,7 +437,7 @@ describe("Reef work provider", () => {
     const fixture = new ScriptedAkbFixture();
     await expect(
       makeProvider(fixture).read({ uri: `${URI}?query=1` }, {}),
-    ).rejects.toMatchObject({ code: "provider_failed", retryable: false });
+    ).rejects.toMatchObject({ code: "request", retryable: false });
     expect(fixture.calls).toEqual([]);
   });
 
@@ -516,7 +516,7 @@ describe("Reef work provider", () => {
       await expect(
         provider.transition({ uri: URI, transition }, {}),
       ).rejects.toMatchObject({
-        code: "provider_failed",
+        code: "request",
         retryable: false,
       });
       expect(fixture.activities).toHaveLength(0);
@@ -533,7 +533,7 @@ describe("Reef work provider", () => {
         { uri: URI, transition: "in_progress" },
         {},
       ),
-    ).rejects.toMatchObject({ code: "provider_failed", retryable: true });
+    ).rejects.toMatchObject({ code: "protocol", retryable: true });
     expect(missingDependency.activities).toHaveLength(0);
   });
 
@@ -567,7 +567,7 @@ describe("Reef work provider", () => {
         },
         {},
       ),
-    ).rejects.toMatchObject({ code: "provider_failed", retryable: false });
+    ).rejects.toMatchObject({ code: "request", retryable: false });
     await expect(
       provider.report(
         {
@@ -578,7 +578,7 @@ describe("Reef work provider", () => {
         },
         {},
       ),
-    ).rejects.toMatchObject({ code: "provider_failed", retryable: false });
+    ).rejects.toMatchObject({ code: "request", retryable: false });
     expect(fixture.comments).toHaveLength(1);
   });
 
@@ -637,7 +637,7 @@ describe("Reef work provider", () => {
         { uri: URI, artifact: { kind: "proof", ref: "proof-1" } },
         {},
       ),
-    ).rejects.toMatchObject({ code: "provider_failed", retryable: false });
+    ).rejects.toMatchObject({ code: "request", retryable: false });
     expect(
       fixture.activities.filter(
         (event) => event.event_type === "impl_ref_linked",

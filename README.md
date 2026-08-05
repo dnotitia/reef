@@ -123,6 +123,7 @@ inside this repository.
 | `packages/core` | Framework-agnostic TypeScript library (`@reef/core`) for schemas, models, adapters, agents, tools, and errors. GitHub, AKB, and LLM calls originate here. |
 | `packages/web` | Next.js App Router application package (`@reef/web`) and stateless Backend-for-Frontend. Route Handlers validate requests, extract credentials, call `core`, and translate errors. |
 | `packages/orchestrator` | Provider-neutral execution core (`@reef/orchestrator`) for registry preflight, lifecycle, cancellation, cleanup, terminal results, and graceful shutdown outside the web process. |
+| `packages/harness-provider-codex` | Private Codex App Server harness adapter (`@reef/harness-provider-codex`) for stdio lifecycle, policy enforcement, and secret-free harness events. |
 | `packages/jira-migrator` | Operator-run Jira-to-Reef migration package (`@reef/jira-migrator`) for read-only Jira discovery, private migration artifacts, import planning, and dependency-injected Reef apply/reconciliation. |
 | `packages/work-provider-reef` | Private Reef work adapter (`@reef/work-provider-reef`) that implements the orchestrator `WorkProvider` contract through core's AKB issue and activity funnels. |
 | `docs/` | Architecture, UX, deployment, migration, release, and maintenance documentation. |
@@ -212,6 +213,7 @@ reef origin. See [docs/deployment.md](docs/deployment.md) and
 - [Core package README](packages/core/README.md)
 - [`@reef/web` package README](packages/web/README.md)
 - [`@reef/orchestrator` package README](packages/orchestrator/README.md)
+- [`@reef/harness-provider-codex` package README](packages/harness-provider-codex/README.md)
 - [`@reef/jira-migrator` package README](packages/jira-migrator/README.md)
 - [`@reef/work-provider-reef` package README](packages/work-provider-reef/README.md)
 - [Contributing](CONTRIBUTING.md)

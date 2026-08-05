@@ -202,14 +202,100 @@ export interface WorkOperationMap {
   };
 }
 
+export type HarnessState =
+  | "failed"
+  | "ready"
+  | "running"
+  | "starting"
+  | "stopped";
+
+export type HarnessSandboxMode =
+  | "read-only"
+  | "workspace-write"
+  | "danger-full-access";
+
+export type HarnessApprovalMode = "never" | "on-request" | "untrusted";
+
+export interface HarnessExecutionPolicy {
+  readonly sandboxMode: HarnessSandboxMode;
+  readonly writableRoots: readonly string[];
+  readonly networkAccess: boolean;
+  readonly approvalMode: HarnessApprovalMode;
+  readonly environment?: Readonly<Record<string, string>>;
+}
+
+export interface HarnessStartInput {
+  readonly workUri: string;
+  readonly instruction: string;
+  readonly repositoryCwd: string;
+  readonly executionPolicy: HarnessExecutionPolicy;
+}
+
+export interface HarnessUserInputOption {
+  readonly label: string;
+  readonly description: string;
+}
+
+export interface HarnessUserInputQuestion {
+  readonly id: string;
+  readonly question: string;
+  readonly choices: readonly HarnessUserInputOption[];
+}
+
+export type HarnessInput =
+  | { readonly type: "text"; readonly text: string }
+  | {
+      readonly type: "user_input";
+      readonly requestId: string;
+      readonly answers: Readonly<Record<string, readonly string[]>>;
+    }
+  | {
+      readonly type: "approval";
+      readonly requestId: string;
+      readonly decision: "accept" | "decline" | "cancel";
+    };
+
+export type HarnessTerminalOutcome =
+  | "completed"
+  | "validation_requested"
+  | "blocked"
+  | "failed"
+  | "interrupted";
+
+export type HarnessObservationEvent =
+  | { readonly type: "progress"; readonly summary: string }
+  | {
+      readonly type: "user_input_request";
+      readonly requestId: string;
+      readonly questions: readonly HarnessUserInputQuestion[];
+    }
+  | {
+      readonly type: "approval_blocked";
+      readonly requestId: string;
+      readonly approval:
+        | "command"
+        | "file"
+        | "network"
+        | "permission"
+        | "unsupported";
+      readonly reason: string;
+    }
+  | { readonly type: "validation_request"; readonly summary: string }
+  | {
+      readonly type: "terminal";
+      readonly outcome: HarnessTerminalOutcome;
+      readonly summary: string;
+      readonly error?: ProviderErrorJson;
+    };
+
 export interface HarnessObservation {
-  readonly state: "failed" | "ready" | "running" | "starting" | "stopped";
-  readonly summary?: string;
+  readonly state: HarnessState;
+  readonly events: readonly HarnessObservationEvent[];
 }
 
 export interface HarnessOperationMap {
   start: {
-    input: { readonly workUri: string };
+    input: HarnessStartInput;
     result: { readonly session: ProviderReference };
   };
   observe: {
@@ -217,7 +303,10 @@ export interface HarnessOperationMap {
     result: HarnessObservation;
   };
   sendInput: {
-    input: { readonly session: ProviderReference; readonly input: string };
+    input: {
+      readonly session: ProviderReference;
+      readonly input: HarnessInput;
+    };
     result: { readonly accepted: boolean };
   };
   interrupt: {
@@ -225,7 +314,11 @@ export interface HarnessOperationMap {
     result: { readonly interrupted: boolean };
   };
   resume: {
-    input: { readonly session: ProviderReference };
+    input: {
+      readonly session: ProviderReference;
+      readonly repositoryCwd: string;
+      readonly executionPolicy: HarnessExecutionPolicy;
+    };
     result: { readonly session: ProviderReference };
   };
   stop: {
@@ -391,8 +484,15 @@ export type OperationResult<
 
 export type ProviderErrorCode =
   | "cancelled"
-  | "provider_failed"
-  | "unsupported_capability";
+  | "unsupported_capability"
+  | "configuration"
+  | "spawn"
+  | "handshake"
+  | "protocol"
+  | "timeout"
+  | "session"
+  | "request"
+  | "unexpected-exit";
 
 export interface ProviderFailureMetadata {
   readonly kind: ProviderKind;
@@ -410,7 +510,7 @@ export interface ProviderErrorJson {
   readonly capability?: string;
 }
 
-interface ProviderErrorOptions extends ProviderFailureMetadata {
+export interface ProviderErrorOptions extends ProviderFailureMetadata {
   readonly capability?: string;
   readonly code: ProviderErrorCode;
   readonly retryable: boolean;
@@ -456,13 +556,14 @@ export class ProviderError extends Error {
     });
   }
 
-  static failed(
+  static classified(
     metadata: ProviderFailureMetadata,
-    retryable = true,
+    code: Exclude<ProviderErrorCode, "cancelled" | "unsupported_capability">,
+    retryable = false,
   ): ProviderError {
     return new ProviderError({
       ...metadata,
-      code: "provider_failed",
+      code,
       retryable,
     });
   }
@@ -484,10 +585,24 @@ const messageForCode = (code: ProviderErrorCode): string => {
   switch (code) {
     case "cancelled":
       return "provider_operation_cancelled";
-    case "provider_failed":
-      return "provider_operation_failed";
     case "unsupported_capability":
       return "unsupported_capability";
+    case "configuration":
+      return "provider_configuration_failed";
+    case "spawn":
+      return "provider_spawn_failed";
+    case "handshake":
+      return "provider_handshake_failed";
+    case "protocol":
+      return "provider_protocol_failed";
+    case "timeout":
+      return "provider_request_timed_out";
+    case "session":
+      return "provider_session_invalid";
+    case "request":
+      return "provider_request_rejected";
+    case "unexpected-exit":
+      return "provider_unexpected_exit";
   }
 };
 
@@ -534,7 +649,7 @@ export function normalizeProviderError(
     return ProviderError.cancelled(metadata);
   }
   if (error instanceof ProviderError) return error;
-  return ProviderError.failed(metadata);
+  return ProviderError.classified(metadata, "protocol", true);
 }
 
 export async function executeProviderOperation<Result>(
