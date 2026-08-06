@@ -22,7 +22,7 @@ import {
   setupFetch,
   updateIssue,
   writeMultipleIssues,
-} from "../core/testSupport";
+} from "../core/akb.testSupport";
 
 function subscriptionRow(
   reefId: string,

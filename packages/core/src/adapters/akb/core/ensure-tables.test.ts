@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { describeError } from "../../../errors";
-import { assertNoAkbManagedColumns } from "./tables";
 import {
   ALL_REEF_TABLES,
   AuthError,
@@ -28,7 +27,8 @@ import {
   makeSqlMutationResponse,
   makeSqlQueryResponse,
   setupFetch,
-} from "./testSupport";
+} from "./akb.testSupport";
+import { assertNoAkbManagedColumns } from "./tables";
 
 function makeDesiredTablesResponse(
   overrides: Record<string, unknown> = {},

@@ -9,7 +9,7 @@ import {
   readAuthoringLanguage,
   readConfig,
   setupFetch,
-} from "../core/testSupport";
+} from "../core/akb.testSupport";
 
 describe("readConfig (tables)", () => {
   it("returns DEFAULT_CONFIG when reef tables do not exist (HTTP 200 + error envelope)", async () => {

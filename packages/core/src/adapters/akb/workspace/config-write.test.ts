@@ -19,7 +19,7 @@ import {
   makeSqlMutationResponse,
   setupFetch,
   writeConfig,
-} from "../core/testSupport";
+} from "../core/akb.testSupport";
 
 // writeConfig statement order (per reef_settings key, then monitored_repos):
 //   DELETE project_prefix, INSERT project_prefix,

@@ -4,7 +4,7 @@ import {
   makeAdapter,
   makeSqlQueryResponse,
   setupFetch,
-} from "../core/testSupport";
+} from "../core/akb.testSupport";
 
 const ACTIVATED_AT = "2026-08-01T00:00:00.000Z";
 const ACTIVITY_ID = "018f47a4-8e3b-7f62-a3d2-9876543210ab";

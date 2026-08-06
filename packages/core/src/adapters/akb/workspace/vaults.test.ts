@@ -16,7 +16,7 @@ import {
   revokeVaultMember,
   searchUsers,
   setupFetch,
-} from "../core/testSupport";
+} from "../core/akb.testSupport";
 
 describe("vault meta", () => {
   it("listVaultMembers returns the parsed members array", async () => {

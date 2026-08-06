@@ -19,7 +19,7 @@ import {
   updateActivitySuggestion,
   updateActivitySuggestionStatus,
   writeActivitySuggestion,
-} from "../core/testSupport";
+} from "../core/akb.testSupport";
 
 describe("activity suggestions", () => {
   it("composes draft markdown with only the editable body", () => {

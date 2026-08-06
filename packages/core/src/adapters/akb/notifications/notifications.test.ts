@@ -20,7 +20,7 @@ import {
   makeAdapter,
   makeSqlQueryResponse,
   setupFetch,
-} from "../core/testSupport";
+} from "../core/akb.testSupport";
 
 const FIRST_ID = "018f47a4-8e3b-7f62-a3d2-9876543210ab";
 const SECOND_ID = "018f47a4-8e3b-7f62-a3d2-9876543210ac";

@@ -18,7 +18,7 @@ import {
   reconcileJiraImportedAttachmentActivityActor,
   setupFetch,
   statusChangeEventKey,
-} from "../core/testSupport";
+} from "../core/akb.testSupport";
 
 // REEF-063: the immutable ISSUE activity log (reef_activity), distinct from the
 // GitHub activity-scan inbox (reef_activity_suggestions) tested in

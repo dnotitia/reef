@@ -23,7 +23,7 @@ import {
   readPlanningCreateClaim,
   setupFetch,
   updateRelease,
-} from "../core/testSupport";
+} from "../core/akb.testSupport";
 
 describe("planning metadata", () => {
   it("lists sprints, milestones, and releases from reef planning tables", async () => {

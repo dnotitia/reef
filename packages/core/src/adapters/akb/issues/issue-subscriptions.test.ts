@@ -17,7 +17,7 @@ import {
   updateComment,
   updateIssue,
   writeIssue,
-} from "../core/testSupport";
+} from "../core/akb.testSupport";
 
 const SUBSCRIPTION_ROW_COLUMNS = [
   "id",

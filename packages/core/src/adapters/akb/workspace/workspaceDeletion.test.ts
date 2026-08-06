@@ -23,7 +23,7 @@ import {
   detachReef,
   makeAdapter,
   setupFetch,
-} from "../core/testSupport";
+} from "../core/akb.testSupport";
 
 const ALL_REEF_TABLES = [
   "reef_settings",

@@ -14,7 +14,7 @@ import {
   reconcileJiraImportedComment,
   setupFetch,
   updateComment,
-} from "../core/testSupport";
+} from "../core/akb.testSupport";
 
 const COMMENT_ROW_COLUMNS = [
   "id",

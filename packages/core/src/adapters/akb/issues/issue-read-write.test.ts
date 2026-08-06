@@ -21,8 +21,8 @@ import {
   setupFetch,
   updateIssue,
   writeIssue,
-} from "../core/testSupport";
-import type { IssueMetadata } from "../core/testSupport";
+} from "../core/akb.testSupport";
+import type { IssueMetadata } from "../core/akb.testSupport";
 
 function subscriptionRow(subscriber: string, source: "assignee") {
   return {

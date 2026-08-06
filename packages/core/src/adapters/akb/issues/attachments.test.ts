@@ -11,7 +11,7 @@ import {
   makeSqlRuntimeErrorResponse,
   setupFetch,
   uploadIssueAttachment,
-} from "../core/testSupport";
+} from "../core/akb.testSupport";
 
 const ATTACHMENT_ROW_COLUMNS = [
   "id",

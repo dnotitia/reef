@@ -27,8 +27,8 @@ import {
   readTemplate,
   setupFetch,
   writeTemplate,
-} from "../core/testSupport";
-import type { Template } from "../core/testSupport";
+} from "../core/akb.testSupport";
+import type { Template } from "../core/akb.testSupport";
 
 describe("templates", () => {
   it("reads a template from its reef_templates row by name", async () => {
