@@ -3,15 +3,15 @@ import {
   filterVaultMembers,
   listVaultMembers,
   vaultMemberToCollaborator,
-} from "../../../adapters/akb/index.js";
-import type { AkbAdapter } from "../../../adapters/akb/index.js";
-import { SchemaValidationError } from "../../../errors/index.js";
+} from "../../../adapters/akb";
+import type { AkbAdapter } from "../../../adapters/akb";
+import { SchemaValidationError } from "../../../errors";
 import {
   ListAssigneesInputSchema,
   type ListAssigneesOutput,
   ListAssigneesOutputSchema,
-} from "../../../schemas/ai/tools/index.js";
-import { withToolSpan } from "../withToolSpan.js";
+} from "../../../schemas/ai/tools";
+import { withToolSpan } from "../withToolSpan";
 
 const MAX_RESULTS = 10;
 

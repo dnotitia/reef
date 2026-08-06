@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { IsoDateFieldSchema } from "../common/date.js";
+import { IsoDateFieldSchema } from "../common/date";
 import {
   ImplementationRefTypeEnum,
   IssueTypeEnum,
   PriorityEnum,
   StatusEnum,
-} from "./metadata.js";
+} from "./metadata";
 
 /**
  * Issue activity log (REEF-063 / REEF-125 / REEF-126).

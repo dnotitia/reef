@@ -18,4 +18,4 @@ export {
   type AgentRunEvent,
   type AgentRunStatus,
   type AgentStatusChangeProposalArtifact,
-} from "../../schemas/ai/agents.js";
+} from "../../schemas/ai/agents";

@@ -1,14 +1,14 @@
 import { z } from "zod";
-import { StatusChangeEvidenceSchema } from "../activity/pendingDraft.js";
-import { ActivitySuggestionIdSchema } from "../activity/suggestion.js";
-import { IsoDateFieldSchema } from "../common/date.js";
-import { HttpUrlSchema } from "../common/url.js";
+import { StatusChangeEvidenceSchema } from "../activity/pendingDraft";
+import { ActivitySuggestionIdSchema } from "../activity/suggestion";
+import { IsoDateFieldSchema } from "../common/date";
+import { HttpUrlSchema } from "../common/url";
 import {
   IssueCreateInputSchema,
   IssueUpdatePatchSchema,
   StatusEnum,
-} from "../issues/metadata.js";
-import { EnrichmentSuggestionSchema } from "./enrichment.js";
+} from "../issues/metadata";
+import { EnrichmentSuggestionSchema } from "./enrichment";
 
 export const MetadataSchema = z.record(z.unknown());
 const ConfidenceSchema = z.number().min(0).max(1);

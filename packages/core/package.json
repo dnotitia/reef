@@ -34,7 +34,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsdown --config ../../tsdown.config.mjs --filter @reef/core",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:live-akb": "vitest run --config vitest.live.config.ts"

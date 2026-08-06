@@ -22,11 +22,18 @@ const artifactPackageNames = [
   "@reef/core",
   "@reef/orchestrator",
   "@reef/harness-provider-codex",
+  "@reef/infrastructure-provider-local",
   "@reef/work-provider-reef",
   "@reef/jira-migrator",
 ];
 const artifactPackageSet = new Set(artifactPackageNames);
-const consumerImports = artifactPackageNames.map((name) => `import "${name}";`);
+const publicImportSpecifiers = [
+  ...artifactPackageNames,
+  "@reef/core/status",
+  "@reef/core/errors",
+  "@reef/core/fields",
+  "@reef/core/fields/planning",
+];
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -170,11 +177,18 @@ async function assertInstalledArtifact(packageDir, packageName) {
   );
   if (
     invalidFiles.length > 0 ||
-    files.some((file) => file.split(path.sep).includes("src"))
+    files.some((file) =>
+      file.split(path.sep).some((part) => part === "src" || part === "tsx"),
+    )
   ) {
     throw new Error(`${packageName} installed files are not source-isolated`);
   }
-  if (files.some((file) => file.endsWith(".ts") && !file.endsWith(".d.ts"))) {
+  if (
+    files.some(
+      (file) =>
+        /\.(?:ts|tsx|mts|cts|jsx)$/.test(file) && !file.endsWith(".d.ts"),
+    )
+  ) {
     throw new Error(`${packageName} installed a TypeScript source file`);
   }
 }
@@ -279,9 +293,12 @@ async function runSmoke() {
         2,
       )}\n`,
     );
+    const overrides = artifactPackageNames
+      .map((name) => `  "${name}": "file:${tarballs.get(name)}"`)
+      .join("\n");
     await writeFile(
       path.join(consumerDir, "pnpm-workspace.yaml"),
-      `overrides:\n  "@reef/core": "file:${tarballs.get("@reef/core")}"\n  "@reef/orchestrator": "file:${tarballs.get("@reef/orchestrator")}"\n`,
+      `overrides:\n${overrides}\n`,
     );
 
     run(
@@ -303,12 +320,19 @@ async function runSmoke() {
       await assertInstalledArtifact(packageDir, name);
     }
 
+    const importChecks = publicImportSpecifiers
+      .map(
+        (specifier, index) =>
+          `const module${index} = await import(${JSON.stringify(specifier)});\n` +
+          `if (Object.keys(module${index}).length === 0) throw new Error(${JSON.stringify(`${specifier} exported no public bindings`)});`,
+      )
+      .join("\n");
     run(
       process.execPath,
       [
         "--input-type=module",
         "-e",
-        `${consumerImports.join("\n")}\nconsole.log("artifact imports passed");`,
+        `${importChecks}\nconsole.log("artifact imports passed");`,
       ],
       { cwd: consumerDir },
     );
@@ -333,7 +357,7 @@ async function runSmoke() {
 try {
   await runSmoke();
   console.log(
-    `package contract smoke passed: ${artifactPackageNames.length} isolated Node ESM packages and reef-jira-migrator --help`,
+    `package contract smoke passed: ${artifactPackageNames.length} isolated Node ESM packages, core public subpaths, and reef-jira-migrator --help`,
   );
 } catch (error) {
   console.error(`package contract smoke failed: ${error.message}`);

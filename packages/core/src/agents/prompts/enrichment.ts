@@ -1,10 +1,10 @@
-import { EnrichmentFieldEnum } from "../../schemas/ai/enrichment.js";
-import type { EnrichmentUserPromptRequest } from "../../schemas/ai/prompts.js";
-import { ExternalRefTypeEnum } from "../../schemas/issues/metadata.js";
-import { authoringLanguageDirective } from "./authoringLanguage.js";
-import { buildCurrentDateContext } from "./dateContext.js";
-import { formatPlanningContextForPrompt } from "./planningContext.js";
-import { formatTemplateCatalog } from "./templateCatalog.js";
+import { EnrichmentFieldEnum } from "../../schemas/ai/enrichment";
+import type { EnrichmentUserPromptRequest } from "../../schemas/ai/prompts";
+import { ExternalRefTypeEnum } from "../../schemas/issues/metadata";
+import { authoringLanguageDirective } from "./authoringLanguage";
+import { buildCurrentDateContext } from "./dateContext";
+import { formatPlanningContextForPrompt } from "./planningContext";
+import { formatTemplateCatalog } from "./templateCatalog";
 
 function quotedList(values: readonly string[]): string {
   return values.map((value) => `"${value}"`).join(", ");

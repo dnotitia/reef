@@ -1,14 +1,14 @@
-import { SchemaValidationError } from "../../../errors/index.js";
-import { RANK_NULL_SORT_SENTINEL } from "../../../models/backlogRank.js";
-import { ACTIVE_STATUSES } from "../../../models/status.js";
-import type { IssueListQuery } from "../../../schemas/issues/requests.js";
-import { REEF_ISSUES_TABLE, REEF_SPRINTS_TABLE } from "../core/constants.js";
+import { SchemaValidationError } from "../../../errors";
+import { RANK_NULL_SORT_SENTINEL } from "../../../models/backlogRank";
+import { ACTIVE_STATUSES } from "../../../models/status";
+import type { IssueListQuery } from "../../../schemas/issues/requests";
+import { REEF_ISSUES_TABLE, REEF_SPRINTS_TABLE } from "../core/constants";
 import {
   quoteIdent,
   quoteNumberOrNull,
   quoteText,
   tableRef,
-} from "../core/sql.js";
+} from "../core/sql";
 
 // ─── Issue list query builders (filter / sort / counts) ─────────────────────
 

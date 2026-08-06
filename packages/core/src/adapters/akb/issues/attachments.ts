@@ -3,15 +3,15 @@ import {
   ConflictError,
   NotFoundError,
   SchemaValidationError,
-} from "../../../errors/index.js";
-import { ACTIVITY_EVENT_ATTACHMENT_ADDED } from "../../../schemas/issues/activity.js";
+} from "../../../errors";
+import { ACTIVITY_EVENT_ATTACHMENT_ADDED } from "../../../schemas/issues/activity";
 import {
   type IssueAttachment,
   type IssueAttachmentCreateInput,
   IssueAttachmentSchema,
   type IssueAttachmentSource,
-} from "../../../schemas/issues/attachment.js";
-import { deepEqual } from "../../../utils/deepEqual.js";
+} from "../../../schemas/issues/attachment";
+import { deepEqual } from "../../../utils/deepEqual";
 import {
   type AkbAdapter,
   REEF_ATTACHMENTS_TABLE,
@@ -30,8 +30,8 @@ import {
   tableRef,
   uploadAkbFile,
   withSpan,
-} from "../core/shared.js";
-import { appendActivityEvents } from "./activity.js";
+} from "../core/shared";
+import { appendActivityEvents } from "./activity";
 
 export interface UploadIssueAttachmentParams {
   adapter: AkbAdapter;

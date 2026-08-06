@@ -1,8 +1,8 @@
-import { SchemaValidationError } from "../../../errors/index.js";
+import { SchemaValidationError } from "../../../errors";
 import {
   type AuthoringLanguage,
   AuthoringLanguageSchema,
-} from "../../../schemas/workspace/authoringLanguage.js";
+} from "../../../schemas/workspace/authoringLanguage";
 import {
   type Config,
   ConfigSchema,
@@ -12,7 +12,7 @@ import {
   type MonitoredRepo,
   MonitoredRepoSchema,
   StaleHideDaysSchema,
-} from "../../../schemas/workspace/config.js";
+} from "../../../schemas/workspace/config";
 import {
   type AkbSqlResponse,
   MONITORED_REPOS_TABLE,
@@ -32,12 +32,12 @@ import {
   runSql,
   tableRef,
   withSpan,
-} from "../core/shared.js";
+} from "../core/shared";
 import type {
   ReadConfigParams,
   ReadConfigResult,
   WriteConfigParams,
-} from "../core/types.js";
+} from "../core/types";
 
 // ─── Config functions ────────────────────────────────────────────────────────
 //

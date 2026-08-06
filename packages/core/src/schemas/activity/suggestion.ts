@@ -3,11 +3,8 @@ import {
   IssueCreateInputSchema,
   IssueUpdateInputSchema,
   StatusEnum,
-} from "../issues/metadata.js";
-import {
-  ProvenanceSchema,
-  StatusChangeEvidenceSchema,
-} from "./pendingDraft.js";
+} from "../issues/metadata";
+import { ProvenanceSchema, StatusChangeEvidenceSchema } from "./pendingDraft";
 
 export const ActivitySuggestionIdSchema = z
   .string()

@@ -1,8 +1,8 @@
 import type { Octokit } from "@octokit/rest";
 import { type Span, SpanStatusCode, trace } from "@opentelemetry/api";
-import { NotFoundError } from "../../errors/index.js";
-import { observe } from "../../observability/index.js";
-import { normalizeRepositoryReadError, readHeader } from "./errors.js";
+import { NotFoundError } from "../../errors";
+import { observe } from "../../observability";
+import { normalizeRepositoryReadError, readHeader } from "./errors";
 
 const tracer = trace.getTracer("@reef/core");
 const MAX_REPO_LABELS = 200;

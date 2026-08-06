@@ -2,12 +2,12 @@ import {
   type IssueMetadata,
   type SimilarIssue,
   SimilarIssueSchema,
-} from "../../../schemas/issues/metadata.js";
-import { searchDocuments } from "../core/documents.js";
-import type { AkbAdapter } from "../core/http.js";
-import { quoteText } from "../core/sql.js";
-import { withSpan } from "../core/tracing.js";
-import { rowToIssue, selectIssueRows } from "./issueRows.js";
+} from "../../../schemas/issues/metadata";
+import { searchDocuments } from "../core/documents";
+import type { AkbAdapter } from "../core/http";
+import { quoteText } from "../core/sql";
+import { withSpan } from "../core/tracing";
+import { rowToIssue, selectIssueRows } from "./issueRows";
 
 const DEFAULT_SIMILAR_ISSUE_LIMIT = 5;
 export const DEFAULT_SIMILAR_ISSUE_MIN_SCORE = 0.03;

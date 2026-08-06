@@ -14,7 +14,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsdown --config ../../../tsdown.config.mjs --filter @reef/orchestrator",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

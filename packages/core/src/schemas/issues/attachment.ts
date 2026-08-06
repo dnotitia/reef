@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { IsoDateFieldSchema } from "../common/date.js";
+import { IsoDateFieldSchema } from "../common/date";
 
 export const IssueAttachmentSourceEnum = z.enum([
   "issue_body",

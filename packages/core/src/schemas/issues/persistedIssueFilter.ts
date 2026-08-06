@@ -4,8 +4,8 @@ import {
   PriorityEnum,
   SeverityEnum,
   StatusEnum,
-} from "./metadata.js";
-import { USER_SORT_FIELDS } from "./requests.js";
+} from "./metadata";
+import { USER_SORT_FIELDS } from "./requests";
 
 /**
  * Persisted representation of the client issue filter — the payload that crosses

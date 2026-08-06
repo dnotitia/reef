@@ -40,6 +40,9 @@ Two auxiliary runtimes stay outside the interactive web request path:
 - **`@reef/harness-provider-codex`** is a private concrete adapter for Codex App
   Server. It owns the local stdio JSONL process boundary and exposes only the
   provider-neutral harness contract to callers.
+- **`@reef/infrastructure-provider-local`** is a private concrete infrastructure
+  provider for isolated Git-backed run workspaces and bounded process
+  execution. It depends only on the provider-neutral orchestrator contract.
 - **`@reef/jira-migrator`** is an operator-run, one-shot Jira-to-Reef migration
   package. Jira is a read-only source, while explicitly selected apply stages
   may reconcile Reef targets.
@@ -57,11 +60,12 @@ reef-web (stateless Next.js BFF)
    └── OpenAI-compatible LLM endpoint                       — chat + agents
 ```
 
-The repository is a pnpm workspace with six private, unpublished packages
+The repository is a pnpm workspace with seven private, unpublished packages
 under `packages/`: `core` (`@reef/core`), `web` (`@reef/web`), `orchestrator`
 (`@reef/orchestrator`), `harness-provider-codex`
-(`@reef/harness-provider-codex`), `jira-migrator` (`@reef/jira-migrator`), and
-`work-provider-reef` (`@reef/work-provider-reef`). The root
+(`@reef/harness-provider-codex`), `infrastructure-provider-local`
+(`@reef/infrastructure-provider-local`), `jira-migrator` (`@reef/jira-migrator`),
+and `work-provider-reef` (`@reef/work-provider-reef`). The root
 `package.json` is the single product version source of truth. New interactive
 product behavior that touches schemas, adapters, agents, or shared contracts
 starts in `core` and then surfaces through `web`; background and operator

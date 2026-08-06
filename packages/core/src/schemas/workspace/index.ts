@@ -14,19 +14,19 @@ export {
   type LLMConfig,
   type GitHubAppConfig,
   type Config,
-} from "./config.js";
+} from "./config";
 
 export {
   AuthoringLanguageSchema,
   AUTHORING_LANGUAGES,
   type AuthoringLanguage,
   type AuthoringLanguageOption,
-} from "./authoringLanguage.js";
+} from "./authoringLanguage";
 
-export type { Collaborator } from "./collaborator.js";
+export type { Collaborator } from "./collaborator";
 
 export {
   VaultSkillStatusSchema,
   type StoredVaultSkill,
   type VaultSkillStatus,
-} from "./vaultSkill.js";
+} from "./vaultSkill";

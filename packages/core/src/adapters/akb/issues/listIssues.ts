@@ -1,5 +1,5 @@
-import type { IssueMetadata } from "../../../schemas/issues/metadata.js";
-import { hasAnyFilter } from "../../../schemas/issues/requests.js";
+import type { IssueMetadata } from "../../../schemas/issues/metadata";
+import { hasAnyFilter } from "../../../schemas/issues/requests";
 import {
   buildDefaultViewWhere,
   buildIssueOrderBy,
@@ -11,8 +11,8 @@ import {
   rowToIssue,
   selectIssueRows,
   withSpan,
-} from "../core/shared.js";
-import type { ListIssuesParams, ListIssuesResult } from "../core/types.js";
+} from "../core/shared";
+import type { ListIssuesParams, ListIssuesResult } from "../core/types";
 
 export async function listIssues(
   params: ListIssuesParams,

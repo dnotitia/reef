@@ -1,14 +1,14 @@
 import {
   type AkbDocumentReference,
   ISSUE_REFERENCE_RELATION,
-} from "../../../schemas/issues/references.js";
-import { issueDocumentUri, makeIssueResourceLabel } from "../core/paths.js";
+} from "../../../schemas/issues/references";
+import { issueDocumentUri, makeIssueResourceLabel } from "../core/paths";
 import {
   getResourceRelations,
   linkResources,
   unlinkResources,
-} from "../core/relations.js";
-import { type AkbAdapter, withSpan } from "../core/shared.js";
+} from "../core/relations";
+import { type AkbAdapter, withSpan } from "../core/shared";
 
 /**
  * The akb-native `references` edges pointing OUT of an issue's document — the

@@ -1,5 +1,5 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
-import type { AkbAdapter } from "../adapters/akb/index.js";
+import type { AkbAdapter } from "../adapters/akb";
 import {
   allocateNextIssueId,
   buildIssueMetadataFromCreateInput,
@@ -10,15 +10,15 @@ import {
   updateActivitySuggestionStatus,
   updateIssue,
   writeIssue,
-} from "../adapters/akb/index.js";
-import { ActivitySuggestionError } from "../errors/index.js";
-import { buildIssueUpdateMetadataPatch } from "../models/issueUpdate.js";
-import { isForwardStatus, withRecoveredDraftStatus } from "../models/status.js";
-import type { ActivitySuggestion } from "../schemas/activity/suggestion.js";
+} from "../adapters/akb";
+import { ActivitySuggestionError } from "../errors";
+import { buildIssueUpdateMetadataPatch } from "../models/issueUpdate";
+import { isForwardStatus, withRecoveredDraftStatus } from "../models/status";
+import type { ActivitySuggestion } from "../schemas/activity/suggestion";
 import {
   implementationRefsFromStatusEvidence,
   mergeImplementationRefs,
-} from "./activityScan/artifacts.js";
+} from "./activityScan/artifacts";
 
 const tracer = trace.getTracer("@reef/core");
 

@@ -1,4 +1,4 @@
-import type { Template } from "../../schemas/issues/template.js";
+import type { Template } from "../../schemas/issues/template";
 
 export interface TemplateCatalogItem {
   name: string;

@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { PROJECT_PREFIX_PATTERN, VaultNameSchema } from "../workspace/index.js";
-import { AgentArtifactSchema } from "./agents.js";
-import { EnrichmentRequestSchema } from "./enrichment.js";
+import { PROJECT_PREFIX_PATTERN, VaultNameSchema } from "../workspace";
+import { AgentArtifactSchema } from "./agents";
+import { EnrichmentRequestSchema } from "./enrichment";
 
 const TextPartSchema = z
   .object({

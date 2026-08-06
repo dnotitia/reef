@@ -5,7 +5,7 @@ export {
   type ActivityScanAgentInput,
   type AgentRunRequest,
   type WorkspaceChatAgentInput,
-} from "./agentRun.js";
+} from "./agentRun";
 
 export {
   EnrichmentFieldEnum,
@@ -18,7 +18,7 @@ export {
   type EnrichmentLabelContext,
   type EnrichmentContext,
   type EnrichmentRequest,
-} from "./enrichment.js";
+} from "./enrichment";
 
 export type {
   PrDetail,
@@ -30,7 +30,7 @@ export type {
   StatusRationaleUserPromptRequest,
   ProjectStateSystemPromptOptions,
   ProjectStateUserPromptRequest,
-} from "./prompts.js";
+} from "./prompts";
 
 export type {
   DevReadFileOutput,
@@ -41,4 +41,4 @@ export type {
   SearchIssuesOutput,
   SuggestLabelsOutput,
   SuggestPriorityOutput,
-} from "./tools/index.js";
+} from "./tools";

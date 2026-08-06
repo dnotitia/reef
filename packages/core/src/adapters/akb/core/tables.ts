@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { ConflictError, SchemaValidationError } from "../../../errors/index.js";
+import { ConflictError, SchemaValidationError } from "../../../errors";
 import {
   REEF_SETTINGS_SCHEMA_VERSION_KEY,
   REEF_SETTINGS_TABLE,
-} from "./constants.js";
-import type { AkbAdapter } from "./http.js";
+} from "./constants";
+import type { AkbAdapter } from "./http";
 import {
   decodeSettingsValue,
   isMissingTableError,
@@ -12,7 +12,7 @@ import {
   quoteText,
   runSql,
   tableRef,
-} from "./sql.js";
+} from "./sql";
 import {
   AKB_MANAGED_TABLE_COLUMNS,
   type AkbCreateTableRequest,
@@ -23,8 +23,8 @@ import {
   REEF_DESIRED_TABLES,
   REEF_SCHEMA_VERSION,
   type ReefTableManifest,
-} from "./tableManifest.js";
-import { withSpan } from "./tracing.js";
+} from "./tableManifest";
+import { withSpan } from "./tracing";
 
 export {
   REEF_DESIRED_TABLES,
@@ -35,7 +35,7 @@ export {
   type AkbTableIndexColumn,
   type AkbTableUniqueKey,
   type ReefTableManifest,
-} from "./tableManifest.js";
+} from "./tableManifest";
 
 // ─── Tables: HTTP primitives ──────────────────────────────────────────────────
 //

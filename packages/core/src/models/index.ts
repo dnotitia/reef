@@ -1,4 +1,4 @@
-export { ISSUE_ID_PATTERN, type IssueIdParts } from "./id.js";
+export { ISSUE_ID_PATTERN, type IssueIdParts } from "./id";
 export {
   JIRA_RANK_MAPPED,
   computeReorderedRanks,
@@ -10,19 +10,19 @@ export {
   type JiraRankMappingClassification,
   type JiraRankMappingResult,
   type JiraRankUnmappedReason,
-} from "./backlogRank.js";
+} from "./backlogRank";
 export {
   isForwardStatus,
   isResolvedStatus,
   isStaleResolved,
   withRecoveredDraftStatus,
   ACTIVE_STATUSES,
-} from "./status.js";
-export type { CodeSignal } from "./status.js";
-export { buildIssueUpdateMetadataPatch } from "./issueUpdate.js";
-export { filterValidCommentThreadMembers } from "./commentThreads.js";
+} from "./status";
+export type { CodeSignal } from "./status";
+export { buildIssueUpdateMetadataPatch } from "./issueUpdate";
+export { filterValidCommentThreadMembers } from "./commentThreads";
 export {
   activitySuggestionId,
   draftToActivitySuggestion,
   statusChangeToActivitySuggestion,
-} from "./activitySuggestion.js";
+} from "./activitySuggestion";

@@ -1,9 +1,9 @@
-import { ConflictError, NotFoundError } from "../../../errors/index.js";
+import { ConflictError, NotFoundError } from "../../../errors";
 import {
   type StoredVaultSkill,
   StoredVaultSkillSchema,
   type VaultSkillStatus,
-} from "../../../schemas/workspace/vaultSkill.js";
+} from "../../../schemas/workspace/vaultSkill";
 import {
   type AkbAdapter,
   type AkbSqlResponse,
@@ -18,15 +18,15 @@ import {
   runSql,
   tableRef,
   withSpan,
-} from "../core/shared.js";
+} from "../core/shared";
 import {
   type ReefVaultSkillDocument,
   buildReefVaultSkillDocuments,
-} from "./documents.js";
-import { REEF_VAULT_SKILL_VERSION } from "./version.js";
+} from "./documents";
+import { REEF_VAULT_SKILL_VERSION } from "./version";
 
 export { buildReefVaultSkillDocuments, type ReefVaultSkillDocument };
-export { REEF_VAULT_SKILL_VERSION } from "./version.js";
+export { REEF_VAULT_SKILL_VERSION } from "./version";
 
 export interface InstallReefVaultSkillParams {
   adapter: AkbAdapter;

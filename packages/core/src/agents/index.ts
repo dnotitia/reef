@@ -13,7 +13,7 @@ export {
   type AgentRunEvent,
   type AgentRunStatus,
   type AgentStatusChangeProposalArtifact,
-} from "./framework/events.js";
+} from "./framework/events";
 export type {
   AgentExecutionMode,
   AgentStageHandlerMap,
@@ -21,7 +21,7 @@ export type {
   AgentTaskId,
   AgentTaskRegistry,
   AgentTaskRegistryEntry,
-} from "./framework/registry.js";
+} from "./framework/registry";
 export type {
   AgentPipelineStageId,
   AgentRuntimeEmission,
@@ -35,26 +35,26 @@ export type {
   AgentTaskStage,
   AgentTerminalRunStatus,
   RunAgentStreamOptions,
-} from "./framework/runtime.js";
+} from "./framework/runtime";
 export {
   createWorkspaceChatAgentResponse,
   type CreateChatAgentToolsParams,
   type CreateWorkspaceChatAgentResponseParams,
   type WorkspaceChatStepSummary,
-} from "./chatAgent.js";
+} from "./chatAgent";
 export {
   enrichIssue,
   type EnrichIssueParams,
-} from "./enrichIssue.js";
+} from "./enrichIssue";
 export {
   scanAndPersistActivitySuggestions,
   type AbortedActivitySuggestionScan,
   type CompletedActivitySuggestionScan,
   type ScanAndPersistActivitySuggestionsParams,
   type ScanAndPersistActivitySuggestionsResult,
-} from "./scanAndPersistActivitySuggestions.js";
+} from "./scanAndPersistActivitySuggestions";
 export {
   approveActivitySuggestion,
   type ApproveActivitySuggestionParams,
   type ApproveActivitySuggestionResult,
-} from "./approveActivitySuggestion.js";
+} from "./approveActivitySuggestion";

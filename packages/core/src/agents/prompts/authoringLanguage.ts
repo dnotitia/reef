@@ -1,4 +1,4 @@
-import { authoringLanguagePromptName } from "../../schemas/workspace/authoringLanguage.js";
+import { authoringLanguagePromptName } from "../../schemas/workspace/authoringLanguage";
 
 /**
  * Build the system-prompt directive that pins AI-generated prose to the

@@ -14,7 +14,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsdown --config ../../../../tsdown.config.mjs --filter @reef/harness-provider-codex",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "live-smoke": "tsx scripts/live-smoke.mjs"

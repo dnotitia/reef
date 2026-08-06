@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { Collaborator } from "../../../schemas/workspace/collaborator.js";
-import { withSpan } from "../core/shared.js";
+import type { Collaborator } from "../../../schemas/workspace/collaborator";
+import { withSpan } from "../core/shared";
 import type {
   CreateVaultParams,
   CreateVaultResult,
@@ -15,14 +15,14 @@ import type {
   SearchUsersResult,
   UserSearchResult,
   VaultMember,
-} from "../core/types.js";
+} from "../core/types";
 
 export type {
   EnrichedVaultSummary,
   UserSearchResult,
   VaultMember,
   VaultSummary,
-} from "../core/types.js";
+} from "../core/types";
 
 export const VaultMemberSchema = z.object({
   username: z.string(),

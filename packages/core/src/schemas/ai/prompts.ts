@@ -1,12 +1,12 @@
 import { z } from "zod";
-import { IssueListItemSchema } from "../issues/metadata.js";
-import { PlanningCatalogSchema } from "../planning/catalog.js";
+import { IssueListItemSchema } from "../issues/metadata";
+import { PlanningCatalogSchema } from "../planning/catalog";
 import {
   EnrichmentContextSchema,
   EnrichmentDraftSchema,
   EnrichmentRepoContextSchema,
   EnrichmentTemplateSummarySchema,
-} from "./enrichment.js";
+} from "./enrichment";
 
 // ─── Shared sub-schemas ──────────────────────────────────────────────────────
 

@@ -1,19 +1,19 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { tool } from "ai";
-import type { GitHubAdapter } from "../../../adapters/github.js";
+import type { GitHubAdapter } from "../../../adapters/github";
 import {
   AuthError,
   GitHubApiError,
   NotFoundError,
   SchemaValidationError,
-} from "../../../errors/index.js";
+} from "../../../errors";
 import {
   BoundDevReadFileInputSchema,
   DevReadFileInputSchema,
   type DevReadFileOutput,
   DevReadFileOutputSchema,
-} from "../../../schemas/ai/tools/index.js";
-import { type RepoRef, assertRepoAllowed } from "./allowlist.js";
+} from "../../../schemas/ai/tools";
+import { type RepoRef, assertRepoAllowed } from "./allowlist";
 
 const tracer = trace.getTracer("@reef/core");
 

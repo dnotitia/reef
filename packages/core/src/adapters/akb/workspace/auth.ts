@@ -1,13 +1,9 @@
 import { z } from "zod";
-import {
-  AkbApiError,
-  AuthError,
-  isAkbAccountErrorCode,
-} from "../../../errors/index.js";
-import { stripTrailingSlashes } from "../../url.js";
-import { readAkbErrorResponse } from "../core/errorResponse.js";
-import type { AkbAdapter } from "../core/http.js";
-import { withSpan } from "../core/shared.js";
+import { AkbApiError, AuthError, isAkbAccountErrorCode } from "../../../errors";
+import { stripTrailingSlashes } from "../../url";
+import { readAkbErrorResponse } from "../core/errorResponse";
+import type { AkbAdapter } from "../core/http";
+import { withSpan } from "../core/shared";
 
 // ─── Canonical akb auth response schemas (single core home) ───────────────────
 //

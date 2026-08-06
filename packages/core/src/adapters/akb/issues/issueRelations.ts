@@ -1,8 +1,8 @@
-import { nextIssueId, parseIssueId } from "../../../models/id.js";
+import { nextIssueId, parseIssueId } from "../../../models/id";
 import {
   type IssueRelation,
   IssueRelationSchema,
-} from "../../../schemas/issues/requests.js";
+} from "../../../schemas/issues/requests";
 import {
   type AkbAdapter,
   REEF_ISSUES_TABLE,
@@ -11,8 +11,8 @@ import {
   runSql,
   tableRef,
   withSpan,
-} from "../core/shared.js";
-import type { AllocateNextIssueIdParams } from "../core/types.js";
+} from "../core/shared";
+import type { AllocateNextIssueIdParams } from "../core/types";
 
 /**
  * The whole-vault relation projection — `reef_id` / `status` / `depends_on`

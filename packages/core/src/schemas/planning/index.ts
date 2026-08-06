@@ -10,9 +10,9 @@ export {
   type Milestone,
   type Release,
   type PlanningCatalog,
-} from "./catalog.js";
+} from "./catalog";
 export type {
   SprintStatus,
   MilestoneStatus,
   ReleaseStatus,
-} from "./fieldRegistry.js";
+} from "./fieldRegistry";

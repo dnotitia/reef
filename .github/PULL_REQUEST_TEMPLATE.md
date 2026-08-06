@@ -4,8 +4,7 @@
 
 ## Related issue
 
-<!-- "Closes #123" so GitHub auto-closes the issue on merge. -->
-<!-- Reference the internal tracker without a GitHub closing keyword. -->
+<!-- Reference the internal tracker; do not use GitHub closing keywords for REEF ids. -->
 Related issue: REEF-
 
 ## How was this tested?

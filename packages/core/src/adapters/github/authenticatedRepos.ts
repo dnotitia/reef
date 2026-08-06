@@ -5,7 +5,7 @@ import {
   getResponseHeader,
   normalizeAuthenticatedReposError,
   readHeader,
-} from "./errors.js";
+} from "./errors";
 
 const tracer = trace.getTracer("@reef/core");
 

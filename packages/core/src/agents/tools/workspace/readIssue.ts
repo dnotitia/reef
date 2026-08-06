@@ -1,13 +1,13 @@
 import { tool } from "ai";
-import { readIssue } from "../../../adapters/akb/index.js";
-import type { AkbAdapter } from "../../../adapters/akb/index.js";
-import { SchemaValidationError } from "../../../errors/index.js";
+import { readIssue } from "../../../adapters/akb";
+import type { AkbAdapter } from "../../../adapters/akb";
+import { SchemaValidationError } from "../../../errors";
 import {
   ReadIssueInputSchema,
   type ReadIssueOutput,
   ReadIssueOutputSchema,
-} from "../../../schemas/ai/tools/index.js";
-import { withToolSpan } from "../withToolSpan.js";
+} from "../../../schemas/ai/tools";
+import { withToolSpan } from "../withToolSpan";
 
 /**
  * read_issue — Returns the full reef issue (metadata + content) for a

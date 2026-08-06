@@ -4,6 +4,7 @@ const packageRoots = {
   jira: "packages/jira-migrator",
   orchestrator: "packages/orchestration/runtime",
   codex: "packages/orchestration/providers/codex",
+  local: "packages/orchestration/providers/local",
   reef: "packages/orchestration/providers/reef",
 };
 
@@ -73,6 +74,7 @@ module.exports = {
     forbiddenWorkspaceDirection("jira", ["core"]),
     forbiddenWorkspaceDirection("orchestrator", ["core"]),
     forbiddenWorkspaceDirection("codex", ["orchestrator"]),
+    forbiddenWorkspaceDirection("local", ["orchestrator"]),
     forbiddenWorkspaceDirection("reef", ["core", "orchestrator"]),
   ],
   options: {

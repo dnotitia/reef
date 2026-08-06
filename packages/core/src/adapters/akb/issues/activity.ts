@@ -1,5 +1,5 @@
 import { ZodError } from "zod";
-import { SchemaValidationError } from "../../../errors/index.js";
+import { SchemaValidationError } from "../../../errors";
 import {
   ACTIVITY_EVENT_ARCHIVED_CHANGE,
   ACTIVITY_EVENT_ASSIGNEE_CHANGE,
@@ -57,11 +57,8 @@ import {
   StatusChangePayloadSchema,
   type TitleChangePayload,
   TitleChangePayloadSchema,
-} from "../../../schemas/issues/activity.js";
-import type {
-  IssueMetadata,
-  Status,
-} from "../../../schemas/issues/metadata.js";
+} from "../../../schemas/issues/activity";
+import type { IssueMetadata, Status } from "../../../schemas/issues/metadata";
 import {
   type AkbAdapter,
   REEF_ACTIVITY_TABLE,
@@ -74,7 +71,7 @@ import {
   runSql,
   tableRef,
   withSpan,
-} from "../core/shared.js";
+} from "../core/shared";
 
 /**
  * The discriminating `eventType` + its matching `payload`. A distributive

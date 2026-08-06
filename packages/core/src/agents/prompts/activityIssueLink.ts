@@ -1,4 +1,4 @@
-import type { ActivityIssueLinkUserPromptRequest } from "../../schemas/ai/prompts.js";
+import type { ActivityIssueLinkUserPromptRequest } from "../../schemas/ai/prompts";
 
 /**
  * Build the system prompt for linking ID-less GitHub activity to existing

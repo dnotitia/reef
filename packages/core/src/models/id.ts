@@ -1,4 +1,4 @@
-import { SchemaValidationError } from "../errors/index.js";
+import { SchemaValidationError } from "../errors";
 
 export interface IssueIdParts {
   /** Jira-compatible uppercase project prefix, e.g. `"SAASV31"`. */

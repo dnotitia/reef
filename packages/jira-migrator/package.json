@@ -17,7 +17,7 @@
     "reef-jira-migrator": "./dist/cli.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsdown --config ../../tsdown.config.mjs --filter @reef/jira-migrator",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:behavior": "pnpm run build && node scripts/behavior-contract.mjs",

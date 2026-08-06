@@ -2,50 +2,50 @@ export {
   SearchCodeInputSchema,
   BoundSearchCodeInputSchema,
   SearchCodeOutputSchema,
-} from "./codeSearch.js";
+} from "./codeSearch";
 
 export {
   DevReadFileInputSchema,
   BoundDevReadFileInputSchema,
   DevReadFileOutputSchema,
   type DevReadFileOutput,
-} from "./devReadFile.js";
+} from "./devReadFile";
 
 export {
   ListAssigneesInputSchema,
   ListAssigneesOutputSchema,
   type ListAssigneesOutput,
-} from "./listAssignees.js";
+} from "./listAssignees";
 
 export {
   ReadIssueInputSchema,
   ReadIssueOutputSchema,
   type ReadIssueOutput,
-} from "./readIssue.js";
+} from "./readIssue";
 
 export {
   ReadTemplateInputSchema,
   ReadTemplateOutputSchema,
   type ReadTemplateOutput,
-} from "./readTemplate.js";
+} from "./readTemplate";
 
-export type { SearchDocumentsOutput } from "./searchDocuments.js";
+export type { SearchDocumentsOutput } from "./searchDocuments";
 
 export {
   SearchIssuesInputSchema,
   SearchIssuesOutputSchema,
   type SearchIssuesResult,
   type SearchIssuesOutput,
-} from "./searchIssues.js";
+} from "./searchIssues";
 
 export {
   SuggestLabelsInputSchema,
   SuggestLabelsOutputSchema,
   type SuggestLabelsOutput,
-} from "./suggestLabels.js";
+} from "./suggestLabels";
 
 export {
   SuggestPriorityInputSchema,
   SuggestPriorityOutputSchema,
   type SuggestPriorityOutput,
-} from "./suggestPriority.js";
+} from "./suggestPriority";

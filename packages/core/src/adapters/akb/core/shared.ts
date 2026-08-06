@@ -19,13 +19,13 @@
 // Prefer importing from the specific module above in NEW code; this barrel
 // exists for older import support.
 
-export * from "./constants.js";
-export * from "./documents.js";
-export * from "./files.js";
-export * from "./http.js";
-export * from "../issues/issueQuery.js";
-export * from "../issues/issueRows.js";
-export * from "./paths.js";
-export * from "./sql.js";
-export * from "./tables.js";
-export * from "./tracing.js";
+export * from "./constants";
+export * from "./documents";
+export * from "./files";
+export * from "./http";
+export * from "../issues/issueQuery";
+export * from "../issues/issueRows";
+export * from "./paths";
+export * from "./sql";
+export * from "./tables";
+export * from "./tracing";

@@ -1,21 +1,18 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { stepCountIs } from "ai";
-import type { AkbAdapter } from "../../adapters/akb/index.js";
-import { readIssue } from "../../adapters/akb/index.js";
-import type { LlmAdapter } from "../../adapters/llm.js";
+import type { AkbAdapter } from "../../adapters/akb";
+import { readIssue } from "../../adapters/akb";
+import type { LlmAdapter } from "../../adapters/llm";
 import {
   type ActivityIssueLinkDecision,
   ActivityIssueLinkDecisionSchema,
-} from "../../schemas/ai/prompts.js";
-import { getAgentRegistryEntry } from "../framework/registry.js";
-import { buildActivityIssueLinkUserPrompt } from "../prompts/activityIssueLink.js";
-import { createWorkspaceReadToolset } from "../tools/toolsets/index.js";
-import { collectGroundedIssueRefs, normalizeIssueRef } from "./issueRefs.js";
-import {
-  type ScanActivityEventSink,
-  runActivityAgentTask,
-} from "./taskRunner.js";
-import { MAX_LINK_STEPS, type NormalisedActivity } from "./types.js";
+} from "../../schemas/ai/prompts";
+import { getAgentRegistryEntry } from "../framework/registry";
+import { buildActivityIssueLinkUserPrompt } from "../prompts/activityIssueLink";
+import { createWorkspaceReadToolset } from "../tools/toolsets";
+import { collectGroundedIssueRefs, normalizeIssueRef } from "./issueRefs";
+import { type ScanActivityEventSink, runActivityAgentTask } from "./taskRunner";
+import { MAX_LINK_STEPS, type NormalisedActivity } from "./types";
 
 const tracer = trace.getTracer("@reef/core");
 

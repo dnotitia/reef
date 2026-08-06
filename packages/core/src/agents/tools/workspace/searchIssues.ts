@@ -1,21 +1,21 @@
 import { tool } from "ai";
+import { listIssues } from "../../../adapters/akb";
+import type { AkbAdapter } from "../../../adapters/akb";
 import {
   quoteText,
   rowToIssue,
   searchDocuments,
   selectIssueRows,
-} from "../../../adapters/akb/core/shared.js";
-import { listIssues } from "../../../adapters/akb/index.js";
-import type { AkbAdapter } from "../../../adapters/akb/index.js";
-import { SchemaValidationError } from "../../../errors/index.js";
+} from "../../../adapters/akb/core/shared";
+import { SchemaValidationError } from "../../../errors";
 import {
   SearchIssuesInputSchema,
   type SearchIssuesOutput,
   SearchIssuesOutputSchema,
   type SearchIssuesResult,
-} from "../../../schemas/ai/tools/index.js";
-import type { IssueMetadata } from "../../../schemas/issues/metadata.js";
-import { withToolSpan } from "../withToolSpan.js";
+} from "../../../schemas/ai/tools";
+import type { IssueMetadata } from "../../../schemas/issues/metadata";
+import { withToolSpan } from "../withToolSpan";
 
 /**
  * search_issues — Search vault issues with akb hybrid retrieval when a query is

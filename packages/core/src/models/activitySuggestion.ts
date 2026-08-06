@@ -1,11 +1,11 @@
 import type {
   PendingDraft,
   PendingStatusChange,
-} from "../schemas/activity/pendingDraft.js";
+} from "../schemas/activity/pendingDraft";
 import type {
   ActivityDraftSuggestion,
   ActivityStatusChangeSuggestion,
-} from "../schemas/activity/suggestion.js";
+} from "../schemas/activity/suggestion";
 
 const HASH_PREFIX_LENGTH = 16;
 

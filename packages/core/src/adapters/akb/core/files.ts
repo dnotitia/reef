@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { AkbApiError, SchemaValidationError } from "../../../errors/index.js";
-import type { AkbAdapter } from "./http.js";
+import { AkbApiError, SchemaValidationError } from "../../../errors";
+import type { AkbAdapter } from "./http";
 
 const AkbFileUploadInitResponseSchema = z
   .object({

@@ -4,13 +4,13 @@ import type {
   GitHubAuthenticatedRepository,
   ListAuthenticatedRepositoriesParams,
   ListAuthenticatedRepositoriesResult,
-} from "./authenticatedRepos.js";
+} from "./authenticatedRepos";
 import {
   getErrorStatus,
   getResponseHeader,
   normalizeAuthenticatedReposError,
   readHeader,
-} from "./errors.js";
+} from "./errors";
 
 const tracer = trace.getTracer("@reef/core");
 

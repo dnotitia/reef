@@ -1,15 +1,15 @@
 import { ZodError, type z } from "zod";
-import { SchemaValidationError } from "../../../errors/index.js";
-import { RANK_STEP } from "../../../models/backlogRank.js";
-import { observe } from "../../../observability/index.js";
+import { SchemaValidationError } from "../../../errors";
+import { RANK_STEP } from "../../../models/backlogRank";
+import { observe } from "../../../observability";
 import {
   ExternalRefSchema,
   ImplementationRefSchema,
   type IssueMetadata,
   IssueMetadataSchema,
-} from "../../../schemas/issues/metadata.js";
-import { REEF_ISSUES_TABLE } from "../core/constants.js";
-import type { AkbAdapter } from "../core/http.js";
+} from "../../../schemas/issues/metadata";
+import { REEF_ISSUES_TABLE } from "../core/constants";
+import type { AkbAdapter } from "../core/http";
 import {
   type AkbSqlResponse,
   decodeSettingsValue,
@@ -22,7 +22,7 @@ import {
   quoteTextOrNull,
   runSql,
   tableRef,
-} from "../core/sql.js";
+} from "../core/sql";
 
 // ─── Issue ↔ reef_issues row mapping ──────────────────────────────────────────
 

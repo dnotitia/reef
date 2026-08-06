@@ -15,7 +15,7 @@ export {
   type ActivityScanAgentInput,
   type AgentRunRequest,
   type WorkspaceChatAgentInput,
-} from "./schemas/index.js";
+} from "./schemas";
 export {
   StatusEnum,
   PriorityEnum,
@@ -190,7 +190,7 @@ export {
   type ActivityStatusChangeSuggestion,
   type ActivitySuggestion,
   type ActivitySuggestionsResult,
-} from "./schemas/index.js";
+} from "./schemas";
 export {
   ISSUE_ID_PATTERN,
   type IssueIdParts,
@@ -206,7 +206,7 @@ export {
   backlogRankSortKey,
   mapJiraRanksToIssueOrder,
   JIRA_RANK_MAPPED,
-} from "./models/index.js";
+} from "./models";
 export type {
   CodeSignal,
   RankedItem,
@@ -215,7 +215,7 @@ export type {
   JiraRankMappingClassification,
   JiraRankMappingResult,
   JiraRankUnmappedReason,
-} from "./models/index.js";
+} from "./models";
 export {
   ReefError,
   SchemaValidationError,
@@ -233,7 +233,7 @@ export {
   type AkbResourceLabel,
   type ErrorCode,
   type ErrorDescriptor,
-} from "./errors/index.js";
+} from "./errors";
 export {
   createGitHubAdapter,
   type GitHubAdapter,
@@ -437,7 +437,7 @@ export {
   type AkbGetMeResult,
   type AkbGetCurrentActorParams,
   type AkbGetCurrentActorResult,
-} from "./adapters/index.js";
+} from "./adapters";
 export type {
   DevReadFileOutput,
   ReadIssueOutput,
@@ -450,12 +450,12 @@ export type {
   IssueAuthoringToolsetParams,
   RepoReadToolsetParams,
   WorkspaceReadToolsetParams,
-} from "./agents/tools/index.js";
+} from "./agents/tools";
 export {
   VaultSkillStatusSchema,
   type StoredVaultSkill,
   type VaultSkillStatus,
-} from "./schemas/index.js";
+} from "./schemas";
 export {
   AgentArtifactSchema,
   AgentArtifactPersistenceSchema,
@@ -503,7 +503,7 @@ export {
   type ApproveActivitySuggestionParams,
   type ApproveActivitySuggestionResult,
   type WorkspaceChatStepSummary,
-} from "./agents/index.js";
+} from "./agents";
 export {
   buildEnrichmentSystemPrompt,
   buildEnrichmentUserPrompt,
@@ -527,11 +527,11 @@ export {
   type ProjectStateSystemPromptOptions,
   type ProjectStateUserPromptRequest,
   type WorkspaceChatSystemPromptOptions,
-} from "./agents/prompts/index.js";
+} from "./agents/prompts";
 export {
   setCoreLogger,
   type CoreLogger,
   type ObserveFields,
   type ObserveLevel,
   type ObserveOptions,
-} from "./observability/index.js";
+} from "./observability";

@@ -1,33 +1,30 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { stepCountIs } from "ai";
-import type { AkbAdapter } from "../../adapters/akb/index.js";
-import { readIssue } from "../../adapters/akb/index.js";
-import type { LlmAdapter } from "../../adapters/llm.js";
-import { inferStatusFromCodeSignal } from "../../models/status.js";
+import type { AkbAdapter } from "../../adapters/akb";
+import { readIssue } from "../../adapters/akb";
+import type { LlmAdapter } from "../../adapters/llm";
+import { inferStatusFromCodeSignal } from "../../models/status";
 import {
   type PendingDraft,
   PendingDraftSchema,
-} from "../../schemas/activity/pendingDraft.js";
-import { getAgentRegistryEntry } from "../framework/registry.js";
-import { buildAutoIssueUserPrompt } from "../prompts/autoIssue.js";
-import { createIssueAuthoringToolset } from "../tools/toolsets/index.js";
+} from "../../schemas/activity/pendingDraft";
+import { getAgentRegistryEntry } from "../framework/registry";
+import { buildAutoIssueUserPrompt } from "../prompts/autoIssue";
+import { createIssueAuthoringToolset } from "../tools/toolsets";
 import {
   activityDateForDraft,
   draftToAgentArtifact,
   implementationRefsForActivity,
   planningIdSets,
   safeIsoDate,
-} from "./artifacts.js";
-import { deriveCodeSignal } from "./statusChange.js";
-import {
-  type ScanActivityEventSink,
-  runActivityAgentTask,
-} from "./taskRunner.js";
+} from "./artifacts";
+import { deriveCodeSignal } from "./statusChange";
+import { type ScanActivityEventSink, runActivityAgentTask } from "./taskRunner";
 import {
   type LlmDraftResponse,
   MAX_DRAFT_STEPS,
   type NormalisedActivity,
-} from "./types.js";
+} from "./types";
 
 const tracer = trace.getTracer("@reef/core");
 

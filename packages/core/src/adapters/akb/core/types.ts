@@ -1,21 +1,21 @@
 import type {
   ActivitySuggestion,
   ActivitySuggestionStatus,
-} from "../../../schemas/activity/suggestion.js";
+} from "../../../schemas/activity/suggestion";
 import type {
   IssueCreateInput,
   IssueMetadata,
   IssueUpdateInput,
-} from "../../../schemas/issues/metadata.js";
-import type { IssueListQuery } from "../../../schemas/issues/requests.js";
-import type { Template } from "../../../schemas/issues/template.js";
+} from "../../../schemas/issues/metadata";
+import type { IssueListQuery } from "../../../schemas/issues/requests";
+import type { Template } from "../../../schemas/issues/template";
 import type {
   Milestone,
   Release,
   Sprint,
-} from "../../../schemas/planning/catalog.js";
-import type { Config } from "../../../schemas/workspace/config.js";
-import type { AkbAdapter } from "./http.js";
+} from "../../../schemas/planning/catalog";
+import type { Config } from "../../../schemas/workspace/config";
+import type { AkbAdapter } from "./http";
 
 export interface VaultMember {
   username: string;

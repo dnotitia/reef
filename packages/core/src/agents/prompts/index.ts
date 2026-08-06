@@ -25,23 +25,23 @@
 export {
   buildEnrichmentSystemPrompt,
   buildEnrichmentUserPrompt,
-} from "./enrichment.js";
+} from "./enrichment";
 export {
   buildAutoIssueSystemPrompt,
   buildAutoIssueUserPrompt,
-} from "./autoIssue.js";
+} from "./autoIssue";
 export {
   buildStatusRationaleSystemPrompt,
   buildStatusRationaleUserPrompt,
-} from "./statusRationale.js";
+} from "./statusRationale";
 export {
   buildProjectStateSystemPrompt,
   buildProjectStateUserPrompt,
-} from "./projectState.js";
+} from "./projectState";
 export {
   buildWorkspaceChatSystemPrompt,
   type WorkspaceChatSystemPromptOptions,
-} from "./workspaceChat.js";
+} from "./workspaceChat";
 
 // Re-export Zod schema types from schemas/ai/prompts
 export type {
@@ -54,10 +54,10 @@ export type {
   StatusRationaleUserPromptRequest,
   ProjectStateSystemPromptOptions,
   ProjectStateUserPromptRequest,
-} from "../../schemas/ai/prompts.js";
+} from "../../schemas/ai/prompts";
 
 export {
   EnrichmentUserPromptRequestSchema,
   StatusRationaleUserPromptRequestSchema,
   ProjectStateUserPromptRequestSchema,
-} from "../../schemas/ai/prompts.js";
+} from "../../schemas/ai/prompts";

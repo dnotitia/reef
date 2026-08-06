@@ -11,6 +11,7 @@ const requiredWorkspaceNames = new Set([
   "@reef/jira-migrator",
   "@reef/orchestrator",
   "@reef/harness-provider-codex",
+  "@reef/infrastructure-provider-local",
   "@reef/work-provider-reef",
 ]);
 

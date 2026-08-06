@@ -1,22 +1,22 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
-import type { AkbAdapter } from "../adapters/akb/index.js";
-import type { GitHubAdapter } from "../adapters/github.js";
-import type { LlmAdapter } from "../adapters/llm.js";
-import { LlmError, SchemaValidationError } from "../errors/index.js";
+import type { AkbAdapter } from "../adapters/akb";
+import type { GitHubAdapter } from "../adapters/github";
+import type { LlmAdapter } from "../adapters/llm";
+import { LlmError, SchemaValidationError } from "../errors";
 import type {
   EnrichmentRequest,
   EnrichmentResult,
-} from "../schemas/ai/enrichment.js";
-import { extractErrorDetail } from "../utils/extractErrorDetail.js";
-import { WorkspaceBoundaryError } from "./enrichIssue/context.js";
+} from "../schemas/ai/enrichment";
+import { extractErrorDetail } from "../utils/extractErrorDetail";
+import { WorkspaceBoundaryError } from "./enrichIssue/context";
 import {
   buildIssueEnrichmentStageHandlers,
   createIssueEnrichmentState,
-} from "./enrichIssue/stageHandlers.js";
-import { parseEnrichmentResult } from "./enrichIssue/validation.js";
-import type { AgentRunEvent } from "./framework/events.js";
-import { createAgentTaskFromRegistry } from "./framework/registry.js";
-import { collectAgentResult, runAgentStream } from "./framework/runtime.js";
+} from "./enrichIssue/stageHandlers";
+import { parseEnrichmentResult } from "./enrichIssue/validation";
+import type { AgentRunEvent } from "./framework/events";
+import { createAgentTaskFromRegistry } from "./framework/registry";
+import { collectAgentResult, runAgentStream } from "./framework/runtime";
 
 const tracer = trace.getTracer("@reef/core");
 
@@ -149,4 +149,4 @@ async function* tapAgentEvents(
 export {
   parseEnrichmentResponse,
   validateSuggestions,
-} from "./enrichIssue/validation.js";
+} from "./enrichIssue/validation";

@@ -1,8 +1,8 @@
 import { stepCountIs } from "ai";
-import type { AkbAdapter } from "../../adapters/akb/index.js";
-import type { GitHubAdapter } from "../../adapters/github.js";
-import type { LlmAdapter } from "../../adapters/llm.js";
-import { LlmError } from "../../errors/index.js";
+import type { AkbAdapter } from "../../adapters/akb";
+import type { GitHubAdapter } from "../../adapters/github";
+import type { LlmAdapter } from "../../adapters/llm";
+import { LlmError } from "../../errors";
 import type {
   EnrichmentContext,
   EnrichmentRepoContext,
@@ -10,24 +10,21 @@ import type {
   EnrichmentResult,
   EnrichmentSuggestion,
   ReferenceSuggestion,
-} from "../../schemas/ai/enrichment.js";
-import { extractErrorDetail } from "../../utils/extractErrorDetail.js";
-import { AgentFieldSuggestionArtifactSchema } from "../framework/events.js";
-import type { AgentStageHandlerMap } from "../framework/registry.js";
+} from "../../schemas/ai/enrichment";
+import { extractErrorDetail } from "../../utils/extractErrorDetail";
+import { AgentFieldSuggestionArtifactSchema } from "../framework/events";
+import type { AgentStageHandlerMap } from "../framework/registry";
 import {
   buildEnrichmentRepairPrompt,
   buildEnrichmentRepairSystemPrompt,
   buildEnrichmentSystemPrompt,
   buildEnrichmentUserPrompt,
-} from "../prompts/enrichment.js";
+} from "../prompts/enrichment";
 import {
   createIssueAuthoringToolset,
   createRepoReadToolset,
-} from "../tools/toolsets/index.js";
-import {
-  buildEnrichmentContext,
-  resolveVerifiedRepoContext,
-} from "./context.js";
+} from "../tools/toolsets";
+import { buildEnrichmentContext, resolveVerifiedRepoContext } from "./context";
 import {
   averageConfidence,
   parseEnrichmentReferences,
@@ -36,7 +33,7 @@ import {
   rescueEmptyText,
   validateReferences,
   validateSuggestions,
-} from "./validation.js";
+} from "./validation";
 
 const MAX_ENRICHMENT_STEPS = 6;
 const MAX_REPAIR_RESPONSE_CHARS = 6000;

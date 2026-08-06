@@ -1,4 +1,4 @@
-import { ACTIVITY_INBOX_COLLECTION, ISSUES_COLLECTION } from "./constants.js";
+import { ACTIVITY_INBOX_COLLECTION, ISSUES_COLLECTION } from "./constants";
 
 /**
  * Mirror of akb's `_slugify` (`backend/app/services/document_service.py`).

@@ -25,7 +25,7 @@ package.
 
 ## Repository layout
 
-reef is a monorepo with six private, non-published packages:
+reef is a monorepo with seven private, non-published packages:
 
 - **`packages/core`** — framework-agnostic TypeScript library (`@reef/core`).
   No Next.js imports, no DOM APIs. All GitHub, AKB, and LLM I/O originates here.
@@ -41,6 +41,9 @@ reef is a monorepo with six private, non-published packages:
 - **`packages/orchestration/providers/codex` (`@reef/harness-provider-codex`)** —
   the private Codex App Server harness adapter for local stdio lifecycle and
   secret-free harness events.
+- **`packages/orchestration/providers/local` (`@reef/infrastructure-provider-local`)** —
+  the private local infrastructure provider for isolated Git-backed run
+  workspaces and bounded process execution.
 - **`packages/orchestration/providers/reef` (`@reef/work-provider-reef`)** — the
   private Reef work adapter for the orchestrator contract.
 - **`packages/jira-migrator` (`@reef/jira-migrator`)** — the operator-run,
@@ -54,23 +57,17 @@ changes in that area.
 
 ## Gates to run before opening a PR
 
-Run these from the repository root and make sure they pass:
+Run the canonical non-E2E gate from the repository root and make sure it passes:
 
 ```bash
-pnpm biome check .
-pnpm -r run typecheck
-pnpm -r run test
-pnpm --filter @reef/web run test:e2e
+pnpm run check
 ```
 
-The first three are the lint, typecheck, and unit-test gates. The last is the
-full hermetic Playwright suite, which CI enforces as the required `Playwright
-E2E` check (it needs no secrets — `pnpm --filter @reef/web exec playwright
-install chromium` is the only one-time local setup). Run the **whole** suite,
-not just the spec for the path you touched: a change to shared fixtures or the
-vault-skill version can break a sibling hermetic spec that a focused run never
-exercises. Fixing formatting is `pnpm biome check . --write` (or `pnpm
-format`).
+This includes the six tsdown package builds, isolated artifact smoke,
+dependency architecture, lint, typecheck, unit tests, and release policy.
+The full hermetic Playwright suite remains a separate required CI gate; run
+`pnpm --filter @reef/web run test:e2e:sharded` when the required browser
+environment is available. Fixing formatting is `pnpm format`.
 
 ## Continuous integration
 

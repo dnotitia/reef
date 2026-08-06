@@ -1,20 +1,20 @@
-import { NotFoundError } from "../../../errors/index.js";
+import { NotFoundError } from "../../../errors";
 import {
   ACTIVITY_INBOX_COLLECTION,
   REEF_ATTACHMENTS_TABLE,
   REEF_SETTINGS_TABLE,
   REEF_TABLE_NAMES,
-} from "../core/constants.js";
-import { deleteCollection, deleteDocument } from "../core/documents.js";
-import { deleteAkbFile } from "../core/files.js";
-import type { AkbAdapter } from "../core/http.js";
-import { issuePathFor } from "../core/paths.js";
-import { isMissingTableError, runSql, tableRef } from "../core/sql.js";
-import { dropAkbTable } from "../core/tables.js";
-import { withSpan } from "../core/tracing.js";
-import type { DeleteVaultParams, DetachReefParams } from "../core/types.js";
-import { listIssues } from "../issues/issues.js";
-import { buildReefVaultSkillDocuments } from "../vaultSkill/documents.js";
+} from "../core/constants";
+import { deleteCollection, deleteDocument } from "../core/documents";
+import { deleteAkbFile } from "../core/files";
+import type { AkbAdapter } from "../core/http";
+import { issuePathFor } from "../core/paths";
+import { isMissingTableError, runSql, tableRef } from "../core/sql";
+import { dropAkbTable } from "../core/tables";
+import { withSpan } from "../core/tracing";
+import type { DeleteVaultParams, DetachReefParams } from "../core/types";
+import { listIssues } from "../issues/issues";
+import { buildReefVaultSkillDocuments } from "../vaultSkill/documents";
 
 /**
  * Run a teardown step, treating "already gone" (404 → NotFoundError) as success

@@ -1,9 +1,9 @@
-export type { RepoRef } from "./allowlist.js";
+export type { RepoRef } from "./allowlist";
 export {
   createBoundDevReadFileTool,
   createDevReadFileTool,
-} from "./devReadFile.js";
+} from "./devReadFile";
 export {
   createBoundSearchCodeTool,
   createSearchCodeTool,
-} from "./searchCode.js";
+} from "./searchCode";

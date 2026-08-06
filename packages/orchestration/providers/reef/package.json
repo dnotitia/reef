@@ -14,7 +14,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsdown --config ../../../../tsdown.config.mjs --filter @reef/work-provider-reef",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

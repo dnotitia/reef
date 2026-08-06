@@ -1,2 +1,2 @@
-export { suggestLabelsTool } from "./suggestLabels.js";
-export { suggestPriorityTool } from "./suggestPriority.js";
+export { suggestLabelsTool } from "./suggestLabels";
+export { suggestPriorityTool } from "./suggestPriority";

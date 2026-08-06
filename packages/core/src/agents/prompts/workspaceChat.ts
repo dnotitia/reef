@@ -1,7 +1,7 @@
 import type {
   ChatIssueContext,
   WorkspaceSummary,
-} from "../../schemas/ai/chatGrounding.js";
+} from "../../schemas/ai/chatGrounding";
 
 /**
  * Max characters of an issue body carried into the chat system prompt (AC2 —

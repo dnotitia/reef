@@ -1,11 +1,11 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { tool } from "ai";
-import { SchemaValidationError } from "../../../errors/index.js";
+import { SchemaValidationError } from "../../../errors";
 import {
   SuggestLabelsInputSchema,
   type SuggestLabelsOutput,
   SuggestLabelsOutputSchema,
-} from "../../../schemas/ai/tools/index.js";
+} from "../../../schemas/ai/tools";
 
 const tracer = trace.getTracer("@reef/core");
 

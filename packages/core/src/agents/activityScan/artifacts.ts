@@ -2,15 +2,15 @@ import type {
   PendingDraft,
   PendingStatusChange,
   StatusChangeEvidence,
-} from "../../schemas/activity/pendingDraft.js";
-import type { ImplementationRef } from "../../schemas/issues/metadata.js";
-import type { PlanningCatalog } from "../../schemas/planning/catalog.js";
-import type { AgentArtifact } from "../framework/events.js";
+} from "../../schemas/activity/pendingDraft";
+import type { ImplementationRef } from "../../schemas/issues/metadata";
+import type { PlanningCatalog } from "../../schemas/planning/catalog";
+import type { AgentArtifact } from "../framework/events";
 import {
   AgentIssueCreateProposalArtifactSchema,
   AgentStatusChangeProposalArtifactSchema,
-} from "../framework/events.js";
-import type { NormalisedActivity } from "./types.js";
+} from "../framework/events";
+import type { NormalisedActivity } from "./types";
 
 export interface ActivityArtifactContext {
   run_id: string;

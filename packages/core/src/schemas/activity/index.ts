@@ -3,7 +3,7 @@ export {
   type PendingDraft,
   type PendingStatusChange,
   type StatusChangeEvidence,
-} from "./pendingDraft.js";
+} from "./pendingDraft";
 
 export {
   ActivitySuggestionIdSchema,
@@ -15,4 +15,4 @@ export {
   type ActivityStatusChangeSuggestion,
   type ActivitySuggestion,
   type ActivitySuggestionsResult,
-} from "./suggestion.js";
+} from "./suggestion";

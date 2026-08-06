@@ -1,25 +1,25 @@
-import type { AkbAdapter } from "../../adapters/akb/index.js";
+import type { AkbAdapter } from "../../adapters/akb";
 import {
   listIssues,
   listPlanningCatalog,
   listTemplates,
   readConfig,
-} from "../../adapters/akb/index.js";
+} from "../../adapters/akb";
 import {
   AkbApiError,
   AuthError,
   NotFoundError,
   SchemaValidationError,
-} from "../../errors/index.js";
+} from "../../errors";
 import type {
   EnrichmentContext,
   EnrichmentLabelContext,
   EnrichmentRepoContext,
-} from "../../schemas/ai/enrichment.js";
-import type { IssueMetadata } from "../../schemas/issues/metadata.js";
-import type { Template } from "../../schemas/issues/template.js";
-import { extractErrorDetail } from "../../utils/extractErrorDetail.js";
-import { templateToCatalogItem } from "../prompts/templateCatalog.js";
+} from "../../schemas/ai/enrichment";
+import type { IssueMetadata } from "../../schemas/issues/metadata";
+import type { Template } from "../../schemas/issues/template";
+import { extractErrorDetail } from "../../utils/extractErrorDetail";
+import { templateToCatalogItem } from "../prompts/templateCatalog";
 
 type AttributeSpan = {
   setAttribute: (key: string, value: string | number | boolean) => void;

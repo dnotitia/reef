@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AuthoringLanguageSchema } from "./authoringLanguage.js";
+import { AuthoringLanguageSchema } from "./authoringLanguage";
 
 /**
  * GitHub user/org names and repo names — alphanumeric, hyphen, period, underscore.

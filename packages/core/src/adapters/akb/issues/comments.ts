@@ -3,18 +3,18 @@ import {
   ConflictError,
   NotFoundError,
   SchemaValidationError,
-} from "../../../errors/index.js";
-import { filterValidCommentThreadMembers } from "../../../models/commentThreads.js";
+} from "../../../errors";
+import { filterValidCommentThreadMembers } from "../../../models/commentThreads";
 import {
   type Comment,
   CommentMetaSchema,
   CommentSchema,
-} from "../../../schemas/issues/comment.js";
+} from "../../../schemas/issues/comment";
 import {
   buildMentionRecipients,
   extractMentionUsernames,
   parsePersistedMentionRecipients,
-} from "../../../schemas/issues/mention.js";
+} from "../../../schemas/issues/mention";
 import {
   type AkbAdapter,
   REEF_COMMENTS_TABLE,
@@ -28,9 +28,9 @@ import {
   runSql,
   tableRef,
   withSpan,
-} from "../core/shared.js";
-import { upsertSubscription } from "../notifications/notifications.js";
-import { listVaultMembers } from "../workspace/vaults.js";
+} from "../core/shared";
+import { upsertSubscription } from "../notifications/notifications";
+import { listVaultMembers } from "../workspace/vaults";
 
 async function resolveMentionRecipients(
   adapter: AkbAdapter,

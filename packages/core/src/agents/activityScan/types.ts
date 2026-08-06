@@ -1,14 +1,14 @@
 import type {
   GitHubCommitNode,
   GitHubPullRequestNode,
-} from "../../adapters/github.js";
-import type { CodeSignal } from "../../models/status.js";
+} from "../../adapters/github";
+import type { CodeSignal } from "../../models/status";
 import type {
   AutoIssueUserPromptRequest,
   CommitDetail,
   PrDetail,
-} from "../../schemas/ai/prompts.js";
-import type { IssueCreateFields } from "../../schemas/issues/metadata.js";
+} from "../../schemas/ai/prompts";
+import type { IssueCreateFields } from "../../schemas/issues/metadata";
 
 export const MAX_DRAFT_STEPS = 6;
 export const MAX_LINK_STEPS = 5;

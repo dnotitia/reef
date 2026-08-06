@@ -13,7 +13,7 @@ import {
   REEF_SPRINTS_TABLE,
   REEF_SUBSCRIPTIONS_TABLE,
   REEF_TEMPLATES_TABLE,
-} from "./constants.js";
+} from "./constants";
 
 export const AkbTableColumnTypeSchema = z.enum([
   "text",

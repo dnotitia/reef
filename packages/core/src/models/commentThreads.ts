@@ -1,4 +1,4 @@
-import type { Comment } from "../schemas/issues/comment.js";
+import type { Comment } from "../schemas/issues/comment";
 
 /**
  * Keep roots and replies whose parent chain resolves to the declared top-level

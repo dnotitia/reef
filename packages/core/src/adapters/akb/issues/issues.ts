@@ -1,11 +1,7 @@
-import {
-  AkbApiError,
-  ConflictError,
-  NotFoundError,
-} from "../../../errors/index.js";
-import type { IssueMetadata } from "../../../schemas/issues/metadata.js";
-import { deepEqual } from "../../../utils/deepEqual.js";
-import type { AkbAdapter } from "../core/http.js";
+import { AkbApiError, ConflictError, NotFoundError } from "../../../errors";
+import type { IssueMetadata } from "../../../schemas/issues/metadata";
+import { deepEqual } from "../../../utils/deepEqual";
+import type { AkbAdapter } from "../core/http";
 import {
   REEF_ISSUES_TABLE,
   backlogTailRankExpr,
@@ -29,7 +25,7 @@ import {
   stringArraysEqual,
   tableRef,
   withSpan,
-} from "../core/shared.js";
+} from "../core/shared";
 import type {
   AllocateNextIssueIdParams,
   ClaimIssueIdParams,
@@ -44,24 +40,24 @@ import type {
   WriteMultipleIssuesInput,
   WriteMultipleIssuesItemResult,
   WriteMultipleIssuesOutput,
-} from "../core/types.js";
+} from "../core/types";
 import {
   removeSubscription,
   upsertSubscription,
-} from "../notifications/notifications.js";
+} from "../notifications/notifications";
 import {
   appendActivityEvents,
   appendStatusChangeEvent,
   diffFieldActivityEvents,
-} from "./activity.js";
-export { buildIssueMetadataFromCreateInput } from "./createMetadata.js";
-export { allocateNextIssueId, listIssueRelations } from "./issueRelations.js";
-export { listIssues } from "./listIssues.js";
+} from "./activity";
+export { buildIssueMetadataFromCreateInput } from "./createMetadata";
+export { allocateNextIssueId, listIssueRelations } from "./issueRelations";
+export { listIssues } from "./listIssues";
 export {
   searchSimilarIssues,
   type SearchSimilarIssuesParams,
-} from "./similarIssues.js";
-export { searchIssueContent } from "./contentSearch.js";
+} from "./similarIssues";
+export { searchIssueContent } from "./contentSearch";
 
 type AutomaticIssueSubscriptionSource = "requester" | "assignee";
 

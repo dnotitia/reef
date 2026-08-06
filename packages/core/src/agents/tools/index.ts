@@ -1,7 +1,7 @@
-export * from "./repo/index.js";
-export * from "./suggestion/index.js";
-export * from "./toolsets/index.js";
-export * from "./workspace/index.js";
+export * from "./repo";
+export * from "./suggestion";
+export * from "./toolsets";
+export * from "./workspace";
 export type {
   DevReadFileOutput,
   ListAssigneesOutput,
@@ -11,4 +11,4 @@ export type {
   SearchIssuesResult,
   SuggestLabelsOutput,
   SuggestPriorityOutput,
-} from "../../schemas/ai/tools/index.js";
+} from "../../schemas/ai/tools";

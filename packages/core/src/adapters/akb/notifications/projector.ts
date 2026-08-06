@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { ConflictError, SchemaValidationError } from "../../../errors/index.js";
+import { ConflictError, SchemaValidationError } from "../../../errors";
 import {
   type NotificationCreateInput,
   buildNotificationKey,
-} from "../../../schemas/notifications.js";
+} from "../../../schemas/notifications";
 import {
   type AkbAdapter,
   REEF_ACTIVITY_TABLE,
@@ -17,8 +17,8 @@ import {
   runSql,
   tableRef,
   withSpan,
-} from "../core/shared.js";
-import { createNotification } from "./notifications.js";
+} from "../core/shared";
+import { createNotification } from "./notifications";
 
 const DEFAULT_BATCH_SIZE = 100;
 const MAX_BATCH_SIZE = 500;

@@ -1,4 +1,4 @@
-import { LlmError, SchemaValidationError } from "../../errors/index.js";
+import { LlmError, SchemaValidationError } from "../../errors";
 import {
   type EnrichmentContext,
   type EnrichmentResult,
@@ -7,8 +7,8 @@ import {
   EnrichmentSuggestionSchema,
   type ReferenceSuggestion,
   ReferenceSuggestionSchema,
-} from "../../schemas/ai/enrichment.js";
-import { parseLenientJson } from "../../utils/parseLenientJson.js";
+} from "../../schemas/ai/enrichment";
+import { parseLenientJson } from "../../utils/parseLenientJson";
 
 export function averageConfidence(
   suggestions: readonly EnrichmentSuggestion[],

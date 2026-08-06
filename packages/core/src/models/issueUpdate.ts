@@ -1,7 +1,7 @@
 import type {
   IssueMetadata,
   IssueUpdateInput,
-} from "../schemas/issues/metadata.js";
+} from "../schemas/issues/metadata";
 
 export function buildIssueUpdateMetadataPatch(input: {
   update: IssueUpdateInput;

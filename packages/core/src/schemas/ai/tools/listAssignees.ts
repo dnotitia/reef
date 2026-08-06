@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CollaboratorSchema } from "../../workspace/collaborator.js";
+import { CollaboratorSchema } from "../../workspace/collaborator";
 
 /**
  * `query` filters vault members by username/display_name substring (case

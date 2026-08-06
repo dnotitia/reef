@@ -1,11 +1,11 @@
 import { ZodError } from "zod";
-import { NotFoundError, SchemaValidationError } from "../../../errors/index.js";
+import { NotFoundError, SchemaValidationError } from "../../../errors";
 import {
   type ActivitySuggestion,
   ActivitySuggestionSchema,
   ActivitySuggestionStatusSchema,
   type ActivitySuggestionsResult,
-} from "../../../schemas/activity/suggestion.js";
+} from "../../../schemas/activity/suggestion";
 import {
   ACTIVITY_INBOX_COLLECTION,
   type AkbAdapter,
@@ -25,7 +25,7 @@ import {
   runSql,
   tableRef,
   withSpan,
-} from "../core/shared.js";
+} from "../core/shared";
 import type {
   ListActivitySuggestionsParams,
   ReadActivitySuggestionParams,
@@ -34,7 +34,7 @@ import type {
   UpdateActivitySuggestionStatusParams,
   WriteActivitySuggestionParams,
   WriteActivitySuggestionResult,
-} from "../core/types.js";
+} from "../core/types";
 
 function activitySuggestionDocumentTitle(
   suggestion: ActivitySuggestion,
