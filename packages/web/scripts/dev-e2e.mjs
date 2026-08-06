@@ -306,8 +306,10 @@ export async function startRuntime(options) {
     pnpmCommand(),
     ["exec", "next", "dev", "--turbopack", "-p", options.webPort],
     {
-      AKB_BACKEND_URL:
-        process.env.AKB_BACKEND_URL ?? `${options.fixtureOrigin}/akb`,
+      // The hermetic runtime owns its auth backend. Do not let an ambient
+      // operator/deployment backend replace the fixture that discovery
+      // advertises for browser login.
+      AKB_BACKEND_URL: `${options.fixtureOrigin}/akb`,
       // Server-read akb web base (REEF-368) so linked-document backlinks render
       // when browsing the hermetic runtime locally.
       AKB_WEB_URL: process.env.AKB_WEB_URL ?? "https://akb.e2e.test",
