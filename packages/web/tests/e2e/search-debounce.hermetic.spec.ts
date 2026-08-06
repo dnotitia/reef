@@ -97,7 +97,7 @@ test.describe("search debounce cadence (REEF-370)", () => {
 
     const input = page.locator('[data-testid="search-input"]');
     await expect(input).toBeVisible();
-    await page.bringToFront();
+    await expect(page.getByRole("main")).toBeFocused();
     await input.focus();
     await expect(input).toBeFocused();
 
