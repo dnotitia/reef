@@ -1,9 +1,9 @@
-import type { AutoIssueUserPromptRequest } from "../../schemas/ai/prompts";
-import { AUTO_ISSUE_LLM_RESPONSE_FIELDS } from "../activityScan/types";
-import { authoringLanguageDirective } from "./authoringLanguage";
-import { buildCurrentDateContext } from "./dateContext";
-import { formatPlanningContextForPrompt } from "./planningContext";
-import { formatTemplateCatalog } from "./templateCatalog";
+import type { AutoIssueUserPromptRequest } from "../../schemas/ai/prompts.js";
+import { AUTO_ISSUE_LLM_RESPONSE_FIELDS } from "../activityScan/types.js";
+import { authoringLanguageDirective } from "./authoringLanguage.js";
+import { buildCurrentDateContext } from "./dateContext.js";
+import { formatPlanningContextForPrompt } from "./planningContext.js";
+import { formatTemplateCatalog } from "./templateCatalog.js";
 
 function quotedFieldPresent(field: string): string {
   return `"${field}"`;

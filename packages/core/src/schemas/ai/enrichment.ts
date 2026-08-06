@@ -6,11 +6,11 @@ import {
   IssueTypeEnum,
   PriorityEnum,
   SeverityEnum,
-} from "../issues/metadata";
-import { AKB_DOCUMENT_URI_RE } from "../issues/references";
-import { PlanningCatalogSchema } from "../planning/catalog";
-import { CollaboratorSchema } from "../workspace/collaborator";
-import { VaultNameSchema } from "../workspace/config";
+} from "../issues/metadata.js";
+import { AKB_DOCUMENT_URI_RE } from "../issues/references.js";
+import { PlanningCatalogSchema } from "../planning/catalog.js";
+import { CollaboratorSchema } from "../workspace/collaborator.js";
+import { VaultNameSchema } from "../workspace/config.js";
 
 /**
  * Output schemas for AI-assisted issue enrichment.

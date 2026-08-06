@@ -1,13 +1,13 @@
 import { tool } from "ai";
-import type { AkbAdapter } from "../../../adapters/akb";
-import { searchDocuments } from "../../../adapters/akb/core/shared";
-import { SchemaValidationError } from "../../../errors";
+import { searchDocuments } from "../../../adapters/akb/core/shared.js";
+import type { AkbAdapter } from "../../../adapters/akb/index.js";
+import { SchemaValidationError } from "../../../errors/index.js";
 import {
   SearchDocumentsInputSchema,
   type SearchDocumentsOutput,
   SearchDocumentsOutputSchema,
-} from "../../../schemas/ai/tools/searchDocuments";
-import { withToolSpan } from "../withToolSpan";
+} from "../../../schemas/ai/tools/searchDocuments.js";
+import { withToolSpan } from "../withToolSpan.js";
 
 /**
  * search_documents — search the vault's akb documents (specs, decisions, notes,

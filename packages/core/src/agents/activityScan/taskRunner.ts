@@ -1,12 +1,12 @@
-import { extractErrorDetail } from "../../utils/extractErrorDetail";
-import type { AgentArtifact, AgentRunEvent } from "../framework/events";
+import { extractErrorDetail } from "../../utils/extractErrorDetail.js";
+import type { AgentArtifact, AgentRunEvent } from "../framework/events.js";
 import {
   type AgentStageHandlerMap,
   type AgentTaskId,
   createAgentTaskFromRegistry,
-} from "../framework/registry";
-import { collectAgentResult, runAgentStream } from "../framework/runtime";
-import type { ActivityArtifactContext } from "./artifacts";
+} from "../framework/registry.js";
+import { collectAgentResult, runAgentStream } from "../framework/runtime.js";
+import type { ActivityArtifactContext } from "./artifacts.js";
 
 export type ActivityScanTaskId = Extract<
   AgentTaskId,

@@ -1,5 +1,5 @@
-import type { StatusRationaleUserPromptRequest } from "../../schemas/ai/prompts";
-import { authoringLanguageDirective } from "./authoringLanguage";
+import type { StatusRationaleUserPromptRequest } from "../../schemas/ai/prompts.js";
+import { authoringLanguageDirective } from "./authoringLanguage.js";
 
 /**
  * Build the system prompt for status-change rationale generation.

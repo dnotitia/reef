@@ -12,9 +12,11 @@
     "sourceMap": true
   },
   "exclude": [
-    "src/**/*.test.ts",
-    "src/**/*Fixtures.ts",
-    "src/**/fixtures.ts",
+    "**/*.test.ts",
+    "**/*.testSupport.ts",
+    "**/*TestSupport.ts",
+    "**/*Fixtures.ts",
+    "**/__test-helpers__/**",
     "node_modules",
     "dist"
   ]

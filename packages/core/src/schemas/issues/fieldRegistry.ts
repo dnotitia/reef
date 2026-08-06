@@ -25,15 +25,15 @@ import {
   PriorityEnum,
   SeverityEnum,
   StatusEnum,
-} from "./metadata";
+} from "./metadata.js";
 import type {
   ClosedReason,
   IssueType,
   Priority,
   Severity,
   Status,
-} from "./metadata";
-import type { UserSortField } from "./requests";
+} from "./metadata.js";
+import type { UserSortField } from "./requests.js";
 
 export type { UserSortField };
 

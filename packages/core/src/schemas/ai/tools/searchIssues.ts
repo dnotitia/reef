@@ -2,7 +2,7 @@ import { z } from "zod";
 import {
   IssueSearchResultMetadataSchema,
   StatusEnum,
-} from "../../issues/metadata";
+} from "../../issues/metadata.js";
 
 /**
  * Hybrid issue search input. Empty `query` falls back to metadata filtering;

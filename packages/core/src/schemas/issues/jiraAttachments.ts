@@ -1,7 +1,7 @@
 import {
   type IssueAttachmentCreateInput,
   IssueAttachmentCreateInputSchema,
-} from "./attachment";
+} from "./attachment.js";
 
 export interface JiraAttachmentImportInput {
   reefId: string;

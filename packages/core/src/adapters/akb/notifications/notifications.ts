@@ -3,7 +3,7 @@ import {
   ConflictError,
   NotFoundError,
   SchemaValidationError,
-} from "../../../errors";
+} from "../../../errors/index.js";
 import {
   type EffectiveSubscriptionState,
   type Notification,
@@ -25,7 +25,7 @@ import {
   buildNotificationKey,
   buildSubscriptionKey,
   effectiveSubscriptionState,
-} from "../../../schemas/notifications";
+} from "../../../schemas/notifications.js";
 import {
   type AkbAdapter,
   REEF_NOTIFICATIONS_TABLE,
@@ -36,7 +36,7 @@ import {
   runSql,
   tableRef,
   withSpan,
-} from "../core/shared";
+} from "../core/shared.js";
 
 function validationError(error: ZodError): SchemaValidationError {
   return new SchemaValidationError({

@@ -1,11 +1,11 @@
-import { activityInboxWorkflowsContent } from "./content/activityInboxWorkflows";
-import { commentsAndActivityContent } from "./content/commentsAndActivity";
-import { conversationalPlaybookContent } from "./content/conversationalPlaybook";
-import { githubActivityScanContent } from "./content/githubActivityScan";
-import { issueWorkflowsContent } from "./content/issueWorkflows";
-import { planningWorkflowsContent } from "./content/planningWorkflows";
-import { pmModelContent } from "./content/pmModel";
-import { rootSkillContent } from "./content/rootSkill";
+import { activityInboxWorkflowsContent } from "./content/activityInboxWorkflows.js";
+import { commentsAndActivityContent } from "./content/commentsAndActivity.js";
+import { conversationalPlaybookContent } from "./content/conversationalPlaybook.js";
+import { githubActivityScanContent } from "./content/githubActivityScan.js";
+import { issueWorkflowsContent } from "./content/issueWorkflows.js";
+import { planningWorkflowsContent } from "./content/planningWorkflows.js";
+import { pmModelContent } from "./content/pmModel.js";
+import { rootSkillContent } from "./content/rootSkill.js";
 
 export interface ReefVaultSkillDocument {
   path: string;

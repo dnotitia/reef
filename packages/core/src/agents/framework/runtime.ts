@@ -9,7 +9,7 @@ import {
   AgentRunEventSchema,
   type AgentRunStatus,
   AgentRunStatusEnum,
-} from "./events";
+} from "./events.js";
 
 const tracer = trace.getTracer("@reef/core");
 

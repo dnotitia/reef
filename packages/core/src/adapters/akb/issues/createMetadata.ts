@@ -1,8 +1,8 @@
-import { DEFAULT_NEW_ISSUE_STATUS } from "../../../models/status";
+import { DEFAULT_NEW_ISSUE_STATUS } from "../../../models/status.js";
 import type {
   IssueCreateInput,
   IssueMetadata,
-} from "../../../schemas/issues/metadata";
+} from "../../../schemas/issues/metadata.js";
 
 /**
  * Build complete reef issue metadata from a create input. Stamps

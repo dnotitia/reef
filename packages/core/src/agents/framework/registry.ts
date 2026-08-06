@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SchemaValidationError } from "../../errors";
+import { SchemaValidationError } from "../../errors/index.js";
 import {
   AGENT_PIPELINE_STAGE_IDS,
   type AgentPipelineStageId,
@@ -7,7 +7,7 @@ import {
   type AgentStageHandler,
   type AgentTaskDefinition,
   type AgentTaskStage,
-} from "./runtime";
+} from "./runtime.js";
 
 export const AgentTaskIdEnum = z.enum([
   "chat.workspace",

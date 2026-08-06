@@ -1,3 +1,4 @@
+import type { GitHubAdapter } from "../adapters/github.js";
 import {
   type AkbAdapter,
   akbEnsureReefTables,
@@ -5,22 +6,21 @@ import {
   akbReadAuthoringLanguage,
   akbReadConfig,
   akbWriteActivitySuggestion,
-} from "../adapters";
-import type { GitHubAdapter } from "../adapters/github";
-import type { LlmAdapter } from "../adapters/llm";
+} from "../adapters/index.js";
+import type { LlmAdapter } from "../adapters/llm.js";
 import {
   draftToActivitySuggestion,
   statusChangeToActivitySuggestion,
-} from "../models";
+} from "../models/index.js";
 import type {
   PendingDraft,
   PendingStatusChange,
-} from "../schemas/activity/pendingDraft";
-import type { ActivitySuggestion } from "../schemas/activity/suggestion";
-import type { Config } from "../schemas/workspace/config";
-import type { AgentRunEvent } from "./framework/events";
-import { scanActivity } from "./scanActivity";
-import { type RepoRef, assertRepoAllowed } from "./tools/repo/allowlist";
+} from "../schemas/activity/pendingDraft.js";
+import type { ActivitySuggestion } from "../schemas/activity/suggestion.js";
+import type { Config } from "../schemas/workspace/config.js";
+import type { AgentRunEvent } from "./framework/events.js";
+import { scanActivity } from "./scanActivity.js";
+import { type RepoRef, assertRepoAllowed } from "./tools/repo/allowlist.js";
 
 export interface ScanAndPersistActivitySuggestionsParams {
   adapter: GitHubAdapter;

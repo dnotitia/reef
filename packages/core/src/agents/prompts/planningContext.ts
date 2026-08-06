@@ -1,4 +1,4 @@
-import type { PlanningCatalog } from "../../schemas/planning/catalog";
+import type { PlanningCatalog } from "../../schemas/planning/catalog.js";
 
 interface PlanningContextPromptOptions {
   heading: string;

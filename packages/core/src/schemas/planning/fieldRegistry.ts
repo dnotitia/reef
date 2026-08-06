@@ -19,7 +19,7 @@ import {
   MilestoneStatusEnum,
   ReleaseStatusEnum,
   SprintStatusEnum,
-} from "./catalog";
+} from "./catalog.js";
 
 export type SprintStatus = (typeof SprintStatusEnum.options)[number];
 export type MilestoneStatus = (typeof MilestoneStatusEnum.options)[number];

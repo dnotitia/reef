@@ -1,7 +1,7 @@
 import type {
   ProjectStateSystemPromptOptions,
   ProjectStateUserPromptRequest,
-} from "../../schemas/ai/prompts";
+} from "../../schemas/ai/prompts.js";
 
 // Status sort priority: active work first, then committed (todo), then the
 // uncommitted backlog, then done/closed. Keeps backlog ahead of resolved work so

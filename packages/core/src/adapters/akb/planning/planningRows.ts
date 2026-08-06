@@ -3,7 +3,7 @@ import {
   ConflictError,
   NotFoundError,
   SchemaValidationError,
-} from "../../../errors";
+} from "../../../errors/index.js";
 import {
   type Milestone,
   MilestoneSchema,
@@ -11,7 +11,7 @@ import {
   ReleaseSchema,
   type Sprint,
   SprintSchema,
-} from "../../../schemas/planning/catalog";
+} from "../../../schemas/planning/catalog.js";
 import {
   type AkbAdapter,
   type ReefTableName,
@@ -24,7 +24,7 @@ import {
   runSql,
   selectIssueRows,
   tableRef,
-} from "../core/shared";
+} from "../core/shared.js";
 
 function parseOptionalNumber(raw: unknown): number | null | undefined {
   if (raw == null) return undefined;

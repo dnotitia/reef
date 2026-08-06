@@ -24,20 +24,20 @@ export {
   type ClosedReason,
   type ExternalRef,
   type ImplementationRef,
-} from "./metadata";
+} from "./metadata.js";
 
 export {
   AddIssueReferenceRequestSchema,
   ResolveDocumentTitlesRequestSchema,
   type AkbDocumentReference,
   type DocumentSearchHit,
-} from "./references";
+} from "./references.js";
 
 export {
   CommentCreateInputSchema,
   CommentUpdateInputSchema,
   type Comment,
-} from "./comment";
+} from "./comment.js";
 
 export {
   buildMentionRecipients,
@@ -45,26 +45,26 @@ export {
   formatMentionToken,
   parseMentionTokens,
   type MentionToken,
-} from "./mention";
+} from "./mention.js";
 
 export {
   IssueContentSearchRequestSchema,
   IssueContentSearchResponseSchema,
   type IssueContentSearchResult,
   type IssueContentSearchResponse,
-} from "./contentSearch";
+} from "./contentSearch.js";
 
 export {
   IssueAttachmentSourceEnum,
   type IssueAttachment,
   type IssueAttachmentCreateInput,
   type IssueAttachmentSource,
-} from "./attachment";
+} from "./attachment.js";
 
 export type {
   JiraAttachmentImportInput,
   JiraAttachmentRewriteTarget,
-} from "./jiraAttachments";
+} from "./jiraAttachments.js";
 
 export {
   ACTIVITY_EVENT_ASSIGNEE_CHANGE,
@@ -104,13 +104,13 @@ export {
   type IssueTypeChangePayload,
   type StartDateChangePayload,
   type ActivityEvent,
-} from "./activity";
+} from "./activity.js";
 
 export {
   TemplateSchema,
   TEMPLATE_NAME_PATTERN,
   type Template,
-} from "./template";
+} from "./template.js";
 
 export {
   BacklogReorderRequestSchema,
@@ -124,12 +124,12 @@ export {
   type IssueListQuery,
   type IssueListResponse,
   type IssueRelation,
-} from "./requests";
+} from "./requests.js";
 
 export {
   PersistedIssueFilterEnvelopeSchema,
   type PersistedIssueFilter,
-} from "./persistedIssueFilter";
+} from "./persistedIssueFilter.js";
 
 export {
   buildNamedIssueFilterEnvelope,
@@ -138,4 +138,4 @@ export {
   normalizeNamedIssueFilterEnvelope,
   serializeNamedIssueFilterPayload,
   type NamedIssueFilterEnvelope,
-} from "./namedIssueFilter";
+} from "./namedIssueFilter.js";

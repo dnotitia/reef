@@ -1,6 +1,6 @@
 import { type Span, SpanStatusCode, trace } from "@opentelemetry/api";
-import { observe } from "../../observability";
-import { normalizeRepositoryReadError } from "./errors";
+import { observe } from "../../observability/index.js";
+import { normalizeRepositoryReadError } from "./errors.js";
 
 const tracer = trace.getTracer("@reef/core");
 

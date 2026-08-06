@@ -1,13 +1,13 @@
 import { tool } from "ai";
-import { readTemplate } from "../../../adapters/akb";
-import type { AkbAdapter } from "../../../adapters/akb";
-import { SchemaValidationError } from "../../../errors";
+import { readTemplate } from "../../../adapters/akb/index.js";
+import type { AkbAdapter } from "../../../adapters/akb/index.js";
+import { SchemaValidationError } from "../../../errors/index.js";
 import {
   ReadTemplateInputSchema,
   type ReadTemplateOutput,
   ReadTemplateOutputSchema,
-} from "../../../schemas/ai/tools";
-import { withToolSpan } from "../withToolSpan";
+} from "../../../schemas/ai/tools/index.js";
+import { withToolSpan } from "../withToolSpan.js";
 
 /**
  * read_template — Returns a full issue template, including markdown body.

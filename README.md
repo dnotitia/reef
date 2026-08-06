@@ -126,7 +126,7 @@ inside this repository.
 | `packages/orchestration/providers/codex` | Private Codex App Server harness adapter (`@reef/harness-provider-codex`) for stdio lifecycle, policy enforcement, and secret-free harness events. |
 | `packages/jira-migrator` | Operator-run Jira-to-Reef migration package (`@reef/jira-migrator`) for read-only Jira discovery, private migration artifacts, import planning, and dependency-injected Reef apply/reconciliation. |
 | `packages/orchestration/providers/reef` | Private Reef work adapter (`@reef/work-provider-reef`) that implements the orchestrator `WorkProvider` contract through core's AKB issue and activity funnels. |
-| `docs/` | Architecture, UX, deployment, migration, release, and maintenance documentation. |
+| `docs/` | Architecture, package contracts, UX, deployment, migration, release, and maintenance documentation. |
 | `deploy/` | Kubernetes deployment assets. |
 | `scripts/` | Repository automation, including release-policy and maintenance checks. |
 
@@ -152,19 +152,24 @@ Run these from the repository root.
 | --- | --- |
 | `pnpm dev` | Start the web app on [http://localhost:7333](http://localhost:7333). |
 | `pnpm build` | Build the web app for production. |
+| `pnpm build:packages` | Emit the five Node package artifacts under `dist/`. |
+| `pnpm package-contract:smoke` | Install packed artifacts in an isolated consumer and exercise their public imports and CLI. |
+| `pnpm architecture:check` | Check dependency cycles, resolution, production/test boundaries, and workspace directions. |
 | `pnpm lint` | Run `biome check .`. |
 | `pnpm format` | Run `biome format --write .`. |
 | `pnpm typecheck` | Run `tsc --noEmit` in every package. |
 | `pnpm test` | Run every package's Vitest suite. |
 | `pnpm check:release` | Enforce release-policy and changelog rules. |
 
-The standard gates are:
+The standard non-E2E gate is:
 
 ```bash
-pnpm biome check .
-pnpm -r run typecheck
-pnpm -r run test
+pnpm run check
 ```
+
+See [Package contracts](docs/package-contracts.md) for the artifact and
+workspace-boundary contract. The Playwright E2E suite remains a separate
+required gate.
 
 ## Architecture at a glance
 

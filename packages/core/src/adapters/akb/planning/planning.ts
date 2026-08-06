@@ -1,4 +1,4 @@
-import { SchemaValidationError } from "../../../errors";
+import { SchemaValidationError } from "../../../errors/index.js";
 import {
   type Milestone,
   MilestoneCreateSchema,
@@ -11,7 +11,7 @@ import {
   type Sprint,
   SprintCreateSchema,
   SprintSchema,
-} from "../../../schemas/planning/catalog";
+} from "../../../schemas/planning/catalog.js";
 import {
   type AkbAdapter,
   REEF_MILESTONES_TABLE,
@@ -21,7 +21,7 @@ import {
   isMissingTableError,
   quoteText,
   withSpan,
-} from "../core/shared";
+} from "../core/shared.js";
 import type {
   CreateMilestoneParams,
   CreateReleaseParams,
@@ -34,7 +34,7 @@ import type {
   UpdateMilestoneParams,
   UpdateReleaseParams,
   UpdateSprintParams,
-} from "../core/types";
+} from "../core/types.js";
 import {
   assertPlanningItemNotReferenced,
   assertUniquePlanningName,
@@ -49,7 +49,7 @@ import {
   selectPlanningRows,
   sprintRowFields,
   updatePlanningRow,
-} from "./planningRows";
+} from "./planningRows.js";
 
 const CREATE_IDEMPOTENCY_META_KEY = "create_idempotency_key";
 

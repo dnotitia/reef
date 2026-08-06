@@ -1,5 +1,5 @@
-export { createListAssigneesTool } from "./listAssignees";
-export { createReadIssueTool } from "./readIssue";
-export { createReadTemplateTool } from "./readTemplate";
-export { createSearchDocumentsTool } from "./searchDocuments";
-export { createSearchIssuesTool } from "./searchIssues";
+export { createListAssigneesTool } from "./listAssignees.js";
+export { createReadIssueTool } from "./readIssue.js";
+export { createReadTemplateTool } from "./readTemplate.js";
+export { createSearchDocumentsTool } from "./searchDocuments.js";
+export { createSearchIssuesTool } from "./searchIssues.js";

@@ -11,26 +11,26 @@ import {
   getWorkspaceSummary,
   readConfig,
   readIssue,
-} from "../adapters/akb";
-import type { GitHubAdapter } from "../adapters/github";
-import type { LlmAdapter } from "../adapters/llm";
-import { ISSUE_ID_PATTERN } from "../models";
+} from "../adapters/akb/index.js";
+import type { GitHubAdapter } from "../adapters/github.js";
+import type { LlmAdapter } from "../adapters/llm.js";
+import { ISSUE_ID_PATTERN } from "../models/index.js";
 import {
   type ChatIssueContext,
   ChatIssueContextIssueSchema,
   type WorkspaceSummary,
-} from "../schemas/ai/chatGrounding";
-import { type AgentRunEvent, AgentRunEventSchema } from "./framework/events";
+} from "../schemas/ai/chatGrounding.js";
+import { type AgentRunEvent, AgentRunEventSchema } from "./framework/events.js";
 import {
   type AgentTaskRegistryEntry,
   getAgentRegistryEntry,
-} from "./framework/registry";
-import { buildWorkspaceChatSystemPrompt } from "./prompts/workspaceChat";
-import type { RepoRef } from "./tools/repo";
+} from "./framework/registry.js";
+import { buildWorkspaceChatSystemPrompt } from "./prompts/workspaceChat.js";
+import type { RepoRef } from "./tools/repo/index.js";
 import {
   createRepoReadToolset,
   createWorkspaceReadToolset,
-} from "./tools/toolsets";
+} from "./tools/toolsets/index.js";
 
 const tracer = trace.getTracer("@reef/core");
 const WORKSPACE_CHAT_TASK_ID = "chat.workspace";

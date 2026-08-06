@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { IssueMetadataSchema } from "../issues/metadata";
+import { IssueMetadataSchema } from "../issues/metadata.js";
 
 /**
  * Grounding context shapes for the workspace chat agent (REEF-360).

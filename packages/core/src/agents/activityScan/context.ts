@@ -1,11 +1,11 @@
 import type { Span } from "@opentelemetry/api";
-import type { AkbAdapter } from "../../adapters/akb";
+import type { AkbAdapter } from "../../adapters/akb/index.js";
 import {
   listPlanningCatalog as akbListPlanningCatalog,
   listTemplates as akbListTemplates,
-} from "../../adapters/akb";
-import type { Template } from "../../schemas/issues/template";
-import type { PlanningCatalog } from "../../schemas/planning/catalog";
+} from "../../adapters/akb/index.js";
+import type { Template } from "../../schemas/issues/template.js";
+import type { PlanningCatalog } from "../../schemas/planning/catalog.js";
 
 type AttributeSpan = Pick<Span, "setAttribute">;
 

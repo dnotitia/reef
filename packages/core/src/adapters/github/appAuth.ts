@@ -1,10 +1,10 @@
 import { createAppAuth } from "@octokit/auth-app";
 import { Octokit } from "@octokit/rest";
 import { SpanStatusCode, trace } from "@opentelemetry/api";
-import { GitHubApiError } from "../../errors";
-import type { GitHubAppConfig } from "../../schemas/workspace/config";
-import { stripTrailingSlashes } from "../url";
-import { getErrorStatus } from "./errors";
+import { GitHubApiError } from "../../errors/index.js";
+import type { GitHubAppConfig } from "../../schemas/workspace/config.js";
+import { stripTrailingSlashes } from "../url.js";
+import { getErrorStatus } from "./errors.js";
 
 const tracer = trace.getTracer("@reef/core");
 

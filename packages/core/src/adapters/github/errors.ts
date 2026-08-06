@@ -1,4 +1,8 @@
-import { AuthError, GitHubApiError, NotFoundError } from "../../errors";
+import {
+  AuthError,
+  GitHubApiError,
+  NotFoundError,
+} from "../../errors/index.js";
 
 export function normalizeAuthenticatedReposError(err: unknown): Error {
   const status = getErrorStatus(err);

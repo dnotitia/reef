@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { IsoDateFieldSchema } from "../common/date";
+import { IsoDateFieldSchema } from "../common/date.js";
 
 /**
  * CommentMetaSchema — the `reef_comments.meta` json contract (REEF-062 /

@@ -7,9 +7,9 @@ import {
   NotFoundError,
   SchemaValidationError,
   isAkbAccountErrorCode,
-} from "../../../errors";
-import { stripTrailingSlashes } from "../../url";
-import { readAkbErrorResponse } from "./errorResponse";
+} from "../../../errors/index.js";
+import { stripTrailingSlashes } from "../../url.js";
+import { readAkbErrorResponse } from "./errorResponse.js";
 
 const tracer = trace.getTracer("@reef/core");
 

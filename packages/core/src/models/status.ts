@@ -2,16 +2,16 @@ import type {
   ClosedReason,
   IssueCreateInput,
   Status,
-} from "../schemas/issues/metadata";
+} from "../schemas/issues/metadata.js";
 import {
   DEFAULT_STALE_HIDE_CANCELED_DAYS,
   DEFAULT_STALE_HIDE_COMPLETED_DAYS,
-} from "../schemas/workspace/config";
+} from "../schemas/workspace/config.js";
 
 export {
   DEFAULT_STALE_HIDE_CANCELED_DAYS,
   DEFAULT_STALE_HIDE_COMPLETED_DAYS,
-} from "../schemas/workspace/config";
+} from "../schemas/workspace/config.js";
 
 export type CodeSignal = "branch_created" | "pr_created" | "pr_merged";
 

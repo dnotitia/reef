@@ -1,12 +1,12 @@
-import type { WorkspaceSummary } from "../../../schemas/ai/chatGrounding";
+import type { WorkspaceSummary } from "../../../schemas/ai/chatGrounding.js";
 import {
   type AkbAdapter,
   REEF_ISSUES_TABLE,
   isMissingTableError,
   runSql,
   withSpan,
-} from "../core/shared";
-import { listPlanningCatalog } from "../planning/planning";
+} from "../core/shared.js";
+import { listPlanningCatalog } from "../planning/planning.js";
 
 export interface GetWorkspaceSummaryParams {
   adapter: AkbAdapter;

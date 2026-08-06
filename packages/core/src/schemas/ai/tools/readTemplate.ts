@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { TEMPLATE_NAME_PATTERN, TemplateSchema } from "../../issues/template";
+import {
+  TEMPLATE_NAME_PATTERN,
+  TemplateSchema,
+} from "../../issues/template.js";
 
 export const ReadTemplateInputSchema = z.object({
   /** Template row key. Vault is bound at factory construction. */

@@ -3,7 +3,7 @@ import {
   IssueCreateInputSchema,
   IssueUpdateInputSchema,
   StatusEnum,
-} from "../issues/metadata";
+} from "../issues/metadata.js";
 
 export const ProvenanceSchema = z.object({
   type: z.enum(["commit", "pr"]),

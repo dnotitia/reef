@@ -1,7 +1,7 @@
 import { ZodError, z } from "zod";
-import { AkbApiError, SchemaValidationError } from "../../../errors";
-import type { ReefTableName } from "./constants";
-import type { AkbAdapter } from "./http";
+import { AkbApiError, SchemaValidationError } from "../../../errors/index.js";
+import type { ReefTableName } from "./constants.js";
+import type { AkbAdapter } from "./http.js";
 
 // ─── SQL escaping ─────────────────────────────────────────────────────────────
 //

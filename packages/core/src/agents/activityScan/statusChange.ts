@@ -1,24 +1,27 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
-import type { AkbAdapter } from "../../adapters/akb";
-import { readIssue } from "../../adapters/akb";
-import type { LlmAdapter } from "../../adapters/llm";
+import type { AkbAdapter } from "../../adapters/akb/index.js";
+import { readIssue } from "../../adapters/akb/index.js";
+import type { LlmAdapter } from "../../adapters/llm.js";
 import {
   type CodeSignal,
   inferStatusFromCodeSignal,
   isForwardStatus,
-} from "../../models/status";
+} from "../../models/status.js";
 import {
   type PendingStatusChange,
   PendingStatusChangeSchema,
   type StatusChangeEvidence,
-} from "../../schemas/activity/pendingDraft";
-import type { StatusRationaleUserPromptRequest } from "../../schemas/ai/prompts";
-import type { IssueMetadata } from "../../schemas/issues/metadata";
-import { getAgentRegistryEntry } from "../framework/registry";
-import { buildStatusRationaleUserPrompt } from "../prompts/statusRationale";
-import { statusChangeToAgentArtifact } from "./artifacts";
-import { type ScanActivityEventSink, runActivityAgentTask } from "./taskRunner";
-import type { NormalisedActivity } from "./types";
+} from "../../schemas/activity/pendingDraft.js";
+import type { StatusRationaleUserPromptRequest } from "../../schemas/ai/prompts.js";
+import type { IssueMetadata } from "../../schemas/issues/metadata.js";
+import { getAgentRegistryEntry } from "../framework/registry.js";
+import { buildStatusRationaleUserPrompt } from "../prompts/statusRationale.js";
+import { statusChangeToAgentArtifact } from "./artifacts.js";
+import {
+  type ScanActivityEventSink,
+  runActivityAgentTask,
+} from "./taskRunner.js";
+import type { NormalisedActivity } from "./types.js";
 
 const tracer = trace.getTracer("@reef/core");
 

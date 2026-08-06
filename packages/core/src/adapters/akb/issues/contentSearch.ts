@@ -1,14 +1,19 @@
 import type {
   IssueContentSearchResponse,
   IssueContentSearchResult,
-} from "../../../schemas/issues/contentSearch";
-import { IssueContentSearchResponseSchema } from "../../../schemas/issues/contentSearch";
-import { REEF_COMMENTS_TABLE } from "../core/constants";
-import { searchDocumentsWithMetadata } from "../core/documents";
-import type { AkbAdapter, AkbSearchHit } from "../core/http";
-import { isMissingTableError, quoteText, runSql, tableRef } from "../core/sql";
-import { withSpan } from "../core/tracing";
-import { rowToIssue, selectIssueRows } from "./issueRows";
+} from "../../../schemas/issues/contentSearch.js";
+import { IssueContentSearchResponseSchema } from "../../../schemas/issues/contentSearch.js";
+import { REEF_COMMENTS_TABLE } from "../core/constants.js";
+import { searchDocumentsWithMetadata } from "../core/documents.js";
+import type { AkbAdapter, AkbSearchHit } from "../core/http.js";
+import {
+  isMissingTableError,
+  quoteText,
+  runSql,
+  tableRef,
+} from "../core/sql.js";
+import { withSpan } from "../core/tracing.js";
+import { rowToIssue, selectIssueRows } from "./issueRows.js";
 
 const MAX_SNIPPET_LENGTH = 280;
 const SNIPPET_CONTEXT = 90;

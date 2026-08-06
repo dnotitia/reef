@@ -1,4 +1,4 @@
-import { SchemaValidationError } from "../../../errors";
+import { SchemaValidationError } from "../../../errors/index.js";
 
 /** A monitored-repo reference the unbound repo tools are allowed to read. */
 export interface RepoRef {

@@ -1,9 +1,9 @@
 import { ZodError } from "zod";
-import { NotFoundError, SchemaValidationError } from "../../../errors";
+import { NotFoundError, SchemaValidationError } from "../../../errors/index.js";
 import {
   type Template,
   TemplateSchema,
-} from "../../../schemas/issues/template";
+} from "../../../schemas/issues/template.js";
 import {
   type AkbAdapter,
   REEF_TEMPLATES_TABLE,
@@ -17,8 +17,8 @@ import {
   runSql,
   tableRef,
   withSpan,
-} from "../core/shared";
-import { ensureReefTables } from "../core/shared";
+} from "../core/shared.js";
+import { ensureReefTables } from "../core/shared.js";
 import type {
   DeleteTemplateParams,
   ListTemplatesParams,
@@ -26,7 +26,7 @@ import type {
   ReadTemplateResult,
   TemplateEntry,
   WriteTemplateParams,
-} from "../core/types";
+} from "../core/types.js";
 
 function rowToTemplate(row: Record<string, unknown>): Template {
   const candidate: Record<string, unknown> = {

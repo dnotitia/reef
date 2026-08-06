@@ -9,13 +9,13 @@ export {
   muteIssue,
   getEffectiveSubscriptionState,
   type ManualSubscriptionInput,
-} from "./notifications/notifications";
+} from "./notifications/notifications.js";
 export {
   projectNotifications,
   type NotificationProjectorInput,
   type NotificationProjectionResult,
   type NotificationProjectionSourceResult,
-} from "./notifications/projector";
+} from "./notifications/projector.js";
 export {
   createAkbAdapter,
   ISSUES_COLLECTION,
@@ -56,7 +56,7 @@ export {
   type AkbTableIndexColumn,
   type AkbTableUniqueKey,
   type ReefTableManifest,
-} from "./core/shared";
+} from "./core/shared.js";
 export {
   EnrichedVaultSummarySchema,
   VaultMemberSchema,
@@ -73,8 +73,8 @@ export {
   type UserSearchResult,
   type VaultSummary,
   type EnrichedVaultSummary,
-} from "./workspace/vaults";
-export { deleteVault, detachReef } from "./workspace/workspaceDeletion";
+} from "./workspace/vaults.js";
+export { deleteVault, detachReef } from "./workspace/workspaceDeletion.js";
 export {
   readIssue,
   claimIssueId,
@@ -90,18 +90,18 @@ export {
   buildIssueMetadataFromCreateInput,
   writeMultipleIssues,
   type SearchSimilarIssuesParams,
-} from "./issues/issues";
+} from "./issues/issues.js";
 export {
   listIssueReferences,
   addIssueReference,
   removeIssueReference,
-} from "./issues/references";
+} from "./issues/references.js";
 export {
   listComments,
   createComment,
   reconcileJiraImportedComment,
   updateComment,
-} from "./issues/comments";
+} from "./issues/comments.js";
 export {
   listIssueAttachments,
   uploadIssueAttachment,
@@ -112,7 +112,7 @@ export {
   type DownloadIssueAttachmentByFileUriParams,
   type DownloadIssueAttachmentResult,
   type UploadIssueAttachmentParams,
-} from "./issues/attachments";
+} from "./issues/attachments.js";
 export {
   activityEventKey,
   appendActivityEvents,
@@ -125,7 +125,7 @@ export {
   type ActivityEventInput,
   type JiraImportedAttachmentActivityActorInput,
   type StatusChangeEventInput,
-} from "./issues/activity";
+} from "./issues/activity.js";
 export {
   composeActivitySuggestionDocumentBody,
   writeActivitySuggestion,
@@ -133,17 +133,17 @@ export {
   readActivitySuggestion,
   updateActivitySuggestion,
   updateActivitySuggestionStatus,
-} from "./activity/activitySuggestions";
+} from "./activity/activitySuggestions.js";
 export {
   readTemplate,
   writeTemplate,
   deleteTemplate,
   listTemplates,
-} from "./workspace/templates";
+} from "./workspace/templates.js";
 export {
   getWorkspaceSummary,
   type GetWorkspaceSummaryParams,
-} from "./workspace/workspaceSummary";
+} from "./workspace/workspaceSummary.js";
 export {
   listPlanningCatalog,
   readPlanningCreateClaim,
@@ -156,7 +156,7 @@ export {
   createRelease,
   updateRelease,
   deleteRelease,
-} from "./planning/planning";
+} from "./planning/planning.js";
 export {
   buildReefVaultSkillDocuments,
   installReefVaultSkill,
@@ -165,12 +165,12 @@ export {
   type InstallReefVaultSkillParams,
   type GetVaultSkillStatusParams,
   type ReefVaultSkillDocument,
-} from "./vaultSkill/vaultSkill";
+} from "./vaultSkill/vaultSkill.js";
 export {
   readConfig,
   writeConfig,
   readAuthoringLanguage,
-} from "./workspace/config";
+} from "./workspace/config.js";
 export {
   login,
   getAuthConfig,
@@ -199,5 +199,5 @@ export {
   type GetMeResult,
   type GetCurrentActorParams,
   type GetCurrentActorResult,
-} from "./workspace/auth";
-export type * from "./core/types";
+} from "./workspace/auth.js";
+export type * from "./core/types.js";

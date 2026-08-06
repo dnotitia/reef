@@ -1,12 +1,12 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { tool } from "ai";
-import { SchemaValidationError } from "../../../errors";
+import { SchemaValidationError } from "../../../errors/index.js";
 import {
   SuggestPriorityInputSchema,
   type SuggestPriorityOutput,
   SuggestPriorityOutputSchema,
-} from "../../../schemas/ai/tools";
-import type { Priority } from "../../../schemas/issues/metadata";
+} from "../../../schemas/ai/tools/index.js";
+import type { Priority } from "../../../schemas/issues/metadata.js";
 
 const tracer = trace.getTracer("@reef/core");
 

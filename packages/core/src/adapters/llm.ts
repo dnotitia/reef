@@ -7,9 +7,9 @@ import {
   streamText as aiStreamText,
   wrapLanguageModel,
 } from "ai";
-import { LlmError } from "../errors";
-import { observe } from "../observability";
-import { extractErrorDetail } from "../utils/extractErrorDetail";
+import { LlmError } from "../errors/index.js";
+import { observe } from "../observability/index.js";
+import { extractErrorDetail } from "../utils/extractErrorDetail.js";
 
 const tracer = trace.getTracer("@reef/core");
 

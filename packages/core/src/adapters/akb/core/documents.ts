@@ -1,9 +1,9 @@
 import { ZodError, z } from "zod";
-import { AkbApiError, SchemaValidationError } from "../../../errors";
-import type { IssueMetadata } from "../../../schemas/issues/metadata";
-import type { AkbDocumentReference } from "../../../schemas/issues/references";
-import { buildIssueAkbTitle, uniqueStrings } from "../issues/issueRows";
-import { ISSUES_COLLECTION } from "./constants";
+import { AkbApiError, SchemaValidationError } from "../../../errors/index.js";
+import type { IssueMetadata } from "../../../schemas/issues/metadata.js";
+import type { AkbDocumentReference } from "../../../schemas/issues/references.js";
+import { buildIssueAkbTitle, uniqueStrings } from "../issues/issueRows.js";
+import { ISSUES_COLLECTION } from "./constants.js";
 import {
   type AkbAdapter,
   type AkbSearchHit,
@@ -13,7 +13,7 @@ import {
   DocumentPutResponseSchema,
   type DocumentResponse,
   DocumentResponseSchema,
-} from "./http";
+} from "./http.js";
 
 const AKB_DOCUMENT_URI_PARTS_RE =
   /^akb:\/\/([^/]+)\/(?:(?:coll\/(.+)\/doc\/(.+))|(?:doc\/(.+)))$/;

@@ -1,14 +1,14 @@
 import { z } from "zod";
-import { IsoDateFieldSchema } from "../common/date";
+import { IsoDateFieldSchema } from "../common/date.js";
 import {
   AgentArtifactSchema,
   AgentArtifactTypeEnum,
   AgentErrorSchema,
   AgentStatusChangeProposalArtifactBaseSchema,
   MetadataSchema,
-} from "./agentArtifacts";
+} from "./agentArtifacts.js";
 
-export * from "./agentArtifacts";
+export * from "./agentArtifacts.js";
 
 export const AgentRunStatusEnum = z.enum([
   "running",

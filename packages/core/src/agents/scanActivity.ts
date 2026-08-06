@@ -1,32 +1,35 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
-import type { AkbAdapter } from "../adapters/akb";
-import type { GitHubAdapter } from "../adapters/github";
-import type { LlmAdapter } from "../adapters/llm";
-import { observe } from "../observability";
+import type { AkbAdapter } from "../adapters/akb/index.js";
+import type { GitHubAdapter } from "../adapters/github.js";
+import type { LlmAdapter } from "../adapters/llm.js";
+import { observe } from "../observability/index.js";
 import type {
   PendingDraft,
   PendingStatusChange,
-} from "../schemas/activity/pendingDraft";
+} from "../schemas/activity/pendingDraft.js";
 import {
   fetchIssueTemplateContext,
   fetchPlanningCatalogContext,
-} from "./activityScan/context";
-import { generateDraftForActivity } from "./activityScan/draftGeneration";
+} from "./activityScan/context.js";
+import { generateDraftForActivity } from "./activityScan/draftGeneration.js";
 import {
   ensureLinkedIssueExists,
   generateIssueLinkForActivity,
-} from "./activityScan/issueLink";
-import { buildIssueIdRegex, normalizeIssueRef } from "./activityScan/issueRefs";
-import { normalizeActivities } from "./activityScan/normalize";
-import { generateStatusChangeForIssue } from "./activityScan/statusChange";
+} from "./activityScan/issueLink.js";
+import {
+  buildIssueIdRegex,
+  normalizeIssueRef,
+} from "./activityScan/issueRefs.js";
+import { normalizeActivities } from "./activityScan/normalize.js";
+import { generateStatusChangeForIssue } from "./activityScan/statusChange.js";
 import {
   type NormalisedActivity,
   SEMANTIC_LINK_CONFIDENCE_THRESHOLD,
-} from "./activityScan/types";
-import type { AgentRunEvent } from "./framework/events";
-import { buildActivityIssueLinkSystemPrompt } from "./prompts/activityIssueLink";
-import { buildAutoIssueSystemPrompt } from "./prompts/autoIssue";
-import { buildStatusRationaleSystemPrompt } from "./prompts/statusRationale";
+} from "./activityScan/types.js";
+import type { AgentRunEvent } from "./framework/events.js";
+import { buildActivityIssueLinkSystemPrompt } from "./prompts/activityIssueLink.js";
+import { buildAutoIssueSystemPrompt } from "./prompts/autoIssue.js";
+import { buildStatusRationaleSystemPrompt } from "./prompts/statusRationale.js";
 
 const tracer = trace.getTracer("@reef/core");
 

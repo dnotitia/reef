@@ -4,17 +4,17 @@ import {
   type ListRecentActivityParams,
   type ListRecentActivityResult,
   listRecentActivity,
-} from "./github/activity";
+} from "./github/activity.js";
 import {
   type ListAuthenticatedRepositoriesParams,
   type ListAuthenticatedRepositoriesResult,
   listAuthenticatedRepositories,
-} from "./github/authenticatedRepos";
+} from "./github/authenticatedRepos.js";
 import {
   type ListInstallationRepositoriesParams,
   type ListInstallationRepositoriesResult,
   listInstallationRepositories,
-} from "./github/installationRepos";
+} from "./github/installationRepos.js";
 import {
   type GitHubCodeSearchResult,
   type GitHubFileContent,
@@ -25,24 +25,24 @@ import {
   listRepoLabels,
   readFile,
   searchCode,
-} from "./github/repoReads";
-import { stripTrailingSlashes } from "./url";
+} from "./github/repoReads.js";
+import { stripTrailingSlashes } from "./url.js";
 
 export type {
   GitHubAuthenticatedRepository,
   ListAuthenticatedRepositoriesParams,
   ListAuthenticatedRepositoriesResult,
-} from "./github/authenticatedRepos";
+} from "./github/authenticatedRepos.js";
 export type {
   ListInstallationRepositoriesParams,
   ListInstallationRepositoriesResult,
-} from "./github/installationRepos";
+} from "./github/installationRepos.js";
 export type {
   GitHubCommitNode,
   GitHubPullRequestNode,
   ListRecentActivityParams,
   ListRecentActivityResult,
-} from "./github/activity";
+} from "./github/activity.js";
 export type {
   GitHubCodeSearchResult,
   GitHubFileContent,
@@ -50,7 +50,7 @@ export type {
   ReadGitHubFileParams,
   RepoLabel,
   SearchGitHubCodeParams,
-} from "./github/repoReads";
+} from "./github/repoReads.js";
 
 export interface GitHubAdapter {
   listAuthenticatedRepositories: (

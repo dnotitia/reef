@@ -1,8 +1,8 @@
-import type { Template } from "../../schemas/issues/template";
-import type { PlanningCatalog } from "../../schemas/planning/catalog";
-import { templateToCatalogItem } from "../prompts/templateCatalog";
-import { extractIssueRef } from "./issueRefs";
-import type { CommitNode, NormalisedActivity, PrNode } from "./types";
+import type { Template } from "../../schemas/issues/template.js";
+import type { PlanningCatalog } from "../../schemas/planning/catalog.js";
+import { templateToCatalogItem } from "../prompts/templateCatalog.js";
+import { extractIssueRef } from "./issueRefs.js";
+import type { CommitNode, NormalisedActivity, PrNode } from "./types.js";
 
 export function normalizeActivities({
   commitNodes,

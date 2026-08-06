@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PriorityEnum } from "../../issues/metadata";
+import { PriorityEnum } from "../../issues/metadata.js";
 
 export const SuggestPriorityInputSchema = z.object({
   title: z.string().min(1),

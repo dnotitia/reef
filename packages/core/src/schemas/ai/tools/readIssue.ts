@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { ISSUE_ID_PATTERN } from "../../../models";
-import { IssueMetadataSchema } from "../../issues/metadata";
+import { ISSUE_ID_PATTERN } from "../../../models/index.js";
+import { IssueMetadataSchema } from "../../issues/metadata.js";
 
 /**
  * `{PREFIX}-{NUMBER}` — uppercase ASCII prefix + dash + positive integer.

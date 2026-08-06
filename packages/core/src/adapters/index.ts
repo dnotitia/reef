@@ -3,17 +3,17 @@ export {
   type GitHubAdapter,
   type ListLabelsForRepoParams,
   type RepoLabel,
-} from "./github";
+} from "./github.js";
 export {
   createGitHubAppInstallationTokenProvider,
   type GitHubTokenProvider,
   type CreateGitHubAppInstallationTokenProviderParams,
-} from "./github/appAuth";
+} from "./github/appAuth.js";
 export {
   createLlmAdapter,
   type LlmAdapter,
   type CreateLlmAdapterParams,
-} from "./llm";
+} from "./llm.js";
 export {
   createAkbAdapter,
   createNotification as akbCreateNotification,
@@ -208,4 +208,4 @@ export {
   type GetMeResult as AkbGetMeResult,
   type GetCurrentActorParams as AkbGetCurrentActorParams,
   type GetCurrentActorResult as AkbGetCurrentActorResult,
-} from "./akb";
+} from "./akb/index.js";

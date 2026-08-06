@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PriorityEnum } from "./metadata";
+import { PriorityEnum } from "./metadata.js";
 
 /**
  * Pattern enforced on `name` — the logical template id. Lowercase ASCII,

@@ -1,20 +1,20 @@
-import type { AkbAdapter } from "../../../adapters/akb";
-import type { GitHubAdapter } from "../../../adapters/github";
+import type { AkbAdapter } from "../../../adapters/akb/index.js";
+import type { GitHubAdapter } from "../../../adapters/github.js";
 import {
   type RepoRef,
   createBoundDevReadFileTool,
   createBoundSearchCodeTool,
   createDevReadFileTool,
   createSearchCodeTool,
-} from "../repo";
-import { suggestLabelsTool, suggestPriorityTool } from "../suggestion";
+} from "../repo/index.js";
+import { suggestLabelsTool, suggestPriorityTool } from "../suggestion/index.js";
 import {
   createListAssigneesTool,
   createReadIssueTool,
   createReadTemplateTool,
   createSearchDocumentsTool,
   createSearchIssuesTool,
-} from "../workspace";
+} from "../workspace/index.js";
 
 export interface WorkspaceReadToolsetParams {
   adapter: AkbAdapter;

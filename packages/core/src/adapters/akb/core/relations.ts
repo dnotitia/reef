@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { type AkbAdapter, withSpan } from "./shared";
+import { type AkbAdapter, withSpan } from "./shared.js";
 
 /**
  * REST surface for akb knowledge-graph relation edges (REEF-088 exposed the

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { IsoDateFieldSchema } from "../common/date";
-import { HttpUrlSchema } from "../common/url";
+import { IsoDateFieldSchema } from "../common/date.js";
+import { HttpUrlSchema } from "../common/url.js";
 
 export const StatusEnum = z.enum([
   "backlog",

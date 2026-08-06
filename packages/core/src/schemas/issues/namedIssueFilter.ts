@@ -1,16 +1,16 @@
 import { z } from "zod";
-import { naturalSortOrder } from "./fieldRegistry";
+import { naturalSortOrder } from "./fieldRegistry.js";
 import {
   IssueTypeEnum,
   PriorityEnum,
   SeverityEnum,
   StatusEnum,
-} from "./metadata";
+} from "./metadata.js";
 import {
   type PersistedIssueFilter,
   PersistedIssueFilterSchema,
-} from "./persistedIssueFilter";
-import { USER_SORT_FIELDS } from "./requests";
+} from "./persistedIssueFilter.js";
+import { USER_SORT_FIELDS } from "./requests.js";
 
 const NAMED_ISSUE_FILTER_VERSION = 1 as const;
 

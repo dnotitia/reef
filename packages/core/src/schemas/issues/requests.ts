@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { MAX_REORDER_WRITES } from "../../models/backlogRank";
-import { IsoDateFieldSchema } from "../common/date";
+import { MAX_REORDER_WRITES } from "../../models/backlogRank.js";
+import { IsoDateFieldSchema } from "../common/date.js";
 import {
   IssueCreateInputSchema,
   IssueListItemSchema,
@@ -8,8 +8,8 @@ import {
   PriorityEnum,
   SeverityEnum,
   StatusEnum,
-} from "./metadata";
-import { AKB_DOCUMENT_URI_RE } from "./references";
+} from "./metadata.js";
+import { AKB_DOCUMENT_URI_RE } from "./references.js";
 
 /**
  * Request body for POST /api/issues — commits a human or AI issue proposal to
