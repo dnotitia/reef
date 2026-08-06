@@ -4,6 +4,7 @@ import {
   readFixtureState,
   resetFixture,
 } from "./harness/fixture";
+import fixtureLogin from "./harness/fixture-login.json";
 
 test.describe("Hermetic runtime discovery", () => {
   test("publishes runtime controls and resets named-filter fixtures idempotently", async ({
@@ -25,10 +26,10 @@ test.describe("Hermetic runtime discovery", () => {
           body: { scenario: "<supported_scenario>" },
         },
       },
-      credentials: {
-        username_env: "REEF_E2E_USERNAME",
-        password_env: "REEF_E2E_PASSWORD",
-        login_path: "/login?password=1",
+      fixture_login: {
+        username: fixtureLogin.username,
+        password: fixtureLogin.password,
+        login_path: fixtureLogin.login_path,
       },
       tasks: {
         named_issue_filters: {
@@ -39,6 +40,24 @@ test.describe("Hermetic runtime discovery", () => {
         },
       },
     });
+    const discoveredLogin = contract.fixture_login as {
+      username: string;
+      password: string;
+      login_path: string;
+    };
+    const loginResponse = await request.post(
+      `${E2E_MOCK_URL}/akb/api/v1/auth/login`,
+      {
+        data: {
+          username: discoveredLogin.username,
+          password: discoveredLogin.password,
+        },
+      },
+    );
+    expect(loginResponse.ok()).toBeTruthy();
+    expect((await loginResponse.json()).user.username).toBe(
+      discoveredLogin.username,
+    );
     expect(contract.scenarios).toEqual(
       expect.arrayContaining([
         "configured_multi",

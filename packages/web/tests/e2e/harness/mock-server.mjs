@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const fixtureLogin = require("./fixture-login.json");
 
 const PORT = Number(process.env.REEF_E2E_MOCK_PORT ?? 7354);
 const HOST = process.env.REEF_E2E_MOCK_HOST ?? "127.0.0.1";
@@ -274,10 +278,10 @@ function runtimeDiscovery() {
         body: { scenario: "<supported_scenario>" },
       },
     },
-    credentials: {
-      username_env: "REEF_E2E_USERNAME",
-      password_env: "REEF_E2E_PASSWORD",
-      login_path: "/login?password=1",
+    fixture_login: {
+      username: fixtureLogin.username,
+      password: fixtureLogin.password,
+      login_path: fixtureLogin.login_path,
     },
     scenarios: SUPPORTED_SCENARIOS,
     tasks: {
@@ -304,7 +308,7 @@ function runtimeDiscovery() {
 function makeState(scenario) {
   const alice = {
     id: "user-alice",
-    username: "alice",
+    username: fixtureLogin.username,
     email: "alice@example.com",
     display_name: "Alice Example",
     is_admin: true,
@@ -321,7 +325,7 @@ function makeState(scenario) {
     scenario,
     calls: [],
     users: new Map([
-      [alice.username, { ...alice, password: "password" }],
+      [alice.username, { ...alice, password: fixtureLogin.password }],
       [bob.username, bob],
     ]),
     sessions: new Map([[token, alice.username]]),

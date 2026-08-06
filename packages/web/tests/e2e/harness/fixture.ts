@@ -1,4 +1,5 @@
 import { type APIRequestContext, type Page, expect } from "@playwright/test";
+import fixtureLogin from "./fixture-login.json";
 
 export const E2E_MOCK_URL =
   process.env.REEF_E2E_MOCK_URL ?? "http://127.0.0.1:7354";
@@ -223,8 +224,12 @@ export async function setAkbAccountDenial(
 export async function signInAsAlice(page: Page): Promise<void> {
   await page.goto("/login");
   await waitForPasswordLogin(page);
-  await page.locator('[data-testid="login-username"]').fill("alice");
-  await page.locator('[data-testid="login-password"]').fill("password");
+  await page
+    .locator('[data-testid="login-username"]')
+    .fill(fixtureLogin.username);
+  await page
+    .locator('[data-testid="login-password"]')
+    .fill(fixtureLogin.password);
   const loginResponsePromise = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === "/api/auth/akb/login" &&

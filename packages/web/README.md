@@ -182,9 +182,10 @@ useful flows were moved onto the hermetic fixture server.
 
 `dev:e2e` is also the repository-owned live E2E runtime. It emits a private
 ready payload with the web and fixture origins plus health, reset, discovery,
-scenario, and credential-variable contracts. The fixture discovery endpoint is
-available at `/__e2e/runtime`; it lists supported scenarios and user-task
-starting points without exposing selectors or assertions.
+and scenario contracts. The fixture discovery endpoint is available at
+`/__e2e/runtime`; it lists supported scenarios, test-only `fixture_login`
+metadata, and user-task starting points without exposing selectors or
+assertions.
 
 Consumers interact with the running web and fixture services through their
 browser and HTTP surfaces. Reef does not package a portable execution runner or
@@ -214,8 +215,9 @@ pnpm --filter @reef/web run dev:e2e
 
 This starts the fixture server and reef-web with the same mock AKB, OpenRouter,
 and GitHub endpoints, then leaves `http://localhost:7353` open for a real web
-browser. Sign in with the fixture account `alice` / `password` and select
-`reef-e2e`. Reset the fixture while the server is running with:
+browser. Read `/__e2e/runtime` for the test-only `fixture_login` metadata, use
+its login path to sign in, and select `reef-e2e`. Reset the fixture while the
+server is running with:
 
 ```bash
 pnpm --filter @reef/web run reset:e2e -- configured

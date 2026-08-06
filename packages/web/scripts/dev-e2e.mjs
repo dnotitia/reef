@@ -150,11 +150,6 @@ export function buildReadyPayload({ webOrigin, fixtureOrigin, scenario }) {
         },
       },
     },
-    credentials: {
-      username_env: "REEF_E2E_USERNAME",
-      password_env: "REEF_E2E_PASSWORD",
-      login_path: "/login?password=1",
-    },
   };
 }
 
@@ -356,7 +351,6 @@ async function main() {
     process.stdout.write(
       `${[
         `[dev:e2e] open ${options.webOrigin} in a real web browser`,
-        "[dev:e2e] fixture login: alice / password",
         `[dev:e2e] reset fixture: pnpm --filter @reef/web run reset:e2e -- ${options.scenario}`,
       ].join("\n")}\n`,
     );

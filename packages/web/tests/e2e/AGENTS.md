@@ -16,8 +16,9 @@
   `config` rows. Reset fixture data through `/__e2e/reset` before each test.
 - `dev:e2e` is the repository-owned live E2E runtime. Its
   ready payload and `/__e2e/runtime` discovery endpoint describe health, reset,
-  scenario, credential variable names, and task starting points without
-  selectors, assertions, or source paths.
+  scenario, test-only `fixture_login` metadata, and task starting points without
+  selectors, assertions, source paths, or external credential environment
+  contracts.
 - Keep canonical user behavior and assertions in hermetic specs. Do not add a
   portable execution runner, packaged behavior artifact, scenario action DSL,
   or another fixture framework. Consumers use the runtime's exposed browser and

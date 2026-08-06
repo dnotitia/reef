@@ -107,11 +107,6 @@ describe("dev:e2e runtime contract", () => {
           },
         },
       },
-      credentials: {
-        username_env: "REEF_E2E_USERNAME",
-        password_env: "REEF_E2E_PASSWORD",
-        login_path: "/login?password=1",
-      },
     });
     expect(Object.keys(payload)).not.toContain("pid");
     expect(Object.keys(payload)).not.toContain("candidate_head");
