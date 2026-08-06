@@ -12,7 +12,7 @@ import { failure } from "./reporting.js";
 
 const decodeHtmlAttribute = (value: string): string =>
   value.replace(
-    /&(?:amp|quot|apos|lt|gt|#39|#x27);/giu,
+    /&(?:amp|quot|apos|lt|gt|#39|#x27|#91|#93|#x5b|#x5d);/giu,
     (entity) =>
       ({
         "&amp;": "&",
@@ -22,6 +22,10 @@ const decodeHtmlAttribute = (value: string): string =>
         "&gt;": ">",
         "&#39;": "'",
         "&#x27;": "'",
+        "&#91;": "[",
+        "&#93;": "]",
+        "&#x5b;": "[",
+        "&#x5d;": "]",
       })[entity.toLowerCase()] ?? entity,
   );
 
@@ -134,12 +138,15 @@ const renderedHints = (
     const explicitAttachmentId = decimalAttribute(
       attributes.get("data-attachment-id"),
     );
-    const attachmentId =
+    if (
       hrefAttachmentId &&
       explicitAttachmentId &&
       hrefAttachmentId !== explicitAttachmentId
-        ? null
-        : (explicitAttachmentId ?? hrefAttachmentId);
+    ) {
+      hints.set(mediaId, null);
+      continue;
+    }
+    const attachmentId = explicitAttachmentId ?? hrefAttachmentId;
     const encodedName =
       attributes.get("data-attachment-name") ??
       attributes.get("data-filename") ??
@@ -164,11 +171,93 @@ const renderedHints = (
   return hints;
 };
 
+interface RenderedAttachmentHint {
+  attachmentId: string | null;
+  filename: string | null;
+}
+
+/**
+ * Jira's rendered comment HTML is not consistent across editor versions.
+ * Older comments use a plain `<img src=".../attachment/content/<id>"
+ * alt="...">` without the newer data-media-services attributes.  Keep those
+ * hints separately so a media ADF id can still be cross-walked by its
+ * rendered filename or attachment id.
+ */
+const renderedAttachmentHints = (html: string): RenderedAttachmentHint[] => {
+  const hints: RenderedAttachmentHint[] = [];
+  let cursor = 0;
+  while (cursor < html.length) {
+    const tagStart = html.indexOf("<", cursor);
+    if (tagStart === -1) break;
+    const tagEnd = html.indexOf(">", tagStart + 1);
+    if (tagEnd === -1) break;
+    cursor = tagEnd + 1;
+    const tag = html.slice(tagStart, tagEnd + 1);
+    const attributes = parseQuotedHtmlAttributes(tag);
+    // Media-service elements are validated by renderedHints above.  Do not
+    // let the legacy parser bypass an ambiguous or malformed media id.
+    if (attributes.has("data-media-services-id")) continue;
+    const href = attributes.get("src") ?? attributes.get("href");
+    const attachmentId = attachmentIdFromHref(href);
+    const filename =
+      attributes.get("data-attachment-name") ??
+      attributes.get("data-filename") ??
+      attributes.get("alt") ??
+      attributes.get("title") ??
+      null;
+    if (attachmentId || filename) {
+      hints.push({
+        attachmentId,
+        filename: filename ? decodeHtmlAttribute(filename) : null,
+      });
+    }
+  }
+  return hints;
+};
+
+/**
+ * Jira emits a wiki-style attachment error marker when it cannot render a
+ * file. It has no media-service id, but its text still carries the filename.
+ * rewriteMedia consumes these names only when they form a complete, unique
+ * ordered crosswalk for the unresolved file media in the same document.
+ */
+const renderedErrorAttachmentFilenames = (html: string): string[] => {
+  const filenames: string[] = [];
+  const pattern =
+    /\[\^<span\b[^>]*class=(?:"|')error(?:"|')[^>]*>([\s\S]*?)<\/span>([^\]]+)\]/giu;
+  for (const match of html.matchAll(pattern)) {
+    const filename = `${match[1] ?? ""}${match[2] ?? ""}`
+      .replace(/<[^>]*>/gu, "")
+      .trim();
+    if (filename) filenames.push(decodeHtmlAttribute(filename));
+  }
+  return filenames;
+};
+
+const sameRenderedFilename = (
+  sourceFilename: string,
+  renderedFilename: string,
+): boolean =>
+  (() => {
+    const source = sourceFilename.normalize("NFC");
+    const rendered = renderedFilename.normalize("NFC");
+    return (
+      source === rendered ||
+      source.startsWith(`${rendered} (`) ||
+      rendered.startsWith(`${source} (`)
+    );
+  })();
+
 export type JiraMediaResolutionStrategy =
   | "unique_filename"
   | "sole_attachment"
   | "rendered_element"
   | "rendered_unique_filename";
+
+interface JiraMediaResolution {
+  binding: AttachmentBinding;
+  strategy: JiraMediaResolutionStrategy;
+}
 
 export const resolveJiraMediaReference = (
   media: AdfMediaReference,
@@ -177,12 +266,11 @@ export const resolveJiraMediaReference = (
   sourceAttachments: readonly NormalizedJiraAttachment[] = attachments.map(
     (item) => item.source,
   ),
-): {
-  binding: AttachmentBinding;
-  strategy: JiraMediaResolutionStrategy;
-} | null => {
+): JiraMediaResolution | null => {
   if (media.mediaType !== "file") return null;
-  const hint = renderedHints(renderedHtml).get(media.mediaId);
+  const renderedHintMap = renderedHints(renderedHtml);
+  const hint = renderedHintMap.get(media.mediaId);
+  if (renderedHintMap.has(media.mediaId) && hint === null) return null;
   if (media.filename) {
     const candidates = sourceAttachments.filter(
       (item) => item.filename === media.filename,
@@ -238,6 +326,44 @@ export const resolveJiraMediaReference = (
         (item) => item.source.id === candidates[0]?.id,
       );
       return binding ? { binding, strategy: "rendered_unique_filename" } : null;
+    }
+  }
+  const legacyHints = renderedAttachmentHints(renderedHtml);
+  const filenameHints = media.alt ?? media.filename;
+  if (filenameHints) {
+    const matchingHints = legacyHints.filter(
+      (candidate) =>
+        candidate.filename !== null &&
+        sameRenderedFilename(candidate.filename, filenameHints),
+    );
+    if (matchingHints.length === 1) {
+      const attachmentId = matchingHints[0]?.attachmentId;
+      const candidates = attachmentId
+        ? sourceAttachments.filter((item) => item.id === attachmentId)
+        : sourceAttachments.filter((item) =>
+            sameRenderedFilename(item.filename, filenameHints),
+          );
+      if (candidates.length === 1) {
+        const binding = attachments.find(
+          (item) => item.source.id === candidates[0]?.id,
+        );
+        if (binding) return { binding, strategy: "rendered_element" };
+      }
+    } else if (matchingHints.length > 1) {
+      return null;
+    }
+  }
+  const idHints = legacyHints.filter((candidate) => candidate.attachmentId);
+  if (idHints.length === 1) {
+    const attachmentId = idHints[0]?.attachmentId;
+    const candidate = sourceAttachments.find(
+      (item) => item.id === attachmentId,
+    );
+    if (candidate) {
+      const binding = attachments.find(
+        (item) => item.source.id === candidate.id,
+      );
+      if (binding) return { binding, strategy: "rendered_element" };
     }
   }
   const decodedRenderedHtml = decodeHtmlAttribute(renderedHtml);
@@ -333,18 +459,67 @@ export const rewriteMedia = (
     alternatives: string[];
   }[] = [];
   let resolved = true;
-  for (const media of converted.media) {
+  const directResolutions = converted.media.map((media) =>
+    media.mediaType === "file"
+      ? resolveJiraMediaReference(
+          media,
+          bindings,
+          renderedHtml,
+          sourceAttachments,
+        )
+      : null,
+  );
+  const unresolvedFileIndexes = converted.media.flatMap((media, index) =>
+    media.mediaType === "file" && directResolutions[index] === null
+      ? [index]
+      : [],
+  );
+  const orderedFallbacks = new Map<number, JiraMediaResolution>();
+  const errorFilenames = renderedErrorAttachmentFilenames(renderedHtml);
+  if (
+    unresolvedFileIndexes.length > 0 &&
+    unresolvedFileIndexes.length === errorFilenames.length
+  ) {
+    const usedAttachmentIds = new Set<string>();
+    let deterministic = true;
+    for (const [position, filename] of errorFilenames.entries()) {
+      const candidates = sourceAttachments.filter((attachment) =>
+        sameRenderedFilename(attachment.filename, filename),
+      );
+      const binding =
+        candidates.length === 1
+          ? bindings.find((item) => item.source.id === candidates[0]?.id)
+          : undefined;
+      const mediaIndex = unresolvedFileIndexes[position];
+      if (
+        candidates.length !== 1 ||
+        !binding ||
+        usedAttachmentIds.has(binding.source.id) ||
+        mediaIndex === undefined
+      ) {
+        deterministic = false;
+        break;
+      }
+      usedAttachmentIds.add(binding.source.id);
+      orderedFallbacks.set(mediaIndex, {
+        binding,
+        strategy: "rendered_unique_filename",
+      });
+    }
+    if (!deterministic) orderedFallbacks.clear();
+  }
+  for (const [mediaIndex, media] of converted.media.entries()) {
     legacyPreRewriteMarkdown = legacyPreRewriteMarkdown.replace(
       media.placeholder,
       media.legacyPlaceholder,
     );
     report.media.total += 1;
-    const resolution = resolveJiraMediaReference(
-      media,
-      bindings,
-      renderedHtml,
-      sourceAttachments,
-    );
+    // External media (for example Jira's embedded GitHub icon) has no Jira
+    // attachment bytes to import. Keep its opaque raw placeholder without
+    // turning it into a false crosswalk failure.
+    if (media.mediaType !== "file") continue;
+    const resolution =
+      directResolutions[mediaIndex] ?? orderedFallbacks.get(mediaIndex) ?? null;
     if (!resolution) {
       resolved = false;
       report.media.unresolved += 1;

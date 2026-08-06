@@ -23,6 +23,7 @@ import {
   type RawArchiveSourceIdentity,
   canonicalizeJson,
   createRawArchive,
+  readRawArchiveRunAt,
   sha256CanonicalJson,
   validateRawArchivePermissionVerification,
 } from "./index.js";
@@ -137,6 +138,27 @@ describe("RFC 8785 JSON canonicalization", () => {
 });
 
 describe("RawArchive", () => {
+  it("recovers a resumed run timestamp from its verified manifest", async () => {
+    const root = join(await makeBase(), "archive");
+    const archive = createRawArchive(options(root));
+    await archive.archive(input());
+
+    await expect(
+      readRawArchiveRunAt({
+        root,
+        runId: "run-001",
+        sourceScope: { cloud_id: "cloud-abc", project_key: "ALPHA" },
+      }),
+    ).resolves.toBe(NOW);
+    await expect(
+      readRawArchiveRunAt({
+        root,
+        runId: "missing-run",
+        sourceScope: { cloud_id: "cloud-abc", project_key: "ALPHA" },
+      }),
+    ).resolves.toBeNull();
+  });
+
   it("archives a batch with stable references and one verified manifest", async () => {
     const root = join(await makeBase(), "archive");
     const archive = createRawArchive(options(root));

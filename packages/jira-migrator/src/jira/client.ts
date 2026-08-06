@@ -206,7 +206,7 @@ export const readJiraRateLimit = (headers: Headers): JiraRateLimit => {
 };
 
 const retryableStatuses = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
-export const JIRA_MAX_ATTACHMENT_BUFFER_BYTES = 256 * 1024 * 1024;
+export const JIRA_MAX_ATTACHMENT_BUFFER_BYTES = 1024 * 1024 * 1024;
 
 interface ResizableArrayBuffer extends ArrayBuffer {
   resize(newByteLength: number): void;

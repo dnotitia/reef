@@ -4,6 +4,7 @@ import type { JiraIssueImportPlan } from "../issues/importPlan.js";
 import { reportTemplate } from "../related/reporting.js";
 import {
   actionForEquivalentIssuePlans,
+  actionForIssuePlan,
   mappedFingerprintForChangelog,
   mappedFingerprintForIssue,
   plannedIssueContentForRelated,
@@ -124,6 +125,29 @@ describe("migration action fingerprints", () => {
       "skip",
     );
     expect(actionForEquivalentIssuePlans(semantic, [], ledger)).toBe("update");
+  });
+
+  it("updates an owned target that predates the migration ledger", () => {
+    const plan = {
+      source: {
+        jiraCloudId: "cloud-1",
+        projectId: "100",
+        projectKey: "SDDEV",
+        issueId: "23444",
+        issueKey: "SDDEV-286",
+      },
+      status: "ready",
+      desired: {
+        content: "desired",
+        issue: { id: "SDDEV-286" },
+      },
+    } as unknown as JiraIssueImportPlan;
+    const ledger = { bindings: [] } as never;
+
+    expect(
+      actionForIssuePlan(plan, ledger, undefined, new Set(["SDDEV-286"])),
+    ).toBe("update");
+    expect(actionForIssuePlan(plan, ledger)).toBe("create");
   });
 
   it("plans related data against base content created or updated first", () => {

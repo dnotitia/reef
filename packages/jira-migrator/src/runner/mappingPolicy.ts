@@ -64,17 +64,23 @@ const PolicySchema = z
             kind: z.literal("directional"),
             outwardRelation: z.enum(["blocks", "depends_on"]),
             inwardRelation: z.enum(["blocks", "depends_on"]),
+            preserveExternalRef: z.boolean().optional(),
           }).strict(),
-          LinkMatchSchema.extend({ kind: z.literal("symmetric") }).strict(),
+          LinkMatchSchema.extend({
+            kind: z.literal("symmetric"),
+            preserveExternalRef: z.boolean().optional(),
+          }).strict(),
         ]),
       )
       .default([]),
+    attachmentMaxBytes: z.number().int().positive().optional(),
   })
   .strict();
 
 export interface LoadedJiraMappingPolicy extends JiraIssueMappingPolicy {
   fieldOverrides: JiraFieldOverrides;
   linkMappings: readonly JiraLinkMapping[];
+  attachmentMaxBytes?: number;
 }
 
 class JiraMappingPolicyError extends Error {

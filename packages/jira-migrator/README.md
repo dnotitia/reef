@@ -71,6 +71,7 @@ schema-compatible custom fields:
     "start_date": "customfield_10015",
     "rank": "customfield_10019"
   },
+  "attachmentMaxBytes": 20971520,
   "linkMappings": []
 }
 ```
@@ -163,7 +164,7 @@ The package exports:
   issue attachments are isolated because Jira does not expose a reliable
   attachment-to-comment ACL association through this stage's source contract.
   Both declared sizes and streamed response bytes are bounded by that limit;
-  limits above 256 MiB are rejected before fetch so a policy value cannot force
+  limits above 1 GiB are rejected before fetch so a policy value cannot force
   an impractical allocation. The Node 22 implementation grows one resizable
   buffer with received bytes instead of preallocating the limit or retaining a
   second full-size copy.

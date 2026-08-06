@@ -97,6 +97,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
     relatedPlanningReports,
     approvedRelatedOperationsByIssue,
     postRelatedContentByReefId,
+    existingTargetIssueKeys,
   } = plan;
   const issuesBySourceId = new Map(
     allIssues.flatMap((issue) => [
@@ -350,7 +351,12 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
     for (const plan of applyIssuePlans) {
       assertNotAborted();
       if (
-        actionForIssuePlan(plan, ledger, bindingIndex) !== "create" ||
+        actionForIssuePlan(
+          plan,
+          ledger,
+          bindingIndex,
+          existingTargetIssueKeys,
+        ) !== "create" ||
         fingerprintJiraState(
           semanticIssuePlan(plan, planningResolutions, planningActions),
         ) !== approvedIssueFingerprints.get(plan.source.issueKey)
@@ -390,7 +396,14 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
       blockedClaimCount =
         failedIssueClaimIds.size + conflictedIssueClaimIds.size;
       for (const plan of applyIssuePlans) {
-        if (actionForIssuePlan(plan, ledger, bindingIndex) !== "create")
+        if (
+          actionForIssuePlan(
+            plan,
+            ledger,
+            bindingIndex,
+            existingTargetIssueKeys,
+          ) !== "create"
+        )
           continue;
         const reefId = plan.desired.issue?.id;
         if (!reefId) continue;
@@ -470,7 +483,12 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
         await checkpoint();
         continue;
       }
-      let action = actionForIssuePlan(plan, ledger, bindingIndex);
+      let action = actionForIssuePlan(
+        plan,
+        ledger,
+        bindingIndex,
+        existingTargetIssueKeys,
+      );
       if (action === "conflict") {
         record(
           "issues",
@@ -820,7 +838,7 @@ export async function executeJiraMigrationPlan(input: JiraExecutionInput) {
           linkMappings: policy.linkMappings,
           attachmentPolicy: config.control.commentCatalogComplete
             ? {
-                maxBytes: 20 * 1024 * 1024,
+                maxBytes: policy.attachmentMaxBytes ?? 20 * 1024 * 1024,
                 commentVisibilityCompleteness: "verified" as const,
                 ...(approvedCommentBindingPreconditions
                   ? {

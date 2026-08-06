@@ -240,4 +240,54 @@ describe("AKB Jira related target", () => {
     await expect(target.activityMatches([expected])).resolves.toBe(true);
     expect(listIssueActivity).toHaveBeenCalledTimes(2);
   });
+
+  it("normalizes Unicode filenames and retries an eventually consistent activity readback", async () => {
+    const expected = {
+      reefId: "SDDEV-241",
+      eventType: "attachment_added" as const,
+      eventKey: "jira-changelog:cloud:22044:102002:0:attachment_added",
+      actor: "sehyeon@dnotitia.com",
+      at: "2026-01-15T14:26:19.132+0900",
+      source: "jira-changelog:changelog_history:cloud:22044:102002:0",
+      payload: {
+        attachment_id: "14594",
+        file_uri: "akb://reef-sddev/coll/issues/sddev-241/attachments/file/a",
+        filename: "명세서 초안_P25078KR_3차수정_cleaned.docx".normalize("NFD"),
+        mime_type:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        size_bytes: 1,
+      },
+    };
+    listIssueActivity.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: "activity-1",
+        reef_id: expected.reefId,
+        event_type: expected.eventType,
+        event_key: expected.eventKey,
+        actor: expected.actor,
+        at: expected.at,
+        source: expected.source,
+        payload: {
+          ...expected.payload,
+          filename: expected.payload.filename.normalize("NFC"),
+        },
+      },
+    ]);
+    const waitForConsistency = vi.fn(async () => undefined);
+    const target = createAkbRelatedTarget({
+      adapter: { request: vi.fn() },
+      vault: "reef-sddev",
+      waitForConsistency,
+      readIssue: async () => {
+        throw new Error("unused");
+      },
+      updateIssue: async () => {
+        throw new Error("unused");
+      },
+    });
+
+    await expect(target.activityMatches([expected])).resolves.toBe(true);
+    expect(listIssueActivity).toHaveBeenCalledTimes(2);
+    expect(waitForConsistency).toHaveBeenCalledTimes(1);
+  });
 });

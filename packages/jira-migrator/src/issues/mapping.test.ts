@@ -167,6 +167,21 @@ const makeInput = (
 });
 
 describe("Jira issue import planning", () => {
+  it("canonicalizes raw Jira description line endings", () => {
+    const plan = buildJiraIssueImportPlan(
+      makeInput({
+        issue: {
+          ...issueFixture,
+          fields: {
+            ...issueFixture.fields,
+            description: "first\r\nsecond\rthird",
+          },
+        },
+      }),
+    );
+    expect(plan.desired.content).toBe("first\nsecond\nthird");
+  });
+
   it("builds a runtime-valid, immutable plan from actor/planning/parent/rank contracts", () => {
     const input = makeInput();
     const before = JSON.stringify(input);
@@ -589,7 +604,7 @@ describe("Jira issue import planning", () => {
     );
   });
 
-  it("keeps Jira relations in a separate reconciliation report", () => {
+  it("preserves Jira relations as external refs until the related-data stage", () => {
     const related = JiraIssueSchema.parse({
       ...issueFixture,
       fields: {
@@ -614,17 +629,22 @@ describe("Jira issue import planning", () => {
         targetIdsByJiraKey: { "ALPHA-2": "REEF-902" },
       }),
     );
-    expect(plan.deferred).toEqual(
+    expect(plan.deferred).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: "relation" })]),
+    );
+    expect(plan.field_results).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          kind: "relation",
-          reason: "needs_relation_reconcile",
-          targetId: "REEF-902",
+          sourceFieldId: "issuelinks:link-1",
+          targetField: "external_refs",
+          classification: "preserved",
+          reason: "unmapped_link_external_ref",
         }),
         expect.objectContaining({
-          kind: "relation",
-          reason: "cross_project_reconcile",
-          targetId: null,
+          sourceFieldId: "issuelinks:link-2",
+          targetField: "external_refs",
+          classification: "preserved",
+          reason: "cross_project_external_ref",
         }),
       ]),
     );

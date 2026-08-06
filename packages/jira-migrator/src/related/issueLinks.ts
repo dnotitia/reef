@@ -8,6 +8,7 @@ import {
 } from "../ledger.js";
 import type { NormalizedJiraIssueLink } from "../payloads.js";
 import type {
+  JiraLinkMapping,
   JiraRelatedImportInput,
   JiraRelatedImportReport,
 } from "./contracts.js";
@@ -18,6 +19,41 @@ import {
 } from "./links.js";
 import { recordRelatedOperation } from "./operations.js";
 import { failure } from "./reporting.js";
+
+const preservedLinkExternalRefKey = (
+  jiraCloudId: string,
+  issueId: string,
+  linkId: string,
+): string => `jira-link-preserved:${jiraCloudId}:${issueId}:${linkId}`;
+
+const preservedLinkExternalRef = (
+  migration: JiraRelatedImportInput,
+  link: NormalizedJiraIssueLink,
+  linkId: string,
+  relation: string,
+  inverseRelation: string,
+) => ({
+  reefId: migration.reefId,
+  ref: {
+    type: "jira" as const,
+    ref: link.issueKey,
+    label: `${link.label ?? link.type ?? "Jira issue link"} (native relation: ${relation})`,
+  },
+  provenance: {
+    source: "jira",
+    link_id: linkId,
+    preserved_native_relation: true,
+    relation,
+    inverse_relation: inverseRelation,
+    type: {
+      id: link.typeId,
+      name: link.type,
+      inward: link.inward,
+      outward: link.outward,
+      direction: link.direction,
+    },
+  },
+});
 
 export async function importIssueLinks(options: {
   migration: JiraRelatedImportInput;
@@ -41,6 +77,48 @@ export async function importIssueLinks(options: {
     now,
   } = options;
   let ledger = options.ledger;
+  const preserveNativeRelationRef = async (input: {
+    issueId: string;
+    link: NormalizedJiraIssueLink;
+    linkId: string;
+    mapping: JiraLinkMapping;
+    relation: string;
+    inverseRelation: string;
+  }): Promise<void> => {
+    if (!input.mapping.preserveExternalRef) return;
+    const key = preservedLinkExternalRefKey(
+      migration.jiraCloudId,
+      input.issueId,
+      input.linkId,
+    );
+    const value = preservedLinkExternalRef(
+      migration,
+      input.link,
+      input.linkId,
+      input.relation,
+      input.inverseRelation,
+    );
+    const existing = await migration.target.readExternalRef(key);
+    if (
+      existing &&
+      fingerprintJiraState(existing) === fingerprintJiraState(value)
+    )
+      return;
+    if (migration.mode === "dry-run") {
+      recordRelatedOperation(report, "put_external_ref", key, {
+        idempotencyKey: key,
+        ...value,
+      });
+      return;
+    }
+    await migration.target.putExternalRef({
+      idempotencyKey: key,
+      ...value,
+    });
+    const readback = await migration.target.readExternalRef(key);
+    if (fingerprintJiraState(readback) !== fingerprintJiraState(value))
+      throw new Error("preserved_link_external_ref_readback_missing");
+  };
   const removeStaleRelationBindings = async (linkId: string): Promise<void> => {
     const staleRelationBindings = ledger.bindings.filter(
       (binding) =>
@@ -349,6 +427,14 @@ export async function importIssueLinks(options: {
             linkId,
             migration.mode,
           );
+          await preserveNativeRelationRef({
+            issueId,
+            link,
+            linkId,
+            mapping,
+            relation: expectedRelation.relation,
+            inverseRelation: expectedRelation.inverseRelation,
+          });
           report.links.skipped += 1;
           continue;
         }
@@ -372,6 +458,14 @@ export async function importIssueLinks(options: {
           linkId,
           "dry-run",
         );
+        await preserveNativeRelationRef({
+          issueId,
+          link,
+          linkId,
+          mapping,
+          relation: expectedRelation.relation,
+          inverseRelation: expectedRelation.inverseRelation,
+        });
         for (const legacyBinding of semanticBindings) {
           if (
             legacyBinding.target.target_kind !== "relation" ||
@@ -396,6 +490,14 @@ export async function importIssueLinks(options: {
         migration.jiraCloudId,
         linkId,
       );
+      await preserveNativeRelationRef({
+        issueId,
+        link,
+        linkId,
+        mapping,
+        relation: expectedRelation.relation,
+        inverseRelation: expectedRelation.inverseRelation,
+      });
       for (const legacyBinding of semanticBindings) {
         if (
           legacyBinding.target.target_kind !== "relation" ||

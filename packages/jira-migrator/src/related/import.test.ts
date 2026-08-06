@@ -2,18 +2,23 @@ import { describe, expect, it, vi } from "vitest";
 import { createJiraAccountMappingArtifact } from "../accounts/mapping.js";
 import { convertAdfToMarkdown } from "../content/adf.js";
 import { fingerprintJiraState } from "../execution/diff.js";
-import { JiraReadClient } from "../jira/client.js";
+import {
+  JIRA_MAX_ATTACHMENT_BUFFER_BYTES,
+  JiraReadClient,
+} from "../jira/client.js";
 import { createJiraMigrationLedger } from "../ledger.js";
 import type {
   JiraIssuePayload,
   NormalizedJiraAttachment,
 } from "../payloads.js";
+import type { JiraRelatedImportReport } from "./contracts.js";
 import {
   type JiraRelatedImportTarget,
   canonicalizeJiraRelation,
   importJiraRelatedData,
   resolveJiraMediaReference,
 } from "./import.js";
+import { rewriteMedia } from "./media.js";
 
 const json = (value: unknown) =>
   new Response(JSON.stringify(value), {
@@ -1313,7 +1318,7 @@ describe("Jira related-data import stage", () => {
       ...base,
       attachmentPolicy: {
         commentVisibilityCompleteness: "verified",
-        maxBytes: 256 * 1024 * 1024 + 1,
+        maxBytes: JIRA_MAX_ATTACHMENT_BUFFER_BYTES + 1,
       },
       client: makeClient(requests, false, false, false, true),
       ledger: applied.ledger,
@@ -1828,7 +1833,7 @@ describe("Jira related-data import stage", () => {
       issue: withoutAttachments,
       attachmentPolicy: {
         commentVisibilityCompleteness: "verified",
-        maxBytes: 256 * 1024 * 1024 + 1,
+        maxBytes: JIRA_MAX_ATTACHMENT_BUFFER_BYTES + 1,
       },
       ledger: applied.ledger,
     });
@@ -1907,7 +1912,7 @@ describe("Jira related-data import stage", () => {
       ...base,
       attachmentPolicy: {
         commentVisibilityCompleteness: "verified",
-        maxBytes: 256 * 1024 * 1024 + 1,
+        maxBytes: JIRA_MAX_ATTACHMENT_BUFFER_BYTES + 1,
       },
       ledger: applied.ledger,
     });
@@ -2925,6 +2930,56 @@ describe("Jira related-data import stage", () => {
       ),
     ).toHaveLength(1);
   });
+
+  it("preserves the original Jira link beside an imported native relation when policy requests it", async () => {
+    const state = makeTarget();
+    const result = await importJiraRelatedData({
+      jiraCloudId: "cloud-1",
+      issue: issueFixture(),
+      reefId: "REEF-1",
+      attachmentPolicy,
+      client: makeClient([]),
+      target: state.target,
+      ledger: createJiraMigrationLedger({
+        jiraCloudId: "cloud-1",
+        targetVault: "isolated",
+      }),
+      accountMapping: createJiraAccountMappingArtifact({
+        jiraCloudId: "cloud-1",
+      }),
+      linkMappings: [
+        {
+          typeId: "1",
+          kind: "directional",
+          outwardRelation: "depends_on",
+          inwardRelation: "blocks",
+          preserveExternalRef: true,
+        },
+      ],
+      resolveIssueTarget: () => ({
+        reefId: "REEF-2",
+        documentUri: "akb://isolated/coll/issues/doc/reef-2.md",
+      }),
+      mode: "apply",
+    });
+
+    expect(result.report.links.applied).toBe(1);
+    expect(state.relations.size).toBe(1);
+    expect(
+      await state.target.readExternalRef(
+        "jira-link-preserved:cloud-1:10001:40001",
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        reefId: "REEF-1",
+        ref: expect.objectContaining({ ref: "DEMO-2" }),
+        provenance: expect.objectContaining({
+          preserved_native_relation: true,
+          relation: "depends_on",
+        }),
+      }),
+    );
+  });
 });
 
 describe("media crosswalk", () => {
@@ -3051,6 +3106,27 @@ describe("media crosswalk", () => {
     ).toBeNull();
     expect(
       resolveJiraMediaReference(
+        {
+          ...media,
+          filename: null,
+          alt: "BOOTSTRAP_SEQ.png",
+          mediaId: "media-uuid",
+        },
+        [
+          {
+            source: source("13072", "BOOTSTRAP_SEQ (media-uuid).png"),
+            fileUri: "akb://v/file/13072",
+          },
+          {
+            source: source("13073", "other.png"),
+            fileUri: "akb://v/file/13073",
+          },
+        ],
+        '<img src="/rest/api/3/attachment/content/13072" alt="BOOTSTRAP_SEQ.png">',
+      )?.strategy,
+    ).toBe("rendered_element");
+    expect(
+      resolveJiraMediaReference(
         { ...media, filename: null },
         [
           { source: source("1", "a.bin"), fileUri: "akb://v/file/1" },
@@ -3109,6 +3185,95 @@ describe("media crosswalk", () => {
         '<span data-media-services-id="m1" data-media-services-id="m2" href="/attachment/2/b.bin"></span>',
       ),
     ).toBeNull();
+  });
+
+  it("uses the ordered filenames in Jira attachment error markers", () => {
+    const filenames = [
+      "[선행기술분석] 이기종 임베딩 벡터 인덱스에서의 점진적 후보군 확장을 통한 복합 조건 검색 방법 및 시스템.pdf",
+      "[발명제안서]이기종 임베딩 벡터 인덱스에서의 점진적 후보군 확장을 통한 복합 조건 검색 방법 및 시스템.pdf",
+      "[발명제안서]그래프 기반 근사 최근접 이웃 탐색을 활용한 효율적인 벡터 검색 필터링 방법 및 시스템.pdf",
+      "[선행기술분석]그래프 기반 근사 최근접 이웃 탐색을 활용한 효율적인 벡터 검색 필터링 방법 및 시스템.pdf",
+    ];
+    const bindings = filenames.map((filename, index) => ({
+      source: source(String(index + 1), filename),
+      fileUri: `akb://attachment/${index + 1}`,
+    }));
+    const adf = {
+      type: "doc",
+      version: 1,
+      content: filenames.map((_, index) => ({
+        type: "mediaSingle",
+        content: [
+          {
+            type: "media",
+            attrs: { id: `media-${index + 1}`, type: "file" },
+          },
+        ],
+      })),
+    };
+    const renderedHtml = filenames
+      .map((filename) => {
+        const prefixEnd = filename.indexOf("]");
+        const prefix = filename
+          .slice(0, prefixEnd + 1)
+          .replace("[", "&#91;")
+          .replace("]", "&#93;");
+        return `[^<span class="error">${prefix}</span>${filename.slice(prefixEnd + 1)}]`;
+      })
+      .join("\n");
+    const report: JiraRelatedImportReport = {
+      mode: "dry-run",
+      deletions: 0,
+      comments: {
+        total: 0,
+        roots: 0,
+        replies: 0,
+        created: 0,
+        updated: 0,
+        skipped: 0,
+        flat_fallback: 0,
+      },
+      attachments: { total: 0, created: 0, skipped: 0, bytes: 0 },
+      media: {
+        total: 0,
+        rewritten: 0,
+        unresolved: 0,
+        description_updated: false,
+        by_strategy: {},
+      },
+      links: {
+        entries: 0,
+        unique: 0,
+        applied: 0,
+        skipped: 0,
+        unresolved: 0,
+        externalized: 0,
+        unmapped: 0,
+      },
+      remote_links: { total: 0, applied: 0, skipped: 0 },
+      operations: [],
+      failures: [],
+    };
+
+    const result = rewriteMedia(
+      adf,
+      bindings,
+      renderedHtml,
+      report,
+      "17663",
+      bindings.map((binding) => binding.source),
+    );
+
+    expect(result.resolved).toBe(true);
+    expect(report.media).toMatchObject({
+      total: 4,
+      rewritten: 4,
+      unresolved: 0,
+    });
+    expect(report.media.by_strategy).toEqual({ rendered_unique_filename: 4 });
+    expect(result.markdown).toBe(
+      "akb://attachment/1\n\nakb://attachment/2\n\nakb://attachment/3\n\nakb://attachment/4",
+    );
   });
 });
 
