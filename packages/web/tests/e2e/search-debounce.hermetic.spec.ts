@@ -72,9 +72,11 @@ test.describe("search debounce cadence (REEF-370)", () => {
         url.searchParams.get("q") === "Alpha"
       );
     });
-    // Five characters ~30ms apart — far under the 150ms warm window, so every
-    // prefix but the final settled value is debounced away.
-    await input.pressSequentially("Alpha", { delay: 30 });
+    // Send individual key events without an artificial pause. The complete
+    // sequence stays inside the 150ms warm window even while sibling shards
+    // are competing for browser/Next.js CPU, so every prefix but the final
+    // settled value is debounced away.
+    await input.pressSequentially("Alpha");
     await settled;
 
     // Only the coalesced final query reached the server (no per-keystroke prefixes).
@@ -95,6 +97,8 @@ test.describe("search debounce cadence (REEF-370)", () => {
 
     const input = page.locator('[data-testid="search-input"]');
     await expect(input).toBeVisible();
+    await input.focus();
+    await expect(input).toBeFocused();
 
     const settled = page.waitForRequest((req) => {
       const url = new URL(req.url());
@@ -104,10 +108,13 @@ test.describe("search debounce cadence (REEF-370)", () => {
         url.searchParams.get("q") === "Beta"
       );
     });
-    await input.pressSequentially("Beta", { delay: 30 });
+    await input.pressSequentially("Beta");
     await settled;
 
     expect(searches).toEqual(["Beta"]);
+    await expect(
+      page.getByRole("button", { name: /REEF-002.*Initial issue Beta/ }),
+    ).toBeVisible();
   });
 
   test("cold assignee typeahead coalesces keystrokes into one /api/vault-members?q request", async ({

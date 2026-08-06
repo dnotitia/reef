@@ -1,4 +1,4 @@
-import { type Page, expect, test } from "@playwright/test";
+import { type Page, type Response, expect, test } from "@playwright/test";
 import {
   clearPersistedQueryCacheOnLoad,
   openExistingWorkspace,
@@ -50,6 +50,34 @@ function issueListResponses(page: Page) {
   return responses;
 }
 
+function waitForIssueListPage(
+  page: Page,
+  hasCursor: boolean,
+): Promise<Response> {
+  return page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      response.request().method() === "GET" &&
+      url.pathname === "/api/issues" &&
+      url.searchParams.get("limit") === "100" &&
+      url.searchParams.has("cursor") === hasCursor &&
+      response.ok()
+    );
+  });
+}
+
+async function readIssueListPage(response: Response) {
+  const body = (await response.json()) as {
+    issues?: Array<{ id?: unknown }>;
+  };
+  return {
+    url: response.url(),
+    ids: (body.issues ?? [])
+      .map((issue) => issue.id)
+      .filter((id): id is string => typeof id === "string"),
+  };
+}
+
 async function openLargeList(page: Page, query = ""): Promise<void> {
   await clearPersistedQueryCacheOnLoad(page);
   await openExistingWorkspace(page, LARGE_VAULT);
@@ -80,8 +108,9 @@ test.describe("large issue list virtualization", () => {
     page,
   }) => {
     const requests = issueListRequests(page);
-    const responses = issueListResponses(page);
+    const initialResponse = waitForIssueListPage(page, false);
     await openLargeList(page);
+    const initialPage = await readIssueListPage(await initialResponse);
 
     const scroll = page.getByTestId("issue-list-scroll-container");
     const initialRequest = requests.find((raw) => {
@@ -103,31 +132,15 @@ test.describe("large issue list virtualization", () => {
     }));
     expect(range.scrollHeight).toBeGreaterThan(range.clientHeight);
 
-    const cursorRequest = page.waitForRequest((request) => {
-      const url = new URL(request.url());
-      return (
-        request.method() === "GET" &&
-        url.pathname === "/api/issues" &&
-        url.searchParams.has("cursor")
-      );
-    });
+    const cursorResponse = waitForIssueListPage(page, true);
     await scrollToListEnd(page);
-    await cursorRequest;
-    await page.waitForTimeout(300);
+    const cursorPage = await readIssueListPage(await cursorResponse);
 
     const cursorRequests = requests.filter((raw) =>
       new URL(raw).searchParams.has("cursor"),
     );
     expect(cursorRequests).toHaveLength(1);
-    const initialPage = responses.find(
-      ({ url }) => !new URL(url).searchParams.has("cursor"),
-    );
-    const cursorPage = responses.find(({ url }) =>
-      new URL(url).searchParams.has("cursor"),
-    );
-    expect(initialPage).toBeDefined();
-    expect(cursorPage).toBeDefined();
-    expect(cursorPage?.ids.every((id) => !initialPage?.ids.includes(id))).toBe(
+    expect(cursorPage.ids.every((id) => !initialPage.ids.includes(id))).toBe(
       true,
     );
     const mountedIds = await page
