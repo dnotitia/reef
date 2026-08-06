@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:eval": "vitest run --config vitest.eval.ts",
     "test:e2e": "playwright test",
+    "pretest:e2e:sharded": "pnpm --workspace-root run build:packages",
     "test:e2e:sharded": "node scripts/e2e-shards.mjs",
     "reset:e2e": "node scripts/reset-e2e.mjs",
     "i18n:baseline": "I18N_BASELINE_UPDATE=prune vitest run src/i18n/guard/i18nGuard.test.ts",
