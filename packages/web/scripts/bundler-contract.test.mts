@@ -27,6 +27,8 @@ describe("Next.js bundler contract", () => {
 
     expect(JSON.parse(sources[0]).scripts).toMatchObject({
       dev: "next dev -p 7333",
+      predev: "pnpm --workspace-root run build:packages",
+      prebuild: "pnpm --workspace-root run build:packages",
       build: "next build",
     });
     expect(sources[1]).toContain("next dev -p");

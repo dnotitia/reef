@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev -p 7333",
     "dev:e2e": "node scripts/dev-e2e.mjs",
+    "predev": "pnpm --workspace-root run build:packages",
+    "prebuild": "pnpm --workspace-root run build:packages",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
