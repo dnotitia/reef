@@ -22,7 +22,9 @@ function buildWebServerEnv(): Record<string, string> {
         };
 
   return {
-    AKB_BACKEND_URL: process.env.AKB_BACKEND_URL ?? `${E2E_MOCK_URL}/akb`,
+    // Hermetic E2E owns its auth backend; ambient deployment settings must not
+    // replace the fixture that the browser login contract exercises.
+    AKB_BACKEND_URL: `${E2E_MOCK_URL}/akb`,
     // Keep the hermetic server pinned to canonical names when a developer shell
     // exports the supported OpenRouter compatibility aliases.
     OPENROUTER_API_KEY: "",

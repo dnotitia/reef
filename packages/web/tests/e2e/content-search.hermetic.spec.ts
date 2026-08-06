@@ -1,5 +1,4 @@
 import { expect, test } from "@playwright/test";
-import { observeGlobalSearchContent } from "../../scripts/e2e-user-behavior-runner.cjs";
 import {
   openExistingWorkspace,
   resetFixture,
@@ -113,30 +112,56 @@ test.describe("Global body and comment search (REEF-347)", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
-    const observation = await observeGlobalSearchContent(page, {
-      schema_version: 1,
-      scenario: "global-search-content",
-      clause_id: "search-content-presentation",
-      target_url: "http://localhost:7353",
-      workspace: "reef-e2e",
-      search_placeholder: "Search issues...",
-      metadata_query: "Initial issue Alpha",
-      content_query: "comment-only lighthouse",
-      credentials: {
-        username_env: "REEF_E2E_USERNAME",
-        password_env: "REEF_E2E_PASSWORD",
-      },
-      expected: {
-        field_heading: "Issue field matches",
-        content_heading: "Issue content matches",
-        issue_id: "REEF-003",
-        title: "Backlog issue Gamma",
-        source: "Comment",
-        snippet: "comment-only lighthouse",
-      },
-    });
-    const row = observation.row;
+    await page.keyboard.press("Control+K");
+    const input = page.getByPlaceholder("Search issues...", { exact: true });
+    await input.fill("Initial issue Alpha");
+    await expect(
+      page.getByText("Issue field matches", { exact: true }),
+    ).toBeVisible();
+    await input.fill("comment-only lighthouse");
+    await expect(
+      page.getByText("Issue content matches", { exact: true }),
+    ).toBeVisible();
+
+    const row = page
+      .getByRole("option")
+      .filter({ has: page.getByText("REEF-003", { exact: true }) })
+      .first();
+    await expect(row).toBeVisible();
+    const source = row.getByText("Comment", { exact: true });
+    await expect(source).toBeVisible();
     await expect(row.locator("mark")).toHaveText("comment-only lighthouse");
+    const sourceStyle = await source.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        backgroundColor: style.backgroundColor,
+        borderWidths: [
+          style.borderTopWidth,
+          style.borderRightWidth,
+          style.borderBottomWidth,
+          style.borderLeftWidth,
+        ],
+        borderRadius: style.borderRadius,
+      };
+    });
+    expect(sourceStyle).toEqual({
+      backgroundColor: "rgba(0, 0, 0, 0)",
+      borderWidths: ["0px", "0px", "0px", "0px"],
+      borderRadius: "0px",
+    });
+    const accessibleText = await row.ariaSnapshot();
+    let cursor = 0;
+    for (const expected of [
+      "REEF-003",
+      "Backlog issue Gamma",
+      "Comment",
+      "comment-only lighthouse",
+    ]) {
+      const index = accessibleText.indexOf(expected, cursor);
+      expect(index).toBeGreaterThanOrEqual(cursor);
+      cursor = index + expected.length;
+    }
+    expect(accessibleText).not.toContain("·");
     const anchor = row.locator("a");
     await expect(anchor).toHaveAttribute(
       "href",

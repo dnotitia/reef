@@ -68,7 +68,7 @@ describe("dev:e2e runtime contract", () => {
     ).toThrow(/rejected scenario/);
   });
 
-  it("writes only the minimal private ready payload", async () => {
+  it("writes a private runtime ready descriptor", async () => {
     const root = await mkdtemp(join(tmpdir(), "reef-dev-e2e-contract-test-"));
     temporaryDirectories.push(root);
     const readyFile = join(root, "ready.json");
@@ -81,12 +81,32 @@ describe("dev:e2e runtime contract", () => {
     await writeReadyFile(readyFile, payload);
 
     expect(payload).toEqual({
-      schema_version: 1,
+      schema_version: 2,
       status: "ready",
-      origin: "http://localhost:9135",
-      fixture_origin: "http://127.0.0.1:9136",
-      reset_url: "http://127.0.0.1:9136/__e2e/reset",
       scenario: "comment_mentions",
+      services: {
+        web: {
+          origin: "http://localhost:9135",
+          health: { method: "GET", url: "http://localhost:9135" },
+        },
+        fixture: {
+          origin: "http://127.0.0.1:9136",
+          health: {
+            method: "GET",
+            url: "http://127.0.0.1:9136/__e2e/health",
+          },
+          reset: {
+            method: "POST",
+            url: "http://127.0.0.1:9136/__e2e/reset",
+            content_type: "application/json",
+            body: { scenario: "comment_mentions" },
+          },
+          discovery: {
+            method: "GET",
+            url: "http://127.0.0.1:9136/__e2e/runtime",
+          },
+        },
+      },
     });
     expect(Object.keys(payload)).not.toContain("pid");
     expect(Object.keys(payload)).not.toContain("candidate_head");

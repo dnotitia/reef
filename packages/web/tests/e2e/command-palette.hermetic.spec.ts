@@ -305,7 +305,12 @@ test.describe("Hermetic command palette", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
+    await expect(page.getByRole("main")).toBeFocused();
     await page.evaluate(() => {
+      const activeElement = document.activeElement;
+      if (activeElement instanceof HTMLElement) {
+        activeElement.blur();
+      }
       document.body.tabIndex = -1;
       document.body.focus();
     });
@@ -356,6 +361,7 @@ test.describe("Hermetic command palette", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
+    await expect(page.getByRole("main")).toBeFocused();
     const origin = page.getByTestId("sidebar-shortcuts-trigger");
     await origin.focus();
     await enterCommandMode(page);
@@ -374,13 +380,15 @@ test.describe("Hermetic command palette", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
+    await expect(page.getByRole("main")).toBeFocused();
     await page.evaluate(() => {
       const activeElement = document.activeElement;
       if (activeElement instanceof HTMLElement) {
         activeElement.blur();
       }
+      document.body.tabIndex = -1;
+      document.body.focus();
     });
-    await page.locator("body").focus();
     await expect(page.locator("body")).toBeFocused();
     await enterCommandMode(page);
     await page

@@ -76,10 +76,10 @@ explicitly in the entries below.
   matches, while body and comment provenance appears as muted inline text
   immediately before each snippet instead of as a branded pill. Existing
   navigation, ranking, deduplication, and command-mode behavior is unchanged.
-  The hermetic Playwright harness also exposes a checkout-independent,
-  redacting user-behavior runner artifact for trusted external proof without
-  replacing the canonical sharded suite.
-  (REEF-439)
+  The hermetic runtime now exposes health, reset, scenario, and task discovery
+  through the repository-owned `dev:e2e` surface. The portable user-behavior
+  runner and behavior artifact were removed; canonical checks remain in the
+  Playwright specs. (REEF-439, REEF-460)
 - **Unmatched URLs and recoverable page errors now stay inside Reef's visual
   language.** Catalog-backed English and Korean surfaces use the existing teal,
   typography, semantic light/dark tokens, accessible recovery actions, and a

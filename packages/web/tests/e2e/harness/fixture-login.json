@@ -1,0 +1,5 @@
+{
+  "username": "alice",
+  "password": "password",
+  "login_path": "/login?password=1"
+}

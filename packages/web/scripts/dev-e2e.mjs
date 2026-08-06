@@ -124,12 +124,32 @@ export function parseOptions(argv = process.argv.slice(2), env = process.env) {
 export function buildReadyPayload({ webOrigin, fixtureOrigin, scenario }) {
   const validatedScenario = validateScenario(scenario);
   return {
-    schema_version: 1,
+    schema_version: 2,
     status: "ready",
-    origin: webOrigin,
-    fixture_origin: fixtureOrigin,
-    reset_url: `${fixtureOrigin}/__e2e/reset`,
     scenario: validatedScenario,
+    services: {
+      web: {
+        origin: webOrigin,
+        health: { method: "GET", url: webOrigin },
+      },
+      fixture: {
+        origin: fixtureOrigin,
+        health: {
+          method: "GET",
+          url: `${fixtureOrigin}/__e2e/health`,
+        },
+        reset: {
+          method: "POST",
+          url: `${fixtureOrigin}/__e2e/reset`,
+          content_type: "application/json",
+          body: { scenario: validatedScenario },
+        },
+        discovery: {
+          method: "GET",
+          url: `${fixtureOrigin}/__e2e/runtime`,
+        },
+      },
+    },
   };
 }
 
@@ -286,8 +306,10 @@ export async function startRuntime(options) {
     pnpmCommand(),
     ["exec", "next", "dev", "--turbopack", "-p", options.webPort],
     {
-      AKB_BACKEND_URL:
-        process.env.AKB_BACKEND_URL ?? `${options.fixtureOrigin}/akb`,
+      // The hermetic runtime owns its auth backend. Do not let an ambient
+      // operator/deployment backend replace the fixture that discovery
+      // advertises for browser login.
+      AKB_BACKEND_URL: `${options.fixtureOrigin}/akb`,
       // Server-read akb web base (REEF-368) so linked-document backlinks render
       // when browsing the hermetic runtime locally.
       AKB_WEB_URL: process.env.AKB_WEB_URL ?? "https://akb.e2e.test",
@@ -331,7 +353,6 @@ async function main() {
     process.stdout.write(
       `${[
         `[dev:e2e] open ${options.webOrigin} in a real web browser`,
-        "[dev:e2e] fixture login: alice / password",
         `[dev:e2e] reset fixture: pnpm --filter @reef/web run reset:e2e -- ${options.scenario}`,
       ].join("\n")}\n`,
     );

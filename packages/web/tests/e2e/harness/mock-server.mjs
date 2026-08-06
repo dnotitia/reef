@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const fixtureLogin = require("./fixture-login.json");
 
 const PORT = Number(process.env.REEF_E2E_MOCK_PORT ?? 7354);
 const HOST = process.env.REEF_E2E_MOCK_HOST ?? "127.0.0.1";
@@ -8,6 +12,20 @@ const REEF_VAULT = "reef-e2e";
 const TOOL_LOOP_E2E_PROMPT = "tool transparency e2e";
 const TOOL_LOOP_SEARCH_ISSUES_CALL_ID = "call_e2e_search_issues";
 const TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID = "call_e2e_search_documents";
+const SUPPORTED_SCENARIOS = [
+  "empty",
+  "configured",
+  "configured_multi",
+  "demo_board",
+  "content_search",
+  "raw_only",
+  "activity_suggestions",
+  "notifications",
+  "skill_outdated",
+  "comment_mentions",
+  "large_vault",
+];
+const SUPPORTED_SCENARIO_SET = new Set(SUPPORTED_SCENARIOS);
 const ACCOUNT_DENIAL_CODES = new Set([
   "membership_required",
   "account_suspended",
@@ -37,6 +55,9 @@ const server = createServer(async (req, res) => {
 
     if (url.pathname === "/__e2e/health") {
       return json(res, 200, { ok: true });
+    }
+    if (url.pathname === "/__e2e/runtime" && req.method === "GET") {
+      return json(res, 200, runtimeDiscovery());
     }
     if (url.pathname === "/__e2e/reset" && req.method === "POST") {
       const body = await readJson(req);
@@ -240,27 +261,54 @@ process.on("SIGTERM", () => server.close(() => process.exit(0)));
 process.on("SIGINT", () => server.close(() => process.exit(0)));
 
 function normalizeScenario(value) {
-  if (
-    value === "empty" ||
-    value === "configured_multi" ||
-    value === "demo_board" ||
-    value === "content_search" ||
-    value === "raw_only" ||
-    value === "activity_suggestions" ||
-    value === "notifications" ||
-    value === "skill_outdated" ||
-    value === "comment_mentions" ||
-    value === "large_vault"
-  ) {
-    return value;
-  }
-  return "configured";
+  return SUPPORTED_SCENARIO_SET.has(value) ? value : "configured";
+}
+
+function runtimeDiscovery() {
+  return {
+    schema_version: 1,
+    status: "ready",
+    scenario: state.scenario,
+    operations: {
+      health: { method: "GET", path: "/__e2e/health" },
+      reset: {
+        method: "POST",
+        path: "/__e2e/reset",
+        content_type: "application/json",
+        body: { scenario: "<supported_scenario>" },
+      },
+    },
+    fixture_login: {
+      username: fixtureLogin.username,
+      password: fixtureLogin.password,
+      login_path: fixtureLogin.login_path,
+    },
+    scenarios: SUPPORTED_SCENARIOS,
+    tasks: {
+      named_issue_filters: {
+        scenario: "configured_multi",
+        workspace: "reef-e2e",
+        secondary_workspace: "reef-zeta",
+        start_path: "/workspace/reef-e2e/issues?view=list",
+      },
+      content_search: {
+        scenario: "content_search",
+        workspace: "reef-e2e",
+        start_path: "/workspace/reef-e2e/issues",
+      },
+      large_issue_list: {
+        scenario: "large_vault",
+        workspace: "reef-e2e",
+        start_path: "/workspace/reef-e2e/issues?view=list",
+      },
+    },
+  };
 }
 
 function makeState(scenario) {
   const alice = {
     id: "user-alice",
-    username: "alice",
+    username: fixtureLogin.username,
     email: "alice@example.com",
     display_name: "Alice Example",
     is_admin: true,
@@ -277,7 +325,7 @@ function makeState(scenario) {
     scenario,
     calls: [],
     users: new Map([
-      [alice.username, { ...alice, password: "password" }],
+      [alice.username, { ...alice, password: fixtureLogin.password }],
       [bob.username, bob],
     ]),
     sessions: new Map([[token, alice.username]]),
