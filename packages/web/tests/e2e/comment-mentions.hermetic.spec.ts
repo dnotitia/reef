@@ -181,7 +181,12 @@ test.describe("Comment mentions (REEF-452)", () => {
         selectionEnd: "@Bob Smith ".length,
         selectionStart: "@Bob Smith ".length,
       });
-    await composer.type("hello");
+    for (const [index, character] of [..."hello"].entries()) {
+      await composer.press(character);
+      await expect(composer).toHaveValue(
+        `@Bob Smith ${"hello".slice(0, index + 1)}`,
+      );
+    }
 
     const createResponse = page.waitForResponse(
       (response) =>
