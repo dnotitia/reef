@@ -2,8 +2,8 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 
-# Install pnpm — pin to match packageManager field in package.json
-RUN corepack enable && corepack prepare pnpm@11.10.0 --activate
+# Enable the package manager declared by the root package.json.
+RUN corepack enable
 
 # Copy workspace manifests
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -18,8 +18,8 @@ RUN pnpm install --frozen-lockfile
 FROM node:22-alpine AS builder
 WORKDIR /app
 
-# Install pnpm — pin to match packageManager field in package.json
-RUN corepack enable && corepack prepare pnpm@11.10.0 --activate
+# Enable the package manager declared by the root package.json.
+RUN corepack enable
 
 # Copy installed node_modules from deps stage
 COPY --from=deps /app/node_modules ./node_modules

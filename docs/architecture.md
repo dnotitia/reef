@@ -70,6 +70,8 @@ and `work-provider-reef` (`@reef/work-provider-reef`). The root
 product behavior that touches schemas, adapters, agents, or shared contracts
 starts in `core` and then surfaces through `web`; background and operator
 processes consume the same core contracts from their separate runtimes.
+The runtime and dependency source-of-truth matrix is documented in the
+[repository toolchain policy](toolchain.md).
 
 ## The core/web boundary and thin Route Handlers
 
