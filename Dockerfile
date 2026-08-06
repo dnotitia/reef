@@ -1,5 +1,5 @@
 # Stage 1: deps — install dependencies only (cache-friendly)
-FROM node:22-alpine AS deps
+FROM node:22.23.2-alpine AS deps
 WORKDIR /app
 
 # Enable the package manager declared by the root package.json.
@@ -15,7 +15,7 @@ RUN pnpm install --frozen-lockfile
 
 
 # Stage 2: builder — full build
-FROM node:22-alpine AS builder
+FROM node:22.23.2-alpine AS builder
 WORKDIR /app
 
 # Enable the package manager declared by the root package.json.
@@ -34,7 +34,7 @@ RUN pnpm --filter @reef/web run build
 
 
 # Stage 3: runner — minimal runtime image
-FROM node:22-alpine AS runner
+FROM node:22.23.2-alpine AS runner
 WORKDIR /app
 
 # Create non-root user with an explicit numeric UID/GID — kubelet's

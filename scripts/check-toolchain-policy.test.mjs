@@ -34,7 +34,7 @@ async function createFixture() {
     path.join(root, "pnpm-workspace.yaml"),
     `packages:\n  - "packages/*"\n\ncatalog:\n  "@types/node": ^22.15.0\n  typescript: ^5.9.3\n  vitest: ^3.2.6\n  zod: ^3.25.76\n`,
   );
-  await writeFile(path.join(root, ".node-version"), "22.13.0\n");
+  await writeFile(path.join(root, ".node-version"), "22.23.2\n");
   await mkdir(path.join(root, ".github", "workflows"), { recursive: true });
   await writeFile(
     path.join(root, ".github", "workflows", "ci.yml"),
@@ -42,7 +42,7 @@ async function createFixture() {
   );
   await writeFile(
     path.join(root, "Dockerfile"),
-    "FROM node:22-alpine\nRUN corepack enable\nRUN pnpm install --frozen-lockfile\n",
+    "FROM node:22.23.2-alpine\nRUN corepack enable\nRUN pnpm install --frozen-lockfile\n",
   );
 
   for (const [directory, manifest] of [
@@ -206,6 +206,23 @@ test("rejects Node and pnpm runtime drift", async () => {
       assert.ok(result.violations.some(({ code }) => code === "node-version"));
       assert.ok(result.violations.some(({ code }) => code === "docker-node"));
       assert.ok(result.violations.some(({ code }) => code === "pnpm-pin"));
+    },
+  );
+});
+
+test("rejects a Docker Node patch that drifts from the exact runtime pin", async () => {
+  await withFixture(
+    async (root) => {
+      await writeFile(
+        path.join(root, "Dockerfile"),
+        "FROM node:22.13.0-alpine\nRUN corepack enable\n",
+      );
+    },
+    async ({ root, pnpmCommand }) => {
+      const result = await inspectToolchain({ root, pnpmCommand });
+      assert.ok(
+        result.violations.some(({ code }) => code === "docker-node-drift"),
+      );
     },
   );
 });

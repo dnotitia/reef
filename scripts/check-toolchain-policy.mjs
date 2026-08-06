@@ -598,13 +598,24 @@ async function validateRuntime({
       );
     }
     for (const match of fromTags) {
-      const major = /^([0-9]+)/u.exec(match[1])?.[1];
-      if (major !== String(NODE_MAJOR)) {
+      const imageTag = match[1].split("@", 1)[0];
+      const dockerNodeVersion = parseVersion(imageTag.split("-", 1)[0]);
+      if (!dockerNodeVersion || dockerNodeVersion.major !== NODE_MAJOR) {
         addViolation(
           violations,
           "docker-node",
-          `Dockerfile Node base image ${match[1]} must use major ${NODE_MAJOR}`,
+          `Dockerfile Node base image ${match[1]} must use Node ${NODE_MAJOR} with a full semver tag`,
           ["Dockerfile"],
+        );
+      } else if (
+        nodeVersion &&
+        compareVersions(dockerNodeVersion, nodeVersion) !== 0
+      ) {
+        addViolation(
+          violations,
+          "docker-node-drift",
+          `Dockerfile Node base image ${match[1]} must match the exact .node-version pin ${nodeVersionText.trim()}`,
+          ["Dockerfile", ".node-version"],
         );
       }
     }
