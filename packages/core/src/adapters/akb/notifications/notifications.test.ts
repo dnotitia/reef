@@ -201,8 +201,7 @@ describe("notification adapter", () => {
       {
         status: 500,
         body: {
-          detail:
-            "password=secret-value while SELECT * FROM reef_notifications",
+          detail: "password=test-secret while SELECT * FROM reef_notifications",
         },
       },
     ]);
@@ -213,7 +212,7 @@ describe("notification adapter", () => {
     const descriptor = describeError(error);
     const serialized = JSON.stringify(descriptor);
 
-    expect(serialized).not.toContain("secret-value");
+    expect(serialized).not.toContain("test-secret");
     expect(serialized).not.toContain("SELECT");
     expect(serialized).not.toContain("reef_notifications");
   });

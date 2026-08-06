@@ -37,11 +37,11 @@ async function exerciseCommentMention(page: Page) {
   const rendered = await mention.evaluate((element) => ({
     tag: element.tagName,
     link: element.closest("a") !== null,
-    token: element.getAttribute("data-reef-mention"),
+    mentionValue: element.getAttribute("data-reef-mention"),
   }));
   expect(rendered.tag).toBe("SPAN");
   expect(rendered.link).toBe(false);
-  expect(rendered.token).toBe("Bob Smith");
+  expect(rendered.mentionValue).toBe("Bob Smith");
   const style = await mention.evaluate((element) => {
     const computed = getComputedStyle(element);
     const root = element.closest(".comment-mention-renderer");

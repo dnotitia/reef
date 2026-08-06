@@ -27,9 +27,7 @@ test.describe("Hermetic runtime discovery", () => {
         },
       },
       fixture_login: {
-        username: fixtureLogin.username,
-        password: fixtureLogin.password,
-        login_path: fixtureLogin.login_path,
+        ...fixtureLogin,
       },
       tasks: {
         named_issue_filters: {
@@ -40,24 +38,19 @@ test.describe("Hermetic runtime discovery", () => {
         },
       },
     });
-    const discoveredLogin = contract.fixture_login as {
-      username: string;
-      password: string;
-      login_path: string;
-    };
+    const discoveredLogin = contract.fixture_login as typeof fixtureLogin;
+    const { username, password } = discoveredLogin;
     const loginResponse = await request.post(
       `${E2E_MOCK_URL}/akb/api/v1/auth/login`,
       {
         data: {
-          username: discoveredLogin.username,
-          password: discoveredLogin.password,
+          username,
+          password,
         },
       },
     );
     expect(loginResponse.ok()).toBeTruthy();
-    expect((await loginResponse.json()).user.username).toBe(
-      discoveredLogin.username,
-    );
+    expect((await loginResponse.json()).user.username).toBe(username);
     expect(contract.scenarios).toEqual(
       expect.arrayContaining([
         "configured_multi",
