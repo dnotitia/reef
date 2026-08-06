@@ -6,7 +6,7 @@ import {
 } from "./harness/fixture";
 
 test.describe("Hermetic runtime discovery", () => {
-  test("publishes direct validator controls and resets named-filter fixtures idempotently", async ({
+  test("publishes runtime controls and resets named-filter fixtures idempotently", async ({
     request,
   }) => {
     const response = await request.get(`${E2E_MOCK_URL}/__e2e/runtime`);

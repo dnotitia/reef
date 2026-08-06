@@ -64,10 +64,10 @@ test.describe("search debounce cadence (REEF-370)", () => {
     const input = page.locator('[data-testid="global-search-input"]');
     await expect(input).toBeVisible();
 
-    const settled = page.waitForResponse((res) => {
-      const url = new URL(res.url());
+    const settled = page.waitForRequest((req) => {
+      const url = new URL(req.url());
       return (
-        res.ok() &&
+        req.method() === "GET" &&
         url.pathname === "/api/issues" &&
         url.searchParams.get("q") === "Alpha"
       );
@@ -96,10 +96,10 @@ test.describe("search debounce cadence (REEF-370)", () => {
     const input = page.locator('[data-testid="search-input"]');
     await expect(input).toBeVisible();
 
-    const settled = page.waitForResponse((res) => {
-      const url = new URL(res.url());
+    const settled = page.waitForRequest((req) => {
+      const url = new URL(req.url());
       return (
-        res.ok() &&
+        req.method() === "GET" &&
         url.pathname === "/api/issues" &&
         url.searchParams.get("q") === "Beta"
       );
