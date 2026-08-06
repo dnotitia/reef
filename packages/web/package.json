@@ -3,9 +3,9 @@
   "private": true,
   "license": "Apache-2.0",
   "scripts": {
-    "dev": "next dev --turbopack -p 7333",
+    "dev": "next dev -p 7333",
     "dev:e2e": "node scripts/dev-e2e.mjs",
-    "build": "next build --webpack",
+    "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

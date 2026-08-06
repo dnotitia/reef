@@ -34,6 +34,12 @@ explicitly in the entries below.
   placeholders, and apply/rerun readback includes the deduplicated recipient
   projection. (REEF-455)
 
+### Operational
+
+- **Next.js web development, production, and E2E entrypoints now use the
+  default Turbopack path.** The standalone production build contract remains
+  unchanged while webpack-only overrides are removed.
+
 ## v0.9.0 - 2026-08-03
 
 ### Added
