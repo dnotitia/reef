@@ -95,6 +95,9 @@ describe("TimelineBody", () => {
       if (path.startsWith("/api/vault-members")) {
         return new Response(JSON.stringify({ users: [] }), { status: 200 });
       }
+      if (path.startsWith("/api/issues/relations")) {
+        return new Response(JSON.stringify({ relations: [] }), { status: 200 });
+      }
       return new Response(JSON.stringify({ issues }), { status: 200 });
     });
     useIssueStore.setState({
@@ -134,6 +137,9 @@ describe("TimelineBody", () => {
       const path = String(url);
       if (path.startsWith("/api/vault-members")) {
         return new Response(JSON.stringify({ users: [] }), { status: 200 });
+      }
+      if (path.startsWith("/api/issues/relations")) {
+        return new Response(JSON.stringify({ relations: [] }), { status: 200 });
       }
       return new Response(
         JSON.stringify({

@@ -85,6 +85,9 @@ function mockList(rows: IssueMetadata[]) {
     if (path.startsWith("/api/vault-members")) {
       return new Response(JSON.stringify({ users: [] }), { status: 200 });
     }
+    if (path.startsWith("/api/issues/relations")) {
+      return new Response(JSON.stringify({ relations: [] }), { status: 200 });
+    }
     if (path.startsWith("/api/issues/")) {
       // PATCH from the inline status picker — echo a minimal document.
       return new Response(

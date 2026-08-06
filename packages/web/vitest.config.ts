@@ -14,12 +14,25 @@ export default defineConfig({
     // forked processes and share memory, which is the dominant cost in this
     // DOM-heavy suite. The suite is verified green under threads.
     pool: "threads",
-    environment: "jsdom",
-    // Route Handler tests are server code with no DOM, so they run under the
-    // lighter node environment instead of paying for jsdom. Individual non-API
-    // logic tests opt in per file with a `// @vitest-environment node` docblock.
-    environmentMatchGlobs: [["src/app/api/**", "node"]],
-    include: ["src/**/*.test.{ts,tsx}", "scripts/**/*.test.mts"],
     setupFiles: ["./vitest.setup.ts"],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "node",
+          environment: "node",
+          include: ["src/app/api/**/*.test.{ts,tsx}", "scripts/**/*.test.mts"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "jsdom",
+          environment: "jsdom",
+          include: ["src/**/*.test.{ts,tsx}"],
+          exclude: ["src/app/api/**"],
+        },
+      },
+    ],
   },
 });

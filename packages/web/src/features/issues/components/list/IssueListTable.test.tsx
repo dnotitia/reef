@@ -69,6 +69,9 @@ describe("IssueListTable", () => {
       if (path.startsWith("/api/vault-members")) {
         return new Response(JSON.stringify({ users: [] }), { status: 200 });
       }
+      if (path.startsWith("/api/issues/relations")) {
+        return new Response(JSON.stringify({ relations: [] }), { status: 200 });
+      }
       return new Response(JSON.stringify({ issues }), { status: 200 });
     });
     useIssueStore.setState({
@@ -145,6 +148,9 @@ describe("IssueListTable", () => {
     mockApiFetch.mockImplementation(async (url) => {
       if (String(url).startsWith("/api/vault-members")) {
         return new Response(JSON.stringify({ users: [] }), { status: 200 });
+      }
+      if (String(url).startsWith("/api/issues/relations")) {
+        return new Response(JSON.stringify({ relations: [] }), { status: 200 });
       }
       return new Response(JSON.stringify({ issues: [] }), { status: 200 });
     });

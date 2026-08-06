@@ -36,7 +36,7 @@
     "maintenance:comments": "node scripts/maintenance/scan.mjs comment-claims",
     "maintenance:test": "node --test scripts/maintenance/scan.test.mjs",
     "typecheck": "pnpm -r run typecheck",
-    "test": "pnpm -r run test",
+    "test": "pnpm -r run test && pnpm --filter @reef/web run test:eval && pnpm run maintenance:test && pnpm --filter @reef/jira-migrator run test:behavior",
     "format": "biome format --write ."
   },
   "devDependencies": {
