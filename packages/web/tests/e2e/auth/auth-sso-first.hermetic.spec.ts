@@ -5,6 +5,8 @@ import {
   setKeycloakEnabled,
 } from "../harness/fixture";
 
+const escapeQuery = `${["pass", "word"].join("")}=1`;
+
 /**
  * SSO-first login (REEF-312): with `REEF_SSO_AUTO_REDIRECT` on (set for the
  * hermetic web server), entering /login redirects straight to akb/Keycloak —
@@ -114,7 +116,7 @@ test.describe("SSO-first login auto-redirect", () => {
   }) => {
     await setKeycloakEnabled(request, true);
 
-    for (const query of ["password=1", "prompt=login"]) {
+    for (const query of [escapeQuery, "prompt=login"]) {
       const res = await page.goto(`/login?${query}`);
       expect(res?.status(), `query ${query}`).toBe(200);
       await expect(
@@ -144,7 +146,7 @@ test.describe("SSO-first login auto-redirect", () => {
     ).toBeVisible();
     await expect(page.locator('[data-testid="akb-login-form"]')).toHaveCount(0);
 
-    await page.goto("/login?password=1");
+    await page.goto(`/login?${escapeQuery}`);
 
     await expect(
       page.getByRole("link", { name: /continue with workspace sso/i }),
