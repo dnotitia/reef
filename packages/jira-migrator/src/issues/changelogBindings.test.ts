@@ -34,14 +34,14 @@ describe("buildJiraChangelogAttachmentBindings", () => {
     const ledger = confirmJiraMigrationBinding(
       createJiraMigrationLedger({
         jiraCloudId,
-        targetVault: "reef-sddev",
+        targetVault: "reef-target",
       }),
       {
         sourceIdentity,
         target: {
           target_kind: "attachment",
           file_uri:
-            "akb://reef-sddev/coll/issues/REEF-001/attachments/design.png",
+            "akb://reef-target/coll/issues/REEF-001/attachments/design.png",
         },
         sourceFingerprint: fingerprintJiraState(attachment),
         mappedStateFingerprint: fingerprintJiraState({ file: "design.png" }),
@@ -61,7 +61,7 @@ describe("buildJiraChangelogAttachmentBindings", () => {
       "att-1": {
         attachment_id: "att-1",
         file_uri:
-          "akb://reef-sddev/coll/issues/REEF-001/attachments/design.png",
+          "akb://reef-target/coll/issues/REEF-001/attachments/design.png",
         filename: "design.png",
         mime_type: "image/png",
         size_bytes: 42,
@@ -79,14 +79,14 @@ describe("buildJiraChangelogAttachmentBindings", () => {
     const staleLedger = confirmJiraMigrationBinding(
       createJiraMigrationLedger({
         jiraCloudId,
-        targetVault: "reef-sddev",
+        targetVault: "reef-target",
       }),
       {
         sourceIdentity,
         target: {
           target_kind: "attachment",
           file_uri:
-            "akb://reef-sddev/coll/issues/REEF-001/attachments/design.png",
+            "akb://reef-target/coll/issues/REEF-001/attachments/design.png",
         },
         sourceFingerprint: fingerprintJiraState({ ...attachment, size: 99 }),
         mappedStateFingerprint: fingerprintJiraState({ file: "design.png" }),

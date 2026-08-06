@@ -132,20 +132,20 @@ describe("migration action fingerprints", () => {
       source: {
         jiraCloudId: "cloud-1",
         projectId: "100",
-        projectKey: "SDDEV",
+        projectKey: "PROJ",
         issueId: "23444",
-        issueKey: "SDDEV-286",
+        issueKey: "PROJ-286",
       },
       status: "ready",
       desired: {
         content: "desired",
-        issue: { id: "SDDEV-286" },
+        issue: { id: "PROJ-286" },
       },
     } as unknown as JiraIssueImportPlan;
     const ledger = { bindings: [] } as never;
 
     expect(
-      actionForIssuePlan(plan, ledger, undefined, new Set(["SDDEV-286"])),
+      actionForIssuePlan(plan, ledger, undefined, new Set(["PROJ-286"])),
     ).toBe("update");
     expect(actionForIssuePlan(plan, ledger)).toBe("create");
   });

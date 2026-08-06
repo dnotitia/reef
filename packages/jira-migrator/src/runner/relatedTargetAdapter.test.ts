@@ -243,7 +243,7 @@ describe("AKB Jira related target", () => {
 
   it("normalizes Unicode filenames and retries an eventually consistent activity readback", async () => {
     const expected = {
-      reefId: "SDDEV-241",
+      reefId: "PROJ-241",
       eventType: "attachment_added" as const,
       eventKey: "jira-changelog:cloud:22044:102002:0:attachment_added",
       actor: "sehyeon@dnotitia.com",
@@ -251,7 +251,7 @@ describe("AKB Jira related target", () => {
       source: "jira-changelog:changelog_history:cloud:22044:102002:0",
       payload: {
         attachment_id: "14594",
-        file_uri: "akb://reef-sddev/coll/issues/sddev-241/attachments/file/a",
+        file_uri: "akb://reef-target/coll/issues/proj-241/attachments/file/a",
         filename: "명세서 초안_P25078KR_3차수정_cleaned.docx".normalize("NFD"),
         mime_type:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -276,7 +276,7 @@ describe("AKB Jira related target", () => {
     const waitForConsistency = vi.fn(async () => undefined);
     const target = createAkbRelatedTarget({
       adapter: { request: vi.fn() },
-      vault: "reef-sddev",
+      vault: "reef-target",
       waitForConsistency,
       readIssue: async () => {
         throw new Error("unused");
