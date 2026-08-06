@@ -305,7 +305,12 @@ test.describe("Hermetic command palette", () => {
     page,
   }) => {
     await openExistingWorkspace(page);
+    await page.bringToFront();
     await page.evaluate(() => {
+      const activeElement = document.activeElement;
+      if (activeElement instanceof HTMLElement) {
+        activeElement.blur();
+      }
       document.body.tabIndex = -1;
       document.body.focus();
     });
