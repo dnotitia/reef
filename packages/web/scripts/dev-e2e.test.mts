@@ -68,7 +68,7 @@ describe("dev:e2e runtime contract", () => {
     ).toThrow(/rejected scenario/);
   });
 
-  it("writes a private source-neutral validator handoff", async () => {
+  it("writes a private runtime ready descriptor", async () => {
     const root = await mkdtemp(join(tmpdir(), "reef-dev-e2e-contract-test-"));
     temporaryDirectories.push(root);
     const readyFile = join(root, "ready.json");
