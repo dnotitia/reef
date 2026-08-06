@@ -199,6 +199,29 @@ describe("buildJiraChangelogPlan", () => {
     });
   });
 
+  it("canonicalizes Jira subtasks to Reef task in changelog history", () => {
+    const plan = buildJiraChangelogPlan({
+      ...baseInput([
+        {
+          field: "Issue Type",
+          fieldId: "issuetype",
+          from: "10179",
+          to: "10181",
+        },
+      ]),
+      issueTypeMappings: { "10179": "task", "10181": "task" },
+    });
+
+    expect(plan.items[0]).toMatchObject({
+      classification: "promoted",
+      reason: "lossless_activity_mapping",
+      activity: {
+        eventType: "issue_type_change",
+        payload: { from: "task", to: "task" },
+      },
+    });
+  });
+
   it("never promotes fuzzy aliases or lossy issue types and dates", () => {
     const plan = buildJiraChangelogPlan({
       ...baseInput([

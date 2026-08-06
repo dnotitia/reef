@@ -13,6 +13,7 @@ import {
 } from "../execution/ledgerFile.js";
 import { JiraReadClient } from "../jira/client.js";
 import type { JiraMigrationLedgerV1 } from "../ledger.js";
+import { readRawArchiveRunAt } from "../rawArchive.js";
 import { approvalRelevantReport, safePlanningAction } from "./approval.js";
 import { loadJiraApprovalArtifacts } from "./approvalArtifacts.js";
 import {
@@ -267,9 +268,33 @@ async function runJiraMigrationUnlocked(
       targetVault: config.target.vault,
     }),
   );
-  const runAt =
-    ledger.runs.find((run) => run.run_id === config.artifacts.runId)
-      ?.started_at ?? startedAt;
+  const existingArchiveRunAts = await Promise.all(
+    config.jira.projectKeys.map((projectKey) =>
+      readRawArchiveRunAt({
+        root: join(paths.archiveRoot, projectKey.toLowerCase()),
+        runId: config.artifacts.runId,
+        sourceScope: {
+          cloud_id: config.jira.cloudId,
+          project_key: projectKey,
+        },
+      }),
+    ),
+  );
+  const existingArchiveRunAt = existingArchiveRunAts.find(
+    (value): value is string => value !== null,
+  );
+  if (
+    existingArchiveRunAt !== undefined &&
+    existingArchiveRunAts.some(
+      (value) => value !== null && value !== existingArchiveRunAt,
+    )
+  ) {
+    throw new JiraRunnerError("dry_run_scope_mismatch");
+  }
+  const ledgerRunAt = ledger.runs.find(
+    (run) => run.run_id === config.artifacts.runId,
+  )?.started_at;
+  const runAt = existingArchiveRunAt ?? ledgerRunAt ?? startedAt;
   const ledgerPersister = createBufferedChangeAwarePersister(
     ledger,
     async (

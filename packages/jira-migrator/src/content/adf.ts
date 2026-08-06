@@ -44,6 +44,14 @@ export interface AdfToMarkdownOptions {
   mediaRawArchiveReferences?: Readonly<Record<string, RawArchiveReference>>;
 }
 
+/**
+ * AKB documents use LF line endings. Jira can return descriptions with CRLF
+ * (or lone CR) line endings, so canonicalize them before planning and writing
+ * to keep content readback comparisons semantic rather than transport-specific.
+ */
+export const normalizeMarkdownLineEndings = (value: string): string =>
+  value.replace(/\r\n?/gu, "\n");
+
 interface RenderContext {
   reports: AdfConversionReport[];
   media: AdfMediaReference[];
@@ -283,9 +291,35 @@ const renderChildren = (
   context: RenderContext,
 ): string =>
   childNodes(node)
-    .map((child, index) =>
-      renderNode(child, `${path}.content[${index}]`, context),
-    )
+    .map((child, index, children) => {
+      const rendered = renderNode(child, `${path}.content[${index}]`, context);
+      // Jira often emits a mention immediately followed by a Korean suffix
+      // (for example, `@정주현이`).  The compact mention grammar quite
+      // correctly treats that as one token, so the imported comment would be
+      // rejected even though the Jira account was mapped.  Brace only the
+      // mention in this adjacency case; separated mentions retain the
+      // canonical compact form used by Reef.
+      const next = children[index + 1];
+      if (
+        isPlainObject(child) &&
+        nodeType(child) === "mention" &&
+        typeof next === "object" &&
+        next !== null &&
+        !Array.isArray(next) &&
+        isPlainObject(next) &&
+        nodeType(next) === "text" &&
+        typeof (next as { text?: unknown }).text === "string" &&
+        /^[\p{L}\p{N}]/u.test((next as { text: string }).text) &&
+        /^@[\p{L}\p{N}]+$/u.test(rendered)
+      ) {
+        const username = rendered.slice(1);
+        const escaped = username
+          .replaceAll("\\", "\\\\")
+          .replaceAll("}", "\\}");
+        return `@{${escaped}}`;
+      }
+      return rendered;
+    })
     .join("");
 
 const renderList = (
@@ -492,6 +526,12 @@ function renderNode(
     }
     case "rule":
       return "---\n\n";
+    case "panel":
+      // Panels have no portable Markdown container, but their child content
+      // is fully representable.  Keep the content and drop only the visual
+      // panel chrome instead of classifying the entire description as
+      // unsupported.
+      return `${renderChildren(rawNode, path, context).trim()}\n\n`;
     case "table":
       return `${renderTable(rawNode, path, context)}\n\n`;
     case "tableRow":
@@ -622,7 +662,7 @@ export const convertAdfToMarkdown = (
     listDepth: 0,
   };
   const markdown = normalizeHorizontalWhitespaceBeforeNewlines(
-    renderNode(adf, "$", context),
+    normalizeMarkdownLineEndings(renderNode(adf, "$", context)),
   )
     .replace(/\n{3,}/gu, "\n\n")
     .trim();

@@ -74,6 +74,7 @@ export async function executeJiraDryRun(input: {
     finalRelatedReports,
     changelogPlans,
     targetIssueReadbacksByReefId,
+    existingTargetIssueKeys,
   } = plan;
   const { allIssues, absentSourceRelationPlan } = discovery;
   const bindingIndex = indexJiraMigrationBindings(getLedger());
@@ -116,6 +117,7 @@ export async function executeJiraDryRun(input: {
       currentIssuePlan,
       getLedger(),
       bindingIndex,
+      existingTargetIssueKeys,
     );
     let readbackSucceeded = false;
     if (issuePlan.desired.issue && (action === "skip" || action === "update")) {

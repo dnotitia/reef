@@ -29,8 +29,10 @@ export type JiraLinkMapping = JiraLinkMappingMatch &
         kind: "directional";
         outwardRelation: "blocks" | "depends_on";
         inwardRelation: "blocks" | "depends_on";
+        /** Keep the original Jira link type as a PM-facing external ref too. */
+        preserveExternalRef?: boolean;
       }
-    | { kind: "symmetric" }
+    | { kind: "symmetric"; preserveExternalRef?: boolean }
   );
 
 export interface JiraRelatedImportFailure {

@@ -47,6 +47,20 @@ interface RelatedTargetDependencies {
   ): Promise<AkbUpdateIssueResult>;
 }
 
+const ACTIVITY_READBACK_ATTEMPTS = 20;
+
+const normalizeActivityComparisonValue = (value: unknown): unknown => {
+  if (typeof value === "string") return value.normalize("NFC");
+  if (Array.isArray(value)) return value.map(normalizeActivityComparisonValue);
+  if (value === null || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, child]) => [
+      key.normalize("NFC"),
+      normalizeActivityComparisonValue(child),
+    ]),
+  );
+};
+
 export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
   const { adapter, vault, readIssue, updateIssue } = input;
   const pause = input.waitForConsistency ?? (() => Promise.resolve());
@@ -806,61 +820,74 @@ export function createAkbRelatedTarget(input: RelatedTargetDependencies) {
       issueEvents.push(event);
       byIssue.set(event.reefId, issueEvents);
     }
-    for (const [reefId, expectedEvents] of byIssue) {
-      let actualEventsPromise = activityMatchesCache.get(reefId);
-      if (!actualEventsPromise) {
-        actualEventsPromise = retryRead(() =>
-          akbListIssueActivity(adapter, vault, reefId),
-        ).then(
-          (events) =>
-            new Map(
-              events.flatMap((event) =>
-                event.event_key ? [[event.event_key, event] as const] : [],
+    const matchesOnce = async (): Promise<boolean> => {
+      for (const [reefId, expectedEvents] of byIssue) {
+        let actualEventsPromise = activityMatchesCache.get(reefId);
+        if (!actualEventsPromise) {
+          actualEventsPromise = retryRead(() =>
+            akbListIssueActivity(adapter, vault, reefId),
+          ).then(
+            (events) =>
+              new Map(
+                events.flatMap((event) =>
+                  event.event_key ? [[event.event_key, event] as const] : [],
+                ),
               ),
-            ),
-        );
-        activityMatchesCache.set(reefId, actualEventsPromise);
-      }
-      let actualEventsByKey: Awaited<typeof actualEventsPromise>;
-      try {
-        actualEventsByKey = await actualEventsPromise;
-      } catch (error) {
-        activityMatchesCache.delete(reefId);
-        throw error;
-      }
-      for (const expected of expectedEvents) {
-        const expectedEventKey = expected.eventKey;
-        if (!expectedEventKey) return false;
-        const actual = actualEventsByKey.get(expectedEventKey);
-        const expectedProjection = {
-          reef_id: expected.reefId,
-          event_type: expected.eventType,
-          event_key: expectedEventKey,
-          actor: expected.actor,
-          at: expected.at,
-          source: expected.source,
-          payload: expected.payload,
-        };
-        const actualProjection = actual
-          ? {
-              reef_id: actual.reef_id,
-              event_type: actual.event_type,
-              event_key: actual.event_key,
-              actor: actual.actor,
-              at: actual.at,
-              source: actual.source,
-              payload: actual.payload,
-            }
-          : null;
-        if (
-          canonicalizeJson(actualProjection) !==
-          canonicalizeJson(expectedProjection)
-        ) {
-          return false;
+          );
+          activityMatchesCache.set(reefId, actualEventsPromise);
+        }
+        let actualEventsByKey: Awaited<typeof actualEventsPromise>;
+        try {
+          actualEventsByKey = await actualEventsPromise;
+        } catch (error) {
+          activityMatchesCache.delete(reefId);
+          throw error;
+        }
+        for (const expected of expectedEvents) {
+          const expectedEventKey = expected.eventKey;
+          if (!expectedEventKey) return false;
+          const actual = actualEventsByKey.get(expectedEventKey);
+          const expectedProjection = {
+            reef_id: expected.reefId,
+            event_type: expected.eventType,
+            event_key: expectedEventKey,
+            actor: expected.actor,
+            at: expected.at,
+            source: expected.source,
+            payload: expected.payload,
+          };
+          const actualProjection = actual
+            ? {
+                reef_id: actual.reef_id,
+                event_type: actual.event_type,
+                event_key: actual.event_key,
+                actor: actual.actor,
+                at: actual.at,
+                source: actual.source,
+                payload: actual.payload,
+              }
+            : null;
+          if (
+            canonicalizeJson(
+              normalizeActivityComparisonValue(actualProjection),
+            ) !==
+            canonicalizeJson(
+              normalizeActivityComparisonValue(expectedProjection),
+            )
+          ) {
+            return false;
+          }
         }
       }
+      return true;
+    };
+
+    for (let attempt = 0; attempt < ACTIVITY_READBACK_ATTEMPTS; attempt += 1) {
+      if (await matchesOnce()) return true;
+      for (const reefId of byIssue.keys()) activityMatchesCache.delete(reefId);
+      if (attempt < ACTIVITY_READBACK_ATTEMPTS - 1) await pause();
     }
-    return true;
+    return false;
   };
   const invalidateActivityMatches = (
     events: readonly ActivityEventInput[],

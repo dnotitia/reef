@@ -10,6 +10,19 @@ const rawRef = {
 };
 
 describe("ADF to Markdown", () => {
+  it("canonicalizes CRLF and lone CR line endings", () => {
+    const result = convertAdfToMarkdown({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "first\r\nsecond\rthird" }],
+        },
+      ],
+    });
+    expect(result.markdown).toBe("first\nsecond\nthird");
+  });
+
   it("isolates malformed UTF-16 in media identifiers without throwing", () => {
     const result = convertAdfToMarkdown({
       type: "doc",
@@ -127,6 +140,47 @@ describe("ADF to Markdown", () => {
     expect(
       result.reports.filter(({ nodeType }) => nodeType === "mention"),
     ).toHaveLength(3);
+  });
+
+  it("delimits a mapped mention before a Korean suffix and preserves panels", () => {
+    const result = convertAdfToMarkdown(
+      {
+        type: "doc",
+        content: [
+          {
+            type: "panel",
+            attrs: { panelType: "info" },
+            content: [
+              {
+                type: "paragraph",
+                content: [
+                  { type: "mention", attrs: { id: "acct-1", text: "@정주현" } },
+                  { type: "text", text: "이슈를 확인해 주세요." },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      {
+        accountMapping: {
+          artifact: createJiraAccountMappingArtifact({
+            jiraCloudId: "cloud",
+            overrides: { "acct-1": { actor: "Juhyeon" } },
+          }),
+        },
+        memberActors: ["Juhyeon"],
+      },
+    );
+
+    expect(result.markdown).toContain("@{Juhyeon}이슈를 확인해 주세요\\.");
+    expect(extractMentionUsernames(result.markdown)).toEqual(["Juhyeon"]);
+    expect(result.reports).not.toContainEqual(
+      expect.objectContaining({
+        nodeType: "panel",
+        classification: "unsupported",
+      }),
+    );
   });
 
   it("downgrades mapped non-members without leaking account identity", () => {
