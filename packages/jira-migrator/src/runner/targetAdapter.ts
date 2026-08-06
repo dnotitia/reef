@@ -26,6 +26,7 @@ import {
   akbWriteIssue,
   createAkbAdapter,
 } from "@reef/core";
+import { normalizeMarkdownLineEndings } from "../content/adf.js";
 import type { JiraIssueImportPlan } from "../issues/importPlan.js";
 import type {
   JiraPlanningAction,
@@ -49,6 +50,9 @@ const canonicalizeWireValue = (value: unknown): string => {
   if (serialized === undefined) throw new Error("target_readback_not_json");
   return canonicalizeJson(JSON.parse(serialized));
 };
+
+const issueContentMatches = (left: string, right: string): boolean =>
+  normalizeMarkdownLineEndings(left) === normalizeMarkdownLineEndings(right);
 
 export interface AkbJiraMigrationTargetConfig {
   baseUrl: string;
@@ -583,7 +587,7 @@ export function createAkbJiraMigrationTarget(
                 adapter,
                 vault,
                 issue: desired,
-                content: plan.desired.content,
+                content: normalizeMarkdownLineEndings(plan.desired.content),
                 claimFirst: true,
               });
               commitHash = result.commit_hash;
@@ -596,7 +600,7 @@ export function createAkbJiraMigrationTarget(
             if (
               canonicalizeJson(issueProjection(current.issue, desiredKeys)) !==
                 canonicalizeJson(issueProjection(desired, desiredKeys)) ||
-              current.content !== plan.desired.content
+              !issueContentMatches(current.content, plan.desired.content)
             ) {
               throw new JiraTargetConflictError();
             }
@@ -612,7 +616,7 @@ export function createAkbJiraMigrationTarget(
               adapter,
               vault,
               issue: desired,
-              content: plan.desired.content,
+              content: normalizeMarkdownLineEndings(plan.desired.content),
               claimFirst: true,
             });
             commitHash = result.commit_hash;
@@ -627,12 +631,12 @@ export function createAkbJiraMigrationTarget(
           approvedReadback &&
           canonicalizeWireValue({
             issue: current.issue,
-            content: current.content,
+            content: normalizeMarkdownLineEndings(current.content),
             commit_hash: current.commit_hash ?? null,
           }) !==
             canonicalizeWireValue({
               issue: approvedReadback.issue,
-              content: approvedReadback.content,
+              content: normalizeMarkdownLineEndings(approvedReadback.content),
               commit_hash: approvedReadback.commit_hash ?? null,
             })
         ) {
@@ -667,7 +671,7 @@ export function createAkbJiraMigrationTarget(
         if (
           canonicalizeJson(issueProjection(current.issue, expectedKeys)) ===
             canonicalizeJson(issueProjection(expectedIssue, expectedKeys)) &&
-          current.content === plan.desired.content
+          issueContentMatches(current.content, plan.desired.content)
         ) {
           return {
             reefId: desired.id,
@@ -681,7 +685,7 @@ export function createAkbJiraMigrationTarget(
             vault,
             id: desired.id,
             partial: expectedIssue,
-            content: plan.desired.content,
+            content: normalizeMarkdownLineEndings(plan.desired.content),
             message: `Update ${desired.id} from Jira migration`,
             ...(current.commit_hash
               ? { expectedCommit: current.commit_hash }
@@ -701,7 +705,7 @@ export function createAkbJiraMigrationTarget(
         (candidate) =>
           canonicalizeJson(issueProjection(candidate.issue, desiredKeys)) ===
             canonicalizeJson(desiredProjection) &&
-          candidate.content === plan.desired.content,
+          issueContentMatches(candidate.content, plan.desired.content),
       );
       if (!readback) {
         if (writeError) {

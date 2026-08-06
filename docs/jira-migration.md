@@ -658,8 +658,10 @@ Lossless promotion follows these rules:
   resolution; Jira Cloud's exact `IssueParentAssociation` field name is a
   built-in parent alias, while display-name fuzzy matching is forbidden;
 - issue type maps to `issue_type_change` only when both values resolve to Reef
-  issue types, and Start date maps to `start_date_change` only for valid dates
-  or null;
+  issue types. Jira subtask ids are configured as exact aliases for Reef
+  `task`, so a subtask remains a task activity and its current issue mapping
+  still requires the parent task. Start date maps to `start_date_change` only
+  for valid dates or null;
 - Fix Version requires an existing Version-to-Release binding; issue links
   require link identity, direction, target binding, and a matching current
   snapshot; remote links require a current snapshot; attachments require the
@@ -926,6 +928,7 @@ Configure tenant-specific ids in the selected project's private mapping policy:
     "start_date": "customfield_10015",
     "rank": "customfield_10019"
   },
+  "attachmentMaxBytes": 20971520,
   "linkMappings": []
 }
 ```
@@ -945,17 +948,21 @@ arbitrary `medium`. Closed mappings must supply the Reef close reason, and
 
 ADF traversal preserves node, mark, and content order and covers paragraphs,
 headings, lists/tasks, quotes, code, tables, links, mentions, emoji, cards,
-status/expand, rules, and media variants. Unsupported nodes retain their exact
+status/expand, panels, rules, and media variants. Panels drop only their visual
+chrome and retain their child content. Unsupported nodes retain their exact
 path and type as `description_node_unsupported`. Media becomes a stable
 placeholder containing only source media identifiers and an opaque archive
 reference for the later attachment-rewrite pass.
 
 Issue planning consumes only `buildJiraPlanningTargetMappings()` output. One
-Version or Sprint relation may be primary automatically; multiple relations
-need an explicit source-key primary, otherwise every relation remains in the
-report as `owner_decision_required`. A selected relation without a target UUID
-is deferred as `needs_release_mapping` or `needs_sprint_mapping`. No planning
-entity is created by issue mapping.
+Version or Sprint relation may be primary automatically. For a cumulative Jira
+Sprint field, changelog activity inside two dated sprint windows is classified
+as `long_running`; otherwise a dated cumulative history is `rollover`, and an
+incomplete history is `indeterminate`. The latest classified relation is used
+as the primary without treating the cumulative array itself as proof of work.
+An explicit operator primary still overrides classification. A selected
+relation without a target UUID is deferred as `needs_release_mapping` or
+`needs_sprint_mapping`. No planning entity is created by issue mapping.
 
 Parents resolve from the batch Jira-key-to-Reef-id map. Unresolved same-project
 parents use `needs_parent_reconcile`; cross-project parents use
@@ -1054,6 +1061,9 @@ matching presigned download endpoint for readback. The migrator does not assume
 that AKB exposes a direct multipart upload or authenticated byte-stream route.
 Treat presigned upload and download URLs as ephemeral credentials: never log,
 archive, or serialize them into a report, ledger, plan, issue body, or error.
+The selected mapping policy may set `attachmentMaxBytes`; it is a positive
+per-project limit and is bounded by the process safety cap of 1 GiB before any
+source fetch begins. Dry-run and apply use the same value.
 Wildcard, malformed, and generic MIME headers are not persisted as authoritative
 types: the importer next checks file signatures, then known filename
 extensions, and finally falls back to `application/octet-stream`. A rerun that
@@ -1087,7 +1097,10 @@ Unknown or not-yet-migrated endpoints remain Jira external refs
 with reconciliation provenance. When the link type has an explicit operator
 mapping, this externalization is a successful cross-project reconciliation;
 the report keeps `externalized` separate from `unmapped`, and only the latter
-remains a policy conflict. Remote links are a separate reader and use
+remains a policy conflict. A mapped link may set `preserveExternalRef: true` to
+write the native Reef relation and retain a second stable Jira external ref for
+auditing; this is used for link types whose original semantics must remain
+visible after normalization. Remote links are a separate reader and use
 `globalId`, or a canonical content hash when absent, while preserving URL,
 title, application, relationship, and object provenance.
 

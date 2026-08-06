@@ -1,4 +1,5 @@
 import type { IssueMetadata } from "@reef/core";
+import { normalizeMarkdownLineEndings } from "../content/adf.js";
 import { fingerprintJiraState } from "../execution/diff.js";
 import type { JiraIssueImportPlan } from "../issues/importPlan.js";
 import type { JiraMigrationLedgerV1 } from "../ledger.js";
@@ -407,8 +408,11 @@ export const baseIssueReadbackMatches = (
       fingerprintJiraState(actualMigration.owner) &&
     fingerprintJiraState(desiredProjection) ===
       fingerprintJiraState(actualProjection) &&
-    (readback.content === plan.desired.content ||
-      readback.content === postRelatedContent)
+    (normalizeMarkdownLineEndings(readback.content) ===
+      normalizeMarkdownLineEndings(plan.desired.content) ||
+      (postRelatedContent !== undefined &&
+        normalizeMarkdownLineEndings(readback.content) ===
+          normalizeMarkdownLineEndings(postRelatedContent)))
   );
 };
 

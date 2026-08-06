@@ -261,6 +261,7 @@ export const actionForIssuePlan = (
   plan: JiraIssueImportPlan,
   ledger: JiraMigrationLedgerV1,
   bindingIndex?: Readonly<JiraMigrationBindingIndex>,
+  existingTargetIssueKeys?: ReadonlySet<string>,
 ): "create" | "update" | "skip" | "conflict" => {
   if (!plan.desired.issue || plan.status === "blocked") return "conflict";
   const identity = jiraIssueSourceIdentity(
@@ -269,7 +270,11 @@ export const actionForIssuePlan = (
     plan.source.issueId,
   );
   const binding = getJiraMigrationBinding(ledger, identity.key, bindingIndex);
-  if (!binding) return "create";
+  if (!binding) {
+    return existingTargetIssueKeys?.has(plan.source.issueKey)
+      ? "update"
+      : "create";
+  }
   if (
     binding.target.target_kind !== "issue" ||
     binding.target.reef_id !== plan.desired.issue.id
@@ -286,12 +291,23 @@ export const actionForEquivalentIssuePlans = (
   equivalentPlans: readonly JiraIssueImportPlan[],
   ledger: JiraMigrationLedgerV1,
   bindingIndex?: Readonly<JiraMigrationBindingIndex>,
+  existingTargetIssueKeys?: ReadonlySet<string>,
 ): ReturnType<typeof actionForIssuePlan> => {
-  const action = actionForIssuePlan(plan, ledger, bindingIndex);
+  const action = actionForIssuePlan(
+    plan,
+    ledger,
+    bindingIndex,
+    existingTargetIssueKeys,
+  );
   if (action !== "update") return action;
   return equivalentPlans.some(
     (equivalentPlan) =>
-      actionForIssuePlan(equivalentPlan, ledger, bindingIndex) === "skip",
+      actionForIssuePlan(
+        equivalentPlan,
+        ledger,
+        bindingIndex,
+        existingTargetIssueKeys,
+      ) === "skip",
   )
     ? "skip"
     : action;

@@ -8,9 +8,13 @@ import type {
   JiraFieldCatalogSnapshot,
   JiraFieldOverrides,
 } from "../jira/fieldCatalog.js";
-import type { JiraIssuePayload } from "../payloads.js";
+import type {
+  JiraChangelogHistoryPayload,
+  JiraIssuePayload,
+} from "../payloads.js";
 import type { JiraPlanningTargetMappings } from "../planning/entities.js";
 import type { JiraRankImportPlan } from "../planning/rank.js";
+import type { JiraLinkMapping } from "../related/contracts.js";
 
 export interface JiraStatusMappingRule {
   id?: string;
@@ -36,6 +40,7 @@ export interface JiraIssueMappingPolicy {
   statuses: readonly JiraStatusMappingRule[];
   issueTypes: readonly JiraIssueTypeMappingRule[];
   priorities: readonly JiraPriorityMappingRule[];
+  linkMappings?: readonly JiraLinkMapping[];
 }
 
 export interface JiraIssueRawArchiveReferences {
@@ -65,6 +70,7 @@ export interface BuildJiraIssueImportPlanInput {
     releaseSourceKey?: string;
     sprintSourceKey?: string;
   };
+  changelog?: readonly JiraChangelogHistoryPayload[];
   rankPlan?: JiraRankImportPlan | null;
   rawArchiveReferences: JiraIssueRawArchiveReferences;
 }

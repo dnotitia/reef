@@ -431,6 +431,7 @@ export class RawArchive {
 
   async archiveMany(
     inputs: readonly ArchiveRawPayloadInput[],
+    options: { verify?: boolean } = {},
   ): Promise<RawArchiveReference[]> {
     if (inputs.length === 0) return [];
     const preparedInputs = inputs.map((input) => this.prepareInput(input));
@@ -445,7 +446,9 @@ export class RawArchive {
     }
     try {
       await assertSecureNode(lockPath, "file", this.permissionModel);
-      const manifest = await this.loadOrCreateManifest();
+      const manifest = await this.loadOrCreateManifest(
+        options.verify !== false,
+      );
       const references: RawArchiveReference[] = [];
       let changed = false;
       for (const prepared of preparedInputs) {
@@ -503,7 +506,7 @@ export class RawArchive {
           left.entry_id.localeCompare(right.entry_id, "en"),
         );
         await this.replaceManifest(manifest);
-        await this.verifyEnvelopeAndObjects(true);
+        if (options.verify !== false) await this.verifyEnvelopeAndObjects(true);
       }
       return references;
     } finally {
@@ -673,7 +676,9 @@ export class RawArchive {
     };
   }
 
-  private async loadOrCreateManifest(): Promise<RawArchiveManifestV1> {
+  private async loadOrCreateManifest(
+    verifyObjects = true,
+  ): Promise<RawArchiveManifestV1> {
     try {
       await lstat(this.manifestPath());
     } catch (error) {
@@ -681,7 +686,7 @@ export class RawArchive {
         return this.initialManifest();
       fail("archive_io_failed");
     }
-    return (await this.verifyEnvelopeAndObjects(true)).manifest;
+    return (await this.verifyEnvelopeAndObjects(true, verifyObjects)).manifest;
   }
 
   private assertManifestIdentity(manifest: RawArchiveManifestV1): void {
@@ -757,6 +762,7 @@ export class RawArchive {
 
   private async verifyEnvelopeAndObjects(
     allowLock: boolean,
+    verifyObjects = true,
   ): Promise<RawArchiveEnvelopeV1> {
     if (!allowLock) await this.assertNoLock();
     await assertSecureNode(this.root, "directory", this.permissionModel);
@@ -830,7 +836,9 @@ export class RawArchive {
         versionDigests.add(version.sha256);
       }
       if (!versionDigests.has(entry.current_sha256)) fail("manifest_malformed");
-      for (const version of entry.versions) await this.verifyObject(version);
+      if (verifyObjects) {
+        for (const version of entry.versions) await this.verifyObject(version);
+      }
     }
     return envelope;
   }
@@ -879,6 +887,59 @@ export class RawArchive {
 export const createRawArchive = (
   options: CreateRawArchiveOptions,
 ): RawArchive => new RawArchive(options);
+
+/**
+ * Return the immutable creation timestamp of an existing run archive.
+ *
+ * A run can be interrupted after source archiving but before the ledger run
+ * record is opened.  Callers must use the manifest timestamp when resuming so
+ * that the archive identity remains stable across process restarts.
+ */
+export const readRawArchiveRunAt = async (input: {
+  root: string;
+  runId: string;
+  sourceScope: RawArchiveSourceScope;
+}): Promise<string | null> => {
+  assertSafeArchivePathSyntax(input.root);
+  if (!isAbsolute(input.root) || !SAFE_RUN_ID.test(input.runId)) {
+    fail("invalid_archive_configuration");
+  }
+  const root = resolve(input.root);
+  const manifestPath = join(root, "runs", input.runId, "manifest.json");
+  assertInside(root, manifestPath);
+  try {
+    await lstat(manifestPath);
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") return null;
+    fail("archive_io_failed");
+  }
+  let bytes: string;
+  try {
+    bytes = await readFile(manifestPath, "utf8");
+  } catch {
+    fail("archive_io_failed");
+  }
+  const envelope = parseEnvelope(parseJson(bytes, "manifest_malformed"));
+  const permissionModel = validateRawArchivePermissionVerification(
+    envelope.manifest.permission_verification,
+  );
+  await assertSecureNode(manifestPath, "file", permissionModel);
+  if (canonicalizeJson(envelope) !== bytes) fail("manifest_malformed");
+  if (
+    sha256CanonicalJson(envelope.manifest as unknown as JsonValue) !==
+    envelope.manifest_sha256
+  ) {
+    fail("manifest_checksum_mismatch");
+  }
+  if (
+    envelope.manifest.run_id !== input.runId ||
+    canonicalizeJson(envelope.manifest.source_scope) !==
+      canonicalizeJson(input.sourceScope)
+  ) {
+    fail("manifest_malformed");
+  }
+  return envelope.manifest.created_at;
+};
 
 export const readRawArchiveReference = async (
   options: CreateRawArchiveOptions,

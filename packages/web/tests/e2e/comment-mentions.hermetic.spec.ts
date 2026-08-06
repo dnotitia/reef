@@ -162,7 +162,25 @@ test.describe("Comment mentions (REEF-452)", () => {
       .getByRole("option", { name: "Mention @Bob Smith", exact: true })
       .waitFor({ state: "visible" });
     await composer.press("Enter");
+    await expect(composer).toHaveValue("@Bob Smith ");
+    await expect(composer).toBeFocused();
     await composer.press("End");
+    await expect
+      .poll(() =>
+        composer.evaluate((element) => {
+          const textarea = element as HTMLTextAreaElement;
+          return {
+            end: textarea.value.length,
+            selectionEnd: textarea.selectionEnd,
+            selectionStart: textarea.selectionStart,
+          };
+        }),
+      )
+      .toEqual({
+        end: "@Bob Smith ".length,
+        selectionEnd: "@Bob Smith ".length,
+        selectionStart: "@Bob Smith ".length,
+      });
     await composer.type("hello");
 
     const createResponse = page.waitForResponse(

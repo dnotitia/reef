@@ -17,7 +17,10 @@ import {
   mapJiraIssueActors,
 } from "../accounts/mapping.js";
 import type { RawArchiveReference } from "../archive/model.js";
-import { convertAdfToMarkdown } from "../content/adf.js";
+import {
+  convertAdfToMarkdown,
+  normalizeMarkdownLineEndings,
+} from "../content/adf.js";
 import {
   type JiraCanonicalFieldRole,
   type JiraFieldCatalogSnapshot,
@@ -37,6 +40,7 @@ import {
   jiraVersionSourceIdentity,
 } from "../planning/entities.js";
 import type { JiraRankImportPlan } from "../planning/rank.js";
+import { sameLinkMapping } from "../related/links.js";
 import { deepFreeze, mergeJiraCustomFields } from "../shared/objects.js";
 import {
   type JiraIssueDeferredItem,
@@ -67,6 +71,7 @@ import {
   resolveStatus,
 } from "./mappingPolicy.js";
 import { planAssociations } from "./planningAssociations.js";
+import { classifyJiraSprintHistory } from "./sprintHistory.js";
 
 export type {
   BuildJiraIssueImportPlanInput,
@@ -227,7 +232,9 @@ export const buildJiraIssueImportPlan = (
       })
     : {
         markdown:
-          typeof issue.description === "string" ? issue.description : "",
+          typeof issue.description === "string"
+            ? normalizeMarkdownLineEndings(issue.description)
+            : "",
         reports: [],
         media: [],
       };
@@ -248,12 +255,6 @@ export const buildJiraIssueImportPlan = (
     );
   }
   for (const media of description.media) {
-    deferred.push({
-      kind: "description_media",
-      reason: "needs_media_rewrite",
-      sourceKey: media.mediaId,
-      targetId: null,
-    });
     if (!media.rawArchiveReference) {
       blockers.push(`raw_archive_reference_missing:media:${media.mediaId}`);
     }
@@ -308,23 +309,26 @@ export const buildJiraIssueImportPlan = (
   for (const relation of issue.links) {
     const targetId = input.targetIdsByJiraKey[relation.issueKey] ?? null;
     const sourceProject = relation.issueKey.split("-", 1)[0];
-    deferred.push({
-      kind: "relation",
-      reason:
-        sourceProject && sourceProject !== issue.projectKey
-          ? "cross_project_reconcile"
-          : "needs_relation_reconcile",
-      sourceKey: relation.issueKey,
-      targetId,
-    });
+    const matchingLinkMappings = (input.policy.linkMappings ?? []).filter(
+      (mapping) => sameLinkMapping(mapping, relation),
+    );
+    const mappedLink = matchingLinkMappings.length === 1;
+    // Related-data import owns the actual native relation/external-ref write.
+    // The issue plan should only defer a relation when the policy itself is
+    // ambiguous; cross-project and unmapped links are deliberately preserved
+    // as Jira external refs and therefore do not block the issue.
     fieldResults.push(
       fieldResult(
         `issuelinks:${relation.id ?? relation.issueKey}`,
         relation.type ?? "Issue link",
-        null,
-        "deferred",
-        "relation semantics require reconciliation",
-        "deferred",
+        mappedLink && targetId ? "relation" : "external_refs",
+        mappedLink && targetId ? "mapped" : "preserved",
+        mappedLink && targetId
+          ? "configured_native_relation"
+          : sourceProject && sourceProject !== issue.projectKey
+            ? "cross_project_external_ref"
+            : "unmapped_link_external_ref",
+        mappedLink && targetId ? null : "raw_preservation.archiveReferences",
       ),
     );
   }
@@ -382,21 +386,19 @@ export const buildJiraIssueImportPlan = (
       ? [sprintRaw]
       : [];
   const invalidSprintValues: unknown[] = [];
-  const sprintRelations = sprintValues.flatMap((rawSprint) => {
+  const normalizedSprints = sprintValues.flatMap((rawSprint) => {
     const parsed = JiraSprintSchema.safeParse(rawSprint);
     if (!parsed.success) {
       invalidSprintValues.push(rawSprint);
       return [];
     }
-    return [
-      {
-        sourceKey: jiraSprintSourceIdentity(input.jiraCloudId, parsed.data.id)
-          .key,
-        sourceId: parsed.data.id,
-        name: parsed.data.name,
-      },
-    ];
+    return [parsed.data];
   });
+  const sprintRelations = normalizedSprints.map((sprint) => ({
+    sourceKey: jiraSprintSourceIdentity(input.jiraCloudId, sprint.id).key,
+    sourceId: sprint.id,
+    name: sprint.name,
+  }));
   if (invalidSprintValues.length > 0 && sprintField) {
     blockers.push("sprint_value_unsupported");
     fieldResults.push(
@@ -418,12 +420,28 @@ export const buildJiraIssueImportPlan = (
     input.configuredPrimary?.releaseSourceKey,
     deferred,
   );
+  const sprintHistory = classifyJiraSprintHistory({
+    relations: sprintRelations,
+    catalog: normalizedSprints.map((sprint) => ({
+      id: sprint.id,
+      state: sprint.state,
+      name: sprint.name,
+      startDate: sprint.startDate ?? null,
+      endDate: sprint.endDate ?? null,
+      completeDate: sprint.completeDate ?? null,
+      originBoardId: sprint.originBoardId ?? null,
+      goal: sprint.goal ?? null,
+    })),
+    changelog: input.changelog ?? [],
+  });
+  const configuredSprintPrimary = input.configuredPrimary?.sprintSourceKey;
   const sprintAssociations = planAssociations(
     "sprint",
     sprintRelations,
     input.planningMappings.sprints,
-    input.configuredPrimary?.sprintSourceKey,
+    configuredSprintPrimary ?? sprintHistory.primarySourceKey,
     deferred,
+    configuredSprintPrimary ? null : sprintHistory.classification,
   );
   const planningAssociations = [...releaseAssociations, ...sprintAssociations];
   const releaseId =

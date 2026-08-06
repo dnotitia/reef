@@ -2,6 +2,7 @@ import type {
   JiraIssueDeferredItem,
   JiraPlanningAssociation,
 } from "./importPlan.js";
+import type { JiraSprintHistoryClassification } from "./sprintHistory.js";
 
 export const planAssociations = (
   kind: "version" | "sprint",
@@ -13,6 +14,7 @@ export const planAssociations = (
   mappings: Readonly<Record<string, string>>,
   configuredPrimary: string | undefined,
   deferred: JiraIssueDeferredItem[],
+  historyClassification: JiraSprintHistoryClassification | null = null,
 ): JiraPlanningAssociation[] => {
   const selected =
     relations.length === 1
@@ -25,7 +27,9 @@ export const planAssociations = (
     relations.length === 1
       ? "single_relation"
       : selected
-        ? "configured_primary"
+        ? historyClassification
+          ? (`classified_${historyClassification}` as const)
+          : "configured_primary"
         : "owner_decision_required";
 
   if (relations.length > 1 && !selected) {
@@ -58,6 +62,9 @@ export const planAssociations = (
       name: relation.name,
       primary,
       selectionReason,
+      ...(kind === "sprint" && historyClassification
+        ? { historyClassification }
+        : {}),
       targetId,
     };
   });

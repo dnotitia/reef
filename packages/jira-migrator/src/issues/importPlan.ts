@@ -63,8 +63,15 @@ export const JiraPlanningAssociationSchema = z
     selectionReason: z.enum([
       "single_relation",
       "configured_primary",
+      "classified_long_running",
+      "classified_rollover",
+      "classified_indeterminate",
       "owner_decision_required",
     ]),
+    historyClassification: z
+      .enum(["long_running", "rollover", "indeterminate"])
+      .nullable()
+      .optional(),
     targetId: z.string().nullable(),
   })
   .strict();

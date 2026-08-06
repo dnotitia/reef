@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { JiraApiError, JiraReadClient } from "./client.js";
+import {
+  JIRA_MAX_ATTACHMENT_BUFFER_BYTES,
+  JiraApiError,
+  JiraReadClient,
+} from "./client.js";
 import {
   jiraChangelogPageFixture,
   jiraCommentPageFixture,
@@ -286,7 +290,10 @@ describe("JiraReadClient", () => {
     const fetchImpl = vi.fn<typeof fetch>();
     const client = makeClient(fetchImpl);
     await expect(
-      client.downloadAttachmentContent("42", 256 * 1024 * 1024 + 1),
+      client.downloadAttachmentContent(
+        "42",
+        JIRA_MAX_ATTACHMENT_BUFFER_BYTES + 1,
+      ),
     ).rejects.toThrow("jira_attachment_size_limit_invalid");
     expect(fetchImpl).not.toHaveBeenCalled();
   });

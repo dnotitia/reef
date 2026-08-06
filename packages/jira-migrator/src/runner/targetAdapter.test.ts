@@ -648,6 +648,77 @@ describe("AKB Jira migration target", () => {
     expect(updateIssue).toHaveBeenCalledTimes(updateCalls);
   });
 
+  it("normalizes Jira CRLF content before write and readback", async () => {
+    const issue = {
+      id: "REEF-011",
+      title: "Line ending issue",
+      status: "todo",
+      created_at: "2026-07-23T00:00:00.000Z",
+      created_by: "operator",
+      updated_at: "2026-07-23T00:00:00.000Z",
+      updated_by: "operator",
+      custom_fields: {
+        jira_migration: {
+          owner: {
+            jira_cloud_id: "cloud-1",
+            project_key: "ALPHA",
+            issue_id: "10002",
+            issue_key: "ALPHA-2",
+          },
+        },
+      },
+    } as unknown as AkbReadIssueResult["issue"];
+    const readIssue = vi
+      .fn()
+      .mockRejectedValueOnce(new NotFoundError({ resource: "REEF-011" }))
+      .mockResolvedValue({
+        issue,
+        content: "first\nsecond",
+        path: "issues/reef-011.md",
+        commit_hash: "commit-1",
+      } as unknown as AkbReadIssueResult);
+    const writeIssue = vi.fn(async () => ({
+      path: "issues/reef-011.md",
+      commit_hash: "commit-1",
+    }));
+    const target = createAkbJiraMigrationTarget(
+      {
+        baseUrl: "https://akb.test",
+        jwt: "jwt",
+        vault: "reef-test",
+        issuePrefix: "REEF",
+      },
+      {
+        createAdapter: () => ({ request: vi.fn() }),
+        getCurrentActor: async () => ({ actor: "operator" }),
+        listPlanningCatalog: vi.fn(async () => ({
+          releases: [],
+          sprints: [],
+          milestones: [],
+        })),
+        createRelease: vi.fn(),
+        createSprint: vi.fn(),
+        readPlanningCreateClaim: vi.fn(),
+        allocateNextIssueId: vi.fn(),
+        writeIssue,
+        updateIssue: vi.fn(),
+        readIssue,
+        claimIssueId: vi.fn(),
+      },
+    );
+    const plan = {
+      desired: { issue, content: "first\r\nsecond" },
+      status: "ready",
+    } as JiraIssueImportPlan;
+
+    await expect(target.applyIssue(plan, "create")).resolves.toMatchObject({
+      reefId: "REEF-011",
+    });
+    expect(writeIssue).toHaveBeenCalledWith(
+      expect.objectContaining({ content: "first\nsecond" }),
+    );
+  });
+
   it("waits for a newly created planning item to become readable", async () => {
     const release = {
       id: "11111111-1111-4111-8111-111111111111",

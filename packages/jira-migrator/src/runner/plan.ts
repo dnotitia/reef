@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { open } from "node:fs/promises";
 import { writeJiraAccountMappingArtifact } from "../accounts/artifactFile.js";
 import type { JiraMigratorConfig } from "../cli/config.js";
 import { fingerprintJiraState } from "../execution/diff.js";
@@ -6,6 +6,7 @@ import {
   type JiraChangelogPlan,
   buildJiraChangelogPlan,
 } from "../issues/changelog.js";
+import { buildJiraChangelogAttachmentBindings } from "../issues/changelogBindings.js";
 import type { JiraIssueImportPlan } from "../issues/importPlan.js";
 import { buildJiraIssueImportPlan } from "../issues/mapping.js";
 import type { JiraReadClient } from "../jira/client.js";
@@ -18,6 +19,7 @@ import {
   getJiraPlanningLedgerBindings,
   indexJiraMigrationBindings,
   jiraAttachmentSourceIdentity,
+  jiraIssueSourceIdentity,
   openJiraMigrationRun,
 } from "../ledger.js";
 import {
@@ -61,6 +63,7 @@ import {
 } from "./decisions.js";
 import { JiraRunnerError } from "./errors.js";
 import type { LoadedJiraMappingPolicy } from "./mappingPolicy.js";
+import { jiraOwnerIdentity } from "./ownership.js";
 import { createRelatedPlanningSnapshot } from "./relatedPlanningSnapshot.js";
 import type { archiveJiraMigrationSource } from "./sourceArchive.js";
 import type { discoverJiraMigrationSource } from "./sourceDiscovery.js";
@@ -69,6 +72,10 @@ import {
   getRelatedBinarySpools,
 } from "./sourceSnapshot.js";
 import type { AkbJiraMigrationTarget } from "./targetAdapter.js";
+import { parseMeta } from "./targetSupport.js";
+
+const ATTACHMENT_ARCHIVE_CHUNK_BYTES = 32 * 1024 * 1024;
+const ATTACHMENT_ARCHIVE_BATCH_SIZE = 4;
 
 export const relatedPlanForApproval = (
   approvedPayload: Record<string, unknown> | null,
@@ -89,6 +96,7 @@ export const actionForRelatedIssuePlan = (input: {
   equivalentPlans: readonly JiraIssueImportPlan[];
   ledger: JiraMigrationLedgerV1;
   bindingIndex?: Readonly<JiraMigrationBindingIndex>;
+  existingTargetIssueKeys?: ReadonlySet<string>;
   readback: Awaited<ReturnType<AkbJiraMigrationTarget["readIssue"]>> | null;
   postRelatedContent?: string;
 }): ReturnType<typeof actionForIssuePlan> => {
@@ -96,6 +104,7 @@ export const actionForRelatedIssuePlan = (input: {
     input.plan,
     input.ledger,
     input.bindingIndex,
+    input.existingTargetIssueKeys,
   );
   if ((action !== "skip" && action !== "update") || input.readback === null) {
     return action;
@@ -344,6 +353,7 @@ export async function buildJiraMigrationPlan(input: {
         accountMapping: { artifact: accountMapping },
         planningMappings: mappings,
         targetIdsByJiraKey,
+        changelog: changelogByIssue.get(issue.key) ?? [],
         rankPlan: rankPlansByJiraKey.get(issue.key) ?? null,
         rawArchiveReferences: archiveReferences.get(issue.key) ?? {},
       });
@@ -370,6 +380,36 @@ export async function buildJiraMigrationPlan(input: {
     targetIssueReadbacksByReefId.set(reefId, readback);
     return readback;
   };
+  const existingTargetIssueKeys = new Set<string>();
+  await Promise.all(
+    dryIssuePlans.map(async (plan) => {
+      const desired = plan.desired.issue;
+      if (!desired) return;
+      const sourceIdentity = jiraIssueSourceIdentity(
+        plan.source.jiraCloudId,
+        plan.source.projectId ?? plan.source.projectKey,
+        plan.source.issueId,
+      );
+      if (getJiraMigrationBinding(ledger, sourceIdentity.key, bindingIndex)) {
+        return;
+      }
+      const readback = await readTargetIssueForPlanning(desired.id);
+      if (!readback || readback.issue.archived_at != null) return;
+      const desiredMigration = parseMeta(
+        parseMeta(desired.custom_fields).jira_migration,
+      );
+      const currentMigration = parseMeta(
+        parseMeta(readback.issue.custom_fields).jira_migration,
+      );
+      const desiredOwner = jiraOwnerIdentity(desiredMigration.owner);
+      if (
+        desiredOwner &&
+        jiraOwnerIdentity(currentMigration.owner) === desiredOwner
+      ) {
+        existingTargetIssueKeys.add(plan.source.issueKey);
+      }
+    }),
+  );
   const approvedTargetIssuePreconditions =
     approvedPayload?.target_issue_preconditions &&
     typeof approvedPayload.target_issue_preconditions === "object" &&
@@ -391,7 +431,14 @@ export async function buildJiraMigrationPlan(input: {
       : Object.fromEntries(
           await Promise.all(
             dryIssuePlans.map(async (plan) => {
-              if (actionForIssuePlan(plan, ledger, bindingIndex) === "create") {
+              if (
+                actionForIssuePlan(
+                  plan,
+                  ledger,
+                  bindingIndex,
+                  existingTargetIssueKeys,
+                ) === "create"
+              ) {
                 return [plan.source.issueKey, null] as const;
               }
               const id = plan.desired.issue?.id;
@@ -415,6 +462,12 @@ export async function buildJiraMigrationPlan(input: {
       account.actor,
     ]),
   );
+  const attachmentBindings = buildJiraChangelogAttachmentBindings({
+    jiraCloudId: config.jira.cloudId,
+    issues: allIssues,
+    ledger,
+    bindingIndex,
+  });
   const changelogPlans: JiraChangelogPlan[] = [];
   for (const issue of allIssues) {
     const key = issue.projectKey ?? issue.key.split("-")[0] ?? "";
@@ -450,6 +503,7 @@ export async function buildJiraMigrationPlan(input: {
           statusMappings,
           issueTypeMappings,
           issueBindings,
+          attachmentBindings,
         }),
       );
     }
@@ -526,7 +580,12 @@ export async function buildJiraMigrationPlan(input: {
     };
     const currentIssuePlan = nativeIssuePlan ?? dryIssuePlan;
     let relatedIssueAction = currentIssuePlan
-      ? actionForIssuePlan(currentIssuePlan, ledger, bindingIndex)
+      ? actionForIssuePlan(
+          currentIssuePlan,
+          ledger,
+          bindingIndex,
+          existingTargetIssueKeys,
+        )
       : ("conflict" as const);
     if (
       (relatedIssueAction === "skip" || relatedIssueAction === "update") &&
@@ -543,6 +602,7 @@ export async function buildJiraMigrationPlan(input: {
             : [],
         ledger,
         bindingIndex,
+        existingTargetIssueKeys,
         readback,
         postRelatedContent: postRelatedContentByReefId.get(
           currentIssuePlan.desired.issue.id,
@@ -562,7 +622,7 @@ export async function buildJiraMigrationPlan(input: {
       linkMappings: policy.linkMappings,
       attachmentPolicy: config.control.commentCatalogComplete
         ? {
-            maxBytes: 20 * 1024 * 1024,
+            maxBytes: policy.attachmentMaxBytes ?? 20 * 1024 * 1024,
             commentVisibilityCompleteness: "verified" as const,
           }
         : undefined,
@@ -637,29 +697,68 @@ export async function buildJiraMigrationPlan(input: {
         ]),
       ),
     );
+    await archive.archiveMany(pendingInputs, { verify: false });
     for (const [attachmentId, response] of getRelatedBinarySpools(snapshot)) {
-      const bytes = await readFile(response.path);
-      pendingInputs.push({
-        entityKind: "attachment_content",
-        sourceIdentity: {
-          cloud_id: config.jira.cloudId,
-          issue_id: issueByAttachmentId.get(attachmentId) ?? "unknown",
-          attachment_id: attachmentId,
-        },
-        sourceEndpoint: {
-          method: "GET",
-          pathname: `/rest/api/3/attachment/content/${encodeURIComponent(attachmentId)}`,
-        },
-        classification: "restricted_pii",
-        fetchedAt: runAt,
-        payload: {
-          content_base64: bytes.toString("base64"),
-          content_type: response.contentType,
-          content_length: response.contentLength,
-        },
-      });
+      const spool = await open(response.path, "r");
+      try {
+        const byteLength = (await spool.stat()).size;
+        const chunkCount = Math.max(
+          1,
+          Math.ceil(byteLength / ATTACHMENT_ARCHIVE_CHUNK_BYTES),
+        );
+        const sourceIssueId =
+          issueByAttachmentId.get(attachmentId) ?? "unknown";
+        const sourceDigest = snapshot.attachments[attachmentId]?.sha256 ?? null;
+        const pathname = `/rest/api/3/attachment/content/${encodeURIComponent(attachmentId)}`;
+        let batch: ArchiveRawPayloadInput<"attachment_content">[] = [];
+        for (let chunkIndex = 0; chunkIndex < chunkCount; chunkIndex += 1) {
+          const offset = chunkIndex * ATTACHMENT_ARCHIVE_CHUNK_BYTES;
+          const expectedLength = Math.min(
+            ATTACHMENT_ARCHIVE_CHUNK_BYTES,
+            byteLength - offset,
+          );
+          const bytes = Buffer.allocUnsafe(expectedLength);
+          const { bytesRead } = await spool.read(
+            bytes,
+            0,
+            expectedLength,
+            offset,
+          );
+          if (bytesRead !== expectedLength) {
+            throw new Error("source_archive_spool_read_mismatch");
+          }
+          batch.push({
+            entityKind: "attachment_content",
+            sourceIdentity: {
+              cloud_id: config.jira.cloudId,
+              issue_id: sourceIssueId,
+              attachment_id: attachmentId,
+              chunk_index: String(chunkIndex),
+              chunk_count: String(chunkCount),
+            },
+            sourceEndpoint: { method: "GET", pathname },
+            classification: "restricted_pii",
+            fetchedAt: runAt,
+            payload: {
+              content_base64: bytes.toString("base64"),
+              content_type: response.contentType,
+              content_length: response.contentLength,
+              content_sha256: sourceDigest,
+              chunk_index: chunkIndex,
+              chunk_count: chunkCount,
+            },
+          });
+          if (batch.length === ATTACHMENT_ARCHIVE_BATCH_SIZE) {
+            await archive.archiveMany(batch, { verify: false });
+            batch = [];
+          }
+        }
+        if (batch.length > 0)
+          await archive.archiveMany(batch, { verify: false });
+      } finally {
+        await spool.close();
+      }
     }
-    await archive.archiveMany(pendingInputs);
     archiveSummaries.push({ project_key: key, ...(await archive.verify()) });
   }
   const finalRelatedReports = relatedPlanningReports;
@@ -848,6 +947,7 @@ export async function buildJiraMigrationPlan(input: {
     nativeIssuePlans,
     targetIssuePreconditions,
     targetIssueReadbacksByReefId,
+    existingTargetIssueKeys,
     issueBindings,
     changelogPlans,
     relatedPlanningReports,
