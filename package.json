@@ -19,8 +19,12 @@
   "scripts": {
     "dev": "pnpm --filter @reef/web dev",
     "build": "pnpm --filter @reef/web build",
+    "build:packages": "node scripts/clean-package-artifacts.mjs && pnpm --filter @reef/core run build && pnpm --filter @reef/orchestrator run build && pnpm --filter @reef/harness-provider-codex run build && pnpm --filter @reef/infrastructure-provider-local run build && pnpm --filter @reef/work-provider-reef run build && pnpm --filter @reef/jira-migrator run build",
+    "package-contract:smoke": "node scripts/package-contract-smoke.mjs",
+    "architecture:check": "node scripts/check-architecture.mjs",
+    "check:package-contract": "pnpm run build:packages && pnpm run package-contract:smoke && pnpm run architecture:check",
     "lint": "biome check .",
-    "check": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run check:release",
+    "check": "pnpm run check:package-contract && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run check:release",
     "check:release": "node scripts/check-release-policy.mjs",
     "maintenance:scan": "node scripts/maintenance/scan.mjs",
     "maintenance:assert-clean": "node scripts/maintenance/scan.mjs --assert-clean",
@@ -37,10 +41,12 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "dependency-cruiser": "18.1.1",
     "eslint": "^10.4.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "jscpd": "^5.0.6",
     "knip": "^6.16.1",
+    "tsdown": "^0.21.10",
     "typescript-eslint": "^8.61.0"
   }
 }

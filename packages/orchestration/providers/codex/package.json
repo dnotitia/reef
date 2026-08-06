@@ -3,16 +3,18 @@
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
+  "files": ["dist"],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsdown --config ../../../../tsdown.config.mjs --filter @reef/harness-provider-codex",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "live-smoke": "tsx scripts/live-smoke.mjs"

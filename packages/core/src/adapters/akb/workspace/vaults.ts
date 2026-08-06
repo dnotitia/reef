@@ -13,6 +13,15 @@ import type {
   RevokeVaultMemberParams,
   SearchUsersParams,
   SearchUsersResult,
+  UserSearchResult,
+  VaultMember,
+} from "../core/types";
+
+export type {
+  EnrichedVaultSummary,
+  UserSearchResult,
+  VaultMember,
+  VaultSummary,
 } from "../core/types";
 
 export const VaultMemberSchema = z.object({
@@ -22,8 +31,6 @@ export const VaultMemberSchema = z.object({
   role: z.string(),
   since: z.string().nullable().optional(),
 });
-
-export type VaultMember = z.infer<typeof VaultMemberSchema>;
 
 const VaultMembersResponseSchema = z.object({
   members: z.array(VaultMemberSchema).default([]),
@@ -41,8 +48,6 @@ export const UserSearchResultSchema = z.object({
   display_name: z.string().nullable().optional(),
   email: z.string().nullable().optional(),
 });
-
-export type UserSearchResult = z.infer<typeof UserSearchResultSchema>;
 
 const UserSearchResponseSchema = z.object({
   users: z.array(UserSearchResultSchema).default([]),
@@ -71,13 +76,9 @@ export const VaultSummarySchema = z.object({
   has_reef_config: z.boolean().optional(),
 });
 
-export type VaultSummary = z.infer<typeof VaultSummarySchema>;
-
 export const EnrichedVaultSummarySchema = VaultSummarySchema.extend({
   has_reef_config: z.boolean(),
 });
-
-export type EnrichedVaultSummary = z.infer<typeof EnrichedVaultSummarySchema>;
 
 const VaultListResponseSchema = z.object({
   vaults: z.array(VaultSummarySchema).default([]),

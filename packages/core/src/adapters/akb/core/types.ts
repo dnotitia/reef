@@ -15,12 +15,35 @@ import type {
   Sprint,
 } from "../../../schemas/planning/catalog";
 import type { Config } from "../../../schemas/workspace/config";
-import type {
-  UserSearchResult,
-  VaultMember,
-  VaultSummary,
-} from "../workspace/vaults";
 import type { AkbAdapter } from "./http";
+
+export interface VaultMember {
+  username: string;
+  display_name?: string | null;
+  email?: string | null;
+  role: string;
+  since?: string | null;
+}
+
+export interface UserSearchResult {
+  username: string;
+  display_name?: string | null;
+  email?: string | null;
+}
+
+export interface VaultSummary {
+  id?: string;
+  name: string;
+  description?: string | null;
+  status?: string | null;
+  role?: string | null;
+  created_at?: string | null;
+  has_reef_config?: boolean;
+}
+
+export interface EnrichedVaultSummary extends VaultSummary {
+  has_reef_config: boolean;
+}
 
 export interface ReadIssueParams {
   adapter: AkbAdapter;

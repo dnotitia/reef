@@ -40,6 +40,14 @@ explicitly in the entries below.
   default Turbopack path.** The standalone production build contract remains
   unchanged while webpack-only overrides are removed.
 
+### Changed
+
+- **Node package contracts now build and validate from isolated artifacts.**
+  Six Node packages use tsdown to emit ESM JavaScript and declarations from
+  `dist/`, dependency-cruiser enforces workspace directions and production
+  boundaries, and the canonical non-E2E check exercises packed public imports,
+  core subpaths, and the Jira migrator CLI.
+
 ## v0.9.0 - 2026-08-03
 
 ### Added
