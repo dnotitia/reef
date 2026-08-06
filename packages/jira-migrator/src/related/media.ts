@@ -215,6 +215,20 @@ const renderedAttachmentHints = (html: string): RenderedAttachmentHint[] => {
   return hints;
 };
 
+const stripHtmlTags = (value: string): string => {
+  let cursor = 0;
+  let text = "";
+  while (cursor < value.length) {
+    const tagStart = value.indexOf("<", cursor);
+    if (tagStart === -1) return text + value.slice(cursor);
+    text += value.slice(cursor, tagStart);
+    const tagEnd = value.indexOf(">", tagStart + 1);
+    if (tagEnd === -1) return text + value.slice(tagStart);
+    cursor = tagEnd + 1;
+  }
+  return text;
+};
+
 /**
  * Jira emits a wiki-style attachment error marker when it cannot render a
  * file. It has no media-service id, but its text still carries the filename.
@@ -223,13 +237,51 @@ const renderedAttachmentHints = (html: string): RenderedAttachmentHint[] => {
  */
 const renderedErrorAttachmentFilenames = (html: string): string[] => {
   const filenames: string[] = [];
-  const pattern =
-    /\[\^<span\b[^>]*class=(?:"|')error(?:"|')[^>]*>([\s\S]*?)<\/span>([^\]]+)\]/giu;
-  for (const match of html.matchAll(pattern)) {
-    const filename = `${match[1] ?? ""}${match[2] ?? ""}`
-      .replace(/<[^>]*>/gu, "")
-      .trim();
-    if (filename) filenames.push(decodeHtmlAttribute(filename));
+  const lowerHtml = html.toLowerCase();
+  let cursor = 0;
+  while (cursor < html.length) {
+    const markerStart = lowerHtml.indexOf("[^", cursor);
+    if (markerStart === -1) break;
+
+    const spanStart = markerStart + 2;
+    const spanNameEnd = lowerHtml[spanStart + 5];
+    if (
+      !lowerHtml.startsWith("<span", spanStart) ||
+      (spanNameEnd !== undefined &&
+        spanNameEnd !== ">" &&
+        spanNameEnd !== "/" &&
+        !/\s/u.test(spanNameEnd))
+    ) {
+      cursor = spanStart;
+      continue;
+    }
+
+    const tagEnd = lowerHtml.indexOf(">", spanStart + 5);
+    if (tagEnd === -1) break;
+    const attributes = parseQuotedHtmlAttributes(
+      html.slice(spanStart, tagEnd + 1),
+    );
+    if (attributes.get("class")?.toLowerCase() !== "error") {
+      cursor = tagEnd + 1;
+      continue;
+    }
+
+    const closingStart = lowerHtml.indexOf("</span>", tagEnd + 1);
+    if (closingStart === -1) break;
+    const closingEnd = closingStart + "</span>".length;
+    const filenameEnd = lowerHtml.indexOf("]", closingEnd);
+    if (filenameEnd === -1) break;
+    if (filenameEnd === closingEnd) {
+      cursor = filenameEnd + 1;
+      continue;
+    }
+
+    const rawFilename =
+      html.slice(tagEnd + 1, closingStart) +
+      html.slice(closingEnd, filenameEnd);
+    const filename = stripHtmlTags(decodeHtmlAttribute(rawFilename)).trim();
+    if (filename) filenames.push(filename);
+    cursor = filenameEnd + 1;
   }
   return filenames;
 };

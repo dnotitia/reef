@@ -3216,8 +3216,8 @@ describe("media crosswalk", () => {
         const prefixEnd = filename.indexOf("]");
         const prefix = filename
           .slice(0, prefixEnd + 1)
-          .replace("[", "&#91;")
-          .replace("]", "&#93;");
+          .replaceAll("[", "&#91;")
+          .replaceAll("]", "&#93;");
         return `[^<span class="error">${prefix}</span>${filename.slice(prefixEnd + 1)}]`;
       })
       .join("\n");
