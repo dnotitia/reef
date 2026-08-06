@@ -108,6 +108,7 @@ test.describe("Hermetic issue keyboard navigation", () => {
   }) => {
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/issues?view=board");
+    await page.bringToFront();
 
     const alpha = page
       .locator('[data-testid="kanban-card"]')
@@ -119,7 +120,9 @@ test.describe("Hermetic issue keyboard navigation", () => {
 
     await page.keyboard.press("ArrowDown");
     await expect(alpha).toHaveAttribute("data-keyboard-focused", "true");
+    await expect(alpha).toBeFocused();
     await page.keyboard.press("j");
+    await expect(beta).toBeFocused();
     await expect(beta).toHaveAttribute("data-keyboard-focused", "true");
 
     await page.keyboard.press("Enter");
