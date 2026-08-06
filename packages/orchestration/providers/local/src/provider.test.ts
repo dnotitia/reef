@@ -313,7 +313,8 @@ describe("local infrastructure provider", () => {
 
     const controller = new AbortController();
     const childPidFile = "child.pid";
-    const childScript = `const fs = require('node:fs'); const child = require('node:child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)']); fs.writeFileSync(${JSON.stringify(childPidFile)}, String(child.pid)); setInterval(() => {}, 1000);`;
+    const childScript =
+      "const fs = require('node:fs'); const child = require('node:child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)']); fs.writeFileSync('child.pid', String(child.pid)); setInterval(() => {}, 1000);";
     const command = `${shellQuote(process.execPath)} -e ${shellQuote(childScript)}`;
     const [directory] = await worktreeDirectories(fixture.workRoot);
     const worktree = join(fixture.workRoot, directory);
