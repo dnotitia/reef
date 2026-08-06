@@ -113,10 +113,6 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
     "Single Codex stdio provider boundary: policy validation, session state, JSON-RPC lifecycle, process teardown, and operation routing share Session/error invariants; extract transport/session helpers when a second process provider reuses them.",
   ],
   [
-    "packages/jira-migrator/src/runner/targetAdapter.test.ts",
-    "Single target contract suite sharing AKB scripted fetch/readback/consistency fixtures across issue, planning, attachment, and relation cases; split scenario families when fixtures can be shared without duplicating state semantics.",
-  ],
-  [
     "packages/web/src/features/search/components/GlobalSearchDialog.test.tsx",
     "Single global palette suite sharing corpus, command registry, query mocks, and anchor interactions across search, command, and content cases; split command/content fixtures when another palette suite reuses them.",
   ],
@@ -125,16 +121,8 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
     "Single migration plan executor whose issue, related, ledger, approval, and checkpoint phases share one ordered saga; extract a phase when another execution path reuses it.",
   ],
   [
-    "packages/jira-migrator/src/runner/runner.test.ts",
-    "Single run orchestration contract suite sharing ledger, target, and Jira fixtures across planning, resume, dry-run, and apply cases; split the harness when another run suite reuses it.",
-  ],
-  [
     "packages/core/src/adapters/akb/issues/issues.ts",
     "Single issue adapter boundary keeping document/row compensation, OCC, backlog, and batch writes together; extract a phase helper when another adapter consumes the same saga.",
-  ],
-  [
-    "packages/core/src/adapters/akb/issues/issues.test.ts",
-    "Single issue adapter contract suite sharing fetch, row, document, and reservation fixtures across OCC, claims, reorder, create, and update cases; split fixture families when another suite reuses them.",
   ],
   [
     "packages/jira-migrator/src/runner/relatedTargetAdapter.ts",
@@ -145,7 +133,7 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
     "Single immutable Jira migration plan builder where issue, related, and planning operations share snapshots and approval projections; extract a related-planning helper when another planner shares it.",
   ],
   [
-    "packages/core/src/adapters/akb.comments.test.ts",
+    "packages/core/src/adapters/akb/issues/comments.test.ts",
     "Single comment adapter contract suite sharing SQL row, projection, and roster fixtures across list, create, update, and Jira-repair cases; split the harness when another comment suite reuses it.",
   ],
   [
@@ -195,10 +183,6 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
   [
     "packages/jira-migrator/src/related/import.ts",
     "Single public related-data reconciliation orchestrator coordinating description, media, links, and attachments through one target ledger; extract a phase when another import entrypoint reuses it.",
-  ],
-  [
-    "packages/jira-migrator/src/related/import.test.ts",
-    "Single public-stage reconciliation matrix sharing one stateful Jira/target harness; split by comments, attachments, and links when the harness is reusable without duplicating state semantics.",
   ],
   [
     "packages/web/src/components/MarkdownEditorImpl.test.tsx",
@@ -263,10 +247,6 @@ const LARGE_FILE_SUPPRESSIONS = new Map([
   [
     "packages/core/src/agents/approveActivitySuggestion.test.ts",
     "Approval policy matrix; extract fixtures when another approval suite reuses them.",
-  ],
-  [
-    "packages/core/src/adapters/akb.issue-activity.test.ts",
-    "Activity append/readback regression suite; split key/diff/list groups when another activity suite reuses the setup.",
   ],
   [
     "packages/core/src/adapters/akb/issues/activity.ts",

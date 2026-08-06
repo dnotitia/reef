@@ -6,8 +6,8 @@ import {
   NotFoundError,
   SchemaValidationError,
 } from "../../../errors";
-import { makeAdapter, setupFetch } from "../../akb.httpTestSupport";
 import { AkbSearchHitSchema } from "./http";
+import { makeAdapter, setupFetch } from "./httpTestSupport";
 import { isMissingTableError } from "./sql";
 
 describe("AkbSearchHitSchema", () => {

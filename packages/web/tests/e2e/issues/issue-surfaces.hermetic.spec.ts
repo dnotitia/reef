@@ -1,0 +1,287 @@
+import { expect, test } from "@playwright/test";
+import {
+  REEF_E2E_VAULT,
+  clearPersistedQueryCacheOnLoad,
+  openExistingWorkspace,
+  readFixtureState,
+  resetFixture,
+  writeIndexedDbConfig,
+} from "../harness/fixture";
+
+function reefVault(
+  state: Awaited<ReturnType<typeof readFixtureState>>,
+): Awaited<ReturnType<typeof readFixtureState>>["vaults"][number] {
+  const vault = state.vaults.find(
+    (candidate) => candidate.name === REEF_E2E_VAULT,
+  );
+  if (!vault) throw new Error(`Missing fixture vault: ${REEF_E2E_VAULT}`);
+  return vault;
+}
+
+test.describe("Hermetic issue route surfaces", () => {
+  test.beforeEach(async ({ context, request }) => {
+    await context.clearCookies();
+    await resetFixture(request, "configured");
+  });
+
+  test("switches between board, list, timeline, and backlog views from /issues", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    await page.goto("/workspace/reef-e2e/issues?view=board");
+    await expect(page.locator('[data-testid="kanban-board"]')).toBeVisible();
+    await expect(
+      page.locator('[data-testid="kanban-card"]').first(),
+    ).toContainText("Initial issue Alpha");
+
+    await page.locator('[data-testid="view-switcher-list"]').click();
+    await page.waitForURL(/view=list/, { timeout: 10_000 });
+    await expect(
+      page.locator('[data-testid="issue-list-row"]').first(),
+    ).toBeVisible();
+
+    await page.locator('[data-testid="view-switcher-timeline"]').click();
+    await page.waitForURL(/view=timeline/, { timeout: 10_000 });
+    await expect(page.locator('[data-testid="timeline-grid"]')).toBeVisible();
+
+    await page.locator('[data-testid="view-switcher-backlog"]').click();
+    await page.waitForURL(/view=backlog/, { timeout: 10_000 });
+    await expect(page.locator('[data-testid="backlog-header"]')).toBeVisible();
+    await expect(page.getByText("Backlog issue Gamma")).toBeVisible();
+  });
+
+  test("renders the README demo board fixture across workflow columns", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "demo_board");
+    await openExistingWorkspace(page);
+    await writeIndexedDbConfig(
+      page,
+      "last_visit_at",
+      "2026-06-01T00:00:00.000Z",
+    );
+
+    await clearPersistedQueryCacheOnLoad(page);
+    await page.goto("/workspace/reef-e2e/issues?view=board");
+    await expect(page.locator('[data-testid="kanban-board"]')).toBeVisible();
+    await expect(page.locator('[data-testid="kanban-card"]')).toHaveCount(11);
+    await expect(
+      page.locator('[data-testid="suggestions-pending-badge"]'),
+    ).toHaveText("3");
+    await expect(
+      page.getByText("Triage GitHub activity into draft issues"),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Review activity-scan status proposals"),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Ship stateless BFF route handlers"),
+    ).toBeVisible();
+  });
+
+  test("opens an intercepted issue detail, autosaves a title edit, and returns to the list backdrop", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+    await page.getByText("Initial issue Alpha").click();
+
+    await page.waitForURL(/\/issues\/REEF-001\?view=list/, {
+      timeout: 10_000,
+    });
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+    await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
+      "Initial issue Alpha",
+    );
+
+    await page
+      .locator('[data-testid="issue-title-input"]')
+      .fill("Initial issue Alpha edited");
+    await page.locator('[data-testid="issue-title-input"]').press("Enter");
+
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        return reefVault(state).issues.find((issue) => issue.id === "REEF-001")
+          ?.title;
+      })
+      .toBe("Initial issue Alpha edited");
+
+    await page.locator('[data-testid="issue-close"]').click();
+    await page.waitForURL(/\/issues\?view=list$/, { timeout: 10_000 });
+  });
+
+  test("renders a cold issue deep link and closes it back to /issues", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+
+    await page.goto("/workspace/reef-e2e/issues/REEF-002");
+
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+    await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
+      "Initial issue Beta",
+    );
+
+    await page.locator('[data-testid="issue-close"]').click();
+    await page.waitForURL(/\/issues$/, { timeout: 10_000 });
+  });
+
+  test("creates an issue from the global dialog and deletes it from the detail actions menu", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+
+    await page.locator('[data-testid="new-issue-trigger"]').click();
+    await expect(
+      page.locator('[data-testid="new-issue-dialog"]'),
+    ).toBeVisible();
+    await page
+      .locator('[data-testid="new-issue-title-input"]')
+      .fill("Created from hermetic E2E");
+    await page.locator('[data-testid="new-issue-submit"]').click();
+
+    await page.waitForURL(/\/issues\/REEF-004/, { timeout: 10_000 });
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+    await expect(page.locator('[data-testid="issue-title-input"]')).toHaveValue(
+      "Created from hermetic E2E",
+    );
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        return reefVault(state).issue_ids;
+      })
+      .toContain("REEF-004");
+
+    await page.locator('[data-testid="issue-more-trigger"]').click();
+    await page.locator('[data-testid="issue-delete-trigger"]').click();
+    await expect(
+      page.locator('[data-testid="issue-delete-confirm"]'),
+    ).toBeVisible();
+    await page.locator('[data-testid="issue-delete-confirm-btn"]').click();
+
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        return reefVault(state).issue_ids;
+      })
+      .not.toContain("REEF-004");
+  });
+
+  test("creates a sub-issue from Sub-issues with inherited defaults and optimistic child list update", async ({
+    page,
+    request,
+  }) => {
+    await openExistingWorkspace(page);
+    const before = reefVault(await readFixtureState(request));
+    const parent = before.issues.find((issue) => issue.id === "REEF-001");
+    if (!parent) throw new Error("Missing parent issue REEF-001");
+
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+    await page.getByText("Initial issue Alpha").click();
+    await page.waitForURL(/\/issues\/REEF-001\?view=list/, {
+      timeout: 10_000,
+    });
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+    await expect(page.locator('[data-testid="issue-children"]')).toBeVisible();
+    await expect(
+      page.locator('[data-testid="issue-children-empty"]'),
+    ).toContainText("No sub-issues yet.");
+
+    await page.locator('[data-testid="add-sub-issue-trigger"]').click();
+    const dialog = page.locator('[data-testid="new-issue-dialog"]');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText("New sub-issue")).toBeVisible();
+    await expect(
+      dialog.locator('[data-testid="new-issue-parent-locked"]'),
+    ).toContainText("REEF-001");
+    await expect(
+      dialog.locator('[data-testid="new-issue-priority-select"]'),
+    ).toContainText("High");
+    await expect(dialog.getByLabel("Sprint: Sprint Alpha")).toBeVisible();
+    await expect(
+      dialog.getByLabel("Milestone: Coverage Complete"),
+    ).toBeVisible();
+
+    await dialog
+      .locator('[data-testid="new-issue-title-input"]')
+      .fill("Child from sub-issue E2E");
+    await dialog.locator('[data-testid="create-and-add-another"]').check();
+    await dialog.locator('[data-testid="new-issue-submit"]').click();
+
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        return reefVault(state).issues.find(
+          (issue) => issue.title === "Child from sub-issue E2E",
+        );
+      })
+      .toMatchObject({
+        id: "REEF-004",
+        status: "todo",
+        priority: parent.priority,
+        parent_id: "REEF-001",
+        sprint_id: parent.sprint_id,
+        milestone_id: parent.milestone_id,
+        labels: parent.labels,
+      });
+
+    await expect(dialog).toBeVisible();
+    await expect(
+      dialog.locator('[data-testid="new-issue-title-input"]'),
+    ).toHaveValue("");
+    await expect(
+      dialog.locator('[data-testid="new-issue-parent-locked"]'),
+    ).toContainText("REEF-001");
+    await expect(page).toHaveURL(
+      /\/workspace\/reef-e2e\/issues\/REEF-001\?view=list$/,
+    );
+
+    await dialog.locator('[data-testid="new-issue-cancel"]').click();
+    await page.locator('[data-testid="discard-draft-confirm-button"]').click();
+    await expect(dialog).toBeHidden();
+    await expect(page.locator('[data-testid="issue-children"]')).toContainText(
+      "Child from sub-issue E2E",
+    );
+    await expect(page.locator('[data-testid="issue-children"]')).toContainText(
+      "0 of 1 done",
+    );
+  });
+
+  test("copies the canonical issue deep link from the detail actions menu", async ({
+    page,
+  }) => {
+    await page
+      .context()
+      .grantPermissions(["clipboard-read", "clipboard-write"]);
+    await openExistingWorkspace(page);
+
+    // Open from the list so the address bar is the intercept route
+    // (/issues/REEF-001?view=list), not this issue's own deep link — the copied
+    // link must still be the clean canonical URL, not the address-bar value.
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+    await page.getByText("Initial issue Alpha").click();
+    await page.waitForURL(/\/issues\/REEF-001\?view=list/, { timeout: 10_000 });
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+
+    await page.locator('[data-testid="issue-more-trigger"]').click();
+    await page.locator('[data-testid="issue-copy-link"]').click();
+
+    // A success toast confirms the copy (locale-agnostic: assert the toast
+    // surface, not its text).
+    await expect(page.locator("[data-sonner-toast]")).toBeVisible();
+
+    // The copied value is the clean canonical deep link — vault + id, with no
+    // ?view=list riding along from the intercept URL in the address bar.
+    const origin = new URL(page.url()).origin;
+    await expect
+      .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toBe(`${origin}/workspace/reef-e2e/issues/REEF-001`);
+  });
+});
