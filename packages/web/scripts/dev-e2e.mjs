@@ -304,7 +304,7 @@ export async function startRuntime(options) {
   spawnChild(
     "reef-web",
     pnpmCommand(),
-    ["exec", "next", "dev", "--turbopack", "-p", options.webPort],
+    ["exec", "next", "dev", "-p", options.webPort],
     {
       // The hermetic runtime owns its auth backend. Do not let an ambient
       // operator/deployment backend replace the fixture that discovery

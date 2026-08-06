@@ -60,7 +60,7 @@ try {
   );
 
   if (process.env.REEF_E2E_SKIP_BUILD !== "1") {
-    await runOneShot("build", nextBin, ["build", "--webpack"]);
+    await runOneShot("build", nextBin, ["build"]);
   } else {
     process.stdout.write("[e2e:shards] skipping Next.js build\n");
   }
