@@ -95,12 +95,12 @@ describe("runJiraMigration", () => {
         projectKeys: ["ALPHA", "BETA"],
         boardIds: [],
         mappingPolicyPaths: policyPaths,
-        auth: { mode: "bearer", token: "jira-canary" },
+        auth: { mode: "bearer", token: "test-token" },
       },
       target: {
         baseUrl: "https://akb.test",
         vault: "reef-test",
-        jwt: "akb-canary",
+        jwt: "test-auth-token",
       },
       targetVault: "reef-test",
       reportPath: join(artifactRoot, "report.json"),
@@ -328,7 +328,7 @@ describe("runJiraMigration", () => {
     expect(dryRun.report.conservation.balanced).toBe(true);
     expect(dryRun.report.run.status).toBe("completed");
     expect(JSON.stringify(dryRun.report)).not.toMatch(
-      /jira-canary|akb-canary|operator@example\.com/u,
+      /test-token|test-auth-token|operator@example\.com/u,
     );
     const repeatedDryRun = await runJiraMigration(config, {
       target,
