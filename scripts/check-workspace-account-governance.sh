@@ -34,7 +34,7 @@ pnpm --filter @reef/web exec vitest run \
   src/lib/llm/serverConfig.test.ts
 
 echo "== Reef hermetic account lifecycle =="
-pnpm --filter @reef/web build
+pnpm run build
 mkdir -p \
   packages/web/.next/standalone/packages/web/.next/static \
   packages/web/.next/standalone/packages/web/public

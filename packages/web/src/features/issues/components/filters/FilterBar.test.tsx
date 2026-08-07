@@ -88,7 +88,7 @@ describe("FilterBar", () => {
               sprints: [],
               milestones: [
                 {
-                  id: "milestone-1",
+                  id: "11111111-1111-4111-8111-111111111113",
                   name: "Autonomous Orchestration & Codex Runner",
                   status: "open",
                   target_date: null,
@@ -127,6 +127,64 @@ describe("FilterBar", () => {
     await user.click(screen.getByLabelText("Milestone"));
     const panel = screen.getByRole("listbox").parentElement;
     expect(panel?.className).toContain(PLANNING_ITEM_PANEL_CLASS);
+    expect(screen.queryByText("Any milestone")).toBeNull();
+    expect(screen.queryByText("No Milestone")).toBeNull();
+  });
+
+  it("clears only the selected Milestone filter", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useActiveVault).mockReturnValue({
+      vault: "reef-acme",
+      isLoading: false,
+      refetch: vi.fn(),
+    });
+    vi.mocked(apiFetch).mockImplementation((input) => {
+      if (String(input).startsWith("/api/planning")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              sprints: [],
+              milestones: [
+                {
+                  id: "11111111-1111-4111-8111-111111111113",
+                  name: "Milestone 1",
+                  status: "open",
+                  target_date: null,
+                },
+              ],
+              releases: [],
+            }),
+            { status: 200 },
+          ),
+        );
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify({ users: [] }), { status: 200 }),
+      );
+    });
+    useIssueStore.setState({
+      filter: { status: ["todo"] },
+      searchQuery: "",
+      selectedIssueId: null,
+    });
+
+    renderFilterBar();
+
+    await user.click(screen.getByLabelText("Milestone"));
+    await user.click(await screen.findByText("Milestone 1"));
+    expect(useIssueStore.getState().filter.milestone_id).toBe(
+      "11111111-1111-4111-8111-111111111113",
+    );
+
+    await user.click(screen.getByTestId("milestone-clear-button"));
+
+    expect(useIssueStore.getState().filter.milestone_id).toBeUndefined();
+    expect(useIssueStore.getState().filter.status).toEqual(["todo"]);
+    expect(screen.queryByTestId("milestone-clear-button")).toBeNull();
+    expect(screen.getByTestId("active-filter-count").textContent).toContain(
+      "1 filter",
+    );
+    expect(screen.getByTestId("clear-filters-button")).toBeTruthy();
   });
 
   it("selecting a status updates the store", async () => {
@@ -173,6 +231,14 @@ describe("FilterBar", () => {
     expect(screen.getByTestId("assignee-filter")).toBeTruthy();
     expect(screen.getByTestId("requester-filter")).toBeTruthy();
     expect(screen.getByTestId("labels-input")).toBeTruthy();
+  });
+
+  it("keeps backlog controls on one row with local overflow", () => {
+    const { getByTestId } = renderFilterBar({ backlogScope: true });
+    const filterBar = getByTestId("filter-bar");
+    expect(filterBar.className).toContain("flex-nowrap");
+    expect(filterBar.className).toContain("overflow-x-auto");
+    expect(filterBar.className).toContain("[&>*]:shrink-0");
   });
 
   it("ignores stray status/sprint/release/due values in the backlog active count (REEF-109, REEF-177)", () => {

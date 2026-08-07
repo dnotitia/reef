@@ -1,0 +1,149 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "cacheDir": ".turbo/cache",
+  "envMode": "strict",
+  "globalDependencies": [
+    ".node-version",
+    "pnpm-workspace.yaml",
+    "tsdown.config.mjs",
+    "tsconfig*.json",
+    "biome.json",
+    "dependency-cruiser.cjs",
+    "vitest*.{js,mjs,ts,mts}",
+    "packages/web/next.config.ts",
+    "packages/web/playwright.config.ts",
+    "packages/web/postcss.config.mjs"
+  ],
+  "globalEnv": ["NODE_ENV"],
+  "globalPassThroughEnv": [
+    "CI",
+    "AKB_BACKEND_URL",
+    "AKB_WEB_URL",
+    "REEF_*",
+    "OPENROUTER_*"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "env": ["NEXT_PUBLIC_*", "NEXT_TELEMETRY_DISABLED"]
+    },
+    "dev": {
+      "cache": false,
+      "dependsOn": ["^build"],
+      "persistent": true
+    },
+    "typecheck": {
+      "cache": false,
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$"],
+      "env": ["NODE_OPTIONS"]
+    },
+    "lint": {
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$"],
+      "env": ["NODE_OPTIONS"]
+    },
+    "test": {
+      "cache": false,
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$"],
+      "env": ["NODE_OPTIONS"]
+    },
+    "test:eval": {
+      "cache": false,
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$"],
+      "env": ["NODE_OPTIONS"]
+    },
+    "test:behavior": {
+      "cache": false,
+      "dependsOn": ["build"],
+      "inputs": ["$TURBO_DEFAULT$"],
+      "env": ["NODE_OPTIONS"]
+    },
+    "test:e2e": {
+      "cache": false,
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$"],
+      "passThroughEnv": [
+        "REEF_E2E_*",
+        "REEF_WEB_URL",
+        "REEF_E2E_MOCK_URL",
+        "REEF_E2E_WEB_COMMAND"
+      ]
+    },
+    "test:e2e:sharded": {
+      "cache": false,
+      "dependsOn": ["build"],
+      "inputs": ["$TURBO_DEFAULT$"],
+      "passThroughEnv": [
+        "REEF_E2E_*",
+        "REEF_WEB_URL",
+        "REEF_E2E_MOCK_URL",
+        "REEF_E2E_WEB_COMMAND"
+      ]
+    },
+    "//#toolchain:check:root": {
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "//#toolchain:check:test:root": {
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "//#package-contract:smoke:root": {
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "//#architecture:check:root": {
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "//#check:turbo-contract:root": {
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "//#lint:root": { "cache": false, "inputs": ["$TURBO_DEFAULT$"] },
+    "//#check:root": { "cache": false, "inputs": ["$TURBO_DEFAULT$"] },
+    "//#check:release:root": { "cache": false, "inputs": ["$TURBO_DEFAULT$"] },
+    "//#maintenance:scan:root": {
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "//#maintenance:assert-clean:root": {
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "//#maintenance:duplicates:root": {
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "//#maintenance:dead-code:root": {
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "//#maintenance:lint:root": {
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "//#maintenance:large-files:root": {
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "//#maintenance:test-profile:root": {
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "//#maintenance:comments:root": {
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "//#maintenance:test:root": {
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "//#format:root": { "cache": false, "inputs": ["$TURBO_DEFAULT$"] }
+  }
+}

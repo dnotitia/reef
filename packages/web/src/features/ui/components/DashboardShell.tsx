@@ -497,6 +497,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
         !interactionReady && "invisible",
       )}
       aria-busy={!interactionReady}
+      aria-hidden={!interactionReady}
       data-interaction-ready={interactionReady}
     >
       {/* Sidebar */}

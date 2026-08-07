@@ -875,9 +875,11 @@
       "emptyDescription": "새 이슈는 할 일에 추가됩니다. 나중으로 미룰 작업을 여기로 보내 활성 보드에서 빼두세요.",
       "goToBoard": "보드로 이동 →",
       "unrankedDivider": "순위 미지정 · 최신순",
-      "reorderHintDrag": "드래그하여 순서 변경",
+      "rank": "Rank",
+      "reorderHintDrag": "Rank 기준에서 드래그하여 순서 변경",
       "reorderHintSwitchToRank": "순서를 바꾸려면 Rank 기준으로 전환하세요",
-      "reorderHintHideArchived": "순서를 바꾸려면 보관 항목을 숨기세요",
+      "reorderHintHideArchived": "Rank 기준에서 순서를 바꾸려면 보관 항목을 숨기세요",
+      "reorderGrip": "{id} 순서 변경",
       "updateErrorTitle": "이슈를 업데이트하지 못했습니다",
       "updateErrorDescription": "백로그가 되돌려졌습니다. 다시 이동하려면 재시도하세요.",
       "reorderErrorTitle": "백로그 순서를 바꾸지 못했습니다",
@@ -1065,7 +1067,7 @@
     },
     "filters": {
       "activeCount": "필터 {count}개",
-      "anyMilestone": "모든 마일스톤",
+      "clearMilestone": "마일스톤 필터 해제",
       "searchPlaceholder": "이슈 검색…",
       "clearSearch": "검색 지우기",
       "issueView": "이슈 보기 방식",
@@ -1179,7 +1181,9 @@
       "loadingMore": "이슈를 더 불러오는 중…",
       "loadMoreError": "이슈를 더 불러오지 못했습니다.",
       "noMatches": "필터와 일치하는 이슈가 없습니다.",
-      "emptyWorkspace": "워크스페이스가 비어 있습니다. 어떤 작업을 하고 계신가요?"
+      "emptyWorkspace": "워크스페이스가 비어 있습니다. 어떤 작업을 하고 계신가요?",
+      "columns": "열",
+      "columnsOptions": "선택 열"
     },
     "bulk": {
       "selectIssue": "{id} 선택",

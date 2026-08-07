@@ -16,6 +16,12 @@ import {
 } from "@/components/ui/toastFeedback";
 import { BacklogRow } from "@/features/issues/components/backlog/BacklogRow";
 import { CloseIssueDialog } from "@/features/issues/components/detail/CloseIssueDialog";
+import {
+  BACKLOG_COLUMNS,
+  ISSUE_TABLE_COLUMN_WIDTHS,
+  type IssueTableColumnKey,
+  issueTableWidth,
+} from "@/features/issues/components/shared/issueTableContract";
 import { useReorderBacklog } from "@/features/issues/hooks/mutations/useReorderBacklog";
 import { useUpdateIssue } from "@/features/issues/hooks/mutations/useUpdateIssue";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
@@ -34,6 +40,7 @@ import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
 import { DURATION_BASE, EASE_SIGNATURE } from "@/lib/motionTokens";
+import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
 import {
   DndContext,
@@ -56,7 +63,6 @@ import {
   type Status,
   backlogRankSortKey,
 } from "@reef/core";
-import type { FieldNameKey } from "@reef/core/fields";
 import { CircleDashed } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -65,28 +71,44 @@ import { toast } from "sonner";
 
 const EMPTY_ISSUES: IssueListItem[] = [];
 
-// Slim triage column set — board/list planning columns (sprint/milestone/
-// release/start/due) are noise here (REEF-109). A leading grip column carries
-// the drag handle in manual-order mode (REEF-129). These are field-name keys;
-// the header text is locale-resolved at render from the shared `fieldNames`
-// catalog (REEF-298), and each entry is checked against `FieldNameKey`.
-const BACKLOG_COLUMNS = [
-  "type",
-  "id",
-  "title",
-  "status",
-  "priority",
-  "assignee",
-  "updated",
-] as const satisfies readonly FieldNameKey[];
-
-// Grip + the visible columns; the divider row spans all of them.
-const BACKLOG_COL_COUNT = BACKLOG_COLUMNS.length + 1;
+const BACKLOG_COL_COUNT = BACKLOG_COLUMNS.length;
+const BACKLOG_TABLE_WIDTH = issueTableWidth(BACKLOG_COLUMNS);
 
 // The view IS the backlog status, so it is consistently pinned to `['backlog']`.
 const BACKLOG_STATUS: readonly string[] = ["backlog"];
 
 const REORDER_TOAST_ID = "backlog-reorder";
+
+function backlogColumnClass(column: IssueTableColumnKey) {
+  return cn(
+    "h-10 min-w-0 px-3 py-0 align-middle",
+    column === "title" && "min-w-[15rem]",
+  );
+}
+
+function backlogColumnStyle(column: IssueTableColumnKey) {
+  return column === "title"
+    ? { minWidth: ISSUE_TABLE_COLUMN_WIDTHS.title }
+    : { width: ISSUE_TABLE_COLUMN_WIDTHS[column] };
+}
+
+function BacklogColumnGroup() {
+  return (
+    <colgroup>
+      {BACKLOG_COLUMNS.map((column) => (
+        <col
+          key={column}
+          data-column-key={column}
+          style={
+            column === "title"
+              ? { minWidth: ISSUE_TABLE_COLUMN_WIDTHS.title }
+              : { width: ISSUE_TABLE_COLUMN_WIDTHS[column] }
+          }
+        />
+      ))}
+    </colgroup>
+  );
+}
 
 // Manual backlog order is a pure function of (rank, created_at, id): ranked rows
 // ascending by rank, then any unranked rows newest-first. The created_at tie
@@ -377,12 +399,6 @@ export function BacklogView({ vault }: BacklogViewProps) {
   // count with filters active means "filtered to nothing", not an empty backlog
   // — mirror the list/timeline no-matches state instead (REEF-109).
 
-  // The backlog body carries the reorder *affordance* — why drag is on or
-  // off and how to enable it. The result count and the view's identity live in
-  // the shared chrome (the ViewSwitcher tab), so the body stays free of the
-  // count/identity row the other views don't have (REEF-175). This is does not a
-  // second sort label either: the header SortControl owns the order vocabulary,
-  // including the words "Rank order" (REEF-169 / REEF-393).
   const reorderHint = !isRankOrder
     ? t("reorderHintSwitchToRank")
     : canReorder
@@ -402,21 +418,14 @@ export function BacklogView({ vault }: BacklogViewProps) {
           className="top-0 bottom-auto"
         />
       </div>
-      {/* Shown when rows are on screen — gated on having rows, not on a
-          (now-removed) count display, so loading/empty/error states does not carry
-          an orphan affordance row. */}
-      {count > 0 ? (
-        <div
-          className="mb-2 flex items-center justify-end px-1 text-xs font-medium text-muted-foreground"
-          data-testid="backlog-header"
-        >
-          <span data-testid="backlog-order-mode">{reorderHint}</span>
-        </div>
-      ) : null}
-
       {isPending ? (
-        <Table>
-          <BacklogTableHeader />
+        <Table
+          className="table-fixed"
+          data-testid="backlog-table"
+          style={{ minWidth: BACKLOG_TABLE_WIDTH }}
+        >
+          <BacklogColumnGroup />
+          <BacklogTableHeader reorderHint={reorderHint} />
           <TableBody>
             <BacklogSkeleton />
           </TableBody>
@@ -444,8 +453,13 @@ export function BacklogView({ vault }: BacklogViewProps) {
           collisionDetection={closestCenter}
           onDragEnd={handleDragEnd}
         >
-          <Table>
-            <BacklogTableHeader />
+          <Table
+            className="table-fixed"
+            data-testid="backlog-table"
+            style={{ minWidth: BACKLOG_TABLE_WIDTH }}
+          >
+            <BacklogColumnGroup />
+            <BacklogTableHeader reorderHint={reorderHint} />
             <TableBody ref={canReorder ? undefined : rowsRef}>
               <SortableContext
                 items={sortableIds}
@@ -459,6 +473,7 @@ export function BacklogView({ vault }: BacklogViewProps) {
                     <BacklogRow
                       issue={issue}
                       sortable={canReorder}
+                      reorderHint={reorderHint}
                       onOpen={openIssue}
                       onStatusChange={handleStatusChange}
                     />
@@ -483,15 +498,39 @@ export function BacklogView({ vault }: BacklogViewProps) {
   );
 }
 
-function BacklogTableHeader() {
+function BacklogTableHeader({ reorderHint }: { reorderHint: string }) {
   const columnLabels = useFieldNameLabels();
+  const t = useTranslations("issues.backlog");
   return (
     <TableHeader>
-      <TableRow>
-        {/* Grip column. */}
-        <TableHead className="w-7" />
-        {BACKLOG_COLUMNS.map((key) => (
-          <TableHead key={key}>{columnLabels[key]}</TableHead>
+      <TableRow className="h-8">
+        {BACKLOG_COLUMNS.map((column) => (
+          <TableHead
+            key={column}
+            className="h-8 px-3 py-0"
+            style={
+              column === "title"
+                ? { minWidth: ISSUE_TABLE_COLUMN_WIDTHS.title }
+                : { width: ISSUE_TABLE_COLUMN_WIDTHS[column] }
+            }
+            data-column-key={column}
+            data-testid={column === "rank" ? "backlog-rank-header" : undefined}
+            aria-describedby={
+              column === "rank" ? "backlog-rank-description" : undefined
+            }
+            title={column === "rank" ? reorderHint : undefined}
+          >
+            {column === "rank" ? (
+              <span className="inline-flex items-center gap-1">
+                {t("rank")}
+                <span id="backlog-rank-description" className="sr-only">
+                  {reorderHint}
+                </span>
+              </span>
+            ) : (
+              columnLabels[column]
+            )}
+          </TableHead>
         ))}
       </TableRow>
     </TableHeader>
@@ -549,10 +588,18 @@ function BacklogSkeleton() {
   return (
     <>
       {SKELETON_ROW_KEYS.map((rowKey) => (
-        <TableRow key={rowKey} data-testid="backlog-skeleton-row">
-          <TableCell className="w-7" />
-          {BACKLOG_COLUMNS.map((col) => (
-            <TableCell key={col}>
+        <TableRow
+          key={rowKey}
+          className="h-10"
+          data-testid="backlog-skeleton-row"
+        >
+          {BACKLOG_COLUMNS.map((column) => (
+            <TableCell
+              key={column}
+              className={backlogColumnClass(column)}
+              style={backlogColumnStyle(column)}
+              data-column-key={column}
+            >
               <Skeleton className="h-4 w-full" />
             </TableCell>
           ))}

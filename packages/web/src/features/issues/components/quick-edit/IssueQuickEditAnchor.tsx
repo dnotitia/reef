@@ -39,7 +39,8 @@ import {
   STATUS_OPTIONS,
 } from "@reef/core/fields";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { CloseIssueDialog } from "../detail/CloseIssueDialog";
 
@@ -74,11 +75,41 @@ export function IssueQuickEditAnchor({
   const common = useTranslations("common");
   const board = useTranslations("board");
   const [pendingClose, setPendingClose] = useState(false);
+  const [anchorPosition, setAnchorPosition] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
+  const anchorOriginRef = useRef<HTMLSpanElement>(null);
 
   const field =
     request?.scope === scope && request.issueId === issue.id
       ? request.field
       : null;
+
+  const updateAnchorPosition = useCallback(() => {
+    const cell = anchorOriginRef.current?.parentElement;
+    if (!cell) return;
+    const rect = cell.getBoundingClientRect();
+    setAnchorPosition({
+      left: rect.left + 8,
+      top: rect.top + rect.height / 2,
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (field === null) {
+      setAnchorPosition(null);
+      return;
+    }
+
+    updateAnchorPosition();
+    window.addEventListener("resize", updateAnchorPosition);
+    window.addEventListener("scroll", updateAnchorPosition, true);
+    return () => {
+      window.removeEventListener("resize", updateAnchorPosition);
+      window.removeEventListener("scroll", updateAnchorPosition, true);
+    };
+  }, [field, updateAnchorPosition]);
 
   function commitPatch(patch: IssueUpdatePatch) {
     mutation.mutateAsync({ id: issue.id, vault, patch }).then(
@@ -127,9 +158,14 @@ export function IssueQuickEditAnchor({
     field === null ? null : (
       <div
         className={cn(
-          "absolute left-2 top-1/2 z-30 w-56 -translate-y-1/2",
+          "pointer-events-auto fixed z-50 w-56 -translate-y-1/2",
           className,
         )}
+        style={{
+          left: anchorPosition?.left,
+          top: anchorPosition?.top,
+          visibility: anchorPosition ? "visible" : "hidden",
+        }}
         data-testid="issue-quick-edit-anchor"
         onClick={(event) => event.stopPropagation()}
         onKeyDown={(event) => event.stopPropagation()}
@@ -215,9 +251,19 @@ export function IssueQuickEditAnchor({
       </div>
     );
 
+  // The origin stays in the row for positioning, while the interactive panel
+  // lives under body so sticky table cells cannot clip its hit area.
+  const renderedAnchor =
+    anchor === null
+      ? null
+      : typeof document === "undefined"
+        ? anchor
+        : createPortal(anchor, document.body);
+
   return (
     <>
-      {anchor}
+      <span ref={anchorOriginRef} className="hidden" aria-hidden="true" />
+      {renderedAnchor}
       <CloseIssueDialog
         open={pendingClose}
         issueId={issue.id}

@@ -1,39 +1,43 @@
-# Stage 1: deps — install dependencies only (cache-friendly)
-FROM node:22.23.2-alpine AS deps
+# Stage 1: pruner — resolve Turbo from the repository dependency and produce
+# the Docker-specific pruned workspace.
+FROM node:22.23.2-alpine AS pruner
 WORKDIR /app
 
-# Enable the package manager declared by the root package.json.
+# Resolve the package manager and Turbo from the checked-in root manifests.
 RUN corepack enable
+COPY . .
+RUN pnpm install --frozen-lockfile
+RUN pnpm exec turbo prune @reef/web --docker \
+    && cp tsdown.config.mjs out/full/tsdown.config.mjs \
+    && test -f out/full/tsdown.config.mjs \
+    && cp tsconfig.base.json out/full/tsconfig.base.json \
+    && test -f out/full/tsconfig.base.json
 
-# Copy workspace manifests
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY packages/web/package.json ./packages/web/
-COPY packages/core/package.json ./packages/core/
 
-# Install all workspace dependencies
+# Stage 2: deps — install only the pruned workspace dependencies.
+FROM node:22.23.2-alpine AS deps
+WORKDIR /app
+RUN corepack enable
+COPY --from=pruner /app/out/json/ ./
+COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
 RUN pnpm install --frozen-lockfile
 
 
-# Stage 2: builder — full build
+# Stage 3: builder — build from the pruned source tree.
 FROM node:22.23.2-alpine AS builder
 WORKDIR /app
 
-# Enable the package manager declared by the root package.json.
+# Enable the package manager declared by the pruned root package.json.
 RUN corepack enable
 
-# Copy installed node_modules from deps stage
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages/web/node_modules ./packages/web/node_modules
-COPY --from=deps /app/packages/core/node_modules ./packages/core/node_modules
+COPY --from=deps /app/ ./
+COPY --from=pruner /app/out/full/ ./
 
-# Copy source code
-COPY . .
-
-# Build only the web app (output: 'standalone' is set in next.config.ts)
-RUN pnpm --filter @reef/web run build
+# Build the pruned web workspace through the canonical root task.
+RUN pnpm run build
 
 
-# Stage 3: runner — minimal runtime image
+# Stage 4: runner — minimal runtime image.
 FROM node:22.23.2-alpine AS runner
 WORKDIR /app
 

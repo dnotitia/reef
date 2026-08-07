@@ -1,6 +1,6 @@
 "use client";
 
-import { PlanningStatusBadge } from "@/components/fields/PlanningStatusBadge";
+import { PlanningOption } from "@/components/fields/PlanningOption";
 import type { ComboboxOption } from "@/components/ui/combobox";
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
 import { usePlanningKindSingularLabels } from "@/i18n/fieldLabels";
@@ -66,14 +66,7 @@ export function PlanningItemMultiCombobox({
         value: item.id,
         label: item.name,
         content: (
-          <>
-            <span className="truncate">{item.name}</span>
-            <PlanningStatusBadge
-              kind={kind}
-              status={item.status}
-              className="ml-auto shrink-0"
-            />
-          </>
+          <PlanningOption kind={kind} name={item.name} status={item.status} />
         ),
       })),
     [items, kind],

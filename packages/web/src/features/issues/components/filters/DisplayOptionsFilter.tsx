@@ -5,6 +5,7 @@ import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
 import type { IssueFilter } from "@/features/issues/stores/useIssueStore";
 import { Archive, CircleCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useMemo } from "react";
 
 /**
  * The "Display" view-mode toggles (REEF-275), modeled as a multi-select facet so
@@ -30,42 +31,50 @@ export function DisplayOptionsFilter({
 }: DisplayOptionsFilterProps) {
   const t = useTranslations("issues.filters");
 
-  // Built per-render so the option labels resolve to the active locale (REEF-298).
-  const viewModeOptions: ComboboxOption<ViewModeKey>[] = [
-    {
-      value: "archived",
-      label: t("showArchived"),
-      content: (
-        <>
-          <Archive
-            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-            aria-hidden
-          />
-          {t("showArchived")}
-        </>
-      ),
-      testId: "show-archived-toggle",
-    },
-    {
-      value: "completed",
-      label: t("showCompleted"),
-      content: (
-        <>
-          <CircleCheck
-            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-            aria-hidden
-          />
-          {t("showCompleted")}
-        </>
-      ),
-      testId: "show-stale-toggle",
-    },
-  ];
+  const viewModeOptions = useMemo<ComboboxOption<ViewModeKey>[]>(
+    () => [
+      {
+        value: "archived",
+        label: t("showArchived"),
+        content: (
+          <>
+            <Archive
+              className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+              aria-hidden
+            />
+            {t("showArchived")}
+          </>
+        ),
+        testId: "show-archived-toggle",
+      },
+      {
+        value: "completed",
+        label: t("showCompleted"),
+        content: (
+          <>
+            <CircleCheck
+              className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+              aria-hidden
+            />
+            {t("showCompleted")}
+          </>
+        ),
+        testId: "show-stale-toggle",
+      },
+    ],
+    [t],
+  );
 
-  const values: ViewModeKey[] = [];
-  if (filter.showArchived) values.push("archived");
-  if (filter.showStale) values.push("completed");
-  const options = backlogScope ? viewModeOptions.slice(0, 1) : viewModeOptions;
+  const values = useMemo<ViewModeKey[]>(() => {
+    const result: ViewModeKey[] = [];
+    if (filter.showArchived) result.push("archived");
+    if (filter.showStale) result.push("completed");
+    return result;
+  }, [filter.showArchived, filter.showStale]);
+  const options = useMemo(
+    () => (backlogScope ? viewModeOptions.slice(0, 1) : viewModeOptions),
+    [backlogScope, viewModeOptions],
+  );
 
   return (
     <MultiSelectCombobox

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -54,6 +54,24 @@ describe("Combobox", () => {
     expect(onChange).toHaveBeenCalledWith("banana");
     // Panel closed → option no longer in the DOM.
     expect(screen.queryByRole("option", { name: "Cherry" })).toBeNull();
+  });
+
+  it("opens from explicit pointer and keyboard activation while closed", () => {
+    render(<Controlled />);
+    const trigger = screen.getByLabelText("Fruit");
+
+    fireEvent.pointerDown(trigger, { button: 0 });
+    expect(screen.getByRole("option", { name: "Apple" })).toBeInTheDocument();
+
+    fireEvent.keyDown(trigger, { key: "Escape" });
+    expect(screen.queryByRole("option", { name: "Apple" })).toBeNull();
+
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    expect(screen.getByRole("option", { name: "Apple" })).toBeInTheDocument();
+
+    fireEvent.keyDown(trigger, { key: "Escape" });
+    fireEvent.keyDown(trigger, { key: " " });
+    expect(screen.getByRole("option", { name: "Apple" })).toBeInTheDocument();
   });
 
   it("selecting the none row emits null", async () => {

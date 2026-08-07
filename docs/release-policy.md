@@ -6,6 +6,7 @@ application plus its private core, worker, and operator packages.
 The pnpm workspace contains `packages/web`, `packages/core`,
 `packages/orchestration/runtime`, `packages/orchestration/providers/codex`,
 `packages/orchestration/providers/local`,
+`packages/orchestration/providers/local-validation`,
 `packages/orchestration/providers/github`, `packages/jira-migrator`, and
 `packages/orchestration/providers/reef`. None is published or versioned
 independently. Repository versioning therefore follows the product release, not
@@ -117,16 +118,9 @@ Before creating a release tag:
    compatibility, vault skill/runbook documents, operational config, or data
    backfills.
 4. Run the standard gates:
-   - `pnpm biome check .`
-   - `pnpm run check:release`
-   - `pnpm -r run typecheck`
-   - `pnpm -r run test`
-   - `pnpm --filter @reef/orchestrator run build`
-   - `pnpm --filter @reef/harness-provider-codex run build`
-   - `pnpm --filter @reef/infrastructure-provider-local run build`
-   - `pnpm --filter @reef/scm-provider-github run build`
-   - `pnpm --filter @reef/jira-migrator run build`
-   - `pnpm --filter @reef/work-provider-reef run build`
+   - `pnpm run check:turbo-contract`
+   - `pnpm run check`
+   - `pnpm run build`
    - `pnpm --filter @reef/web run test:e2e` when the required environment is available.
 5. Confirm Docker image build and size checks pass.
 6. Confirm streaming routes still pass the SSE smoke test for the target

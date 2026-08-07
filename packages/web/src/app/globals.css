@@ -589,6 +589,79 @@ hr {
   pointer-events: none;
 }
 
+/* The expanded desktop shell leaves 704px for the issue content at 992px.
+ * Keep the fresh default List preset fully visible in that narrow desktop
+ * content column; optional planning columns opt back into the table-local
+ * horizontal scroll owned by the List surface. */
+@media (max-width: 1231px) {
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded) {
+    min-width: 0 !important;
+  }
+
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="select"] {
+    width: 32px !important;
+  }
+
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="id"] {
+    width: 64px !important;
+  }
+
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="type"] {
+    width: 56px !important;
+  }
+
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="title"] {
+    width: 144px !important;
+    min-width: 144px !important;
+  }
+
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="status"] {
+    width: 80px !important;
+  }
+
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="priority"] {
+    width: 64px !important;
+  }
+
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="assignee"] {
+    width: 88px !important;
+  }
+
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="due"],
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="updated"] {
+    width: 72px !important;
+  }
+
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="select"] {
+    left: 0 !important;
+  }
+
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="id"] {
+    left: 32px !important;
+  }
+
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="type"] {
+    left: 96px !important;
+  }
+
+  .reef-issue-list-table:not(.reef-issue-list-table-expanded)
+    [data-column-key="title"] {
+    left: 152px !important;
+  }
+}
+
 /* Indeterminate search progress — a thin brand (teal) hairline that sweeps
  * along an async search surface's input/panel edge while a request is in
  * flight (REEF-369). A dim brand track hosts a brighter band that travels

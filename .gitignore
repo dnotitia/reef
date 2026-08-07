@@ -3,6 +3,7 @@ node_modules/
 .pnpm-store/
 .maintenance/
 dist/
+.turbo/
 .env
 .env.local
 .env.*.local

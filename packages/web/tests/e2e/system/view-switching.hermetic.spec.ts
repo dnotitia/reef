@@ -15,7 +15,7 @@ const VIEW_BODY: Record<string, string> = {
   board: "kanban-board",
   list: "issue-list-row",
   timeline: "timeline-grid",
-  backlog: "backlog-header",
+  backlog: "backlog-table",
 };
 
 async function switchTo(
@@ -101,7 +101,7 @@ test.describe("Hermetic issue view switching", () => {
 
     await page.waitForURL(/view=backlog/, { timeout: 10_000 });
     await expect(
-      page.locator('[data-testid="backlog-header"]').first(),
+      page.locator('[data-testid="backlog-table"]').first(),
     ).toBeVisible({ timeout: 15_000 });
   });
 });

@@ -56,6 +56,12 @@ explicitly in the entries below.
   default Turbopack path.** The standalone production build contract remains
   unchanged while webpack-only overrides are removed.
 
+- **Turbo now owns the workspace task graph and cache contract.** Build and
+  affected selection discover workspace dependencies from pnpm manifests, CI
+  builds one exact-head Next standalone artifact plus the discovered workspace
+  dependency build artifacts for all Playwright shards, and Docker prunes
+  `@reef/web` before installing and building the runtime image.
+
 ### Changed
 
 - **Empty states now share one canonical section frame across My Work, Inbox,
@@ -63,11 +69,18 @@ explicitly in the entries below.
   deliberately unboxed.** The four section frames use the same geometry and
   title/description hierarchy; existing Board navigation, filter reset, and
   Planning create actions remain outside the frame.
+- **List and Backlog issue tables now share compact density and field geometry.**
+  List opens with the essential fields and offers session-only planning-column
+  toggles; Backlog uses the same common field order, keeps Rank guidance in the
+  header, and retains its inline status and drag interactions.
 - **Node package contracts now build and validate from isolated artifacts.**
   Seven Node packages use tsdown to emit ESM JavaScript and declarations from
   `dist/`, dependency-cruiser enforces workspace directions and production
   boundaries, and the canonical non-E2E check exercises packed public imports,
   core subpaths, and the Jira migrator CLI.
+- **Issue filters now converge on shared person and planning option rows.**
+  Milestone filtering lists only real milestones and exposes a dedicated clear
+  action that leaves other active facets intact. (REEF-462)
 
 ## v0.9.0 - 2026-08-03
 

@@ -6,8 +6,9 @@ Node package entrypoint.
 
 ## Buildable packages
 
-These seven Node packages use the shared tsdown configuration to emit ESM
-JavaScript and declaration files under `dist/`:
+Every Node workspace package whose manifest declares `files: ["dist"]` uses
+the shared tsdown configuration to emit ESM JavaScript and declaration files
+under `dist/`. The table shows the current buildable packages:
 
 | Package | Role | Public entry |
 | --- | --- | --- |
@@ -15,6 +16,7 @@ JavaScript and declaration files under `dist/`:
 | `@reef/orchestrator` | Provider-neutral one-run orchestration runtime | Root |
 | `@reef/harness-provider-codex` | Codex harness provider | Root |
 | `@reef/infrastructure-provider-local` | Local infrastructure provider for isolated Git-backed runs | Root |
+| `@reef/validation-provider-local` | Local validation provider for ordered checks and bounded proof | Root |
 | `@reef/scm-provider-github` | Explicitly bound GitHub SCM provider for refs, branches, commits, pushes, and draft PRs | Root |
 | `@reef/work-provider-reef` | Reef work provider | Root |
 | `@reef/jira-migrator` | Operator-run Jira migration tool | Root and the `reef-jira-migrator` bin |
@@ -28,7 +30,8 @@ The allowed workspace dependency directions are:
 core                         → (none)
 orchestrator                 → core
 harness-provider-codex       → orchestrator
-infrastructure-provider-local → orchestrator
+infrastructure-provider-local  → orchestrator
+validation-provider-local      → orchestrator
 scm-provider-github          → orchestrator
 work-provider-reef           → core, orchestrator
 jira-migrator                → core
@@ -41,20 +44,22 @@ imports of tests, fixtures, or test helpers.
 ## Local checks
 
 `pnpm run check` is the contributor-facing non-E2E aggregate. It starts with
-the package contract gate and then runs the repository lint, typecheck, test,
-and release-policy checks:
+the Turbo graph/cache contract and toolchain checks, then runs the discovered
+package contract gate, repository lint, typecheck, tests, maintenance, and
+release-policy checks:
 
 ```bash
+pnpm run check:turbo-contract
 pnpm run build:packages
 pnpm run package-contract:smoke
 pnpm run architecture:check
 pnpm run check
 ```
 
-The artifact smoke builds temporary package tarballs from the actual manifests
-and `dist/` directories, installs all seven packages in an isolated temporary
+The artifact smoke discovers package tarballs from the actual manifests and
+`dist/` directories, installs every buildable package in an isolated temporary
 consumer with pnpm, and uses only pure Node ESM imports for every public root
-and the existing core subpaths plus the installed `reef-jira-migrator --help`
-bin. It rejects source/TypeScript files, source exports, and workspace links.
+and exported subpath plus any discovered CLI bin. It rejects source/TypeScript
+files, source exports, and workspace links.
 The temporary consumer and its package manager state are removed after the
 check.

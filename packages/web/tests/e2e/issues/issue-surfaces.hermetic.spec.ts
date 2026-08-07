@@ -47,8 +47,292 @@ test.describe("Hermetic issue route surfaces", () => {
 
     await page.locator('[data-testid="view-switcher-backlog"]').click();
     await page.waitForURL(/view=backlog/, { timeout: 10_000 });
-    await expect(page.locator('[data-testid="backlog-header"]')).toBeVisible();
+    await expect(page.locator('[data-testid="backlog-table"]')).toBeVisible();
     await expect(page.getByText("Backlog issue Gamma")).toBeVisible();
+  });
+
+  test("keeps List and Backlog table geometry and controls aligned on desktop", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await openExistingWorkspace(page);
+
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+    await expect(
+      page.locator('[data-testid="issue-list-row"]').first(),
+    ).toBeVisible();
+
+    const list = page.locator('[data-testid="issue-list-scroll-container"]');
+    const defaultList = await list.evaluate((element) => {
+      const root = element as HTMLElement;
+      const header = root.querySelector('thead th[data-column-key="id"]');
+      const row = root.querySelector(
+        'tbody tr[data-testid="issue-list-row"] td[data-column-key="id"]',
+      );
+      return {
+        headerHeight: header?.getBoundingClientRect().height ?? 0,
+        rowHeight: row?.getBoundingClientRect().height ?? 0,
+        columnKeys: Array.from(
+          root.querySelectorAll("thead th[data-column-key]"),
+        ).map((cell) => cell.getAttribute("data-column-key")),
+        tableOverflow: root.scrollWidth > root.clientWidth,
+        documentOverflow:
+          document.documentElement.scrollWidth >
+          document.documentElement.clientWidth,
+      };
+    });
+    expect(Math.round(defaultList.headerHeight)).toBe(32);
+    expect(Math.round(defaultList.rowHeight)).toBe(40);
+    expect(defaultList.columnKeys).toEqual([
+      "select",
+      "id",
+      "type",
+      "title",
+      "status",
+      "priority",
+      "assignee",
+      "due",
+      "updated",
+    ]);
+    expect(defaultList.tableOverflow).toBe(false);
+    expect(defaultList.documentOverflow).toBe(false);
+
+    async function toggleListColumn(column: string) {
+      await page.getByTestId("issue-list-columns-control").click();
+      await page.getByTestId(`issue-list-column-${column}`).click();
+    }
+
+    for (const column of ["start", "sprint", "milestone", "release"]) {
+      await toggleListColumn(column);
+    }
+
+    const expandedList = await list.evaluate((element) => {
+      const root = element as HTMLElement;
+      root.scrollLeft = root.scrollWidth;
+      root.dispatchEvent(new Event("scroll"));
+      const stickyKeys = ["select", "id", "type", "title"];
+      return {
+        tableOverflow: root.scrollWidth > root.clientWidth,
+        stickyAlignment: stickyKeys.map((key) => {
+          const header = root.querySelector(
+            `thead th[data-column-key="${key}"]`,
+          );
+          const cell = root.querySelector(
+            `tbody tr[data-testid="issue-list-row"] td[data-column-key="${key}"]`,
+          );
+          return {
+            key,
+            headerLeft: Math.round(header?.getBoundingClientRect().left ?? 0),
+            cellLeft: Math.round(cell?.getBoundingClientRect().left ?? 0),
+          };
+        }),
+      };
+    });
+    expect(expandedList.tableOverflow).toBe(true);
+    for (const alignment of expandedList.stickyAlignment) {
+      expect(alignment.cellLeft).toBe(alignment.headerLeft);
+    }
+
+    await page.getByTestId("view-switcher-backlog").click();
+    await page.waitForURL(/view=backlog/, { timeout: 10_000 });
+    await expect(page.getByTestId("backlog-table")).toBeVisible();
+    await expect(page.getByTestId("backlog-row").first()).toBeVisible();
+    await expect(page.getByTestId("backlog-rank-header")).toBeVisible();
+
+    const backlog = page.getByTestId("backlog-table");
+    const backlogGeometry = await backlog.evaluate((element) => {
+      const root = element as HTMLElement;
+      const header = root.querySelector('thead th[data-column-key="id"]');
+      const row = root.querySelector(
+        'tbody tr[data-testid="backlog-row"] td[data-column-key="id"]',
+      );
+      const status = root.querySelector(
+        '[data-testid^="backlog-status-select-"]',
+      );
+      const statusValue = status?.querySelector<HTMLElement>(
+        '[data-slot="select-value"]',
+      );
+      return {
+        headerHeight: header?.getBoundingClientRect().height ?? 0,
+        rowHeight: row?.getBoundingClientRect().height ?? 0,
+        statusHeight: status?.getBoundingClientRect().height ?? 0,
+        statusText: statusValue?.textContent?.trim() ?? "",
+        statusTextClipped:
+          !statusValue || statusValue.scrollWidth > statusValue.clientWidth,
+        columnKeys: Array.from(
+          root.querySelectorAll("thead th[data-column-key]"),
+        ).map((cell) => cell.getAttribute("data-column-key")),
+      };
+    });
+    expect(Math.round(backlogGeometry.headerHeight)).toBe(32);
+    expect(Math.round(backlogGeometry.rowHeight)).toBe(40);
+    expect(backlogGeometry.statusHeight).toBeLessThanOrEqual(32);
+    expect(backlogGeometry.statusText).toBe("Backlog");
+    expect(backlogGeometry.statusTextClipped).toBe(false);
+    expect(backlogGeometry.columnKeys).toEqual([
+      "rank",
+      "id",
+      "type",
+      "title",
+      "status",
+      "priority",
+      "assignee",
+      "updated",
+    ]);
+
+    const filterTops = await Promise.all(
+      ["type-dropdown-trigger", "display-options-trigger"].map(async (id) =>
+        page
+          .getByTestId(id)
+          .evaluate((element) => element.getBoundingClientRect().top),
+      ),
+    );
+    expect(
+      Math.max(...filterTops) - Math.min(...filterTops),
+    ).toBeLessThanOrEqual(1);
+
+    const grip = page.locator('[data-testid^="backlog-grip-"]').first();
+    await expect(grip).toBeVisible();
+    await expect(grip).toHaveAttribute(
+      "title",
+      "Drag to reorder in Rank order",
+    );
+    await grip.focus();
+    await expect
+      .poll(() => grip.evaluate((element) => getComputedStyle(element).opacity))
+      .toBe("1");
+
+    await page.getByTestId("sort-control-trigger").click();
+    await page.getByTestId("sort-option-priority").click();
+    await expect(page.getByTestId("backlog-rank-header")).toHaveAttribute(
+      "title",
+      "Switch to Rank order to reorder",
+    );
+    await expect(page.locator('[data-testid^="backlog-grip-"]')).toHaveCount(0);
+
+    await page.getByTestId("sort-control-trigger").click();
+    await page.getByTestId("sort-option-rank").click();
+    await expect(
+      page.locator('[data-testid^="backlog-grip-"]').first(),
+    ).toBeVisible();
+
+    await page.getByTestId("view-switcher-list").click();
+    await page.waitForURL(/view=list/, { timeout: 10_000 });
+    await expect(
+      page.locator('[data-testid="issue-list-row"]').first(),
+    ).toBeVisible();
+    await expect(page.locator('thead th[data-column-key="start"]')).toHaveCount(
+      0,
+    );
+  });
+
+  test("fits the default List preset inside the narrow desktop content column", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 992, height: 720 });
+    await openExistingWorkspace(page);
+    await expect(page.locator("aside")).toBeVisible();
+
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+    await expect(
+      page.locator('[data-testid="issue-list-row"]').first(),
+    ).toBeVisible();
+
+    const scroll = page.getByTestId("issue-list-scroll-container");
+    const geometry = await scroll.evaluate((element) => {
+      const root = element as HTMLElement;
+      const table = root.querySelector("table");
+      const contentRight = root.getBoundingClientRect().right;
+      const due = root.querySelector(
+        'tbody tr[data-testid="issue-list-row"] td[data-column-key="due"]',
+      );
+      const updated = root.querySelector(
+        'tbody tr[data-testid="issue-list-row"] td[data-column-key="updated"]',
+      );
+      return {
+        tableWidth: table?.getBoundingClientRect().width ?? 0,
+        contentWidth: root.clientWidth,
+        tableOverflow: root.scrollWidth > root.clientWidth,
+        dueVisible: (due?.getBoundingClientRect().right ?? 0) <= contentRight,
+        updatedVisible:
+          (updated?.getBoundingClientRect().right ?? 0) <= contentRight,
+        documentOverflow:
+          document.documentElement.scrollWidth >
+          document.documentElement.clientWidth,
+        columnKeys: Array.from(
+          root.querySelectorAll("thead th[data-column-key]"),
+        ).map((cell) => cell.getAttribute("data-column-key")),
+      };
+    });
+
+    expect(geometry.tableWidth).toBeLessThanOrEqual(geometry.contentWidth);
+    expect(geometry.tableOverflow).toBe(false);
+    expect(geometry.dueVisible).toBe(true);
+    expect(geometry.updatedVisible).toBe(true);
+    expect(geometry.documentOverflow).toBe(false);
+    expect(geometry.columnKeys).toEqual([
+      "select",
+      "id",
+      "type",
+      "title",
+      "status",
+      "priority",
+      "assignee",
+      "due",
+      "updated",
+    ]);
+
+    await page.goto("/workspace/reef-e2e/issues?view=backlog");
+    await expect(page.getByTestId("backlog-table")).toBeVisible();
+
+    const narrowStatusGeometry = await page
+      .locator('[data-testid^="backlog-status-select-"]')
+      .first()
+      .evaluate((element) => {
+        const value = element.querySelector<HTMLElement>(
+          '[data-slot="select-value"]',
+        );
+        return {
+          text: value?.textContent?.trim() ?? "",
+          clipped: !value || value.scrollWidth > value.clientWidth,
+        };
+      });
+    expect(narrowStatusGeometry.text).toBe("Backlog");
+    expect(narrowStatusGeometry.clipped).toBe(false);
+
+    const backlogFilterBar = page.getByTestId("filter-bar");
+    const backlogFilterGeometry = await backlogFilterBar.evaluate((element) => {
+      const root = element as HTMLElement;
+      const selectors = [
+        '[data-testid="type-dropdown-trigger"]',
+        '[data-testid="priority-dropdown-trigger"]',
+        '[data-testid="severity-dropdown-trigger"]',
+        '[data-testid="dependency-dropdown-trigger"]',
+        '[data-testid="assignee-dropdown-trigger"]',
+        '[data-testid="requester-dropdown-trigger"]',
+        '[data-testid="milestone-filter"]',
+        '[data-testid="labels-filter"]',
+        '[data-testid="display-options-trigger"]',
+        '[data-testid="named-filter-trigger"]',
+      ];
+      const tops = selectors.map((selector) => {
+        const control = root.querySelector(selector);
+        return Math.round(control?.getBoundingClientRect().top ?? 0);
+      });
+      return {
+        filterBarHeight: Math.round(root.getBoundingClientRect().height),
+        tops,
+        documentOverflow:
+          document.documentElement.scrollWidth >
+          document.documentElement.clientWidth,
+      };
+    });
+    expect(
+      Math.max(...backlogFilterGeometry.tops) -
+        Math.min(...backlogFilterGeometry.tops),
+    ).toBeLessThanOrEqual(1);
+    expect(backlogFilterGeometry.filterBarHeight).toBeLessThanOrEqual(40);
+    expect(backlogFilterGeometry.documentOverflow).toBe(false);
   });
 
   test("renders the README demo board fixture across workflow columns", async ({
