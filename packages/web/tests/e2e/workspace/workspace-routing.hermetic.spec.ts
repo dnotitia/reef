@@ -28,6 +28,34 @@ test.describe("workspace URL routing (REEF-315)", () => {
     ).toBeVisible();
   });
 
+  test("keeps the first authenticated sidebar navigation interactive after reload", async ({
+    page,
+  }) => {
+    await signInAsAlice(page);
+    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/issues\/?$/, {
+      timeout: 15_000,
+    });
+    await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
+
+    // The source-blind contract reaches this state after its authenticated
+    // Issues refresh. Keep the first visible sidebar click in the same session
+    // so a hydration or route-transition race cannot be hidden by a fresh tab.
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
+    await page.waitForTimeout(1_000);
+
+    const planningLink = page.getByRole("link", { name: "Planning" });
+    await expect(planningLink).toHaveAttribute(
+      "href",
+      "/workspace/reef-e2e/planning",
+    );
+    await planningLink.click();
+    await expect(page).toHaveURL(/\/workspace\/reef-e2e\/planning\/?$/, {
+      timeout: 10_000,
+    });
+    await expect(page.getByRole("heading", { name: "Planning" })).toBeVisible();
+  });
+
   test("AC2: a shared deep link opens in the URL's workspace, not the Dexie default", async ({
     page,
   }) => {
