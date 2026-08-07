@@ -19,7 +19,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@octokit/rest": "^21.1.1",
+    "@octokit/rest": "catalog:",
     "@reef/orchestrator": "workspace:*"
   },
   "devDependencies": {

@@ -6,6 +6,9 @@ settings:
 
 catalogs:
   default:
+    '@octokit/rest':
+      specifier: ^21.1.1
+      version: 21.1.1
     '@opentelemetry/api':
       specifier: ^1.9.1
       version: 1.9.1
@@ -87,7 +90,7 @@ importers:
         specifier: ^8.2.2
         version: 8.2.2
       '@octokit/rest':
-        specifier: ^21.1.1
+        specifier: 'catalog:'
         version: 21.1.1
       '@opentelemetry/api':
         specifier: 'catalog:'
@@ -165,7 +168,7 @@ importers:
   packages/orchestration/providers/github:
     dependencies:
       '@octokit/rest':
-        specifier: ^21.1.1
+        specifier: 'catalog:'
         version: 21.1.1
       '@reef/orchestrator':
         specifier: workspace:*
