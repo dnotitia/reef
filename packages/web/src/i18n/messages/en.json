@@ -1203,7 +1203,6 @@
     }
   },
   "myWork": {
-    "goToBoard": "Go to the board →",
     "emptyTitle": "Nothing is assigned to you yet",
     "emptyDescription": "Issues assigned to you show up here, prioritized for what to do next.",
     "caughtUpTitle": "You're all caught up",

@@ -67,8 +67,10 @@ explicitly in the entries below.
 - **Empty states now share one canonical section frame across My Work, Inbox,
   Reports, and Planning, while the unconfigured-workspace prompt stays
   deliberately unboxed.** The four section frames use the same geometry and
-  title/description hierarchy; existing Board navigation, filter reset, and
-  Planning create actions remain outside the frame.
+  title/description hierarchy; My Work's empty and caught-up states are passive
+  and no longer duplicate Board navigation in the PageHeader, while existing
+  Issues/Board navigation, filter reset, and Planning create actions remain
+  intact outside the frame.
 - **List and Backlog issue tables now share compact density and field geometry.**
   List opens with the essential fields and offers session-only planning-column
   toggles; Backlog uses the same common field order, keeps Rank guidance in the

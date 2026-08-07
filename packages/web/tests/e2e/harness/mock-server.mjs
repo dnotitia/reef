@@ -16,6 +16,7 @@ const SUPPORTED_SCENARIOS = [
   "empty",
   "configured",
   "configured_empty",
+  "configured_caught_up",
   "configured_multi",
   "demo_board",
   "content_search",
@@ -351,6 +352,11 @@ function runtimeDiscovery() {
           planning: "/workspace/reef-e2e/planning",
         },
       },
+      caught_up_states: {
+        scenario: "configured_caught_up",
+        workspace: "reef-e2e",
+        start_path: "/workspace/reef-e2e/my-work",
+      },
     },
   };
 }
@@ -417,6 +423,7 @@ function makeState(scenario) {
   if (
     scenario === "configured" ||
     scenario === "configured_empty" ||
+    scenario === "configured_caught_up" ||
     scenario === "configured_multi" ||
     scenario === "activity_suggestions" ||
     scenario === "notifications" ||
@@ -429,7 +436,9 @@ function makeState(scenario) {
         ? largeVault(REEF_VAULT)
         : scenario === "configured_empty"
           ? configuredEmptyVault(REEF_VAULT)
-          : configuredVault(REEF_VAULT);
+          : scenario === "configured_caught_up"
+            ? configuredCaughtUpVault(REEF_VAULT)
+            : configuredVault(REEF_VAULT);
     if (scenario === "activity_suggestions") seedActivitySuggestions(vault);
     if (scenario === "notifications") seedNotifications(vault);
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);
@@ -678,6 +687,20 @@ function configuredEmptyVault(name) {
   vault.activity = [];
   vault.notifications = [];
   vault.subscriptions = [];
+  return vault;
+}
+
+function configuredCaughtUpVault(name) {
+  const vault = configuredVault(name);
+  vault.issues = vault.issues
+    .filter((issue) => issue.assigned_to === "alice")
+    .map((issue) => ({ ...issue, status: "done" }));
+  vault.documents = new Map();
+  vault.comments = [];
+  vault.activity = [];
+  for (const issue of vault.issues) {
+    seedIssueDocument(vault, issue.reef_id, `${issue.title} is complete.`);
+  }
   return vault;
 }
 

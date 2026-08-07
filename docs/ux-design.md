@@ -743,6 +743,27 @@ Create issue, Approve); AI confirmations use the purple `bg-ai` button (Apply,
 Apply all, Approve a draft); supporting actions are ghost/outline; destructive
 actions (Delete) are red and confirmed.
 
+### CTA Role Matrix
+
+CTA placement belongs to the surrounding page composition, not to the shared
+`EmptyState` frame. The same role and visual hierarchy apply at desktop and
+390px widths, in Light and Dark themes, and in both locales.
+
+| Surface / state | Role | Form and placement | Applies when |
+| --- | --- | --- | --- |
+| My Work: assigned work is empty | Passive | No PageHeader action and no frame action | There are no issues assigned to the signed-in user |
+| My Work: caught up | Passive | No PageHeader action and no frame action | Assigned issues exist, but none are open |
+| My Work: populated | None | Existing summary and queue only | Open work is available |
+| Planning: true empty | Primary create/continue | One existing filled `PageHeader` New button | The selected planning kind has no entries |
+| Reports: true empty | Primary create/continue, follow-up | A future filled `PageHeader` New issue button; this surface does not wire the flow here | Reports creation is implemented by its owning feature |
+| Board / Suggestions: filtered no-match | Recovery | Existing outline control outside the section frame | Active filters produce no matches |
+| Inbox: normal empty | Passive | No CTA | There is no notification to review |
+| Workspace navigation | Navigation | Existing sidebar Issues link and Issues view switcher | All My Work states; navigation is not duplicated in an empty frame |
+
+The My Work passive states keep their title, description, and personal scope
+copy. Removing the duplicate Board action does not change the existing Issues
+or Board navigation, and keyboard focus follows the remaining visual order.
+
 ### Empty & Loading States
 
 Loading uses TanStack Query's `isPending` with shadcn `<Skeleton>` placeholders
@@ -754,10 +775,11 @@ enrichment loading state is purple-tinted** — the
 surface with a spinning indicator, matching the purple of the suggestions it
 precedes — so AI work is visually distinct from neutral content loading.
 
-Empty states explain and offer a next step: an unconfigured workspace points to
-Settings; an empty Suggestions queue says there's nothing to review; an
-enrichment that returns nothing says "No additional suggestions." A screen is
-never left blank.
+Empty states explain the state and offer a next step where one exists: an
+unconfigured workspace points to Settings; an empty Suggestions queue says
+there's nothing to review; an enrichment that returns nothing says "No
+additional suggestions." Passive states still provide their explanation, so a
+screen is never left blank.
 
 The shared `EmptyState` uses two deliberate presentation variants. The
 `structure` variant is an unboxed, centered prompt for a page that cannot be
@@ -766,9 +788,9 @@ variant is the canonical framed treatment for an empty collection or report:
 `mx-auto h-48 min-h-48 w-full max-w-4xl rounded-lg border border-dashed
 border-border-subtle bg-surface-subtle px-6 py-12 text-center`. It requires one
 title `h2` and one supporting description `p`; it has no icon or action slots.
-Page-level actions such as My Work's Board link and Planning's create button,
-or a Reports parent-scope recovery control, remain outside the frame so the
-four section states keep identical geometry and content hierarchy.
+Page-level actions such as Planning's create button or a Reports parent-scope
+recovery control remain outside the frame so the four section states keep
+identical geometry and content hierarchy.
 
 ### Error Handling
 

@@ -1390,7 +1390,6 @@
     }
   },
   "myWork": {
-    "goToBoard": "보드로 가기 →",
     "emptyTitle": "아직 할당된 작업이 없습니다",
     "emptyDescription": "할당된 이슈가 다음에 할 일 순서로 여기에 표시됩니다.",
     "caughtUpTitle": "모두 처리했습니다",
