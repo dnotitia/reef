@@ -100,6 +100,14 @@ export function ReportsPage() {
     }));
   }, []);
 
+  const clearParentScope = useCallback(() => {
+    setFilters((current) => {
+      const next = { ...current };
+      next.parent_id = undefined;
+      return next;
+    });
+  }, []);
+
   const catalog = planningQuery.data;
 
   // The parent rollup drill is the one report facet with no scope-bar control
@@ -200,12 +208,7 @@ export function ReportsPage() {
                   variant="outline"
                   size="sm"
                   data-testid="reports-clear-parent-scope"
-                  onClick={() =>
-                    setFilters((current) => ({
-                      ...current,
-                      parent_id: undefined,
-                    }))
-                  }
+                  onClick={clearParentScope}
                 >
                   {t("clearParentFilter")}
                   {parentScopeName ? `: ${parentScopeName}` : ""}

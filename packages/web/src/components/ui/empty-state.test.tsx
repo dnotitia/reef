@@ -15,6 +15,7 @@ describe("EmptyState", () => {
     const state = screen.getByTestId("section-empty");
     expect(state).toHaveAttribute("data-slot", "empty-state");
     expect(state.className).toContain("mx-auto");
+    expect(state.className).toContain("h-48");
     expect(state.className).toContain("min-h-48");
     expect(state.className).toContain("w-full");
     expect(state.className).toContain("max-w-4xl");

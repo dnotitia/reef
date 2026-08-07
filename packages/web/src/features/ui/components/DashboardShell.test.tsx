@@ -159,6 +159,7 @@ describe("DashboardShell", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     if (originalPlatform) {
       Object.defineProperty(window.navigator, "platform", originalPlatform);
     }
@@ -199,6 +200,29 @@ describe("DashboardShell", () => {
     expect(
       screen.getByRole("button", { name: "Expand sidebar" }),
     ).toBeInTheDocument();
+  });
+
+  it("collapses the sidebar on narrow viewports to keep the content column usable", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockReturnValue({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    );
+
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+
+    expect(screen.getByLabelText("Sidebar")).toHaveClass("w-14");
+    expect(screen.queryByTestId("sidebar-brand-name")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-nav-icon-issues")).toBeVisible();
   });
 
   it("renders the navigation links (Issues, Planning, Suggestions, Reports, Settings)", () => {

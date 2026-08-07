@@ -402,6 +402,58 @@ describe("ReportsPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("preserves a label-only no-match when clearing the parent scope", async () => {
+    mockApi([
+      {
+        id: "E1",
+        title: "Triage GitHub activity into draft issues",
+        status: "todo",
+        created_at: "2026-05-01T00:00:00.000Z",
+        created_by: "alice",
+        updated_at: "2026-05-01T00:00:00.000Z",
+        updated_by: "alice",
+      },
+      {
+        id: "c1",
+        parent_id: "E1",
+        title: "Child task",
+        status: "todo",
+        created_at: "2026-05-02T00:00:00.000Z",
+        created_by: "alice",
+        updated_at: "2026-05-02T00:00:00.000Z",
+        updated_by: "alice",
+        labels: ["activity"],
+      },
+      {
+        id: "other",
+        title: "Unrelated report",
+        status: "todo",
+        created_at: "2026-05-03T00:00:00.000Z",
+        created_by: "alice",
+        updated_at: "2026-05-03T00:00:00.000Z",
+        updated_by: "alice",
+        labels: ["planning"],
+      },
+    ]);
+
+    render(wrap(<ReportsPage />));
+    await screen.findByTestId("report-scope-bar");
+
+    fireEvent.click(screen.getByTestId("health-rollup-row-E1"));
+    setLabelFilter("docs");
+
+    expect(screen.getByText("No matching report data")).toBeInTheDocument();
+    expect(screen.getByText("docs")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("reports-clear-parent-scope"));
+
+    expect(
+      screen.queryByTestId("reports-clear-parent-scope"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("No matching report data")).toBeInTheDocument();
+    expect(screen.getByText("docs")).toBeInTheDocument();
+  });
+
   it("surfaces the previously-dead bySeverity aggregate as a By severity card (REEF-186)", async () => {
     mockApi([
       { ...issues[0], severity: "critical" },

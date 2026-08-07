@@ -215,4 +215,112 @@ test.describe("Hermetic runtime discovery", () => {
       page.locator('[data-testid="planning-editor-dialog"]'),
     ).toBeHidden();
   });
+
+  test("keeps empty frames aligned and header actions in bounds on narrow dark viewports", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await context.clearCookies();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ colorScheme: "dark" });
+    await resetFixture(request, "configured_empty");
+    await openExistingWorkspace(page);
+
+    const frameBoxes: Array<{ width: number; height: number }> = [];
+    async function recordFrame(locator: Locator) {
+      const box = await locator.boundingBox();
+      if (!box) {
+        throw new Error(
+          "Expected the narrow empty-state frame to have a bounding box",
+        );
+      }
+      expect(box.width).toBeGreaterThan(250);
+      expect(box.x + box.width).toBeLessThanOrEqual(390);
+      frameBoxes.push({ width: box.width, height: box.height });
+    }
+
+    async function expectViewportFits() {
+      const widths = await page.evaluate(() => ({
+        body: document.body.scrollWidth,
+        document: document.documentElement.scrollWidth,
+        viewport: window.innerWidth,
+      }));
+      expect(widths.body).toBeLessThanOrEqual(widths.viewport);
+      expect(widths.document).toBeLessThanOrEqual(widths.viewport);
+    }
+
+    const sidebar = await page.locator("aside").boundingBox();
+    expect(sidebar?.width).toBe(56);
+
+    await page.goto("/workspace/reef-e2e/my-work");
+    const myWorkEmpty = page.getByTestId("my-work-empty");
+    await expect(myWorkEmpty).toBeVisible();
+    await recordFrame(myWorkEmpty);
+    const boardAction = page
+      .locator('[data-slot="page-header"]')
+      .getByRole("link", { name: /Go to the board/ });
+    await expect(boardAction).toBeVisible();
+    const boardBox = await boardAction.boundingBox();
+    if (!boardBox) throw new Error("Expected the Board action to have a box");
+    expect(boardBox.x + boardBox.width).toBeLessThanOrEqual(390);
+    await expectViewportFits();
+
+    await page.goto("/workspace/reef-e2e/inbox");
+    const inboxEmpty = page.getByTestId("notification-inbox-empty");
+    await expect(inboxEmpty).toBeVisible();
+    await recordFrame(inboxEmpty);
+    await expectViewportFits();
+
+    await page.goto("/workspace/reef-e2e/reports");
+    const reportsEmpty = page.getByTestId("reports-empty");
+    await expect(reportsEmpty).toBeVisible();
+    await recordFrame(reportsEmpty);
+    await expectViewportFits();
+
+    await page.goto("/workspace/reef-e2e/planning");
+    const planningEmpty = page.getByTestId("planning-empty-sprints");
+    await expect(planningEmpty).toBeVisible();
+    await recordFrame(planningEmpty);
+    const sprintAction = page
+      .locator('[data-slot="page-header"]')
+      .getByRole("button", { name: "New sprint" });
+    await expect(sprintAction).toBeVisible();
+    const sprintBox = await sprintAction.boundingBox();
+    if (!sprintBox)
+      throw new Error("Expected the New sprint action to have a box");
+    expect(sprintBox.x + sprintBox.width).toBeLessThanOrEqual(390);
+    await expectViewportFits();
+
+    const reference = frameBoxes[0];
+    for (const box of frameBoxes.slice(1)) {
+      expect(Math.abs(box.width - reference.width)).toBeLessThanOrEqual(1);
+      expect(Math.abs(box.height - reference.height)).toBeLessThanOrEqual(1);
+    }
+  });
+
+  test("preserves the label no-match after clearing a parent report scope", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await context.clearCookies();
+    await resetFixture(request, "demo_board");
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/reports");
+
+    await page.getByTestId("health-rollup-dimension-parent").click();
+    await page.getByTestId("health-rollup-row-REEF-101").click();
+    const labelInput = page.getByTestId("report-label-input");
+    await labelInput.fill("docs");
+    await labelInput.press("Enter");
+    await expect(page.getByTestId("reports-empty")).toBeVisible();
+    await expect(page.getByText("No matching report data")).toBeVisible();
+    await expect(page.getByText("docs")).toBeVisible();
+
+    await page.getByTestId("reports-clear-parent-scope").click();
+    await expect(page.getByTestId("reports-clear-parent-scope")).toHaveCount(0);
+    await expect(page.getByText("No matching report data")).toBeVisible();
+    await expect(page.getByText("docs")).toBeVisible();
+  });
 });

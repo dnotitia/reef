@@ -28,7 +28,7 @@ export type EmptyStateProps =
   | SectionEmptyStateProps;
 
 const SECTION_FRAME =
-  "mx-auto min-h-48 w-full max-w-4xl rounded-lg border border-dashed border-border-subtle bg-surface-subtle px-6 py-12 text-center";
+  "mx-auto h-48 min-h-48 w-full max-w-4xl rounded-lg border border-dashed border-border-subtle bg-surface-subtle px-6 py-12 text-center";
 const STRUCTURE_FRAME =
   "flex flex-1 items-center justify-center px-6 py-12 text-center";
 

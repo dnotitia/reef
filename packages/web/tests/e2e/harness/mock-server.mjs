@@ -901,7 +901,7 @@ function demoBoardVault(name) {
       milestone_id: milestoneId,
       release_id: releaseId,
       estimate_points: 2,
-      labels: ["docs", "akb"],
+      labels: ["storage", "akb"],
     }),
     issueRow({
       id: "REEF-110",
