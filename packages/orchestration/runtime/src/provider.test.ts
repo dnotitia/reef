@@ -85,7 +85,14 @@ const validationProvider: ValidationProvider = {
   id: "fake-validation",
   version: "1.0.0",
   capabilities: VALIDATION_CAPABILITIES,
-  validate: () => ({ status: "passed", checks: [], artifacts: [] }),
+  validate: ({ candidateRevision, contractRevision }) => ({
+    status: "passed",
+    candidateRevision,
+    contractRevision,
+    totalDurationMs: 0,
+    checks: [],
+    artifacts: [],
+  }),
 };
 
 describe("provider contract", () => {
@@ -138,6 +145,13 @@ describe("provider contract", () => {
       invokeProviderOperation(validationProvider, "validate", {
         candidateRevision: "candidate",
         contractRevision: "contract",
+        checks: [
+          {
+            name: "check",
+            command: "true",
+            timeoutMs: 1_000,
+          },
+        ],
       }),
     ).resolves.toMatchObject({ status: "passed" });
   });

@@ -125,6 +125,7 @@ inside this repository.
 | `packages/orchestration/runtime` | Provider-neutral execution core (`@reef/orchestrator`) for registry preflight, lifecycle, cancellation, cleanup, terminal results, and graceful shutdown outside the web process. |
 | `packages/orchestration/providers/codex` | Private Codex App Server harness adapter (`@reef/harness-provider-codex`) for stdio lifecycle, policy enforcement, and secret-free harness events. |
 | `packages/orchestration/providers/local` | Private local infrastructure provider (`@reef/infrastructure-provider-local`) for isolated Git-backed run workspaces and bounded process execution. |
+| `packages/orchestration/providers/local-validation` | Private local validation provider (`@reef/validation-provider-local`) for ordered trusted checks, bounded redacted proof, and process-tree cleanup. |
 | `packages/jira-migrator` | Operator-run Jira-to-Reef migration package (`@reef/jira-migrator`) for read-only Jira discovery, private migration artifacts, import planning, and dependency-injected Reef apply/reconciliation. |
 | `packages/orchestration/providers/reef` | Private Reef work adapter (`@reef/work-provider-reef`) that implements the orchestrator `WorkProvider` contract through core's AKB issue and activity funnels. |
 | `docs/` | Architecture, package contracts, UX, deployment, migration, release, and maintenance documentation. |
@@ -189,7 +190,9 @@ reef has three runtime tiers:
   Backend-for-Frontend over reef core.
 
 Provider-neutral one-run execution lives separately in `@reef/orchestrator`; a
-caller may schedule it outside the web process. One-shot Jira migrations run
+caller may schedule it outside the web process. The private
+`@reef/validation-provider-local` adapter supplies exact-checkout validation
+proof without owning scheduling or persistence. One-shot Jira migrations run
 separately in `@reef/jira-migrator`, while Reef issue work is exposed through
 `@reef/work-provider-reef`; neither runtime loop is hosted inside reef web.
 
@@ -223,6 +226,7 @@ reef origin. See [docs/deployment.md](docs/deployment.md) and
 - [`@reef/orchestrator` package README](packages/orchestration/runtime/README.md)
 - [`@reef/harness-provider-codex` package README](packages/orchestration/providers/codex/README.md)
 - [`@reef/infrastructure-provider-local` package README](packages/orchestration/providers/local/README.md)
+- [`@reef/validation-provider-local` package README](packages/orchestration/providers/local-validation/README.md)
 - [`@reef/jira-migrator` package README](packages/jira-migrator/README.md)
 - [`@reef/work-provider-reef` package README](packages/orchestration/providers/reef/README.md)
 - [Contributing](CONTRIBUTING.md)

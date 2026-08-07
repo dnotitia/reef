@@ -56,6 +56,13 @@ const validInput = (): RunPlanInput => ({
       VALIDATION_CAPABILITIES,
     ),
   },
+  validationChecks: [
+    {
+      name: "typecheck",
+      command: "pnpm typecheck",
+      timeoutMs: 30_000,
+    },
+  ],
   requiredCapabilities: {
     work: ["read"],
     harness: ["start"],
@@ -217,9 +224,16 @@ const makeRegistry = (
     id: plan.providers.validation.id,
     version: plan.providers.validation.version,
     capabilities: VALIDATION_CAPABILITIES,
-    validate: () => {
+    validate: ({ candidateRevision, contractRevision }) => {
       providerCall();
-      return { status: "passed", checks: [], artifacts: [] };
+      return {
+        status: "passed",
+        candidateRevision,
+        contractRevision,
+        totalDurationMs: 0,
+        checks: [],
+        artifacts: [],
+      };
     },
   };
 
