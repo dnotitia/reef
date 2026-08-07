@@ -191,7 +191,7 @@ export function FilterBar({
   // facet name localizes alongside its already-localized value summary.
   const fieldNames = useFieldNameLabels();
   // Localized bar copy (REEF-298): the active-filter count, the milestone
-  // empty-state label, and the shared "Clear filters" action.
+  // clear action, and the shared "Clear filters" action.
   const t = useTranslations("issues.filters");
   const c = useTranslations("common");
 
@@ -397,17 +397,31 @@ export function FilterBar({
         className={PLANNING_FILTER_WRAPPER_CLASS}
         data-testid="milestone-filter"
       >
-        <PlanningItemCombobox
-          kind="milestones"
-          vault={vault}
-          value={filter.milestone_id ?? ""}
-          onChange={(id) => setFilter({ milestone_id: id || undefined })}
-          label={fieldNames.milestone}
-          placeholder={fieldNames.milestone}
-          emptyLabel={t("anyMilestone")}
-          active={Boolean(filter.milestone_id)}
-          className={FILTER_FIELD_CLASS}
-        />
+        <div className="flex items-center gap-1">
+          <PlanningItemCombobox
+            kind="milestones"
+            vault={vault}
+            value={filter.milestone_id ?? ""}
+            onChange={(id) => setFilter({ milestone_id: id || undefined })}
+            label={fieldNames.milestone}
+            placeholder={fieldNames.milestone}
+            showNoneOption={false}
+            active={Boolean(filter.milestone_id)}
+            className={FILTER_FIELD_CLASS}
+          />
+          {filter.milestone_id ? (
+            <button
+              type="button"
+              aria-label={t("clearMilestone")}
+              title={t("clearMilestone")}
+              data-testid="milestone-clear-button"
+              onClick={() => setFilter({ milestone_id: undefined })}
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-elevated text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/30"
+            >
+              <X className="size-3.5" aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {/* Release filter — multi-select (REEF-267). Dropped in the backlog view:

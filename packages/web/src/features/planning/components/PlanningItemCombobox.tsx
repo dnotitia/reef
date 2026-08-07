@@ -1,6 +1,6 @@
 "use client";
 
-import { PlanningStatusBadge } from "@/components/fields/PlanningStatusBadge";
+import { PlanningOption } from "@/components/fields/PlanningOption";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { usePlanningKindSingularLabels } from "@/i18n/fieldLabels";
 import { useTranslations } from "next-intl";
@@ -21,6 +21,8 @@ interface PlanningItemComboboxProps {
   label?: string;
   placeholder?: string;
   emptyLabel?: string;
+  /** Hide the clear row when the surrounding surface owns its own clear action. */
+  showNoneOption?: boolean;
   disabled?: boolean;
   assignableOnly?: boolean;
   className?: string;
@@ -48,6 +50,7 @@ export function PlanningItemCombobox({
   label,
   placeholder,
   emptyLabel,
+  showNoneOption = true,
   disabled,
   assignableOnly = false,
   className,
@@ -81,14 +84,7 @@ export function PlanningItemCombobox({
         value: item.id,
         label: item.name,
         content: (
-          <>
-            <span className="truncate">{item.name}</span>
-            <PlanningStatusBadge
-              kind={kind}
-              status={item.status}
-              className="ml-auto shrink-0"
-            />
-          </>
+          <PlanningOption kind={kind} name={item.name} status={item.status} />
         ),
       })),
     [visibleItems, kind],
@@ -107,7 +103,7 @@ export function PlanningItemCombobox({
       renderValue={() => (
         <span className="truncate">{selected?.name ?? value}</span>
       )}
-      noneOption={{ label: resolvedEmptyLabel }}
+      noneOption={showNoneOption ? { label: resolvedEmptyLabel } : undefined}
       emptyState={t("empty")}
       disabled={disabled || !vault}
       active={active}
