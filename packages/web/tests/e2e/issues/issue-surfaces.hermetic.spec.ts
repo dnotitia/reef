@@ -170,6 +170,7 @@ test.describe("Hermetic issue route surfaces", () => {
     expect(backlogGeometry.statusText).toBe("Backlog");
     expect(backlogGeometry.statusTextClipped).toBe(false);
     expect(backlogGeometry.columnKeys).toEqual([
+      "select",
       "rank",
       "id",
       "type",
