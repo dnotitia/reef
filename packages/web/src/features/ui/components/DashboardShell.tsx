@@ -94,6 +94,34 @@ function subscribeToPlatformStore() {
   return () => {};
 }
 
+const MOBILE_SIDEBAR_MEDIA_QUERY = "(max-width: 767px)";
+
+function subscribeToMobileSidebar(onStoreChange: () => void) {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function")
+    return () => {};
+
+  const mediaQuery = window.matchMedia(MOBILE_SIDEBAR_MEDIA_QUERY);
+  if (typeof mediaQuery.addEventListener === "function") {
+    mediaQuery.addEventListener("change", onStoreChange);
+    return () => mediaQuery.removeEventListener("change", onStoreChange);
+  }
+
+  mediaQuery.addListener(onStoreChange);
+  return () => mediaQuery.removeListener(onStoreChange);
+}
+
+function getMobileSidebarSnapshot(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia(MOBILE_SIDEBAR_MEDIA_QUERY).matches
+  );
+}
+
+function getServerMobileSidebarSnapshot(): boolean {
+  return false;
+}
+
 interface DashboardShellProps {
   children: React.ReactNode;
   appVersion: string;
@@ -180,7 +208,15 @@ const cap = (n: number) => (n > 9 ? "9+" : String(n));
 
 export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   const interactionReady = useHydrated();
-  const sidebarCollapsed = useViewStore((state) => state.sidebarCollapsed);
+  const storedSidebarCollapsed = useViewStore(
+    (state) => state.sidebarCollapsed,
+  );
+  const mobileSidebarCollapsed = useSyncExternalStore(
+    subscribeToMobileSidebar,
+    getMobileSidebarSnapshot,
+    getServerMobileSidebarSnapshot,
+  );
+  const sidebarCollapsed = storedSidebarCollapsed || mobileSidebarCollapsed;
   const toggleSidebar = useViewStore((state) => state.toggleSidebar);
   const openNewIssueDialog = useViewStore((state) => state.openNewIssueDialog);
   const openBlankNewIssueDialog = useCallback(() => {

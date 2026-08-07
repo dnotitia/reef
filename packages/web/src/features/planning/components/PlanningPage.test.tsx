@@ -156,6 +156,61 @@ describe("PlanningPage", () => {
     expect(screen.queryByText("active")).not.toBeInTheDocument();
   });
 
+  it("uses the shared empty frame and keeps the normal create flow", async () => {
+    mockApiFetch.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : String(input);
+        if (url.startsWith("/api/planning?")) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({ sprints: [], milestones: [], releases: [] }),
+              { status: 200 },
+            ),
+          );
+        }
+        if (
+          url.startsWith("/api/planning/") &&
+          (init?.method === "POST" || init?.method === "PUT")
+        ) {
+          const body = JSON.parse(String(init.body)) as { item: unknown };
+          return Promise.resolve(
+            new Response(JSON.stringify({ item: body.item }), { status: 200 }),
+          );
+        }
+        return Promise.resolve(new Response(null, { status: 204 }));
+      },
+    );
+
+    const user = userEvent.setup();
+    render(wrap(<PlanningPage />));
+
+    const empty = await screen.findByTestId("planning-empty-sprints");
+    expect(
+      within(empty).getByRole("heading", { name: "No sprints yet." }),
+    ).toBeInTheDocument();
+    expect(
+      within(empty).getByText("Create a new sprint to start planning."),
+    ).toBeInTheDocument();
+    expect(empty).toHaveClass(
+      "mx-auto",
+      "min-h-48",
+      "w-full",
+      "max-w-4xl",
+      "rounded-lg",
+      "border-dashed",
+      "border-border-subtle",
+      "bg-surface-subtle",
+      "px-6",
+      "py-12",
+    );
+    expect(within(empty).queryByRole("button")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "New sprint" }));
+    expect(
+      await screen.findByTestId("planning-editor-dialog"),
+    ).toBeInTheDocument();
+  });
+
   it("renders sprint dates via the shared DateDisplay", async () => {
     render(wrap(<PlanningPage />));
     await screen.findByText("Sprint One");

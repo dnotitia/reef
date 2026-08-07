@@ -64,6 +64,11 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Empty states now share one canonical section frame across My Work, Inbox,
+  Reports, and Planning, while the unconfigured-workspace prompt stays
+  deliberately unboxed.** The four section frames use the same geometry and
+  title/description hierarchy; existing Board navigation, filter reset, and
+  Planning create actions remain outside the frame.
 - **List and Backlog issue tables now share compact density and field geometry.**
   List opens with the essential fields and offers session-only planning-column
   toggles; Backlog uses the same common field order, keeps Rank guidance in the

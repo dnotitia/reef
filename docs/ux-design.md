@@ -15,9 +15,10 @@ contract and this document explains the user-facing consequence.
 ## Platform & Architecture Context
 
 reef is a Next.js (App Router) application rendered with React 19. It runs
-in the browser; there is no desktop build, no native packaging, no offline
-mode, and no cross-platform responsive obligation beyond ordinary desktop
-window sizes. The product is a stateless BFF in front of the akb backend —
+in the browser; there is no desktop build, no native packaging, and no offline
+mode. The shell and shared empty-state surfaces also keep a narrow 390px
+viewport usable without clipping or overlap. The product is a stateless BFF in
+front of the akb backend —
 the server persists nothing that belongs to a user, so the entire experience
 is shaped around a strict state-owner split:
 
@@ -343,10 +344,11 @@ fluid main column:
 | `gap-6` | 24px | Settings group header to content |
 | `gap-8` | 32px | Settings sections |
 
-- **Sidebar** — collapsible between an expanded `w-60` and a `w-14` icon rail.
-  It holds the reef wordmark, a prominent New Issue button, the primary nav
-  (Issues / My Work / Inbox / Planning / Suggestions / Reports / Settings), a footer
-  utility row for keyboard shortcuts, and the workspace/account identity block.
+- **Sidebar** — collapsible between an expanded `w-60` and a `w-14` icon rail;
+  narrow viewports use the icon rail so the main column remains usable. It holds
+  the reef wordmark, a prominent New Issue button, the primary nav (Issues / My
+  Work / Inbox / Planning / Suggestions / Reports / Settings), a footer utility
+  row for keyboard shortcuts, and the workspace/account identity block.
   App-version context lives in the account menu as a release-notes link.
 - **Main column** — a per-page header and the page body. The Issues page body
   swaps between Board, List, Timeline, and Backlog.
@@ -710,6 +712,12 @@ that exist and define the experience:
 - **Shell.** `DashboardShell` (sidebar, nav, account/release context, global
   dialogs), page header/body, the global search palette, the keyboard-shortcuts
   sheet, and the offline banner.
+- **Empty states.** `EmptyState`
+  (`packages/web/src/components/ui/empty-state.tsx`) is the shared leaf for
+  prerequisite and section-level empty content. Callers import it directly and
+  provide existing translated title/description copy; navigation and recovery
+  controls stay in the surrounding page composition rather than inside the
+  frame.
 
 The AI components share the `--ai` token family so that AI work reads as a
 consistent purple track wherever it appears, distinct from the teal brand.
@@ -750,6 +758,17 @@ Empty states explain and offer a next step: an unconfigured workspace points to
 Settings; an empty Suggestions queue says there's nothing to review; an
 enrichment that returns nothing says "No additional suggestions." A screen is
 never left blank.
+
+The shared `EmptyState` uses two deliberate presentation variants. The
+`structure` variant is an unboxed, centered prompt for a page that cannot be
+composed without a prerequisite such as an active workspace. The `section`
+variant is the canonical framed treatment for an empty collection or report:
+`mx-auto h-48 min-h-48 w-full max-w-4xl rounded-lg border border-dashed
+border-border-subtle bg-surface-subtle px-6 py-12 text-center`. It requires one
+title `h2` and one supporting description `p`; it has no icon or action slots.
+Page-level actions such as My Work's Board link and Planning's create button,
+or a Reports parent-scope recovery control, remain outside the frame so the
+four section states keep identical geometry and content hierarchy.
 
 ### Error Handling
 

@@ -15,6 +15,7 @@ const TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID = "call_e2e_search_documents";
 const SUPPORTED_SCENARIOS = [
   "empty",
   "configured",
+  "configured_empty",
   "configured_multi",
   "demo_board",
   "content_search",
@@ -301,6 +302,16 @@ function runtimeDiscovery() {
         workspace: "reef-e2e",
         start_path: "/workspace/reef-e2e/issues?view=list",
       },
+      empty_states: {
+        scenario: "configured_empty",
+        workspace: "reef-e2e",
+        start_paths: {
+          my_work: "/workspace/reef-e2e/my-work",
+          inbox: "/workspace/reef-e2e/inbox",
+          reports: "/workspace/reef-e2e/reports",
+          planning: "/workspace/reef-e2e/planning",
+        },
+      },
     },
   };
 }
@@ -366,6 +377,7 @@ function makeState(scenario) {
 
   if (
     scenario === "configured" ||
+    scenario === "configured_empty" ||
     scenario === "configured_multi" ||
     scenario === "activity_suggestions" ||
     scenario === "notifications" ||
@@ -376,7 +388,9 @@ function makeState(scenario) {
     const vault =
       scenario === "large_vault"
         ? largeVault(REEF_VAULT)
-        : configuredVault(REEF_VAULT);
+        : scenario === "configured_empty"
+          ? configuredEmptyVault(REEF_VAULT)
+          : configuredVault(REEF_VAULT);
     if (scenario === "activity_suggestions") seedActivitySuggestions(vault);
     if (scenario === "notifications") seedNotifications(vault);
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);
@@ -611,6 +625,20 @@ function configuredVault(name) {
       "Spec overview for the hermetic Ask AI tool transparency workflow.",
     tags: ["docs", "ask-ai", "e2e"],
   });
+  return vault;
+}
+
+function configuredEmptyVault(name) {
+  const vault = configuredVault(name);
+  vault.issues = [];
+  vault.documents = new Map();
+  vault.sprints = [];
+  vault.milestones = [];
+  vault.releases = [];
+  vault.comments = [];
+  vault.activity = [];
+  vault.notifications = [];
+  vault.subscriptions = [];
   return vault;
 }
 
@@ -873,7 +901,7 @@ function demoBoardVault(name) {
       milestone_id: milestoneId,
       release_id: releaseId,
       estimate_points: 2,
-      labels: ["docs", "akb"],
+      labels: ["storage", "akb"],
     }),
     issueRow({
       id: "REEF-110",

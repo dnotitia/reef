@@ -240,7 +240,6 @@ export function PlanningPage() {
           issues={issues}
           isLoading={catalogQuery.isPending}
           expandedId={expandedId}
-          onCreate={() => startCreate(activeKind)}
           onEdit={startEdit}
           onExpandedIdChange={setExpandedId}
           onRequestDelete={(kind, item) => setDeleteTarget({ kind, item })}

@@ -1,6 +1,6 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import type { IssueListItem } from "@reef/core";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -146,7 +146,15 @@ describe("MyWorkPage", () => {
         <MyWorkPage />
       </IntlTestProvider>,
     );
-    expect(screen.getByTestId("my-work-no-session")).toBeInTheDocument();
+    const notice = screen.getByTestId("my-work-no-session");
+    expect(notice).toHaveClass(
+      "rounded-lg",
+      "border-dashed",
+      "border-border-subtle",
+      "bg-surface-subtle",
+      "px-6",
+      "py-12",
+    );
     // A logged-out visit should not fan out a whole-vault fetch (blank vault,
     // no query); placeholder reuse is opted out as for every My Work fetch.
     expect(mockUseIssueList).toHaveBeenCalledWith("", undefined, {
@@ -161,8 +169,27 @@ describe("MyWorkPage", () => {
         <MyWorkPage />
       </IntlTestProvider>,
     );
-    expect(screen.getByTestId("my-work-empty")).toBeInTheDocument();
-    const cta = screen.getByRole("link", { name: /Go to the board/ });
+    const notice = screen.getByTestId("my-work-empty");
+    expect(notice).toHaveClass(
+      "mx-auto",
+      "min-h-48",
+      "w-full",
+      "max-w-4xl",
+      "rounded-lg",
+      "border-dashed",
+      "border-border-subtle",
+      "bg-surface-subtle",
+      "px-6",
+      "py-12",
+    );
+    expect(within(notice).queryByRole("link")).not.toBeInTheDocument();
+    const header = screen
+      .getByRole("heading", { name: "My Work", level: 1 })
+      .closest('[data-slot="page-header"]');
+    expect(header).not.toBeNull();
+    const cta = within(header as HTMLElement).getByRole("link", {
+      name: /Go to the board/,
+    });
     expect(cta).toHaveAttribute(
       "href",
       "/workspace/reef-acme/issues?view=board",
@@ -179,8 +206,27 @@ describe("MyWorkPage", () => {
         <MyWorkPage />
       </IntlTestProvider>,
     );
-    expect(screen.getByTestId("my-work-caught-up")).toBeInTheDocument();
-    const cta = screen.getByRole("link", { name: /Go to the board/ });
+    const notice = screen.getByTestId("my-work-caught-up");
+    expect(notice).toHaveClass(
+      "mx-auto",
+      "min-h-48",
+      "w-full",
+      "max-w-4xl",
+      "rounded-lg",
+      "border-dashed",
+      "border-border-subtle",
+      "bg-surface-subtle",
+      "px-6",
+      "py-12",
+    );
+    expect(within(notice).queryByRole("link")).not.toBeInTheDocument();
+    const header = screen
+      .getByRole("heading", { name: "My Work", level: 1 })
+      .closest('[data-slot="page-header"]');
+    expect(header).not.toBeNull();
+    const cta = within(header as HTMLElement).getByRole("link", {
+      name: /Go to the board/,
+    });
     expect(cta).toHaveAttribute(
       "href",
       "/workspace/reef-acme/issues?view=board",
