@@ -26,7 +26,7 @@
     "architecture:check": "node scripts/check-architecture.mjs",
     "check:package-contract": "pnpm run build:packages && pnpm run package-contract:smoke && pnpm run architecture:check",
     "lint": "biome check .",
-    "check": "pnpm run toolchain:check && pnpm run toolchain:check:test && pnpm run check:package-contract && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run check:release",
+    "check": "pnpm run toolchain:check && pnpm run toolchain:check:test && pnpm run check:package-contract && pnpm run lint && pnpm run typecheck && pnpm run maintenance:test && pnpm run test && pnpm run check:release",
     "check:release": "node scripts/check-release-policy.mjs",
     "maintenance:scan": "node scripts/maintenance/scan.mjs",
     "maintenance:assert-clean": "node scripts/maintenance/scan.mjs --assert-clean",

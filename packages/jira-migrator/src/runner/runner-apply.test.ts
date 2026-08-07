@@ -1,0 +1,526 @@
+import {
+  chmod,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { JiraMigratorConfig, NormalizedJiraIssue } from "../index.js";
+import type { JiraIssueImportPlan } from "../issues/importPlan.js";
+import { jiraIssueFixture } from "../jira/fixtures.js";
+import { JiraIssueSchema, normalizeJiraIssue } from "../payloads.js";
+import { reportTemplate } from "../related/reporting.js";
+import { mappedFingerprintForIssue } from "./decisions.js";
+import { scheduleIssuePlansForApply } from "./issueSchedule.js";
+import {
+  actionForRelatedIssuePlan,
+  assertRelatedOperationSubset,
+  relatedPlanForApproval,
+} from "./plan.js";
+import {
+  actionForRelatedReport,
+  baseIssueReadbackMatches,
+  canRecoverApprovedPlanningCreate,
+  inferRelationSourceProjectKey,
+  issueReadbackApprovalFingerprint,
+  migrationScopeLockIdentity,
+  runJiraMigration,
+} from "./runner.js";
+import { JiraTargetConflictError } from "./targetAdapter.js";
+
+let root: string | null = null;
+afterEach(async () => {
+  if (root) await rm(root, { recursive: true, force: true });
+  root = null;
+});
+
+const makeIssue = (
+  projectKey: string,
+  projectId: string,
+  issueId: string,
+  rank: string,
+): NormalizedJiraIssue =>
+  normalizeJiraIssue(
+    JiraIssueSchema.parse({
+      ...jiraIssueFixture,
+      id: issueId,
+      key: `${projectKey}-1`,
+      fields: {
+        ...jiraIssueFixture.fields,
+        project: {
+          ...jiraIssueFixture.fields.project,
+          id: projectId,
+          key: projectKey,
+          name: projectKey,
+        },
+        attachment: [],
+        customfield_rank: rank,
+        issuelinks: [],
+      },
+    }),
+  );
+
+const policy = {
+  statuses: [{ name: "In Progress", status: "in_progress" }],
+  issueTypes: [{ name: "Task", issueType: "task" }],
+  priorities: [],
+  fieldOverrides: {
+    story_points: "customfield_story_points",
+    start_date: "customfield_start_date",
+  },
+};
+describe("runJiraMigration", () => {
+  it("runs dry-run then approved apply with the same plan and zero dry-run mutation", async () => {
+    root = await realpath(await mkdtemp(join(tmpdir(), "reef-jira-runner-")));
+    await chmod(root, 0o700);
+    const policyPaths: Record<string, string> = {};
+    for (const key of ["ALPHA", "BETA"]) {
+      const path = join(root, `${key}.policy.json`);
+      await writeFile(path, JSON.stringify(policy), { mode: 0o600 });
+      policyPaths[key] = path;
+    }
+    const artifactRoot = join(root, "artifacts");
+    await chmod(root, 0o700);
+    const config: JiraMigratorConfig = {
+      mode: "dry-run",
+      dryRun: true,
+      jira: {
+        baseUrl: "https://jira.test",
+        cloudId: "cloud-1",
+        projectKey: "ALPHA",
+        projectKeys: ["ALPHA", "BETA"],
+        boardIds: [],
+        mappingPolicyPaths: policyPaths,
+        auth: { mode: "bearer", token: "test-token" },
+      },
+      target: {
+        baseUrl: "https://akb.test",
+        vault: "reef-test",
+        jwt: "test-auth-token",
+      },
+      targetVault: "reef-test",
+      reportPath: join(artifactRoot, "report.json"),
+      accountMappingPath: join(artifactRoot, "accounts.json"),
+      artifacts: {
+        runId: "run-alpha-beta",
+        ledgerPath: join(artifactRoot, "ledger.json"),
+        archiveRoot: join(artifactRoot, "archive"),
+        accountMappingPath: join(artifactRoot, "accounts.json"),
+        reportPath: join(artifactRoot, "report.json"),
+      },
+      resumeRunId: null,
+      expectedPlanSha256: null,
+      control: {
+        retryCount: 0,
+        retryBaseDelayMs: 0,
+        retryMaxDelayMs: 0,
+        commentCatalogComplete: false,
+      },
+    };
+    const issues = {
+      ALPHA: makeIssue("ALPHA", "100", "10001", "0|i00020:"),
+      BETA: makeIssue("BETA", "200", "20001", "0|i00010:"),
+    };
+    const clients = new Map(
+      Object.entries(issues).map(([key, issue]) => [
+        key,
+        {
+          listFields: vi.fn(async () => ({
+            items: [
+              {
+                id: "customfield_story_points",
+                name: "Story Points",
+                schema: {
+                  type: "number",
+                  custom:
+                    "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                },
+              },
+              {
+                id: "customfield_other_number",
+                name: "Budget",
+                schema: {
+                  type: "number",
+                  custom:
+                    "com.atlassian.jira.plugin.system.customfieldtypes:float",
+                },
+              },
+              {
+                id: "customfield_start_date",
+                name: "Start date",
+                schema: {
+                  type: "date",
+                  custom:
+                    "com.atlassian.jira.plugin.system.customfieldtypes:datepicker",
+                },
+              },
+              {
+                id: "customfield_other_date",
+                name: "Other date",
+                schema: {
+                  type: "date",
+                  custom:
+                    "com.atlassian.jira.plugin.system.customfieldtypes:datepicker",
+                },
+              },
+              {
+                id: "customfield_rank",
+                name: "순위",
+                schema: {
+                  type: "any",
+                  custom: "com.pyxis.greenhopper.jira:gh-lexo-rank",
+                },
+              },
+            ],
+            rateLimit: {},
+            raw: [],
+          })),
+          readBoardSprintCatalog: vi.fn(),
+          readProjectVersionCatalog: vi.fn(async () => ({
+            items: [],
+            pages: [],
+            rateLimits: [],
+          })),
+          getProject: vi.fn(async () => ({
+            project: { id: issue.raw.fields.project?.id ?? key, key },
+            rateLimit: {},
+            raw: { id: issue.raw.fields.project?.id ?? key, key },
+          })),
+          listChangelog: vi.fn(async () => ({
+            items: [],
+            cursor: null,
+            isLast: true,
+            rateLimit: {},
+            raw: { values: [], isLast: true },
+          })),
+          readComments: vi.fn(async () => ({
+            items: [],
+            cursor: null,
+            isLast: true,
+            rateLimit: {},
+            raw: { comments: [] },
+          })),
+          listRemoteLinks: vi.fn(async () => ({
+            items: [],
+            rateLimit: {},
+            raw: [],
+          })),
+          searchProjectIssues: vi.fn(async () => ({
+            items: [issue],
+            cursor: null,
+            isLast: true,
+            rateLimit: {},
+            raw: { issues: [issue.raw], isLast: true },
+          })),
+        },
+      ]),
+    );
+    const mutations: string[] = [];
+    const writtenIssues = new Map<
+      string,
+      { issue: Record<string, unknown>; content: string }
+    >();
+    const readIssue = vi.fn(async (id: string) => {
+      const written = writtenIssues.get(id);
+      if (!written) throw new Error("issue_missing");
+      return { ...written, commit_hash: "commit" };
+    });
+    const claimIssue = vi.fn();
+    const target = {
+      adapter: { request: vi.fn() },
+      preflight: vi.fn(async () => ({
+        actor: "operator",
+        vault: "reef-test",
+        projectPrefix: "REEF",
+        planning: { releases: [], sprints: [], milestones: [] },
+      })),
+      planIssueIds: vi.fn(async () => ["REEF-001", "REEF-002"]),
+      applyPlanning: vi.fn(),
+      applyIssue: vi.fn(async (plan) => {
+        if (writtenIssues.has(plan.desired.issue.id)) {
+          throw new Error("target_issue_already_exists");
+        }
+        mutations.push(plan.desired.issue.id);
+        writtenIssues.set(plan.desired.issue.id, {
+          issue: plan.desired.issue,
+          content: plan.desired.content,
+        });
+        return {
+          reefId: plan.desired.issue.id,
+          documentUri: `akb://reef-test/coll/issues/doc/${plan.desired.issue.id.toLowerCase()}.md`,
+          commitHash: "commit",
+        };
+      }),
+      readIssue,
+      claimIssue,
+      relatedTarget: vi.fn(() => ({
+        listFallbackAttachmentActivityActors: vi.fn(async () => []),
+        listExternalRefKeys: vi.fn(async () => []),
+      })),
+      appendActivity: vi.fn(),
+    } as never;
+    const times = [
+      "2026-07-23T00:00:00.000Z",
+      "2026-07-23T00:01:00.000Z",
+      "2026-07-23T00:02:00.000Z",
+      "2026-07-23T00:03:00.000Z",
+      "2026-07-23T00:04:00.000Z",
+      "2026-07-23T00:05:00.000Z",
+      "2026-07-23T00:06:00.000Z",
+      "2026-07-23T00:07:00.000Z",
+    ];
+    const now = () => times.shift() ?? "2026-07-23T00:08:00.000Z";
+    await expect(
+      runJiraMigration(
+        { ...config, mode: "apply", dryRun: false },
+        {
+          target,
+          createJiraClient: (key) => clients.get(key) as never,
+          now,
+        },
+      ),
+    ).rejects.toMatchObject({ code: "dry_run_approval_required" });
+    expect(mutations).toEqual([]);
+
+    await expect(
+      runJiraMigration(
+        {
+          ...config,
+          artifacts: {
+            ...config.artifacts,
+            ledgerPath: config.artifacts.reportPath,
+          },
+        },
+        {
+          target,
+          createJiraClient: (key) => clients.get(key) as never,
+          now,
+        },
+      ),
+    ).rejects.toMatchObject({ code: "artifact_paths_required" });
+    await expect(
+      runJiraMigration(
+        {
+          ...config,
+          artifacts: {
+            ...config.artifacts,
+            archiveRoot: `${config.artifacts.ledgerPath}.run.lock`,
+          },
+        },
+        {
+          target,
+          createJiraClient: (key) => clients.get(key) as never,
+          now,
+        },
+      ),
+    ).rejects.toMatchObject({ code: "artifact_paths_required" });
+
+    const dryRun = await runJiraMigration(config, {
+      target,
+      createJiraClient: (key) => clients.get(key) as never,
+      now,
+    });
+    expect(mutations).toEqual([]);
+    expect(dryRun.report.conservation.balanced).toBe(true);
+    expect(dryRun.report.run.status).toBe("completed");
+    expect(JSON.stringify(dryRun.report)).not.toMatch(
+      /test-token|test-auth-token|operator@example\.com/u,
+    );
+    const repeatedDryRun = await runJiraMigration(config, {
+      target,
+      createJiraClient: (key) => clients.get(key) as never,
+      now,
+    });
+    expect(repeatedDryRun.planSha256).toBe(dryRun.planSha256);
+    expect(mutations).toEqual([]);
+
+    const applyConfig = {
+      ...config,
+      mode: "apply" as const,
+      dryRun: false,
+      expectedPlanSha256: dryRun.planSha256,
+    };
+    const approvalPath = `${config.artifacts.reportPath}.approval.json`;
+    const approvalBytes = await readFile(approvalPath);
+    const editedApproval = JSON.parse(approvalBytes.toString("utf8"));
+    editedApproval.totals.created += 1;
+    await writeFile(approvalPath, JSON.stringify(editedApproval), {
+      mode: 0o600,
+    });
+    await expect(
+      runJiraMigration(applyConfig, {
+        target,
+        createJiraClient: (key) => clients.get(key) as never,
+        now,
+      }),
+    ).rejects.toMatchObject({ code: "plan_fingerprint_mismatch" });
+    expect(mutations).toEqual([]);
+    await writeFile(approvalPath, approvalBytes, { mode: 0o600 });
+
+    await expect(
+      runJiraMigration(
+        {
+          ...applyConfig,
+          control: {
+            ...applyConfig.control,
+            commentCatalogComplete: true,
+          },
+        },
+        {
+          target,
+          createJiraClient: (key) => clients.get(key) as never,
+          now,
+        },
+      ),
+    ).rejects.toMatchObject({ code: "plan_fingerprint_mismatch" });
+    expect(mutations).toEqual([]);
+
+    await expect(
+      runJiraMigration(
+        {
+          ...applyConfig,
+          target: {
+            ...applyConfig.target,
+            baseUrl: "https://different-akb.test",
+          },
+        },
+        {
+          target,
+          createJiraClient: (key) => clients.get(key) as never,
+          now,
+        },
+      ),
+    ).rejects.toMatchObject({ code: "dry_run_scope_mismatch" });
+    expect(mutations).toEqual([]);
+
+    await expect(
+      runJiraMigration(
+        {
+          ...applyConfig,
+          jira: {
+            ...applyConfig.jira,
+            baseUrl: "https://different-jira.test",
+          },
+        },
+        {
+          target,
+          createJiraClient: (key) => clients.get(key) as never,
+          now,
+        },
+      ),
+    ).rejects.toMatchObject({ code: "dry_run_scope_mismatch" });
+    expect(mutations).toEqual([]);
+
+    await expect(
+      runJiraMigration(applyConfig, {
+        target,
+        createJiraClient: (key) => clients.get(key) as never,
+        now,
+        failAfterConfirmedEntities: 1,
+      }),
+    ).rejects.toMatchObject({ code: "failpoint" });
+    expect(mutations).toEqual(["REEF-001"]);
+
+    const apply = await runJiraMigration(applyConfig, {
+      target,
+      createJiraClient: (key) => clients.get(key) as never,
+      now,
+    });
+    expect(apply.planSha256).toBe(dryRun.planSha256);
+    expect(mutations).toEqual(["REEF-001", "REEF-002"]);
+    expect(apply.report.totals.created).toBe(1);
+    expect(apply.report.totals.skipped).toBe(3);
+    expect(writtenIssues.get("REEF-001")?.issue.rank).toBe(2000);
+    expect(writtenIssues.get("REEF-002")?.issue.rank).toBe(1000);
+
+    for (const [id, written] of writtenIssues) {
+      const customFields =
+        written.issue.custom_fields &&
+        typeof written.issue.custom_fields === "object" &&
+        !Array.isArray(written.issue.custom_fields)
+          ? (written.issue.custom_fields as Record<string, unknown>)
+          : {};
+      writtenIssues.set(id, {
+        ...written,
+        issue: {
+          ...written.issue,
+          custom_fields: {
+            ...customFields,
+            target_authored: { keep: true },
+          },
+        },
+      });
+    }
+    const rerun = await runJiraMigration(applyConfig, {
+      target,
+      createJiraClient: (key) => clients.get(key) as never,
+      now,
+    });
+    expect(mutations).toEqual(["REEF-001", "REEF-002"]);
+    expect(rerun.report.totals.created).toBe(0);
+    expect(rerun.report.totals.skipped).toBe(4);
+
+    const ledgerPath = config.artifacts.ledgerPath;
+    if (!ledgerPath) throw new Error("ledger_path_missing");
+    const ledger = JSON.parse(await readFile(ledgerPath, "utf8")) as {
+      bindings: Array<{ source_key?: string }>;
+    };
+    ledger.bindings = ledger.bindings.filter(
+      (binding) => binding.source_key !== "issue:cloud-1:100:10001",
+    );
+    await writeFile(ledgerPath, JSON.stringify(ledger), {
+      mode: 0o600,
+    });
+    claimIssue.mockImplementation(async (plan: JiraIssueImportPlan) => {
+      if (plan.desired.issue?.id === "REEF-001") {
+        throw new JiraTargetConflictError();
+      }
+    });
+    const claimCallsBeforeRecovery = claimIssue.mock.calls.length;
+    const recoveredExisting = await runJiraMigration(applyConfig, {
+      target,
+      createJiraClient: (key) => clients.get(key) as never,
+      now,
+    });
+    expect(recoveredExisting.report.totals.conflict).toBe(0);
+    expect(recoveredExisting.report.totals.created).toBe(0);
+    expect(recoveredExisting.report.totals.skipped).toBe(4);
+    expect(claimIssue.mock.calls).toHaveLength(claimCallsBeforeRecovery);
+    const recoveredLedger = JSON.parse(await readFile(ledgerPath, "utf8")) as {
+      bindings: Array<{ source_key?: string }>;
+    };
+    expect(recoveredLedger.bindings).toContainEqual(
+      expect.objectContaining({
+        source_key: "issue:cloud-1:100:10001",
+      }),
+    );
+
+    const alpha = writtenIssues.get("REEF-001");
+    if (!alpha) throw new Error("alpha_issue_missing");
+    writtenIssues.set("REEF-001", {
+      ...alpha,
+      issue: { ...alpha.issue, title: "Target-authored drift" },
+    });
+    const readCallsBeforeDriftCheck = readIssue.mock.calls.length;
+    const driftedDryRun = await runJiraMigration(config, {
+      target,
+      createJiraClient: (key) => clients.get(key) as never,
+      now,
+    });
+    expect(readIssue.mock.calls.length).toBeGreaterThan(
+      readCallsBeforeDriftCheck,
+    );
+    expect(driftedDryRun.report.run.status).toBe("blocked");
+    expect(driftedDryRun.report.terminal_classifications).toContainEqual(
+      expect.objectContaining({
+        phase: "issues",
+        source_key: "issue:cloud-1:100:10001",
+        action: "conflict",
+      }),
+    );
+  }, 15_000);
+});
