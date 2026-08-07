@@ -33,7 +33,7 @@ overrides:
   "@opentelemetry/core": "2.8.0"
   "@opentelemetry/propagator-jaeger": "2.9.0"
   "@protobufjs/utf8": "1.1.1"
-  "brace-expansion": "5.0.7"
+  "brace-expansion": "5.0.9"
   "dompurify": "3.4.12"
   "esbuild": "0.28.1"
   "form-data": "4.0.6"
