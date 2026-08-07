@@ -102,6 +102,18 @@ describe("IssueBulkActionBar", () => {
     expect(screen.queryByTestId("bulk-more")).toBeNull();
   });
 
+  it("keeps Sprint out of the Backlog preset", () => {
+    render(
+      <IntlTestProvider>
+        <IssueBulkActionBar vault="reef-acme" preset="backlog" />
+      </IntlTestProvider>,
+    );
+
+    expect(screen.getByTestId("bulk-status")).toBeVisible();
+    expect(screen.queryByTestId("bulk-sprint")).toBeNull();
+    expect(screen.getByTestId("bulk-add-labels")).toBeVisible();
+  });
+
   it("applies the current label draft without requiring Enter", async () => {
     const user = userEvent.setup();
     render(

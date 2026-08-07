@@ -77,6 +77,7 @@ export const ISSUE_LIST_COLUMN_ORDER = [
 ] as const satisfies readonly IssueTableColumnKey[];
 
 export const BACKLOG_COLUMNS = [
+  "select",
   "rank",
   "id",
   "type",

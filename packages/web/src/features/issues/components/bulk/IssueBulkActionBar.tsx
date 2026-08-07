@@ -36,6 +36,7 @@ import { toast } from "sonner";
 
 interface IssueBulkActionBarProps {
   vault: string;
+  preset?: "list" | "backlog";
 }
 
 interface LabelBulkActionProps {
@@ -129,7 +130,10 @@ function LabelBulkAction({
  * the table, so bulk editing reads as a focused list mode instead of a floating
  * form competing with Ask AI or covering issue content.
  */
-export function IssueBulkActionBar({ vault }: IssueBulkActionBarProps) {
+export function IssueBulkActionBar({
+  vault,
+  preset = "list",
+}: IssueBulkActionBarProps) {
   const selectedIds = useIssueSelectionStore((state) => state.selectedIds);
   const clear = useIssueSelectionStore((state) => state.clear);
   const ids = [...selectedIds];
@@ -244,22 +248,24 @@ export function IssueBulkActionBar({ vault }: IssueBulkActionBarProps) {
             triggerClassName="w-32"
             testId="bulk-priority"
           />
-          <PlanningItemCombobox
-            kind="sprints"
-            vault={vault}
-            value=""
-            onChange={(value) =>
-              void execute({ kind: "sprint", value: value || null })
-            }
-            label={fieldNames.sprint}
-            placeholder={fieldNames.sprint}
-            emptyLabel={bulk("noSprint")}
-            disabled={runner.running}
-            assignableOnly
-            className="w-36 shrink-0"
-            panelClassName="min-w-72"
-            testId="bulk-sprint"
-          />
+          {preset === "list" && (
+            <PlanningItemCombobox
+              kind="sprints"
+              vault={vault}
+              value=""
+              onChange={(value) =>
+                void execute({ kind: "sprint", value: value || null })
+              }
+              label={fieldNames.sprint}
+              placeholder={fieldNames.sprint}
+              emptyLabel={bulk("noSprint")}
+              disabled={runner.running}
+              assignableOnly
+              className="w-36 shrink-0"
+              panelClassName="min-w-72"
+              testId="bulk-sprint"
+            />
+          )}
           <LabelBulkAction
             label={bulk("addLabels")}
             disabled={runner.running}

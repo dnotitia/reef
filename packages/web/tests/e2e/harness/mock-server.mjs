@@ -1863,7 +1863,8 @@ function handleSql(vault, sql) {
         Object.assign(row, update.values, { updated_at: nextEditTimestamp() });
         if (
           row.status === "backlog" &&
-          (row.rank == null || String(row.rank).includes("select coalesce"))
+          (row.rank == null ||
+            String(row.rank).toLowerCase().includes("select coalesce"))
         ) {
           row.rank = nextBacklogRank(vault);
         }
@@ -3660,7 +3661,10 @@ function idDesc(a, b) {
 function nextBacklogRank(vault) {
   const max = vault.issues
     .filter((issue) => issue.status === "backlog" && issue.archived_at == null)
-    .reduce((acc, issue) => Math.max(acc, Number(issue.rank ?? 0)), 0);
+    .reduce((acc, issue) => {
+      const rank = Number(issue.rank);
+      return Number.isFinite(rank) ? Math.max(acc, rank) : acc;
+    }, 0);
   return max + 1000;
 }
 

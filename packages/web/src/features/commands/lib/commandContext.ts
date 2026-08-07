@@ -31,6 +31,7 @@ export function resolveIssueKeyboardScope(
   if (!/\/issues\/?$/.test(pathname)) return null;
   const view = new URLSearchParams(search).get("view");
   if (view === "list") return "list";
+  if (view === "backlog") return "backlog";
   if (view === "board" || view == null) return "board";
   return null;
 }

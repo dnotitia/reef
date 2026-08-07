@@ -103,6 +103,38 @@ test.describe("Hermetic issue keyboard navigation", () => {
     await expect(rows.first()).toContainText("In Progress");
   });
 
+  test("moves Backlog focus with j, exposes semantic links, and opens the focused issue", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=backlog");
+
+    const row = page.getByTestId("backlog-row").filter({ hasText: "REEF-003" });
+    await expect(row).toBeVisible({ timeout: 15_000 });
+    await expect(row).toHaveAttribute("tabindex", "0");
+
+    await page.keyboard.press("j");
+    await expect(row).toHaveAttribute("data-keyboard-focused", "true");
+    await expect(row).toBeFocused();
+    await expect(row.getByRole("link", { name: "REEF-003" })).toHaveAttribute(
+      "href",
+      "/workspace/reef-e2e/issues/REEF-003?view=backlog",
+    );
+    await expect(
+      row.getByTestId("backlog-status-select-REEF-003"),
+    ).toHaveAttribute("aria-label", "Change REEF-003 status");
+    await expect(row.getByTestId("backlog-grip-REEF-003")).toHaveAttribute(
+      "aria-label",
+      "Reorder REEF-003",
+    );
+
+    await page.keyboard.press("Enter");
+    await page.waitForURL(/\/issues\/REEF-003\?view=backlog/, {
+      timeout: 10_000,
+    });
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
+  });
+
   test("moves board focus with arrows and opens the focused card with Enter", async ({
     page,
   }) => {

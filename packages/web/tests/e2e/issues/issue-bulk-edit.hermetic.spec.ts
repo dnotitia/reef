@@ -16,8 +16,34 @@ async function openList(page: Page) {
   });
 }
 
+async function openBacklog(page: Page) {
+  const backlogResponse = page.waitForResponse(
+    (response) => {
+      const url = new URL(response.url());
+      return (
+        response.request().method() === "GET" &&
+        url.pathname === "/api/issues" &&
+        url.searchParams.get("status") === "backlog"
+      );
+    },
+    { timeout: 15_000 },
+  );
+  await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=backlog`);
+  await expect(page.getByTestId("backlog-row").first()).toBeVisible({
+    timeout: 15_000,
+  });
+  await backlogResponse;
+}
+
 async function selectRow(page: Page, id: string, shift = false) {
   const row = page.getByTestId("issue-list-row").filter({ hasText: id });
+  await row
+    .getByRole("checkbox", { name: `Select ${id}` })
+    .click({ modifiers: shift ? ["Shift"] : [] });
+}
+
+async function selectBacklogRow(page: Page, id: string, shift = false) {
+  const row = page.getByTestId("backlog-row").filter({ hasText: id });
   await row
     .getByRole("checkbox", { name: `Select ${id}` })
     .click({ modifiers: shift ? ["Shift"] : [] });
@@ -118,6 +144,71 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
     ).toHaveCount(0);
     await expect(page.getByTestId("issue-bulk-action-bar")).toHaveCount(0);
     await expect(page.getByTestId("board-bulk-edit-shortcut")).toHaveCount(0);
+  });
+
+  test("supports Backlog bulk status changes without a Sprint control and keeps drag selection", async ({
+    page,
+    request,
+  }) => {
+    // Move one existing demo issue into Backlog through the user-facing bulk
+    // action so the fixture supplies two independently ranked backlog rows.
+    await openList(page);
+    await selectRow(page, "REEF-101");
+    await chooseBulkStatus(page, "Backlog");
+    await expect(page.getByTestId("issue-bulk-action-bar")).toHaveCount(0);
+    await expect
+      .poll(
+        async () =>
+          reefVault(await readFixtureState(request)).issues.find(
+            (issue) => issue.id === "REEF-101",
+          )?.status,
+      )
+      .toBe("backlog");
+    await openBacklog(page);
+    await selectBacklogRow(page, "REEF-112");
+    await selectBacklogRow(page, "REEF-101", true);
+    await expect(page.getByTestId("issue-bulk-action-bar")).toContainText(
+      "2 selected",
+    );
+    await expect(page.getByTestId("bulk-sprint")).toHaveCount(0);
+
+    const before = await page
+      .getByTestId("backlog-row")
+      .evaluateAll((rows) =>
+        rows.map((row) => row.getAttribute("data-issue-id")),
+      );
+    expect(before).toEqual(["REEF-112", "REEF-101"]);
+
+    const source = page.getByTestId("backlog-grip-REEF-101");
+    const target = page.getByTestId("backlog-grip-REEF-112");
+    const sourceBox = await source.boundingBox();
+    const targetBox = await target.boundingBox();
+    if (!sourceBox || !targetBox)
+      throw new Error("missing backlog grip bounds");
+    await page.mouse.move(
+      sourceBox.x + sourceBox.width / 2,
+      sourceBox.y + sourceBox.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      targetBox.x + targetBox.width / 2,
+      targetBox.y + targetBox.height / 2,
+      { steps: 8 },
+    );
+    await page.mouse.up();
+
+    await expect
+      .poll(() =>
+        page
+          .getByTestId("backlog-row")
+          .evaluateAll((rows) =>
+            rows.map((row) => row.getAttribute("data-issue-id")),
+          ),
+      )
+      .toEqual(["REEF-101", "REEF-112"]);
+    await expect(page.getByTestId("issue-bulk-action-bar")).toContainText(
+      "2 selected",
+    );
   });
 
   test("applies the typed label draft without requiring Enter", async ({

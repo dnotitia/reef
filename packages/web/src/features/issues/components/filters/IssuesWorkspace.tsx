@@ -90,7 +90,12 @@ export function IssuesWorkspace() {
               view === "list" ? STATUS_OPTIONS : WORKFLOW_STATUS_OPTIONS
             }
           />
-          {view === "list" ? <IssueBulkActionBar vault={vault} /> : null}
+          {view === "list" || view === "backlog" ? (
+            <IssueBulkActionBar
+              vault={vault}
+              preset={view === "backlog" ? "backlog" : "list"}
+            />
+          ) : null}
           <div className="flex flex-1 min-h-0 flex-col">
             {view === "board" ? (
               <KanbanBoard vault={vault} />

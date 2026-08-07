@@ -1,3 +1,4 @@
+import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { apiFetch } from "@/lib/apiClient";
 import type { IssueMetadata } from "@reef/core";
@@ -108,6 +109,7 @@ describe("BacklogView", () => {
       searchQuery: "",
       selectedIssueId: null,
     });
+    useIssueSelectionStore.getState().clearForContextChange();
   });
 
   it("pins the query to status=backlog and shows only backlog issues", async () => {
@@ -142,6 +144,36 @@ describe("BacklogView", () => {
     expect(screen.queryByTestId("backlog-order-mode")).toBeNull();
   });
 
+  it("renders Backlog selection and issue links with contextual names", async () => {
+    mockList([
+      { ...issues[0], id: "REEF-1", title: "Deferred idea" },
+      { ...issues[0], id: "REEF-3", title: "Another deferred idea" },
+    ]);
+    render(wrap(<BacklogView vault="reef-acme" />));
+
+    await screen.findByText("Deferred idea");
+    expect(screen.getByTestId("backlog-select-all")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "REEF-1" })).toHaveAttribute(
+      "href",
+      "/workspace/reef-acme/issues/REEF-1",
+    );
+    expect(screen.getByTestId("backlog-status-select-REEF-1")).toHaveAttribute(
+      "aria-label",
+      "Change REEF-1 status",
+    );
+    expect(screen.getByTestId("backlog-grip-REEF-1")).toHaveAttribute(
+      "aria-label",
+      "Reorder REEF-1",
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("checkbox", { name: "Select REEF-1" }));
+    const selectedRow = screen
+      .getAllByTestId("backlog-row")
+      .find((row) => row.getAttribute("data-issue-id") === "REEF-1");
+    expect(selectedRow).toHaveAttribute("aria-selected", "true");
+  });
+
   it("promotes a backlog issue to Todo via the inline status picker", async () => {
     mockList(issues);
     const user = userEvent.setup();
@@ -172,7 +204,8 @@ describe("BacklogView", () => {
     const user = userEvent.setup();
     render(wrap(<BacklogView vault="reef-acme" />));
 
-    await user.click(await screen.findByText("Deferred idea"));
+    await screen.findByText("Deferred idea");
+    await user.click(screen.getByTestId("backlog-row"));
     expect(mockPush).toHaveBeenCalledWith(
       "/workspace/reef-acme/issues/REEF-1?view=backlog",
     );
