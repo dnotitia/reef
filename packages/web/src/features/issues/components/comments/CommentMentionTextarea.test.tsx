@@ -23,7 +23,7 @@ function SheetCommentHarness({ onEscape }: { onEscape: () => void }) {
 
   return (
     <Sheet open>
-      <SheetContent showCloseButton={false}>
+      <SheetContent showCloseButton={false} aria-describedby={undefined}>
         <SheetTitle>Issue detail</SheetTitle>
         <CommentMentionTextarea
           draft={draft}

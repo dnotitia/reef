@@ -36,7 +36,11 @@ function SheetHarness({
         onOpenChange?.(next);
       }}
     >
-      <SheetContent showCloseButton={false} onEscapeKeyDown={onEscapeKeyDown}>
+      <SheetContent
+        showCloseButton={false}
+        aria-describedby={undefined}
+        onEscapeKeyDown={onEscapeKeyDown}
+      >
         <SheetTitle>Edit issue</SheetTitle>
         <Combobox<string>
           value={null}
@@ -123,7 +127,7 @@ function DialogHarness({
         onOpenChange?.(next);
       }}
     >
-      <DialogContent showCloseButton={false}>
+      <DialogContent showCloseButton={false} aria-describedby={undefined}>
         <DialogTitle>New issue</DialogTitle>
         <Combobox<string>
           value={null}
