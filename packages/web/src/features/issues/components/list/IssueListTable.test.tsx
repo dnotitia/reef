@@ -127,6 +127,67 @@ describe("IssueListTable", () => {
     expect(useIssueStore.getState().filter.sortOrder).toBeUndefined();
   });
 
+  it("starts with the compact List preset and exposes optional columns locally", async () => {
+    render(wrap(<IssueListTable vault="reef-acme" />));
+    await screen.findByText("First task");
+
+    expect(
+      screen
+        .getAllByRole("columnheader")
+        .map((header) => header.getAttribute("data-column-key")),
+    ).toEqual([
+      "select",
+      "id",
+      "type",
+      "title",
+      "status",
+      "priority",
+      "assignee",
+      "due",
+      "updated",
+    ]);
+    expect(screen.queryByRole("columnheader", { name: "Start" })).toBeNull();
+    expect(
+      screen.getByTestId("issue-list-columns-control"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("columnheader")[0]).toHaveClass("h-8", "py-0");
+    expect(screen.getAllByTestId("issue-list-row")[0]).toHaveClass("h-10");
+  });
+
+  it("adds and removes planning columns independently without changing the query", async () => {
+    const user = userEvent.setup();
+    render(wrap(<IssueListTable vault="reef-acme" />));
+    await screen.findByText("First task");
+
+    await user.click(screen.getByTestId("issue-list-columns-control"));
+    await user.click(screen.getByTestId("issue-list-column-start"));
+    expect(screen.getByRole("columnheader", { name: "Start" })).toBeVisible();
+
+    await user.click(screen.getByTestId("issue-list-columns-control"));
+    await user.click(screen.getByTestId("issue-list-column-release"));
+    expect(screen.getByRole("columnheader", { name: "Release" })).toBeVisible();
+    expect(screen.getByRole("columnheader", { name: "Start" })).toBeVisible();
+
+    await user.click(screen.getByTestId("issue-list-columns-control"));
+    await user.click(screen.getByTestId("issue-list-column-start"));
+    expect(screen.queryByRole("columnheader", { name: "Start" })).toBeNull();
+    expect(screen.getByRole("columnheader", { name: "Release" })).toBeVisible();
+  });
+
+  it("resets optional columns when the List surface is re-entered", async () => {
+    const user = userEvent.setup();
+    const first = render(wrap(<IssueListTable vault="reef-acme" />));
+    await screen.findByText("First task");
+    await user.click(screen.getByTestId("issue-list-columns-control"));
+    await user.click(screen.getByTestId("issue-list-column-start"));
+    expect(screen.getByRole("columnheader", { name: "Start" })).toBeVisible();
+
+    first.unmount();
+    render(wrap(<IssueListTable vault="reef-acme" />));
+    await screen.findByText("First task");
+    expect(screen.queryByRole("columnheader", { name: "Start" })).toBeNull();
+  });
+
   it("selects and clears only the currently loaded logical ids from the header", async () => {
     const user = userEvent.setup();
     render(wrap(<IssueListTable vault="reef-acme" />));

@@ -175,6 +175,13 @@ describe("FilterBar", () => {
     expect(screen.getByTestId("labels-input")).toBeTruthy();
   });
 
+  it("keeps backlog controls on one desktop line while allowing narrow wrapping", () => {
+    const { getByTestId } = renderFilterBar({ backlogScope: true });
+    const filterBar = getByTestId("filter-bar");
+    expect(filterBar.className).toContain("lg:flex-nowrap");
+    expect(filterBar.className).toContain("lg:overflow-x-auto");
+  });
+
   it("ignores stray status/sprint/release/due values in the backlog active count (REEF-109, REEF-177)", () => {
     // All four hidden-facet values are set in the shared store (e.g. carried over
     // from the list view). The backlog bar hides them and the backlog query

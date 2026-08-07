@@ -8,13 +8,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { IssueListColumnsControl } from "@/features/issues/components/list/IssueListColumnsControl";
 import { IssueListRow } from "@/features/issues/components/list/IssueListRow";
 import { IssueListSkeleton } from "@/features/issues/components/list/IssueListSkeleton";
-import {
-  COLUMN_KEYS,
-  COLUMN_WIDTHS,
-} from "@/features/issues/components/list/issueListColumns";
 import { IssueSelectionCheckbox } from "@/features/issues/components/shared/IssueSelectionCheckbox";
+import {
+  ISSUE_TABLE_COLUMN_WIDTHS,
+  ISSUE_TABLE_HEADER_HEIGHT,
+  ISSUE_TABLE_ROW_HEIGHT,
+  ISSUE_TABLE_TITLE_MIN_WIDTH,
+  type IssueListColumnKey,
+  type IssueListOptionalColumnKey,
+  isIssueTableStickyColumn,
+  issueTableColumnOffset,
+  issueTableWidth,
+  resolveIssueListColumns,
+} from "@/features/issues/components/shared/issueTableContract";
 import { useInfiniteIssueList } from "@/features/issues/hooks/queries/useInfiniteIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
 import { useResolvedAutoHideWindows } from "@/features/issues/hooks/useResolvedAutoHideWindows";
@@ -34,6 +43,7 @@ import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
+import { cn } from "@/lib/utils";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslations } from "next-intl";
 import {
@@ -42,10 +52,9 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
+  useState,
 } from "react";
 
-const LIST_ROW_HEIGHT = 40;
-const LIST_HEADER_HEIGHT = 32;
 const VIRTUAL_OVERSCAN = 8;
 const LOAD_AHEAD_COUNT = 8;
 const FALLBACK_RENDER_COUNT = 12;
@@ -54,34 +63,67 @@ interface IssueListTableProps {
   vault: string;
 }
 
-function IssueListColumnGroup() {
+function IssueListColumnGroup({
+  columns,
+}: {
+  columns: readonly IssueListColumnKey[];
+}) {
   return (
     <colgroup>
-      {COLUMN_WIDTHS.map((width, index) => (
+      {columns.map((column) => (
         <col
-          key={
-            index === 0
-              ? "selection"
-              : index === COLUMN_KEYS.length - 1
-                ? "actions"
-                : COLUMN_KEYS[index]
+          key={column}
+          data-column-key={column}
+          style={
+            column === "title"
+              ? { minWidth: ISSUE_TABLE_TITLE_MIN_WIDTH }
+              : { width: ISSUE_TABLE_COLUMN_WIDTHS[column] }
           }
-          style={{ width }}
         />
       ))}
     </colgroup>
   );
 }
 
-function SpacerRow({ height }: { height: number }) {
+function issueTableColumnClass(
+  column: IssueListColumnKey,
+  kind: "header" | "cell",
+) {
+  return cn(
+    kind === "header" ? "h-8 px-3 py-0" : "h-10 min-w-0 px-3 py-0 align-middle",
+    isIssueTableStickyColumn(column) &&
+      (kind === "header"
+        ? "sticky z-20 bg-background"
+        : "sticky z-10 bg-background group-hover:bg-surface-hover"),
+    column === "title" && "min-w-[15rem]",
+  );
+}
+
+function issueTableColumnStyle(
+  columns: readonly IssueListColumnKey[],
+  column: IssueListColumnKey,
+) {
+  return {
+    ...(column === "title"
+      ? { minWidth: ISSUE_TABLE_TITLE_MIN_WIDTH }
+      : { width: ISSUE_TABLE_COLUMN_WIDTHS[column] }),
+    ...(isIssueTableStickyColumn(column)
+      ? { left: issueTableColumnOffset(columns, column) }
+      : {}),
+  };
+}
+
+function SpacerRow({
+  height,
+  columnCount,
+}: {
+  height: number;
+  columnCount: number;
+}) {
   if (height <= 0) return null;
   return (
     <tr className="pointer-events-none">
-      <td
-        colSpan={COLUMN_KEYS.length}
-        className="border-0 p-0"
-        style={{ height }}
-      />
+      <td colSpan={columnCount} className="border-0 p-0" style={{ height }} />
     </tr>
   );
 }
@@ -103,6 +145,24 @@ export function IssueListTable({ vault }: IssueListTableProps) {
   const selectionRunning = useIssueSelectionStore((state) => state.running);
   const scrollElementRef = useRef<HTMLDivElement | null>(null);
   const anchorRef = useRef<{ id: string; offset: number } | null>(null);
+  const [optionalColumns, setOptionalColumns] = useState<
+    readonly IssueListOptionalColumnKey[]
+  >([]);
+  const columns = useMemo(
+    () => resolveIssueListColumns(optionalColumns),
+    [optionalColumns],
+  );
+  const tableWidth = useMemo(() => issueTableWidth(columns), [columns]);
+  const toggleOptionalColumn = useCallback(
+    (column: IssueListOptionalColumnKey) => {
+      setOptionalColumns((current) =>
+        current.includes(column)
+          ? current.filter((item) => item !== column)
+          : [...current, column],
+      );
+    },
+    [],
+  );
 
   const query = useMemo(
     () => buildIssueQuery(filter, searchQuery),
@@ -169,10 +229,10 @@ export function IssueListTable({ vault }: IssueListTableProps) {
   const virtualizer = useVirtualizer({
     count: sorted.length,
     getScrollElement: () => scrollElementRef.current,
-    estimateSize: () => LIST_ROW_HEIGHT,
+    estimateSize: () => ISSUE_TABLE_ROW_HEIGHT,
     getItemKey: (index) => sorted[index]?.id ?? index,
     overscan: VIRTUAL_OVERSCAN,
-    scrollMargin: LIST_HEADER_HEIGHT,
+    scrollMargin: ISSUE_TABLE_HEADER_HEIGHT,
   });
   const virtualItems = virtualizer.getVirtualItems();
   const lastVirtualIndex = virtualItems.at(-1)?.index ?? -1;
@@ -282,11 +342,12 @@ export function IssueListTable({ vault }: IssueListTableProps) {
   const lastVirtualItem = virtualItems.at(-1);
   const totalSize =
     virtualizer.getTotalSize() ||
-    LIST_HEADER_HEIGHT + sorted.length * LIST_ROW_HEIGHT;
+    ISSUE_TABLE_HEADER_HEIGHT + sorted.length * ISSUE_TABLE_ROW_HEIGHT;
   const topSpacerHeight = firstVirtualItem
-    ? Math.max(0, firstVirtualItem.start - LIST_HEADER_HEIGHT)
+    ? Math.max(0, firstVirtualItem.start - ISSUE_TABLE_HEADER_HEIGHT)
     : 0;
-  const fallbackLastEnd = LIST_HEADER_HEIGHT + fallbackCount * LIST_ROW_HEIGHT;
+  const fallbackLastEnd =
+    ISSUE_TABLE_HEADER_HEIGHT + fallbackCount * ISSUE_TABLE_ROW_HEIGHT;
   const bottomSpacerHeight = Math.max(
     0,
     totalSize - (lastVirtualItem?.end ?? fallbackLastEnd),
@@ -301,9 +362,14 @@ export function IssueListTable({ vault }: IssueListTableProps) {
   const tableHeader = (
     <TableHeader>
       <TableRow>
-        {COLUMN_KEYS.map((key, index) => (
-          <TableHead key={`${key ?? "empty"}-${index}`}>
-            {index === 0 ? (
+        {columns.map((column) => (
+          <TableHead
+            key={column}
+            className={issueTableColumnClass(column, "header")}
+            style={issueTableColumnStyle(columns, column)}
+            data-column-key={column}
+          >
+            {column === "select" ? (
               <IssueSelectionCheckbox
                 checked={selectAllState === "checked"}
                 indeterminate={selectAllState === "mixed"}
@@ -316,10 +382,8 @@ export function IssueListTable({ vault }: IssueListTableProps) {
                     .toggleAllLoaded(visibleIssueIds)
                 }
               />
-            ) : key ? (
-              columnLabels[key]
             ) : (
-              ""
+              columnLabels[column]
             )}
           </TableHead>
         ))}
@@ -328,21 +392,39 @@ export function IssueListTable({ vault }: IssueListTableProps) {
   );
 
   return (
-    <PageBody pad="compact" className="h-full min-h-0 overflow-hidden">
+    <PageBody
+      pad="compact"
+      className="flex h-full min-h-0 flex-col overflow-hidden"
+    >
       <div className="pointer-events-none sticky top-0 z-10 h-0 overflow-visible">
         <SearchProgressBar
           active={isFetching && !isPending && !isFetchingNextPage}
           className="top-0 bottom-auto"
         />
       </div>
+      <div className="flex min-h-8 shrink-0 items-center justify-end pb-2">
+        <IssueListColumnsControl
+          selectedColumns={optionalColumns}
+          onToggle={toggleOptionalColumn}
+        />
+      </div>
       {isPending ? (
-        <Table>
-          <IssueListColumnGroup />
+        <Table
+          className="table-fixed"
+          style={{ minWidth: tableWidth }}
+          containerClassName="overflow-visible"
+        >
+          <IssueListColumnGroup columns={columns} />
           <TableHeader>
             <TableRow>
-              {COLUMN_KEYS.map((key, index) => (
-                <TableHead key={`${key ?? "empty"}-${index}`}>
-                  {index === 0 ? (
+              {columns.map((column) => (
+                <TableHead
+                  key={column}
+                  className={issueTableColumnClass(column, "header")}
+                  style={issueTableColumnStyle(columns, column)}
+                  data-column-key={column}
+                >
+                  {column === "select" ? (
                     <IssueSelectionCheckbox
                       checked={false}
                       indeterminate={false}
@@ -350,17 +432,15 @@ export function IssueListTable({ vault }: IssueListTableProps) {
                       label={bulk("selectAllLoaded")}
                       onChange={() => {}}
                     />
-                  ) : key ? (
-                    columnLabels[key]
                   ) : (
-                    ""
+                    columnLabels[column]
                   )}
                 </TableHead>
               ))}
             </TableRow>
           </TableHeader>
           <TableBody>
-            <IssueListSkeleton />
+            <IssueListSkeleton columns={columns} />
           </TableBody>
         </Table>
       ) : initialLoadError ? (
@@ -398,14 +478,21 @@ export function IssueListTable({ vault }: IssueListTableProps) {
       ) : (
         <div
           ref={scrollElementRef}
-          className="h-full min-w-0 overflow-auto overscroll-contain"
+          className="min-h-0 h-full min-w-0 flex-1 overflow-auto overscroll-contain"
           data-testid="issue-list-scroll-container"
         >
-          <Table>
-            <IssueListColumnGroup />
+          <Table
+            className="table-fixed"
+            style={{ minWidth: tableWidth }}
+            containerClassName="overflow-visible"
+          >
+            <IssueListColumnGroup columns={columns} />
             {tableHeader}
             <TableBody>
-              <SpacerRow height={topSpacerHeight} />
+              <SpacerRow
+                height={topSpacerHeight}
+                columnCount={columns.length}
+              />
               {renderedIndexes.map((index) => {
                 const issue = sorted[index];
                 if (!issue) return null;
@@ -418,14 +505,18 @@ export function IssueListTable({ vault }: IssueListTableProps) {
                     planningCatalog={planningCatalog}
                     highlightQuery={searchQuery}
                     logicalIds={visibleIssueIds}
+                    columns={columns}
                     onClick={openIssue}
                   />
                 );
               })}
-              <SpacerRow height={bottomSpacerHeight} />
+              <SpacerRow
+                height={bottomSpacerHeight}
+                columnCount={columns.length}
+              />
               {sorted.length === 0 && isFetchingNextPage && (
                 <tr>
-                  <td colSpan={COLUMN_KEYS.length} className="px-3 py-4">
+                  <td colSpan={columns.length} className="px-3 py-4">
                     <output className="text-sm text-muted-foreground">
                       {t("loadingMore")}
                     </output>
@@ -434,7 +525,7 @@ export function IssueListTable({ vault }: IssueListTableProps) {
               )}
               {isFetchNextPageError && (
                 <tr>
-                  <td colSpan={COLUMN_KEYS.length} className="px-3 py-4">
+                  <td colSpan={columns.length} className="px-3 py-4">
                     <div className="flex items-center gap-3" role="alert">
                       <span className="text-sm text-muted-foreground">
                         {t("loadMoreError")}

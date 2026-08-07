@@ -50,6 +50,10 @@ explicitly in the entries below.
 
 ### Changed
 
+- **List and Backlog issue tables now share compact density and field geometry.**
+  List opens with the essential fields and offers session-only planning-column
+  toggles; Backlog uses the same common field order, keeps Rank guidance in the
+  header, and retains its inline status and drag interactions.
 - **Node package contracts now build and validate from isolated artifacts.**
   Six Node packages use tsdown to emit ESM JavaScript and declarations from
   `dist/`, dependency-cruiser enforces workspace directions and production

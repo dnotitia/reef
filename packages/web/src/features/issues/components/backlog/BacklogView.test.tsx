@@ -124,13 +124,22 @@ describe("BacklogView", () => {
     );
     expect(calledBacklog).toBe(true);
 
-    // The body no longer restates a result count or the view identity — those
-    // live in the shared chrome (the ViewSwitcher tab) now, so the body header
-    // carries the reorder affordance (REEF-175).
-    const header = screen.getByTestId("backlog-header");
-    expect(header).not.toHaveTextContent("Backlog");
-    expect(header).not.toHaveTextContent(/issue/i);
-    expect(screen.getByTestId("backlog-order-mode")).toBeInTheDocument();
+    // The body no longer adds a separate guidance row. Rank guidance belongs
+    // to the table header, keeping the first data row on the shared baseline.
+    expect(screen.getByTestId("backlog-table")).toBeInTheDocument();
+    expect(screen.getByTestId("backlog-rank-header")).toHaveAttribute(
+      "title",
+      "Drag to reorder in Rank order",
+    );
+    expect(screen.getByTestId("backlog-rank-header")).toHaveClass(
+      "h-8",
+      "py-0",
+    );
+    expect(screen.getByTestId("backlog-row")).toHaveClass("h-10");
+    expect(screen.getByTestId("backlog-status-select-REEF-1")).toHaveClass(
+      "h-8",
+    );
+    expect(screen.queryByTestId("backlog-order-mode")).toBeNull();
   });
 
   it("promotes a backlog issue to Todo via the inline status picker", async () => {
@@ -209,15 +218,15 @@ describe("BacklogView", () => {
     });
     expect(askedRank).toBe(true);
 
-    // The row carries a drag handle, and the in-body line is the drag
-    // affordance just — the order name ("Rank order") now lives in the header
-    // SortControl, not here (REEF-169).
+    // The row carries a drag handle and the Rank header carries the guidance.
     expect(screen.getByTestId("backlog-grip-REEF-1")).toBeInTheDocument();
-    expect(screen.getByTestId("backlog-order-mode")).toHaveTextContent(
-      "Drag to reorder",
+    expect(screen.getByTestId("backlog-grip-REEF-1")).toHaveAttribute(
+      "title",
+      "Drag to reorder in Rank order",
     );
-    expect(screen.getByTestId("backlog-order-mode")).not.toHaveTextContent(
-      "Rank order",
+    expect(screen.getByTestId("backlog-rank-header")).toHaveAttribute(
+      "title",
+      "Drag to reorder in Rank order",
     );
   });
 
@@ -232,16 +241,12 @@ describe("BacklogView", () => {
 
     await screen.findByText("Deferred idea");
 
-    // No grip in sorted mode. The body no longer restates the sort (it does not
-    // leaks the raw `priority` field name) and carries no restore button — the
-    // header SortControl owns the order vocabulary and the switch back to rank
-    // order (REEF-169). The body just hints how to re-enable reordering.
+    // No grip in sorted mode. The Rank header explains how to re-enable
+    // reordering without adding a separate body row.
     expect(screen.queryByTestId("backlog-grip-REEF-1")).toBeNull();
-    expect(screen.getByTestId("backlog-order-mode")).toHaveTextContent(
+    expect(screen.getByTestId("backlog-rank-header")).toHaveAttribute(
+      "title",
       "Switch to Rank order to reorder",
-    );
-    expect(screen.getByTestId("backlog-order-mode")).not.toHaveTextContent(
-      "Sorted by",
     );
     expect(
       screen.queryByRole("button", { name: /switch to rank order/i }),
@@ -353,9 +358,8 @@ describe("BacklogView", () => {
 
     await screen.findByText("Deferred idea");
     expect(screen.getByTestId("backlog-grip-REEF-1")).toBeInTheDocument();
-    const hint = screen.getByTestId("backlog-order-mode");
-    expect(hint).toHaveTextContent("Drag to reorder");
-    expect(hint).not.toHaveTextContent("Clear filters to reorder");
+    const hint = screen.getByTestId("backlog-rank-header");
+    expect(hint).toHaveAttribute("title", "Drag to reorder in Rank order");
   });
 
   it("fetches the full ranked backlog without the triage facets so a filtered reorder uses global neighbors (REEF-176)", async () => {
@@ -400,8 +404,9 @@ describe("BacklogView", () => {
     expect(screen.queryByTestId("backlog-no-matches")).toBeNull();
     // Reorder stays enabled: the neutralized facets don't gate it.
     expect(screen.getByTestId("backlog-grip-REEF-1")).toBeInTheDocument();
-    expect(screen.getByTestId("backlog-order-mode")).toHaveTextContent(
-      "Drag to reorder",
+    expect(screen.getByTestId("backlog-rank-header")).toHaveAttribute(
+      "title",
+      "Drag to reorder in Rank order",
     );
     // The server query should not carry the neutralized planning facets.
     const urls = mockApiFetch.mock.calls.map((c) => String(c[0]));
