@@ -716,10 +716,15 @@ describe("controller state store", () => {
     await withRoot(async (root) => {
       const workUri = "work://example/process-race";
       const children = [
-        spawnChildClaim(root, "process-a", workUri),
-        spawnChildClaim(root, "process-b", workUri),
+        spawnChildClaim(root, "process-a", workUri, "hold"),
+        spawnChildClaim(root, "process-b", workUri, "hold"),
       ];
-      const outputs = await Promise.all(children.map(collectChildOutput));
+      const outputPromises = children.map(collectChildOutput);
+      const claimed = await Promise.any(children.map(waitForChildClaim));
+      const owner = children.find((child) => child.pid === claimed.pid);
+      expect(owner).toBeDefined();
+      owner?.kill("SIGKILL");
+      const outputs = await Promise.all(outputPromises);
       const parsed = outputs.map((output) => {
         const jsonLine = output.split("\n").find((line) => {
           try {
@@ -737,23 +742,6 @@ describe("controller state store", () => {
         parsed.filter((result) => result.code === "duplicate_work"),
       ).toHaveLength(1);
 
-      const parentStore = createStore(root, {
-        processIdentity: {
-          current: () => ({ pid: 999, startTime: "parent" }),
-          probe: () => "dead",
-        },
-      });
-      await parentStore.cleanup(workUri);
-
-      const heldUri = "work://example/abrupt-owner";
-      const heldChild = spawnChildClaim(root, "process-held", heldUri, "hold");
-      const claimed = await waitForChildClaim(heldChild);
-      expect(claimed.ok).toBe(true);
-      heldChild.kill("SIGKILL");
-      await new Promise<void>((resolve) =>
-        heldChild.once("close", () => resolve()),
-      );
-
       const interruptedStore = createStore(root, {
         processIdentity: {
           current: () => ({ pid: 999, startTime: "parent" }),
@@ -761,10 +749,10 @@ describe("controller state store", () => {
             identity.pid === claimed.pid ? "dead" : "unknown",
         },
       });
-      expect((await interruptedStore.inspect(heldUri)).classification).toBe(
+      expect((await interruptedStore.inspect(workUri)).classification).toBe(
         "interrupted",
       );
-      await interruptedStore.cleanup(heldUri);
+      await interruptedStore.cleanup(workUri);
       expect(await readdir(join(root, "records"))).toEqual([]);
       expect(await readdir(join(root, "claims"))).toEqual([]);
     });
