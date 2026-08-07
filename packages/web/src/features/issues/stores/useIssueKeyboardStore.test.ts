@@ -6,9 +6,9 @@ import { useIssueKeyboardStore } from "./useIssueKeyboardStore";
 describe("useIssueKeyboardStore", () => {
   beforeEach(() => {
     useIssueKeyboardStore.setState({
-      visibleIssueIds: { list: [], board: [] },
-      focusedIssueId: { list: null, board: null },
-      tabStopIssueId: { list: null, board: null },
+      visibleIssueIds: { list: [], board: [], backlog: [] },
+      focusedIssueId: { list: null, board: null, backlog: null },
+      tabStopIssueId: { list: null, board: null, backlog: null },
       focusRequest: null,
       quickEditRequest: null,
     });
@@ -45,6 +45,19 @@ describe("useIssueKeyboardStore", () => {
     );
   });
 
+  it("keeps backlog focus in its own visible-id projection", () => {
+    const store = useIssueKeyboardStore.getState();
+    store.setVisibleIssueIds("backlog", ["REEF-030", "REEF-031"]);
+
+    useIssueKeyboardStore.getState().moveFocus("backlog", 1);
+
+    expect(useIssueKeyboardStore.getState().focusedIssueId.backlog).toBe(
+      "REEF-030",
+    );
+    expect(useIssueKeyboardStore.getState().focusedIssueId.list).toBeNull();
+    expect(useIssueKeyboardStore.getState().focusedIssueId.board).toBeNull();
+  });
+
   it("keeps list and board focus independent", () => {
     const store = useIssueKeyboardStore.getState();
     store.setVisibleIssueIds("list", ["REEF-001"]);
@@ -55,10 +68,12 @@ describe("useIssueKeyboardStore", () => {
     expect(useIssueKeyboardStore.getState().focusedIssueId).toEqual({
       list: null,
       board: "REEF-010",
+      backlog: null,
     });
     expect(useIssueKeyboardStore.getState().tabStopIssueId).toEqual({
       list: "REEF-001",
       board: "REEF-010",
+      backlog: null,
     });
   });
 

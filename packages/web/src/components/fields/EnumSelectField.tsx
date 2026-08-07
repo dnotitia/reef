@@ -37,6 +37,7 @@ interface EnumSelectFieldProps<V extends string> {
   noneOption?: { value: string; label: ReactNode };
   testId?: string;
   ariaLabelledby?: string;
+  ariaLabel?: string;
   id?: string;
   disabled?: boolean;
   open?: boolean;
@@ -55,6 +56,7 @@ export function EnumSelectField<V extends string>({
   noneOption,
   testId,
   ariaLabelledby,
+  ariaLabel,
   id,
   disabled,
   open,
@@ -86,6 +88,7 @@ export function EnumSelectField<V extends string>({
         data-testid={testId}
         data-placeholder={hasSelectedValue ? undefined : ""}
         aria-labelledby={ariaLabelledby}
+        aria-label={ariaLabel}
         className={triggerClassName}
       >
         <span data-slot="select-value">{selectedContent}</span>

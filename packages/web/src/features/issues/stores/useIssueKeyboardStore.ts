@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 
-export type IssueKeyboardScope = "list" | "board";
+export type IssueKeyboardScope = "list" | "board" | "backlog";
 export type IssueQuickEditField = "status" | "assignee" | "priority" | "labels";
 
 interface FocusRequest {
@@ -41,8 +41,8 @@ interface IssueKeyboardState {
   closeQuickEdit: () => void;
 }
 
-const EMPTY_IDS: IssueIdsByScope = { list: [], board: [] };
-const EMPTY_FOCUS: FocusByScope = { list: null, board: null };
+const EMPTY_IDS: IssueIdsByScope = { list: [], board: [], backlog: [] };
+const EMPTY_FOCUS: FocusByScope = { list: null, board: null, backlog: null };
 
 function dedupeIssueIds(issueIds: readonly string[]): string[] {
   return Array.from(new Set(issueIds));

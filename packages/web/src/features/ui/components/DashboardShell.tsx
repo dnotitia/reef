@@ -420,6 +420,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
     if (/\/issues\/[^/]+/.test(path)) return "detail";
     const view = new URLSearchParams(window.location.search).get("view");
     if (view === "list") return "list";
+    if (view === "backlog") return "backlog";
     if (view === "board" || view == null) return "board";
     return "global";
   }, []);

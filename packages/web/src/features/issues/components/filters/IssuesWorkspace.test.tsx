@@ -47,7 +47,9 @@ vi.mock("@/features/issues/components/list/IssueListTable", () => ({
   ),
 }));
 vi.mock("@/features/issues/components/bulk/IssueBulkActionBar", () => ({
-  IssueBulkActionBar: () => <div data-testid="issue-bulk-action-bar" />,
+  IssueBulkActionBar: ({ preset }: { preset?: string }) => (
+    <div data-testid="issue-bulk-action-bar" data-preset={preset} />
+  ),
 }));
 vi.mock("@/features/timeline/components/TimelineBody", () => ({
   TimelineBody: ({ vault }: { vault: string }) => (
@@ -108,6 +110,16 @@ describe("IssuesWorkspace", () => {
     expect(screen.getByTestId("list-body")).toBeInTheDocument();
     expect(screen.getByTestId("issue-bulk-action-bar")).toBeInTheDocument();
     expect(screen.queryByTestId("board-body")).toBeNull();
+  });
+
+  it("renders the Backlog bulk preset without changing the body contract", () => {
+    navigationState.searchParams = new URLSearchParams("view=backlog");
+    render(wrap(<IssuesWorkspace />));
+    expect(screen.getByTestId("issue-bulk-action-bar")).toHaveAttribute(
+      "data-preset",
+      "backlog",
+    );
+    expect(screen.queryByTestId("list-body")).toBeNull();
   });
 
   it("clears selection on a context change even while a bulk job is running", async () => {

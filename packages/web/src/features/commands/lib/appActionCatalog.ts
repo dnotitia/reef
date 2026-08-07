@@ -1,5 +1,5 @@
 export type AppActionSurface = "palette" | "shortcut" | "cheatsheet";
-export type AppActionScope = "global" | "list" | "board" | "detail";
+export type AppActionScope = "global" | "list" | "board" | "backlog" | "detail";
 export type AppActionGroup =
   | "navigation"
   | "views"
@@ -309,7 +309,7 @@ export const APP_ACTION_CATALOG: ReadonlyArray<AppActionDescriptor> = [
       labelKey: labelKey as string,
       aliasKeys: [],
       group: "issues",
-      scopes: [scope as AppActionScope, "board"],
+      scopes: [scope as AppActionScope, "board", "backlog"],
       surfaces: ["shortcut", "cheatsheet"],
       focusPolicy: "restore",
       shortcut: {
@@ -414,7 +414,7 @@ export const APP_ACTION_CATALOG: ReadonlyArray<AppActionDescriptor> = [
       aliasKeys: [status],
       searchAliases: STATUS_SEARCH_ALIASES[status],
       group: "issues",
-      scopes: ["list", "board", "detail"],
+      scopes: ["list", "board", "backlog", "detail"],
       surfaces: ["palette"],
       parentPage: "status",
       focusPolicy: status === "closed" ? "handoff" : "restore",
@@ -427,7 +427,7 @@ export const APP_ACTION_CATALOG: ReadonlyArray<AppActionDescriptor> = [
       aliasKeys: [priority],
       searchAliases: PRIORITY_SEARCH_ALIASES[priority],
       group: "issues",
-      scopes: ["list", "board", "detail"],
+      scopes: ["list", "board", "backlog", "detail"],
       surfaces: ["palette"],
       parentPage: "priority",
       focusPolicy: "restore",

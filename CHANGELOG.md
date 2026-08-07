@@ -64,6 +64,10 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Backlog now supports dense multi-selection and bulk issue editing.** A
+  shared selection column, localized Status/Assignee/Priority/Labels actions,
+  semantic issue links, and row-scoped keyboard focus extend the existing
+  Backlog reorder and inline-status workflow without exposing Sprint controls.
 - **Empty states now share one canonical section frame across My Work, Inbox,
   Reports, and Planning, while the unconfigured-workspace prompt stays
   deliberately unboxed.** The four section frames use the same geometry and

@@ -37,6 +37,16 @@ test.describe("Hermetic runtime discovery", () => {
           secondary_workspace: "reef-zeta",
           start_path: "/workspace/reef-e2e/issues?view=list",
         },
+        backlog_bulk_partial_failure: {
+          scenario: "backlog_bulk_partial_failure",
+          workspace: "reef-e2e",
+          start_path: "/workspace/reef-e2e/issues?view=backlog",
+          interaction: {
+            type: "bulk_status_update",
+            operation:
+              "select the visible Backlog issues, choose In Review from the bulk Status control, observe one successful issue leave Backlog while one failed issue keeps its original Backlog state and selection, then open the failure tray and retry the failed update",
+          },
+        },
         content_search: {
           scenario: "content_search",
           workspace: "reef-e2e",
@@ -109,6 +119,7 @@ test.describe("Hermetic runtime discovery", () => {
     expect(contract.scenarios).toEqual(
       expect.arrayContaining([
         "configured_multi",
+        "backlog_bulk_partial_failure",
         "configured_empty",
         "content_search",
         "large_vault",
