@@ -306,6 +306,12 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
     await expect(liveRegion).toHaveText(
       /(?:Picked up REEF-003 for reordering\.|REEF-003 is at position 1\.)/,
     );
+    await expect(grip).toHaveAttribute("aria-pressed", "true");
+    // dnd-kit attaches the active keyboard listener on the next task after
+    // activation. Let that task run before sending the first movement key.
+    await page.evaluate(
+      () => new Promise<void>((resolve) => setTimeout(resolve, 0)),
+    );
     await page.keyboard.press("ArrowDown");
     await expect(liveRegion).toHaveText("REEF-003 is at position 2.");
     await page.keyboard.press("Space");
