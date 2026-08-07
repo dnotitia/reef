@@ -7,6 +7,7 @@ import {
   type ProviderKind,
   SCM_CAPABILITIES,
   VALIDATION_CAPABILITIES,
+  ValidationChecksSchema,
   WORK_CAPABILITIES,
 } from "./provider.js";
 
@@ -139,6 +140,7 @@ const runPlanBaseSchema = z
         validation: ProviderIdentitySchema,
       })
       .strict(),
+    validationChecks: ValidationChecksSchema,
     requiredCapabilities: requiredCapabilitiesSchema,
     createdAt: timestampSchema,
     inputProvenance: z

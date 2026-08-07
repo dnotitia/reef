@@ -25,7 +25,7 @@ package.
 
 ## Repository layout
 
-reef is a monorepo with eight private, non-published packages:
+reef is a monorepo with nine private, non-published packages:
 
 - **`packages/core`** — framework-agnostic TypeScript library (`@reef/core`).
   No Next.js imports, no DOM APIs. Product AKB, monitored-repository GitHub,
@@ -46,6 +46,9 @@ reef is a monorepo with eight private, non-published packages:
 - **`packages/orchestration/providers/local` (`@reef/infrastructure-provider-local`)** —
   the private local infrastructure provider for isolated Git-backed run
   workspaces and bounded process execution.
+- **`packages/orchestration/providers/local-validation` (`@reef/validation-provider-local`)** —
+  the private validation provider for exact clean-checkout checks, bounded
+  redacted proof, and process-tree cleanup.
 - **`packages/orchestration/providers/github` (`@reef/scm-provider-github`)** —
   the private GitHub SCM provider for explicit repository-bound ref, branch,
   commit, push, and draft-PR operations. GitHub writes stay outside the

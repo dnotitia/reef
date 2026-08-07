@@ -43,6 +43,11 @@ Two auxiliary runtimes stay outside the interactive web request path:
 - **`@reef/infrastructure-provider-local`** is a private concrete infrastructure
   provider for isolated Git-backed run workspaces and bounded process
   execution. It depends only on the provider-neutral orchestrator contract.
+- **`@reef/validation-provider-local`** is a private concrete validation
+  provider for ordered, trusted checks against one exact clean Git checkout.
+  It owns explicit-environment process execution, bounded redacted proof, and
+  process-tree cleanup; it depends only on the provider-neutral orchestrator
+  contract and is separate from the local infrastructure provider.
 - **`@reef/scm-provider-github`** is a private concrete SCM provider for an
   explicitly bound GitHub repository and local working tree. It owns Git ref,
   branch, commit, non-force push, and draft pull-request operations through the
@@ -70,11 +75,12 @@ boundary for worker delivery: `@reef/scm-provider-github` may perform the
 contract-granted Git and GitHub pull-request writes against one validated local
 checkout. It is not part of the product's monitored-repository read adapter.
 
-The repository is a pnpm workspace with eight private, unpublished packages
+The repository is a pnpm workspace with nine private, unpublished packages
 under `packages/`: `core` (`@reef/core`), `web` (`@reef/web`), `orchestrator`
 (`@reef/orchestrator`), `harness-provider-codex`
 (`@reef/harness-provider-codex`), `infrastructure-provider-local`
-(`@reef/infrastructure-provider-local`), `scm-provider-github`
+(`@reef/infrastructure-provider-local`), `validation-provider-local`
+(`@reef/validation-provider-local`), `scm-provider-github`
 (`@reef/scm-provider-github`), `jira-migrator` (`@reef/jira-migrator`), and
 `work-provider-reef` (`@reef/work-provider-reef`). The root
 `package.json` is the single product version source of truth. New interactive
@@ -359,6 +365,7 @@ preserves Server-Sent Events.
 | CSP / security headers | `packages/web/src/proxy.ts` |
 | Provider-neutral execution core | `packages/orchestration/runtime/src/` |
 | Codex harness adapter | `packages/orchestration/providers/codex/src/` |
+| Local validation provider | `packages/orchestration/providers/local-validation/src/` |
 | GitHub SCM provider | `packages/orchestration/providers/github/src/` |
 | Jira migration runtime | `packages/jira-migrator/src/` |
 | Reef work provider | `packages/orchestration/providers/reef/src/` |
@@ -372,6 +379,7 @@ preserves Server-Sent Events.
   [`@reef/web` package README](../packages/web/README.md)
 - [`@reef/orchestrator` package README](../packages/orchestration/runtime/README.md)
 - [`@reef/harness-provider-codex` package README](../packages/orchestration/providers/codex/README.md)
+- [`@reef/validation-provider-local` package README](../packages/orchestration/providers/local-validation/README.md)
 - [`@reef/scm-provider-github` package README](../packages/orchestration/providers/github/README.md)
 - [`@reef/jira-migrator` package README](../packages/jira-migrator/README.md)
 - [`@reef/work-provider-reef` package README](../packages/orchestration/providers/reef/README.md)

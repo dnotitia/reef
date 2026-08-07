@@ -33,6 +33,13 @@ const validInput = (): RunPlanInput => ({
     scm: provider("scm", "scm-provider", ["readBase", "push"]),
     validation: provider("validation", "validation-provider", ["validate"]),
   },
+  validationChecks: [
+    {
+      name: "typecheck",
+      command: "pnpm typecheck",
+      timeoutMs: 30_000,
+    },
+  ],
   requiredCapabilities: {
     work: ["read"],
     harness: ["start"],
@@ -100,6 +107,60 @@ describe("RunPlan", () => {
         ]),
       );
     }
+  });
+
+  it("validates ordered checks strictly before freezing their snapshot", () => {
+    const input = validInput();
+    input.validationChecks.push({
+      name: "lint",
+      command: "pnpm lint",
+      timeoutMs: 60_000,
+    });
+    const plan = parseRunPlan(input);
+
+    expect(plan.validationChecks).toEqual(input.validationChecks);
+    expect(Object.isFrozen(plan.validationChecks)).toBe(true);
+    expect(Object.isFrozen(plan.validationChecks[0])).toBe(true);
+
+    input.validationChecks[0].command = "mutated";
+    expect(plan.validationChecks[0].command).toBe("pnpm typecheck");
+
+    for (const invalid of [
+      { name: "", command: "true", timeoutMs: 1_000 },
+      { name: "blank-command", command: "   ", timeoutMs: 1_000 },
+      { name: "zero-timeout", command: "true", timeoutMs: 0 },
+      {
+        name: "infinite-timeout",
+        command: "true",
+        timeoutMs: Number.POSITIVE_INFINITY,
+      },
+    ]) {
+      const candidate = validInput();
+      candidate.validationChecks = [invalid];
+      const result = safeParseRunPlan(candidate);
+      expect(result.success).toBe(false);
+    }
+
+    const duplicate = validInput();
+    duplicate.validationChecks = [
+      validInput().validationChecks[0],
+      validInput().validationChecks[0],
+    ];
+    const duplicateResult = safeParseRunPlan(duplicate);
+    expect(duplicateResult.success).toBe(false);
+    if (!duplicateResult.success) {
+      expect(duplicateResult.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            path: ["validationChecks", 1, "name"],
+          }),
+        ]),
+      );
+    }
+
+    const missing = { ...validInput() };
+    (missing as Partial<typeof missing>).validationChecks = undefined;
+    expect(safeParseRunPlan(missing).success).toBe(false);
   });
 
   it("deeply snapshots input and prevents nested mutation", () => {

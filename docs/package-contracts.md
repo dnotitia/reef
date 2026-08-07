@@ -16,6 +16,7 @@ under `dist/`. The table shows the current buildable packages:
 | `@reef/orchestrator` | Provider-neutral one-run orchestration runtime | Root |
 | `@reef/harness-provider-codex` | Codex harness provider | Root |
 | `@reef/infrastructure-provider-local` | Local infrastructure provider for isolated Git-backed runs | Root |
+| `@reef/validation-provider-local` | Local validation provider for ordered checks and bounded proof | Root |
 | `@reef/scm-provider-github` | Explicitly bound GitHub SCM provider for refs, branches, commits, pushes, and draft PRs | Root |
 | `@reef/work-provider-reef` | Reef work provider | Root |
 | `@reef/jira-migrator` | Operator-run Jira migration tool | Root and the `reef-jira-migrator` bin |
@@ -29,7 +30,8 @@ The allowed workspace dependency directions are:
 core                         → (none)
 orchestrator                 → core
 harness-provider-codex       → orchestrator
-infrastructure-provider-local → orchestrator
+infrastructure-provider-local  → orchestrator
+validation-provider-local      → orchestrator
 scm-provider-github          → orchestrator
 work-provider-reef           → core, orchestrator
 jira-migrator                → core

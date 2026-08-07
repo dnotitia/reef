@@ -51,6 +51,11 @@ export default [
     { index: "src/index.ts" },
   ),
   packageConfig(
+    "packages/orchestration/providers/local-validation",
+    "@reef/validation-provider-local",
+    { index: "src/index.ts" },
+  ),
+  packageConfig(
     "packages/orchestration/providers/github",
     "@reef/scm-provider-github",
     { index: "src/index.ts" },
