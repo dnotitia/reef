@@ -59,8 +59,8 @@ interface SortControlProps {
  * On the backlog and board (`supportsRankOrder`), the same pristine state
  * instead reads as the active Rank order — meaningful, not muted — and the
  * dropdown offers it as a first-class option. That keeps the order vocabulary
- * in one place; the backlog body carries the drag affordance (REEF-169 /
- * REEF-393).
+ * in one place; the backlog Rank header carries the guidance while the row
+ * grip carries the drag affordance (REEF-169 / REEF-393).
  */
 export function SortControl({
   supportsRankOrder = false,
@@ -79,8 +79,8 @@ export function SortControl({
   const sortFieldLabels = useSortFieldLabels();
   const directionLabel = useDirectionLabel();
 
-  // This control owns the words "Rank order"; the backlog body carries the
-  // reorder affordance (REEF-169 / REEF-393).
+  // This control owns the words "Rank order"; the backlog Rank header carries
+  // the reorder guidance (REEF-169 / REEF-393).
   const t = useTranslations("issues.sort");
   const rankOrderLabel = t("rankOrder");
 

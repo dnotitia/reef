@@ -686,9 +686,11 @@
       "emptyDescription": "New issues arrive in Todo. Send work you want to defer here to keep it out of the active board.",
       "goToBoard": "Go to the board →",
       "unrankedDivider": "Unranked · newest first",
-      "reorderHintDrag": "Drag to reorder",
+      "rank": "Rank",
+      "reorderHintDrag": "Drag to reorder in Rank order",
       "reorderHintSwitchToRank": "Switch to Rank order to reorder",
-      "reorderHintHideArchived": "Hide archived to reorder",
+      "reorderHintHideArchived": "Hide archived to reorder in Rank order",
+      "reorderGrip": "Reorder {id}",
       "updateErrorTitle": "Couldn't update issue",
       "updateErrorDescription": "The backlog was reverted. Retry to move it again.",
       "reorderErrorTitle": "Couldn't reorder the backlog",
@@ -990,7 +992,9 @@
       "loadingMore": "Loading more issues…",
       "loadMoreError": "More issues could not be loaded.",
       "noMatches": "No issues match your filters.",
-      "emptyWorkspace": "Your workspace is empty. What are you working on?"
+      "emptyWorkspace": "Your workspace is empty. What are you working on?",
+      "columns": "Columns",
+      "columnsOptions": "Optional columns"
     },
     "bulk": {
       "selectIssue": "Select {id}",

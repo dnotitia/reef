@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
+import { ISSUE_LIST_DEFAULT_COLUMNS } from "../shared/issueTableContract";
 import { IssueListSkeleton } from "./IssueListSkeleton";
-import { COLUMN_KEYS } from "./issueListColumns";
 
 afterEach(cleanup);
 
@@ -16,6 +16,8 @@ describe("IssueListSkeleton", () => {
     );
     const rows = screen.getAllByTestId("skeleton-row");
     expect(rows).toHaveLength(8);
+    expect(rows[0]).toHaveClass("h-10");
+    expect(rows[0]?.querySelector("td")).toHaveClass("h-10", "py-0");
   });
 
   it("renders the specified number of rows", () => {
@@ -39,10 +41,9 @@ describe("IssueListSkeleton", () => {
     );
     const row = screen.getByTestId("skeleton-row");
     const cells = row.querySelectorAll("td");
-    // The skeleton's column count is derived from COLUMN_KEYS, the same
-    // source IssueListTable's header uses, so the two do not drift (the bug
-    // was a hard-coded 8 against a 13-column header).
-    expect(cells).toHaveLength(COLUMN_KEYS.length);
-    expect(cells.length).toBe(14);
+    // The skeleton receives the same resolved contract as the real header, so
+    // hydration cannot change the column count and re-layout the table.
+    expect(cells).toHaveLength(ISSUE_LIST_DEFAULT_COLUMNS.length);
+    expect(cells.length).toBe(9);
   });
 });
