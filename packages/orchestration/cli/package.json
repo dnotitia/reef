@@ -1,0 +1,41 @@
+{
+  "name": "@reef/orchestration-cli",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "files": ["dist"],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "reef-orchestration-cli": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsdown --config ../../../tsdown.config.mjs --filter @reef/orchestration-cli",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@octokit/rest": "catalog:",
+    "@reef/core": "workspace:*",
+    "@reef/harness-provider-codex": "workspace:*",
+    "@reef/infrastructure-provider-local": "workspace:*",
+    "@reef/orchestration-controller": "workspace:*",
+    "@reef/orchestrator": "workspace:*",
+    "@reef/scm-provider-github": "workspace:*",
+    "@reef/validation-provider-local": "workspace:*",
+    "@reef/work-provider-reef": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

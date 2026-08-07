@@ -124,6 +124,7 @@ inside this repository.
 | `packages/core` | Framework-agnostic TypeScript library (`@reef/core`) for schemas, models, AKB access, observability, and errors. |
 | `packages/web` | Next.js App Router application package (`@reef/web`) and stateless Backend-for-Frontend. Its server-only adapters own GitHub/LLM I/O and its application tree owns agents; Route Handlers remain thin. |
 | `packages/orchestration/runtime` | Provider-neutral execution core (`@reef/orchestrator`) for registry preflight, lifecycle, cancellation, cleanup, terminal results, and graceful shutdown outside the web process. |
+| `packages/orchestration/cli` | Private foreground work-URI invocation adapter (`@reef/orchestration-cli`) for strict config resolution, controller binding, bounded progress, cancellation, and terminal results. |
 | `packages/orchestration/providers/codex` | Private Codex App Server harness adapter (`@reef/harness-provider-codex`) for stdio lifecycle, policy enforcement, and secret-free harness events. |
 | `packages/orchestration/providers/local` | Private local infrastructure provider (`@reef/infrastructure-provider-local`) for isolated Git-backed run workspaces and bounded process execution. |
 | `packages/orchestration/providers/local-validation` | Private local validation provider (`@reef/validation-provider-local`) for ordered trusted checks, bounded redacted proof, and process-tree cleanup. |
@@ -225,6 +226,7 @@ reef origin. See [docs/deployment.md](docs/deployment.md) and
 - [Core package README](packages/core/README.md)
 - [`@reef/web` package README](packages/web/README.md)
 - [`@reef/orchestrator` package README](packages/orchestration/runtime/README.md)
+- [`@reef/orchestration-cli` package README](packages/orchestration/cli/README.md)
 - [`@reef/harness-provider-codex` package README](packages/orchestration/providers/codex/README.md)
 - [`@reef/infrastructure-provider-local` package README](packages/orchestration/providers/local/README.md)
 - [`@reef/validation-provider-local` package README](packages/orchestration/providers/local-validation/README.md)

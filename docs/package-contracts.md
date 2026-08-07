@@ -15,6 +15,7 @@ under `dist/`. The table shows the current buildable packages:
 | `@reef/core` | Framework-agnostic domain, schema, AKB adapter, observability, and provider-neutral agent contracts | Root plus the existing `status`, `errors`, `fields`, and `fields/planning` subpaths |
 | `@reef/orchestrator` | Provider-neutral one-run orchestration runtime | Root |
 | `@reef/orchestration-controller` | Controller-owned private run state, claims, inspection, and cleanup boundary | Root |
+| `@reef/orchestration-cli` | Private foreground work-URI invocation adapter and executable artifact | Root and the `reef-orchestration-cli` bin |
 | `@reef/harness-provider-codex` | Codex harness provider | Root |
 | `@reef/infrastructure-provider-local` | Local infrastructure provider for isolated Git-backed runs | Root |
 | `@reef/validation-provider-local` | Local validation provider for ordered checks and bounded proof | Root |
@@ -31,6 +32,7 @@ The allowed workspace dependency directions are:
 core                         → (none)
 orchestrator                 → core
 orchestration-controller     → orchestrator
+orchestration-cli            → core, orchestrator, orchestration-controller, concrete providers
 harness-provider-codex       → orchestrator
 infrastructure-provider-local  → orchestrator
 validation-provider-local      → orchestrator

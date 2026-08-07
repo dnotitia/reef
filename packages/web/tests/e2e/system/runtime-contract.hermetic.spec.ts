@@ -91,6 +91,37 @@ test.describe("Hermetic runtime discovery", () => {
             planning: "/workspace/reef-e2e/planning",
           },
         },
+        work_uri_run: {
+          scenario: "work_uri_run",
+          work_uri: "reef://reef-e2e/REEF-001",
+          entry: {
+            package: "@reef/orchestration-cli",
+            artifact: "dist/cli.js",
+            semantics: "run <canonical-work-uri> --config <absolute-json-path>",
+          },
+          reset: {
+            method: "POST",
+            path: "/__e2e/reset",
+            content_type: "application/json",
+            body: { scenario: "work_uri_run" },
+          },
+          access: {
+            backend: {
+              environment_name: "REEF_AKB_BASE_URL",
+            },
+            login: {
+              method: "POST",
+              path: "/akb/api/v1/auth/login",
+              credentials: "fixture_login",
+              token_field: "token",
+            },
+            token: {
+              environment_name: "REEF_AKB_JWT",
+              source: "login.token",
+              secret: true,
+            },
+          },
+        },
       },
     });
     const discoveredLogin = contract.fixture_login as typeof fixtureLogin;
@@ -112,6 +143,7 @@ test.describe("Hermetic runtime discovery", () => {
         "configured_empty",
         "content_search",
         "large_vault",
+        "work_uri_run",
       ]),
     );
 

@@ -5,6 +5,7 @@ application plus its private core, worker, and operator packages.
 
 The pnpm workspace contains `packages/web`, `packages/core`,
 `packages/orchestration/runtime`, `packages/orchestration/controller`,
+`packages/orchestration/cli`,
 `packages/orchestration/providers/codex`,
 `packages/orchestration/providers/local`,
 `packages/orchestration/providers/local-validation`,
