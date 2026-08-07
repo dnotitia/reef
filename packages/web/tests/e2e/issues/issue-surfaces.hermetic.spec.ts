@@ -273,6 +273,43 @@ test.describe("Hermetic issue route surfaces", () => {
       "due",
       "updated",
     ]);
+
+    await page.goto("/workspace/reef-e2e/issues?view=backlog");
+    await expect(page.getByTestId("backlog-table")).toBeVisible();
+
+    const backlogFilterBar = page.getByTestId("filter-bar");
+    const backlogFilterGeometry = await backlogFilterBar.evaluate((element) => {
+      const root = element as HTMLElement;
+      const selectors = [
+        '[data-testid="type-dropdown-trigger"]',
+        '[data-testid="priority-dropdown-trigger"]',
+        '[data-testid="severity-dropdown-trigger"]',
+        '[data-testid="dependency-dropdown-trigger"]',
+        '[data-testid="assignee-dropdown-trigger"]',
+        '[data-testid="requester-dropdown-trigger"]',
+        '[data-testid="milestone-filter"]',
+        '[data-testid="labels-filter"]',
+        '[data-testid="display-options-trigger"]',
+        '[data-testid="named-filter-trigger"]',
+      ];
+      const tops = selectors.map((selector) => {
+        const control = root.querySelector(selector);
+        return Math.round(control?.getBoundingClientRect().top ?? 0);
+      });
+      return {
+        filterBarHeight: Math.round(root.getBoundingClientRect().height),
+        tops,
+        documentOverflow:
+          document.documentElement.scrollWidth >
+          document.documentElement.clientWidth,
+      };
+    });
+    expect(
+      Math.max(...backlogFilterGeometry.tops) -
+        Math.min(...backlogFilterGeometry.tops),
+    ).toBeLessThanOrEqual(1);
+    expect(backlogFilterGeometry.filterBarHeight).toBeLessThanOrEqual(40);
+    expect(backlogFilterGeometry.documentOverflow).toBe(false);
   });
 
   test("renders the README demo board fixture across workflow columns", async ({

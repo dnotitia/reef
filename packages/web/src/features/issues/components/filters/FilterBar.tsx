@@ -225,7 +225,7 @@ export function FilterBar({
     <div
       className={cn(
         "flex flex-wrap items-center gap-2",
-        backlogScope && "lg:flex-nowrap lg:overflow-x-auto lg:[&>*]:shrink-0",
+        backlogScope && "flex-nowrap overflow-x-auto [&>*]:shrink-0",
       )}
       data-testid="filter-bar"
     >

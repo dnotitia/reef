@@ -175,11 +175,12 @@ describe("FilterBar", () => {
     expect(screen.getByTestId("labels-input")).toBeTruthy();
   });
 
-  it("keeps backlog controls on one desktop line while allowing narrow wrapping", () => {
+  it("keeps backlog controls on one row with local overflow", () => {
     const { getByTestId } = renderFilterBar({ backlogScope: true });
     const filterBar = getByTestId("filter-bar");
-    expect(filterBar.className).toContain("lg:flex-nowrap");
-    expect(filterBar.className).toContain("lg:overflow-x-auto");
+    expect(filterBar.className).toContain("flex-nowrap");
+    expect(filterBar.className).toContain("overflow-x-auto");
+    expect(filterBar.className).toContain("[&>*]:shrink-0");
   });
 
   it("ignores stray status/sprint/release/due values in the backlog active count (REEF-109, REEF-177)", () => {
