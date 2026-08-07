@@ -32,8 +32,7 @@ export const APP_CONFIG = {
   config: {
     app_id: "123456",
     installation_id: "789",
-    private_key:
-      "-----BEGIN RSA PRIVATE KEY-----\nx\n-----END RSA PRIVATE KEY-----",
+    private_key: "fixture",
   },
   status: { isConfigured: true, appId: "123456" },
 } satisfies ServerAppConfig;

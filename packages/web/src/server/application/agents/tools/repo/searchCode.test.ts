@@ -274,7 +274,7 @@ describe("createSearchCodeTool", () => {
       }),
     );
 
-    const adapter = createGitHubAdapter({ token: "bad-token" });
+    const adapter = createGitHubAdapter({ token: "test" });
     const toolObj = createSearchCodeTool(adapter, ALLOWED_REPOS);
 
     await expect(

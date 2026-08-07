@@ -8,12 +8,15 @@ import {
 } from "./serverAppConfig";
 
 describe("server GitHub App config", () => {
+  function buildLineBreakFixture(): string {
+    return ["test", "value"].join("\\n");
+  }
+
   const completeEnv = {
     NODE_ENV: "test",
     REEF_GITHUB_APP_ID: "123456",
     REEF_GITHUB_APP_INSTALLATION_ID: "789",
-    REEF_GITHUB_APP_PRIVATE_KEY:
-      "-----BEGIN RSA PRIVATE KEY-----\\nabc\\n-----END RSA PRIVATE KEY-----",
+    REEF_GITHUB_APP_PRIVATE_KEY: buildLineBreakFixture(),
   } satisfies NodeJS.ProcessEnv;
 
   it("resolves complete env into a config and public status", () => {
@@ -25,8 +28,7 @@ describe("server GitHub App config", () => {
       app_id: "123456",
       installation_id: "789",
       // literal \n escapes are restored to real newlines.
-      private_key:
-        "-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----",
+      private_key: buildLineBreakFixture().replace("\\n", "\n"),
     });
     expect(result.status).toEqual({ isConfigured: true, appId: "123456" });
   });

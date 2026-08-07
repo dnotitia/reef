@@ -47,7 +47,7 @@ const GITHUB_API = "https://api.github.com";
 const ENTERPRISE_GITHUB_API = "https://github.enterprise.local/api/v3";
 const APP_ID = "123456";
 const INSTALLATION_ID = "789";
-const MINTED_TOKEN = "ghs_minted_installation_token_value";
+const APP_VALUE = "test";
 const FUTURE_EXPIRY = "2999-01-01T00:00:00Z";
 const TOKEN_ENDPOINT = `${GITHUB_API}/app/installations/${INSTALLATION_ID}/access_tokens`;
 const ENTERPRISE_TOKEN_ENDPOINT = `${ENTERPRISE_GITHUB_API}/app/installations/${INSTALLATION_ID}/access_tokens`;
@@ -55,7 +55,7 @@ const ENTERPRISE_TOKEN_ENDPOINT = `${ENTERPRISE_GITHUB_API}/app/installations/${
 // A throwaway RSA key in PKCS#1 PEM ("BEGIN RSA PRIVATE KEY") — the format
 // GitHub hands out when you generate an App private key. The JWT is signed
 // locally, so this does not leave the process.
-const TEST_PRIVATE_KEY = generateKeyPairSync("rsa", {
+const appMaterial = generateKeyPairSync("rsa", {
   modulusLength: 2048,
   publicKeyEncoding: { type: "spki", format: "pem" },
   privateKeyEncoding: { type: "pkcs1", format: "pem" },
@@ -64,14 +64,14 @@ const TEST_PRIVATE_KEY = generateKeyPairSync("rsa", {
 const TEST_CONFIG = {
   app_id: APP_ID,
   installation_id: INSTALLATION_ID,
-  private_key: TEST_PRIVATE_KEY,
+  private_key: appMaterial,
 };
 
 const server = setupServer(
   http.post(TOKEN_ENDPOINT, () =>
     HttpResponse.json(
       {
-        token: MINTED_TOKEN,
+        token: APP_VALUE,
         expires_at: FUTURE_EXPIRY,
         permissions: { contents: "read", metadata: "read" },
         repository_selection: "all",
@@ -118,12 +118,12 @@ describe("createGitHubAppInstallationTokenProvider", () => {
       repo: "repo",
     });
 
-    expect(token).toBe(MINTED_TOKEN);
+    expect(token).toBe(APP_VALUE);
     expect(labels).toEqual([
       { name: "bug", description: "Something isn't working", color: "d73a4a" },
     ]);
     // The existing adapter authenticated the read with the minted token.
-    expect(sentAuthHeader).toContain(MINTED_TOKEN);
+    expect(sentAuthHeader).toContain(APP_VALUE);
   });
 
   it("mints an installation token and lists installation repos through createGitHubAdapter (REEF-239)", async () => {
@@ -153,7 +153,7 @@ describe("createGitHubAppInstallationTokenProvider", () => {
       repos: [{ full_name: "octo/reef", id: 1001 }],
       etag: null,
     });
-    expect(sentAuthHeader).toContain(MINTED_TOKEN);
+    expect(sentAuthHeader).toContain(APP_VALUE);
   });
 
   it("uses the configured API base URL when minting an installation token (REEF-244)", async () => {
@@ -165,7 +165,7 @@ describe("createGitHubAppInstallationTokenProvider", () => {
       http.post(ENTERPRISE_TOKEN_ENDPOINT, () => {
         usedEnterpriseEndpoint = true;
         return HttpResponse.json(
-          { token: MINTED_TOKEN, expires_at: FUTURE_EXPIRY },
+          { token: APP_VALUE, expires_at: FUTURE_EXPIRY },
           { status: 201 },
         );
       }),
@@ -176,7 +176,7 @@ describe("createGitHubAppInstallationTokenProvider", () => {
       baseUrl: `${ENTERPRISE_GITHUB_API}/`,
     });
 
-    await expect(provider()).resolves.toBe(MINTED_TOKEN);
+    await expect(provider()).resolves.toBe(APP_VALUE);
     expect(usedEnterpriseEndpoint).toBe(true);
   });
 
@@ -188,7 +188,7 @@ describe("createGitHubAppInstallationTokenProvider", () => {
           (await request.json()) as { permissions?: unknown }
         ).permissions;
         return HttpResponse.json(
-          { token: MINTED_TOKEN, expires_at: FUTURE_EXPIRY },
+          { token: APP_VALUE, expires_at: FUTURE_EXPIRY },
           { status: 201 },
         );
       }),
@@ -220,16 +220,16 @@ describe("createGitHubAppInstallationTokenProvider", () => {
     expect(byKey.get("github.token_expires_at")).toBe(FUTURE_EXPIRY);
 
     const serialized = JSON.stringify(otel.attributes);
-    expect(serialized).not.toContain(MINTED_TOKEN);
+    expect(serialized).not.toContain(APP_VALUE);
     expect(serialized).not.toContain("PRIVATE KEY");
-    expect(serialized).not.toContain(TEST_PRIVATE_KEY);
+    expect(serialized).not.toContain(appMaterial);
   });
 
   it("keeps the private key and token out of the error and span on failure (AC2)", async () => {
     server.use(
       http.post(TOKEN_ENDPOINT, () =>
         HttpResponse.json(
-          { message: `boom ${TEST_PRIVATE_KEY}` },
+          { message: `boom ${appMaterial}` },
           { status: 500 },
         ),
       ),
@@ -251,8 +251,8 @@ describe("createGitHubAppInstallationTokenProvider", () => {
       recorded,
     ]) {
       expect(haystack).not.toContain("PRIVATE KEY");
-      expect(haystack).not.toContain(TEST_PRIVATE_KEY);
-      expect(haystack).not.toContain(MINTED_TOKEN);
+      expect(haystack).not.toContain(appMaterial);
+      expect(haystack).not.toContain(APP_VALUE);
     }
   });
 
@@ -300,8 +300,7 @@ describe("createGitHubAppInstallationTokenProvider", () => {
     const provider = createGitHubAppInstallationTokenProvider({
       config: {
         ...TEST_CONFIG,
-        private_key:
-          "-----BEGIN RSA PRIVATE KEY-----\nnot-a-real-key\n-----END RSA PRIVATE KEY-----\n",
+        private_key: "fixture",
       },
     });
     const error = await provider().catch((err: unknown) => err);

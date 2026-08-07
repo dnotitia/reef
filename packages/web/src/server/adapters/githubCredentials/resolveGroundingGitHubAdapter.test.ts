@@ -50,9 +50,9 @@ const SENTINEL_ADAPTER = {
   adapter: "sentinel",
 } as unknown as ReturnType<typeof createGitHubAdapter>;
 
-const MINTED_TOKEN = "ghs_minted_token";
+const appValue = "test";
 
-const SERVER_PAT = "ghp_server_dev_pat";
+const serverValue = "server";
 
 describe("resolveGroundingGitHubAdapter", () => {
   beforeEach(() => {
@@ -68,7 +68,7 @@ describe("resolveGroundingGitHubAdapter", () => {
     });
 
     it("mints an installation token and returns the adapter without an Authorization header", async () => {
-      const mint = vi.fn(async () => MINTED_TOKEN);
+      const mint = vi.fn(async () => appValue);
       mockCreateProvider.mockReturnValue(mint);
 
       // No Authorization header - grounding should not need browser storage.
@@ -80,27 +80,27 @@ describe("resolveGroundingGitHubAdapter", () => {
       });
       expect(mint).toHaveBeenCalledTimes(1);
       expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
-        token: MINTED_TOKEN,
+        token: appValue,
       });
     });
 
     it("ignores an Authorization header when the App is configured", async () => {
-      const mint = vi.fn(async () => MINTED_TOKEN);
+      const mint = vi.fn(async () => appValue);
       mockCreateProvider.mockReturnValue(mint);
 
       const result = await resolveGroundingGitHubAdapter(
-        makeRequest({ Authorization: "Bearer ghp_browser_pat" }),
+        makeRequest({ Authorization: "Bearer browser-fixture" }),
       );
 
       expect(result).toEqual({ kind: "adapter", adapter: SENTINEL_ADAPTER });
       // The minted token grounds the request, not a browser-supplied value.
       expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
-        token: MINTED_TOKEN,
+        token: appValue,
       });
     });
 
     it("degrades without minting when akb rejects the session", async () => {
-      const mint = vi.fn(async () => MINTED_TOKEN);
+      const mint = vi.fn(async () => appValue);
       mockCreateProvider.mockReturnValue(mint);
       mockGetActor.mockResolvedValue({
         response: Response.json({ error: "expired" }, { status: 401 }),
@@ -153,7 +153,7 @@ describe("resolveGroundingGitHubAdapter", () => {
 
       const result = await resolveGroundingGitHubAdapter(makeRequest());
 
-      expect(JSON.stringify(result)).not.toContain(MINTED_TOKEN);
+      expect(JSON.stringify(result)).not.toContain(appValue);
     });
   });
 
@@ -164,7 +164,7 @@ describe("resolveGroundingGitHubAdapter", () => {
 
     it("degrades to AKB-only even when an Authorization header is present", async () => {
       const result = await resolveGroundingGitHubAdapter(
-        makeRequest({ Authorization: "Bearer ghp_user_pat" }),
+        makeRequest({ Authorization: "Bearer browser-fixture" }),
       );
 
       expect(result).toEqual({ kind: "degraded", reason: "no_credential" });
@@ -183,7 +183,7 @@ describe("resolveGroundingGitHubAdapter", () => {
   describe("server-managed PAT fallback path (REEF-290)", () => {
     beforeEach(() => {
       setServerAppConfig(NOT_CONFIGURED);
-      setServerGitHubPat(SERVER_PAT);
+      setServerGitHubPat(serverValue);
       mockGetActor.mockResolvedValue({ actor: "alice" });
     });
 
@@ -192,7 +192,7 @@ describe("resolveGroundingGitHubAdapter", () => {
 
       expect(result).toEqual({ kind: "adapter", adapter: SENTINEL_ADAPTER });
       expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
-        token: SERVER_PAT,
+        token: serverValue,
       });
       // The server PAT is a deployment credential, so the session is validated.
       expect(mockGetActor).toHaveBeenCalledTimes(1);
@@ -215,16 +215,16 @@ describe("resolveGroundingGitHubAdapter", () => {
 
     it("prefers the App over the server PAT when both are configured", async () => {
       setServerAppConfig(APP_CONFIG);
-      mockCreateProvider.mockReturnValue(vi.fn(async () => MINTED_TOKEN));
+      mockCreateProvider.mockReturnValue(vi.fn(async () => appValue));
 
       const result = await resolveGroundingGitHubAdapter(makeRequest());
 
       expect(result).toEqual({ kind: "adapter", adapter: SENTINEL_ADAPTER });
       expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
-        token: MINTED_TOKEN,
+        token: appValue,
       });
       expect(mockCreateGitHubAdapter).not.toHaveBeenCalledWith({
-        token: SERVER_PAT,
+        token: serverValue,
       });
     });
   });

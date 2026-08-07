@@ -280,7 +280,7 @@ describe("createDevReadFileTool", () => {
       }),
     );
 
-    const adapter = createGitHubAdapter({ token: "bad-token" });
+    const adapter = createGitHubAdapter({ token: "test" });
     const toolObj = createDevReadFileTool(adapter, ALLOWED_REPOS);
 
     await expect(

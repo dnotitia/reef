@@ -10,7 +10,7 @@ import {
 describe("server LLM config", () => {
   const enabledEnv = {
     NODE_ENV: "test",
-    REEF_LLM_API_KEY: "endpoint-key",
+    REEF_LLM_API_KEY: "fixture",
     REEF_LLM_BASE_URL: "https://llm.example.test/v1/",
     REEF_LLM_MODEL: "deepseek/deepseek-v4-flash",
   } satisfies NodeJS.ProcessEnv;
@@ -21,7 +21,7 @@ describe("server LLM config", () => {
     expect(result).toEqual({
       ok: true,
       config: {
-        api_key: "endpoint-key",
+        api_key: "fixture",
         base_url: "https://llm.example.test/v1",
         model: "deepseek/deepseek-v4-flash",
       },
@@ -47,11 +47,11 @@ describe("server LLM config", () => {
 
   it("rejects every partial canonical LLM configuration", () => {
     for (const env of [
-      { REEF_LLM_API_KEY: "endpoint-key" },
+      { REEF_LLM_API_KEY: "fixture" },
       { REEF_LLM_BASE_URL: "https://llm.example.test/v1" },
       { REEF_LLM_MODEL: "model-a" },
       {
-        REEF_LLM_API_KEY: "endpoint-key",
+        REEF_LLM_API_KEY: "fixture",
         REEF_LLM_MODEL: "model-a",
       },
     ]) {
@@ -67,7 +67,7 @@ describe("server LLM config", () => {
 
   it("accepts the main branch OpenRouter variables as compatibility aliases", () => {
     const result = resolveServerLlmConfig({
-      OPENROUTER_API_KEY: "legacy-key",
+      OPENROUTER_API_KEY: "test",
       OPENROUTER_BASE_URL: "https://openrouter.ai/api/v1",
       REEF_LLM_MODEL: "model-a",
     });
@@ -75,7 +75,7 @@ describe("server LLM config", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("expected valid aliases");
     expect(result.config).toEqual({
-      api_key: "legacy-key",
+      api_key: "test",
       base_url: "https://openrouter.ai/api/v1",
       model: "model-a",
     });
@@ -84,7 +84,7 @@ describe("server LLM config", () => {
   it("rejects conflicting canonical and compatibility alias values", () => {
     const result = resolveServerLlmConfig({
       ...enabledEnv,
-      OPENROUTER_API_KEY: "different-key",
+      OPENROUTER_API_KEY: "test",
       OPENROUTER_BASE_URL: "https://different.example/v1",
     });
 

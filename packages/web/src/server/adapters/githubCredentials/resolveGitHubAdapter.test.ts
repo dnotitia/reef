@@ -50,9 +50,8 @@ const SENTINEL_ADAPTER = {
   adapter: "sentinel",
 } as unknown as ReturnType<typeof createGitHubAdapter>;
 
-const MINTED_TOKEN = "ghs_minted_token";
-const SERVER_PAT = "ghp_server_dev_pat";
-const BROWSER_PAT = "ghp_browser_pat";
+const appValue = "test";
+const serverValue = "server";
 
 describe("resolveGitHubAdapter", () => {
   beforeEach(() => {
@@ -68,7 +67,7 @@ describe("resolveGitHubAdapter", () => {
     });
 
     it("mints an installation token and tags the source as app", async () => {
-      const mint = vi.fn(async () => MINTED_TOKEN);
+      const mint = vi.fn(async () => appValue);
       mockCreateProvider.mockReturnValue(mint);
 
       const result = await resolveGitHubAdapter(makeRequest());
@@ -79,35 +78,35 @@ describe("resolveGitHubAdapter", () => {
         source: "app",
       });
       expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
-        token: MINTED_TOKEN,
+        token: appValue,
       });
     });
 
     it("wins over a configured server PAT and ignores a browser PAT header", async () => {
-      setServerGitHubPat(SERVER_PAT);
-      const mint = vi.fn(async () => MINTED_TOKEN);
+      setServerGitHubPat(serverValue);
+      const mint = vi.fn(async () => appValue);
       mockCreateProvider.mockReturnValue(mint);
 
       const result = await resolveGitHubAdapter(
-        makeRequest({ Authorization: `Bearer ${BROWSER_PAT}` }),
+        makeRequest({ Authorization: "Bearer browser" }),
       );
 
       expect(result).toMatchObject({ source: "app" });
       expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
-        token: MINTED_TOKEN,
+        token: appValue,
       });
       expect(mockCreateGitHubAdapter).not.toHaveBeenCalledWith({
-        token: SERVER_PAT,
+        token: serverValue,
       });
       expect(mockCreateGitHubAdapter).not.toHaveBeenCalledWith({
-        token: BROWSER_PAT,
+        token: "browser",
       });
     });
 
     it("returns session_invalid without minting when akb rejects the session", async () => {
       const response = Response.json({ error: "expired" }, { status: 401 });
       mockGetActor.mockResolvedValue({ response });
-      const mint = vi.fn(async () => MINTED_TOKEN);
+      const mint = vi.fn(async () => appValue);
       mockCreateProvider.mockReturnValue(mint);
 
       const result = await resolveGitHubAdapter(makeRequest());
@@ -138,7 +137,7 @@ describe("resolveGitHubAdapter", () => {
   describe("server-managed PAT tier (dev/CI fallback)", () => {
     beforeEach(() => {
       setServerAppConfig(NOT_CONFIGURED);
-      setServerGitHubPat(SERVER_PAT);
+      setServerGitHubPat(serverValue);
       mockGetActor.mockResolvedValue({ actor: "alice" });
     });
 
@@ -151,7 +150,7 @@ describe("resolveGitHubAdapter", () => {
         source: "server-pat",
       });
       expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
-        token: SERVER_PAT,
+        token: serverValue,
       });
       // It is a deployment credential, so the session is validated first.
       expect(mockGetActor).toHaveBeenCalledTimes(1);
@@ -160,15 +159,15 @@ describe("resolveGitHubAdapter", () => {
 
     it("ignores a browser PAT header when the server PAT is configured", async () => {
       const result = await resolveGitHubAdapter(
-        makeRequest({ Authorization: `Bearer ${BROWSER_PAT}` }),
+        makeRequest({ Authorization: "Bearer browser" }),
       );
 
       expect(result).toMatchObject({ source: "server-pat" });
       expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
-        token: SERVER_PAT,
+        token: serverValue,
       });
       expect(mockCreateGitHubAdapter).not.toHaveBeenCalledWith({
-        token: BROWSER_PAT,
+        token: "browser",
       });
     });
 
@@ -190,7 +189,7 @@ describe("resolveGitHubAdapter", () => {
 
     it("returns no_credential even when an Authorization header is present", async () => {
       const result = await resolveGitHubAdapter(
-        makeRequest({ Authorization: `Bearer ${BROWSER_PAT}` }),
+        makeRequest({ Authorization: "Bearer browser" }),
       );
 
       expect(result).toEqual({ kind: "no_credential" });

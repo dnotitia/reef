@@ -44,7 +44,7 @@ afterAll(() => server.close());
 
 describe("GitHubAdapter surface", () => {
   it("exposes reef's monitored-repo read operations, not raw Octokit clients", () => {
-    const adapter = createGitHubAdapter({ token: "ghp_test" });
+    const adapter = createGitHubAdapter({ token: "test" });
 
     expect(adapter).toEqual(
       expect.objectContaining({
@@ -64,7 +64,7 @@ describe("GitHubAdapter surface", () => {
 
 describe("listAuthenticatedRepositories", () => {
   it("returns authenticated repos as the route-safe wire shape", async () => {
-    const adapter = createGitHubAdapter({ token: "ghp_test" });
+    const adapter = createGitHubAdapter({ token: "test" });
 
     const result = await adapter.listAuthenticatedRepositories();
 
@@ -86,7 +86,7 @@ describe("listAuthenticatedRepositories", () => {
         return HttpResponse.json([], { headers: { etag: 'W/"v2-new"' } });
       }),
     );
-    const adapter = createGitHubAdapter({ token: "ghp_test" });
+    const adapter = createGitHubAdapter({ token: "test" });
 
     await adapter.listAuthenticatedRepositories({ ifNoneMatch: 'W/"v1-old"' });
 
@@ -104,7 +104,7 @@ describe("listAuthenticatedRepositories", () => {
           }),
       ),
     );
-    const adapter = createGitHubAdapter({ token: "ghp_test" });
+    const adapter = createGitHubAdapter({ token: "test" });
 
     await expect(adapter.listAuthenticatedRepositories()).resolves.toEqual({
       kind: "not_modified",
@@ -118,7 +118,7 @@ describe("listAuthenticatedRepositories", () => {
         HttpResponse.json({ message: "Bad credentials" }, { status: 401 }),
       ),
     );
-    const adapter = createGitHubAdapter({ token: "ghp_test" });
+    const adapter = createGitHubAdapter({ token: "test" });
 
     await expect(
       adapter.listAuthenticatedRepositories(),
@@ -131,7 +131,7 @@ describe("listAuthenticatedRepositories", () => {
         HttpResponse.json({ message: "rate limit exceeded" }, { status: 403 }),
       ),
     );
-    const adapter = createGitHubAdapter({ token: "ghp_test" });
+    const adapter = createGitHubAdapter({ token: "test" });
 
     await expect(adapter.listAuthenticatedRepositories()).rejects.toMatchObject(
       {
@@ -146,7 +146,7 @@ describe("listAuthenticatedRepositories", () => {
         HttpResponse.json({ message: "Not Found" }, { status: 404 }),
       ),
     );
-    const adapter = createGitHubAdapter({ token: "ghp_test" });
+    const adapter = createGitHubAdapter({ token: "test" });
 
     await expect(
       adapter.listAuthenticatedRepositories(),
@@ -162,7 +162,7 @@ describe("listAuthenticatedRepositories", () => {
         ),
       ),
     );
-    const adapter = createGitHubAdapter({ token: "ghp_test" });
+    const adapter = createGitHubAdapter({ token: "test" });
 
     await expect(adapter.listAuthenticatedRepositories()).rejects.toMatchObject(
       {
@@ -195,7 +195,7 @@ describe("listInstallationRepositories", () => {
         ),
       ),
     );
-    const adapter = createGitHubAdapter({ token: "ghs_installation" });
+    const adapter = createGitHubAdapter({ token: "fixture" });
 
     const result = await adapter.listInstallationRepositories();
 
@@ -220,7 +220,7 @@ describe("listInstallationRepositories", () => {
         );
       }),
     );
-    const adapter = createGitHubAdapter({ token: "ghs_installation" });
+    const adapter = createGitHubAdapter({ token: "fixture" });
 
     await adapter.listInstallationRepositories({ ifNoneMatch: 'W/"inst-old"' });
 
@@ -238,7 +238,7 @@ describe("listInstallationRepositories", () => {
           }),
       ),
     );
-    const adapter = createGitHubAdapter({ token: "ghs_installation" });
+    const adapter = createGitHubAdapter({ token: "fixture" });
 
     await expect(adapter.listInstallationRepositories()).resolves.toEqual({
       kind: "not_modified",
@@ -252,7 +252,7 @@ describe("listInstallationRepositories", () => {
         HttpResponse.json({ message: "Bad credentials" }, { status: 401 }),
       ),
     );
-    const adapter = createGitHubAdapter({ token: "ghs_installation" });
+    const adapter = createGitHubAdapter({ token: "fixture" });
 
     await expect(adapter.listInstallationRepositories()).rejects.toBeInstanceOf(
       AuthError,
@@ -268,7 +268,7 @@ describe("listInstallationRepositories", () => {
         ),
       ),
     );
-    const adapter = createGitHubAdapter({ token: "ghs_installation" });
+    const adapter = createGitHubAdapter({ token: "fixture" });
 
     await expect(adapter.listInstallationRepositories()).rejects.toMatchObject({
       status: 500,
@@ -334,7 +334,7 @@ describe("listRecentActivity", () => {
         return HttpResponse.json({ message: "unknown query" }, { status: 500 });
       }),
     );
-    const adapter = createGitHubAdapter({ token: "ghp_test" });
+    const adapter = createGitHubAdapter({ token: "test" });
 
     const result = await adapter.listRecentActivity({
       owner: "owner",
@@ -352,7 +352,7 @@ describe("listRecentActivity", () => {
 
 describe("listLabelsForRepo", () => {
   it("returns RepoLabel[] on happy path", async () => {
-    const adapter = createGitHubAdapter({ token: "ghp_test" });
+    const adapter = createGitHubAdapter({ token: "test" });
 
     const result = await listLabelsForRepo({
       adapter,
@@ -377,7 +377,7 @@ describe("listLabelsForRepo", () => {
         HttpResponse.json(allItems),
       ),
     );
-    const adapter = createGitHubAdapter({ token: "ghp_test" });
+    const adapter = createGitHubAdapter({ token: "test" });
 
     const result = await listLabelsForRepo({
       adapter,
@@ -396,7 +396,7 @@ describe("listLabelsForRepo", () => {
         HttpResponse.json([{ name: "bug", color: "d73a4a" }]),
       ),
     );
-    const adapter = createGitHubAdapter({ token: "ghp_test" });
+    const adapter = createGitHubAdapter({ token: "test" });
 
     const result = await listLabelsForRepo({
       adapter,
@@ -413,7 +413,7 @@ describe("listLabelsForRepo", () => {
         HttpResponse.json({ message: "Not Found" }, { status: 404 }),
       ),
     );
-    const adapter = createGitHubAdapter({ token: "ghp_test" });
+    const adapter = createGitHubAdapter({ token: "test" });
 
     await expect(
       listLabelsForRepo({ adapter, owner: "missing", repo: "repo" }),
@@ -426,7 +426,7 @@ describe("listLabelsForRepo", () => {
         HttpResponse.json({ message: "Bad credentials" }, { status: 401 }),
       ),
     );
-    const adapter = createGitHubAdapter({ token: "ghp_test" });
+    const adapter = createGitHubAdapter({ token: "test" });
 
     await expect(
       listLabelsForRepo({ adapter, owner: "owner", repo: "repo" }),
@@ -439,7 +439,7 @@ describe("listLabelsForRepo", () => {
         HttpResponse.json({ message: "Server error" }, { status: 500 }),
       ),
     );
-    const adapter = createGitHubAdapter({ token: "ghp_test" });
+    const adapter = createGitHubAdapter({ token: "test" });
 
     await expect(
       listLabelsForRepo({ adapter, owner: "owner", repo: "repo" }),

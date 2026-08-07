@@ -50,7 +50,7 @@ const SENTINEL_ADAPTER = {
   adapter: "sentinel",
 } as unknown as ReturnType<typeof createGitHubAdapter>;
 
-const SERVER_PAT = "ghp_server_dev_pat";
+const serverValue = "server";
 
 describe("resolveScanGitHubAdapter", () => {
   beforeEach(() => {
@@ -66,7 +66,7 @@ describe("resolveScanGitHubAdapter", () => {
     });
 
     it("mints an installation token and returns the adapter without an Authorization header", async () => {
-      const mint = vi.fn(async () => "ghs_minted_token");
+      const mint = vi.fn(async () => "test");
       mockCreateProvider.mockReturnValue(mint);
 
       // No Authorization header - the App path should not need browser storage.
@@ -78,12 +78,12 @@ describe("resolveScanGitHubAdapter", () => {
       });
       expect(mint).toHaveBeenCalledTimes(1);
       expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
-        token: "ghs_minted_token",
+        token: "test",
       });
     });
 
     it("validates the session before minting and returns session_invalid when akb rejects it", async () => {
-      const mint = vi.fn(async () => "ghs_minted_token");
+      const mint = vi.fn(async () => "test");
       mockCreateProvider.mockReturnValue(mint);
       const response = Response.json({ error: "expired" }, { status: 401 });
       mockGetActor.mockResolvedValue({ response });
@@ -114,17 +114,17 @@ describe("resolveScanGitHubAdapter", () => {
     });
 
     it("ignores an Authorization header when the App is configured", async () => {
-      const mint = vi.fn(async () => "ghs_minted_token");
+      const mint = vi.fn(async () => "test");
       mockCreateProvider.mockReturnValue(mint);
 
       const result = await resolveScanGitHubAdapter(
-        makeRequest({ Authorization: "Bearer ghp_browser_pat" }),
+        makeRequest({ Authorization: "Bearer browser-fixture" }),
       );
 
       expect(result).toEqual({ kind: "adapter", adapter: SENTINEL_ADAPTER });
       // The minted token authenticates the scan, not a browser-supplied value.
       expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
-        token: "ghs_minted_token",
+        token: "test",
       });
     });
   });
@@ -136,7 +136,7 @@ describe("resolveScanGitHubAdapter", () => {
 
     it("returns github_app_unconfigured without reading an Authorization header", async () => {
       const result = await resolveScanGitHubAdapter(
-        makeRequest({ Authorization: "Bearer ghp_user_pat" }),
+        makeRequest({ Authorization: "Bearer browser-fixture" }),
       );
 
       expect(result).toEqual({ kind: "github_app_unconfigured" });
@@ -155,7 +155,7 @@ describe("resolveScanGitHubAdapter", () => {
   describe("server-managed PAT fallback path (REEF-290)", () => {
     beforeEach(() => {
       setServerAppConfig(NOT_CONFIGURED);
-      setServerGitHubPat(SERVER_PAT);
+      setServerGitHubPat(serverValue);
       mockGetActor.mockResolvedValue({ actor: "alice" });
     });
 
@@ -164,7 +164,7 @@ describe("resolveScanGitHubAdapter", () => {
 
       expect(result).toEqual({ kind: "adapter", adapter: SENTINEL_ADAPTER });
       expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
-        token: SERVER_PAT,
+        token: serverValue,
       });
       // The server PAT is a deployment credential, so the session is validated.
       expect(mockGetActor).toHaveBeenCalledTimes(1);
@@ -183,16 +183,16 @@ describe("resolveScanGitHubAdapter", () => {
 
     it("prefers the App over the server PAT when both are configured", async () => {
       setServerAppConfig(APP_CONFIG);
-      mockCreateProvider.mockReturnValue(vi.fn(async () => "ghs_minted_token"));
+      mockCreateProvider.mockReturnValue(vi.fn(async () => "test"));
 
       const result = await resolveScanGitHubAdapter(makeRequest());
 
       expect(result).toEqual({ kind: "adapter", adapter: SENTINEL_ADAPTER });
       expect(mockCreateGitHubAdapter).toHaveBeenCalledWith({
-        token: "ghs_minted_token",
+        token: "test",
       });
       expect(mockCreateGitHubAdapter).not.toHaveBeenCalledWith({
-        token: SERVER_PAT,
+        token: serverValue,
       });
     });
   });

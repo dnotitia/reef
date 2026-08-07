@@ -39,7 +39,7 @@ describe("LLM wire contract", () => {
       }),
     );
     const adapter = createLlmAdapter({
-      apiKey: "component-key",
+      apiKey: "fixture",
       baseUrl: "https://gateway.example.test/v1",
       model: "test-model",
     });
@@ -64,7 +64,7 @@ describe("LLM wire contract", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
     const adapter = createLlmAdapter({
-      apiKey: "component-key",
+      apiKey: "fixture",
       baseUrl: "https://gateway.example.test/v1",
       model: "test-model",
     });
@@ -87,7 +87,7 @@ describe("LLM wire contract", () => {
       }),
     );
     const adapter = createLlmAdapter({
-      apiKey: "provider-key",
+      apiKey: "fixture",
       baseUrl: "https://provider.example.test/v1",
       model: "test-model",
     });
