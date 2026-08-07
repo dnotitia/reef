@@ -341,7 +341,7 @@ preserves Server-Sent Events.
   server-side credential placement, this keeps GitHub and LLM credentials out of
   browser JavaScript. CI audits for CSP regressions.
 - **Deployment.** `next.config.ts` sets `output: "standalone"`, and the root
-  `Dockerfile` builds a small `node:22.23.2-alpine` image that runs the standalone
+  `Dockerfile` builds a small `node:24.18.1-alpine` image that runs the standalone
   server as a non-root user. It deploys to Kubernetes as a sibling of the AKB
   deployment, using rolling updates; clients pick up a new version on their next
   full page load.

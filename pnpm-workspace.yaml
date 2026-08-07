@@ -6,7 +6,7 @@ packages:
 catalog:
   "@octokit/rest": ^21.1.1
   "@opentelemetry/api": ^1.9.1
-  "@types/node": ^22.15.0
+  "@types/node": ^24.13.3
   msw: ^2.13.2
   tsx: ^4.20.3
   typescript: ^6.0.2

@@ -44,7 +44,7 @@ explicitly in the entries below.
 
 ### Operational
 
-- **The repository now has one Node 22 and pnpm toolchain baseline.** Shared
+- **The repository now has one Node 24 and pnpm toolchain baseline.** Shared
   workspace versions are owned by the default pnpm catalog, while CI, Docker,
   and Renovate use the same runtime and package-manager declarations.
 

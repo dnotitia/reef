@@ -28,10 +28,11 @@ Revisit the migration only once the TypeScript 7.1 API is stable and the
 compiler-dependent tools (including `typescript-eslint`) publish compatible
 peer ranges; that decision requires a separate compatibility proof.
 
-The current Node execution pin is `22.23.2`, selected from the supported Node 22
-release line. The root `engines.node` value (`>=22.13.0`) remains the compatible
-support floor. CI reads `.node-version`, and every root Docker stage mirrors the
-same exact Node patch so local, CI, and container test behavior use one runtime.
+The current Node execution pin is `24.18.1`, selected from the supported Node 24
+LTS release line. The root `engines.node` value (`>=24.15.0`) remains the
+compatible support floor. CI reads `.node-version`, and every root Docker stage
+mirrors the same exact Node patch so local, CI, and container test behavior use
+one runtime.
 
 The policy checker discovers packages through the repository's existing
 workspace discovery helper and rejects direct shared-version declarations,

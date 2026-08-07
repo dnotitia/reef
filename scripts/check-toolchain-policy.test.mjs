@@ -23,7 +23,7 @@ async function createFixture() {
         name: "fixture-root",
         private: true,
         packageManager: "pnpm@11.10.0",
-        engines: { node: ">=22.13.0" },
+        engines: { node: ">=24.15.0" },
         devDependencies: { "root-tool": "^1.0.0" },
       },
       null,
@@ -32,9 +32,9 @@ async function createFixture() {
   );
   await writeFile(
     path.join(root, "pnpm-workspace.yaml"),
-    `packages:\n  - "packages/*"\n\ncatalog:\n  "@types/node": ^22.15.0\n  typescript: ^6.0.2\n  vitest: ^3.2.6\n  zod: ^3.25.76\n`,
+    `packages:\n  - "packages/*"\n\ncatalog:\n  "@types/node": ^24.13.3\n  typescript: ^6.0.2\n  vitest: ^3.2.6\n  zod: ^3.25.76\n`,
   );
-  await writeFile(path.join(root, ".node-version"), "22.23.2\n");
+  await writeFile(path.join(root, ".node-version"), "24.18.1\n");
   await mkdir(path.join(root, ".github", "workflows"), { recursive: true });
   await writeFile(
     path.join(root, ".github", "workflows", "ci.yml"),
@@ -42,7 +42,7 @@ async function createFixture() {
   );
   await writeFile(
     path.join(root, "Dockerfile"),
-    "FROM node:22.23.2-alpine\nRUN corepack enable\nRUN pnpm install --frozen-lockfile\n",
+    "FROM node:24.18.1-alpine\nRUN corepack enable\nRUN pnpm install --frozen-lockfile\n",
   );
 
   for (const [directory, manifest] of [
@@ -122,6 +122,18 @@ test("accepts the canonical catalog and runtime baseline", async () => {
     const result = await inspectToolchain({ root, pnpmCommand });
     assert.deepEqual(result.violations, []);
   });
+});
+
+test("rejects a Node execution pin that drifts from the exact runtime pin", async () => {
+  await withFixture(
+    async (root) => {
+      await writeFile(path.join(root, ".node-version"), "24.18.0\n");
+    },
+    async ({ root, pnpmCommand }) => {
+      const result = await inspectToolchain({ root, pnpmCommand });
+      assert.ok(result.violations.some(({ code }) => code === "node-version"));
+    },
+  );
 });
 
 test("rejects a direct version bypass for a catalog dependency", async () => {
@@ -215,7 +227,7 @@ test("rejects a Docker Node patch that drifts from the exact runtime pin", async
     async (root) => {
       await writeFile(
         path.join(root, "Dockerfile"),
-        "FROM node:22.13.0-alpine\nRUN corepack enable\n",
+        "FROM node:24.15.0-alpine\nRUN corepack enable\n",
       );
     },
     async ({ root, pnpmCommand }) => {
@@ -236,7 +248,7 @@ test("rejects unused and named catalog entries", async () => {
 
       await writeFile(
         path.join(root, "pnpm-workspace.yaml"),
-        `packages:\n  - "packages/*"\n\ncatalog:\n  "@types/node": ^22.15.0\n  typescript: ^6.0.2\n  vitest: ^3.2.6\n  zod: ^3.25.76\n  unused: ^1.0.0\n\ncatalogs:\n  legacy:\n    old: ^1.0.0\n`,
+        `packages:\n  - "packages/*"\n\ncatalog:\n  "@types/node": ^24.13.3\n  typescript: ^6.0.2\n  vitest: ^3.2.6\n  zod: ^3.25.76\n  unused: ^1.0.0\n\ncatalogs:\n  legacy:\n    old: ^1.0.0\n`,
       );
     },
     async ({ root, pnpmCommand }) => {
@@ -277,7 +289,7 @@ test("rejects TypeScript 7 catalog drift", async () => {
     async (root) => {
       await writeFile(
         path.join(root, "pnpm-workspace.yaml"),
-        `packages:\n  - "packages/*"\n\ncatalog:\n  "@types/node": ^22.15.0\n  typescript: ^7.0.2\n  vitest: ^3.2.6\n  zod: ^3.25.76\n`,
+        `packages:\n  - "packages/*"\n\ncatalog:\n  "@types/node": ^24.13.3\n  typescript: ^7.0.2\n  vitest: ^3.2.6\n  zod: ^3.25.76\n`,
       );
     },
     async ({ root, pnpmCommand }) => {
