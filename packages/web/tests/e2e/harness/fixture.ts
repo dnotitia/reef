@@ -7,6 +7,7 @@ export const E2E_MOCK_URL =
 export type FixtureScenario =
   | "empty"
   | "configured"
+  | "configured_empty"
   | "content_search"
   | "configured_multi"
   | "demo_board"

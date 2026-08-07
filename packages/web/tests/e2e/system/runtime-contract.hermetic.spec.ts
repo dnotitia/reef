@@ -36,6 +36,16 @@ test.describe("Hermetic runtime discovery", () => {
           secondary_workspace: "reef-zeta",
           start_path: "/workspace/reef-e2e/issues?view=list",
         },
+        empty_states: {
+          scenario: "configured_empty",
+          workspace: "reef-e2e",
+          start_paths: {
+            my_work: "/workspace/reef-e2e/my-work",
+            inbox: "/workspace/reef-e2e/inbox",
+            reports: "/workspace/reef-e2e/reports",
+            planning: "/workspace/reef-e2e/planning",
+          },
+        },
       },
     });
     const discoveredLogin = contract.fixture_login as typeof fixtureLogin;
@@ -54,6 +64,7 @@ test.describe("Hermetic runtime discovery", () => {
     expect(contract.scenarios).toEqual(
       expect.arrayContaining([
         "configured_multi",
+        "configured_empty",
         "content_search",
         "large_vault",
       ]),
@@ -73,6 +84,30 @@ test.describe("Hermetic runtime discovery", () => {
     expect(summarize(second)).toEqual(summarize(first));
     expect(first.vaults.map((vault) => vault.name)).toEqual(
       expect.arrayContaining(["reef-e2e", "reef-zeta"]),
+    );
+
+    await resetFixture(request, "configured_empty");
+    const emptyState = await readFixtureState(request);
+    const emptyVault = emptyState.vaults.find(
+      (vault) => vault.name === "reef-e2e",
+    );
+    expect(emptyState.scenario).toBe("configured_empty");
+    expect(emptyVault).toMatchObject({
+      name: "reef-e2e",
+      issue_ids: [],
+      sprints: [],
+      milestones: [],
+      releases: [],
+      notifications: [],
+    });
+    expect(emptyVault?.tables).toEqual(
+      expect.arrayContaining([
+        "reef_issues",
+        "reef_notifications",
+        "reef_sprints",
+        "reef_milestones",
+        "reef_releases",
+      ]),
     );
   });
 });
