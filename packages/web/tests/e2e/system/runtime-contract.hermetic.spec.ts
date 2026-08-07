@@ -36,6 +36,16 @@ test.describe("Hermetic runtime discovery", () => {
           secondary_workspace: "reef-zeta",
           start_path: "/workspace/reef-e2e/issues?view=list",
         },
+        content_search: {
+          scenario: "content_search",
+          workspace: "reef-e2e",
+          start_path: "/workspace/reef-e2e/issues",
+          interaction: {
+            type: "global_search",
+            shortcut: "Control+K",
+            query: "issue title, body, or comment phrase",
+          },
+        },
       },
     });
     const discoveredLogin = contract.fixture_login as typeof fixtureLogin;

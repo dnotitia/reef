@@ -5,9 +5,9 @@ import { openExistingWorkspace, resetFixture } from "../harness/fixture";
  * REEF-360 — context-aware chat grounding.
  *
  * Drives the real /api/agents/runs route handler (chat.workspace task); only the
- * upstream OpenRouter provider is mocked in the fixture. The mock reply is a
- * fixed "Mock OpenRouter response." string, so this spec proves the *grounding
- * wiring* end-to-end rather than answer quality (that is unit/eval-covered):
+ * upstream OpenRouter provider is mocked in the fixture. The deterministic
+ * response includes the submitted request, so this spec proves both the
+ * request-dependent provider seam and the *grounding wiring* end-to-end:
  *   - the issue-detail "Ask AI about this issue" affordance opens the panel with
  *     a context chip naming the issue (AC3);
  *   - the outgoing request body carries `input.route` + `input.reefId` so core
@@ -58,7 +58,7 @@ test.describe("Hermetic Ask AI context grounding (REEF-360)", () => {
 
     await expect(
       page.locator('[data-testid="assistant-message"]').filter({
-        hasText: "Mock OpenRouter response.",
+        hasText: "Request: What's the next step on this issue?",
       }),
     ).toBeVisible({ timeout: 15_000 });
 
@@ -83,5 +83,8 @@ test.describe("Hermetic Ask AI context grounding (REEF-360)", () => {
     await page.locator('[data-testid="ask-ai-send"]').click();
     const contextFreeBody = (await contextFreeRequest).postDataJSON();
     expect(contextFreeBody.input.reefId ?? null).toBeNull();
+    await expect(
+      page.locator('[data-testid="assistant-message"]').last(),
+    ).toContainText("Request: And in general?");
   });
 });

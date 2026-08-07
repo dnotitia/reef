@@ -295,6 +295,11 @@ function runtimeDiscovery() {
         scenario: "content_search",
         workspace: "reef-e2e",
         start_path: "/workspace/reef-e2e/issues",
+        interaction: {
+          type: "global_search",
+          shortcut: "Control+K",
+          query: "issue title, body, or comment phrase",
+        },
       },
       large_issue_list: {
         scenario: "large_vault",
@@ -2474,7 +2479,7 @@ async function handleOpenRouter(req, res) {
         });
         return;
       }
-      await streamOpenRouterChunks(res, basicTextChunks(created));
+      await streamOpenRouterChunks(res, basicTextChunks(created, body));
       return;
     }
     return json(res, 200, {
@@ -2488,7 +2493,7 @@ async function handleOpenRouter(req, res) {
           finish_reason: "stop",
           message: {
             role: "assistant",
-            content: "Mock OpenRouter response.",
+            content: basicTextResponse(body),
           },
         },
       ],
@@ -2497,14 +2502,56 @@ async function handleOpenRouter(req, res) {
   return json(res, 404, { error: "not_found" });
 }
 
-function basicTextChunks(created) {
+function basicTextChunks(created, body) {
   return [
     chatCompletionChunk("chatcmpl-e2e", created, { role: "assistant" }),
     chatCompletionChunk("chatcmpl-e2e", created, {
-      content: "Mock OpenRouter response.",
+      content: basicTextResponse(body),
     }),
     chatCompletionChunk("chatcmpl-e2e", created, {}, "stop"),
   ];
+}
+
+function basicTextResponse(body) {
+  const requestText = lastUserMessageText(body?.messages ?? body?.input);
+  return `Mock OpenRouter response. Request: ${requestText || "(empty)"}`;
+}
+
+function lastUserMessageText(value) {
+  if (Array.isArray(value)) {
+    for (let index = value.length - 1; index >= 0; index -= 1) {
+      const text = lastUserMessageText(value[index]);
+      if (text) return text;
+    }
+    return "";
+  }
+  if (!value || typeof value !== "object") return "";
+  if (value.role === "user") {
+    return messageContentText(value.content ?? value.parts);
+  }
+  const entries = Object.values(value);
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const text = lastUserMessageText(entries[index]);
+    if (text) return text;
+  }
+  return "";
+}
+
+function messageContentText(value) {
+  if (typeof value === "string") return value.trim();
+  if (Array.isArray(value)) {
+    return value
+      .map((part) => messageContentText(part))
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+  }
+  if (!value || typeof value !== "object") return "";
+  if (typeof value.text === "string") return value.text.trim();
+  if (typeof value.content === "string") return value.content.trim();
+  if (Array.isArray(value.content)) return messageContentText(value.content);
+  if (Array.isArray(value.parts)) return messageContentText(value.parts);
+  return "";
 }
 
 function initialToolLoopChunks(created) {
