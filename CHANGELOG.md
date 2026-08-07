@@ -63,6 +63,9 @@ explicitly in the entries below.
   `dist/`, dependency-cruiser enforces workspace directions and production
   boundaries, and the canonical non-E2E check exercises packed public imports,
   core subpaths, and the Jira migrator CLI.
+- **Issue filters now converge on shared person and planning option rows.**
+  Milestone filtering lists only real milestones and exposes a dedicated clear
+  action that leaves other active facets intact. (REEF-462)
 
 ## v0.9.0 - 2026-08-03
 

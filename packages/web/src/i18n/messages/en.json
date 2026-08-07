@@ -876,7 +876,7 @@
     },
     "filters": {
       "activeCount": "{count, plural, one {# filter} other {# filters}}",
-      "anyMilestone": "Any milestone",
+      "clearMilestone": "Clear milestone filter",
       "searchPlaceholder": "Search issues...",
       "clearSearch": "Clear search",
       "issueView": "Issue view",

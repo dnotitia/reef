@@ -79,6 +79,61 @@ test.describe("Hermetic issue list flow", () => {
     ).toBe(true);
   });
 
+  test("keeps the milestone filter real and clears it without clearing another facet", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+    await expect(
+      page.locator('[data-testid="issue-list-row"]').first(),
+    ).toBeVisible({ timeout: 15_000 });
+
+    await page.getByTestId("status-dropdown-trigger").click();
+    await page.getByTestId("status-option-todo").click();
+    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL(/status=todo/);
+
+    await page.getByLabel("Milestone").click();
+    const milestoneList = page.getByRole("listbox");
+    await expect(
+      milestoneList.getByRole("option", { name: /Coverage Complete/ }),
+    ).toBeVisible();
+    await expect(
+      milestoneList.getByText("Any milestone", { exact: true }),
+    ).toHaveCount(0);
+
+    await milestoneList
+      .getByRole("option", { name: /Coverage Complete/ })
+      .click();
+    await expect(page).toHaveURL(/milestone_id=/);
+    await expect(
+      page.getByRole("button", { name: "Clear milestone filter" }),
+    ).toBeVisible();
+
+    await page.getByRole("button", { name: "Clear milestone filter" }).click();
+    await expect
+      .poll(() => new URL(page.url()).searchParams.has("milestone_id"))
+      .toBe(false);
+    await expect(page).toHaveURL(/status=todo/);
+    await expect(
+      page.getByRole("button", { name: "Clear milestone filter" }),
+    ).toHaveCount(0);
+    await expect(page.getByTestId("active-filter-count")).toContainText(
+      "1 filter",
+    );
+    await expect(page.getByTestId("clear-filters-button")).toBeVisible();
+
+    await page.reload();
+    await expect(
+      page.locator('[data-testid="issue-list-row"]').first(),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(page).toHaveURL(/status=todo/);
+    await expect(
+      page.getByRole("button", { name: "Clear milestone filter" }),
+    ).toHaveCount(0);
+    await expect(page.getByTestId("clear-filters-button")).toBeVisible();
+  });
+
   test("restores the saved status filter on a bare /issues entry", async ({
     page,
     context,

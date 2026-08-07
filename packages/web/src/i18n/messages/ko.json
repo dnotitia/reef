@@ -1063,7 +1063,7 @@
     },
     "filters": {
       "activeCount": "필터 {count}개",
-      "anyMilestone": "모든 마일스톤",
+      "clearMilestone": "마일스톤 필터 해제",
       "searchPlaceholder": "이슈 검색…",
       "clearSearch": "검색 지우기",
       "issueView": "이슈 보기 방식",
