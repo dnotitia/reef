@@ -309,7 +309,32 @@ test.describe("Hermetic runtime discovery", () => {
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/reports");
 
-    await page.getByTestId("health-rollup-dimension-parent").click();
+    const milestones = page.getByRole("button", {
+      name: "Milestones",
+      exact: true,
+    });
+    const parents = page.getByRole("button", { name: "Parents", exact: true });
+    await expect(milestones).toHaveAttribute("aria-pressed", "true");
+    await expect(parents).toHaveAttribute("aria-pressed", "false");
+
+    // Exercise the real pointer activation and selected-state contract before
+    // relying on the parent row downstream.
+    await parents.click();
+    await expect(parents).toHaveAttribute("aria-pressed", "true");
+    await expect(milestones).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByTestId("health-rollup-row-REEF-101")).toBeVisible();
+
+    // Native buttons retain keyboard activation when the segmented control has
+    // focus; verify both the switch away and the switch back.
+    await milestones.focus();
+    await page.keyboard.press("Enter");
+    await expect(milestones).toHaveAttribute("aria-pressed", "true");
+    await expect(parents).toHaveAttribute("aria-pressed", "false");
+    await parents.focus();
+    await page.keyboard.press("Space");
+    await expect(parents).toHaveAttribute("aria-pressed", "true");
+    await expect(milestones).toHaveAttribute("aria-pressed", "false");
+
     await page.getByTestId("health-rollup-row-REEF-101").click();
     const labelInput = page.getByTestId("report-label-input");
     await labelInput.fill("docs");

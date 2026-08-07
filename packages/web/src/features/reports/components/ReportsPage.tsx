@@ -57,6 +57,8 @@ export function ReportsPage() {
   const issuesQuery = useIssueList(vault);
   const planningQuery = usePlanningCatalog(vault);
   const [filters, setFilters] = useState<ReportFilters>(DEFAULT_REPORT_FILTERS);
+  const [rollupDimension, setRollupDimension] =
+    useState<RollupDimension>("milestone");
   const [nowMs] = useState(() => Date.now());
 
   // Aggregation is a single pass over every issue; memoize so unrelated
@@ -237,6 +239,8 @@ export function ReportsPage() {
                     issues={issues}
                     catalog={catalog}
                     filters={filters}
+                    dimension={rollupDimension}
+                    onDimensionChange={setRollupDimension}
                     onDrill={handleDrill}
                   />
                 )}
