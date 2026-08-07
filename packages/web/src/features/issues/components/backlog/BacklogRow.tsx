@@ -106,7 +106,7 @@ export function BacklogRow({
             aria-label={t("reorderGrip", { id: issue.id })}
             title={reorderHint}
             data-testid={`backlog-grip-${issue.id}`}
-            className="flex h-8 w-8 cursor-grab touch-none items-center justify-center rounded-sm opacity-40 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 active:cursor-grabbing"
+            className="flex h-8 w-8 cursor-grab touch-none items-center justify-center rounded-sm opacity-40 transition-opacity duration-150 group-hover:opacity-100 focus:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 active:cursor-grabbing"
             onClick={(e) => e.stopPropagation()}
             {...attributes}
             {...listeners}

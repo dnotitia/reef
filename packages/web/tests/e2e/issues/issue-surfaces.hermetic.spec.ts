@@ -190,9 +190,9 @@ test.describe("Hermetic issue route surfaces", () => {
       "Drag to reorder in Rank order",
     );
     await grip.focus();
-    expect(
-      await grip.evaluate((element) => getComputedStyle(element).opacity),
-    ).toBe("1");
+    await expect
+      .poll(() => grip.evaluate((element) => getComputedStyle(element).opacity))
+      .toBe("1");
 
     await page.getByTestId("sort-control-trigger").click();
     await page.getByTestId("sort-option-priority").click();
