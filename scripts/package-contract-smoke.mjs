@@ -20,22 +20,6 @@ import { parseDocument } from "yaml";
 import { discoverWorkspacePackages } from "./maintenance/workspaces.mjs";
 
 const root = process.cwd();
-const artifactPackageNames = [
-  "@reef/core",
-  "@reef/orchestrator",
-  "@reef/harness-provider-codex",
-  "@reef/infrastructure-provider-local",
-  "@reef/work-provider-reef",
-  "@reef/jira-migrator",
-];
-const artifactPackageSet = new Set(artifactPackageNames);
-const publicImportSpecifiers = [
-  ...artifactPackageNames,
-  "@reef/core/status",
-  "@reef/core/errors",
-  "@reef/core/fields",
-  "@reef/core/fields/planning",
-];
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -86,6 +70,23 @@ function readDefaultCatalog(workspaceYaml) {
 
 function packageKey(name) {
   return name.replace(/^@[^/]+\//, "");
+}
+
+function isArtifactPackage(packageInfo) {
+  return (
+    Array.isArray(packageInfo.manifest.files) &&
+    packageInfo.manifest.files.length === 1 &&
+    packageInfo.manifest.files[0] === "dist"
+  );
+}
+
+function publicImportSpecifiers(packages) {
+  return packages.flatMap(({ name, manifest }) => [
+    name,
+    ...Object.keys(manifest.exports ?? {})
+      .filter((specifier) => specifier !== ".")
+      .map((specifier) => `${name}${specifier.slice(1)}`),
+  ]);
 }
 
 function rewriteWorkspaceDependencies(manifest, version) {
@@ -287,23 +288,19 @@ async function packArtifactPackages(packRoot, packages, version, catalog) {
 
 async function runSmoke() {
   const workspacePackages = await discoverWorkspacePackages({ root });
-  const byName = new Map(
-    workspacePackages.map((packageInfo) => [packageInfo.name, packageInfo]),
-  );
-  const packages = artifactPackageNames.map((name) => {
-    const packageInfo = byName.get(name);
-    if (!packageInfo)
-      throw new Error(`Expected workspace package is missing: ${name}`);
-    return packageInfo;
-  });
-  const workspaceArtifactNames = workspacePackages
-    .map((packageInfo) => packageInfo.name)
-    .filter((name) => artifactPackageSet.has(name));
-  if (workspaceArtifactNames.length !== artifactPackageNames.length) {
-    throw new Error(
-      "Workspace discovery returned an unexpected package contract set",
-    );
+  const packages = workspacePackages.filter(isArtifactPackage);
+  if (packages.length === 0) {
+    throw new Error("Workspace discovery returned no artifact packages");
   }
+  const artifactPackageNames = packages.map((packageInfo) => packageInfo.name);
+  const importSpecifiers = publicImportSpecifiers(packages);
+  const cliPackage = packages.find((packageInfo) => {
+    const bin = packageInfo.manifest.bin;
+    return (
+      typeof bin === "string" ||
+      (bin && typeof bin === "object" && Object.keys(bin).length > 0)
+    );
+  });
 
   for (const packageInfo of packages) {
     await assertArtifactPackage(
@@ -377,7 +374,7 @@ async function runSmoke() {
       await assertInstalledArtifact(packageDir, name);
     }
 
-    const importChecks = publicImportSpecifiers
+    const importChecks = importSpecifiers
       .map(
         (specifier, index) =>
           `const module${index} = await import(${JSON.stringify(specifier)});\n` +
@@ -394,17 +391,16 @@ async function runSmoke() {
       { cwd: consumerDir },
     );
 
-    const helpOutput = run(
-      "pnpm",
-      ["exec", "--", "reef-jira-migrator", "--help"],
-      {
+    if (cliPackage) {
+      const bin = cliPackage.manifest.bin;
+      const binName =
+        typeof bin === "string" ? cliPackage.name : Object.keys(bin)[0];
+      const helpOutput = run("pnpm", ["exec", "--", binName, "--help"], {
         cwd: consumerDir,
-      },
-    );
-    if (!/reef-jira-migrator|Usage:/i.test(helpOutput)) {
-      throw new Error(
-        "Installed reef-jira-migrator --help did not print CLI usage",
-      );
+      });
+      if (!new RegExp(`${binName}|Usage:`, "i").test(helpOutput)) {
+        throw new Error(`Installed ${binName} --help did not print CLI usage`);
+      }
     }
   } finally {
     await rm(packRoot, { recursive: true, force: true });
@@ -414,7 +410,7 @@ async function runSmoke() {
 try {
   await runSmoke();
   console.log(
-    `package contract smoke passed: ${artifactPackageNames.length} isolated Node ESM packages, core public subpaths, and reef-jira-migrator --help`,
+    "package contract smoke passed: dynamically discovered isolated Node ESM packages, public exports, and CLI help",
   );
 } catch (error) {
   console.error(`package contract smoke failed: ${error.message}`);

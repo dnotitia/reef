@@ -20,9 +20,12 @@ See [Required environment](#required-environment) for the full env contract.
 
 ## 1. Build the image
 
-reef-web builds from the repo-root [`Dockerfile`](../Dockerfile) — a multi-stage
-build (deps → builder → minimal runner) that emits the Next.js `standalone`
-output and runs as a non-root user on port `3000`.
+reef-web builds from the repo-root [`Dockerfile`](../Dockerfile). The multi-stage
+build first resolves the repository-pinned Turbo dependency, runs
+`turbo prune @reef/web --docker`, installs only the pruned manifests and lockfile,
+builds the Next.js `standalone` output, and runs it as a non-root user on port
+`3000`. The final image contains the standalone runtime, static assets, and
+public assets only; workspace source is not a runtime fallback.
 
 ```bash
 # From the repository root
@@ -36,6 +39,17 @@ docker buildx build --platform linux/amd64 \
 
 The container listens on `3000` and exposes a health endpoint at
 `/api/healthz` (used by the Kubernetes liveness/readiness probes).
+
+For a local image proof, build without credentials, run it as UID 1001 with an
+ephemeral published port, and verify the health response:
+
+```bash
+docker build --no-cache -t reef-web:local .
+docker run --rm --user 1001 -p 127.0.0.1:0:3000 reef-web:local
+```
+
+Use the published port from Docker's output to request `/api/healthz`; the
+runtime must return JSON with HTTP 200.
 
 ---
 

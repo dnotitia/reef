@@ -5,24 +5,9 @@ import process from "node:process";
 import { discoverWorkspacePackages } from "./maintenance/workspaces.mjs";
 
 const root = process.cwd();
-const requiredWorkspaceNames = new Set([
-  "@reef/core",
-  "@reef/web",
-  "@reef/jira-migrator",
-  "@reef/orchestrator",
-  "@reef/harness-provider-codex",
-  "@reef/infrastructure-provider-local",
-  "@reef/work-provider-reef",
-]);
-
 const workspacePackages = await discoverWorkspacePackages({ root });
-const workspaceNames = new Set(
-  workspacePackages.map((packageInfo) => packageInfo.name),
-);
-for (const name of requiredWorkspaceNames) {
-  if (!workspaceNames.has(name)) {
-    throw new Error(`Required workspace package is missing: ${name}`);
-  }
+if (workspacePackages.length === 0) {
+  throw new Error("Workspace discovery returned no packages");
 }
 
 const sourceRoots = workspacePackages

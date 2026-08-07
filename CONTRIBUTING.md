@@ -17,7 +17,7 @@ checkout running and what to verify before opening a pull request.
 From the repository root:
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 ```
 
 This is a pnpm workspace, so a single install at the root wires up every
@@ -63,11 +63,20 @@ Run the canonical non-E2E gate from the repository root and make sure it passes:
 pnpm run check
 ```
 
-This includes the six tsdown package builds, isolated artifact smoke,
-dependency architecture, lint, typecheck, unit tests, and release policy.
+This includes the Turbo graph/cache contract proof, discovered package builds,
+isolated artifact smoke, dependency architecture, lint, typecheck, unit tests,
+maintenance checks, and release policy. For a quick graph-only proof while
+iterating on task configuration, run:
+
+```bash
+pnpm run check:turbo-contract
+```
+
 The full hermetic Playwright suite remains a separate required CI gate; run
 `pnpm --filter @reef/web run test:e2e:sharded` when the required browser
-environment is available. Fixing formatting is `pnpm format`.
+environment is available. The local sharded command builds the standalone web
+artifact once and reuses it for the shard processes. Fixing formatting is
+`pnpm format`.
 
 ## Continuous integration
 
@@ -75,9 +84,9 @@ Every pull request runs the **lint**, **typecheck**, **test**, and
 **release-policy** jobs. These run for external contributors too — they need no
 secrets.
 
-The **e2e** (Playwright) job runs on top of those — the same hermetic suite the
-gate above asks you to run locally — and the LLM eval work runs as separate
-follow-up tooling. Specs and jobs that require deployment secrets
+The **e2e** (Playwright) job consumes one exact-head Next production artifact
+that CI builds once and shares across all three shards. The LLM eval work runs
+as separate follow-up tooling. Specs and jobs that require deployment secrets
 (GitHub tokens, an LLM API key, etc.) self-skip when those secrets are absent,
 so a fork PR still gets a complete, green CI signal without access to repo
 secrets.

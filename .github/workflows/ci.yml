@@ -73,7 +73,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run six-package contract and architecture gate
+      - name: Run workspace package contract and architecture gate
         run: pnpm run check:package-contract
 
   typecheck:
@@ -95,11 +95,54 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build six Node package artifacts
+      - name: Build workspace package artifacts
         run: pnpm run build:packages
 
       - name: Run TypeScript typecheck
         run: pnpm run typecheck
+
+  production-build:
+    name: Next production artifact
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck]
+    outputs:
+      sha256: ${{ steps.production_artifact.outputs.sha256 }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the production artifact
+        run: pnpm run build
+
+      - name: Package and digest the production artifact
+        id: production_artifact
+        run: |
+          mkdir -p ci-artifacts
+          tar -C packages/web -czf ci-artifacts/reef-web-production.tar.gz .next/standalone .next/static public
+          sha256sum ci-artifacts/reef-web-production.tar.gz > ci-artifacts/reef-web-production.tar.gz.sha256
+          printf '%s\n' "$GITHUB_SHA" > ci-artifacts/reef-web-production.commit
+          digest=$(cut -d' ' -f1 ci-artifacts/reef-web-production.tar.gz.sha256)
+          echo "sha256=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the production artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: reef-web-production-${{ github.sha }}
+          path: ci-artifacts/
+          if-no-files-found: error
+          retention-days: 7
 
   test:
     name: Vitest
@@ -120,7 +163,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build six Node package artifacts
+      - name: Build workspace package artifacts
         run: pnpm run build:packages
 
       - name: Run tests
@@ -132,12 +175,12 @@ jobs:
     # `name:`, so it is spelled out literally — keep all three in sync.
     name: E2E (shard ${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
-    # Gate only on the *fast* checks (lint + typecheck). Vitest used to be a
+    # Gate only on the *fast* checks plus the single production artifact. Vitest used to be a
     # `needs` here too, which serialized the whole ~2.5min unit suite ahead of
     # E2E even though the two are independent — now they run in parallel. We
-    # still gate on lint/typecheck (seconds, not minutes) so E2E does not burn
-    # runner time on a build that cannot even compile.
-    needs: [lint, typecheck]
+    # still gate on lint/typecheck and the exact production build so E2E does
+    # not burn runner time on an artifact that cannot even compile.
+    needs: [lint, typecheck, production-build]
     if: success()
     strategy:
       # One shard failing should not cancel the others — we want every shard's
@@ -160,6 +203,22 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Download the exact production artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: reef-web-production-${{ github.sha }}
+          path: ci-artifacts
+
+      - name: Verify and unpack the production artifact
+        env:
+          EXPECTED_ARTIFACT_SHA256: ${{ needs.production-build.outputs.sha256 }}
+        run: |
+          sha256sum -c ci-artifacts/reef-web-production.tar.gz.sha256
+          actual=$(cut -d' ' -f1 ci-artifacts/reef-web-production.tar.gz.sha256)
+          test "$actual" = "$EXPECTED_ARTIFACT_SHA256"
+          test "$(cat ci-artifacts/reef-web-production.commit)" = "$GITHUB_SHA"
+          tar -xzf ci-artifacts/reef-web-production.tar.gz -C packages/web
 
       - name: Resolve Playwright version
         id: pw
@@ -189,7 +248,7 @@ jobs:
         run: pnpm --filter @reef/web exec playwright install-deps chromium
 
       - name: Run Playwright E2E tests
-        run: pnpm --filter @reef/web run test:e2e:sharded -- --shard=${{ matrix.shard }}/3
+        run: REEF_E2E_SKIP_BUILD=1 pnpm --filter @reef/web run test:e2e:sharded -- --shard=${{ matrix.shard }}/3
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v5
@@ -212,14 +271,16 @@ jobs:
   e2e:
     name: Playwright E2E
     runs-on: ubuntu-latest
-    needs: [e2e-shard]
+    needs: [e2e-shard, production-build]
     if: ${{ !cancelled() }}
     steps:
       - name: Aggregate E2E shard results
         run: |
           result='${{ needs.e2e-shard.result }}'
+          artifact_result='${{ needs.production-build.result }}'
           echo "E2E shard matrix result: $result"
-          case "$result" in
-            success|skipped) exit 0 ;;
+          echo "Production artifact result: $artifact_result"
+          case "$artifact_result:$result" in
+            success:success|success:skipped) exit 0 ;;
             *) echo "::error::One or more Playwright E2E shards failed"; exit 1 ;;
           esac

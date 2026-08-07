@@ -319,8 +319,9 @@ pnpm --filter @reef/jira-migrator run build
 pnpm --filter @reef/jira-migrator run test:behavior
 ```
 
-`test:behavior` builds the package and runs a source-blind ALPHA/BETA contract
-against mock Jira and isolated mock AKB HTTP services. It proves GET-only Jira
+The workspace-wide Turbo test task builds the package before
+`test:behavior` runs its source-blind ALPHA/BETA contract against mock Jira and
+isolated mock AKB HTTP services. It proves GET-only Jira
 traffic, dry-run target mutation zero, plan-hash approval, write/readback
 checkpoint ordering, fresh-process resume, cross-project relation
 reconciliation, rerun duplicate zero, conservation, and report redaction.
