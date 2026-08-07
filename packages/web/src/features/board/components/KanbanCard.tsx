@@ -35,7 +35,7 @@ import {
   forwardRef,
   memo,
   useCallback,
-  useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -285,7 +285,7 @@ export const KanbanCard = memo(function KanbanCard({
     [setNodeRef],
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (
       focusRequest?.scope !== "board" ||
       focusRequest.issueId !== issue.id ||

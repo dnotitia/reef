@@ -170,9 +170,9 @@ export function resetKanbanBoardMocks() {
     selectedIssueId: null,
   });
   useIssueKeyboardStore.setState({
-    visibleIssueIds: { list: [], board: [] },
-    focusedIssueId: { list: null, board: null },
-    tabStopIssueId: { list: null, board: null },
+    visibleIssueIds: { list: [], board: [], backlog: [] },
+    focusedIssueId: { list: null, board: null, backlog: null },
+    tabStopIssueId: { list: null, board: null, backlog: null },
     focusRequest: null,
     quickEditRequest: null,
   });

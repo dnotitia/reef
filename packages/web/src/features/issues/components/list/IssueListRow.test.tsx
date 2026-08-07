@@ -16,9 +16,9 @@ afterEach(() => {
   // seed prop, with no vault normalized into the store).
   purgeAll();
   useIssueKeyboardStore.setState({
-    visibleIssueIds: { list: [], board: [] },
-    focusedIssueId: { list: null, board: null },
-    tabStopIssueId: { list: null, board: null },
+    visibleIssueIds: { list: [], board: [], backlog: [] },
+    focusedIssueId: { list: null, board: null, backlog: null },
+    tabStopIssueId: { list: null, board: null, backlog: null },
     focusRequest: null,
     quickEditRequest: null,
   });
@@ -207,8 +207,8 @@ describe("IssueListRow", () => {
 
   it("uses the rounded row focus chrome instead of inset tr rings", () => {
     useIssueKeyboardStore.setState({
-      focusedIssueId: { list: "REEF-001", board: null },
-      tabStopIssueId: { list: "REEF-001", board: null },
+      focusedIssueId: { list: "REEF-001", board: null, backlog: null },
+      tabStopIssueId: { list: "REEF-001", board: null, backlog: null },
     });
 
     renderRow();

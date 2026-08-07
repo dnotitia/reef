@@ -40,9 +40,8 @@ vi.mock("next/navigation", () => ({
   useSearchParams: mockUseSearchParams,
   useRouter: () => ({ replace: mockReplace, push: vi.fn() }),
 }));
-// `data-next-link` marks anchors that came through Next `Link`; a raw `<a>`
-// would not carry it, so the empty-state CTA assertions below fail if an
-// internal nav link regresses to a full-reload anchor (REEF-262).
+// `data-next-link` marks the populated My Work row anchors produced by Next
+// `Link`; the row assertions below keep issue-detail navigation client-side.
 vi.mock("next/link", () => ({
   default: ({
     href,
@@ -162,7 +161,7 @@ describe("MyWorkPage", () => {
     });
   });
 
-  it("shows the empty state with a client-side board link when nothing is assigned (AC7, REEF-262)", () => {
+  it("shows a passive empty state when nothing is assigned", () => {
     mockUseIssueList.mockReturnValue(issueListResult([]));
     render(
       <IntlTestProvider>
@@ -187,17 +186,14 @@ describe("MyWorkPage", () => {
       .getByRole("heading", { name: "My Work", level: 1 })
       .closest('[data-slot="page-header"]');
     expect(header).not.toBeNull();
-    const cta = within(header as HTMLElement).getByRole("link", {
-      name: /Go to the board/,
-    });
-    expect(cta).toHaveAttribute(
-      "href",
-      "/workspace/reef-acme/issues?view=board",
-    );
-    expect(cta).toHaveAttribute("data-next-link", "true");
+    expect(
+      within(header as HTMLElement).queryByRole("link", {
+        name: /Go to the board/,
+      }),
+    ).not.toBeInTheDocument();
   });
 
-  it("shows 'all caught up' with a client-side board link when assigned work is all resolved (AC7, REEF-262)", () => {
+  it("shows a passive caught-up state when assigned work is all resolved", () => {
     mockUseIssueList.mockReturnValue(
       issueListResult([makeIssue({ id: "REEF-1", status: "done" })]),
     );
@@ -224,14 +220,11 @@ describe("MyWorkPage", () => {
       .getByRole("heading", { name: "My Work", level: 1 })
       .closest('[data-slot="page-header"]');
     expect(header).not.toBeNull();
-    const cta = within(header as HTMLElement).getByRole("link", {
-      name: /Go to the board/,
-    });
-    expect(cta).toHaveAttribute(
-      "href",
-      "/workspace/reef-acme/issues?view=board",
-    );
-    expect(cta).toHaveAttribute("data-next-link", "true");
+    expect(
+      within(header as HTMLElement).queryByRole("link", {
+        name: /Go to the board/,
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders a skeleton while identity/workspace resolve", () => {

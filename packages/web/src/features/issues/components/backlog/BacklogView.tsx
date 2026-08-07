@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/toastFeedback";
 import { BacklogRow } from "@/features/issues/components/backlog/BacklogRow";
 import { CloseIssueDialog } from "@/features/issues/components/detail/CloseIssueDialog";
+import { IssueSelectionCheckbox } from "@/features/issues/components/shared/IssueSelectionCheckbox";
 import {
   BACKLOG_COLUMNS,
   ISSUE_TABLE_COLUMN_WIDTHS,
@@ -30,12 +31,16 @@ import { useResolvedAutoHideWindows } from "@/features/issues/hooks/useResolvedA
 import { useOpenIssue } from "@/features/issues/hooks/view/useOpenIssue";
 import { buildIssueQuery } from "@/features/issues/lib/buildIssueQuery";
 import { applyDependencyFilter } from "@/features/issues/lib/dependencyUtils";
+import { buildOpenIssueHref } from "@/features/issues/lib/issueHref";
 import {
   filterIssues,
   searchIssues,
   sortIssues,
 } from "@/features/issues/lib/issueListUtils";
+import { loadedSelectionState } from "@/features/issues/lib/issueSelection";
 import { buildStatusPatch } from "@/features/issues/lib/statusPatch";
+import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
+import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { PageBody } from "@/features/ui/components/PageBody";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
@@ -43,6 +48,7 @@ import { DURATION_BASE, EASE_SIGNATURE } from "@/lib/motionTokens";
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
 import {
+  type Announcements,
   DndContext,
   type DragEndEvent,
   KeyboardSensor,
@@ -66,7 +72,8 @@ import {
 import { CircleDashed } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { Fragment, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 const EMPTY_ISSUES: IssueListItem[] = [];
@@ -146,6 +153,7 @@ export function BacklogView({ vault }: BacklogViewProps) {
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
   const openIssue = useOpenIssue();
+  const searchParams = useSearchParams();
   const mutation = useUpdateIssue();
   const reorder = useReorderBacklog();
   const [pendingCloseIssue, setPendingCloseIssue] =
@@ -316,6 +324,16 @@ export function BacklogView({ vault }: BacklogViewProps) {
     [visibleIssues],
   );
 
+  useEffect(() => {
+    useIssueKeyboardStore.getState().setVisibleIssueIds("backlog", sortableIds);
+  }, [sortableIds]);
+
+  useEffect(() => {
+    return () => {
+      useIssueKeyboardStore.getState().setVisibleIssueIds("backlog", []);
+    };
+  }, []);
+
   function runStatusUpdate(input: {
     id: string;
     patch: ReturnType<typeof buildStatusPatch>;
@@ -371,6 +389,35 @@ export function BacklogView({ vault }: BacklogViewProps) {
     runReorder({ ordered: orderedBacklog, fromIndex, toIndex });
   }
 
+  const announcements = useMemo<Announcements>(() => {
+    const positionOf = (id: string | undefined) => {
+      if (!id) return null;
+      const index = orderedBacklog.findIndex((issue) => issue.id === id);
+      return index < 0 ? null : index + 1;
+    };
+    return {
+      onDragStart: ({ active }) => t("dragStart", { id: String(active.id) }),
+      onDragOver: ({ active, over }) => {
+        const position = positionOf(over ? String(over.id) : undefined);
+        return position === null
+          ? undefined
+          : t("dragOver", { id: String(active.id), position });
+      },
+      onDragEnd: ({ active, over }) => {
+        const position = positionOf(over ? String(over.id) : undefined);
+        return position === null
+          ? undefined
+          : t("dragEnd", { id: String(active.id), position });
+      },
+      onDragCancel: ({ active }) => t("dragCancel", { id: String(active.id) }),
+    };
+  }, [orderedBacklog, t]);
+
+  const issueHref = useCallback(
+    (id: string) => buildOpenIssueHref(vault, id, searchParams),
+    [searchParams, vault],
+  );
+
   function handleStatusChange(issue: IssueListItem, nextStatus: Status) {
     if (nextStatus === issue.status) return;
     // Closing needs a reason — route through the shared dialog like the board.
@@ -425,7 +472,11 @@ export function BacklogView({ vault }: BacklogViewProps) {
           style={{ minWidth: BACKLOG_TABLE_WIDTH }}
         >
           <BacklogColumnGroup />
-          <BacklogTableHeader reorderHint={reorderHint} />
+          <BacklogTableHeader
+            reorderHint={reorderHint}
+            visibleIssueIds={[]}
+            disabled
+          />
           <TableBody>
             <BacklogSkeleton />
           </TableBody>
@@ -451,6 +502,7 @@ export function BacklogView({ vault }: BacklogViewProps) {
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
+          accessibility={{ announcements }}
           onDragEnd={handleDragEnd}
         >
           <Table
@@ -459,7 +511,10 @@ export function BacklogView({ vault }: BacklogViewProps) {
             style={{ minWidth: BACKLOG_TABLE_WIDTH }}
           >
             <BacklogColumnGroup />
-            <BacklogTableHeader reorderHint={reorderHint} />
+            <BacklogTableHeader
+              reorderHint={reorderHint}
+              visibleIssueIds={sortableIds}
+            />
             <TableBody ref={canReorder ? undefined : rowsRef}>
               <SortableContext
                 items={sortableIds}
@@ -472,6 +527,8 @@ export function BacklogView({ vault }: BacklogViewProps) {
                     )}
                     <BacklogRow
                       issue={issue}
+                      href={issueHref(issue.id)}
+                      logicalIds={sortableIds}
                       sortable={canReorder}
                       reorderHint={reorderHint}
                       onOpen={openIssue}
@@ -498,9 +555,21 @@ export function BacklogView({ vault }: BacklogViewProps) {
   );
 }
 
-function BacklogTableHeader({ reorderHint }: { reorderHint: string }) {
+function BacklogTableHeader({
+  reorderHint,
+  visibleIssueIds,
+  disabled = false,
+}: {
+  reorderHint: string;
+  visibleIssueIds: readonly string[];
+  disabled?: boolean;
+}) {
   const columnLabels = useFieldNameLabels();
   const t = useTranslations("issues.backlog");
+  const bulk = useTranslations("issues.bulk");
+  const selectedIds = useIssueSelectionStore((state) => state.selectedIds);
+  const selectionRunning = useIssueSelectionStore((state) => state.running);
+  const selectAllState = loadedSelectionState(selectedIds, visibleIssueIds);
   return (
     <TableHeader>
       <TableRow className="h-8">
@@ -520,7 +589,20 @@ function BacklogTableHeader({ reorderHint }: { reorderHint: string }) {
             }
             title={column === "rank" ? reorderHint : undefined}
           >
-            {column === "rank" ? (
+            {column === "select" ? (
+              <IssueSelectionCheckbox
+                checked={selectAllState === "checked"}
+                indeterminate={selectAllState === "mixed"}
+                disabled={disabled || selectionRunning}
+                label={bulk("selectAllLoaded")}
+                testId="backlog-select-all"
+                onChange={() =>
+                  useIssueSelectionStore
+                    .getState()
+                    .toggleAllLoaded(visibleIssueIds)
+                }
+              />
+            ) : column === "rank" ? (
               <span className="inline-flex items-center gap-1">
                 {t("rank")}
                 <span id="backlog-rank-description" className="sr-only">

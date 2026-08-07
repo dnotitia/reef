@@ -16,7 +16,9 @@ const SUPPORTED_SCENARIOS = [
   "empty",
   "configured",
   "configured_empty",
+  "configured_caught_up",
   "configured_multi",
+  "backlog_bulk_partial_failure",
   "demo_board",
   "content_search",
   "raw_only",
@@ -115,22 +117,6 @@ const server = createServer(async (req, res) => {
         ok: true,
         mode,
         delay_ms: state.contentSearchDelayMs,
-      });
-    }
-    if (
-      url.pathname === "/__e2e/issue-update-control" &&
-      req.method === "POST"
-    ) {
-      const body = await readJson(req);
-      const id = String(body?.id ?? "");
-      const mode = body?.mode;
-      if (mode === "once" || mode === "always")
-        state.issueUpdateFailures.set(id, mode);
-      else state.issueUpdateFailures.delete(id);
-      return json(res, 200, {
-        ok: true,
-        id,
-        mode: state.issueUpdateFailures.get(id) ?? "clear",
       });
     }
     if (url.pathname === "/__e2e/remove-issue" && req.method === "POST") {
@@ -292,6 +278,16 @@ function runtimeDiscovery() {
         secondary_workspace: "reef-zeta",
         start_path: "/workspace/reef-e2e/issues?view=list",
       },
+      backlog_bulk_partial_failure: {
+        scenario: "backlog_bulk_partial_failure",
+        workspace: "reef-e2e",
+        start_path: "/workspace/reef-e2e/issues?view=backlog",
+        interaction: {
+          type: "bulk_status_update",
+          operation:
+            "select the visible Backlog issues, choose In Review from the bulk Status control, observe one successful issue leave Backlog while one failed issue keeps its original Backlog state and selection, then open the failure tray and retry the failed update",
+        },
+      },
       content_search: {
         scenario: "content_search",
         workspace: "reef-e2e",
@@ -350,6 +346,11 @@ function runtimeDiscovery() {
           reports: "/workspace/reef-e2e/reports",
           planning: "/workspace/reef-e2e/planning",
         },
+      },
+      caught_up_states: {
+        scenario: "configured_caught_up",
+        workspace: "reef-e2e",
+        start_path: "/workspace/reef-e2e/my-work",
       },
     },
   };
@@ -417,7 +418,9 @@ function makeState(scenario) {
   if (
     scenario === "configured" ||
     scenario === "configured_empty" ||
+    scenario === "configured_caught_up" ||
     scenario === "configured_multi" ||
+    scenario === "backlog_bulk_partial_failure" ||
     scenario === "activity_suggestions" ||
     scenario === "notifications" ||
     scenario === "skill_outdated" ||
@@ -429,7 +432,9 @@ function makeState(scenario) {
         ? largeVault(REEF_VAULT)
         : scenario === "configured_empty"
           ? configuredEmptyVault(REEF_VAULT)
-          : configuredVault(REEF_VAULT);
+          : scenario === "configured_caught_up"
+            ? configuredCaughtUpVault(REEF_VAULT)
+            : configuredVault(REEF_VAULT);
     if (scenario === "activity_suggestions") seedActivitySuggestions(vault);
     if (scenario === "notifications") seedNotifications(vault);
     if (scenario === "skill_outdated") seedOutdatedVaultSkill(vault);
@@ -443,6 +448,24 @@ function makeState(scenario) {
       });
     }
     next.vaults.set(REEF_VAULT, vault);
+    if (scenario === "backlog_bulk_partial_failure") {
+      const successfulIssue = vault.issues.find(
+        (issue) => issue.reef_id === "REEF-002",
+      );
+      const failedIssue = vault.issues.find(
+        (issue) => issue.reef_id === "REEF-003",
+      );
+      if (!successfulIssue || !failedIssue) {
+        throw new Error(
+          "partial-failure fixture requires two configured issues",
+        );
+      }
+      successfulIssue.status = "backlog";
+      successfulIssue.rank = 2000;
+      failedIssue.status = "backlog";
+      failedIssue.rank = 1000;
+      next.issueUpdateFailures.set(failedIssue.reef_id, "once");
+    }
     next.vaults.set("raw-vault", rawVault("raw-vault"));
     if (scenario === "configured_multi") {
       next.vaults.set("reef-zeta", configuredVault("reef-zeta"));
@@ -678,6 +701,20 @@ function configuredEmptyVault(name) {
   vault.activity = [];
   vault.notifications = [];
   vault.subscriptions = [];
+  return vault;
+}
+
+function configuredCaughtUpVault(name) {
+  const vault = configuredVault(name);
+  vault.issues = vault.issues
+    .filter((issue) => issue.assigned_to === "alice")
+    .map((issue) => ({ ...issue, status: "done" }));
+  vault.documents = new Map();
+  vault.comments = [];
+  vault.activity = [];
+  for (const issue of vault.issues) {
+    seedIssueDocument(vault, issue.reef_id, `${issue.title} is complete.`);
+  }
   return vault;
 }
 
@@ -1847,6 +1884,43 @@ function handleSql(vault, sql) {
     return tableSql();
   }
   if (lower.startsWith("update reef_issues")) {
+    const reorderMatch = normalized.match(
+      /set\s+"rank"\s*=\s*case\s+"reef_id"\s+(.+?)\s+end,\s+"meta"/i,
+    );
+    if (reorderMatch) {
+      const idsMatch = normalized.match(
+        /where\s+"reef_id"\s+in\s*\(([^)]+)\)/i,
+      );
+      const assignments = new Map(
+        [
+          ...reorderMatch[1].matchAll(
+            /when\s+'((?:''|[^'])+)'\s+then\s+(null|-?(?:\d+(?:\.\d+)?))/gi,
+          ),
+        ].map(([, rawId, rawRank]) => [
+          rawId.replace(/''/g, "'"),
+          /^null$/i.test(rawRank) ? null : Number(rawRank),
+        ]),
+      );
+      const ids = idsMatch ? sqlValues(idsMatch[1]) : [];
+      const editor = matchSqlString(
+        normalized,
+        /to_jsonb\('((?:''|[^'])*)'::text\)/i,
+      );
+      const updatedAt = nextEditTimestamp();
+      for (const row of vault.issues) {
+        if (
+          ids.includes(row.reef_id) &&
+          row.status === "backlog" &&
+          row.archived_at == null &&
+          assignments.has(row.reef_id)
+        ) {
+          row.rank = assignments.get(row.reef_id);
+          row.updated_at = updatedAt;
+          if (editor) row.meta = { ...row.meta, last_editor: editor };
+        }
+      }
+      return tableSql();
+    }
     const update = parseUpdate(normalized);
     if (update) {
       const id = matchSqlString(
@@ -1863,7 +1937,8 @@ function handleSql(vault, sql) {
         Object.assign(row, update.values, { updated_at: nextEditTimestamp() });
         if (
           row.status === "backlog" &&
-          (row.rank == null || String(row.rank).includes("select coalesce"))
+          (row.rank == null ||
+            String(row.rank).toLowerCase().includes("select coalesce"))
         ) {
           row.rank = nextBacklogRank(vault);
         }
@@ -3284,6 +3359,7 @@ function publicState() {
         status: issue.status,
         priority: issue.priority,
         assigned_to: issue.assigned_to,
+        rank: issue.rank,
         parent_id: issue.parent_id,
         sprint_id: issue.sprint_id,
         milestone_id: issue.milestone_id,
@@ -3660,7 +3736,10 @@ function idDesc(a, b) {
 function nextBacklogRank(vault) {
   const max = vault.issues
     .filter((issue) => issue.status === "backlog" && issue.archived_at == null)
-    .reduce((acc, issue) => Math.max(acc, Number(issue.rank ?? 0)), 0);
+    .reduce((acc, issue) => {
+      const rank = Number(issue.rank);
+      return Number.isFinite(rank) ? Math.max(acc, rank) : acc;
+    }, 0);
   return max + 1000;
 }
 

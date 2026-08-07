@@ -23,13 +23,11 @@ import { PageBody } from "@/features/ui/components/PageBody";
 import { PageHeader } from "@/features/ui/components/PageHeader";
 import { withVault } from "@/lib/workspaceHref";
 import { useTranslations } from "next-intl";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 
 function Shell({
   description,
-  actions,
   children,
 }: {
   /** The header subtitle here is the *personal* scope (`@login · N open`), not
@@ -40,32 +38,16 @@ function Shell({
    *  full-summary state passes a node that marks `@login` translate="no"
    *  and leaves the count translatable (REEF-260). */
   description?: ReactNode;
-  actions?: ReactNode;
   children: ReactNode;
 }) {
   const nav = useTranslations("nav");
   return (
     <div className="flex h-full flex-col">
-      <PageHeader
-        title={nav("myWork")}
-        description={description}
-        actions={actions}
-      />
+      <PageHeader title={nav("myWork")} description={description} />
       <PageBody width="wide" className="flex flex-col gap-6">
         {children}
       </PageBody>
     </div>
-  );
-}
-
-function BoardLink({ vault, label }: { vault: string; label: string }) {
-  return (
-    <Link
-      href={withVault(vault, "/issues?view=board")}
-      className="text-[13px] font-medium text-brand hover:underline"
-    >
-      {label}
-    </Link>
   );
 }
 
@@ -210,7 +192,7 @@ export function MyWorkPage() {
 
   if (issues.length === 0) {
     return (
-      <Shell actions={<BoardLink vault={vault} label={t("goToBoard")} />}>
+      <Shell>
         <EmptyState
           data-testid="my-work-empty"
           title={t("emptyTitle")}
@@ -222,10 +204,7 @@ export function MyWorkPage() {
 
   if (myWork.items.length === 0) {
     return (
-      <Shell
-        description={`@${login}`}
-        actions={<BoardLink vault={vault} label={t("goToBoard")} />}
-      >
+      <Shell description={`@${login}`}>
         <EmptyState
           data-testid="my-work-caught-up"
           title={t("caughtUpTitle")}

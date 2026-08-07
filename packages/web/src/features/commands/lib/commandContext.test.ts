@@ -18,7 +18,11 @@ describe("command context", () => {
         pathname: "/workspace/reef-acme/issues/REEF-001",
         search: "?view=list",
         selectionActive: false,
-        focusedIssueId: { list: "REEF-002", board: "REEF-002" },
+        focusedIssueId: {
+          list: "REEF-002",
+          board: "REEF-002",
+          backlog: null,
+        },
         lookupIssue: (id) => issues.get(id),
       }),
     ).toEqual({
@@ -34,7 +38,7 @@ describe("command context", () => {
         pathname: "/workspace/reef-acme/issues",
         search: "?view=list",
         selectionActive: false,
-        focusedIssueId: { list: "REEF-002", board: null },
+        focusedIssueId: { list: "REEF-002", board: null, backlog: null },
         lookupIssue: (id) => issues.get(id),
       }),
     ).toEqual({
@@ -56,7 +60,7 @@ describe("command context", () => {
         pathname: "/workspace/reef-acme/issues",
         search: "?view=list",
         selectionActive: true,
-        focusedIssueId: { list: "REEF-002", board: null },
+        focusedIssueId: { list: "REEF-002", board: null, backlog: null },
         lookupIssue: (id) => issues.get(id),
       }),
     ).toBeNull();
@@ -65,9 +69,34 @@ describe("command context", () => {
         pathname: "/workspace/reef-acme/reports",
         search: "",
         selectionActive: false,
-        focusedIssueId: { list: "REEF-002", board: "REEF-002" },
+        focusedIssueId: {
+          list: "REEF-002",
+          board: "REEF-002",
+          backlog: null,
+        },
         lookupIssue: (id) => issues.get(id),
       }),
     ).toBeNull();
+  });
+
+  it("uses the focused issue in backlog view", () => {
+    expect(
+      resolveCommandTarget({
+        pathname: "/workspace/reef-acme/issues",
+        search: "?view=backlog",
+        selectionActive: false,
+        focusedIssueId: {
+          list: null,
+          board: null,
+          backlog: "REEF-003",
+        },
+        lookupIssue: (id) =>
+          id === "REEF-003" ? { id, title: "Backlog issue" } : issues.get(id),
+      }),
+    ).toEqual({
+      issueId: "REEF-003",
+      title: "Backlog issue",
+      source: "backlog",
+    });
   });
 });

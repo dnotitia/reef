@@ -1,11 +1,11 @@
 import { type Page, expect, test } from "@playwright/test";
 import {
+  E2E_MOCK_URL,
   REEF_E2E_VAULT,
   openExistingWorkspace,
   readFixtureState,
   removeFixtureIssue,
   resetFixture,
-  setIssueUpdateFailure,
 } from "../harness/fixture";
 
 async function openList(page: Page) {
@@ -16,8 +16,34 @@ async function openList(page: Page) {
   });
 }
 
+async function openBacklog(page: Page) {
+  const backlogResponse = page.waitForResponse(
+    (response) => {
+      const url = new URL(response.url());
+      return (
+        response.request().method() === "GET" &&
+        url.pathname === "/api/issues" &&
+        url.searchParams.get("status") === "backlog"
+      );
+    },
+    { timeout: 15_000 },
+  );
+  await page.goto(`/workspace/${REEF_E2E_VAULT}/issues?view=backlog`);
+  await expect(page.getByTestId("backlog-row").first()).toBeVisible({
+    timeout: 15_000,
+  });
+  await backlogResponse;
+}
+
 async function selectRow(page: Page, id: string, shift = false) {
   const row = page.getByTestId("issue-list-row").filter({ hasText: id });
+  await row
+    .getByRole("checkbox", { name: `Select ${id}` })
+    .click({ modifiers: shift ? ["Shift"] : [] });
+}
+
+async function selectBacklogRow(page: Page, id: string, shift = false) {
+  const row = page.getByTestId("backlog-row").filter({ hasText: id });
   await row
     .getByRole("checkbox", { name: `Select ${id}` })
     .click({ modifiers: shift ? ["Shift"] : [] });
@@ -26,6 +52,64 @@ async function selectRow(page: Page, id: string, shift = false) {
 async function chooseBulkStatus(page: Page, label: string) {
   await page.getByTestId("bulk-status").click();
   await page.getByRole("option", { name: label }).click();
+}
+
+async function backlogIds(page: Page) {
+  return page
+    .getByTestId("backlog-row")
+    .evaluateAll((rows) =>
+      rows.map((row) => row.getAttribute("data-issue-id")),
+    );
+}
+
+async function prepareConfiguredTwoRowBacklog(
+  page: Page,
+  request: Parameters<typeof resetFixture>[0],
+) {
+  await resetFixture(request, "configured");
+  await openList(page);
+  await selectRow(page, "REEF-002");
+  await selectRow(page, "REEF-003");
+  await chooseBulkStatus(page, "Backlog");
+  await expect(page.getByTestId("issue-bulk-action-bar")).toHaveCount(0);
+  await expect
+    .poll(async () => {
+      const vault = reefVault(await readFixtureState(request));
+      return vault.issues
+        .filter((issue) => issue.id === "REEF-002" || issue.id === "REEF-003")
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map((issue) => [issue.id, issue.status, issue.rank]);
+    })
+    .toEqual([
+      ["REEF-002", "backlog", 2000],
+      ["REEF-003", "backlog", 1000],
+    ]);
+  await openBacklog(page);
+  await selectBacklogRow(page, "REEF-002");
+  await selectBacklogRow(page, "REEF-003");
+  await expect(page.getByTestId("issue-bulk-action-bar")).toContainText(
+    "2 selected",
+  );
+  return page;
+}
+
+async function dragBacklogGrip(page: Page, sourceId: string, targetId: string) {
+  const source = page.getByTestId(`backlog-grip-${sourceId}`);
+  const target = page.getByTestId(`backlog-grip-${targetId}`);
+  const sourceBox = await source.boundingBox();
+  const targetBox = await target.boundingBox();
+  if (!sourceBox || !targetBox) throw new Error("missing backlog grip bounds");
+  await page.mouse.move(
+    sourceBox.x + sourceBox.width / 2,
+    sourceBox.y + sourceBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    targetBox.x + targetBox.width / 2,
+    targetBox.y + targetBox.height / 2,
+    { steps: 8 },
+  );
+  await page.mouse.up();
 }
 
 function reefVault(state: Awaited<ReturnType<typeof readFixtureState>>) {
@@ -120,6 +204,126 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
     await expect(page.getByTestId("board-bulk-edit-shortcut")).toHaveCount(0);
   });
 
+  test("supports Backlog bulk status changes without a Sprint control and keeps drag selection", async ({
+    page,
+    request,
+  }) => {
+    // Move one existing demo issue into Backlog through the user-facing bulk
+    // action so the fixture supplies two independently ranked backlog rows.
+    await openList(page);
+    await selectRow(page, "REEF-101");
+    await chooseBulkStatus(page, "Backlog");
+    await expect(page.getByTestId("issue-bulk-action-bar")).toHaveCount(0);
+    await expect
+      .poll(
+        async () =>
+          reefVault(await readFixtureState(request)).issues.find(
+            (issue) => issue.id === "REEF-101",
+          )?.status,
+      )
+      .toBe("backlog");
+    await openBacklog(page);
+    await selectBacklogRow(page, "REEF-112");
+    await selectBacklogRow(page, "REEF-101", true);
+    await expect(page.getByTestId("issue-bulk-action-bar")).toContainText(
+      "2 selected",
+    );
+    await expect(page.getByTestId("bulk-sprint")).toHaveCount(0);
+
+    const before = await page
+      .getByTestId("backlog-row")
+      .evaluateAll((rows) =>
+        rows.map((row) => row.getAttribute("data-issue-id")),
+      );
+    expect(before).toEqual(["REEF-112", "REEF-101"]);
+
+    const source = page.getByTestId("backlog-grip-REEF-101");
+    const target = page.getByTestId("backlog-grip-REEF-112");
+    const sourceBox = await source.boundingBox();
+    const targetBox = await target.boundingBox();
+    if (!sourceBox || !targetBox)
+      throw new Error("missing backlog grip bounds");
+    await page.mouse.move(
+      sourceBox.x + sourceBox.width / 2,
+      sourceBox.y + sourceBox.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      targetBox.x + targetBox.width / 2,
+      targetBox.y + targetBox.height / 2,
+      { steps: 8 },
+    );
+    await page.mouse.up();
+
+    await expect
+      .poll(() =>
+        page
+          .getByTestId("backlog-row")
+          .evaluateAll((rows) =>
+            rows.map((row) => row.getAttribute("data-issue-id")),
+          ),
+      )
+      .toEqual(["REEF-101", "REEF-112"]);
+    await expect(page.getByTestId("issue-bulk-action-bar")).toContainText(
+      "2 selected",
+    );
+  });
+
+  test("persists a pointer reorder after bulk-entering the configured backlog", async ({
+    page,
+    request,
+  }) => {
+    await prepareConfiguredTwoRowBacklog(page, request);
+    const reorderResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/issues/reorder",
+    );
+    await dragBacklogGrip(page, "REEF-003", "REEF-002");
+    await expect((await reorderResponse).ok()).toBeTruthy();
+
+    await expect.poll(() => backlogIds(page)).toEqual(["REEF-002", "REEF-003"]);
+    await page.reload();
+    await expect(page.getByTestId("backlog-row").first()).toBeVisible();
+    await expect.poll(() => backlogIds(page)).toEqual(["REEF-002", "REEF-003"]);
+  });
+
+  test("persists a keyboard reorder after bulk-entering the configured backlog", async ({
+    page,
+    request,
+  }) => {
+    await prepareConfiguredTwoRowBacklog(page, request);
+    const reorderResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/issues/reorder",
+    );
+    const grip = page.getByTestId("backlog-grip-REEF-003");
+    const liveRegion = page.locator('[role="status"][aria-live="assertive"]');
+    await expect(grip).toHaveAttribute("aria-label", "Reorder REEF-003");
+    await grip.focus();
+    await page.keyboard.press("Space");
+    await expect(liveRegion).toHaveText(
+      /(?:Picked up REEF-003 for reordering\.|REEF-003 is at position 1\.)/,
+    );
+    await expect(grip).toHaveAttribute("aria-pressed", "true");
+    // dnd-kit attaches the active keyboard listener on the next task after
+    // activation. Let that task run before sending the first movement key.
+    await page.evaluate(
+      () => new Promise<void>((resolve) => setTimeout(resolve, 0)),
+    );
+    await page.keyboard.press("ArrowDown");
+    await expect(liveRegion).toHaveText("REEF-003 is at position 2.");
+    await page.keyboard.press("Space");
+    await expect(liveRegion).toHaveText("REEF-003 moved to position 2.");
+    await expect((await reorderResponse).ok()).toBeTruthy();
+
+    await expect.poll(() => backlogIds(page)).toEqual(["REEF-002", "REEF-003"]);
+    await page.reload();
+    await expect(page.getByTestId("backlog-row").first()).toBeVisible();
+    await expect.poll(() => backlogIds(page)).toEqual(["REEF-002", "REEF-003"]);
+  });
+
   test("applies the typed label draft without requiring Enter", async ({
     page,
     request,
@@ -137,15 +341,49 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
     ).toContain("frontend");
   });
 
-  test("preserves successes on a middle failure and retries only the failed item", async ({
+  test("drives the discovered Backlog partial-failure task through recovery", async ({
     page,
     request,
   }) => {
-    await setIssueUpdateFailure(request, "REEF-102", "once");
-    await openList(page);
-    await selectRow(page, "REEF-101");
-    await selectRow(page, "REEF-102");
-    await selectRow(page, "REEF-103");
+    const discoveryResponse = await request.get(
+      `${E2E_MOCK_URL}/__e2e/runtime`,
+    );
+    expect(discoveryResponse.ok()).toBeTruthy();
+    const discovery = (await discoveryResponse.json()) as {
+      tasks?: Record<
+        string,
+        { scenario?: string; start_path?: string; interaction?: unknown }
+      >;
+    };
+    const task = discovery.tasks?.backlog_bulk_partial_failure;
+    expect(task).toMatchObject({
+      scenario: "backlog_bulk_partial_failure",
+      start_path: "/workspace/reef-e2e/issues?view=backlog",
+      interaction: {
+        type: "bulk_status_update",
+      },
+    });
+    if (!task?.start_path) throw new Error("missing discovered Backlog task");
+
+    await resetFixture(request, "backlog_bulk_partial_failure");
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path);
+    await expect(page.getByTestId("backlog-row").first()).toBeVisible();
+    const selectedIds = (
+      await page
+        .getByTestId("backlog-row")
+        .evaluateAll((rows) =>
+          rows.map((row) => row.getAttribute("data-issue-id")),
+        )
+    ).filter((id): id is string => Boolean(id));
+    expect(selectedIds).toHaveLength(2);
+    const before = reefVault(await readFixtureState(request));
+    for (const id of selectedIds) {
+      await selectBacklogRow(page, id);
+    }
+    await expect(page.getByTestId("issue-bulk-action-bar")).toContainText(
+      "2 selected",
+    );
     await chooseBulkStatus(page, "In Review");
 
     const tray = page.getByRole("button", { name: "1 failed" });
@@ -153,26 +391,40 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
     await expect(page.getByTestId("issue-bulk-action-bar")).toContainText(
       "1 selected",
     );
+    const afterFailure = reefVault(await readFixtureState(request));
+    const successfulIds = selectedIds.filter(
+      (id) =>
+        afterFailure.issues.find((issue) => issue.id === id)?.status ===
+        "in_review",
+    );
+    const failedIds = selectedIds.filter(
+      (id) =>
+        afterFailure.issues.find((issue) => issue.id === id)?.status ===
+        "backlog",
+    );
+    expect(successfulIds).toHaveLength(1);
+    expect(failedIds).toHaveLength(1);
+    const failedId = failedIds[0];
+    if (!failedId) throw new Error("missing failed Backlog issue");
+    expect(
+      afterFailure.issues.find((issue) => issue.id === failedId)?.rank,
+    ).toBe(before.issues.find((issue) => issue.id === failedId)?.rank);
     await expect(
-      page.getByTestId("issue-list-row").filter({ hasText: "REEF-102" }),
+      page.getByTestId("backlog-row").filter({ hasText: failedId }),
     ).toHaveAttribute("aria-selected", "true");
-    const beforeRetry = reefVault(await readFixtureState(request));
-    expect(
-      beforeRetry.issues.find((issue) => issue.id === "REEF-101")?.status,
-    ).toBe("in_review");
-    expect(
-      beforeRetry.issues.find((issue) => issue.id === "REEF-102")?.status,
-    ).toBe("todo");
-    expect(
-      beforeRetry.issues.find((issue) => issue.id === "REEF-103")?.status,
-    ).toBe("in_review");
+    await expect(
+      page.getByTestId("backlog-row").filter({ hasText: successfulIds[0] }),
+    ).toHaveCount(0);
     await tray.click();
+    await expect(
+      page.getByRole("dialog", { name: "Failed issue updates" }),
+    ).toBeVisible();
     await page.getByRole("button", { name: "Retry" }).click();
     await expect(page.getByTestId("issue-bulk-action-bar")).toHaveCount(0);
     await expect
       .poll(async () => {
         const vault = reefVault(await readFixtureState(request));
-        return vault.issues.find((issue) => issue.id === "REEF-102")?.status;
+        return vault.issues.find((issue) => issue.id === failedId)?.status;
       })
       .toBe("in_review");
   });

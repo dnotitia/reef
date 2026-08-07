@@ -23,9 +23,9 @@ afterEach(() => {
   vi.useRealTimers();
   currentLogin.value = null;
   useIssueKeyboardStore.setState({
-    visibleIssueIds: { list: [], board: [] },
-    focusedIssueId: { list: null, board: null },
-    tabStopIssueId: { list: null, board: null },
+    visibleIssueIds: { list: [], board: [], backlog: [] },
+    focusedIssueId: { list: null, board: null, backlog: null },
+    tabStopIssueId: { list: null, board: null, backlog: null },
     focusRequest: null,
     quickEditRequest: null,
   });
@@ -228,8 +228,8 @@ describe("KanbanCard", () => {
 
   it("keeps keyboard focus chrome to a single rounded brand border", () => {
     useIssueKeyboardStore.setState({
-      focusedIssueId: { list: null, board: "reef-001" },
-      tabStopIssueId: { list: null, board: "reef-001" },
+      focusedIssueId: { list: null, board: "reef-001", backlog: null },
+      tabStopIssueId: { list: null, board: "reef-001", backlog: null },
     });
 
     render(<KanbanCard issue={mockIssue()} />);

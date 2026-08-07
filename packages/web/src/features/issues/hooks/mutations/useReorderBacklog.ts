@@ -11,6 +11,7 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
+import { updateIssueListCaches } from "../../lib/issueListCache";
 
 interface ReorderBacklogInput {
   vault: string;
@@ -21,7 +22,7 @@ interface ReorderBacklogInput {
 }
 
 interface ReorderBacklogContext {
-  previousLists: Array<[QueryKey, IssueListItem[] | undefined]>;
+  previousLists: Array<[QueryKey, unknown]>;
 }
 
 function toRankedItems(ordered: readonly IssueListItem[]): RankedItem[] {
@@ -62,11 +63,7 @@ export function useReorderBacklog() {
     },
     onMutate: async ({ vault, ordered, fromIndex, toIndex }) => {
       const listKey = ["issues", "list", vault] as const;
-      await queryClient.cancelQueries({ queryKey: listKey });
-
-      const previousLists = queryClient.getQueriesData<IssueListItem[]>({
-        queryKey: listKey,
-      });
+      await queryClient.cancelQueries({ queryKey: listKey, type: "active" });
 
       const updates = computeReorderedRanks(
         toRankedItems(ordered),
@@ -77,14 +74,13 @@ export function useReorderBacklog() {
 
       // Stamp the new ranks onto every list cache for the vault; the backlog
       // view re-sorts by rank, so this is the whole optimistic reorder.
-      queryClient.setQueriesData<IssueListItem[]>(
-        { queryKey: listKey },
-        (current) =>
-          current?.map((issue) =>
-            rankById.has(issue.id)
-              ? { ...issue, rank: rankById.get(issue.id) }
-              : issue,
-          ),
+      const previousLists = updateIssueListCaches(
+        queryClient,
+        vault,
+        (issue) =>
+          rankById.has(issue.id)
+            ? { ...issue, rank: rankById.get(issue.id) }
+            : issue,
       );
 
       return { previousLists };

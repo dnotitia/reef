@@ -28,6 +28,7 @@ describe("issue table contract", () => {
   });
 
   it("shares common field order and width tokens between List and Backlog", () => {
+    expect(BACKLOG_COLUMNS.slice(0, 2)).toEqual(["select", "rank"]);
     const listCommon = ISSUE_LIST_DEFAULT_COLUMNS.filter((column) =>
       ["id", "type", "title", "status", "priority", "assignee"].includes(
         column,

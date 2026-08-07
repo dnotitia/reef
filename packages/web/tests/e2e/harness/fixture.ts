@@ -8,8 +8,10 @@ export type FixtureScenario =
   | "empty"
   | "configured"
   | "configured_empty"
+  | "configured_caught_up"
   | "content_search"
   | "configured_multi"
+  | "backlog_bulk_partial_failure"
   | "demo_board"
   | "raw_only"
   | "activity_suggestions"
@@ -53,6 +55,7 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
       status: string;
       priority: string | null;
       assigned_to: string | null;
+      rank: number | null;
       parent_id: string | null;
       sprint_id: string | null;
       milestone_id: string | null;
@@ -150,20 +153,6 @@ export async function setVaultListControl(
         delay_ms: control.delayMs ?? 0,
         failures: control.failures ?? 0,
       },
-    },
-  );
-  expect(response.ok()).toBeTruthy();
-}
-
-export async function setIssueUpdateFailure(
-  request: APIRequestContext,
-  id: string,
-  mode: "once" | "always" | "clear",
-): Promise<void> {
-  const response = await request.post(
-    `${E2E_MOCK_URL}/__e2e/issue-update-control`,
-    {
-      data: { id, mode },
     },
   );
   expect(response.ok()).toBeTruthy();

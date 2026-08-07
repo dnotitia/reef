@@ -693,6 +693,11 @@
       "reorderHintSwitchToRank": "Switch to Rank order to reorder",
       "reorderHintHideArchived": "Hide archived to reorder in Rank order",
       "reorderGrip": "Reorder {id}",
+      "statusChange": "Change {id} status",
+      "dragStart": "Picked up {id} for reordering.",
+      "dragOver": "{id} is at position {position}.",
+      "dragEnd": "{id} moved to position {position}.",
+      "dragCancel": "Reordering {id} cancelled.",
       "updateErrorTitle": "Couldn't update issue",
       "updateErrorDescription": "The backlog was reverted. Retry to move it again.",
       "reorderErrorTitle": "Couldn't reorder the backlog",
@@ -1203,7 +1208,6 @@
     }
   },
   "myWork": {
-    "goToBoard": "Go to the board →",
     "emptyTitle": "Nothing is assigned to you yet",
     "emptyDescription": "Issues assigned to you show up here, prioritized for what to do next.",
     "caughtUpTitle": "You're all caught up",

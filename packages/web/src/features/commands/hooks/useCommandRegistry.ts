@@ -390,7 +390,7 @@ export function useCommandRegistry({
       if (!shortcut) continue;
 
       if (descriptor.id.startsWith("issue.focus")) {
-        for (const scope of ["list", "board"] as const) {
+        for (const scope of ["list", "board", "backlog"] as const) {
           bindings.push({
             labelKey: descriptor.id,
             scope,
@@ -405,7 +405,7 @@ export function useCommandRegistry({
         continue;
       }
       if (descriptor.id === "issue.openFocused") {
-        for (const scope of ["list", "board"] as const) {
+        for (const scope of ["list", "board", "backlog"] as const) {
           bindings.push({
             labelKey: descriptor.id,
             scope,
@@ -422,7 +422,7 @@ export function useCommandRegistry({
         "issue.editLabels": "labels",
       };
       if (quickField[descriptor.id]) {
-        for (const scope of ["list", "board"] as const) {
+        for (const scope of ["list", "board", "backlog"] as const) {
           bindings.push({
             labelKey: descriptor.id,
             scope,
