@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { type Locator, expect, test } from "@playwright/test";
 import {
   E2E_MOCK_URL,
   openExistingWorkspace,
@@ -131,26 +131,69 @@ test.describe("Hermetic runtime discovery", () => {
     });
 
     await openExistingWorkspace(page);
+    const frameBoxes: Array<{ width: number; height: number }> = [];
+    async function recordFrame(locator: Locator) {
+      const box = await locator.boundingBox();
+      if (!box) {
+        throw new Error(
+          "Expected the empty-state frame to have a bounding box",
+        );
+      }
+      frameBoxes.push(box);
+    }
 
     await page.goto("/workspace/reef-e2e/my-work");
-    await expect(page.getByTestId("my-work-empty")).toBeVisible();
+    const myWorkEmpty = page.getByTestId("my-work-empty");
+    await expect(myWorkEmpty).toBeVisible();
+    await expect(myWorkEmpty.locator("h2")).toHaveCount(1);
+    await expect(myWorkEmpty.locator("p")).toHaveCount(1);
+    await expect(myWorkEmpty.getByRole("link")).toHaveCount(0);
     await expect(
-      page.getByRole("link", { name: /Go to the board/ }),
+      page
+        .locator('[data-slot="page-header"]')
+        .getByRole("link", { name: /Go to the board/ }),
     ).toHaveAttribute("href", "/workspace/reef-e2e/issues?view=board");
+    await recordFrame(myWorkEmpty);
 
     await page.goto("/workspace/reef-e2e/inbox");
     const inboxEmpty = page.getByTestId("notification-inbox-empty");
     await expect(inboxEmpty).toBeVisible();
+    await expect(inboxEmpty.locator("h2")).toHaveCount(1);
+    await expect(inboxEmpty.locator("p")).toHaveCount(1);
+    await expect(
+      inboxEmpty.locator('[data-slot="empty-state-icon"]'),
+    ).toHaveCount(0);
     await expect(inboxEmpty.getByRole("button")).toHaveCount(0);
+    await recordFrame(inboxEmpty);
 
     await page.goto("/workspace/reef-e2e/reports");
     const reportsEmpty = page.getByTestId("reports-empty");
     await expect(reportsEmpty).toBeVisible();
-    await expect(reportsEmpty).toContainText("No active issues yet");
+    await expect(
+      reportsEmpty.getByRole("heading", { name: "No active issues yet" }),
+    ).toBeVisible();
+    await expect(reportsEmpty.locator("p")).toHaveCount(1);
     await expect(reportsEmpty.getByRole("button")).toHaveCount(0);
+    await recordFrame(reportsEmpty);
 
     await page.goto("/workspace/reef-e2e/planning");
-    await expect(page.getByTestId("planning-empty-sprints")).toBeVisible();
+    const planningEmpty = page.getByTestId("planning-empty-sprints");
+    await expect(planningEmpty).toBeVisible();
+    await expect(planningEmpty.locator("h2")).toHaveCount(1);
+    await expect(planningEmpty.locator("p")).toHaveCount(1);
+    await expect(planningEmpty.getByRole("button")).toHaveCount(0);
+    await expect(
+      page
+        .locator('[data-slot="page-header"]')
+        .getByRole("button", { name: "New sprint" }),
+    ).toBeVisible();
+    await recordFrame(planningEmpty);
+
+    const reference = frameBoxes[0];
+    for (const box of frameBoxes.slice(1)) {
+      expect(Math.abs(box.width - reference.width)).toBeLessThanOrEqual(1);
+      expect(Math.abs(box.height - reference.height)).toBeLessThanOrEqual(1);
+    }
 
     await page.getByRole("button", { name: "Milestones" }).click();
     await page.waitForURL(/planning\?kind=milestones$/);
@@ -161,7 +204,7 @@ test.describe("Hermetic runtime discovery", () => {
     await expect(page.getByTestId("planning-empty-releases")).toBeVisible();
 
     await page
-      .getByTestId("planning-empty-releases")
+      .locator('[data-slot="page-header"]')
       .getByRole("button", { name: "New release" })
       .click();
     await expect(

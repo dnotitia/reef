@@ -27,7 +27,7 @@ import type {
   Release,
   Sprint,
 } from "@reef/core";
-import { ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, Pencil, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Fragment, useMemo } from "react";
 import type { PlanningItem, PlanningKind } from "../hooks/usePlanningCatalog";
@@ -53,7 +53,6 @@ export function PlanningTable({
   issues,
   isLoading,
   expandedId,
-  onCreate,
   onEdit,
   onExpandedIdChange,
   onRequestDelete,
@@ -64,7 +63,6 @@ export function PlanningTable({
   issues: readonly IssueListItem[];
   isLoading: boolean;
   expandedId: string | null;
-  onCreate: () => void;
   onEdit: (kind: PlanningKind, item: PlanningItem) => void;
   onExpandedIdChange: (id: string | null) => void;
   onRequestDelete: (kind: PlanningKind, item: PlanningItem) => void;
@@ -95,23 +93,12 @@ export function PlanningTable({
     return (
       <EmptyState
         data-testid={`planning-empty-${kind}`}
-        className="min-h-48"
-        description={t("emptyKind", {
+        title={t("emptyKindTitle", {
           kind: planningKindLabels[kind].toLowerCase(),
         })}
-        action={
-          <Button
-            type="button"
-            size="sm"
-            onClick={onCreate}
-            className="gap-1.5"
-          >
-            <Plus aria-hidden="true" className="h-3.5 w-3.5" />
-            {t("newKind", {
-              kind: planningKindSingular[kind].toLowerCase(),
-            })}
-          </Button>
-        }
+        description={t("emptyKindDescription", {
+          kind: planningKindSingular[kind].toLowerCase(),
+        })}
       />
     );
   }

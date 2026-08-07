@@ -299,8 +299,17 @@ describe("ReportsPage", () => {
     render(wrap(<ReportsPage />));
 
     const empty = await screen.findByTestId("reports-empty");
-    expect(empty).toHaveTextContent("No active issues yet");
+    expect(
+      within(empty).getByRole("heading", { name: "No active issues yet" }),
+    ).toBeInTheDocument();
+    expect(
+      within(empty).getByText("Create one to start building reports."),
+    ).toBeInTheDocument();
     expect(empty).toHaveClass(
+      "mx-auto",
+      "min-h-48",
+      "w-full",
+      "max-w-4xl",
       "rounded-lg",
       "border-dashed",
       "border-border-subtle",
@@ -320,8 +329,19 @@ describe("ReportsPage", () => {
     setLabelFilter("missing");
 
     const empty = screen.getByTestId("reports-empty");
-    expect(empty).toHaveTextContent(/No matching report data/i);
+    expect(
+      within(empty).getByRole("heading", {
+        name: "No matching report data",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(empty).getByText("Adjust the report scope to widen the view."),
+    ).toBeInTheDocument();
     expect(empty).toHaveClass(
+      "mx-auto",
+      "min-h-48",
+      "w-full",
+      "max-w-4xl",
       "rounded-lg",
       "border-dashed",
       "border-border-subtle",
@@ -329,6 +349,7 @@ describe("ReportsPage", () => {
       "px-6",
       "py-12",
     );
+    expect(within(empty).queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("can clear a parent rollup drill from the empty state (REEF-187)", async () => {
@@ -365,10 +386,13 @@ describe("ReportsPage", () => {
     // zero with a label that matches nothing.
     fireEvent.click(screen.getByTestId("health-rollup-row-E1"));
     setLabelFilter("missing");
-    expect(screen.getByText(/No matching report data/i)).toBeInTheDocument();
+    expect(screen.getByText("No matching report data")).toBeInTheDocument();
 
     const clear = screen.getByTestId("reports-clear-parent-scope");
     expect(clear).toHaveTextContent("Reports epic");
+    expect(
+      within(screen.getByTestId("reports-empty")).queryByRole("button"),
+    ).not.toBeInTheDocument();
     fireEvent.click(clear);
 
     // Parent facet cleared → its affordance disappears (the label filter still

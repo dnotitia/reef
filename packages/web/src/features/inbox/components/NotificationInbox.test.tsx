@@ -164,6 +164,10 @@ describe("NotificationInboxPage", () => {
     const empty = screen.getByTestId("notification-inbox-empty");
     expect(empty).toHaveTextContent("You’re all caught up");
     expect(empty).toHaveClass(
+      "mx-auto",
+      "min-h-48",
+      "w-full",
+      "max-w-4xl",
       "rounded-lg",
       "border-dashed",
       "border-border-subtle",
@@ -171,10 +175,19 @@ describe("NotificationInboxPage", () => {
       "px-6",
       "py-12",
     );
-    const icon = empty.querySelector(
-      '[data-slot="empty-state-icon"]',
-    ) as HTMLElement;
-    expect(icon).toHaveAttribute("aria-hidden", "true");
+    expect(empty.querySelector('[data-slot="empty-state-icon"]')).toBeNull();
     expect(within(empty).queryByRole("button")).not.toBeInTheDocument();
+
+    mocks.inboxState.notifications = [
+      makeNotification("3", "read", "REEF-003"),
+    ];
+    rerender(
+      <IntlTestProvider>
+        <NotificationInboxPage />
+      </IntlTestProvider>,
+    );
+    expect(screen.getByTestId("notification-inbox-list")).toHaveClass(
+      "max-w-2xl",
+    );
   });
 });

@@ -1,6 +1,6 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import type { IssueListItem } from "@reef/core";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -171,6 +171,10 @@ describe("MyWorkPage", () => {
     );
     const notice = screen.getByTestId("my-work-empty");
     expect(notice).toHaveClass(
+      "mx-auto",
+      "min-h-48",
+      "w-full",
+      "max-w-4xl",
       "rounded-lg",
       "border-dashed",
       "border-border-subtle",
@@ -178,7 +182,14 @@ describe("MyWorkPage", () => {
       "px-6",
       "py-12",
     );
-    const cta = screen.getByRole("link", { name: /Go to the board/ });
+    expect(within(notice).queryByRole("link")).not.toBeInTheDocument();
+    const header = screen
+      .getByRole("heading", { name: "My Work", level: 1 })
+      .closest('[data-slot="page-header"]');
+    expect(header).not.toBeNull();
+    const cta = within(header as HTMLElement).getByRole("link", {
+      name: /Go to the board/,
+    });
     expect(cta).toHaveAttribute(
       "href",
       "/workspace/reef-acme/issues?view=board",
@@ -197,6 +208,10 @@ describe("MyWorkPage", () => {
     );
     const notice = screen.getByTestId("my-work-caught-up");
     expect(notice).toHaveClass(
+      "mx-auto",
+      "min-h-48",
+      "w-full",
+      "max-w-4xl",
       "rounded-lg",
       "border-dashed",
       "border-border-subtle",
@@ -204,7 +219,14 @@ describe("MyWorkPage", () => {
       "px-6",
       "py-12",
     );
-    const cta = screen.getByRole("link", { name: /Go to the board/ });
+    expect(within(notice).queryByRole("link")).not.toBeInTheDocument();
+    const header = screen
+      .getByRole("heading", { name: "My Work", level: 1 })
+      .closest('[data-slot="page-header"]');
+    expect(header).not.toBeNull();
+    const cta = within(header as HTMLElement).getByRole("link", {
+      name: /Go to the board/,
+    });
     expect(cta).toHaveAttribute(
       "href",
       "/workspace/reef-acme/issues?view=board",

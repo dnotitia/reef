@@ -29,6 +29,7 @@ import { type ReactNode, useCallback, useMemo, useState } from "react";
 
 function Shell({
   description,
+  actions,
   children,
 }: {
   /** The header subtitle here is the *personal* scope (`@login · N open`), not
@@ -39,16 +40,32 @@ function Shell({
    *  full-summary state passes a node that marks `@login` translate="no"
    *  and leaves the count translatable (REEF-260). */
   description?: ReactNode;
+  actions?: ReactNode;
   children: ReactNode;
 }) {
   const nav = useTranslations("nav");
   return (
     <div className="flex h-full flex-col">
-      <PageHeader title={nav("myWork")} description={description} />
+      <PageHeader
+        title={nav("myWork")}
+        description={description}
+        actions={actions}
+      />
       <PageBody width="wide" className="flex flex-col gap-6">
         {children}
       </PageBody>
     </div>
+  );
+}
+
+function BoardLink({ vault, label }: { vault: string; label: string }) {
+  return (
+    <Link
+      href={withVault(vault, "/issues?view=board")}
+      className="text-[13px] font-medium text-brand hover:underline"
+    >
+      {label}
+    </Link>
   );
 }
 
@@ -193,19 +210,11 @@ export function MyWorkPage() {
 
   if (issues.length === 0) {
     return (
-      <Shell>
+      <Shell actions={<BoardLink vault={vault} label={t("goToBoard")} />}>
         <EmptyState
           data-testid="my-work-empty"
           title={t("emptyTitle")}
           description={t("emptyDescription")}
-          action={
-            <Link
-              href={withVault(vault, "/issues?view=board")}
-              className="text-[13px] font-medium text-brand hover:underline"
-            >
-              {t("goToBoard")}
-            </Link>
-          }
         />
       </Shell>
     );
@@ -213,19 +222,14 @@ export function MyWorkPage() {
 
   if (myWork.items.length === 0) {
     return (
-      <Shell description={`@${login}`}>
+      <Shell
+        description={`@${login}`}
+        actions={<BoardLink vault={vault} label={t("goToBoard")} />}
+      >
         <EmptyState
           data-testid="my-work-caught-up"
           title={t("caughtUpTitle")}
           description={t("caughtUpDescription")}
-          action={
-            <Link
-              href={withVault(vault, "/issues?view=board")}
-              className="text-[13px] font-medium text-brand hover:underline"
-            >
-              {t("goToBoard")}
-            </Link>
-          }
         />
       </Shell>
     );

@@ -170,7 +170,8 @@ export function ReportsPage() {
       <PageShell description={vault || undefined}>
         <EmptyState
           data-testid="reports-empty"
-          description={t("noActiveIssues")}
+          title={t("noActiveIssuesTitle")}
+          description={t("noActiveIssuesDescription")}
         />
       </PageShell>
     );
@@ -182,15 +183,19 @@ export function ReportsPage() {
         <ReportScopeBar filters={filters} onChange={setFilters} />
 
         {agg.filteredTotal === 0 ? (
-          <EmptyState
-            data-testid="reports-empty"
-            description={t("noMatchingData")}
-            action={
-              /* A parent drill empties the page without leaving a scope-bar
-                 control to undo it (unlike the planning axes), and the rollup row
-                 — the normal clear path — is gone in this empty branch. Offer the
-                 clear here so the parent scope doesn't trap the page (REEF-187). */
-              filters.parent_id ? (
+          <div className="flex flex-col gap-3">
+            <EmptyState
+              data-testid="reports-empty"
+              title={t("noMatchingDataTitle")}
+              description={t("noMatchingDataDescription")}
+            />
+            {filters.parent_id ? (
+              <div className="flex justify-center">
+                {/* A parent drill empties the page without leaving a scope-bar
+                   control to undo it (unlike the planning axes), and the rollup row
+                   — the normal clear path — is gone in this empty branch. Keep the
+                   existing clear control outside the empty frame so it does not
+                   change the section's content hierarchy (REEF-187). */}
                 <Button
                   variant="outline"
                   size="sm"
@@ -205,9 +210,9 @@ export function ReportsPage() {
                   {t("clearParentFilter")}
                   {parentScopeName ? `: ${parentScopeName}` : ""}
                 </Button>
-              ) : null
-            }
-          />
+              </div>
+            ) : null}
+          </div>
         ) : (
           // Three scan bands — present state, flow over time, and the static
           // breakdowns — so the long card stack reads as a few named groups with

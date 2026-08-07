@@ -3,78 +3,87 @@ import type { HTMLAttributes, ReactNode } from "react";
 
 export type EmptyStateVariant = "structure" | "section";
 
-export interface EmptyStateProps
-  extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
+type EmptyStateHTMLProps = Omit<HTMLAttributes<HTMLDivElement>, "title">;
+
+interface StructureEmptyStateProps extends EmptyStateHTMLProps {
   /** Use structure when the page cannot be composed without a prerequisite. */
-  variant?: EmptyStateVariant;
-  /** Optional section heading. Rendered as the semantic h2 for the state. */
+  variant: "structure";
+  /** Optional heading for a structure prompt. */
   title?: ReactNode;
-  /** Supporting copy for the state. */
+  /** Optional supporting copy for a structure prompt. */
   description?: ReactNode;
-  /** An icon or other visual that is always decorative. */
-  icon?: ReactNode;
-  /** An existing Link, Button, or other action node. */
-  action?: ReactNode;
 }
 
+interface SectionEmptyStateProps extends EmptyStateHTMLProps {
+  /** Section is the canonical framed variant and is the default. */
+  variant?: "section";
+  /** Required section heading, rendered as the single h2. */
+  title: ReactNode;
+  /** Required supporting copy, rendered as the supporting paragraph. */
+  description: ReactNode;
+}
+
+export type EmptyStateProps =
+  | StructureEmptyStateProps
+  | SectionEmptyStateProps;
+
 const SECTION_FRAME =
-  "rounded-lg border border-dashed border-border-subtle bg-surface-subtle px-6 py-12 text-center";
+  "mx-auto min-h-48 w-full max-w-4xl rounded-lg border border-dashed border-border-subtle bg-surface-subtle px-6 py-12 text-center";
 const STRUCTURE_FRAME =
   "flex flex-1 items-center justify-center px-6 py-12 text-center";
 
 export function EmptyState({
   variant = "section",
-  title,
-  description,
-  icon,
-  action,
   className,
   ...props
 }: EmptyStateProps) {
-  const hasIcon = icon !== undefined && icon !== null;
-  const hasTitle = title !== undefined && title !== null;
-  const hasDescription = description !== undefined && description !== null;
-  const hasAction = action !== undefined && action !== null;
+  if (variant === "structure") {
+    const { title, description, ...structureProps } = props;
+    const hasTitle = title !== undefined && title !== null;
+    const hasDescription = description !== undefined && description !== null;
+
+    return (
+      <div
+        data-slot="empty-state"
+        className={cn(STRUCTURE_FRAME, className)}
+        {...structureProps}
+      >
+        <div className="flex flex-col items-center">
+          {hasTitle ? (
+            <h2 className="text-pretty text-sm font-semibold text-foreground">
+              {title}
+            </h2>
+          ) : null}
+          {hasDescription ? (
+            <p
+              className={cn(
+                "text-pretty text-sm text-muted-foreground",
+                hasTitle && "mt-1",
+              )}
+            >
+              {description}
+            </p>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  const { title, description, ...sectionProps } = props;
 
   return (
     <div
       data-slot="empty-state"
-      className={cn(
-        variant === "structure" ? STRUCTURE_FRAME : SECTION_FRAME,
-        className,
-      )}
-      {...props}
+      className={cn(SECTION_FRAME, className)}
+      {...sectionProps}
     >
       <div className="flex flex-col items-center">
-        {hasIcon ? (
-          <span
-            data-slot="empty-state-icon"
-            aria-hidden="true"
-            className="mb-3 flex items-center justify-center text-muted-foreground"
-          >
-            {icon}
-          </span>
-        ) : null}
-        {hasTitle ? (
-          <h2 className="text-pretty text-sm font-semibold text-foreground">
-            {title}
-          </h2>
-        ) : null}
-        {hasDescription ? (
-          <p
-            className={cn(
-              "text-pretty text-sm text-muted-foreground",
-              hasTitle && "mt-1",
-            )}
-          >
-            {description}
-          </p>
-        ) : null}
-        {hasAction ? (
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-            {action}
-          </div>
-        ) : null}
+        <h2 className="text-pretty text-sm font-semibold text-foreground">
+          {title}
+        </h2>
+        <p className="mt-1 text-pretty text-sm text-muted-foreground">
+          {description}
+        </p>
       </div>
     </div>
   );
