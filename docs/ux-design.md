@@ -492,10 +492,10 @@ Settings" empty state.
 Show archived and Show completed toggles; it stays open while the PM changes
 multiple options and hides the completed toggle in Backlog. My filters keeps
 filter selection separate from management actions: update, rename, duplicate,
-and delete live under a per-filter Manage submenu, while loading failures,
-unavailable filters, active/changed state, and empty state remain visible in
-the main menu. Saved names truncate in constrained layouts but retain their
-full value in a title or accessible label.
+and delete are direct keyboard-navigable menu items grouped under each saved
+filter, while loading failures, unavailable filters, active/changed state, and
+empty state remain visible in the main menu. Saved names truncate in constrained
+layouts but retain their full value in a title or accessible label.
 
 ### Issue Detail Slide-Over
 

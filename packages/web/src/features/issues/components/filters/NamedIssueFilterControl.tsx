@@ -21,9 +21,6 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   useDropdownMenu,
 } from "@/components/ui/dropdown-menu";
@@ -157,10 +154,10 @@ function NamedFilterMenu({
             const updateDisabled =
               !isActive || !item.applicable || !canSave || updatingId !== null;
             return (
-              <div className="flex items-center gap-1" key={item.id}>
+              <div className="space-y-0.5" key={item.id}>
                 <DropdownMenuItem
                   aria-current={isActive ? "true" : undefined}
-                  className="min-w-0 flex-1"
+                  className="min-w-0"
                   disabled={!item.applicable}
                   onSelect={() => closeAnd(() => onApply(item))}
                   selected={isActive}
@@ -187,54 +184,53 @@ function NamedFilterMenu({
                   <span className="block min-w-0 truncate">{item.name}</span>
                 </DropdownMenuItem>
 
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger
-                    aria-label={t("manage", { name: item.name })}
-                    className="max-w-[11rem] min-w-8 shrink-0 px-2"
-                    title={t("manage", { name: item.name })}
-                  >
-                    <span className="truncate">
-                      {t("manage", { name: item.name })}
-                    </span>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
-                    <DropdownMenuLabel>
-                      {t("manage", { name: item.name })}
-                    </DropdownMenuLabel>
-                    <DropdownMenuItem
-                      disabled={updateDisabled}
-                      leading={
-                        updatingId === item.id ? (
-                          <LoaderCircle className="size-3.5 animate-spin" />
-                        ) : (
-                          <RefreshCw className="size-3.5" />
-                        )
-                      }
-                      onSelect={() => closeAnd(onUpdate)}
-                    >
-                      {t("update", { name: item.name })}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      leading={<Pencil className="size-3.5" />}
-                      onSelect={() => closeAnd(() => onRename(item))}
-                    >
-                      {t("rename", { name: item.name })}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      leading={<Copy className="size-3.5" />}
-                      onSelect={() => closeAnd(() => onDuplicate(item))}
-                    >
-                      {t("duplicate", { name: item.name })}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      destructive
-                      leading={<Trash2 className="size-3.5" />}
-                      onSelect={() => closeAnd(() => onDelete(item))}
-                    >
-                      {t("deleteNamed", { name: item.name })}
-                    </DropdownMenuItem>
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
+                <DropdownMenuLabel className="pl-8 text-[11px]">
+                  {t("manage", { name: item.name })}
+                </DropdownMenuLabel>
+                <DropdownMenuItem
+                  className="pl-8"
+                  disabled={updateDisabled}
+                  leading={
+                    updatingId === item.id ? (
+                      <LoaderCircle className="size-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="size-3.5" />
+                    )
+                  }
+                  onSelect={() => closeAnd(onUpdate)}
+                >
+                  <span className="min-w-0 truncate">
+                    {t("update", { name: item.name })}
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="pl-8"
+                  leading={<Pencil className="size-3.5" />}
+                  onSelect={() => closeAnd(() => onRename(item))}
+                >
+                  <span className="min-w-0 truncate">
+                    {t("rename", { name: item.name })}
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="pl-8"
+                  leading={<Copy className="size-3.5" />}
+                  onSelect={() => closeAnd(() => onDuplicate(item))}
+                >
+                  <span className="min-w-0 truncate">
+                    {t("duplicate", { name: item.name })}
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="pl-8"
+                  destructive
+                  leading={<Trash2 className="size-3.5" />}
+                  onSelect={() => closeAnd(() => onDelete(item))}
+                >
+                  <span className="min-w-0 truncate">
+                    {t("deleteNamed", { name: item.name })}
+                  </span>
+                </DropdownMenuItem>
               </div>
             );
           })}
