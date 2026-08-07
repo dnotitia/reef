@@ -219,10 +219,10 @@ function validateCatalogToolchain({ catalog, violations }) {
   const requirements = [
     {
       name: "typescript",
-      major: 5,
-      minor: 9,
+      major: 6,
+      minor: 0,
       code: "typescript-version",
-      label: "TypeScript 5.9",
+      label: "TypeScript 6.0",
     },
     {
       name: "@types/node",
