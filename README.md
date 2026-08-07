@@ -53,7 +53,7 @@ It exercises reef-web and its Route Handlers for real while replacing AKB,
 OpenRouter, and GitHub with local fixtures:
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 pnpm --filter @reef/web run dev:e2e -- demo_board
 ```
 
@@ -152,14 +152,16 @@ Run these from the repository root.
 | Command | What it does |
 | --- | --- |
 | `pnpm dev` | Start the web app on [http://localhost:7333](http://localhost:7333). |
-| `pnpm build` | Build the web app for production. |
-| `pnpm build:packages` | Emit the six tsdown-built Node package artifacts under `dist/`. |
-| `pnpm package-contract:smoke` | Pack all six artifacts, install them in an isolated consumer, and exercise their public imports, core subpaths, and CLI. |
+| `pnpm build` | Build the web app and its workspace dependencies for production through Turbo. |
+| `pnpm build:packages` | Discover every buildable Node workspace package and emit its artifact under `dist/`. |
+| `pnpm build:affected` | Build only changed workspaces and their downstream dependents when Git history is available. |
+| `pnpm check:turbo-contract` | Prove the discovered Turbo graph, cache inputs/outputs, invalidation, and affected/downstream selection. |
+| `pnpm package-contract:smoke` | Pack every discovered buildable artifact, install it in an isolated consumer, and exercise its public imports and CLI. |
 | `pnpm architecture:check` | Check dependency cycles, resolution, production/test boundaries, and workspace directions. |
-| `pnpm lint` | Run `biome check .`. |
+| `pnpm lint` | Run the repository Biome check through the canonical Turbo root task. |
 | `pnpm format` | Run `biome format --write .`. |
-| `pnpm typecheck` | Run `tsc --noEmit` in every package. |
-| `pnpm test` | Run every package's Vitest suite. |
+| `pnpm typecheck` | Run `tsc --noEmit` in every workspace package after its build dependencies. |
+| `pnpm test` | Run every workspace package's Vitest and package behavior checks. |
 | `pnpm check:release` | Enforce release-policy and changelog rules. |
 
 The standard non-E2E gate is:
@@ -196,9 +198,9 @@ For the full boundary, storage, credential, and streaming contracts, read
 
 ## Deployment
 
-The root `Dockerfile` builds the `packages/web` Next.js standalone output on
-Node 22 and runs it as a non-root user. Kubernetes manifests live under
-`deploy/k8s`.
+The root `Dockerfile` uses the repository-pinned Turbo dependency to prune the
+`@reef/web` workspace, builds its Next.js standalone output on Node 22, and
+runs it as a non-root user. Kubernetes manifests live under `deploy/k8s`.
 
 Production deployments provide `AKB_BACKEND_URL` and deployment-managed LLM
 environment variables server-side. SSO is delegated through AKB; reef itself

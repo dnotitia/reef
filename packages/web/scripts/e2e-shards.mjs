@@ -17,12 +17,7 @@ const baseWebUrl = new URL(process.env.REEF_WEB_URL ?? DEFAULT_WEB_URL);
 const baseMockUrl = new URL(process.env.REEF_E2E_MOCK_URL ?? DEFAULT_MOCK_URL);
 const baseWebPort = Number(baseWebUrl.port || 80);
 const baseMockPort = Number(baseMockUrl.port || 80);
-const nextBin = resolve(
-  PACKAGE_ROOT,
-  "node_modules",
-  ".bin",
-  process.platform === "win32" ? "next.cmd" : "next",
-);
+const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const playwrightBin = resolve(
   PACKAGE_ROOT,
   "node_modules",
@@ -59,8 +54,14 @@ try {
     ),
   );
 
-  if (process.env.REEF_E2E_SKIP_BUILD !== "1") {
-    await runOneShot("build", nextBin, ["build"]);
+  if (process.env.REEF_E2E_SKIP_BUILD !== "1" && !process.env.TURBO_HASH) {
+    await runOneShot("build", pnpmBin, [
+      "exec",
+      "turbo",
+      "run",
+      "build",
+      "--filter=@reef/web",
+    ]);
   } else {
     process.stdout.write("[e2e:shards] skipping Next.js build\n");
   }

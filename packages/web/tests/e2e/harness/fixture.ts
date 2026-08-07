@@ -222,7 +222,7 @@ export async function setAkbAccountDenial(
 }
 
 export async function signInAsAlice(page: Page): Promise<void> {
-  await page.goto("/login");
+  await page.goto("/login?redirect=%2Fonboarding");
   await waitForPasswordLogin(page);
   await page
     .locator('[data-testid="login-username"]')

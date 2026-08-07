@@ -161,6 +161,7 @@ Root shortcuts:
 ```bash
 pnpm dev
 pnpm build
+pnpm check:turbo-contract
 pnpm lint
 pnpm typecheck
 pnpm test
@@ -227,7 +228,8 @@ pnpm --filter @reef/web run reset:e2e -- configured
 ## Deployment
 
 `next.config.ts` sets `output: "standalone"` for Docker. The root `Dockerfile`
-builds this package and runs the standalone server as a non-root user on port
+prunes this workspace with the repository-pinned Turbo version, builds it from
+the pruned workspace, and runs the standalone server as a non-root user on port
 `3000` inside the container. Local dev still runs on port `7333`.
 
 ## Related docs

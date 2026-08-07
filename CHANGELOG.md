@@ -56,6 +56,12 @@ explicitly in the entries below.
   default Turbopack path.** The standalone production build contract remains
   unchanged while webpack-only overrides are removed.
 
+- **Turbo now owns the workspace task graph and cache contract.** Build and
+  affected selection discover workspace dependencies from pnpm manifests, CI
+  builds one exact-head Next standalone artifact plus the discovered workspace
+  dependency build artifacts for all Playwright shards, and Docker prunes
+  `@reef/web` before installing and building the runtime image.
+
 ### Changed
 
 - **Node package contracts now build and validate from isolated artifacts.**
