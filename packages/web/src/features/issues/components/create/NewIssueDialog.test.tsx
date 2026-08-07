@@ -37,6 +37,25 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
+vi.mock("@/components/MarkdownEditor", () => ({
+  MarkdownEditor: ({
+    value,
+    onChange,
+  }: {
+    value: string;
+    onChange: (value: string) => void;
+  }) => (
+    <>
+      <button type="button">Source</button>
+      <textarea
+        data-testid="markdown-source-textarea"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </>
+  ),
+}));
+
 const { mockViewStore } = vi.hoisted(() => ({
   mockViewStore: {
     state: {
