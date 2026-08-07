@@ -153,6 +153,11 @@ test.describe("Hermetic issue keyboard navigation", () => {
     await page.keyboard.press("ArrowDown");
     await expect(alpha).toHaveAttribute("data-keyboard-focused", "true");
     await expect(alpha).toBeFocused();
+    // The focus effect commits on the next task after ArrowDown. Let that
+    // commit settle before dispatching the following shortcut key.
+    await page.evaluate(
+      () => new Promise<void>((resolve) => setTimeout(resolve, 0)),
+    );
     await page.keyboard.press("j");
     await expect(beta).toBeFocused();
     await expect(beta).toHaveAttribute("data-keyboard-focused", "true");
