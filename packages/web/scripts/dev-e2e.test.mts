@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   buildReadyPayload,
+  buildRuntimeCommand,
   parseOptions,
   validateResetBody,
   validateScenario,
@@ -23,6 +24,13 @@ afterEach(async () => {
 });
 
 describe("dev:e2e runtime contract", () => {
+  it("pre-builds the runtime workspace through the canonical Turbo graph", () => {
+    expect(buildRuntimeCommand()).toMatchObject({
+      args: ["exec", "turbo", "run", "build", "--filter=@reef/web"],
+    });
+    expect(buildRuntimeCommand().command).toMatch(/^pnpm(?:\.cmd)?$/u);
+  });
+
   it("accepts a source-owned scenario and an explicit ready-file path", () => {
     const options = parseOptions(
       ["--ready-file", "/tmp/reef-ready.json", "--", "comment_mentions"],

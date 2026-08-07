@@ -11,6 +11,13 @@ const PACKAGE_ROOT = resolve(dirname(MODULE_PATH), "..");
 const DEFAULT_WEB_URL = "http://localhost:7353";
 const DEFAULT_MOCK_URL = "http://127.0.0.1:7354";
 const DEFAULT_SCENARIO = "configured";
+const RUNTIME_BUILD_ARGS = [
+  "exec",
+  "turbo",
+  "run",
+  "build",
+  "--filter=@reef/web",
+];
 const SAFE_SCENARIO = /^[A-Za-z][A-Za-z0-9_-]*$/u;
 const E2E_GITHUB_APP_PRIVATE_KEY = generateKeyPairSync("rsa", {
   modulusLength: 2048,
@@ -28,6 +35,10 @@ let readyFilePath = null;
 
 function pnpmCommand() {
   return process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+}
+
+export function buildRuntimeCommand() {
+  return { command: pnpmCommand(), args: [...RUNTIME_BUILD_ARGS] };
 }
 
 export function validateScenario(value) {
@@ -250,6 +261,35 @@ function spawnChild(name, command, args, env = {}) {
   return child;
 }
 
+function runOneShot(name, command, args) {
+  process.stdout.write(`[dev:e2e] ${name}: ${command} ${args.join(" ")}\n`);
+  const child = spawn(command, args, {
+    cwd: PACKAGE_ROOT,
+    env: process.env,
+    stdio: "inherit",
+  });
+  children.add(child);
+
+  return new Promise((resolvePromise, rejectPromise) => {
+    child.once("error", (error) => {
+      children.delete(child);
+      rejectPromise(error);
+    });
+    child.once("exit", (code, signal) => {
+      children.delete(child);
+      if (code === 0) {
+        resolvePromise();
+        return;
+      }
+      rejectPromise(
+        new Error(
+          `${name} failed with ${signal ? `signal ${signal}` : `exit code ${code ?? 1}`}`,
+        ),
+      );
+    });
+  });
+}
+
 async function delay(ms) {
   await new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
@@ -290,6 +330,9 @@ export async function resetScenario(fixtureOrigin, scenario) {
 export async function startRuntime(options) {
   readyFilePath = options.readyFile;
   await removeReadyFile(readyFilePath);
+
+  const runtimeBuild = buildRuntimeCommand();
+  await runOneShot("workspace build", runtimeBuild.command, runtimeBuild.args);
 
   spawnChild("fixture server", "node", ["tests/e2e/harness/mock-server.mjs"], {
     REEF_E2E_MOCK_HOST: options.fixtureHost,
