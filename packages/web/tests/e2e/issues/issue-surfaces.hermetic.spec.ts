@@ -218,6 +218,63 @@ test.describe("Hermetic issue route surfaces", () => {
     );
   });
 
+  test("fits the default List preset inside the narrow desktop content column", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 992, height: 720 });
+    await openExistingWorkspace(page);
+    await expect(page.locator("aside")).toBeVisible();
+
+    await page.goto("/workspace/reef-e2e/issues?view=list");
+    await expect(
+      page.locator('[data-testid="issue-list-row"]').first(),
+    ).toBeVisible();
+
+    const scroll = page.getByTestId("issue-list-scroll-container");
+    const geometry = await scroll.evaluate((element) => {
+      const root = element as HTMLElement;
+      const table = root.querySelector("table");
+      const contentRight = root.getBoundingClientRect().right;
+      const due = root.querySelector(
+        'tbody tr[data-testid="issue-list-row"] td[data-column-key="due"]',
+      );
+      const updated = root.querySelector(
+        'tbody tr[data-testid="issue-list-row"] td[data-column-key="updated"]',
+      );
+      return {
+        tableWidth: table?.getBoundingClientRect().width ?? 0,
+        contentWidth: root.clientWidth,
+        tableOverflow: root.scrollWidth > root.clientWidth,
+        dueVisible: (due?.getBoundingClientRect().right ?? 0) <= contentRight,
+        updatedVisible:
+          (updated?.getBoundingClientRect().right ?? 0) <= contentRight,
+        documentOverflow:
+          document.documentElement.scrollWidth >
+          document.documentElement.clientWidth,
+        columnKeys: Array.from(
+          root.querySelectorAll("thead th[data-column-key]"),
+        ).map((cell) => cell.getAttribute("data-column-key")),
+      };
+    });
+
+    expect(geometry.tableWidth).toBeLessThanOrEqual(geometry.contentWidth);
+    expect(geometry.tableOverflow).toBe(false);
+    expect(geometry.dueVisible).toBe(true);
+    expect(geometry.updatedVisible).toBe(true);
+    expect(geometry.documentOverflow).toBe(false);
+    expect(geometry.columnKeys).toEqual([
+      "select",
+      "id",
+      "type",
+      "title",
+      "status",
+      "priority",
+      "assignee",
+      "due",
+      "updated",
+    ]);
+  });
+
   test("renders the README demo board fixture across workflow columns", async ({
     page,
     request,

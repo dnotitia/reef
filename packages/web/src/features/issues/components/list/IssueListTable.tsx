@@ -156,6 +156,10 @@ export function IssueListTable({ vault }: IssueListTableProps) {
     [optionalColumns],
   );
   const tableWidth = useMemo(() => issueTableWidth(columns), [columns]);
+  const tableClassName = cn(
+    "reef-issue-list-table table-fixed",
+    optionalColumns.length > 0 && "reef-issue-list-table-expanded",
+  );
   const toggleOptionalColumn = useCallback(
     (column: IssueListOptionalColumnKey) => {
       setOptionalColumns((current) =>
@@ -413,7 +417,7 @@ export function IssueListTable({ vault }: IssueListTableProps) {
       </div>
       {isPending ? (
         <Table
-          className="table-fixed"
+          className={tableClassName}
           style={{ minWidth: tableWidth }}
           containerClassName="overflow-visible"
         >
@@ -485,7 +489,7 @@ export function IssueListTable({ vault }: IssueListTableProps) {
           data-testid="issue-list-scroll-container"
         >
           <Table
-            className="table-fixed"
+            className={tableClassName}
             style={{ minWidth: tableWidth }}
             containerClassName="overflow-visible"
           >
