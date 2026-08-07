@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
@@ -27,7 +28,6 @@ import { PivotCard } from "./PivotCard";
 import { NetThroughputChart, RankedBarList, RiskMatrix } from "./ReportCharts";
 import {
   Card,
-  EmptyState,
   PageShell,
   ReportSection,
   ReportsSkeleton,
@@ -168,9 +168,10 @@ export function ReportsPage() {
   if (issues.length === 0) {
     return (
       <PageShell description={vault || undefined}>
-        <EmptyState>
-          <p className="text-sm text-muted-foreground">{t("noActiveIssues")}</p>
-        </EmptyState>
+        <EmptyState
+          data-testid="reports-empty"
+          description={t("noActiveIssues")}
+        />
       </PageShell>
     );
   }
@@ -181,31 +182,32 @@ export function ReportsPage() {
         <ReportScopeBar filters={filters} onChange={setFilters} />
 
         {agg.filteredTotal === 0 ? (
-          <EmptyState>
-            <p className="text-sm text-muted-foreground">
-              {t("noMatchingData")}
-            </p>
-            {/* A parent drill empties the page without leaving a scope-bar
-                control to undo it (unlike the planning axes), and the rollup row
-                — the normal clear path — is gone in this empty branch. Offer the
-                clear here so the parent scope doesn't trap the page (REEF-187). */}
-            {filters.parent_id && (
-              <Button
-                variant="outline"
-                size="sm"
-                data-testid="reports-clear-parent-scope"
-                onClick={() =>
-                  setFilters((current) => ({
-                    ...current,
-                    parent_id: undefined,
-                  }))
-                }
-              >
-                {t("clearParentFilter")}
-                {parentScopeName ? `: ${parentScopeName}` : ""}
-              </Button>
-            )}
-          </EmptyState>
+          <EmptyState
+            data-testid="reports-empty"
+            description={t("noMatchingData")}
+            action={
+              /* A parent drill empties the page without leaving a scope-bar
+                 control to undo it (unlike the planning axes), and the rollup row
+                 — the normal clear path — is gone in this empty branch. Offer the
+                 clear here so the parent scope doesn't trap the page (REEF-187). */
+              filters.parent_id ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  data-testid="reports-clear-parent-scope"
+                  onClick={() =>
+                    setFilters((current) => ({
+                      ...current,
+                      parent_id: undefined,
+                    }))
+                  }
+                >
+                  {t("clearParentFilter")}
+                  {parentScopeName ? `: ${parentScopeName}` : ""}
+                </Button>
+              ) : null
+            }
+          />
         ) : (
           // Three scan bands — present state, flow over time, and the static
           // breakdowns — so the long card stack reads as a few named groups with

@@ -710,6 +710,11 @@ that exist and define the experience:
 - **Shell.** `DashboardShell` (sidebar, nav, account/release context, global
   dialogs), page header/body, the global search palette, the keyboard-shortcuts
   sheet, and the offline banner.
+- **Empty states.** `EmptyState`
+  (`packages/web/src/components/ui/empty-state.tsx`) is the shared leaf for
+  prerequisite and section-level empty content. Callers import it directly and
+  provide existing translated copy and actions; it does not own navigation or
+  data state.
 
 The AI components share the `--ai` token family so that AI work reads as a
 consistent purple track wherever it appears, distinct from the teal brand.
@@ -750,6 +755,16 @@ Empty states explain and offer a next step: an unconfigured workspace points to
 Settings; an empty Suggestions queue says there's nothing to review; an
 enrichment that returns nothing says "No additional suggestions." A screen is
 never left blank.
+
+The shared `EmptyState` uses two deliberate presentation variants. The
+`structure` variant is an unboxed, centered prompt for a page that cannot be
+composed without a prerequisite such as an active workspace. The `section`
+variant is the canonical framed treatment for an empty collection or report:
+`rounded-lg border border-dashed border-border-subtle bg-surface-subtle px-6
+py-12 text-center`. Its optional title is an `h2`, its description is supporting
+copy, its icon is decorative, and its action is supplied by the caller so the
+existing Link or Button behavior remains unchanged. A caller may add layout
+constraints such as a minimum height outside that shared frame.
 
 ### Error Handling
 

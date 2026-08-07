@@ -156,6 +156,51 @@ describe("PlanningPage", () => {
     expect(screen.queryByText("active")).not.toBeInTheDocument();
   });
 
+  it("uses the shared empty frame and keeps the normal create flow", async () => {
+    mockApiFetch.mockImplementation(
+      (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : String(input);
+        if (url.startsWith("/api/planning?")) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({ sprints: [], milestones: [], releases: [] }),
+              { status: 200 },
+            ),
+          );
+        }
+        if (
+          url.startsWith("/api/planning/") &&
+          (init?.method === "POST" || init?.method === "PUT")
+        ) {
+          const body = JSON.parse(String(init.body)) as { item: unknown };
+          return Promise.resolve(
+            new Response(JSON.stringify({ item: body.item }), { status: 200 }),
+          );
+        }
+        return Promise.resolve(new Response(null, { status: 204 }));
+      },
+    );
+
+    const user = userEvent.setup();
+    render(wrap(<PlanningPage />));
+
+    const empty = await screen.findByTestId("planning-empty-sprints");
+    expect(empty).toHaveTextContent("No sprints yet.");
+    expect(empty).toHaveClass(
+      "rounded-lg",
+      "border-dashed",
+      "border-border-subtle",
+      "bg-surface-subtle",
+      "px-6",
+      "py-12",
+    );
+
+    await user.click(within(empty).getByRole("button", { name: "New sprint" }));
+    expect(
+      await screen.findByTestId("planning-editor-dialog"),
+    ).toBeInTheDocument();
+  });
+
   it("renders sprint dates via the shared DateDisplay", async () => {
     render(wrap(<PlanningPage />));
     await screen.findByText("Sprint One");

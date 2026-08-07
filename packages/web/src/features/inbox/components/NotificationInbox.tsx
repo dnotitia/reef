@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { buildOpenIssueHref } from "@/features/issues/lib/issueHref";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
@@ -253,21 +254,12 @@ function NotificationInboxContent({ vault }: { vault: string }) {
         </div>
       )}
       {notifications.length === 0 ? (
-        <output
+        <EmptyState
           data-testid="notification-inbox-empty"
-          className="rounded-lg border border-dashed border-border-subtle px-6 py-16 text-center"
-        >
-          <Bell
-            className="mx-auto mb-3 h-5 w-5 text-muted-foreground"
-            aria-hidden="true"
-          />
-          <h2 className="text-pretty text-sm font-semibold text-foreground">
-            {t("emptyTitle")}
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("emptyDescription")}
-          </p>
-        </output>
+          icon={<Bell className="h-5 w-5" />}
+          title={t("emptyTitle")}
+          description={t("emptyDescription")}
+        />
       ) : (
         <ul
           aria-label={t("listLabel")}

@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useCurrentUser } from "@/features/auth/hooks/useCurrentUser";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { useIssueRelations } from "@/features/issues/hooks/queries/useIssueRelations";
@@ -47,23 +48,6 @@ function Shell({
       <PageBody width="wide" className="flex flex-col gap-6">
         {children}
       </PageBody>
-    </div>
-  );
-}
-
-function CenteredNotice({
-  testId,
-  children,
-}: {
-  testId: string;
-  children: ReactNode;
-}) {
-  return (
-    <div
-      data-testid={testId}
-      className="rounded-lg border border-dashed border-border-subtle bg-surface-subtle px-6 py-16 text-center"
-    >
-      {children}
     </div>
   );
 }
@@ -154,8 +138,7 @@ export function MyWorkPage() {
     // The no-vault gate is the app-level "no workspace" state, shared across all
     // five surfaces (REEF-259), so it bypasses `Shell` (which wraps children in a
     // PageBody) and lets the shared notice own its own centered layout beneath
-    // the header. The other empty states below stay section-level CenteredNotice
-    // cards.
+    // the header.
     return (
       <div className="flex h-full flex-col">
         <PageHeader title={nav("myWork")} />
@@ -167,14 +150,11 @@ export function MyWorkPage() {
   if (!login) {
     return (
       <Shell>
-        <CenteredNotice testId="my-work-no-session">
-          <p className="text-sm font-medium text-foreground">
-            {t("noSessionTitle")}
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("noSessionDescription")}
-          </p>
-        </CenteredNotice>
+        <EmptyState
+          data-testid="my-work-no-session"
+          title={t("noSessionTitle")}
+          description={t("noSessionDescription")}
+        />
       </Shell>
     );
   }
@@ -214,20 +194,19 @@ export function MyWorkPage() {
   if (issues.length === 0) {
     return (
       <Shell>
-        <CenteredNotice testId="my-work-empty">
-          <p className="text-sm font-medium text-foreground">
-            {t("emptyTitle")}
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("emptyDescription")}
-          </p>
-          <Link
-            href={withVault(vault, "/issues?view=board")}
-            className="mt-3 inline-block text-[13px] font-medium text-brand hover:underline"
-          >
-            {t("goToBoard")}
-          </Link>
-        </CenteredNotice>
+        <EmptyState
+          data-testid="my-work-empty"
+          title={t("emptyTitle")}
+          description={t("emptyDescription")}
+          action={
+            <Link
+              href={withVault(vault, "/issues?view=board")}
+              className="text-[13px] font-medium text-brand hover:underline"
+            >
+              {t("goToBoard")}
+            </Link>
+          }
+        />
       </Shell>
     );
   }
@@ -235,20 +214,19 @@ export function MyWorkPage() {
   if (myWork.items.length === 0) {
     return (
       <Shell description={`@${login}`}>
-        <CenteredNotice testId="my-work-caught-up">
-          <p className="text-sm font-medium text-foreground">
-            {t("caughtUpTitle")}
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("caughtUpDescription")}
-          </p>
-          <Link
-            href={withVault(vault, "/issues?view=board")}
-            className="mt-3 inline-block text-[13px] font-medium text-brand hover:underline"
-          >
-            {t("goToBoard")}
-          </Link>
-        </CenteredNotice>
+        <EmptyState
+          data-testid="my-work-caught-up"
+          title={t("caughtUpTitle")}
+          description={t("caughtUpDescription")}
+          action={
+            <Link
+              href={withVault(vault, "/issues?view=board")}
+              className="text-[13px] font-medium text-brand hover:underline"
+            >
+              {t("goToBoard")}
+            </Link>
+          }
+        />
       </Shell>
     );
   }

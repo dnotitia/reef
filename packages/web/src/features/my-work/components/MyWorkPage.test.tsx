@@ -146,7 +146,15 @@ describe("MyWorkPage", () => {
         <MyWorkPage />
       </IntlTestProvider>,
     );
-    expect(screen.getByTestId("my-work-no-session")).toBeInTheDocument();
+    const notice = screen.getByTestId("my-work-no-session");
+    expect(notice).toHaveClass(
+      "rounded-lg",
+      "border-dashed",
+      "border-border-subtle",
+      "bg-surface-subtle",
+      "px-6",
+      "py-12",
+    );
     // A logged-out visit should not fan out a whole-vault fetch (blank vault,
     // no query); placeholder reuse is opted out as for every My Work fetch.
     expect(mockUseIssueList).toHaveBeenCalledWith("", undefined, {
@@ -161,7 +169,15 @@ describe("MyWorkPage", () => {
         <MyWorkPage />
       </IntlTestProvider>,
     );
-    expect(screen.getByTestId("my-work-empty")).toBeInTheDocument();
+    const notice = screen.getByTestId("my-work-empty");
+    expect(notice).toHaveClass(
+      "rounded-lg",
+      "border-dashed",
+      "border-border-subtle",
+      "bg-surface-subtle",
+      "px-6",
+      "py-12",
+    );
     const cta = screen.getByRole("link", { name: /Go to the board/ });
     expect(cta).toHaveAttribute(
       "href",
@@ -179,7 +195,15 @@ describe("MyWorkPage", () => {
         <MyWorkPage />
       </IntlTestProvider>,
     );
-    expect(screen.getByTestId("my-work-caught-up")).toBeInTheDocument();
+    const notice = screen.getByTestId("my-work-caught-up");
+    expect(notice).toHaveClass(
+      "rounded-lg",
+      "border-dashed",
+      "border-border-subtle",
+      "bg-surface-subtle",
+      "px-6",
+      "py-12",
+    );
     const cta = screen.getByRole("link", { name: /Go to the board/ });
     expect(cta).toHaveAttribute(
       "href",

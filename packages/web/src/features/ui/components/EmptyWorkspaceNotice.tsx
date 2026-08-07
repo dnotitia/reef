@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "@/components/ui/empty-state";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { withVault } from "@/lib/workspaceHref";
 import { useTranslations } from "next-intl";
@@ -16,9 +17,9 @@ import Link from "next/link";
  * `PageHeader`.
  *
  * It is the app-level "no workspace at all" gate, deliberately distinct from
- * the section-level dashed-card empty states (`EmptyState` / `CenteredNotice`)
- * that mean "this section has no rows yet" — so the lighter, centered prompt is
- * the canonical treatment rather than a boxed card.
+ * the section-level dashed-card empty state that means "this section has no
+ * rows yet" — so the lighter, centered prompt is the canonical treatment
+ * rather than a boxed card.
  *
  * The Settings link is a Next `Link` (client navigation) rather than a raw
  * `<a>`, keeping it consistent with the in-app navigation REEF-262 unifies.
@@ -27,15 +28,14 @@ export function EmptyWorkspaceNotice() {
   const t = useTranslations("emptyState.workspace");
   const { vault } = useActiveVault();
   return (
-    <div
+    <EmptyState
+      variant="structure"
       data-testid="empty-workspace-notice"
-      className="flex flex-1 items-center justify-center px-6 py-12"
-    >
-      {/* `t.rich` keeps the Settings link embedded in the sentence while letting
-          each locale own word order — ko moves the link to the front (REEF-293,
-          epic UX: copy length/order varies without breaking layout). */}
-      <p className="text-sm text-muted-foreground">
-        {t.rich("prompt", {
+      description={
+        /* `t.rich` keeps the Settings link embedded in the sentence while letting
+            each locale own word order — ko moves the link to the front (REEF-293,
+            epic UX: copy length/order varies without breaking layout). */
+        t.rich("prompt", {
           link: (chunks) => (
             <Link
               href={withVault(vault, "/settings")}
@@ -44,8 +44,8 @@ export function EmptyWorkspaceNotice() {
               {chunks}
             </Link>
           ),
-        })}
-      </p>
-    </div>
+        })
+      }
+    />
   );
 }

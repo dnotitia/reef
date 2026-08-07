@@ -293,6 +293,24 @@ describe("ReportsPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("uses a passive shared empty state when the workspace has no issues", async () => {
+    mockApi([]);
+
+    render(wrap(<ReportsPage />));
+
+    const empty = await screen.findByTestId("reports-empty");
+    expect(empty).toHaveTextContent("No active issues yet");
+    expect(empty).toHaveClass(
+      "rounded-lg",
+      "border-dashed",
+      "border-border-subtle",
+      "bg-surface-subtle",
+      "px-6",
+      "py-12",
+    );
+    expect(within(empty).queryByRole("button")).not.toBeInTheDocument();
+  });
+
   it("shows an empty report state when filters match no issues", async () => {
     mockApi(issues);
 
@@ -301,7 +319,16 @@ describe("ReportsPage", () => {
     await screen.findByTestId("report-scope-bar");
     setLabelFilter("missing");
 
-    expect(screen.getByText(/No matching report data/i)).toBeInTheDocument();
+    const empty = screen.getByTestId("reports-empty");
+    expect(empty).toHaveTextContent(/No matching report data/i);
+    expect(empty).toHaveClass(
+      "rounded-lg",
+      "border-dashed",
+      "border-border-subtle",
+      "bg-surface-subtle",
+      "px-6",
+      "py-12",
+    );
   });
 
   it("can clear a parent rollup drill from the empty state (REEF-187)", async () => {

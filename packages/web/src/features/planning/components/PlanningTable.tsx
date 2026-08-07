@@ -4,6 +4,7 @@ import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { DateDisplay } from "@/components/fields/DateDisplay";
 import { PlanningStatusBadge } from "@/components/fields/PlanningStatusBadge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -92,15 +93,26 @@ export function PlanningTable({
 
   if (items.length === 0) {
     return (
-      <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-md border border-dashed border-border bg-surface-subtle px-6 py-10">
-        <p className="text-sm text-muted-foreground">
-          {t("emptyKind", { kind: planningKindLabels[kind].toLowerCase() })}
-        </p>
-        <Button type="button" size="sm" onClick={onCreate} className="gap-1.5">
-          <Plus aria-hidden="true" className="h-3.5 w-3.5" />
-          {t("newKind", { kind: planningKindSingular[kind].toLowerCase() })}
-        </Button>
-      </div>
+      <EmptyState
+        data-testid={`planning-empty-${kind}`}
+        className="min-h-48"
+        description={t("emptyKind", {
+          kind: planningKindLabels[kind].toLowerCase(),
+        })}
+        action={
+          <Button
+            type="button"
+            size="sm"
+            onClick={onCreate}
+            className="gap-1.5"
+          >
+            <Plus aria-hidden="true" className="h-3.5 w-3.5" />
+            {t("newKind", {
+              kind: planningKindSingular[kind].toLowerCase(),
+            })}
+          </Button>
+        }
+      />
     );
   }
 

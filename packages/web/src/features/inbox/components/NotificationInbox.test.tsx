@@ -1,5 +1,11 @@
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NotificationInboxPage } from "./NotificationInbox";
 
@@ -155,8 +161,20 @@ describe("NotificationInboxPage", () => {
         <NotificationInboxPage />
       </IntlTestProvider>,
     );
-    expect(screen.getByTestId("notification-inbox-empty")).toHaveTextContent(
-      "You’re all caught up",
+    const empty = screen.getByTestId("notification-inbox-empty");
+    expect(empty).toHaveTextContent("You’re all caught up");
+    expect(empty).toHaveClass(
+      "rounded-lg",
+      "border-dashed",
+      "border-border-subtle",
+      "bg-surface-subtle",
+      "px-6",
+      "py-12",
     );
+    const icon = empty.querySelector(
+      '[data-slot="empty-state-icon"]',
+    ) as HTMLElement;
+    expect(icon).toHaveAttribute("aria-hidden", "true");
+    expect(within(empty).queryByRole("button")).not.toBeInTheDocument();
   });
 });

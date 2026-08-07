@@ -58,6 +58,10 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Empty states now share one quiet section-frame contract across My Work,
+  Inbox, Reports, and Planning, while the unconfigured-workspace prompt stays
+  deliberately unboxed.** Existing copy, navigation, filter reset, and create
+  actions are preserved.
 - **Node package contracts now build and validate from isolated artifacts.**
   Seven Node packages use tsdown to emit ESM JavaScript and declarations from
   `dist/`, dependency-cruiser enforces workspace directions and production
