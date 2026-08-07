@@ -38,6 +38,10 @@ Two auxiliary runtimes stay outside the interactive web request path:
   normalization, and process signal registration. Callers own scheduling,
   persistence, delivery ordering, and concrete provider adapters; long-running
   worker loops do not run inside reef-web.
+- **`@reef/orchestration-controller`** owns the private, controller-local
+  versioned run journal, exclusive work claims, process-identity classification,
+  and safe cleanup boundary. It depends only on `@reef/orchestrator`; it does
+  not persist to Reef/AKB or reconstruct infrastructure paths.
 - **`@reef/harness-provider-codex`** is a private concrete adapter for Codex App
   Server. It owns the local stdio JSONL process boundary and exposes only the
   provider-neutral harness contract to callers.
@@ -76,9 +80,10 @@ boundary for worker delivery: `@reef/scm-provider-github` may perform the
 contract-granted Git and GitHub pull-request writes against one validated local
 checkout. It is not part of the product's monitored-repository read adapter.
 
-The repository is a pnpm workspace with nine private, unpublished packages
+The repository is a pnpm workspace with ten private, unpublished packages
 under `packages/`: `core` (`@reef/core`), `web` (`@reef/web`), `orchestrator`
-(`@reef/orchestrator`), `harness-provider-codex`
+(`@reef/orchestrator`), `orchestration-controller`
+(`@reef/orchestration-controller`), `harness-provider-codex`
 (`@reef/harness-provider-codex`), `infrastructure-provider-local`
 (`@reef/infrastructure-provider-local`), `validation-provider-local`
 (`@reef/validation-provider-local`), `scm-provider-github`
@@ -368,6 +373,7 @@ preserves Server-Sent Events.
 | Browser state and storage | `packages/web/src/lib/` (`storage`, `api`, session, and client helpers) |
 | CSP / security headers | `packages/web/src/proxy.ts` |
 | Provider-neutral execution core | `packages/orchestration/runtime/src/` |
+| Controller-owned run state | `packages/orchestration/controller/src/` |
 | Codex harness adapter | `packages/orchestration/providers/codex/src/` |
 | Local validation provider | `packages/orchestration/providers/local-validation/src/` |
 | GitHub SCM provider | `packages/orchestration/providers/github/src/` |
@@ -382,6 +388,7 @@ preserves Server-Sent Events.
 - [Core package README](../packages/core/README.md) and
   [`@reef/web` package README](../packages/web/README.md)
 - [`@reef/orchestrator` package README](../packages/orchestration/runtime/README.md)
+- [`@reef/orchestration-controller` package README](../packages/orchestration/controller/README.md)
 - [`@reef/harness-provider-codex` package README](../packages/orchestration/providers/codex/README.md)
 - [`@reef/validation-provider-local` package README](../packages/orchestration/providers/local-validation/README.md)
 - [`@reef/scm-provider-github` package README](../packages/orchestration/providers/github/README.md)

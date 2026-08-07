@@ -41,6 +41,11 @@ export default [
     index: "src/index.ts",
   }),
   packageConfig(
+    "packages/orchestration/controller",
+    "@reef/orchestration-controller",
+    { index: "src/index.ts" },
+  ),
+  packageConfig(
     "packages/orchestration/providers/codex",
     "@reef/harness-provider-codex",
     { index: "src/index.ts" },

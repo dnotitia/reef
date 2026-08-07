@@ -3,6 +3,7 @@
 > Root-level, cross-cutting rules for reef. Package-local rules live in
 > `packages/core/AGENTS.md`, `packages/web/AGENTS.md`,
 > `packages/jira-migrator/AGENTS.md`, `packages/orchestration/runtime/AGENTS.md`,
+> `packages/orchestration/controller/AGENTS.md`,
 > `packages/orchestration/providers/reef/AGENTS.md`,
 > `packages/orchestration/providers/codex/AGENTS.md`, and
 > `packages/orchestration/providers/github/AGENTS.md`,

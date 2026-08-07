@@ -4,7 +4,8 @@ reef is versioned as a single repository product: the deployed `reef-web`
 application plus its private core, worker, and operator packages.
 
 The pnpm workspace contains `packages/web`, `packages/core`,
-`packages/orchestration/runtime`, `packages/orchestration/providers/codex`,
+`packages/orchestration/runtime`, `packages/orchestration/controller`,
+`packages/orchestration/providers/codex`,
 `packages/orchestration/providers/local`,
 `packages/orchestration/providers/local-validation`,
 `packages/orchestration/providers/github`, `packages/jira-migrator`, and

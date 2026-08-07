@@ -137,6 +137,28 @@ importers:
         specifier: 'catalog:'
         version: 3.2.6(@types/debug@4.1.13)(@types/node@24.13.3)(@vitest/ui@3.2.6)(jiti@2.7.0)(jsdom@30.0.1)(lightningcss@1.32.0)(msw@2.15.0(@types/node@24.13.3)(typescript@6.0.2))(tsx@4.23.9)(yaml@2.9.0)
 
+  packages/orchestration/controller:
+    dependencies:
+      '@reef/orchestrator':
+        specifier: workspace:*
+        version: link:../runtime
+      zod:
+        specifier: 'catalog:'
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 3.2.6(@types/debug@4.1.13)(@types/node@24.13.3)(@vitest/ui@3.2.6)(jiti@2.7.0)(jsdom@24.1.3)(lightningcss@1.32.0)(msw@2.13.2(@types/node@24.13.3)(typescript@6.0.2))(tsx@4.23.0)(yaml@2.9.0)
+
   packages/orchestration/providers/codex:
     dependencies:
       '@reef/orchestrator':
