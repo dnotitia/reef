@@ -36,6 +36,10 @@ explicitly in the entries below.
 
 ### Operational
 
+- **The repository now has one Node 22 and pnpm toolchain baseline.** Shared
+  workspace versions are owned by the default pnpm catalog, while CI, Docker,
+  and Renovate use the same runtime and package-manager declarations.
+
 - **Next.js web development, production, and E2E entrypoints now use the
   default Turbopack path.** The standalone production build contract remains
   unchanged while webpack-only overrides are removed.

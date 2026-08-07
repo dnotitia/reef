@@ -1,0 +1,40 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "packageRules": [
+    {
+      "description": "Group updates owned by the default pnpm catalog",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["pnpm.catalog.default"],
+      "groupName": "shared toolchain catalog"
+    },
+    {
+      "description": "Group Node runtime version updates",
+      "matchDatasources": ["node-version"],
+      "groupName": "Node runtime"
+    },
+    {
+      "description": "Group Node Docker base image updates",
+      "matchManagers": ["dockerfile"],
+      "matchPackageNames": ["node"],
+      "groupName": "Node runtime"
+    },
+    {
+      "description": "Group pnpm package-manager updates",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["pnpm"],
+      "groupName": "pnpm"
+    },
+    {
+      "description": "Group GitHub Actions updates",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions"
+    },
+    {
+      "description": "Never automerge major updates",
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    }
+  ],
+  "automerge": false
+}

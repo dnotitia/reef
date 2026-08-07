@@ -22,8 +22,8 @@
     "@reef/orchestrator": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^20.19.39",
-    "typescript": "^5.9.3",
-    "vitest": "^3.2.6"
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

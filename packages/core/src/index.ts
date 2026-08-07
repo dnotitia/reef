@@ -1,3 +1,5 @@
+export type { UIMessage } from "ai";
+
 export {
   EnrichmentFieldEnum,
   EnrichmentRequestSchema,

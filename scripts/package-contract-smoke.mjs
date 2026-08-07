@@ -15,6 +15,8 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 
+import { parseDocument } from "yaml";
+
 import { discoverWorkspacePackages } from "./maintenance/workspaces.mjs";
 
 const root = process.cwd();
@@ -59,6 +61,29 @@ async function readJson(filePath) {
   return JSON.parse(await readFile(filePath, "utf8"));
 }
 
+function readDefaultCatalog(workspaceYaml) {
+  const document = parseDocument(workspaceYaml, { uniqueKeys: true });
+  if (document.errors.length > 0) {
+    throw new Error(
+      `pnpm-workspace.yaml could not be parsed: ${document.errors[0].message}`,
+    );
+  }
+  const value = document.toJS();
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    !value.catalog ||
+    typeof value.catalog !== "object" ||
+    Array.isArray(value.catalog)
+  ) {
+    throw new Error(
+      "pnpm-workspace.yaml must define a default catalog mapping",
+    );
+  }
+  return value.catalog;
+}
+
 function packageKey(name) {
   return name.replace(/^@[^/]+\//, "");
 }
@@ -72,6 +97,29 @@ function rewriteWorkspaceDependencies(manifest, version) {
     for (const [name, range] of Object.entries(dependencies)) {
       if (typeof range === "string" && range.startsWith("workspace:")) {
         dependencies[name] = version;
+      }
+    }
+  }
+}
+
+function rewriteCatalogDependencies(manifest, catalog) {
+  for (const field of [
+    "dependencies",
+    "devDependencies",
+    "optionalDependencies",
+    "peerDependencies",
+  ]) {
+    const dependencies = manifest[field];
+    if (!dependencies) continue;
+    for (const [name, range] of Object.entries(dependencies)) {
+      if (range === "catalog:") {
+        const version = catalog[name];
+        if (typeof version !== "string") {
+          throw new Error(`default catalog entry is missing for ${name}`);
+        }
+        dependencies[name] = version;
+      } else if (typeof range === "string" && range.startsWith("catalog:")) {
+        throw new Error(`${name} uses an unsupported named catalog reference`);
       }
     }
   }
@@ -193,7 +241,7 @@ async function assertInstalledArtifact(packageDir, packageName) {
   }
 }
 
-async function packArtifactPackages(packRoot, packages, version) {
+async function packArtifactPackages(packRoot, packages, version, catalog) {
   const tarballs = new Map();
   const stageRoot = path.join(packRoot, "stage");
   const tarballRoot = path.join(packRoot, "tarballs");
@@ -207,6 +255,7 @@ async function packArtifactPackages(packRoot, packages, version) {
     manifest.private = false;
     manifest.version = version;
     manifest.files = ["dist"];
+    rewriteCatalogDependencies(manifest, catalog);
     manifest.devDependencies = undefined;
     rewriteWorkspaceDependencies(manifest, version);
     await writeFile(
@@ -270,7 +319,15 @@ async function runSmoke() {
     await mkdir(path.join(packRoot, "stage"));
     await mkdir(path.join(packRoot, "tarballs"));
     const version = (await readJson(path.join(root, "package.json"))).version;
-    const tarballs = await packArtifactPackages(packRoot, packages, version);
+    const catalog = readDefaultCatalog(
+      await readFile(path.join(root, "pnpm-workspace.yaml"), "utf8"),
+    );
+    const tarballs = await packArtifactPackages(
+      packRoot,
+      packages,
+      version,
+      catalog,
+    );
     const consumerDir = path.join(packRoot, "consumer");
     await mkdir(consumerDir);
 
