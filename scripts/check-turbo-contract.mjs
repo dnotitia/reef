@@ -320,6 +320,12 @@ function verifyRepositoryHandoffs() {
     "Docker pruned output must contain the root tsdown build configuration",
   );
   assert(
+    /tsconfig\.base\.json\s+out\/full\/tsconfig\.base\.json[\s\\]+&&\s*test\s+-f\s+out\/full\/tsconfig\.base\.json/u.test(
+      dockerfile,
+    ),
+    "Docker pruned output must contain the root TypeScript base configuration",
+  );
+  assert(
     /out\/json/u.test(dockerfile) &&
       /out\/full/u.test(dockerfile) &&
       /pnpm-lock\.yaml/u.test(dockerfile),

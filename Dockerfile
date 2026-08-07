@@ -9,7 +9,9 @@ COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm exec turbo prune @reef/web --docker \
     && cp tsdown.config.mjs out/full/tsdown.config.mjs \
-    && test -f out/full/tsdown.config.mjs
+    && test -f out/full/tsdown.config.mjs \
+    && cp tsconfig.base.json out/full/tsconfig.base.json \
+    && test -f out/full/tsconfig.base.json
 
 
 # Stage 2: deps — install only the pruned workspace dependencies.
