@@ -228,10 +228,7 @@ describe("createGitHubAppInstallationTokenProvider", () => {
   it("keeps the private key and token out of the error and span on failure (AC2)", async () => {
     server.use(
       http.post(TOKEN_ENDPOINT, () =>
-        HttpResponse.json(
-          { message: `boom ${appMaterial}` },
-          { status: 500 },
-        ),
+        HttpResponse.json({ message: `boom ${appMaterial}` }, { status: 500 }),
       ),
     );
 
