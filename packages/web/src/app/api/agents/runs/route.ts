@@ -14,13 +14,13 @@ import {
   AgentRunRequestSchema,
   AuthError,
   type GitHubAdapter,
+  type UIMessage,
   akbReadAuthoringLanguage,
   createWorkspaceChatAgentResponse,
   describeError,
   enrichIssue,
   scanAndPersistActivitySuggestions,
 } from "@reef/core";
-import type { UIMessage } from "ai";
 import {
   createAgentEventStream,
   createChatRunEventBridge,

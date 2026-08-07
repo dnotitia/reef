@@ -317,9 +317,6 @@ importers:
       '@tiptap/starter-kit':
         specifier: ^3.22.3
         version: 3.22.3
-      ai:
-        specifier: 'catalog:'
-        version: 6.0.177(zod@3.25.76)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
