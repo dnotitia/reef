@@ -51,7 +51,7 @@
     "@octokit/graphql": "^8.2.2",
     "@octokit/rest": "^21.1.1",
     "@opentelemetry/api": "catalog:",
-    "ai": "catalog:",
+    "ai": "^6.0.0",
     "zod": "catalog:"
   }
 }
