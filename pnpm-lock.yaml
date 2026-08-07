@@ -6,6 +6,9 @@ settings:
 
 catalogs:
   default:
+    '@octokit/rest':
+      specifier: ^21.1.1
+      version: 21.1.1
     '@opentelemetry/api':
       specifier: ^1.9.1
       version: 1.9.1
@@ -90,7 +93,7 @@ importers:
         specifier: ^8.2.2
         version: 8.2.2
       '@octokit/rest':
-        specifier: ^21.1.1
+        specifier: 'catalog:'
         version: 21.1.1
       '@opentelemetry/api':
         specifier: 'catalog:'
@@ -158,6 +161,25 @@ importers:
       tsx:
         specifier: 'catalog:'
         version: 4.23.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 3.2.6(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/ui@3.2.6)(jiti@2.7.0)(jsdom@24.1.3)(lightningcss@1.32.0)(msw@2.13.2(@types/node@22.20.1)(typescript@6.0.2))(tsx@4.23.0)(yaml@2.9.0)
+
+  packages/orchestration/providers/github:
+    dependencies:
+      '@octokit/rest':
+        specifier: 'catalog:'
+        version: 21.1.1
+      '@reef/orchestrator':
+        specifier: workspace:*
+        version: link:../../runtime
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.20.1
       typescript:
         specifier: 'catalog:'
         version: 6.0.2
@@ -5443,7 +5465,6 @@ packages:
     resolution: {integrity: sha512-bGdAIrZ0wiGDo5l8c++HWtbaNCWTS4UTv7RaTH/ThVIgjkveJt83m74bBHMJkuCbslY8ixgLBVZJIOiQlQTjfQ==}
     engines: {node: '>=14.17'}
     hasBin: true
-
 
   uc.micro@2.1.0:
     resolution: {integrity: sha512-ARDJmphmdvUk6Glw7y9DQ2bFkKBHwQHLi2lsaH6PPmz/Ka9sFOBsBluozhDltWmnv9u/cF6Rt87znRTPV+yp/A==}
@@ -11009,7 +11030,6 @@ snapshots:
       - supports-color
 
   typescript@6.0.2: {}
-
 
   uc.micro@2.1.0: {}
 

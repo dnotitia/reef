@@ -23,8 +23,8 @@ reef has three runtime tiers:
   issues directly. reef does not run its own database.
 - **`@reef/core`** — a framework-agnostic TypeScript library. It owns the Zod
   schemas, domain models, AI agents, tool definitions, error types, and every
-  adapter that talks to AKB, GitHub, and the LLM provider. It has no Next.js,
-  React, DOM, or browser-storage dependencies.
+  product adapter that talks to AKB, monitored GitHub repositories, and the LLM
+  provider. It has no Next.js, React, DOM, or browser-storage dependencies.
 - **reef-web** — a Next.js App Router application that renders the product UI and
   acts as a **stateless Backend-for-Frontend (BFF)** over the AKB vault. Its
   Route Handlers validate input, extract credentials, call `core`, and translate
@@ -43,6 +43,11 @@ Two auxiliary runtimes stay outside the interactive web request path:
 - **`@reef/infrastructure-provider-local`** is a private concrete infrastructure
   provider for isolated Git-backed run workspaces and bounded process
   execution. It depends only on the provider-neutral orchestrator contract.
+- **`@reef/scm-provider-github`** is a private concrete SCM provider for an
+  explicitly bound GitHub repository and local working tree. It owns Git ref,
+  branch, commit, non-force push, and draft pull-request operations through the
+  provider-neutral SCM contract. It never uses the read-only monitored-repo
+  adapter, force-pushes, writes the default branch, or merges automatically.
 - **`@reef/jira-migrator`** is an operator-run, one-shot Jira-to-Reef migration
   package. Jira is a read-only source, while explicitly selected apply stages
   may reconcile Reef targets.
@@ -54,18 +59,24 @@ Two auxiliary runtimes stay outside the interactive web request path:
 Browser (React UI, Zustand, TanStack Query, Dexie)
    │  apiFetch → /api/* Route Handlers
 reef-web (stateless Next.js BFF)
-   │  @reef/core adapters (the only place external I/O originates)
+  │  @reef/core product adapters
    ├── AKB vault   (issues, planning, templates, settings)  — read + write
    ├── GitHub      (monitored repos)                        — read-only grounding
    └── OpenAI-compatible LLM endpoint                       — chat + agents
 ```
 
-The repository is a pnpm workspace with seven private, unpublished packages
+The provider-neutral orchestration runtime has a separate, explicit SCM
+boundary for worker delivery: `@reef/scm-provider-github` may perform the
+contract-granted Git and GitHub pull-request writes against one validated local
+checkout. It is not part of the product's monitored-repository read adapter.
+
+The repository is a pnpm workspace with eight private, unpublished packages
 under `packages/`: `core` (`@reef/core`), `web` (`@reef/web`), `orchestrator`
 (`@reef/orchestrator`), `harness-provider-codex`
 (`@reef/harness-provider-codex`), `infrastructure-provider-local`
-(`@reef/infrastructure-provider-local`), `jira-migrator` (`@reef/jira-migrator`),
-and `work-provider-reef` (`@reef/work-provider-reef`). The root
+(`@reef/infrastructure-provider-local`), `scm-provider-github`
+(`@reef/scm-provider-github`), `jira-migrator` (`@reef/jira-migrator`), and
+`work-provider-reef` (`@reef/work-provider-reef`). The root
 `package.json` is the single product version source of truth. New interactive
 product behavior that touches schemas, adapters, agents, or shared contracts
 starts in `core` and then surfaces through `web`; background and operator
@@ -76,14 +87,17 @@ The runtime and dependency source-of-truth matrix is documented in the
 ## The core/web boundary and thin Route Handlers
 
 `core` and `web` exist to keep two concerns apart: framework-agnostic domain
-logic, and the Next.js web/BFF surface. Mixing them would bind domain logic to
-Next.js and scatter external I/O across the app.
+logic, and the Next.js web/BFF surface. The orchestration provider packages are
+a separate backend boundary with their own provider-neutral contracts. Mixing
+these surfaces would bind domain logic to Next.js and scatter external I/O
+across the app.
 
-- **`core` is the only place external I/O originates** — not just data-plane
-  reads and writes to AKB, GitHub, and the LLM, but auth and session calls
-  (`login`, `getMe`, `getCurrentActor`) as well. The AKB adapter is constructed
-  per request and forwards an `Authorization: Bearer <pat>` header to
-  `AKB_BACKEND_URL`.
+- **`core` owns product external I/O** — data-plane reads and writes to AKB,
+  monitored-repository GitHub reads, and the LLM, plus auth and session calls
+  (`login`, `getMe`, `getCurrentActor`). The AKB adapter is constructed per
+  request and forwards an `Authorization: Bearer <pat>` header to
+  `AKB_BACKEND_URL`. Contract-specific orchestration providers are the only
+  separate I/O boundary; they do not reuse the product GitHub adapter.
 - **`web` consumes `core` through thin Route Handlers** under
   `packages/web/src/app/api/*/route.ts`. A handler validates the request with a
   Zod schema, extracts credentials from the `__reef_session` cookie and request
@@ -345,6 +359,7 @@ preserves Server-Sent Events.
 | CSP / security headers | `packages/web/src/proxy.ts` |
 | Provider-neutral execution core | `packages/orchestration/runtime/src/` |
 | Codex harness adapter | `packages/orchestration/providers/codex/src/` |
+| GitHub SCM provider | `packages/orchestration/providers/github/src/` |
 | Jira migration runtime | `packages/jira-migrator/src/` |
 | Reef work provider | `packages/orchestration/providers/reef/src/` |
 
@@ -357,5 +372,6 @@ preserves Server-Sent Events.
   [`@reef/web` package README](../packages/web/README.md)
 - [`@reef/orchestrator` package README](../packages/orchestration/runtime/README.md)
 - [`@reef/harness-provider-codex` package README](../packages/orchestration/providers/codex/README.md)
+- [`@reef/scm-provider-github` package README](../packages/orchestration/providers/github/README.md)
 - [`@reef/jira-migrator` package README](../packages/jira-migrator/README.md)
 - [`@reef/work-provider-reef` package README](../packages/orchestration/providers/reef/README.md)
