@@ -1,11 +1,11 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { AkbApiError, AuthError } from "../../../errors";
 import {
   makeTestAkbAdapter,
   setupFetch,
-} from "../../../agents/tools/__test-helpers__/fetchMock";
-import { mockOpenTelemetry } from "../../../agents/tools/__test-helpers__/otelMock";
-import { AkbApiError, AuthError } from "../../../errors";
+} from "../../../test-support/akb/fetchMock";
+import { mockOpenTelemetry } from "../../../test-support/akb/otelMock";
 import {
   exchangeKeycloakCode,
   getAuthConfig,

@@ -26,12 +26,11 @@ vi.mock("@/lib/api/requestHelpers", async (importOriginal) => {
   };
 });
 
-vi.mock("@reef/core", async (importOriginal) => {
-  const original = await importOriginal<typeof import("@reef/core")>();
+vi.mock("@/server/application/agents", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@/server/application/agents")>();
   return {
     ...original,
-    // ActivitySuggestionError stays the real class so core describeError's
-    // instanceof check matches what this test throws.
     approveActivitySuggestion: mockApproveActivitySuggestion,
   };
 });
@@ -51,7 +50,7 @@ function approveRequest(body: unknown, id = DRAFT_ID): Request {
   );
 }
 
-// The approval state machine itself is unit-tested in core
+// The approval state machine itself is unit-tested in the server application
 // (approveActivitySuggestion.test.ts). These cover the thin handler's job:
 // parse → delegate → translate.
 describe("POST /api/activity/suggestions/[id]/approve", () => {
@@ -61,7 +60,7 @@ describe("POST /api/activity/suggestions/[id]/approve", () => {
     mockGetAkbCurrentActor.mockResolvedValue({ actor: "carol" });
   });
 
-  it("delegates to the core orchestrator and returns its result as 200", async () => {
+  it("delegates to the server use case and returns its result as 200", async () => {
     mockApproveActivitySuggestion.mockResolvedValueOnce({
       suggestion: { id: DRAFT_ID },
       issueId: "REEF-123",

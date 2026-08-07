@@ -28,14 +28,40 @@ vi.mock("@reef/core", async (importOriginal) => {
   return {
     ...original,
     akbReadAuthoringLanguage: mockReadAuthoringLanguage,
-    createGitHubAdapter: mockCreateGitHubAdapter,
-    createGitHubAppInstallationTokenProvider:
-      mockCreateGitHubAppInstallationTokenProvider,
-    createLlmAdapter: mockCreateLlmAdapter,
+  };
+});
+
+vi.mock("@/server/application/agents", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@/server/application/agents")>();
+  return {
+    ...original,
     createWorkspaceChatAgentResponse: mockCreateWorkspaceChatAgentResponse,
     enrichIssue: mockEnrichIssue,
     scanAndPersistActivitySuggestions: mockScanAndPersistActivitySuggestions,
   };
+});
+
+vi.mock("@/server/adapters/githubAdapter", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@/server/adapters/githubAdapter")>();
+  return { ...original, createGitHubAdapter: mockCreateGitHubAdapter };
+});
+
+vi.mock("@/server/adapters/github/appAuth", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@/server/adapters/github/appAuth")>();
+  return {
+    ...original,
+    createGitHubAppInstallationTokenProvider:
+      mockCreateGitHubAppInstallationTokenProvider,
+  };
+});
+
+vi.mock("@/server/adapters/llmAdapter", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@/server/adapters/llmAdapter")>();
+  return { ...original, createLlmAdapter: mockCreateLlmAdapter };
 });
 
 vi.mock("@/lib/api/requestHelpers", () => ({
@@ -84,7 +110,7 @@ const appConfigState = vi.hoisted(() => ({
   current: undefined as unknown,
 }));
 
-vi.mock("@/lib/github/serverAppConfig", () => ({
+vi.mock("@/server/adapters/githubCredentials/serverAppConfig", () => ({
   resolveServerGitHubAppConfig: () => appConfigState.current,
 }));
 

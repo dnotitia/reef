@@ -1,20 +1,4 @@
 export {
-  createGitHubAdapter,
-  type GitHubAdapter,
-  type ListLabelsForRepoParams,
-  type RepoLabel,
-} from "./github";
-export {
-  createGitHubAppInstallationTokenProvider,
-  type GitHubTokenProvider,
-  type CreateGitHubAppInstallationTokenProviderParams,
-} from "./github/appAuth";
-export {
-  createLlmAdapter,
-  type LlmAdapter,
-  type CreateLlmAdapterParams,
-} from "./llm";
-export {
   createAkbAdapter,
   createNotification as akbCreateNotification,
   listNotifications as akbListNotifications,
@@ -60,6 +44,9 @@ export {
   reconcileJiraChangelogActivityEvents as akbReconcileJiraChangelogActivityEvents,
   type ActivityEventInput,
   searchDocuments as akbSearchDocuments,
+  quoteText as akbQuoteText,
+  rowToIssue as akbRowToIssue,
+  selectIssueRows as akbSelectIssueRows,
   resolveDocumentTitles as akbResolveDocumentTitles,
   issueDocumentUri as akbIssueDocumentUri,
   writeActivitySuggestion as akbWriteActivitySuggestion,
@@ -85,9 +72,11 @@ export {
   updateRelease as akbUpdateRelease,
   deleteRelease as akbDeleteRelease,
   installReefVaultSkill as akbInstallReefVaultSkill,
+  buildReefVaultSkillDocuments as akbBuildReefVaultSkillDocuments,
   getVaultSkillStatus as akbGetVaultSkillStatus,
   REEF_VAULT_SKILL_VERSION,
   readConfig as akbReadConfig,
+  getWorkspaceSummary as akbGetWorkspaceSummary,
   writeConfig as akbWriteConfig,
   readAuthoringLanguage as akbReadAuthoringLanguage,
   alterAkbTable as akbAlterTable,
@@ -144,6 +133,7 @@ export {
   type UploadIssueAttachmentParams as AkbUploadIssueAttachmentParams,
   type InstallReefVaultSkillParams as AkbInstallReefVaultSkillParams,
   type GetVaultSkillStatusParams as AkbGetVaultSkillStatusParams,
+  type GetWorkspaceSummaryParams as AkbGetWorkspaceSummaryParams,
   type ReefVaultSkillDocument,
   type ListIssuesParams as AkbListIssuesParams,
   type ListIssuesResult as AkbListIssuesResult,

@@ -120,8 +120,8 @@ inside this repository.
 
 | Path | Purpose |
 | --- | --- |
-| `packages/core` | Framework-agnostic TypeScript library (`@reef/core`) for schemas, models, adapters, agents, tools, and errors. GitHub, AKB, and LLM calls originate here. |
-| `packages/web` | Next.js App Router application package (`@reef/web`) and stateless Backend-for-Frontend. Route Handlers validate requests, extract credentials, call `core`, and translate errors. |
+| `packages/core` | Framework-agnostic TypeScript library (`@reef/core`) for schemas, models, AKB access, observability, and errors. |
+| `packages/web` | Next.js App Router application package (`@reef/web`) and stateless Backend-for-Frontend. Its server-only adapters own GitHub/LLM I/O and its application tree owns agents; Route Handlers remain thin. |
 | `packages/orchestration/runtime` | Provider-neutral execution core (`@reef/orchestrator`) for registry preflight, lifecycle, cancellation, cleanup, terminal results, and graceful shutdown outside the web process. |
 | `packages/orchestration/providers/codex` | Private Codex App Server harness adapter (`@reef/harness-provider-codex`) for stdio lifecycle, policy enforcement, and secret-free harness events. |
 | `packages/orchestration/providers/local` | Private local infrastructure provider (`@reef/infrastructure-provider-local`) for isolated Git-backed run workspaces and bounded process execution. |
@@ -182,12 +182,12 @@ reef has three runtime tiers:
 - **AKB** stores workspaces, issue documents, issue rows, templates, planning
   data, and settings.
 - **reef core** is the framework-agnostic domain package, published inside the
-  workspace as `@reef/core`. It owns schemas, domain models, adapters, AI
-  agents, tools, and typed errors, and it is the only place GitHub, AKB, and LLM
-  I/O originates.
+  workspace as `@reef/core`. It owns schemas, domain models, the AKB adapter,
+  observability, and typed errors. It is the only product owner of AKB I/O.
 - **reef web** is the Next.js application package, named `@reef/web` in the
   workspace. It renders the product UI and acts as a stateless
-  Backend-for-Frontend over reef core.
+  Backend-for-Frontend; its server-only tree owns GitHub/LLM adapters and agent
+  application code.
 
 Provider-neutral one-run execution lives separately in `@reef/orchestrator`; a
 caller may schedule it outside the web process. The private

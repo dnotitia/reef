@@ -1,6 +1,12 @@
 # `core/src/adapters` — Adapter Rules
 
-## akb Adapter (`akb/`)
+## Adapter scope
+
+`core` contains only the concrete AKB adapter. Provider-specific GitHub and LLM
+adapters, credential resolution, and agent runtime code live under the
+server-only `packages/web/src/server/` tree and must not be reintroduced here.
+
+## AKB Adapter (`akb/`)
 
 - Owns all managed-workspace issue, template, planning, config, and activity
   reads/writes.
@@ -43,33 +49,3 @@
   `Authorization: Bearer <pat>` to `AKB_BACKEND_URL`. Operator and worker
   runtimes may construct the same public adapter from deployment-managed
   credentials; they must not import web cookie helpers.
-
-## GitHub Adapter (`github.ts`)
-
-- Monitored-repo grounding only: activity detection, `search_code`,
-  `dev_read_file`, and `list_repo_labels`.
-- Read-only. No managed-repo writes, no local Git, and no cloning.
-- Keep `createGitHubAdapter` / `listLabelsForRepo` as the only value exports of
-  `github.ts`, plus their supporting type interfaces.
-- The deployment-managed GitHub App credential provider lives in
-  `github/appAuth.ts` and exports `createGitHubAppInstallationTokenProvider`
-  (App JWT → installation token). It feeds the same `createGitHubAdapter`
-  via a token string; the only fallback is the deployment-managed
-  `REEF_GITHUB_PAT` used for dev/CI, not a per-user browser PAT or a second
-  adapter. The minted token is down-scoped to read-only
-  permissions (`contents`/`metadata`/`pull_requests` read) so it stays read-only
-  even if the App was granted write — the App permission set is not the only
-  guardrail. The private key, App JWT, and minted token must stay out of logs,
-  span attributes, prompts, and responses — record only the App and installation
-  ids and the token expiry, and normalize failures to a credential-free
-  `GitHubApiError`.
-
-## LLM Adapter (`llm.ts`)
-
-- LLM configuration is deployment-managed server state. Core receives one
-  provider-neutral OpenAI-compatible endpoint and must not infer or interpret a
-  provider or platform deployment mode.
-- Every model step uses Chat Completions, a fresh UUID `Idempotency-Key`, and
-  zero AI SDK retries. This is Reef's endpoint-independent request contract.
-- Keep provider errors credential-free when surfacing or logging them; preserve
-  useful status and response detail only through safe error types.

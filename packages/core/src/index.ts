@@ -1,5 +1,3 @@
-export type { UIMessage } from "ai";
-
 export {
   EnrichmentFieldEnum,
   EnrichmentRequestSchema,
@@ -199,10 +197,13 @@ export {
   isForwardStatus,
   isResolvedStatus,
   isStaleResolved,
+  inferStatusFromCodeSignal,
   withRecoveredDraftStatus,
   ACTIVE_STATUSES,
   buildIssueUpdateMetadataPatch,
   activitySuggestionId,
+  draftToActivitySuggestion,
+  statusChangeToActivitySuggestion,
   filterValidCommentThreadMembers,
   computeReorderedRanks,
   backlogRankSortKey,
@@ -237,16 +238,6 @@ export {
   type ErrorDescriptor,
 } from "./errors";
 export {
-  createGitHubAdapter,
-  type GitHubAdapter,
-  type ListLabelsForRepoParams,
-  type RepoLabel,
-  createGitHubAppInstallationTokenProvider,
-  type GitHubTokenProvider,
-  type CreateGitHubAppInstallationTokenProviderParams,
-  createLlmAdapter,
-  type LlmAdapter,
-  type CreateLlmAdapterParams,
   createAkbAdapter,
   akbReadIssue,
   akbCreateNotification,
@@ -297,6 +288,10 @@ export {
   akbReconcileJiraImportedAttachmentActivityActor,
   akbReconcileJiraChangelogActivityEvents,
   akbSearchDocuments,
+  akbWriteActivitySuggestion,
+  akbQuoteText,
+  akbRowToIssue,
+  akbSelectIssueRows,
   akbResolveDocumentTitles,
   akbIssueDocumentUri,
   akbListActivitySuggestions,
@@ -321,9 +316,11 @@ export {
   akbUpdateRelease,
   akbDeleteRelease,
   akbInstallReefVaultSkill,
+  akbBuildReefVaultSkillDocuments,
   akbGetVaultSkillStatus,
   REEF_VAULT_SKILL_VERSION,
   akbReadConfig,
+  akbGetWorkspaceSummary,
   akbWriteConfig,
   akbReadAuthoringLanguage,
   akbAlterTable,
@@ -373,6 +370,7 @@ export {
   type AkbUploadIssueAttachmentParams,
   type AkbInstallReefVaultSkillParams,
   type AkbGetVaultSkillStatusParams,
+  type AkbGetWorkspaceSummaryParams,
   type ReefVaultSkillDocument,
   type AkbListIssuesParams,
   type AkbListIssuesResult,
@@ -440,33 +438,43 @@ export {
   type AkbGetCurrentActorParams,
   type AkbGetCurrentActorResult,
 } from "./adapters";
-export type {
-  DevReadFileOutput,
-  ReadIssueOutput,
-  ReadTemplateOutput,
-  SearchIssuesOutput,
-  SearchIssuesResult,
-  ListAssigneesOutput,
-  SuggestLabelsOutput,
-  SuggestPriorityOutput,
-  IssueAuthoringToolsetParams,
-  RepoReadToolsetParams,
-  WorkspaceReadToolsetParams,
-} from "./agents/tools";
 export {
   VaultSkillStatusSchema,
   type StoredVaultSkill,
   type VaultSkillStatus,
 } from "./schemas";
 export {
+  PendingDraftSchema,
+  PendingStatusChangeSchema,
+  StatusChangeEvidenceSchema,
+} from "./schemas/activity/pendingDraft";
+export {
+  EnrichmentSuggestionSchema,
+  ReferenceSuggestionSchema,
+  EnrichmentResultSchema,
+  EnrichmentDraftSchema,
+  EnrichmentRepoContextSchema,
+  EnrichmentLabelContextSchema,
+  EnrichmentTemplateSummarySchema,
+  EnrichmentContextSchema,
+} from "./schemas/ai/enrichment";
+export {
+  ExternalRefTypeEnum,
+  ExternalRefSchema,
+  ImplementationRefTypeEnum,
+  ImplementationRefSchema,
+  IssueCreateFieldsSchema,
+  IssueUpdatePatchSchema,
+} from "./schemas/issues/metadata";
+export { authoringLanguagePromptName } from "./schemas/workspace/authoringLanguage";
+export {
   AgentArtifactSchema,
   AgentArtifactPersistenceSchema,
   AgentErrorSchema,
   AgentRunEventSchema,
-  createWorkspaceChatAgentResponse,
-  enrichIssue,
-  scanAndPersistActivitySuggestions,
-  approveActivitySuggestion,
+  AgentRunEnvelopeSchema,
+  AgentRunStatusEnum,
+  AgentRunEventTypeEnum,
   type AgentArtifact,
   type AgentArtifactEvidence,
   type AgentArtifactType,
@@ -477,47 +485,19 @@ export {
   type AgentRunEvent,
   type AgentRunStatus,
   type AgentStatusChangeProposalArtifact,
-  type AgentPipelineStageId,
-  type AgentRuntimeEmission,
-  type AgentRuntimeMetadata,
-  type AgentRuntimeUsage,
-  type AgentExecutionMode,
-  type AgentStageHandlerMap,
-  type AgentStageEmission,
-  type AgentStageExecutionContext,
-  type AgentStageHandler,
-  type AgentStageResult,
-  type AgentTaskFactoryContext,
-  type AgentTaskDefinition,
-  type AgentTaskId,
-  type AgentTaskRegistry,
-  type AgentTaskRegistryEntry,
-  type AgentTaskStage,
-  type AgentTerminalRunStatus,
-  type RunAgentStreamOptions,
-  type CreateChatAgentToolsParams,
-  type CreateWorkspaceChatAgentResponseParams,
-  type EnrichIssueParams,
-  type AbortedActivitySuggestionScan,
-  type CompletedActivitySuggestionScan,
-  type ScanAndPersistActivitySuggestionsParams,
-  type ScanAndPersistActivitySuggestionsResult,
-  type ApproveActivitySuggestionParams,
-  type ApproveActivitySuggestionResult,
-  type WorkspaceChatStepSummary,
-} from "./agents";
+} from "./schemas/ai/agents";
 export {
-  buildEnrichmentSystemPrompt,
-  buildEnrichmentUserPrompt,
-  buildAutoIssueSystemPrompt,
-  buildAutoIssueUserPrompt,
-  buildStatusRationaleSystemPrompt,
-  buildStatusRationaleUserPrompt,
-  buildProjectStateSystemPrompt,
-  buildProjectStateUserPrompt,
-  buildWorkspaceChatSystemPrompt,
+  AgentFieldSuggestionArtifactSchema,
+  AgentIssueCreateProposalArtifactSchema,
+  AgentStatusChangeProposalArtifactSchema,
+} from "./schemas/ai/agentArtifacts";
+export {
   EnrichmentUserPromptRequestSchema,
+  AutoIssueUserPromptRequestSchema,
+  ActivityIssueLinkUserPromptRequestSchema,
+  ActivityIssueLinkDecisionSchema,
   StatusRationaleUserPromptRequestSchema,
+  ProjectStateSystemPromptOptionsSchema,
   ProjectStateUserPromptRequestSchema,
   type PrDetail,
   type CommitDetail,
@@ -528,12 +508,23 @@ export {
   type StatusRationaleUserPromptRequest,
   type ProjectStateSystemPromptOptions,
   type ProjectStateUserPromptRequest,
-  type WorkspaceChatSystemPromptOptions,
-} from "./agents/prompts";
+} from "./schemas/ai/prompts";
+export {
+  WorkspaceSummarySchema,
+  ChatIssueContextIssueSchema,
+  ChatIssueContextSchema,
+  type WorkspaceSummary,
+  type ChatIssueContext,
+} from "./schemas/ai/chatGrounding";
+export * from "./schemas/ai/tools";
 export {
   setCoreLogger,
+  observe,
   type CoreLogger,
   type ObserveFields,
   type ObserveLevel,
   type ObserveOptions,
 } from "./observability";
+export { extractErrorDetail } from "./utils/extractErrorDetail";
+export { parseLenientJson } from "./utils/parseLenientJson";
+export { stripTrailingSlashes } from "./adapters/url";

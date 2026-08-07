@@ -2,6 +2,7 @@
 
 import {
   type PendingAkbAccountErrorSnapshot,
+  snapshotPendingAkbAccountError,
   subscribeAkbAccountDenied,
 } from "@/lib/akb/accountDenialClient";
 import { getAkbSessionStatus } from "@/lib/akb/checkAkbSession";
@@ -52,14 +53,16 @@ export function useAuthRedirect(mode: AuthGateMode): AuthGateStatus {
       pending?: PendingAkbAccountErrorSnapshot,
     ) => {
       if (redirectCommitted || controller.signal.aborted) return;
+      const pendingSnapshot = pending ?? snapshotPendingAkbAccountError();
+      const effectiveAccountError = accountError ?? pendingSnapshot?.code;
       redirectCommitted = true;
       setAuthState({ mode, status: "inactive" });
       router.replace(
-        accountError
+        effectiveAccountError
           ? buildPathWithParams("/login", {
-              sso_error: accountError,
-              ...(pending?.code === accountError
-                ? { sso_error_token: pending.token }
+              sso_error: effectiveAccountError,
+              ...(pendingSnapshot?.code === effectiveAccountError
+                ? { sso_error_token: pendingSnapshot.token }
                 : {}),
             })
           : mode === "workspace"

@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { NotFoundError } from "../../../errors";
 import {
   makeTestAkbAdapter,
   setupFetch,
-} from "../../../agents/tools/__test-helpers__/fetchMock";
-import { mockOpenTelemetry } from "../../../agents/tools/__test-helpers__/otelMock";
-import { NotFoundError } from "../../../errors";
+} from "../../../test-support/akb/fetchMock";
+import { mockOpenTelemetry } from "../../../test-support/akb/otelMock";
 import {
   addIssueReference,
   listIssueReferences,

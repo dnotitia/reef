@@ -3,7 +3,7 @@ import {
   APP_CONFIG,
   NOT_CONFIGURED,
   setServerAppConfig,
-} from "@/lib/github/serverCredentials.testSupport";
+} from "@/server/adapters/githubCredentials/serverCredentials.testSupport";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -18,10 +18,29 @@ const {
 
 vi.mock("@reef/core", async (importOriginal) => {
   const original = await importOriginal<typeof import("@reef/core")>();
+  return original;
+});
+
+vi.mock("@/server/application/agents", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@/server/application/agents")>();
   return {
     ...original,
     scanAndPersistActivitySuggestions: mockScanAndPersistActivitySuggestions,
-    createGitHubAdapter: mockCreateGitHubAdapter,
+  };
+});
+
+vi.mock("@/server/adapters/githubAdapter", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@/server/adapters/githubAdapter")>();
+  return { ...original, createGitHubAdapter: mockCreateGitHubAdapter };
+});
+
+vi.mock("@/server/adapters/github/appAuth", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@/server/adapters/github/appAuth")>();
+  return {
+    ...original,
     createGitHubAppInstallationTokenProvider: mockCreateProvider,
   };
 });

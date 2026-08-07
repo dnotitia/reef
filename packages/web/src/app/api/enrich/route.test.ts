@@ -17,9 +17,14 @@ vi.mock("@reef/core", async (importOriginal) => {
   const original = await importOriginal<typeof import("@reef/core")>();
   return {
     ...original,
-    enrichIssue: mockEnrichIssue,
     akbReadAuthoringLanguage: mockReadAuthoringLanguage,
   };
+});
+
+vi.mock("@/server/application/agents", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@/server/application/agents")>();
+  return { ...original, enrichIssue: mockEnrichIssue };
 });
 
 vi.mock("@/lib/api/requestHelpers", async (importOriginal) => {

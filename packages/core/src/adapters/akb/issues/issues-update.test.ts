@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { AkbApiError, ConflictError } from "../../../errors";
+import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import {
   type FetchCall,
   makeIssueQueryResponse,
   makeTestAkbAdapter,
   setupFetch,
-} from "../../../agents/tools/__test-helpers__/fetchMock";
-import { mockOpenTelemetry } from "../../../agents/tools/__test-helpers__/otelMock";
-import { AkbApiError, ConflictError } from "../../../errors";
-import type { IssueMetadata } from "../../../schemas/issues/metadata";
+} from "../../../test-support/akb/fetchMock";
+import { mockOpenTelemetry } from "../../../test-support/akb/otelMock";
 import {
   claimIssueId,
   reorderBacklogIssues,

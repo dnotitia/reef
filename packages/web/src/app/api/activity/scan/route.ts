@@ -9,14 +9,14 @@ import {
   invalidJsonBodyResponse,
   respondWithError,
 } from "@/lib/api/requestHelpers";
-import { resolveScanGitHubAdapter } from "@/lib/github/resolveScanGitHubAdapter";
+import { logger } from "@/lib/logging/logger";
+import { resolveScanGitHubAdapter } from "@/server/adapters/githubCredentials/resolveScanGitHubAdapter";
 import {
   ServerLlmConfigError,
   createServerLlmAdapter,
   getRequiredServerLlmConfig,
-} from "@/lib/llm/serverConfig";
-import { logger } from "@/lib/logging/logger";
-import { scanAndPersistActivitySuggestions } from "@reef/core";
+} from "@/server/adapters/llmConfig/serverConfig";
+import { scanAndPersistActivitySuggestions } from "@/server/application/agents";
 import { z } from "zod";
 
 /**

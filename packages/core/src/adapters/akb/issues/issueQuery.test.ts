@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { IssueListQuerySchema } from "../../../schemas/issues/requests";
 import {
   makeTestAkbAdapter,
   setupFetch,
-} from "../../../agents/tools/__test-helpers__/fetchMock";
-import { IssueListQuerySchema } from "../../../schemas/issues/requests";
+} from "../../../test-support/akb/fetchMock";
 import {
   buildIssueOrderBy,
   buildIssueWhere,

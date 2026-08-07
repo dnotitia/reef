@@ -1,16 +1,17 @@
 # `web/src/app` — App Router Rules
 
 - Route Handlers (`app/api/*/route.ts`) are thin wrappers: validate with Zod,
-  extract credentials from request headers or the `__reef_session` cookie, call
-  `core`, translate errors to PM-facing language, and return the response.
+  extract the `__reef_session` cookie, resolve request-scoped server adapters or
+  application use cases, call `@reef/core` for AKB/domain behavior, translate
+  errors to PM-facing language, and return the response.
 - No business logic in Route Handlers. All user-initiated mutations go through
   Route Handlers via `apiFetch`; Next.js Server Actions are not used.
 - Credentials stay in request headers or the httpOnly cookie, never URL query
   strings.
 - The Ask AI chat runs on `POST /api/agents/runs` with `task_id:
-  "chat.workspace"` (REEF-361). The route builds per-request akb/GitHub/LLM
-  adapters and delegates streaming to `createWorkspaceChatAgentResponse` from
-  `@reef/core`, wrapping its UI-message stream in the agent-run SSE bridge
+  "chat.workspace"`. The route builds per-request AKB/GitHub/LLM adapters and
+  delegates streaming to `createWorkspaceChatAgentResponse` from the server
+  application, wrapping its UI-message stream in the agent-run SSE bridge
   (`createChatRunEventBridge`) so text deltas, tool-call frames, and run
   lifecycle events reach the client. The client consumes it through
   `useWorkspaceChat` / `useAgentRun`.

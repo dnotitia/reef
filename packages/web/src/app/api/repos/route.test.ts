@@ -4,15 +4,22 @@ import {
   resetServerGitHubCredentials,
   setServerAppConfig,
   setServerGitHubPat,
-} from "@/lib/github/serverCredentials.testSupport";
+} from "@/server/adapters/githubCredentials/serverCredentials.testSupport";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@reef/core", async () => {
-  const actual =
-    await vi.importActual<typeof import("@reef/core")>("@reef/core");
+vi.mock("@/server/adapters/githubAdapter", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/server/adapters/githubAdapter")
+  >("@/server/adapters/githubAdapter");
+  return { ...actual, createGitHubAdapter: vi.fn() };
+});
+
+vi.mock("@/server/adapters/github/appAuth", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/server/adapters/github/appAuth")
+  >("@/server/adapters/github/appAuth");
   return {
     ...actual,
-    createGitHubAdapter: vi.fn(),
     createGitHubAppInstallationTokenProvider: vi.fn(),
   };
 });
@@ -30,12 +37,9 @@ vi.mock("@/lib/api/requestHelpers", async () => {
 
 import { getAkbCurrentActor } from "@/lib/api/requestHelpers";
 import { logger } from "@/lib/logging/logger";
-import {
-  GitHubApiError,
-  NotFoundError,
-  createGitHubAdapter,
-  createGitHubAppInstallationTokenProvider,
-} from "@reef/core";
+import { createGitHubAppInstallationTokenProvider } from "@/server/adapters/github/appAuth";
+import { createGitHubAdapter } from "@/server/adapters/githubAdapter";
+import { GitHubApiError, NotFoundError } from "@reef/core";
 import { GET } from "./route";
 
 const mockCreateGitHubAdapter = vi.mocked(createGitHubAdapter);

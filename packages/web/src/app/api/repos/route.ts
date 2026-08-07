@@ -2,12 +2,12 @@ import {
   localizeError,
   localizedErrorResponse,
 } from "@/lib/api/errorLocalization";
+import { logger } from "@/lib/logging/logger";
+import type { GitHubAdapter } from "@/server/adapters/githubAdapter";
 import {
   type GitHubCredentialSource,
   resolveGitHubAdapter,
-} from "@/lib/github/resolveGitHubAdapter";
-import { logger } from "@/lib/logging/logger";
-import type { GitHubAdapter } from "@reef/core";
+} from "@/server/adapters/githubCredentials/resolveGitHubAdapter";
 
 /** The shared repo-list result shape, derived so no extra core type export is needed. */
 type RepoListResult = Awaited<

@@ -3,7 +3,7 @@ import type { Span } from "@opentelemetry/api";
 /**
  * Backend observability seam — "emit once, shape twice" (REEF-271).
  *
- * `core` owns all GitHub / akb / LLM I/O and wraps it in OpenTelemetry spans
+ * Backend I/O boundaries use this seam to wrap calls in OpenTelemetry spans
  * (prod → trace backend). But the rich data a developer needs to see locally —
  * scan checkpoints, LLM token usage, upstream latency — is invisible in dev,
  * because dev runs no Jaeger/Langfuse and spans are dropped. The fix is to emit

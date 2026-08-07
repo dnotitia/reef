@@ -1,12 +1,12 @@
 # @reef/core
 
 Framework-agnostic TypeScript package for reef's domain layer. `core` owns the
-schemas, models, adapters, AI agents, tool definitions, and error types used by
-the web application. It is consumed in-workspace as `@reef/core` and is private;
-it is not published independently.
+schemas, models, AKB adapter, observability seam, and error types used by the
+web and operator packages. It is consumed in-workspace as `@reef/core` and is
+private; it is not published independently.
 
-`web` should call backend services only through this package. GitHub, AKB, and
-LLM calls originate here.
+`web` uses this package for AKB and domain behavior. Its server-only tree owns
+GitHub, LLM, and agent application code.
 
 ## Responsibilities
 
@@ -14,8 +14,7 @@ LLM calls originate here.
 - Model issue IDs, status transitions, activity suggestions, and update
   metadata.
 - Read and write reef workspace data through the AKB adapter.
-- Read monitored GitHub repositories for grounding only.
-- Build the chat, issue-enrichment, and activity-scan agents.
+- Publish provider-neutral AI request, event, artifact, prompt, and tool schemas.
 - Expose typed errors that Route Handlers can translate into user-facing
   responses.
 
@@ -26,9 +25,7 @@ LLM calls originate here.
 | `src/schemas/` | Boundary schemas for issues, planning, workspace config, activity suggestions, and AI requests/results. `IssueMetadataSchema` is canonical for issue metadata. |
 | `src/models/` | Pure domain logic: issue IDs, status transitions, code-signal inference, issue-update metadata, and activity suggestion fingerprints. |
 | `src/adapters/akb/` | Managed-workspace reads and writes for issues, templates, planning, config, activity inbox, provenance, vault provisioning, and Reef vault skill installation. |
-| `src/adapters/github.ts` | Read-only monitored-repo grounding: commits, pull requests, code search, file reads, and repository labels. |
-| `src/adapters/llm.ts` | Deployment-managed LLM adapter. |
-| `src/agents/` | Chat, enrichment, activity scan, shared prompts, agent runtime, and AI-SDK tools. |
+| `src/schemas/ai/` | Provider-neutral agent-run, artifact, prompt, enrichment, grounding, and tool schemas. |
 | `src/errors/` | `ReefError` subclasses and error translation helpers. |
 | `src/utils/` | Small parsing and error-detail helpers. |
 | `src/index.ts` | Public workspace export surface. |
@@ -55,20 +52,19 @@ table rows in `reef_templates`, not searchable AKB documents.
   TypeScript variables and function names stay camelCase.
 - AKB writes are last-write-wins and non-transactional across document plus row.
   Do not add CAS, `sha`, or `expectedHeadOid` plumbing in this repository.
-- GitHub access is read-only monitored-repo grounding. Do not clone, commit,
-  create issues, or open pull requests.
-- Async AKB, GitHub, and LLM boundaries should be wrapped in OpenTelemetry spans.
+- Async AKB boundaries should be wrapped in OpenTelemetry spans. Web-owned
+  GitHub and LLM boundaries use the same core observability seam from their
+  server-only adapters.
 
-## AI agents and tools
+## AI boundary schemas
 
-Tool definitions live under `src/agents/tools/` and use Zod for both runtime
-validation and AI-SDK descriptors. Tool input schemas should stay strict JSON
-Schema compatible: required properties are explicit, nullable fields use
-`z.nullable()`, and parse defaults use `.default(value)`.
+Provider-neutral request, event, artifact, prompt, enrichment, grounding, and
+tool schemas live under `src/schemas/ai/`. Server-owned agent tools reuse these
+schemas for runtime validation and AI SDK descriptors.
 
 The current chat tool catalog is read-only. If a mutating chat tool is added,
-the tool contract must expose approval requirements and `web` must wire the
-client approval flow.
+the server application must expose approval requirements and `web` must wire
+the client approval flow.
 
 ## Commands
 

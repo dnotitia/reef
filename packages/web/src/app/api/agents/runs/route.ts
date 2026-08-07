@@ -2,25 +2,27 @@ import { extractVault } from "@/lib/akb/extractVault";
 import { AUTH_ACCOUNT_ERROR_HEADER } from "@/lib/akb/headers";
 import { localizedAgentError } from "@/lib/api/errorLocalization";
 import { getAkbAdapter, getAkbCurrentActor } from "@/lib/api/requestHelpers";
-import { resolveGroundingGitHubAdapter } from "@/lib/github/resolveGroundingGitHubAdapter";
-import { resolveScanGitHubAdapter } from "@/lib/github/resolveScanGitHubAdapter";
+import { logger } from "@/lib/logging/logger";
+import type { GitHubAdapter } from "@/server/adapters/githubAdapter";
+import { resolveGroundingGitHubAdapter } from "@/server/adapters/githubCredentials/resolveGroundingGitHubAdapter";
+import { resolveScanGitHubAdapter } from "@/server/adapters/githubCredentials/resolveScanGitHubAdapter";
 import {
   ServerLlmConfigError,
   createServerLlmAdapter,
   getRequiredServerLlmConfig,
-} from "@/lib/llm/serverConfig";
-import { logger } from "@/lib/logging/logger";
+} from "@/server/adapters/llmConfig/serverConfig";
+import {
+  createWorkspaceChatAgentResponse,
+  enrichIssue,
+  scanAndPersistActivitySuggestions,
+} from "@/server/application/agents";
 import {
   AgentRunRequestSchema,
   AuthError,
-  type GitHubAdapter,
-  type UIMessage,
   akbReadAuthoringLanguage,
-  createWorkspaceChatAgentResponse,
   describeError,
-  enrichIssue,
-  scanAndPersistActivitySuggestions,
 } from "@reef/core";
+import type { UIMessage } from "ai";
 import {
   createAgentEventStream,
   createChatRunEventBridge,
