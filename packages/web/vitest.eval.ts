@@ -4,8 +4,8 @@
  * Separate from the main vitest.config.ts to avoid running evals in every `pnpm test`.
  * Run with: pnpm --filter @reef/web exec vitest run --config vitest.eval.ts
  *
- * The current suite is fixture-backed. `REEF_EVAL_RUN=1` only enables the
- * gated canned scenarios; real LLM calls are follow-up work.
+ * The current suite is fixture-backed. Real LLM calls are a separate live
+ * boundary and are not part of this hermetic command.
  */
 import path from "node:path";
 import { defineConfig } from "vitest/config";

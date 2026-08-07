@@ -86,6 +86,20 @@ const PLANNING_CATALOG = {
   releases: [],
 };
 
+function isIssueDetailRequest(url: string, issueId: string) {
+  return new URL(url, "http://reef.test").pathname === `/api/issues/${issueId}`;
+}
+
+function issueQueryFallback(url: string) {
+  const pathname = new URL(url, "http://reef.test").pathname;
+  if (pathname.endsWith("/relations")) return { relations: [] };
+  if (pathname.endsWith("/activity")) return { activity: [] };
+  if (pathname.endsWith("/comments")) return { comments: [] };
+  if (pathname.endsWith("/attachments")) return { attachments: [] };
+  if (pathname.endsWith("/references")) return { references: [] };
+  return {};
+}
+
 function wrap(ui: ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -122,7 +136,7 @@ describe("IssueDetail", () => {
     // Default: GET /api/issues/REEF-001 returns the sample
     mockApiFetch.mockImplementation(async (url) => {
       const u = String(url);
-      if (u.startsWith("/api/issues/REEF-001")) {
+      if (isIssueDetailRequest(u, "REEF-001")) {
         return new Response(
           JSON.stringify({ issue: SAMPLE, content: "## body" }),
           { status: 200 },
@@ -139,7 +153,9 @@ describe("IssueDetail", () => {
       if (u.startsWith("/api/vault-members")) {
         return new Response(JSON.stringify({ users: [] }), { status: 200 });
       }
-      return new Response("{}", { status: 200 });
+      return new Response(JSON.stringify(issueQueryFallback(u)), {
+        status: 200,
+      });
     });
   });
 
@@ -328,13 +344,13 @@ describe("IssueDetail", () => {
       if (method === "PATCH" && u === "/api/issues/REEF-001") {
         return pendingSave.promise;
       }
-      if (u.startsWith("/api/issues/REEF-001")) {
+      if (isIssueDetailRequest(u, "REEF-001")) {
         return new Response(
           JSON.stringify({ issue: SAMPLE, content: "## body" }),
           { status: 200 },
         );
       }
-      if (u.startsWith("/api/issues/REEF-002")) {
+      if (isIssueDetailRequest(u, "REEF-002")) {
         return new Response(
           JSON.stringify({ issue: nextIssue, content: "## second" }),
           { status: 200 },
@@ -348,7 +364,9 @@ describe("IssueDetail", () => {
       if (u.startsWith("/api/vault-members")) {
         return new Response(JSON.stringify({ users: [] }), { status: 200 });
       }
-      return new Response("{}", { status: 200 });
+      return new Response(JSON.stringify(issueQueryFallback(u)), {
+        status: 200,
+      });
     });
 
     const queryClient = new QueryClient({
@@ -413,13 +431,13 @@ describe("IssueDetail", () => {
           status: 500,
         });
       }
-      if (u.startsWith("/api/issues/REEF-001")) {
+      if (isIssueDetailRequest(u, "REEF-001")) {
         return new Response(
           JSON.stringify({ issue: SAMPLE, content: "## body" }),
           { status: 200 },
         );
       }
-      if (u.startsWith("/api/issues/REEF-002")) {
+      if (isIssueDetailRequest(u, "REEF-002")) {
         return new Response(
           JSON.stringify({ issue: nextIssue, content: "## second" }),
           { status: 200 },
@@ -433,7 +451,9 @@ describe("IssueDetail", () => {
       if (u.startsWith("/api/vault-members")) {
         return new Response(JSON.stringify({ users: [] }), { status: 200 });
       }
-      return new Response("{}", { status: 200 });
+      return new Response(JSON.stringify(issueQueryFallback(u)), {
+        status: 200,
+      });
     });
 
     const queryClient = new QueryClient({
@@ -511,7 +531,7 @@ describe("IssueDetail", () => {
           { status: 200 },
         );
       }
-      if (u.startsWith("/api/issues/REEF-001")) {
+      if (isIssueDetailRequest(u, "REEF-001")) {
         return new Response(
           JSON.stringify({ issue: SAMPLE, content: "## body" }),
           { status: 200 },
@@ -525,7 +545,9 @@ describe("IssueDetail", () => {
       if (u.startsWith("/api/vault-members")) {
         return new Response(JSON.stringify({ users: [] }), { status: 200 });
       }
-      return new Response("{}", { status: 200 });
+      return new Response(JSON.stringify(issueQueryFallback(u)), {
+        status: 200,
+      });
     });
 
     render(
@@ -603,7 +625,7 @@ describe("IssueDetail", () => {
           { status: 200 },
         );
       }
-      if (u.startsWith("/api/issues/REEF-001")) {
+      if (isIssueDetailRequest(u, "REEF-001")) {
         return new Response(
           JSON.stringify({ issue: prioritizedIssue, content: "## body" }),
           { status: 200 },
@@ -617,7 +639,9 @@ describe("IssueDetail", () => {
       if (u.startsWith("/api/vault-members")) {
         return new Response(JSON.stringify({ users: [] }), { status: 200 });
       }
-      return new Response("{}", { status: 200 });
+      return new Response(JSON.stringify(issueQueryFallback(u)), {
+        status: 200,
+      });
     });
 
     const user = userEvent.setup();
@@ -721,7 +745,7 @@ describe("IssueDetail", () => {
           { status: 200 },
         );
       }
-      if (u.startsWith("/api/issues/REEF-001")) {
+      if (isIssueDetailRequest(u, "REEF-001")) {
         return new Response(
           JSON.stringify({ issue: prioritized, content: "## body" }),
           { status: 200 },
@@ -735,7 +759,9 @@ describe("IssueDetail", () => {
       if (u.startsWith("/api/vault-members")) {
         return new Response(JSON.stringify({ users: [] }), { status: 200 });
       }
-      return new Response("{}", { status: 200 });
+      return new Response(JSON.stringify(issueQueryFallback(u)), {
+        status: 200,
+      });
     });
 
     const user = userEvent.setup();
@@ -778,7 +804,7 @@ describe("IssueDetail", () => {
     const assignedIssue: IssueMetadata = { ...SAMPLE, assigned_to: "alice" };
     mockApiFetch.mockImplementation(async (url) => {
       const u = String(url);
-      if (u.startsWith("/api/issues/REEF-001")) {
+      if (isIssueDetailRequest(u, "REEF-001")) {
         return new Response(
           JSON.stringify({ issue: assignedIssue, content: "## body" }),
           { status: 200 },
@@ -792,7 +818,9 @@ describe("IssueDetail", () => {
       if (u.startsWith("/api/vault-members")) {
         return new Response(JSON.stringify({ users: [] }), { status: 200 });
       }
-      return new Response("{}", { status: 200 });
+      return new Response(JSON.stringify(issueQueryFallback(u)), {
+        status: 200,
+      });
     });
 
     const user = userEvent.setup();
@@ -818,7 +846,7 @@ describe("IssueDetail", () => {
     const prioritizedIssue: IssueMetadata = { ...SAMPLE, priority: "high" };
     mockApiFetch.mockImplementation(async (url) => {
       const u = String(url);
-      if (u.startsWith("/api/issues/REEF-001")) {
+      if (isIssueDetailRequest(u, "REEF-001")) {
         return new Response(
           JSON.stringify({ issue: prioritizedIssue, content: "## body" }),
           { status: 200 },
@@ -832,7 +860,9 @@ describe("IssueDetail", () => {
       if (u.startsWith("/api/vault-members")) {
         return new Response(JSON.stringify({ users: [] }), { status: 200 });
       }
-      return new Response("{}", { status: 200 });
+      return new Response(JSON.stringify(issueQueryFallback(u)), {
+        status: 200,
+      });
     });
 
     const user = userEvent.setup();
@@ -971,7 +1001,7 @@ describe("IssueDetail", () => {
     };
     mockApiFetch.mockImplementation(async (url) => {
       const u = String(url);
-      if (u.startsWith("/api/issues/REEF-001")) {
+      if (isIssueDetailRequest(u, "REEF-001")) {
         return new Response(
           JSON.stringify({ issue: inProgressIssue, content: "## body" }),
           { status: 200 },
@@ -985,7 +1015,9 @@ describe("IssueDetail", () => {
       if (u.startsWith("/api/vault-members")) {
         return new Response(JSON.stringify({ users: [] }), { status: 200 });
       }
-      return new Response("{}", { status: 200 });
+      return new Response(JSON.stringify(issueQueryFallback(u)), {
+        status: 200,
+      });
     });
 
     const user = userEvent.setup();
@@ -1015,7 +1047,7 @@ describe("IssueDetail", () => {
     };
     mockApiFetch.mockImplementation(async (url) => {
       const u = String(url);
-      if (u.startsWith("/api/issues/REEF-001")) {
+      if (isIssueDetailRequest(u, "REEF-001")) {
         return new Response(
           JSON.stringify({ issue: inProgressIssue, content: "## body" }),
           { status: 200 },
@@ -1034,7 +1066,9 @@ describe("IssueDetail", () => {
       if (u.startsWith("/api/vault-members")) {
         return new Response(JSON.stringify({ users: [] }), { status: 200 });
       }
-      return new Response("{}", { status: 200 });
+      return new Response(JSON.stringify(issueQueryFallback(u)), {
+        status: 200,
+      });
     });
 
     const user = userEvent.setup();
@@ -1078,7 +1112,7 @@ describe("IssueDetail", () => {
     };
     mockApiFetch.mockImplementation(async (url) => {
       const u = String(url);
-      if (u.startsWith("/api/issues/REEF-001")) {
+      if (isIssueDetailRequest(u, "REEF-001")) {
         return new Response(
           JSON.stringify({ issue: inProgressIssue, content: "## body" }),
           { status: 200 },
@@ -1092,7 +1126,9 @@ describe("IssueDetail", () => {
       if (u.startsWith("/api/vault-members")) {
         return new Response(JSON.stringify({ users: [] }), { status: 200 });
       }
-      return new Response("{}", { status: 200 });
+      return new Response(JSON.stringify(issueQueryFallback(u)), {
+        status: 200,
+      });
     });
 
     render(
@@ -1136,7 +1172,7 @@ describe("IssueDetail", () => {
     };
     mockApiFetch.mockImplementation(async (url) => {
       const u = String(url);
-      if (u.startsWith("/api/issues/REEF-001")) {
+      if (isIssueDetailRequest(u, "REEF-001")) {
         return new Response(
           JSON.stringify({ issue: inProgressIssue, content: "## body" }),
           { status: 200 },
@@ -1150,7 +1186,9 @@ describe("IssueDetail", () => {
       if (u.startsWith("/api/vault-members")) {
         return new Response(JSON.stringify({ users: [] }), { status: 200 });
       }
-      return new Response("{}", { status: 200 });
+      return new Response(JSON.stringify(issueQueryFallback(u)), {
+        status: 200,
+      });
     });
 
     render(
@@ -1221,7 +1259,7 @@ describe("IssueDetail", () => {
     };
     mockApiFetch.mockImplementation(async (url) => {
       const u = String(url);
-      if (u.startsWith("/api/issues/REEF-001")) {
+      if (isIssueDetailRequest(u, "REEF-001")) {
         return new Response(
           JSON.stringify({ issue: closedIssue, content: "## body" }),
           { status: 200 },
@@ -1235,7 +1273,9 @@ describe("IssueDetail", () => {
       if (u.startsWith("/api/vault-members")) {
         return new Response(JSON.stringify({ users: [] }), { status: 200 });
       }
-      return new Response("{}", { status: 200 });
+      return new Response(JSON.stringify(issueQueryFallback(u)), {
+        status: 200,
+      });
     });
 
     const user = userEvent.setup();

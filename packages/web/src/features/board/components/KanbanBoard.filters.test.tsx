@@ -13,14 +13,21 @@ import {
   wrap,
 } from "./KanbanBoard.testSupport";
 
+function issueApiResponse(url: unknown, body: { issues: typeof ISSUES }) {
+  const payload = String(url).startsWith("/api/issues/relations")
+    ? { relations: [] }
+    : body;
+  return new Response(JSON.stringify(payload), { status: 200 });
+}
+
 describe("KanbanBoard filtering and rendering", () => {
   beforeEach(() => {
     resetKanbanBoardMocks();
   });
 
   it("requests /api/issues?vault={vault} on mount", async () => {
-    mockApiFetch.mockResolvedValue(
-      new Response(JSON.stringify({ issues: ISSUES }), { status: 200 }),
+    mockApiFetch.mockImplementation(async (url) =>
+      issueApiResponse(url, { issues: ISSUES }),
     );
 
     render(wrap(<KanbanBoard vault="reef-acme" />));
@@ -34,8 +41,8 @@ describe("KanbanBoard filtering and rendering", () => {
   });
 
   it("groups issues into status columns", async () => {
-    mockApiFetch.mockResolvedValue(
-      new Response(JSON.stringify({ issues: ISSUES }), { status: 200 }),
+    mockApiFetch.mockImplementation(async (url) =>
+      issueApiResponse(url, { issues: ISSUES }),
     );
 
     render(wrap(<KanbanBoard vault="reef-acme" />));
@@ -44,25 +51,22 @@ describe("KanbanBoard filtering and rendering", () => {
   });
 
   it("registers only rendered workflow cards for board keyboard focus", async () => {
-    mockApiFetch.mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          issues: [
-            {
-              id: "REEF-000",
-              title: "Backlog hidden",
-              status: "backlog",
-              priority: "critical",
-              created_at: "2026-05-01T00:00:00.000Z",
-              created_by: "alice",
-              updated_at: "2026-05-01T00:00:00.000Z",
-              updated_by: "alice",
-            },
-            ISSUES[0],
-          ],
-        }),
-        { status: 200 },
-      ),
+    mockApiFetch.mockImplementation(async (url) =>
+      issueApiResponse(url, {
+        issues: [
+          {
+            id: "REEF-000",
+            title: "Backlog hidden",
+            status: "backlog",
+            priority: "critical",
+            created_at: "2026-05-01T00:00:00.000Z",
+            created_by: "alice",
+            updated_at: "2026-05-01T00:00:00.000Z",
+            updated_by: "alice",
+          },
+          ISSUES[0],
+        ],
+      }),
     );
 
     render(wrap(<KanbanBoard vault="reef-acme" />));
@@ -85,8 +89,8 @@ describe("KanbanBoard filtering and rendering", () => {
       searchQuery: "",
       selectedIssueId: null,
     });
-    mockApiFetch.mockResolvedValue(
-      new Response(JSON.stringify({ issues: FILTER_ISSUES }), { status: 200 }),
+    mockApiFetch.mockImplementation(async (url) =>
+      issueApiResponse(url, { issues: FILTER_ISSUES }),
     );
 
     render(wrap(<KanbanBoard vault="reef-acme" />));
@@ -102,8 +106,8 @@ describe("KanbanBoard filtering and rendering", () => {
       searchQuery: "",
       selectedIssueId: null,
     });
-    mockApiFetch.mockResolvedValue(
-      new Response(JSON.stringify({ issues: FILTER_ISSUES }), { status: 200 }),
+    mockApiFetch.mockImplementation(async (url) =>
+      issueApiResponse(url, { issues: FILTER_ISSUES }),
     );
 
     render(wrap(<KanbanBoard vault="reef-acme" />));
@@ -131,8 +135,8 @@ describe("KanbanBoard filtering and rendering", () => {
       searchQuery: "",
       selectedIssueId: null,
     });
-    mockApiFetch.mockResolvedValue(
-      new Response(JSON.stringify({ issues: FILTER_ISSUES }), { status: 200 }),
+    mockApiFetch.mockImplementation(async (url) =>
+      issueApiResponse(url, { issues: FILTER_ISSUES }),
     );
 
     render(wrap(<KanbanBoard vault="reef-acme" />));
@@ -151,10 +155,8 @@ describe("KanbanBoard filtering and rendering", () => {
       searchQuery: "api",
       selectedIssueId: null,
     });
-    mockApiFetch.mockResolvedValue(
-      new Response(JSON.stringify({ issues: [FILTER_ISSUES[1]] }), {
-        status: 200,
-      }),
+    mockApiFetch.mockImplementation(async (url) =>
+      issueApiResponse(url, { issues: [FILTER_ISSUES[1]] }),
     );
 
     render(wrap(<KanbanBoard vault="reef-acme" />));
@@ -171,8 +173,8 @@ describe("KanbanBoard filtering and rendering", () => {
       searchQuery: "",
       selectedIssueId: null,
     });
-    mockApiFetch.mockResolvedValue(
-      new Response(JSON.stringify({ issues: FILTER_ISSUES }), { status: 200 }),
+    mockApiFetch.mockImplementation(async (url) =>
+      issueApiResponse(url, { issues: FILTER_ISSUES }),
     );
 
     render(wrap(<KanbanBoard vault="reef-acme" />));
@@ -186,11 +188,8 @@ describe("KanbanBoard filtering and rendering", () => {
     // A fresh Response per call: the board fetches both the list and the
     // relation projection, and changing the filter re-fetches under a new query
     // key — a single shared Response body would be consumed after the first read.
-    mockApiFetch.mockImplementation(
-      async () =>
-        new Response(JSON.stringify({ issues: FILTER_ISSUES }), {
-          status: 200,
-        }),
+    mockApiFetch.mockImplementation(async (url) =>
+      issueApiResponse(url, { issues: FILTER_ISSUES }),
     );
 
     render(wrap(<KanbanBoard vault="reef-acme" />));
