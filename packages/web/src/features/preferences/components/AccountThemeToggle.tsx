@@ -1,8 +1,13 @@
 "use client";
 
+import {
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import { useTheme } from "../hooks/useTheme";
+import type { ThemePreference } from "../lib/theme";
 import { THEME_OPTIONS } from "../lib/themeOptions";
 
 /**
@@ -10,21 +15,19 @@ import { THEME_OPTIONS } from "../lib/themeOptions";
  * the shared theme cursor through `useTheme`, so its selection stays in lockstep
  * with the Settings → Appearance control.
  *
- * It is a `role="group"` of `role="menuitemradio"` buttons (mirroring how this
- * menu's checkbox items use `role="menuitemcheckbox"`). The menu is the native
- * <div>-based dropdown — not Radix — so these plain buttons are Tab-focusable,
- * Enter/Space-activatable, and a click inside the menu does not dismiss it: the
- * menu just closes on an outside mousedown or Escape. That is exactly the
- * "switch theme without the menu closing" behavior AC4 wants.
+ * It is a shared `DropdownMenuRadioGroup`, so the theme choices participate in
+ * the same roving-focus and focus-restoration contract as the rest of the
+ * account menu. Each choice keeps the menu open so a quick switch does not
+ * dismiss the account surface.
  */
 export function AccountThemeToggle() {
   const t = useTranslations("settings.preferences.appearance");
   const { theme, setTheme } = useTheme();
 
   return (
-    <div
-      // biome-ignore lint/a11y/useSemanticElements: <fieldset> is invalid inside role="menu"; the WAI-ARIA menu pattern groups menuitemradio items under role="group" (mirrors this menu's menuitemcheckbox items).
-      role="group"
+    <DropdownMenuRadioGroup
+      value={theme ?? undefined}
+      onValueChange={(value) => void setTheme(value as ThemePreference)}
       aria-label={t("themeLabel")}
       data-testid="account-theme-toggle"
       className="grid grid-cols-3 gap-1 px-2 py-1"
@@ -32,28 +35,26 @@ export function AccountThemeToggle() {
       {THEME_OPTIONS.map(({ value, label, Icon }) => {
         const isSelected = theme === value;
         return (
-          <button
+          <DropdownMenuRadioItem
             key={value}
-            type="button"
-            role="menuitemradio"
-            aria-checked={isSelected}
             aria-label={label}
+            keepOpen
+            value={value}
             title={label}
             data-testid={`account-theme-${value}`}
-            onClick={() => void setTheme(value)}
+            leading={<Icon aria-hidden="true" className="size-3.5" />}
             className={cn(
-              "flex flex-col items-center gap-1 rounded-sm border px-1.5 py-1.5 text-[11px] transition-colors duration-150 [touch-action:manipulation]",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+              "flex-col gap-1 rounded-sm border px-1.5 py-1.5 pr-1.5 text-[11px] transition-colors duration-150 [touch-action:manipulation]",
+              "focus-visible:ring-2 focus-visible:ring-brand/40",
               isSelected
                 ? "border-brand bg-surface-subtle text-foreground"
                 : "border-border text-muted-foreground hover:border-border-subtle hover:bg-surface-hover hover:text-foreground",
             )}
           >
-            <Icon aria-hidden="true" className="h-3.5 w-3.5" />
             <span className="leading-none">{label}</span>
-          </button>
+          </DropdownMenuRadioItem>
         );
       })}
-    </div>
+    </DropdownMenuRadioGroup>
   );
 }

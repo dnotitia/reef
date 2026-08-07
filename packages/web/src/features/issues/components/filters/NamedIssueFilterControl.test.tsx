@@ -61,6 +61,15 @@ async function openMenu(user: ReturnType<typeof userEvent.setup>) {
   return screen.getByTestId("named-filter-menu");
 }
 
+async function clickManagementAction(
+  user: ReturnType<typeof userEvent.setup>,
+  name: string,
+  action: string,
+) {
+  await user.click(screen.getByRole("menuitem", { name: `Manage ${name}` }));
+  fireEvent.click(screen.getByRole("menuitem", { name: action }));
+}
+
 function expectClassTokens(
   element: HTMLElement | SVGElement,
   className: string,
@@ -186,10 +195,10 @@ describe("NamedIssueFilterControl", () => {
         ),
       );
       await openMenu(user);
-      await user.click(
-        screen.getByRole("menuitem", {
-          name: "Update Delayed update view with the current filter",
-        }),
+      await clickManagementAction(
+        user,
+        "Delayed update view",
+        "Update Delayed update view with the current filter",
       );
       await waitFor(() =>
         expect(trigger).toHaveAttribute(
@@ -282,10 +291,10 @@ describe("NamedIssueFilterControl", () => {
       ),
     );
     await openMenu(user);
-    await user.click(
-      screen.getByRole("menuitem", {
-        name: "Update My triage view with the current filter",
-      }),
+    await clickManagementAction(
+      user,
+      "My triage view",
+      "Update My triage view with the current filter",
     );
     await waitFor(() =>
       expect(screen.getByTestId("named-filter-trigger")).toHaveAttribute(
@@ -295,8 +304,10 @@ describe("NamedIssueFilterControl", () => {
     );
 
     await openMenu(user);
-    await user.click(
-      screen.getByRole("menuitem", { name: "Rename My triage view" }),
+    await clickManagementAction(
+      user,
+      "My triage view",
+      "Rename My triage view",
     );
     const nameInput = screen.getByTestId("named-filter-name-input");
     fireEvent.change(nameInput, { target: { value: "Renamed triage" } });
@@ -309,8 +320,10 @@ describe("NamedIssueFilterControl", () => {
     );
 
     await openMenu(user);
-    await user.click(
-      screen.getByRole("menuitem", { name: "Duplicate Renamed triage" }),
+    await clickManagementAction(
+      user,
+      "Renamed triage",
+      "Duplicate Renamed triage",
     );
     const duplicateInput = screen.getByTestId("named-filter-name-input");
     expect(duplicateInput).toHaveValue("Renamed triage copy");
@@ -321,8 +334,10 @@ describe("NamedIssueFilterControl", () => {
 
     // A duplicate attempt is rejected without overwriting either record.
     await openMenu(user);
-    await user.click(
-      screen.getByRole("menuitem", { name: "Duplicate Renamed triage" }),
+    await clickManagementAction(
+      user,
+      "Renamed triage",
+      "Duplicate Renamed triage",
     );
     await user.click(screen.getByRole("button", { name: /^Save$/ }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -331,12 +346,17 @@ describe("NamedIssueFilterControl", () => {
     await user.click(screen.getByRole("button", { name: /^Cancel$/ }));
 
     await openMenu(user);
-    await user.click(
-      screen.getByRole("menuitem", { name: "Delete Renamed triage copy" }),
+    await clickManagementAction(
+      user,
+      "Renamed triage copy",
+      "Delete Renamed triage copy",
     );
     await user.click(screen.getByTestId("named-filter-confirm-delete"));
     await waitFor(() =>
       expect(screen.queryByTestId("named-filter-delete-dialog")).toBeNull(),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("named-filter-trigger")).toHaveFocus(),
     );
     await openMenu(user);
     expect(

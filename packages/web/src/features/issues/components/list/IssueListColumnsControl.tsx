@@ -2,8 +2,8 @@
 
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -12,8 +12,7 @@ import {
   type IssueListOptionalColumnKey,
 } from "@/features/issues/components/shared/issueTableContract";
 import { useFieldNameLabels } from "@/i18n/fieldLabels";
-import { cn } from "@/lib/utils";
-import { Check, Columns3, SlidersHorizontal } from "lucide-react";
+import { Columns3, SlidersHorizontal } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 interface IssueListColumnsControlProps {
@@ -44,23 +43,14 @@ export function IssueListColumnsControl({
         {ISSUE_LIST_OPTIONAL_COLUMNS.map((column) => {
           const checked = selectedColumns.includes(column);
           return (
-            <DropdownMenuItem
+            <DropdownMenuCheckboxItem
               key={column}
-              role="menuitemcheckbox"
-              aria-checked={checked}
+              checked={checked}
               data-testid={`issue-list-column-${column}`}
-              className="justify-between gap-6"
-              onSelect={() => onToggle(column)}
+              onCheckedChange={() => onToggle(column)}
             >
-              <span>{fieldNames[column]}</span>
-              <Check
-                className={cn(
-                  "h-3.5 w-3.5",
-                  checked ? "text-brand opacity-100" : "opacity-0",
-                )}
-                aria-hidden="true"
-              />
-            </DropdownMenuItem>
+              {fieldNames[column]}
+            </DropdownMenuCheckboxItem>
           );
         })}
       </DropdownMenuContent>
