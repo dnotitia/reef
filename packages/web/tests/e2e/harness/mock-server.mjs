@@ -17,6 +17,7 @@ const SUPPORTED_SCENARIOS = [
   "configured",
   "configured_empty",
   "configured_multi",
+  "backlog_bulk_partial_failure",
   "demo_board",
   "content_search",
   "raw_only",
@@ -115,22 +116,6 @@ const server = createServer(async (req, res) => {
         ok: true,
         mode,
         delay_ms: state.contentSearchDelayMs,
-      });
-    }
-    if (
-      url.pathname === "/__e2e/issue-update-control" &&
-      req.method === "POST"
-    ) {
-      const body = await readJson(req);
-      const id = String(body?.id ?? "");
-      const mode = body?.mode;
-      if (mode === "once" || mode === "always")
-        state.issueUpdateFailures.set(id, mode);
-      else state.issueUpdateFailures.delete(id);
-      return json(res, 200, {
-        ok: true,
-        id,
-        mode: state.issueUpdateFailures.get(id) ?? "clear",
       });
     }
     if (url.pathname === "/__e2e/remove-issue" && req.method === "POST") {
@@ -292,6 +277,16 @@ function runtimeDiscovery() {
         secondary_workspace: "reef-zeta",
         start_path: "/workspace/reef-e2e/issues?view=list",
       },
+      backlog_bulk_partial_failure: {
+        scenario: "backlog_bulk_partial_failure",
+        workspace: "reef-e2e",
+        start_path: "/workspace/reef-e2e/issues?view=backlog",
+        interaction: {
+          type: "bulk_status_update",
+          operation:
+            "select the visible Backlog issues, choose In Review from the bulk Status control, observe one successful issue leave Backlog while one failed issue keeps its original Backlog state and selection, then open the failure tray and retry the failed update",
+        },
+      },
       content_search: {
         scenario: "content_search",
         workspace: "reef-e2e",
@@ -418,6 +413,7 @@ function makeState(scenario) {
     scenario === "configured" ||
     scenario === "configured_empty" ||
     scenario === "configured_multi" ||
+    scenario === "backlog_bulk_partial_failure" ||
     scenario === "activity_suggestions" ||
     scenario === "notifications" ||
     scenario === "skill_outdated" ||
@@ -443,6 +439,24 @@ function makeState(scenario) {
       });
     }
     next.vaults.set(REEF_VAULT, vault);
+    if (scenario === "backlog_bulk_partial_failure") {
+      const successfulIssue = vault.issues.find(
+        (issue) => issue.reef_id === "REEF-002",
+      );
+      const failedIssue = vault.issues.find(
+        (issue) => issue.reef_id === "REEF-003",
+      );
+      if (!successfulIssue || !failedIssue) {
+        throw new Error(
+          "partial-failure fixture requires two configured issues",
+        );
+      }
+      successfulIssue.status = "backlog";
+      successfulIssue.rank = 2000;
+      failedIssue.status = "backlog";
+      failedIssue.rank = 1000;
+      next.issueUpdateFailures.set(failedIssue.reef_id, "once");
+    }
     next.vaults.set("raw-vault", rawVault("raw-vault"));
     if (scenario === "configured_multi") {
       next.vaults.set("reef-zeta", configuredVault("reef-zeta"));

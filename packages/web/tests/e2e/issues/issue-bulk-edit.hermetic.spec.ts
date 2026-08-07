@@ -1,11 +1,11 @@
 import { type Page, expect, test } from "@playwright/test";
 import {
+  E2E_MOCK_URL,
   REEF_E2E_VAULT,
   openExistingWorkspace,
   readFixtureState,
   removeFixtureIssue,
   resetFixture,
-  setIssueUpdateFailure,
 } from "../harness/fixture";
 
 async function openList(page: Page) {
@@ -341,15 +341,49 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
     ).toContain("frontend");
   });
 
-  test("preserves successes on a middle failure and retries only the failed item", async ({
+  test("drives the discovered Backlog partial-failure task through recovery", async ({
     page,
     request,
   }) => {
-    await setIssueUpdateFailure(request, "REEF-102", "once");
-    await openList(page);
-    await selectRow(page, "REEF-101");
-    await selectRow(page, "REEF-102");
-    await selectRow(page, "REEF-103");
+    const discoveryResponse = await request.get(
+      `${E2E_MOCK_URL}/__e2e/runtime`,
+    );
+    expect(discoveryResponse.ok()).toBeTruthy();
+    const discovery = (await discoveryResponse.json()) as {
+      tasks?: Record<
+        string,
+        { scenario?: string; start_path?: string; interaction?: unknown }
+      >;
+    };
+    const task = discovery.tasks?.backlog_bulk_partial_failure;
+    expect(task).toMatchObject({
+      scenario: "backlog_bulk_partial_failure",
+      start_path: "/workspace/reef-e2e/issues?view=backlog",
+      interaction: {
+        type: "bulk_status_update",
+      },
+    });
+    if (!task?.start_path) throw new Error("missing discovered Backlog task");
+
+    await resetFixture(request, "backlog_bulk_partial_failure");
+    await openExistingWorkspace(page);
+    await page.goto(task.start_path);
+    await expect(page.getByTestId("backlog-row").first()).toBeVisible();
+    const selectedIds = (
+      await page
+        .getByTestId("backlog-row")
+        .evaluateAll((rows) =>
+          rows.map((row) => row.getAttribute("data-issue-id")),
+        )
+    ).filter((id): id is string => Boolean(id));
+    expect(selectedIds).toHaveLength(2);
+    const before = reefVault(await readFixtureState(request));
+    for (const id of selectedIds) {
+      await selectBacklogRow(page, id);
+    }
+    await expect(page.getByTestId("issue-bulk-action-bar")).toContainText(
+      "2 selected",
+    );
     await chooseBulkStatus(page, "In Review");
 
     const tray = page.getByRole("button", { name: "1 failed" });
@@ -357,26 +391,40 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
     await expect(page.getByTestId("issue-bulk-action-bar")).toContainText(
       "1 selected",
     );
+    const afterFailure = reefVault(await readFixtureState(request));
+    const successfulIds = selectedIds.filter(
+      (id) =>
+        afterFailure.issues.find((issue) => issue.id === id)?.status ===
+        "in_review",
+    );
+    const failedIds = selectedIds.filter(
+      (id) =>
+        afterFailure.issues.find((issue) => issue.id === id)?.status ===
+        "backlog",
+    );
+    expect(successfulIds).toHaveLength(1);
+    expect(failedIds).toHaveLength(1);
+    const failedId = failedIds[0];
+    if (!failedId) throw new Error("missing failed Backlog issue");
+    expect(
+      afterFailure.issues.find((issue) => issue.id === failedId)?.rank,
+    ).toBe(before.issues.find((issue) => issue.id === failedId)?.rank);
     await expect(
-      page.getByTestId("issue-list-row").filter({ hasText: "REEF-102" }),
+      page.getByTestId("backlog-row").filter({ hasText: failedId }),
     ).toHaveAttribute("aria-selected", "true");
-    const beforeRetry = reefVault(await readFixtureState(request));
-    expect(
-      beforeRetry.issues.find((issue) => issue.id === "REEF-101")?.status,
-    ).toBe("in_review");
-    expect(
-      beforeRetry.issues.find((issue) => issue.id === "REEF-102")?.status,
-    ).toBe("todo");
-    expect(
-      beforeRetry.issues.find((issue) => issue.id === "REEF-103")?.status,
-    ).toBe("in_review");
+    await expect(
+      page.getByTestId("backlog-row").filter({ hasText: successfulIds[0] }),
+    ).toHaveCount(0);
     await tray.click();
+    await expect(
+      page.getByRole("dialog", { name: "Failed issue updates" }),
+    ).toBeVisible();
     await page.getByRole("button", { name: "Retry" }).click();
     await expect(page.getByTestId("issue-bulk-action-bar")).toHaveCount(0);
     await expect
       .poll(async () => {
         const vault = reefVault(await readFixtureState(request));
-        return vault.issues.find((issue) => issue.id === "REEF-102")?.status;
+        return vault.issues.find((issue) => issue.id === failedId)?.status;
       })
       .toBe("in_review");
   });
