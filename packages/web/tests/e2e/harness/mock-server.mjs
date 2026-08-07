@@ -1847,6 +1847,43 @@ function handleSql(vault, sql) {
     return tableSql();
   }
   if (lower.startsWith("update reef_issues")) {
+    const reorderMatch = normalized.match(
+      /set\s+"rank"\s*=\s*case\s+"reef_id"\s+(.+?)\s+end,\s+"meta"/i,
+    );
+    if (reorderMatch) {
+      const idsMatch = normalized.match(
+        /where\s+"reef_id"\s+in\s*\(([^)]+)\)/i,
+      );
+      const assignments = new Map(
+        [
+          ...reorderMatch[1].matchAll(
+            /when\s+'((?:''|[^'])+)'\s+then\s+(null|-?(?:\d+(?:\.\d+)?))/gi,
+          ),
+        ].map(([, rawId, rawRank]) => [
+          rawId.replace(/''/g, "'"),
+          /^null$/i.test(rawRank) ? null : Number(rawRank),
+        ]),
+      );
+      const ids = idsMatch ? sqlValues(idsMatch[1]) : [];
+      const editor = matchSqlString(
+        normalized,
+        /to_jsonb\('((?:''|[^'])*)'::text\)/i,
+      );
+      const updatedAt = nextEditTimestamp();
+      for (const row of vault.issues) {
+        if (
+          ids.includes(row.reef_id) &&
+          row.status === "backlog" &&
+          row.archived_at == null &&
+          assignments.has(row.reef_id)
+        ) {
+          row.rank = assignments.get(row.reef_id);
+          row.updated_at = updatedAt;
+          if (editor) row.meta = { ...row.meta, last_editor: editor };
+        }
+      }
+      return tableSql();
+    }
     const update = parseUpdate(normalized);
     if (update) {
       const id = matchSqlString(
@@ -3285,6 +3322,7 @@ function publicState() {
         status: issue.status,
         priority: issue.priority,
         assigned_to: issue.assigned_to,
+        rank: issue.rank,
         parent_id: issue.parent_id,
         sprint_id: issue.sprint_id,
         milestone_id: issue.milestone_id,

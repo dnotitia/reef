@@ -54,6 +54,64 @@ async function chooseBulkStatus(page: Page, label: string) {
   await page.getByRole("option", { name: label }).click();
 }
 
+async function backlogIds(page: Page) {
+  return page
+    .getByTestId("backlog-row")
+    .evaluateAll((rows) =>
+      rows.map((row) => row.getAttribute("data-issue-id")),
+    );
+}
+
+async function prepareConfiguredTwoRowBacklog(
+  page: Page,
+  request: Parameters<typeof resetFixture>[0],
+) {
+  await resetFixture(request, "configured");
+  await openList(page);
+  await selectRow(page, "REEF-002");
+  await selectRow(page, "REEF-003");
+  await chooseBulkStatus(page, "Backlog");
+  await expect(page.getByTestId("issue-bulk-action-bar")).toHaveCount(0);
+  await expect
+    .poll(async () => {
+      const vault = reefVault(await readFixtureState(request));
+      return vault.issues
+        .filter((issue) => issue.id === "REEF-002" || issue.id === "REEF-003")
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map((issue) => [issue.id, issue.status, issue.rank]);
+    })
+    .toEqual([
+      ["REEF-002", "backlog", 2000],
+      ["REEF-003", "backlog", 1000],
+    ]);
+  await openBacklog(page);
+  await selectBacklogRow(page, "REEF-002");
+  await selectBacklogRow(page, "REEF-003");
+  await expect(page.getByTestId("issue-bulk-action-bar")).toContainText(
+    "2 selected",
+  );
+  return page;
+}
+
+async function dragBacklogGrip(page: Page, sourceId: string, targetId: string) {
+  const source = page.getByTestId(`backlog-grip-${sourceId}`);
+  const target = page.getByTestId(`backlog-grip-${targetId}`);
+  const sourceBox = await source.boundingBox();
+  const targetBox = await target.boundingBox();
+  if (!sourceBox || !targetBox) throw new Error("missing backlog grip bounds");
+  await page.mouse.move(
+    sourceBox.x + sourceBox.width / 2,
+    sourceBox.y + sourceBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    targetBox.x + targetBox.width / 2,
+    targetBox.y + targetBox.height / 2,
+    { steps: 8 },
+  );
+  await page.mouse.up();
+}
+
 function reefVault(state: Awaited<ReturnType<typeof readFixtureState>>) {
   const vault = state.vaults.find((item) => item.name === REEF_E2E_VAULT);
   if (!vault) throw new Error("missing reef-e2e vault");
@@ -209,6 +267,49 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
     await expect(page.getByTestId("issue-bulk-action-bar")).toContainText(
       "2 selected",
     );
+  });
+
+  test("persists a pointer reorder after bulk-entering the configured backlog", async ({
+    page,
+    request,
+  }) => {
+    await prepareConfiguredTwoRowBacklog(page, request);
+    const reorderResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/issues/reorder",
+    );
+    await dragBacklogGrip(page, "REEF-003", "REEF-002");
+    await expect((await reorderResponse).ok()).toBeTruthy();
+
+    await expect.poll(() => backlogIds(page)).toEqual(["REEF-002", "REEF-003"]);
+    await page.reload();
+    await expect(page.getByTestId("backlog-row").first()).toBeVisible();
+    await expect.poll(() => backlogIds(page)).toEqual(["REEF-002", "REEF-003"]);
+  });
+
+  test("persists a keyboard reorder after bulk-entering the configured backlog", async ({
+    page,
+    request,
+  }) => {
+    await prepareConfiguredTwoRowBacklog(page, request);
+    const reorderResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/issues/reorder",
+    );
+    const grip = page.getByTestId("backlog-grip-REEF-003");
+    await expect(grip).toHaveAttribute("aria-label", "Reorder REEF-003");
+    await grip.focus();
+    await page.keyboard.press("Space");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Space");
+    await expect((await reorderResponse).ok()).toBeTruthy();
+
+    await expect.poll(() => backlogIds(page)).toEqual(["REEF-002", "REEF-003"]);
+    await page.reload();
+    await expect(page.getByTestId("backlog-row").first()).toBeVisible();
+    await expect.poll(() => backlogIds(page)).toEqual(["REEF-002", "REEF-003"]);
   });
 
   test("applies the typed label draft without requiring Enter", async ({

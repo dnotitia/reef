@@ -53,6 +53,7 @@ export async function readFixtureState(request: APIRequestContext): Promise<{
       status: string;
       priority: string | null;
       assigned_to: string | null;
+      rank: number | null;
       parent_id: string | null;
       sprint_id: string | null;
       milestone_id: string | null;
