@@ -90,11 +90,12 @@ Every pull request runs the **lint**, **typecheck**, **test**, and
 secrets.
 
 The **e2e** (Playwright) job consumes one exact-head Next production artifact
-that CI builds once and shares across all three shards. The LLM eval work runs
-as separate follow-up tooling. Specs and jobs that require deployment secrets
-(GitHub tokens, an LLM API key, etc.) self-skip when those secrets are absent,
-so a fork PR still gets a complete, green CI signal without access to repo
-secrets.
+that CI builds once and shares across all three shards, including the discovered
+workspace dependency build artifacts required by E2E imports. The LLM eval work
+runs as separate follow-up tooling. Specs and jobs that require deployment
+secrets (GitHub tokens, an LLM API key, etc.) self-skip when those secrets are
+absent, so a fork PR still gets a complete, green CI signal without access to
+repo secrets.
 
 ## Commit style
 

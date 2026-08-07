@@ -58,8 +58,9 @@ explicitly in the entries below.
 
 - **Turbo now owns the workspace task graph and cache contract.** Build and
   affected selection discover workspace dependencies from pnpm manifests, CI
-  builds one exact-head Next standalone artifact for all Playwright shards, and
-  Docker prunes `@reef/web` before installing and building the runtime image.
+  builds one exact-head Next standalone artifact plus the discovered workspace
+  dependency build artifacts for all Playwright shards, and Docker prunes
+  `@reef/web` before installing and building the runtime image.
 
 ### Changed
 

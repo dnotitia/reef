@@ -20,6 +20,7 @@
     "dev": "turbo run dev --filter=@reef/web",
     "build": "turbo run build --filter=@reef/web",
     "build:packages": "turbo run build --filter='./packages/**' --filter='!@reef/web'",
+    "package:production-artifact": "node scripts/package-production-artifact.mjs",
     "build:affected": "turbo run build --affected",
     "toolchain:check": "turbo run '//#toolchain:check:root'",
     "toolchain:check:root": "node scripts/check-toolchain-policy.mjs",

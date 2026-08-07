@@ -26,6 +26,10 @@ const ciWorkflow = await readFile(
   "utf8",
 );
 const dockerfile = await readFile(path.join(root, "Dockerfile"), "utf8");
+const productionArtifactScript = await readFile(
+  path.join(root, "scripts", "package-production-artifact.mjs"),
+  "utf8",
+);
 
 function fail(message) {
   throw new Error(message);
@@ -308,6 +312,24 @@ function verifyRepositoryHandoffs() {
     /REEF_E2E_SKIP_BUILD=1/u.test(ciWorkflow) &&
       /sha256sum -c/u.test(ciWorkflow),
     "E2E shards must skip rebuilding and verify the artifact digest",
+  );
+  assert(
+    rootManifest.scripts?.["package:production-artifact"] ===
+      "node scripts/package-production-artifact.mjs",
+    "the production artifact must use the repository-owned packager",
+  );
+  assert(
+    /pnpm run package:production-artifact/u.test(ciWorkflow) &&
+      /tar -xzf ci-artifacts\/reef-web-production\.tar\.gz -C \./u.test(
+        ciWorkflow,
+      ),
+    "E2E shards must unpack the exact artifact at the repository root",
+  );
+  assert(
+    /discoverWorkspacePackages/u.test(productionArtifactScript) &&
+      /workspace:/u.test(productionArtifactScript) &&
+      /Workspace dependency .*build artifact/u.test(productionArtifactScript),
+    "the production artifact must verify discovered workspace dependency artifacts",
   );
   assert(
     /turbo\s+prune\s+@reef\/web\s+--docker/u.test(dockerfile),

@@ -129,8 +129,7 @@ jobs:
       - name: Package and digest the production artifact
         id: production_artifact
         run: |
-          mkdir -p ci-artifacts
-          tar -C packages/web -czf ci-artifacts/reef-web-production.tar.gz .next/standalone .next/static public
+          pnpm run package:production-artifact
           sha256sum ci-artifacts/reef-web-production.tar.gz > ci-artifacts/reef-web-production.tar.gz.sha256
           printf '%s\n' "$GITHUB_SHA" > ci-artifacts/reef-web-production.commit
           digest=$(cut -d' ' -f1 ci-artifacts/reef-web-production.tar.gz.sha256)
@@ -218,7 +217,7 @@ jobs:
           actual=$(cut -d' ' -f1 ci-artifacts/reef-web-production.tar.gz.sha256)
           test "$actual" = "$EXPECTED_ARTIFACT_SHA256"
           test "$(cat ci-artifacts/reef-web-production.commit)" = "$GITHUB_SHA"
-          tar -xzf ci-artifacts/reef-web-production.tar.gz -C packages/web
+          tar -xzf ci-artifacts/reef-web-production.tar.gz -C .
 
       - name: Resolve Playwright version
         id: pw
