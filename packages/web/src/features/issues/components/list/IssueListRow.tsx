@@ -66,6 +66,7 @@ function issueListCellClass(column: IssueListColumnKey, stateClass?: string) {
 function issueListCellStyle(
   columns: readonly IssueListColumnKey[],
   column: IssueListColumnKey,
+  quickEditOpen = false,
 ) {
   return {
     ...(column === "title"
@@ -75,7 +76,11 @@ function issueListCellStyle(
       ? {
           left: issueTableColumnOffset(columns, column),
           position: "sticky" as const,
+          zIndex: column === "id" ? 30 : 10,
         }
+      : {}),
+    ...(quickEditOpen && column !== "id"
+      ? { pointerEvents: "none" as const }
       : {}),
   };
 }
@@ -107,6 +112,9 @@ export const IssueListRow = memo(function IssueListRow({
   const tabStopped = useIssueKeyboardStore(
     (state) => state.tabStopIssueId.list === issue.id,
   );
+  const quickEditRequest = useIssueKeyboardStore(
+    (state) => state.quickEditRequest,
+  );
   const focusRequest = useIssueKeyboardStore((state) => state.focusRequest);
   const focusIssue = useIssueKeyboardStore((state) => state.focusIssue);
   const selected = useIssueSelectionStore((state) =>
@@ -118,6 +126,8 @@ export const IssueListRow = memo(function IssueListRow({
   const locale = useLocale();
   const rowRef = useRef<HTMLTableRowElement | null>(null);
   const stickyStateClass = selected || focused ? "bg-brand/5" : undefined;
+  const quickEditOpen =
+    quickEditRequest?.scope === "list" && quickEditRequest.issueId === issue.id;
 
   useEffect(() => {
     if (
@@ -194,7 +204,7 @@ export const IssueListRow = memo(function IssueListRow({
           issueListCellClass("select", stickyStateClass),
           "w-10 px-2",
         )}
-        style={issueListCellStyle(columns, "select")}
+        style={issueListCellStyle(columns, "select", quickEditOpen)}
         data-column-key="select"
       >
         <IssueSelectionCheckbox
@@ -223,7 +233,7 @@ export const IssueListRow = memo(function IssueListRow({
           issueListCellClass("id", stickyStateClass),
           "relative font-mono text-xs text-muted-foreground",
         )}
-        style={issueListCellStyle(columns, "id")}
+        style={issueListCellStyle(columns, "id", quickEditOpen)}
         data-column-key="id"
       >
         {issue.id}
@@ -233,7 +243,7 @@ export const IssueListRow = memo(function IssueListRow({
       {/* Type */}
       <TableCell
         className={issueListCellClass("type", stickyStateClass)}
-        style={issueListCellStyle(columns, "type")}
+        style={issueListCellStyle(columns, "type", quickEditOpen)}
         data-column-key="type"
       >
         <TypePill type={issue.issue_type} variant="list" />
@@ -242,7 +252,7 @@ export const IssueListRow = memo(function IssueListRow({
       {/* Title */}
       <TableCell
         className={issueListCellClass("title", stickyStateClass)}
-        style={issueListCellStyle(columns, "title")}
+        style={issueListCellStyle(columns, "title", quickEditOpen)}
         data-column-key="title"
       >
         <span className="flex min-w-0 items-center gap-2">
@@ -256,7 +266,7 @@ export const IssueListRow = memo(function IssueListRow({
       {/* Status */}
       <TableCell
         className={issueListCellClass("status")}
-        style={issueListCellStyle(columns, "status")}
+        style={issueListCellStyle(columns, "status", quickEditOpen)}
         data-column-key="status"
       >
         <StatusBadge status={issue.status} />
@@ -265,7 +275,7 @@ export const IssueListRow = memo(function IssueListRow({
       {/* Priority */}
       <TableCell
         className={issueListCellClass("priority")}
-        style={issueListCellStyle(columns, "priority")}
+        style={issueListCellStyle(columns, "priority", quickEditOpen)}
         data-column-key="priority"
       >
         {issue.priority ? (
@@ -278,7 +288,7 @@ export const IssueListRow = memo(function IssueListRow({
       {/* Assignee */}
       <TableCell
         className={cn(issueListCellClass("assignee"), "text-sm")}
-        style={issueListCellStyle(columns, "assignee")}
+        style={issueListCellStyle(columns, "assignee", quickEditOpen)}
         data-column-key="assignee"
       >
         {issue.assigned_to ? (
@@ -296,7 +306,7 @@ export const IssueListRow = memo(function IssueListRow({
       {columns.includes("start") && (
         <TableCell
           className="h-10 min-w-0 px-3 py-0 text-xs whitespace-nowrap text-muted-foreground"
-          style={issueListCellStyle(columns, "start")}
+          style={issueListCellStyle(columns, "start", quickEditOpen)}
           data-column-key="start"
         >
           <DateDisplay date={issue.start_date} emptyText="—" />
@@ -307,7 +317,7 @@ export const IssueListRow = memo(function IssueListRow({
       {columns.includes("sprint") && (
         <TableCell
           className="h-10 min-w-0 px-3 py-0 text-xs text-muted-foreground"
-          style={issueListCellStyle(columns, "sprint")}
+          style={issueListCellStyle(columns, "sprint", quickEditOpen)}
           data-column-key="sprint"
         >
           {findPlanningName(planningCatalog, "sprints", issue.sprint_id) ?? "—"}
@@ -318,7 +328,7 @@ export const IssueListRow = memo(function IssueListRow({
       {columns.includes("milestone") && (
         <TableCell
           className="h-10 min-w-0 px-3 py-0 text-xs text-muted-foreground"
-          style={issueListCellStyle(columns, "milestone")}
+          style={issueListCellStyle(columns, "milestone", quickEditOpen)}
           data-column-key="milestone"
         >
           {findPlanningName(
@@ -333,7 +343,7 @@ export const IssueListRow = memo(function IssueListRow({
       {columns.includes("release") && (
         <TableCell
           className="h-10 min-w-0 px-3 py-0 text-xs text-muted-foreground"
-          style={issueListCellStyle(columns, "release")}
+          style={issueListCellStyle(columns, "release", quickEditOpen)}
           data-column-key="release"
         >
           {findPlanningName(planningCatalog, "releases", issue.release_id) ??
@@ -345,7 +355,7 @@ export const IssueListRow = memo(function IssueListRow({
       {columns.includes("due") && (
         <TableCell
           className="h-10 min-w-0 px-3 py-0 text-xs whitespace-nowrap text-muted-foreground"
-          style={issueListCellStyle(columns, "due")}
+          style={issueListCellStyle(columns, "due", quickEditOpen)}
           data-column-key="due"
         >
           <DateDisplay date={issue.due_date} emptyText="—" />
@@ -356,7 +366,7 @@ export const IssueListRow = memo(function IssueListRow({
       {columns.includes("updated") && (
         <TableCell
           className="h-10 min-w-0 px-3 py-0 text-xs whitespace-nowrap text-muted-foreground"
-          style={issueListCellStyle(columns, "updated")}
+          style={issueListCellStyle(columns, "updated", quickEditOpen)}
           data-column-key="updated"
         >
           {formatRelativeTime(issue.updated_at, locale)}

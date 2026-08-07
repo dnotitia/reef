@@ -136,6 +136,7 @@ test.describe("Hermetic issue route surfaces", () => {
     await page.getByTestId("view-switcher-backlog").click();
     await page.waitForURL(/view=backlog/, { timeout: 10_000 });
     await expect(page.getByTestId("backlog-table")).toBeVisible();
+    await expect(page.getByTestId("backlog-row").first()).toBeVisible();
     await expect(page.getByTestId("backlog-rank-header")).toBeVisible();
 
     const backlog = page.getByTestId("backlog-table");
