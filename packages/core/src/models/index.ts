@@ -15,6 +15,7 @@ export {
   isForwardStatus,
   isResolvedStatus,
   isStaleResolved,
+  inferStatusFromCodeSignal,
   withRecoveredDraftStatus,
   ACTIVE_STATUSES,
 } from "./status";

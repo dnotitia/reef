@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { IssueMetadata } from "../../../schemas/issues/metadata";
 import {
   makeIssueQueryResponse,
   makeTestAkbAdapter,
   setupFetch,
-} from "../../../agents/tools/__test-helpers__/fetchMock";
-import { mockOpenTelemetry } from "../../../agents/tools/__test-helpers__/otelMock";
-import type { IssueMetadata } from "../../../schemas/issues/metadata";
+} from "../../../test-support/akb/fetchMock";
+import { mockOpenTelemetry } from "../../../test-support/akb/otelMock";
 import {
   DEFAULT_SIMILAR_ISSUE_MIN_SCORE,
   searchSimilarIssues,

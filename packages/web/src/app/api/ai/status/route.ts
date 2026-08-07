@@ -1,4 +1,4 @@
-import { resolveServerLlmConfig } from "@/lib/llm/serverConfig";
+import { resolveServerLlmConfig } from "@/server/adapters/llmConfig/serverConfig";
 
 export function GET(): Response {
   const resolved = resolveServerLlmConfig();

@@ -22,13 +22,14 @@ reef has three runtime tiers:
   exposes the vault over HTTP and over MCP, so coding agents can read and update
   issues directly. reef does not run its own database.
 - **`@reef/core`** — a framework-agnostic TypeScript library. It owns the Zod
-  schemas, domain models, AI agents, tool definitions, error types, and every
-  product adapter that talks to AKB, monitored GitHub repositories, and the LLM
-  provider. It has no Next.js, React, DOM, or browser-storage dependencies.
+  schemas, domain models, AKB adapter, observability seam, and error types. It
+  has no Next.js, React, DOM, browser-storage, GitHub SDK, LLM client, or AI SDK
+  runtime dependencies.
 - **reef-web** — a Next.js App Router application that renders the product UI and
   acts as a **stateless Backend-for-Frontend (BFF)** over the AKB vault. Its
-  Route Handlers validate input, extract credentials, call `core`, and translate
-  errors. It persists no user-specific server state.
+  server-only adapters own GitHub/LLM I/O and its application tree owns agents;
+  Route Handlers validate input, resolve those use cases, call core for AKB/domain
+  behavior, and translate errors. It persists no user-specific server state.
 
 Two auxiliary runtimes stay outside the interactive web request path:
 
@@ -59,10 +60,10 @@ Two auxiliary runtimes stay outside the interactive web request path:
 Browser (React UI, Zustand, TanStack Query, Dexie)
    │  apiFetch → /api/* Route Handlers
 reef-web (stateless Next.js BFF)
-  │  @reef/core product adapters
-   ├── AKB vault   (issues, planning, templates, settings)  — read + write
-   ├── GitHub      (monitored repos)                        — read-only grounding
-   └── OpenAI-compatible LLM endpoint                       — chat + agents
+  ├── @reef/core AKB adapter + domain contracts
+  └── server-only adapters/application
+       ├── GitHub (monitored repos)                         — read-only grounding
+       └── OpenAI-compatible LLM endpoint                    — chat + agents
 ```
 
 The provider-neutral orchestration runtime has a separate, explicit SCM
@@ -78,9 +79,10 @@ under `packages/`: `core` (`@reef/core`), `web` (`@reef/web`), `orchestrator`
 (`@reef/scm-provider-github`), `jira-migrator` (`@reef/jira-migrator`), and
 `work-provider-reef` (`@reef/work-provider-reef`). The root
 `package.json` is the single product version source of truth. New interactive
-product behavior that touches schemas, adapters, agents, or shared contracts
-starts in `core` and then surfaces through `web`; background and operator
-processes consume the same core contracts from their separate runtimes.
+product behavior that touches schemas, AKB, or shared contracts starts in
+`core`; provider adapters and agent application behavior live in web's
+server-only tree. Background and operator processes consume the same core
+contracts from their separate runtimes.
 The runtime and dependency source-of-truth matrix is documented in the
 [repository toolchain policy](toolchain.md).
 
@@ -92,22 +94,23 @@ a separate backend boundary with their own provider-neutral contracts. Mixing
 these surfaces would bind domain logic to Next.js and scatter external I/O
 across the app.
 
-- **`core` owns product external I/O** — data-plane reads and writes to AKB,
-  monitored-repository GitHub reads, and the LLM, plus auth and session calls
-  (`login`, `getMe`, `getCurrentActor`). The AKB adapter is constructed per
+- **`core` owns AKB product I/O** — data-plane reads and writes plus auth/session
+  calls (`login`, `getMe`, `getCurrentActor`). The AKB adapter is constructed per
   request and forwards an `Authorization: Bearer <pat>` header to
-  `AKB_BACKEND_URL`. Contract-specific orchestration providers are the only
-  separate I/O boundary; they do not reuse the product GitHub adapter.
-- **`web` consumes `core` through thin Route Handlers** under
-  `packages/web/src/app/api/*/route.ts`. A handler validates the request with a
-  Zod schema, extracts credentials from the `__reef_session` cookie and request
-  headers, calls `core`, and translates errors into PM-facing language and HTTP
-  status. Handlers own only the session/cookie lifecycle — no business logic, no
-  inline `fetch`, and no inline AKB wire schemas.
+  `AKB_BACKEND_URL`.
+- **`web` owns provider and agent application I/O** under
+  `packages/web/src/server/`. GitHub credential resolution, GitHub transport,
+  LLM configuration, LLM transport, agent tools, and agent use cases stay out of
+  core and are consumed by routes through the server application barrel.
+- **Route Handlers** under `packages/web/src/app/api/*/route.ts` remain thin. A
+  handler validates the request with a Zod schema, extracts the AKB session
+  cookie, resolves server application dependencies, calls core for AKB/domain
+  behavior, and translates errors into PM-facing language and HTTP status. It
+  owns no inline provider fetch, business logic, or inline AKB wire schema.
 - **All user mutations flow through `apiFetch`** in client `.actions.ts` files,
   which call the Route Handlers. **Server Actions are not used**, so reads,
   mutations, and chat streaming all travel the same `apiFetch` → Route Handler →
-  `core` path.
+  server application → `core` path.
 - When AKB rejects an established account/session, the BFF clears its httpOnly
   cookies and emits `X-Reef-Auth-Invalidated: 1`. `apiFetch` then wipes all
   persisted and in-memory AKB-account-scoped browser state. A normal permission
@@ -199,9 +202,10 @@ GitHub and LLM credentials out of browser storage.
 reef runs bounded agent loops (issue enrichment, activity scan, chat) and
 streams chat to the browser. The AI layer is built on the **Vercel AI SDK**:
 
-- Chat streaming is assembled in `core` (`agents/chatAgent.ts`) using the SDK's
-  agent loop and UI-stream helpers. `web` does not rebuild the loop; it delegates
-  to a `core` helper through `POST /api/agents/runs` (`task_id:
+- Chat streaming is assembled in the web server application
+  (`src/server/application/agents/chatAgent.ts`) using the SDK's agent loop and
+  UI-stream helpers. The route does not rebuild the loop; it delegates through
+  `POST /api/agents/runs` (`task_id:
   "chat.workspace"`). The client consumes agent-run SSE through
   `useWorkspaceChat` / `useAgentRun` and reads message *parts* (it never assumes
   `content` is a plain string).
@@ -221,7 +225,7 @@ streams chat to the browser. The AI layer is built on the **Vercel AI SDK**:
 
 reef grounds its agents in the team's monitored repositories: it needs to read
 code reality, but it must never become a writer or commit under a user's
-identity. The GitHub adapter in `core` is intentionally thin and scoped to
+identity. The GitHub adapter in `web` is intentionally thin and scoped to
 monitored repos: activity detection (commits, pull requests), code search, file
 reads, and repository labels, via Octokit REST and GraphQL.
 
@@ -347,15 +351,15 @@ preserves Server-Sent Events.
 | Boundary schemas | `packages/core/src/schemas/` (`issues`, `planning`, `workspace`, `activity`, `ai`, `common`) |
 | Domain models | `packages/core/src/models/` (issue ids, status transitions, code-signal inference) |
 | AKB adapter | `packages/core/src/adapters/akb/` (`issues`, `planning`, `workspace`, `activity`, `vaultSkill`, `core`) |
-| GitHub adapter | `packages/core/src/adapters/github.ts` (read-only) |
-| LLM adapter | `packages/core/src/adapters/llm.ts` |
-| AI agents and tools | `packages/core/src/agents/` (`chatAgent`, `enrichIssue`, `scanActivity`, `framework`, `prompts`, `tools`) |
+| GitHub adapter and credential resolution | `packages/web/src/server/adapters/githubAdapter.ts`, `github/`, and `githubCredentials/` (read-only monitored-repo access) |
+| LLM adapter and configuration | `packages/web/src/server/adapters/llmAdapter.ts` and `llmConfig/` |
+| AI agents and tools | `packages/web/src/server/application/agents/` (`chatAgent`, `enrichIssue`, `scanActivity`, `framework`, `prompts`, `tools`) |
 | Core observability seam | `packages/core/src/observability/index.ts` |
 | Error types | `packages/core/src/errors/` |
 | Route Handlers (BFF) | `packages/web/src/app/api/*/route.ts` |
 | UI features | `packages/web/src/features/` |
 | Field leaves and styling | `packages/web/src/components/fields/` |
-| Browser state and storage | `packages/web/src/lib/` (`storage`, `api`, `github`, `llm`) |
+| Browser state and storage | `packages/web/src/lib/` (`storage`, `api`, session, and client helpers) |
 | CSP / security headers | `packages/web/src/proxy.ts` |
 | Provider-neutral execution core | `packages/orchestration/runtime/src/` |
 | Codex harness adapter | `packages/orchestration/providers/codex/src/` |

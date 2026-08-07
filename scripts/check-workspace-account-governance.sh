@@ -13,12 +13,12 @@ echo "== Reef account and configuration-derived LLM contract =="
 pnpm --filter @reef/core exec vitest run \
   src/adapters/akb/core/http.test.ts \
   src/adapters/akb/workspace/auth.test.ts \
-  src/adapters/llm.test.ts \
-  src/adapters/llm.wire.test.ts \
   src/errors/index.test.ts \
   src/schemas/workspace/config.test.ts
 
 pnpm --filter @reef/web exec vitest run \
+  src/server/adapters/llmAdapter.test.ts \
+  src/server/adapters/llmAdapter.wire.test.ts \
   src/app/api/ai/managed-platform/route.test.ts \
   src/app/api/auth/akb/config/route.test.ts \
   src/app/api/auth/akb/login/route.test.ts \
@@ -31,7 +31,7 @@ pnpm --filter @reef/web exec vitest run \
   src/lib/akb/checkAkbSession.test.ts \
   src/lib/api/requestHelpers.test.ts \
   src/lib/apiClient.test.ts \
-  src/lib/llm/serverConfig.test.ts
+  src/server/adapters/llmConfig/serverConfig.test.ts
 
 echo "== Reef hermetic account lifecycle =="
 pnpm run build

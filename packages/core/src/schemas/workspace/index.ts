@@ -19,6 +19,7 @@ export {
 export {
   AuthoringLanguageSchema,
   AUTHORING_LANGUAGES,
+  authoringLanguagePromptName,
   type AuthoringLanguage,
   type AuthoringLanguageOption,
 } from "./authoringLanguage";

@@ -7,25 +7,25 @@ import {
   getAkbCurrentActor,
   respondWithError,
 } from "@/lib/api/requestHelpers";
-import { resolveGroundingGitHubAdapter } from "@/lib/github/resolveGroundingGitHubAdapter";
 import { logger } from "@/lib/logging/logger";
+import type { GitHubAdapter } from "@/server/adapters/githubAdapter";
+import { resolveGroundingGitHubAdapter } from "@/server/adapters/githubCredentials/resolveGroundingGitHubAdapter";
+import {
+  ServerLlmConfigError,
+  createServerLlmAdapter,
+  getRequiredServerLlmConfig,
+} from "@/server/adapters/llmConfig/serverConfig";
+import { enrichIssue } from "@/server/application/agents";
 import {
   type AgentRunEvent,
   AkbApiError,
   AuthError,
   EnrichmentRequestSchema,
-  type GitHubAdapter,
   LlmError,
   NotFoundError,
   SchemaValidationError,
   akbReadAuthoringLanguage,
-  enrichIssue,
 } from "@reef/core";
-import {
-  ServerLlmConfigError,
-  createServerLlmAdapter,
-  getRequiredServerLlmConfig,
-} from "../../../lib/llm/serverConfig";
 
 const ENRICHMENT_OUTPUT_LOG_KEYS = [
   "known_issue_count",
@@ -43,7 +43,7 @@ const ENRICHMENT_OUTPUT_LOG_KEYS = [
 /**
  * POST /api/enrich — AI-assisted issue enrichment.
  *
- * Thin route handler around `enrichIssue` in `@reef/core`:
+ * Thin route handler around the server-side `enrichIssue` use case:
  *   1. Parse + validate body against `EnrichmentRequestSchema` (400).
  *   2. Resolve and validate the akb session/account for workspace context.
  *   3. Resolve deployment-managed LLM config from server env (503 on failure).

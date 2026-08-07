@@ -8,7 +8,7 @@ import {
   respondWithError,
 } from "@/lib/api/requestHelpers";
 import { logger } from "@/lib/logging/logger";
-import { approveActivitySuggestion } from "@reef/core";
+import { approveActivitySuggestion } from "@/server/application/agents";
 import { z } from "zod";
 
 const SuggestionIdSchema = z

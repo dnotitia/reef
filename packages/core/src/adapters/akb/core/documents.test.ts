@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   makeTestAkbAdapter,
   setupFetch,
-} from "../../../agents/tools/__test-helpers__/fetchMock";
+} from "../../../test-support/akb/fetchMock";
 import { resolveDocumentTitles } from "./documents";
 
 afterEach(() => vi.unstubAllGlobals());

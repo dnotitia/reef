@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mockOpenTelemetry } from "../../../agents/tools/__test-helpers__/otelMock";
+import { mockOpenTelemetry } from "../../../test-support/akb/otelMock";
 import {
   REEF_VAULT_SKILL_VERSION,
   buildReefVaultSkillDocuments,

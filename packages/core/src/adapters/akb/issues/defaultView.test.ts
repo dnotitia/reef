@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { IssueMetadata } from "../../../schemas/issues/metadata";
+import { IssueListQuerySchema } from "../../../schemas/issues/requests";
 import {
   makeIssueQueryResponse,
   makeTestAkbAdapter,
   setupFetch,
-} from "../../../agents/tools/__test-helpers__/fetchMock";
-import { mockOpenTelemetry } from "../../../agents/tools/__test-helpers__/otelMock";
-import type { IssueMetadata } from "../../../schemas/issues/metadata";
-import { IssueListQuerySchema } from "../../../schemas/issues/requests";
+} from "../../../test-support/akb/fetchMock";
+import { mockOpenTelemetry } from "../../../test-support/akb/otelMock";
 import {
   buildDefaultViewWhere,
   defaultViewStatusFloor,

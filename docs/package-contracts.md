@@ -12,7 +12,7 @@ under `dist/`. The table shows the current buildable packages:
 
 | Package | Role | Public entry |
 | --- | --- | --- |
-| `@reef/core` | Framework-agnostic domain, schema, adapter, and agent contracts | Root plus the existing `status`, `errors`, `fields`, and `fields/planning` subpaths |
+| `@reef/core` | Framework-agnostic domain, schema, AKB adapter, observability, and provider-neutral agent contracts | Root plus the existing `status`, `errors`, `fields`, and `fields/planning` subpaths |
 | `@reef/orchestrator` | Provider-neutral one-run orchestration runtime | Root |
 | `@reef/harness-provider-codex` | Codex harness provider | Root |
 | `@reef/infrastructure-provider-local` | Local infrastructure provider for isolated Git-backed runs | Root |

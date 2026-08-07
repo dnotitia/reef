@@ -1,5 +1,5 @@
-import { resolveServerGitHubAppConfig } from "@/lib/github/serverAppConfig";
-import { isServerGitHubPatConfigured } from "@/lib/github/serverPat";
+import { resolveServerGitHubAppConfig } from "@/server/adapters/githubCredentials/serverAppConfig";
+import { isServerGitHubPatConfigured } from "@/server/adapters/githubCredentials/serverPat";
 
 /**
  * GET /api/github/status

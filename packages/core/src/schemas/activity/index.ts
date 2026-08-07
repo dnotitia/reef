@@ -1,5 +1,8 @@
 export {
   ProvenanceSchema,
+  PendingDraftSchema,
+  PendingStatusChangeSchema,
+  StatusChangeEvidenceSchema,
   type PendingDraft,
   type PendingStatusChange,
   type StatusChangeEvidence,

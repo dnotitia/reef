@@ -17,8 +17,8 @@
 - Put package defaults in the matching workspace package's `AGENTS.md`.
 - Put implementation rules in the nearest subtree `AGENTS.md` so agents editing
   that code see the rule without carrying unrelated context. Examples:
-  `packages/core/src/adapters/AGENTS.md`, `packages/core/src/agents/AGENTS.md`,
-  `packages/web/src/app/AGENTS.md`, and `packages/web/tests/e2e/AGENTS.md`.
+  `packages/core/src/adapters/AGENTS.md`, `packages/web/src/app/AGENTS.md`,
+  `packages/web/src/server/AGENTS.md`, and `packages/web/tests/e2e/AGENTS.md`.
 - When a rule outgrows a short contract or becomes a runbook, move the runbook
   to `docs/` and leave a one-line pointer here or in the nearest package file.
 
@@ -27,8 +27,10 @@
 - Exact dependency and runtime versions live in `package.json`, package manifests,
   and `tsconfig*.json`; do not rely on version guesses from memory.
 - This is a pnpm workspace with private packages. Product runtime behavior
-  starts in `core` when it touches schemas, adapters, agents, or shared
-  contracts, then surfaces through `web`. Operator-run migration behavior for
+  starts in `core` for schemas, models, AKB access, and shared contracts, then
+  the server-only application and provider adapters in `web` own GitHub, LLM,
+  and agent execution before the result surfaces through the UI. Operator-run
+  migration behavior for
   Jira lives in `packages/jira-migrator`; the provider-neutral one-run
   execution core and process signal seam live in `packages/orchestration/runtime`, while
   callers own scheduling and delivery orchestration. Concrete orchestration
@@ -67,15 +69,16 @@ metadata.
   account denial or invalid-session 401 must clear every established Reef auth
   cookie before returning. A resource-level permission denial must not sign the
   user out.
-- `core` is the only place where Reef product GitHub, akb, and LLM I/O
-  originates — data-plane reads/writes **and** auth/session calls (`login`,
-  `getMe`, `getCurrentActor`) alike. Separate orchestration provider packages
-  are the only exception: they own provider-specific I/O explicitly granted by
-  their provider-neutral contracts, such as SCM Git transport and GitHub
-  pull-request delivery. `web` consumes `core` through thin Route Handlers; the
-  Route Handler owns only the session/cookie lifecycle (mint/clear the
-  `__reef_session` cookie, decode it, translate `ReefError` to PM-facing
-  language), never an inline `fetch` or an inline akb wire schema.
+- `core` is the only place where Reef product AKB I/O and AKB auth/session calls
+  (`login`, `getMe`, `getCurrentActor`) originate. The server-only `web`
+  application owns monitored-repository GitHub I/O, deployment-managed LLM I/O,
+  and agent execution; it consumes core's public schemas, errors, models, and
+  AKB adapter. Separate orchestration provider packages own only provider I/O
+  explicitly granted by their provider-neutral contracts, such as SCM Git
+  transport and GitHub pull-request delivery. Route Handlers remain thin: they
+  own session/cookie lifecycle (mint/clear the `__reef_session` cookie, decode
+  it, translate `ReefError` to PM-facing language), never an inline `fetch` or
+  an inline AKB wire schema.
 
 ## TypeScript And Boundaries
 

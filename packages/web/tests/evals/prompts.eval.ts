@@ -20,7 +20,7 @@ import {
   buildStatusRationaleSystemPrompt,
   buildStatusRationaleUserPrompt,
   buildWorkspaceChatSystemPrompt,
-} from "@reef/core";
+} from "@/server/application/agents/prompts";
 
 import autoIssueCanned from "./fixtures/auto-issue-canned.json";
 import draftIssueCanned from "./fixtures/draft-issue-canned.json";

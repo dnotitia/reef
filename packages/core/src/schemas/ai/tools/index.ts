@@ -29,7 +29,11 @@ export {
   type ReadTemplateOutput,
 } from "./readTemplate";
 
-export type { SearchDocumentsOutput } from "./searchDocuments";
+export {
+  SearchDocumentsInputSchema,
+  SearchDocumentsOutputSchema,
+  type SearchDocumentsOutput,
+} from "./searchDocuments";
 
 export {
   SearchIssuesInputSchema,

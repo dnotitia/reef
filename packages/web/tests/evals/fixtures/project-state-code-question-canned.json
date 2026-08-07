@@ -23,9 +23,9 @@
     "hasTools": true
   },
   "cannedResponse": {
-    "answer": "The search_code tool is defined in packages/core/src/agents/tools/repo/searchCode.ts. It is implemented as an AI SDK tool with Zod-typed input and output schemas, and is exported from the core package index for use in the chat route handler.",
+    "answer": "The search_code tool is defined in packages/web/src/server/application/agents/tools/repo/searchCode.ts. It is implemented as a server-only AI SDK tool with Zod-typed input and output schemas; its boundary schemas are exported from the core package for the chat route handler.",
     "referenced_issue_ids": ["REEF-031", "REEF-045"]
   },
   "expectedFields": ["answer", "referenced_issue_ids"],
-  "expectedKeywords": ["packages/core", "searchCode"]
+  "expectedKeywords": ["packages/web", "searchCode"]
 }
