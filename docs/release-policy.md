@@ -5,7 +5,8 @@ application plus its private core, worker, and operator packages.
 
 The pnpm workspace contains `packages/web`, `packages/core`,
 `packages/orchestration/runtime`, `packages/orchestration/providers/codex`,
-`packages/orchestration/providers/local`, `packages/jira-migrator`, and
+`packages/orchestration/providers/local`,
+`packages/orchestration/providers/github`, `packages/jira-migrator`, and
 `packages/orchestration/providers/reef`. None is published or versioned
 independently. Repository versioning therefore follows the product release, not
 per-package library compatibility. A release may ship reef-web as
@@ -123,6 +124,7 @@ Before creating a release tag:
    - `pnpm --filter @reef/orchestrator run build`
    - `pnpm --filter @reef/harness-provider-codex run build`
    - `pnpm --filter @reef/infrastructure-provider-local run build`
+   - `pnpm --filter @reef/scm-provider-github run build`
    - `pnpm --filter @reef/jira-migrator run build`
    - `pnpm --filter @reef/work-provider-reef run build`
    - `pnpm --filter @reef/web run test:e2e` when the required environment is available.

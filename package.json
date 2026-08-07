@@ -19,7 +19,7 @@
   "scripts": {
     "dev": "pnpm --filter @reef/web dev",
     "build": "pnpm --filter @reef/web build",
-    "build:packages": "node scripts/clean-package-artifacts.mjs && pnpm --filter @reef/core run build && pnpm --filter @reef/orchestrator run build && pnpm --filter @reef/harness-provider-codex run build && pnpm --filter @reef/infrastructure-provider-local run build && pnpm --filter @reef/work-provider-reef run build && pnpm --filter @reef/jira-migrator run build",
+    "build:packages": "node scripts/clean-package-artifacts.mjs && pnpm --filter @reef/core run build && pnpm --filter @reef/orchestrator run build && pnpm --filter @reef/harness-provider-codex run build && pnpm --filter @reef/infrastructure-provider-local run build && pnpm --filter @reef/scm-provider-github run build && pnpm --filter @reef/work-provider-reef run build && pnpm --filter @reef/jira-migrator run build",
     "toolchain:check": "node scripts/check-toolchain-policy.mjs",
     "toolchain:check:test": "node --test scripts/check-toolchain-policy.test.mjs",
     "package-contract:smoke": "node scripts/package-contract-smoke.mjs",

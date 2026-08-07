@@ -5,6 +5,7 @@
 > `packages/jira-migrator/AGENTS.md`, `packages/orchestration/runtime/AGENTS.md`,
 > `packages/orchestration/providers/reef/AGENTS.md`,
 > `packages/orchestration/providers/codex/AGENTS.md`, and
+> `packages/orchestration/providers/github/AGENTS.md`,
 > nested `AGENTS.md` files under those package trees; the `CLAUDE.md` files only
 > point back to these `AGENTS.md` files.
 
@@ -30,7 +31,9 @@
   contracts, then surfaces through `web`. Operator-run migration behavior for
   Jira lives in `packages/jira-migrator`; the provider-neutral one-run
   execution core and process signal seam live in `packages/orchestration/runtime`, while
-  callers own scheduling and delivery orchestration.
+  callers own scheduling and delivery orchestration. Concrete orchestration
+  providers, including the private GitHub SCM adapter, own only the backend I/O
+  granted by their provider contract.
 - `core` is framework-agnostic: no Next.js imports, no DOM APIs, and no Node-only
   globals where avoidable.
 
@@ -64,12 +67,15 @@ metadata.
   account denial or invalid-session 401 must clear every established Reef auth
   cookie before returning. A resource-level permission denial must not sign the
   user out.
-- `core` is the only place where GitHub, akb, and LLM I/O originates — data-plane
-  reads/writes **and** auth/session calls (`login`, `getMe`, `getCurrentActor`)
-  alike. `web` consumes `core` through thin Route Handlers; the Route Handler owns
-  only the session/cookie lifecycle (mint/clear the `__reef_session` cookie,
-  decode it, translate `ReefError` to PM-facing language), never an inline `fetch`
-  or an inline akb wire schema.
+- `core` is the only place where Reef product GitHub, akb, and LLM I/O
+  originates — data-plane reads/writes **and** auth/session calls (`login`,
+  `getMe`, `getCurrentActor`) alike. Separate orchestration provider packages
+  are the only exception: they own provider-specific I/O explicitly granted by
+  their provider-neutral contracts, such as SCM Git transport and GitHub
+  pull-request delivery. `web` consumes `core` through thin Route Handlers; the
+  Route Handler owns only the session/cookie lifecycle (mint/clear the
+  `__reef_session` cookie, decode it, translate `ReefError` to PM-facing
+  language), never an inline `fetch` or an inline akb wire schema.
 
 ## TypeScript And Boundaries
 

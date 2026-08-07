@@ -25,12 +25,14 @@ package.
 
 ## Repository layout
 
-reef is a monorepo with seven private, non-published packages:
+reef is a monorepo with eight private, non-published packages:
 
 - **`packages/core`** — framework-agnostic TypeScript library (`@reef/core`).
-  No Next.js imports, no DOM APIs. All GitHub, AKB, and LLM I/O originates here.
-  New product behavior that touches schemas, adapters, agents, or shared
-  contracts starts in `core`.
+  No Next.js imports, no DOM APIs. Product AKB, monitored-repository GitHub,
+  and LLM I/O originates here. The separate orchestration GitHub SCM provider
+  owns only the write-capable provider contract described below. New product
+  behavior that touches schemas, adapters, agents, or shared contracts starts
+  in `core`.
 - **`packages/web` (`@reef/web`)** — the Next.js App Router application and its
   stateless BFF. Route Handlers under `src/app/api/*` are thin wrappers that
   validate requests, manage the session cookie, call `core`, and translate
@@ -44,6 +46,10 @@ reef is a monorepo with seven private, non-published packages:
 - **`packages/orchestration/providers/local` (`@reef/infrastructure-provider-local`)** —
   the private local infrastructure provider for isolated Git-backed run
   workspaces and bounded process execution.
+- **`packages/orchestration/providers/github` (`@reef/scm-provider-github`)** —
+  the private GitHub SCM provider for explicit repository-bound ref, branch,
+  commit, push, and draft-PR operations. GitHub writes stay outside the
+  read-only monitored-repository adapter and never force-push or merge.
 - **`packages/orchestration/providers/reef` (`@reef/work-provider-reef`)** — the
   private Reef work adapter for the orchestrator contract.
 - **`packages/jira-migrator` (`@reef/jira-migrator`)** — the operator-run,
@@ -63,7 +69,7 @@ Run the canonical non-E2E gate from the repository root and make sure it passes:
 pnpm run check
 ```
 
-This includes the six tsdown package builds, isolated artifact smoke,
+This includes the seven tsdown package builds, isolated artifact smoke,
 dependency architecture, lint, typecheck, unit tests, and release policy.
 The full hermetic Playwright suite remains a separate required CI gate; run
 `pnpm --filter @reef/web run test:e2e:sharded` when the required browser

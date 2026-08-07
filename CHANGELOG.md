@@ -14,6 +14,14 @@ explicitly in the entries below.
 
 ### Added
 
+- **A private GitHub SCM provider now implements the provider-neutral
+  orchestration contract.** Explicit repository bindings cover ref resolution,
+  deterministic branch reuse, permission-gated commits, non-force fast-forward
+  pushes, and draft pull-request create/reuse. Remote identity mismatches,
+  default-branch and tag writes, refspec or force-push attempts, credential
+  bearing inputs, and raw Git/GitHub payloads fail closed; existing ready PRs
+  remain unchanged.
+
 - **Named personal issue filters** can save, apply, update, rename, duplicate,
   and delete browser-local facet, display, and sort presets without adding
   user-specific server state. The existing Dexie/IndexedDB `config` store
@@ -47,7 +55,7 @@ explicitly in the entries below.
 ### Changed
 
 - **Node package contracts now build and validate from isolated artifacts.**
-  Six Node packages use tsdown to emit ESM JavaScript and declarations from
+  Seven Node packages use tsdown to emit ESM JavaScript and declarations from
   `dist/`, dependency-cruiser enforces workspace directions and production
   boundaries, and the canonical non-E2E check exercises packed public imports,
   core subpaths, and the Jira migrator CLI.

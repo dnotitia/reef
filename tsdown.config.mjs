@@ -51,6 +51,11 @@ export default [
     { index: "src/index.ts" },
   ),
   packageConfig(
+    "packages/orchestration/providers/github",
+    "@reef/scm-provider-github",
+    { index: "src/index.ts" },
+  ),
+  packageConfig(
     "packages/orchestration/providers/reef",
     "@reef/work-provider-reef",
     { index: "src/index.ts" },

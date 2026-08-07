@@ -162,6 +162,25 @@ importers:
         specifier: 'catalog:'
         version: 3.2.6(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/ui@3.2.6)(jiti@2.7.0)(jsdom@24.1.3)(lightningcss@1.32.0)(msw@2.13.2(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.0)(yaml@2.9.0)
 
+  packages/orchestration/providers/github:
+    dependencies:
+      '@octokit/rest':
+        specifier: ^21.1.1
+        version: 21.1.1
+      '@reef/orchestrator':
+        specifier: workspace:*
+        version: link:../../runtime
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.20.1
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 3.2.6(@types/debug@4.1.13)(@types/node@22.20.1)(@vitest/ui@3.2.6)(jiti@2.7.0)(jsdom@24.1.3)(lightningcss@1.32.0)(msw@2.13.2(@types/node@22.20.1)(typescript@5.9.3))(tsx@4.23.0)(yaml@2.9.0)
+
   packages/orchestration/providers/local:
     dependencies:
       '@reef/orchestrator':
