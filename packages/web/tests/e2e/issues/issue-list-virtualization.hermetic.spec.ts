@@ -198,7 +198,9 @@ test.describe("large issue list virtualization", () => {
             .length,
       )
       .toBeGreaterThan(0);
-    const initialSparsePage = await readIssueListPage(await initialSparseResponse);
+    const initialSparsePage = await readIssueListPage(
+      await initialSparseResponse,
+    );
     expect(initialSparsePage.ids).not.toContain(TAIL_ISSUE_ID);
     await sparsePage.close();
   });
