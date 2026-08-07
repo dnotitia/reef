@@ -24,6 +24,7 @@ describe("issue table contract", () => {
     expect(issueTableWidth(ISSUE_LIST_DEFAULT_COLUMNS)).toBeLessThanOrEqual(
       992,
     );
+    expect(ISSUE_TABLE_COLUMN_WIDTHS.status).toBe(152);
   });
 
   it("shares common field order and width tokens between List and Backlog", () => {

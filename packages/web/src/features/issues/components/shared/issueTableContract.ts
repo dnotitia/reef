@@ -30,7 +30,7 @@ export const ISSUE_TABLE_COLUMN_WIDTHS = {
   id: 72,
   type: 72,
   title: ISSUE_TABLE_TITLE_MIN_WIDTH,
-  status: 104,
+  status: 152,
   priority: 88,
   assignee: 128,
   start: 104,

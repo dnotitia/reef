@@ -149,10 +149,16 @@ test.describe("Hermetic issue route surfaces", () => {
       const status = root.querySelector(
         '[data-testid^="backlog-status-select-"]',
       );
+      const statusValue = status?.querySelector<HTMLElement>(
+        '[data-slot="select-value"]',
+      );
       return {
         headerHeight: header?.getBoundingClientRect().height ?? 0,
         rowHeight: row?.getBoundingClientRect().height ?? 0,
         statusHeight: status?.getBoundingClientRect().height ?? 0,
+        statusText: statusValue?.textContent?.trim() ?? "",
+        statusTextClipped:
+          !statusValue || statusValue.scrollWidth > statusValue.clientWidth,
         columnKeys: Array.from(
           root.querySelectorAll("thead th[data-column-key]"),
         ).map((cell) => cell.getAttribute("data-column-key")),
@@ -161,6 +167,8 @@ test.describe("Hermetic issue route surfaces", () => {
     expect(Math.round(backlogGeometry.headerHeight)).toBe(32);
     expect(Math.round(backlogGeometry.rowHeight)).toBe(40);
     expect(backlogGeometry.statusHeight).toBeLessThanOrEqual(32);
+    expect(backlogGeometry.statusText).toBe("Backlog");
+    expect(backlogGeometry.statusTextClipped).toBe(false);
     expect(backlogGeometry.columnKeys).toEqual([
       "rank",
       "id",
@@ -276,6 +284,21 @@ test.describe("Hermetic issue route surfaces", () => {
 
     await page.goto("/workspace/reef-e2e/issues?view=backlog");
     await expect(page.getByTestId("backlog-table")).toBeVisible();
+
+    const narrowStatusGeometry = await page
+      .locator('[data-testid^="backlog-status-select-"]')
+      .first()
+      .evaluate((element) => {
+        const value = element.querySelector<HTMLElement>(
+          '[data-slot="select-value"]',
+        );
+        return {
+          text: value?.textContent?.trim() ?? "",
+          clipped: !value || value.scrollWidth > value.clientWidth,
+        };
+      });
+    expect(narrowStatusGeometry.text).toBe("Backlog");
+    expect(narrowStatusGeometry.clipped).toBe(false);
 
     const backlogFilterBar = page.getByTestId("filter-bar");
     const backlogFilterGeometry = await backlogFilterBar.evaluate((element) => {
