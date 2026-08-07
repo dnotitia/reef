@@ -4,14 +4,16 @@
  * Overlay-dismiss registry (REEF-288).
  *
  * reef's custom overlays — the shared `Combobox` / `MultiSelectCombobox`, the
- * native `Popover` / `DropdownMenu`, and `IssueRelationInput` — are deliberately
- * NOT Radix layers, so they never enter Radix's `DismissableLayer` stack. Radix
- * listens for Escape on `document` in the *capture* phase and dismisses only its
+ * native `Popover`, and `IssueRelationInput` — are deliberately NOT Radix
+ * layers, so they never enter Radix's `DismissableLayer` stack. Radix listens
+ * for Escape on `document` in the *capture* phase and dismisses only its
  * highest layer; with no custom overlay in that stack, the highest layer is
- * always the surrounding Sheet/Dialog. So pressing Escape while a custom overlay
- * was open closed the whole sheet instead of just the overlay — and the overlays'
- * own bubble-phase `stopPropagation()` runs far too late to stop a capture-phase
- * `document` listener.
+ * always the surrounding Sheet/Dialog. The shared DropdownMenu is Radix-owned
+ * but also registers while open so parent overlays keep the same explicit
+ * escape handoff contract. Without that bridge, pressing Escape while a custom
+ * overlay was open closed the whole sheet instead of just the overlay — and
+ * the overlays' own bubble-phase `stopPropagation()` runs far too late to stop
+ * a capture-phase `document` listener.
  *
  * This registry bridges the gap without turning the overlays into Radix layers:
  * each open custom overlay registers with the nearest provider (mounted by

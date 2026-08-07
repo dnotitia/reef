@@ -164,6 +164,8 @@ export function SortControl({
             <DropdownMenuItem
               onSelect={() => clearSort()}
               data-testid="sort-option-rank"
+              aria-current={rankOrderActive ? "true" : undefined}
+              selected={rankOrderActive}
               className="justify-between gap-6"
             >
               <span className="inline-flex items-center gap-2">
@@ -188,6 +190,8 @@ export function SortControl({
               key={field}
               onSelect={() => selectField(field)}
               data-testid={`sort-option-${field}`}
+              aria-current={sortField === field ? "true" : undefined}
+              selected={sortField === field}
               className="justify-between gap-6"
             >
               <span className="inline-flex items-center gap-2">

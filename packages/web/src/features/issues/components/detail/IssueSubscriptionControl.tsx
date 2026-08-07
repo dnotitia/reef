@@ -59,12 +59,10 @@ export function IssueSubscriptionControl({
   function itemProps(action: IssueSubscriptionAction) {
     const disabled = itemDisabled(action);
     return {
-      "aria-disabled": disabled,
-      className: disabled ? "pointer-events-none opacity-50" : undefined,
+      disabled,
       onSelect: () => {
         if (!disabled) void selectAction(action);
       },
-      tabIndex: disabled ? -1 : 0,
     };
   }
 

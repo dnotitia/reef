@@ -1,3 +1,7 @@
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+} from "@/components/ui/dropdown-menu";
 // @vitest-environment jsdom
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +15,16 @@ vi.mock("../hooks/useTheme", () => ({
 
 import { AccountThemeToggle } from "./AccountThemeToggle";
 
+function renderToggle() {
+  return render(
+    <DropdownMenu defaultOpen>
+      <DropdownMenuContent>
+        <AccountThemeToggle />
+      </DropdownMenuContent>
+    </DropdownMenu>,
+  );
+}
+
 describe("AccountThemeToggle", () => {
   beforeEach(() => {
     setThemeMock.mockClear();
@@ -22,7 +36,7 @@ describe("AccountThemeToggle", () => {
   });
 
   it("renders the three theme choices as a labelled radio group", () => {
-    render(<AccountThemeToggle />);
+    renderToggle();
     expect(screen.getByRole("group", { name: "Theme" })).toBeInTheDocument();
     expect(screen.getByTestId("account-theme-light")).toBeInTheDocument();
     expect(screen.getByTestId("account-theme-dark")).toBeInTheDocument();
@@ -31,7 +45,7 @@ describe("AccountThemeToggle", () => {
 
   it("marks the current preference via aria-checked", () => {
     themeRef.current = "dark";
-    render(<AccountThemeToggle />);
+    renderToggle();
     expect(screen.getByTestId("account-theme-dark")).toHaveAttribute(
       "aria-checked",
       "true",
@@ -43,7 +57,7 @@ describe("AccountThemeToggle", () => {
   });
 
   it("calls setTheme with the clicked choice", async () => {
-    render(<AccountThemeToggle />);
+    renderToggle();
     fireEvent.click(screen.getByTestId("account-theme-light"));
     await waitFor(() => expect(setThemeMock).toHaveBeenCalledWith("light"));
   });

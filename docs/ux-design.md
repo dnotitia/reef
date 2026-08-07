@@ -373,9 +373,12 @@ visible focus rings (`focus-visible:ring-brand/40`) on custom interactive
 elements including the draggable Kanban card, `role="alert"` on inline error
 messages, `aria-live` toast semantics via Sonner, screen-reader-only
 titles/descriptions on the issue Sheet, and keyboard activation (Enter/Space)
-on the card. The Kanban card is reachable and openable by keyboard; pointer
-drag-and-drop is the enhancement, not the only path to moving an issue (status
-can also be changed from the detail panel's status select).
+on the card. Shared dropdown menus focus the current or first enabled row,
+support wrapping Arrow/Home/End navigation, expose checked/current state, and
+return focus to the trigger after Escape or a dialog. The Kanban card is
+reachable and openable by keyboard; pointer drag-and-drop is the enhancement,
+not the only path to moving an issue (status can also be changed from the
+detail panel's status select).
 
 ### Surface, Depth & Motion
 
@@ -484,6 +487,15 @@ skeletons, and timeline/settings have route-level skeletons shaped to their
 content. A soft inline notice appears if some issues fail to load (cached data
 is still shown). An unconfigured workspace shows a "Configure a workspace in
 Settings" empty state.
+
+**Filter toolbar menus.** Display is a compact checkable menu with independent
+Show archived and Show completed toggles; it stays open while the PM changes
+multiple options and hides the completed toggle in Backlog. My filters keeps
+filter selection separate from management actions: update, rename, duplicate,
+and delete are direct keyboard-navigable menu items grouped under each saved
+filter, while loading failures, unavailable filters, active/changed state, and
+empty state remain visible in the main menu. Saved names truncate in constrained
+layouts but retain their full value in a title or accessible label.
 
 ### Issue Detail Slide-Over
 

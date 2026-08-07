@@ -81,6 +81,11 @@ explicitly in the entries below.
 - **Issue filters now converge on shared person and planning option rows.**
   Milestone filtering lists only real milestones and exposes a dedicated clear
   action that leaves other active facets intact. (REEF-462)
+- **Issue filter and action menus now share a keyboard-accessible dropdown
+  contract.** Display toggles remain open for consecutive changes, saved-filter
+  management is grouped under per-filter submenus, and existing account, sort,
+  subscription, column, and issue-action callers use the same checked/current,
+  focus, alignment, and destructive treatments.
 
 ## v0.9.0 - 2026-08-03
 

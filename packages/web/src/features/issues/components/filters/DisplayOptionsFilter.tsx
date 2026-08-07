@@ -1,27 +1,52 @@
 "use client";
 
-import type { ComboboxOption } from "@/components/ui/combobox";
-import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
+import {
+  CBX_CHEVRON,
+  CBX_TRIGGER_CHIP,
+  CBX_TRIGGER_CHIP_ACTIVE,
+  CBX_TRIGGER_CHIP_INACTIVE,
+} from "@/components/ui/comboboxChrome";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  useDropdownMenu,
+} from "@/components/ui/dropdown-menu";
 import type { IssueFilter } from "@/features/issues/stores/useIssueStore";
-import { Archive, CircleCheck } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Archive, ChevronDown, CircleCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useMemo } from "react";
-
-/**
- * The "Display" view-mode toggles (REEF-275), modeled as a multi-select facet so
- * they reuse the same `MultiSelectCombobox` chrome (panel, glyph+label row,
- * trailing brand Check, chip trigger) as sibling facets in this bar rather than
- * a bespoke popover. Each toggle maps to one boolean filter flag (`archived` to
- * `showArchived`, `completed` to `showStale`); "selected" means the flag is on.
- * Glyph-aligned with the facet rows; the primitive adds the trailing selection
- * Check itself, so the leading glyph is the value mark.
- */
-type ViewModeKey = "archived" | "completed";
 
 interface DisplayOptionsFilterProps {
   backlogScope: boolean;
   filter: Pick<IssueFilter, "showArchived" | "showStale">;
   setFilter: (patch: Partial<IssueFilter>) => void;
+}
+
+function DisplayOptionsTrigger({ active }: { active: boolean }) {
+  const t = useTranslations("issues.filters");
+  const { open } = useDropdownMenu();
+
+  return (
+    <DropdownMenuTrigger
+      aria-label={t("displayOptions")}
+      className={cn(
+        CBX_TRIGGER_CHIP,
+        active ? CBX_TRIGGER_CHIP_ACTIVE : CBX_TRIGGER_CHIP_INACTIVE,
+      )}
+      data-testid="display-options-trigger"
+    >
+      {t("display")}
+      <ChevronDown
+        data-open={open}
+        aria-hidden="true"
+        className={CBX_CHEVRON}
+      />
+    </DropdownMenuTrigger>
+  );
 }
 
 export function DisplayOptionsFilter({
@@ -31,67 +56,43 @@ export function DisplayOptionsFilter({
 }: DisplayOptionsFilterProps) {
   const t = useTranslations("issues.filters");
 
-  const viewModeOptions = useMemo<ComboboxOption<ViewModeKey>[]>(
-    () => [
-      {
-        value: "archived",
-        label: t("showArchived"),
-        content: (
-          <>
-            <Archive
-              className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-              aria-hidden
-            />
-            {t("showArchived")}
-          </>
-        ),
-        testId: "show-archived-toggle",
-      },
-      {
-        value: "completed",
-        label: t("showCompleted"),
-        content: (
-          <>
-            <CircleCheck
-              className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-              aria-hidden
-            />
-            {t("showCompleted")}
-          </>
-        ),
-        testId: "show-stale-toggle",
-      },
-    ],
-    [t],
-  );
-
-  const values = useMemo<ViewModeKey[]>(() => {
-    const result: ViewModeKey[] = [];
-    if (filter.showArchived) result.push("archived");
-    if (filter.showStale) result.push("completed");
-    return result;
-  }, [filter.showArchived, filter.showStale]);
-  const options = useMemo(
-    () => (backlogScope ? viewModeOptions.slice(0, 1) : viewModeOptions),
-    [backlogScope, viewModeOptions],
-  );
-
   return (
-    <MultiSelectCombobox
-      label={t("display")}
-      values={values}
-      onToggle={(value, checked) =>
-        setFilter(
-          value === "archived"
-            ? { showArchived: checked || undefined }
-            : { showStale: checked || undefined },
-        )
-      }
-      options={options}
-      active={Boolean(filter.showArchived || filter.showStale)}
-      ariaLabel={t("displayOptions")}
-      triggerTestId="display-options-trigger"
-      contentTestId="display-options-content"
-    />
+    <DropdownMenu>
+      <DisplayOptionsTrigger
+        active={Boolean(filter.showArchived || filter.showStale)}
+      />
+      <DropdownMenuContent
+        align="start"
+        className="min-w-[13rem]"
+        data-testid="display-options-content"
+      >
+        <DropdownMenuLabel>{t("displayOptions")}</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuCheckboxItem
+          checked={Boolean(filter.showArchived)}
+          keepOpen
+          data-testid="show-archived-toggle"
+          leading={<Archive className="size-3.5" />}
+          onCheckedChange={(checked) =>
+            setFilter({ showArchived: checked ? true : undefined })
+          }
+        >
+          {t("showArchived")}
+        </DropdownMenuCheckboxItem>
+        {!backlogScope ? (
+          <DropdownMenuCheckboxItem
+            checked={Boolean(filter.showStale)}
+            keepOpen
+            data-testid="show-stale-toggle"
+            leading={<CircleCheck className="size-3.5" />}
+            onCheckedChange={(checked) =>
+              setFilter({ showStale: checked ? true : undefined })
+            }
+          >
+            {t("showCompleted")}
+          </DropdownMenuCheckboxItem>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

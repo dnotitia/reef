@@ -3,6 +3,7 @@
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -144,30 +145,23 @@ export function SidebarAccount({ appVersion, collapsed }: SidebarAccountProps) {
 
           <DropdownMenuSeparator />
 
-          {/* A native <button role="menuitem"> rather than DropdownMenuItem:
-              the menu should stay open through the async sign-out so the spinner
-              and any error render in place (DropdownMenuItem auto-closes on
-              select). `disabled` blocks re-entry and drops it from the tab
-              order while the request is in flight. */}
-          <button
-            type="button"
-            role="menuitem"
+          {/* Keep the shared menu layer open through the async sign-out so the
+              spinner and any error render in place. */}
+          <DropdownMenuItem
             disabled={signOut.isPending}
-            onClick={() => signOut.mutate()}
+            keepOpen
+            leading={
+              signOut.isPending ? (
+                <Spinner className="size-3.5" aria-hidden="true" />
+              ) : (
+                <LogOut className="size-3.5" aria-hidden="true" />
+              )
+            }
+            onSelect={() => signOut.mutate()}
             data-testid="account-signout"
-            className={cn(
-              "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[13px] text-foreground outline-none transition-colors duration-150 [touch-action:manipulation]",
-              "hover:bg-destructive/10 hover:text-destructive focus-visible:bg-destructive/10 focus-visible:text-destructive",
-              "disabled:pointer-events-none disabled:opacity-60",
-            )}
           >
-            {signOut.isPending ? (
-              <Spinner className="size-3.5" aria-hidden="true" />
-            ) : (
-              <LogOut className="size-3.5" aria-hidden="true" />
-            )}
-            <span>{signOut.isPending ? t("signingOut") : t("signOut")}</span>
-          </button>
+            {signOut.isPending ? t("signingOut") : t("signOut")}
+          </DropdownMenuItem>
 
           <p
             aria-live="polite"
@@ -178,20 +172,21 @@ export function SidebarAccount({ appVersion, collapsed }: SidebarAccountProps) {
 
           <DropdownMenuSeparator />
 
-          <a
-            href={releaseNotesUrl(appVersion)}
-            target="_blank"
-            rel="noreferrer"
-            role="menuitem"
-            data-testid="account-release-notes"
-            className="flex items-center justify-between gap-3 rounded-sm px-2 py-1.5 text-[13px] text-foreground outline-none transition-colors duration-150 hover:bg-surface-hover focus-visible:bg-surface-hover"
-          >
-            <span>{t("whatsNew")}</span>
-            <span className="flex items-center gap-1 font-mono text-[11px] tabular-nums text-muted-foreground">
-              <span data-testid="account-version">{releaseVersion}</span>
-              <ExternalLink aria-hidden="true" className="size-3" />
-            </span>
-          </a>
+          <DropdownMenuItem asChild>
+            <a
+              href={releaseNotesUrl(appVersion)}
+              target="_blank"
+              rel="noreferrer"
+              data-testid="account-release-notes"
+              className="justify-between gap-3"
+            >
+              <span>{t("whatsNew")}</span>
+              <span className="flex items-center gap-1 font-mono text-[11px] tabular-nums text-muted-foreground">
+                <span data-testid="account-version">{releaseVersion}</span>
+                <ExternalLink aria-hidden="true" className="size-3" />
+              </span>
+            </a>
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

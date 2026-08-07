@@ -141,11 +141,11 @@ export function IssueChromeActions({
           <DropdownMenuSeparator />
           <DropdownMenuItem
             data-testid="issue-delete-trigger"
+            destructive
             onSelect={() => {
               if (isDeletePending) return;
               onDeleteRequested();
             }}
-            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
           >
             <Trash2 className="mr-2 h-4 w-4" />
             {t("deleteEllipsis")}

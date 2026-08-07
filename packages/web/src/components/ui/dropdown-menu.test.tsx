@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +29,36 @@ function Harness() {
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
+  );
+}
+
+function KeyboardHarness() {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger data-testid="keyboard-trigger">
+        Open
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        <DropdownMenuItem data-testid="first-item">First</DropdownMenuItem>
+        <DropdownMenuItem disabled data-testid="disabled-item">
+          Disabled
+        </DropdownMenuItem>
+        <DropdownMenuItem data-testid="last-item">Last</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function ActivationHarness({ onSelect }: { onSelect: () => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger data-testid="activation-trigger">
+        Open
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        <DropdownMenuItem onSelect={onSelect}>Run</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -95,6 +125,68 @@ describe("DropdownMenu", () => {
     await user.keyboard(" ");
     expect(screen.queryByTestId("content")).toBeNull();
   });
+
+  it("moves focus with the menu keyboard contract and skips disabled items", async () => {
+    const user = userEvent.setup();
+    render(<KeyboardHarness />);
+    const trigger = screen.getByTestId("keyboard-trigger");
+
+    await user.click(trigger);
+    const first = screen.getByTestId("first-item");
+    const last = screen.getByTestId("last-item");
+    expect(first).toHaveFocus();
+
+    await user.keyboard("{ArrowDown}");
+    expect(last).toHaveFocus();
+    await user.keyboard("{ArrowDown}");
+    expect(first).toHaveFocus();
+    await user.keyboard("{ArrowUp}");
+    expect(last).toHaveFocus();
+    await user.keyboard("{Home}");
+    expect(first).toHaveFocus();
+    await user.keyboard("{End}");
+    expect(last).toHaveFocus();
+  });
+
+  it("marks a selected item as current and returns focus after Escape", async () => {
+    const user = userEvent.setup();
+    render(
+      <DropdownMenu>
+        <DropdownMenuTrigger data-testid="selected-trigger">
+          Open
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem selected data-testid="selected-item">
+            Selected
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>,
+    );
+    const trigger = screen.getByTestId("selected-trigger");
+
+    await user.click(trigger);
+    const item = screen.getByTestId("selected-item");
+    expect(item).toHaveAttribute("aria-current", "true");
+    await user.keyboard("{Escape}");
+    expect(trigger).toHaveFocus();
+  });
+
+  it("executes the focused item with Enter and Space", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(<ActivationHarness onSelect={onSelect} />);
+    const trigger = screen.getByTestId("activation-trigger");
+
+    await user.click(trigger);
+    await user.keyboard("{Enter}");
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    await user.click(trigger);
+    await user.keyboard(" ");
+    expect(onSelect).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
 });
 
 /** Harness for the open-direction / Escape behavior (REEF-068). */
@@ -112,12 +204,14 @@ function Menu({ side }: { side?: "top" | "bottom" }) {
 describe("DropdownMenuContent", () => {
   it("opens downward by default and upward with side='top'", async () => {
     const user = userEvent.setup();
-    const { rerender } = render(<Menu />);
+    const { unmount } = render(<Menu />);
     await user.click(screen.getByRole("button", { name: "Open" }));
-    expect(screen.getByTestId("content").className).toContain("top-full");
+    expect(screen.getByTestId("content")).toHaveAttribute("data-side", "bottom");
 
-    rerender(<Menu side="top" />);
-    expect(screen.getByTestId("content").className).toContain("bottom-full");
+    unmount();
+    render(<Menu side="top" />);
+    await user.click(screen.getByRole("button", { name: "Open" }));
+    expect(screen.getByTestId("content")).toHaveAttribute("data-side", "top");
   });
 
   it("closes on Escape", async () => {

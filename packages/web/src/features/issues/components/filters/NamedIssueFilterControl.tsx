@@ -119,8 +119,8 @@ function NamedFilterMenu({
 
   const closeAnd = useCallback(
     (action: () => void) => {
-      setOpen(false);
       action();
+      setOpen(false);
     },
     [setOpen],
   );
@@ -134,20 +134,12 @@ function NamedFilterMenu({
       <DropdownMenuLabel>{t("namedFilters")}</DropdownMenuLabel>
 
       {loadError ? (
-        <div
-          className="flex items-center gap-2 px-2 py-2 text-xs text-destructive"
-          role="alert"
-        >
-          <span className="min-w-0 flex-1">{t("loadError")}</span>
-          <button
-            type="button"
-            role="menuitem"
-            className="shrink-0 rounded px-1.5 py-1 font-medium underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
-            onClick={onRetry}
-          >
-            {t("retry")}
-          </button>
-        </div>
+        <>
+          <div className="px-2 py-2 text-xs text-destructive" role="alert">
+            {t("loadError")}
+          </div>
+          <DropdownMenuItem onSelect={onRetry}>{t("retry")}</DropdownMenuItem>
+        </>
       ) : items.length === 0 ? (
         <div
           aria-live="polite"
@@ -162,90 +154,83 @@ function NamedFilterMenu({
             const updateDisabled =
               !isActive || !item.applicable || !canSave || updatingId !== null;
             return (
-              <div
-                className="flex items-center gap-1 rounded-sm p-0.5 hover:bg-surface-hover"
-                key={item.id}
-              >
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="flex min-w-0 flex-1 items-center gap-2 rounded px-1.5 py-1.5 text-left text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+              <div className="space-y-0.5" key={item.id}>
+                <DropdownMenuItem
                   aria-current={isActive ? "true" : undefined}
+                  className="min-w-0"
                   disabled={!item.applicable}
-                  onClick={() => closeAnd(() => onApply(item))}
+                  onSelect={() => closeAnd(() => onApply(item))}
+                  selected={isActive}
                   title={item.name}
+                  trailing={
+                    !item.applicable ? (
+                      <span className="text-[11px] text-muted-foreground">
+                        {t("unavailable")}
+                      </span>
+                    ) : isActive ? (
+                      <span
+                        className={cn(
+                          "text-[11px] font-medium",
+                          activeChanged
+                            ? "text-amber-700 dark:text-amber-300"
+                            : "text-brand",
+                        )}
+                      >
+                        {activeChanged ? t("changed") : t("active")}
+                      </span>
+                    ) : undefined
+                  }
                 >
-                  <span className="min-w-0 flex-1 truncate">{item.name}</span>
-                  {!item.applicable ? (
-                    <span className="shrink-0 text-[11px] text-muted-foreground">
-                      {t("unavailable")}
-                    </span>
-                  ) : isActive ? (
-                    <span
-                      className={cn(
-                        "shrink-0 text-[11px] font-medium",
-                        activeChanged
-                          ? "text-amber-700 dark:text-amber-300"
-                          : "text-brand",
-                      )}
-                    >
-                      {activeChanged ? t("changed") : t("active")}
-                    </span>
-                  ) : null}
-                </button>
-                <fieldset
-                  className="m-0 flex min-w-0 shrink-0 items-center border-0 p-0"
-                  aria-label={t("manage", { name: item.name })}
-                >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="rounded p-1 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand/40 disabled:pointer-events-none disabled:opacity-40"
-                    aria-label={t("update", { name: item.name })}
-                    disabled={updateDisabled}
-                    onClick={() => closeAnd(onUpdate)}
-                    title={t("update", { name: item.name })}
-                  >
-                    {updatingId === item.id ? (
-                      <LoaderCircle
-                        aria-hidden="true"
-                        className="size-3.5 animate-spin"
-                      />
+                  <span className="block min-w-0 truncate">{item.name}</span>
+                </DropdownMenuItem>
+
+                <DropdownMenuLabel className="pl-8 text-[11px]">
+                  {t("manage", { name: item.name })}
+                </DropdownMenuLabel>
+                <DropdownMenuItem
+                  className="pl-8"
+                  disabled={updateDisabled}
+                  leading={
+                    updatingId === item.id ? (
+                      <LoaderCircle className="size-3.5 animate-spin" />
                     ) : (
-                      <RefreshCw aria-hidden="true" className="size-3.5" />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="rounded p-1 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand/40"
-                    aria-label={t("rename", { name: item.name })}
-                    onClick={() => closeAnd(() => onRename(item))}
-                    title={t("rename", { name: item.name })}
-                  >
-                    <Pencil aria-hidden="true" className="size-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="rounded p-1 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand/40"
-                    aria-label={t("duplicate", { name: item.name })}
-                    onClick={() => closeAnd(() => onDuplicate(item))}
-                    title={t("duplicate", { name: item.name })}
-                  >
-                    <Copy aria-hidden="true" className="size-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="rounded p-1 text-muted-foreground outline-none hover:text-destructive focus-visible:ring-2 focus-visible:ring-brand/40"
-                    aria-label={t("deleteNamed", { name: item.name })}
-                    onClick={() => closeAnd(() => onDelete(item))}
-                    title={t("deleteNamed", { name: item.name })}
-                  >
-                    <Trash2 aria-hidden="true" className="size-3.5" />
-                  </button>
-                </fieldset>
+                      <RefreshCw className="size-3.5" />
+                    )
+                  }
+                  onSelect={() => closeAnd(onUpdate)}
+                >
+                  <span className="min-w-0 truncate">
+                    {t("update", { name: item.name })}
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="pl-8"
+                  leading={<Pencil className="size-3.5" />}
+                  onSelect={() => closeAnd(() => onRename(item))}
+                >
+                  <span className="min-w-0 truncate">
+                    {t("rename", { name: item.name })}
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="pl-8"
+                  leading={<Copy className="size-3.5" />}
+                  onSelect={() => closeAnd(() => onDuplicate(item))}
+                >
+                  <span className="min-w-0 truncate">
+                    {t("duplicate", { name: item.name })}
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="pl-8"
+                  destructive
+                  leading={<Trash2 className="size-3.5" />}
+                  onSelect={() => closeAnd(() => onDelete(item))}
+                >
+                  <span className="min-w-0 truncate">
+                    {t("deleteNamed", { name: item.name })}
+                  </span>
+                </DropdownMenuItem>
               </div>
             );
           })}
@@ -260,11 +245,10 @@ function NamedFilterMenu({
 
       <DropdownMenuSeparator />
       <DropdownMenuItem
-        aria-disabled={!canSave}
-        className="gap-2"
+        disabled={!canSave}
+        leading={<Plus aria-hidden="true" className="size-3.5" />}
         onSelect={canSave ? onSave : undefined}
       >
-        <Plus aria-hidden="true" className="size-3.5" />
         {t("saveCurrent")}
       </DropdownMenuItem>
       <div className="px-2 pt-1 text-[11px] text-muted-foreground">
