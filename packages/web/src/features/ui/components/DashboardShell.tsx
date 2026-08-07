@@ -207,7 +207,8 @@ interface NavBadge {
 const cap = (n: number) => (n > 9 ? "9+" : String(n));
 
 export function DashboardShell({ children, appVersion }: DashboardShellProps) {
-  const interactionReady = useHydrated();
+  const hydrated = useHydrated();
+  const [interactionReady, setInteractionReady] = useState(false);
   const storedSidebarCollapsed = useViewStore(
     (state) => state.sidebarCollapsed,
   );
@@ -237,6 +238,12 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   // mounted in the authenticated shell. Restores a persisted locale if the
   // cookie was cleared (REEF-291).
   useLocaleSync();
+  // `useHydrated` changes to its client snapshot during hydration. Keep one
+  // shell-local effect as the interaction boundary so the server-rendered
+  // controls never become visible/focusable ahead of their event wiring.
+  useEffect(() => {
+    if (hydrated) setInteractionReady(true);
+  }, [hydrated]);
   const t = useTranslations("nav");
   const pathname = usePathname();
   const router = useRouter();
