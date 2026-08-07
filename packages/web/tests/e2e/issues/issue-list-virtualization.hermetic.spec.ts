@@ -183,6 +183,7 @@ test.describe("large issue list virtualization", () => {
     const sparsePage = await page.context().newPage();
     await clearPersistedQueryCacheOnLoad(sparsePage);
     await openExistingWorkspace(sparsePage, LARGE_VAULT);
+    const initialSparseResponse = waitForIssueListPage(sparsePage, false);
     const responses = issueListResponses(sparsePage);
     await sparsePage.goto(`/workspace/${LARGE_VAULT}/issues?view=list`);
     await sparsePage.getByTestId("labels-input").fill("tail-marker");
@@ -197,10 +198,10 @@ test.describe("large issue list virtualization", () => {
             .length,
       )
       .toBeGreaterThan(0);
-    const firstPage = responses.find(
-      ({ url }) => !new URL(url).searchParams.has("cursor"),
+    const initialSparsePage = await readIssueListPage(
+      await initialSparseResponse,
     );
-    expect(firstPage?.ids).not.toContain(TAIL_ISSUE_ID);
+    expect(initialSparsePage.ids).not.toContain(TAIL_ISSUE_ID);
     await sparsePage.close();
   });
 

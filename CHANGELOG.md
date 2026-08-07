@@ -48,6 +48,10 @@ explicitly in the entries below.
   workspace versions are owned by the default pnpm catalog, while CI, Docker,
   and Renovate use the same runtime and package-manager declarations.
 
+- **The repository now uses TypeScript 6.0.2 as its compiler baseline.**
+  TypeScript 7 remains deferred until the TypeScript 7.1 program API is stable
+  and the compiler-dependent toolchain publishes compatible peer ranges.
+
 - **Next.js web development, production, and E2E entrypoints now use the
   default Turbopack path.** The standalone production build contract remains
   unchanged while webpack-only overrides are removed.

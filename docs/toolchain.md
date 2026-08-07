@@ -15,10 +15,18 @@ of truth; generated lockfile entries are derived from them.
 | Enforcement | `pnpm run toolchain:check` |
 
 The default catalog owns the shared versions for `@opentelemetry/api`,
-`@types/node`, `ai`, `tsx`, `typescript`, `vitest`, and `zod`. Workspace
+`@types/node`, `ai`, `tsx`, `typescript`, `vitest`, and `zod`. The repository's
+TypeScript baseline is 6.0.2, declared as `^6.0.2` in the catalog and consumed
+through `catalog:` by every workspace that runs the compiler. Workspace
 manifests reference those versions with `catalog:`. Internal package edges
 remain owned by the consuming package and use `workspace:`; root-only build
 and analysis tools remain owned by the root manifest.
+
+TypeScript 7 is intentionally deferred. TypeScript 7.0 does not yet provide
+the stable program API used by the i18n literal scanner and typed lint path.
+Revisit the migration only once the TypeScript 7.1 API is stable and the
+compiler-dependent tools (including `typescript-eslint`) publish compatible
+peer ranges; that decision requires a separate compatibility proof.
 
 The current Node execution pin is `22.23.2`, selected from the supported Node 22
 release line. The root `engines.node` value (`>=22.13.0`) remains the compatible

@@ -32,7 +32,7 @@ async function createFixture() {
   );
   await writeFile(
     path.join(root, "pnpm-workspace.yaml"),
-    `packages:\n  - "packages/*"\n\ncatalog:\n  "@types/node": ^22.15.0\n  typescript: ^5.9.3\n  vitest: ^3.2.6\n  zod: ^3.25.76\n`,
+    `packages:\n  - "packages/*"\n\ncatalog:\n  "@types/node": ^22.15.0\n  typescript: ^6.0.2\n  vitest: ^3.2.6\n  zod: ^3.25.76\n`,
   );
   await writeFile(path.join(root, ".node-version"), "22.23.2\n");
   await mkdir(path.join(root, ".github", "workflows"), { recursive: true });
@@ -236,7 +236,7 @@ test("rejects unused and named catalog entries", async () => {
 
       await writeFile(
         path.join(root, "pnpm-workspace.yaml"),
-        `packages:\n  - "packages/*"\n\ncatalog:\n  "@types/node": ^22.15.0\n  typescript: ^5.9.3\n  vitest: ^3.2.6\n  zod: ^3.25.76\n  unused: ^1.0.0\n\ncatalogs:\n  legacy:\n    old: ^1.0.0\n`,
+        `packages:\n  - "packages/*"\n\ncatalog:\n  "@types/node": ^22.15.0\n  typescript: ^6.0.2\n  vitest: ^3.2.6\n  zod: ^3.25.76\n  unused: ^1.0.0\n\ncatalogs:\n  legacy:\n    old: ^1.0.0\n`,
       );
     },
     async ({ root, pnpmCommand }) => {
@@ -252,12 +252,12 @@ test("rejects unused and named catalog entries", async () => {
   );
 });
 
-test("rejects TypeScript and Node type catalog drift", async () => {
+test("rejects TypeScript 5.9 and Node type catalog drift", async () => {
   await withFixture(
     async (root) => {
       await writeFile(
         path.join(root, "pnpm-workspace.yaml"),
-        `packages:\n  - "packages/*"\n\ncatalog:\n  "@types/node": ^20.19.39\n  typescript: ^5.8.0\n  vitest: ^3.2.6\n  zod: ^3.25.76\n`,
+        `packages:\n  - "packages/*"\n\ncatalog:\n  "@types/node": ^20.19.39\n  typescript: ^5.9.3\n  vitest: ^3.2.6\n  zod: ^3.25.76\n`,
       );
     },
     async ({ root, pnpmCommand }) => {
@@ -265,6 +265,23 @@ test("rejects TypeScript and Node type catalog drift", async () => {
       assert.ok(
         result.violations.some(({ code }) => code === "node-types-version"),
       );
+      assert.ok(
+        result.violations.some(({ code }) => code === "typescript-version"),
+      );
+    },
+  );
+});
+
+test("rejects TypeScript 7 catalog drift", async () => {
+  await withFixture(
+    async (root) => {
+      await writeFile(
+        path.join(root, "pnpm-workspace.yaml"),
+        `packages:\n  - "packages/*"\n\ncatalog:\n  "@types/node": ^22.15.0\n  typescript: ^7.0.2\n  vitest: ^3.2.6\n  zod: ^3.25.76\n`,
+      );
+    },
+    async ({ root, pnpmCommand }) => {
+      const result = await inspectToolchain({ root, pnpmCommand });
       assert.ok(
         result.violations.some(({ code }) => code === "typescript-version"),
       );

@@ -8,7 +8,7 @@ catalog:
   "@opentelemetry/api": ^1.9.1
   "@types/node": ^22.15.0
   tsx: ^4.20.3
-  typescript: ^5.9.3
+  typescript: ^6.0.2
   vitest: ^3.2.6
   zod: ^3.25.76
 
