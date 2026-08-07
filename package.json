@@ -67,13 +67,13 @@
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "dependency-cruiser": "18.1.1",
-    "eslint": "^10.4.1",
+    "eslint": "10.8.0",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "jscpd": "^5.0.6",
-    "knip": "^6.16.1",
-    "tsdown": "^0.21.10",
+    "jscpd": "5.0.14",
+    "knip": "6.32.0",
+    "tsdown": "0.22.14",
     "turbo": "2.10.8",
-    "typescript-eslint": "^8.61.0",
+    "typescript-eslint": "8.66.0",
     "yaml": "^2.9.0"
   }
 }

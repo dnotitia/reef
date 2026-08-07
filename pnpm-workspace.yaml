@@ -7,8 +7,8 @@ catalog:
   "@octokit/rest": ^21.1.1
   "@opentelemetry/api": ^1.9.1
   "@types/node": ^24.13.3
-  msw: ^2.13.2
-  tsx: ^4.20.3
+  msw: 2.15.0
+  tsx: 4.23.9
   typescript: ^6.0.2
   vitest: ^3.2.6
   zod: ^3.25.76
