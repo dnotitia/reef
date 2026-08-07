@@ -108,7 +108,10 @@ function issueTableColumnStyle(
       ? { minWidth: ISSUE_TABLE_TITLE_MIN_WIDTH }
       : { width: ISSUE_TABLE_COLUMN_WIDTHS[column] }),
     ...(isIssueTableStickyColumn(column)
-      ? { left: issueTableColumnOffset(columns, column) }
+      ? {
+          left: issueTableColumnOffset(columns, column),
+          position: "sticky" as const,
+        }
       : {}),
   };
 }

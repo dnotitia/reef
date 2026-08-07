@@ -54,7 +54,10 @@ function issueListCellClass(column: IssueListColumnKey, stateClass?: string) {
   return cn(
     "h-10 min-w-0 px-3 py-0 align-middle",
     isIssueTableStickyColumn(column) &&
-      "sticky z-10 bg-background group-hover:bg-surface-hover",
+      cn(
+        "sticky bg-background group-hover:bg-surface-hover",
+        column === "id" ? "z-20" : "z-10",
+      ),
     column === "title" && "min-w-[15rem]",
     stateClass,
   );
@@ -69,7 +72,10 @@ function issueListCellStyle(
       ? { minWidth: ISSUE_TABLE_COLUMN_WIDTHS.title }
       : { width: ISSUE_TABLE_COLUMN_WIDTHS[column] }),
     ...(isIssueTableStickyColumn(column)
-      ? { left: issueTableColumnOffset(columns, column) }
+      ? {
+          left: issueTableColumnOffset(columns, column),
+          position: "sticky" as const,
+        }
       : {}),
   };
 }
