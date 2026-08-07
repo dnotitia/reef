@@ -13,6 +13,10 @@ vi.mock("@/lib/apiClient", async () => {
   return { ...actual, apiFetch: vi.fn() };
 });
 
+vi.mock("@/lib/useHydrated", () => ({
+  useHydrated: () => hydrationState.ready,
+}));
+
 vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   useActiveVault: () => ({
     vault: "reef-acme",
@@ -68,6 +72,7 @@ vi.mock("@/features/preferences/hooks/useLocaleSync", () => ({
 
 const {
   navigationState,
+  hydrationState,
   pendingSuggestionsState,
   unreadNotificationState,
   myWorkAttentionState,
@@ -76,6 +81,9 @@ const {
   navigationState: {
     pathname: "/workspace/reef-acme/issues",
     push: vi.fn(),
+  },
+  hydrationState: {
+    ready: true,
   },
   pendingSuggestionsState: {
     count: 0,
@@ -143,6 +151,7 @@ describe("DashboardShell", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     navigationState.pathname = "/workspace/reef-acme/issues";
+    hydrationState.ready = true;
     pendingSuggestionsState.count = 0;
     unreadNotificationState.count = 0;
     myWorkAttentionState.attention = 0;
@@ -217,6 +226,26 @@ describe("DashboardShell", () => {
     );
     expect(screen.getByRole("link", { name: "Reports" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
+  });
+
+  it("keeps pre-hydration navigation out of the accessibility tree", () => {
+    hydrationState.ready = false;
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+
+    const shell = document.querySelector('[data-interaction-ready="false"]');
+    expect(shell).toHaveAttribute("aria-hidden", "true");
+    expect(
+      shell?.querySelector('a[href="/workspace/reef-acme/planning"]'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Planning" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the capped Inbox badge with the 100-or-more accessible label", () => {
