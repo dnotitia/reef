@@ -9,6 +9,7 @@ const artifactPackageNames = [
   "@reef/orchestrator",
   "@reef/harness-provider-codex",
   "@reef/infrastructure-provider-local",
+  "@reef/scm-provider-github",
   "@reef/work-provider-reef",
   "@reef/jira-migrator",
 ];

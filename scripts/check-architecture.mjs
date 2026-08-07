@@ -12,6 +12,7 @@ const requiredWorkspaceNames = new Set([
   "@reef/orchestrator",
   "@reef/harness-provider-codex",
   "@reef/infrastructure-provider-local",
+  "@reef/scm-provider-github",
   "@reef/work-provider-reef",
 ]);
 

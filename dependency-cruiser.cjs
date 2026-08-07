@@ -5,6 +5,7 @@ const packageRoots = {
   orchestrator: "packages/orchestration/runtime",
   codex: "packages/orchestration/providers/codex",
   local: "packages/orchestration/providers/local",
+  github: "packages/orchestration/providers/github",
   reef: "packages/orchestration/providers/reef",
 };
 
@@ -75,6 +76,7 @@ module.exports = {
     forbiddenWorkspaceDirection("orchestrator", ["core"]),
     forbiddenWorkspaceDirection("codex", ["orchestrator"]),
     forbiddenWorkspaceDirection("local", ["orchestrator"]),
+    forbiddenWorkspaceDirection("github", ["orchestrator"]),
     forbiddenWorkspaceDirection("reef", ["core", "orchestrator"]),
   ],
   options: {
