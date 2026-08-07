@@ -17,7 +17,6 @@ const SUPPORTED_SCENARIOS = [
   "configured",
   "configured_empty",
   "configured_multi",
-  "work_uri_run",
   "demo_board",
   "content_search",
   "raw_only",
@@ -266,91 +265,6 @@ function normalizeScenario(value) {
   return SUPPORTED_SCENARIO_SET.has(value) ? value : "configured";
 }
 
-function fixtureOriginForDiscovery() {
-  return `http://${HOST}:${PORT}`;
-}
-
-function workUriRunConfigTemplate(fixtureOrigin) {
-  return {
-    schema_version: 1,
-    controller: {
-      state_root: "/absolute/private-controller-root",
-      stale_after_ms: 900000,
-    },
-    repository: {
-      id: "fixture-repository",
-      owner: "octo",
-      name: "reef",
-      root: "/absolute/candidate-checkout",
-      managed_work_root: "/absolute/private-run-root",
-      base_revision:
-        "0000000000000000000000000000000000000000000000000000000000000000",
-      remote: "origin",
-      remote_url: "https://github.com/octo/reef",
-      base_branch: "main",
-      branch_policy: {
-        allowed_prefixes: ["feat/", "fix/"],
-        max_length: 255,
-      },
-      permissions: {
-        commit: false,
-        push: false,
-        pull_request: false,
-      },
-    },
-    execution: { run_window_ms: 1000 },
-    validation_checks: [
-      { name: "invocation-boundary", command: "true", timeout_ms: 1000 },
-    ],
-    providers: [
-      {
-        kind: "work",
-        id: "reef",
-        version: "1.0.0",
-        environment: ["REEF_AKB_BASE_URL", "REEF_AKB_JWT"],
-        required_capabilities: ["read"],
-        options: {
-          vault: REEF_VAULT,
-          base_url_env: "REEF_AKB_BASE_URL",
-          jwt_env: "REEF_AKB_JWT",
-        },
-      },
-      {
-        kind: "harness",
-        id: "codex",
-        version: "0.1.0",
-        environment: [],
-        required_capabilities: [],
-        options: { executable: "node" },
-      },
-      {
-        kind: "infrastructure",
-        id: "local",
-        version: "0.1.0",
-        environment: ["PATH"],
-        required_capabilities: [],
-        options: { target: "foreground" },
-      },
-      {
-        kind: "scm",
-        id: "github",
-        version: "0.1.0",
-        environment: [],
-        required_capabilities: [],
-        options: { api_base_url: `${fixtureOrigin}/github` },
-      },
-      {
-        kind: "validation",
-        id: "local-validation",
-        version: "0.1.0",
-        environment: ["PATH"],
-        required_capabilities: [],
-        options: {},
-      },
-    ],
-  };
-}
-
 function runtimeDiscovery() {
   return {
     schema_version: 1,
@@ -437,46 +351,6 @@ function runtimeDiscovery() {
           planning: "/workspace/reef-e2e/planning",
         },
       },
-      work_uri_run: {
-        scenario: "work_uri_run",
-        work_uri: `reef://${REEF_VAULT}/REEF-001`,
-        reset: {
-          method: "POST",
-          path: "/__e2e/reset",
-          content_type: "application/json",
-          body: { scenario: "work_uri_run" },
-        },
-        entry: {
-          package: "@reef/orchestration-cli",
-          artifact: "dist/cli.js",
-          semantics: "run <canonical-work-uri> --config <absolute-json-path>",
-        },
-        access: {
-          backend: {
-            origin: `${fixtureOriginForDiscovery()}/akb`,
-            environment_name: "REEF_AKB_BASE_URL",
-          },
-          login: {
-            method: "POST",
-            path: "/akb/api/v1/auth/login",
-            credentials: "fixture_login",
-            token_field: "token",
-          },
-          token: {
-            environment_name: "REEF_AKB_JWT",
-            source: "login.token",
-            secret: true,
-          },
-        },
-        config_template: workUriRunConfigTemplate(fixtureOriginForDiscovery()),
-        boundary_probes: [
-          "reset fixture before each invocation",
-          "vary canonical and non-canonical work URI inputs",
-          "reuse the work URI while the first foreground run is active",
-          "send SIGINT after running progress is observed",
-          "scan only terminal and progress outputs for credential canaries",
-        ],
-      },
     },
   };
 }
@@ -544,7 +418,6 @@ function makeState(scenario) {
     scenario === "configured" ||
     scenario === "configured_empty" ||
     scenario === "configured_multi" ||
-    scenario === "work_uri_run" ||
     scenario === "activity_suggestions" ||
     scenario === "notifications" ||
     scenario === "skill_outdated" ||
