@@ -12,6 +12,8 @@ vi.mock("@/lib/akb/checkAkbSession", () => ({
   getAkbSessionStatus: (signal?: AbortSignal) => getAkbSessionStatus(signal),
 }));
 
+const snapshotPendingAkbAccountError = vi.fn();
+
 const accountDeniedHandler = vi.hoisted(() => ({
   current: undefined as
     | ((
@@ -20,6 +22,7 @@ const accountDeniedHandler = vi.hoisted(() => ({
     | undefined,
 }));
 vi.mock("@/lib/akb/accountDenialClient", () => ({
+  snapshotPendingAkbAccountError: () => snapshotPendingAkbAccountError(),
   consumePendingAkbAccountError: vi.fn(),
   subscribeAkbAccountDenied: (
     handler: (
@@ -38,6 +41,7 @@ import { useAuthRedirect } from "./useAuthRedirect";
 describe("useAuthRedirect", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    snapshotPendingAkbAccountError.mockReturnValue(undefined);
     accountDeniedHandler.current = undefined;
   });
 
@@ -63,6 +67,22 @@ describe("useAuthRedirect", () => {
 
     await waitFor(() => {
       expect(replace).toHaveBeenCalledWith("/login");
+    });
+  });
+
+  it("preserves a pending account denial when a plain fallback redirect races", async () => {
+    snapshotPendingAkbAccountError.mockReturnValue({
+      code: "membership_required",
+      token: "denial-token",
+    });
+    getAkbSessionStatus.mockResolvedValue({ active: false });
+
+    renderHook(() => useAuthRedirect("workspace"));
+
+    await waitFor(() => {
+      expect(replace).toHaveBeenCalledWith(
+        "/login?sso_error=membership_required&sso_error_token=denial-token",
+      );
     });
   });
 
