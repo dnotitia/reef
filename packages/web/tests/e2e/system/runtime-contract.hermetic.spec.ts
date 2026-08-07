@@ -1,6 +1,7 @@
 import { type Locator, expect, test } from "@playwright/test";
 import {
   E2E_MOCK_URL,
+  clearPersistedQueryCacheOnLoad,
   openExistingWorkspace,
   readFixtureState,
   resetFixture,
@@ -101,6 +102,11 @@ test.describe("Hermetic runtime discovery", () => {
             planning: "/workspace/reef-e2e/planning",
           },
         },
+        caught_up_states: {
+          scenario: "configured_caught_up",
+          workspace: "reef-e2e",
+          start_path: "/workspace/reef-e2e/my-work",
+        },
       },
     });
     const discoveredLogin = contract.fixture_login as typeof fixtureLogin;
@@ -121,6 +127,7 @@ test.describe("Hermetic runtime discovery", () => {
         "configured_multi",
         "backlog_bulk_partial_failure",
         "configured_empty",
+        "configured_caught_up",
         "content_search",
         "large_vault",
       ]),
@@ -204,11 +211,18 @@ test.describe("Hermetic runtime discovery", () => {
     await expect(myWorkEmpty.locator("p")).toHaveCount(1);
     await expect(myWorkEmpty.getByRole("link")).toHaveCount(0);
     await expect(
-      page
-        .locator('[data-slot="page-header"]')
-        .getByRole("link", { name: /Go to the board/ }),
-    ).toHaveAttribute("href", "/workspace/reef-e2e/issues?view=board");
+      page.locator('[data-slot="page-header"]').getByRole("link"),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("link", { name: "Issues", exact: true }),
+    ).toHaveAttribute("href", "/workspace/reef-e2e/issues");
     await recordFrame(myWorkEmpty);
+    await page.getByRole("link", { name: "Issues", exact: true }).click();
+    await page.waitForURL(/\/workspace\/reef-e2e\/issues\/?$/);
+    await expect(page.getByTestId("view-switcher-board")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
 
     await page.goto("/workspace/reef-e2e/inbox");
     const inboxEmpty = page.getByTestId("notification-inbox-empty");
@@ -271,7 +285,7 @@ test.describe("Hermetic runtime discovery", () => {
     ).toBeHidden();
   });
 
-  test("keeps empty frames aligned and header actions in bounds on narrow dark viewports", async ({
+  test("keeps empty frames and caught-up state aligned in narrow dark Korean viewports", async ({
     context,
     page,
     request,
@@ -279,8 +293,13 @@ test.describe("Hermetic runtime discovery", () => {
     await context.clearCookies();
     await page.setViewportSize({ width: 390, height: 844 });
     await page.emulateMedia({ colorScheme: "dark" });
+    await clearPersistedQueryCacheOnLoad(page);
     await resetFixture(request, "configured_empty");
+    await context.addCookies([
+      { name: "NEXT_LOCALE", value: "ko", domain: "localhost", path: "/" },
+    ]);
     await openExistingWorkspace(page);
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
 
     const frameBoxes: Array<{ width: number; height: number }> = [];
     async function recordFrame(locator: Locator) {
@@ -314,11 +333,8 @@ test.describe("Hermetic runtime discovery", () => {
     await recordFrame(myWorkEmpty);
     const boardAction = page
       .locator('[data-slot="page-header"]')
-      .getByRole("link", { name: /Go to the board/ });
-    await expect(boardAction).toBeVisible();
-    const boardBox = await boardAction.boundingBox();
-    if (!boardBox) throw new Error("Expected the Board action to have a box");
-    expect(boardBox.x + boardBox.width).toBeLessThanOrEqual(390);
+      .getByRole("link");
+    await expect(boardAction).toHaveCount(0);
     await expectViewportFits();
 
     await page.goto("/workspace/reef-e2e/inbox");
@@ -339,7 +355,8 @@ test.describe("Hermetic runtime discovery", () => {
     await recordFrame(planningEmpty);
     const sprintAction = page
       .locator('[data-slot="page-header"]')
-      .getByRole("button", { name: "New sprint" });
+      .getByRole("button");
+    await expect(sprintAction).toHaveCount(1);
     await expect(sprintAction).toBeVisible();
     const sprintBox = await sprintAction.boundingBox();
     if (!sprintBox)
@@ -352,6 +369,53 @@ test.describe("Hermetic runtime discovery", () => {
       expect(Math.abs(box.width - reference.width)).toBeLessThanOrEqual(1);
       expect(Math.abs(box.height - reference.height)).toBeLessThanOrEqual(1);
     }
+  });
+
+  test("keeps caught-up My Work passive in a narrow dark Korean viewport", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await context.clearCookies();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ colorScheme: "dark" });
+    await clearPersistedQueryCacheOnLoad(page);
+    await resetFixture(request, "configured_caught_up");
+    const state = await readFixtureState(request);
+    const vault = state.vaults.find((item) => item.name === "reef-e2e");
+    expect(state.scenario).toBe("configured_caught_up");
+    expect(vault?.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ status: "done", assigned_to: "alice" }),
+      ]),
+    );
+    await context.addCookies([
+      { name: "NEXT_LOCALE", value: "ko", domain: "localhost", path: "/" },
+    ]);
+    await openExistingWorkspace(page);
+    await expect(page.locator("html")).toHaveAttribute("lang", "ko");
+
+    await page.goto("/workspace/reef-e2e/my-work");
+    const myWorkCaughtUp = page.getByTestId("my-work-caught-up");
+    await expect(myWorkCaughtUp).toBeVisible();
+    await expect(myWorkCaughtUp.getByRole("link")).toHaveCount(0);
+    await expect(
+      page.locator('[data-slot="page-header"]').getByRole("link"),
+    ).toHaveCount(0);
+    const caughtUpWidths = await page.evaluate(() => ({
+      body: document.body.scrollWidth,
+      document: document.documentElement.scrollWidth,
+      viewport: window.innerWidth,
+    }));
+    expect(caughtUpWidths.body).toBeLessThanOrEqual(caughtUpWidths.viewport);
+    expect(caughtUpWidths.document).toBeLessThanOrEqual(
+      caughtUpWidths.viewport,
+    );
+    await page.reload();
+    await expect(page.getByTestId("my-work-caught-up")).toBeVisible();
+    await expect(
+      page.locator('[data-slot="page-header"]').getByRole("link"),
+    ).toHaveCount(0);
   });
 
   test("preserves the label no-match after clearing a parent report scope", async ({

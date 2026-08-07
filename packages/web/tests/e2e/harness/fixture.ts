@@ -8,6 +8,7 @@ export type FixtureScenario =
   | "empty"
   | "configured"
   | "configured_empty"
+  | "configured_caught_up"
   | "content_search"
   | "configured_multi"
   | "backlog_bulk_partial_failure"

@@ -234,6 +234,39 @@ describe("DashboardShell", () => {
     expect(screen.getByTestId("sidebar-nav-icon-issues")).toBeVisible();
   });
 
+  it("keeps the mobile tab order moving past the sidebar toggle", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockReturnValue({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }),
+    );
+
+    const user = userEvent.setup();
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+
+    const expandSidebar = screen.getByRole("button", {
+      name: "Expand sidebar",
+    });
+    expect(
+      document.querySelector('[data-interaction-ready="true"]'),
+    ).toBeInTheDocument();
+    expandSidebar.focus();
+    await user.tab();
+
+    expect(document.activeElement).toBe(
+      screen.getByTestId("new-issue-trigger"),
+    );
+  });
+
   it("renders the navigation links (Issues, Planning, Suggestions, Reports, Settings)", () => {
     render(
       wrap(
