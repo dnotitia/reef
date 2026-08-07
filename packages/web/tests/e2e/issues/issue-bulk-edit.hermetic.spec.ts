@@ -303,7 +303,10 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
     await grip.focus();
     await page.keyboard.press("Space");
     await page.keyboard.press("ArrowDown");
+    const liveRegion = page.locator('[role="status"][aria-live="assertive"]');
+    await expect(liveRegion).toHaveText("REEF-003 is at position 2.");
     await page.keyboard.press("Space");
+    await expect(liveRegion).toHaveText("REEF-003 moved to position 2.");
     await expect((await reorderResponse).ok()).toBeTruthy();
 
     await expect.poll(() => backlogIds(page)).toEqual(["REEF-002", "REEF-003"]);
