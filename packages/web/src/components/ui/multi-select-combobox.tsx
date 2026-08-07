@@ -44,6 +44,7 @@ import { Check, ChevronDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   type KeyboardEvent,
+  type PointerEvent,
   type ReactNode,
   useCallback,
   useEffect,
@@ -169,6 +170,7 @@ export function MultiSelectCombobox<T extends string>({
 
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const pointerActivationRef = useRef(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -209,6 +211,20 @@ export function MultiSelectCombobox<T extends string>({
     setOpen(true);
     setActiveIndex(0);
   }, [disabled]);
+
+  const togglePanel = useCallback(() => {
+    if (open) close();
+    else openPanel();
+  }, [close, open, openPanel]);
+
+  const handlePointerDown = useCallback(
+    (event: PointerEvent<HTMLButtonElement>) => {
+      if (event.button > 0 || searchable) return;
+      pointerActivationRef.current = true;
+      togglePanel();
+    },
+    [searchable, togglePanel],
+  );
 
   const toggleAt = useCallback(
     (index: number) => {
@@ -309,6 +325,7 @@ export function MultiSelectCombobox<T extends string>({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      pointerActivationRef.current = false;
       switch (e.key) {
         case "ArrowDown":
           e.preventDefault();
@@ -335,18 +352,22 @@ export function MultiSelectCombobox<T extends string>({
         case "Enter":
           // Toggle (don't commit-and-close) — multi-select stays open, and the
           // search query is preserved so further picks accumulate.
-          if (open) {
-            e.preventDefault();
-            if (clampedActive >= 0) toggleAt(clampedActive);
+          e.preventDefault();
+          if (!open) {
+            openPanel();
+          } else if (clampedActive >= 0) {
+            toggleAt(clampedActive);
           }
           break;
         case " ":
           // The trigger keeps focus on the button, so a bare Space would fire
           // its native click and close the menu. While open (and not typing in a
           // search input, where Space must type), toggle the active row and
-          // suppress that click; while closed, let the native click open the
-          // panel.
-          if (open && !searchable) {
+          // suppress that click; while closed, open the panel explicitly.
+          if (!open) {
+            e.preventDefault();
+            openPanel();
+          } else if (!searchable) {
             e.preventDefault();
             if (clampedActive >= 0) toggleAt(clampedActive);
           }
@@ -413,7 +434,20 @@ export function MultiSelectCombobox<T extends string>({
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
         aria-activedescendant={!searchable && open ? activeRowId : undefined}
-        onClick={() => (open ? close() : openPanel())}
+        onPointerDown={handlePointerDown}
+        onPointerCancel={() => {
+          pointerActivationRef.current = false;
+        }}
+        onClick={(event) => {
+          // Pointer activation is handled on pointerdown so it cannot be lost
+          // to a document-level dismissal listener. Keyboard and programmatic
+          // clicks have no preceding pointer activation and use the fallback.
+          if (pointerActivationRef.current) {
+            pointerActivationRef.current = false;
+            return;
+          }
+          togglePanel();
+        }}
         onKeyDown={handleKeyDown}
         className={cn(
           CBX_TRIGGER_CHIP,

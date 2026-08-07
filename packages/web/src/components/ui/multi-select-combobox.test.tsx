@@ -1,4 +1,10 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -78,6 +84,24 @@ describe("MultiSelectCombobox", () => {
     await user.click(trigger);
     expect(screen.queryByTestId("fruit-content")).toBeNull();
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("opens from explicit pointer and keyboard activation while closed", () => {
+    render(<Harness />);
+    const trigger = screen.getByTestId("fruit-trigger");
+
+    fireEvent.pointerDown(trigger, { button: 0 });
+    expect(screen.queryByTestId("fruit-content")).not.toBeNull();
+
+    fireEvent.keyDown(trigger, { key: "Escape" });
+    expect(screen.queryByTestId("fruit-content")).toBeNull();
+
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    expect(screen.queryByTestId("fruit-content")).not.toBeNull();
+
+    fireEvent.keyDown(trigger, { key: "Escape" });
+    fireEvent.keyDown(trigger, { key: " " });
+    expect(screen.queryByTestId("fruit-content")).not.toBeNull();
   });
 
   it("closes on an outside click", async () => {

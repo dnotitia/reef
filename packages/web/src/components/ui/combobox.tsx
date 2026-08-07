@@ -32,6 +32,7 @@ import { Check, ChevronDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   type KeyboardEvent,
+  type PointerEvent,
   type ReactNode,
   useCallback,
   useEffect,
@@ -184,6 +185,7 @@ export function Combobox<T extends string>({
 
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const pointerActivationRef = useRef(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -282,6 +284,20 @@ export function Combobox<T extends string>({
     setOpen(true);
     initializeActiveIndex();
   }, [disabled, initializeActiveIndex, setOpen]);
+
+  const togglePanel = useCallback(() => {
+    if (open) close();
+    else openPanel();
+  }, [close, open, openPanel]);
+
+  const handlePointerDown = useCallback(
+    (event: PointerEvent<HTMLButtonElement>) => {
+      if (event.button > 0 || searchable) return;
+      pointerActivationRef.current = true;
+      togglePanel();
+    },
+    [searchable, togglePanel],
+  );
 
   const commitRow = useCallback(
     (row: Row<T> | undefined) => {
@@ -391,6 +407,7 @@ export function Combobox<T extends string>({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      pointerActivationRef.current = false;
       switch (e.key) {
         case "ArrowDown":
           e.preventDefault();
@@ -415,12 +432,14 @@ export function Combobox<T extends string>({
           }
           break;
         case "Enter":
-          if (open) {
+          e.preventDefault();
+          if (!open) {
+            openPanel();
+          } else {
             // Trap Enter inside the combobox (no form submit). `rows` already
             // excludes the async option rows while loading and the clear row
             // while searching, and clampedActive is -1 when the current value
             // isn't in the loaded page — so Enter only ever commits a visible row.
-            e.preventDefault();
             if (clampedActive >= 0) commitRow(rows[clampedActive]);
           }
           break;
@@ -436,9 +455,12 @@ export function Combobox<T extends string>({
           // The non-searchable trigger keeps focus on the button, so a bare
           // Space would fire its native click and close the menu. While open,
           // commit the active row like Enter and suppress that click; while
-          // closed, let the native click open the panel. (Searchable combos keep
-          // focus in the text input, where Space must type normally.)
-          if (!searchable && open) {
+          // closed, open it explicitly. (Searchable combos keep focus in the
+          // text input while open, where Space must type normally.)
+          if (!open) {
+            e.preventDefault();
+            openPanel();
+          } else if (!searchable) {
             e.preventDefault();
             if (clampedActive >= 0) commitRow(rows[clampedActive]);
           }
@@ -514,7 +536,20 @@ export function Combobox<T extends string>({
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
         aria-activedescendant={!searchable && open ? activeRowId : undefined}
-        onClick={() => (open ? close() : openPanel())}
+        onPointerDown={handlePointerDown}
+        onPointerCancel={() => {
+          pointerActivationRef.current = false;
+        }}
+        onClick={(event) => {
+          // Pointer activation is handled on pointerdown so it cannot be lost
+          // to a document-level dismissal listener. Keyboard and programmatic
+          // clicks have no preceding pointer activation and use the fallback.
+          if (pointerActivationRef.current) {
+            pointerActivationRef.current = false;
+            return;
+          }
+          togglePanel();
+        }}
         onKeyDown={handleKeyDown}
         className={cn(
           isButton ? CBX_TRIGGER_BUTTON : CBX_TRIGGER_FIELD,
