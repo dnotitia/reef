@@ -22,7 +22,17 @@ describe("EmptyWorkspaceNotice", () => {
       </IntlTestProvider>,
     );
 
-    expect(screen.getByTestId("empty-workspace-notice")).toBeInTheDocument();
+    const notice = screen.getByTestId("empty-workspace-notice");
+    expect(notice).toBeInTheDocument();
+    expect(notice).toHaveClass(
+      "flex",
+      "flex-1",
+      "items-center",
+      "justify-center",
+      "px-6",
+      "py-12",
+    );
+    expect(notice).not.toHaveClass("rounded-lg", "border-dashed");
     expect(screen.getByText(/Pick a workspace/i)).toBeInTheDocument();
     expect(screen.getByText(/to get started\./i)).toBeInTheDocument();
   });

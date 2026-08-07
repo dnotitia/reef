@@ -95,11 +95,15 @@ export function HealthRollup({
   issues,
   catalog,
   filters,
+  dimension,
+  onDimensionChange,
   onDrill,
 }: {
   issues: ReadonlyArray<IssueListItem>;
   catalog: PlanningCatalog;
   filters: ReportFilters;
+  dimension: RollupDimension;
+  onDimensionChange: (dimension: RollupDimension) => void;
   /** Toggle the page scope to one planning item (drill in / out). */
   onDrill: (dimension: RollupDimension, id: string) => void;
 }) {
@@ -113,7 +117,6 @@ export function HealthRollup({
       ),
     [catalog, issues],
   );
-  const [dimension, setDimension] = useState<RollupDimension>("milestone");
   const [showShipped, setShowShipped] = useState(false);
   const t = useTranslations("reports.cards");
   const dimensionLabel = useDimensionLabels();
@@ -184,7 +187,7 @@ export function HealthRollup({
             <DimensionToggle
               dims={availableDims}
               active={activeDim}
-              onSelect={setDimension}
+              onSelect={onDimensionChange}
             />
           )}
         </div>

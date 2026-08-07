@@ -5,8 +5,10 @@ import type {
   Release,
 } from "@reef/core";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_REPORT_FILTERS, type ReportFilters } from "../lib/aggregate";
+import type { RollupDimension } from "../lib/healthRollup";
 import { HealthRollup } from "./HealthRollup";
 
 afterEach(cleanup);
@@ -66,7 +68,7 @@ function renderRollup(overrides?: {
 }) {
   const onDrill = overrides?.onDrill ?? vi.fn();
   render(
-    <HealthRollup
+    <ControlledHealthRollup
       issues={issues}
       catalog={catalog}
       filters={overrides?.filters ?? DEFAULT_REPORT_FILTERS}
@@ -74,6 +76,30 @@ function renderRollup(overrides?: {
     />,
   );
   return { onDrill };
+}
+
+function ControlledHealthRollup({
+  issues: testIssues,
+  catalog: testCatalog,
+  filters,
+  onDrill,
+}: {
+  issues: typeof issues;
+  catalog: PlanningCatalog;
+  filters: ReportFilters;
+  onDrill: (dimension: string, id: string) => void;
+}) {
+  const [dimension, setDimension] = useState<RollupDimension>("milestone");
+  return (
+    <HealthRollup
+      issues={testIssues}
+      catalog={testCatalog}
+      filters={filters}
+      dimension={dimension}
+      onDimensionChange={setDimension}
+      onDrill={onDrill}
+    />
+  );
 }
 
 describe("HealthRollup", () => {
@@ -88,9 +114,15 @@ describe("HealthRollup", () => {
 
   it("switches dimension via the segmented toggle", () => {
     renderRollup();
+    const milestones = screen.getByTestId("health-rollup-dimension-milestone");
+    const releases = screen.getByTestId("health-rollup-dimension-release");
     // Milestones active by default → release row absent.
+    expect(milestones).toHaveAttribute("aria-pressed", "true");
+    expect(releases).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByTestId("health-rollup-row-R1")).toBeNull();
-    fireEvent.click(screen.getByTestId("health-rollup-dimension-release"));
+    fireEvent.click(releases);
+    expect(milestones).toHaveAttribute("aria-pressed", "false");
+    expect(releases).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("health-rollup-row-R1")).toBeTruthy();
     expect(screen.queryByTestId("health-rollup-row-M1")).toBeNull();
   });
@@ -130,15 +162,22 @@ describe("HealthRollup", () => {
     ];
     const onDrill = vi.fn();
     render(
-      <HealthRollup
+      <ControlledHealthRollup
         issues={parentIssues}
         catalog={{ sprints: [], milestones: [milestone("M1")], releases: [] }}
         filters={DEFAULT_REPORT_FILTERS}
         onDrill={onDrill}
       />,
     );
-    // Parent is available because issues reference a parent; switch to it.
-    fireEvent.click(screen.getByTestId("health-rollup-dimension-parent"));
+    // Parent is available because issues reference a parent; switch to it and
+    // verify the control's selected state, not only the resulting row.
+    const milestones = screen.getByTestId("health-rollup-dimension-milestone");
+    const parent = screen.getByTestId("health-rollup-dimension-parent");
+    expect(milestones).toHaveAttribute("aria-pressed", "true");
+    expect(parent).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(parent);
+    expect(milestones).toHaveAttribute("aria-pressed", "false");
+    expect(parent).toHaveAttribute("aria-pressed", "true");
     const row = screen.getByTestId("health-rollup-row-E1");
     expect(row.textContent).toContain("Reports epic"); // title, not the id
     fireEvent.click(row);
@@ -155,7 +194,7 @@ describe("HealthRollup", () => {
     // A milestone past its target with open work is off track; the header should
     // not fold it into an "at risk" count (REEF-191 follow-up).
     render(
-      <HealthRollup
+      <ControlledHealthRollup
         issues={[
           makeIssue({ id: "L", milestone_id: "M_LATE", status: "todo" }),
         ]}

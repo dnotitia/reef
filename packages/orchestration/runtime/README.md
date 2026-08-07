@@ -13,6 +13,12 @@ The package has no Reef configuration loader, environment alias, executable,
 AKB/GitHub/LLM dependency, or public CLI. Signal registration remains available
 through `installShutdownHandlers` for callers that own a process lifecycle.
 
+Its provider-neutral validation contract carries an exact candidate and contract
+revision plus a frozen ordered list of named commands and positive timeouts.
+Validation results preserve check order and bounded proof metadata; concrete
+process execution belongs to a provider such as
+`@reef/validation-provider-local`.
+
 ```ts
 import {
   executeRunPlan,

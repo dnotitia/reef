@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { buildOpenIssueHref } from "@/features/issues/lib/issueHref";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
@@ -180,7 +181,10 @@ function NotificationItem({
 export function NotificationInboxSkeleton() {
   const t = useTranslations("inbox");
   return (
-    <div data-testid="notification-inbox-loading">
+    <div
+      data-testid="notification-inbox-loading"
+      className="mx-auto w-full max-w-2xl"
+    >
       <output className="sr-only">{t("loading")}</output>
       <div
         className="overflow-hidden rounded-lg border border-border-subtle"
@@ -216,7 +220,7 @@ function NotificationInboxContent({ vault }: { vault: string }) {
       <div
         role="alert"
         data-testid="notification-inbox-error"
-        className="rounded-lg border border-dashed border-destructive/40 bg-destructive/5 px-6 py-12 text-center"
+        className="mx-auto w-full max-w-2xl rounded-lg border border-dashed border-destructive/40 bg-destructive/5 px-6 py-12 text-center"
       >
         <Bell
           className="mx-auto mb-3 h-5 w-5 text-destructive"
@@ -247,32 +251,22 @@ function NotificationInboxContent({ vault }: { vault: string }) {
         <div
           role="alert"
           aria-live="polite"
-          className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+          className="mx-auto w-full max-w-2xl rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
         >
           {actionError}
         </div>
       )}
       {notifications.length === 0 ? (
-        <output
+        <EmptyState
           data-testid="notification-inbox-empty"
-          className="rounded-lg border border-dashed border-border-subtle px-6 py-16 text-center"
-        >
-          <Bell
-            className="mx-auto mb-3 h-5 w-5 text-muted-foreground"
-            aria-hidden="true"
-          />
-          <h2 className="text-pretty text-sm font-semibold text-foreground">
-            {t("emptyTitle")}
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("emptyDescription")}
-          </p>
-        </output>
+          title={t("emptyTitle")}
+          description={t("emptyDescription")}
+        />
       ) : (
         <ul
           aria-label={t("listLabel")}
           data-testid="notification-inbox-list"
-          className="overflow-hidden rounded-lg border border-border-subtle bg-surface-subtle"
+          className="mx-auto w-full max-w-2xl overflow-hidden rounded-lg border border-border-subtle bg-surface-subtle"
         >
           {notifications.map((notification) => (
             <NotificationItem
@@ -298,7 +292,7 @@ export function NotificationInboxPage() {
       {!vault && !vaultLoading ? (
         <EmptyWorkspaceNotice />
       ) : (
-        <PageBody width="narrow">
+        <PageBody width="full">
           <NotificationInboxContent vault={vault} />
         </PageBody>
       )}

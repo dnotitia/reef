@@ -293,6 +293,33 @@ describe("ReportsPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("uses a passive shared empty state when the workspace has no issues", async () => {
+    mockApi([]);
+
+    render(wrap(<ReportsPage />));
+
+    const empty = await screen.findByTestId("reports-empty");
+    expect(
+      within(empty).getByRole("heading", { name: "No active issues yet" }),
+    ).toBeInTheDocument();
+    expect(
+      within(empty).getByText("Create one to start building reports."),
+    ).toBeInTheDocument();
+    expect(empty).toHaveClass(
+      "mx-auto",
+      "min-h-48",
+      "w-full",
+      "max-w-4xl",
+      "rounded-lg",
+      "border-dashed",
+      "border-border-subtle",
+      "bg-surface-subtle",
+      "px-6",
+      "py-12",
+    );
+    expect(within(empty).queryByRole("button")).not.toBeInTheDocument();
+  });
+
   it("shows an empty report state when filters match no issues", async () => {
     mockApi(issues);
 
@@ -301,7 +328,28 @@ describe("ReportsPage", () => {
     await screen.findByTestId("report-scope-bar");
     setLabelFilter("missing");
 
-    expect(screen.getByText(/No matching report data/i)).toBeInTheDocument();
+    const empty = screen.getByTestId("reports-empty");
+    expect(
+      within(empty).getByRole("heading", {
+        name: "No matching report data",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(empty).getByText("Adjust the report scope to widen the view."),
+    ).toBeInTheDocument();
+    expect(empty).toHaveClass(
+      "mx-auto",
+      "min-h-48",
+      "w-full",
+      "max-w-4xl",
+      "rounded-lg",
+      "border-dashed",
+      "border-border-subtle",
+      "bg-surface-subtle",
+      "px-6",
+      "py-12",
+    );
+    expect(within(empty).queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("can clear a parent rollup drill from the empty state (REEF-187)", async () => {
@@ -338,10 +386,13 @@ describe("ReportsPage", () => {
     // zero with a label that matches nothing.
     fireEvent.click(screen.getByTestId("health-rollup-row-E1"));
     setLabelFilter("missing");
-    expect(screen.getByText(/No matching report data/i)).toBeInTheDocument();
+    expect(screen.getByText("No matching report data")).toBeInTheDocument();
 
     const clear = screen.getByTestId("reports-clear-parent-scope");
     expect(clear).toHaveTextContent("Reports epic");
+    expect(
+      within(screen.getByTestId("reports-empty")).queryByRole("button"),
+    ).not.toBeInTheDocument();
     fireEvent.click(clear);
 
     // Parent facet cleared → its affordance disappears (the label filter still
@@ -349,6 +400,58 @@ describe("ReportsPage", () => {
     expect(
       screen.queryByTestId("reports-clear-parent-scope"),
     ).not.toBeInTheDocument();
+  });
+
+  it("preserves a label-only no-match when clearing the parent scope", async () => {
+    mockApi([
+      {
+        id: "E1",
+        title: "Triage GitHub activity into draft issues",
+        status: "todo",
+        created_at: "2026-05-01T00:00:00.000Z",
+        created_by: "alice",
+        updated_at: "2026-05-01T00:00:00.000Z",
+        updated_by: "alice",
+      },
+      {
+        id: "c1",
+        parent_id: "E1",
+        title: "Child task",
+        status: "todo",
+        created_at: "2026-05-02T00:00:00.000Z",
+        created_by: "alice",
+        updated_at: "2026-05-02T00:00:00.000Z",
+        updated_by: "alice",
+        labels: ["activity"],
+      },
+      {
+        id: "other",
+        title: "Unrelated report",
+        status: "todo",
+        created_at: "2026-05-03T00:00:00.000Z",
+        created_by: "alice",
+        updated_at: "2026-05-03T00:00:00.000Z",
+        updated_by: "alice",
+        labels: ["planning"],
+      },
+    ]);
+
+    render(wrap(<ReportsPage />));
+    await screen.findByTestId("report-scope-bar");
+
+    fireEvent.click(screen.getByTestId("health-rollup-row-E1"));
+    setLabelFilter("docs");
+
+    expect(screen.getByText("No matching report data")).toBeInTheDocument();
+    expect(screen.getByText("docs")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("reports-clear-parent-scope"));
+
+    expect(
+      screen.queryByTestId("reports-clear-parent-scope"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("No matching report data")).toBeInTheDocument();
+    expect(screen.getByText("docs")).toBeInTheDocument();
   });
 
   it("surfaces the previously-dead bySeverity aggregate as a By severity card (REEF-186)", async () => {

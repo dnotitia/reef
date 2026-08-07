@@ -78,17 +78,6 @@ export function ReportSection({
   );
 }
 
-export function EmptyState({ children }: { children: ReactNode }) {
-  return (
-    <div
-      data-testid="reports-empty"
-      className="rounded-lg border border-dashed border-border-subtle bg-surface-subtle px-6 py-12 text-center"
-    >
-      {children}
-    </div>
-  );
-}
-
 // Stable React keys for the fixed-count placeholder groups (avoids index-as-key).
 const SCOPE_CONTROL_KEYS = Array.from({ length: 8 }, (_, i) => `scope-${i}`);
 const KPI_TILE_KEYS = Array.from({ length: 8 }, (_, i) => `kpi-${i}`);

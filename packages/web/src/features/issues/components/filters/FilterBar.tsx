@@ -222,7 +222,13 @@ export function FilterBar({
   const hasActiveFilters = activeCount > 0;
 
   return (
-    <div className="flex flex-wrap items-center gap-2" data-testid="filter-bar">
+    <div
+      className={cn(
+        "flex flex-wrap items-center gap-2",
+        backlogScope && "flex-nowrap overflow-x-auto [&>*]:shrink-0",
+      )}
+      data-testid="filter-bar"
+    >
       {/* Status filter — omitted in the backlog view, which pins status itself */}
       {backlogScope ? null : (
         <MultiSelectCombobox

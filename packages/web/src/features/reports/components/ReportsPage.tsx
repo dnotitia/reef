@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useIssueList } from "@/features/issues/hooks/queries/useIssueList";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
@@ -27,7 +28,6 @@ import { PivotCard } from "./PivotCard";
 import { NetThroughputChart, RankedBarList, RiskMatrix } from "./ReportCharts";
 import {
   Card,
-  EmptyState,
   PageShell,
   ReportSection,
   ReportsSkeleton,
@@ -57,6 +57,8 @@ export function ReportsPage() {
   const issuesQuery = useIssueList(vault);
   const planningQuery = usePlanningCatalog(vault);
   const [filters, setFilters] = useState<ReportFilters>(DEFAULT_REPORT_FILTERS);
+  const [rollupDimension, setRollupDimension] =
+    useState<RollupDimension>("milestone");
   const [nowMs] = useState(() => Date.now());
 
   // Aggregation is a single pass over every issue; memoize so unrelated
@@ -98,6 +100,14 @@ export function ReportsPage() {
       ...current,
       [key]: current[key] === id ? undefined : id,
     }));
+  }, []);
+
+  const clearParentScope = useCallback(() => {
+    setFilters((current) => {
+      const next = { ...current };
+      next.parent_id = undefined;
+      return next;
+    });
   }, []);
 
   const catalog = planningQuery.data;
@@ -168,9 +178,11 @@ export function ReportsPage() {
   if (issues.length === 0) {
     return (
       <PageShell description={vault || undefined}>
-        <EmptyState>
-          <p className="text-sm text-muted-foreground">{t("noActiveIssues")}</p>
-        </EmptyState>
+        <EmptyState
+          data-testid="reports-empty"
+          title={t("noActiveIssuesTitle")}
+          description={t("noActiveIssuesDescription")}
+        />
       </PageShell>
     );
   }
@@ -181,31 +193,31 @@ export function ReportsPage() {
         <ReportScopeBar filters={filters} onChange={setFilters} />
 
         {agg.filteredTotal === 0 ? (
-          <EmptyState>
-            <p className="text-sm text-muted-foreground">
-              {t("noMatchingData")}
-            </p>
-            {/* A parent drill empties the page without leaving a scope-bar
-                control to undo it (unlike the planning axes), and the rollup row
-                — the normal clear path — is gone in this empty branch. Offer the
-                clear here so the parent scope doesn't trap the page (REEF-187). */}
-            {filters.parent_id && (
-              <Button
-                variant="outline"
-                size="sm"
-                data-testid="reports-clear-parent-scope"
-                onClick={() =>
-                  setFilters((current) => ({
-                    ...current,
-                    parent_id: undefined,
-                  }))
-                }
-              >
-                {t("clearParentFilter")}
-                {parentScopeName ? `: ${parentScopeName}` : ""}
-              </Button>
-            )}
-          </EmptyState>
+          <div className="flex flex-col gap-3">
+            <EmptyState
+              data-testid="reports-empty"
+              title={t("noMatchingDataTitle")}
+              description={t("noMatchingDataDescription")}
+            />
+            {filters.parent_id ? (
+              <div className="flex justify-center">
+                {/* A parent drill empties the page without leaving a scope-bar
+                   control to undo it (unlike the planning axes), and the rollup row
+                   — the normal clear path — is gone in this empty branch. Keep the
+                   existing clear control outside the empty frame so it does not
+                   change the section's content hierarchy (REEF-187). */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  data-testid="reports-clear-parent-scope"
+                  onClick={clearParentScope}
+                >
+                  {t("clearParentFilter")}
+                  {parentScopeName ? `: ${parentScopeName}` : ""}
+                </Button>
+              </div>
+            ) : null}
+          </div>
         ) : (
           // Three scan bands — present state, flow over time, and the static
           // breakdowns — so the long card stack reads as a few named groups with
@@ -227,6 +239,8 @@ export function ReportsPage() {
                     issues={issues}
                     catalog={catalog}
                     filters={filters}
+                    dimension={rollupDimension}
+                    onDimensionChange={setRollupDimension}
                     onDrill={handleDrill}
                   />
                 )}

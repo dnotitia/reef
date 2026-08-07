@@ -395,23 +395,126 @@ export interface ScmOperationMap {
   };
 }
 
+const VALIDATION_CHECK_NAME_MAX_LENGTH = 128;
+const VALIDATION_COMMAND_MAX_LENGTH = 64 * 1024;
+export const MAX_VALIDATION_TIMEOUT_MS = 30 * 60 * 1_000;
+
+const validationCheckNameSchema = z
+  .string()
+  .min(1, "validation check name must not be empty")
+  .max(
+    VALIDATION_CHECK_NAME_MAX_LENGTH,
+    `validation check name must be at most ${VALIDATION_CHECK_NAME_MAX_LENGTH} characters`,
+  )
+  .refine(
+    (value) => value.trim().length > 0,
+    "validation check name must not be blank",
+  );
+
+const validationCommandSchema = z
+  .string()
+  .min(1, "validation command must not be empty")
+  .max(
+    VALIDATION_COMMAND_MAX_LENGTH,
+    `validation command must be at most ${VALIDATION_COMMAND_MAX_LENGTH} characters`,
+  )
+  .refine(
+    (value) => value.trim().length > 0,
+    "validation command must not be blank",
+  );
+
+const validationRevisionSchema = z
+  .string()
+  .min(1, "revision must not be empty")
+  .max(512, "revision must be at most 512 characters")
+  .refine((value) => !/\s/.test(value), "revision must not contain whitespace");
+
+export const ValidationCheckSchema = z
+  .object({
+    name: validationCheckNameSchema,
+    command: validationCommandSchema,
+    timeoutMs: z
+      .number()
+      .finite()
+      .int()
+      .positive()
+      .max(
+        MAX_VALIDATION_TIMEOUT_MS,
+        `timeoutMs must be at most ${MAX_VALIDATION_TIMEOUT_MS}`,
+      ),
+  })
+  .strict();
+
+export type ValidationCheck = z.infer<typeof ValidationCheckSchema>;
+
+export const ValidationChecksSchema = z
+  .array(ValidationCheckSchema)
+  .min(1, "at least one validation check is required")
+  .superRefine((checks, context) => {
+    const seen = new Map<string, number>();
+    checks.forEach((check, index) => {
+      const previousIndex = seen.get(check.name);
+      if (previousIndex !== undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index, "name"],
+          message: `duplicate validation check name: ${check.name}`,
+        });
+        return;
+      }
+      seen.set(check.name, index);
+    });
+  });
+
+export const ValidationRequestSchema = z
+  .object({
+    candidateRevision: validationRevisionSchema,
+    contractRevision: validationRevisionSchema,
+    checks: ValidationChecksSchema,
+  })
+  .strict();
+
+export interface ValidationRequest {
+  readonly candidateRevision: string;
+  readonly contractRevision: string;
+  readonly checks: readonly ValidationCheck[];
+}
+
+export type ValidationCheckStatus =
+  | "failed"
+  | "passed"
+  | "timed_out"
+  | "cancelled"
+  | "skipped";
+
+export interface ValidationLogExcerpt {
+  readonly stdout: string;
+  readonly stderr: string;
+  readonly stdoutTruncated: boolean;
+  readonly stderrTruncated: boolean;
+}
+
+export interface ValidationCheckResult {
+  readonly name: string;
+  readonly status: ValidationCheckStatus;
+  readonly durationMs: number;
+  readonly exitCode: number | null;
+  readonly summary: string;
+  readonly excerpt: ValidationLogExcerpt;
+}
+
 export interface ValidationProof {
   readonly status: "failed" | "passed";
-  readonly checks: readonly {
-    readonly name: string;
-    readonly status: "failed" | "passed" | "skipped";
-    readonly summary?: string;
-  }[];
+  readonly candidateRevision: string;
+  readonly contractRevision: string;
+  readonly totalDurationMs: number;
+  readonly checks: readonly ValidationCheckResult[];
   readonly artifacts: readonly ProviderArtifact[];
 }
 
 export interface ValidationOperationMap {
   validate: {
-    input: {
-      readonly candidateRevision: string;
-      readonly contractRevision: string;
-      readonly target?: string;
-    };
+    input: ValidationRequest;
     result: ValidationProof;
   };
 }
