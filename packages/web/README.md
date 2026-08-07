@@ -30,7 +30,7 @@ local and CI), and LLM configuration is deployment-managed server environment.
 
 Prerequisites:
 
-- Node.js 22.13+ support floor; the repository execution pin is the exact
+- Node.js 24.15+ support floor; the repository execution pin is the exact
   version declared in the root `.node-version` file.
 - pnpm 11.10.0
 - A reachable AKB backend

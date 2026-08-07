@@ -16,7 +16,8 @@ const DEPENDENCY_FIELDS = [
 ];
 const CATALOG_PROTOCOL = "catalog:";
 const WORKSPACE_PROTOCOL = "workspace:";
-const NODE_MAJOR = 22;
+const NODE_VERSION = "24.18.1";
+const NODE_MAJOR = 24;
 
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -472,11 +473,15 @@ async function validateRuntime({
       "repository must declare one explicit Node version in .node-version",
       [".node-version"],
     );
-  } else if (!nodeVersion || nodeVersion.major !== NODE_MAJOR) {
+  } else if (
+    !nodeVersion ||
+    nodeVersion.major !== NODE_MAJOR ||
+    compareVersions(nodeVersion, parseVersion(NODE_VERSION)) !== 0
+  ) {
     addViolation(
       violations,
       "node-version",
-      `.node-version must select Node ${NODE_MAJOR} with a full semver value`,
+      `.node-version must select Node ${NODE_VERSION} with a full semver value`,
       [".node-version"],
     );
   }
@@ -584,7 +589,7 @@ async function validateRuntime({
     addViolation(
       violations,
       "docker-node",
-      "root Dockerfile must use the Node 22 runtime baseline",
+      `root Dockerfile must use the Node ${NODE_MAJOR} runtime baseline`,
       ["Dockerfile"],
     );
   } else {
@@ -593,7 +598,7 @@ async function validateRuntime({
       addViolation(
         violations,
         "docker-node",
-        "root Dockerfile must declare a Node 22 base image",
+        `root Dockerfile must declare a Node ${NODE_MAJOR} base image`,
         ["Dockerfile"],
       );
     }

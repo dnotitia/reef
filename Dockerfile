@@ -1,6 +1,6 @@
 # Stage 1: pruner — resolve Turbo from the repository dependency and produce
 # the Docker-specific pruned workspace.
-FROM node:22.23.2-alpine AS pruner
+FROM node:24.18.1-alpine AS pruner
 WORKDIR /app
 
 # Resolve the package manager and Turbo from the checked-in root manifests.
@@ -15,7 +15,7 @@ RUN pnpm exec turbo prune @reef/web --docker \
 
 
 # Stage 2: deps — install only the pruned workspace dependencies.
-FROM node:22.23.2-alpine AS deps
+FROM node:24.18.1-alpine AS deps
 WORKDIR /app
 RUN corepack enable
 COPY --from=pruner /app/out/json/ ./
@@ -24,7 +24,7 @@ RUN pnpm install --frozen-lockfile
 
 
 # Stage 3: builder — build from the pruned source tree.
-FROM node:22.23.2-alpine AS builder
+FROM node:24.18.1-alpine AS builder
 WORKDIR /app
 
 # Enable the package manager declared by the pruned root package.json.
@@ -38,7 +38,7 @@ RUN pnpm run build
 
 
 # Stage 4: runner — minimal runtime image.
-FROM node:22.23.2-alpine AS runner
+FROM node:24.18.1-alpine AS runner
 WORKDIR /app
 
 # Create non-root user with an explicit numeric UID/GID — kubelet's

@@ -42,9 +42,10 @@ them.
 
 ## Try reef locally
 
-reef requires Node.js 22+ and pnpm 11. The root `packageManager` field pins the
+reef requires Node.js 24.15+ and pnpm 11. The root `.node-version` pins the
+exact Node.js 24.18.1 runtime, and the root `packageManager` field pins the
 exact pnpm version; run `corepack enable` before installing so your shell uses
-that version.
+those versions.
 
 ### UI preview
 
@@ -202,7 +203,7 @@ For the full boundary, storage, credential, and streaming contracts, read
 ## Deployment
 
 The root `Dockerfile` uses the repository-pinned Turbo dependency to prune the
-`@reef/web` workspace, builds its Next.js standalone output on Node 22, and
+`@reef/web` workspace, builds its Next.js standalone output on Node 24, and
 runs it as a non-root user. Kubernetes manifests live under `deploy/k8s`.
 
 Production deployments provide `AKB_BACKEND_URL` and deployment-managed LLM
