@@ -42,8 +42,42 @@ test.describe("Hermetic runtime discovery", () => {
           start_path: "/workspace/reef-e2e/issues",
           interaction: {
             type: "global_search",
-            shortcut: "Control+K",
+            shortcut: "Mod+K",
+            platform_shortcuts: {
+              macos: "Meta+K",
+              other: "Control+K",
+            },
             query: "issue title, body, or comment phrase",
+          },
+        },
+        activity_suggestions: {
+          scenario: "activity_suggestions",
+          workspace: "reef-e2e",
+          start_path: "/workspace/reef-e2e/suggestions",
+          interaction: {
+            type: "activity_review",
+            operation:
+              "review a pending suggestion, approve it, inspect the created issue, and add a comment",
+          },
+        },
+        chat: {
+          scenario: "configured",
+          workspace: "reef-e2e",
+          start_path: "/workspace/reef-e2e/issues",
+          interaction: {
+            type: "workspace_chat",
+            operation:
+              "open Ask AI, submit distinct questions, and observe each assistant response",
+          },
+        },
+        comments: {
+          scenario: "comment_mentions",
+          workspace: "reef-e2e",
+          start_path: "/workspace/reef-e2e/issues",
+          interaction: {
+            type: "issue_activity",
+            operation:
+              "open an issue, add a comment, and observe it in the activity timeline",
           },
         },
       },
