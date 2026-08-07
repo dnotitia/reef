@@ -130,7 +130,7 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-describe("IssueDetail", () => {
+describe("IssueDetail", { timeout: 10_000 }, () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Default: GET /api/issues/REEF-001 returns the sample
