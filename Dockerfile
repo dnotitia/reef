@@ -7,7 +7,9 @@ WORKDIR /app
 RUN corepack enable
 COPY . .
 RUN pnpm install --frozen-lockfile
-RUN pnpm exec turbo prune @reef/web --docker
+RUN pnpm exec turbo prune @reef/web --docker \
+    && cp tsdown.config.mjs out/full/tsdown.config.mjs \
+    && test -f out/full/tsdown.config.mjs
 
 
 # Stage 2: deps — install only the pruned workspace dependencies.

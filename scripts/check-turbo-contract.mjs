@@ -314,6 +314,12 @@ function verifyRepositoryHandoffs() {
     "Docker must prune the @reef/web workspace with Turbo",
   );
   assert(
+    /turbo\s+prune\s+@reef\/web\s+--docker[\s\\]+&&\s*cp\s+tsdown\.config\.mjs\s+out\/full\/tsdown\.config\.mjs[\s\\]+&&\s*test\s+-f\s+out\/full\/tsdown\.config\.mjs/u.test(
+      dockerfile,
+    ),
+    "Docker pruned output must contain the root tsdown build configuration",
+  );
+  assert(
     /out\/json/u.test(dockerfile) &&
       /out\/full/u.test(dockerfile) &&
       /pnpm-lock\.yaml/u.test(dockerfile),
