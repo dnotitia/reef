@@ -686,6 +686,11 @@ export function GlobalSearchDialog({ registry }: GlobalSearchDialogProps) {
                         `/issues/${encodeURIComponent(result.reef_id)}`,
                       )}
                       tabIndex={-1}
+                      aria-label={`${result.reef_id} ${result.title} ${
+                        result.source === "body"
+                          ? t("sourceBody")
+                          : t("sourceComment")
+                      } ${result.snippet}`}
                       onClick={(event) =>
                         handleContentRowClick(event, result.reef_id)
                       }

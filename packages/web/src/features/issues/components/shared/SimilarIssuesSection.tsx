@@ -2,6 +2,7 @@
 
 import { SearchProgressBar } from "@/components/ui/SearchProgressBar";
 import { StatusIcon } from "@/components/ui/status-icon";
+import { useStatusLabels } from "@/i18n/fieldLabels";
 import { cn } from "@/lib/utils";
 import { withVault } from "@/lib/workspaceHref";
 import { ExternalLink, X } from "lucide-react";
@@ -21,6 +22,7 @@ export function SimilarIssuesSection({
   className,
 }: SimilarIssuesSectionProps) {
   const t = useTranslations("issues.create.similar");
+  const statusLabels = useStatusLabels();
   const [dismissedQueries, setDismissedQueries] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -84,6 +86,7 @@ export function SimilarIssuesSection({
                 href={withVault(vault, `/issues/${issue.id}`)}
                 target="_blank"
                 rel="noreferrer"
+                aria-label={`${statusLabels[issue.status]} ${issue.id} ${issue.title}`}
                 title={t("openIssue", { id: issue.id })}
                 data-testid="similar-issue-row"
                 className="group grid min-h-8 min-w-0 touch-manipulation grid-cols-[minmax(0,1fr)_1.25rem] items-center gap-2 rounded-sm py-1.5 text-foreground text-xs hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
