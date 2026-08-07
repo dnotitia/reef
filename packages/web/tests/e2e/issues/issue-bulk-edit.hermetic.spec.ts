@@ -299,11 +299,14 @@ test.describe("Hermetic issue multi-select and bulk edit", () => {
         new URL(response.url()).pathname === "/api/issues/reorder",
     );
     const grip = page.getByTestId("backlog-grip-REEF-003");
+    const liveRegion = page.locator('[role="status"][aria-live="assertive"]');
     await expect(grip).toHaveAttribute("aria-label", "Reorder REEF-003");
     await grip.focus();
     await page.keyboard.press("Space");
+    await expect(liveRegion).toHaveText(
+      /(?:Picked up REEF-003 for reordering\.|REEF-003 is at position 1\.)/,
+    );
     await page.keyboard.press("ArrowDown");
-    const liveRegion = page.locator('[role="status"][aria-live="assertive"]');
     await expect(liveRegion).toHaveText("REEF-003 is at position 2.");
     await page.keyboard.press("Space");
     await expect(liveRegion).toHaveText("REEF-003 moved to position 2.");
