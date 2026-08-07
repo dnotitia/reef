@@ -274,7 +274,6 @@ const waitForRunWindow = async (
       reject(new DOMException("cancelled", "AbortError"));
     };
     signal.addEventListener("abort", onAbort, { once: true });
-    timer.unref?.();
   });
 };
 

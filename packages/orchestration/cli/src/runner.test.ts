@@ -245,6 +245,33 @@ describe("foreground work URI runner", () => {
     expect(fixture.calls.some((url) => url.endsWith("/auth/me"))).toBe(true);
   });
 
+  it("keeps a foreground run alive until its terminal result is emitted", async () => {
+    const fixture = await setupFixture();
+    const progress: string[] = [];
+    const probe = setTimeout(() => undefined, 0);
+    clearTimeout(probe);
+    const unref = vi.spyOn(Object.getPrototypeOf(probe), "unref");
+
+    try {
+      const result = await runCliInvocation(
+        ["run", "reef://reef-test/REEF-101", "--config", fixture.configPath],
+        {
+          environment: fixture.environment,
+          onEvent: (event) => progress.push(event.phase),
+        },
+      );
+
+      if ("help" in result) throw new Error("expected a run result");
+      expect(result.exitCode).toBe(0);
+      expect(result.terminal.outcome).toBe("succeeded");
+      expect(progress).toEqual(["preflight", "running", "cleanup", "terminal"]);
+    } finally {
+      unref.mockRestore();
+    }
+
+    expect(unref).not.toHaveBeenCalled();
+  });
+
   it("maps an upstream work-read failure to the general failure exit code", async () => {
     const fixture = await setupFixture();
     vi.mocked(fetch).mockImplementationOnce(
