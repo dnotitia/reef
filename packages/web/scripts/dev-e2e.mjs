@@ -22,6 +22,18 @@ const RUNTIME_BUILD_ARGS = [
 const SAFE_SCENARIO = /^[A-Za-z][A-Za-z0-9_-]*$/u;
 const CLIENT_READY_TIMEOUT_MS = 120_000;
 const CLIENT_READINESS = { mode: "browser", status: "ready" };
+export const CLIENT_READINESS_INTERACTIONS = Object.freeze({
+  newIssue: Object.freeze({
+    trigger: '[data-testid="new-issue-trigger"]',
+    observable: '[data-testid="new-issue-dialog"]',
+    close: '[data-testid="new-issue-cancel"]',
+  }),
+  issueCard: Object.freeze({
+    trigger: '[data-testid="kanban-card"]',
+    observable: '[data-testid="issue-detail"]',
+    close: '[data-testid="issue-close"]',
+  }),
+});
 const E2E_GITHUB_APP_PRIVATE_KEY = generateKeyPairSync("rsa", {
   modulusLength: 2048,
 })
@@ -247,6 +259,67 @@ async function probeSearchInteraction(page, timeoutMs) {
   );
 }
 
+async function waitForInteractionState(locator, state, label, timeoutMs) {
+  try {
+    await locator.waitFor({ state, timeout: timeoutMs });
+  } catch (error) {
+    throw new Error(
+      `Client interaction readiness did not reach ${label} (${state})`,
+      { cause: error },
+    );
+  }
+}
+
+export async function probeWorkspaceClickInteractions(page, timeoutMs) {
+  const newIssue = CLIENT_READINESS_INTERACTIONS.newIssue;
+  const newIssueTrigger = page.locator(newIssue.trigger);
+  const newIssueDialog = page.locator(newIssue.observable);
+  await waitForInteractionState(
+    newIssueTrigger,
+    "visible",
+    "New Issue trigger",
+    timeoutMs,
+  );
+  await newIssueTrigger.click();
+  await waitForInteractionState(
+    newIssueDialog,
+    "visible",
+    "New Issue dialog after click",
+    timeoutMs,
+  );
+  await page.locator(newIssue.close).click();
+  await waitForInteractionState(
+    newIssueDialog,
+    "hidden",
+    "New Issue dialog close",
+    timeoutMs,
+  );
+
+  const issueCard = CLIENT_READINESS_INTERACTIONS.issueCard;
+  const issueCardTrigger = page.locator(issueCard.trigger).first();
+  const issueDetail = page.locator(issueCard.observable);
+  await waitForInteractionState(
+    issueCardTrigger,
+    "visible",
+    "existing issue card",
+    timeoutMs,
+  );
+  await issueCardTrigger.click();
+  await waitForInteractionState(
+    issueDetail,
+    "visible",
+    "issue detail after card click",
+    timeoutMs,
+  );
+  await page.locator(issueCard.close).click();
+  await waitForInteractionState(
+    issueDetail,
+    "hidden",
+    "issue detail close",
+    timeoutMs,
+  );
+}
+
 export async function waitForClientInteractionReady(
   { webOrigin, fixtureOrigin },
   { browserType = chromium, timeoutMs = CLIENT_READY_TIMEOUT_MS } = {},
@@ -294,6 +367,7 @@ export async function waitForClientInteractionReady(
       },
     );
     await probeSearchInteraction(page, timeoutMs);
+    await probeWorkspaceClickInteractions(page, timeoutMs);
   } finally {
     await context.close().catch(() => undefined);
     await browser.close().catch(() => undefined);
@@ -517,7 +591,7 @@ export async function startRuntime(options) {
     fixtureOrigin: options.fixtureOrigin,
   });
   process.stdout.write(
-    "[dev:e2e] browser hydration and interaction readiness confirmed\n",
+    "[dev:e2e] browser hydration and workspace interaction readiness confirmed\n",
   );
 
   const payload = buildReadyPayload({
