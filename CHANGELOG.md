@@ -75,6 +75,14 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Board empty states now distinguish a configured workspace with no matching
+  filter results from a truly empty board.** The no-match message and
+  keyboard-accessible filter reset stay together in a compact non-modal overlay
+  inside the board body while all workflow columns, header positions, and
+  horizontal scroll context remain visible in both locales. Facet-only and full
+  filter resets have distinct accessible labels, and the full recovery clears
+  search, facets, sort, and their URL and browser-persisted projections
+  together.
 - **Backlog now supports dense multi-selection and bulk issue editing.** A
   shared selection column, localized Status/Assignee/Priority/Labels actions,
   semantic issue links, and row-scoped keyboard focus extend the existing

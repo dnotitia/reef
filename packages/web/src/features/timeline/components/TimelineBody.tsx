@@ -11,6 +11,7 @@ import { buildIssueQuery } from "@/features/issues/lib/buildIssueQuery";
 import { applyDependencyFilter } from "@/features/issues/lib/dependencyUtils";
 import {
   filterIssues,
+  hasActiveIssueFilters,
   searchIssues,
 } from "@/features/issues/lib/issueListUtils";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
@@ -31,27 +32,6 @@ const EMPTY_ISSUES: IssueListItem[] = [];
 const WORKFLOW_STATUS_SET: ReadonlySet<string> = new Set(
   WORKFLOW_STATUS_OPTIONS,
 );
-
-function hasActiveFilters(
-  filter: ReturnType<typeof useIssueStore.getState>["filter"],
-  searchQuery: string,
-): boolean {
-  return !!(
-    filter.status?.length ||
-    filter.issueType?.length ||
-    filter.priority?.length ||
-    filter.assignee ||
-    filter.requester ||
-    filter.sprint_id ||
-    filter.milestone_id ||
-    filter.release_id ||
-    filter.severity?.length ||
-    filter.due?.length ||
-    filter.label ||
-    filter.dependencyFilter?.length ||
-    searchQuery
-  );
-}
 
 function TimelineSkeleton() {
   return (
@@ -167,7 +147,7 @@ export function TimelineBody({ vault }: TimelineBodyProps) {
     () => visibleIssues.filter((issue) => !scheduledIds.has(issue.id)),
     [scheduledIds, visibleIssues],
   );
-  const activeFilters = hasActiveFilters(filter, searchQuery);
+  const activeFilters = hasActiveIssueFilters(filter, searchQuery);
 
   function clearFilters() {
     useIssueStore.getState().clearFilter();

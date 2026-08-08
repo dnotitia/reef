@@ -43,6 +43,7 @@
     "close": "닫기",
     "retry": "다시 시도",
     "clearFilters": "필터 지우기",
+    "clearFacetFilters": "세부 필터 지우기",
     "loading": "불러오는 중…",
     "addLabelPlaceholder": "라벨을 입력하고 Enter를 누르세요…"
   },
@@ -1216,7 +1217,9 @@
   "board": {
     "loadError": "일부 이슈를 불러오지 못했습니다. 캐시된 데이터가 있으면 표시합니다.",
     "updateErrorTitle": "이슈를 업데이트하지 못했습니다",
-    "updateErrorDescription": "보드가 되돌려졌습니다. 다시 이동하려면 재시도하세요."
+    "updateErrorDescription": "보드가 되돌려졌습니다. 다시 이동하려면 재시도하세요.",
+    "noMatchTitle": "일치하는 이슈가 없습니다",
+    "noMatchDescription": "필터나 검색어를 넓혀 더 많은 이슈를 확인해 보세요."
   },
   "activity": {
     "pageTitle": "검토할 제안",
