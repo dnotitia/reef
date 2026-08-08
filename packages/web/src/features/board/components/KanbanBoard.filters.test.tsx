@@ -210,15 +210,20 @@ describe("KanbanBoard filtering and rendering", () => {
         "Try widening your filters or search to see more issues.",
       ),
     ).toBeInTheDocument();
-    expect(within(frame).queryByRole("button")).toBeNull();
+    expect(
+      within(frame).getByRole("button", { name: "Clear filters" }),
+    ).toBeInTheDocument();
 
     for (const name of ["Todo", "In Progress", "In Review", "Done", "Closed"]) {
       expect(screen.getByRole("heading", { name })).toBeInTheDocument();
     }
     expect(screen.getAllByText("0", { exact: true })).toHaveLength(5);
+    expect(screen.getByTestId("dnd-context")).toBeInTheDocument();
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    await user.click(
+      within(frame).getByRole("button", { name: "Clear filters" }),
+    );
     expect(useIssueStore.getState().filter).toEqual({});
     expect(useIssueStore.getState().searchQuery).toBe("");
     expect(await screen.findByText("UI board polish")).toBeInTheDocument();

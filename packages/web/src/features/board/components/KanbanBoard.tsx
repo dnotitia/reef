@@ -2,7 +2,6 @@
 
 import { BoardColumnsSkeleton } from "@/components/BoardColumnsSkeleton";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
 import {
   kanbanToastId,
   notifyRetryableError,
@@ -292,23 +291,10 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
         onDragEnd={handleDragEnd}
         onDragCancel={() => setActiveIssueId(null)}
       >
-        {showNoMatch && (
-          <div className="flex shrink-0 flex-col items-center gap-3 px-6 pt-4">
-            <EmptyState
-              data-testid="kanban-no-matches"
-              title={t("noMatchTitle")}
-              description={t("noMatchDescription")}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => useIssueStore.getState().clearFilter()}
-            >
-              {common("clearFilters")}
-            </Button>
-          </div>
-        )}
-        <div className="flex flex-1 min-h-0 gap-3 overflow-x-auto px-6 py-4">
+        <div
+          data-testid="kanban-board-body"
+          className="relative flex min-h-0 flex-1 gap-3 overflow-x-auto px-6 py-4"
+        >
           {WORKFLOW_STATUS_OPTIONS.map((status) => (
             <KanbanColumn
               key={status}
@@ -320,6 +306,30 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
               onIssueClick={openIssue}
             />
           ))}
+          {showNoMatch && (
+            <div
+              data-testid="kanban-no-matches"
+              className="pointer-events-none absolute inset-x-6 top-16 z-10 flex justify-center"
+            >
+              <div className="pointer-events-none flex max-w-md flex-col items-center rounded-lg border border-border-subtle bg-background/95 px-5 py-4 text-center backdrop-blur-sm">
+                <h2 className="text-sm font-semibold text-foreground">
+                  {t("noMatchTitle")}
+                </h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t("noMatchDescription")}
+                </p>
+                <Button
+                  className="pointer-events-auto mt-3"
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => useIssueStore.getState().clearFilter()}
+                >
+                  {common("clearFilters")}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
         <DragOverlay dropAnimation={DROP_ANIMATION}>
           {activeIssue ? (
