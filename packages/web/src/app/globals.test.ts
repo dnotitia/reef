@@ -68,7 +68,7 @@ describe("global focus styles", () => {
     const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
 
     expect(css).toContain(
-      ".reef-markdown-editor .is-editor-empty[data-placeholder]::before",
+      ".reef-markdown-editor > .is-empty:only-child[data-placeholder]::before",
     );
     expect(css).toContain("content: attr(data-placeholder);");
     expect(css).toContain("pointer-events: none;");

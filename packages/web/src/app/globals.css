@@ -382,10 +382,12 @@ hr {
   border-color: var(--border-subtle);
 }
 
-/* Tiptap's Placeholder extension owns the marker and localized text; this
- * scoped paint rule makes that marker visible without adding editable content.
+/* Tiptap's Placeholder extension owns the marker and localized text. During a
+ * non-empty -> empty transaction, 3.29 can omit `is-editor-empty` while keeping
+ * the empty-node decoration. The sole top-level empty block is the stable empty
+ * document shape; scoping to it avoids painting placeholders in non-empty docs.
  * Float + zero height keeps the hint out of the document flow and caret. */
-.reef-markdown-editor .is-editor-empty[data-placeholder]::before {
+.reef-markdown-editor > .is-empty:only-child[data-placeholder]::before {
   content: attr(data-placeholder);
   float: left;
   height: 0;

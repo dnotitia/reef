@@ -29,7 +29,7 @@ describe("MarkdownEditor Tiptap extensions", () => {
   it("decorates an empty editor with the placeholder DOM contract", () => {
     const editor = createEditor("");
     const empty = editor.view.dom.querySelector(
-      "p.is-empty.is-editor-empty[data-placeholder]",
+      "p.is-empty:only-child[data-placeholder]",
     );
 
     expect(empty?.getAttribute("data-placeholder")).toBe(
@@ -37,29 +37,23 @@ describe("MarkdownEditor Tiptap extensions", () => {
     );
   });
 
-  it("keeps the empty-editor placeholder independent of editor focus", () => {
-    const extensions = createMarkdownEditorExtensions("Describe the issue...");
-    const placeholder = extensions.find(
-      (extension) => extension.name === "placeholder",
-    );
-    const editor = createEditor("");
+  it("keeps the placeholder after clearing a non-empty editor and blurring", () => {
+    const editor = createEditor("Existing body");
     const outside = document.createElement("button");
     document.body.appendChild(outside);
 
     editor.view.focus();
+    editor.commands.selectAll();
+    editor.commands.deleteSelection();
+
     expect(
-      editor.view.dom.querySelector(
-        "p.is-empty.is-editor-empty[data-placeholder]",
-      ),
+      editor.view.dom.querySelector("p.is-empty:only-child[data-placeholder]"),
     ).not.toBeNull();
 
     outside.focus();
 
-    expect(placeholder?.options).toMatchObject({ showOnlyCurrent: false });
     expect(
-      editor.view.dom.querySelector(
-        "p.is-empty.is-editor-empty[data-placeholder]",
-      ),
+      editor.view.dom.querySelector("p.is-empty:only-child[data-placeholder]"),
     ).not.toBeNull();
   });
 

@@ -188,9 +188,8 @@ export function createMarkdownEditorExtensions(
     Markdown,
     Placeholder.configure({
       placeholder,
-      // Empty-editor guidance is useful before and after editing. Tiptap's
-      // default limits the decoration to its current textblock, which drops
-      // the marker when focus leaves the editor.
+      // Keep the empty textblock decorated after focus leaves the editor. The
+      // CSS limits painting to the sole top-level block of an empty document.
       showOnlyCurrent: false,
     }),
   ];
