@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { type Locator, expect, test } from "@playwright/test";
 import {
   E2E_MOCK_URL,
@@ -7,6 +8,11 @@ import {
   resetFixture,
 } from "../harness/fixture";
 import fixtureLogin from "../harness/fixture-login.json";
+
+const IMAGE_UPLOAD_FIXTURE_BYTES = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAGAAAAAwCAYAAADuFn/PAAAAs0lEQVR42u3ZsQmAQBAEQHMTezA3sQfLEmxEEGzC0D5sQ9O3g/vgeUSYYMNNbqLlmmlLKUo/P2FK++O1h+mOJUxpP51DmHttw5T2GwAAAAAAAAAAAAAAPgCofeBcv/aBc/3aB871AQAAAAAAAAAAAAD4AsAQs4QBAAAAAAAAAAAA+AcYYpYwAAAAAAAAAAAAAP8AQ8wSBgAAAAAAAAAAAOAfYIhZwgAAAAAAAAAAAAB+D/ACWn8C0ZKjwsMAAAAASUVORK5CYII=",
+  "base64",
+);
 
 test.describe("Hermetic runtime discovery", () => {
   test("publishes runtime controls and resets named-filter fixtures idempotently", async ({
@@ -30,6 +36,14 @@ test.describe("Hermetic runtime discovery", () => {
       },
       fixture_login: {
         ...fixtureLogin,
+      },
+      fixture_inputs: {
+        image_upload: {
+          method: "GET",
+          path: "/__e2e/assets/reef-markdown-editor-image.png",
+          file_name: "reef-markdown-editor-image.png",
+          content_type: "image/png",
+        },
       },
       tasks: {
         named_issue_filters: {
@@ -109,6 +123,27 @@ test.describe("Hermetic runtime discovery", () => {
         },
       },
     });
+    const imageInput = contract.fixture_inputs?.image_upload;
+    expect(imageInput).toMatchObject({
+      method: "GET",
+      path: "/__e2e/assets/reef-markdown-editor-image.png",
+      file_name: "reef-markdown-editor-image.png",
+      content_type: "image/png",
+    });
+    if (!imageInput?.path || !imageInput.file_name) {
+      throw new Error("missing discovered image upload fixture");
+    }
+    const imageUrl = new URL(imageInput.path, E2E_MOCK_URL);
+    expect(imageUrl.origin).toBe(new URL(E2E_MOCK_URL).origin);
+    expect(imageUrl.search).toBe("");
+    expect(imageUrl.hash).toBe("");
+    const imageResponse = await request.get(imageUrl.toString());
+    expect(imageResponse.status()).toBe(200);
+    expect(imageResponse.headers()["content-type"]).toBe("image/png");
+    expect(imageResponse.headers()["content-disposition"]).toContain(
+      `filename="${imageInput.file_name}"`,
+    );
+    expect(await imageResponse.body()).toEqual(IMAGE_UPLOAD_FIXTURE_BYTES);
     const discoveredLogin = contract.fixture_login as typeof fixtureLogin;
     const { username, password } = discoveredLogin;
     const loginResponse = await request.post(
