@@ -5,9 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  CLIENT_READINESS_INTERACTIONS,
   buildReadyPayload,
   buildRuntimeCommand,
+  getClientReadinessInputs,
   parseOptions,
+  probeWorkspaceClickInteractions,
   validateResetBody,
   validateScenario,
   writeReadyFile,
@@ -76,6 +79,115 @@ describe("dev:e2e runtime contract", () => {
     ).toThrow(/rejected scenario/);
   });
 
+  it("requires the fixture's browser login and workspace entrypoint contract", () => {
+    expect(
+      getClientReadinessInputs({
+        status: "ready",
+        fixture_login: {
+          username: "alice",
+          password: "fixture-password",
+          login_path: "/login?password=1",
+        },
+        tasks: { chat: { start_path: "/workspace/reef-e2e/issues" } },
+      }),
+    ).toEqual({
+      username: "alice",
+      password: "fixture-password",
+      loginPath: "/login?password=1",
+      startPath: "/workspace/reef-e2e/issues",
+    });
+    expect(() =>
+      getClientReadinessInputs({
+        status: "ready",
+        fixture_login: { username: "alice" },
+        tasks: { chat: { start_path: "/workspace/reef-e2e/issues" } },
+      }),
+    ).toThrow(/fixture login password/);
+  });
+
+  function readinessPage({
+    newIssueClickWorks = true,
+    issueCardClickWorks = true,
+  } = {}) {
+    const state = { newIssueOpen: false, issueDetailOpen: false };
+    const selectors: string[] = [];
+    const locatorFor = (selector: string) => {
+      const locator = {
+        first: () => locator,
+        waitFor: async ({ state: expected }: { state: string }) => {
+          const visible =
+            selector === CLIENT_READINESS_INTERACTIONS.newIssue.observable
+              ? state.newIssueOpen
+              : selector === CLIENT_READINESS_INTERACTIONS.issueCard.observable
+                ? state.issueDetailOpen
+                : true;
+          if ((expected === "visible") !== visible) {
+            throw new Error(`${selector} is not ${expected}`);
+          }
+        },
+        click: async () => {
+          if (selector === CLIENT_READINESS_INTERACTIONS.newIssue.trigger) {
+            if (newIssueClickWorks) state.newIssueOpen = true;
+          } else if (
+            selector === CLIENT_READINESS_INTERACTIONS.newIssue.close
+          ) {
+            state.newIssueOpen = false;
+          } else if (
+            selector === CLIENT_READINESS_INTERACTIONS.issueCard.trigger
+          ) {
+            if (issueCardClickWorks) state.issueDetailOpen = true;
+          } else if (
+            selector === CLIENT_READINESS_INTERACTIONS.issueCard.close
+          ) {
+            state.issueDetailOpen = false;
+          }
+        },
+      };
+      return locator;
+    };
+
+    return {
+      selectors,
+      page: {
+        locator(selector: string) {
+          selectors.push(selector);
+          return locatorFor(selector);
+        },
+      },
+    };
+  }
+
+  it("requires both ordinary workspace clicks to produce observable state", async () => {
+    const { page, selectors } = readinessPage();
+
+    await probeWorkspaceClickInteractions(page, 1_000);
+
+    expect(selectors).toEqual([
+      CLIENT_READINESS_INTERACTIONS.newIssue.trigger,
+      CLIENT_READINESS_INTERACTIONS.newIssue.observable,
+      CLIENT_READINESS_INTERACTIONS.newIssue.close,
+      CLIENT_READINESS_INTERACTIONS.issueCard.trigger,
+      CLIENT_READINESS_INTERACTIONS.issueCard.observable,
+      CLIENT_READINESS_INTERACTIONS.issueCard.close,
+    ]);
+  });
+
+  it("fails readiness when either ordinary workspace click is a no-op", async () => {
+    await expect(
+      probeWorkspaceClickInteractions(
+        readinessPage({ newIssueClickWorks: false }).page,
+        1_000,
+      ),
+    ).rejects.toThrow(/New Issue dialog after click/);
+
+    await expect(
+      probeWorkspaceClickInteractions(
+        readinessPage({ issueCardClickWorks: false }).page,
+        1_000,
+      ),
+    ).rejects.toThrow(/issue detail after card click/);
+  });
+
   it("writes a private runtime ready descriptor", async () => {
     const root = await mkdtemp(join(tmpdir(), "reef-dev-e2e-contract-test-"));
     temporaryDirectories.push(root);
@@ -96,6 +208,7 @@ describe("dev:e2e runtime contract", () => {
         web: {
           origin: "http://localhost:9135",
           health: { method: "GET", url: "http://localhost:9135" },
+          readiness: { mode: "browser", status: "ready" },
         },
         fixture: {
           origin: "http://127.0.0.1:9136",

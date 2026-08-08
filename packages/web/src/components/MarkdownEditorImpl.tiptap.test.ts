@@ -26,6 +26,108 @@ afterEach(() => {
 });
 
 describe("MarkdownEditor Tiptap extensions", () => {
+  it("decorates an empty editor with the placeholder DOM contract", () => {
+    const editor = createEditor("");
+    const empty = editor.view.dom.querySelector(
+      "p.is-empty:only-child[data-placeholder]",
+    );
+
+    expect(empty?.getAttribute("data-placeholder")).toBe(
+      "Describe the issue...",
+    );
+  });
+
+  it("keeps the placeholder after clearing a non-empty editor and blurring", () => {
+    const editor = createEditor("Existing body");
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+
+    editor.view.focus();
+    editor.commands.selectAll();
+    editor.commands.deleteSelection();
+
+    expect(
+      editor.view.dom.querySelector("p.is-empty:only-child[data-placeholder]"),
+    ).not.toBeNull();
+
+    outside.focus();
+
+    expect(
+      editor.view.dom.querySelector("p.is-empty:only-child[data-placeholder]"),
+    ).not.toBeNull();
+  });
+
+  it("executes list transactions without cross-version Fragment failures", () => {
+    const editor = createEditor("First item");
+
+    expect(() => {
+      editor.chain().focus("end").toggleBulletList().run();
+      editor
+        .chain()
+        .focus("end")
+        .splitListItem("listItem")
+        .insertContent("Second item")
+        .run();
+    }).not.toThrow();
+    expect(editor.getMarkdown()).toContain("- First item");
+    expect(editor.getMarkdown()).toContain("Second item");
+  });
+
+  it("round-trips a link command with the selected text as its display text", () => {
+    const marker = "REEF483-LINK-F8Q2";
+    const href = "https://example.com/reef483-final-F8Q2";
+    const editor = createEditor(marker);
+
+    editor
+      .chain()
+      .setTextSelection({ from: 1, to: marker.length + 1 })
+      .setLink({ href })
+      .run();
+    const markdown = editor.getMarkdown();
+    const reloaded = createEditor(markdown);
+    const link = reloaded.view.dom.querySelector(`a[href="${href}"]`);
+
+    expect(markdown).toBe(`[${marker}](${href})`);
+    expect(link?.textContent).toBe(marker);
+  });
+
+  it("round-trips list, task, link, and image markdown together", () => {
+    const markdown = [
+      "**Bold text**",
+      "- Bullet item",
+      "- [ ] Task item",
+      "[Selected text](https://example.com/selected)",
+      "![reef image](akb://reef-test/issues/file/file-1)",
+    ].join("\n\n");
+    const serialized = createEditor(markdown).getMarkdown();
+    const reloaded = createEditor(serialized);
+
+    expect(serialized).toContain("- Bullet item");
+    expect(serialized).toContain("- [ ] Task item");
+    expect(serialized).toContain(
+      "[Selected text](https://example.com/selected)",
+    );
+    expect(serialized).toContain(
+      "![reef image](akb://reef-test/issues/file/file-1)",
+    );
+    expect(reloaded.view.dom.querySelector("strong")?.textContent).toBe(
+      "Bold text",
+    );
+    expect(
+      reloaded.view.dom.querySelector("ul:not([data-type]) li")?.textContent,
+    ).toContain("Bullet item");
+    expect(
+      reloaded.view.dom.querySelector('ul[data-type="taskList"] input'),
+    ).not.toBeNull();
+    expect(
+      reloaded.view.dom.querySelector('a[href="https://example.com/selected"]')
+        ?.textContent,
+    ).toBe("Selected text");
+    expect(reloaded.view.dom.querySelector("img")?.getAttribute("src")).toBe(
+      "akb://reef-test/issues/file/file-1",
+    );
+  });
+
   it("preserves markdown links to akb documents", () => {
     const uri = "akb://reef-test/coll/research/doc/report.md";
     const editor = createEditor(`[Research Report](${uri})`);

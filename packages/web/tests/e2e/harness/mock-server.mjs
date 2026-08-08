@@ -12,6 +12,14 @@ const REEF_VAULT = "reef-e2e";
 const TOOL_LOOP_E2E_PROMPT = "tool transparency e2e";
 const TOOL_LOOP_SEARCH_ISSUES_CALL_ID = "call_e2e_search_issues";
 const TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID = "call_e2e_search_documents";
+const IMAGE_UPLOAD_FIXTURE_PATH =
+  "/__e2e/assets/reef-markdown-editor-image.png";
+const IMAGE_UPLOAD_FIXTURE_FILE_NAME = "reef-markdown-editor-image.png";
+const IMAGE_UPLOAD_FIXTURE_CONTENT_TYPE = "image/png";
+const IMAGE_UPLOAD_FIXTURE_BYTES = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAGAAAAAwCAYAAADuFn/PAAAAs0lEQVR42u3ZsQmAQBAEQHMTezA3sQfLEmxEEGzC0D5sQ9O3g/vgeUSYYMNNbqLlmmlLKUo/P2FK++O1h+mOJUxpP51DmHttw5T2GwAAAAAAAAAAAAAAPgCofeBcv/aBc/3aB871AQAAAAAAAAAAAAD4AsAQs4QBAAAAAAAAAAAA+AcYYpYwAAAAAAAAAAAAAP8AQ8wSBgAAAAAAAAAAAOAfYIhZwgAAAAAAAAAAAAB+D/ACWn8C0ZKjwsMAAAAASUVORK5CYII=",
+  "base64",
+);
 const SUPPORTED_SCENARIOS = [
   "empty",
   "configured",
@@ -58,6 +66,15 @@ const server = createServer(async (req, res) => {
 
     if (url.pathname === "/__e2e/health") {
       return json(res, 200, { ok: true });
+    }
+    if (url.pathname === IMAGE_UPLOAD_FIXTURE_PATH && req.method === "GET") {
+      res.writeHead(200, {
+        "Content-Type": IMAGE_UPLOAD_FIXTURE_CONTENT_TYPE,
+        "Content-Length": String(IMAGE_UPLOAD_FIXTURE_BYTES.length),
+        "Content-Disposition": `attachment; filename="${IMAGE_UPLOAD_FIXTURE_FILE_NAME}"`,
+        "Cache-Control": "no-store",
+      });
+      return res.end(IMAGE_UPLOAD_FIXTURE_BYTES);
     }
     if (url.pathname === "/__e2e/runtime" && req.method === "GET") {
       return json(res, 200, runtimeDiscovery());
@@ -269,6 +286,14 @@ function runtimeDiscovery() {
       username: fixtureLogin.username,
       password: fixtureLogin.password,
       login_path: fixtureLogin.login_path,
+    },
+    fixture_inputs: {
+      image_upload: {
+        method: "GET",
+        path: IMAGE_UPLOAD_FIXTURE_PATH,
+        file_name: IMAGE_UPLOAD_FIXTURE_FILE_NAME,
+        content_type: IMAGE_UPLOAD_FIXTURE_CONTENT_TYPE,
+      },
     },
     scenarios: SUPPORTED_SCENARIOS,
     tasks: {

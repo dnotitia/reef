@@ -382,6 +382,19 @@ hr {
   border-color: var(--border-subtle);
 }
 
+/* Tiptap's Placeholder extension owns the marker and localized text. During a
+ * non-empty -> empty transaction, 3.29 can omit `is-editor-empty` while keeping
+ * the empty-node decoration. The sole top-level empty block is the stable empty
+ * document shape; scoping to it avoids painting placeholders in non-empty docs.
+ * Float + zero height keeps the hint out of the document flow and caret. */
+.reef-markdown-editor > .is-empty:only-child[data-placeholder]::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+
 /*
  * Tiptap task items. The LIVE editor nodeView renders each item as:
  *   ul[data-type="taskList"] > li[data-checked] > label(input,span) + div(p, nested ul)

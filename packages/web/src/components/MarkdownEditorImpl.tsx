@@ -125,6 +125,11 @@ interface ActiveMarks {
   link: boolean;
 }
 
+interface EditorSelectionRange {
+  from: number;
+  to: number;
+}
+
 const NO_ACTIVE: ActiveMarks = {
   bold: false,
   italic: false,
@@ -181,7 +186,12 @@ export function createMarkdownEditorExtensions(
     TaskItem.configure({ nested: true }),
     createImageExtension(resolveImageSrc),
     Markdown,
-    Placeholder.configure({ placeholder }),
+    Placeholder.configure({
+      placeholder,
+      // Keep the empty textblock decorated after focus leaves the editor. The
+      // CSS limits painting to the sole top-level block of an empty document.
+      showOnlyCurrent: false,
+    }),
   ];
 }
 
@@ -289,12 +299,14 @@ function ToolbarButton({
   icon: Icon,
   label,
   onClick,
+  onPressStart,
   isActive = false,
   disabled = false,
 }: {
   icon: LucideIcon;
   label: string;
   onClick: () => void;
+  onPressStart?: () => void;
   isActive?: boolean;
   disabled?: boolean;
 }) {
@@ -304,6 +316,10 @@ function ToolbarButton({
       variant="ghost"
       size="icon-sm"
       onClick={onClick}
+      onMouseDown={(event) => {
+        event.preventDefault();
+        onPressStart?.();
+      }}
       disabled={disabled}
       aria-pressed={isActive}
       aria-label={label}
@@ -390,6 +406,7 @@ export function MarkdownEditor({
   const linksOpenedFromMouseUpRef = useRef(
     new WeakMap<HTMLAnchorElement, number>(),
   );
+  const linkSelectionRef = useRef<EditorSelectionRange | null>(null);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -628,6 +645,12 @@ export function MarkdownEditor({
       contentType: "markdown",
       emitUpdate: false,
     });
+    // The native file picker can move focus outside the editor before the
+    // asynchronous upload finishes. In that case the ordinary blur commit has
+    // already saved the pre-upload body, so commit the completed insertion now.
+    if (!rootRef.current?.contains(document.activeElement)) {
+      onBlurRef.current?.(next);
+    }
   }
 
   async function uploadAndAppendFiles(files: File[]) {
@@ -686,10 +709,21 @@ export function MarkdownEditor({
   function closeLinkEditor() {
     setLinkEditorOpen(false);
     setLinkUrl("");
+    linkSelectionRef.current = null;
+  }
+
+  function rememberLinkSelection() {
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    linkSelectionRef.current = { from, to };
   }
 
   function openLinkEditor() {
     if (!editor) return;
+    // Pointer activation snapshots on mousedown, before the toolbar can
+    // collapse ProseMirror's selection. Keyboard activation has no mousedown,
+    // so capture the still-current selection here instead.
+    if (!linkSelectionRef.current) rememberLinkSelection();
     const href =
       (editor.getAttributes("link").href as string | undefined) ?? "";
     setLinkUrl(href);
@@ -704,8 +738,11 @@ export function MarkdownEditor({
       closeLinkEditor();
       return;
     }
-    const chain = editor.chain().focus().extendMarkRange("link");
-    if (editor.state.selection.empty && !active.link) {
+    const selection = linkSelectionRef.current;
+    const chain = editor.chain().focus();
+    if (selection) chain.setTextSelection(selection);
+    chain.extendMarkRange("link");
+    if ((!selection || selection.from === selection.to) && !active.link) {
       // No selection and not on an existing link: insert the URL as its own
       // linked text so the result is still a real markdown link.
       chain.insertContent({
@@ -721,7 +758,12 @@ export function MarkdownEditor({
   }
 
   function removeLink() {
-    editor?.chain().focus().extendMarkRange("link").unsetLink().run();
+    if (!editor) return;
+    const chain = editor.chain().focus();
+    if (linkSelectionRef.current) {
+      chain.setTextSelection(linkSelectionRef.current);
+    }
+    chain.extendMarkRange("link").unsetLink().run();
     closeLinkEditor();
   }
 
@@ -883,6 +925,7 @@ export function MarkdownEditor({
                 label={t("link")}
                 isActive={active.link || linkEditorOpen}
                 disabled={sourceMode}
+                onPressStart={rememberLinkSelection}
                 onClick={() =>
                   linkEditorOpen ? closeLinkEditor() : openLinkEditor()
                 }
