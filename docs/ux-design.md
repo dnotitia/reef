@@ -599,8 +599,20 @@ changing the pending badge. Type filters (All / Draft issues / Status Changes)
 sit above the queue. Each purple card carries a text AI provenance badge, so
 the source is not conveyed by color alone or promoted into the page title.
 Dismissed and approved suggestions persist as akb suggestion state so they
-don't reappear for the workspace. The empty state reads "No suggestions to
-review."
+don't reappear for the workspace.
+
+Suggestions empty states distinguish the cause while keeping recovery controls
+in the surrounding composition. With no monitored repository and no pending
+items, the section frame explains that repository setup is needed; the existing
+Settings navigation remains outside the frame and the separate Check now
+control is disabled. With a monitored repository but no pending items, the
+framed state is passive: it says **"No suggestions to review"** and keeps the
+existing Check now control outside the frame. If pending items exist but the
+active type filter excludes all of them, the frame says **"No matching
+suggestions"** and one standard outline **Clear filters** control sits below
+the frame. Clearing the filter restores the pending cards from the same loaded
+queue. Existing pending cards remain visible even if a monitored repository is
+later removed, and the scanning-off state continues to hide Check now.
 
 ### Ask AI
 
@@ -768,7 +780,7 @@ CTA placement belongs to the surrounding page composition, not to the shared
 | My Work: populated | None | Existing summary and queue only | Open work is available |
 | Planning: true empty | Primary create/continue | One existing filled `PageHeader` New button | The selected planning kind has no entries |
 | Reports: true empty | Primary create/continue | One filled `PageHeader` New issue button opens the shared issue creation flow; the section frame remains passive | Reports has no active issues |
-| Board / Suggestions: filtered no-match | Recovery | Existing outline control outside the section frame | Active filters produce no matches |
+| Board / Suggestions: filtered no-match | Recovery | Existing outline control outside the section frame | Active filters produce no matches; Suggestions uses Clear filters |
 | Inbox: normal empty | Passive | No CTA | There is no notification to review |
 | Workspace navigation | Navigation | Existing sidebar Issues link and Issues view switcher | All My Work states; navigation is not duplicated in an empty frame |
 

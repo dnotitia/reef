@@ -1,5 +1,7 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjectConfig } from "@/features/settings/hooks/useProjectConfig";
 import { useStatusLabels } from "@/i18n/fieldLabels";
@@ -134,6 +136,7 @@ function ActivityFeedContent({
   const router = useRouter();
   const queryClient = useQueryClient();
   const t = useTranslations("toasts");
+  const common = useTranslations("common");
   const ta = useTranslations("activity");
   const nav = useTranslations("nav");
   const statusLabels = useStatusLabels();
@@ -199,6 +202,10 @@ function ActivityFeedContent({
       return item.type === "ai_status_change";
     return true;
   });
+  const isFilteredNoMatch =
+    displayItems.length > 0 &&
+    activityTypeFilter !== "all" &&
+    filteredItems.length === 0;
 
   const markRemoved = (id: string) =>
     setRemovedIds((prev) => {
@@ -471,10 +478,38 @@ function ActivityFeedContent({
         />
       )}
 
-      {filteredItems.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">
-          {ta("emptyFeed")}
-        </p>
+      {displayItems.length === 0 ? (
+        <EmptyState
+          data-testid="activity-empty-state"
+          title={
+            monitoredRepos.length === 0
+              ? ta("noMonitoredRepoTitle")
+              : ta("emptyFeed")
+          }
+          description={
+            monitoredRepos.length === 0
+              ? ta("noMonitoredRepoDescription")
+              : ta("emptyFeedDescription")
+          }
+        />
+      ) : isFilteredNoMatch ? (
+        <div className="space-y-2">
+          <EmptyState
+            data-testid="activity-empty-state"
+            title={ta("noMatchingTitle")}
+            description={ta("noMatchingDescription")}
+          />
+          <div className="flex justify-center">
+            <Button
+              variant="outline"
+              size="sm"
+              data-testid="activity-clear-filters"
+              onClick={() => setActivityTypeFilter("all")}
+            >
+              {common("clearFilters")}
+            </Button>
+          </div>
+        </div>
       ) : (
         <ul className="space-y-3">
           {filteredItems.map((item) => (
