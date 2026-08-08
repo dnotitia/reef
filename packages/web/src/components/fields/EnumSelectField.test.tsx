@@ -99,7 +99,7 @@ describe("EnumSelectField", () => {
     trigger.focus();
     await user.keyboard("{Enter}");
     await screen.findByRole("listbox");
-    await user.keyboard("{ArrowDown}{Enter}");
+    await user.keyboard("{ArrowDown}{ArrowUp}{ArrowDown}{Enter}");
 
     expect(onValueChange).toHaveBeenCalledTimes(1);
 
