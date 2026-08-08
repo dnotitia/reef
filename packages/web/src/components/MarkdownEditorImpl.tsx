@@ -186,7 +186,13 @@ export function createMarkdownEditorExtensions(
     TaskItem.configure({ nested: true }),
     createImageExtension(resolveImageSrc),
     Markdown,
-    Placeholder.configure({ placeholder }),
+    Placeholder.configure({
+      placeholder,
+      // Empty-editor guidance is useful before and after editing. Tiptap's
+      // default limits the decoration to its current textblock, which drops
+      // the marker when focus leaves the editor.
+      showOnlyCurrent: false,
+    }),
   ];
 }
 

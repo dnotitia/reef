@@ -37,6 +37,32 @@ describe("MarkdownEditor Tiptap extensions", () => {
     );
   });
 
+  it("keeps the empty-editor placeholder independent of editor focus", () => {
+    const extensions = createMarkdownEditorExtensions("Describe the issue...");
+    const placeholder = extensions.find(
+      (extension) => extension.name === "placeholder",
+    );
+    const editor = createEditor("");
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+
+    editor.view.focus();
+    expect(
+      editor.view.dom.querySelector(
+        "p.is-empty.is-editor-empty[data-placeholder]",
+      ),
+    ).not.toBeNull();
+
+    outside.focus();
+
+    expect(placeholder?.options).toMatchObject({ showOnlyCurrent: false });
+    expect(
+      editor.view.dom.querySelector(
+        "p.is-empty.is-editor-empty[data-placeholder]",
+      ),
+    ).not.toBeNull();
+  });
+
   it("executes list transactions without cross-version Fragment failures", () => {
     const editor = createEditor("First item");
 
