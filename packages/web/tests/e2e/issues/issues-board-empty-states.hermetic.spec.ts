@@ -22,10 +22,12 @@ test.describe("Hermetic board empty states", () => {
     await context.clearCookies();
     await resetFixture(request, "configured");
     await openExistingWorkspace(page);
-    await page.goto("/workspace/reef-e2e/issues?view=board");
-    await expect(page.getByText("Initial issue Alpha")).toBeVisible({
-      timeout: 15_000,
-    });
+    // Start with a URL-applied facet and explicit sort so the reset proves it
+    // clears the URL projection and the remembered per-vault filter as well as
+    // the one-off search query.
+    await page.goto(
+      "/workspace/reef-e2e/issues?view=board&priority=critical&sort=title&order=asc",
+    );
 
     await page.getByTestId("search-input").fill("nothing matches");
     await expect(page).toHaveURL(/q=nothing\+matches/);
@@ -47,16 +49,32 @@ test.describe("Hermetic board empty states", () => {
       name: "Clear filters",
       exact: true,
     });
+    await expect(clear).toHaveCount(1);
     await clear.focus();
     await page.keyboard.press("Enter");
     await expect(page.getByTestId("search-input")).toHaveValue("");
     await expect
       .poll(() => new URL(page.url()).searchParams.has("q"))
       .toBe(false);
+    await expect
+      .poll(() => {
+        const params = new URL(page.url()).searchParams;
+        return ["priority", "sort", "order"].some((key) => params.has(key));
+      })
+      .toBe(false);
     await expect(page.getByText("Initial issue Alpha")).toBeVisible({
       timeout: 15_000,
     });
     await expect(frame).toHaveCount(0);
+
+    // The persisted filter settles after the recovery; a reload must stay
+    // populated instead of restoring the pre-recovery facet or sort.
+    await page.waitForTimeout(400);
+    await page.reload();
+    await expect(page.getByText("Initial issue Alpha")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByTestId("kanban-no-matches")).toHaveCount(0);
   });
 
   test("keeps the five columns and zero counts for a configured empty board", async ({

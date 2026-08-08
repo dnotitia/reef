@@ -43,6 +43,7 @@
     "close": "Close",
     "retry": "Retry",
     "clearFilters": "Clear filters",
+    "clearFacetFilters": "Clear facet filters",
     "loading": "Loading…",
     "addLabelPlaceholder": "Add a label and press Enter…"
   },

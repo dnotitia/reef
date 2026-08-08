@@ -191,7 +191,7 @@ export function FilterBar({
   // facet name localizes alongside its already-localized value summary.
   const fieldNames = useFieldNameLabels();
   // Localized bar copy (REEF-298): the active-filter count, the milestone
-  // clear action, and the shared "Clear filters" action.
+  // facet clear action, and the shared full filter reset action.
   const t = useTranslations("issues.filters");
   const c = useTranslations("common");
 
@@ -504,9 +504,10 @@ export function FilterBar({
               clearFiltersOnly();
             }}
             data-testid="clear-filters-button"
+            aria-label={c("clearFacetFilters")}
           >
             <X className="h-3 w-3" />
-            {c("clearFilters")}
+            {c("clearFacetFilters")}
           </button>
         </div>
       )}

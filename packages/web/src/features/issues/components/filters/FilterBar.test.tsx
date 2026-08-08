@@ -536,6 +536,23 @@ describe("FilterBar", () => {
     expect(filter.sortOrder).toBe("desc");
   });
 
+  it("labels the facet-only reset separately from the full reset action", () => {
+    useIssueStore.setState({
+      filter: { status: ["todo"] },
+      searchQuery: "nothing matches",
+      selectedIssueId: null,
+    });
+
+    renderFilterBar();
+
+    const clearFacets = screen.getByTestId("clear-filters-button");
+    expect(clearFacets).toHaveAccessibleName("Clear facet filters");
+    expect(clearFacets).toHaveTextContent("Clear facet filters");
+    expect(
+      screen.queryByRole("button", { name: /^Clear filters$/ }),
+    ).toBeNull();
+  });
+
   it("clear filters button is not visible when no filters active", () => {
     renderFilterBar();
     expect(screen.queryByTestId("clear-filters-button")).toBeNull();
