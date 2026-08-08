@@ -5,6 +5,7 @@ import { generateKeyPairSync } from "node:crypto";
 import { chmod, unlink, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { chromium } from "@playwright/test";
 
 const MODULE_PATH = fileURLToPath(import.meta.url);
 const PACKAGE_ROOT = resolve(dirname(MODULE_PATH), "..");
@@ -19,6 +20,8 @@ const RUNTIME_BUILD_ARGS = [
   "--filter=@reef/web",
 ];
 const SAFE_SCENARIO = /^[A-Za-z][A-Za-z0-9_-]*$/u;
+const CLIENT_READY_TIMEOUT_MS = 120_000;
+const CLIENT_READINESS = { mode: "browser", status: "ready" };
 const E2E_GITHUB_APP_PRIVATE_KEY = generateKeyPairSync("rsa", {
   modulusLength: 2048,
 })
@@ -142,6 +145,7 @@ export function buildReadyPayload({ webOrigin, fixtureOrigin, scenario }) {
       web: {
         origin: webOrigin,
         health: { method: "GET", url: webOrigin },
+        readiness: CLIENT_READINESS,
       },
       fixture: {
         origin: fixtureOrigin,
@@ -162,6 +166,138 @@ export function buildReadyPayload({ webOrigin, fixtureOrigin, scenario }) {
       },
     },
   };
+}
+
+function requireString(value, name) {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`Fixture runtime discovery is missing ${name}`);
+  }
+  return value;
+}
+
+function resolveWebPath(webOrigin, value, name) {
+  const path = requireString(value, name);
+  if (!path.startsWith("/") || path.startsWith("//")) {
+    throw new Error(`Fixture runtime discovery returned an invalid ${name}`);
+  }
+  const url = new URL(path, webOrigin);
+  if (url.origin !== webOrigin) {
+    throw new Error(`Fixture runtime discovery returned an external ${name}`);
+  }
+  return url.toString();
+}
+
+export function getClientReadinessInputs(discovery) {
+  if (discovery?.status !== "ready") {
+    throw new Error("Fixture runtime discovery is not ready");
+  }
+  const fixtureLogin = discovery.fixture_login;
+  const chatTask = discovery.tasks?.chat;
+  return {
+    username: requireString(fixtureLogin?.username, "fixture login username"),
+    password: requireString(fixtureLogin?.password, "fixture login password"),
+    loginPath: requireString(fixtureLogin?.login_path, "fixture login path"),
+    startPath: requireString(
+      chatTask?.start_path,
+      "client readiness start path",
+    ),
+  };
+}
+
+async function readRuntimeDiscovery(fixtureOrigin) {
+  const response = await fetch(`${fixtureOrigin}/__e2e/runtime`);
+  if (!response.ok) {
+    throw new Error(`Fixture runtime discovery failed (${response.status})`);
+  }
+  return response.json();
+}
+
+async function probeSearchInteraction(page, timeoutMs) {
+  const searchInput = page.locator('[data-testid="global-search-input"]');
+  await page.locator('[data-interaction-ready="true"]').waitFor({
+    state: "visible",
+    timeout: timeoutMs,
+  });
+
+  const deadline = Date.now() + timeoutMs;
+  let lastError;
+  while (Date.now() < deadline) {
+    try {
+      await page.keyboard.press("Control+K");
+      await searchInput.waitFor({ state: "visible", timeout: 1_000 });
+      await page.keyboard.press("Escape");
+      await searchInput.waitFor({ state: "hidden", timeout: 1_000 });
+      return;
+    } catch (error) {
+      lastError = error;
+      if (await searchInput.isVisible().catch(() => false)) {
+        await page.keyboard.press("Escape").catch(() => undefined);
+        await searchInput
+          .waitFor({ state: "hidden", timeout: 1_000 })
+          .catch(() => undefined);
+      }
+      await delay(250);
+    }
+  }
+  throw new Error(
+    "Client interaction readiness did not respond to keyboard input",
+    {
+      cause: lastError,
+    },
+  );
+}
+
+export async function waitForClientInteractionReady(
+  { webOrigin, fixtureOrigin },
+  { browserType = chromium, timeoutMs = CLIENT_READY_TIMEOUT_MS } = {},
+) {
+  const discovery = await readRuntimeDiscovery(fixtureOrigin);
+  const { username, password, loginPath, startPath } =
+    getClientReadinessInputs(discovery);
+  const browser = await browserType.launch({ headless: true });
+  const context = await browser.newContext();
+  const page = await context.newPage();
+
+  try {
+    await page.goto(
+      resolveWebPath(webOrigin, loginPath, "fixture login path"),
+      {
+        waitUntil: "domcontentloaded",
+        timeout: timeoutMs,
+      },
+    );
+    await page.locator('[data-testid="akb-login-form"]').waitFor({
+      state: "visible",
+      timeout: timeoutMs,
+    });
+    await page.locator('[data-testid="login-username"]').fill(username);
+    await page.locator('[data-testid="login-password"]').fill(password);
+    const loginResponsePromise = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/auth/akb/login" &&
+        response.request().method() === "POST",
+      { timeout: timeoutMs },
+    );
+    await page.locator('[data-testid="login-submit"]').click();
+    const loginResponse = await loginResponsePromise;
+    if (!loginResponse.ok()) {
+      throw new Error(`Fixture login failed (${loginResponse.status()})`);
+    }
+    await page.waitForURL((url) => url.pathname !== "/login", {
+      timeout: timeoutMs,
+    });
+    await page.goto(
+      resolveWebPath(webOrigin, startPath, "client readiness start path"),
+      {
+        waitUntil: "domcontentloaded",
+        timeout: timeoutMs,
+      },
+    );
+    await probeSearchInteraction(page, timeoutMs);
+  } finally {
+    await context.close().catch(() => undefined);
+    await browser.close().catch(() => undefined);
+  }
 }
 
 export function validateResetBody(body, requestedScenario) {
@@ -376,6 +512,13 @@ export async function startRuntime(options) {
     },
   );
   await waitForOk(options.webOrigin, 120_000);
+  await waitForClientInteractionReady({
+    webOrigin: options.webOrigin,
+    fixtureOrigin: options.fixtureOrigin,
+  });
+  process.stdout.write(
+    "[dev:e2e] browser hydration and interaction readiness confirmed\n",
+  );
 
   const payload = buildReadyPayload({
     webOrigin: options.webOrigin,

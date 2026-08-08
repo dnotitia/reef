@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   buildReadyPayload,
   buildRuntimeCommand,
+  getClientReadinessInputs,
   parseOptions,
   validateResetBody,
   validateScenario,
@@ -76,6 +77,32 @@ describe("dev:e2e runtime contract", () => {
     ).toThrow(/rejected scenario/);
   });
 
+  it("requires the fixture's browser login and workspace entrypoint contract", () => {
+    expect(
+      getClientReadinessInputs({
+        status: "ready",
+        fixture_login: {
+          username: "alice",
+          password: "fixture-password",
+          login_path: "/login?password=1",
+        },
+        tasks: { chat: { start_path: "/workspace/reef-e2e/issues" } },
+      }),
+    ).toEqual({
+      username: "alice",
+      password: "fixture-password",
+      loginPath: "/login?password=1",
+      startPath: "/workspace/reef-e2e/issues",
+    });
+    expect(() =>
+      getClientReadinessInputs({
+        status: "ready",
+        fixture_login: { username: "alice" },
+        tasks: { chat: { start_path: "/workspace/reef-e2e/issues" } },
+      }),
+    ).toThrow(/fixture login password/);
+  });
+
   it("writes a private runtime ready descriptor", async () => {
     const root = await mkdtemp(join(tmpdir(), "reef-dev-e2e-contract-test-"));
     temporaryDirectories.push(root);
@@ -96,6 +123,7 @@ describe("dev:e2e runtime contract", () => {
         web: {
           origin: "http://localhost:9135",
           health: { method: "GET", url: "http://localhost:9135" },
+          readiness: { mode: "browser", status: "ready" },
         },
         fixture: {
           origin: "http://127.0.0.1:9136",
