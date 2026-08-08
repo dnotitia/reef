@@ -33,7 +33,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ISSUE_TYPE_OPTIONS, NO_SELECTION } from "../../lib/metadataOptions";
 import { IssueRefsEditor } from "../refs/IssueRefsEditor";
@@ -308,14 +308,23 @@ export function NewIssueDialog({
     }
   }
 
+  useLayoutEffect(() => {
+    if (!open || focusOriginRef.current?.isConnected) return;
+    const active = document.activeElement;
+    focusOriginRef.current =
+      active instanceof HTMLElement && active !== document.body ? active : null;
+  }, [open]);
+
   function handleOpenAutoFocus() {
     const active = document.activeElement;
     const pendingOrigin = pendingFocusOriginRef?.current;
     focusOriginRef.current = pendingOrigin?.isConnected
       ? pendingOrigin
-      : active instanceof HTMLElement && active !== document.body
-        ? active
-        : null;
+      : focusOriginRef.current?.isConnected
+        ? focusOriginRef.current
+        : active instanceof HTMLElement && active !== document.body
+          ? active
+          : null;
   }
 
   function handleCloseAutoFocus(event: Event) {

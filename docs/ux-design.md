@@ -767,7 +767,7 @@ CTA placement belongs to the surrounding page composition, not to the shared
 | My Work: caught up | Passive | No PageHeader action and no frame action | Assigned issues exist, but none are open |
 | My Work: populated | None | Existing summary and queue only | Open work is available |
 | Planning: true empty | Primary create/continue | One existing filled `PageHeader` New button | The selected planning kind has no entries |
-| Reports: true empty | Primary create/continue, follow-up | A future filled `PageHeader` New issue button; this surface does not wire the flow here | Reports creation is implemented by its owning feature |
+| Reports: true empty | Primary create/continue | One filled `PageHeader` New issue button opens the shared issue creation flow; the section frame remains passive | Reports has no active issues |
 | Board / Suggestions: filtered no-match | Recovery | Existing outline control outside the section frame | Active filters produce no matches |
 | Inbox: normal empty | Passive | No CTA | There is no notification to review |
 | Workspace navigation | Navigation | Existing sidebar Issues link and Issues view switcher | All My Work states; navigation is not duplicated in an empty frame |

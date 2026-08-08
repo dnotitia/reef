@@ -1,3 +1,4 @@
+import { useViewStore } from "@/features/ui/stores/useViewStore";
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import type { IssueMetadata } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -17,6 +18,10 @@ const { mockUseActiveVault } = vi.hoisted(() => ({
 
 vi.mock("@/features/settings/hooks/useActiveVault", () => ({
   useActiveVault: mockUseActiveVault,
+}));
+
+vi.mock("@/lib/useHydrated", () => ({
+  useHydrated: () => true,
 }));
 
 import { apiFetch } from "@/lib/apiClient";
@@ -98,6 +103,10 @@ function setLabelFilter(value: string) {
 describe("ReportsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useViewStore.setState({
+      newIssueDialogOpen: false,
+      newIssueDialogContext: null,
+    });
     vi.spyOn(Date, "now").mockReturnValue(
       new Date("2026-05-26T00:00:00.000Z").getTime(),
     );
@@ -320,6 +329,31 @@ describe("ReportsPage", () => {
     expect(within(empty).queryByRole("button")).not.toBeInTheDocument();
   });
 
+  it("offers the header New issue CTA and opens the shared dialog on activation", async () => {
+    mockApi([]);
+
+    render(wrap(<ReportsPage />));
+
+    const header = (
+      await screen.findByRole("heading", {
+        name: "Reports",
+        level: 1,
+      })
+    ).closest('[data-slot="page-header"]');
+    expect(header).not.toBeNull();
+    const trigger = await within(header as HTMLElement).findByRole("button", {
+      name: "New issue",
+    });
+    expect(trigger).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("reports-empty")).queryByRole("button"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(trigger);
+
+    expect(useViewStore.getState().newIssueDialogOpen).toBe(true);
+  });
+
   it("shows an empty report state when filters match no issues", async () => {
     mockApi(issues);
 
@@ -350,6 +384,9 @@ describe("ReportsPage", () => {
       "py-12",
     );
     expect(within(empty).queryByRole("button")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "New issue" }),
+    ).not.toBeInTheDocument();
   });
 
   it("can clear a parent rollup drill from the empty state (REEF-187)", async () => {
