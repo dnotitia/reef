@@ -14,6 +14,10 @@ explicitly in the entries below.
 
 ### Added
 
+- **Reports true-empty states now expose a filled PageHeader New issue action.**
+  The action opens the existing shared issue creation dialog while the section
+  frame keeps its title-and-description-only geometry.
+
 - **A private foreground work-URI invocation adapter now binds strict provider
   configuration to the shared orchestration engine.** The built artifact reads
   one work snapshot, records controller-safe lifecycle state, emits bounded

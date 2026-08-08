@@ -243,6 +243,11 @@ test.describe("Hermetic runtime discovery", () => {
     ).toBeVisible();
     await expect(reportsEmpty.locator("p")).toHaveCount(1);
     await expect(reportsEmpty.getByRole("button")).toHaveCount(0);
+    await expect(
+      page
+        .locator('[data-slot="page-header"]')
+        .getByRole("button", { name: "New issue", exact: true }),
+    ).toHaveCount(1);
     await recordFrame(reportsEmpty);
 
     await page.goto("/workspace/reef-e2e/planning");
@@ -347,6 +352,17 @@ test.describe("Hermetic runtime discovery", () => {
     const reportsEmpty = page.getByTestId("reports-empty");
     await expect(reportsEmpty).toBeVisible();
     await recordFrame(reportsEmpty);
+    const reportsAction = page
+      .locator('[data-slot="page-header"]')
+      .getByRole("button", { name: "새 이슈", exact: true });
+    await expect(reportsAction).toHaveCount(1);
+    await expect(reportsAction).toBeVisible();
+    const reportsActionBox = await reportsAction.boundingBox();
+    if (!reportsActionBox)
+      throw new Error("Expected the Reports New issue action to have a box");
+    expect(reportsActionBox.x + reportsActionBox.width).toBeLessThanOrEqual(
+      390,
+    );
     await expectViewportFits();
 
     await page.goto("/workspace/reef-e2e/planning");
@@ -427,6 +443,11 @@ test.describe("Hermetic runtime discovery", () => {
     await resetFixture(request, "demo_board");
     await openExistingWorkspace(page);
     await page.goto("/workspace/reef-e2e/reports");
+    await expect(
+      page
+        .locator('[data-slot="page-header"]')
+        .getByRole("button", { name: "New issue", exact: true }),
+    ).toHaveCount(0);
 
     const milestones = page.getByRole("button", {
       name: "Milestones",
@@ -466,5 +487,39 @@ test.describe("Hermetic runtime discovery", () => {
     await expect(page.getByTestId("reports-clear-parent-scope")).toHaveCount(0);
     await expect(page.getByText("No matching report data")).toBeVisible();
     await expect(page.getByText("docs")).toBeVisible();
+  });
+
+  test("opens the shared New issue dialog from an empty Reports header and restores focus", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await context.clearCookies();
+    await resetFixture(request, "configured_empty");
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/reports");
+
+    const trigger = page
+      .locator('[data-slot="page-header"]')
+      .getByRole("button", { name: "New issue", exact: true });
+    const reportsEmpty = page.getByTestId("reports-empty");
+    const dialog = page.getByTestId("new-issue-dialog");
+    await expect(reportsEmpty).toBeVisible();
+    await expect(trigger).toHaveCount(1);
+
+    await trigger.click();
+    await expect(dialog).toBeVisible();
+    await dialog.getByTestId("new-issue-cancel").click();
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+    await expect(reportsEmpty).toBeVisible();
+
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+    await expect(reportsEmpty).toBeVisible();
   });
 });

@@ -7,8 +7,10 @@ import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog
 import { useActiveVault } from "@/features/settings/hooks/useActiveVault";
 import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNotice";
 import { PageHeader } from "@/features/ui/components/PageHeader";
+import { useViewStore } from "@/features/ui/stores/useViewStore";
 import { useIssueTypeLabels, useSeverityLabels } from "@/i18n/fieldLabels";
 import { ACTIVE_STATUSES, type Status } from "@reef/core";
+import { Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useMemo, useState } from "react";
 import {
@@ -54,6 +56,7 @@ export function ReportsPage() {
   const severityLabels = useSeverityLabels();
   const issueTypeLabels = useIssueTypeLabels();
   const { vault, isLoading: vaultLoading } = useActiveVault();
+  const openNewIssueDialog = useViewStore((state) => state.openNewIssueDialog);
   const issuesQuery = useIssueList(vault);
   const planningQuery = usePlanningCatalog(vault);
   const [filters, setFilters] = useState<ReportFilters>(DEFAULT_REPORT_FILTERS);
@@ -177,7 +180,20 @@ export function ReportsPage() {
 
   if (issues.length === 0) {
     return (
-      <PageShell description={vault || undefined}>
+      <PageShell
+        description={vault || undefined}
+        actions={
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => openNewIssueDialog()}
+            className="gap-1.5"
+          >
+            <Plus aria-hidden="true" className="h-3.5 w-3.5" />
+            {nav("newIssue")}
+          </Button>
+        }
+      >
         <EmptyState
           data-testid="reports-empty"
           title={t("noActiveIssuesTitle")}

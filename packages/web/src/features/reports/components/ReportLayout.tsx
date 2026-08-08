@@ -8,17 +8,23 @@ import type { ReactNode } from "react";
 
 export function PageShell({
   description,
+  actions,
   children,
 }: {
   /** Active workspace name, shown as the header subtitle so Reports names its
    *  vault scope like the Issues / Planning / Activity headers do (REEF-260). */
   description?: string;
+  actions?: ReactNode;
   children: ReactNode;
 }) {
   const nav = useTranslations("nav");
   return (
     <div className="flex h-full flex-col">
-      <PageHeader title={nav("reports")} description={description} />
+      <PageHeader
+        title={nav("reports")}
+        description={description}
+        actions={actions}
+      />
       <PageBody width="wide" className="flex flex-col gap-6">
         {children}
       </PageBody>
