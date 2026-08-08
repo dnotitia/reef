@@ -522,4 +522,47 @@ test.describe("Hermetic runtime discovery", () => {
     await expect(trigger).toBeFocused();
     await expect(reportsEmpty).toBeVisible();
   });
+
+  test("creates and persists an issue from an empty Reports header", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await context.clearCookies();
+    await resetFixture(request, "configured_empty");
+    await openExistingWorkspace(page);
+    await page.goto("/workspace/reef-e2e/reports");
+
+    const trigger = page
+      .locator('[data-slot="page-header"]')
+      .getByRole("button", { name: "New issue", exact: true });
+    const dialog = page.getByTestId("new-issue-dialog");
+    await expect(page.getByTestId("reports-empty")).toBeVisible();
+    await trigger.click();
+    await expect(dialog).toBeVisible();
+    await dialog
+      .getByTestId("new-issue-title-input")
+      .fill("Created from empty Reports");
+    await dialog.getByTestId("new-issue-submit").click();
+
+    await page.waitForURL(/\/issues\/REEF-\d+/, { timeout: 10_000 });
+    await expect(page.getByTestId("issue-detail")).toBeVisible();
+    await expect(page.getByTestId("issue-title-input")).toHaveValue(
+      "Created from empty Reports",
+    );
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        return (
+          state.vaults.find((vault) => vault.name === "reef-e2e")?.issues ?? []
+        );
+      })
+      .toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            title: "Created from empty Reports",
+          }),
+        ]),
+      );
+  });
 });
