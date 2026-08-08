@@ -1,5 +1,14 @@
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent, {
+  PointerEventsCheckLevel,
+} from "@testing-library/user-event";
+import { StrictMode, useState } from "react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { EnumSelectField } from "./EnumSelectField";
 
@@ -7,6 +16,48 @@ const STATUS_OPTIONS = ["in_progress", "in_review"] as const;
 
 function renderStatusOption(status: (typeof STATUS_OPTIONS)[number]) {
   return status === "in_progress" ? "In Progress" : "In Review";
+}
+
+type StatusValue = (typeof STATUS_OPTIONS)[number];
+
+function ControlledStatusSelect({
+  onValueChange,
+  testId = "status-select",
+}: {
+  onValueChange?: (value: string) => void;
+  testId?: string;
+}) {
+  const [value, setValue] = useState<StatusValue>("in_progress");
+
+  return (
+    <EnumSelectField
+      value={value}
+      onValueChange={(nextValue) => {
+        setValue(nextValue as StatusValue);
+        onValueChange?.(nextValue);
+      }}
+      options={STATUS_OPTIONS}
+      renderItem={renderStatusOption}
+      testId={testId}
+    />
+  );
+}
+
+function NestedSelectHarness({ onSheetEscape }: { onSheetEscape: () => void }) {
+  return (
+    <Sheet open>
+      <SheetContent
+        onEscapeKeyDown={(event) => {
+          event.preventDefault();
+          onSheetEscape();
+        }}
+      >
+        <SheetTitle>Details</SheetTitle>
+        <SheetDescription>Details</SheetDescription>
+        <ControlledStatusSelect testId="nested-status-select" />
+      </SheetContent>
+    </Sheet>
+  );
 }
 
 describe("EnumSelectField", () => {
@@ -37,6 +88,100 @@ describe("EnumSelectField", () => {
 
     expect(trigger).toHaveTextContent("In Review");
     expect(trigger).not.toHaveTextContent("In Progress");
+  });
+
+  it("returns focus to the trigger when Escape closes a reopened keyboard selection", async () => {
+    const user = userEvent.setup();
+    const onValueChange = vi.fn();
+    render(<ControlledStatusSelect onValueChange={onValueChange} />);
+
+    const trigger = screen.getByTestId("status-select");
+    trigger.focus();
+    await user.keyboard("{Enter}");
+    await screen.findByRole("listbox");
+    await user.keyboard("{ArrowDown}{ArrowUp}{ArrowDown}{Enter}");
+
+    expect(onValueChange).toHaveBeenCalledTimes(1);
+
+    await waitFor(() =>
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument(),
+    );
+
+    await user.keyboard("{Enter}");
+    const listbox = await screen.findByRole("listbox");
+    expect(document.activeElement).toBeInstanceOf(HTMLElement);
+    expect(listbox).toContainElement(document.activeElement as HTMLElement);
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(() =>
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument(),
+    );
+    expect(document.activeElement).toBe(trigger);
+    expect(onValueChange).toHaveBeenCalledTimes(1);
+    expect(trigger).toHaveTextContent("In Review");
+  });
+
+  it("closes the select before the surrounding sheet handles Escape", async () => {
+    const user = userEvent.setup();
+    const onSheetEscape = vi.fn();
+    render(
+      <StrictMode>
+        <NestedSelectHarness onSheetEscape={onSheetEscape} />
+      </StrictMode>,
+    );
+
+    const trigger = screen.getByTestId("nested-status-select");
+    trigger.focus();
+    await user.keyboard("{Enter}");
+    await screen.findByRole("listbox");
+    await user.keyboard("{ArrowDown}{Enter}");
+
+    await waitFor(() =>
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument(),
+    );
+
+    await user.keyboard("{Enter}");
+    const listbox = await screen.findByRole("listbox");
+    expect(document.activeElement).toBeInstanceOf(HTMLElement);
+    expect(listbox).toContainElement(document.activeElement as HTMLElement);
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(() =>
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument(),
+    );
+    expect(document.activeElement).toBe(trigger);
+    expect(onSheetEscape).not.toHaveBeenCalled();
+  });
+
+  it("preserves Space and pointer open, selection, and outside-click paths", async () => {
+    const user = userEvent.setup({
+      // Radix temporarily sets body pointer-events to none while its modal
+      // listbox is open; the outside click itself is the behavior under test.
+      pointerEventsCheck: PointerEventsCheckLevel.Never,
+    });
+    const onValueChange = vi.fn();
+    render(<ControlledStatusSelect onValueChange={onValueChange} />);
+
+    const trigger = screen.getByTestId("status-select");
+    trigger.focus();
+    await user.keyboard(" ");
+    expect(await screen.findByRole("listbox")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("option", { name: "In Review" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument(),
+    );
+    expect(onValueChange).toHaveBeenCalledWith("in_review");
+    expect(trigger).toHaveTextContent("In Review");
+
+    await user.click(trigger);
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    await user.click(document.body);
+    await waitFor(() =>
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument(),
+    );
   });
 });
 

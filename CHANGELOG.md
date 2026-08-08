@@ -104,6 +104,12 @@ explicitly in the entries below.
   subscription, column, and issue-action callers use the same checked/current,
   focus, alignment, and destructive treatments.
 
+### Fixed
+
+- **Issue-detail Selects now let a child layer consume Escape before the
+  surrounding Sheet handles the next Escape.** Selection values, trigger focus,
+  and the existing Sheet Back/Close behavior remain unchanged. (REEF-490)
+
 ## v0.9.0 - 2026-08-03
 
 ### Added

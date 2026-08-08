@@ -165,6 +165,38 @@ describe("IssueDetailSheet", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the sheet open when a child layer has already consumed Escape", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    let childEscapeConsumed = false;
+    const consumeEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !childEscapeConsumed) {
+        childEscapeConsumed = true;
+        event.preventDefault();
+      }
+    };
+    document.addEventListener("keydown", consumeEscape, { capture: true });
+
+    try {
+      mockUseActiveVault.mockReturnValue({
+        vault: "",
+        isLoading: false,
+        refetch: () => Promise.resolve(),
+      });
+      render(wrap(<IssueDetailSheet issueId="REEF-001" onClose={onClose} />));
+
+      await user.keyboard("{Escape}");
+
+      expect(onClose).not.toHaveBeenCalled();
+
+      await user.keyboard("{Escape}");
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+    } finally {
+      document.removeEventListener("keydown", consumeEscape, { capture: true });
+    }
+  });
+
   // REEF-270: the drill trail drives a top-left Back affordance and makes Close
   // exit the whole trail in one shot.
   describe("drill navigation (REEF-270)", () => {
