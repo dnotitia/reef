@@ -75,6 +75,12 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Suggestions empty states now explain their actual cause.** Unconfigured
+  workspaces point to monitored-repository setup, configured passive queues
+  keep a separate Check now action, and filtered no-match results offer one
+  outline Clear filters control outside the shared section frame. Existing
+  pending proposals remain reviewable even when a monitored repository is
+  removed.
 - **Board empty states now distinguish a configured workspace with no matching
   filter results from a truly empty board.** The no-match message and
   keyboard-accessible filter reset stay together in a compact non-modal overlay
