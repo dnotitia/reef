@@ -83,6 +83,9 @@ explicitly in the entries below.
   filter resets have distinct accessible labels, and the full recovery clears
   search, facets, sort, and their URL and browser-persisted projections
   together.
+- **The Markdown editor now uses Tiptap 3.29.2 consistently across its core,
+  extension, Markdown, ProseMirror, React, and starter-kit packages while
+  preserving the existing Markdown storage and editing contract.** (REEF-483)
 - **Backlog now supports dense multi-selection and bulk issue editing.** A
   shared selection column, localized Status/Assignee/Priority/Labels actions,
   semantic issue links, and row-scoped keyboard focus extend the existing
