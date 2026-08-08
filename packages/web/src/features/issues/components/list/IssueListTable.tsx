@@ -33,6 +33,7 @@ import { applyDependencyFilter } from "@/features/issues/lib/dependencyUtils";
 import { flattenIssueListPages } from "@/features/issues/lib/issueListCache";
 import {
   filterIssues,
+  hasActiveIssueFilters,
   searchIssues,
   sortIssues,
 } from "@/features/issues/lib/issueListUtils";
@@ -214,21 +215,7 @@ export function IssueListTable({ vault }: IssueListTableProps) {
   );
   const focusRequest = useIssueKeyboardStore((state) => state.focusRequest);
   const selectAllState = loadedSelectionState(selectedIds, visibleIssueIds);
-  const hasActiveFilters = !!(
-    filter.status?.length ||
-    filter.issueType?.length ||
-    filter.priority?.length ||
-    filter.assignee ||
-    filter.requester ||
-    filter.sprint_id ||
-    filter.milestone_id ||
-    filter.release_id ||
-    filter.severity?.length ||
-    filter.due?.length ||
-    filter.label ||
-    filter.dependencyFilter?.length ||
-    searchQuery
-  );
+  const hasActiveFilters = hasActiveIssueFilters(filter, searchQuery);
 
   // TanStack Virtual exposes imperative methods outside React Compiler's
   // safe memoization model; keep the compiler skip local to this integration point.

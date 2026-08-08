@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   filterIssues,
   formatLabelFilter,
+  hasActiveIssueFilters,
   matchesSharedFacets,
   parseLabelFilter,
   searchIssues,
@@ -67,6 +68,17 @@ const issues: IssueMetadata[] = [
     updated_at: "2026-04-02T00:00:00.000Z",
   }),
 ];
+
+describe("hasActiveIssueFilters", () => {
+  it("recognizes real facets and search while ignoring empty values", () => {
+    expect(hasActiveIssueFilters({}, "   ")).toBe(false);
+    expect(
+      hasActiveIssueFilters({ sortField: "title", sortOrder: "desc" }, ""),
+    ).toBe(false);
+    expect(hasActiveIssueFilters({ priority: ["high"] }, "")).toBe(true);
+    expect(hasActiveIssueFilters({}, "missing issue")).toBe(true);
+  });
+});
 
 describe("sortIssues", () => {
   it("returns copy with original order when no field specified", () => {

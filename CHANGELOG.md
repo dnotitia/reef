@@ -71,6 +71,10 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Board empty states now distinguish a configured workspace with no matching
+  filter results from a truly empty board.** The no-match frame keeps all
+  workflow columns visible and provides a keyboard-accessible filter reset in
+  both locales.
 - **Backlog now supports dense multi-selection and bulk issue editing.** A
   shared selection column, localized Status/Assignee/Priority/Labels actions,
   semantic issue links, and row-scoped keyboard focus extend the existing

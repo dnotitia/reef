@@ -1029,7 +1029,9 @@
   "board": {
     "loadError": "Failed to load some issues. Displaying cached data if available.",
     "updateErrorTitle": "Couldn't update issue",
-    "updateErrorDescription": "The board was reverted. Retry to move it again."
+    "updateErrorDescription": "The board was reverted. Retry to move it again.",
+    "noMatchTitle": "No matching issues",
+    "noMatchDescription": "Try widening your filters or search to see more issues."
   },
   "activity": {
     "pageTitle": "Suggestions to review",

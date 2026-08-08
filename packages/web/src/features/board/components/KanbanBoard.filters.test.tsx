@@ -1,6 +1,6 @@
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
@@ -182,6 +182,73 @@ describe("KanbanBoard filtering and rendering", () => {
     expect(await screen.findByText("UI board polish")).toBeInTheDocument();
     expect(screen.queryByText("API cleanup")).toBeNull();
     expect(screen.queryByText("Backend blocker")).toBeNull();
+  });
+
+  it("shows a no-match frame without replacing columns and clears the full filter", async () => {
+    useIssueStore.setState({
+      filter: {
+        label: "missing-label",
+        showArchived: true,
+        sortField: "title",
+        sortOrder: "desc",
+      },
+      searchQuery: "missing search",
+      selectedIssueId: null,
+    });
+    mockApiFetch.mockImplementation(async (url) =>
+      issueApiResponse(url, { issues: FILTER_ISSUES }),
+    );
+
+    render(wrap(<KanbanBoard vault="reef-acme" />));
+
+    const frame = await screen.findByTestId("kanban-no-matches");
+    expect(
+      within(frame).getByRole("heading", { name: "No matching issues" }),
+    ).toBeInTheDocument();
+    expect(
+      within(frame).getByText(
+        "Try widening your filters or search to see more issues.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(frame).queryByRole("button")).toBeNull();
+
+    for (const name of ["Todo", "In Progress", "In Review", "Done", "Closed"]) {
+      expect(screen.getByRole("heading", { name })).toBeInTheDocument();
+    }
+    expect(screen.getAllByText("0", { exact: true })).toHaveLength(5);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(useIssueStore.getState().filter).toEqual({});
+    expect(useIssueStore.getState().searchQuery).toBe("");
+    expect(await screen.findByText("UI board polish")).toBeInTheDocument();
+    expect(screen.queryByTestId("kanban-no-matches")).toBeNull();
+  });
+
+  it("keeps true empty and sort-only boards as five empty columns", async () => {
+    useIssueStore.setState({
+      filter: { sortField: "title", sortOrder: "desc" },
+      searchQuery: "",
+      selectedIssueId: null,
+    });
+    mockApiFetch.mockImplementation(async (url) =>
+      issueApiResponse(url, { issues: [] }),
+    );
+
+    render(wrap(<KanbanBoard vault="reef-acme" />));
+
+    await screen.findByRole("heading", { name: "Todo" });
+    expect(screen.queryByTestId("kanban-no-matches")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull();
+    expect(screen.getAllByText("0", { exact: true })).toHaveLength(5);
+
+    useIssueStore.setState({
+      filter: {},
+      searchQuery: "",
+      selectedIssueId: null,
+    });
+    expect(screen.queryByTestId("kanban-no-matches")).toBeNull();
+    expect(screen.getAllByText("0", { exact: true })).toHaveLength(5);
   });
 
   it("hides archived cards by default and shows them when requested", async () => {

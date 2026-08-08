@@ -1,6 +1,8 @@
 "use client";
 
 import { BoardColumnsSkeleton } from "@/components/BoardColumnsSkeleton";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   kanbanToastId,
   notifyRetryableError,
@@ -19,6 +21,7 @@ import {
 } from "@/features/issues/lib/dependencyUtils";
 import {
   filterIssues,
+  hasActiveIssueFilters,
   searchIssues,
   sortIssues,
   sortIssuesByRankOrder,
@@ -80,6 +83,7 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
   // blanking it (REEF-109).
   useWorkflowStatusGuard();
   const t = useTranslations("board");
+  const common = useTranslations("common");
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
   // Server-side narrows the transfer (facets + free-text search); the client
@@ -93,7 +97,12 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
       : { ...next, sort_field: "rank", sort_order: "asc" };
   }, [filter, searchQuery]);
   // isPending (not isLoading) — see useActiveVault for the rationale.
-  const { data: issues, isPending, isError } = useIssueList(vault, query);
+  const {
+    data: issues,
+    isPending,
+    isFetching,
+    isError,
+  } = useIssueList(vault, query);
   const staleWindowDays = useResolvedAutoHideWindows(vault);
   const { data: relations } = useIssueRelations(vault);
   const { data: planningCatalog } = usePlanningCatalog(vault);
@@ -159,6 +168,11 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
     }
     return map;
   }, [visibleIssues]);
+  const hasActiveFilters =
+    hasActiveIssueFilters(filter, searchQuery) ||
+    Boolean(filter.showArchived || filter.showStale);
+  const showNoMatch =
+    !isFetching && !isError && visibleIssues.length === 0 && hasActiveFilters;
   const renderedIssueIds = useMemo(
     () =>
       WORKFLOW_STATUS_OPTIONS.flatMap(
@@ -278,6 +292,22 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
         onDragEnd={handleDragEnd}
         onDragCancel={() => setActiveIssueId(null)}
       >
+        {showNoMatch && (
+          <div className="flex shrink-0 flex-col items-center gap-3 px-6 pt-4">
+            <EmptyState
+              data-testid="kanban-no-matches"
+              title={t("noMatchTitle")}
+              description={t("noMatchDescription")}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => useIssueStore.getState().clearFilter()}
+            >
+              {common("clearFilters")}
+            </Button>
+          </div>
+        )}
         <div className="flex flex-1 min-h-0 gap-3 overflow-x-auto px-6 py-4">
           {WORKFLOW_STATUS_OPTIONS.map((status) => (
             <KanbanColumn

@@ -100,6 +100,32 @@ export interface SharedIssueFacets {
   parent_id?: string;
 }
 
+/**
+ * Returns whether the issue view is narrowed by a facet or free-text query.
+ * Sort and display options are intentionally left to each surface so callers
+ * can preserve their own empty-state semantics.
+ */
+export function hasActiveIssueFilters(
+  filter: IssueFilter,
+  searchQuery: string,
+): boolean {
+  return Boolean(
+    filter.status?.length ||
+      filter.issueType?.length ||
+      filter.priority?.length ||
+      filter.assignee?.length ||
+      filter.requester?.length ||
+      filter.sprint_id?.length ||
+      filter.milestone_id ||
+      filter.release_id?.length ||
+      filter.severity?.length ||
+      filter.due?.length ||
+      filter.label?.trim() ||
+      filter.dependencyFilter?.length ||
+      searchQuery.trim(),
+  );
+}
+
 interface FilterIssuesOptions {
   searchActive?: boolean;
   staleWindowDays?: {
