@@ -53,6 +53,24 @@ describe("MarkdownEditor Tiptap extensions", () => {
     expect(editor.getMarkdown()).toContain("Second item");
   });
 
+  it("round-trips a link command with the selected text as its display text", () => {
+    const marker = "REEF483-LINK-F8Q2";
+    const href = "https://example.com/reef483-final-F8Q2";
+    const editor = createEditor(marker);
+
+    editor
+      .chain()
+      .setTextSelection({ from: 1, to: marker.length + 1 })
+      .setLink({ href })
+      .run();
+    const markdown = editor.getMarkdown();
+    const reloaded = createEditor(markdown);
+    const link = reloaded.view.dom.querySelector(`a[href="${href}"]`);
+
+    expect(markdown).toBe(`[${marker}](${href})`);
+    expect(link?.textContent).toBe(marker);
+  });
+
   it("round-trips list, task, link, and image markdown together", () => {
     const markdown = [
       "**Bold text**",

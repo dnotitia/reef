@@ -808,7 +808,7 @@ describe("MarkdownEditor", () => {
       ).not.toBeInTheDocument();
     });
 
-    it("restores the selected text before applying a link", () => {
+    it("preserves the selected text through the Link toolbar press", () => {
       render(<MarkdownEditor value="Selected text" onChange={vi.fn()} />);
       const editor = vi.mocked(useEditor).mock.results.at(-1)?.value as {
         state: {
@@ -817,12 +817,16 @@ describe("MarkdownEditor", () => {
       };
       editor.state.selection = { empty: false, from: 2, to: 10 };
 
+      const linkButton = screen.getByTitle("Link");
       act(() => {
-        fireEvent.click(screen.getByTitle("Link"));
+        fireEvent.mouseDown(linkButton);
       });
-      // The URL input receives focus while the inline editor is open. Model the
-      // collapsed live selection observed in the browser before Apply.
+      // A real toolbar press can collapse the live ProseMirror selection before
+      // the click handler opens the URL input. The press-start range must win.
       editor.state.selection = { empty: true, from: 10, to: 10 };
+      act(() => {
+        fireEvent.click(linkButton);
+      });
       act(() => {
         fireEvent.change(screen.getByTestId("markdown-link-input"), {
           target: { value: "https://reef.dev/selected" },

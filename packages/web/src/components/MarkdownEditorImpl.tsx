@@ -294,12 +294,14 @@ function ToolbarButton({
   icon: Icon,
   label,
   onClick,
+  onPressStart,
   isActive = false,
   disabled = false,
 }: {
   icon: LucideIcon;
   label: string;
   onClick: () => void;
+  onPressStart?: () => void;
   isActive?: boolean;
   disabled?: boolean;
 }) {
@@ -309,7 +311,10 @@ function ToolbarButton({
       variant="ghost"
       size="icon-sm"
       onClick={onClick}
-      onMouseDown={(event) => event.preventDefault()}
+      onMouseDown={(event) => {
+        event.preventDefault();
+        onPressStart?.();
+      }}
       disabled={disabled}
       aria-pressed={isActive}
       aria-label={label}
@@ -702,10 +707,18 @@ export function MarkdownEditor({
     linkSelectionRef.current = null;
   }
 
-  function openLinkEditor() {
+  function rememberLinkSelection() {
     if (!editor) return;
     const { from, to } = editor.state.selection;
     linkSelectionRef.current = { from, to };
+  }
+
+  function openLinkEditor() {
+    if (!editor) return;
+    // Pointer activation snapshots on mousedown, before the toolbar can
+    // collapse ProseMirror's selection. Keyboard activation has no mousedown,
+    // so capture the still-current selection here instead.
+    if (!linkSelectionRef.current) rememberLinkSelection();
     const href =
       (editor.getAttributes("link").href as string | undefined) ?? "";
     setLinkUrl(href);
@@ -907,6 +920,7 @@ export function MarkdownEditor({
                 label={t("link")}
                 isActive={active.link || linkEditorOpen}
                 disabled={sourceMode}
+                onPressStart={rememberLinkSelection}
                 onClick={() =>
                   linkEditorOpen ? closeLinkEditor() : openLinkEditor()
                 }
