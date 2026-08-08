@@ -1,6 +1,7 @@
-import { expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 import {
   REEF_E2E_VAULT,
+  clearPersistedQueryCacheOnLoad,
   openExistingWorkspace,
   readFixtureState,
   resetFixture,
@@ -33,10 +34,132 @@ function issueById(state: FixtureState, id: string) {
   return issue;
 }
 
+async function addMonitoredRepo(page: Page) {
+  await page.goto(`/workspace/${REEF_E2E_VAULT}/settings/workspace`);
+  const main = page.getByRole("main");
+  await main.getByTestId("monitored-repos-trigger").click();
+  await page.getByTestId("monitored-repos-option-octo/reef").click();
+  await expect(main.getByTestId("monitored-repos-trigger")).toContainText(
+    "1 repo(s) selected",
+  );
+}
+
 test.describe("Hermetic activity suggestion workflows", () => {
   test.beforeEach(async ({ context, request }) => {
     await context.clearCookies();
     await resetFixture(request, "activity_suggestions");
+  });
+
+  test("explains the repository prerequisite without putting an action in the frame", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "configured_empty");
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/suggestions`);
+
+    const emptyState = page.getByTestId("activity-empty-state");
+    await expect(
+      emptyState.getByRole("heading", {
+        name: "Set up a monitored repository",
+      }),
+    ).toBeVisible();
+    await expect(emptyState.getByRole("link")).toHaveCount(0);
+    await expect(emptyState.getByRole("button")).toHaveCount(0);
+    await expect(page.getByTestId("activity-scan-target-empty")).toBeVisible();
+    await expect(page.getByTestId("activity-refresh")).toBeDisabled();
+    await expect(
+      page.getByTestId("activity-scan-target-empty").getByRole("link", {
+        name: "Settings",
+      }),
+    ).toHaveCount(1);
+    expect(
+      reefVault(await readFixtureState(request)).monitored_repos,
+    ).toHaveLength(0);
+  });
+
+  test("keeps configured empty suggestions passive and leaves Check now separate", async ({
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "configured_empty");
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page);
+    await addMonitoredRepo(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/suggestions`);
+
+    const emptyState = page.getByTestId("activity-empty-state");
+    await expect(
+      emptyState.getByRole("heading", { name: "No suggestions to review" }),
+    ).toBeVisible();
+    await expect(emptyState.getByRole("link")).toHaveCount(0);
+    await expect(emptyState.getByRole("button")).toHaveCount(0);
+    await expect(page.getByTestId("activity-refresh")).toBeEnabled();
+    await expect(page.getByTestId("activity-scan-target-single")).toHaveText(
+      "octo/reef",
+    );
+    expect(
+      reefVault(await readFixtureState(request)).monitored_repos.map(
+        (repo) => `${repo.owner}/${repo.name}`,
+      ),
+    ).toContain("octo/reef");
+  });
+
+  test("recovers from a persisted filtered no-match with keyboard input", async ({
+    page,
+    request,
+  }) => {
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page);
+    await addMonitoredRepo(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/suggestions`);
+
+    for (const title of ["Initial issue Alpha", "Initial issue Beta"]) {
+      const card = page
+        .locator('[data-testid="activity-item-ai_status_change"]')
+        .filter({ hasText: title });
+      await expect(card).toBeVisible();
+      await card.getByRole("button", { name: "Dismiss" }).click();
+      await expect(card).toBeHidden();
+    }
+
+    await expect
+      .poll(async () => {
+        const suggestions = reefVault(
+          await readFixtureState(request),
+        ).activity_suggestions;
+        return suggestions
+          .filter((suggestion) => suggestion.kind === "status_change")
+          .every((suggestion) => suggestion.status === "dismissed");
+      })
+      .toBe(true);
+
+    await page.reload();
+    await expect(
+      page.locator('[data-testid="activity-item-ai_draft"]'),
+    ).toHaveCount(2);
+    await page
+      .getByRole("button", { name: "Status Changes", exact: true })
+      .click();
+
+    const emptyState = page.getByTestId("activity-empty-state");
+    await expect(
+      emptyState.getByRole("heading", { name: "No matching suggestions" }),
+    ).toBeVisible();
+    await expect(emptyState.getByRole("link")).toHaveCount(0);
+    await expect(emptyState.getByRole("button")).toHaveCount(0);
+    const clearFilters = page.getByTestId("activity-clear-filters");
+    await expect(clearFilters).toBeVisible();
+    await clearFilters.focus();
+    await page.keyboard.press("Enter");
+
+    await expect(
+      page.getByRole("button", { name: "All", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      page.locator('[data-testid="activity-item-ai_draft"]'),
+    ).toHaveCount(2);
   });
 
   test("keeps the real pending total across a visit and decreases it after a persisted action", async ({
