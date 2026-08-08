@@ -73,7 +73,11 @@ function getSubIssueDefaults(
   };
 }
 
-export function NewIssueDialog() {
+export function NewIssueDialog({
+  focusOriginRef: pendingFocusOriginRef,
+}: {
+  focusOriginRef?: { current: HTMLElement | null };
+} = {}) {
   const open = useViewStore((s) => s.newIssueDialogOpen);
   const dialogContext = useViewStore((s) => s.newIssueDialogContext);
   const closeDialog = useViewStore((s) => s.closeNewIssueDialog);
@@ -306,13 +310,18 @@ export function NewIssueDialog() {
 
   function handleOpenAutoFocus() {
     const active = document.activeElement;
-    focusOriginRef.current =
-      active instanceof HTMLElement && active !== document.body ? active : null;
+    const pendingOrigin = pendingFocusOriginRef?.current;
+    focusOriginRef.current = pendingOrigin?.isConnected
+      ? pendingOrigin
+      : active instanceof HTMLElement && active !== document.body
+        ? active
+        : null;
   }
 
   function handleCloseAutoFocus(event: Event) {
     event.preventDefault();
-    const origin = focusOriginRef.current;
+    const origin = pendingFocusOriginRef?.current ?? focusOriginRef.current;
+    if (pendingFocusOriginRef) pendingFocusOriginRef.current = null;
     focusOriginRef.current = null;
     const fallback = document.querySelector<HTMLElement>(
       "[data-command-focus-destination]",

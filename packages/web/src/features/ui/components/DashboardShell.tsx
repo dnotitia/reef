@@ -220,7 +220,11 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
   const sidebarCollapsed = storedSidebarCollapsed || mobileSidebarCollapsed;
   const toggleSidebar = useViewStore((state) => state.toggleSidebar);
   const openNewIssueDialog = useViewStore((state) => state.openNewIssueDialog);
+  const newIssueFocusOriginRef = useRef<HTMLElement | null>(null);
   const openBlankNewIssueDialog = useCallback(() => {
+    const active = document.activeElement;
+    newIssueFocusOriginRef.current =
+      active instanceof HTMLElement && active !== document.body ? active : null;
     openNewIssueDialog();
   }, [openNewIssueDialog]);
   const toggleAskAi = useAskAiStore((state) => state.toggle);
@@ -706,7 +710,7 @@ export function DashboardShell({ children, appVersion }: DashboardShellProps) {
       {/* Global new-issue dialog — single instance for the whole shell so any
           trigger (sidebar button, keyboard shortcut, future quick-add) shares
           state. */}
-      <NewIssueDialog />
+      <NewIssueDialog focusOriginRef={newIssueFocusOriginRef} />
 
       {/* Global create-workspace dialog (REEF-146) — single instance opened
           from the sidebar workspace switcher (and later Settings, REEF-147). */}

@@ -2,7 +2,13 @@ import { useGlobalSearchStore } from "@/features/search/stores/useGlobalSearchSt
 import { useShortcutsStore } from "@/features/shortcuts/stores/useShortcutsStore";
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -520,6 +526,26 @@ describe("DashboardShell", () => {
       ctrlKey: true,
     });
     expect(useViewStore.getState().newIssueDialogOpen).toBe(true);
+  });
+
+  it("returns focus to the new issue trigger after keyboard dismissal", async () => {
+    const user = userEvent.setup();
+    render(
+      wrap(
+        <DashboardShell appVersion="0.0.0">
+          <div>children</div>
+        </DashboardShell>,
+      ),
+    );
+
+    const trigger = await screen.findByTestId("new-issue-trigger");
+    trigger.focus();
+    await user.keyboard(" ");
+    expect(await screen.findByTestId("new-issue-dialog")).toBeVisible();
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   it("labels the new issue shortcut with the active platform chord", async () => {
