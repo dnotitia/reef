@@ -136,6 +136,10 @@ export function IssueDetailSheet({ issueId, onClose }: IssueDetailSheetProps) {
           // both so the in-memory nav stack — not the browser history — decides
           // (REEF-270). preventDefault stops Radix's default one-step dismiss.
           onEscapeKeyDown={(event) => {
+            // A nested Radix layer (such as Select) may have already handled
+            // this Escape and prevented its default action. Preserve that
+            // inner-layer dismissal instead of closing the sheet as well.
+            if (event.defaultPrevented) return;
             event.preventDefault();
             dismissViaEsc();
           }}
