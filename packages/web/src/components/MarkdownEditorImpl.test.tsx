@@ -29,6 +29,7 @@ const chainMethods = [
   "toggleBlockquote",
   "toggleCodeBlock",
   "setHorizontalRule",
+  "setTextSelection",
   "extendMarkRange",
   "setLink",
   "unsetLink",
@@ -420,6 +421,7 @@ describe("MarkdownEditor", () => {
 
   it("uploads files selected from the toolbar before appending returned markdown", async () => {
     const onChange = vi.fn();
+    const onBlur = vi.fn();
     const onUploadFiles = vi
       .fn()
       .mockResolvedValue([
@@ -429,6 +431,7 @@ describe("MarkdownEditor", () => {
       <MarkdownEditor
         value="Existing body"
         onChange={onChange}
+        onBlur={onBlur}
         onUploadFiles={onUploadFiles}
       />,
     );
@@ -445,6 +448,9 @@ describe("MarkdownEditor", () => {
       expect(onChange).toHaveBeenCalledWith(
         "Existing body\n\n[brief](akb://reef-test/issues/file/file-1)",
       ),
+    );
+    expect(onBlur).toHaveBeenCalledWith(
+      "Existing body\n\n[brief](akb://reef-test/issues/file/file-1)",
     );
   });
 
@@ -800,6 +806,38 @@ describe("MarkdownEditor", () => {
       expect(
         screen.queryByTestId("markdown-link-editor"),
       ).not.toBeInTheDocument();
+    });
+
+    it("restores the selected text before applying a link", () => {
+      render(<MarkdownEditor value="Selected text" onChange={vi.fn()} />);
+      const editor = vi.mocked(useEditor).mock.results.at(-1)?.value as {
+        state: {
+          selection: { empty: boolean; from: number; to: number };
+        };
+      };
+      editor.state.selection = { empty: false, from: 2, to: 10 };
+
+      act(() => {
+        fireEvent.click(screen.getByTitle("Link"));
+      });
+      // The URL input receives focus while the inline editor is open. Model the
+      // collapsed live selection observed in the browser before Apply.
+      editor.state.selection = { empty: true, from: 10, to: 10 };
+      act(() => {
+        fireEvent.change(screen.getByTestId("markdown-link-input"), {
+          target: { value: "https://reef.dev/selected" },
+        });
+        fireEvent.click(screen.getByText("Apply"));
+      });
+
+      expect(mockChain.setTextSelection).toHaveBeenCalledWith({
+        from: 2,
+        to: 10,
+      });
+      expect(mockChain.setLink).toHaveBeenCalledWith({
+        href: "https://reef.dev/selected",
+      });
+      expect(mockChain.insertContent).not.toHaveBeenCalled();
     });
 
     it("keeps akb document URIs as akb links", () => {

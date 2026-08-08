@@ -382,6 +382,17 @@ hr {
   border-color: var(--border-subtle);
 }
 
+/* Tiptap's Placeholder extension owns the marker and localized text; this
+ * scoped paint rule makes that marker visible without adding editable content.
+ * Float + zero height keeps the hint out of the document flow and caret. */
+.reef-markdown-editor .is-editor-empty[data-placeholder]::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+
 /*
  * Tiptap task items. The LIVE editor nodeView renders each item as:
  *   ul[data-type="taskList"] > li[data-checked] > label(input,span) + div(p, nested ul)

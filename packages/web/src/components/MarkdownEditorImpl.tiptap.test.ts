@@ -26,6 +26,70 @@ afterEach(() => {
 });
 
 describe("MarkdownEditor Tiptap extensions", () => {
+  it("decorates an empty editor with the placeholder DOM contract", () => {
+    const editor = createEditor("");
+    const empty = editor.view.dom.querySelector(
+      "p.is-empty.is-editor-empty[data-placeholder]",
+    );
+
+    expect(empty?.getAttribute("data-placeholder")).toBe(
+      "Describe the issue...",
+    );
+  });
+
+  it("executes list transactions without cross-version Fragment failures", () => {
+    const editor = createEditor("First item");
+
+    expect(() => {
+      editor.chain().focus("end").toggleBulletList().run();
+      editor
+        .chain()
+        .focus("end")
+        .splitListItem("listItem")
+        .insertContent("Second item")
+        .run();
+    }).not.toThrow();
+    expect(editor.getMarkdown()).toContain("- First item");
+    expect(editor.getMarkdown()).toContain("Second item");
+  });
+
+  it("round-trips list, task, link, and image markdown together", () => {
+    const markdown = [
+      "**Bold text**",
+      "- Bullet item",
+      "- [ ] Task item",
+      "[Selected text](https://example.com/selected)",
+      "![reef image](akb://reef-test/issues/file/file-1)",
+    ].join("\n\n");
+    const serialized = createEditor(markdown).getMarkdown();
+    const reloaded = createEditor(serialized);
+
+    expect(serialized).toContain("- Bullet item");
+    expect(serialized).toContain("- [ ] Task item");
+    expect(serialized).toContain(
+      "[Selected text](https://example.com/selected)",
+    );
+    expect(serialized).toContain(
+      "![reef image](akb://reef-test/issues/file/file-1)",
+    );
+    expect(reloaded.view.dom.querySelector("strong")?.textContent).toBe(
+      "Bold text",
+    );
+    expect(
+      reloaded.view.dom.querySelector("ul:not([data-type]) li")?.textContent,
+    ).toContain("Bullet item");
+    expect(
+      reloaded.view.dom.querySelector('ul[data-type="taskList"] input'),
+    ).not.toBeNull();
+    expect(
+      reloaded.view.dom.querySelector('a[href="https://example.com/selected"]')
+        ?.textContent,
+    ).toBe("Selected text");
+    expect(reloaded.view.dom.querySelector("img")?.getAttribute("src")).toBe(
+      "akb://reef-test/issues/file/file-1",
+    );
+  });
+
   it("preserves markdown links to akb documents", () => {
     const uri = "akb://reef-test/coll/research/doc/report.md";
     const editor = createEditor(`[Research Report](${uri})`);

@@ -63,4 +63,14 @@ describe("global focus styles", () => {
     expect(css).toContain("color: var(--brand);");
     expect(css).toContain("font-weight: 500;");
   });
+
+  it("renders the Tiptap empty-editor placeholder marker", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+
+    expect(css).toContain(
+      ".reef-markdown-editor .is-editor-empty[data-placeholder]::before",
+    );
+    expect(css).toContain("content: attr(data-placeholder);");
+    expect(css).toContain("pointer-events: none;");
+  });
 });
