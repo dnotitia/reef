@@ -14,6 +14,13 @@ explicitly in the entries below.
 
 ### Added
 
+- **A private foreground work-URI invocation adapter now binds strict provider
+  configuration to the shared orchestration engine.** The built artifact reads
+  one work snapshot, records controller-safe lifecycle state, emits bounded
+  progress on stderr, and returns one redacted terminal result on stdout. The
+  invocation-only boundary creates no delivery artifacts and leaves delivery
+  sequencing to its caller.
+
 - **A private GitHub SCM provider now implements the provider-neutral
   orchestration contract.** Explicit repository bindings cover ref resolution,
   deterministic branch reuse, permission-gated commits, non-force fast-forward

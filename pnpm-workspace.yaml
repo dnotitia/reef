@@ -2,6 +2,7 @@ packages:
   - "packages/*"
   - "packages/orchestration/runtime"
   - "packages/orchestration/controller"
+  - "packages/orchestration/cli"
   - "packages/orchestration/providers/*"
 
 catalog:
