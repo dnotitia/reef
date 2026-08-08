@@ -255,6 +255,14 @@ const server = createServer(async (req, res) => {
   }
 });
 
+// Playwright's APIRequestContext keeps fixture-control connections pooled.
+// Node's 5s default can close an otherwise healthy pooled socket while a UI
+// interaction is still running, racing the next /__e2e/state read with an
+// ECONNRESET. Keep the socket alive for one full hermetic test timeout; dead
+// fixture servers still fail through the normal request and health checks.
+server.keepAliveTimeout = 30_000;
+server.headersTimeout = 31_000;
+
 server.listen(PORT, HOST, () => {
   process.stdout.write(
     `reef e2e fixture server listening on ${HOST}:${PORT}\n`,
