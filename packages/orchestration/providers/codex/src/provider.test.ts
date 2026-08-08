@@ -16,6 +16,7 @@ import {
 import { parseFinalOutput, parseJsonLine } from "./protocol.js";
 
 const redactionMarker = ["top", "secret"].join("-");
+const TEST_PROTOCOL_TIMEOUT_MS = 5_000;
 
 const fakeServerSource = String.raw`#!/usr/bin/env node
 import { appendFileSync } from "node:fs";
@@ -226,8 +227,11 @@ const startProvider = async (
 ): Promise<RunningSession> => {
   const provider = createCodexHarnessProvider({
     executable: fixture.executable,
-    handshakeTimeoutMs: 1_000,
-    requestTimeoutMs: 1_000,
+    // Process startup competes with the full workspace build in `pnpm check`.
+    // Keep the contract bounded while allowing the deterministic fixture to
+    // receive its first CPU slice under that supported load.
+    handshakeTimeoutMs: TEST_PROTOCOL_TIMEOUT_MS,
+    requestTimeoutMs: TEST_PROTOCOL_TIMEOUT_MS,
     shutdownTimeoutMs: 500,
     maxEvents: 32,
   });

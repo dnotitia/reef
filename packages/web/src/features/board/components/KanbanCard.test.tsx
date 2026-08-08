@@ -1,6 +1,7 @@
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import type { IssueListItem, PlanningCatalog } from "@reef/core";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -21,6 +22,7 @@ vi.mock("@/features/auth/hooks/useCurrentUserLogin", () => ({
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  vi.unstubAllGlobals();
   currentLogin.value = null;
   useIssueKeyboardStore.setState({
     visibleIssueIds: { list: [], board: [], backlog: [] },
@@ -242,6 +244,40 @@ describe("KanbanCard", () => {
     expect(card.className).not.toContain("ring-2");
     expect(card.className).not.toContain("ring-inset");
     expect(card.className).not.toContain("ring-offset");
+  });
+
+  it("restores a still-current DOM focus request after board layout settles", () => {
+    let settleFrame: FrameRequestCallback | undefined;
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn((callback: FrameRequestCallback) => {
+        settleFrame = callback;
+        return 1;
+      }),
+    );
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+
+    render(<KanbanCard issue={mockIssue()} />);
+    const card = screen.getByTestId("kanban-card");
+    const focus = vi.spyOn(card, "focus");
+
+    act(() => {
+      useIssueKeyboardStore.setState({
+        focusedIssueId: { list: null, board: "reef-001", backlog: null },
+        tabStopIssueId: { list: null, board: "reef-001", backlog: null },
+        focusRequest: { scope: "board", issueId: "reef-001", serial: 1 },
+      });
+    });
+    expect(focus).toHaveBeenCalledTimes(1);
+
+    const other = document.createElement("button");
+    document.body.append(other);
+    other.focus();
+    act(() => settleFrame?.(0));
+
+    expect(focus).toHaveBeenCalledTimes(2);
+    expect(card).toHaveFocus();
+    other.remove();
   });
 
   it("renders the assignee as an identifiable avatar when present", () => {
