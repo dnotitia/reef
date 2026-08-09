@@ -122,6 +122,24 @@ describe("global focus styles", () => {
     ).toBeGreaterThanOrEqual(4.5);
   });
 
+  it("keeps the shared focus token visible across light/dark surfaces without changing brand declarations", () => {
+    const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+    expect(css).toContain("--brand: hsl(173 80% 40%);");
+    expect(css).toContain("--brand: hsl(173 70% 45%);");
+    expect(css).toContain("--brand-foreground: hsl(0 0% 100%);");
+
+    for (const selector of [":root {", ":root.dark"]) {
+      const foreground = readHslToken(css, selector, "--foreground");
+      const background = readHslToken(css, selector, "--background");
+      const subtleSurface = readHslToken(css, selector, "--surface-subtle");
+
+      expect(contrastRatio(foreground, background)).toBeGreaterThanOrEqual(3);
+      expect(contrastRatio(foreground, subtleSurface)).toBeGreaterThanOrEqual(
+        3,
+      );
+    }
+  });
+
   it("renders the Tiptap empty-editor placeholder marker", () => {
     const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
 

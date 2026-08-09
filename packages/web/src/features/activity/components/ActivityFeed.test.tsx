@@ -152,7 +152,11 @@ describe("ActivityFeed", () => {
 
   it("renders suggestion filter buttons (All / Draft issues / Status Changes)", () => {
     render(wrap(<ActivityFeed vault="reef-acme" />));
-    expect(screen.getByRole("button", { name: /All/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /All/i })).toHaveClass(
+      "focus-visible:outline-2",
+      "focus-visible:outline-foreground",
+      "focus-visible:outline-offset-1",
+    );
     expect(
       screen.getByRole("button", { name: /Draft issues/i }),
     ).toBeInTheDocument();

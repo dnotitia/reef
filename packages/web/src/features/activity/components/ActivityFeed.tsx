@@ -377,7 +377,7 @@ function ActivityFeedContent({
               onKeyDown={activateButtonOnKeyDown}
               aria-pressed={activityTypeFilter === value}
               className={[
-                "shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
+                "shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-1",
                 activityTypeFilter === value
                   ? "bg-foreground text-background"
                   : "bg-secondary text-muted-foreground hover:bg-surface-hover hover:text-foreground",

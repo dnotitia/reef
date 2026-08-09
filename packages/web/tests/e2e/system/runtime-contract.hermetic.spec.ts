@@ -1,11 +1,18 @@
 import { Buffer } from "node:buffer";
-import { type Locator, expect, test } from "@playwright/test";
+import {
+  type Locator,
+  type Page,
+  type TestInfo,
+  expect,
+  test,
+} from "@playwright/test";
 import {
   E2E_MOCK_URL,
   clearPersistedQueryCacheOnLoad,
   openExistingWorkspace,
   readFixtureState,
   resetFixture,
+  writeIndexedDbConfig,
 } from "../harness/fixture";
 import fixtureLogin from "../harness/fixture-login.json";
 
@@ -48,6 +55,81 @@ async function expectNamedEmptyRegion(locator: Locator) {
   expect(references.headingId).not.toBe(references.descriptionId);
   expect(references.headingText?.trim()).toBe(headingText.trim());
   expect(references.descriptionText?.trim()).toBe(descriptionText.trim());
+}
+
+async function expectVisibleFocus(
+  page: Page,
+  locator: Locator,
+  testInfo: TestInfo,
+  screenshotName: string,
+) {
+  await locator.focus();
+  await expect(locator).toBeFocused();
+
+  const expectedForeground = await locator.evaluate(() => {
+    const probe = document.createElement("span");
+    probe.style.color = getComputedStyle(
+      document.documentElement,
+    ).getPropertyValue("--foreground");
+    document.body.append(probe);
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    return color;
+  });
+  await expect
+    .poll(() =>
+      locator.evaluate((element) => getComputedStyle(element).outlineColor),
+    )
+    .toBe(expectedForeground);
+
+  const proof = await locator.evaluate((element) => {
+    const styles = getComputedStyle(element);
+    const rootStyles = getComputedStyle(document.documentElement);
+    const foregroundProbe = document.createElement("span");
+    foregroundProbe.style.color = rootStyles.getPropertyValue("--foreground");
+    document.body.append(foregroundProbe);
+    const foregroundColor = getComputedStyle(foregroundProbe).color;
+    foregroundProbe.remove();
+
+    const rect = element.getBoundingClientRect();
+    return {
+      foregroundColor,
+      outlineColor: styles.outlineColor,
+      outlineOffset: styles.outlineOffset,
+      outlineStyle: styles.outlineStyle,
+      outlineWidth: styles.outlineWidth,
+      rect: {
+        height: rect.height,
+        width: rect.width,
+        x: rect.x,
+        y: rect.y,
+      },
+      viewport: { height: innerHeight, width: innerWidth },
+    };
+  });
+
+  expect(proof.outlineStyle).toBe("solid");
+  expect(Number.parseFloat(proof.outlineWidth)).toBeGreaterThanOrEqual(2);
+  expect(proof.outlineOffset).toBe("1px");
+  expect(proof.outlineColor).not.toBe("transparent");
+  expect(proof.outlineColor).not.toBe("rgba(0, 0, 0, 0)");
+  expect(proof.outlineColor).toBe(proof.foregroundColor);
+  expect(proof.rect.width).toBeGreaterThan(0);
+  expect(proof.rect.height).toBeGreaterThan(0);
+  expect(proof.rect.x).toBeGreaterThanOrEqual(0);
+  expect(proof.rect.y).toBeGreaterThanOrEqual(0);
+  expect(proof.rect.x + proof.rect.width).toBeLessThanOrEqual(
+    proof.viewport.width,
+  );
+  expect(proof.rect.y + proof.rect.height).toBeLessThanOrEqual(
+    proof.viewport.height,
+  );
+
+  const screenshot = await page.screenshot({
+    animations: "disabled",
+    path: testInfo.outputPath(`${screenshotName}-focus.png`),
+  });
+  expect(screenshot.byteLength).toBeGreaterThan(0);
 }
 
 test.describe("Hermetic runtime discovery", () => {
@@ -243,6 +325,69 @@ test.describe("Hermetic runtime discovery", () => {
         "reef_releases",
       ]),
     );
+  });
+
+  test("keeps representative empty-state controls visibly focused in both themes", async ({
+    context,
+    page,
+    request,
+  }, testInfo) => {
+    await context.clearCookies();
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await clearPersistedQueryCacheOnLoad(page);
+
+    for (const colorScheme of ["light", "dark"] as const) {
+      await resetFixture(request, "configured_empty");
+      await openExistingWorkspace(page);
+      await writeIndexedDbConfig(page, "theme", colorScheme);
+      await page.evaluate((theme) => {
+        window.localStorage.setItem("reef.theme", theme);
+      }, colorScheme);
+      await page.emulateMedia({ colorScheme });
+
+      await page.goto("/workspace/reef-e2e/reports");
+      await expect
+        .poll(() =>
+          page
+            .locator("html")
+            .evaluate((element) => element.classList.contains("dark")),
+        )
+        .toBe(colorScheme === "dark");
+      await expectVisibleFocus(
+        page,
+        page
+          .locator('[data-slot="page-header"]')
+          .getByRole("button", { name: "New issue", exact: true }),
+        testInfo,
+        `${colorScheme}-true-empty`,
+      );
+
+      await resetFixture(request, "activity_suggestions");
+      await openExistingWorkspace(page);
+      await page.goto("/workspace/reef-e2e/suggestions");
+      await expectVisibleFocus(
+        page,
+        page.getByRole("button", { name: "All", exact: true }),
+        testInfo,
+        `${colorScheme}-suggestions-filter`,
+      );
+
+      await resetFixture(request, "configured");
+      await openExistingWorkspace(page);
+      await page.goto("/workspace/reef-e2e/issues?view=board");
+      await page.getByTestId("search-input").fill("nothing matches");
+      const clearFilters = page.getByRole("button", {
+        name: "Clear filters",
+        exact: true,
+      });
+      await expect(clearFilters).toBeVisible({ timeout: 15_000 });
+      await expectVisibleFocus(
+        page,
+        clearFilters,
+        testInfo,
+        `${colorScheme}-no-match-recovery`,
+      );
+    }
   });
 
   test("renders the configured empty workspace across its routed surfaces", async ({
