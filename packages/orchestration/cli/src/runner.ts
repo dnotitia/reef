@@ -4,6 +4,7 @@ import {
   type ControllerInspection,
   type ControllerState,
   type ControllerStore,
+  type ControllerUpdateOperation,
   DuplicateWorkError,
   createControllerStore,
 } from "@reef/orchestration-controller";
@@ -11,6 +12,8 @@ import {
   type ExecutionEvent,
   type ExecutionPhase,
   type ExecutionResult,
+  type ExecutionTask,
+  type ProviderArtifact,
   ProviderError,
   type RunPlan,
   type WorkSnapshot,
@@ -47,6 +50,11 @@ import {
   safeFailure,
   terminalFromExecution,
 } from "./result.js";
+import {
+  runDelivery,
+  type DeliveryControllerHooks,
+  type DeliveryResult,
+} from "./delivery.js";
 
 export interface CliRunnerDependencies {
   readonly environment?: CliEnvironment;
@@ -57,6 +65,12 @@ export interface CliRunnerDependencies {
     config: CliConfig,
     redactionValues: readonly string[],
   ) => ControllerStore;
+  readonly executeDelivery?: (
+    context: Parameters<ExecutionTask>[0],
+    config: CliConfig,
+    resolved: ReturnType<typeof resolveProviders>,
+    hooks: DeliveryControllerHooks,
+  ) => Promise<DeliveryResult>;
 }
 
 export interface CliRunResult {
@@ -262,21 +276,6 @@ const buildPlan = (
   });
 };
 
-const waitForRunWindow = async (
-  milliseconds: number,
-  signal: AbortSignal,
-): Promise<void> => {
-  if (signal.aborted) throw new DOMException("cancelled", "AbortError");
-  await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(resolve, milliseconds);
-    const onAbort = () => {
-      clearTimeout(timer);
-      reject(new DOMException("cancelled", "AbortError"));
-    };
-    signal.addEventListener("abort", onAbort, { once: true });
-  });
-};
-
 const isTerminalControllerError = (error: unknown): error is ControllerError =>
   error instanceof ControllerError;
 
@@ -312,23 +311,29 @@ const updateControllerPhases = (
   let revision = initialRevision;
   let phaseIndex = -1;
   let queue = Promise.resolve();
+  const enqueue = (operation: ControllerUpdateOperation): Promise<void> => {
+    const next = queue.then(async () => {
+      const state = await store.update({
+        runId,
+        expectedRevision: revision,
+        operation,
+      });
+      revision = state.revision;
+    });
+    queue = next;
+    return next;
+  };
   const sink = (event: ExecutionEvent): void => {
     onEvent(event);
     if (event.phase === "terminal") return;
     const nextIndex = phaseOrder.indexOf(event.phase);
     if (nextIndex <= phaseIndex) return;
     phaseIndex = nextIndex;
-    queue = queue.then(async () => {
-      const state = await store.update({
-        runId,
-        expectedRevision: revision,
-        operation: { type: "phase", phase: event.phase },
-      });
-      revision = state.revision;
-    });
+    void enqueue({ type: "phase", phase: event.phase });
   };
   return {
     sink,
+    enqueue,
     wait: async () => queue,
     revision: () => revision,
   };
@@ -522,12 +527,20 @@ const runParsedInvocation = async (
     },
   );
   let execution: ExecutionResult;
+  let deliveryArtifacts: readonly ProviderArtifact[] = [];
   try {
     execution = await executeRunPlan(
       plan,
       resolved.providers,
-      async ({ signal: runSignal }) => {
-        await waitForRunWindow(config.execution.run_window_ms, runSignal);
+      async (context) => {
+        const executeDelivery = dependencies.executeDelivery ?? runDelivery;
+        const delivery = await executeDelivery(context, config, resolved, {
+          setWorkspace: (reference) =>
+            bridge.enqueue({ type: "workspace", reference }),
+          addArtifact: (artifact) =>
+            bridge.enqueue({ type: "artifact", artifact }),
+        });
+        deliveryArtifacts = delivery.artifacts;
       },
       {
         signal,
@@ -572,7 +585,12 @@ const runParsedInvocation = async (
     return { terminal, exitCode: 1 };
   }
 
-  const terminal = terminalFromExecution(runId, plan, execution);
+  const terminal = terminalFromExecution(
+    runId,
+    plan,
+    execution,
+    deliveryArtifacts,
+  );
   return {
     terminal,
     exitCode:

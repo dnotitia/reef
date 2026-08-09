@@ -9,6 +9,7 @@ export {
   type LocalExecResult,
   type LocalInfrastructureProvider,
   type LocalInfrastructureProviderOptions,
+  type LocalWorkspaceDescriptor,
 } from "./provider.js";
 export type {
   InfrastructureOperationMap,

@@ -193,6 +193,14 @@ const cancelledFailureSchema = z.strictObject({
   provider: providerErrorSchema.optional(),
 });
 
+const blockedFailureSchema = z.strictObject({
+  code: z.literal("blocked"),
+});
+
+const taskExecutionFailureSchema = z.strictObject({
+  code: z.string().regex(/^[a-z][a-z0-9_]{2,63}$/u),
+});
+
 const executionFailureSchema = z.union([
   z.strictObject({
     code: z.literal("preflight_failed"),
@@ -200,6 +208,8 @@ const executionFailureSchema = z.union([
   }),
   z.strictObject({ code: z.literal("engine_failed") }),
   z.strictObject({ code: z.literal("cleanup_failed") }),
+  blockedFailureSchema,
+  taskExecutionFailureSchema,
   cancelledFailureSchema,
   providerErrorSchema,
 ]);
@@ -282,6 +292,12 @@ export const ControllerExecutionResultSchema = z.union([
     .extend({
       outcome: z.literal("cancelled"),
       failure: cancelledFailureSchema,
+    })
+    .superRefine(validateExecutionPhases),
+  executionResultBaseObject
+    .extend({
+      outcome: z.literal("blocked"),
+      failure: blockedFailureSchema,
     })
     .superRefine(validateExecutionPhases),
 ]);

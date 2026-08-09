@@ -125,7 +125,7 @@ export const ProgressEventSchema = z.strictObject({
   phase: z.enum(["preflight", "running", "cleanup", "terminal"]),
   at: z.string().min(1),
   work_uri: z.string().min(1),
-  outcome: z.enum(["succeeded", "failed", "cancelled"]).optional(),
+  outcome: z.enum(["succeeded", "failed", "blocked", "cancelled"]).optional(),
   failure: providerFailure.nullable().optional(),
   cleanup: z
     .strictObject({
@@ -189,10 +189,13 @@ export function safeFailure(
     return path ? { ...summary, path: [...path] } : summary;
   }
   if (isSafeFailure(failure)) {
+    const provider = isProviderErrorJson(failure.provider)
+      ? providerFailureSummary(failure.provider).provider
+      : failure.provider;
     return {
       code: failure.code,
       ...(failure.path ? { path: failure.path } : {}),
-      ...(failure.provider ? { provider: failure.provider } : {}),
+      ...(provider ? { provider } : {}),
     };
   }
   return {
@@ -235,6 +238,12 @@ export function terminalFromExecution(
   runId: string,
   plan: RunPlan,
   result: ExecutionResult,
+  artifacts: readonly ProviderArtifact[] = [],
+  nextActions: readonly string[] = result.outcome === "succeeded"
+    ? ["review_in_progress"]
+    : result.outcome === "blocked"
+      ? ["user_input_required", "delivery_handoff_not_started"]
+      : ["delivery_handoff_not_started"],
 ): TerminalResult {
   return {
     schema_version: 1,
@@ -242,7 +251,7 @@ export function terminalFromExecution(
     work_uri: plan.work.uri,
     outcome: result.outcome,
     plan: planSummary(plan),
-    artifact_refs: [],
+    artifact_refs: [...dedupeArtifacts(artifacts)],
     cleanup: cleanupSummary(result.cleanup),
     failure: result.failure
       ? safeFailure(
@@ -251,7 +260,7 @@ export function terminalFromExecution(
         )
       : null,
     controller: null,
-    next_actions: ["delivery_handoff_not_started"],
+    next_actions: [...nextActions],
   };
 }
 

@@ -18,12 +18,15 @@ explicitly in the entries below.
   The action opens the existing shared issue creation dialog while the section
   frame keeps its title-and-description-only geometry.
 
-- **A private foreground work-URI invocation adapter now binds strict provider
-  configuration to the shared orchestration engine.** The built artifact reads
-  one work snapshot, records controller-safe lifecycle state, emits bounded
-  progress on stderr, and returns one redacted terminal result on stdout. The
-  invocation-only boundary creates no delivery artifacts and leaves delivery
-  sequencing to its caller.
+- **A private foreground work-URI invocation adapter now executes the
+  provider-bound delivery slice.** The built artifact reads and claims one
+  work snapshot, provisions a managed workspace, drives the Codex harness,
+  validates exact candidate heads with a finite repair budget, and hands a
+  validated head to a non-force branch push and draft pull request before
+  transitioning successful work to `in_review`. Blocked, failed, and cancelled
+  runs keep work in progress without review artifacts while controller-safe
+  lifecycle state, bounded progress, and one redacted terminal result remain
+  observable.
 
 - **A private GitHub SCM provider now implements the provider-neutral
   orchestration contract.** Explicit repository bindings cover ref resolution,

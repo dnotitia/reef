@@ -1,12 +1,12 @@
 import { createFixture } from "./fixture.mjs";
 
-let fixture;
+let fixtures = [];
 let stopping = false;
 
 const stop = async () => {
   if (stopping) return;
   stopping = true;
-  if (fixture) await fixture.dispose();
+  await Promise.all(fixtures.map((fixture) => fixture.dispose()));
 };
 
 const waitForSignal = () =>
@@ -19,21 +19,20 @@ const waitForSignal = () =>
   });
 
 try {
-  fixture = await createFixture({ runWindowMs: 30_000 });
+  fixtures = await Promise.all(
+    ["success", "repair", "blocked"].map((scenario) =>
+      createFixture({ scenario }),
+    ),
+  );
+  const [success, repair, blocked] = fixtures;
   process.stdout.write(`REEF_E2E_READY=1\n`);
-  process.stdout.write(`REEF_E2E_WORK_URI=${fixture.workUri}\n`);
-  process.stdout.write(`REEF_E2E_PORT=${fixture.port}\n`);
-  process.stdout.write(`REEF_E2E_CLI_COMMAND=${fixture.directCommand()}\n`);
-  process.stdout.write(
-    `REEF_E2E_INVALID_CONFIG_COMMAND=${fixture.directCommand(fixture.invalidConfigPath)}\n`,
-  );
-  process.stdout.write(
-    `REEF_E2E_PROVIDER_MISMATCH_COMMAND=${fixture.directCommand(fixture.providerMismatchConfigPath)}\n`,
-  );
-  process.stdout.write(
-    `REEF_E2E_DUPLICATE_COMMAND=${fixture.directCommand()}\n`,
-  );
-  process.stdout.write(`REEF_E2E_CANCEL_COMMAND=${fixture.directCommand()}\n`);
+  process.stdout.write(`REEF_E2E_CLI_BEHAVIOR_JOB=cli-e2e-runtime\n`);
+  process.stdout.write(`REEF_E2E_SUCCESS_WORK_URI=${success.workUri}\n`);
+  process.stdout.write(`REEF_E2E_REPAIR_WORK_URI=${repair.workUri}\n`);
+  process.stdout.write(`REEF_E2E_BLOCKED_WORK_URI=${blocked.workUri}\n`);
+  process.stdout.write(`REEF_E2E_SUCCESS_COMMAND=${success.directCommand()}\n`);
+  process.stdout.write(`REEF_E2E_REPAIR_COMMAND=${repair.directCommand()}\n`);
+  process.stdout.write(`REEF_E2E_BLOCKED_COMMAND=${blocked.directCommand()}\n`);
   process.stdout.write(
     `REEF_E2E_STOP=send SIGINT or SIGTERM to this runtime PID ${process.pid}\n`,
   );

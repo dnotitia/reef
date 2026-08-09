@@ -76,6 +76,13 @@ export type LocalExecResult = InfrastructureOperationMap["exec"]["result"] &
 export type LocalCollectResult =
   InfrastructureOperationMap["collect"]["result"] & LocalCommandOutput;
 
+/** Private composition data for callers that already own the resource. */
+export interface LocalWorkspaceDescriptor {
+  readonly cwd: string;
+  readonly revision: string;
+  readonly clean: boolean;
+}
+
 export interface LocalInfrastructureProvider extends InfrastructureProvider {
   exec(
     input: InfrastructureOperationMap["exec"]["input"],
@@ -85,6 +92,10 @@ export interface LocalInfrastructureProvider extends InfrastructureProvider {
     input: InfrastructureOperationMap["collect"]["input"],
     context: ProviderRequestContext,
   ): Promise<LocalCollectResult>;
+  describe(
+    input: { readonly resource: ProviderReference },
+    context: ProviderRequestContext,
+  ): Promise<LocalWorkspaceDescriptor>;
 }
 
 interface NormalizedOptions {
@@ -1079,10 +1090,11 @@ export function createLocalInfrastructureProvider(
     operation: string,
     context: ProviderRequestContext,
     action: (signal: AbortSignal | undefined) => Promise<Result>,
+    capability = operation,
   ): Promise<Result> =>
     executeProviderOperation(
       identity,
-      operation,
+      capability,
       operation,
       async ({ signal }) => {
         try {
@@ -1438,6 +1450,52 @@ export function createLocalInfrastructureProvider(
       };
     });
 
+  const describe = (
+    input: { readonly resource: ProviderReference },
+    context: ProviderRequestContext,
+  ): Promise<LocalWorkspaceDescriptor> =>
+    run(
+      "describe",
+      context,
+      async (signal) => {
+        assertActive(signal, "describe");
+        const state = validateReference(
+          resources,
+          input.resource,
+          "describe",
+          false,
+        );
+        if (state.phase !== "idle" || state.activeCommand !== undefined) {
+          throw requestFailure("describe");
+        }
+        await assertRepositoryUnchanged(
+          normalized,
+          state.repository,
+          "describe",
+          signal,
+        );
+        const worktree = await readWorktreeState(
+          state,
+          "describe",
+          signal,
+          false,
+        );
+        const status = await runGit({
+          cwd: state.worktreeRealPath,
+          args: ["status", "--porcelain=v1", "--untracked-files=all"],
+          operation: "describe",
+          signal,
+          failure: "request",
+        });
+        return Object.freeze({
+          cwd: state.worktreeRealPath,
+          revision: worktree.head,
+          clean: status.trim().length === 0,
+        });
+      },
+      "collect",
+    );
+
   const cleanup = (
     input: InfrastructureOperationMap["cleanup"]["input"],
     context: ProviderRequestContext,
@@ -1530,6 +1588,7 @@ export function createLocalInfrastructureProvider(
     exec,
     sync,
     collect,
+    describe,
     cleanup,
   };
 }

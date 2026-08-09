@@ -5,7 +5,9 @@ import {
   createCodexHarnessProvider,
 } from "@reef/harness-provider-codex";
 import {
+  type LocalInfrastructureProvider,
   type LocalInfrastructureProviderOptions,
+  type LocalWorkspaceDescriptor,
   createLocalInfrastructureProvider,
 } from "@reef/infrastructure-provider-local";
 import {
@@ -14,12 +16,16 @@ import {
   type ProviderIdentity,
   type ProviderKind,
   type ProviderRegistry,
+  type ScmProvider,
+  type ValidationProvider,
 } from "@reef/orchestrator";
 import {
+  type GithubScmProvider,
   type GithubScmProviderOptions,
   createGithubScmProvider,
 } from "@reef/scm-provider-github";
 import {
+  type LocalValidationProvider,
   type LocalValidationProviderOptions,
   createLocalValidationProvider,
 } from "@reef/validation-provider-local";
@@ -57,6 +63,11 @@ export class CliResolutionError extends Error {
 
 export interface ResolvedProviders {
   readonly providers: ProviderRegistry;
+  readonly infrastructure: LocalInfrastructureProvider;
+  readonly bindWorkspace: (descriptor: LocalWorkspaceDescriptor) => {
+    readonly scm: ScmProvider;
+    readonly validation: ValidationProvider;
+  };
   readonly requiredCapabilities: {
     readonly work: readonly ProviderCapability[];
     readonly harness: readonly ProviderCapability[];
@@ -354,7 +365,12 @@ export function resolveProviders(
       ),
     ),
   };
-  const scm = createGithubScmProvider(githubOptions);
+  const createScm = (workingTree: string): GithubScmProvider =>
+    createGithubScmProvider({
+      ...githubOptions,
+      repository: { ...githubOptions.repository, workingTree },
+    });
+  const scm = createScm(config.repository.root);
 
   const validationConfig = providerConfigFor(config, "validation");
   const validationIndex = providerIndexFor(config, "validation");
@@ -378,7 +394,9 @@ export function resolveProviders(
         }
       : {}),
   };
-  const validation = createLocalValidationProvider(validationOptions);
+  const createValidation = (repositoryRoot: string): LocalValidationProvider =>
+    createLocalValidationProvider({ ...validationOptions, repositoryRoot });
+  const validation = createValidation(config.repository.root);
 
   const providers: ProviderRegistry = {
     work: actualProvider(
@@ -406,6 +424,11 @@ export function resolveProviders(
 
   return {
     providers,
+    infrastructure,
+    bindWorkspace: (descriptor) => ({
+      scm: createScm(descriptor.cwd),
+      validation: createValidation(descriptor.cwd),
+    }),
     requiredCapabilities: {
       work: workConfig.required_capabilities,
       harness: harnessConfig.required_capabilities,

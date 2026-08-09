@@ -16,7 +16,7 @@ type Awaitable<T> = T | PromiseLike<T>;
 
 export type ProviderRegistry = Readonly<ProviderByKind>;
 
-export type ExecutionOutcome = "succeeded" | "failed" | "cancelled";
+export type ExecutionOutcome = "succeeded" | "failed" | "blocked" | "cancelled";
 export type ExecutionPhase = "preflight" | "running" | "cleanup" | "terminal";
 
 export interface ExecutionProvenance {
@@ -75,10 +75,20 @@ export interface CancelledExecutionFailure {
   readonly provider?: ProviderErrorJson;
 }
 
+export interface BlockedExecutionFailure {
+  readonly code: "blocked";
+}
+
+export interface TaskExecutionFailure {
+  readonly code: string;
+}
+
 export type ExecutionFailure =
   | PreflightExecutionFailure
   | EngineExecutionFailure
   | CleanupExecutionFailure
+  | TaskExecutionFailure
+  | BlockedExecutionFailure
   | CancelledExecutionFailure
   | ProviderErrorJson;
 
@@ -159,6 +169,7 @@ export type FailedExecutionFailure =
   | PreflightExecutionFailure
   | EngineExecutionFailure
   | CleanupExecutionFailure
+  | TaskExecutionFailure
   | ProviderErrorJson;
 
 export interface FailedExecutionResult extends ExecutionResultBase {
@@ -171,10 +182,37 @@ export interface CancelledExecutionResult extends ExecutionResultBase {
   readonly failure: CancelledExecutionFailure;
 }
 
+export interface BlockedExecutionResult extends ExecutionResultBase {
+  readonly outcome: "blocked";
+  readonly failure: BlockedExecutionFailure;
+}
+
 export type ExecutionResult =
   | SucceededExecutionResult
   | FailedExecutionResult
+  | BlockedExecutionResult
   | CancelledExecutionResult;
+
+export class ExecutionTaskError extends Error {
+  readonly code: string;
+
+  constructor(code: string) {
+    super(code);
+    this.name = "ExecutionTaskError";
+    this.code = code;
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
+export class ExecutionBlockedError extends Error {
+  readonly code = "blocked" as const;
+
+  constructor() {
+    super("blocked");
+    this.name = "ExecutionBlockedError";
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
 
 const isAbortLike = (error: unknown): boolean => {
   if (typeof error !== "object" || error === null) return false;
@@ -329,9 +367,18 @@ const failureFromError = (
   error: unknown,
   signal: AbortSignal,
 ): {
-  readonly outcome: "failed" | "cancelled";
-  readonly failure: FailedExecutionFailure | CancelledExecutionFailure;
+  readonly outcome: "failed" | "blocked" | "cancelled";
+  readonly failure:
+    | FailedExecutionFailure
+    | BlockedExecutionFailure
+    | CancelledExecutionFailure;
 } => {
+  if (error instanceof ExecutionBlockedError) {
+    return { outcome: "blocked", failure: { code: "blocked" } };
+  }
+  if (error instanceof ExecutionTaskError) {
+    return { outcome: "failed", failure: { code: error.code } };
+  }
   if (error instanceof ProviderError) {
     if (signal.aborted || error.code === "cancelled") {
       return { outcome: "cancelled", failure: cancellationFailure(error) };
@@ -407,6 +454,7 @@ export async function executeRunPlan(
   let primaryOutcome: ExecutionOutcome = "succeeded";
   let primaryFailure:
     | FailedExecutionFailure
+    | BlockedExecutionFailure
     | CancelledExecutionFailure
     | null = null;
 
@@ -505,6 +553,13 @@ export async function executeRunPlan(
       ...resultBase,
       outcome,
       failure: failure as CancelledExecutionFailure,
+    }) as ExecutionResult;
+  }
+  if (outcome === "blocked") {
+    return deepFreeze({
+      ...resultBase,
+      outcome,
+      failure: failure as BlockedExecutionFailure,
     }) as ExecutionResult;
   }
   return deepFreeze({
