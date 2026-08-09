@@ -1,5 +1,6 @@
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import type { IssueListItem, PlanningCatalog } from "@reef/core";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   cleanup,
   fireEvent,
@@ -99,6 +100,24 @@ const planningCatalog: PlanningCatalog = {
 };
 
 describe("KanbanCard", () => {
+  it("opens its context menu from the board keyboard menu key without opening detail", () => {
+    const onClick = vi.fn();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <KanbanCard issue={mockIssue()} vault="reef-test" onClick={onClick} />
+      </QueryClientProvider>,
+    );
+
+    const card = screen.getByTestId("kanban-card");
+    fireEvent.keyDown(card, { key: "F10", shiftKey: true });
+
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
   it("renders issue title and id", () => {
     render(<KanbanCard issue={mockIssue()} />);
     expect(screen.getByText("Fix login bug")).toBeDefined();

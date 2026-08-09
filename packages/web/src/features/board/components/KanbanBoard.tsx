@@ -393,6 +393,7 @@ export function KanbanBoard({ vault, groupBy = "status" }: KanbanBoardProps) {
               issues={issues}
               blockedIds={blockedIds}
               planningCatalog={planningCatalog}
+              assignees={assignees}
               onIssueClick={openIssue}
               readOnlyReason={
                 groupBy === "label" ? t("groupReadOnly") : undefined

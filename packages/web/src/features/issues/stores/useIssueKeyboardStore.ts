@@ -57,6 +57,7 @@ interface IssueKeyboardState {
   requestQuickEdit: (
     scope: IssueKeyboardScope,
     field: IssueQuickEditField,
+    options?: { requestDomFocus?: boolean },
   ) => void;
   closeQuickEdit: () => void;
 }
@@ -316,7 +317,7 @@ export const useIssueKeyboardStore = create<IssueKeyboardState>((set) => ({
       };
     }),
 
-  requestQuickEdit: (scope, field) =>
+  requestQuickEdit: (scope, field, options = {}) =>
     set((state) => {
       const ids = state.visibleIssueIds[scope];
       const current =
@@ -349,12 +350,15 @@ export const useIssueKeyboardStore = create<IssueKeyboardState>((set) => ({
           ...state.tabStopOccurrenceKey,
           [scope]: occurrenceKey,
         },
-        focusRequest: {
-          scope,
-          issueId,
-          occurrenceKey,
-          serial: focusSerial,
-        },
+        focusRequest:
+          options.requestDomFocus === false
+            ? null
+            : {
+                scope,
+                issueId,
+                occurrenceKey,
+                serial: focusSerial,
+              },
         quickEditRequest: {
           scope,
           issueId,

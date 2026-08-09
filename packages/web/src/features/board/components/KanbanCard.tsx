@@ -9,6 +9,7 @@ import { PriorityDot } from "@/components/ui/priority-dot";
 import { StatusIcon } from "@/components/ui/status-icon";
 import { useCurrentUserLogin } from "@/features/auth/hooks/useCurrentUserLogin";
 import { IssueQuickEditAnchor } from "@/features/issues/components/quick-edit/IssueQuickEditAnchor";
+import { IssueContextMenu } from "@/features/issues/components/context-menu/IssueContextMenu";
 import { useIssueFlash } from "@/features/issues/stores/useFlashStore";
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import {
@@ -23,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import {
+  type Collaborator,
   type IssueListItem,
   type PlanningCatalog,
   type Priority,
@@ -51,6 +53,7 @@ interface KanbanCardProps {
    */
   blocked?: boolean;
   planningCatalog?: PlanningCatalog;
+  assignees?: readonly Collaborator[];
   /**
    * Fired on a click that did not turn into a drag (PointerSensor
    * activationConstraint in KanbanBoard separates the two). Used to open
@@ -276,6 +279,7 @@ export const KanbanCard = memo(function KanbanCard({
   vault,
   blocked,
   planningCatalog,
+  assignees,
   onClick,
   occurrenceKey,
   dragEnabled = true,
@@ -346,7 +350,7 @@ export const KanbanCard = memo(function KanbanCard({
     }
   }
 
-  return (
+  const card = (
     <KanbanCardSurface
       ref={setCardRef}
       style={style}
@@ -388,6 +392,19 @@ export const KanbanCard = memo(function KanbanCard({
         ) : undefined
       }
     />
+  );
+
+  return vault ? (
+    <IssueContextMenu
+      issue={issue}
+      vault={vault}
+      planningCatalog={planningCatalog}
+      assignees={assignees}
+    >
+      {card}
+    </IssueContextMenu>
+  ) : (
+    card
   );
 });
 

@@ -156,6 +156,82 @@ describe("IssueListRow", () => {
     expect(onClick).toHaveBeenCalledWith("REEF-001");
   });
 
+  it("opens the context menu without opening the issue detail", () => {
+    const onClick = vi.fn();
+    renderRow(mockIssue, [mockIssue], onClick);
+    fireEvent.contextMenu(screen.getByTestId("issue-list-row"), {
+      clientX: 20,
+      clientY: 20,
+    });
+
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("opens the focused inline editor from status, priority, and assignee cells", async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+
+    for (const field of ["status", "priority", "assignee"] as const) {
+      cleanup();
+      useIssueKeyboardStore
+        .getState()
+        .setVisibleOccurrences("list", [
+          { key: "row-1", issueId: mockIssue.id },
+        ]);
+      render(
+        <IssueListRow
+          issue={mockIssue}
+          vault="reef-test"
+          allIssues={[mockIssue]}
+          logicalIds={[mockIssue.id]}
+          occurrenceKey="row-1"
+          onClick={onClick}
+        />,
+        { wrapper: createWrapper() },
+      );
+      await user.click(screen.getByTestId(`issue-inline-edit-${field}`));
+      expect(useIssueKeyboardStore.getState().quickEditRequest).toMatchObject({
+        scope: "list",
+        issueId: mockIssue.id,
+        occurrenceKey: "row-1",
+        field,
+      });
+      expect(onClick).not.toHaveBeenCalled();
+      useIssueKeyboardStore.getState().closeQuickEdit();
+    }
+  });
+
+  it("opens the inline editor from a focused cell with Enter without opening detail", () => {
+    const onClick = vi.fn();
+    useIssueKeyboardStore
+      .getState()
+      .setVisibleOccurrences("list", [{ key: "row-1", issueId: mockIssue.id }]);
+    render(
+      <IssueListRow
+        issue={mockIssue}
+        vault="reef-test"
+        allIssues={[mockIssue]}
+        logicalIds={[mockIssue.id]}
+        occurrenceKey="row-1"
+        onClick={onClick}
+      />,
+      { wrapper: createWrapper() },
+    );
+
+    fireEvent.keyDown(screen.getByTestId("issue-inline-edit-status"), {
+      key: "Enter",
+    });
+
+    expect(useIssueKeyboardStore.getState().quickEditRequest).toMatchObject({
+      scope: "list",
+      issueId: mockIssue.id,
+      occurrenceKey: "row-1",
+      field: "status",
+    });
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
   it("toggles selection from the checkbox without opening detail", async () => {
     const user = userEvent.setup();
     const onClick = vi.fn();

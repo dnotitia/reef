@@ -378,7 +378,14 @@ support wrapping Arrow/Home/End navigation, expose checked/current state, and
 return focus to the trigger after Escape or a dialog. The Kanban card is
 reachable and openable by keyboard; pointer drag-and-drop is the enhancement,
 not the only path to moving an issue (status can also be changed from the
-detail panel's status select).
+detail panel's status select). Issue List rows and Kanban cards also share one
+translated context menu: right-click, Shift+F10, and the Menu key open it
+without opening the detail sheet or starting a drag. Its Status, Assignee,
+Priority, and Sprint submenus expose the current value and a nullable None
+choice; closing still requires the existing reason dialog. Copy Link uses the
+canonical vault/issue URL, while Copy ID copies the issue identifier. In List,
+the Status, Priority, and Assignee cells open the existing inline editor on
+click or Enter and do not open the detail sheet.
 
 ### Surface, Depth & Motion
 
