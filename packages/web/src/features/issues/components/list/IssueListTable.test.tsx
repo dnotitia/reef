@@ -3,7 +3,7 @@ import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { apiFetch } from "@/lib/apiClient";
 import type { IssueMetadata } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -234,5 +234,89 @@ describe("IssueListTable", () => {
     expect(
       await screen.findByText("No issues match your filters."),
     ).toBeInTheDocument();
+  });
+
+  it("renders grouped label occurrences, a None bucket, and collapses rows in the virtual model", async () => {
+    const groupedIssues: IssueMetadata[] = [
+      { ...issues[0], labels: ["Zebra", "alpha"] },
+      { ...issues[1], title: "Second label task", labels: ["Zebra"] },
+      {
+        ...issues[0],
+        id: "REEF-3",
+        title: "Unlabeled task",
+        labels: [],
+      },
+    ];
+    mockApiFetch.mockImplementation(async (url) => {
+      if (String(url).startsWith("/api/vault-members")) {
+        return new Response(JSON.stringify({ users: [] }), { status: 200 });
+      }
+      if (String(url).startsWith("/api/issues/relations")) {
+        return new Response(JSON.stringify({ relations: [] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ issues: groupedIssues }), {
+        status: 200,
+      });
+    });
+
+    const user = userEvent.setup();
+    render(wrap(<IssueListTable vault="reef-acme" groupBy="label" />));
+
+    expect(await screen.findByText("Second label task")).toBeInTheDocument();
+    expect(screen.getByText("Unlabeled task")).toBeInTheDocument();
+    expect(screen.getAllByTestId("issue-group-header")).toHaveLength(3);
+    expect(
+      screen
+        .getAllByTestId("issue-list-row")
+        .map((row) => row.getAttribute("data-occurrence-key")),
+    ).toEqual([
+      "label:alpha:REEF-1",
+      "label:Zebra:REEF-1",
+      "label:Zebra:REEF-2",
+      "label:none:REEF-3",
+    ]);
+
+    const zebraHeader = screen.getByRole("button", {
+      name: /Collapse Zebra/,
+    });
+    expect(zebraHeader).toHaveAttribute("aria-expanded", "true");
+    await user.click(zebraHeader);
+    expect(zebraHeader).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Second label task")).toBeNull();
+    expect(screen.getByText("First task")).toBeInTheDocument();
+  });
+
+  it("toggles a grouped header from native Enter and Space key activation", async () => {
+    const groupedIssues: IssueMetadata[] = [
+      { ...issues[0], labels: ["alpha"] },
+      { ...issues[1], labels: ["beta"] },
+    ];
+    mockApiFetch.mockImplementation(async (url) => {
+      if (String(url).startsWith("/api/vault-members")) {
+        return new Response(JSON.stringify({ users: [] }), { status: 200 });
+      }
+      if (String(url).startsWith("/api/issues/relations")) {
+        return new Response(JSON.stringify({ relations: [] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ issues: groupedIssues }), {
+        status: 200,
+      });
+    });
+
+    render(wrap(<IssueListTable vault="reef-acme" groupBy="label" />));
+
+    const toggle = await screen.findByRole("button", {
+      name: /Collapse alpha/,
+    });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    toggle.focus();
+    expect(toggle).toHaveFocus();
+    fireEvent.keyDown(toggle, { key: "Enter" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveFocus();
+
+    fireEvent.keyDown(toggle, { key: " " });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(toggle).toHaveFocus();
   });
 });

@@ -1,19 +1,19 @@
 "use client";
 
 import { StatusIcon } from "@/components/ui/status-icon";
-import { useStatusLabels } from "@/i18n/fieldLabels";
 import { DURATION_BASE, EASE_SIGNATURE } from "@/lib/motionTokens";
 import { cn } from "@/lib/utils";
 import { useDroppable } from "@dnd-kit/core";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
 import type { IssueListItem, PlanningCatalog, Status } from "@reef/core";
 import { memo } from "react";
+import type { IssueGroupBucket } from "../../issues/lib/grouping";
 import { KanbanCard } from "./KanbanCard";
 
 const EMPTY_BLOCKED_IDS: ReadonlySet<string> = new Set();
 
 export interface KanbanColumnProps {
-  status: Status;
+  bucket: IssueGroupBucket;
   vault?: string;
   issues: IssueListItem[];
   /**
@@ -24,20 +24,25 @@ export interface KanbanColumnProps {
   blockedIds?: ReadonlySet<string>;
   planningCatalog?: PlanningCatalog;
   onIssueClick?: (id: string) => void;
+  readOnlyReason?: string;
 }
 
 // Drop hover uses neutral surface + brand ring, not purple, to avoid
 // clashing with the AI-purple semantics reserved for AI features.
 export const KanbanColumn = memo(function KanbanColumn({
-  status,
+  bucket,
   vault,
   issues,
   blockedIds = EMPTY_BLOCKED_IDS,
   planningCatalog,
   onIssueClick,
+  readOnlyReason,
 }: KanbanColumnProps) {
-  const statusLabels = useStatusLabels();
-  const { setNodeRef, isOver } = useDroppable({ id: status });
+  const { setNodeRef, isOver } = useDroppable({
+    id: bucket.id,
+    data: { bucket },
+    disabled: !bucket.droppable,
+  });
   // Layout transition: when a card joins/leaves this column (status change) or
   // the filtered/sorted set shifts, auto-animate FLIPs it into place instead
   // of a hard unmount/remount. The drag gesture itself stays owned by
@@ -51,6 +56,9 @@ export const KanbanColumn = memo(function KanbanColumn({
   return (
     <div
       ref={setNodeRef}
+      data-group-by={bucket.groupBy}
+      data-group-value={bucket.value ?? "none"}
+      aria-label={`${bucket.label}, ${issues.length}`}
       className={cn(
         "flex h-full w-80 shrink-0 flex-col rounded-lg border border-border bg-surface-subtle p-2",
         "transition-colors duration-150",
@@ -59,9 +67,11 @@ export const KanbanColumn = memo(function KanbanColumn({
     >
       {/* Column header */}
       <div className="mb-2 flex shrink-0 items-center gap-2 px-1.5 py-1">
-        <StatusIcon status={status} size={12} />
+        {bucket.groupBy === "status" && bucket.value ? (
+          <StatusIcon status={bucket.value as Status} size={12} />
+        ) : null}
         <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground/80">
-          {statusLabels[status]}
+          {bucket.label}
         </h3>
         <span className="ml-auto font-mono text-[11px] tabular-nums text-muted-foreground">
           {issues.length}
@@ -75,9 +85,12 @@ export const KanbanColumn = memo(function KanbanColumn({
       >
         {issues.map((issue) => (
           <KanbanCard
-            key={issue.id}
+            key={`${bucket.id}:${issue.id}`}
             vault={vault}
             issue={issue}
+            occurrenceKey={`${bucket.id}:${issue.id}`}
+            dragEnabled={bucket.droppable}
+            readOnlyReason={readOnlyReason}
             blocked={blockedIds.has(issue.id)}
             planningCatalog={planningCatalog}
             onClick={onIssueClick}

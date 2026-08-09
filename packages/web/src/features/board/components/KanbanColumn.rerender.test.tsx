@@ -1,4 +1,5 @@
 import type { IssueListItem } from "@reef/core";
+import type { IssueGroupBucket } from "../../issues/lib/grouping";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useReducer } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -43,6 +44,17 @@ const makeIssue = (id: string): IssueListItem => ({
 
 const EMPTY_BLOCKED: ReadonlySet<string> = new Set();
 const NOOP = () => {};
+const TODO_BUCKET: IssueGroupBucket = {
+  groupBy: "status",
+  id: "todo",
+  label: "Todo",
+  value: "todo",
+  order: 0,
+  patchField: "status",
+  patchValue: "todo",
+  multiBucket: false,
+  droppable: true,
+};
 
 afterEach(() => {
   cleanup();
@@ -57,7 +69,7 @@ function Harness({ issues }: { issues: IssueListItem[] }) {
         {tick}
       </button>
       <KanbanColumn
-        status="todo"
+        bucket={TODO_BUCKET}
         issues={issues}
         blockedIds={EMPTY_BLOCKED}
         onIssueClick={NOOP}

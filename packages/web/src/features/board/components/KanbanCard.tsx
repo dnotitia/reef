@@ -57,6 +57,9 @@ interface KanbanCardProps {
    * the issue detail slide-over.
    */
   onClick?: (id: string) => void;
+  occurrenceKey?: string;
+  dragEnabled?: boolean;
+  readOnlyReason?: string;
 }
 
 interface KanbanCardSurfaceProps extends HTMLAttributes<HTMLDivElement> {
@@ -65,6 +68,8 @@ interface KanbanCardSurfaceProps extends HTMLAttributes<HTMLDivElement> {
   planningCatalog?: PlanningCatalog;
   isDragging?: boolean;
   quickEditAnchor?: ReactNode;
+  readOnlyReason?: string;
+  readOnlyTooltipId?: string;
 }
 
 interface PlanningContextItem {
@@ -120,6 +125,8 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
       planningCatalog,
       isDragging = false,
       quickEditAnchor,
+      readOnlyReason,
+      readOnlyTooltipId,
       className,
       ...props
     },
@@ -172,10 +179,23 @@ const KanbanCardSurface = forwardRef<HTMLDivElement, KanbanCardSurfaceProps>(
           "hover:border-border hover:bg-surface-hover",
           "focus-visible:outline-none focus-visible:border-brand/60 focus-visible:bg-brand/5",
           isDragging && "opacity-50 cursor-grabbing shadow-md",
+          readOnlyReason && "cursor-not-allowed",
           className,
         )}
+        aria-describedby={readOnlyTooltipId}
+        aria-disabled={readOnlyReason ? true : undefined}
+        title={readOnlyReason}
         {...props}
       >
+        {readOnlyReason && readOnlyTooltipId ? (
+          <span
+            id={readOnlyTooltipId}
+            role="tooltip"
+            className="pointer-events-none absolute left-1/2 top-0 z-20 w-max max-w-[16rem] -translate-x-1/2 -translate-y-[calc(100%+0.35rem)] rounded-md border border-border bg-popover px-2 py-1 text-[11px] font-medium text-popover-foreground opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
+          >
+            {readOnlyReason}
+          </span>
+        ) : null}
         {quickEditAnchor}
         {/* Row 1 — header: status · id · type · (blocked, right) */}
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -257,24 +277,34 @@ export const KanbanCard = memo(function KanbanCard({
   blocked,
   planningCatalog,
   onClick,
+  occurrenceKey,
+  dragEnabled = true,
+  readOnlyReason,
 }: KanbanCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
-      id: issue.id,
-      data: { issue },
+      id: occurrenceKey ?? issue.id,
+      data: { issue, occurrenceKey },
+      disabled: !dragEnabled,
     });
   // Save-confirm flash: one-shot highlight when this card's edit lands
   // server-side. the flashing card re-renders; the hook auto-clears the
   // flag after the flash window so a later save can flash it again.
   const isFlashing = useIssueFlash(issue.id);
+  const keyboardOccurrenceKey = occurrenceKey ?? issue.id;
   const focused = useIssueKeyboardStore(
-    (state) => state.focusedIssueId.board === issue.id,
+    (state) =>
+      state.focusedOccurrenceKey.board === keyboardOccurrenceKey ||
+      (!state.focusedOccurrenceKey.board &&
+        state.focusedIssueId.board === issue.id),
   );
   const tabStopped = useIssueKeyboardStore(
-    (state) => state.tabStopIssueId.board === issue.id,
+    (state) =>
+      state.tabStopOccurrenceKey.board === keyboardOccurrenceKey ||
+      (!state.tabStopOccurrenceKey.board &&
+        state.tabStopIssueId.board === issue.id),
   );
   const focusRequest = useIssueKeyboardStore((state) => state.focusRequest);
-  const focusIssue = useIssueKeyboardStore((state) => state.focusIssue);
   const cardRef = useRef<HTMLDivElement | null>(null);
 
   const setCardRef = useCallback(
@@ -288,14 +318,15 @@ export const KanbanCard = memo(function KanbanCard({
   useLayoutEffect(() => {
     if (
       focusRequest?.scope !== "board" ||
-      focusRequest.issueId !== issue.id ||
+      (focusRequest.occurrenceKey ?? focusRequest.issueId) !==
+        keyboardOccurrenceKey ||
       !cardRef.current
     ) {
       return;
     }
     cardRef.current.focus({ preventScroll: true });
     cardRef.current.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [focusRequest, issue.id]);
+  }, [focusRequest, keyboardOccurrenceKey]);
 
   const style = transform
     ? { transform: CSS.Translate.toString(transform) }
@@ -323,23 +354,37 @@ export const KanbanCard = memo(function KanbanCard({
       {...attributes}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
-      onFocus={() => focusIssue("board", issue.id)}
+      onFocus={() =>
+        useIssueKeyboardStore
+          .getState()
+          .focusOccurrence("board", keyboardOccurrenceKey, issue.id)
+      }
       className={cn(
         focused && "border-brand/60 bg-brand/5",
         isFlashing && "reef-flash-card",
       )}
       role="button"
-      tabIndex={focused || tabStopped ? 0 : -1}
+      tabIndex={readOnlyReason || focused || tabStopped ? 0 : -1}
       aria-selected={focused || undefined}
       data-shortcut-surface="issue-kanban-card"
+      data-occurrence-key={keyboardOccurrenceKey}
       data-keyboard-focused={focused ? "true" : undefined}
       issue={issue}
       blocked={blocked}
       planningCatalog={planningCatalog}
       isDragging={isDragging}
+      readOnlyReason={readOnlyReason}
+      readOnlyTooltipId={
+        readOnlyReason ? `kanban-read-only-${keyboardOccurrenceKey}` : undefined
+      }
       quickEditAnchor={
         vault ? (
-          <IssueQuickEditAnchor scope="board" issue={issue} vault={vault} />
+          <IssueQuickEditAnchor
+            scope="board"
+            issue={issue}
+            vault={vault}
+            occurrenceKey={keyboardOccurrenceKey}
+          />
         ) : undefined
       }
     />

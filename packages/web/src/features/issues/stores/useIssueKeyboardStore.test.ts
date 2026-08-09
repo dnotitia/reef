@@ -7,8 +7,11 @@ describe("useIssueKeyboardStore", () => {
   beforeEach(() => {
     useIssueKeyboardStore.setState({
       visibleIssueIds: { list: [], board: [], backlog: [] },
+      visibleOccurrences: { list: [], board: [], backlog: [] },
       focusedIssueId: { list: null, board: null, backlog: null },
+      focusedOccurrenceKey: { list: null, board: null, backlog: null },
       tabStopIssueId: { list: null, board: null, backlog: null },
+      tabStopOccurrenceKey: { list: null, board: null, backlog: null },
       focusRequest: null,
       quickEditRequest: null,
     });
@@ -105,6 +108,55 @@ describe("useIssueKeyboardStore", () => {
       scope: "list",
       issueId: "REEF-001",
       field: "priority",
+    });
+  });
+
+  it("moves through bucket+issue occurrences while keeping selection identity unique", () => {
+    const store = useIssueKeyboardStore.getState();
+    store.setVisibleOccurrences("list", [
+      { key: "label:alpha:REEF-001", issueId: "REEF-001" },
+      { key: "label:beta:REEF-001", issueId: "REEF-001" },
+      { key: "label:beta:REEF-002", issueId: "REEF-002" },
+    ]);
+
+    expect(useIssueKeyboardStore.getState().visibleIssueIds.list).toEqual([
+      "REEF-001",
+      "REEF-002",
+    ]);
+    useIssueKeyboardStore.getState().moveFocus("list", 1);
+    expect(useIssueKeyboardStore.getState()).toMatchObject({
+      focusedIssueId: { list: "REEF-001" },
+      focusedOccurrenceKey: { list: "label:alpha:REEF-001" },
+    });
+    useIssueKeyboardStore.getState().moveFocus("list", 1);
+    expect(useIssueKeyboardStore.getState().focusedOccurrenceKey.list).toBe(
+      "label:beta:REEF-001",
+    );
+    useIssueKeyboardStore.getState().moveFocus("list", 1);
+    expect(useIssueKeyboardStore.getState().focusedOccurrenceKey.list).toBe(
+      "label:beta:REEF-002",
+    );
+  });
+
+  it("keeps the focused occurrence for quick edit while mutation identity stays issue-scoped", () => {
+    useIssueKeyboardStore.getState().setVisibleOccurrences("list", [
+      { key: "label:frontend:REEF-001", issueId: "REEF-001" },
+      { key: "label:e2e:REEF-001", issueId: "REEF-001" },
+    ]);
+    useIssueKeyboardStore
+      .getState()
+      .focusOccurrence("list", "label:e2e:REEF-001", "REEF-001");
+
+    useIssueKeyboardStore.getState().requestQuickEdit("list", "labels");
+
+    expect(useIssueKeyboardStore.getState().quickEditRequest).toMatchObject({
+      issueId: "REEF-001",
+      occurrenceKey: "label:e2e:REEF-001",
+      field: "labels",
+    });
+    expect(useIssueKeyboardStore.getState().focusRequest).toMatchObject({
+      issueId: "REEF-001",
+      occurrenceKey: "label:e2e:REEF-001",
     });
   });
 });

@@ -37,13 +37,13 @@ vi.mock("next/navigation", () => ({
 // Mock the heavy body components and the filter toolbar so the test focuses
 // on the workspace's view-switching and chrome wiring.
 vi.mock("@/features/board/components/KanbanBoard", () => ({
-  KanbanBoard: ({ vault }: { vault: string }) => (
-    <div data-testid="board-body" data-vault={vault} />
+  KanbanBoard: ({ vault, groupBy }: { vault: string; groupBy?: string }) => (
+    <div data-testid="board-body" data-vault={vault} data-group-by={groupBy} />
   ),
 }));
 vi.mock("@/features/issues/components/list/IssueListTable", () => ({
-  IssueListTable: ({ vault }: { vault: string }) => (
-    <div data-testid="list-body" data-vault={vault} />
+  IssueListTable: ({ vault, groupBy }: { vault: string; groupBy?: string }) => (
+    <div data-testid="list-body" data-vault={vault} data-group-by={groupBy} />
   ),
 }));
 vi.mock("@/features/issues/components/bulk/IssueBulkActionBar", () => ({
@@ -57,7 +57,9 @@ vi.mock("@/features/timeline/components/TimelineBody", () => ({
   ),
 }));
 vi.mock("@/features/issues/components/filters/IssueFilterToolbar", () => ({
-  IssueFilterToolbar: () => <div data-testid="filter-toolbar" />,
+  IssueFilterToolbar: ({ groupBy }: { groupBy?: string }) => (
+    <div data-testid="filter-toolbar" data-group-by={groupBy} />
+  ),
 }));
 
 import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
@@ -110,6 +112,19 @@ describe("IssuesWorkspace", () => {
     expect(screen.getByTestId("list-body")).toBeInTheDocument();
     expect(screen.getByTestId("issue-bulk-action-bar")).toBeInTheDocument();
     expect(screen.queryByTestId("board-body")).toBeNull();
+  });
+
+  it("passes the shareable group choice to the toolbar and active view", () => {
+    navigationState.searchParams = new URLSearchParams("view=list&group=label");
+    render(wrap(<IssuesWorkspace />));
+    expect(screen.getByTestId("filter-toolbar")).toHaveAttribute(
+      "data-group-by",
+      "label",
+    );
+    expect(screen.getByTestId("list-body")).toHaveAttribute(
+      "data-group-by",
+      "label",
+    );
   });
 
   it("renders the Backlog bulk preset without changing the body contract", () => {

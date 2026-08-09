@@ -45,7 +45,7 @@ export function IssuesWorkspace() {
   const selectionContext = JSON.stringify({ filter, searchQuery, vault, view });
   const previousSelectionContext = useRef<string | null>(null);
 
-  const { skipNextSave } = useIssueUrlSync();
+  const { skipNextSave, groupBy, setGroupBy } = useIssueUrlSync();
   useIssueFilterPersistence(vault, skipNextSave);
 
   useEffect(() => {
@@ -89,6 +89,9 @@ export function IssuesWorkspace() {
             statusOptions={
               view === "list" ? STATUS_OPTIONS : WORKFLOW_STATUS_OPTIONS
             }
+            view={view}
+            groupBy={groupBy}
+            setGroupBy={setGroupBy}
           />
           {view === "list" || view === "backlog" ? (
             <IssueBulkActionBar
@@ -98,9 +101,9 @@ export function IssuesWorkspace() {
           ) : null}
           <div className="flex flex-1 min-h-0 flex-col">
             {view === "board" ? (
-              <KanbanBoard vault={vault} />
+              <KanbanBoard vault={vault} groupBy={groupBy} />
             ) : view === "list" ? (
-              <IssueListTable vault={vault} />
+              <IssueListTable vault={vault} groupBy={groupBy} />
             ) : view === "backlog" ? (
               <BacklogView vault={vault} />
             ) : (

@@ -15,6 +15,10 @@ import { useOpenIssue } from "@/features/issues/hooks/view/useOpenIssue";
 import { useWorkflowStatusGuard } from "@/features/issues/hooks/view/useWorkflowStatusGuard";
 import { buildIssueQuery } from "@/features/issues/lib/buildIssueQuery";
 import {
+  buildBulkIssuePatch,
+  type BulkIssueOperation,
+} from "@/features/issues/lib/bulkIssueUpdate";
+import {
   applyDependencyFilter,
   computeBlockedIds,
 } from "@/features/issues/lib/dependencyUtils";
@@ -25,11 +29,17 @@ import {
   sortIssues,
   sortIssuesByRankOrder,
 } from "@/features/issues/lib/issueListUtils";
-import { buildStatusPatch } from "@/features/issues/lib/statusPatch";
+import {
+  createIssueGroupDescriptor,
+  type IssueGroup,
+  type IssueGroupBucket,
+} from "@/features/issues/lib/grouping";
+import type { IssueGroupBy } from "@/features/issues/lib/groupBy";
 import { useFlashStore } from "@/features/issues/stores/useFlashStore";
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
+import { useUserSearch } from "@/features/issues/hooks/queries/useUserSearch";
 import { activateButtonOnKeyDown } from "@/lib/keyboard";
 import { DURATION_BASE, EASE_SIGNATURE } from "@/lib/motionTokens";
 import {
@@ -44,8 +54,14 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import type { ClosedReason, IssueListItem, Status } from "@reef/core";
-import { STATUS_OPTIONS, WORKFLOW_STATUS_OPTIONS } from "@reef/core/fields";
+import type {
+  ClosedReason,
+  IssueListItem,
+  IssueUpdatePatch,
+  Priority,
+  Status,
+} from "@reef/core";
+import { usePriorityLabels, useStatusLabels } from "@/i18n/fieldLabels";
 import { useTranslations } from "next-intl";
 import { useEffect, useId, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -54,7 +70,6 @@ import { KanbanCardPreview } from "./KanbanCard";
 import { KanbanColumn } from "./KanbanColumn";
 
 const EMPTY_ISSUES: IssueListItem[] = [];
-const STATUS_SET = new Set<Status>(STATUS_OPTIONS);
 
 // Drop settle — the drag overlay eases into the card's resting slot on the
 // signature curve instead of snapping away (REEF-121). dnd-kit measures the
@@ -71,6 +86,7 @@ const DROP_ANIMATION: DropAnimation = {
 
 interface KanbanBoardProps {
   vault: string;
+  groupBy?: IssueGroupBy;
 }
 
 /**
@@ -78,12 +94,14 @@ interface KanbanBoardProps {
  * @dnd-kit/core. User-driven board edits allow moving an issue to any valid
  * status column, matching the issue detail status picker.
  */
-export function KanbanBoard({ vault }: KanbanBoardProps) {
+export function KanbanBoard({ vault, groupBy = "status" }: KanbanBoardProps) {
   // The board has no backlog column; keep a stray backlog status filter from
   // blanking it (REEF-109).
   useWorkflowStatusGuard();
   const t = useTranslations("board");
   const common = useTranslations("common");
+  const statusLabels = useStatusLabels();
+  const priorityLabels = usePriorityLabels();
   const noMatchId = useId();
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
@@ -107,19 +125,23 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
   const staleWindowDays = useResolvedAutoHideWindows(vault);
   const { data: relations } = useIssueRelations(vault);
   const { data: planningCatalog } = usePlanningCatalog(vault);
+  const { data: assignees } = useUserSearch("", vault);
   const mutation = useUpdateIssue();
   const openIssue = useOpenIssue();
   const activeIssueId = useBoardStore((state) => state.activeIssueId);
   const setActiveIssueId = useBoardStore((state) => state.setActiveIssueId);
   const flashIssue = useFlashStore((state) => state.flashIssue);
-  const [pendingCloseIssue, setPendingCloseIssue] =
-    useState<IssueListItem | null>(null);
+  const [pendingClose, setPendingClose] = useState<{
+    issue: IssueListItem;
+    bucket: IssueGroupBucket;
+  } | null>(null);
 
   // PointerSensor just starts a drag after a small distance — anything
   // shorter is treated as a click and reaches KanbanCard's onClick.
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-  );
+  const pointerSensor = useSensor(PointerSensor, {
+    activationConstraint: { distance: 6 },
+  });
+  const sensors = useSensors(...(groupBy === "label" ? [] : [pointerSensor]));
 
   const allIssues = issues ?? EMPTY_ISSUES;
   // Dependency graph: prefer the whole-vault relation projection; fall back to
@@ -160,56 +182,114 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
   // Columns are the active workflow statuses just; `backlog` has no column, so
   // a backlog issue in the fetched set finds no bucket here and is left off the
   // board — it lives in the dedicated backlog view instead (REEF-109).
-  const issuesByStatus = useMemo<Map<Status, IssueListItem[]>>(() => {
-    const map = new Map<Status, IssueListItem[]>(
-      WORKFLOW_STATUS_OPTIONS.map((s) => [s, []]),
-    );
-    for (const issue of visibleIssues) {
-      map.get(issue.status)?.push(issue);
-    }
-    return map;
-  }, [visibleIssues]);
+  const sprintNames = useMemo(
+    () =>
+      Object.fromEntries(
+        (planningCatalog?.sprints ?? []).map((sprint) => [
+          sprint.id,
+          sprint.name,
+        ]),
+      ),
+    [planningCatalog],
+  );
+  const assigneeNames = useMemo(
+    () =>
+      Object.fromEntries(
+        (assignees ?? []).map((assignee) => [
+          assignee.login,
+          assignee.name?.trim() || assignee.login,
+        ]),
+      ),
+    [assignees],
+  );
+  const descriptor = useMemo(
+    () =>
+      createIssueGroupDescriptor(groupBy, {
+        labels: {
+          none: t("groupNone"),
+          status: statusLabels,
+          priority: priorityLabels,
+        },
+        assigneeNames,
+        sprintNames,
+      }),
+    [assigneeNames, groupBy, priorityLabels, sprintNames, statusLabels, t],
+  );
+  const issueGroups = useMemo<IssueGroup[]>(
+    () => descriptor.bucketsForIssues(visibleIssues),
+    [descriptor, visibleIssues],
+  );
   const hasActiveFilters =
     hasActiveIssueFilters(filter, searchQuery) ||
     Boolean(filter.showArchived || filter.showStale);
   const showNoMatch =
     !isFetching && !isError && visibleIssues.length === 0 && hasActiveFilters;
-  const renderedIssueIds = useMemo(
+  const renderedOccurrences = useMemo(
     () =>
-      WORKFLOW_STATUS_OPTIONS.flatMap(
-        (status) => issuesByStatus.get(status)?.map((issue) => issue.id) ?? [],
+      issueGroups.flatMap(({ bucket, issues }) =>
+        issues.map((issue) => ({
+          key: `${bucket.id}:${issue.id}`,
+          issueId: issue.id,
+        })),
       ),
-    [issuesByStatus],
+    [issueGroups],
   );
   useEffect(() => {
     useIssueKeyboardStore
       .getState()
-      .setVisibleIssueIds("board", renderedIssueIds);
+      .setVisibleOccurrences("board", renderedOccurrences);
     return () => {
-      useIssueKeyboardStore.getState().setVisibleIssueIds("board", []);
+      useIssueKeyboardStore.getState().setVisibleOccurrences("board", []);
     };
-  }, [renderedIssueIds]);
+  }, [renderedOccurrences]);
 
   const issueMap = useMemo<Map<string, IssueListItem>>(
     () => new Map(allIssues.map((i) => [i.id, i])),
     [allIssues],
   );
 
-  function isStatus(value: unknown): value is Status {
-    return typeof value === "string" && STATUS_SET.has(value as Status);
+  const bucketById = useMemo(
+    () => new Map(issueGroups.map(({ bucket }) => [bucket.id, bucket])),
+    [issueGroups],
+  );
+
+  function operationForBucket(
+    bucket: IssueGroupBucket,
+    closedReason?: ClosedReason,
+  ): BulkIssueOperation | null {
+    if (bucket.patchField === "status" && bucket.patchValue) {
+      return {
+        kind: "status",
+        value: bucket.patchValue as Status,
+        closedReason,
+      };
+    }
+    if (bucket.patchField === "priority") {
+      return {
+        kind: "priority",
+        value: bucket.patchValue as Priority | null,
+      };
+    }
+    if (bucket.patchField === "assigned_to") {
+      return { kind: "assignee", value: bucket.patchValue };
+    }
+    if (bucket.patchField === "sprint_id") {
+      return { kind: "sprint", value: bucket.patchValue };
+    }
+    return null;
   }
 
-  // Status writes surface failure per request via the mutateAsync promise, not
+  // Grouped-field writes surface failure per request via the mutateAsync promise, not
   // mutate's shared callbacks. The board stays draggable while a PATCH is in
   // flight, and `mutate`'s per-call onError lives on the single mutation
   // observer — a later move overwrites it, dropping the retry toast for an
   // earlier failed move. Each mutateAsync promise is independent, so every
   // failed move surfaces its own retry. Retry re-runs the exact same input; a
   // later success dismisses any lingering toast under the same id.
-  function runStatusUpdate(input: {
+  function runGroupUpdate(input: {
     id: string;
     vault: string;
-    patch: ReturnType<typeof buildStatusPatch>;
+    patch: IssueUpdatePatch;
   }) {
     mutation.mutateAsync(input).then(
       () => {
@@ -225,7 +305,7 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
               ? err.message
               : t("updateErrorTitle"),
           description: t("updateErrorDescription"),
-          onRetry: () => runStatusUpdate(input),
+          onRetry: () => runGroupUpdate(input),
         });
       },
     );
@@ -243,33 +323,41 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
     setActiveIssueId(null);
 
     if (!over || !active.data.current) return;
-    if (!isStatus(over.id)) return;
+    const bucket =
+      (over.data?.current?.bucket as IssueGroupBucket | undefined) ??
+      bucketById.get(String(over.id));
+    if (!bucket?.droppable) return;
 
     const issue = active.data.current.issue as IssueListItem;
-    const toStatus = over.id;
+    const operation = operationForBucket(bucket);
+    if (!operation) return;
+    const patch = buildBulkIssuePatch(issue, operation);
+    if (!patch) return;
 
-    if (issue.status === toStatus) return;
-
-    if (toStatus === "closed") {
-      setPendingCloseIssue(issue);
+    if (operation.kind === "status" && operation.value === "closed") {
+      setPendingClose({ issue, bucket });
       return;
     }
 
-    runStatusUpdate({
+    runGroupUpdate({
       id: issue.id,
       vault,
-      patch: buildStatusPatch(issue, toStatus),
+      patch,
     });
   }
 
   function confirmClose(reason: ClosedReason) {
-    if (!pendingCloseIssue) return;
-    const issue = pendingCloseIssue;
-    setPendingCloseIssue(null);
-    runStatusUpdate({
+    if (!pendingClose) return;
+    const { issue, bucket } = pendingClose;
+    setPendingClose(null);
+    const operation = operationForBucket(bucket, reason);
+    if (!operation) return;
+    const patch = buildBulkIssuePatch(issue, operation);
+    if (!patch) return;
+    runGroupUpdate({
       id: issue.id,
       vault,
-      patch: buildStatusPatch(issue, "closed", undefined, reason),
+      patch,
     });
   }
 
@@ -297,15 +385,18 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
           data-testid="kanban-board-body"
           className="relative flex min-h-0 flex-1 gap-3 overflow-x-auto px-6 py-4"
         >
-          {WORKFLOW_STATUS_OPTIONS.map((status) => (
+          {issueGroups.map(({ bucket, issues }) => (
             <KanbanColumn
-              key={status}
-              status={status}
+              key={bucket.id}
+              bucket={bucket}
               vault={vault}
-              issues={issuesByStatus.get(status) ?? EMPTY_ISSUES}
+              issues={issues}
               blockedIds={blockedIds}
               planningCatalog={planningCatalog}
               onIssueClick={openIssue}
+              readOnlyReason={
+                groupBy === "label" ? t("groupReadOnly") : undefined
+              }
             />
           ))}
           {showNoMatch && (
@@ -355,11 +446,11 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
         </DragOverlay>
       </DndContext>
       <CloseIssueDialog
-        open={pendingCloseIssue !== null}
-        issueId={pendingCloseIssue?.id ?? ""}
+        open={pendingClose !== null}
+        issueId={pendingClose?.issue.id ?? ""}
         disabled={mutation.isPending}
         onOpenChange={(open) => {
-          if (!open) setPendingCloseIssue(null);
+          if (!open) setPendingClose(null);
         }}
         onConfirm={confirmClose}
       />

@@ -46,6 +46,7 @@ interface IssueListRowProps {
   highlightQuery?: string;
   planningCatalog?: PlanningCatalog;
   logicalIds?: readonly string[];
+  occurrenceKey?: string;
   columns?: readonly IssueListColumnKey[];
   onClick?: (id: string) => void;
 }
@@ -93,6 +94,7 @@ export const IssueListRow = memo(function IssueListRow({
   highlightQuery: _highlightQuery,
   planningCatalog,
   logicalIds = [],
+  occurrenceKey,
   columns = ISSUE_LIST_DEFAULT_COLUMNS,
   onClick,
 }: IssueListRowProps) {
@@ -102,14 +104,23 @@ export const IssueListRow = memo(function IssueListRow({
     ? getUnresolvedBlockerCount(issue, allIssues)
     : 0;
   const isFlashing = useIssueFlash(issue.id);
+  const keyboardOccurrenceKey = occurrenceKey ?? issue.id;
   const focused = useIssueKeyboardStore(
-    (state) => state.focusedIssueId.list === issue.id,
+    (state) =>
+      state.focusedOccurrenceKey.list === keyboardOccurrenceKey ||
+      (!state.focusedOccurrenceKey.list &&
+        state.focusedIssueId.list === issue.id),
   );
   const tabStopped = useIssueKeyboardStore(
-    (state) => state.tabStopIssueId.list === issue.id,
+    (state) =>
+      state.tabStopOccurrenceKey.list === keyboardOccurrenceKey ||
+      (!state.tabStopOccurrenceKey.list &&
+        state.tabStopIssueId.list === issue.id),
   );
   const focusRequest = useIssueKeyboardStore((state) => state.focusRequest);
-  const focusIssue = useIssueKeyboardStore((state) => state.focusIssue);
+  const focusOccurrence = useIssueKeyboardStore(
+    (state) => state.focusOccurrence,
+  );
   const selected = useIssueSelectionStore((state) =>
     state.selectedIds.has(issue.id),
   );
@@ -123,14 +134,15 @@ export const IssueListRow = memo(function IssueListRow({
   useEffect(() => {
     if (
       focusRequest?.scope !== "list" ||
-      focusRequest.issueId !== issue.id ||
+      (focusRequest.occurrenceKey ?? focusRequest.issueId) !==
+        keyboardOccurrenceKey ||
       !rowRef.current
     ) {
       return;
     }
     rowRef.current.focus({ preventScroll: true });
     rowRef.current.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [focusRequest, issue.id]);
+  }, [focusRequest, keyboardOccurrenceKey]);
 
   useEffect(() => {
     const row = rowRef.current;
@@ -176,7 +188,7 @@ export const IssueListRow = memo(function IssueListRow({
       )}
       tabIndex={focused || tabStopped ? 0 : -1}
       aria-selected={selected || undefined}
-      onFocus={() => focusIssue("list", issue.id)}
+      onFocus={() => focusOccurrence("list", keyboardOccurrenceKey, issue.id)}
       onClick={(event: MouseEvent<HTMLTableRowElement>) => {
         if (event.shiftKey) {
           event.preventDefault();
@@ -187,6 +199,7 @@ export const IssueListRow = memo(function IssueListRow({
       }}
       data-testid="issue-list-row"
       data-issue-id={issue.id}
+      data-occurrence-key={keyboardOccurrenceKey}
       data-shortcut-surface="issue-list-row"
       data-keyboard-focused={focused ? "true" : undefined}
     >
@@ -228,7 +241,12 @@ export const IssueListRow = memo(function IssueListRow({
         data-column-key="id"
       >
         {issue.id}
-        <IssueQuickEditAnchor scope="list" issue={issue} vault={vault} />
+        <IssueQuickEditAnchor
+          scope="list"
+          issue={issue}
+          vault={vault}
+          occurrenceKey={keyboardOccurrenceKey}
+        />
       </TableCell>
 
       {/* Type */}

@@ -75,6 +75,22 @@ describe("ViewSwitcher", () => {
     expect(opts).toEqual({ scroll: false });
   });
 
+  it("preserves the group parameter when switching views", async () => {
+    navigationState.searchParams = new URLSearchParams(
+      "view=list&group=label&status=todo",
+    );
+    const user = userEvent.setup();
+    render(<ViewSwitcher activeView="list" />);
+
+    await user.click(screen.getByTestId("view-switcher-board"));
+
+    const [url] = mockPush.mock.calls[0] ?? [];
+    const params = new URLSearchParams((url as string).split("?")[1]);
+    expect(params.get("view")).toBe("board");
+    expect(params.get("group")).toBe("label");
+    expect(params.get("status")).toBe("todo");
+  });
+
   // The pending-transition feedback can be observed live in a browser (a
   // jsdom transition resolves synchronously, so `isPending` does not settle true).
   // Assert instead that the wiring is present: the group declares an `aria-busy`

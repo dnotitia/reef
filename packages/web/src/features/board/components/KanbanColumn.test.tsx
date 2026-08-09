@@ -35,6 +35,21 @@ vi.mock("@formkit/auto-animate/react", () => ({
 
 import { useDroppable } from "@dnd-kit/core";
 import type { KanbanColumnProps } from "./KanbanColumn";
+import type { IssueGroupBucket } from "../../issues/lib/grouping";
+
+function statusBucket(status: "todo" | "in_progress"): IssueGroupBucket {
+  return {
+    groupBy: "status",
+    id: status,
+    label: ISSUE_FIELD_MESSAGES_EN.status[status],
+    value: status,
+    order: status === "todo" ? 0 : 1,
+    patchField: "status",
+    patchValue: status,
+    multiBucket: false,
+    droppable: true,
+  };
+}
 
 const makeTestIssue = (id: string): IssueListItem => ({
   id,
@@ -71,7 +86,7 @@ function renderColumn(props: KanbanColumnProps) {
 
 describe("KanbanColumn", () => {
   it("renders column title matching status label", () => {
-    renderColumn({ status: "todo", issues: [] });
+    renderColumn({ bucket: statusBucket("todo"), issues: [] });
     expect(
       screen.getByRole("heading", {
         name: ISSUE_FIELD_MESSAGES_EN.status.todo,
@@ -80,13 +95,13 @@ describe("KanbanColumn", () => {
   });
 
   it("renders in_progress label correctly", () => {
-    renderColumn({ status: "in_progress", issues: [] });
+    renderColumn({ bucket: statusBucket("in_progress"), issues: [] });
     expect(screen.getByRole("heading", { name: "In Progress" })).toBeDefined();
   });
 
   it("renders correct number of cards", () => {
     const issues = [makeTestIssue("reef-001"), makeTestIssue("reef-002")];
-    renderColumn({ status: "todo", issues });
+    renderColumn({ bucket: statusBucket("todo"), issues });
     expect(screen.getAllByTestId("kanban-card")).toHaveLength(2);
   });
 
@@ -100,23 +115,42 @@ describe("KanbanColumn", () => {
       node: { current: null },
     });
 
-    const { container } = renderColumn({ status: "todo", issues: [] });
+    const { container } = renderColumn({
+      bucket: statusBucket("todo"),
+      issues: [],
+    });
     const col = container.firstChild as HTMLElement;
     expect(col.className).toContain("border-brand");
     expect(col.className).toContain("ring-brand/30");
   });
 
   it("does not apply hover class when isOver is false", () => {
-    const { container } = renderColumn({ status: "todo", issues: [] });
+    const { container } = renderColumn({
+      bucket: statusBucket("todo"),
+      issues: [],
+    });
     const col = container.firstChild as HTMLElement;
     expect(col.className).toContain("border-border");
     expect(col.className).not.toContain("border-brand");
   });
 
+  it("registers the descriptor bucket as the droppable payload", () => {
+    const bucket = statusBucket("todo");
+    vi.mocked(useDroppable).mockClear();
+
+    renderColumn({ bucket, issues: [] });
+
+    expect(useDroppable).toHaveBeenCalledWith({
+      id: bucket.id,
+      data: { bucket },
+      disabled: false,
+    });
+  });
+
   it("forwards onIssueClick to each card", () => {
     const onIssueClick = vi.fn();
     const issues = [makeTestIssue("reef-001"), makeTestIssue("reef-002")];
-    renderColumn({ status: "todo", issues, onIssueClick });
+    renderColumn({ bucket: statusBucket("todo"), issues, onIssueClick });
     fireEvent.click(screen.getAllByTestId("kanban-card")[1]);
     expect(onIssueClick).toHaveBeenCalledWith("reef-002");
   });

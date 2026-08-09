@@ -48,6 +48,7 @@ interface IssueQuickEditAnchorProps {
   scope: IssueKeyboardScope;
   issue: IssueListItem;
   vault: string;
+  occurrenceKey?: string;
   className?: string;
 }
 
@@ -64,6 +65,7 @@ export function IssueQuickEditAnchor({
   scope,
   issue,
   vault,
+  occurrenceKey,
   className,
 }: IssueQuickEditAnchorProps) {
   const request = useIssueKeyboardStore((state) => state.quickEditRequest);
@@ -81,8 +83,11 @@ export function IssueQuickEditAnchor({
   } | null>(null);
   const anchorOriginRef = useRef<HTMLSpanElement>(null);
 
+  const resolvedOccurrenceKey = occurrenceKey ?? issue.id;
   const field =
-    request?.scope === scope && request.issueId === issue.id
+    request?.scope === scope &&
+    request.issueId === issue.id &&
+    (request.occurrenceKey ?? request.issueId) === resolvedOccurrenceKey
       ? request.field
       : null;
 

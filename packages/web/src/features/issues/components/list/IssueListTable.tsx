@@ -4,6 +4,7 @@ import { SearchProgressBar } from "@/components/ui/SearchProgressBar";
 import {
   Table,
   TableBody,
+  TableCell,
   TableHead,
   TableHeader,
   TableRow,
@@ -30,7 +31,10 @@ import { useResolvedAutoHideWindows } from "@/features/issues/hooks/useResolvedA
 import { useOpenIssue } from "@/features/issues/hooks/view/useOpenIssue";
 import { buildIssueQuery } from "@/features/issues/lib/buildIssueQuery";
 import { applyDependencyFilter } from "@/features/issues/lib/dependencyUtils";
+import type { IssueGroupBy } from "@/features/issues/lib/groupBy";
+import { createIssueGroupDescriptor } from "@/features/issues/lib/grouping";
 import { flattenIssueListPages } from "@/features/issues/lib/issueListCache";
+import { buildIssueListVirtualItems } from "@/features/issues/lib/listGrouping";
 import {
   filterIssues,
   hasActiveIssueFilters,
@@ -42,10 +46,17 @@ import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboard
 import { useIssueSelectionStore } from "@/features/issues/stores/useIssueSelectionStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
+import { useUserSearch } from "@/features/issues/hooks/queries/useUserSearch";
 import { PageBody } from "@/features/ui/components/PageBody";
-import { useFieldNameLabels } from "@/i18n/fieldLabels";
+import {
+  useFieldNameLabels,
+  usePriorityLabels,
+  useStatusLabels,
+} from "@/i18n/fieldLabels";
+import { activateButtonOnKeyDown } from "@/lib/keyboard";
 import { cn } from "@/lib/utils";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   useCallback,
@@ -62,6 +73,7 @@ const FALLBACK_RENDER_COUNT = 12;
 
 interface IssueListTableProps {
   vault: string;
+  groupBy?: IssueGroupBy;
 }
 
 function IssueListColumnGroup({
@@ -132,17 +144,80 @@ function SpacerRow({
   );
 }
 
+function IssueListGroupHeader({
+  label,
+  bucketId,
+  count,
+  collapsed,
+  columnCount,
+  onToggle,
+}: {
+  label: string;
+  bucketId: string;
+  count: number;
+  collapsed: boolean;
+  columnCount: number;
+  onToggle: () => void;
+}) {
+  const t = useTranslations("issues.list");
+  const actionLabel = collapsed
+    ? t("expandGroup", { label })
+    : t("collapseGroup", { label });
+  const groupSummary = t("groupHeader", { label, count });
+
+  return (
+    <TableRow
+      className="sticky top-8 z-20 h-8 bg-background"
+      data-testid="issue-group-header"
+      data-group-id={bucketId}
+      data-group-collapsed={collapsed ? "true" : "false"}
+    >
+      <TableCell
+        colSpan={columnCount}
+        className="h-8 border-y border-border-subtle p-0"
+      >
+        <button
+          type="button"
+          className="flex h-8 w-full items-center gap-2 px-3 text-left text-xs font-semibold text-foreground transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/40"
+          aria-expanded={!collapsed}
+          aria-label={`${actionLabel} · ${groupSummary}`}
+          onKeyDown={activateButtonOnKeyDown}
+          onClick={onToggle}
+        >
+          <ChevronRight
+            aria-hidden="true"
+            className={cn(
+              "size-3.5 shrink-0 transition-transform duration-150",
+              !collapsed && "rotate-90",
+            )}
+          />
+          <span className="min-w-0 flex-1 truncate">{label}</span>
+          <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+            {count}
+          </span>
+        </button>
+      </TableCell>
+    </TableRow>
+  );
+}
+
 /**
  * Table view body for the issues workspace. The list is the one user-facing
  * infinite surface; board/backlog/timeline/report consumers keep their finite
  * `useIssueList` query and data shape.
  */
-export function IssueListTable({ vault }: IssueListTableProps) {
+export function IssueListTable({
+  vault,
+  groupBy = "none",
+}: IssueListTableProps) {
   const filter = useIssueStore((state) => state.filter);
   const searchQuery = useIssueStore((state) => state.searchQuery);
   const openIssue = useOpenIssue();
   const columnLabels = useFieldNameLabels();
+  const statusLabels = useStatusLabels();
+  const priorityLabels = usePriorityLabels();
   const t = useTranslations("issues.list");
+  const groupT = useTranslations("issues.filters");
   const common = useTranslations("common");
   const bulk = useTranslations("issues.bulk");
   const selectedIds = useIssueSelectionStore((state) => state.selectedIds);
@@ -190,6 +265,7 @@ export function IssueListTable({ vault }: IssueListTableProps) {
   const staleWindowDays = useResolvedAutoHideWindows(vault);
   const { data: relations } = useIssueRelations(vault);
   const { data: planningCatalog } = usePlanningCatalog(vault);
+  const { data: assignees } = useUserSearch("", vault);
 
   const allIssues = useMemo(() => flattenIssueListPages(data), [data]);
   const graph = relations ?? allIssues;
@@ -206,12 +282,73 @@ export function IssueListTable({ vault }: IssueListTableProps) {
     );
     return sortIssues(depFiltered, filter.sortField, filter.sortOrder);
   }, [allIssues, filter, graph, searchQuery, staleWindowDays]);
+  const sprintNames = useMemo(
+    () =>
+      Object.fromEntries(
+        (planningCatalog?.sprints ?? []).map((sprint) => [
+          sprint.id,
+          sprint.name,
+        ]),
+      ),
+    [planningCatalog],
+  );
+  const assigneeNames = useMemo(
+    () =>
+      Object.fromEntries(
+        (assignees ?? []).map((assignee) => [
+          assignee.login,
+          assignee.name?.trim() || assignee.login,
+        ]),
+      ),
+    [assignees],
+  );
+  const descriptor = useMemo(
+    () =>
+      createIssueGroupDescriptor(groupBy, {
+        labels: {
+          none: groupT("group.none"),
+          status: statusLabels,
+          priority: priorityLabels,
+        },
+        assigneeNames,
+        sprintNames,
+      }),
+    [assigneeNames, groupBy, groupT, priorityLabels, sprintNames, statusLabels],
+  );
+  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  // Group collapse is intentionally reset when the view scope changes; it is
+  // UI-local state and must never follow a vault or group into persistence.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: groupBy and vault are the reset boundaries for this local state.
+  useEffect(() => {
+    setCollapsedGroupIds(new Set());
+  }, [groupBy, vault]);
+  const groups = useMemo(
+    () => descriptor.bucketsForIssues(sorted),
+    [descriptor, sorted],
+  );
+  const projectionItems = useMemo(
+    () => buildIssueListVirtualItems(groups, collapsedGroupIds),
+    [collapsedGroupIds, groups],
+  );
+  const toggleGroup = useCallback((bucketId: string) => {
+    setCollapsedGroupIds((current) => {
+      const next = new Set(current);
+      if (next.has(bucketId)) next.delete(bucketId);
+      else next.add(bucketId);
+      return next;
+    });
+  }, []);
   const visibleIssueIds = useMemo(
     () => sorted.map((issue) => issue.id),
     [sorted],
   );
   const selectedIssueId = useIssueKeyboardStore(
     (state) => state.focusedIssueId.list,
+  );
+  const focusedOccurrenceKey = useIssueKeyboardStore(
+    (state) => state.focusedOccurrenceKey.list,
   );
   const focusRequest = useIssueKeyboardStore((state) => state.focusRequest);
   const selectAllState = loadedSelectionState(selectedIds, visibleIssueIds);
@@ -221,39 +358,56 @@ export function IssueListTable({ vault }: IssueListTableProps) {
   // safe memoization model; keep the compiler skip local to this integration point.
   // eslint-disable-next-line react-hooks/incompatible-library -- the virtualizer API is the established list implementation.
   const virtualizer = useVirtualizer({
-    count: sorted.length,
+    count: projectionItems.length,
     getScrollElement: () => scrollElementRef.current,
-    estimateSize: () => ISSUE_TABLE_ROW_HEIGHT,
-    getItemKey: (index) => sorted[index]?.id ?? index,
+    estimateSize: (index) =>
+      projectionItems[index]?.kind === "header"
+        ? ISSUE_TABLE_HEADER_HEIGHT
+        : ISSUE_TABLE_ROW_HEIGHT,
+    getItemKey: (index) => projectionItems[index]?.key ?? index,
     overscan: VIRTUAL_OVERSCAN,
     scrollMargin: ISSUE_TABLE_HEADER_HEIGHT,
   });
   const virtualItems = virtualizer.getVirtualItems();
   const lastVirtualIndex = virtualItems.at(-1)?.index ?? -1;
-  const focusedIssueIndex = selectedIssueId
-    ? visibleIssueIds.indexOf(selectedIssueId)
-    : -1;
+  const focusedIssueIndex = focusedOccurrenceKey
+    ? projectionItems.findIndex(
+        (item) =>
+          item.kind === "issue" && item.occurrenceKey === focusedOccurrenceKey,
+      )
+    : selectedIssueId
+      ? projectionItems.findIndex(
+          (item) => item.kind === "issue" && item.issue.id === selectedIssueId,
+        )
+      : -1;
 
   const captureAnchor = useCallback(() => {
     const firstItem = virtualizer.getVirtualItems()[0];
-    const firstIssue = firstItem ? sorted[firstItem.index] : undefined;
-    anchorRef.current = firstIssue
+    const firstProjectionItem = firstItem
+      ? projectionItems[firstItem.index]
+      : undefined;
+    anchorRef.current = firstProjectionItem
       ? {
-          id: firstIssue.id,
+          id: firstProjectionItem.key,
           offset: (virtualizer.scrollOffset ?? 0) - firstItem.start,
         }
       : null;
-  }, [sorted, virtualizer]);
+  }, [projectionItems, virtualizer]);
 
   useEffect(() => {
-    useIssueKeyboardStore
-      .getState()
-      .setVisibleIssueIds("list", visibleIssueIds);
-  }, [visibleIssueIds]);
+    useIssueKeyboardStore.getState().setVisibleOccurrences(
+      "list",
+      projectionItems.flatMap((item) =>
+        item.kind === "issue"
+          ? [{ key: item.occurrenceKey, issueId: item.issue.id }]
+          : [],
+      ),
+    );
+  }, [projectionItems]);
 
   useEffect(() => {
     return () => {
-      useIssueKeyboardStore.getState().setVisibleIssueIds("list", []);
+      useIssueKeyboardStore.getState().setVisibleOccurrences("list", []);
     };
   }, []);
 
@@ -268,10 +422,11 @@ export function IssueListTable({ vault }: IssueListTableProps) {
       return;
     }
     const nearProjectionEnd =
-      sorted.length === 0 ||
-      lastVirtualIndex >= Math.max(0, sorted.length - LOAD_AHEAD_COUNT);
+      projectionItems.length === 0 ||
+      lastVirtualIndex >=
+        Math.max(0, projectionItems.length - LOAD_AHEAD_COUNT);
     const focusedAtProjectionEnd =
-      focusedIssueIndex >= 0 && focusedIssueIndex >= sorted.length - 1;
+      focusedIssueIndex >= 0 && focusedIssueIndex >= projectionItems.length - 1;
     if (nearProjectionEnd || focusedAtProjectionEnd) {
       void fetchNextPage();
     }
@@ -284,16 +439,23 @@ export function IssueListTable({ vault }: IssueListTableProps) {
     isFetchingNextPage,
     isPending,
     lastVirtualIndex,
-    sorted.length,
+    projectionItems.length,
   ]);
 
   useEffect(() => {
     if (focusRequest?.scope !== "list") return;
-    const index = visibleIssueIds.indexOf(focusRequest.issueId);
+    const requestedKey = focusRequest.occurrenceKey ?? focusRequest.issueId;
+    const index = projectionItems.findIndex(
+      (item) =>
+        item.kind === "issue" &&
+        (item.occurrenceKey === requestedKey ||
+          (!focusRequest.occurrenceKey &&
+            item.issue.id === focusRequest.issueId)),
+    );
     if (index >= 0) {
       virtualizer.scrollToIndex(index, { align: "auto" });
     }
-  }, [focusRequest, visibleIssueIds, virtualizer]);
+  }, [focusRequest, projectionItems, virtualizer]);
 
   useEffect(() => {
     const scrollElement = scrollElementRef.current;
@@ -309,7 +471,9 @@ export function IssueListTable({ vault }: IssueListTableProps) {
   useLayoutEffect(() => {
     const previousAnchor = anchorRef.current;
     if (previousAnchor) {
-      const nextIndex = visibleIssueIds.indexOf(previousAnchor.id);
+      const nextIndex = projectionItems.findIndex(
+        (item) => item.key === previousAnchor.id,
+      );
       if (nextIndex >= 0) {
         const nextOffset = virtualizer.getOffsetForIndex(nextIndex, "start");
         if (nextOffset) {
@@ -321,13 +485,13 @@ export function IssueListTable({ vault }: IssueListTableProps) {
     captureAnchor();
   }, [
     captureAnchor,
-    visibleIssueIds,
+    projectionItems,
     virtualizer,
     virtualizer.getOffsetForIndex,
     virtualizer.scrollToOffset,
   ]);
 
-  const fallbackCount = Math.min(sorted.length, FALLBACK_RENDER_COUNT);
+  const fallbackCount = Math.min(projectionItems.length, FALLBACK_RENDER_COUNT);
   const renderedIndexes =
     virtualItems.length > 0
       ? virtualItems.map((item) => item.index)
@@ -336,7 +500,7 @@ export function IssueListTable({ vault }: IssueListTableProps) {
   const lastVirtualItem = virtualItems.at(-1);
   const totalSize =
     virtualizer.getTotalSize() ||
-    ISSUE_TABLE_HEADER_HEIGHT + sorted.length * ISSUE_TABLE_ROW_HEIGHT;
+    ISSUE_TABLE_HEADER_HEIGHT + projectionItems.length * ISSUE_TABLE_ROW_HEIGHT;
   const topSpacerHeight = firstVirtualItem
     ? Math.max(0, firstVirtualItem.start - ISSUE_TABLE_HEADER_HEIGHT)
     : 0;
@@ -348,7 +512,7 @@ export function IssueListTable({ vault }: IssueListTableProps) {
   );
   const initialLoadError = isError && !data?.pages.length;
   const showTable =
-    sorted.length > 0 ||
+    projectionItems.length > 0 ||
     hasNextPage === true ||
     isFetchingNextPage ||
     isFetchNextPageError;
@@ -488,17 +652,31 @@ export function IssueListTable({ vault }: IssueListTableProps) {
                 columnCount={columns.length}
               />
               {renderedIndexes.map((index) => {
-                const issue = sorted[index];
-                if (!issue) return null;
+                const item = projectionItems[index];
+                if (!item) return null;
+                if (item.kind === "header") {
+                  return (
+                    <IssueListGroupHeader
+                      key={item.key}
+                      label={item.bucket.label}
+                      bucketId={item.bucket.id}
+                      count={item.count}
+                      collapsed={item.collapsed}
+                      columnCount={columns.length}
+                      onToggle={() => toggleGroup(item.bucket.id)}
+                    />
+                  );
+                }
                 return (
                   <IssueListRow
-                    key={issue.id}
-                    issue={issue}
+                    key={item.key}
+                    issue={item.issue}
                     vault={vault}
                     allIssues={graph}
                     planningCatalog={planningCatalog}
                     highlightQuery={searchQuery}
                     logicalIds={visibleIssueIds}
+                    occurrenceKey={item.occurrenceKey}
                     columns={columns}
                     onClick={openIssue}
                   />

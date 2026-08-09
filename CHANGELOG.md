@@ -80,6 +80,13 @@ explicitly in the entries below.
 
 ### Changed
 
+- **Board and List now support shareable issue grouping** by Status, Priority,
+  Assignee, Sprint, and Label. List grouping includes None buckets and sticky
+  collapsible headers inside the existing virtual projection; Board keeps
+  nullable-field drops on the optimistic mutation path and makes Label groups
+  read-only. Group choices survive view navigation and reload through the URL,
+  while collapse remains local UI state. (REEF-341)
+
 - **Section empty states now expose one named semantic region from their visible
   title and description.** Structure prompts remain unboxed without an unnamed
   landmark, and the same accessible references cover the Board no-match overlay

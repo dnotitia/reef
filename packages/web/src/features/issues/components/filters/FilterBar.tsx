@@ -39,6 +39,7 @@ import {
 import { type IssueFilter, useIssueStore } from "../../stores/useIssueStore";
 import { DisplayOptionsFilter } from "./DisplayOptionsFilter";
 import { NamedIssueFilterControl } from "./NamedIssueFilterControl";
+import type { IssueGroupBy, IssueWorkspaceView } from "../../lib/groupBy";
 
 /**
  * Assignee/Requester multi-selects use chip triggers, but their dropdown needs
@@ -167,11 +168,17 @@ interface FilterBarProps {
    * statuses; list keeps the full set including backlog (REEF-109).
    */
   statusOptions?: readonly Status[];
+  view?: IssueWorkspaceView;
+  groupBy?: IssueGroupBy;
+  setGroupBy?: (groupBy: IssueGroupBy) => void;
 }
 
 export function FilterBar({
   backlogScope = false,
   statusOptions = STATUS_OPTIONS,
+  view,
+  groupBy,
+  setGroupBy,
 }: FilterBarProps) {
   const filter = useIssueStore((state) => state.filter);
   const setFilter = useIssueStore((state) => state.setFilter);
@@ -480,6 +487,9 @@ export function FilterBar({
         backlogScope={backlogScope}
         filter={filter}
         setFilter={setFilter}
+        view={view}
+        groupBy={groupBy}
+        setGroupBy={setGroupBy}
       />
 
       <NamedIssueFilterControl />

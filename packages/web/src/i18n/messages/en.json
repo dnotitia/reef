@@ -900,6 +900,15 @@
       "displayOptions": "Display options",
       "showArchived": "Show archived",
       "showCompleted": "Show completed",
+      "groupBy": "Group by",
+      "group": {
+        "none": "No grouping",
+        "status": "Status",
+        "assignee": "Assignee",
+        "priority": "Priority",
+        "sprint": "Sprint",
+        "label": "Label"
+      },
       "namedFilters": "My filters",
       "namedFilterMenu": "My filters menu",
       "saveCurrent": "Save current filter…",
@@ -1002,7 +1011,10 @@
       "noMatches": "No issues match your filters.",
       "emptyWorkspace": "Your workspace is empty. What are you working on?",
       "columns": "Columns",
-      "columnsOptions": "Optional columns"
+      "columnsOptions": "Optional columns",
+      "groupHeader": "{label} · {count}",
+      "collapseGroup": "Collapse {label}",
+      "expandGroup": "Expand {label}"
     },
     "bulk": {
       "selectIssue": "Select {id}",
@@ -1032,7 +1044,9 @@
     "updateErrorTitle": "Couldn't update issue",
     "updateErrorDescription": "The board was reverted. Retry to move it again.",
     "noMatchTitle": "No matching issues",
-    "noMatchDescription": "Try widening your filters or search to see more issues."
+    "noMatchDescription": "Try widening your filters or search to see more issues.",
+    "groupNone": "None",
+    "groupReadOnly": "Label groups are read-only. Change labels from the issue details."
   },
   "activity": {
     "pageTitle": "Suggestions to review",
