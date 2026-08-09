@@ -33,7 +33,7 @@ export interface LlmAdapter {
    *
    * IMPORTANT: `streamText` returns a `StreamTextResult` synchronously (NOT a
    * Promise). Do NOT await the result. The span lifecycle is managed via
-   * `onFinish`/`onError` callbacks because the stream is still open when the
+   * `onEnd`/`onError`/`onAbort` callbacks because the stream is still open when the
    * synchronous call returns.
    *
    * NOTE: Any `model` field supplied in `options` is **overridden** by the
@@ -66,7 +66,7 @@ export function createLlmAdapter(params: CreateLlmAdapterParams): LlmAdapter {
   const { apiKey, baseUrl, model: modelId } = params;
   const maxRetries = 0 as const;
   const requestIdentityMiddleware: LanguageModelMiddleware = {
-    specificationVersion: "v3",
+    specificationVersion: "v4",
     transformParams: async ({ params: call }) => {
       const headers = Object.fromEntries(
         Object.entries(call.headers ?? {}).filter(
@@ -102,33 +102,68 @@ export function createLlmAdapter(params: CreateLlmAdapterParams): LlmAdapter {
     const span = tracer.startSpan("reef.streamText", {
       attributes: { "llm.model": modelId },
     });
+    let spanEnded = false;
+    const endSpan = ({
+      code,
+      message,
+      usage,
+      finishReason,
+    }: {
+      code: SpanStatusCode;
+      message?: string;
+      usage?: { inputTokens?: number; outputTokens?: number };
+      finishReason?: string;
+    }) => {
+      if (spanEnded) return;
+      spanEnded = true;
+      if (usage || finishReason) {
+        observe(
+          span,
+          {
+            "llm.model": modelId,
+            "llm.usage.prompt_tokens": usage?.inputTokens,
+            "llm.usage.completion_tokens": usage?.outputTokens,
+            "llm.finish_reason": finishReason ?? "unknown",
+          },
+          "llm.streamText",
+        );
+      }
+      span.setStatus({ code, ...(message ? { message } : {}) });
+      span.end();
+    };
     try {
       const result = aiStreamText({
         ...options,
         model: model(),
         maxRetries,
-        experimental_telemetry: {
+        telemetry: {
+          ...options.telemetry,
           isEnabled: true,
-          functionId: "reef.streamText",
-          ...((options as { experimental_telemetry?: object })
-            .experimental_telemetry ?? {}),
+          functionId: options.telemetry?.functionId ?? "reef.streamText",
+          recordInputs: false,
+          recordOutputs: false,
         },
-        onFinish: (finishResult) => {
-          span.setStatus({ code: SpanStatusCode.OK });
-          span.end();
-          if (options.onFinish) {
-            options.onFinish(finishResult);
-          }
+        onEnd: (endResult) => {
+          endSpan({
+            code: SpanStatusCode.OK,
+            usage: endResult.usage,
+            finishReason: endResult.finishReason,
+          });
+          options.onEnd?.(endResult);
         },
         onError: ({ error }) => {
-          span.setStatus({
+          endSpan({
             code: SpanStatusCode.ERROR,
             message: error instanceof Error ? error.message : String(error),
           });
-          span.end();
-          if (options.onError) {
-            options.onError({ error });
-          }
+          options.onError?.({ error });
+        },
+        onAbort: (abortResult) => {
+          endSpan({
+            code: SpanStatusCode.ERROR,
+            message: "LLM stream aborted",
+          });
+          options.onAbort?.(abortResult);
         },
       });
       return result;
@@ -136,8 +171,10 @@ export function createLlmAdapter(params: CreateLlmAdapterParams): LlmAdapter {
       const detail = extractErrorDetail(err);
       const error = err instanceof Error ? err : new Error(detail);
       span.recordException(error);
-      span.setStatus({ code: SpanStatusCode.ERROR, message: detail });
-      span.end();
+      endSpan({
+        code: SpanStatusCode.ERROR,
+        message: detail,
+      });
       throw new LlmError({ message: detail });
     }
   }
@@ -153,11 +190,12 @@ export function createLlmAdapter(params: CreateLlmAdapterParams): LlmAdapter {
           ...options,
           model: model(),
           maxRetries,
-          experimental_telemetry: {
+          telemetry: {
+            ...options.telemetry,
             isEnabled: true,
-            functionId: "reef.generateText",
-            ...((options as { experimental_telemetry?: object })
-              .experimental_telemetry ?? {}),
+            functionId: options.telemetry?.functionId ?? "reef.generateText",
+            recordInputs: false,
+            recordOutputs: false,
           },
         });
         // Capture token usage + finish reason (REEF-271). The wrapper previously

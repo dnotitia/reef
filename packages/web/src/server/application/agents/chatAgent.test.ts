@@ -12,7 +12,7 @@ import type { AgentRunEvent } from "./framework/events";
 const {
   ToolLoopAgentMock,
   createAgentUIStreamResponseMock,
-  stepCountIsMock,
+  isStepCountMock,
   readConfigMock,
   getWorkspaceSummaryMock,
   readIssueMock,
@@ -24,7 +24,7 @@ const {
     this.settings = settings;
   }),
   createAgentUIStreamResponseMock: vi.fn(),
-  stepCountIsMock: vi.fn((steps: number) => ({ steps })),
+  isStepCountMock: vi.fn((steps: number) => ({ steps })),
   readConfigMock: vi.fn(),
   getWorkspaceSummaryMock: vi.fn(),
   readIssueMock: vi.fn(),
@@ -36,7 +36,7 @@ vi.mock("ai", async (importOriginal) => {
     ...actual,
     ToolLoopAgent: ToolLoopAgentMock,
     createAgentUIStreamResponse: createAgentUIStreamResponseMock,
-    stepCountIs: stepCountIsMock,
+    isStepCount: isStepCountMock,
   };
 });
 
@@ -80,14 +80,14 @@ const createParams = (
 const getAgentSettings = () =>
   ToolLoopAgentMock.mock.calls[0]?.[0] as {
     instructions: string;
-    experimental_telemetry: {
+    telemetry: {
       isEnabled: boolean;
       functionId: string;
       recordInputs?: boolean;
       recordOutputs?: boolean;
     };
-    onFinish: () => void;
-    onStepFinish: (stepResult: {
+    onEnd: () => void;
+    onStepEnd: (stepResult: {
       finishReason: string;
       toolCalls: Array<{ toolName?: string } | null>;
     }) => void;
@@ -144,11 +144,11 @@ describe("workspace chat agent task", () => {
 
     await createWorkspaceChatAgentResponse(params);
 
-    expect(stepCountIsMock).toHaveBeenCalledWith(10);
+    expect(isStepCountMock).toHaveBeenCalledWith(10);
     const settings = getAgentSettings();
     // Telemetry stays enabled for durations/tool counts, but does not record the
     // grounding prompt or conversation into spans (AC5).
-    expect(settings.experimental_telemetry).toEqual({
+    expect(settings.telemetry).toEqual({
       isEnabled: true,
       functionId: "reef.agent.chat.workspace",
       recordInputs: false,
@@ -301,11 +301,11 @@ describe("workspace chat agent task", () => {
     await createWorkspaceChatAgentResponse({
       ...createParams(),
       onEvent: (event) => events.push(event),
-      onStepFinish: (step) => steps.push(step),
+      onStepEnd: (step) => steps.push(step),
     });
 
     const settings = getAgentSettings();
-    settings.onStepFinish({
+    settings.onStepEnd({
       finishReason: "tool-calls",
       toolCalls: [
         { toolName: "search_issues" },
@@ -313,7 +313,7 @@ describe("workspace chat agent task", () => {
         { toolName: "dev_read_file" },
       ],
     });
-    settings.onFinish();
+    settings.onEnd();
 
     expect(steps).toEqual([
       {

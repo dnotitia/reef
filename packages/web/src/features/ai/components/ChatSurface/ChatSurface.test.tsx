@@ -1,7 +1,7 @@
 import type { ChatAssistantTurn, ChatTurn } from "@/features/ai/chat/chatTypes";
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { fireEvent, render as rtlRender, screen } from "@testing-library/react";
-import type { ReactElement, ReactNode } from "react";
+import type { ChangeEventHandler, ReactElement, ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 // ai-elements primitives lean on streamdown / radix scroll-area / textarea
@@ -67,20 +67,31 @@ vi.mock("@/components/ai-elements/prompt-input", () => ({
   ),
   PromptInputSubmit: ({
     "data-testid": testId,
+    disabled,
   }: {
     "data-testid"?: string;
-  }) => <button type="submit" data-testid={testId ?? "prompt-input-submit"} />,
+    disabled?: boolean;
+  }) => (
+    <button
+      type="submit"
+      data-testid={testId ?? "prompt-input-submit"}
+      disabled={disabled}
+    />
+  ),
   PromptInputTextarea: ({
+    onChange,
     placeholder,
     disabled,
     "data-testid": testId,
   }: {
+    onChange?: ChangeEventHandler<HTMLTextAreaElement>;
     placeholder?: string;
     disabled?: boolean;
     "data-testid"?: string;
   }) => (
     <textarea
       data-testid={testId ?? "prompt-input-textarea"}
+      onChange={onChange}
       placeholder={placeholder}
       disabled={disabled}
     />
@@ -166,6 +177,39 @@ describe("ChatSurface", () => {
     renderSurface({ sendMessage });
     fireEvent.submit(screen.getByTestId("prompt-input"));
     expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("disables submit for empty and whitespace-only input", () => {
+    renderSurface({
+      inputTestId: "surface-input",
+      submitTestId: "surface-send",
+    });
+    const input = screen.getByTestId("surface-input");
+    const submit = screen.getByTestId("surface-send");
+
+    expect(submit).toBeDisabled();
+    fireEvent.change(input, { target: { value: "   " } });
+    expect(submit).toBeDisabled();
+    fireEvent.change(input, { target: { value: "ping" } });
+    expect(submit).toBeEnabled();
+  });
+
+  it("clears the composer and disables submit after sending", async () => {
+    const sendMessage = vi.fn();
+    renderSurface({
+      sendMessage,
+      inputTestId: "surface-input",
+      submitTestId: "surface-send",
+    });
+    const input = screen.getByTestId("surface-input");
+    const submit = screen.getByTestId("surface-send");
+
+    fireEvent.change(input, { target: { value: "ping" } });
+    expect(submit).toBeEnabled();
+    fireEvent.submit(screen.getByTestId("prompt-input"));
+
+    expect(sendMessage).toHaveBeenCalledWith({ text: "ping" });
+    await vi.waitFor(() => expect(submit).toBeDisabled());
   });
 
   it("surfaces an assistant turn error via role=alert", () => {

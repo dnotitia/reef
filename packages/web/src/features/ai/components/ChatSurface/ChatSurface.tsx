@@ -18,7 +18,7 @@ import type { ChatAssistantTurn, ChatTurn } from "@/features/ai/chat/chatTypes";
 import type { ChatStatus } from "@/features/ai/hooks/useWorkspaceChat";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
-import { type ReactNode, useMemo } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { ChatCitations } from "./ChatCitations";
 import { ChatMarkdown } from "./ChatMarkdown";
 import { ToolStepTrace } from "./ToolStepTrace";
@@ -74,11 +74,13 @@ export function ChatSurface({
   className,
 }: ChatSurfaceProps) {
   const isBusy = status === "submitted" || status === "streaming";
+  const [inputText, setInputText] = useState("");
 
   async function handleSubmit(message: PromptInputMessage) {
     const text = message.text.trim();
     if (!text) return;
     await sendMessage({ text });
+    setInputText("");
   }
 
   return (
@@ -118,6 +120,7 @@ export function ChatSurface({
           <PromptInputTextarea
             data-testid={inputTestId}
             placeholder={composerPlaceholder}
+            onChange={(event) => setInputText(event.currentTarget.value)}
             // A placeholder is not an accessible name; label the message input
             // explicitly for screen readers.
             aria-label={composerPlaceholder}
@@ -128,6 +131,9 @@ export function ChatSurface({
           <PromptInputSubmit
             status={status}
             onStop={stop}
+            disabled={
+              composerDisabled || (!isBusy && inputText.trim().length === 0)
+            }
             data-testid={submitTestId}
           />
         </PromptInputFooter>

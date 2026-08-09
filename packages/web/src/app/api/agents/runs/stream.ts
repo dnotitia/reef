@@ -1,6 +1,11 @@
 import { logger } from "@/lib/logging/logger";
 import { AgentArtifactSchema, AgentRunEventSchema } from "@reef/core";
 import type { AgentRunEvent } from "@reef/core";
+import {
+  parseJsonEventStream,
+  type UIMessageChunk,
+  uiMessageChunkSchema,
+} from "ai";
 
 const EVENT_STREAM_HEADERS = {
   "Content-Type": "text/event-stream; charset=utf-8",
@@ -131,22 +136,6 @@ export function createTopLevelRunEmitter(
   };
 }
 
-/**
- * Handlers the UI-message-stream parser calls for each part it recognizes.
- * The bridge maps these to agent-run SSE events; the parser stays a pure
- * tokenizer over the AI-SDK UI-message stream.
- */
-interface UiMessageStreamHandlers {
-  onTextDelta: (delta: string) => void;
-  onToolInput: (part: {
-    toolCallId: string;
-    toolName: string;
-    input: unknown;
-  }) => void;
-  onToolOutput: (part: { toolCallId: string; output: unknown }) => void;
-  onToolError: (part: { toolCallId: string; errorText: string }) => void;
-}
-
 export function createChatRunEventBridge(
   writeEvent: (event: AgentRunEvent) => void,
 ) {
@@ -154,9 +143,8 @@ export function createChatRunEventBridge(
   let taskId = "chat.workspace";
   let seq = 0;
   let terminalEvent: AgentRunEvent | null = null;
-  // Tool names arrive on `tool-input-available`; `tool-output-available` and
-  // `tool-output-error` carry the call id, so remember the name here to
-  // pair the completion/error frame with its tool.
+  // Tool output chunks carry only the call id. The v7 input chunks establish
+  // the name before the output is emitted, so retain that pairing here.
   const toolNames = new Map<string, string>();
 
   const rewriteEvent = (event: AgentRunEvent): AgentRunEvent =>
@@ -181,53 +169,102 @@ export function createChatRunEventBridge(
     );
   };
 
-  const emitModelDelta = (delta: string) => {
-    if (!delta) return;
-    emitBridgeEvent({ type: "model.delta", delta, channel: "text" });
-  };
-
   // Tool inputs/outputs are surfaced to the PM as transparency steps
   // (REEF-361 AC2). The agent-run tool payloads are `Metadata` records, so wrap
   // any non-object value rather than letting schema validation reject the frame.
   const asMetadata = (value: unknown): Record<string, unknown> =>
     isRecord(value) ? value : value === undefined ? {} : { value };
 
-  const uiMessageParser = createUiMessageStreamParser({
-    onTextDelta: emitModelDelta,
-    onToolInput: ({ toolCallId, toolName, input }) => {
-      toolNames.set(toolCallId, toolName);
-      emitBridgeEvent({
-        type: "tool.called",
-        tool: { tool_call_id: toolCallId, tool_name: toolName },
-        input: asMetadata(input),
-      });
-    },
-    onToolOutput: ({ toolCallId, output }) => {
-      emitBridgeEvent({
-        type: "tool.completed",
-        tool: {
-          tool_call_id: toolCallId,
-          tool_name: toolNames.get(toolCallId) ?? "tool",
-        },
-        output: asMetadata(output),
-      });
-    },
-    onToolError: ({ toolCallId, errorText }) => {
-      emitBridgeEvent({
-        type: "tool.error",
-        tool: {
-          tool_call_id: toolCallId,
-          tool_name: toolNames.get(toolCallId) ?? "tool",
-        },
-        error: {
-          code: "chat_tool_error",
-          message: errorText || "Tool call failed.",
-          recoverable: false,
-          details: {},
-        },
-      });
-    },
-  });
+  const emitToolError = (
+    toolCallId: string,
+    errorText: string,
+    code = "chat_tool_error",
+  ) => {
+    const toolName = toolNameFor(toolCallId);
+    emitBridgeEvent({
+      type: "tool.error",
+      tool: { tool_call_id: toolCallId, tool_name: toolName },
+      error: {
+        code,
+        message: errorText || "Tool call failed.",
+        recoverable: false,
+        details: {},
+      },
+    });
+  };
+
+  const toolNameFor = (toolCallId: string): string => {
+    const toolName = toolNames.get(toolCallId);
+    if (!toolName) {
+      throw new Error("AI SDK tool output had no matching input part.");
+    }
+    return toolName;
+  };
+
+  const handleUiMessageChunk = (chunk: UIMessageChunk) => {
+    switch (chunk.type) {
+      case "text-delta":
+        if (chunk.delta) {
+          emitBridgeEvent({
+            type: "model.delta",
+            delta: chunk.delta,
+            channel: "text",
+          });
+        }
+        return;
+      case "tool-input-start":
+        toolNames.set(chunk.toolCallId, chunk.toolName);
+        return;
+      case "tool-input-available":
+        toolNames.set(chunk.toolCallId, chunk.toolName);
+        emitBridgeEvent({
+          type: "tool.called",
+          tool: {
+            tool_call_id: chunk.toolCallId,
+            tool_name: chunk.toolName,
+          },
+          input: asMetadata(chunk.input),
+        });
+        return;
+      case "tool-input-error":
+        toolNames.set(chunk.toolCallId, chunk.toolName);
+        emitBridgeEvent({
+          type: "tool.called",
+          tool: {
+            tool_call_id: chunk.toolCallId,
+            tool_name: chunk.toolName,
+          },
+          input: asMetadata(chunk.input),
+        });
+        emitToolError(chunk.toolCallId, chunk.errorText);
+        return;
+      case "tool-output-available":
+        // Preliminary output is an intermediate update in the v7 contract,
+        // not the terminal result of the tool execution.
+        if (chunk.preliminary) return;
+        emitBridgeEvent({
+          type: "tool.completed",
+          tool: {
+            tool_call_id: chunk.toolCallId,
+            tool_name: toolNameFor(chunk.toolCallId),
+          },
+          output: asMetadata(chunk.output),
+        });
+        return;
+      case "tool-output-error":
+        emitToolError(chunk.toolCallId, chunk.errorText);
+        return;
+      case "tool-output-denied":
+        emitToolError(
+          chunk.toolCallId,
+          "Tool call was denied.",
+          "chat_tool_denied",
+        );
+        return;
+      default:
+        return;
+    }
+  };
 
   return {
     onLifecycleEvent: (event: AgentRunEvent) => {
@@ -239,9 +276,8 @@ export function createChatRunEventBridge(
       }
       writeEvent(rewriteEvent(event));
     },
-    onUiMessageChunk: uiMessageParser.push,
+    onUiMessageChunk: handleUiMessageChunk,
     flushTerminal: () => {
-      uiMessageParser.flush();
       if (!terminalEvent) return;
       writeEvent(rewriteEvent(terminalEvent));
       terminalEvent = null;
@@ -249,98 +285,38 @@ export function createChatRunEventBridge(
   };
 }
 
-function createUiMessageStreamParser(handlers: UiMessageStreamHandlers) {
-  let buffer = "";
-
-  const processBufferedFrames = () => {
-    buffer = buffer.replace(/\r\n/g, "\n");
-    let separatorIndex = buffer.indexOf("\n\n");
-    while (separatorIndex >= 0) {
-      const frame = buffer.slice(0, separatorIndex);
-      buffer = buffer.slice(separatorIndex + 2);
-      processUiMessageFrame(frame, handlers);
-      separatorIndex = buffer.indexOf("\n\n");
-    }
-  };
-
-  return {
-    push: (chunk: string) => {
-      buffer += chunk;
-      processBufferedFrames();
-    },
-    flush: () => {
-      processBufferedFrames();
-      if (buffer.trim()) processUiMessageFrame(buffer, handlers);
-      buffer = "";
-    },
-  };
-}
-
-function processUiMessageFrame(
-  frame: string,
-  handlers: UiMessageStreamHandlers,
-) {
-  for (const line of frame.split("\n")) {
-    if (!line.startsWith("data:")) continue;
-    handleUiMessagePart(line.slice("data:".length).trimStart(), handlers);
-  }
-}
-
-function handleUiMessagePart(
-  payload: string,
-  handlers: UiMessageStreamHandlers,
-) {
-  const trimmedPayload = payload.trim();
-  if (!trimmedPayload || trimmedPayload === "[DONE]") return;
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(trimmedPayload);
-  } catch {
-    return;
-  }
-  if (!isRecord(parsed)) return;
-
-  switch (parsed.type) {
-    case "text-delta":
-      if (typeof parsed.delta === "string") handlers.onTextDelta(parsed.delta);
-      return;
-    case "tool-input-available":
-      if (
-        typeof parsed.toolCallId === "string" &&
-        typeof parsed.toolName === "string"
-      ) {
-        handlers.onToolInput({
-          toolCallId: parsed.toolCallId,
-          toolName: parsed.toolName,
-          input: parsed.input,
-        });
-      }
-      return;
-    case "tool-output-available":
-      if (typeof parsed.toolCallId === "string") {
-        handlers.onToolOutput({
-          toolCallId: parsed.toolCallId,
-          output: parsed.output,
-        });
-      }
-      return;
-    case "tool-output-error":
-      if (typeof parsed.toolCallId === "string") {
-        handlers.onToolError({
-          toolCallId: parsed.toolCallId,
-          errorText:
-            typeof parsed.errorText === "string" ? parsed.errorText : "",
-        });
-      }
-      return;
-    default:
-      return;
-  }
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export async function drainUiMessageStream(
+  response: Response,
+  onChunk: (chunk: UIMessageChunk) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const body = response.body;
+  if (!body) return;
+
+  const parsedStream = parseJsonEventStream({
+    stream: body,
+    schema: uiMessageChunkSchema,
+  });
+  const reader = parsedStream.getReader();
+
+  try {
+    while (true) {
+      if (signal?.aborted) {
+        await reader.cancel();
+        return;
+      }
+      const { done, value } = await reader.read();
+      if (done) return;
+      if (!value.success) throw value.error;
+      onChunk(value.value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 export function createAgentEventStream(
@@ -418,35 +394,4 @@ function createRouteErrorEvent(taskId: string, message: string): AgentRunEvent {
     },
     metadata: { route: "POST /api/agents/runs" },
   });
-}
-
-export async function drainResponseBody(
-  response: Response,
-  onChunk?: (chunk: string) => void,
-  signal?: AbortSignal,
-): Promise<void> {
-  const reader = response.body?.getReader();
-  if (!reader) return;
-  const decoder = new TextDecoder();
-  try {
-    while (true) {
-      if (signal?.aborted) {
-        await reader.cancel();
-        return;
-      }
-      const { done, value } = await reader.read();
-      if (signal?.aborted) {
-        await reader.cancel();
-        return;
-      }
-      if (done) {
-        const trailing = decoder.decode();
-        if (trailing) onChunk?.(trailing);
-        return;
-      }
-      if (value) onChunk?.(decoder.decode(value, { stream: true }));
-    }
-  } finally {
-    reader.releaseLock();
-  }
 }

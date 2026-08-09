@@ -130,10 +130,12 @@ async function generateStatusChangeForIssueInner(
           model: llmAdapter.model(),
           system: systemPrompt,
           prompt: userPrompt,
-          experimental_telemetry: {
+          telemetry: {
             isEnabled: true,
             functionId: getAgentRegistryEntry("activity.status-change")
               .functionId,
+            recordInputs: false,
+            recordOutputs: false,
           },
         });
 

@@ -99,7 +99,7 @@ describe("agent toolsets", () => {
       "search_code",
     ]);
 
-    const searchCodeTool = toolset.search_code as {
+    const searchCodeTool = toolset.search_code as unknown as {
       execute?: (
         input: {
           query: string;
@@ -149,7 +149,7 @@ describe("agent toolsets", () => {
       repoContext: { owner: "safe-owner", repo: "safe-repo" },
     });
 
-    const searchCodeTool = toolset.search_code as {
+    const searchCodeTool = toolset.search_code as unknown as {
       execute?: (
         input: { query: string; maxResults: number },
         options: never,

@@ -12,6 +12,7 @@ const REEF_VAULT = "reef-e2e";
 const TOOL_LOOP_E2E_PROMPT = "tool transparency e2e";
 const TOOL_LOOP_SEARCH_ISSUES_CALL_ID = "call_e2e_search_issues";
 const TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID = "call_e2e_search_documents";
+const ISSUE_READ_CALL_ID_PREFIX = "call_e2e_read_issue_";
 const IMAGE_UPLOAD_FIXTURE_PATH =
   "/__e2e/assets/reef-markdown-editor-image.png";
 const IMAGE_UPLOAD_FIXTURE_FILE_NAME = "reef-markdown-editor-image.png";
@@ -2649,6 +2650,26 @@ async function handleOpenRouter(req, res) {
         });
         return;
       }
+      const issueQuestion = issueQuestionResult(body);
+      if (issueQuestion) {
+        await streamOpenRouterChunks(
+          res,
+          finalIssueQuestionChunks(created, issueQuestion.output),
+          { delayBeforeTextDeltaMs: 250 },
+        );
+        return;
+      }
+      const issueId = issueQuestionId(body);
+      if (issueId) {
+        await streamOpenRouterChunks(
+          res,
+          initialIssueQuestionChunks(created, issueId),
+          {
+            delayAfterFunctionCallMs: 180,
+          },
+        );
+        return;
+      }
       await streamOpenRouterChunks(res, basicTextChunks(created, body));
       return;
     }
@@ -2776,6 +2797,47 @@ function finalToolLoopChunks(created) {
   ];
 }
 
+function initialIssueQuestionChunks(created, issueId) {
+  const callId = issueReadCallId(issueId);
+  return [
+    chatCompletionChunk(`chatcmpl-e2e-${issueId}`, created, {
+      role: "assistant",
+      tool_calls: [
+        {
+          index: 0,
+          id: callId,
+          type: "function",
+          function: {
+            name: "read_issue",
+            arguments: JSON.stringify({ id: issueId }),
+          },
+        },
+      ],
+    }),
+    chatCompletionChunk(`chatcmpl-e2e-${issueId}`, created, {}, "tool_calls"),
+  ];
+}
+
+function finalIssueQuestionChunks(created, output) {
+  const issue = output?.issue;
+  const text =
+    issue &&
+    typeof issue.id === "string" &&
+    typeof issue.title === "string" &&
+    typeof issue.status === "string"
+      ? `${issue.id} is "${issue.title}" and its status is ${issue.status}.`
+      : "I could not read that issue from the workspace.";
+  return [
+    chatCompletionChunk("chatcmpl-e2e-issue-final", created, {
+      role: "assistant",
+    }),
+    chatCompletionChunk("chatcmpl-e2e-issue-final", created, {
+      content: text,
+    }),
+    chatCompletionChunk("chatcmpl-e2e-issue-final", created, {}, "stop"),
+  ];
+}
+
 function chatCompletionChunk(id, created, delta, finishReason = null) {
   return {
     id,
@@ -2818,22 +2880,91 @@ async function streamOpenRouterChunks(
 }
 
 function isToolLoopPromptTurn(body) {
-  return collectStrings(body?.messages ?? body?.input).some((value) =>
-    value.toLowerCase().includes(TOOL_LOOP_E2E_PROMPT),
-  );
+  return lastUserMessageText(body?.messages ?? body?.input)
+    .toLowerCase()
+    .includes(TOOL_LOOP_E2E_PROMPT);
 }
 
 function isToolLoopResultTurn(body) {
+  const currentTurn = latestUserTurnMessages(body?.messages ?? body?.input);
   return (
-    hasFunctionCallOutput(
-      body?.messages ?? body?.input,
-      TOOL_LOOP_SEARCH_ISSUES_CALL_ID,
-    ) ||
-    hasFunctionCallOutput(
-      body?.messages ?? body?.input,
-      TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID,
-    )
+    hasFunctionCallOutput(currentTurn, TOOL_LOOP_SEARCH_ISSUES_CALL_ID) ||
+    hasFunctionCallOutput(currentTurn, TOOL_LOOP_SEARCH_DOCUMENTS_CALL_ID)
   );
+}
+
+function issueQuestionId(body) {
+  const prompt = lastUserMessageText(body?.messages ?? body?.input);
+  if (!/(?:title|status|제목|상태)/iu.test(prompt)) return null;
+  return prompt.match(/\bREEF-\d+\b/iu)?.[0]?.toUpperCase() ?? null;
+}
+
+function issueQuestionResult(body) {
+  const currentTurn = latestUserTurnMessages(body?.messages ?? body?.input);
+  return findIssueToolResult(currentTurn);
+}
+
+function latestUserTurnMessages(value) {
+  if (!Array.isArray(value)) return [];
+  let lastUserIndex = -1;
+  for (let index = value.length - 1; index >= 0; index -= 1) {
+    if (value[index]?.role === "user") {
+      lastUserIndex = index;
+      break;
+    }
+  }
+  return lastUserIndex < 0 ? value : value.slice(lastUserIndex + 1);
+}
+
+function issueReadCallId(issueId) {
+  return `${ISSUE_READ_CALL_ID_PREFIX}${issueId.toLowerCase()}`;
+}
+
+function findIssueToolResult(value) {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const result = findIssueToolResult(item);
+      if (result) return result;
+    }
+    return null;
+  }
+  if (!value || typeof value !== "object") return null;
+
+  const callId =
+    typeof value.tool_call_id === "string"
+      ? value.tool_call_id
+      : typeof value.call_id === "string"
+        ? value.call_id
+        : typeof value.toolCallId === "string"
+          ? value.toolCallId
+          : null;
+  if (callId?.startsWith(ISSUE_READ_CALL_ID_PREFIX)) {
+    return { callId, output: parseToolOutput(value.content ?? value.output) };
+  }
+
+  for (const item of Object.values(value)) {
+    const result = findIssueToolResult(item);
+    if (result) return result;
+  }
+  return null;
+}
+
+function parseToolOutput(value) {
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const parsed = parseToolOutput(item?.text ?? item?.output ?? item);
+      if (parsed) return parsed;
+    }
+    return null;
+  }
+  return value && typeof value === "object" ? value : null;
 }
 
 function hasFunctionCallOutput(value, callId) {
@@ -2848,21 +2979,6 @@ function hasFunctionCallOutput(value, callId) {
   return Object.values(value).some((item) =>
     hasFunctionCallOutput(item, callId),
   );
-}
-
-function collectStrings(value, strings = []) {
-  if (typeof value === "string") {
-    strings.push(value);
-    return strings;
-  }
-  if (Array.isArray(value)) {
-    for (const item of value) collectStrings(item, strings);
-    return strings;
-  }
-  if (value && typeof value === "object") {
-    for (const item of Object.values(value)) collectStrings(item, strings);
-  }
-  return strings;
 }
 
 function sleep(ms) {
