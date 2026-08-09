@@ -1,7 +1,7 @@
 import type { EnrichmentSuggestion } from "@reef/core";
 import { NO_SELECTION } from "@reef/core/fields";
 import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import type {
   EnrichmentFormApi,
   EnrichmentFormValues,
@@ -31,15 +31,15 @@ const EMPTY_VALUES: EnrichmentFormValues = {
   externalRefs: [],
 };
 
-let setPriority: ReturnType<typeof vi.fn>;
-let setLabels: ReturnType<typeof vi.fn>;
-let setDueDate: ReturnType<typeof vi.fn>;
+let setPriority: Mock<EnrichmentFormApi["setPriority"]>;
+let setLabels: Mock<EnrichmentFormApi["setLabels"]>;
+let setDueDate: Mock<EnrichmentFormApi["setDueDate"]>;
 let form: EnrichmentFormApi;
 
 beforeEach(() => {
-  setPriority = vi.fn();
-  setLabels = vi.fn();
-  setDueDate = vi.fn();
+  setPriority = vi.fn<EnrichmentFormApi["setPriority"]>();
+  setLabels = vi.fn<EnrichmentFormApi["setLabels"]>();
+  setDueDate = vi.fn<EnrichmentFormApi["setDueDate"]>();
   form = {
     values: EMPTY_VALUES,
     setTitle: vi.fn(),

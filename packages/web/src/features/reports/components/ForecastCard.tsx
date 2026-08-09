@@ -144,13 +144,7 @@ function ForecastRow({
   );
 }
 
-function CompletionRow({
-  row,
-  now,
-}: {
-  row: CompletionForecast;
-  now: number;
-}) {
+function CompletionRow({ row, now }: { row: CompletionForecast; now: number }) {
   const locale = useLocale();
   const t = useTranslations("reports.cards");
   // A capped trial did not reach the target within the hard week ceiling, so

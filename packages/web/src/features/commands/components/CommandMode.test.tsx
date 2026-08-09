@@ -3,10 +3,17 @@ import type {
   BoundAppAction,
   CommandRegistry,
 } from "@/features/commands/hooks/useCommandRegistry";
+import type { PaletteFocusPolicy } from "@/features/commands/lib/appActionCatalog";
 import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, type Mock, vi } from "vitest";
 import { CommandMode } from "./CommandMode";
+
+type ExecuteCommand = (
+  policy: PaletteFocusPolicy,
+  run: () => void,
+  runBeforeClose?: boolean,
+) => void;
 
 function registryWith(actions: ReadonlyArray<BoundAppAction>) {
   return {
@@ -20,7 +27,7 @@ function renderMode({
   pages = ["root"],
   query = "",
   target = null,
-  onExecute = vi.fn(),
+  onExecute = vi.fn<ExecuteCommand>(),
 }: {
   actions?: ReadonlyArray<BoundAppAction>;
   pages?: Array<
@@ -39,7 +46,7 @@ function renderMode({
     title: string;
     source: "detail" | "list" | "board";
   } | null;
-  onExecute?: ReturnType<typeof vi.fn>;
+  onExecute?: Mock<ExecuteCommand>;
 }) {
   return render(
     <IntlTestProvider>
@@ -87,7 +94,7 @@ describe("CommandMode", () => {
               target={null}
               registry={registryWith([])}
               onPushPage={vi.fn()}
-              onExecute={vi.fn()}
+              onExecute={vi.fn<ExecuteCommand>()}
             />
           </CommandList>
         </Command>
@@ -98,7 +105,7 @@ describe("CommandMode", () => {
 
   it("executes pointer selection through the action focus policy", () => {
     const run = vi.fn();
-    const onExecute = vi.fn();
+    const onExecute = vi.fn<ExecuteCommand>();
     const action: BoundAppAction = {
       descriptor: {
         id: "view.list",

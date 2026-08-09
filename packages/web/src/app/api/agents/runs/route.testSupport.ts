@@ -349,9 +349,7 @@ export function resetAgentRunsRouteMocks() {
     scannedAt: "2026-06-04T00:00:00.000Z",
   });
   mockCreateWorkspaceChatAgentResponse.mockImplementation(
-    async (params: {
-      onEvent?: (event: AgentRunEvent) => void;
-    }) => {
+    async (params: { onEvent?: (event: AgentRunEvent) => void }) => {
       params.onEvent?.(runStarted("chat.workspace"));
       params.onEvent?.(runCompleted("chat.workspace"));
       return makeUiMessageStreamResponse([

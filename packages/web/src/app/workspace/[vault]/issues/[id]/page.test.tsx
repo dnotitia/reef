@@ -16,7 +16,10 @@ vi.mock("@/features/issues/components/detail/IssueDetailSheet", () => ({
   IssueDetailSheet: ({
     issueId,
     onClose,
-  }: { issueId: string; onClose: () => void }) => (
+  }: {
+    issueId: string;
+    onClose: () => void;
+  }) => (
     <div data-testid="issue-detail-sheet" data-issue-id={issueId}>
       <button type="button" data-testid="mock-close" onClick={onClose}>
         Close
