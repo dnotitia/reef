@@ -6,6 +6,7 @@ import {
   AgentRunEventSchema,
   type AgentRunRequest,
 } from "@reef/core";
+import { z } from "zod";
 import {
   agentRunReducer,
   createInitialAgentRunState,
@@ -171,7 +172,7 @@ function parseAgentRunFrame(frame: string): AgentRunEvent {
   if (!event.success) {
     throw new AgentRunClientError(
       streamFailure("Agent run stream contained an invalid event.", {
-        validation: event.error.flatten(),
+        validation: z.flattenError(event.error),
       }),
     );
   }

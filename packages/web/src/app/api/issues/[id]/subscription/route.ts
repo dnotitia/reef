@@ -19,11 +19,9 @@ import {
 } from "@reef/core";
 import { z } from "zod";
 
-const SubscriptionActionSchema = z
-  .object({
-    action: z.enum(["watch", "mute"]),
-  })
-  .strict();
+const SubscriptionActionSchema = z.strictObject({
+  action: z.enum(["watch", "mute"]),
+});
 
 type RouteParams = { params: Promise<{ id: string }> };
 

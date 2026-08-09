@@ -29,7 +29,7 @@ import {
   createAkbAdapter,
   isAkbAccountErrorCode,
 } from "@reef/core";
-import type { z } from "zod";
+import { z } from "zod";
 import { localizeError, localizedErrorResponse } from "./errorLocalization";
 
 export const VAULT_NAME_RE = VAULT_NAME_PATTERN;
@@ -180,7 +180,7 @@ export function invalidJsonBodyResponse(): Promise<Response> {
 
 export function invalidBodyResponse(zodError: z.ZodError): Promise<Response> {
   return localizedErrorResponse("invalidBody", 400, {
-    details: zodError.flatten(),
+    details: z.flattenError(zodError),
   });
 }
 

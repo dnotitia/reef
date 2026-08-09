@@ -13,7 +13,7 @@ const refineSprintDates = (
   if (!sprint.start_date || !sprint.end_date) return;
   if (Date.parse(sprint.start_date) > Date.parse(sprint.end_date)) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       path: ["end_date"],
       message: "end_date must be on or after start_date",
     });

@@ -121,13 +121,11 @@ export interface RawArchiveReference {
   contentSha256: string;
 }
 
-export const RawArchiveReferenceSchema = z
-  .object({
-    runId: z.string().min(1),
-    entryId: z.string().min(1),
-    contentSha256: z.string().regex(/^[a-f0-9]{64}$/u),
-  })
-  .strict();
+export const RawArchiveReferenceSchema = z.strictObject({
+  runId: z.string().min(1),
+  entryId: z.string().min(1),
+  contentSha256: z.string().regex(/^[a-f0-9]{64}$/u),
+});
 
 export interface RawArchiveVersionV1 {
   sha256: string;

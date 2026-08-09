@@ -2,6 +2,13 @@ import { z } from "zod";
 import { IsoDateFieldSchema } from "../common/date";
 import { HttpUrlSchema } from "../common/url";
 
+const legacyStrictObjectError: z.core.$ZodErrorMap = (issue) => {
+  if (issue.code !== "unrecognized_keys") return undefined;
+  return `Unrecognized key(s) in object: ${issue.keys
+    .map((key) => `'${key}'`)
+    .join(", ")}`;
+};
+
 export const StatusEnum = z.enum([
   "backlog",
   "todo",
@@ -121,25 +128,23 @@ export const IssueMetadataSchema = z.object({
   watchers: z.array(z.string()).optional(),
   reviewers: z.array(z.string()).optional(),
   qa_owner: z.string().nullable().optional(),
-  custom_fields: z.record(z.unknown()).optional(),
+  custom_fields: z.record(z.string(), z.unknown()).optional(),
   archived_at: IsoDateFieldSchema.nullable().optional(),
 });
 
-export const IssueDocumentSchema = z
-  .object({
-    issue: IssueMetadataSchema,
-    content: z.string(),
-    /**
-     * Git commit hash of the akb document at read time. The web edit form holds
-     * it as the OCC base and echoes it back as `expected_commit` on save, so a
-     * concurrent external edit to a document-projected field (body/title/labels/
-     * relations) is rejected as a retryable conflict instead of silently
-     * overwritten (REEF-227). Optional + nullable: akb may not return one, and
-     * row consumers do not need it.
-     */
-    commit_hash: z.string().nullable().optional(),
-  })
-  .strict();
+export const IssueDocumentSchema = z.strictObject({
+  issue: IssueMetadataSchema,
+  content: z.string(),
+  /**
+   * Git commit hash of the akb document at read time. The web edit form holds
+   * it as the OCC base and echoes it back as `expected_commit` on save, so a
+   * concurrent external edit to a document-projected field (body/title/labels/
+   * relations) is rejected as a retryable conflict instead of silently
+   * overwritten (REEF-227). Optional + nullable: akb may not return one, and
+   * row consumers do not need it.
+   */
+  commit_hash: z.string().nullable().optional(),
+});
 
 type IssueMetadataPickMask = Partial<
   Record<keyof z.infer<typeof IssueMetadataSchema>, true>
@@ -206,7 +211,7 @@ export const SimilarIssueSchema = IssueSearchResultMetadataSchema.extend({
   score: z.number(),
 });
 
-export const IssueCreateFieldsSchema = IssueMetadataSchema.pick({
+const IssueCreateFieldsBaseSchema = IssueMetadataSchema.pick({
   title: true,
   issue_type: true,
   priority: true,
@@ -230,7 +235,10 @@ export const IssueCreateFieldsSchema = IssueMetadataSchema.pick({
   blocks: true,
   external_refs: true,
   implementation_refs: true,
-})
+});
+
+export const IssueCreateFieldsSchema = z
+  .strictObject(IssueCreateFieldsBaseSchema.shape)
   .extend({
     // New issues land in `backlog` by default (REEF-130). The create input may
     // carry an explicit status so the AI activity-scan draft path can persist a
@@ -240,17 +248,14 @@ export const IssueCreateFieldsSchema = IssueMetadataSchema.pick({
     // flow, so a create should not persist a closed issue at this trust
     // boundary.
     status: StatusEnum.exclude(["closed"]).optional(),
-  })
-  .strict();
+  });
 
-export const IssueCreateInputSchema = z
-  .object({
-    fields: IssueCreateFieldsSchema,
-    content: z.string(),
-  })
-  .strict();
+export const IssueCreateInputSchema = z.strictObject({
+  fields: IssueCreateFieldsSchema,
+  content: z.string(),
+});
 
-export const IssueUpdatePatchSchema = IssueMetadataSchema.pick({
+const IssueUpdatePatchBaseSchema = IssueMetadataSchema.pick({
   title: true,
   status: true,
   issue_type: true,
@@ -282,39 +287,37 @@ export const IssueUpdatePatchSchema = IssueMetadataSchema.pick({
   qa_owner: true,
   custom_fields: true,
   archived_at: true,
-})
-  .partial()
-  .strict();
+});
 
-export const IssueUpdateInputSchema = z
-  .object({
-    issue_id: z.string().min(1),
-    patch: IssueUpdatePatchSchema,
-    content: z.string().optional(),
-    /**
-     * OCC base — the akb document `commit_hash` the edit was made against. When
-     * the edit touches the document (body/title/labels/relations) `updateIssue`
-     * forwards it as akb's `expected_commit` precondition; a moved commit is
-     * rejected as a retryable `ConflictError` (REEF-227). Omitted for row-scoped
-     * edits, which stay last-write-wins.
-     */
-    expected_commit: z.string().optional(),
+export const IssueUpdatePatchSchema = z
+  .strictObject(IssueUpdatePatchBaseSchema.shape, {
+    error: legacyStrictObjectError,
   })
-  .strict();
+  .partial();
+
+export const IssueUpdateInputSchema = z.strictObject({
+  issue_id: z.string().min(1),
+  patch: IssueUpdatePatchSchema,
+  content: z.string().optional(),
+  /**
+   * OCC base — the akb document `commit_hash` the edit was made against. When
+   * the edit touches the document (body/title/labels/relations) `updateIssue`
+   * forwards it as akb's `expected_commit` precondition; a moved commit is
+   * rejected as a retryable `ConflictError` (REEF-227). Omitted for row-scoped
+   * edits, which stay last-write-wins.
+   */
+  expected_commit: z.string().optional(),
+});
 
 export const IssueChangeProposalSchema = z.discriminatedUnion("operation", [
-  z
-    .object({
-      operation: z.literal("create"),
-      create: IssueCreateInputSchema,
-    })
-    .strict(),
-  z
-    .object({
-      operation: z.literal("update"),
-      update: IssueUpdateInputSchema,
-    })
-    .strict(),
+  z.strictObject({
+    operation: z.literal("create"),
+    create: IssueCreateInputSchema,
+  }),
+  z.strictObject({
+    operation: z.literal("update"),
+    update: IssueUpdateInputSchema,
+  }),
 ]);
 
 export type IssueMetadata = z.infer<typeof IssueMetadataSchema>;

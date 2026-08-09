@@ -21,65 +21,51 @@ const sourceIdentityBase = {
 export const JiraMigrationSourceIdentitySchema = z.discriminatedUnion(
   "entity_kind",
   [
-    z
-      .object({
-        ...sourceIdentityBase,
-        entity_kind: z.literal("version"),
-        project_id: z.string().min(1),
-        version_id: z.string().min(1),
-      })
-      .strict(),
-    z
-      .object({
-        ...sourceIdentityBase,
-        entity_kind: z.literal("sprint"),
-        sprint_id: z.string().min(1),
-      })
-      .strict(),
-    z
-      .object({
-        ...sourceIdentityBase,
-        entity_kind: z.literal("issue"),
-        project_id: z.string().min(1),
-        issue_id: z.string().min(1),
-      })
-      .strict(),
-    z
-      .object({
-        ...sourceIdentityBase,
-        entity_kind: z.literal("comment"),
-        issue_id: z.string().min(1),
-        comment_id: z.string().min(1),
-      })
-      .strict(),
-    z
-      .object({
-        ...sourceIdentityBase,
-        entity_kind: z.literal("attachment"),
-        issue_id: z.string().min(1).optional(),
-        attachment_id: z.string().min(1),
-      })
-      .strict(),
-    z
-      .object({
-        ...sourceIdentityBase,
-        entity_kind: z.literal("changelog_history"),
-        issue_id: z.string().min(1),
-        history_id: z.string().min(1),
-      })
-      .strict(),
-    z
-      .object({
-        ...sourceIdentityBase,
-        entity_kind: z.literal("relation"),
-        source_project_key: z.string().min(1).optional(),
-        source_issue_id: z.string().min(1),
-        target_issue_id: z.string().min(1),
-        link_type: z.string().min(1),
-        direction: z.string().min(1),
-        link_id: z.string().min(1),
-      })
-      .strict(),
+    z.strictObject({
+      ...sourceIdentityBase,
+      entity_kind: z.literal("version"),
+      project_id: z.string().min(1),
+      version_id: z.string().min(1),
+    }),
+    z.strictObject({
+      ...sourceIdentityBase,
+      entity_kind: z.literal("sprint"),
+      sprint_id: z.string().min(1),
+    }),
+    z.strictObject({
+      ...sourceIdentityBase,
+      entity_kind: z.literal("issue"),
+      project_id: z.string().min(1),
+      issue_id: z.string().min(1),
+    }),
+    z.strictObject({
+      ...sourceIdentityBase,
+      entity_kind: z.literal("comment"),
+      issue_id: z.string().min(1),
+      comment_id: z.string().min(1),
+    }),
+    z.strictObject({
+      ...sourceIdentityBase,
+      entity_kind: z.literal("attachment"),
+      issue_id: z.string().min(1).optional(),
+      attachment_id: z.string().min(1),
+    }),
+    z.strictObject({
+      ...sourceIdentityBase,
+      entity_kind: z.literal("changelog_history"),
+      issue_id: z.string().min(1),
+      history_id: z.string().min(1),
+    }),
+    z.strictObject({
+      ...sourceIdentityBase,
+      entity_kind: z.literal("relation"),
+      source_project_key: z.string().min(1).optional(),
+      source_issue_id: z.string().min(1),
+      target_issue_id: z.string().min(1),
+      link_type: z.string().min(1),
+      direction: z.string().min(1),
+      link_id: z.string().min(1),
+    }),
   ],
 );
 export type JiraMigrationSourceIdentity = z.infer<

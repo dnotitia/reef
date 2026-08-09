@@ -10,8 +10,14 @@ import {
 } from "../issues/metadata";
 import { EnrichmentSuggestionSchema } from "./enrichment";
 
-export const MetadataSchema = z.record(z.unknown());
+export const MetadataSchema = z.record(z.string(), z.unknown());
 const ConfidenceSchema = z.number().min(0).max(1);
+const legacyStrictObjectError: z.core.$ZodErrorMap = (issue) => {
+  if (issue.code !== "unrecognized_keys") return undefined;
+  return `Unrecognized key(s) in object: ${issue.keys
+    .map((key) => `'${key}'`)
+    .join(", ")}`;
+};
 
 export const AgentArtifactStatusEnum = z.enum([
   "pending",
@@ -29,13 +35,11 @@ export const AgentArtifactTypeEnum = z.enum([
 ]);
 export type AgentArtifactType = z.infer<typeof AgentArtifactTypeEnum>;
 
-export const AgentArtifactPersistenceSchema = z
-  .object({
-    source_of_truth: z.enum(["client_ephemeral", "akb_activity_suggestion"]),
-    activity_suggestion_id: ActivitySuggestionIdSchema.nullable().default(null),
-    retention: z.enum(["browser_session", "akb_review_history"]),
-  })
-  .strict();
+export const AgentArtifactPersistenceSchema = z.strictObject({
+  source_of_truth: z.enum(["client_ephemeral", "akb_activity_suggestion"]),
+  activity_suggestion_id: ActivitySuggestionIdSchema.nullable().default(null),
+  retention: z.enum(["browser_session", "akb_review_history"]),
+});
 
 export const AgentErrorSchema = z.object({
   code: z.string().min(1),
@@ -58,41 +62,32 @@ const AgentIssueUpdatePatchSchema = IssueUpdatePatchSchema.omit({
   status: true,
   closed_reason: true,
 });
-const AgentIssueUpdateInputSchema = z
-  .object({
-    issue_id: z.string().min(1),
-    patch: AgentIssueUpdatePatchSchema,
-    content: z.string().optional(),
-  })
-  .strict();
-const AgentStatusChangeUpdateInputSchema = z
-  .object({
-    issue_id: z.string().min(1),
-    patch: z
-      .object({
-        status: StatusEnum,
-      })
-      .strict(),
-  })
-  .strict();
+const AgentIssueUpdateInputSchema = z.strictObject({
+  issue_id: z.string().min(1),
+  patch: AgentIssueUpdatePatchSchema,
+  content: z.string().optional(),
+});
+const AgentStatusChangeUpdateInputSchema = z.strictObject({
+  issue_id: z.string().min(1),
+  patch: z.strictObject(
+    { status: StatusEnum },
+    { error: legacyStrictObjectError },
+  ),
+});
 
-const AgentIssueCreateChangeProposalSchema = z
-  .object({
-    operation: z.literal("create"),
-    create: IssueCreateInputSchema,
-  })
-  .strict();
-const AgentIssueUpdateChangeProposalSchema = z
-  .object({
-    operation: z.literal("update"),
-    update: AgentIssueUpdateInputSchema,
-  })
-  .strict();
+const AgentIssueCreateChangeProposalSchema = z.strictObject({
+  operation: z.literal("create"),
+  create: IssueCreateInputSchema,
+});
+const AgentIssueUpdateChangeProposalSchema = z.strictObject({
+  operation: z.literal("update"),
+  update: AgentIssueUpdateInputSchema,
+});
 
 const AgentStatusChangeEvidenceSchema = StatusChangeEvidenceSchema.extend({
-  ref: z.string().min(1),
-  repo: z.string().min(1),
-  actor: z.string().min(1),
+  ref: z.string().min(1, "String must contain at least 1 character"),
+  repo: z.string().min(1, "String must contain at least 1 character"),
+  actor: z.string().min(1, "String must contain at least 1 character"),
 });
 
 const AgentArtifactBaseSchema = z.object({
@@ -160,7 +155,9 @@ export const AgentStatusChangeProposalArtifactBaseSchema =
       from_status: StatusEnum.nullable(),
       to_status: StatusEnum,
       rationale: z.string().min(1),
-      status_evidence: z.array(AgentStatusChangeEvidenceSchema).min(1),
+      status_evidence: z
+        .array(AgentStatusChangeEvidenceSchema)
+        .min(1, "Array must contain at least 1 element"),
     }),
   });
 
@@ -171,7 +168,7 @@ const assertStatusChangeProposalMatches = (
   const proposedStatus = artifact.payload.proposal.update.patch.status;
   if (proposedStatus !== artifact.payload.to_status) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       message: "proposal.update.patch.status must match to_status",
       path: ["payload", "proposal", "update", "patch", "status"],
     });

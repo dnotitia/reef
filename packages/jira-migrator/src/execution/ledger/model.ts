@@ -18,43 +18,35 @@ export const JIRA_MIGRATION_PHASES = [
 export type JiraMigrationPhase = (typeof JIRA_MIGRATION_PHASES)[number];
 
 export const JiraMigrationTargetSchema = z.discriminatedUnion("target_kind", [
-  z
-    .object({ target_kind: z.literal("release"), target_id: z.string().uuid() })
-    .strict(),
-  z
-    .object({ target_kind: z.literal("sprint"), target_id: z.string().uuid() })
-    .strict(),
-  z
-    .object({
-      target_kind: z.literal("issue"),
-      reef_id: z.string().regex(/^[A-Z][A-Z0-9_-]*-\d+$/u),
-      document_uri: z.string().startsWith("akb://"),
-    })
-    .strict(),
-  z
-    .object({
-      target_kind: z.literal("comment"),
-      comment_id: z.string().uuid(),
-    })
-    .strict(),
-  z
-    .object({
-      target_kind: z.literal("attachment"),
-      file_uri: z.string().startsWith("akb://"),
-    })
-    .strict(),
-  z
-    .object({
-      target_kind: z.literal("changelog_history"),
-      idempotency_key: z.string().min(1),
-    })
-    .strict(),
-  z
-    .object({
-      target_kind: z.literal("relation"),
-      idempotency_key: z.string().min(1),
-    })
-    .strict(),
+  z.strictObject({
+    target_kind: z.literal("release"),
+    target_id: z.string().uuid(),
+  }),
+  z.strictObject({
+    target_kind: z.literal("sprint"),
+    target_id: z.string().uuid(),
+  }),
+  z.strictObject({
+    target_kind: z.literal("issue"),
+    reef_id: z.string().regex(/^[A-Z][A-Z0-9_-]*-\d+$/u),
+    document_uri: z.string().startsWith("akb://"),
+  }),
+  z.strictObject({
+    target_kind: z.literal("comment"),
+    comment_id: z.string().uuid(),
+  }),
+  z.strictObject({
+    target_kind: z.literal("attachment"),
+    file_uri: z.string().startsWith("akb://"),
+  }),
+  z.strictObject({
+    target_kind: z.literal("changelog_history"),
+    idempotency_key: z.string().min(1),
+  }),
+  z.strictObject({
+    target_kind: z.literal("relation"),
+    idempotency_key: z.string().min(1),
+  }),
 ]);
 export type JiraMigrationTarget = z.infer<typeof JiraMigrationTargetSchema>;
 
@@ -95,18 +87,16 @@ export const expectedTargetKind: Record<
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/u);
 const isoSchema = z.string().datetime({ offset: true });
 
-export const JiraMigrationBindingSchema = z
-  .object({
-    source_key: z.string().min(1),
-    entity_kind: JiraMigrationEntityKindSchema,
-    source_identity: JiraMigrationSourceIdentitySchema,
-    target: JiraMigrationTargetSchema,
-    source_fingerprint: sha256Schema,
-    mapped_state_fingerprint: sha256Schema,
-    last_applied_at: isoSchema,
-    raw_archive_reference: RawArchiveReferenceSchema.nullable(),
-  })
-  .strict();
+export const JiraMigrationBindingSchema = z.strictObject({
+  source_key: z.string().min(1),
+  entity_kind: JiraMigrationEntityKindSchema,
+  source_identity: JiraMigrationSourceIdentitySchema,
+  target: JiraMigrationTargetSchema,
+  source_fingerprint: sha256Schema,
+  mapped_state_fingerprint: sha256Schema,
+  last_applied_at: isoSchema,
+  raw_archive_reference: RawArchiveReferenceSchema.nullable(),
+});
 export type JiraMigrationBinding = z.infer<typeof JiraMigrationBindingSchema>;
 
 export const JiraMigrationActionSchema = z.enum([
@@ -130,7 +120,7 @@ export const JiraMigrationSafeErrorCodeSchema = z.enum([
 ]);
 
 export const JiraMigrationEntityResultSchema = z
-  .object({
+  .strictObject({
     source_key: z.string().min(1),
     entity_kind: JiraMigrationEntityKindSchema,
     source_fingerprint: sha256Schema,
@@ -147,18 +137,17 @@ export const JiraMigrationEntityResultSchema = z
       "reconciled",
     ]),
   })
-  .strict()
   .superRefine((result, context) => {
     if (!result.source_key.startsWith(`${result.entity_kind}:`)) {
       context.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: "result source key kind mismatch",
         path: ["source_key"],
       });
     }
     if ((result.action === "failed") !== (result.error_code !== null)) {
       context.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: "only failed results carry a safe error code",
         path: ["error_code"],
       });
@@ -168,63 +157,54 @@ export type JiraMigrationEntityResult = z.infer<
   typeof JiraMigrationEntityResultSchema
 >;
 
-const phaseStateSchema = z
-  .object({
-    status: z.enum([
-      "pending",
-      "running",
-      "completed",
-      "partial_failed",
-      "blocked",
-    ]),
-    entities: z.array(JiraMigrationEntityResultSchema),
-  })
-  .strict();
+const phaseStateSchema = z.strictObject({
+  status: z.enum([
+    "pending",
+    "running",
+    "completed",
+    "partial_failed",
+    "blocked",
+  ]),
+  entities: z.array(JiraMigrationEntityResultSchema),
+});
 
-export const JiraMigrationRunSchema = z
-  .object({
-    run_id: z.string().min(1),
-    project_keys: z.array(z.string().min(1)).min(1),
-    started_at: isoSchema,
-    updated_at: isoSchema,
-    phase_order: z.tuple([
-      z.literal("planning"),
-      z.literal("issues"),
-      z.literal("related"),
-      z.literal("reconciliation"),
-    ]),
-    plan_fingerprint: sha256Schema,
-    phases: z
-      .object({
-        planning: phaseStateSchema,
-        issues: phaseStateSchema,
-        related: phaseStateSchema,
-        reconciliation: phaseStateSchema,
-      })
-      .strict(),
-  })
-  .strict();
+export const JiraMigrationRunSchema = z.strictObject({
+  run_id: z.string().min(1),
+  project_keys: z.array(z.string().min(1)).min(1),
+  started_at: isoSchema,
+  updated_at: isoSchema,
+  phase_order: z.tuple([
+    z.literal("planning"),
+    z.literal("issues"),
+    z.literal("related"),
+    z.literal("reconciliation"),
+  ]),
+  plan_fingerprint: sha256Schema,
+  phases: z.strictObject({
+    planning: phaseStateSchema,
+    issues: phaseStateSchema,
+    related: phaseStateSchema,
+    reconciliation: phaseStateSchema,
+  }),
+});
 export type JiraMigrationRun = z.infer<typeof JiraMigrationRunSchema>;
 
-export const JiraCommentQuarantineSchema = z
-  .object({
-    source_key: z.string().min(1),
-    jira_cloud_id: z.string().min(1),
-    issue_id: z.string().min(1),
-    comment_id: z.string().min(1),
-  })
-  .strict();
+export const JiraCommentQuarantineSchema = z.strictObject({
+  source_key: z.string().min(1),
+  jira_cloud_id: z.string().min(1),
+  issue_id: z.string().min(1),
+  comment_id: z.string().min(1),
+});
 
 export const JiraMigrationLedgerV1Schema = z
-  .object({
+  .strictObject({
     schema_version: z.literal(1),
-    source_scope: z.object({ jira_cloud_id: z.string().min(1) }).strict(),
-    target_scope: z.object({ vault: z.string().min(1) }).strict(),
+    source_scope: z.strictObject({ jira_cloud_id: z.string().min(1) }),
+    target_scope: z.strictObject({ vault: z.string().min(1) }),
     bindings: z.array(JiraMigrationBindingSchema),
     comment_quarantines: z.array(JiraCommentQuarantineSchema).default([]),
     runs: z.array(JiraMigrationRunSchema),
   })
-  .strict()
   .superRefine((ledger, context) => {
     const bindingKeys = new Set<string>();
     for (const binding of ledger.bindings) {
@@ -241,7 +221,7 @@ export const JiraMigrationLedgerV1Schema = z
         bindingKeys.has(binding.source_key)
       ) {
         context.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           message: "binding identity is inconsistent or duplicated",
           path: ["bindings"],
         });
@@ -250,14 +230,14 @@ export const JiraMigrationLedgerV1Schema = z
         binding.target.target_kind !== expectedTargetKind[binding.entity_kind]
       ) {
         context.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           message: "binding target kind does not match entity kind",
           path: ["bindings", binding.source_key, "target"],
         });
       }
       if (akbUri && !akbUriBelongsToVault(akbUri, ledger.target_scope.vault)) {
         context.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           message: "binding target is outside the ledger vault scope",
           path: ["bindings", binding.source_key, "target"],
         });
@@ -277,7 +257,7 @@ export const JiraMigrationLedgerV1Schema = z
         quarantineKeys.has(quarantine.source_key)
       ) {
         context.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           message: "comment quarantine identity is inconsistent or duplicated",
           path: ["comment_quarantines"],
         });
@@ -288,7 +268,7 @@ export const JiraMigrationLedgerV1Schema = z
       new Set(ledger.runs.map((run) => run.run_id)).size !== ledger.runs.length
     ) {
       context.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: "run_id must be unique",
         path: ["runs"],
       });
@@ -299,7 +279,7 @@ export const JiraMigrationLedgerV1Schema = z
         JSON.stringify([...new Set(run.project_keys)].sort())
       ) {
         context.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           message: "project_keys must be unique and sorted",
           path: ["runs", run.run_id, "project_keys"],
         });
@@ -312,7 +292,7 @@ export const JiraMigrationLedgerV1Schema = z
           JSON.stringify(keys) !== JSON.stringify([...new Set(keys)].sort())
         ) {
           context.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: "custom",
             message: "phase entity keys must be unique and sorted",
             path: ["runs", run.run_id, "phases", phase, "entities"],
           });

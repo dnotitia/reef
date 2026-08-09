@@ -238,7 +238,7 @@ describe.skipIf(!BASE_URL)("akb live contract smoke (REEF-056)", () => {
   });
 
   it("search — live envelope parses and passthrough keeps akb-only fields", async () => {
-    // Raw envelope: akb keys the array `results`; the mirror is `.passthrough()`
+    // Raw envelope: akb keys the array `results`; the mirror is `z.looseObject`
     // so richer akb fields (total_matches, returned, truncated) survive verbatim.
     const raw = (await adapter.request("/api/v1/search", {
       query: { vault, q: "smoke", limit: 5 },

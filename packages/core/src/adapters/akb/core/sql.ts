@@ -22,7 +22,7 @@ import type { AkbAdapter } from "./http";
 export const AkbSqlQueryResponseSchema = z.object({
   kind: z.literal("table_query"),
   columns: z.array(z.string()),
-  items: z.array(z.record(z.unknown())),
+  items: z.array(z.record(z.string(), z.unknown())),
   total: z.number(),
   vaults: z.array(z.string()).optional(),
 });

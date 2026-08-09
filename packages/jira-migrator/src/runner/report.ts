@@ -18,89 +18,69 @@ import { finalizeJiraCleanup } from "./cleanup.js";
 const iso = z.string().datetime({ offset: true });
 const sha256 = z.string().regex(/^[a-f0-9]{64}$/u);
 
-const TerminalClassificationSchema = z
-  .object({
-    phase: z.enum([
-      "planning",
-      "issues",
-      "related",
-      "changelog",
-      "reconciliation",
-    ]),
-    source_key: z.string().min(1),
-    action: JiraMigrationActionSchema,
-    retryable: z.boolean().optional(),
-  })
-  .strict();
+const TerminalClassificationSchema = z.strictObject({
+  phase: z.enum([
+    "planning",
+    "issues",
+    "related",
+    "changelog",
+    "reconciliation",
+  ]),
+  source_key: z.string().min(1),
+  action: JiraMigrationActionSchema,
+  retryable: z.boolean().optional(),
+});
 
-export const JiraRunnerReportSchema = z
-  .object({
-    schema_version: z.literal(1),
-    run: z
-      .object({
-        run_id: z.string().min(1),
-        mode: z.enum(["dry-run", "apply"]),
-        source: z
-          .object({
-            jira_cloud_id: z.string().min(1),
-            project_keys: z.array(z.string().min(1)).min(1),
-            board_ids: z.array(z.string().min(1)),
-          })
-          .strict(),
-        target: z
-          .object({
-            vault: z.string().min(1),
-            actor: z.string().min(1),
-          })
-          .strict(),
-        started_at: iso,
-        ended_at: iso,
-        status: z.enum(["completed", "partial_failed", "blocked"]),
-      })
-      .strict(),
-    plan_sha256: sha256,
-    approval: z
-      .object({
-        dry_run_plan_sha256: sha256,
-        dry_run_completed_at: iso,
-      })
-      .strict(),
-    sections: z
-      .object({
-        planning: z.array(z.unknown()),
-        issues: z.array(z.unknown()),
-        related: z.array(z.unknown()),
-        changelog: z.array(z.unknown()),
-        reconciliation: z.array(z.unknown()),
-        raw_archive: z.array(z.unknown()),
-      })
-      .strict(),
-    terminal_classifications: z.array(TerminalClassificationSchema),
-    totals: z
-      .object({
-        created: z.number().int().nonnegative(),
-        updated: z.number().int().nonnegative(),
-        skipped: z.number().int().nonnegative(),
-        conflict: z.number().int().nonnegative(),
-        failed: z.number().int().nonnegative(),
-        retryable: z.number().int().nonnegative(),
-      })
-      .strict(),
-    conservation: z
-      .object({
-        input_count: z.number().int().nonnegative(),
-        terminal_count: z.number().int().nonnegative(),
-        balanced: z.literal(true),
-      })
-      .strict(),
-    redaction: z
-      .object({
-        raw_payloads_omitted: z.literal(true),
-        secrets_checked: z.literal(true),
-      })
-      .strict(),
-  })
-  .strict();
+export const JiraRunnerReportSchema = z.strictObject({
+  schema_version: z.literal(1),
+  run: z.strictObject({
+    run_id: z.string().min(1),
+    mode: z.enum(["dry-run", "apply"]),
+    source: z.strictObject({
+      jira_cloud_id: z.string().min(1),
+      project_keys: z.array(z.string().min(1)).min(1),
+      board_ids: z.array(z.string().min(1)),
+    }),
+    target: z.strictObject({
+      vault: z.string().min(1),
+      actor: z.string().min(1),
+    }),
+    started_at: iso,
+    ended_at: iso,
+    status: z.enum(["completed", "partial_failed", "blocked"]),
+  }),
+  plan_sha256: sha256,
+  approval: z.strictObject({
+    dry_run_plan_sha256: sha256,
+    dry_run_completed_at: iso,
+  }),
+  sections: z.strictObject({
+    planning: z.array(z.unknown()),
+    issues: z.array(z.unknown()),
+    related: z.array(z.unknown()),
+    changelog: z.array(z.unknown()),
+    reconciliation: z.array(z.unknown()),
+    raw_archive: z.array(z.unknown()),
+  }),
+  terminal_classifications: z.array(TerminalClassificationSchema),
+  totals: z.strictObject({
+    created: z.number().int().nonnegative(),
+    updated: z.number().int().nonnegative(),
+    skipped: z.number().int().nonnegative(),
+    conflict: z.number().int().nonnegative(),
+    failed: z.number().int().nonnegative(),
+    retryable: z.number().int().nonnegative(),
+  }),
+  conservation: z.strictObject({
+    input_count: z.number().int().nonnegative(),
+    terminal_count: z.number().int().nonnegative(),
+    balanced: z.literal(true),
+  }),
+  redaction: z.strictObject({
+    raw_payloads_omitted: z.literal(true),
+    secrets_checked: z.literal(true),
+  }),
+});
 
 export type JiraRunnerReport = z.infer<typeof JiraRunnerReportSchema>;
 

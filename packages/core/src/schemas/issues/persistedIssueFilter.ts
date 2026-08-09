@@ -53,7 +53,7 @@ import { USER_SORT_FIELDS } from "./requests";
  * `.catch(undefined)` still drops the whole facet when a value is not a valid
  * member (field-level AC5); valid sibling facets survive.
  */
-function multiEnumFacet<T extends z.ZodTypeAny>(member: T) {
+function multiEnumFacet<T extends z.ZodType>(member: T) {
   return z
     .preprocess(
       (v) => (v == null || Array.isArray(v) ? v : [v]),

@@ -81,7 +81,7 @@ const uniqueCapabilities = (
   values.forEach((capability, index) => {
     if (seen.has(capability)) {
       context.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: [index],
         message: `duplicate capability: ${capability}`,
       });
@@ -90,67 +90,53 @@ const uniqueCapabilities = (
   });
 };
 
-const requiredCapabilitiesSchema = z
-  .object({
-    work: z
-      .array(z.enum(WORK_CAPABILITIES))
-      .superRefine((values, context) => uniqueCapabilities(values, context)),
-    harness: z
-      .array(z.enum(HARNESS_CAPABILITIES))
-      .superRefine((values, context) => uniqueCapabilities(values, context)),
-    infrastructure: z
-      .array(z.enum(INFRASTRUCTURE_CAPABILITIES))
-      .superRefine((values, context) => uniqueCapabilities(values, context)),
-    scm: z
-      .array(z.enum(SCM_CAPABILITIES))
-      .superRefine((values, context) => uniqueCapabilities(values, context)),
-    validation: z
-      .array(z.enum(VALIDATION_CAPABILITIES))
-      .superRefine((values, context) => uniqueCapabilities(values, context)),
-  })
-  .strict();
+const requiredCapabilitiesSchema = z.strictObject({
+  work: z
+    .array(z.enum(WORK_CAPABILITIES))
+    .superRefine((values, context) => uniqueCapabilities(values, context)),
+  harness: z
+    .array(z.enum(HARNESS_CAPABILITIES))
+    .superRefine((values, context) => uniqueCapabilities(values, context)),
+  infrastructure: z
+    .array(z.enum(INFRASTRUCTURE_CAPABILITIES))
+    .superRefine((values, context) => uniqueCapabilities(values, context)),
+  scm: z
+    .array(z.enum(SCM_CAPABILITIES))
+    .superRefine((values, context) => uniqueCapabilities(values, context)),
+  validation: z
+    .array(z.enum(VALIDATION_CAPABILITIES))
+    .superRefine((values, context) => uniqueCapabilities(values, context)),
+});
 
-const workSnapshotSchema = z
-  .object({
-    uri: uriSchema,
-    snapshot: z
-      .object({
-        revision: revisionSchema,
-        provenance: z
-          .object({
-            source: provenanceSourceSchema,
-            revision: revisionSchema,
-          })
-          .strict(),
-      })
-      .strict(),
-  })
-  .strict();
+const workSnapshotSchema = z.strictObject({
+  uri: uriSchema,
+  snapshot: z.strictObject({
+    revision: revisionSchema,
+    provenance: z.strictObject({
+      source: provenanceSourceSchema,
+      revision: revisionSchema,
+    }),
+  }),
+});
 
-const runPlanBaseSchema = z
-  .object({
-    schemaVersion: z.literal(1),
-    work: workSnapshotSchema,
-    providers: z
-      .object({
-        work: ProviderIdentitySchema,
-        harness: ProviderIdentitySchema,
-        infrastructure: ProviderIdentitySchema,
-        scm: ProviderIdentitySchema,
-        validation: ProviderIdentitySchema,
-      })
-      .strict(),
-    validationChecks: ValidationChecksSchema,
-    requiredCapabilities: requiredCapabilitiesSchema,
-    createdAt: timestampSchema,
-    inputProvenance: z
-      .object({
-        source: provenanceSourceSchema,
-        revision: revisionSchema,
-      })
-      .strict(),
-  })
-  .strict();
+const runPlanBaseSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  work: workSnapshotSchema,
+  providers: z.strictObject({
+    work: ProviderIdentitySchema,
+    harness: ProviderIdentitySchema,
+    infrastructure: ProviderIdentitySchema,
+    scm: ProviderIdentitySchema,
+    validation: ProviderIdentitySchema,
+  }),
+  validationChecks: ValidationChecksSchema,
+  requiredCapabilities: requiredCapabilitiesSchema,
+  createdAt: timestampSchema,
+  inputProvenance: z.strictObject({
+    source: provenanceSourceSchema,
+    revision: revisionSchema,
+  }),
+});
 
 const providerKinds = PROVIDER_KINDS satisfies readonly ProviderKind[];
 
@@ -162,7 +148,7 @@ const compatibleCapabilities = (
     const provider = plan.providers[kind];
     if (provider.kind !== kind) {
       context.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["providers", kind, "kind"],
         message: `provider snapshot kind must be ${kind}`,
       });
@@ -174,7 +160,7 @@ const compatibleCapabilities = (
     ].entries()) {
       if (!declared.has(capability)) {
         context.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["requiredCapabilities", kind, index],
           message: `provider ${provider.id} does not declare required capability ${capability}`,
           params: {
@@ -227,7 +213,10 @@ export class RunPlanValidationError extends Error {
 const validationIssues = (error: z.ZodError): RunPlanValidationIssue[] =>
   error.issues.map((issue) => ({
     code: issue.code,
-    path: issue.path,
+    path: issue.path.filter(
+      (segment): segment is string | number =>
+        typeof segment === "string" || typeof segment === "number",
+    ),
     message: issue.message,
   }));
 

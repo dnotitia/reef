@@ -33,9 +33,9 @@ import {
  *
  * Two axes per envelope:
  *   (1) HARD CONTRACT — parse the capture; a missing/renamed REQUIRED key throws
- *       (REEF-049 class). reef's mirrors are NOT `.strict()`.
+ *       (REEF-049 class). reef's mirrors are NOT `z.strictObject`.
  *   (2) SILENT LOSS — because the mirrors are Zod's default STRIP mode (not
- *       `.strict()`), akb keys reef does not name are dropped on parse without
+ *       `z.strictObject`), akb keys reef does not name are dropped on parse without
  *       error. We pin that dropped-key set so akb ADDING a field breaks this
  *       test and forces a conscious mirror update.
  */
@@ -266,7 +266,7 @@ describe("AkbSearchResponseSchema / AkbSearchHitSchema contract", () => {
       SEARCH_ENVELOPE_CAPTURE,
     ) as Record<string, unknown>;
     expect(parsed.results ?? parsed.items).toEqual([]);
-    // `.passthrough()` keeps akb's richer envelope (returned/total_matches/...).
+    // `z.looseObject` keeps akb's richer envelope (returned/total_matches/...).
     expect(parsed).toHaveProperty("total_matches", 0);
     expect(parsed).toHaveProperty("truncated", false);
   });
