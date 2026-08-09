@@ -45,8 +45,11 @@ const assertPhaseStream = (
   result,
   expected = ["preflight", "running", "cleanup", "terminal"],
 ) => {
+  const phaseEvents = result.events.filter(
+    (event) => event.event === "execution.phase",
+  );
   assert.deepEqual(
-    result.events.map((event) => event.phase),
+    phaseEvents.map((event) => event.phase),
     expected,
   );
   for (const line of result.stderr.trim().split("\n")) {
@@ -89,6 +92,12 @@ test("hands off a successful exact head through branch, proof, draft PR, and Ree
     );
     assert.equal(fixture.pullRequests.length, 1);
     assert.equal(fixture.pullRequests[0].draft, true);
+    assert.deepEqual(
+      result.events
+        .filter((event) => event.event === "execution.validation")
+        .map(({ stage }) => stage),
+      ["validation_attempt", "validation_passed"],
+    );
     assert.ok(
       fixture.requests.some(({ path }) =>
         path.endsWith(
@@ -121,6 +130,38 @@ test("repairs the first failed local validation with a new exact candidate head"
     assert.notEqual(commit.ref, fixture.baseRevision);
     assert.equal(fixture.targetRow().status, "in_review");
     assert.equal(fixture.pullRequests.length, 1);
+    const validationEvents = result.events.filter(
+      (event) => event.event === "execution.validation",
+    );
+    assert.deepEqual(
+      validationEvents.map(({ stage }) => stage),
+      [
+        "validation_attempt",
+        "validation_failed",
+        "validation_repair",
+        "validation_attempt",
+        "validation_passed",
+      ],
+    );
+    const [firstAttempt, firstFailure, repair, secondAttempt, passed] =
+      validationEvents;
+    assert.equal(firstAttempt.attempt, 1);
+    assert.equal(
+      firstFailure.candidate_revision,
+      firstAttempt.candidate_revision,
+    );
+    assert.equal(firstFailure.check.status, "failed");
+    assert.equal(repair.attempt, 2);
+    assert.equal(
+      repair.previous_candidate_revision,
+      firstAttempt.candidate_revision,
+    );
+    assert.equal(repair.candidate_revision, secondAttempt.candidate_revision);
+    assert.notEqual(
+      repair.candidate_revision,
+      repair.previous_candidate_revision,
+    );
+    assert.equal(passed.candidate_revision, commit.ref);
     await assertNoSensitiveOutput(fixture, result);
   } finally {
     await disposeFixture(fixture);

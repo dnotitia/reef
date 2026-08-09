@@ -758,7 +758,11 @@ export const createFixture = async ({ scenario = "success" } = {}) => {
 const parseProgressLine = (line) => {
   try {
     const value = JSON.parse(line);
-    return value && value.event === "execution.phase" ? value : null;
+    return value &&
+      (value.event === "execution.phase" ||
+        value.event === "execution.validation")
+      ? value
+      : null;
   } catch {
     return null;
   }

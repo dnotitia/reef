@@ -119,7 +119,7 @@ export type TerminalPlanSummary = z.output<typeof TerminalPlanSummarySchema>;
 export type TerminalResult = z.output<typeof TerminalResultSchema>;
 export type TerminalFailure = NonNullable<TerminalResult["failure"]>;
 
-export const ProgressEventSchema = z.strictObject({
+const phaseProgressEventSchema = z.strictObject({
   schema_version: z.literal(1),
   event: z.literal("execution.phase"),
   phase: z.enum(["preflight", "running", "cleanup", "terminal"]),
@@ -134,6 +134,37 @@ export const ProgressEventSchema = z.strictObject({
     .optional(),
 });
 
+export const DeliveryProgressEventSchema = z.strictObject({
+  schema_version: z.literal(1),
+  event: z.literal("execution.validation"),
+  at: z.string().min(1),
+  work_uri: z.string().min(1),
+  stage: z.enum([
+    "validation_attempt",
+    "validation_failed",
+    "validation_repair",
+    "validation_passed",
+  ]),
+  attempt: z.number().int().positive(),
+  candidate_revision: z.string().min(1),
+  previous_candidate_revision: z.string().min(1).optional(),
+  check: z
+    .strictObject({
+      name: z.string().min(1),
+      status: z.enum(["failed", "passed", "timed_out", "cancelled", "skipped"]),
+      summary: z.string().min(1),
+    })
+    .optional(),
+});
+
+export const ProgressEventSchema = z.union([
+  phaseProgressEventSchema,
+  DeliveryProgressEventSchema,
+]);
+
+export type DeliveryProgressEvent = z.output<
+  typeof DeliveryProgressEventSchema
+>;
 export type ProgressEvent = z.output<typeof ProgressEventSchema>;
 
 export function planSummary(plan: RunPlan): TerminalPlanSummary {

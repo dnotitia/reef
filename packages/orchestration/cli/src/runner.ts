@@ -42,6 +42,7 @@ import {
   resolveProviders,
 } from "./providers.js";
 import {
+  type ProgressEvent,
   type TerminalFailure,
   type TerminalResult,
   exitCodeForOutcome,
@@ -60,7 +61,7 @@ export interface CliRunnerDependencies {
   readonly environment?: CliEnvironment;
   readonly signal?: AbortSignal;
   readonly now?: () => Date;
-  readonly onEvent?: (event: ReturnType<typeof progressFromExecution>) => void;
+  readonly onEvent?: (event: ProgressEvent) => void;
   readonly createStore?: (
     config: CliConfig,
     redactionValues: readonly string[],
@@ -539,6 +540,7 @@ const runParsedInvocation = async (
             bridge.enqueue({ type: "workspace", reference }),
           addArtifact: (artifact) =>
             bridge.enqueue({ type: "artifact", artifact }),
+          emitProgress: (event) => progressSink(event),
         });
         deliveryArtifacts = delivery.artifacts;
       },

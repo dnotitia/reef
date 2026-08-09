@@ -10,6 +10,7 @@ import {
 } from "@reef/orchestrator";
 import { providerConfigFor, type CliConfig } from "./config.js";
 import type { ResolvedProviders } from "./providers.js";
+import type { DeliveryProgressEvent } from "./result.js";
 
 export interface BlockedQuestionChoice {
   readonly label: string;
@@ -57,6 +58,7 @@ export function blockedQuestionSummary(
 export interface DeliveryControllerHooks {
   readonly setWorkspace: (reference: ProviderReference) => Promise<void>;
   readonly addArtifact: (artifact: ProviderArtifact) => Promise<void>;
+  readonly emitProgress?: (event: DeliveryProgressEvent) => void;
 }
 
 export interface DeliveryResult {
@@ -98,6 +100,30 @@ const firstValidationFailure = (proof: ValidationProof) => {
     status: failed?.status ?? "failed",
     summary: failed?.summary ?? "validation did not pass",
   };
+};
+
+const emitValidationProgress = (
+  hooks: DeliveryControllerHooks,
+  context: ExecutionContext,
+  stage: DeliveryProgressEvent["stage"],
+  attempt: number,
+  candidateRevision: string,
+  previousCandidateRevision?: string,
+  check?: DeliveryProgressEvent["check"],
+): void => {
+  hooks.emitProgress?.({
+    schema_version: 1,
+    event: "execution.validation",
+    at: context.now().toISOString(),
+    work_uri: context.plan.work.uri,
+    stage,
+    attempt,
+    candidate_revision: candidateRevision,
+    ...(previousCandidateRevision
+      ? { previous_candidate_revision: previousCandidateRevision }
+      : {}),
+    ...(check ? { check } : {}),
+  });
 };
 
 const choicesFromEvent = (
@@ -297,6 +323,24 @@ export async function runDelivery(
       throw taskFailure("validation_head_mismatch");
     }
 
+    if (failedCandidate !== null) {
+      emitValidationProgress(
+        hooks,
+        context,
+        "validation_repair",
+        validationAttempts,
+        committed.revision,
+        failedCandidate,
+      );
+    }
+    emitValidationProgress(
+      hooks,
+      context,
+      "validation_attempt",
+      validationAttempts,
+      committed.revision,
+    );
+
     const proof = await invokeProviderOperation(
       bound.validation,
       "validate",
@@ -310,6 +354,19 @@ export async function runDelivery(
     if (proof.status !== "passed") {
       failedCandidate = committed.revision;
       const failure = firstValidationFailure(proof);
+      emitValidationProgress(
+        hooks,
+        context,
+        "validation_failed",
+        validationAttempts,
+        committed.revision,
+        undefined,
+        {
+          name: compact(failure.name, 128),
+          status: failure.status,
+          summary: compact(failure.summary, 512),
+        },
+      );
       await context.invoke("harness", "sendInput", {
         session,
         input: {
@@ -322,6 +379,13 @@ export async function runDelivery(
 
     validatedRevision = committed.revision;
     validationProof = proof;
+    emitValidationProgress(
+      hooks,
+      context,
+      "validation_passed",
+      validationAttempts,
+      committed.revision,
+    );
     await context.invoke("harness", "sendInput", {
       session,
       input: {

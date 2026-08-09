@@ -235,7 +235,9 @@ describe("foreground work URI runner", () => {
       {
         environment: fixture.environment,
         executeDelivery: fixture.executeDelivery,
-        onEvent: (event) => progress.push({ phase: event.phase }),
+        onEvent: (event) => {
+          if ("phase" in event) progress.push({ phase: event.phase });
+        },
       },
     );
 
@@ -277,7 +279,9 @@ describe("foreground work URI runner", () => {
         {
           environment: fixture.environment,
           executeDelivery: fixture.executeDelivery,
-          onEvent: (event) => progress.push(event.phase),
+          onEvent: (event) => {
+            if ("phase" in event) progress.push(event.phase);
+          },
         },
       );
 
@@ -332,7 +336,7 @@ describe("foreground work URI runner", () => {
         executeDelivery: fixture.executeDelivery,
         signal: controller.signal,
         onEvent: (event) => {
-          if (event.phase === "running") running?.();
+          if ("phase" in event && event.phase === "running") running?.();
         },
       },
     );
@@ -360,7 +364,7 @@ describe("foreground work URI runner", () => {
         executeDelivery: fixture.executeDelivery,
         signal: controller.signal,
         onEvent: (event) => {
-          if (event.phase === "running") running?.();
+          if ("phase" in event && event.phase === "running") running?.();
         },
       },
     );
