@@ -1,17 +1,18 @@
 # @reef/orchestration-cli
 
-하나의 work URI를 foreground에서 실행하는 private adapter입니다. 실제 실행
-산출물은 `dist/cli.js`이며 invocation은 다음 하나만 지원합니다.
+Private foreground adapter for one work-URI invocation. The executable artifact
+is `dist/cli.js` and accepts one invocation:
 
 ```text
 run <canonical-work-uri> --config <absolute-json-path>
 ```
 
-CLI는 Reef work snapshot을 읽고 immutable provider-bound `RunPlan`을 만든 뒤
-controller claim과 `@reef/orchestrator`의 one-run 경계를 실행합니다. queued work
-선택, daemon, workspace 생성, delivery ordering, branch/PR 전달은 이 패키지의
-책임이 아닙니다. Credentials는 argv나 JSON에 직접 넣지 않고 config가 지정한
-환경 변수 이름으로만 읽습니다.
+The CLI reads one Reef work snapshot, builds an immutable provider-bound
+`RunPlan`, claims the controller, and delegates the one-run boundary to
+`@reef/orchestrator`. It does not select queued work, start a daemon, create a
+workspace, order delivery, or deliver a branch or pull request. Credentials are
+never accepted in argv or JSON; the config names the environment variables to
+read.
 
 ## Canonical E2E commands
 
@@ -20,17 +21,17 @@ pnpm --filter @reef/orchestration-cli run test:e2e
 pnpm --filter @reef/orchestration-cli run dev:e2e
 ```
 
-`test:e2e`는 먼저 package를 build한 뒤 실제 `node dist/cli.js` child process를
-격리 fixture마다 실행합니다. Fixture는 매 실행마다 고유 temporary root, controller
-state, Git working repository, bare remote와 OS port를 만들고, local HTTP server가
-Reef work와 GitHub 경계를 제공합니다. 정상·설정/provider resolution 실패·duplicate
-claim·SIGINT cancellation·redaction·병렬 격리를 검증한 뒤 fixture server와 root를
-제거합니다. 정상 fixture는 built resolver가 만든 실제 SCM adapter를 GitHub API
-fixture에 연결해 adapter 경계도 확인하며, CLI 자체에 delivery 흐름을 추가하지
-않습니다.
+`test:e2e` builds the package and runs the real `node dist/cli.js` child
+process against an isolated fixture. Each run gets a unique temporary root,
+controller state, Git working repository, bare remote, and OS-assigned port.
+Local HTTP servers provide the Reef work and GitHub boundaries. The suite covers
+success, config and provider-resolution failures, duplicate claims, SIGINT
+cancellation, redaction, cleanup, and parallel isolation. The success fixture
+also connects the real SCM adapter produced by the built resolver to the GitHub
+API fixture without adding delivery behavior to the CLI.
 
-`dev:e2e`는 같은 fixture를 장기 실행하고 종료 신호까지 유지합니다. 준비가 끝나면
-stdout에 다음 source-neutral descriptor를 한 줄씩 출력합니다.
+`dev:e2e` keeps the same fixture running until it receives a termination
+signal. Once ready, it prints these source-neutral descriptor lines to stdout:
 
 ```text
 REEF_E2E_READY=1
@@ -44,14 +45,14 @@ REEF_E2E_CANCEL_COMMAND=<same direct command; send SIGINT to its child>
 REEF_E2E_STOP=send SIGINT or SIGTERM to this runtime PID <pid>
 ```
 
-`REEF_E2E_CLI_COMMAND`의 synthetic environment 값은 fixture 전용 canary이며 실제
-credential이 아닙니다. Source-blind 검증자는 위 descriptor와 terminal만 사용해
-command를 실행하고, duplicate는 같은 command 두 개를 동시에 시작하며, cancellation은
-running child에 SIGINT를 보냅니다. Runtime 자체는 SIGINT/SIGTERM을 받으면 listener와
-temporary root를 정리하고 종료합니다.
+`REEF_E2E_CLI_COMMAND` contains fixture-only synthetic canaries, not real
+credentials. A source-blind validator uses only the descriptor and terminal:
+it starts the same command twice concurrently for the duplicate scenario and
+sends SIGINT to the running child for cancellation. On SIGINT or SIGTERM, the
+runtime removes its listeners and temporary root before exiting.
 
-CLI process의 정상 observable은 stdout의 terminal JSON 정확히 한 줄, stderr의
-progress JSONL, 그리고 outcome별 exit code입니다. `0`은 succeeded, `1`은 failed,
-`2`는 config/provider preflight 단계 실패, `3`은 duplicate claim, `130`은 cancellation을
-뜻합니다. Secret canary와 private fixture path는 CLI stdout/stderr, terminal result,
-controller state에 기록되지 않습니다.
+The CLI process exposes exactly one terminal JSON line on stdout, progress JSONL
+on stderr, and an outcome-specific exit code: `0` for succeeded, `1` for
+failed, `2` for config or provider preflight failure, `3` for a duplicate
+claim, and `130` for cancellation. Secret canaries and private fixture paths
+must not appear in CLI stdout or stderr, terminal results, or controller state.
