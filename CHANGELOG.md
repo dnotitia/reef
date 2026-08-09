@@ -127,9 +127,6 @@ explicitly in the entries below.
 
 ### Fixed
 
-- **Board keyboard navigation now keeps DOM focus aligned with the selected
-  card while the board layout settles.** Arrow-key movement no longer leaves
-  the visual focus state and the browser focus owner out of sync under load.
 - **Issue-detail Selects now let a child layer consume Escape before the
   surrounding Sheet handles the next Escape.** Selection values, trigger focus,
   and the existing Sheet Back/Close behavior remain unchanged. (REEF-490)
