@@ -19,9 +19,19 @@ import {
 } from "@reef/core";
 import { z } from "zod";
 
-const SubscriptionActionSchema = z.strictObject({
-  action: z.enum(["watch", "mute"]),
-});
+const legacyStrictObjectError: z.core.$ZodErrorMap = (issue) => {
+  if (issue.code !== "unrecognized_keys") return undefined;
+  return `Unrecognized key(s) in object: ${issue.keys
+    .map((key) => `'${key}'`)
+    .join(", ")}`;
+};
+
+const SubscriptionActionSchema = z.strictObject(
+  {
+    action: z.enum(["watch", "mute"]),
+  },
+  { error: legacyStrictObjectError },
+);
 
 type RouteParams = { params: Promise<{ id: string }> };
 

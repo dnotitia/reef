@@ -134,6 +134,12 @@ describe("/api/issues/[id]/subscription", () => {
     );
 
     expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: "Invalid request body.",
+      details: {
+        formErrors: ["Unrecognized key(s) in object: 'subscriber'"],
+      },
+    });
     expect(mockGetAkbCurrentActor).not.toHaveBeenCalled();
     expect(mockWatchIssue).not.toHaveBeenCalled();
     expect(mockMuteIssue).not.toHaveBeenCalled();
