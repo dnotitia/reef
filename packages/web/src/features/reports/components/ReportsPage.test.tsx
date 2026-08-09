@@ -355,6 +355,32 @@ describe("ReportsPage", () => {
     expect(useViewStore.getState().newIssueDialogOpen).toBe(true);
   });
 
+  it("opens the header New issue CTA from Enter and Space", async () => {
+    mockApi([]);
+    const user = userEvent.setup();
+
+    render(wrap(<ReportsPage />));
+
+    const header = (
+      await screen.findByRole("heading", {
+        name: "Reports",
+        level: 1,
+      })
+    ).closest('[data-slot="page-header"]');
+    const trigger = await within(header as HTMLElement).findByRole("button", {
+      name: "New issue",
+    });
+
+    trigger.focus();
+    await user.keyboard("{Enter}");
+    expect(useViewStore.getState().newIssueDialogOpen).toBe(true);
+
+    useViewStore.getState().closeNewIssueDialog();
+    trigger.focus();
+    await user.keyboard(" ");
+    expect(useViewStore.getState().newIssueDialogOpen).toBe(true);
+  });
+
   it("shows an empty report state when filters match no issues", async () => {
     mockApi(issues);
 

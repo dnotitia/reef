@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { activateButtonOnKeyDown } from "@/lib/keyboard";
 import { cn } from "@/lib/utils";
 import { Check, Pencil, RefreshCcw, Save, Square, X } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -84,6 +85,9 @@ export function ReviewActions({
             size="sm"
             variant={variantByAction[action.id]}
             disabled={action.disabled || action.busy}
+            onKeyDown={
+              action.id === "dismiss" ? activateButtonOnKeyDown : undefined
+            }
             onClick={action.onClick}
             aria-label={label}
             data-testid={action.testId}

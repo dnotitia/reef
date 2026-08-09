@@ -721,6 +721,14 @@ test.describe("Hermetic runtime discovery", () => {
     await expect(dialog).toBeHidden();
     await expect(trigger).toBeFocused();
     await expect(reportsEmpty).toBeVisible();
+
+    await trigger.focus();
+    await page.keyboard.press("Space");
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+    await expect(reportsEmpty).toBeVisible();
   });
 
   test("creates and persists an issue from an empty Reports header", async ({

@@ -5,7 +5,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjectConfig } from "@/features/settings/hooks/useProjectConfig";
 import { useStatusLabels } from "@/i18n/fieldLabels";
-import { activateButtonOnKeyDown } from "@/lib/keyboard";
+import { activateButtonOnKeyDown, activateLinkOnKeyDown } from "@/lib/keyboard";
 import { withVault } from "@/lib/workspaceHref";
 import type {
   ActivityDraftSuggestion,
@@ -408,7 +408,8 @@ function ActivityFeedContent({
             settingsLink: () => (
               <Link
                 href={withVault(vault, "/settings")}
-                className="text-brand underline"
+                className="rounded-sm text-foreground underline focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-1"
+                onKeyDown={activateLinkOnKeyDown}
               >
                 {nav("settings")}
               </Link>
@@ -424,7 +425,8 @@ function ActivityFeedContent({
             settingsLink: () => (
               <Link
                 href={withVault(vault, "/settings")}
-                className="text-brand underline"
+                className="rounded-sm text-foreground underline focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-1"
+                onKeyDown={activateLinkOnKeyDown}
               >
                 {nav("settings")}
               </Link>

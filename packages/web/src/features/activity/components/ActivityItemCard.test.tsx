@@ -203,6 +203,26 @@ describe("ActivityItemCard", () => {
       expect(onDismiss).toHaveBeenCalledWith("reef-draft-0000000000000001");
     });
 
+    it("activates Dismiss once for Enter and Space", async () => {
+      const onDismiss = vi.fn();
+      const user = userEvent.setup();
+
+      render(
+        wrap(
+          <ActivityItemCard item={aiDraftItem} onDismissDraft={onDismiss} />,
+        ),
+      );
+
+      const dismiss = screen.getByRole("button", { name: /Dismiss/i });
+      dismiss.focus();
+      await user.keyboard("{Enter}");
+      expect(onDismiss).toHaveBeenCalledTimes(1);
+
+      dismiss.focus();
+      await user.keyboard(" ");
+      expect(onDismiss).toHaveBeenCalledTimes(2);
+    });
+
     it("shows approving state when isApproving is true", () => {
       render(wrap(<ActivityItemCard item={aiDraftItem} isApproving />));
 

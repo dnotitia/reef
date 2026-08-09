@@ -80,14 +80,52 @@ test.describe("Hermetic activity suggestion workflows", () => {
     await expect(emptyState.getByRole("button")).toHaveCount(0);
     await expect(page.getByTestId("activity-scan-target-empty")).toBeVisible();
     await expect(page.getByTestId("activity-refresh")).toBeDisabled();
-    await expect(
-      page.getByTestId("activity-scan-target-empty").getByRole("link", {
-        name: "Settings",
-      }),
-    ).toHaveCount(1);
+    const settingsLink = page
+      .getByTestId("activity-scan-target-empty")
+      .getByRole("link", { name: "Settings" });
+    await expect(settingsLink).toHaveCount(1);
+    await settingsLink.focus();
+    await expect(settingsLink).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(`/workspace/${REEF_E2E_VAULT}/settings`);
     expect(
       reefVault(await readFixtureState(request)).monitored_repos,
     ).toHaveLength(0);
+  });
+
+  test("dismisses a draft from a focused control with Enter and Space", async ({
+    page,
+    request,
+  }) => {
+    await clearPersistedQueryCacheOnLoad(page);
+    await openExistingWorkspace(page);
+    await page.goto(`/workspace/${REEF_E2E_VAULT}/suggestions`);
+
+    for (const [title, key] of [
+      ["Dismiss stale draft", "Enter"],
+      ["Draft API rate limit issue", "Space"],
+    ] as const) {
+      const card = page
+        .locator('[data-testid="activity-item-ai_draft"]')
+        .filter({ hasText: title });
+      await expect(card).toBeVisible();
+      const dismiss = card.getByRole("button", { name: "Dismiss" });
+      await dismiss.focus();
+      await expect(dismiss).toBeFocused();
+      await page.keyboard.press(key);
+      await expect(card).toBeHidden();
+    }
+
+    await expect
+      .poll(async () => {
+        const suggestions = reefVault(
+          await readFixtureState(request),
+        ).activity_suggestions;
+        return suggestions
+          .filter((suggestion) => suggestion.kind === "draft")
+          .every((suggestion) => suggestion.status === "dismissed");
+      })
+      .toBe(true);
   });
 
   test("keeps configured empty suggestions passive and leaves Check now separate", async ({

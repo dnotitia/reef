@@ -187,6 +187,7 @@ export function ReportsPage() {
           <Button
             type="button"
             size="sm"
+            onKeyDown={activateButtonOnKeyDown}
             onClick={() => openNewIssueDialog()}
             className="gap-1.5"
           >

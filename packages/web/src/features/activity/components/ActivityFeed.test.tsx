@@ -179,6 +179,11 @@ describe("ActivityFeed", () => {
     const link = screen.getByRole("link", { name: "Settings" });
     expect(link).toHaveAttribute("href", "/workspace/reef-acme/settings");
     expect(link).toHaveAttribute("data-next-link", "true");
+    expect(link).toHaveClass(
+      "text-foreground",
+      "focus-visible:outline-2",
+      "focus-visible:outline-foreground",
+    );
   });
 
   it("keeps pending proposals visible when monitored repositories are removed", () => {
