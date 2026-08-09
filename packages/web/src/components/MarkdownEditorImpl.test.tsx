@@ -6,7 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { useEditor } from "@tiptap/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import {
   EDITOR_BODY_FRAME_CLASS,
   EDITOR_BODY_SIZING,
@@ -648,7 +648,7 @@ describe("MarkdownEditor", () => {
       _opts?: {
         onUpdate?: (args: { editor: { getMarkdown: () => string } }) => void;
       };
-      getMarkdown: ReturnType<typeof vi.fn>;
+      getMarkdown: Mock<() => string>;
     };
     editor.getMarkdown.mockReturnValue("fresh markdown");
 

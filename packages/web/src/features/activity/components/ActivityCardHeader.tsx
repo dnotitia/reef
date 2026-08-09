@@ -36,11 +36,7 @@ function formatTimestamp(iso: string, locale: string): string {
   }
 }
 
-function SuggestionProvenanceBadge({
-  children,
-}: {
-  children: ReactNode;
-}) {
+function SuggestionProvenanceBadge({ children }: { children: ReactNode }) {
   return (
     <span
       className={[

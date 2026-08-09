@@ -146,13 +146,7 @@ export function useUpdatePlanningItem(vault: string) {
 export function useDeletePlanningItem(vault: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({
-      kind,
-      id,
-    }: {
-      kind: PlanningKind;
-      id: string;
-    }) => {
+    mutationFn: async ({ kind, id }: { kind: PlanningKind; id: string }) => {
       const res = await apiFetch(
         `/api/planning/${kind}/${encodeURIComponent(id)}?vault=${encodeURIComponent(vault)}`,
         { method: "DELETE" },

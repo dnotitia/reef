@@ -12,7 +12,7 @@ catalog:
   msw: 2.15.0
   tsx: 4.23.9
   typescript: ^6.0.2
-  vitest: ^3.2.6
+  vitest: ^4.1.10
   zod: ^4.4.3
 
 pmOnFail: download
