@@ -34,7 +34,10 @@ function issueById(state: FixtureState, id: string) {
   return issue;
 }
 
-async function addMonitoredRepo(page: Page) {
+async function addMonitoredRepo(
+  page: Page,
+  request: Parameters<typeof resetFixture>[0],
+) {
   await page.goto(`/workspace/${REEF_E2E_VAULT}/settings/workspace`);
   const main = page.getByRole("main");
   await main.getByTestId("monitored-repos-trigger").click();
@@ -42,6 +45,14 @@ async function addMonitoredRepo(page: Page) {
   await expect(main.getByTestId("monitored-repos-trigger")).toContainText(
     "1 repo(s) selected",
   );
+  await expect
+    .poll(async () => {
+      const state = await readFixtureState(request);
+      return reefVault(state).monitored_repos.map(
+        (repo) => `${repo.owner}/${repo.name}`,
+      );
+    })
+    .toContain("octo/reef");
 }
 
 test.describe("Hermetic activity suggestion workflows", () => {
@@ -137,7 +148,7 @@ test.describe("Hermetic activity suggestion workflows", () => {
     await resetFixture(request, "configured_empty");
     await clearPersistedQueryCacheOnLoad(page);
     await openExistingWorkspace(page);
-    await addMonitoredRepo(page);
+    await addMonitoredRepo(page, request);
     await page.goto(`/workspace/${REEF_E2E_VAULT}/suggestions`);
 
     const emptyState = page.getByTestId("activity-empty-state");
@@ -172,7 +183,7 @@ test.describe("Hermetic activity suggestion workflows", () => {
   }) => {
     await clearPersistedQueryCacheOnLoad(page);
     await openExistingWorkspace(page);
-    await addMonitoredRepo(page);
+    await addMonitoredRepo(page, request);
     await page.goto(`/workspace/${REEF_E2E_VAULT}/suggestions`);
 
     for (const title of ["Initial issue Alpha", "Initial issue Beta"]) {
