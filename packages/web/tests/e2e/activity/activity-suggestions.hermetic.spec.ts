@@ -87,7 +87,9 @@ test.describe("Hermetic activity suggestion workflows", () => {
     await settingsLink.focus();
     await expect(settingsLink).toBeFocused();
     await page.keyboard.press("Enter");
-    await expect(page).toHaveURL(`/workspace/${REEF_E2E_VAULT}/settings`);
+    await expect(page).toHaveURL(
+      `/workspace/${REEF_E2E_VAULT}/settings/workspace`,
+    );
     expect(
       reefVault(await readFixtureState(request)).monitored_repos,
     ).toHaveLength(0);
