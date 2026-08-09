@@ -28,7 +28,7 @@ import {
   createAgentEventStream,
   createChatRunEventBridge,
   createTopLevelRunEmitter,
-  drainResponseBody,
+  drainUiMessageStream,
 } from "./stream";
 
 async function agentAccountError(response: Response): Promise<Response> {
@@ -176,7 +176,7 @@ export async function POST(request: Request): Promise<Response> {
             onError: (error) =>
               error instanceof Error ? error.message : "stream error",
           });
-          await drainResponseBody(
+          await drainUiMessageStream(
             response,
             chatEvents.onUiMessageChunk,
             signal,
