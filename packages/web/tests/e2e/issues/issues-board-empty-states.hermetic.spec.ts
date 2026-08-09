@@ -74,7 +74,7 @@ test.describe("Hermetic board empty states", () => {
     ).toBeVisible();
     await expect(
       frame.getByRole("button", { name: "Clear filters", exact: true }),
-    ).toHaveCount(1);
+    ).toHaveCount(0);
     await expectEmptyColumns(page);
 
     const clear = page.getByRole("button", {
@@ -149,7 +149,7 @@ test.describe("Hermetic board empty states", () => {
       ),
     ).toBe("none");
     expect(
-      await frame
+      await page
         .getByRole("button", { name: "Clear filters", exact: true })
         .evaluate((element) => getComputedStyle(element).pointerEvents),
     ).toBe("auto");

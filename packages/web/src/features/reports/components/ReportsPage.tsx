@@ -9,6 +9,7 @@ import { EmptyWorkspaceNotice } from "@/features/ui/components/EmptyWorkspaceNot
 import { PageHeader } from "@/features/ui/components/PageHeader";
 import { useViewStore } from "@/features/ui/stores/useViewStore";
 import { useIssueTypeLabels, useSeverityLabels } from "@/i18n/fieldLabels";
+import { activateButtonOnKeyDown } from "@/lib/keyboard";
 import { ACTIVE_STATUSES, type Status } from "@reef/core";
 import { Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -226,6 +227,7 @@ export function ReportsPage() {
                   variant="outline"
                   size="sm"
                   data-testid="reports-clear-parent-scope"
+                  onKeyDown={activateButtonOnKeyDown}
                   onClick={clearParentScope}
                 >
                   {t("clearParentFilter")}

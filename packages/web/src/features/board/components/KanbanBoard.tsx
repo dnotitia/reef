@@ -30,6 +30,7 @@ import { useFlashStore } from "@/features/issues/stores/useFlashStore";
 import { useIssueKeyboardStore } from "@/features/issues/stores/useIssueKeyboardStore";
 import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { usePlanningCatalog } from "@/features/planning/hooks/usePlanningCatalog";
+import { activateButtonOnKeyDown } from "@/lib/keyboard";
 import { DURATION_BASE, EASE_SIGNATURE } from "@/lib/motionTokens";
 import {
   DndContext,
@@ -308,36 +309,39 @@ export function KanbanBoard({ vault }: KanbanBoardProps) {
             />
           ))}
           {showNoMatch && (
-            <section
-              data-testid="kanban-no-matches"
-              className="pointer-events-none absolute inset-x-6 top-16 z-10 flex justify-center"
-              aria-labelledby={`${noMatchId}-title`}
-              aria-describedby={`${noMatchId}-description`}
-            >
+            <div className="pointer-events-none absolute inset-x-6 top-16 z-10 flex justify-center">
               <div className="pointer-events-none flex max-w-md flex-col items-center rounded-lg border border-border-subtle bg-background/95 px-5 py-4 text-center backdrop-blur-sm">
-                <h2
-                  id={`${noMatchId}-title`}
-                  className="text-sm font-semibold text-foreground"
+                <section
+                  data-testid="kanban-no-matches"
+                  className="pointer-events-none flex flex-col items-center"
+                  aria-labelledby={`${noMatchId}-title`}
+                  aria-describedby={`${noMatchId}-description`}
                 >
-                  {t("noMatchTitle")}
-                </h2>
-                <p
-                  id={`${noMatchId}-description`}
-                  className="mt-1 text-xs text-muted-foreground"
-                >
-                  {t("noMatchDescription")}
-                </p>
+                  <h2
+                    id={`${noMatchId}-title`}
+                    className="text-sm font-semibold text-foreground"
+                  >
+                    {t("noMatchTitle")}
+                  </h2>
+                  <p
+                    id={`${noMatchId}-description`}
+                    className="mt-1 text-xs text-muted-foreground"
+                  >
+                    {t("noMatchDescription")}
+                  </p>
+                </section>
                 <Button
                   className="pointer-events-auto mt-3"
                   type="button"
                   variant="outline"
                   size="sm"
+                  onKeyDown={activateButtonOnKeyDown}
                   onClick={() => useIssueStore.getState().clearFilter()}
                 >
                   {common("clearFilters")}
                 </Button>
               </div>
-            </section>
+            </div>
           )}
         </div>
         <DragOverlay dropAnimation={DROP_ANIMATION}>

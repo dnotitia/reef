@@ -218,7 +218,10 @@ describe("KanbanBoard filtering and rendering", () => {
     expect(heading).toBeInTheDocument();
     expect(description).toBeInTheDocument();
     expect(
-      within(frame).getByRole("button", { name: "Clear filters" }),
+      within(frame).queryByRole("button", { name: "Clear filters" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Clear filters" }),
     ).toBeInTheDocument();
 
     for (const name of ["Todo", "In Progress", "In Review", "Done", "Closed"]) {
@@ -228,9 +231,7 @@ describe("KanbanBoard filtering and rendering", () => {
     expect(screen.getByTestId("dnd-context")).toBeInTheDocument();
 
     const user = userEvent.setup();
-    await user.click(
-      within(frame).getByRole("button", { name: "Clear filters" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
     expect(useIssueStore.getState().filter).toEqual({});
     expect(useIssueStore.getState().searchQuery).toBe("");
     expect(await screen.findByText("UI board polish")).toBeInTheDocument();

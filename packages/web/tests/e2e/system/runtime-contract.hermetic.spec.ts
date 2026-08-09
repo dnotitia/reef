@@ -329,13 +329,28 @@ test.describe("Hermetic runtime discovery", () => {
     ).toBeVisible();
     await recordFrame(planningEmpty);
 
+    const newSprint = page
+      .locator('[data-slot="page-header"]')
+      .getByRole("button", { name: "New sprint" });
+    await newSprint.focus();
+    await page.keyboard.press("Enter");
+    const planningDialog = page.locator(
+      '[data-testid="planning-editor-dialog"]',
+    );
+    await expect(planningDialog).toBeVisible();
+    await planningDialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(planningDialog).toBeHidden();
+    await expect(newSprint).toBeFocused();
+
     const reference = frameBoxes[0];
     for (const box of frameBoxes.slice(1)) {
       expect(Math.abs(box.width - reference.width)).toBeLessThanOrEqual(1);
       expect(Math.abs(box.height - reference.height)).toBeLessThanOrEqual(1);
     }
 
-    await page.getByRole("button", { name: "Milestones" }).click();
+    const milestones = page.getByRole("button", { name: "Milestones" });
+    await milestones.focus();
+    await page.keyboard.press("Space");
     await page.waitForURL(/planning\?kind=milestones$/);
     await expectNamedEmptyRegion(page.getByTestId("planning-empty-milestones"));
 
@@ -343,17 +358,14 @@ test.describe("Hermetic runtime discovery", () => {
     await page.waitForURL(/planning\?kind=releases$/);
     await expectNamedEmptyRegion(page.getByTestId("planning-empty-releases"));
 
-    await page
+    const newRelease = page
       .locator('[data-slot="page-header"]')
-      .getByRole("button", { name: "New release" })
-      .click();
-    await expect(
-      page.locator('[data-testid="planning-editor-dialog"]'),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "Cancel" }).click();
-    await expect(
-      page.locator('[data-testid="planning-editor-dialog"]'),
-    ).toBeHidden();
+      .getByRole("button", { name: "New release" });
+    await newRelease.click();
+    await expect(planningDialog).toBeVisible();
+    await planningDialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(planningDialog).toBeHidden();
+    await expect(newRelease).toBeFocused();
   });
 
   test("keeps empty frames and caught-up state aligned in narrow dark Korean viewports", async ({
@@ -669,7 +681,9 @@ test.describe("Hermetic runtime discovery", () => {
     await expect(page.getByText("No matching report data")).toBeVisible();
     await expect(page.getByText("docs")).toBeVisible();
 
-    await page.getByTestId("reports-clear-parent-scope").click();
+    const clearParentScope = page.getByTestId("reports-clear-parent-scope");
+    await clearParentScope.focus();
+    await page.keyboard.press("Enter");
     await expect(page.getByTestId("reports-clear-parent-scope")).toHaveCount(0);
     await expect(page.getByText("No matching report data")).toBeVisible();
     await expect(page.getByText("docs")).toBeVisible();

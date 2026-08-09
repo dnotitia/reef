@@ -3,6 +3,7 @@ import { IntlTestProvider } from "@/i18n/i18n.testSupport";
 import type { IssueMetadata } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -430,7 +431,9 @@ describe("ReportsPage", () => {
     expect(
       within(screen.getByTestId("reports-empty")).queryByRole("button"),
     ).not.toBeInTheDocument();
-    fireEvent.click(clear);
+    const user = userEvent.setup();
+    clear.focus();
+    await user.keyboard("{Enter}");
 
     // Parent facet cleared → its affordance disappears (the label filter still
     // scopes the page, so the empty state itself remains).

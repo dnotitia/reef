@@ -41,6 +41,7 @@ const STATUS_OPTIONS_BY_KIND: Record<PlanningKind, readonly string[]> = {
 
 export function PlanningEditorDialog({
   editor,
+  focusOriginRef,
   formError,
   onClose,
   onChange,
@@ -48,6 +49,7 @@ export function PlanningEditorDialog({
   isSaving,
 }: {
   editor: EditorState | null;
+  focusOriginRef: { current: HTMLElement | null };
   formError: string | null;
   onClose: () => void;
   onChange: (patch: Partial<PlanningItem>) => void;
@@ -95,6 +97,13 @@ export function PlanningEditorDialog({
         }}
         onEscapeKeyDown={(e) => {
           if (isSaving) e.preventDefault();
+        }}
+        onCloseAutoFocus={(event) => {
+          const origin = focusOriginRef.current;
+          focusOriginRef.current = null;
+          if (!origin?.isConnected) return;
+          event.preventDefault();
+          origin.focus({ preventScroll: true });
         }}
       >
         <DialogHeader>

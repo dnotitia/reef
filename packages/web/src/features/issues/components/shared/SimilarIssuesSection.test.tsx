@@ -211,6 +211,18 @@ describe("SimilarIssuesSection", () => {
     await waitFor(() =>
       expect(within(section).getByText("No close matches")).toBeInTheDocument(),
     );
+    const heading = within(section).getByRole("heading", {
+      name: "Similar issues",
+      level: 2,
+    });
+    const description = within(section).getByText("No close matches");
+    expect(section).toHaveAccessibleName("Similar issues");
+    expect(section).toHaveAccessibleDescription("No close matches");
+    expect(section).toHaveAttribute("aria-labelledby", heading.id);
+    expect(section).toHaveAttribute("aria-describedby", description.id);
+    expect(
+      within(section).queryByRole("heading", { level: 3 }),
+    ).not.toBeInTheDocument();
     expect(
       within(section).queryByTestId("search-progress-bar"),
     ).not.toBeInTheDocument();
