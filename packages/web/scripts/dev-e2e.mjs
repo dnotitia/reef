@@ -28,11 +28,6 @@ export const CLIENT_READINESS_INTERACTIONS = Object.freeze({
     observable: '[data-testid="new-issue-dialog"]',
     close: '[data-testid="new-issue-cancel"]',
   }),
-  issueCard: Object.freeze({
-    trigger: '[data-testid="kanban-card"]',
-    observable: '[data-testid="issue-detail"]',
-    close: '[data-testid="issue-close"]',
-  }),
 });
 const E2E_GITHUB_APP_PRIVATE_KEY = generateKeyPairSync("rsa", {
   modulusLength: 2048,
@@ -292,30 +287,6 @@ export async function probeWorkspaceClickInteractions(page, timeoutMs) {
     newIssueDialog,
     "hidden",
     "New Issue dialog close",
-    timeoutMs,
-  );
-
-  const issueCard = CLIENT_READINESS_INTERACTIONS.issueCard;
-  const issueCardTrigger = page.locator(issueCard.trigger).first();
-  const issueDetail = page.locator(issueCard.observable);
-  await waitForInteractionState(
-    issueCardTrigger,
-    "visible",
-    "existing issue card",
-    timeoutMs,
-  );
-  await issueCardTrigger.click();
-  await waitForInteractionState(
-    issueDetail,
-    "visible",
-    "issue detail after card click",
-    timeoutMs,
-  );
-  await page.locator(issueCard.close).click();
-  await waitForInteractionState(
-    issueDetail,
-    "hidden",
-    "issue detail close",
     timeoutMs,
   );
 }

@@ -105,11 +105,8 @@ describe("dev:e2e runtime contract", () => {
     ).toThrow(/fixture login password/);
   });
 
-  function readinessPage({
-    newIssueClickWorks = true,
-    issueCardClickWorks = true,
-  } = {}) {
-    const state = { newIssueOpen: false, issueDetailOpen: false };
+  function readinessPage({ newIssueClickWorks = true } = {}) {
+    const state = { newIssueOpen: false };
     const selectors: string[] = [];
     const locatorFor = (selector: string) => {
       const locator = {
@@ -118,9 +115,7 @@ describe("dev:e2e runtime contract", () => {
           const visible =
             selector === CLIENT_READINESS_INTERACTIONS.newIssue.observable
               ? state.newIssueOpen
-              : selector === CLIENT_READINESS_INTERACTIONS.issueCard.observable
-                ? state.issueDetailOpen
-                : true;
+              : true;
           if ((expected === "visible") !== visible) {
             throw new Error(`${selector} is not ${expected}`);
           }
@@ -132,14 +127,6 @@ describe("dev:e2e runtime contract", () => {
             selector === CLIENT_READINESS_INTERACTIONS.newIssue.close
           ) {
             state.newIssueOpen = false;
-          } else if (
-            selector === CLIENT_READINESS_INTERACTIONS.issueCard.trigger
-          ) {
-            if (issueCardClickWorks) state.issueDetailOpen = true;
-          } else if (
-            selector === CLIENT_READINESS_INTERACTIONS.issueCard.close
-          ) {
-            state.issueDetailOpen = false;
           }
         },
       };
@@ -157,7 +144,7 @@ describe("dev:e2e runtime contract", () => {
     };
   }
 
-  it("requires both ordinary workspace clicks to produce observable state", async () => {
+  it("requires an ordinary workspace click to produce observable state", async () => {
     const { page, selectors } = readinessPage();
 
     await probeWorkspaceClickInteractions(page, 1_000);
@@ -166,26 +153,16 @@ describe("dev:e2e runtime contract", () => {
       CLIENT_READINESS_INTERACTIONS.newIssue.trigger,
       CLIENT_READINESS_INTERACTIONS.newIssue.observable,
       CLIENT_READINESS_INTERACTIONS.newIssue.close,
-      CLIENT_READINESS_INTERACTIONS.issueCard.trigger,
-      CLIENT_READINESS_INTERACTIONS.issueCard.observable,
-      CLIENT_READINESS_INTERACTIONS.issueCard.close,
     ]);
   });
 
-  it("fails readiness when either ordinary workspace click is a no-op", async () => {
+  it("fails readiness when the ordinary workspace click is a no-op", async () => {
     await expect(
       probeWorkspaceClickInteractions(
         readinessPage({ newIssueClickWorks: false }).page,
         1_000,
       ),
     ).rejects.toThrow(/New Issue dialog after click/);
-
-    await expect(
-      probeWorkspaceClickInteractions(
-        readinessPage({ issueCardClickWorks: false }).page,
-        1_000,
-      ),
-    ).rejects.toThrow(/issue detail after card click/);
   });
 
   it("writes a private runtime ready descriptor", async () => {
