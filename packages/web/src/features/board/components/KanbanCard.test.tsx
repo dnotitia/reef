@@ -338,6 +338,24 @@ describe("KanbanCard", () => {
     expect(onClick).toHaveBeenCalledWith("reef-001");
   });
 
+  it("keeps read-only cards tabbable and keyboard-operable", () => {
+    const onClick = vi.fn();
+    render(
+      <KanbanCard
+        issue={mockIssue()}
+        onClick={onClick}
+        dragEnabled={false}
+        readOnlyReason="Label groups are read-only"
+      />,
+    );
+
+    const card = screen.getByTestId("kanban-card");
+    expect(card).toHaveAttribute("aria-disabled", "true");
+    expect(card).toHaveAttribute("tabindex", "0");
+    fireEvent.keyDown(card, { key: "Enter" });
+    expect(onClick).toHaveBeenCalledWith("reef-001");
+  });
+
   it("marks active past-due issues as overdue", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-10T00:00:00.000Z"));

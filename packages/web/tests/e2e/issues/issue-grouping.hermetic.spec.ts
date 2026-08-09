@@ -1,5 +1,6 @@
 import { type Locator, expect, test } from "@playwright/test";
 import {
+  clearPersistedQueryCacheOnLoad,
   openExistingWorkspace,
   readFixtureState,
   resetFixture,
@@ -30,9 +31,36 @@ async function dragCardToColumn(
   await page.mouse.up();
 }
 
+async function dragCardToColumnPoint(
+  page: import("@playwright/test").Page,
+  card: Locator,
+  column: Locator,
+  point: "center" | "header",
+): Promise<void> {
+  const source = await card.boundingBox();
+  const target = await column.boundingBox();
+  if (!source || !target)
+    throw new Error("Drag source or target is not visible");
+
+  await page.mouse.move(
+    source.x + source.width / 2,
+    source.y + source.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    target.x + target.width / 2,
+    point === "header"
+      ? target.y + 24
+      : target.y + Math.min(target.height / 2, 160),
+    { steps: 12 },
+  );
+  await page.mouse.up();
+}
+
 test.describe("Hermetic issue grouping (REEF-341)", () => {
-  test.beforeEach(async ({ context, request }) => {
+  test.beforeEach(async ({ context, page, request }) => {
     await context.clearCookies();
+    await clearPersistedQueryCacheOnLoad(page);
     await resetFixture(request, "configured");
   });
 
@@ -126,6 +154,105 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
     ).toBeVisible();
   });
 
+  test("toggles grouped List headers with native Enter and Space activation", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(`${WORKSPACE}?view=list&group=assignee`);
+
+    const toggle = page
+      .locator('[data-testid="issue-group-header"]')
+      .first()
+      .getByRole("button");
+    await expect(toggle).toBeVisible();
+    await toggle.focus();
+    await expect(toggle).toBeFocused();
+
+    await page.keyboard.press("Enter");
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(toggle).toBeFocused();
+
+    await page.keyboard.press("Space");
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(toggle).toBeFocused();
+  });
+
+  test("moves a real pointer drag from priority High to Medium", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "configured");
+    await context.clearCookies();
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await openExistingWorkspace(page);
+
+    await page.goto(`${WORKSPACE}?view=board&group=priority`);
+    const priorityCard = page
+      .getByTestId("kanban-card")
+      .filter({ hasText: "Initial issue Alpha" });
+    await dragCardToColumnPoint(
+      page,
+      priorityCard,
+      page.locator('[data-group-by="priority"][data-group-value="medium"]'),
+      "center",
+    );
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        return state.vaults
+          .find((vault) => vault.name === "reef-e2e")
+          ?.issues.find((issue) => issue.id === "REEF-001")?.priority;
+      })
+      .toBe("medium");
+
+    await page.reload();
+    await expect(
+      page
+        .locator(
+          '[data-group-by="priority"][data-group-value="medium"] [data-testid="kanban-card"]',
+        )
+        .filter({ hasText: "Initial issue Alpha" }),
+    ).toBeVisible();
+  });
+
+  test("moves a real pointer drag from assignee Alice to None", async ({
+    context,
+    page,
+    request,
+  }) => {
+    await resetFixture(request, "configured");
+    await context.clearCookies();
+    await openExistingWorkspace(page);
+
+    await page.goto(`${WORKSPACE}?view=board&group=assignee`);
+    const assigneeCard = page
+      .getByTestId("kanban-card")
+      .filter({ hasText: "Initial issue Alpha" });
+    await dragCardToColumnPoint(
+      page,
+      assigneeCard,
+      page.locator('[data-group-by="assignee"][data-group-value="none"]'),
+      "header",
+    );
+    await expect
+      .poll(async () => {
+        const state = await readFixtureState(request);
+        return state.vaults
+          .find((vault) => vault.name === "reef-e2e")
+          ?.issues.find((issue) => issue.id === "REEF-001")?.assigned_to;
+      })
+      .toBeNull();
+    await page.reload();
+    await expect(
+      page
+        .locator(
+          '[data-group-by="assignee"][data-group-value="none"] [data-testid="kanban-card"]',
+        )
+        .filter({ hasText: "Initial issue Alpha" }),
+    ).toBeVisible();
+  });
+
   test("moves writable Board groups, requires a close reason, and leaves Label read-only", async ({
     page,
     request,
@@ -144,7 +271,7 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
     await dragCardToColumn(
       page,
       priorityCard,
-      page.locator('[data-group-by="priority"][data-group-value="low"]'),
+      page.locator('[data-group-by="priority"][data-group-value="medium"]'),
     );
     await expect
       .poll(async () => {
@@ -153,7 +280,7 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
           .find((vault) => vault.name === "reef-e2e")
           ?.issues.find((issue) => issue.id === "REEF-104")?.priority;
       })
-      .toBe("low");
+      .toBe("medium");
 
     await page.goto(`${WORKSPACE}?view=board&group=status`);
     await expect(
@@ -201,5 +328,21 @@ test.describe("Hermetic issue grouping (REEF-341)", () => {
     await expect(
       page.locator('[data-group-by="label"] [role="tooltip"]').first(),
     ).toContainText("Label groups are read-only");
+  });
+
+  test("keeps Label Board cards tabbable and opens detail with Enter", async ({
+    page,
+  }) => {
+    await openExistingWorkspace(page);
+    await page.goto(`${WORKSPACE}?view=board&group=label`);
+
+    const labelCard = page.getByTestId("kanban-card").first();
+    await expect(labelCard).toHaveAttribute("aria-disabled", "true");
+    await expect(labelCard).toHaveAttribute("tabindex", "0");
+    await labelCard.focus();
+    await expect(labelCard).toBeFocused();
+
+    await page.keyboard.press("Enter");
+    await expect(page.locator('[data-testid="issue-detail"]')).toBeVisible();
   });
 });

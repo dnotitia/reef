@@ -364,7 +364,7 @@ export const KanbanCard = memo(function KanbanCard({
         isFlashing && "reef-flash-card",
       )}
       role="button"
-      tabIndex={focused || tabStopped ? 0 : -1}
+      tabIndex={readOnlyReason || focused || tabStopped ? 0 : -1}
       aria-selected={focused || undefined}
       data-shortcut-surface="issue-kanban-card"
       data-occurrence-key={keyboardOccurrenceKey}

@@ -53,6 +53,7 @@ import {
   usePriorityLabels,
   useStatusLabels,
 } from "@/i18n/fieldLabels";
+import { activateButtonOnKeyDown } from "@/lib/keyboard";
 import { cn } from "@/lib/utils";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronRight } from "lucide-react";
@@ -180,6 +181,7 @@ function IssueListGroupHeader({
           className="flex h-8 w-full items-center gap-2 px-3 text-left text-xs font-semibold text-foreground transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/40"
           aria-expanded={!collapsed}
           aria-label={`${actionLabel} · ${groupSummary}`}
+          onKeyDown={activateButtonOnKeyDown}
           onClick={onToggle}
         >
           <ChevronRight

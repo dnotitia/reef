@@ -134,6 +134,19 @@ describe("KanbanColumn", () => {
     expect(col.className).not.toContain("border-brand");
   });
 
+  it("registers the descriptor bucket as the droppable payload", () => {
+    const bucket = statusBucket("todo");
+    vi.mocked(useDroppable).mockClear();
+
+    renderColumn({ bucket, issues: [] });
+
+    expect(useDroppable).toHaveBeenCalledWith({
+      id: bucket.id,
+      data: { bucket },
+      disabled: false,
+    });
+  });
+
   it("forwards onIssueClick to each card", () => {
     const onIssueClick = vi.fn();
     const issues = [makeTestIssue("reef-001"), makeTestIssue("reef-002")];

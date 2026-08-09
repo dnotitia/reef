@@ -40,6 +40,7 @@ export const KanbanColumn = memo(function KanbanColumn({
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: bucket.id,
+    data: { bucket },
     disabled: !bucket.droppable,
   });
   // Layout transition: when a card joins/leaves this column (status change) or

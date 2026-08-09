@@ -3,7 +3,7 @@ import { useIssueStore } from "@/features/issues/stores/useIssueStore";
 import { apiFetch } from "@/lib/apiClient";
 import type { IssueMetadata } from "@reef/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -284,5 +284,39 @@ describe("IssueListTable", () => {
     expect(zebraHeader).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByText("Second label task")).toBeNull();
     expect(screen.getByText("First task")).toBeInTheDocument();
+  });
+
+  it("toggles a grouped header from native Enter and Space key activation", async () => {
+    const groupedIssues: IssueMetadata[] = [
+      { ...issues[0], labels: ["alpha"] },
+      { ...issues[1], labels: ["beta"] },
+    ];
+    mockApiFetch.mockImplementation(async (url) => {
+      if (String(url).startsWith("/api/vault-members")) {
+        return new Response(JSON.stringify({ users: [] }), { status: 200 });
+      }
+      if (String(url).startsWith("/api/issues/relations")) {
+        return new Response(JSON.stringify({ relations: [] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ issues: groupedIssues }), {
+        status: 200,
+      });
+    });
+
+    render(wrap(<IssueListTable vault="reef-acme" groupBy="label" />));
+
+    const toggle = await screen.findByRole("button", {
+      name: /Collapse alpha/,
+    });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    toggle.focus();
+    expect(toggle).toHaveFocus();
+    fireEvent.keyDown(toggle, { key: "Enter" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveFocus();
+
+    fireEvent.keyDown(toggle, { key: " " });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(toggle).toHaveFocus();
   });
 });

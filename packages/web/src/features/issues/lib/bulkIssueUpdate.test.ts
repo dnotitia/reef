@@ -24,8 +24,17 @@ describe("buildBulkIssuePatch", () => {
       buildBulkIssuePatch(ISSUE, { kind: "assignee", value: "alice" }),
     ).toBeNull();
     expect(
+      buildBulkIssuePatch(ISSUE, { kind: "assignee", value: null }),
+    ).toEqual({ assigned_to: null });
+    expect(
       buildBulkIssuePatch(ISSUE, { kind: "priority", value: null }),
     ).toEqual({ priority: null });
+    expect(
+      buildBulkIssuePatch(
+        { ...ISSUE, status: "todo", sprint_id: "sprint-1" },
+        { kind: "sprint", value: null },
+      ),
+    ).toEqual({ sprint_id: null });
   });
 
   it("maintains the sprint-backlog invariant in both directions", () => {

@@ -323,7 +323,9 @@ export function KanbanBoard({ vault, groupBy = "status" }: KanbanBoardProps) {
     setActiveIssueId(null);
 
     if (!over || !active.data.current) return;
-    const bucket = bucketById.get(String(over.id));
+    const bucket =
+      (over.data?.current?.bucket as IssueGroupBucket | undefined) ??
+      bucketById.get(String(over.id));
     if (!bucket?.droppable) return;
 
     const issue = active.data.current.issue as IssueListItem;
